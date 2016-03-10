@@ -15,9 +15,10 @@ namespace OPS.Imaging.Imaging
     /// <typeparam name="T"></typeparam>
     public class GenericImage<T>
     {
-        
-        public T[][] Data;
         public ImageMetadata Metadata;
+        public CameraModel CameraModel;
+
+        public T[][] Data;        
         public int Bands;
         public int Width;
         public int Height;
