@@ -1,0 +1,8 @@
+Imaging/bin/
+Imaging/obj/
+ImagingTest/bin/
+ImagingTest/obj/
+Pipeline/bin/
+Pipeline/obj/
+packages/
+.vs/
