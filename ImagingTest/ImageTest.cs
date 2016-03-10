@@ -1,6 +1,6 @@
 ﻿using System;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using OPS.Imaging;
+using OPS.Imaging.Imaging;
 
 namespace ImagingTest
 {

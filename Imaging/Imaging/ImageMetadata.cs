@@ -4,18 +4,18 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace OPS.Imaging
+namespace OPS.Imaging.Imaging
 {
     /// <summary>
-    /// Used to determine structure of a file without opening it
+    /// Base class for Image Metadata
     /// </summary>
-    struct ImageInfo
+    public class ImageMetadata
     {
         public int Bands;
         public int Width;
         public int Height;
 
-        public ImageInfo(int b, int w, int h)
+        public ImageMetadata(int b, int w, int h)
         {
             Bands = b;
             Width = w;

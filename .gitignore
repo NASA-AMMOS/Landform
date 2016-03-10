@@ -6,3 +6,7 @@ Pipeline/bin/
 Pipeline/obj/
 packages/
 .vs/
+Xna/bin/
+Xna/obj/
+XnaTest/bin/
+XnaTest/obj/

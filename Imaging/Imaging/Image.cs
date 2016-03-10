@@ -4,16 +4,21 @@ using System.Linq;
 using System.Text;
 using OPS.Imaging.Serializers;
 
-namespace OPS.Imaging
+namespace OPS.Imaging.Imaging
 {
     /// <summary>
     /// This is the primary image class.  It stores data in a floating point format
     /// to enable generalized operations on a large variety of image types.
+    /// 
+    /// Common image operations should be implemented here
+    /// 
+    /// When used to store RGB values are stored in normalized 0-1 form
+    /// 
     /// </summary>
     public class Image : GenericImage<float>
     {
 
-        public Image(int bands, int width, int height) : base(bands, width,height) { }
+        public Image(int bands, int width, int height) : base(bands, width, height) { }
 
 
         public Image(string filename)

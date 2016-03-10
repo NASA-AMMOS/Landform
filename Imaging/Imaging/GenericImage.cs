@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace OPS.Imaging
+namespace OPS.Imaging.Imaging
 {
     /// <summary>
     /// A generic image container class that supports many different 
@@ -15,7 +15,9 @@ namespace OPS.Imaging
     /// <typeparam name="T"></typeparam>
     public class GenericImage<T>
     {
+        
         public T[][] Data;
+        public ImageMetadata Metadata;
         public int Bands;
         public int Width;
         public int Height;
