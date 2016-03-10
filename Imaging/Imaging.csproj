@@ -65,8 +65,10 @@
     <Compile Include="ImageInfo.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Serializers\GDALSeralizer.cs" />
+    <Compile Include="Serializers\ImageConverter.cs" />
     <Compile Include="Serializers\ImageSaveOptions.cs" />
     <Compile Include="Serializers\ImageSeralizer.cs" />
+    <Compile Include="Serializers\PDSSeralizer.cs" />
   </ItemGroup>
   <ItemGroup>
     <Content Include="GdalConfiguration.vb" />
