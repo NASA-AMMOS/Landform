@@ -1,6 +1,6 @@
 ﻿using System;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using OPS.Imaging.Imaging;
+using OPS.Imaging;
 
 namespace ImagingTest
 {
@@ -10,7 +10,7 @@ namespace ImagingTest
         [TestMethod]
         public void Constructor()
         {
-            Image img = new Image(@"G:\TerrainResults\sd0003101330\build\SuperDem\superdem_near.tif");
+            Image img = Image.Load<byte>(@"G:\TerrainResults\sd0003101330\build\SuperDem\superdem_near.tif", new GDALSeralizer<byte>(), NaiveImageConverter.ByteConverter);
         }
     }
 }

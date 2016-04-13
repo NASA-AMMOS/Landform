@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace OPS.Imaging.Imaging
+namespace OPS.Imaging
 {
     /// <summary>
     /// A generic image container class that supports many different 

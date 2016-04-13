@@ -70,9 +70,10 @@
     <Compile Include="Imaging\ImageMetadata.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Serializers\GDALSeralizer.cs" />
-    <Compile Include="Serializers\ImageConverter.cs" />
+    <Compile Include="Serializers\IImageConverter.cs" />
     <Compile Include="Serializers\ImageSaveOptions.cs" />
-    <Compile Include="Serializers\ImageSeralizer.cs" />
+    <Compile Include="Serializers\IImageSeralizer.cs" />
+    <Compile Include="Serializers\NaiveImageConverter.cs" />
     <Compile Include="Serializers\PDSSeralizer.cs" />
   </ItemGroup>
   <ItemGroup>

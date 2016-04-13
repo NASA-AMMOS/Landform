@@ -3,17 +3,17 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using OPS.Imaging.Imaging;
 
-namespace OPS.Imaging.Serializers
+
+namespace OPS.Imaging
 {
     /// <summary>
     /// Image serializers are responsible for reading and saving GenericImages
     /// and metadata
     /// </summary>
-    interface ImageSeralizer<T>
+    public interface IImageSeralizer<T>
     {        
-        Image Read(string filename, ImageConverter<T> converter);
-        void Write(string filename, ImageConverter<T> converter);
+        GenericImage<T> Read(string filename);
+        void Write(string filename, GenericImage<T> image);
     }
 }

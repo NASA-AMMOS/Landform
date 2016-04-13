@@ -5,7 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 using Microsoft.Xna.Framework;
 
-namespace OPS.Imaging.Imaging
+namespace OPS.Imaging
 {
     public abstract class CameraModel
     {
