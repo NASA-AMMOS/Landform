@@ -71,7 +71,6 @@
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Serializers\GDALSeralizer.cs" />
     <Compile Include="Serializers\IImageConverter.cs" />
-    <Compile Include="Serializers\ImageSaveOptions.cs" />
     <Compile Include="Serializers\IImageSeralizer.cs" />
     <Compile Include="Serializers\ImageConverters.cs" />
     <Compile Include="Serializers\PDSSeralizer.cs" />
