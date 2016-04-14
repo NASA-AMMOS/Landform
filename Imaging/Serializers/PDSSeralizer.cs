@@ -9,14 +9,14 @@ namespace OPS.Imaging
     /// <summary>
     /// Reads PDSImages.  
     /// </summary>
-    public class PDSSeralizer<T> : IImageSeralizer<T>
+    public class PDSSeralizer : IImageSeralizer
     {
-        public GenericImage<T> Read(string filename)
+        public Image Read(string filename, IImageConverter converter)
         {
             throw new NotImplementedException();
         }
 
-        public void Write(string filename, GenericImage<T> image)
+        public void Write<T>(string filename, Image image, IImageConverter converter)
         {
             throw new NotImplementedException();
         }

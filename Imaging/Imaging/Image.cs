@@ -12,7 +12,11 @@ namespace OPS.Imaging
     /// 
     /// Common image operations should be implemented here
     /// 
-    /// When used to store RGB values are stored in normalized 0-1 form
+    /// Normalized forms:
+    /// RGB values are represented in normalized 0-1 form
+    /// LAB values are represented in their own wierd range
+    /// Position values are represented as XYZ coordinates
+    /// Grayscale values are represented 0-1 and may optionally be replicated between bands
     /// 
     /// </summary>
     public class Image : GenericImage<float>
@@ -26,17 +30,46 @@ namespace OPS.Imaging
         /// <param name="height"></param>
         public Image(int bands, int width, int height) : base(bands, width, height) { }
 
+        /// <summary>
+        /// Load an image using gdal and normalize values based on type value range
+        /// </summary>
+        /// <param name="filename"></param>
+        /// <returns></returns>
+        public static Image Load(string filename)
+        {
+            return new GDALSeralizer().Read(filename, ImageConverters.ValueRangeToNormalizedImage);
+        }
 
         /// <summary>
         /// Loads a new image from a file
         /// </summary>
         /// <param name="filename"></param>
-        /// <param name=""></param>
-        public static Image Load<T>(string filename, IImageSeralizer<T> serializer, IImageConverter<T> converter)
+        /// <param name="serializer"></param>
+        /// <param name="converter"></param>
+        public static Image Load(string filename, IImageSeralizer serializer, IImageConverter converter)
         {
-            throw new NotImplementedException();
+            return serializer.Read(filename, converter);
         }
 
 
+        /// <summary>
+        /// Saves image to disk using gdal and convert from normalzied values to value range
+        /// </summary>
+        /// <param name="filename"></param>
+        public void Save<T>(string filename)
+        {
+            new GDALSeralizer().Write<T>(filename, this, ImageConverters.NormalizedImageToValueRange);
+        }
+
+        /// <summary>
+        /// Saves image to disk
+        /// </summary>
+        /// <param name="filename"></param>
+        /// <param name="serializer"></param>
+        /// <param name="converter"></param>
+        public void Save<T>(string filename, IImageSeralizer serializer, IImageConverter converter)
+        {
+            serializer.Write<T>(filename, this, converter);
+        }
     }
 }

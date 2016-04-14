@@ -73,7 +73,7 @@
     <Compile Include="Serializers\IImageConverter.cs" />
     <Compile Include="Serializers\ImageSaveOptions.cs" />
     <Compile Include="Serializers\IImageSeralizer.cs" />
-    <Compile Include="Serializers\NaiveImageConverter.cs" />
+    <Compile Include="Serializers\ImageConverters.cs" />
     <Compile Include="Serializers\PDSSeralizer.cs" />
   </ItemGroup>
   <ItemGroup>

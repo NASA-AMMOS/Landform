@@ -14,14 +14,14 @@ namespace OPS.Imaging
     /// <summary>
     /// Reads all image types supported by GDAL
     /// </summary>
-    public class GDALSeralizer<T> : IImageSeralizer<T>
+    public class GDALSeralizer : IImageSeralizer
     {
-        public GenericImage<T> Read(string filename)
+        public Image Read(string filename, IImageConverter converter)
         {
             throw new NotImplementedException();
         }
 
-        public void Write(string filename, GenericImage<T> image)
+        public void Write<T>(string filename, Image image, IImageConverter converter)
         {
             throw new NotImplementedException();
         }

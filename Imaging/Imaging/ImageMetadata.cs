@@ -14,7 +14,7 @@ namespace OPS.Imaging
         public int Bands;
         public int Width;
         public int Height;
-
+        
         public ImageMetadata(int b, int w, int h)
         {
             Bands = b;
