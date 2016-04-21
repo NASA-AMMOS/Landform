@@ -31,20 +31,5 @@ namespace OPS.Imaging
             }
         }
 
-        private class MinMax2NormalizedImage : IImageConverter
-        {
-            public Image Convert<T>(Image image)
-            {
-                throw new NotImplementedException();
-            }
-        }
-
-        private class MinMax2ValueRange : IImageConverter
-        {
-            public Image Convert<T>(Image image)
-            {
-                throw new NotImplementedException();
-            }
-        }
     }
 }
