@@ -12,8 +12,6 @@ namespace OPS.Imaging
     {
         public static IImageConverter ValueRangeToNormalizedImage = new ValueRange2NormalizedImage();
         public static IImageConverter NormalizedImageToValueRange = new NormalizedImage2ValueRange();
-        public static IImageConverter MinMaxToNormalizedImage = new MinMax2NormalizedImage();
-        public static IImageConverter MinMaxToValueRange = new MinMax2ValueRange();
 
         private class ValueRange2NormalizedImage : IImageConverter
         {
