@@ -71,5 +71,18 @@ namespace OPS.Imaging
         {
             serializer.Write<T>(filename, this, converter);
         }
+
+
+        public void ScaleValues(float beforeMin, float beforeMax, float afterMin, float afterMax)
+        {
+            float beforeRange = beforeMax - beforeMin;
+            float afterRange = afterMax - afterMin;
+            ApplyInPlace(x =>
+            {
+                float amount = (x - beforeMin) / beforeRange;
+                return afterMin + afterRange * amount;
+            });
+        }
+
     }
 }

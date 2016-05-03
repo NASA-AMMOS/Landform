@@ -61,5 +61,10 @@ namespace OPS.Imaging
                 }
             }
         }
+
+        public override object Clone()
+        {
+            return new GDALCameraModel(this.GeoTransform, this.Projection);
+        }
     }
 }

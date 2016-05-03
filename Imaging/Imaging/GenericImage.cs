@@ -13,7 +13,7 @@ namespace OPS.Imaging
     /// based Image class.
     /// </summary>
     /// <typeparam name="T"></typeparam>
-    public class GenericImage<T>
+    public class GenericImage<T> : ICloneable
     {
         public ImageMetadata Metadata;
         public CameraModel CameraModel;
@@ -47,6 +47,7 @@ namespace OPS.Imaging
 
         protected void Initalize(int bands, int width, int height)
         {
+            Metadata = new ImageMetadata(bands, width, height);
             this.Bands = bands;
             this.Width = width;
             this.Height = height;
@@ -54,6 +55,43 @@ namespace OPS.Imaging
             for (int c = 0; c < bands; c++)
             {
                 Data[c] = new T[width * height];
+            }
+        }
+
+        /// <summary>
+        /// Performas a deep copy of the image
+        /// </summary>
+        /// <returns></returns>
+        public object Clone()
+        {
+            GenericImage<T> clone = new GenericImage<T>(this.Bands, this.Width, this.Height);
+            for(int b = 0; b < Data.Length; b++)
+            {
+                Array.Copy(Data[b], clone.Data[b], Data[b].Length);
+            }
+            if(Mask != null)
+            {
+                clone.Mask = new bool[Mask.Length];
+                Array.Copy(this.Mask, clone.Mask, this.Mask.Length);
+            }
+            clone.Metadata = (ImageMetadata)Metadata.Clone();
+            clone.CameraModel = (CameraModel)CameraModel.Clone();
+            return clone;
+        }
+
+        /// <summary>
+        /// Applys a function to every value in every band of the image
+        /// The result is written back to the array in place
+        /// </summary>
+        /// <param name="f"></param>
+        public void ApplyInPlace(Func<T, T> f)
+        {
+            for (int b = 0; b < Data.Length; b++)
+            {
+                for (int i = 0; i < Data[b].Length; i++)
+                {
+                    this.Data[b][i] = f(this.Data[b][i]);
+                }
             }
         }
 

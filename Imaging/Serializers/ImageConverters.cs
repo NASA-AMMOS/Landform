@@ -13,11 +13,46 @@ namespace OPS.Imaging
         public static IImageConverter ValueRangeToNormalizedImage = new ValueRange2NormalizedImage();
         public static IImageConverter NormalizedImageToValueRange = new NormalizedImage2ValueRange();
 
+                
         private class ValueRange2NormalizedImage : IImageConverter
         {
+            /// <summary>
+            /// Returns a copy of an image normaized between 0-1
+            /// Assumes input values range from 0-MaxValue for most types
+            /// No scaling is performed on float or double types
+            /// </summary>
+            /// <typeparam name="T"></typeparam>
+            /// <param name="image"></param>
+            /// <returns></returns>
             public Image Convert<T>(Image image)
             {
-                throw new NotImplementedException();
+                Image converted = (Image)image.Clone();
+                float maxValue = 0;
+                if (typeof(T) == typeof(byte))
+                {
+                    maxValue = byte.MaxValue;
+                }
+                else if (typeof(T) == typeof(short))
+                {
+                    maxValue = short.MaxValue;
+                }
+                else if (typeof(T) == typeof(ushort))
+                {
+                    maxValue = ushort.MaxValue;
+                }
+                else if (typeof(T) == typeof(int))
+                {
+                    maxValue = int.MaxValue;
+                }
+                else if (typeof(T) == typeof(uint))
+                {
+                    maxValue = uint.MaxValue;
+                }
+                if (typeof(T) != typeof(float) && typeof(T) != typeof(double))
+                {
+                    converted.ScaleValues(0, maxValue, 0, 1);
+                }
+                return converted;
             }
         }
 
@@ -25,7 +60,33 @@ namespace OPS.Imaging
         {
             public Image Convert<T>(Image image)
             {
-                throw new NotImplementedException();
+                Image converted = (Image)image.Clone();
+                float maxValue = 0;
+                if (typeof(T) == typeof(byte))
+                {
+                    maxValue = byte.MaxValue;
+                }
+                else if (typeof(T) == typeof(short))
+                {
+                    maxValue = short.MaxValue;
+                }
+                else if (typeof(T) == typeof(ushort))
+                {
+                    maxValue = ushort.MaxValue;
+                }
+                else if (typeof(T) == typeof(int))
+                {
+                    maxValue = int.MaxValue;
+                }
+                else if (typeof(T) == typeof(uint))
+                {
+                    maxValue = uint.MaxValue;
+                }
+                if (typeof(T) != typeof(float) && typeof(T) != typeof(double))
+                {
+                    converted.ScaleValues(0, 1, 0, maxValue);
+                }
+                return converted;
             }
         }
 
