@@ -64,12 +64,16 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="GdalConfiguration.cs" />
-    <Compile Include="Imaging\CameraModel.cs" />
+    <Compile Include="Imaging\CameraModels\CameraModel.cs" />
     <Compile Include="Imaging\GenericImage.cs" />
+    <Compile Include="Imaging\CameraModels\GDALCameraModel.cs" />
     <Compile Include="Imaging\Image.cs" />
     <Compile Include="Imaging\ImageMetadata.cs" />
+    <Compile Include="Imaging\SpatialTranslators\ISpatialTranslator.cs" />
+    <Compile Include="Imaging\SpatialTranslators\MarsSpatialTranslator.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Serializers\GDALSeralizer.cs" />
+    <Compile Include="Serializers\GDALWriteOptions.cs" />
     <Compile Include="Serializers\IImageConverter.cs" />
     <Compile Include="Serializers\IImageSeralizer.cs" />
     <Compile Include="Serializers\ImageConverters.cs" />

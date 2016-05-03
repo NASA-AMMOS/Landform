@@ -22,6 +22,11 @@ namespace OPS.Imaging
         public int Bands;
         public int Width;
         public int Height;
+        /// <summary>
+        /// A mask value of true indicates that the value is masked out
+        /// A mask value of false indicates that the value is valid
+        /// A null mask means that this image does not have a mask
+        /// </summary>
         public bool[] Mask;
 
         protected GenericImage()
