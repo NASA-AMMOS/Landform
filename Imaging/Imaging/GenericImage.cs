@@ -54,7 +54,7 @@ namespace OPS.Imaging
             this.Initalize(that.Bands, that.Width, that.Height);
             for (int b = 0; b < that.Data.Length; b++)
             {
-                Array.Copy(this.Data[b], that.Data[b], that.Data[b].Length);
+                Array.Copy(that.Data[b], this.Data[b], that.Data[b].Length);
             }
             if (that.Mask != null)
             {
