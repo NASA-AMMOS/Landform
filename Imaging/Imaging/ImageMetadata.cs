@@ -22,9 +22,20 @@ namespace OPS.Imaging
             Height = h;
         }
 
+        /// <summary>
+        /// Copy constructor
+        /// </summary>
+        /// <param name="that"></param>
+        public ImageMetadata(ImageMetadata that)
+        {
+            this.Bands = that.Bands;
+            this.Width = that.Width;
+            this.Height = that.Height;
+        }
+
         public object Clone()
         {
-            return new ImageMetadata(Bands, Width, Height);
+            return new ImageMetadata(this);
         }
     }
 }

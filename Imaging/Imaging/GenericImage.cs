@@ -45,6 +45,41 @@ namespace OPS.Imaging
             Initalize(bands, width, height);
         }
 
+        /// <summary>
+        /// Copy constructor
+        /// </summary>
+        /// <param name="toCopy"></param>
+        public GenericImage(GenericImage<T> that)
+        {
+            this.Initalize(that.Bands, that.Width, that.Height);
+            for (int b = 0; b < that.Data.Length; b++)
+            {
+                Array.Copy(this.Data[b], that.Data[b], that.Data[b].Length);
+            }
+            if (that.Mask != null)
+            {
+                this.Mask = new bool[that.Mask.Length];
+                Array.Copy(that.Mask, this.Mask, that.Mask.Length);
+            }
+            if (that.Metadata != null)
+            {
+                this.Metadata = (ImageMetadata)that.Metadata.Clone();
+            }
+            if (that.CameraModel != null)
+            {
+                this.CameraModel = (CameraModel)that.CameraModel.Clone();
+            }
+        }
+
+        /// <summary>
+        /// Performas a deep copy of the image
+        /// </summary>
+        /// <returns></returns>
+        public object Clone()
+        {
+            return new GenericImage<T>(this);
+        }
+
         protected void Initalize(int bands, int width, int height)
         {
             Metadata = new ImageMetadata(bands, width, height);
@@ -57,27 +92,7 @@ namespace OPS.Imaging
                 Data[c] = new T[width * height];
             }
         }
-
-        /// <summary>
-        /// Performas a deep copy of the image
-        /// </summary>
-        /// <returns></returns>
-        public object Clone()
-        {
-            GenericImage<T> clone = new GenericImage<T>(this.Bands, this.Width, this.Height);
-            for(int b = 0; b < Data.Length; b++)
-            {
-                Array.Copy(Data[b], clone.Data[b], Data[b].Length);
-            }
-            if(Mask != null)
-            {
-                clone.Mask = new bool[Mask.Length];
-                Array.Copy(this.Mask, clone.Mask, this.Mask.Length);
-            }
-            clone.Metadata = (ImageMetadata)Metadata.Clone();
-            clone.CameraModel = (CameraModel)CameraModel.Clone();
-            return clone;
-        }
+        
 
         /// <summary>
         /// Applys a function to every value in every band of the image

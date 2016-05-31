@@ -30,6 +30,16 @@ namespace OPS.Imaging
         /// <param name="height"></param>
         public Image(int bands, int width, int height) : base(bands, width, height) { }
 
+
+        /// <summary>
+        /// Copy constructor
+        /// </summary>
+        /// <param name="that"></param>
+        public Image(Image that) : base(that)
+        {
+
+        }
+
         /// <summary>
         /// Load an image using gdal and normalize values based on type value range
         /// </summary>
@@ -58,6 +68,7 @@ namespace OPS.Imaging
         /// <param name="filename"></param>
         public void Save<T>(string filename)
         {
+            new GDALSeralizer();
             new GDALSeralizer().Write<T>(filename, this, ImageConverters.NormalizedImageToValueRange);
         }
 
@@ -83,6 +94,12 @@ namespace OPS.Imaging
                 return afterMin + afterRange * amount;
             });
         }
+
+        public new object Clone()
+        {
+            return new Image(this);
+        }
+
 
     }
 }

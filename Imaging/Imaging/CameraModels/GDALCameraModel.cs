@@ -33,7 +33,15 @@ namespace OPS.Imaging
             inverseGeoMatrix = Matrix.Invert(geoMatrix);
             projectedFrame = new SpatialReference(projection);
         }
-             
+
+        /// <summary>
+        /// Copy constructor
+        /// </summary>
+        /// <param name="that"></param>
+        public GDALCameraModel(GDALCameraModel that)
+        {
+
+        }             
 
         public override Vector2 Backproject(Vector3 pos, out double range)
         {
@@ -64,7 +72,7 @@ namespace OPS.Imaging
 
         public override object Clone()
         {
-            return new GDALCameraModel(this.GeoTransform, this.Projection);
+            return new GDALCameraModel(this);
         }
     }
 }

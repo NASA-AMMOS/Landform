@@ -22,12 +22,13 @@ namespace OPS.Imaging
         }
 
         static object gdalLockObj = new object();
-
+                
         static GDALSeralizer()
         {
             lock(gdalLockObj)
             {
-                Gdal.AllRegister();
+                GdalConfiguration.ConfigureGdal();
+                GdalConfiguration.ConfigureOgr();
             }
         }
 
