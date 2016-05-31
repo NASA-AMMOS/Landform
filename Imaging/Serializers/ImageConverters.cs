@@ -56,6 +56,11 @@ namespace OPS.Imaging
             }
         }
 
+        /// <summary>
+        /// Returns a copy of an image with values ranging from 0 to T.MaxValue
+        /// Assumes input image values are normalized 0-1 for most types
+        /// No scaling is performed on float or double types
+        /// </summary>
         private class NormalizedImage2ValueRange : IImageConverter
         {
             public Image Convert<T>(Image image)
