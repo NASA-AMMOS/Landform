@@ -81,7 +81,9 @@ namespace OPS.Imaging
 
         /// <summary>
         /// Linearly scales values in the image from [beforeMin, beforeMax] to [afterMin, afterMax]
-        /// Scaling is applied uniformly to all bands of the image
+        /// Scaling is applied uniformly to all bands of the image.
+        /// Result values are clamped to afterMin and afterMax in the case that input values are outside
+        /// beforeMin and beforeMax
         /// </summary>
         /// <param name="beforeMin">min value in original imge</param>
         /// <param name="beforeMax">max value in original image</param>
@@ -94,7 +96,16 @@ namespace OPS.Imaging
             ApplyInPlace(x =>
             {
                 float amount = (x - beforeMin) / beforeRange;
-                return afterMin + afterRange * amount;
+                float result = afterMin + afterRange * amount;
+                if(result > afterMax)
+                {
+                    result = afterMax;
+                }
+                if(result < afterMin)
+                {
+                    result = afterMin;
+                }
+                return result;
             });
         }
 

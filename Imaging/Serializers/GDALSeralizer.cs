@@ -61,7 +61,6 @@ namespace OPS.Imaging
                     {
                         using (Band band = dataset.GetRasterBand(b + 1))
                         {
-
                             object bandData = img.Data[b];
                             if (band.DataType == DataType.GDT_Byte)
                             {
@@ -109,7 +108,38 @@ namespace OPS.Imaging
                             }
                         }
                     }
-                    return converter.Convert<float>(img);
+
+                    using (Band band = dataset.GetRasterBand(1))
+                    {
+                        if (band.DataType == DataType.GDT_Byte)
+                        {
+                            return converter.Convert<byte>(img);
+                        }
+                        else if (band.DataType == DataType.GDT_Float32 || band.DataType == DataType.GDT_Float64)
+                        {
+                            return converter.Convert<float>(img);
+                        }
+                        else if (band.DataType == DataType.GDT_Int16)
+                        {
+                            return converter.Convert<Int16>(img);
+                        }
+                        else if (band.DataType == DataType.GDT_Int32)
+                        {
+                            return converter.Convert<Int32>(img);
+                        }
+                        else if (band.DataType == DataType.GDT_UInt16)
+                        {
+                            return converter.Convert<UInt16>(img);
+                        }
+                        else if (band.DataType == DataType.GDT_UInt32)
+                        {
+                            return converter.Convert<UInt32>(img);
+                        }
+                        else
+                        {
+                            throw new Exception("Unsupported type in image file");
+                        }
+                    }                    
                 }
             }
         }
