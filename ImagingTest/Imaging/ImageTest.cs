@@ -6,6 +6,7 @@ using System.IO;
 namespace ImageTest
 {
     [TestClass]
+    [DeploymentItem("gdal", "gdal")]
     public class ImageTest
     {
         [TestMethod]
