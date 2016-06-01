@@ -224,7 +224,7 @@ namespace OPS.Imaging
                                 byte[] buffer = new byte[convertedImage.Width*convertedImage.Height];
                                 for (int i = 0; i < buffer.Length; i++)
                                 {                                  
-                                    buffer[i] = (byte)MathExtensions.MathE.Clamp((long)convertedImage.Data[b][i], 0, (long)byte.MaxValue);
+                                    buffer[i] = (byte)convertedImage.Data[b][i];
                                 }
                                 band.WriteRaster(0, 0, convertedImage.Width, convertedImage.Height, buffer, convertedImage.Width, convertedImage.Height, 0, 0);
                             }
@@ -246,7 +246,7 @@ namespace OPS.Imaging
                                 short[] buffer = new short[convertedImage.Width * convertedImage.Height];
                                 for (int i = 0; i < buffer.Length; i++)
                                 {
-                                    buffer[i] = (short)MathExtensions.MathE.Clamp((long)convertedImage.Data[b][i], (long)short.MinValue, (long)short.MaxValue);
+                                    buffer[i] = (short)convertedImage.Data[b][i];
                                 }
                                 band.WriteRaster(0, 0, convertedImage.Width, convertedImage.Height, buffer, convertedImage.Width, convertedImage.Height, 0, 0);
                             }
@@ -255,7 +255,7 @@ namespace OPS.Imaging
                                 int[] buffer = new int[convertedImage.Width * convertedImage.Height];
                                 for (int i = 0; i < buffer.Length; i++)
                                 {                                                                        
-                                    buffer[i] = (int)MathExtensions.MathE.Clamp((long)convertedImage.Data[b][i], (long)ushort.MinValue, (long)ushort.MaxValue);
+                                    buffer[i] = (int)convertedImage.Data[b][i];
                                 }
                                 band.WriteRaster(0, 0, convertedImage.Width, convertedImage.Height, buffer, convertedImage.Width, convertedImage.Height, 0, 0);
                             }
