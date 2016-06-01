@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 using System.Threading;
 using OSGeo.GDAL;
 using System.IO;
-
+using OPS.MathExtensions;
 
 namespace OPS.Imaging
 {    
@@ -144,6 +144,7 @@ namespace OPS.Imaging
             }
         }
 
+
         public void Write<T>(string filename, Image image, IImageConverter converter)
         {
             // Specify mapping from extension to gdal driver type
@@ -222,8 +223,8 @@ namespace OPS.Imaging
                             {
                                 byte[] buffer = new byte[convertedImage.Width*convertedImage.Height];
                                 for (int i = 0; i < buffer.Length; i++)
-                                {
-                                    buffer[i] = (byte)convertedImage.Data[b][i];
+                                {                                  
+                                    buffer[i] = (byte)MathExtensions.MathE.Clamp((long)convertedImage.Data[b][i], 0, (long)byte.MaxValue);
                                 }
                                 band.WriteRaster(0, 0, convertedImage.Width, convertedImage.Height, buffer, convertedImage.Width, convertedImage.Height, 0, 0);
                             }
@@ -245,19 +246,28 @@ namespace OPS.Imaging
                                 short[] buffer = new short[convertedImage.Width * convertedImage.Height];
                                 for (int i = 0; i < buffer.Length; i++)
                                 {
-                                    buffer[i] = (short)convertedImage.Data[b][i];
+                                    buffer[i] = (short)MathExtensions.MathE.Clamp((long)convertedImage.Data[b][i], (long)short.MinValue, (long)short.MaxValue);
                                 }
                                 band.WriteRaster(0, 0, convertedImage.Width, convertedImage.Height, buffer, convertedImage.Width, convertedImage.Height, 0, 0);
                             }
-                            else if (typeof(T) == typeof(int) || typeof(T) == typeof(ushort))
+                            else if (typeof(T) == typeof(ushort))
+                            {
+                                int[] buffer = new int[convertedImage.Width * convertedImage.Height];
+                                for (int i = 0; i < buffer.Length; i++)
+                                {                                                                        
+                                    buffer[i] = (int)MathExtensions.MathE.Clamp((long)convertedImage.Data[b][i], (long)ushort.MinValue, (long)ushort.MaxValue);
+                                }
+                                band.WriteRaster(0, 0, convertedImage.Width, convertedImage.Height, buffer, convertedImage.Width, convertedImage.Height, 0, 0);
+                            }
+                            else if (typeof(T) == typeof(int))
                             {
                                 int[] buffer = new int[convertedImage.Width * convertedImage.Height];
                                 for (int i = 0; i < buffer.Length; i++)
                                 {
-                                    buffer[i] = (int)convertedImage.Data[b][i];
+                                    buffer[i] = (int)MathExtensions.MathE.Clamp((long)convertedImage.Data[b][i], (long)int.MinValue, (long)int.MaxValue);
                                 }
                                 band.WriteRaster(0, 0, convertedImage.Width, convertedImage.Height, buffer, convertedImage.Width, convertedImage.Height, 0, 0);
-                            }                           
+                            }
                             // uint not supported 
                             else
                             {
