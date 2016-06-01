@@ -112,7 +112,7 @@ namespace OPS.Imaging
 
         public IEnumerator<T> GetEnumerator()
         {
-            for (int b = 0; b < this.Bands; b++)
+            for (int b = 0; b < this.Data.Length; b++)
             {
                 for (int i = 0; i < this.Data[b].Length; i++)
                 {
