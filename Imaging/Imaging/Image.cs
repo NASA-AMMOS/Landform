@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using OPS.Imaging;
+using OPS.MathExtensions;
 
 namespace OPS.Imaging
 {
@@ -96,15 +97,7 @@ namespace OPS.Imaging
             ApplyInPlace(x =>
             {
                 float amount = (x - beforeMin) / beforeRange;
-                float result = afterMin + afterRange * amount;
-                if(result > afterMax)
-                {
-                    result = afterMax;
-                }
-                if(result < afterMin)
-                {
-                    result = afterMin;
-                }
+                float result = MathE.Clamp(afterMin + afterRange * amount, afterMin, afterMax);
                 return result;
             });
         }
