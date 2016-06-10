@@ -18,7 +18,7 @@ namespace OPS.Imaging
         private class ValueRange2NormalizedImage : IImageConverter
         {
             /// <summary>
-            /// Returns a copy of an image normaized between 0-1
+            /// Returns a copy of an image normalized between 0-1
             /// Assumes input values range from 0-MaxValue for most types
             /// No scaling is performed on float or double types
             /// </summary>
@@ -64,7 +64,7 @@ namespace OPS.Imaging
             /// Assumes input image values are normalized 0-1 for most types
             /// No scaling is performed on float or double types
             /// </summary>
-            /// <typeparam name="T">Type used to deetermine the output value range</typeparam>
+            /// <typeparam name="T">Type used to determine the output value range</typeparam>
             /// <param name="image"></param>
             /// <returns></returns>
             public Image Convert<T>(Image image)

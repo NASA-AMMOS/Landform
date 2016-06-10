@@ -148,16 +148,16 @@ namespace OPS.Imaging
         public void Write<T>(string filename, Image image, IImageConverter converter)
         {
             // Specify mapping from extension to gdal driver type
-            // and wether or not the file needs to be written using
+            // and whether or not the file needs to be written using
             // CreateCopy from memory.
             // Lost more file types available if built with gdal
             // http://www.gdal.org/formats_list.html
-            Dictionary<string, Tuple<string, bool>> extentsionToGdalDriver = new Dictionary<string, Tuple<string, bool>>();
-            extentsionToGdalDriver.Add(".tif", new Tuple<string, bool>("GTIFF", false));
-            extentsionToGdalDriver.Add(".tiff", new Tuple<string, bool>("GTIFF", false));
-            extentsionToGdalDriver.Add(".jpg", new Tuple<string, bool>("JPEG", true));
-            extentsionToGdalDriver.Add(".bmp", new Tuple<string, bool>("BMP", true));
-            extentsionToGdalDriver.Add(".png", new Tuple<string, bool>("PNG", true));
+            Dictionary<string, Tuple<string, bool>> extensionToGdalDriver = new Dictionary<string, Tuple<string, bool>>();
+            extensionToGdalDriver.Add(".tif", new Tuple<string, bool>("GTIFF", false));
+            extensionToGdalDriver.Add(".tiff", new Tuple<string, bool>("GTIFF", false));
+            extensionToGdalDriver.Add(".jpg", new Tuple<string, bool>("JPEG", true));
+            extensionToGdalDriver.Add(".bmp", new Tuple<string, bool>("BMP", true));
+            extensionToGdalDriver.Add(".png", new Tuple<string, bool>("PNG", true));
             // Native to gdal type conversion
             Dictionary<Type, DataType> systemTypeToGdalType = new Dictionary<Type, DataType>();
             systemTypeToGdalType.Add(typeof(byte), DataType.GDT_Byte);
@@ -174,12 +174,12 @@ namespace OPS.Imaging
             }
 
             string fileExt = Path.GetExtension(filename).ToLower();
-            if (!extentsionToGdalDriver.ContainsKey(fileExt))
+            if (!extensionToGdalDriver.ContainsKey(fileExt))
             {
                 throw new Exception("Unsupported file extension");
             }
             // Get the gdal driver settings for this extension
-            Tuple<string, bool> driverSettings = extentsionToGdalDriver[fileExt];
+            Tuple<string, bool> driverSettings = extensionToGdalDriver[fileExt];
             if (driverSettings.Item1 == "JPEG" && image.Bands > 3)
             {
                 // GDAL will try to write a 4 band image out to JPG, but the results are color shifted blech
