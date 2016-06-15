@@ -64,12 +64,16 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="GdalConfiguration.cs" />
-    <Compile Include="Imaging\CameraModel.cs" />
+    <Compile Include="Imaging\CameraModels\CameraModel.cs" />
     <Compile Include="Imaging\GenericImage.cs" />
+    <Compile Include="Imaging\CameraModels\GDALCameraModel.cs" />
     <Compile Include="Imaging\Image.cs" />
     <Compile Include="Imaging\ImageMetadata.cs" />
+    <Compile Include="Imaging\SpatialTranslators\ISpatialTranslator.cs" />
+    <Compile Include="Imaging\SpatialTranslators\MarsSpatialTranslator.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Serializers\GDALSeralizer.cs" />
+    <Compile Include="Serializers\GDALWriteOptions.cs" />
     <Compile Include="Serializers\IImageConverter.cs" />
     <Compile Include="Serializers\IImageSeralizer.cs" />
     <Compile Include="Serializers\ImageConverters.cs" />
@@ -82,6 +86,10 @@
     <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\MathExtensions\MathExtensions.csproj">
+      <Project>{8c7c8a71-0a4b-4d75-9cb2-32803bd8f86f}</Project>
+      <Name>MathExtensions</Name>
+    </ProjectReference>
     <ProjectReference Include="..\Xna\Xna.csproj">
       <Project>{46759719-42d9-473b-a8ad-0848a33bdac6}</Project>
       <Name>Xna</Name>

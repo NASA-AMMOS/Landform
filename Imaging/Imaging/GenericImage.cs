@@ -13,7 +13,7 @@ namespace OPS.Imaging
     /// based Image class.
     /// </summary>
     /// <typeparam name="T"></typeparam>
-    public class GenericImage<T>
+    public class GenericImage<T> : ICloneable, IEnumerable<T>
     {
         public ImageMetadata Metadata;
         public CameraModel CameraModel;
@@ -22,6 +22,11 @@ namespace OPS.Imaging
         public int Bands;
         public int Width;
         public int Height;
+        /// <summary>
+        /// A mask value of true indicates that the value is masked out
+        /// A mask value of false indicates that the value is valid
+        /// A null mask means that this image does not have a mask
+        /// </summary>
         public bool[] Mask;
 
         protected GenericImage()
@@ -40,8 +45,44 @@ namespace OPS.Imaging
             Initalize(bands, width, height);
         }
 
+        /// <summary>
+        /// Copy constructor
+        /// </summary>
+        /// <param name="toCopy"></param>
+        public GenericImage(GenericImage<T> that)
+        {
+            this.Initalize(that.Bands, that.Width, that.Height);
+            for (int b = 0; b < that.Data.Length; b++)
+            {
+                Array.Copy(that.Data[b], this.Data[b], that.Data[b].Length);
+            }
+            if (that.Mask != null)
+            {
+                this.Mask = new bool[that.Mask.Length];
+                Array.Copy(that.Mask, this.Mask, that.Mask.Length);
+            }
+            if (that.Metadata != null)
+            {
+                this.Metadata = (ImageMetadata)that.Metadata.Clone();
+            }
+            if (that.CameraModel != null)
+            {
+                this.CameraModel = (CameraModel)that.CameraModel.Clone();
+            }
+        }
+
+        /// <summary>
+        /// Performas a deep copy of the image
+        /// </summary>
+        /// <returns></returns>
+        public object Clone()
+        {
+            return new GenericImage<T>(this);
+        }
+
         protected void Initalize(int bands, int width, int height)
         {
+            Metadata = new ImageMetadata(bands, width, height);
             this.Bands = bands;
             this.Width = width;
             this.Height = height;
@@ -50,6 +91,39 @@ namespace OPS.Imaging
             {
                 Data[c] = new T[width * height];
             }
+        }
+        
+
+        /// <summary>
+        /// Applys a function to every value in every band of the image
+        /// The result is written back to the array in place
+        /// </summary>
+        /// <param name="f"></param>
+        public void ApplyInPlace(Func<T, T> f)
+        {
+            for (int b = 0; b < Data.Length; b++)
+            {
+                for (int i = 0; i < Data[b].Length; i++)
+                {
+                    this.Data[b][i] = f(this.Data[b][i]);
+                }
+            }
+        }
+
+        public IEnumerator<T> GetEnumerator()
+        {
+            for (int b = 0; b < this.Data.Length; b++)
+            {
+                for (int i = 0; i < this.Data[b].Length; i++)
+                {
+                    yield return this.Data[b][i];
+                }
+            }
+        }
+
+        System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator()
+        {
+            return this.GetEnumerator();
         }
 
         /// <summary>

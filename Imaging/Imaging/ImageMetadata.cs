@@ -9,7 +9,7 @@ namespace OPS.Imaging
     /// <summary>
     /// Base class for Image Metadata
     /// </summary>
-    public class ImageMetadata
+    public class ImageMetadata : ICloneable
     {
         public int Bands;
         public int Width;
@@ -20,6 +20,22 @@ namespace OPS.Imaging
             Bands = b;
             Width = w;
             Height = h;
+        }
+
+        /// <summary>
+        /// Copy constructor
+        /// </summary>
+        /// <param name="that"></param>
+        public ImageMetadata(ImageMetadata that)
+        {
+            this.Bands = that.Bands;
+            this.Width = that.Width;
+            this.Height = that.Height;
+        }
+
+        public object Clone()
+        {
+            return new ImageMetadata(this);
         }
     }
 }

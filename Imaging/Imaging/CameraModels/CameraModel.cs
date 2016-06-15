@@ -7,7 +7,7 @@ using Microsoft.Xna.Framework;
 
 namespace OPS.Imaging
 {
-    public abstract class CameraModel
+    public abstract class CameraModel : ICloneable
     {
         protected CameraModel()
         {
@@ -54,5 +54,6 @@ namespace OPS.Imaging
         /// <returns></returns>
         public abstract Vector2 Backproject(Vector3 pos, out double range);
 
-     }
+        public abstract object Clone();
+    }
 }
