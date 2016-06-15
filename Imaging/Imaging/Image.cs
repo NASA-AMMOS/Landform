@@ -85,6 +85,9 @@ namespace OPS.Imaging
         /// Scaling is applied uniformly to all bands of the image.
         /// Result values are clamped to afterMin and afterMax in the case that input values are outside
         /// beforeMin and beforeMax
+        /// 
+        /// For example, you might do the following to convert RGB values from 16-bit to normalzied 0-1 form
+        /// ScaleValues(0, ushort.MaxValue, 0, 1);
         /// </summary>
         /// <param name="beforeMin">min value in original imge</param>
         /// <param name="beforeMax">max value in original image</param>

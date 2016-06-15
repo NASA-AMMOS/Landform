@@ -13,8 +13,7 @@ namespace OPS.Imaging
         public static IImageConverter ValueRangeToNormalizedImage = new ValueRange2NormalizedImage();
         public static IImageConverter NormalizedImageToValueRange = new NormalizedImage2ValueRange();
         public static IImageConverter PassThrough = new ValuePassThrough();
-
-
+        
         private class ValueRange2NormalizedImage : IImageConverter
         {
             /// <summary>
@@ -28,30 +27,9 @@ namespace OPS.Imaging
             public Image Convert<T>(Image image)
             {
                 Image converted = (Image)image.Clone();
-                float maxValue = 0;
-                if (typeof(T) == typeof(byte))
-                {
-                    maxValue = byte.MaxValue;
-                }
-                else if (typeof(T) == typeof(short))
-                {
-                    maxValue = short.MaxValue;
-                }
-                else if (typeof(T) == typeof(ushort))
-                {
-                    maxValue = ushort.MaxValue;
-                }
-                else if (typeof(T) == typeof(int))
-                {
-                    maxValue = int.MaxValue;
-                }
-                else if (typeof(T) == typeof(uint))
-                {
-                    maxValue = uint.MaxValue;
-                }
                 if (typeof(T) != typeof(float) && typeof(T) != typeof(double))
                 {
-                    converted.ScaleValues(0, maxValue, 0, 1);
+                    converted.ScaleValues(0, MaxValueForType<T>(), 0, 1);
                 }
                 return converted;
             }
@@ -70,30 +48,9 @@ namespace OPS.Imaging
             public Image Convert<T>(Image image)
             {
                 Image converted = (Image)image.Clone();
-                float maxValue = 0;
-                if (typeof(T) == typeof(byte))
-                {
-                    maxValue = byte.MaxValue;
-                }
-                else if (typeof(T) == typeof(short))
-                {
-                    maxValue = short.MaxValue;
-                }
-                else if (typeof(T) == typeof(ushort))
-                {
-                    maxValue = ushort.MaxValue;
-                }
-                else if (typeof(T) == typeof(int))
-                {
-                    maxValue = int.MaxValue;
-                }
-                else if (typeof(T) == typeof(uint))
-                {
-                    maxValue = uint.MaxValue;
-                }
                 if (typeof(T) != typeof(float) && typeof(T) != typeof(double))
                 {
-                    converted.ScaleValues(0, 1, 0, maxValue);
+                    converted.ScaleValues(0, 1, 0, MaxValueForType<T>());
                 }
                 return converted;
             }
@@ -112,6 +69,36 @@ namespace OPS.Imaging
                 Image converted = (Image)image.Clone();
                 return converted;
             }
+        }
+
+        private static float MaxValueForType<T>()
+        {
+            float maxValue = 0;
+            if (typeof(T) == typeof(byte))
+            {
+                maxValue = byte.MaxValue;
+            }
+            else if (typeof(T) == typeof(short))
+            {
+                maxValue = short.MaxValue;
+            }
+            else if (typeof(T) == typeof(ushort))
+            {
+                maxValue = ushort.MaxValue;
+            }
+            else if (typeof(T) == typeof(int))
+            {
+                maxValue = int.MaxValue;
+            }
+            else if (typeof(T) == typeof(uint))
+            {
+                maxValue = uint.MaxValue;
+            }
+            else if (typeof(T) == typeof(float))
+            {
+                maxValue = float.MaxValue;
+            }
+            return maxValue;
         }
     }
 }

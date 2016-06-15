@@ -48,15 +48,7 @@ namespace OPS.Imaging
                 using (Dataset dataset = Gdal.Open(filename, Access.GA_ReadOnly))
                 {
                     Image img = new Image(dataset.RasterCount, dataset.RasterXSize, dataset.RasterYSize);
-
-                    double[] geoTransform = new double[6];
-                    dataset.GetGeoTransform(geoTransform);
-                    string projection = dataset.GetProjection();
-                    //if (projection != null && !geoTransform.All(x => x == 0))
-                    //{
-                        img.CameraModel = new GDALCameraModel(geoTransform, projection);
-                    //}
-
+                                          
                     for (int b = 0; b < img.Bands; b++)
                     {
                         using (Band band = dataset.GetRasterBand(b + 1))
@@ -202,14 +194,6 @@ namespace OPS.Imaging
             {
                 using (Dataset dataset = driver.Create(filename, convertedImage.Width, convertedImage.Height, convertedImage.Bands, systemTypeToGdalType[typeof(T)], driverOptions))
                 {
-                    dataset.GetProjection();
-
-                    if(convertedImage.CameraModel != null && convertedImage.CameraModel.GetType() == typeof(GDALCameraModel))
-                    {
-                        GDALCameraModel cm = (GDALCameraModel)convertedImage.CameraModel;
-                        dataset.SetGeoTransform(cm.GeoTransform);
-                        dataset.SetProjection(cm.Projection);
-                    }
 
                     for (int b = 0; b < convertedImage.Bands; b++)
                     {
@@ -264,6 +248,8 @@ namespace OPS.Imaging
                                 int[] buffer = new int[convertedImage.Width * convertedImage.Height];
                                 for (int i = 0; i < buffer.Length; i++)
                                 {
+                                    // We need to cast to long and then clamp to the int value range in this case becuase floating point precision 
+                                    // can't distinguish between int.MaxValue and int.MaxValue+1 resulting in wrap arround errors
                                     buffer[i] = (int)MathExtensions.MathE.Clamp((long)convertedImage.Data[b][i], (long)int.MinValue, (long)int.MaxValue);
                                 }
                                 band.WriteRaster(0, 0, convertedImage.Width, convertedImage.Height, buffer, convertedImage.Width, convertedImage.Height, 0, 0);
