@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 using System.Threading;
 using OSGeo.GDAL;
 using System.IO;
-
+using OPS.MathExtensions;
 
 namespace OPS.Imaging
 {    
@@ -48,20 +48,11 @@ namespace OPS.Imaging
                 using (Dataset dataset = Gdal.Open(filename, Access.GA_ReadOnly))
                 {
                     Image img = new Image(dataset.RasterCount, dataset.RasterXSize, dataset.RasterYSize);
-
-                    double[] geoTransform = new double[6];
-                    dataset.GetGeoTransform(geoTransform);
-                    string projection = dataset.GetProjection();
-                    //if (projection != null && !geoTransform.All(x => x == 0))
-                    //{
-                        img.CameraModel = new GDALCameraModel(geoTransform, projection);
-                    //}
-
+                                          
                     for (int b = 0; b < img.Bands; b++)
                     {
                         using (Band band = dataset.GetRasterBand(b + 1))
                         {
-
                             object bandData = img.Data[b];
                             if (band.DataType == DataType.GDT_Byte)
                             {
@@ -109,24 +100,56 @@ namespace OPS.Imaging
                             }
                         }
                     }
-                    return converter.Convert<float>(img);
+
+                    using (Band band = dataset.GetRasterBand(1))
+                    {
+                        if (band.DataType == DataType.GDT_Byte)
+                        {
+                            return converter.Convert<byte>(img);
+                        }
+                        else if (band.DataType == DataType.GDT_Float32 || band.DataType == DataType.GDT_Float64)
+                        {
+                            return converter.Convert<float>(img);
+                        }
+                        else if (band.DataType == DataType.GDT_Int16)
+                        {
+                            return converter.Convert<Int16>(img);
+                        }
+                        else if (band.DataType == DataType.GDT_Int32)
+                        {
+                            return converter.Convert<Int32>(img);
+                        }
+                        else if (band.DataType == DataType.GDT_UInt16)
+                        {
+                            return converter.Convert<UInt16>(img);
+                        }
+                        else if (band.DataType == DataType.GDT_UInt32)
+                        {
+                            return converter.Convert<UInt32>(img);
+                        }
+                        else
+                        {
+                            throw new Exception("Unsupported type in image file");
+                        }
+                    }                    
                 }
             }
         }
 
+
         public void Write<T>(string filename, Image image, IImageConverter converter)
         {
             // Specify mapping from extension to gdal driver type
-            // and wether or not the file needs to be written using
+            // and whether or not the file needs to be written using
             // CreateCopy from memory.
             // Lost more file types available if built with gdal
             // http://www.gdal.org/formats_list.html
-            Dictionary<string, Tuple<string, bool>> extentsionToGdalDriver = new Dictionary<string, Tuple<string, bool>>();
-            extentsionToGdalDriver.Add(".tif", new Tuple<string, bool>("GTIFF", false));
-            extentsionToGdalDriver.Add(".tiff", new Tuple<string, bool>("GTIFF", false));
-            extentsionToGdalDriver.Add(".jpg", new Tuple<string, bool>("JPEG", true));
-            extentsionToGdalDriver.Add(".bmp", new Tuple<string, bool>("BMP", true));
-            extentsionToGdalDriver.Add(".png", new Tuple<string, bool>("PNG", true));
+            Dictionary<string, Tuple<string, bool>> extensionToGdalDriver = new Dictionary<string, Tuple<string, bool>>();
+            extensionToGdalDriver.Add(".tif", new Tuple<string, bool>("GTIFF", false));
+            extensionToGdalDriver.Add(".tiff", new Tuple<string, bool>("GTIFF", false));
+            extensionToGdalDriver.Add(".jpg", new Tuple<string, bool>("JPEG", true));
+            extensionToGdalDriver.Add(".bmp", new Tuple<string, bool>("BMP", true));
+            extensionToGdalDriver.Add(".png", new Tuple<string, bool>("PNG", true));
             // Native to gdal type conversion
             Dictionary<Type, DataType> systemTypeToGdalType = new Dictionary<Type, DataType>();
             systemTypeToGdalType.Add(typeof(byte), DataType.GDT_Byte);
@@ -143,12 +166,12 @@ namespace OPS.Imaging
             }
 
             string fileExt = Path.GetExtension(filename).ToLower();
-            if (!extentsionToGdalDriver.ContainsKey(fileExt))
+            if (!extensionToGdalDriver.ContainsKey(fileExt))
             {
                 throw new Exception("Unsupported file extension");
             }
             // Get the gdal driver settings for this extension
-            Tuple<string, bool> driverSettings = extentsionToGdalDriver[fileExt];
+            Tuple<string, bool> driverSettings = extensionToGdalDriver[fileExt];
             if (driverSettings.Item1 == "JPEG" && image.Bands > 3)
             {
                 // GDAL will try to write a 4 band image out to JPG, but the results are color shifted blech
@@ -171,14 +194,6 @@ namespace OPS.Imaging
             {
                 using (Dataset dataset = driver.Create(filename, convertedImage.Width, convertedImage.Height, convertedImage.Bands, systemTypeToGdalType[typeof(T)], driverOptions))
                 {
-                    dataset.GetProjection();
-
-                    if(convertedImage.CameraModel != null && convertedImage.CameraModel.GetType() == typeof(GDALCameraModel))
-                    {
-                        GDALCameraModel cm = (GDALCameraModel)convertedImage.CameraModel;
-                        dataset.SetGeoTransform(cm.GeoTransform);
-                        dataset.SetProjection(cm.Projection);
-                    }
 
                     for (int b = 0; b < convertedImage.Bands; b++)
                     {
@@ -192,7 +207,7 @@ namespace OPS.Imaging
                             {
                                 byte[] buffer = new byte[convertedImage.Width*convertedImage.Height];
                                 for (int i = 0; i < buffer.Length; i++)
-                                {
+                                {                                  
                                     buffer[i] = (byte)convertedImage.Data[b][i];
                                 }
                                 band.WriteRaster(0, 0, convertedImage.Width, convertedImage.Height, buffer, convertedImage.Width, convertedImage.Height, 0, 0);
@@ -219,15 +234,26 @@ namespace OPS.Imaging
                                 }
                                 band.WriteRaster(0, 0, convertedImage.Width, convertedImage.Height, buffer, convertedImage.Width, convertedImage.Height, 0, 0);
                             }
-                            else if (typeof(T) == typeof(int) || typeof(T) == typeof(ushort))
+                            else if (typeof(T) == typeof(ushort))
+                            {
+                                int[] buffer = new int[convertedImage.Width * convertedImage.Height];
+                                for (int i = 0; i < buffer.Length; i++)
+                                {                                                                        
+                                    buffer[i] = (int)convertedImage.Data[b][i];
+                                }
+                                band.WriteRaster(0, 0, convertedImage.Width, convertedImage.Height, buffer, convertedImage.Width, convertedImage.Height, 0, 0);
+                            }
+                            else if (typeof(T) == typeof(int))
                             {
                                 int[] buffer = new int[convertedImage.Width * convertedImage.Height];
                                 for (int i = 0; i < buffer.Length; i++)
                                 {
-                                    buffer[i] = (int)convertedImage.Data[b][i];
+                                    // We need to cast to long and then clamp to the int value range in this case becuase floating point precision 
+                                    // can't distinguish between int.MaxValue and int.MaxValue+1 resulting in wrap arround errors
+                                    buffer[i] = (int)MathExtensions.MathE.Clamp((long)convertedImage.Data[b][i], (long)int.MinValue, (long)int.MaxValue);
                                 }
                                 band.WriteRaster(0, 0, convertedImage.Width, convertedImage.Height, buffer, convertedImage.Width, convertedImage.Height, 0, 0);
-                            }                           
+                            }
                             // uint not supported 
                             else
                             {

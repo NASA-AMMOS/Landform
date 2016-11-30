@@ -4,11 +4,11 @@
   <PropertyGroup>
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
     <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
-    <ProjectGuid>{46759719-42D9-473B-A8AD-0848A33BDAC6}</ProjectGuid>
+    <ProjectGuid>{8C7C8A71-0A4B-4D75-9CB2-32803BD8F86F}</ProjectGuid>
     <OutputType>Library</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
-    <RootNamespace>Xna</RootNamespace>
-    <AssemblyName>Xna</AssemblyName>
+    <RootNamespace>MathExtensions</RootNamespace>
+    <AssemblyName>MathExtensions</AssemblyName>
     <TargetFrameworkVersion>v4.6.1</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <TargetFrameworkProfile />
@@ -35,31 +35,14 @@
   <ItemGroup>
     <Reference Include="System" />
     <Reference Include="System.Core" />
-    <Reference Include="System.Runtime.Serialization" />
     <Reference Include="System.Xml.Linq" />
     <Reference Include="System.Data.DataSetExtensions" />
     <Reference Include="System.Data" />
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="BoundingBox.cs" />
-    <Compile Include="BoundingFrustum.cs" />
-    <Compile Include="BoundingSphere.cs" />
-    <Compile Include="ContainmentType.cs" />
-    <Compile Include="Extensions.cs" />
-    <Compile Include="MathHelper.cs" />
-    <Compile Include="Matrix.cs" />
-    <Compile Include="Plane.cs" />
-    <Compile Include="PlaneIntersectionType.cs" />
+    <Compile Include="MathE.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="Quaternion.cs" />
-    <Compile Include="Ray.cs" />
-    <Compile Include="Vector2.cs" />
-    <Compile Include="Vector3.cs" />
-    <Compile Include="Vector4.cs" />
-  </ItemGroup>
-  <ItemGroup>
-    <Content Include="Readme.txt" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 

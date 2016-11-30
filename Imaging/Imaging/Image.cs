@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using OPS.Imaging;
+using OPS.MathExtensions;
 
 namespace OPS.Imaging
 {
@@ -35,10 +36,7 @@ namespace OPS.Imaging
         /// Copy constructor
         /// </summary>
         /// <param name="that"></param>
-        public Image(Image that) : base(that)
-        {
-
-        }
+        public Image(Image that) : base(that) { }
 
         /// <summary>
         /// Load an image using gdal and normalize values based on type value range
@@ -68,7 +66,6 @@ namespace OPS.Imaging
         /// <param name="filename"></param>
         public void Save<T>(string filename)
         {
-            new GDALSeralizer();
             new GDALSeralizer().Write<T>(filename, this, ImageConverters.NormalizedImageToValueRange);
         }
 
@@ -83,7 +80,19 @@ namespace OPS.Imaging
             serializer.Write<T>(filename, this, converter);
         }
 
-
+        /// <summary>
+        /// Linearly scales values in the image from [beforeMin, beforeMax] to [afterMin, afterMax]
+        /// Scaling is applied uniformly to all bands of the image.
+        /// Result values are clamped to afterMin and afterMax in the case that input values are outside
+        /// beforeMin and beforeMax
+        /// 
+        /// For example, you might do the following to convert RGB values from 16-bit to normalzied 0-1 form
+        /// ScaleValues(0, ushort.MaxValue, 0, 1);
+        /// </summary>
+        /// <param name="beforeMin">min value in original imge</param>
+        /// <param name="beforeMax">max value in original image</param>
+        /// <param name="afterMin">min value in result image</param>
+        /// <param name="afterMax">max value in result image</param>
         public void ScaleValues(float beforeMin, float beforeMax, float afterMin, float afterMax)
         {
             float beforeRange = beforeMax - beforeMin;
@@ -91,10 +100,15 @@ namespace OPS.Imaging
             ApplyInPlace(x =>
             {
                 float amount = (x - beforeMin) / beforeRange;
-                return afterMin + afterRange * amount;
+                float result = MathE.Clamp(afterMin + afterRange * amount, afterMin, afterMax);
+                return result;
             });
         }
 
+        /// <summary>
+        /// Performs a deep copy of the image and all associated objects
+        /// </summary>
+        /// <returns></returns>
         public new object Clone()
         {
             return new Image(this);

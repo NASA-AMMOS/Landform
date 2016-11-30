@@ -8,7 +8,7 @@ namespace ImagingTest.Serializers
     public class PDSMetadataTest
     {
         [TestMethod]
-        public void TestMethod1()
+        public void PDSMetadata()
         {
 
             string[] files = new string[] 

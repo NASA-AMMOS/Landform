@@ -13,7 +13,7 @@ namespace OPS.Imaging
     /// based Image class.
     /// </summary>
     /// <typeparam name="T"></typeparam>
-    public class GenericImage<T> : ICloneable
+    public class GenericImage<T> : ICloneable, IEnumerable<T>
     {
         public ImageMetadata Metadata;
         public CameraModel CameraModel;
@@ -54,7 +54,7 @@ namespace OPS.Imaging
             this.Initalize(that.Bands, that.Width, that.Height);
             for (int b = 0; b < that.Data.Length; b++)
             {
-                Array.Copy(this.Data[b], that.Data[b], that.Data[b].Length);
+                Array.Copy(that.Data[b], this.Data[b], that.Data[b].Length);
             }
             if (that.Mask != null)
             {
@@ -108,6 +108,22 @@ namespace OPS.Imaging
                     this.Data[b][i] = f(this.Data[b][i]);
                 }
             }
+        }
+
+        public IEnumerator<T> GetEnumerator()
+        {
+            for (int b = 0; b < this.Data.Length; b++)
+            {
+                for (int i = 0; i < this.Data[b].Length; i++)
+                {
+                    yield return this.Data[b][i];
+                }
+            }
+        }
+
+        System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator()
+        {
+            return this.GetEnumerator();
         }
 
         /// <summary>
