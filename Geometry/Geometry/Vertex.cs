@@ -9,9 +9,9 @@ namespace OPS.Geometry
     public class Vertex
     {
         public Vector3 Position;
-        public Vector3 Normal;
-        public Vector3 Color;
-        public Vector2 UV;
+        public Vector3? Normal;
+        public Vector3? Color;
+        public Vector2? UV;
 
         public override bool Equals(System.Object obj)
         {
@@ -42,13 +42,18 @@ namespace OPS.Geometry
             // Return true if the fields match.
             // Note that the base class is not invoked because it is
             // System.Object, which defines Equals as reference equality.
-            return (Position == v.Position) && (Normal == v.Normal) && (Color == v.Color) && (UV == v.UV);
+            return (Position == v.Position) && (Normal.Value == v.Normal.Value) && (Color.Value == v.Color.Value) && (UV.Value == v.UV.Value);
         }
 
 
         public override int GetHashCode()
         {
-            return  ((int)Position.X) ^ ((int)Position.Y*10) ^ ((int)Position.Z*100) ^ ((int)UV.X * 100) ^ ((int)UV.Y * 100);
+            int uvValue = 0;
+            if(UV.HasValue)
+            {
+                uvValue = ((int)UV.Value.X * 100) ^ ((int)UV.Value.Y * 100);
+            }
+            return  ((int)Position.X) ^ ((int)Position.Y*10) ^ ((int)Position.Z*100) ^ uvValue;
         }
     }
 }
