@@ -14,7 +14,9 @@ namespace OPS.Imaging
         public int Bands;
         public int Width;
         public int Height;
-        
+
+        protected ImageMetadata() { }
+
         public ImageMetadata(int b, int w, int h)
         {
             Bands = b;
@@ -33,7 +35,7 @@ namespace OPS.Imaging
             this.Height = that.Height;
         }
 
-        public object Clone()
+        public virtual object Clone()
         {
             return new ImageMetadata(this);
         }

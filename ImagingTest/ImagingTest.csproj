@@ -84,6 +84,7 @@
     <Compile Include="Imaging\ImageTest.cs" />
     <Compile Include="Imaging\GenericImageTest.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="Serializers\PDSMetadataTest.cs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Imaging\Imaging.csproj">

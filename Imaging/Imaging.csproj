@@ -64,11 +64,16 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="GdalConfiguration.cs" />
+    <Compile Include="Imaging\CameraModels\CAHV.cs" />
+    <Compile Include="Imaging\CameraModels\CAHVOR.cs" />
+    <Compile Include="Imaging\CameraModels\CAHVORE.cs" />
     <Compile Include="Imaging\CameraModels\CameraModel.cs" />
     <Compile Include="Imaging\GenericImage.cs" />
     <Compile Include="Imaging\CameraModels\GDALCameraModel.cs" />
     <Compile Include="Imaging\Image.cs" />
     <Compile Include="Imaging\ImageMetadata.cs" />
+    <Compile Include="Imaging\PDSFieldReader.cs" />
+    <Compile Include="Imaging\PDSMetadata.cs" />
     <Compile Include="Imaging\SpatialTranslators\ISpatialTranslator.cs" />
     <Compile Include="Imaging\SpatialTranslators\MarsSpatialTranslator.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />

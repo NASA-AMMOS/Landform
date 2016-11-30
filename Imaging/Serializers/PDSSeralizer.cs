@@ -13,6 +13,9 @@ namespace OPS.Imaging
     {
         public Image Read(string filename, IImageConverter converter)
         {
+
+            PDSMetadata metadata = new PDSMetadata(filename);
+
             throw new NotImplementedException();
         }
 
