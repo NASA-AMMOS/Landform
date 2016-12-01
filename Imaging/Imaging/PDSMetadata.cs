@@ -4,17 +4,169 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Microsoft.Xna.Framework;
+using System.Text.RegularExpressions;
 
 namespace OPS.Imaging
 {
+    public enum PDSInstrument
+    {
+        Unknown,
+        FrontHazcamLeft,
+        FrontHazcamRight,
+        RearHazcamLeft,
+        RearHazcamRight,
+        NavcamLeft,
+        NavcamRight,
+        MastcamLeft,
+        MastcamRight,
+        MAHLI
+    }
+
+    public enum PDSGeometryProjection
+    {
+        Unknown,
+        Raw,
+        Linearized
+    }
+
+    public enum PDSImageSizeType
+    {
+        Unknown,
+        Regular,
+        Thumbnail
+    }
+    public enum PDSDerivedImageType
+    {
+        Unknown,
+        Image,
+        Range,
+        RoverMask,
+        ReachabilityMap,
+        XYZ,
+        RangeErrorMap,
+        NormalMap,
+        XYZErrorMap
+    }
+
+    public enum Institution
+    {
+        Unknown,
+        OPGS,
+        MSSS
+    }
+
+    public class PDSProductID
+    {
+        public string filename = null,
+                         camera = null,
+                         config = null,
+                         clock = null,
+                         framesize = null,
+                         product = null,
+                         site = null,
+                         drive = null,
+                         seqnum = null,
+                         ver = null;
+
+        public static PDSProductID ParseFromString(string productId)
+        {
+            // MIPL pattern
+            string miplPattern = @"^(NL|FL|FR|RL|ML|MR|NR|MH)([AB01234567RGBFULDCA_])[_TA-SU-Z](\d{9})([A-Z]{3}[LR_]|[A-Z]{4})(S|F|T|D)(\d{3})(\d{4})([A-Z_]{4})([0-9A-Z_]{5})M([1-9A-Z_]+)$";
+            Match match = Regex.Match(productId, miplPattern);
+            if (match.Success)
+            {
+                PDSProductID id = new PDSProductID();
+                id.filename = productId;
+                id.camera = match.Groups[1].Value;
+                id.config = match.Groups[2].Value;
+                id.clock = match.Groups[3].Value;
+                id.product = match.Groups[4].Value.Replace("_", "");
+                id.framesize = match.Groups[5].Value;
+                id.site = match.Groups[6].Value;
+                id.drive = match.Groups[7].Value;
+                id.seqnum = match.Groups[9].Value;
+                id.ver = match.Groups[10].Value;
+                return id;
+            }
+            string mailinPattern = @"^(\d{4})(ML|MR|MH)(\d{16})(E|I|C|D)(\d{2})_D([RCXL][RCXL][RCXL])$";
+            match = Regex.Match(productId, mailinPattern);
+            if (match.Success)
+            {
+                PDSProductID id = new PDSProductID();
+                id.filename = productId;
+                id.camera = match.Groups[2].Value;
+                id.product = match.Groups[6].Value;
+                return id;
+            }
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Articulation parameters for a rover pose. All angles are in radians.
+    /// </summary>
+    public class RoverArticulation
+    {
+        public double LeftRockerAngle;
+        public double LeftBogieAngle;
+        public double RightBogieAngle;
+        public double RightRockerAngle
+        {
+            get
+            {
+                return -LeftRockerAngle;
+            }
+        }
+        public double ArmAngle1;
+        public double ArmAngle2;
+        public double ArmAngle3;
+        public double ArmAngle4;
+        public double ArmAngle5;
+
+        public double MastAzimuth;
+        public double MastElevation;
+    }
+
     public class PDSMetadata : ImageMetadata
     {
-
+        // File Metadata
         public string Filename;
+        public DateTime ProductCreationTime;
+        public long RecordBytes;
+        public int Carrot;
+        // Image format metadata
+        public int FirstLine;
+        public int FirstSample;
+        public Type SampleType;
+        public int BitDepth;
+        public uint BitMask;
+        // Image properties
+        public PDSProductID ProductId;
+        public PDSInstrument Instrument = PDSInstrument.Unknown;
+        public PDSGeometryProjection GeometryProjection = PDSGeometryProjection.Unknown;
+        public PDSImageSizeType ImageSizeType = PDSImageSizeType.Unknown;
+        public PDSDerivedImageType DerivedImageType = PDSDerivedImageType.Unknown;
+        public Institution ProducingInstitution = Institution.Unknown;
+        // Image settings
+        public double ExposureDuration = 0;                     // Navcam HazCam specific
+        public int FilterNumber = 0;                            // Mastcam specific
+        public double MaximumFocusDistance = double.MaxValue;   // Mastcam specific
+        // Camera metadata
+        public CameraModel CameraModel;
+        // Spacecraft metadata
+        public double SpacecraftClock;
+        // Rover metadata
+        public Quaternion RoverOriginRotation;
+        public Vector3 OriginOffset;
+        public int[] MotionCounter;
+        public string SiteDrive;
+        public int PlanetDayNumber;
+        public RoverArticulation Articulation;
+
 
         protected Dictionary<string, Dictionary<string, string>> rawHeader;
         PDSFieldReader fieldReader;
-
         const string NULL_GROUP = "";
 
         public PDSMetadata(string filename) 
@@ -29,6 +181,7 @@ namespace OPS.Imaging
 
         public PDSMetadata(PDSMetadata that)
         {
+            this.rawHeader = new Dictionary<string, Dictionary<string, string>>();
             foreach(var group in that.Groups())
             {
                 this.rawHeader.Add(group, new Dictionary<string, string>());
@@ -57,6 +210,11 @@ namespace OPS.Imaging
                 return false;
             }
             return rawHeader[group].ContainsKey(key);
+        }
+
+        public bool HasKey(string key)
+        {
+            return HasKey(NULL_GROUP, key);
         }
 
         /// <summary>
@@ -170,7 +328,7 @@ namespace OPS.Imaging
         }
 
         
-        public CameraModel CameraModel {  get { return fieldReader.CameraModel; } }
+
         
     }
 }

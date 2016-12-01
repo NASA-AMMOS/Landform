@@ -3,17 +3,17 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using OPS.MathExtensions;
 
 namespace OPS.Imaging
 {
-
-
     public class ImageConverters
     {
         public static IImageConverter ValueRangeToNormalizedImage = new ValueRange2NormalizedImage();
         public static IImageConverter NormalizedImageToValueRange = new NormalizedImage2ValueRange();
         public static IImageConverter PassThrough = new ValuePassThrough();
-        
+        public static IImageConverter PDSBitMaskValueRangeToNormalizedImage = new BitMaskValueRangeToNormalizedImage();
+
         private class ValueRange2NormalizedImage : IImageConverter
         {
             /// <summary>
@@ -67,6 +67,29 @@ namespace OPS.Imaging
             public Image Convert<T>(Image image)
             {
                 Image converted = (Image)image.Clone();
+                return converted;
+            }
+        }
+
+        private class BitMaskValueRangeToNormalizedImage : IImageConverter
+        {
+            /// <summary>
+            /// Returns a copy of an image normalized between 0-1
+            /// Assumes input image has PDSMetadata with a valid BitMask value
+            /// Assumes input values range from 0-BitMaskValue
+            /// Does not scale values when reading float or double images
+            /// </summary>
+            /// <typeparam name="T">Type used to determine the input value range</typeparam>
+            /// <param name="image"></param>
+            /// <returns></returns>
+            public Image Convert<T>(Image image)
+            {
+                Image converted = (Image)image.Clone();
+                PDSMetadata metadata = (PDSMetadata)converted.Metadata;
+                if (typeof(T) != typeof(float) && typeof(T) != typeof(double))
+                {
+                    converted.ScaleValues(0, (float)metadata.BitMask, 0, 1);
+                }
                 return converted;
             }
         }
