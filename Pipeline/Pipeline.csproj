@@ -72,7 +72,6 @@
     <Compile Include="PDS\PDSParser.cs" />
     <Compile Include="PDS\PDSProductID.cs" />
     <Compile Include="PDS\PDSRoverArticulationParser.cs" />
-    <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>

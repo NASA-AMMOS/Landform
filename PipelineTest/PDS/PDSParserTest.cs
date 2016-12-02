@@ -11,14 +11,11 @@ namespace PipelineTest
     {
         [TestMethod]
         [DeploymentItem("TestData", ".")]
-        [DeploymentItem("gdal", "gdal")]
         public void PDSParser()
         {
             {                
                 string filename = @"ML0_451292526RCX_S0311094MCAM02555M1.IMG";
                 var m = new PDSParser( new PDSMetadata(filename));
-
-                var img = Image.Load(filename);
 
                 Assert.AreEqual(2014, m.ProductCreationTime.Year);
                 Assert.AreEqual(4, m.ProductCreationTime.Month);
