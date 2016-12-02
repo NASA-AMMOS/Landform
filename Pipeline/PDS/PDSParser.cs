@@ -56,38 +56,6 @@ namespace OPS.Pipeline
         MSSS
     }
 
-    public class PDSParserException : Exception
-    {
-        public PDSParserException() { }
-        public PDSParserException(string message): base(message) { }
-        public PDSParserException(string message, Exception inner): base(message, inner) { }
-    }
-
-    /// <summary>
-    /// Articulation parameters for a rover pose. All angles are in radians.
-    /// </summary>
-    public class RoverArticulation
-    {
-        public double LeftRockerAngle;
-        public double LeftBogieAngle;
-        public double RightBogieAngle;
-        public double RightRockerAngle
-        {
-            get
-            {
-                return -LeftRockerAngle;
-            }
-        }
-        public double ArmAngle1;
-        public double ArmAngle2;
-        public double ArmAngle3;
-        public double ArmAngle4;
-        public double ArmAngle5;
-
-        public double MastAzimuth;
-        public double MastElevation;
-    }
-
     public class PDSParser
     {
 

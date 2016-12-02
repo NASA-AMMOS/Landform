@@ -70,8 +70,10 @@
   <ItemGroup>
     <Compile Include="GdalConfiguration.cs" />
     <Compile Include="PDS\PDSParser.cs" />
+    <Compile Include="PDS\PDSParserException.cs" />
     <Compile Include="PDS\PDSProductID.cs" />
     <Compile Include="PDS\PDSRoverArticulationParser.cs" />
+    <Compile Include="PDS\RoverArticulation.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>
