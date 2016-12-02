@@ -73,7 +73,7 @@
     <Compile Include="PDS\PDSParserException.cs" />
     <Compile Include="PDS\PDSProductID.cs" />
     <Compile Include="PDS\PDSRoverArticulationParser.cs" />
-    <Compile Include="PDS\RoverArticulation.cs" />
+    <Compile Include="Rover\RoverArticulation.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>
