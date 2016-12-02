@@ -72,7 +72,7 @@
     <Compile Include="Imaging\CameraModels\GDALCameraModel.cs" />
     <Compile Include="Imaging\Image.cs" />
     <Compile Include="Imaging\ImageMetadata.cs" />
-    <Compile Include="Imaging\PDSFieldReader.cs" />
+    <Compile Include="Imaging\PDSCameraModelParser.cs" />
     <Compile Include="Imaging\PDSMetadata.cs" />
     <Compile Include="Imaging\SpatialTranslators\ISpatialTranslator.cs" />
     <Compile Include="Imaging\SpatialTranslators\MarsSpatialTranslator.cs" />

@@ -9,174 +9,49 @@ using System.Text.RegularExpressions;
 
 namespace OPS.Imaging
 {
-    public enum PDSInstrument
-    {
-        Unknown,
-        FrontHazcamLeft,
-        FrontHazcamRight,
-        RearHazcamLeft,
-        RearHazcamRight,
-        NavcamLeft,
-        NavcamRight,
-        MastcamLeft,
-        MastcamRight,
-        MAHLI
-    }
-
-    public enum PDSGeometryProjection
-    {
-        Unknown,
-        Raw,
-        Linearized
-    }
-
-    public enum PDSImageSizeType
-    {
-        Unknown,
-        Regular,
-        Thumbnail
-    }
-    public enum PDSDerivedImageType
-    {
-        Unknown,
-        Image,
-        Range,
-        RoverMask,
-        ReachabilityMap,
-        XYZ,
-        RangeErrorMap,
-        NormalMap,
-        XYZErrorMap
-    }
-
-    public enum Institution
-    {
-        Unknown,
-        OPGS,
-        MSSS
-    }
-
-    public class PDSProductID
-    {
-        public string filename = null,
-                         camera = null,
-                         config = null,
-                         clock = null,
-                         framesize = null,
-                         product = null,
-                         site = null,
-                         drive = null,
-                         seqnum = null,
-                         ver = null;
-
-        public static PDSProductID ParseFromString(string productId)
-        {
-            // MIPL pattern
-            string miplPattern = @"^(NL|FL|FR|RL|ML|MR|NR|MH)([AB01234567RGBFULDCA_])[_TA-SU-Z](\d{9})([A-Z]{3}[LR_]|[A-Z]{4})(S|F|T|D)(\d{3})(\d{4})([A-Z_]{4})([0-9A-Z_]{5})M([1-9A-Z_]+)$";
-            Match match = Regex.Match(productId, miplPattern);
-            if (match.Success)
-            {
-                PDSProductID id = new PDSProductID();
-                id.filename = productId;
-                id.camera = match.Groups[1].Value;
-                id.config = match.Groups[2].Value;
-                id.clock = match.Groups[3].Value;
-                id.product = match.Groups[4].Value.Replace("_", "");
-                id.framesize = match.Groups[5].Value;
-                id.site = match.Groups[6].Value;
-                id.drive = match.Groups[7].Value;
-                id.seqnum = match.Groups[9].Value;
-                id.ver = match.Groups[10].Value;
-                return id;
-            }
-            string mailinPattern = @"^(\d{4})(ML|MR|MH)(\d{16})(E|I|C|D)(\d{2})_D([RCXL][RCXL][RCXL])$";
-            match = Regex.Match(productId, mailinPattern);
-            if (match.Success)
-            {
-                PDSProductID id = new PDSProductID();
-                id.filename = productId;
-                id.camera = match.Groups[2].Value;
-                id.product = match.Groups[6].Value;
-                return id;
-            }
-            return null;
-        }
-    }
-
-    /// <summary>
-    /// Articulation parameters for a rover pose. All angles are in radians.
-    /// </summary>
-    public class RoverArticulation
-    {
-        public double LeftRockerAngle;
-        public double LeftBogieAngle;
-        public double RightBogieAngle;
-        public double RightRockerAngle
-        {
-            get
-            {
-                return -LeftRockerAngle;
-            }
-        }
-        public double ArmAngle1;
-        public double ArmAngle2;
-        public double ArmAngle3;
-        public double ArmAngle4;
-        public double ArmAngle5;
-
-        public double MastAzimuth;
-        public double MastElevation;
-    }
-
     public class PDSMetadata : ImageMetadata
     {
-        // File Metadata
-        public string Filename;
-        public DateTime ProductCreationTime;
+        // Essential Metadata
         public long RecordBytes;
         public int Carrot;
-        // Image format metadata
-        public int FirstLine;
-        public int FirstSample;
         public Type SampleType;
         public int BitDepth;
         public uint BitMask;
-        // Image properties
-        public PDSProductID ProductId;
-        public PDSInstrument Instrument = PDSInstrument.Unknown;
-        public PDSGeometryProjection GeometryProjection = PDSGeometryProjection.Unknown;
-        public PDSImageSizeType ImageSizeType = PDSImageSizeType.Unknown;
-        public PDSDerivedImageType DerivedImageType = PDSDerivedImageType.Unknown;
-        public Institution ProducingInstitution = Institution.Unknown;
-        // Image settings
-        public double ExposureDuration = 0;                     // Navcam HazCam specific
-        public int FilterNumber = 0;                            // Mastcam specific
-        public double MaximumFocusDistance = double.MaxValue;   // Mastcam specific
-        // Camera metadata
+        // Optional Metadata
         public CameraModel CameraModel;
-        // Spacecraft metadata
-        public double SpacecraftClock;
-        // Rover metadata
-        public Quaternion RoverOriginRotation;
-        public Vector3 OriginOffset;
-        public int[] MotionCounter;
-        public string SiteDrive;
-        public int PlanetDayNumber;
-        public RoverArticulation Articulation;
-
-
+        
         protected Dictionary<string, Dictionary<string, string>> rawHeader;
-        PDSFieldReader fieldReader;
         const string NULL_GROUP = "";
 
-        public PDSMetadata(string filename) 
+        public PDSMetadata(string filename)
         {
-            this.Filename = filename;
             using (FileStream fs = File.OpenRead(filename))
             {
                 this.rawHeader = ReadHeader(fs);
             }
-            fieldReader = new PDSFieldReader(this);
+            this.Width = ReadAsInt("IMAGE", "LINE_SAMPLES");
+            this.Height = ReadAsInt("IMAGE", "LINES");
+            this.Bands = ReadAsInt("IMAGE", "BANDS");
+            this.BitDepth = ReadAsInt("IMAGE", "SAMPLE_BITS");
+            string[] tokens = ParseString(this["IMAGE", "SAMPLE_BIT_MASK"]).Split('#');
+            this.BitMask = Convert.ToUInt32(tokens[1], int.Parse(tokens[0]));
+            this.RecordBytes = ReadAsLong("RECORD_BYTES");
+            this.Carrot = (int)ReadAsInt("^IMAGE");
+            this.CameraModel = new PDSCameraModeParser(this).Parse();
+
+            string sampleType = ReadAsString("IMAGE", "SAMPLE_TYPE");
+            if ((sampleType == "MSB_INTEGER" || sampleType == "MSB_UNSIGNED_INTEGER") && BitDepth == 16)
+            {
+                this.SampleType = typeof(ushort);
+            }
+            else if (sampleType == "IEEE_REAL" && BitDepth == 32)
+            {
+                this.SampleType = typeof(float);
+            }
+            else if ((sampleType == "UNSIGNED_INTEGER" || sampleType == "MSB_UNSIGNED_INTEGER") && BitDepth == 8)
+            {
+                this.SampleType = typeof(byte);
+            }
         }
 
         public PDSMetadata(PDSMetadata that)
@@ -190,7 +65,18 @@ namespace OPS.Imaging
                     this.rawHeader[group].Add(key, that.rawHeader[group][key]);
                 }
             }
-            fieldReader = new PDSFieldReader(this);
+            this.Width = that.Width;
+            this.Height = that.Height;
+            this.Bands = that.Bands;
+            this.BitDepth = that.BitDepth;
+            this.BitMask = that.BitMask;
+            this.RecordBytes = that.RecordBytes;
+            this.Carrot = that.Carrot;
+            this.SampleType = that.SampleType;
+            if (that.CameraModel != null)
+            {
+                this.CameraModel = (CameraModel)that.CameraModel.Clone();
+            }
         }
 
         public override object Clone()
@@ -260,6 +146,149 @@ namespace OPS.Imaging
             }
         }
 
+        public string ReadAsString(string key)
+        {
+            return ReadAsString(NULL_GROUP, key);
+        }
+
+        public string ReadAsString(string group, string key)
+        {
+            return ParseString(this[group, key]);
+        }
+
+        public string[] ReadAsStringArray(string key)
+        {
+            return ReadAsStringArray(NULL_GROUP, key);
+        }
+
+        public string[] ReadAsStringArray(string group, string key)
+        {
+            return ParseStringArray(this[group, key]);
+        }
+
+        public double ReadAsDouble(string key)
+        {
+            return ReadAsDouble(NULL_GROUP, key);
+        }
+
+        public double ReadAsDouble(string group, string key)
+        {
+            return ParseDouble(this[group, key]);
+        }
+
+        public double[] ReadAsDoubleArray(string key)
+        {
+            return ReadAsDoubleArray(NULL_GROUP, key);
+        }
+
+        public double[] ReadAsDoubleArray(string group, string key)
+        {
+            return ParseDoubleArray(this[group, key]);
+        }
+
+        public int ReadAsInt(string key)
+        {
+            return ReadAsInt(NULL_GROUP, key);
+        }
+
+        public int ReadAsInt(string group, string key)
+        {
+            return ParseInt(this[group, key]);
+        }
+
+        public long ReadAsLong(string key)
+        {
+            return ReadAsLong(NULL_GROUP, key);
+        }
+
+        public long ReadAsLong(string group, string key)
+        {
+            return ParseLong(this[group, key]);
+        }
+
+        public int[] ReadAsIntArray(string key)
+        {
+            return ReadAsIntArray(NULL_GROUP, key);
+        }
+
+        public int[] ReadAsIntArray(string group, string key)
+        {
+            return ParseIntArray(this[group, key]);
+        }
+
+        public DateTime ReadAsDateTime(string key)
+        {
+            return ReadAsDateTime(NULL_GROUP, key);
+        }
+
+        public DateTime ReadAsDateTime(string group, string key)
+        {
+            return DateTime.Parse(this[group, key]);
+        }
+
+        string ParseString(string s)
+        {
+            if (s.StartsWith("\"") && s.EndsWith("\""))
+            {
+                s = s.Substring(1, s.Length - 2).Trim();
+            }
+            return s;
+        }
+
+        string[] ParseStringArray(string s)
+        {
+            if (s.StartsWith("(") && s.EndsWith(")"))
+            {
+                s = s.Substring(1, s.Length - 2).Trim();
+            }
+            return s.Split(',').Select(x => ParseString(x)).ToArray();
+        }
+
+        int ParseInt(string s)
+        {
+            s = StripUnits(ParseString(s));
+            return int.Parse(s);
+        }
+
+        int[] ParseIntArray(string s)
+        {
+            if (s.StartsWith("(") && s.EndsWith(")"))
+            {
+                s = s.Substring(1, s.Length - 2).Trim();
+            }
+            return s.Split(',').Select(x => ParseInt(x)).ToArray();
+        }
+
+        double ParseDouble(string s)
+        {
+            s = StripUnits(ParseString(s));
+            return double.Parse(s);
+        }
+
+        double[] ParseDoubleArray(string s)
+        {
+            if (s.StartsWith("(") && s.EndsWith(")"))
+            {
+                s = s.Substring(1, s.Length - 2).Trim();
+            }
+            return s.Split(',').Select(x => ParseDouble(x)).ToArray();
+        }
+
+        long ParseLong(string s)
+        {
+            s = StripUnits(ParseString(s));
+            return long.Parse(s);
+        }
+
+        string StripUnits(string s)
+        {      
+            int start = s.IndexOf("<");
+            if (start >= 0)
+            {
+                return s.Substring(0, start - 1);
+            }
+            return s;
+        }
 
         Dictionary<string, Dictionary<string, string>> ReadHeader(FileStream fs)
         {
@@ -326,9 +355,5 @@ namespace OPS.Imaging
             }
             return header;
         }
-
-        
-
-        
     }
 }
