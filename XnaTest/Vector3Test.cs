@@ -2,7 +2,7 @@
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Microsoft.Xna.Framework;
 
-namespace ImageLibTest
+namespace XnaTest
 {
     [TestClass]
     public class Vector3Test

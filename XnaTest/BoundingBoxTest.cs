@@ -2,7 +2,7 @@
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Microsoft.Xna.Framework;
 
-namespace ImageLibTest.Geometry
+namespace XnaTest.Geometry
 {
     [TestClass]
     public class BoundingBoxTest    
