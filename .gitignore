@@ -15,3 +15,7 @@ MathExtensions/obj/
 TestResults/
 Geometry/bin/
 Geometry/obj/
+AssimpInterfaceTest/bin/
+AssimpInterface/obj/
+AssimpInterfaceTest/obj/
+AssimpInterface/bin/
