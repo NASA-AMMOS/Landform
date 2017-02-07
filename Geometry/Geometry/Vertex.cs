@@ -19,7 +19,7 @@ namespace OPS.Geometry
         /// <summary>
         /// Optional property
         /// </summary>
-        public Vector3 Color;
+        public Vector4 Color;
         /// <summary>
         /// Optional property
         /// </summary>
@@ -28,6 +28,20 @@ namespace OPS.Geometry
         public Vertex()
         {
 
+        }
+
+        public Vertex(Vector3 postion)
+        {
+            this.Position = postion;
+        }
+
+
+        public Vertex(Vector3 position, Vector3 normal, Vector4 color, Vector2 uv)
+        {
+            this.Position = position;
+            this.Normal = normal;
+            this.Color = color;
+            this.UV = uv;
         }
 
         public Vertex(Vertex other)
