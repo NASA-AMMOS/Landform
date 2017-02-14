@@ -19,3 +19,7 @@ AssimpInterfaceTest/bin/
 AssimpInterface/obj/
 AssimpInterfaceTest/obj/
 AssimpInterface/bin/
+GeometryTest/bin/
+GeometryTest/obj/
+PipelineTest/bin/
+PipelineTest/obj/

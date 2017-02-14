@@ -6,7 +6,7 @@ using Microsoft.Xna.Framework;
 
 namespace OPS.Geometry
 {
-    public class Vertex
+    public class Vertex : ICloneable
     {
         /// <summary>
         /// Required property of all Vetex objects
@@ -19,12 +19,12 @@ namespace OPS.Geometry
         /// <summary>
         /// Optional property
         /// </summary>
-        public Vector4 Color;
+        public Vector2 UV;
         /// <summary>
         /// Optional property
         /// </summary>
-        public Vector2 UV;
-
+        public Vector4 Color;
+        
         public Vertex()
         {
 
@@ -35,6 +35,18 @@ namespace OPS.Geometry
             this.Position = postion;
         }
 
+        public Vertex(double x, double y, double z)
+        {
+            this.Position = new Vector3(x, y, z);
+        }
+
+        public Vertex(double x, double y, double z, double nx, double ny, double nz, double u, double v, double r, double g, double b, double a)
+        {
+            this.Position = new Vector3(x, y, z);
+            this.Normal = new Vector3(nx, ny, nz);
+            this.UV = new Vector2(u, v);
+            this.Color = new Vector4(r, g, b, a);
+        }
 
         public Vertex(Vector3 position, Vector3 normal, Vector4 color, Vector2 uv)
         {
@@ -87,8 +99,13 @@ namespace OPS.Geometry
 
         public override int GetHashCode()
         {
-            int uvValue = uvValue = ((int)UV.X * 100) ^ ((int)UV.Y * 100);
+            int uvValue = ((int)UV.X * 100) ^ ((int)UV.Y * 100);
             return  ((int)Position.X) ^ ((int)Position.Y*10) ^ ((int)Position.Z*100) ^ uvValue;
+        }
+
+        public virtual object Clone()
+        {
+            return new Vertex(this);
         }
     }
 }

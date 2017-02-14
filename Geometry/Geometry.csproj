@@ -46,6 +46,8 @@
     <Compile Include="Geometry\Triangle.cs" />
     <Compile Include="Geometry\Vertex.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="Serializers\MeshSerializerException.cs" />
+    <Compile Include="Serializers\OBJSerializer.cs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Xna\Xna.csproj">

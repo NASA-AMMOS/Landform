@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.IO;
 
 namespace OPS.Geometry
 {
@@ -29,7 +30,7 @@ namespace OPS.Geometry
         /// Creates an empty mesh. 
         /// </summary>
         /// <param name="capacity"></param>
-        public Mesh(int capacity=10, bool hasNormals = false, bool hasUVs = false, bool hasColors = false)
+        public Mesh(bool hasNormals = false, bool hasUVs = false, bool hasColors = false, int capacity = 10)
         {
             Faces = new List<Face>(capacity);
             Vertices = new List<Vertex>(capacity);
@@ -85,6 +86,40 @@ namespace OPS.Geometry
                 triangles.Add(t);
             }
             return triangles;
+        }
+
+        public void Save(string filename, string textureFilename = null)
+        {
+            string ext = Path.GetExtension(filename).ToLower();
+            if (ext.Equals(".obj"))
+            {
+                OBJSerializer.Write(this, filename, textureFilename);
+            }
+            else if(ext.Equals(".ply"))
+            {
+                throw new MeshSerializerException("Mesh format not supported");
+            }
+            else
+            {
+                throw new MeshSerializerException("Mesh format not supported");
+            }
+        }
+
+        public static Mesh Load(string filename)
+        {
+            string ext = Path.GetExtension(filename).ToLower();
+            if (ext.Equals(".obj"))
+            {
+                return OBJSerializer.Read(filename);
+            }
+            else if (ext.Equals(".ply"))
+            {
+                throw new MeshSerializerException("Mesh format not supported");
+            }
+            else
+            {
+                throw new MeshSerializerException("Mesh format not supported");
+            }
         }
     }
 }
