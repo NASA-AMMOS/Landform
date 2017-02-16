@@ -25,6 +25,7 @@ namespace OPS.Geometry
         public bool HasNormals = false;
         public bool HasUVs = false;
         public bool HasColors = false;
+        public bool HasFaces { get { return Faces.Count > 0; } }
 
         /// <summary>
         /// Creates an empty mesh. 
@@ -34,7 +35,7 @@ namespace OPS.Geometry
         {
             Faces = new List<Face>(capacity);
             Vertices = new List<Vertex>(capacity);
-            SetProperties(hasNormals, hasUVs, HasColors);
+            SetProperties(hasNormals, hasUVs, hasColors);
         }
 
         public Mesh(Mesh other)
@@ -97,7 +98,7 @@ namespace OPS.Geometry
             }
             else if(ext.Equals(".ply"))
             {
-                throw new MeshSerializerException("Mesh format not supported");
+                PLYSerializer.Write(this, filename, textureFilename);
             }
             else
             {

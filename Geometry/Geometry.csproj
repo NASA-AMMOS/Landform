@@ -48,6 +48,8 @@
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Serializers\MeshSerializerException.cs" />
     <Compile Include="Serializers\OBJSerializer.cs" />
+    <Compile Include="Serializers\PLYSerializer.cs" />
+    <Compile Include="Serializers\PLYWriter.cs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Xna\Xna.csproj">
