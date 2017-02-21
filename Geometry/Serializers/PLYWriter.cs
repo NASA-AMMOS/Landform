@@ -28,7 +28,7 @@ namespace OPS.Geometry
 
             if (textureName != null)
             {
-                sw.WriteLine("comment TextureFile " + textureName);
+                sw.WriteLine("comment " + PLYSerializer.TextureFileCommentName +" " + textureName);
             }
             if (comments != null)
             {
@@ -211,10 +211,10 @@ namespace OPS.Geometry
     /// property float texture_v                         float          NA              NA
     /// property double s                                NA             float/double    NA
     /// property double t                                NA             float/double    NA
-    /// property uchar red                               uchar          uchar/float
-    /// property uchar green                             uchar          uchar/float
-    /// property uchar blue                              uchar          uchar/float
-    /// property uchar alpha                             uchar          uchar/float
+    /// property uchar red                               uchar          uchar/float     uchar/float
+    /// property uchar green                             uchar          uchar/float     uchar/float
+    /// property uchar blue                              uchar          uchar/float     uchar/float
+    /// property uchar alpha                             uchar          uchar/float     uchar/float
     /// element face 1
     /// property list uchar int vertex_indices
     /// property list uchar float texcoord               float          NA              float/double

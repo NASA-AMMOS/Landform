@@ -16,9 +16,24 @@ namespace OPS.Geometry
     public class PLYSerializer
     {
 
-        public static void Read(string filename)
-        {
+        public static string TextureFileCommentName = "TextureFile";
 
+        public static Mesh Read(string filename)
+        {
+            string tmp;
+            return Read(filename, out tmp);
+        }
+
+        /// <summary>
+        /// Reads and returns a mesh for a binary or ASCII ply file
+        /// </summary>
+        /// <param name="filename">mesh filename</param>
+        /// <param name="textureFilename">the name of the meshes texture if there is one, null otherwise</param>
+        /// <param name="defaultAlpha">if the ply file only has RGB then use this value as the default alpha</param>
+        /// <returns>A mesh containing the ply file contents</returns>
+        public static Mesh Read(string filename, out string textureFilename, double defaultAlpha = 1)
+        {
+            return new PLYReader(filename).Read(out textureFilename, defaultAlpha);
         }
 
         /// <summary>

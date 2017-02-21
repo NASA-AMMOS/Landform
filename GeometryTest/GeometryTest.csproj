@@ -57,6 +57,7 @@
     <Compile Include="Geometry\VertexTest.cs" />
     <Compile Include="Serializers\OBJSerializerTest.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="Serializers\PLYSerializerTest.cs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Geometry\Geometry.csproj">
