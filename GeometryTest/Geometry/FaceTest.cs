@@ -1,5 +1,6 @@
 ﻿using System;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using System.Collections.Generic;
 
 namespace OPS.Geometry
 {
@@ -14,11 +15,17 @@ namespace OPS.Geometry
             Assert.AreEqual(f.P1,2);
             Assert.AreEqual(f.P2,4);
 
+            Face z = new Face(1, 2, 4);
+            Dictionary<Face, int> dict = new Dictionary<Face, int>();
+            dict.Add(f, 1);
+            Assert.IsTrue(dict.ContainsKey(z));
+
             int[] a = new int[3];
             f.FillArray(a);
             Assert.AreEqual(a[0], 1);
             Assert.AreEqual(a[1], 2);
             Assert.AreEqual(a[2], 4);
+            
 
             int[] b = f.ToArray();
             Assert.AreEqual(b[0], 1);
@@ -44,6 +51,6 @@ namespace OPS.Geometry
             Assert.AreEqual(new Face(1, 1, 4).IsValid(), false);
             Assert.AreEqual(new Face(1, 3, 1).IsValid(), false);
             Assert.AreEqual(new Face(0, 1, 1).IsValid(), false);
-        }
+        }        
     }
 }
