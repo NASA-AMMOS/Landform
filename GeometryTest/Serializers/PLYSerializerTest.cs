@@ -144,8 +144,7 @@ namespace OPS.Geometry
         [TestMethod]
         [DeploymentItem(@"..\..\..\TestData", "TestData")]
         public void PLYReadMeshlab()
-        {
-            
+        {            
             Vector3[] ps = new Vector3[] { new Vector3(0, 0, 0), new Vector3(1, 0, 0), new Vector3(1, 1, 0), new Vector3(0.5, 1, 0) };
             Vector3[] ns = new Vector3[] { new Vector3(0, 0, 1), new Vector3(0, 0, 1), new Vector3(0, 0, 1), new Vector3(0, 0, 1) };
             Vector2[] uvs = new Vector2[] { new Vector2(0, 0), new Vector2(0.5, 0), new Vector2(0.5, 1), new Vector2(0.25, 1) };
@@ -194,7 +193,6 @@ namespace OPS.Geometry
                     }
                 }
             }
-        }
-        
+        }        
     }
 }

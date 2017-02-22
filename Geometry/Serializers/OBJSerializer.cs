@@ -69,9 +69,10 @@ namespace OPS.Geometry
         /// Order of the position, uv, and normal attributes is not maintained in the resulting mesh
         /// </summary>
         /// <param name="filename">Filename of the mesh to read</param>
+        /// <param name="defaultAlpha">OBJ doesn't support vertex colors but some tools write the RGB component anyway.  Use this value to set the alpha</param>
         /// <param name="capacity">Optional starting capacity for mesh data structure</param>
         /// <returns></returns>
-        public static Mesh Read(string filename, int capacity=100)
+        public static Mesh Read(string filename, double defaultAlpha = 1, int capacity=100)
         {
             // OBJs can contain different length arrays of vert, uv, normals.
             // Thus each face indices each of these attributes individually.
@@ -82,6 +83,7 @@ namespace OPS.Geometry
 
             // Read raw file data into arrays
             List<Vector3> vertices = new List<Vector3>(capacity);
+            List<Vector4> colors = new List<Vector4>(capacity);
             List<Vector2> uvs = new List<Vector2>(capacity);
             List<Vector3> normals = new List<Vector3>(capacity);
             List<OBJFace> objFaces = new List<OBJFace>(capacity);     
@@ -94,6 +96,11 @@ namespace OPS.Geometry
                     {
                         string[] parts = line.Split();
                         vertices.Add(new Vector3(double.Parse(parts[1]), double.Parse(parts[2]), double.Parse(parts[3])));
+                        // obj doesn't offically support vertex colors but some tools pack them after the xyz component in 
+                        if(parts.Length >= 7)
+                        {
+                            colors.Add(new Vector4(double.Parse(parts[4]), double.Parse(parts[5]), double.Parse(parts[6]), defaultAlpha));
+                        }
                     }
                     else if (line.StartsWith("vt"))
                     {
@@ -143,8 +150,11 @@ namespace OPS.Geometry
             Mesh result = new Mesh();
             result.HasNormals = normals.Count != 0;
             result.HasUVs = uvs.Count != 0;
-            result.HasColors = false;
-
+            result.HasColors = colors.Count != 0;
+            if(result.HasColors && vertices.Count != colors.Count)
+            {
+                throw new OBJSerializerException("Not all vertices in OBJ defined colors.  If any vertex defines a color then they all must");
+            } 
             if (objFaces.Count == 0)
             {
                 // This is a weird OBJ file which doesn't define any faces.  The spec is unclear on how to interpret the relationship between vertices and
@@ -165,6 +175,7 @@ namespace OPS.Geometry
                     v.Position = vertices[i];
                     v.UV = result.HasUVs ? uvs[i] : Vector2.Zero;
                     v.Normal = result.HasNormals ? normals[i] : Vector3.Zero;
+                    v.Color = result.HasColors ? colors[i] : Vector4.Zero;
                     result.Vertices.Add(v);
                 }
             }
@@ -185,6 +196,7 @@ namespace OPS.Geometry
                             Vertex v = new Vertex();
                             v = new Vertex();
                             v.Position = vertices[vertDef.vertIdx];
+                            v.Color = result.HasColors ? colors[vertDef.vertIdx] : Vector4.Zero;
                             v.UV = result.HasUVs ? uvs[vertDef.uvIdx] : Vector2.Zero;
                             v.Normal = result.HasNormals ? normals[vertDef.normalIdx] : Vector3.Zero;
                             vertDefToIndex.Add(vertDef, vertDefToIndex.Count);
@@ -208,7 +220,7 @@ namespace OPS.Geometry
         /// <param name="mesh">Mesh to export</param>
         /// <param name="filename">Output filename</param>
         /// <param name="textureFilename">Optional diffuse texture to include as a material</param>
-        public static void Write(Mesh mesh, string filename, string textureFilename = null)
+        public static void Write(Mesh mesh, string filename, string textureFilename = null, bool writeColors = true)
         {
             string mtlFilename = Path.Combine(Path.GetDirectoryName(filename), Path.GetFileNameWithoutExtension(filename)) + ".mtl";
             if (textureFilename != null)
@@ -235,7 +247,14 @@ namespace OPS.Geometry
                 }
                 for (int i = 0; i < mesh.Vertices.Count; i++)
                 {
-                    sw.WriteLine(string.Format("v {0} {1} {2}", mesh.Vertices[i].Position.X.ToString("R"), mesh.Vertices[i].Position.Y.ToString("R"), mesh.Vertices[i].Position.Z.ToString("R")));
+                    if (mesh.HasColors && writeColors)
+                    {
+                        sw.WriteLine(string.Format("v {0} {1} {2} {3} {4} {5}", mesh.Vertices[i].Position.X.ToString("R"), mesh.Vertices[i].Position.Y.ToString("R"), mesh.Vertices[i].Position.Z.ToString("R"), mesh.Vertices[i].Color.R.ToString("R"), mesh.Vertices[i].Color.G.ToString("R"), mesh.Vertices[i].Color.B.ToString("R")));
+                    }
+                    else
+                    {
+                        sw.WriteLine(string.Format("v {0} {1} {2}", mesh.Vertices[i].Position.X.ToString("R"), mesh.Vertices[i].Position.Y.ToString("R"), mesh.Vertices[i].Position.Z.ToString("R")));
+                    }
                 }
                 if(mesh.HasUVs)
                 {

@@ -6,9 +6,6 @@ using System.Collections.Generic;
 
 namespace OPS.Geometry
 {
-
-
-
     [TestClass]
     public class OBJSerializerTest
     {
@@ -39,6 +36,50 @@ namespace OPS.Geometry
             Assert.AreEqual(CountNumberOfMatchingVertices(new Vertex(0, 1, 0), m2.Vertices), 1);
             Assert.AreEqual(CountNumberOfMatchingVertices(new Vertex(1, 0, 0), m2.Vertices), 1);
             Assert.AreEqual(CountNumberOfMatchingVertices(new Vertex(1, 1, 0), m2.Vertices), 2);
+        }
+
+        [TestMethod]
+        public void OBJBasicReadWriteTest()
+        {
+            // Test all combinations of normal, uv, and color
+            bool[] onOff = new bool[] { false, true };
+            foreach (bool normals in onOff)
+            {
+                foreach (bool uvs in onOff)
+                {
+                    foreach (bool colors in onOff)
+                    {
+                        Mesh m = new Mesh(hasNormals: normals, hasUVs: uvs, hasColors: colors);
+                        m.Vertices.Add(new Vertex(0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 1));
+                        m.Vertices.Add(new Vertex(1, 0, 0, 0, 0, 1, 0.5, 0, 0, 1, 0, 1));
+                        m.Vertices.Add(new Vertex(1, 1, 0, 0, 0, 1, 0.5, 1, 0, 0, 1, 1));
+                        m.Vertices.Add(new Vertex(0.5, 1, 0, 0, 0, 1, 0.25, 1, 0, 0, 1, 1));
+                        // zero out any feilds this mesh doesn't have
+                        for (int i = 0; i < m.Vertices.Count; i++)
+                        {
+                            m.Vertices[i].Normal = normals ? m.Vertices[i].Normal : Vector3.Zero;
+                            m.Vertices[i].UV = uvs ? m.Vertices[i].UV : Vector2.Zero;
+                            m.Vertices[i].Color = colors ? m.Vertices[i].Color : Vector4.Zero;
+                        }
+                        m.Faces.Add(new Face(0, 1, 2));
+                        m.Faces.Add(new Face(0, 2, 3));
+                        OBJSerializer.Write(m, "OBJBasicReadWriteTest.obj");
+                      
+                        Mesh m2 = OBJSerializer.Read("OBJBasicReadWriteTest.obj");
+                        Assert.AreEqual(m.Vertices.Count, m2.Vertices.Count);
+                        for (int i = 0; i < m.Vertices.Count; i++)
+                        {
+                            Assert.AreEqual(m.Vertices[i], m2.Vertices[i]);
+                           
+                        }
+                        Assert.AreEqual(m.Faces.Count, m2.Faces.Count);
+                        for (int i = 0; i < m.Faces.Count; i++)
+                        {
+                            Assert.AreEqual(m.Faces[i], m2.Faces[i]);
+                        }
+                    }
+                }
+            }
         }
 
         [TestMethod]
@@ -170,18 +211,68 @@ f 1/1/1 2/2/1 3/2/1
         [TestMethod]
         public void OBJPointCloudTest()
         {
-            Mesh m = new Mesh(true, true, false);
-            m.Vertices.Add(new Vertex(0, 1, 2, 3, 4, 5, 6, 7, 0, 0, 0, 0));
-            m.Vertices.Add(new Vertex(2, 3, 2, 5, 4, 2, 3, 2, 0, 0, 0, 0));
-            m.Vertices.Add(new Vertex(1, 4, 2, 6, 5, 1, 4, 3, 0, 0, 0, 0));
+            Mesh m = new Mesh(true, true, true);
+            m.Vertices.Add(new Vertex(0, 1, 2, 3, 4, 5, 6, 7, 1, 0, 0, 1));
+            m.Vertices.Add(new Vertex(2, 3, 2, 5, 4, 2, 3, 2, 0, 1, 0, 1));
+            m.Vertices.Add(new Vertex(1, 4, 2, 6, 5, 1, 4, 3, 0, 0, 1, 1));
             OBJSerializer.Write(m, "OBJPointCloud.obj");
             Mesh m2 = OBJSerializer.Read("OBJPointCloud.obj");
             Assert.AreEqual(m2.HasNormals, m.HasNormals);
             Assert.AreEqual(m2.HasUVs, m.HasUVs);
+            Assert.AreEqual(m2.HasColors, m.HasColors);
             Assert.AreEqual(m2.Vertices.Count, m.Vertices.Count);
             for(int i = 0; i < m.Vertices.Count; i++)
             {
                 Assert.AreEqual(m2.Vertices[i], m.Vertices[i]);
+            }
+        }
+
+
+        [TestMethod]
+        public void OBJReadMeshlabExport()
+        {
+            string content = @"vn 0.000000 0.000000 1.000000
+v 0.000000 0.000000 0.000000 1.000000 0.000000 0.000000
+vn 0.000000 0.000000 1.000000
+v 1.000000 0.000000 0.000000 0.000000 1.000000 0.000000
+vn 0.000000 0.000000 1.000000
+v 1.000000 1.000000 0.000000 0.000000 0.000000 1.000000
+vn 0.000000 0.000000 1.000000
+v 0.500000 1.000000 0.000000 0.000000 0.000000 1.000000
+vt 0.000000 0.000000
+vt 0.500000 0.000000
+vt 0.500000 1.000000
+vt 0.250000 1.000000
+f 1/1/1 2/2/2 3/3/3
+f 1/1/1 3/3/3 4/4/4";
+            File.WriteAllText("OBJReadMeshlabExport.obj", content);
+            Mesh m = OBJSerializer.Read("OBJReadMeshlabExport.obj");
+
+            Assert.AreEqual(4, m.Vertices.Count);
+            Assert.AreEqual(2, m.Faces.Count);
+            Assert.AreEqual(true, m.HasNormals);
+            Assert.AreEqual(true, m.HasUVs);
+            Assert.AreEqual(true, m.HasColors);
+            Assert.AreEqual(new Face(0, 1, 2), m.Faces[0]);
+            Assert.AreEqual(new Face(0, 2, 3), m.Faces[1]);
+
+            List<Vertex> vertices = new List<Vertex>();
+            vertices.Add(new Vertex(0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 1));
+            vertices.Add(new Vertex(1, 0, 0, 0, 0, 1, 0.5, 0, 0, 1, 0, 1));
+            vertices.Add(new Vertex(1, 1, 0, 0, 0, 1, 0.5, 1, 0, 0, 1, 1));
+            vertices.Add(new Vertex(0.5, 1, 0, 0, 0, 1, 0.25, 1, 0, 0, 1, 1));
+            foreach(var v in vertices)
+            {
+                bool match = false;
+                foreach(var v2 in m.Vertices)
+                {
+                    if(v.Equals(v2))
+                    {
+                        match = true;
+                        break;
+                    }
+                }
+                Assert.IsTrue(match);
             }
         }
 
