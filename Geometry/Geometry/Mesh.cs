@@ -38,37 +38,57 @@ namespace OPS.Geometry
             SetProperties(hasNormals, hasUVs, hasColors);
         }
 
+        /// <summary>
+        /// Creates a deep copy of another mesh
+        /// Uses the Vertex.Clone() method so that the new mesh has its own copy of vertices and 
+        /// extended vertex types can persist addtional properties
+        /// </summary>
+        /// <param name="other"></param>
         public Mesh(Mesh other)
         {
-            Faces = new List<Face>(other.Faces.Count);
-            for(int i = 0; i < Faces.Count; i++)
+            this.Faces = new List<Face>(other.Faces.Count);
+            for(int i = 0; i < other.Faces.Count; i++)
             {
-                Faces[i] = other.Faces[i];
+                this.Faces.Add(other.Faces[i]);
             }
-            Vertices = new List<Vertex>(other.Vertices.Count);
-            for (int i = 0; i < Vertices.Count; i++)
+            this.Vertices = new List<Vertex>(other.Vertices.Count);
+            for (int i = 0; i < other.Vertices.Count; i++)
             {
-                Vertices[i] = new Vertex(other.Vertices[i]);
+                this.Vertices.Add((Vertex)other.Vertices[i].Clone());
             }
             SetProperties(other.HasNormals, other.HasUVs, other.HasColors);
         }
 
+        /// <summary>
+        /// Creates a mesh using a list of triangles.  Performs a clone on triangle vertices to avoid side effects
+        /// in the case that triangles are modified later
+        /// </summary>
+        /// <param name="triangles"></param>
+        /// <param name="hasNormals"></param>
+        /// <param name="hasUVs"></param>
+        /// <param name="hasColors"></param>
         public Mesh(List<Triangle> triangles, bool hasNormals = false, bool hasUVs = false, bool hasColors = false)
         {
             Faces = new List<Face>(triangles.Count);
             Vertices = new List<Vertex>(triangles.Count * 3);
-            SetProperties(hasNormals, hasUVs, HasColors);
+            SetProperties(hasNormals, hasUVs, hasColors);
             int idx = 0;
             foreach (Triangle t in triangles)
             {
                 Faces.Add(new Face(idx, idx + 1, idx + 2));
                 idx += 3;
-                Vertices.Add(t.V0);
-                Vertices.Add(t.V1);
-                Vertices.Add(t.V2);
+                Vertices.Add((Vertex)t.V0.Clone());
+                Vertices.Add((Vertex)t.V1.Clone());
+                Vertices.Add((Vertex)t.V2.Clone());
             }
         }
 
+        /// <summary>
+        /// Determines what values in the vertex structure are considered to have valid data
+        /// </summary>
+        /// <param name="hasNormals"></param>
+        /// <param name="hasUVs"></param>
+        /// <param name="hasColors"></param>
         public void SetProperties(bool hasNormals, bool hasUVs, bool hasColors)
         {
             this.HasNormals = hasNormals;
@@ -76,6 +96,91 @@ namespace OPS.Geometry
             this.HasColors = hasColors;
         }
 
+        /// <summary>
+        /// Returns true if any face in the mesh has 2 or more of its vertices in the same position (zero area face)
+        /// </summary>
+        /// <returns></returns>
+        public bool HasInvalidFaces()
+        {
+            foreach(var f in Faces)
+            {
+                // Are any two of the vertices referenced by this face the same index
+                if(!f.IsValid())
+                {
+                    return true;
+                }
+                // Are any of the faces vertices at the same location
+                if(Vertices[f.P0].Position == Vertices[f.P1].Position ||                   
+                   Vertices[f.P1].Position == Vertices[f.P2].Position ||
+                   Vertices[f.P2].Position == Vertices[f.P0].Position)
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// Removes any identical faces
+        /// Note that this method only removes faces that are strictly identical
+        /// Faces that have the same indicies and in the same order (winding) but with different
+        /// offsets will not be removed.  Simillarly, faces that have different vertices but are 
+        /// logically identifcal because their vertices have identical properties will not be removed
+        /// </summary>
+        public void RemoveIdenticalFaces()
+        {
+            HashSet<Face> fs = new HashSet<Face>();
+            List<Face> uniqueFaces = new List<Face>();
+            for (int i = 0; i < this.Faces.Count; i++)
+            {
+                if (!fs.Contains(this.Faces[i]))
+                {
+                    uniqueFaces.Add(this.Faces[i]);
+                    fs.Add(this.Faces[i]);
+                }
+            }
+            this.Faces = uniqueFaces;
+        }
+
+        /// <summary>
+        /// Remove any vertices that are identical
+        /// Also checks for and removes any identical faces
+        /// </summary>
+        public void RemoveDuplicateVertices()
+        {
+            // Make a list of unique vertices and compute a mapping between old and new indices
+            Dictionary<Vertex, int> vertexToIndex = new Dictionary<Vertex, int>();
+            Dictionary<int, int> oldToNewIndex = new Dictionary<int, int>();
+            List<Vertex> uniqueVertices = new List<Vertex>();
+            for(int i = 0; i < this.Vertices.Count; i++)
+            {
+                Vertex v = this.Vertices[i];
+                if (!vertexToIndex.ContainsKey(v))
+                {
+                    vertexToIndex.Add(v, vertexToIndex.Count);
+                    uniqueVertices.Add(v);
+                }
+                oldToNewIndex.Add(i, vertexToIndex[v]);                             
+            }
+            // Update the vertex list
+            this.Vertices = uniqueVertices;
+            // Update the face indices
+            for(int i = 0; i < this.Faces.Count; i++)
+            {
+                Face f = this.Faces[i];
+                f.P0 = oldToNewIndex[f.P0];
+                f.P1 = oldToNewIndex[f.P1];
+                f.P2 = oldToNewIndex[f.P2];
+                this.Faces[i] = f;
+            }
+            RemoveIdenticalFaces();
+        }
+        
+        /// <summary>
+        /// Returns a list of triangles for this mesh.  Triangles each contain thier own
+        /// clone of vertices so modifications to the triangles or mesh will not have side effects on the other
+        /// </summary>
+        /// <returns></returns>
         public List<Triangle> Triangles()
         {
             List<Triangle> triangles = new List<Triangle>(Faces.Count);
@@ -115,7 +220,7 @@ namespace OPS.Geometry
             }
             else if (ext.Equals(".ply"))
             {
-                throw new MeshSerializerException("Mesh format not supported");
+                return PLYSerializer.Read(filename);
             }
             else
             {

@@ -53,6 +53,7 @@
   </Choose>
   <ItemGroup>
     <Compile Include="Geometry\FaceTest.cs" />
+    <Compile Include="Geometry\MeshTest.cs" />
     <Compile Include="Geometry\TriangleTest.cs" />
     <Compile Include="Geometry\VertexTest.cs" />
     <Compile Include="Serializers\OBJSerializerTest.cs" />

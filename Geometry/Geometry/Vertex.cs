@@ -56,6 +56,11 @@ namespace OPS.Geometry
             this.UV = uv;
         }
 
+        /// <summary>
+        /// Copy constructor.  Note that you should almost always use Vertex.Clone
+        /// instead so that methods work with types that extend Vertex with additional properties
+        /// </summary>
+        /// <param name="other"></param>
         public Vertex(Vertex other)
         {
             this.Position = other.Position;
