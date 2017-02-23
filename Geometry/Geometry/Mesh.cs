@@ -96,6 +96,23 @@ namespace OPS.Geometry
             this.HasColors = hasColors;
         }
 
+        bool FaceIsValid(Face f)
+        {
+            // Are any two of the vertices referenced by this face the same index
+            if (!f.IsValid())
+            {
+                return false;
+            }
+            // Are any of the faces vertices at the same location
+            if (Vertices[f.P0].Position == Vertices[f.P1].Position ||
+                Vertices[f.P1].Position == Vertices[f.P2].Position ||
+                Vertices[f.P2].Position == Vertices[f.P0].Position)
+            {
+                return false;
+            }
+            return true;
+        }
+
         /// <summary>
         /// Returns true if any face in the mesh has 2 or more of its vertices in the same position (zero area face)
         /// </summary>
@@ -104,20 +121,29 @@ namespace OPS.Geometry
         {
             foreach(var f in Faces)
             {
-                // Are any two of the vertices referenced by this face the same index
-                if(!f.IsValid())
-                {
-                    return true;
-                }
-                // Are any of the faces vertices at the same location
-                if(Vertices[f.P0].Position == Vertices[f.P1].Position ||                   
-                   Vertices[f.P1].Position == Vertices[f.P2].Position ||
-                   Vertices[f.P2].Position == Vertices[f.P0].Position)
+                if(!FaceIsValid(f))
                 {
                     return true;
                 }
             }
             return false;
+        }
+
+        /// <summary>
+        /// Removes any invalid faces
+        /// An invalid face is one which has two or more vertices at the same location
+        /// </summary>
+        public void RemoveInvalidFaces()
+        {
+            List<Face> validFaces = new List<Face>();
+            foreach (var f in Faces)
+            {
+                if (FaceIsValid(f))
+                {
+                    validFaces.Add(f);
+                }
+            }
+            this.Faces = validFaces;
         }
 
         /// <summary>
@@ -140,6 +166,103 @@ namespace OPS.Geometry
                 }
             }
             this.Faces = uniqueFaces;
+        }
+
+        /// <summary>
+        /// Removes logically identical faces.  Two faces are logically identical
+        /// if they have the same winding and identical vertices.  Note that we
+        /// compare vertex equivalence and not just indices.
+        /// </summary>
+        public void RemoveDuplicateFaces()
+        {
+            // Create a mapping from each vertex to a list of face indices that contain that vertex
+            Dictionary<Vertex, HashSet<int>> vertexToFaceIndex = new Dictionary<Vertex, HashSet<int>>();
+            for (int i = 0; i < this.Faces.Count; i++)
+            {
+                Vertex[] vs = FaceToVertexArray(Faces[i]);
+                for(int k = 0; k < vs.Length; k++)
+                {
+                    if(!vertexToFaceIndex.ContainsKey(vs[k]))
+                    {
+                        vertexToFaceIndex.Add(vs[k], new HashSet<int>());
+                    }
+                    vertexToFaceIndex[vs[k]].Add(i);
+                }
+            }
+
+            // Make a list of unique faces by taking the first occurence of each face
+            List<Face> uniqueFaces = new List<Face>();
+            // For each face i
+            for (int i = 0; i < this.Faces.Count; i++)
+            {                
+                // If there is another face like this one, then all of the other faces vertices must be identical
+                // Thus we can just look up the hashset for one of this faces vertices
+                HashSet<int> potentiallyIdenticalFaces = vertexToFaceIndex[this.Vertices[this.Faces[i].P0]];
+
+                // Check to see if there are any faces are identical to this one AND has a smaller index (occures earlier in the face list)
+                // if so we are not the first occurence of this face
+                bool isFirstInstance = true;
+                foreach (int j in potentiallyIdenticalFaces)
+                {
+                    if(j < i)
+                    {
+                        // Check the three possible offsets the vertices could have
+                        Vertex[] a = FaceToVertexArray(Faces[i]);
+                        Vertex[] b = FaceToVertexArray(Faces[j]);                        
+                        for (int offset = 0; offset < 3; offset++)
+                        {
+                            // For each offset, check to see if the vertices are identical between the faces
+                            if (a[0].Equals(b[(0 + offset) % 3]) && a[1].Equals(b[(1 + offset) % 3]) && a[2].Equals(b[(2 + offset) % 3]))
+                            {
+                                isFirstInstance = false;
+                                break;
+                            }
+                        }
+                    }                    
+                }
+                if(isFirstInstance)
+                {
+                    uniqueFaces.Add(this.Faces[i]);
+                }
+            }
+            this.Faces = uniqueFaces;
+        }
+
+        /// <summary>
+        /// Removes any vertices that are not referenced by a face.  
+        /// </summary>
+        public void RemoveUnreferencedVertices()
+        {
+            // Mark which vertices are referenced by faces
+            HashSet<int> referencedIndices = new HashSet<int>();
+            for(int i = 0; i < this.Faces.Count; i++)
+            {
+                referencedIndices.Add(this.Faces[i].P0);
+                referencedIndices.Add(this.Faces[i].P1);
+                referencedIndices.Add(this.Faces[i].P2);
+            }
+            // Remove unused vertices
+            List<Vertex> referencedVertices = new List<Vertex>();
+            Dictionary<int, int> oldToNewIndex = new Dictionary<int, int>();
+            for(int i = 0; i < this.Vertices.Count; i++)
+            {
+                // Is this vertex referenced by a face?
+                if(referencedIndices.Contains(i))
+                {
+                    oldToNewIndex.Add(i, referencedVertices.Count);
+                    referencedVertices.Add(this.Vertices[i]);                    
+                }
+            }
+            this.Vertices = referencedVertices;
+            // Update face indices
+            for(int i = 0; i < this.Faces.Count; i++)
+            {
+                Face f = this.Faces[i];
+                f.P0 = oldToNewIndex[f.P0];
+                f.P1 = oldToNewIndex[f.P1];
+                f.P2 = oldToNewIndex[f.P2];
+                this.Faces[i] = f;
+            }
         }
 
         /// <summary>
@@ -175,7 +298,29 @@ namespace OPS.Geometry
             }
             RemoveIdenticalFaces();
         }
-        
+
+        /// <summary>
+        /// Removes duplicate and degenerate faces
+        /// Removes duplicate vertices
+        /// If any faces are defined this will also remove any vertices that are not referenced
+        /// by a face
+        /// </summary>
+        public void Clean()
+        {
+            RemoveDuplicateVertices();
+            if (HasFaces)
+            {
+                RemoveInvalidFaces();
+                RemoveUnreferencedVertices();
+                RemoveDuplicateFaces();
+            }
+        }
+
+        Vertex[] FaceToVertexArray(Face f)
+        {
+            return new Vertex[] { this.Vertices[f.P0], this.Vertices[f.P1], this.Vertices[f.P2] };
+        }
+
         /// <summary>
         /// Returns a list of triangles for this mesh.  Triangles each contain thier own
         /// clone of vertices so modifications to the triangles or mesh will not have side effects on the other

@@ -183,7 +183,7 @@ namespace OPS.Geometry
             m.Faces[1] = new Face(1, 1, 2);
             Assert.IsTrue(m.HasInvalidFaces());
         }
-
+        
         [TestMethod]
         public void MeshRemoveIdenticalFacesTest()
         {
@@ -199,6 +199,46 @@ namespace OPS.Geometry
             Assert.AreEqual(2, m.Faces.Count);
             Assert.AreEqual(new Face(0, 1, 2), m.Faces[0]);
             Assert.AreEqual(new Face(3, 2, 1), m.Faces[1]);
+        }
+
+        [TestMethod]
+        public void MeshRemoveDegenerateFacesTest()
+        {
+            Mesh m = new Mesh();
+            m.Vertices.Add(new Vertex(0, 0, 0));
+            m.Vertices.Add(new Vertex(1, 0, 0));
+            m.Vertices.Add(new Vertex(0, 1, 0));
+            m.Vertices.Add(new Vertex(0, 0, 0));
+            m.Faces.Add(new Face(0, 1, 2));
+            m.Faces.Add(new Face(1, 2, 3));
+            m.Faces.Add(new Face(0, 2, 3));
+            m.Faces.Add(new Face(2, 2, 0));
+            m.Faces.Add(new Face(1, 2, 1));
+            m.RemoveInvalidFaces();
+            Assert.AreEqual(4, m.Vertices.Count);
+            Assert.AreEqual(2, m.Faces.Count);
+            Assert.IsTrue(m.Faces.Contains(new Face(0, 1, 2)));
+            Assert.IsTrue(m.Faces.Contains(new Face(1, 2, 3)));
+        }
+
+        [TestMethod]
+        public void MeshRemoveDuplicateFacesTest()
+        {
+            Mesh m = new Mesh();
+            m.Vertices.Add(new Vertex(0, 0, 0));
+            m.Vertices.Add(new Vertex(1, 0, 0));
+            m.Vertices.Add(new Vertex(0, 1, 0));
+            m.Vertices.Add(new Vertex(0, 0, 0));
+            m.Faces.Add(new Face(0, 1, 2));
+            m.Faces.Add(new Face(1, 2, 3));
+            m.Faces.Add(new Face(3, 2, 1));
+            m.Faces.Add(new Face(1, 2, 0));
+            m.Faces.Add(new Face(0, 2, 1));
+            m.RemoveDuplicateFaces();
+            Assert.AreEqual(4, m.Vertices.Count);
+            Assert.AreEqual(2, m.Faces.Count);
+            Assert.IsTrue(m.Faces.Contains(new Face(0, 1, 2)));
+            Assert.IsTrue(m.Faces.Contains(new Face(3, 2, 1)));
         }
 
         [TestMethod]
@@ -220,6 +260,31 @@ namespace OPS.Geometry
             Assert.IsTrue(m.Vertices.Contains(new Vertex(0, 1, 0)));
             Assert.IsTrue(m.Faces.Contains(new Face(0, 1, 2)));
             Assert.IsTrue(m.Faces.Contains(new Face(1, 2, 0)));
+        }
+
+        [TestMethod]
+        public void MeshCleanTest()
+        {
+            Mesh m = new Mesh();
+            m.Vertices.Add(new Vertex(0, 0, 0));
+            m.Vertices.Add(new Vertex(1, 0, 0));
+            m.Vertices.Add(new Vertex(0, 2, 3));
+            m.Vertices.Add(new Vertex(0, 1, 0));
+            m.Vertices.Add(new Vertex(0, 0, 0));
+            m.Faces.Add(new Face(0, 1, 3));
+            m.Faces.Add(new Face(1, 3, 4));
+            m.Faces.Add(new Face(4, 3, 1));
+            m.Faces.Add(new Face(1, 3, 0));
+            m.Faces.Add(new Face(0, 3, 1));
+            m.Faces.Add(new Face(0, 4, 1));
+            m.Clean();
+            Assert.AreEqual(3, m.Vertices.Count);
+            Assert.AreEqual(2, m.Faces.Count);
+            Assert.AreEqual(new Vertex(0, 0, 0), m.Vertices[0]);
+            Assert.AreEqual(new Vertex(1, 0, 0), m.Vertices[1]);
+            Assert.AreEqual(new Vertex(0, 1, 0), m.Vertices[2]);
+            Assert.AreEqual(new Face(0, 1, 2), m.Faces[0]);
+            Assert.AreEqual(new Face(0, 2, 1), m.Faces[1]);
         }
 
         [TestMethod]
