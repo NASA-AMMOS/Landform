@@ -15,7 +15,7 @@ namespace AssimpInterfaceTest
         static string[] TEST_EXTENSIONS = new string[] { ".obj", ".ply" };
 
         [TestMethod]
-        [DeploymentItem(@"..\..\..\TestData", "TestData")]
+        [DeploymentItem("TestData", "TestData")]
         public void AssimpImportTest()
         {
 
@@ -48,7 +48,7 @@ namespace AssimpInterfaceTest
         }
 
         [TestMethod]
-        [DeploymentItem(@"..\..\..\TestData", "TestData")]
+        [DeploymentItem("TestData", "TestData")]
         public void AssimpExportTest()
         {
             Mesh m = new Mesh(true, true, true);

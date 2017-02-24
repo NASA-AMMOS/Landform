@@ -3,8 +3,9 @@ using System.Text;
 using System.Collections.Generic;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Microsoft.Xna.Framework;
+using OPS.Geometry;
 
-namespace OPS.Geometry
+namespace GeometryTest
 {
     /// <summary>
     /// Test triangle data type

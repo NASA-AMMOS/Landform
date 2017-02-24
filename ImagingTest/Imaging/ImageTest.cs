@@ -14,11 +14,11 @@ namespace ImageTest
         {
             Image imgOrig = new Image(3, 20, 30);
             imgOrig.Save<byte>("load.jpg");
-            if(!File.Exists("load.jpg"))
+            if (!File.Exists("load.jpg"))
             {
                 Assert.Fail();
             }
-            Image imgRead = Image.Load("load.jpg", new GDALSeralizer(),  ImageConverters.ValueRangeToNormalizedImage);
+            Image imgRead = Image.Load("load.jpg", new GDALSeralizer(), ImageConverters.ValueRangeToNormalizedImage);
         }
 
 
@@ -33,23 +33,22 @@ namespace ImageTest
             imgOrig.Save<T>("roundOff.tif");
             Image imgRead = Image.Load("roundOff.tif", new GDALSeralizer(), ImageConverters.PassThrough);
 
-            Assert.AreEqual(0,      imgRead[0, 0, 0]);
+            Assert.AreEqual(0, imgRead[0, 0, 0]);
             Assert.AreEqual(Math.Floor(maxValue / 2), imgRead[0, 0, 1]);
             Assert.AreEqual(maxValue, imgRead[0, 0, 2]);
-            Assert.AreEqual(maxValue-1, imgRead[0, 0, 3]);
+            Assert.AreEqual(maxValue - 1, imgRead[0, 0, 3]);
 
             imgRead = Image.Load("roundOff.tif");
             Assert.AreEqual(0, imgRead[0, 0, 0]);
             Assert.IsTrue(Math.Abs(imgRead[0, 0, 1] - Math.Floor(maxValue / 2) / maxValue) < 0.00001f);
             Assert.AreEqual(1, imgRead[0, 0, 2]);
-            Assert.IsTrue(Math.Abs(imgRead[0, 0, 3] - (maxValue-1) / maxValue) < 0.00001f);
+            Assert.IsTrue(Math.Abs(imgRead[0, 0, 3] - (maxValue - 1) / maxValue) < 0.00001f);
 
         }
 
         [TestMethod]
         public void ImageSaveLoadRoundoff()
         {
-
             RoundOffHelper<byte>(byte.MaxValue);
             RoundOffHelper<short>(short.MaxValue);
             RoundOffHelper<ushort>(ushort.MaxValue);
@@ -83,8 +82,21 @@ namespace ImageTest
                     }
                 }
             }
+        }
 
-
+        [TestMethod]
+        public void ImageScaleValues()
+        {
+            Image img = new Image(3, 2, 2);
+            img[0, 0, 0] = 4;
+            img[1, 0, 1] = 10;
+            img[1, 1, 1] = 20;
+            img[0, 0, 1] = -2;
+            img.ScaleValues(0, 10, 20, 40);
+            Assert.AreEqual(28, img[0, 0, 0]);
+            Assert.AreEqual(40, img[1, 0, 1]);
+            Assert.AreEqual(40, img[1, 1, 1]);
+            Assert.AreEqual(20, img[0, 0, 1]);
         }
     }
 }

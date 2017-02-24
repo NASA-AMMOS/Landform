@@ -2,6 +2,7 @@
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using OPS.Imaging;
 using Microsoft.Xna.Framework;
+using System.IO;
 
 namespace ImagingTest.Serializers
 {
@@ -9,11 +10,11 @@ namespace ImagingTest.Serializers
     public class PDSMetadataTest
     {
         [TestMethod]
-        [DeploymentItem("TestData", ".")]
+        [DeploymentItem("TestData", "TestData")]
         public void PDSMetadata()
         {
             {
-                string filename = @"ML0_451292526RCX_S0311094MCAM02555M1.IMG";
+                string filename = Path.Combine("TestData", "img", "ML0_451292526RCX_S0311094MCAM02555M1.IMG");
                 var m = new PDSMetadata(filename);
                 Assert.AreEqual(m.Width, 1408);
                 Assert.AreEqual(m.Height, 1200);
@@ -41,7 +42,7 @@ namespace ImagingTest.Serializers
             }
 
             {
-                string filename = @"NLB_451025090ARMLF0311052NCAM00493M1.IMG";
+                string filename = Path.Combine("TestData", "img", "NLB_451025090ARMLF0311052NCAM00493M1.IMG");
                 var m = new PDSMetadata(filename);
                 Assert.AreEqual(m.Width, 1024);
                 Assert.AreEqual(m.Height, 1024);
@@ -61,7 +62,7 @@ namespace ImagingTest.Serializers
             }
 
             {
-                string filename = @"NLB_451557756RASLF0311330NCAM00353M1.IMG";
+                string filename = Path.Combine("TestData", "img", "NLB_451557756RASLF0311330NCAM00353M1.IMG");
                 var m = new PDSMetadata(filename);
                 Assert.AreEqual(m.Width, 1024);
                 Assert.AreEqual(m.Height, 1024);
@@ -81,7 +82,7 @@ namespace ImagingTest.Serializers
             }
 
             {
-                string filename = @"NLB_451649560RNGLF0311330NCAM12813M1.IMG";
+                string filename = Path.Combine("TestData", "img", "NLB_451649560RNGLF0311330NCAM12813M1.IMG");
                 var m = new PDSMetadata(filename);
                 Assert.AreEqual(m.Width, 1024);
                 Assert.AreEqual(m.Height, 1024);
@@ -104,7 +105,7 @@ namespace ImagingTest.Serializers
             }
 
             {
-                string filename = @"FLB_509619692RAS_T0530000FHAZ00323M_.IMG";
+                string filename = Path.Combine("TestData", "img", "FLB_509619692RAS_T0530000FHAZ00323M_.IMG");
                 var m = new PDSMetadata(filename);
                 Assert.AreEqual(m.Width, 64);
                 Assert.AreEqual(m.Height, 64);

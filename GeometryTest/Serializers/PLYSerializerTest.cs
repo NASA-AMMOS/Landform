@@ -4,8 +4,9 @@ using System.Collections.Generic;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Microsoft.Xna.Framework;
 using System.IO;
+using OPS.Geometry;
 
-namespace OPS.Geometry
+namespace GeometryTest
 {
     /// <summary>
     /// Summary description for PLYSerializerTest
@@ -79,7 +80,7 @@ namespace OPS.Geometry
 
 
         [TestMethod]
-        [DeploymentItem(@"..\..\..\TestData", "TestData")]
+        [DeploymentItem("TestData", "TestData")]
         public void PLYReadBlender()
         {
             // Note that blender does not write out alpha as part of its RGB so this will test if the reader correctly sets the default values of 1
@@ -110,7 +111,7 @@ namespace OPS.Geometry
         }
 
         [TestMethod]
-        [DeploymentItem(@"..\..\..\TestData", "TestData")]
+        [DeploymentItem("TestData", "TestData")]
         public void PLYReadCloudCompare()
         {
             // Note that cloud compare doesn't export uvs and also has numerical issues with normals
@@ -142,7 +143,7 @@ namespace OPS.Geometry
         }
 
         [TestMethod]
-        [DeploymentItem(@"..\..\..\TestData", "TestData")]
+        [DeploymentItem("TestData", "TestData")]
         public void PLYReadMeshlab()
         {            
             Vector3[] ps = new Vector3[] { new Vector3(0, 0, 0), new Vector3(1, 0, 0), new Vector3(1, 1, 0), new Vector3(0.5, 1, 0) };

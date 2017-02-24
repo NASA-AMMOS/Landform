@@ -1,8 +1,9 @@
 ﻿using System;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using System.Collections.Generic;
+using OPS.Geometry;
 
-namespace OPS.Geometry
+namespace GeometryTest
 {
     [TestClass]
     public class FaceTest

@@ -2,8 +2,9 @@
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Microsoft.Xna.Framework;
 using System.Collections.Generic;
+using OPS.Geometry;
 
-namespace OPS.Geometry
+namespace GeometryTest
 {
     [TestClass]
     public class VertexTest
