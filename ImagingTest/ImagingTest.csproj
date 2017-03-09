@@ -80,12 +80,19 @@
     </Otherwise>
   </Choose>
   <ItemGroup>
+    <Compile Include="CameraModels\CAHVORETest.cs" />
+    <Compile Include="CameraModels\CAHVORTest.cs" />
+    <Compile Include="CameraModels\CAHVTest.cs" />
+    <Compile Include="CameraModels\Reference\CAHV.cs" />
+    <Compile Include="CameraModels\Reference\CAHVOR.cs" />
+    <Compile Include="CameraModels\Reference\CAHVORE.cs" />
     <Compile Include="GdalConfiguration.cs" />
     <Compile Include="Imaging\ImageTest.cs" />
     <Compile Include="Imaging\GenericImageTest.cs" />
     <Compile Include="Imaging\ImageMetadataTest.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="Serializers\PDSMetadataTest.cs" />
+    <Compile Include="Imaging\PDSMetadataTest.cs" />
+    <Compile Include="Serializers\GDALSerializerTest.cs" />
     <Compile Include="Serializers\ImageConvertersTest.cs" />
   </ItemGroup>
   <ItemGroup>
@@ -105,6 +112,7 @@
   <ItemGroup>
     <Content Include="GdalConfiguration.vb" />
   </ItemGroup>
+  <ItemGroup />
   <Choose>
     <When Condition="'$(VisualStudioVersion)' == '10.0' And '$(IsCodedUITest)' == 'True'">
       <ItemGroup>

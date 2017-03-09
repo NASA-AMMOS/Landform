@@ -89,5 +89,16 @@ namespace ImagingTest
             Assert.AreEqual(sum, sum2);
             Assert.AreEqual(product, product);
         }
+
+
+        [TestMethod]
+        public void TestGenericImageDataAccessor()
+        {
+            GenericImage<byte> img = new GenericImage<byte>(2, 4, 7);
+            img[1, 2, 3] = 27;
+            img[0, 2, 1] = 29;
+            Assert.AreEqual(27, img.Data[1][2 * 4 + 3]);
+            Assert.AreEqual(29, img.Data[0][2 * 4 + 1]);
+        }
     }
 }

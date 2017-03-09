@@ -228,6 +228,7 @@ namespace OPS.Imaging
 
         string ParseString(string s)
         {
+            s = s.Trim();
             if (s.StartsWith("\"") && s.EndsWith("\""))
             {
                 s = s.Substring(1, s.Length - 2).Trim();
@@ -237,6 +238,7 @@ namespace OPS.Imaging
 
         string[] ParseStringArray(string s)
         {
+            s = s.Trim();
             if (s.StartsWith("(") && s.EndsWith(")"))
             {
                 s = s.Substring(1, s.Length - 2).Trim();
@@ -246,12 +248,14 @@ namespace OPS.Imaging
 
         int ParseInt(string s)
         {
+            s = s.Trim();
             s = StripUnits(ParseString(s));
             return int.Parse(s);
         }
 
         int[] ParseIntArray(string s)
         {
+            s = s.Trim();
             if (s.StartsWith("(") && s.EndsWith(")"))
             {
                 s = s.Substring(1, s.Length - 2).Trim();
@@ -261,12 +265,14 @@ namespace OPS.Imaging
 
         double ParseDouble(string s)
         {
+            s = s.Trim();
             s = StripUnits(ParseString(s));
             return double.Parse(s);
         }
 
         double[] ParseDoubleArray(string s)
         {
+            s = s.Trim();
             if (s.StartsWith("(") && s.EndsWith(")"))
             {
                 s = s.Substring(1, s.Length - 2).Trim();
@@ -276,6 +282,7 @@ namespace OPS.Imaging
 
         long ParseLong(string s)
         {
+            s = s.Trim();
             s = StripUnits(ParseString(s));
             return long.Parse(s);
         }
@@ -304,6 +311,7 @@ namespace OPS.Imaging
                 while ((line = file.ReadLine()) != null)
                 {
                     line = line.Trim();
+                    
                     if (line == "END")
                     {
                         break;
@@ -335,6 +343,7 @@ namespace OPS.Imaging
                     if (key == "GROUP" || key == "OBJECT")
                     {
                         curGroup = value;
+                        Console.WriteLine(value);
                         continue;
                     }
                     if (key == "END_GROUP" || key == "END_OBJECT")

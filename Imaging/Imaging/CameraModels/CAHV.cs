@@ -120,12 +120,13 @@ namespace OPS.Imaging
             Vector2 pixelPos;
             /* Calculate the projection */
             d = pos - C;                                //sub3(pos3, c, d);
-            range = d.Length() * Math.Sign(Vector3.Dot(d, A));
-            if (Math.Abs(range) <= EPSILON)
+            double dotRange = Vector3.Dot(d, A);
+            if (Math.Abs(dotRange) <= EPSILON)
                 throw new DivideByZeroException();
-            r_1 = 1.0 / range;
+            r_1 = 1.0 / dotRange;
             pixelPos.X = Vector3.Dot(d, H) * r_1;       //pos2[0] = dot3(d, h) * r_1;
             pixelPos.Y = Vector3.Dot(d, V) * r_1;       //pos2[1] = dot3(d, v) * r_1;   
+            range = d.Length() * Math.Sign(dotRange);
             return pixelPos;
         }
 
