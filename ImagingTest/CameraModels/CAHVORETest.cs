@@ -2,14 +2,13 @@
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Microsoft.Xna.Framework;
 using OPS.Imaging;
+using OPS.Test;
 
 namespace ImagingTest
 {
     [TestClass]
     public class CAHVORETest
     {
-      private const double EPSILON = 1e-10;
-
         // TODO: Get actual model with R and E values and test with all perspective, fisheye, and custom linearity
         [TestMethod]
         public void TestCAHVORE()
@@ -35,12 +34,12 @@ namespace ImagingTest
                 {
                     Ray ray = cahvor.ProjectRay(new Vector2(x,y));
                     oldcahvore.Project_2d_to_3d(new double[] { x, y }, pos3, uvec3);
-                    AssertAlmostEqual(pos3[0], ray.Position.X);
-                    AssertAlmostEqual(pos3[1], ray.Position.Y);
-                    AssertAlmostEqual(pos3[2], ray.Position.Z);
-                    AssertAlmostEqual(uvec3[0], ray.Direction.X);
-                    AssertAlmostEqual(uvec3[1], ray.Direction.Y);
-                    AssertAlmostEqual(uvec3[2], ray.Direction.Z);
+                    AssertE.AreSimilar(pos3[0], ray.Position.X);
+                    AssertE.AreSimilar(pos3[1], ray.Position.Y);
+                    AssertE.AreSimilar(pos3[2], ray.Position.Z);
+                    AssertE.AreSimilar(uvec3[0], ray.Direction.X);
+                    AssertE.AreSimilar(uvec3[1], ray.Direction.Y);
+                    AssertE.AreSimilar(uvec3[2], ray.Direction.Z);
 
                     for (double r = 0.5; r < 20; r += 2.321)
                     {
@@ -55,24 +54,19 @@ namespace ImagingTest
                         Reference.CAHV.add3(oldPoint, pos3, oldPoint);
                         oldcahvore.Project_3d_to_2d(oldPoint, out oldRange, oldPixelPos);
 
-                        AssertAlmostEqual(oldPixelPos[0], pixelPos.X);
-                        AssertAlmostEqual(oldPixelPos[1], pixelPos.Y);
+                        AssertE.AreSimilar(oldPixelPos[0], pixelPos.X);
+                        AssertE.AreSimilar(oldPixelPos[1], pixelPos.Y);
                         // This assert disabled because oldRange believed to be incorrect
                         //AssertAlmostEqual(oldRange, range);
 
                         Vector3 pointOther = cahvor.ProjectPoint(new Vector2(x, y), r);
-                        Vector3.AlmostEqual(point, pointOther, eps: EPSILON);
+                        Vector3.AlmostEqual(point, pointOther, eps: AssertE.EPSILON);
                         Assert.AreEqual(r, range, 0.001);
                     }
                 }
             }
         }
 
-        private void AssertAlmostEqual(double expected, double actual)
-        {
-            Assert.IsTrue(Math.Abs(expected - actual) < EPSILON,
-                string.Format("Values not equal! Expected: {0}, Actual: {1} (tolerance: {2}", expected, actual, EPSILON));
-        }
 
         [TestMethod]
         public void TestCAHVOREClone()
