@@ -12,6 +12,7 @@ namespace GeometryTest
     /// Summary description for PLYSerializerTest
     /// </summary>
     [TestClass]
+    [DeploymentItem("TestData", "TestData")]
     public class PLYSerializerTest
     {
         [TestMethod]
@@ -80,7 +81,6 @@ namespace GeometryTest
 
 
         [TestMethod]
-        [DeploymentItem("TestData", "TestData")]
         public void PLYReadBlender()
         {
             // Note that blender does not write out alpha as part of its RGB so this will test if the reader correctly sets the default values of 1
@@ -111,7 +111,6 @@ namespace GeometryTest
         }
 
         [TestMethod]
-        [DeploymentItem("TestData", "TestData")]
         public void PLYReadCloudCompare()
         {
             // Note that cloud compare doesn't export uvs and also has numerical issues with normals
@@ -143,7 +142,6 @@ namespace GeometryTest
         }
 
         [TestMethod]
-        [DeploymentItem("TestData", "TestData")]
         public void PLYReadMeshlab()
         {            
             Vector3[] ps = new Vector3[] { new Vector3(0, 0, 0), new Vector3(1, 0, 0), new Vector3(1, 1, 0), new Vector3(0.5, 1, 0) };

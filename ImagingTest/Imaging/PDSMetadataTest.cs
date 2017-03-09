@@ -7,10 +7,10 @@ using System.IO;
 namespace ImagingTest.Serializers
 {
     [TestClass]
+    [DeploymentItem("TestData", "TestData")]
     public class PDSMetadataTest
     {
         [TestMethod]
-        [DeploymentItem("TestData", "TestData")]
         public void PDSMetadataFileReadTest()
         {
             {
@@ -137,7 +137,6 @@ namespace ImagingTest.Serializers
         }
 
         [TestMethod]
-        [DeploymentItem("TestData", "TestData")]
         public void PDSMetadataCopyConstructerTest()
         {
             string filename = Path.Combine("TestData", "img", "ML0_451292526RCX_S0311094MCAM02555M1.IMG");
@@ -203,7 +202,6 @@ namespace ImagingTest.Serializers
 
 
         [TestMethod]
-        [DeploymentItem("TestData", "TestData")]
         public void PDSMetadataAccessorTest()
         {
             string filename = Path.Combine("TestData", "img", "ML0_451292526RCX_S0311094MCAM02555M1.IMG");
