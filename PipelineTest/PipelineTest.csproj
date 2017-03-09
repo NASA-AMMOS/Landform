@@ -79,26 +79,6 @@
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="..\TestData\FLB_509619692RAS_T0530000FHAZ00323M_.IMG">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-      <Link>TestData\FLB_509619692RAS_T0530000FHAZ00323M_.IMG</Link>
-    </None>
-    <None Include="..\TestData\ML0_451292526RCX_S0311094MCAM02555M1.IMG">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-      <Link>TestData\ML0_451292526RCX_S0311094MCAM02555M1.IMG</Link>
-    </None>
-    <None Include="..\TestData\NLB_451025090ARMLF0311052NCAM00493M1.IMG">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-      <Link>TestData\NLB_451025090ARMLF0311052NCAM00493M1.IMG</Link>
-    </None>
-    <None Include="..\TestData\NLB_451557756RASLF0311330NCAM00353M1.IMG">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-      <Link>TestData\NLB_451557756RASLF0311330NCAM00353M1.IMG</Link>
-    </None>
-    <None Include="..\TestData\NLB_451649560RNGLF0311330NCAM12813M1.IMG">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-      <Link>TestData\NLB_451649560RNGLF0311330NCAM12813M1.IMG</Link>
-    </None>
     <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup>
@@ -113,6 +93,10 @@
     <ProjectReference Include="..\Pipeline\Pipeline.csproj">
       <Project>{c45f0cd6-c998-47ec-b67c-ad77196b06a0}</Project>
       <Name>Pipeline</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\TestData\TestData.csproj">
+      <Project>{42298ee4-6937-4b4c-a8b8-89effbc40e80}</Project>
+      <Name>TestData</Name>
     </ProjectReference>
     <ProjectReference Include="..\Xna\Xna.csproj">
       <Project>{46759719-42d9-473b-a8ad-0848a33bdac6}</Project>

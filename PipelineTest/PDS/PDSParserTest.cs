@@ -3,18 +3,18 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 using OPS.Imaging;
 using OPS.Pipeline;
 using Microsoft.Xna.Framework;
-
+using System.IO;
 namespace PipelineTest
 {
     [TestClass]
     public class PDSParserTest
     {
         [TestMethod]
-        [DeploymentItem("TestData", ".")]
+        [DeploymentItem("TestData")]
         public void PDSParser()
         {
-            {                
-                string filename = @"ML0_451292526RCX_S0311094MCAM02555M1.IMG";
+            {
+                string filename = Path.Combine("TestData", "img", @"ML0_451292526RCX_S0311094MCAM02555M1.IMG");
                 var m = new PDSParser( new PDSMetadata(filename));
 
                 Assert.AreEqual(2014, m.ProductCreationTime.Year);
@@ -57,7 +57,7 @@ namespace PipelineTest
 
           
             {
-                string filename = @"NLB_451649560RNGLF0311330NCAM12813M1.IMG";
+                string filename = Path.Combine("TestData", "img", @"NLB_451649560RNGLF0311330NCAM12813M1.IMG");
                 var m = new PDSParser(new PDSMetadata(filename));
                 Assert.AreEqual(2014, m.ProductCreationTime.Year);
                 Assert.AreEqual(4, m.ProductCreationTime.Month);
