@@ -62,8 +62,7 @@ namespace OPS.Imaging
         {
             return serializer.Read(filename, converter);
         }
-
-
+        
         /// <summary>
         /// Saves image to disk using gdal and convert from normalzied values to value range
         /// </summary>

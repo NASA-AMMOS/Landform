@@ -94,6 +94,7 @@
     <Compile Include="Imaging\PDSMetadataTest.cs" />
     <Compile Include="Serializers\GDALSerializerTest.cs" />
     <Compile Include="Serializers\ImageConvertersTest.cs" />
+    <Compile Include="Serializers\PDSSerializerTest.cs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Imaging\Imaging.csproj">

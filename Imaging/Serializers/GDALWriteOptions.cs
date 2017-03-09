@@ -9,16 +9,30 @@ namespace OPS.Imaging
     public class GDALWriteOptions
     {
 
-        public float? FillValue;
-        public int JPEGCompressonLevel;
-
-        public GDALWriteOptions(int jpgQuality = 75, float? fillValue = null)
+        public GDALWriteOptions()
         {
-            JPEGCompressonLevel = jpgQuality;
-            FillValue = fillValue;
         }
 
-        public string[] OptionString
+        public virtual string[] OptionString
+        {
+            get
+            {
+                return null;
+            }
+        }
+    }
+
+
+    public class GDALJPGWriteOptions : GDALWriteOptions
+    {
+        public int JPEGCompressonLevel;
+
+        public GDALJPGWriteOptions(int jpgQuality = 75)
+        {
+            JPEGCompressonLevel = jpgQuality;
+        }
+
+        public override string[] OptionString
         {
             get
             {

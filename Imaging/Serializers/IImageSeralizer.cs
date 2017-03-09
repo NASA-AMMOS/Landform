@@ -12,25 +12,32 @@ namespace OPS.Imaging
     /// and metadata
     /// </summary>
     public interface IImageSeralizer
-    {        
+    {
         /// <summary>
         /// Reads an image from disk and uses the specified
         /// converter to map from the raw data type to the
         /// normalized form expected by the Image class.
         /// The type parameter for convert is determeined by 
-        /// inspection on the underlying file
+        /// inspection on the underlying file.
+        /// If a fillValue is defined then the image mask will be true for any pixels who match the fill values
+        /// 
         /// </summary>
         /// <param name="filename"></param>
+        /// <param name="converter"></param>
+        /// <param name="fillValue">A list of per band values.  Length must equal the number of bands in the image</param>
         /// <returns></returns>
-        Image Read(string filename, IImageConverter converter);
+        Image Read(string filename, IImageConverter converter, float[] fillValue = null);
 
         /// <summary>
         /// Writes an image back to disk.  Uses the convter to
         /// map from image normalzied form to the expected data type T
+        /// If a fill value is specified then any masked pixels in the image will use these values instead
         /// </summary>
         /// <typeparam name="T"></typeparam>
         /// <param name="filename"></param>
-        /// <param name="convertedImage"></param>
-        void Write<T>(string filename, Image image, IImageConverter converter);
+        /// <param name="image"></param>
+        /// <param name="converter"></param>
+        /// <param name="fillValue"></param>
+        void Write<T>(string filename, Image image, IImageConverter converter, float[] fillValue = null);
     }
 }

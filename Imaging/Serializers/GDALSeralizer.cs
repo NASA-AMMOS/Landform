@@ -41,7 +41,18 @@ namespace OPS.Imaging
             WriteOptions = options;
         }
 
-        public Image Read(string filename, IImageConverter converter)
+        /// <summary>
+        /// Read an image using the gdal library
+        /// </summary>
+        /// <param name="filename"></param>
+        /// <param name="converter">converts between values stored in the image file and the expected value space of the caller</param>
+        /// <param name="fillValue">
+        /// Specifies optional per-band values to be used to identify fill values.  If these are defined
+        /// pixels matching these values will be marked as masked in the returned image.  Fill values
+        /// represent the pre-converted values as they are stored in the image.
+        /// </param>
+        /// <returns></returns>
+        public Image Read(string filename, IImageConverter converter, float[] fillValue = null)
         {            
             lock (gdalLockObj)
             {
@@ -96,11 +107,18 @@ namespace OPS.Imaging
                             }
                             else
                             {
-                                throw new Exception("Unsupported type in image file");
+                                throw new ImageSerializationException("Unsupported type in image file");
                             }
                         }
                     }
-
+                    if(fillValue != null)
+                    {
+                        if(fillValue.Length != img.Bands)
+                        {
+                            throw new ImageSerializationException("Fill value length must match image bounds");
+                        }
+                        img.CreateMask(fillValue);
+                    }
                     using (Band band = dataset.GetRasterBand(1))
                     {
                         if (band.DataType == DataType.GDT_Byte)
@@ -129,15 +147,25 @@ namespace OPS.Imaging
                         }
                         else
                         {
-                            throw new Exception("Unsupported type in image file");
+                            throw new ImageSerializationException("Unsupported type in image file");
                         }
                     }                    
                 }
             }
         }
 
-
-        public void Write<T>(string filename, Image image, IImageConverter converter)
+        /// <summary>
+        /// Writes an image using the gdal library
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <param name="filename"></param>
+        /// <param name="image"></param>
+        /// <param name="converter">converts between values stored in the image file and the expected value space of the caller</param>
+        /// <param name="fillValue">
+        /// If specified (and if the image defines a mask) these values will be written anywhere that the image mask is true.
+        /// These values are written out as is and are not modified by the converter.
+        /// </param>
+        public void Write<T>(string filename, Image image, IImageConverter converter, float[] fillValue = null)
         {
             // Specify mapping from extension to gdal driver type
             // and whether or not the file needs to be written using
@@ -168,19 +196,19 @@ namespace OPS.Imaging
             string fileExt = Path.GetExtension(filename).ToLower();
             if (!extensionToGdalDriver.ContainsKey(fileExt))
             {
-                throw new Exception("Unsupported file extension");
+                throw new ImageSerializationException("Unsupported file extension");
             }
             // Get the gdal driver settings for this extension
             Tuple<string, bool> driverSettings = extensionToGdalDriver[fileExt];
             if (driverSettings.Item1 == "JPEG" && image.Bands > 3)
             {
                 // GDAL will try to write a 4 band image out to JPG, but the results are color shifted blech
-                throw new Exception("JPEG not supported with more than 3 bands");
+                throw new ImageSerializationException("JPEG not supported with more than 3 bands");
             }
             if ((driverSettings.Item1 == "JPEG" || driverSettings.Item1 == "BMP") && typeof(T) != typeof(byte))
             {
                 // Not sure if gdal JPEG only supports bytes 
-                throw new Exception("Image format only supportes byte type");
+                throw new ImageSerializationException("Image format only supportes byte type");
             }
             // Some file types don't support Create so we need to use CreateCopy instead
             // To do this we will first write the rasters to memory using the MEM driver
@@ -194,15 +222,14 @@ namespace OPS.Imaging
             {
                 using (Dataset dataset = driver.Create(filename, convertedImage.Width, convertedImage.Height, convertedImage.Bands, systemTypeToGdalType[typeof(T)], driverOptions))
                 {
-
+                    if (fillValue != null && convertedImage.HasMask)
+                    {
+                        convertedImage.SetValuesForMaskedData(fillValue);                       
+                    }
                     for (int b = 0; b < convertedImage.Bands; b++)
                     {
                         using (Band band = dataset.GetRasterBand(b + 1))
                         {
-                            if (WriteOptions.FillValue != null)
-                            {
-                                band.SetNoDataValue((double)WriteOptions.FillValue);
-                            }
                             if (typeof(T) == typeof(byte))
                             {
                                 byte[] buffer = new byte[convertedImage.Width*convertedImage.Height];
@@ -257,7 +284,7 @@ namespace OPS.Imaging
                             // uint not supported 
                             else
                             {
-                                throw new Exception("Datatype not supported in image write");
+                                throw new ImageSerializationException("Datatype not supported in image write");
                             }
                         }
                     }

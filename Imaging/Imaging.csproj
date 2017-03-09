@@ -82,6 +82,7 @@
     <Compile Include="Serializers\IImageConverter.cs" />
     <Compile Include="Serializers\IImageSeralizer.cs" />
     <Compile Include="Serializers\ImageConverters.cs" />
+    <Compile Include="Serializers\ImageSerializationException.cs" />
     <Compile Include="Serializers\PDSSeralizer.cs" />
   </ItemGroup>
   <ItemGroup>
