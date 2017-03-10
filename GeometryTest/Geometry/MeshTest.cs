@@ -319,5 +319,69 @@ namespace GeometryTest
             t1.V0.Position.X = 7;
             Assert.AreEqual(0, m.Vertices[0].Position.X);
         }
+
+        [TestMethod]
+        public void MeshMergeTest()
+        {
+            Mesh a = new Mesh(true, true, true);
+            a.Vertices.Add(new Vertex(0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 1));
+            a.Vertices.Add(new Vertex(1, 0, 0, 0, 0, 1, 0.5, 0, 0, 1, 0, 1));
+            a.Vertices.Add(new Vertex(1, 1, 0, 0, 0, 1, 0.5, 1, 0, 0, 1, 1));
+            a.Faces.Add(new Face(0, 1, 2));
+
+            Mesh b = new Mesh(true, true, true);
+            b.Vertices.Add(new Vertex(1, 0, 2, 0, 0, 1, 0.5, 0, 0, 1, 0, 1));
+            b.Vertices.Add(new Vertex(1, 2, 0, 0, 0, 1, 0.5, 1, 2, 0, 1, 1));
+            b.Vertices.Add(new Vertex(0.5, 1, 2, 0, 0, 1, 0.25, 1, 0, 2, 1, 1));
+            b.Faces.Add(new Face(0, 1, 2));
+            
+            Mesh t = Mesh.Merge(a, b);
+            Assert.AreEqual(6, t.Vertices.Count);
+            Assert.AreEqual(2, t.Faces.Count);
+            Assert.AreEqual(a.Vertices[0], t.Vertices[0]);
+            Assert.AreEqual(a.Vertices[1], t.Vertices[1]);
+            Assert.AreEqual(a.Vertices[2], t.Vertices[2]);
+            Assert.AreEqual(b.Vertices[0], t.Vertices[3]);
+            Assert.AreEqual(b.Vertices[1], t.Vertices[4]);
+            Assert.AreEqual(b.Vertices[2], t.Vertices[5]);
+            Assert.AreEqual(new Face(0, 1, 2), t.Faces[0]);
+            Assert.AreEqual(new Face(3, 4, 5), t.Faces[1]);
+            
+            a.Vertices[0].UV.X = 3;
+            a.Faces[0] = new Face(2, 1, 0);
+            Assert.AreNotEqual(a.Vertices[0], t.Vertices[0]);
+            Assert.AreNotEqual(a.Faces[0], t.Faces[0]);
+            
+            try
+            {
+                a.HasNormals = false;
+                Mesh.Merge(a, b);
+                Assert.Fail();
+            } catch { }
+            a.HasNormals = true;
+
+            try
+            {
+                a.HasColors = false;
+                Mesh.Merge(a, b);
+                Assert.Fail();
+            }
+            catch { }
+            a.HasColors = true;
+
+            try
+            {
+                a.HasUVs = false;
+                Mesh.Merge(a, b);
+                Assert.Fail();
+            }
+            catch { }
+            a.HasUVs = true;
+
+            a.MergeWith(b);
+            Assert.AreEqual(b.Vertices[2], a.Vertices[5]);
+            Assert.AreEqual(6, a.Vertices.Count);
+            Assert.AreEqual(2, a.Faces.Count);
+        }
     }
 }

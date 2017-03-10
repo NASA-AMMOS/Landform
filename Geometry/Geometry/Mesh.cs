@@ -339,6 +339,52 @@ namespace OPS.Geometry
             return triangles;
         }
 
+        /// <summary>
+        /// Combines one or more meshes with this one
+        /// The proprties of the input meshes must match this one
+        /// Vertex objects are cloned to avoid side effects in case the meshes are modifed in the future
+        /// </summary>
+        /// <param name="otherMeshes"></param>
+        public void MergeWith(params Mesh[] otherMeshes)
+        {
+            for (int i = 0; i < otherMeshes.Length; i++)
+            {
+                Mesh m = otherMeshes[i];
+                if(this.HasNormals != m.HasNormals || this.HasUVs != m.HasUVs || this.HasColors != m.HasColors)
+                {
+                    throw new Exception("Meshes must have the same attributes (uv, normal, color) in order to be combined");
+                }
+                int vertexBaseCount = this.Vertices.Count;
+                for (int j = 0; j < m.Vertices.Count; j++)
+                {
+                    this.Vertices.Add((Vertex)m.Vertices[j].Clone());
+                }
+                for (int j = 0; j < m.Faces.Count; j++)
+                {
+                    Face f = new Face(m.Faces[j]);
+                    f.P0 += vertexBaseCount;
+                    f.P1 += vertexBaseCount;
+                    f.P2 += vertexBaseCount;
+                    this.Faces.Add(f);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Combines and returns one or more meshes
+        /// The proprties of the input meshes must match this one
+        /// Vertex objects are cloned to avoid side effects in case the meshes are modifed in the future
+        /// </summary>
+        /// <param name="meshesToCombine"></param>
+        /// <returns></returns>
+        public static Mesh Merge(params Mesh[] meshesToCombine)
+        {
+            Mesh first = meshesToCombine[0];
+            Mesh result = new Mesh(first.HasNormals, first.HasUVs, first.HasColors);
+            result.MergeWith(meshesToCombine);
+            return result;
+        }
+
         public void Save(string filename, string textureFilename = null)
         {
             string ext = Path.GetExtension(filename).ToLower();
