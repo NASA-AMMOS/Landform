@@ -9,6 +9,13 @@ using System.Text.RegularExpressions;
 
 namespace OPS.Imaging
 {
+    public class PDSMetadataNullValueException : Exception
+    {
+        public PDSMetadataNullValueException() { }
+        public PDSMetadataNullValueException(string message) : base(message) { }
+        public PDSMetadataNullValueException(string message, Exception inner) : base(message, inner) { }
+    }
+
     public class PDSMetadata : ImageMetadata
     {
         // Essential Metadata
@@ -37,8 +44,14 @@ namespace OPS.Imaging
             this.BitMask = Convert.ToUInt32(tokens[1], int.Parse(tokens[0]));
             this.RecordBytes = ReadAsLong("RECORD_BYTES");
             this.Carrot = (int)ReadAsInt("^IMAGE");
-            this.CameraModel = new PDSCameraModeParser(this).Parse();
-
+            try
+            {
+                this.CameraModel = new PDSCameraModeParser(this).Parse();         
+            }
+            catch (PDSMetadataNullValueException)
+            {
+                this.CameraModel = null;
+            }
             string sampleType = ReadAsString("IMAGE", "SAMPLE_TYPE");
             if ((sampleType == "MSB_INTEGER" || sampleType == "MSB_UNSIGNED_INTEGER") && BitDepth == 16)
             {
@@ -245,11 +258,20 @@ namespace OPS.Imaging
             }
             return s.Split(',').Select(x => ParseString(x)).ToArray();
         }
+                
+        void CheckForNull(string s)
+        {
+            if(s.Equals("NULL") || s.Equals("null"))
+            {
+                throw new PDSMetadataNullValueException();
+            }
+        }
 
         int ParseInt(string s)
         {
             s = s.Trim();
             s = StripUnits(ParseString(s));
+            CheckForNull(s);
             return int.Parse(s);
         }
 
@@ -267,6 +289,7 @@ namespace OPS.Imaging
         {
             s = s.Trim();
             s = StripUnits(ParseString(s));
+            CheckForNull(s);
             return double.Parse(s);
         }
 
@@ -284,6 +307,7 @@ namespace OPS.Imaging
         {
             s = s.Trim();
             s = StripUnits(ParseString(s));
+            CheckForNull(s);
             return long.Parse(s);
         }
 
@@ -343,7 +367,6 @@ namespace OPS.Imaging
                     if (key == "GROUP" || key == "OBJECT")
                     {
                         curGroup = value;
-                        Console.WriteLine(value);
                         continue;
                     }
                     if (key == "END_GROUP" || key == "END_OBJECT")
