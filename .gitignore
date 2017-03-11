@@ -27,3 +27,13 @@ PipelineTest/bin/
 PipelineTest/obj/
 TestData/bin/
 TestData/obj/
+Landform/bin/
+Landform/obj/
+Util/obj/
+Util/bin/
+GeometryThirdparty/bin/
+GeometryThirdparty/obj/
+GeometryThirdpartyTest/bin/
+GeometryThirdpartyTest/obj/
+UtilTest/bin/
+UtilTest/obj/

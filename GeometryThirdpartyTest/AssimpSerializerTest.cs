@@ -1,9 +1,9 @@
 ﻿using System;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using OPS.Experimental.AssimpInterface;
-using OPS.Geometry;
+using OPS.Geometry.Experimental;
 using Microsoft.Xna.Framework;
 using System.IO;
+using OPS.Geometry;
 
 namespace AssimpInterfaceTest
 {

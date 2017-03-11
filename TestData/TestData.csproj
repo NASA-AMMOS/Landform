@@ -129,6 +129,9 @@
     <None Include="TestData\mesh\meshlab_bin____.ply">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+    <None Include="TestData\mesh\MLF_474203921RASLS0450000MCAM03804M1.iv">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <Content Include="TestData\img\testPattern.png">

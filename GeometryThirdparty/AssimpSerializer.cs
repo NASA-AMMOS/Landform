@@ -4,10 +4,8 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.IO;
-using Assimp;
 
-
-namespace OPS.Experimental.AssimpInterface
+namespace OPS.Geometry.Experimental
 {
     /// <summary>
     /// Mesh import and export routines using Assimp library
@@ -25,49 +23,49 @@ namespace OPS.Experimental.AssimpInterface
         /// <param name="textureFilepath"></param>
         /// <param name="meshFilepath"></param>
         public static void Export(Geometry.Mesh geoMesh, string meshFilepath, string textureFilepath = null)
-        {                        
-            Mesh mesh = new Mesh((geoMesh.Faces.Count == 0) ? PrimitiveType.Point : PrimitiveType.Triangle);
+        {
+            Assimp.Mesh mesh = new Assimp.Mesh((geoMesh.Faces.Count == 0) ? Assimp.PrimitiveType.Point : Assimp.PrimitiveType.Triangle);
             if (geoMesh.HasUVs)
             {                
-                mesh.TextureCoordinateChannels[0] = new List<Vector3D>();
+                mesh.TextureCoordinateChannels[0] = new List<Assimp.Vector3D>();
             }
             
             if(geoMesh.HasColors)
             {
-                mesh.VertexColorChannels[0] = new List<Color4D>();
+                mesh.VertexColorChannels[0] = new List<Assimp.Color4D>();
             }
             foreach (var geoVert in geoMesh.Vertices)
             {
-                mesh.Vertices.Add(new Vector3D((float)geoVert.Position.X, (float)geoVert.Position.Y, (float)geoVert.Position.Z));
+                mesh.Vertices.Add(new Assimp.Vector3D((float)geoVert.Position.X, (float)geoVert.Position.Y, (float)geoVert.Position.Z));
                 if(geoMesh.HasNormals)
                 {
-                    mesh.Normals.Add(new Vector3D((float)geoVert.Normal.X, (float)geoVert.Normal.Y, (float)geoVert.Normal.Z));
+                    mesh.Normals.Add(new Assimp.Vector3D((float)geoVert.Normal.X, (float)geoVert.Normal.Y, (float)geoVert.Normal.Z));
                 }
                 if (geoMesh.HasUVs)
                 {                    
-                    mesh.TextureCoordinateChannels[0].Add(new Vector3D((float)geoVert.UV.U, (float)geoVert.UV.V, 0));
+                    mesh.TextureCoordinateChannels[0].Add(new Assimp.Vector3D((float)geoVert.UV.U, (float)geoVert.UV.V, 0));
                 }
                 if(geoMesh.HasColors)
                 {
-                    mesh.VertexColorChannels[0].Add(new Color4D((float)geoVert.Color.R, (float)geoVert.Color.G, (float)geoVert.Color.B, (float)geoVert.Color.A));
+                    mesh.VertexColorChannels[0].Add(new Assimp.Color4D((float)geoVert.Color.R, (float)geoVert.Color.G, (float)geoVert.Color.B, (float)geoVert.Color.A));
                 }
             }
             foreach (var f in geoMesh.Faces)
             {
-                mesh.Faces.Add(new Face(new int[] { f.P0, f.P1, f.P2 }));
+                mesh.Faces.Add(new Assimp.Face(new int[] { f.P0, f.P1, f.P2 }));
             }
-            Scene s = new Scene();
-            Material mat = new Material();
-            mat.ColorDiffuse = new Color4D(1, 1, 1, 1);
+            Assimp.Scene s = new Assimp.Scene();
+            Assimp.Material mat = new Assimp.Material();
+            mat.ColorDiffuse = new Assimp.Color4D(1, 1, 1, 1);
             if (textureFilepath != null)
             {
-                TextureSlot ts = new TextureSlot(textureFilepath, TextureType.Diffuse, 0, TextureMapping.FromUV, 0, 1, TextureOperation.Add, TextureWrapMode.Clamp, TextureWrapMode.Clamp, 0);
+                Assimp.TextureSlot ts = new Assimp.TextureSlot(textureFilepath, Assimp.TextureType.Diffuse, 0, Assimp.TextureMapping.FromUV, 0, 1, Assimp.TextureOperation.Add, Assimp.TextureWrapMode.Clamp, Assimp.TextureWrapMode.Clamp, 0);
                 mat.TextureDiffuse = ts;
             }
             s.Materials.Add(mat);
             s.Meshes.Add(mesh);
-            
-            AssimpContext context = new AssimpContext();
+
+            Assimp.AssimpContext context = new Assimp.AssimpContext();
             string formatId = null;
             string targetExtension = Path.GetExtension(meshFilepath).ToLower();
             foreach (var formatDescription in context.GetSupportedExportFormats())
@@ -81,8 +79,8 @@ namespace OPS.Experimental.AssimpInterface
             {
                 throw new Exception("Input format not supported " + targetExtension);
             }    
-            s.RootNode = new Node(Path.GetFileName(meshFilepath));
-            s.RootNode.Transform = Matrix4x4.Identity;
+            s.RootNode = new Assimp.Node(Path.GetFileName(meshFilepath));
+            s.RootNode.Transform = Assimp.Matrix4x4.Identity;
             s.RootNode.MeshIndices.Add(0);
             context.ExportFile(s, meshFilepath, formatId);
         }
@@ -96,8 +94,8 @@ namespace OPS.Experimental.AssimpInterface
         /// <returns></returns>
         public static Geometry.Mesh Import(string filepath)
         {
-            AssimpContext importer = new AssimpContext();
-            Scene s = importer.ImportFile(filepath);
+            Assimp.AssimpContext importer = new Assimp.AssimpContext();
+            Assimp.Scene s = importer.ImportFile(filepath);
 
             if(s.MeshCount != 1)
             {
