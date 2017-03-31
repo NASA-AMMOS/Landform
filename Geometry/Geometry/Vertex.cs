@@ -104,8 +104,19 @@ namespace OPS.Geometry
 
         public override int GetHashCode()
         {
-            int uvValue = ((int)UV.X * 100) ^ ((int)UV.Y * 100);
-            return  ((int)Position.X) ^ ((int)Position.Y*10) ^ ((int)Position.Z*100) ^ uvValue;
+            int hash = 17;
+            hash = hash * 23 + Position.X.GetHashCode();
+            hash = hash * 23 + Position.Y.GetHashCode();
+            hash = hash * 23 + Position.Z.GetHashCode();
+            hash = hash * 23 + UV.X.GetHashCode();
+            hash = hash * 23 + UV.Y.GetHashCode();
+            hash = hash * 23 + Normal.X.GetHashCode();
+            hash = hash * 23 + Normal.Y.GetHashCode();
+            hash = hash * 23 + Normal.Z.GetHashCode();
+            hash = hash * 23 + Color.X.GetHashCode();
+            hash = hash * 23 + Color.Y.GetHashCode();
+            hash = hash * 23 + Color.Z.GetHashCode();
+            return hash;
         }
 
         public virtual object Clone()
