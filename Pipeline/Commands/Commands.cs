@@ -18,7 +18,7 @@ namespace OPS.Pipeline
         {
             return CommandLine.Parser.Default.ParseArguments<CralwMSLOptions>(args)
               .MapResult(
-                (CralwMSLOptions opts) => new CrawlMSL(opts).Crawl(),
+                (CralwMSLOptions opts) => new CrawlMSL(opts).Run(),
                 errs => 1);
         }
     }
