@@ -23,7 +23,7 @@ namespace OPS.Pipeline
         public static PDSProductID ParseFromString(string productId)
         {
             // MIPL pattern
-            string miplPattern = @"^(NL|FL|FR|RL|ML|MR|NR|MH)([AB01234567RGBFULDCA_])[_TA-SU-Z](\d{9})([A-Z]{3}[LR_]|[A-Z]{4})(S|F|T|D)(\d{3})(\d{4})([A-Z_]{4})([0-9A-Z_]{5})M([1-9A-Z_]+)$";
+            string miplPattern = @"^(NL|FL|FR|RL|RR|ML|MR|NR|MH)([AB01234567RGBFULDCA_])[_TA-SU-Z](\d{9})([A-Z]{3}[LR_]|[A-Z]{4})(S|F|T|D|M)(\d{3})(\d{4})([A-Z_]{4})([0-9A-Z_]{5})M([1-9A-Z_]+)$";
             Match match = Regex.Match(productId, miplPattern);
             if (match.Success)
             {

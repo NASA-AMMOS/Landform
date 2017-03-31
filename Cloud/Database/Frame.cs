@@ -24,10 +24,10 @@ namespace OPS.Cloud
 
         }
 
-        public Frame(int projectId, string name)
+        public Frame(Project project, string name)
         {
             this.Name = name;
-            this.ProjectId = projectId;
+            this.ProjectId = project.Id;
         }
     }
 }

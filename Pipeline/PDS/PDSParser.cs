@@ -86,6 +86,11 @@ namespace OPS.Pipeline
             get { return PDSProductID.ParseFromString(metadata.ReadAsString("PRODUCT_ID")); }
         }
 
+        public string ProductIdString
+        {
+            get { return metadata.ReadAsString("PRODUCT_ID"); }
+        }
+
         public double SpacecraftClock
         {
             get
@@ -324,6 +329,30 @@ namespace OPS.Pipeline
             {
                 int[] mc = MotionCounter;
                 return mc[0].ToString().PadLeft(5, '0') + mc[1].ToString().PadLeft(5, '0');
+            }
+        }
+
+        public int Site
+        {
+            get { return MotionCounter[0]; }
+        }
+
+        public int Drive
+        {
+            get { return MotionCounter[1]; }
+        }
+
+        public string RMC
+        {
+            get
+            {
+                int[] mc = MotionCounter;
+                StringBuilder builder = new StringBuilder();
+                foreach(int i in mc)
+                {
+                    builder.Append(i.ToString().PadLeft(5, '0'));
+                }
+                return builder.ToString();
             }
         }
 

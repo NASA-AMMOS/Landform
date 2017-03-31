@@ -20,6 +20,7 @@ namespace OPS.Cloud
     public class FrameTransform
     {
         public int Id { get; set; }
+        public int ProjectId { get; set; }
         public int FromFrameId { get; set; }
         public int ToFrameId { get; set; }
         public string TransformSource { get; set; }
@@ -37,10 +38,11 @@ namespace OPS.Cloud
         {
         }
 
-        public FrameTransform(int fromFrameId, int toFrameId, Vector3 translation, Quaternion rotation, string transformSource, double error)
+        public FrameTransform(Project projectId, Frame fromFrame, Frame toFrame, Vector3 translation, Quaternion rotation, string transformSource, double error)
         {
-            this.FromFrameId = fromFrameId;
-            this.ToFrameId = toFrameId;
+            this.ProjectId = projectId.Id;
+            this.FromFrameId = fromFrame.Id ;
+            this.ToFrameId = toFrame.Id;
             this.Translation = translation;
             this.Rotation = rotation;
             this.TransformSource = transformSource;

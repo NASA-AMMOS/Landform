@@ -22,14 +22,14 @@ namespace OPS.Cloud
 
         }
 
-        public RoverObservation(int projectId, int frameId, string url, string name, string observationType, string cameraModel, int site, int drive, int version, string sensor, string imageFrameSize) :
-            base(projectId, frameId, url, name, observationType, cameraModel)
+        public RoverObservation(Project project, Frame frame, string name, string url, string observationType, string cameraModel, int site, int drive, int version, string sensor, string imageFrameSize) :
+            base(project, frame, name, url, observationType, cameraModel)
         {
             this.Site = site;
             this.Drive = drive;
             this.Version = version;
             this.Sensor = sensor;
-            this.ImageFrameSize = ImageFrameSize;
+            this.ImageFrameSize = imageFrameSize;
         }
     }
 }

@@ -7,12 +7,6 @@ using System.Threading.Tasks;
 
 namespace OPS.Cloud
 {
-    public static class ObservationType
-    {
-        public const string Image = "image";
-        public const string Range = "range";
-    }
-
     /// <summary>
     /// Represents an image or 3D shape measurement of the environment
     /// Can be connected to Frames and aligned with other observations through
@@ -44,12 +38,12 @@ namespace OPS.Cloud
 
         }
 
-        public Observation(int projectId, int frameId, string url, string name, string observationType, string cameraModel)
+        public Observation(Project project, Frame frame, string name, string url, string observationType, string cameraModel)
         {
-            this.ProjectId = projectId;
-            this.FrameId = frameId;
-            this.Url = url;
+            this.ProjectId = project.Id;
+            this.FrameId = frame.Id;
             this.Name = name;
+            this.Url = url;
             this.ObservationType = observationType;
             this.CameraModel = cameraModel;
         }

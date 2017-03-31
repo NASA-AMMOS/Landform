@@ -30,43 +30,20 @@ namespace OPS.Imaging
         protected Dictionary<string, Dictionary<string, string>> rawHeader;
         const string NULL_GROUP = "";
 
-        public PDSMetadata(string filename)
+
+        public PDSMetadata(Stream stream)
         {
-            using (FileStream fs = File.OpenRead(filename))
-            {
-                this.rawHeader = ReadHeader(fs);
-            }
-            this.Width = ReadAsInt("IMAGE", "LINE_SAMPLES");
-            this.Height = ReadAsInt("IMAGE", "LINES");
-            this.Bands = ReadAsInt("IMAGE", "BANDS");
-            this.BitDepth = ReadAsInt("IMAGE", "SAMPLE_BITS");
-            string[] tokens = ParseString(this["IMAGE", "SAMPLE_BIT_MASK"]).Split('#');
-            this.BitMask = Convert.ToUInt32(tokens[1], int.Parse(tokens[0]));
-            this.RecordBytes = ReadAsLong("RECORD_BYTES");
-            this.Carrot = (int)ReadAsInt("^IMAGE");
-            try
-            {
-                this.CameraModel = new PDSCameraModeParser(this).Parse();         
-            }
-            catch (PDSMetadataNullValueException)
-            {
-                this.CameraModel = null;
-            }
-            string sampleType = ReadAsString("IMAGE", "SAMPLE_TYPE");
-            if ((sampleType == "MSB_INTEGER" || sampleType == "MSB_UNSIGNED_INTEGER") && BitDepth == 16)
-            {
-                this.SampleType = typeof(ushort);
-            }
-            else if (sampleType == "IEEE_REAL" && BitDepth == 32)
-            {
-                this.SampleType = typeof(float);
-            }
-            else if ((sampleType == "UNSIGNED_INTEGER" || sampleType == "MSB_UNSIGNED_INTEGER") && BitDepth == 8)
-            {
-                this.SampleType = typeof(byte);
-            }
+            Init(stream);
         }
 
+        public PDSMetadata(string filename)
+        {            
+            using (FileStream fs = File.OpenRead(filename))
+            {
+                Init(fs);
+            }           
+        }
+        
         public PDSMetadata(PDSMetadata that)
         {
             this.rawHeader = new Dictionary<string, Dictionary<string, string>>();
@@ -89,6 +66,40 @@ namespace OPS.Imaging
             if (that.CameraModel != null)
             {
                 this.CameraModel = (CameraModel)that.CameraModel.Clone();
+            }
+        }
+
+        private void Init(Stream stream)
+        {
+            this.rawHeader = ReadHeader(stream);
+            this.Width = ReadAsInt("IMAGE", "LINE_SAMPLES");
+            this.Height = ReadAsInt("IMAGE", "LINES");
+            this.Bands = ReadAsInt("IMAGE", "BANDS");
+            this.BitDepth = ReadAsInt("IMAGE", "SAMPLE_BITS");
+            string[] tokens = ParseString(this["IMAGE", "SAMPLE_BIT_MASK"]).Split('#');
+            this.BitMask = Convert.ToUInt32(tokens[1], int.Parse(tokens[0]));
+            this.RecordBytes = ReadAsLong("RECORD_BYTES");
+            this.Carrot = (int)ReadAsInt("^IMAGE");
+            try
+            {
+                this.CameraModel = new PDSCameraModeParser(this).Parse();
+            }
+            catch (PDSMetadataNullValueException)
+            {
+                this.CameraModel = null;
+            }
+            string sampleType = ReadAsString("IMAGE", "SAMPLE_TYPE");
+            if ((sampleType == "MSB_INTEGER" || sampleType == "MSB_UNSIGNED_INTEGER") && BitDepth == 16)
+            {
+                this.SampleType = typeof(ushort);
+            }
+            else if (sampleType == "IEEE_REAL" && BitDepth == 32)
+            {
+                this.SampleType = typeof(float);
+            }
+            else if ((sampleType == "UNSIGNED_INTEGER" || sampleType == "MSB_UNSIGNED_INTEGER") && BitDepth == 8)
+            {
+                this.SampleType = typeof(byte);
             }
         }
 
@@ -321,14 +332,12 @@ namespace OPS.Imaging
             return s;
         }
 
-        Dictionary<string, Dictionary<string, string>> ReadHeader(FileStream fs)
+        Dictionary<string, Dictionary<string, string>> ReadHeader(Stream stream)
         {
             var header = new Dictionary<string, Dictionary<string,string>>();
-            using (StreamReader file = new System.IO.StreamReader(fs))
+            using (StreamReader file = new StreamReader(stream))
             {
-                long fileLengthAsRead = file.BaseStream.Length;
                 List<String> lines = new List<string>();
-
                 // Loop through entire header, strip comments and empty lines
                 // For lines whose values span multiple lines, concat them into one line
                 string line = null;
