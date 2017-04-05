@@ -226,7 +226,7 @@ namespace OPS.Pipeline
         /// <param name="url"></param>
         void IndexMetadata(StorageHelper storage, string url)
         {
-            storage.GetStream(url, stream =>
+            storage.GetSpeedyStream(url, stream =>
             {
                 string status = "";
                 try
@@ -299,9 +299,10 @@ namespace OPS.Pipeline
             }
             string opgsPattern = "s3://red-product/proj/msl/redops/ods/surface/sol/{0}/opgs/rdr";
             string msssPattern = "s3://red-product/ods/surface/sol/{0}/soas/rdr";
-            StorageHelper storage = new StorageHelper(options.AwsProfile, false);
+            StorageHelper storage = new StorageHelper(options.AwsProfile);
             Parallel.For(options.StartSol, options.EndSol+1, sol => 
             {
+                
                 foreach (string pattern in new string[] { opgsPattern, msssPattern })
                 {
                     string dir = string.Format(pattern, sol.ToString().PadLeft(5, '0'));
@@ -310,7 +311,7 @@ namespace OPS.Pipeline
                         IndexDirectory(storage, dir);
                     }
                 }
-            });
+            });            
             return 0;
         }       
     }
