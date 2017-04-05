@@ -39,6 +39,9 @@ namespace ImagingTest
             AssertE.AreSimilar(5184855.197033, total, 0.0001);
             Image arm = new PDSSeralizer().Read(Path.Combine("TestData", "img", "NLB_451025090ARMLF0311052NCAM00493M1.IMG"), ImageConverters.PassThrough);
             Assert.AreEqual(5, arm.Bands);
+
+            Image msss = new PDSSeralizer().Read(Path.Combine("TestData", "img", "0608ML0025660260301542E01_DRCX.IMG"), ImageConverters.PDSBitMaskValueRangeToNormalizedImage);
+            Assert.AreEqual(3, msss.Bands);          
         }
     }
 }

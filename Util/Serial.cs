@@ -21,5 +21,13 @@ namespace OPS.Util
                 action(item);
             }
         }
+
+        public static void For(int startInclusive, int endExclusive, Action<int> action)
+        {            
+            for(int i = startInclusive; i < endExclusive; i++ )
+            {
+                action(i);
+            }
+        }
     }
 }

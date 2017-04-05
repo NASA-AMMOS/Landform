@@ -10,6 +10,7 @@ using Amazon.S3.Transfer;
 using Amazon.Runtime;
 using System.Text.RegularExpressions;
 using System.IO;
+using OPS.Util;
 
 namespace OPS.Cloud
 {    
@@ -40,17 +41,7 @@ namespace OPS.Cloud
             awsCredentials = Credentials.Get(awsProfileName);
             awsRegion = govCloud ? RegionEndpoint.USGovCloudWest1 : RegionEndpoint.USWest1;
         }
-
-        /// <summary>
-        /// Convert a string containing * and ? wildcard characters to a string that can be used to generate a regex
-        /// </summary>
-        /// <param name="value"></param>
-        /// <returns></returns>
-        private static String WildCardToRegular(String value)
-        {
-            return "^" + Regex.Escape(value).Replace("\\?", ".").Replace("\\*", ".*") + "$";
-        }
-        
+       
         /// <summary>
         /// Create a list request.  Request will be recursive if delimiter is not used
         /// </summary>
@@ -91,7 +82,7 @@ namespace OPS.Cloud
             S3Url location = new S3Url(s3url);
             using (var client = new AmazonS3Client(awsCredentials, awsRegion))
             {
-                var regex = new Regex(WildCardToRegular(pattern));
+                var regex = StringHelper.WildCardToRegularExression(pattern);
                 var request = CreateListRequest(s3url, true);
                 ListObjectsV2Response response;
                 do
@@ -120,7 +111,7 @@ namespace OPS.Cloud
         public IEnumerable<string> SearchObjects(string s3url, string pattern = "*", bool recursive = true)
         {
             S3Url location = new S3Url(s3url);
-            var regex = new Regex(WildCardToRegular(pattern));
+            var regex = StringHelper.WildCardToRegularExression(pattern);
             using (var client = new AmazonS3Client(awsCredentials, awsRegion))
             {
                 var request = CreateListRequest(s3url, !recursive);
@@ -159,7 +150,8 @@ namespace OPS.Cloud
         /// <summary>
         /// Returns a stream to a file.  This stream does not download the entire file.
         /// streamHandler is called with the stream.  The caller does not need to wrap the 
-        /// stream in a using statement.
+        /// stream in a using statement.  Uses Amazons default API which is simple but slow.
+        /// Consider using speed stream method instead
         /// </summary>
         /// <param name="s3url"></param>
         /// <param name="streamHandler"></param>
