@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Data.Entity.Infrastructure;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -13,7 +14,7 @@ namespace OPS.Cloud
     {
         public int Site { get; set; }
         public int Drive { get; set; }
-        public int Version { get; set; }
+        public string Version { get; set; }
         public string Sensor { get; set; }
         public string ImageFrameSize { get; set; }
         
@@ -22,14 +23,41 @@ namespace OPS.Cloud
 
         }
 
-        public RoverObservation(Project project, Frame frame, string name, string url, string observationType, string cameraModel, int site, int drive, int version, string sensor, string imageFrameSize) :
-            base(project, frame, name, url, observationType, cameraModel)
+        protected RoverObservation(Frame frame, string name, string url, string observationType, string cameraModel, bool useForReconstruction, int site, int drive, string version, string sensor, string imageFrameSize) :
+            base(frame, name, url, observationType, cameraModel, useForReconstruction)
         {
             this.Site = site;
             this.Drive = drive;
             this.Version = version;
             this.Sensor = sensor;
             this.ImageFrameSize = imageFrameSize;
+        }
+
+        /// <summary>
+        /// Creates a new rover observation and saves it to the database.  Returned observation has a valid id.
+        /// Names must be unique within a project.
+        /// Project is infered from frame.
+        /// </summary>
+        /// <param name="context"></param>
+        /// <param name="frame"></param>
+        /// <param name="name"></param>
+        /// <param name="url"></param>
+        /// <param name="observationType"></param>
+        /// <param name="cameraModel"></param>
+        /// <returns></returns>
+        public static RoverObservation Create(LandformDbContext context, Frame frame, string name, string url, string observationType, string cameraModel, bool useForReconstruction, int site, int drive, string version, string sensor, string imageFrameSize)
+        {
+            try
+            {
+                Observation observation = context.Observations.Add(new RoverObservation(frame, name, url, observationType, cameraModel, useForReconstruction, site, drive, version, sensor, imageFrameSize));
+                context.SaveChanges();
+                return (RoverObservation)observation;
+            }
+            catch (DbUpdateException)
+            {
+                // A record with this unique name and project id combination already exists
+            }
+            return null;
         }
     }
 }

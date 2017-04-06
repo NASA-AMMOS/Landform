@@ -30,40 +30,5 @@ namespace OPS.Cloud
         public LandformDbContext(string str) : base(str)
         {
         }
-
-        public Project FindOrCreateProject(string name)
-        {
-            Project project = Projects.Where(p => p.Name == name).FirstOrDefault();
-            if (project == null)
-            {
-                project = Projects.Add(new Project(name));
-                SaveChanges();
-            }           
-            return project;
-        }
-
-        public Frame FindOrCreateFrame(Project p, string name)
-        {
-            Frame frame = Frames.Where(f => f.Name == name && f.ProjectId == p.Id).FirstOrDefault();
-            if (frame == null)
-            {
-                frame = Frames.Add(new Frame(p, name));
-                SaveChanges();
-            }
-            return frame;
-        }
-
-        public Observation FindObservation(Project p, string name)
-        {
-            return Observations.Where(obs => obs.Name == name && obs.ProjectId == p.Id).FirstOrDefault();
-        }
-
-        public Observation AddObservation(Observation observation)
-        {           
-            observation = Observations.Add(observation);
-            SaveChanges();
-            return observation;
-        }
-
     }
 }
