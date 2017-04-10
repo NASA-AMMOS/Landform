@@ -123,5 +123,22 @@ namespace OPS.Geometry
         {
             return new Vertex(this);
         }
+
+        /// <summary>
+        /// Lerp between vertices, lerps all attributes (position, normal, uv, and color)
+        /// </summary>
+        /// <param name="a">start</param>
+        /// <param name="b">end</param>
+        /// <param name="t">amount of lerp 0-1</param>
+        /// <returns></returns>
+        public static Vertex Lerp(Vertex a, Vertex b, double t)
+        {
+            Vertex result = new Vertex();
+            result.Position = Vector3.Lerp(a.Position, b.Position, t);
+            result.Normal = Vector3.Lerp(a.Normal, b.Normal, t);
+            result.UV = Vector2.Lerp(a.UV, b.UV, t);
+            result.Color = Vector4.Lerp(a.Color, b.Color, t);
+            return result;
+        }
     }
 }
