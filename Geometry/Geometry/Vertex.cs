@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using Microsoft.Xna.Framework;
+using OPS.MathExtensions;
 
 namespace OPS.Geometry
 {
@@ -67,6 +68,21 @@ namespace OPS.Geometry
             this.Normal = other.Normal;
             this.Color = other.Color;
             this.UV = other.UV;
+        }
+
+
+        /// <summary>
+        /// Returns true if the vertices are equivlenet
+        /// </summary>
+        /// <param name="v"></param>
+        /// <param name="eps"></param>
+        /// <returns></returns>
+        public virtual bool AlmostEqual(Vertex v, double eps = MathE.EPSILON)
+        {
+            return  Vector3.AlmostEqual(this.Position, v.Position, eps) &&
+                    Vector3.AlmostEqual(this.Normal, v.Normal, eps) &&
+                    Vector2.AlmostEqual(this.UV, v.UV, eps) &&
+                    Vector4.AlmostEqual(this.Color, v.Color, eps);
         }
 
         public override bool Equals(System.Object obj)
