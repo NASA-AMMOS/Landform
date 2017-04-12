@@ -394,6 +394,16 @@ namespace OPS.Geometry
             result.MergeWith(meshesToCombine);
             return result;
         }
+        public BoundingBox Bounds()
+        {
+            BoundingBox b = new BoundingBox(Vector3.Largest, Vector3.Smallest);
+            foreach (Vertex v in this.Vertices)
+            {
+                b.Min = Vector3.Min(b.Min, v.Position);
+                b.Max = Vector3.Max(b.Max, v.Position);
+            }
+            return b;
+        }
 
         public void Save(string filename, string textureFilename = null)
         {
