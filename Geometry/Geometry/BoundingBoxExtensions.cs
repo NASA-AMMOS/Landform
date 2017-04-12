@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Microsoft.Xna.Framework;
+using OPS.MathExtensions;
 
 namespace OPS.Geometry
 {
@@ -21,12 +22,14 @@ namespace OPS.Geometry
 
         /// <summary>
         /// Returns true if the this box is totaly inside or equal to the outer box
+        /// Note that this method is similar to BoundingBox.Contains except that it allows for floating point
+        /// error.
         /// </summary>
         /// <param name="inner"></param>
         /// <param name="outer"></param>
         /// <param name="epsilon"></param>
         /// <returns></returns>
-        public static bool Inside(this BoundingBox inner, BoundingBox outer, double epsilon = 1e-3)
+        public static bool Inside(this BoundingBox inner, BoundingBox outer, double epsilon = MathE.EPSILON)
         {
             Vector3 size = outer.Size();
             if (inner.Min.X <= outer.Min.X - epsilon ||
