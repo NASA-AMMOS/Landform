@@ -412,6 +412,26 @@ namespace GeometryTest
             Assert.AreEqual(2, a.Faces.Count);
         }
 
+
+        [TestMethod]
+        public void MeshClipTest()
+        {
+            Random r = new Random(17);
+            List<Triangle> tris = new List<Triangle>();
+            for (int i = 0; i < 200; i++)
+            {
+                tris.Add(new Triangle(new Vertex((r.NextDouble() - 0.5) * 10, (r.NextDouble() - 0.5) * 10, (r.NextDouble() - 0.5) * 10),
+                                     new Vertex((r.NextDouble() - 0.5) * 10, (r.NextDouble() - 0.5) * 10, (r.NextDouble() - 0.5) * 10),
+                                     new Vertex((r.NextDouble() - 0.5) * 10, (r.NextDouble() - 0.5) * 10, (r.NextDouble() - 0.5) * 10)));
+            }
+            Mesh m = new Mesh(tris);
+            BoundingBox bb = new BoundingBox(new Vector3(-2, -3, -4), new Vector3(-1, -1, -2));
+            Mesh clipped = Mesh.Clip(m,bb);
+            BoundingBox clippedBB = clipped.Bounds();
+            Assert.IsTrue(Vector3.AlmostEqual(clippedBB.Min, bb.Min));
+            Assert.IsTrue(Vector3.AlmostEqual(clippedBB.Max, bb.Max));
+        }
+
         [TestMethod]
         public void MeshBoundsTest()
         {

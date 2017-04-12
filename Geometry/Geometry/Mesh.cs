@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text;
 using System.IO;
 using Microsoft.Xna.Framework;
+using System.Diagnostics;
 
 namespace OPS.Geometry
 {
@@ -394,6 +395,23 @@ namespace OPS.Geometry
             result.MergeWith(meshesToCombine);
             return result;
         }
+        
+        public static Mesh Clip(Mesh m, BoundingBox box)
+        {
+            List<Triangle> resTriangles = new List<Triangle>();
+            foreach(Face f in m.Faces)
+            {
+                Vertex v0 = m.Vertices[f.P0];
+                Vertex v1 = m.Vertices[f.P1];
+                Vertex v2 = m.Vertices[f.P2];
+                Triangle t = new Triangle(v0, v1, v2);
+                resTriangles.AddRange(t.Clip(box));
+            }
+            Mesh result = new Mesh(resTriangles, m.HasNormals, m.HasUVs, m.HasColors);
+            Debug.Assert(result.Bounds().Inside(box), "Clipped mesh exceeds bounding box");            
+            return result;
+        }
+        
         public BoundingBox Bounds()
         {
             BoundingBox b = new BoundingBox(Vector3.Largest, Vector3.Smallest);
