@@ -81,6 +81,7 @@ namespace OPS.Geometry
                 Vertices.Add((Vertex)t.V1.Clone());
                 Vertices.Add((Vertex)t.V2.Clone());
             }
+            Clean();
         }
 
         /// <summary>
