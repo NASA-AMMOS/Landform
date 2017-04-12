@@ -411,5 +411,19 @@ namespace GeometryTest
             Assert.AreEqual(6, a.Vertices.Count);
             Assert.AreEqual(2, a.Faces.Count);
         }
+
+        [TestMethod]
+        public void MeshBoundsTest()
+        {
+            Mesh m = new Mesh();
+            m.Vertices.Add(new Vertex(-1, 0, 0));
+            m.Vertices.Add(new Vertex(1, 0, 0));
+            m.Vertices.Add(new Vertex(0, 2, 3));
+            m.Vertices.Add(new Vertex(0, 1, 0));
+            m.Vertices.Add(new Vertex(0, -7, 0));
+            BoundingBox bounds = m.Bounds();
+            Assert.AreEqual(new Vector3(-1, -7, 0), bounds.Min);
+            Assert.AreEqual(new Vector3(1, 2, 3), bounds.Max);
+        }
     }
 }
