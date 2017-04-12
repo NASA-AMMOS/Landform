@@ -105,7 +105,7 @@ namespace GeometryTest
             ts.Add(t1);
             ts.Add(t2);
             Mesh m = new Mesh(ts, true, true, true);
-            Assert.AreEqual(6, m.Vertices.Count);
+            Assert.AreEqual(4, m.Vertices.Count);
             Assert.AreEqual(2, m.Faces.Count);
             Assert.AreEqual(true, m.HasNormals);
             Assert.AreEqual(true, m.HasColors);
@@ -113,9 +113,9 @@ namespace GeometryTest
             Assert.AreEqual(t1.V0, m.Vertices[0]);
             Assert.AreEqual(t1.V1, m.Vertices[1]);
             Assert.AreEqual(t1.V2, m.Vertices[2]);
-            Assert.AreEqual(t2.V0, m.Vertices[3]);
-            Assert.AreEqual(t2.V1, m.Vertices[4]);
-            Assert.AreEqual(t2.V2, m.Vertices[5]);
+            Assert.AreEqual(t2.V0, m.Vertices[0]);
+            Assert.AreEqual(t2.V1, m.Vertices[2]);
+            Assert.AreEqual(t2.V2, m.Vertices[3]);
 
             // Confirm vertex deep copy
             t1.V0.Position.X = 7;
