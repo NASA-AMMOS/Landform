@@ -43,6 +43,7 @@
   <ItemGroup>
     <Compile Include="Geometry\Face.cs" />
     <Compile Include="Geometry\Mesh.cs" />
+    <Compile Include="Geometry\PlaneExtensions.cs" />
     <Compile Include="Geometry\Triangle.cs" />
     <Compile Include="Geometry\Vertex.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
@@ -53,6 +54,10 @@
     <Compile Include="Serializers\PLYWriter.cs" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\MathExtensions\MathExtensions.csproj">
+      <Project>{8c7c8a71-0a4b-4d75-9cb2-32803bd8f86f}</Project>
+      <Name>MathExtensions</Name>
+    </ProjectReference>
     <ProjectReference Include="..\Xna\Xna.csproj">
       <Project>{46759719-42d9-473b-a8ad-0848a33bdac6}</Project>
       <Name>Xna</Name>
