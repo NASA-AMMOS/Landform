@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.IO;
+using Microsoft.Xna.Framework;
 
 namespace OPS.Geometry
 {
@@ -314,6 +315,14 @@ namespace OPS.Geometry
                 RemoveInvalidFaces();
                 RemoveUnreferencedVertices();
                 RemoveDuplicateFaces();
+            }
+        }
+
+        public void Translate(Vector3 offset)
+        {
+            for (int i = 0; i < this.Vertices.Count; i++)
+            {
+                this.Vertices[i].Position += offset;
             }
         }
 

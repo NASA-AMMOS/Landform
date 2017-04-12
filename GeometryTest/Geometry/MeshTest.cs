@@ -3,6 +3,7 @@ using System.Text;
 using System.Collections.Generic;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using OPS.Geometry;
+using Microsoft.Xna.Framework;
 
 namespace GeometryTest
 {
@@ -286,6 +287,33 @@ namespace GeometryTest
             Assert.AreEqual(new Vertex(0, 1, 0), m.Vertices[2]);
             Assert.AreEqual(new Face(0, 1, 2), m.Faces[0]);
             Assert.AreEqual(new Face(0, 2, 1), m.Faces[1]);
+
+            m = new Mesh();
+            m.Vertices.Add(new Vertex(0, 0, 0));
+            m.Vertices.Add(new Vertex(1, 0, 0));
+            m.Vertices.Add(new Vertex(0, 2, 3));
+            m.Vertices.Add(new Vertex(0, 1, 0));
+            m.Vertices.Add(new Vertex(0, 0, 0));
+            m.Clean();
+            Assert.AreEqual(4, m.Vertices.Count);
+        }
+
+        [TestMethod]
+        public void TranslateMeshTest()
+        {
+            Mesh m = new Mesh();
+            m.Vertices.Add(new Vertex(0, 0, 0));
+            m.Vertices.Add(new Vertex(1, 0, 0));
+            m.Vertices.Add(new Vertex(0, 2, 3));
+            m.Vertices.Add(new Vertex(0, 1, 0));
+            m.Vertices.Add(new Vertex(0, 0, 0));
+
+            m.Translate(new Vector3(-3, 2, 1));
+            Assert.AreEqual(new Vector3(-3, 2, 1), m.Vertices[0].Position);
+            Assert.AreEqual(new Vector3(-2, 2, 1), m.Vertices[1].Position);
+            Assert.AreEqual(new Vector3(-3, 4, 4), m.Vertices[2].Position);
+            Assert.AreEqual(new Vector3(-3, 3, 1), m.Vertices[3].Position);
+            Assert.AreEqual(new Vector3(-3, 2, 1), m.Vertices[4].Position);
         }
 
         [TestMethod]
