@@ -34,6 +34,22 @@ namespace OPS.Cloud
         }
 
         /// <summary>
+        /// Prevent possible bugs from calling the default Observation.Create method.
+        /// </summary>
+        /// <param name="context"></param>
+        /// <param name="frame"></param>
+        /// <param name="name"></param>
+        /// <param name="url"></param>
+        /// <param name="observationType"></param>
+        /// <param name="cameraModel"></param>
+        /// <param name="useForReconstruction"></param>
+        /// <returns></returns>
+        new public static Observation Create(LandformDbContext context, Frame frame, string name, string url, string observationType, string cameraModel, bool useForReconstruction)
+        {
+            throw new NotImplementedException("Call the other version of RoverObservation.Create with rover specific arguments");
+        }
+
+        /// <summary>
         /// Creates a new rover observation and saves it to the database.  Returned observation has a valid id.
         /// Names must be unique within a project.
         /// Project is infered from frame.

@@ -9,6 +9,7 @@ using OPS.Imaging;
 using OPS.Util;
 using System.Threading;
 using System.IO;
+using log4net;
 
 namespace OPS.Pipeline
 {
@@ -56,6 +57,8 @@ namespace OPS.Pipeline
         const int MIN_NAV_HAZ_EXPOSURE = 80;
         const int MIN_MASTCAM_FOCUS_CUTOFF = 3;
         const int MAX_MASTCAM_WIDTH = 1344;
+        private static readonly ILog logger = LogManager.GetLogger(typeof(CrawlMSL));
+
 
         CralwMSLOptions options;
         LandformDatabase database;
@@ -271,7 +274,7 @@ namespace OPS.Pipeline
                 {
                     status = "Failed " + e.Message;
                 }
-                Console.WriteLine(url + "\t" + status);
+                logger.Info(url + "\t" + status);
             });
         }
         

@@ -5,6 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 using Microsoft.Xna.Framework;
 using System.ComponentModel.DataAnnotations.Schema;
+using System.Data.Entity.Infrastructure;
 
 namespace OPS.Cloud
 {
@@ -38,15 +39,64 @@ namespace OPS.Cloud
         {
         }
 
-        public FrameTransform(Project projectId, Frame fromFrame, Frame toFrame, Vector3 translation, Quaternion rotation, string transformSource, double error)
+        /// <summary>
+        /// Creates a new transform specifying the relationship between two frames
+        /// </summary>
+        /// <param name="fromFrame"></param>
+        /// <param name="toFrame"></param>
+        /// <param name="translation"></param>
+        /// <param name="rotation"></param>
+        /// <param name="transformSource"></param>
+        /// <param name="error"></param>
+        protected FrameTransform(Frame fromFrame, Frame toFrame, Vector3 translation, Quaternion rotation, string transformSource, double error)
         {
-            this.ProjectId = projectId.Id;
-            this.FromFrameId = fromFrame.Id ;
+            if(!fromFrame.HasValidId() || !toFrame.HasValidId())
+            {
+                throw new CloudException("Invalid frame id in frame transform.  fromFrame and toFrame must have been saved to database");
+            }
+            if(fromFrame.ProjectId != toFrame.ProjectId)
+            {
+                throw new CloudException("Frame transform fromFrame and toFrame must be in the same project");
+            }
+            if(fromFrame.ProjectId == 0)
+            {
+                throw new CloudException("Invalid project id for frame transform");
+            }
+            this.ProjectId = fromFrame.ProjectId;
+            this.FromFrameId = fromFrame.Id;
             this.ToFrameId = toFrame.Id;
             this.Translation = translation;
             this.Rotation = rotation;
             this.TransformSource = transformSource;
             this.Error = error;
+        }
+
+        /// <summary>
+        /// Creates a transform between two frames and saves it to the database
+        /// Returns the transform with a valid id
+        /// Returns null if the transform could not be created
+        /// </summary>
+        /// <param name="context"></param>
+        /// <param name="fromFrame"></param>
+        /// <param name="toFrame"></param>
+        /// <param name="translation"></param>
+        /// <param name="rotation"></param>
+        /// <param name="transformSource"></param>
+        /// <param name="error"></param>
+        /// <returns></returns>
+        public static FrameTransform Create(LandformDbContext context, Frame fromFrame, Frame toFrame, Vector3 translation, Quaternion rotation, string transformSource, double error)
+        {
+            try
+            {
+                FrameTransform transform = context.FrameTransforms.Add(new FrameTransform(fromFrame, toFrame, translation, rotation, transformSource, error));
+                context.SaveChanges();
+                return transform;
+            }
+            catch (DbUpdateException)
+            {
+                // A record with this unique name and project id combination already exists
+            }
+            return null;
         }
 
         [NotMapped]

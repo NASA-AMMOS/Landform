@@ -8,11 +8,13 @@ using System.Threading.Tasks;
 using OPS.Geometry;
 using OPS.Cloud;
 using OPS.Pipeline;
+using log4net;
 
 namespace Landform
 {
     class Landform
     {
+        static ILog logger = LogManager.GetLogger(typeof(Landform));
         /// <summary>
         /// 
         /// The start of everything
@@ -21,6 +23,9 @@ namespace Landform
         /// <returns></returns>
         static int Main(string[] args)
         {
+            // Enable logging
+            log4net.Config.XmlConfigurator.Configure();
+
             int returnCode = Commands.RunFromCommandline(args);
             return returnCode;
         }
