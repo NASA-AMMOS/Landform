@@ -9,11 +9,13 @@ using OPS.Geometry;
 using OPS.Cloud;
 using OPS.Pipeline;
 using System.Diagnostics;
+using log4net;
 
 namespace Landform
 {
     class Landform
     {
+        static ILog logger = LogManager.GetLogger(typeof(Landform));
         /// <summary>
         /// 
         /// The start of everything
@@ -22,6 +24,9 @@ namespace Landform
         /// <returns></returns>
         static int Main(string[] args)
         {
+            log4net.GlobalContext.Properties["LogFileName"] = "mrlog.txt";
+            log4net.Config.XmlConfigurator.Configure();
+
             /*
             var sh = new StorageHelper("menzies_m2020_gov", true);
 
