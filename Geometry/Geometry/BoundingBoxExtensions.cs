@@ -29,15 +29,14 @@ namespace OPS.Geometry
         /// <param name="outer"></param>
         /// <param name="epsilon"></param>
         /// <returns></returns>
-        public static bool Inside(this BoundingBox inner, BoundingBox outer, double epsilon = MathE.EPSILON)
+        public static bool FuzzyContains(this BoundingBox outer, BoundingBox inner, double epsilon = MathE.EPSILON)
         {
-            Vector3 size = outer.Size();
             if (inner.Min.X <= outer.Min.X - epsilon ||
-                inner.Max.X >= outer.Min.X + size.X + epsilon ||
+                inner.Max.X >= outer.Max.X + epsilon ||
                 inner.Min.Y <= outer.Min.Y - epsilon ||
-                inner.Max.Y >= outer.Min.Y + size.Y + epsilon ||
+                inner.Max.Y >= outer.Max.Y + epsilon ||
                 inner.Min.Z <= outer.Min.Z - epsilon ||
-                inner.Max.Z >= outer.Min.Z + size.Z + epsilon)
+                inner.Max.Z >= outer.Max.Z + epsilon)
             {
                 return false;
             }

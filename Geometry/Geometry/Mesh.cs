@@ -398,17 +398,33 @@ namespace OPS.Geometry
         
         public static Mesh Clip(Mesh m, BoundingBox box)
         {
-            List<Triangle> resTriangles = new List<Triangle>();
-            foreach(Face f in m.Faces)
+            Mesh result;
+            if (m.Faces.Count > 0)
             {
-                Vertex v0 = m.Vertices[f.P0];
-                Vertex v1 = m.Vertices[f.P1];
-                Vertex v2 = m.Vertices[f.P2];
-                Triangle t = new Triangle(v0, v1, v2);
-                resTriangles.AddRange(t.Clip(box));
+                List<Triangle> resTriangles = new List<Triangle>();
+                foreach (Face f in m.Faces)
+                {
+                    Vertex v0 = m.Vertices[f.P0];
+                    Vertex v1 = m.Vertices[f.P1];
+                    Vertex v2 = m.Vertices[f.P2];
+                    Triangle t = new Triangle(v0, v1, v2);
+                    resTriangles.AddRange(t.Clip(box));
+                }
+                result = new Mesh(resTriangles, m.HasNormals, m.HasUVs, m.HasColors);
             }
-            Mesh result = new Mesh(resTriangles, m.HasNormals, m.HasUVs, m.HasColors);
-            Debug.Assert(result.Bounds().Inside(box), "Clipped mesh exceeds bounding box");            
+            else
+            {
+                result = new Mesh(m.HasNormals, m.HasUVs, m.HasColors);
+                // this is a point cloud
+                foreach (var v in m.Vertices)
+                {
+                    if(box.Contains(v.Position) == ContainmentType.Contains)
+                    {
+                        result.Vertices.Add(v);
+                    }
+                }
+            }
+            Debug.Assert(box.FuzzyContains(result.Bounds()), "Clipped mesh exceeds bounding box");
             return result;
         }
         

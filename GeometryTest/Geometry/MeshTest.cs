@@ -13,8 +13,6 @@ namespace GeometryTest
     [TestClass]
     public class MeshTest
     {
-
-
         [TestMethod]
         public void MeshConstructorTest()
         {
@@ -430,6 +428,22 @@ namespace GeometryTest
             BoundingBox clippedBB = clipped.Bounds();
             Assert.IsTrue(Vector3.AlmostEqual(clippedBB.Min, bb.Min));
             Assert.IsTrue(Vector3.AlmostEqual(clippedBB.Max, bb.Max));
+        }
+
+        [TestMethod]
+        public void MeshClipPointCloudTest()
+        {
+            Random r = new Random(17);
+            Mesh m = new Mesh();
+            for (int i = 0; i < 10000; i++)
+            {
+                m.Vertices.Add(new Vertex((r.NextDouble() - 0.5) * 5, (r.NextDouble() - 0.5) * 5, (r.NextDouble() - 0.5) * 5));
+            }            
+            BoundingBox bb = new BoundingBox(new Vector3(-2, -3, -4), new Vector3(-1, -1, -2));
+            Mesh clipped = Mesh.Clip(m, bb);
+            BoundingBox clippedBB = clipped.Bounds();
+            Assert.IsTrue(bb.FuzzyContains(clippedBB));
+            Assert.IsTrue(clipped.Vertices.Count > 0);
         }
 
         [TestMethod]
