@@ -3,11 +3,11 @@
   <PropertyGroup>
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
     <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
-    <ProjectGuid>{66405D17-B1EC-41BE-8C03-5CE6B5E0B8F6}</ProjectGuid>
+    <ProjectGuid>{BA84E85E-6E70-4298-8DCB-4E843543EBCE}</ProjectGuid>
     <OutputType>Library</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
-    <RootNamespace>PipelineTest</RootNamespace>
-    <AssemblyName>PipelineTest</AssemblyName>
+    <RootNamespace>CloudTest</RootNamespace>
+    <AssemblyName>CloudTest</AssemblyName>
     <TargetFrameworkVersion>v4.6.1</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <ProjectTypeGuids>{3AC096D0-A1C2-E12C-1390-A8335801FDAB};{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}</ProjectTypeGuids>
@@ -16,9 +16,6 @@
     <ReferencePath>$(ProgramFiles)\Common Files\microsoft shared\VSTT\$(VisualStudioVersion)\UITestExtensionPackages</ReferencePath>
     <IsCodedUITest>False</IsCodedUITest>
     <TestProjectType>UnitTest</TestProjectType>
-    <TargetFrameworkProfile />
-    <NuGetPackageImportStamp>
-    </NuGetPackageImportStamp>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <DebugSymbols>true</DebugSymbols>
@@ -28,7 +25,6 @@
     <DefineConstants>DEBUG;TRACE</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
-    <Prefer32Bit>false</Prefer32Bit>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
     <DebugType>pdbonly</DebugType>
@@ -37,29 +33,9 @@
     <DefineConstants>TRACE</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
-    <Prefer32Bit>false</Prefer32Bit>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="gdalconst_csharp, Version=1.0.5387.28601, Culture=neutral, PublicKeyToken=db5a52b08dc5b321, processorArchitecture=MSIL">
-      <HintPath>..\packages\GDAL.1.11.1\lib\net40\gdalconst_csharp.dll</HintPath>
-      <Private>True</Private>
-    </Reference>
-    <Reference Include="gdal_csharp, Version=1.0.5387.28601, Culture=neutral, PublicKeyToken=db5a52b08dc5b321, processorArchitecture=MSIL">
-      <HintPath>..\packages\GDAL.1.11.1\lib\net40\gdal_csharp.dll</HintPath>
-      <Private>True</Private>
-    </Reference>
-    <Reference Include="ogr_csharp, Version=1.0.5387.28600, Culture=neutral, PublicKeyToken=db5a52b08dc5b321, processorArchitecture=MSIL">
-      <HintPath>..\packages\GDAL.1.11.1\lib\net40\ogr_csharp.dll</HintPath>
-      <Private>True</Private>
-    </Reference>
-    <Reference Include="osr_csharp, Version=1.0.5387.28600, Culture=neutral, PublicKeyToken=db5a52b08dc5b321, processorArchitecture=MSIL">
-      <HintPath>..\packages\GDAL.1.11.1\lib\net40\osr_csharp.dll</HintPath>
-      <Private>True</Private>
-    </Reference>
     <Reference Include="System" />
-    <Reference Include="System.Core">
-      <RequiredTargetFramework>3.5</RequiredTargetFramework>
-    </Reference>
   </ItemGroup>
   <Choose>
     <When Condition="('$(VisualStudioVersion)' == '10.0' or '$(VisualStudioVersion)' == '') and '$(TargetFrameworkVersion)' == 'v3.5'">
@@ -74,42 +50,14 @@
     </Otherwise>
   </Choose>
   <ItemGroup>
-    <Compile Include="GdalConfiguration.cs" />
-    <Compile Include="Rover\PDSParserTest.cs" />
+    <Compile Include="Storage\S3UrlTest.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="Rover\RoverProductIdTest.cs" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="app.config" />
-    <None Include="packages.config" />
-  </ItemGroup>
-  <ItemGroup>
-    <ProjectReference Include="..\Imaging\Imaging.csproj">
-      <Project>{c3ec3ab5-8dfd-4daa-9833-246f0db6a805}</Project>
-      <Name>Imaging</Name>
+    <ProjectReference Include="..\Cloud\Cloud.csproj">
+      <Project>{52a91b3e-1d95-4715-a7ad-2840b2f9c6ac}</Project>
+      <Name>Cloud</Name>
     </ProjectReference>
-    <ProjectReference Include="..\MathExtensions\MathExtensions.csproj">
-      <Project>{8c7c8a71-0a4b-4d75-9cb2-32803bd8f86f}</Project>
-      <Name>MathExtensions</Name>
-    </ProjectReference>
-    <ProjectReference Include="..\Pipeline\Pipeline.csproj">
-      <Project>{c45f0cd6-c998-47ec-b67c-ad77196b06a0}</Project>
-      <Name>Pipeline</Name>
-    </ProjectReference>
-    <ProjectReference Include="..\TestData\TestData.csproj">
-      <Project>{42298ee4-6937-4b4c-a8b8-89effbc40e80}</Project>
-      <Name>TestData</Name>
-    </ProjectReference>
-    <ProjectReference Include="..\Xna\Xna.csproj">
-      <Project>{46759719-42d9-473b-a8ad-0848a33bdac6}</Project>
-      <Name>Xna</Name>
-    </ProjectReference>
-  </ItemGroup>
-  <ItemGroup>
-    <WCFMetadata Include="Service References\" />
-  </ItemGroup>
-  <ItemGroup>
-    <Content Include="GdalConfiguration.vb" />
   </ItemGroup>
   <Choose>
     <When Condition="'$(VisualStudioVersion)' == '10.0' And '$(IsCodedUITest)' == 'True'">
@@ -131,13 +79,6 @@
   </Choose>
   <Import Project="$(VSToolsPath)\TeamTest\Microsoft.TestTools.targets" Condition="Exists('$(VSToolsPath)\TeamTest\Microsoft.TestTools.targets')" />
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
-  <Import Project="..\packages\GDAL.Native.1.11.1\build\net40\GDAL.Native.targets" Condition="Exists('..\packages\GDAL.Native.1.11.1\build\net40\GDAL.Native.targets')" />
-  <Target Name="EnsureNuGetPackageBuildImports" BeforeTargets="PrepareForBuild">
-    <PropertyGroup>
-      <ErrorText>This project references NuGet package(s) that are missing on this computer. Use NuGet Package Restore to download them.  For more information, see http://go.microsoft.com/fwlink/?LinkID=322105. The missing file is {0}.</ErrorText>
-    </PropertyGroup>
-    <Error Condition="!Exists('..\packages\GDAL.Native.1.11.1\build\net40\GDAL.Native.targets')" Text="$([System.String]::Format('$(ErrorText)', '..\packages\GDAL.Native.1.11.1\build\net40\GDAL.Native.targets'))" />
-  </Target>
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
        Other similar extension points exist, see Microsoft.Common.targets.
   <Target Name="BeforeBuild">

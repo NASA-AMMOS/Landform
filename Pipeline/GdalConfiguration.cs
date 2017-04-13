@@ -33,7 +33,7 @@ using System.Reflection;
 using Gdal = OSGeo.GDAL.Gdal;
 using Ogr = OSGeo.OGR.Ogr;
 
-namespace Pipeline
+namespace OPS.Pipeline
 {
     public static partial class GdalConfiguration
     {

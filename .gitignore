@@ -37,3 +37,8 @@ GeometryThirdpartyTest/bin/
 GeometryThirdpartyTest/obj/
 UtilTest/bin/
 UtilTest/obj/
+Cloud/bin/
+Cloud/obj/
+*.user
+CloudTest/bin/
+CloudTest/obj/
