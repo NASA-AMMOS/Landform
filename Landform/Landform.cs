@@ -24,7 +24,7 @@ namespace Landform
         /// <returns></returns>
         static int Main(string[] args)
         {
-            log4net.GlobalContext.Properties["LogFileName"] = "mrlog.txt";
+            // Enable logging
             log4net.Config.XmlConfigurator.Configure();
 
             /*
