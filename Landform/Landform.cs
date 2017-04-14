@@ -15,8 +15,8 @@ namespace Landform
     class Landform
     {
         static ILog logger = LogManager.GetLogger(typeof(Landform));
+        
         /// <summary>
-        /// 
         /// The start of everything
         /// </summary>
         /// <param name="args"></param>
@@ -25,7 +25,6 @@ namespace Landform
         {
             // Enable logging
             log4net.Config.XmlConfigurator.Configure();
-
             int returnCode = Commands.RunFromCommandline(args);
             return returnCode;
         }
