@@ -27,19 +27,16 @@ namespace OPS.Cloud
             long position;
             AmazonS3Client client;
             S3Url location;
-            long size;
             byte[] buffer;
             int bytesInBuffer;
             long positionAtBufferRefill;
 
-            public StorageStream(AmazonS3Client client, string s3url, int bufferSize = 1024 * 32)
+            public StorageStream(AmazonS3Client client, string s3url, long startingPos, int bufferSize)
             {
-                position = 0;
+                position = positionAtBufferRefill = startingPos;
                 bytesInBuffer = 0;
-                positionAtBufferRefill = 0;
                 this.location = new S3Url(s3url);
                 this.client = client;
-                this.size = GetSize();
                 this.buffer = new byte[bufferSize];
             }
 
@@ -73,22 +70,42 @@ namespace OPS.Cloud
                 };
                 request.ByteRange = range;
 
-                using (GetObjectResponse response = client.GetObject(request))
+                try
                 {
-                    responseHandler(response);
-                    return response.ContentLength;
+                    using (GetObjectResponse response = client.GetObject(request))
+                    {
+                        responseHandler(response);
+                        return response.ContentLength;
+                    }
                 }
-
+                catch (AmazonS3Exception e)
+                {
+                    // We have read off the end of the stream
+                    if(e.ErrorCode == "InvalidRange" && range.Start != 0)
+                    {
+                        responseHandler(null);
+                        return 0;
+                    }
+                    throw e;
+                }
             }
 
-            public void RefillBuffer()
+            /// <summary>
+            /// Returns number of bytes read into the buffer
+            /// </summary>
+            /// <returns></returns>
+            public long RefillBuffer()
             {
                 // Byte range is inclusive so subtract to get the end byte to read
                 long end = (position + buffer.Length) - 1;
                 positionAtBufferRefill = position;
-                GetObjectResponse(new ByteRange(position, end), response =>
+                long responseLength = GetObjectResponse(new ByteRange(position, end), response =>
                 {
                     bytesInBuffer = 0;
+                    if(response == null)
+                    {
+                        return;
+                    }
                     using (var stream = response.ResponseStream)
                     {                        
                         int bytesRead;
@@ -99,6 +116,7 @@ namespace OPS.Cloud
                         } while (bytesRead != 0);
                     }
                 });
+                return bytesInBuffer;
             }
 
             public override bool CanRead
@@ -157,18 +175,17 @@ namespace OPS.Cloud
             {
                 // Stop reading if we reach count or the end of the file
                 int totalRead = 0;
-                if (count > 0 && position < size)
+                if (count > 0)
                 {                  
                     if ((position - positionAtBufferRefill) == bytesInBuffer)
                     {
-                        RefillBuffer();
+                        if(RefillBuffer() == 0)
+                        {
+                            return 0;
+                        }
                     }
                     int readPos = (int)(position - positionAtBufferRefill);
                     int available = bytesInBuffer - readPos;            // how much is left in current buffer
-                    if (position + available > size)                    // if there less in the stream then the buffer
-                    {
-                        available = (int)(size - position);
-                    }
                     int bytesToRead = Math.Min(available, count);
                     Buffer.BlockCopy(this.buffer, readPos, output, offset, bytesToRead);
                     count -= bytesToRead;
@@ -389,16 +406,16 @@ namespace OPS.Cloud
         }
 
         /// <summary>
-        /// GetStream uses Amazon's TransferUtiltiy to get a stream.  For some reason that stream is
-        /// a bit slow.  This hand written version may run several times faster
+        /// GetStream uses Amazon's TransferUtiltiy to get a stream.  This stream can outperform the default
+        /// TransferUtility stream (especially on partial reads) because it supports different buffersizes
         /// </summary>
         /// <param name="s3url"></param>
         /// <param name="streamHandler"></param>
-        public void GetSpeedyStream(string s3url, StreamHandler streamHandler)
+        public void GetStorageStream(string s3url, StreamHandler streamHandler, long startPosition = 0, int bufferSize = 128*1024)
         {
             using (var client = GetClient(s3url))
             {
-                using (var s = new StorageStream(client, s3url))
+                using (var s = new StorageStream(client, s3url, startPosition, bufferSize))
                 {
                     streamHandler(s);
                 }

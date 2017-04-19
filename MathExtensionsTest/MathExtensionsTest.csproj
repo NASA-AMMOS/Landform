@@ -3,11 +3,11 @@
   <PropertyGroup>
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
     <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
-    <ProjectGuid>{65949ADB-C7A1-4353-9133-E606B066DD1B}</ProjectGuid>
+    <ProjectGuid>{3140AF23-F2F0-4836-8EB7-8D636E7A1CBD}</ProjectGuid>
     <OutputType>Library</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
-    <RootNamespace>UtilTest</RootNamespace>
-    <AssemblyName>UtilTest</AssemblyName>
+    <RootNamespace>MathExtensionsTest</RootNamespace>
+    <AssemblyName>MathExtensionsTest</AssemblyName>
     <TargetFrameworkVersion>v4.6.1</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <ProjectTypeGuids>{3AC096D0-A1C2-E12C-1390-A8335801FDAB};{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}</ProjectTypeGuids>
@@ -45,21 +45,22 @@
     </When>
     <Otherwise>
       <ItemGroup>
-        <Reference Include="Microsoft.VisualStudio.QualityTools.UnitTestFramework">
-          <Private>False</Private>
-        </Reference>
+        <Reference Include="Microsoft.VisualStudio.QualityTools.UnitTestFramework" />
       </ItemGroup>
     </Otherwise>
   </Choose>
   <ItemGroup>
-    <Compile Include="TemporaryFileTest.cs" />
+    <Compile Include="MathETest.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="PathHelperTest.cs" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\Util\Util.csproj">
-      <Project>{8145aa65-ba61-4e27-81ff-b64217b49929}</Project>
-      <Name>Util</Name>
+    <ProjectReference Include="..\MathExtensions\MathExtensions.csproj">
+      <Project>{8c7c8a71-0a4b-4d75-9cb2-32803bd8f86f}</Project>
+      <Name>MathExtensions</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\TestData\TestData.csproj">
+      <Project>{42298ee4-6937-4b4c-a8b8-89effbc40e80}</Project>
+      <Name>TestData</Name>
     </ProjectReference>
   </ItemGroup>
   <Choose>

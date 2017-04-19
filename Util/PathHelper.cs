@@ -36,5 +36,23 @@ namespace OPS.Util
                 Directory.CreateDirectory(directory);
             }
         }
+
+        /// <summary>
+        /// Changes the directory of a path but keeps the filename the same.
+        /// Optionally changes the extension of the file if a target extension is provided
+        /// </summary>
+        /// <param name="filename">Absolute or relative path to a file.  If this is a director name it must have a trailing slash or it will be treated as a file</param>
+        /// <param name="targetDirectory">Directory to use in returned filename</param>
+        /// <param name="targetExtension">File extension to use in returned filename</param>
+        /// <returns></returns>
+        public static string ChangeDirectory(string filename, string targetDirectory, string targetExtension = null)
+        {
+            string p = Path.Combine(targetDirectory, Path.GetFileName(filename));
+            if (targetExtension != null)
+            {
+                p = Path.ChangeExtension(p, targetExtension);
+            }
+            return p;
+        }
     }
 }

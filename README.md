@@ -16,6 +16,7 @@ Terrain Pipeline - The Next Generation
 | AWSSDK.Core | AWS core | nuget | [AWSSDK - Core Runtime 3.3.10.2](https://www.nuget.org/packages/AWSSDK.Core/) |
 | AWSSDK.S3 | S3 accesss | nuget | [AWSSDK - Amazon Simple Storage Service 3.3.5.10](https://www.nuget.org/packages/AWSSDK.S3/) |
 | Newtonsoft | Json parser | nuget | [Json.NET 10.0.1](https://www.nuget.org/packages/Newtonsoft.Json/) |
+| RTree | Datastructure for spatial queries | nuget | [RTree - Spatial Index 1.0.2.1](https://www.nuget.org/packages/RTree/) |
 
 
 

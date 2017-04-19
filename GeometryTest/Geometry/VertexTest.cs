@@ -91,14 +91,70 @@ namespace GeometryTest
         }
 
         [TestMethod]
+        public void VertexHashCodeTest()
+        {
+            Vertex v = new Vertex(1, 2, 3, 4, 5, 0.1, 0.2, 0.3, 0.1, 3, 4, 0.1);
+            Vertex t = (Vertex)v.Clone();
+            Assert.AreEqual(t.GetHashCode(), v.GetHashCode());
+
+            v.Position.X += 0.001;
+            Assert.AreNotEqual(t.GetHashCode(), v.GetHashCode());
+            t = (Vertex)v.Clone();
+            v.Position.Y += 0.001;
+            Assert.AreNotEqual(t.GetHashCode(), v.GetHashCode());
+            t = (Vertex)v.Clone();
+            v.Position.Z += 0.001;
+            Assert.AreNotEqual(t.GetHashCode(), v.GetHashCode());
+
+            v.Normal.X += 0.001;
+            Assert.AreNotEqual(t.GetHashCode(), v.GetHashCode());
+            t = (Vertex)v.Clone();
+            v.Normal.Y += 0.001;
+            Assert.AreNotEqual(t.GetHashCode(), v.GetHashCode());
+            t = (Vertex)v.Clone();
+            v.Normal.Z += 0.001;
+            Assert.AreNotEqual(t.GetHashCode(), v.GetHashCode());
+
+            v.UV.X += 0.001;
+            Assert.AreNotEqual(t.GetHashCode(), v.GetHashCode());
+            t = (Vertex)v.Clone();
+            v.UV.Y += 0.001;
+            Assert.AreNotEqual(t.GetHashCode(), v.GetHashCode());
+            t = (Vertex)v.Clone();
+
+            v.Color.X += 0.001;
+            Assert.AreNotEqual(t.GetHashCode(), v.GetHashCode());
+            t = (Vertex)v.Clone();
+            v.Color.Y += 0.001;
+            Assert.AreNotEqual(t.GetHashCode(), v.GetHashCode());
+            t = (Vertex)v.Clone();
+            v.Color.Z += 0.001;
+            Assert.AreNotEqual(t.GetHashCode(), v.GetHashCode());
+            v.Color.A += 0.001;
+            Assert.AreNotEqual(t.GetHashCode(), v.GetHashCode());
+        }
+
+
+        [TestMethod]
         public void VertexCloneTest()
         {
-            Vertex v0 = new Vertex(1,2,3,4,5,6,7,8,9,0,11,22);
-            Vertex v1 = (Vertex) v0.Clone();
+            Vertex v0 = new Vertex(1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 11, 22);
+            Vertex v1 = (Vertex)v0.Clone();
             Assert.AreEqual(v0 == v1, false);
             Assert.AreEqual(v0, v1);
             v1.Position.X = 37;
             Assert.AreNotEqual(v0, v1);
+        }
+
+        [TestMethod]
+        public void VertexLerpTest()
+        {
+            Vertex a = new Vertex(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12);
+            Vertex b = new Vertex(2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14);
+
+            Vertex c = Vertex.Lerp(a, b, 0.7);
+            Vertex d = new Vertex(1.7, 2.7, 3.7, 4.7, 5.7, 6.7, 7.7, 8.7, 9.7, 10.7, 11.7, 13.4);
+            Assert.AreEqual(d, c);
         }
     }
 }

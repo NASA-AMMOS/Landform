@@ -229,7 +229,7 @@ namespace OPS.Pipeline
         /// <param name="url"></param>
         void IndexMetadata(StorageHelper storage, string url)
         {
-            storage.GetSpeedyStream(url, stream =>
+            storage.GetStorageStream(url, stream =>
             {
                 string status = "";
                 try

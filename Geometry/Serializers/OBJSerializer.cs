@@ -41,6 +41,15 @@ namespace OPS.Geometry
                 this.uvIdx = uv;
                 this.normalIdx = n;
             }
+
+            public override int GetHashCode()
+            {
+                int hash = 17;
+                hash = hash * 23 + vertIdx.GetHashCode();
+                hash = hash * 23 + uvIdx.GetHashCode();
+                hash = hash * 23 + normalIdx.GetHashCode();
+                return hash;
+            }
         }
 
         /// <summary>
