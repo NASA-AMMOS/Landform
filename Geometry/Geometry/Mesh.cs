@@ -418,7 +418,7 @@ namespace OPS.Geometry
                 // this is a point cloud
                 foreach (var v in m.Vertices)
                 {
-                    if(box.Contains(v.Position) == ContainmentType.Contains)
+                    if(box.Contains(v.Position) != ContainmentType.Disjoint)
                     {
                         result.Vertices.Add(v);
                     }

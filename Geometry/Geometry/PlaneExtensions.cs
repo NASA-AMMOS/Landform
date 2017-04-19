@@ -32,7 +32,6 @@ namespace OPS.Geometry
                 return null;
             }
             double t = (plane.D - Vector3.Dot(plane.Normal, a)) / denominator;
-            // Precision?
             if (t < -INTERSECTION_CHECK_EPS || t > 1 + INTERSECTION_CHECK_EPS)
             {
                 return null;
