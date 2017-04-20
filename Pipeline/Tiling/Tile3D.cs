@@ -79,6 +79,7 @@ namespace OPS.Pipeline
             /// <summary>
             /// optional 
             /// A string that points to the tile's contents with an absolute or relative url. When the url is relative, it is relative to the referring tileset.json. The file extension of content.url defines the tile format. The core 3D Tiles spec supports the following tile formats: Batched 3D Model (*.b3dm), Instanced 3D Model (*.i3dm), Composite (*.cmpt), and 3D Tiles TileSet (*.json)
+            /// gltf model spec specifies a right-handed coordinate system and defines the y axis as up
             /// </summary>
             public string url;
 
@@ -218,6 +219,7 @@ namespace OPS.Pipeline
 
         /// <summary>
         /// A tile in a 3D Tiles tileset
+        /// 
         /// </summary>
         public class Tile
         {
@@ -226,6 +228,12 @@ namespace OPS.Pipeline
             /// The bounding volume that encloses the tile
             /// </summary>
             public BoundingVolume boundingVolume;
+
+            /// <summary>
+            /// optional
+            /// defines a volume that the viewer must be inside of before the tile's content will be requested and before the tile will be refined based on geometricError
+            /// </summary>
+            public BoundingVolume viewerRequestVolume;
 
             /// <summary>
             /// required
@@ -244,6 +252,75 @@ namespace OPS.Pipeline
             /// Metadata about the tile's content and a link to the content. When this is omitted the tile is just used for culling. This is required for leaf tiles
             /// </summary>
             public Content content;
+
+
+            /// <summary>
+            /// optional
+            /// The transform property is a 4x4 affine transformation matrix, stored in column-major order, that transforms from the tile's local coordinate system to the parent tile's coordinate system, or tileset's coordinate system in the case of the root tile.
+            /// </summary>
+            public double[] transform;
+
+            /// <summary>
+            /// Helper method to convert raw transform values to and from Matrix class
+            /// Note that Matrix class row-major and transform array is column major.
+            /// </summary>
+            [JsonIgnore]
+            public Matrix TransformMatrix
+            {
+                get
+                {
+                    if(transform == null)
+                    {
+                        return Matrix.Identity;
+                    }
+                    // Create matrix from raw elements in column-major order
+                    Matrix m = new Matrix();
+                    m.M11 = transform[0];
+                    m.M21 = transform[1];
+                    m.M31 = transform[2];
+                    m.M41 = transform[3];
+
+                    m.M12 = transform[4];
+                    m.M22 = transform[5];
+                    m.M32 = transform[6];
+                    m.M42 = transform[7];
+
+                    m.M13 = transform[8];
+                    m.M23 = transform[9];
+                    m.M33 = transform[10];
+                    m.M43 = transform[11];
+
+                    m.M14 = transform[12];
+                    m.M24 = transform[13];
+                    m.M34 = transform[14];
+                    m.M44 = transform[15];
+
+                    return m;
+                }
+                set
+                {
+                    transform = new double[16];
+                    transform[0] = value.M11;
+                    transform[1] = value.M21;
+                    transform[2] = value.M31;
+                    transform[3] = value.M41;
+
+                    transform[4] = value.M12;
+                    transform[5] = value.M22;
+                    transform[6] = value.M32;
+                    transform[7] = value.M42;
+
+                    transform[8] = value.M13;
+                    transform[9] = value.M23;
+                    transform[10] = value.M33;
+                    transform[11] = value.M43;
+
+                    transform[12] = value.M14;
+                    transform[13] = value.M24;
+                    transform[14] = value.M34;
+                    transform[15] = value.M44;
+                }
+            }
 
             /// <summary>
             /// optional defaults to []

@@ -22,10 +22,12 @@ namespace Landform
         /// <param name="args"></param>
         /// <returns></returns>
         static int Main(string[] args)
-        {
-            new OpenInventorSerializer().Register();
+        {            
             // Enable logging
             log4net.Config.XmlConfigurator.Configure();
+            // Register filetype handlers
+            new OpenInventorSerializer().Register();
+            // Parse command line arguments
             int returnCode = Commands.RunFromCommandline(args);
             return returnCode;
         }
