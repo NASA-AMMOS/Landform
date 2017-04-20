@@ -26,5 +26,16 @@ namespace PipelineTest.Tiling
             Assert.IsTrue(m.Equals(m2));
 
         }
+
+        [TestMethod]
+        public void Tile3DBoundsBoxTest()
+        {
+            Tile3D.Tile t = new Tile3D.Tile();
+            BoundingBox box = new BoundingBox(new Vector3(1, 2, 3), new Vector3(4, 5, 6));
+            t.boundingVolume.Bounds = box;
+            BoundingBox box2 = t.boundingVolume.Bounds.Value;
+            Assert.IsTrue(box.Equals(box2));
+
+        }
     }
 }

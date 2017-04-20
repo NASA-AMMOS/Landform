@@ -143,7 +143,7 @@ namespace OPS.Pipeline
             /// </summary>
             /// <returns></returns>
             [JsonIgnore]
-            public BoundingBox? AABB
+            public BoundingBox? Bounds
             {
                 get
                 {
