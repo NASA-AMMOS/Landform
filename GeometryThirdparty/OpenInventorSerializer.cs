@@ -12,7 +12,7 @@ namespace OPS.Geometry
     /// <summary>
     /// A minimalist open inventor reader that supports reading simple rover meshes
     /// </summary>
-    public class OpenInventorSerializer 
+    public class OpenInventorSerializer : MeshSerializer
     {
         /// <summary>
         /// Read all LODs out of an iv file
@@ -50,6 +50,20 @@ namespace OPS.Geometry
             ProgramRunner.Run(exe, args);
         }
 
+        public override Mesh Load(string filename)
+        {
+            return OpenInventorSerializer.ReadBestLOD(filename);
+        }
+
+        public override void Save(Mesh m, string filename, string imageFilename)
+        {
+            throw new NotImplementedException();
+        }
+
+        public override string GetExtension()
+        {
+            return ".iv";
+        }
     }
 
 

@@ -28,7 +28,7 @@ namespace OPS.Geometry
         public bool HasUVs = false;
         public bool HasColors = false;
         public bool HasFaces { get { return Faces.Count > 0; } }
-
+              
         /// <summary>
         /// Creates an empty mesh. 
         /// </summary>
@@ -427,7 +427,11 @@ namespace OPS.Geometry
             Debug.Assert(box.FuzzyContains(result.Bounds()), "Clipped mesh exceeds bounding box");
             return result;
         }
-        
+
+        /// <summary>
+        /// Returns a box thats bounds encompass the vertex positions in 3D space
+        /// </summary>
+        /// <returns></returns>
         public BoundingBox Bounds()
         {
             BoundingBox b = new BoundingBox(Vector3.Largest, Vector3.Smallest);
@@ -439,38 +443,67 @@ namespace OPS.Geometry
             return b;
         }
 
+        /// <summary>
+        /// Returns a bounding box whose min/max represent the component wise minimum and maximum across all vertex normals
+        /// </summary>
+        /// <returns></returns>
+        public BoundingBox NormalBounds()
+        {
+            BoundingBox b = new BoundingBox(Vector3.Largest, Vector3.Smallest);
+            foreach (Vertex v in this.Vertices)
+            {
+                b.Min = Vector3.Min(b.Min, v.Normal);
+                b.Max = Vector3.Max(b.Max, v.Normal);
+            }
+            return b;
+        }
+
+        /// <summary>
+        /// Returns a bounding box whose min/max represent the component wise minimum and maximum across all vertex uvs
+        /// Since min and max are 3D vectors the z components are set to 0
+        /// </summary>
+        /// <returns></returns>
+        public BoundingBox UVBounds()
+        {
+            BoundingBox b = new BoundingBox(Vector3.Largest, Vector3.Smallest);
+            foreach (Vertex v in this.Vertices)
+            {
+                b.Min = Vector3.Min(b.Min, new Vector3(v.UV, 0));
+                b.Max = Vector3.Max(b.Max, new Vector3(v.UV, 0));
+            }
+            return b;
+        }
+
+        /// <summary>
+        /// Save a mesh to disk with an optional filename
+        /// </summary>
+        /// <param name="filename"></param>
+        /// <param name="textureFilename"></param>
         public void Save(string filename, string textureFilename = null)
         {
             string ext = Path.GetExtension(filename).ToLower();
-            if (ext.Equals(".obj"))
-            {
-                OBJSerializer.Write(this, filename, textureFilename);
-            }
-            else if(ext.Equals(".ply"))
-            {
-                PLYSerializer.Write(this, filename, textureFilename);
-            }
-            else
+            MeshSerializer s = MeshSerializers.GetSerializer(ext);
+            if(s == null)
             {
                 throw new MeshSerializerException("Mesh format not supported");
             }
+            s.Save(this, filename, textureFilename);
         }
 
+        /// <summary>
+        /// Read a mesh to disk
+        /// </summary>
+        /// <param name="filename"></param>
+        /// <returns></returns>
         public static Mesh Load(string filename)
         {
             string ext = Path.GetExtension(filename).ToLower();
-            if (ext.Equals(".obj"))
-            {
-                return OBJSerializer.Read(filename);
-            }
-            else if (ext.Equals(".ply"))
-            {
-                return PLYSerializer.Read(filename);
-            }
-            else
+            MeshSerializer s = MeshSerializers.GetSerializer(ext);
+            if (s == null)
             {
                 throw new MeshSerializerException("Mesh format not supported");
             }
+            return s.Load(filename);
         }
     }
 }
