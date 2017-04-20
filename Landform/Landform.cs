@@ -23,6 +23,7 @@ namespace Landform
         /// <returns></returns>
         static int Main(string[] args)
         {
+            new OpenInventorSerializer().Register();
             // Enable logging
             log4net.Config.XmlConfigurator.Configure();
             int returnCode = Commands.RunFromCommandline(args);
