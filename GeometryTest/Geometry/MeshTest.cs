@@ -3,6 +3,7 @@ using System.Text;
 using System.Collections.Generic;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using OPS.Geometry;
+using Microsoft.Xna.Framework;
 
 namespace GeometryTest
 {
@@ -12,8 +13,6 @@ namespace GeometryTest
     [TestClass]
     public class MeshTest
     {
-
-
         [TestMethod]
         public void MeshConstructorTest()
         {
@@ -104,7 +103,7 @@ namespace GeometryTest
             ts.Add(t1);
             ts.Add(t2);
             Mesh m = new Mesh(ts, true, true, true);
-            Assert.AreEqual(6, m.Vertices.Count);
+            Assert.AreEqual(4, m.Vertices.Count);
             Assert.AreEqual(2, m.Faces.Count);
             Assert.AreEqual(true, m.HasNormals);
             Assert.AreEqual(true, m.HasColors);
@@ -112,9 +111,9 @@ namespace GeometryTest
             Assert.AreEqual(t1.V0, m.Vertices[0]);
             Assert.AreEqual(t1.V1, m.Vertices[1]);
             Assert.AreEqual(t1.V2, m.Vertices[2]);
-            Assert.AreEqual(t2.V0, m.Vertices[3]);
-            Assert.AreEqual(t2.V1, m.Vertices[4]);
-            Assert.AreEqual(t2.V2, m.Vertices[5]);
+            Assert.AreEqual(t2.V0, m.Vertices[0]);
+            Assert.AreEqual(t2.V1, m.Vertices[2]);
+            Assert.AreEqual(t2.V2, m.Vertices[3]);
 
             // Confirm vertex deep copy
             t1.V0.Position.X = 7;
@@ -286,6 +285,33 @@ namespace GeometryTest
             Assert.AreEqual(new Vertex(0, 1, 0), m.Vertices[2]);
             Assert.AreEqual(new Face(0, 1, 2), m.Faces[0]);
             Assert.AreEqual(new Face(0, 2, 1), m.Faces[1]);
+
+            m = new Mesh();
+            m.Vertices.Add(new Vertex(0, 0, 0));
+            m.Vertices.Add(new Vertex(1, 0, 0));
+            m.Vertices.Add(new Vertex(0, 2, 3));
+            m.Vertices.Add(new Vertex(0, 1, 0));
+            m.Vertices.Add(new Vertex(0, 0, 0));
+            m.Clean();
+            Assert.AreEqual(4, m.Vertices.Count);
+        }
+
+        [TestMethod]
+        public void TranslateMeshTest()
+        {
+            Mesh m = new Mesh();
+            m.Vertices.Add(new Vertex(0, 0, 0));
+            m.Vertices.Add(new Vertex(1, 0, 0));
+            m.Vertices.Add(new Vertex(0, 2, 3));
+            m.Vertices.Add(new Vertex(0, 1, 0));
+            m.Vertices.Add(new Vertex(0, 0, 0));
+
+            m.Translate(new Vector3(-3, 2, 1));
+            Assert.AreEqual(new Vector3(-3, 2, 1), m.Vertices[0].Position);
+            Assert.AreEqual(new Vector3(-2, 2, 1), m.Vertices[1].Position);
+            Assert.AreEqual(new Vector3(-3, 4, 4), m.Vertices[2].Position);
+            Assert.AreEqual(new Vector3(-3, 3, 1), m.Vertices[3].Position);
+            Assert.AreEqual(new Vector3(-3, 2, 1), m.Vertices[4].Position);
         }
 
         [TestMethod]
@@ -382,6 +408,73 @@ namespace GeometryTest
             Assert.AreEqual(b.Vertices[2], a.Vertices[5]);
             Assert.AreEqual(6, a.Vertices.Count);
             Assert.AreEqual(2, a.Faces.Count);
+        }
+
+
+        [TestMethod]
+        public void MeshClipTest()
+        {
+            Random r = new Random(17);
+            List<Triangle> tris = new List<Triangle>();
+            for (int i = 0; i < 200; i++)
+            {
+                tris.Add(new Triangle(new Vertex((r.NextDouble() - 0.5) * 10, (r.NextDouble() - 0.5) * 10, (r.NextDouble() - 0.5) * 10),
+                                     new Vertex((r.NextDouble() - 0.5) * 10, (r.NextDouble() - 0.5) * 10, (r.NextDouble() - 0.5) * 10),
+                                     new Vertex((r.NextDouble() - 0.5) * 10, (r.NextDouble() - 0.5) * 10, (r.NextDouble() - 0.5) * 10)));
+            }
+            Mesh m = new Mesh(tris);
+            BoundingBox bb = new BoundingBox(new Vector3(-2, -3, -4), new Vector3(-1, -1, -2));
+            Mesh clipped = Mesh.Clip(m,bb);
+            BoundingBox clippedBB = clipped.Bounds();
+            Assert.IsTrue(Vector3.AlmostEqual(clippedBB.Min, bb.Min));
+            Assert.IsTrue(Vector3.AlmostEqual(clippedBB.Max, bb.Max));
+        }
+
+        [TestMethod]
+        public void MeshClipPointCloudTest()
+        {
+            Random r = new Random(17);
+            Mesh m = new Mesh();
+            for (int i = 0; i < 10000; i++)
+            {
+                m.Vertices.Add(new Vertex((r.NextDouble() - 0.5) * 5, (r.NextDouble() - 0.5) * 5, (r.NextDouble() - 0.5) * 5));
+            }            
+            BoundingBox bb = new BoundingBox(new Vector3(-2, -3, -4), new Vector3(-1, -1, -2));
+            Mesh clipped = Mesh.Clip(m, bb);
+            BoundingBox clippedBB = clipped.Bounds();
+            Assert.IsTrue(bb.FuzzyContains(clippedBB));
+            Assert.IsTrue(clipped.Vertices.Count > 0);
+        }
+
+        [TestMethod]
+        public void MeshBoundsTest()
+        {
+            Mesh m = new Mesh();
+            m.Vertices.Add(new Vertex(-1, 0, 0));
+            m.Vertices.Add(new Vertex(1, 0, 0));
+            m.Vertices.Add(new Vertex(0, 2, 3));
+            m.Vertices.Add(new Vertex(0, 1, 0));
+            m.Vertices.Add(new Vertex(0, -7, 0));
+            BoundingBox bounds = m.Bounds();
+            Assert.AreEqual(new Vector3(-1, -7, 0), bounds.Min);
+            Assert.AreEqual(new Vector3(1, 2, 3), bounds.Max);
+        }
+
+        [TestMethod]
+        public void MeshNormalAndUVBoundsTest()
+        {
+            Mesh m = new Mesh();
+            m.Vertices.Add(new Vertex(-1, 0, 0, 2, 3, 7, 1, 3, 0, 0, 0, 0));
+            m.Vertices.Add(new Vertex(1, 0, 0, 5, 2, -1, 4, 2, 4, 5, 2, 1));
+            m.Vertices.Add(new Vertex(0, 2, 3, -3, 5, 1, 9, 1, 2, 4, 2, 4));
+            m.Vertices.Add(new Vertex(0, 1, 0, 2, 6, 2, 7, -8, 3, 1, 3, 4));
+            m.Vertices.Add(new Vertex(0, -7, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0));
+            BoundingBox bounds = m.NormalBounds();
+            Assert.AreEqual(new Vector3(-3, 0, -1), bounds.Min);
+            Assert.AreEqual(new Vector3(5, 6, 7), bounds.Max);
+            bounds = m.UVBounds();
+            Assert.AreEqual(new Vector3(0, -8, 0), bounds.Min);
+            Assert.AreEqual(new Vector3(9, 3, 0), bounds.Max);
         }
     }
 }

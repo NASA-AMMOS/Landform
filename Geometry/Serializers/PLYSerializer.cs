@@ -13,7 +13,7 @@ namespace OPS.Geometry
         public PLYSerializerException(string message, Exception inner) : base(message, inner) { }
     }
 
-    public class PLYSerializer
+    public class PLYSerializer : MeshSerializer
     {
 
         public static string TextureFileCommentName = "TextureFile";
@@ -72,6 +72,21 @@ namespace OPS.Geometry
                 plyWriter.WriteFace(m, m.Faces[i], output);
             }
             output.Close();
+        }
+
+        public override Mesh Load(string filename)
+        {
+            return PLYSerializer.Read(filename);
+        }
+
+        public override void Save(Mesh m, string filename, string imageFilename)
+        {
+            PLYSerializer.Write(m, filename, imageFilename);
+        }
+
+        public override string GetExtension()
+        {
+            return ".ply";
         }
     }
 }

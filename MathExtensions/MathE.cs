@@ -7,6 +7,7 @@ namespace OPS.MathExtensions
 {
     public class MathE
     {
+        public const double EPSILON = 1e-7;
 
         public static byte Clamp(byte v, byte min, byte max)
         {
@@ -81,6 +82,36 @@ namespace OPS.MathExtensions
         public static double Lerp(double start, double end, double amount)
         {
             return start + (end - start) * amount;
+        }
+
+        public static int Max(params int[] values)
+        {
+            return Enumerable.Max(values);
+        }
+
+        public static int Min(params int[] values)
+        {
+            return Enumerable.Min(values);
+        }
+
+        public static float Max(params float[] values)
+        {
+            return Enumerable.Max(values);
+        }
+
+        public static float Min(params float[] values)
+        {
+            return Enumerable.Min(values);
+        }
+
+        public static double Max(params double[] values)
+        {
+            return Enumerable.Max(values);
+        }
+
+        public static double Min(params double[] values)
+        {
+            return Enumerable.Min(values);
         }
     }
 }

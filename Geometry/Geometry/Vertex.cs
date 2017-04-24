@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using Microsoft.Xna.Framework;
+using OPS.MathExtensions;
 
 namespace OPS.Geometry
 {
@@ -69,6 +70,21 @@ namespace OPS.Geometry
             this.UV = other.UV;
         }
 
+
+        /// <summary>
+        /// Returns true if the vertices are equivlenet
+        /// </summary>
+        /// <param name="v"></param>
+        /// <param name="eps"></param>
+        /// <returns></returns>
+        public virtual bool AlmostEqual(Vertex v, double eps = MathE.EPSILON)
+        {
+            return  Vector3.AlmostEqual(this.Position, v.Position, eps) &&
+                    Vector3.AlmostEqual(this.Normal, v.Normal, eps) &&
+                    Vector2.AlmostEqual(this.UV, v.UV, eps) &&
+                    Vector4.AlmostEqual(this.Color, v.Color, eps);
+        }
+
         public override bool Equals(System.Object obj)
         {
             return Equals(obj as Vertex);
@@ -104,13 +120,41 @@ namespace OPS.Geometry
 
         public override int GetHashCode()
         {
-            int uvValue = ((int)UV.X * 100) ^ ((int)UV.Y * 100);
-            return  ((int)Position.X) ^ ((int)Position.Y*10) ^ ((int)Position.Z*100) ^ uvValue;
+            int hash = 17;
+            hash = hash * 23 + Position.X.GetHashCode();
+            hash = hash * 23 + Position.Y.GetHashCode();
+            hash = hash * 23 + Position.Z.GetHashCode();
+            hash = hash * 23 + UV.X.GetHashCode();
+            hash = hash * 23 + UV.Y.GetHashCode();
+            hash = hash * 23 + Normal.X.GetHashCode();
+            hash = hash * 23 + Normal.Y.GetHashCode();
+            hash = hash * 23 + Normal.Z.GetHashCode();
+            hash = hash * 23 + Color.X.GetHashCode();
+            hash = hash * 23 + Color.Y.GetHashCode();
+            hash = hash * 23 + Color.Z.GetHashCode();
+            return hash;
         }
 
         public virtual object Clone()
         {
             return new Vertex(this);
+        }
+
+        /// <summary>
+        /// Lerp between vertices, lerps all attributes (position, normal, uv, and color)
+        /// </summary>
+        /// <param name="a">start</param>
+        /// <param name="b">end</param>
+        /// <param name="t">amount of lerp 0-1</param>
+        /// <returns></returns>
+        public static Vertex Lerp(Vertex a, Vertex b, double t)
+        {
+            Vertex result = new Vertex();
+            result.Position = Vector3.Lerp(a.Position, b.Position, t);
+            result.Normal = Vector3.Lerp(a.Normal, b.Normal, t);
+            result.UV = Vector2.Lerp(a.UV, b.UV, t);
+            result.Color = Vector4.Lerp(a.Color, b.Color, t);
+            return result;
         }
     }
 }

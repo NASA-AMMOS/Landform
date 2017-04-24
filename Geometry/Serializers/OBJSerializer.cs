@@ -20,7 +20,7 @@ namespace OPS.Geometry
     /// be made one-to-one in the read process so that
     /// they can be stored in our standard Mesh structure
     /// </summary>
-    public class OBJSerializer
+    public class OBJSerializer : MeshSerializer
     {
 
         /// <summary>
@@ -40,6 +40,15 @@ namespace OPS.Geometry
                 this.vertIdx = v;
                 this.uvIdx = uv;
                 this.normalIdx = n;
+            }
+
+            public override int GetHashCode()
+            {
+                int hash = 17;
+                hash = hash * 23 + vertIdx.GetHashCode();
+                hash = hash * 23 + uvIdx.GetHashCode();
+                hash = hash * 23 + normalIdx.GetHashCode();
+                return hash;
             }
         }
 
@@ -292,6 +301,21 @@ namespace OPS.Geometry
                     sw.WriteLine(s);
                 }
             }
+        }
+
+        public override void Save(Mesh m, string filename, string imageFilename)
+        {
+            OBJSerializer.Write(m, filename, imageFilename);
+        }
+
+        public override Mesh Load(string filename)
+        {
+            return OBJSerializer.Read(filename);
+        }
+
+        public override string GetExtension()
+        {
+            return ".obj";
         }
     }
 }

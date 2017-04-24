@@ -8,54 +8,6 @@ using Microsoft.Xna.Framework;
 
 namespace OPS.Pipeline
 {
-
-    public enum PDSInstrument
-    {
-        Unknown,
-        FrontHazcamLeft,
-        FrontHazcamRight,
-        RearHazcamLeft,
-        RearHazcamRight,
-        NavcamLeft,
-        NavcamRight,
-        MastcamLeft,
-        MastcamRight,
-        MAHLI
-    }
-
-    public enum PDSGeometryProjection
-    {
-        Unknown,
-        Raw,
-        Linearized
-    }
-
-    public enum PDSImageSizeType
-    {
-        Unknown,
-        Regular,
-        Thumbnail
-    }
-    public enum PDSDerivedImageType
-    {
-        Unknown,
-        Image,
-        Range,
-        RoverMask,
-        ReachabilityMap,
-        XYZ,
-        RangeErrorMap,
-        NormalMap,
-        XYZErrorMap
-    }
-
-    public enum PDSInstitution
-    {
-        Unknown,
-        OPGS,
-        MSSS
-    }
-
     public class PDSParser
     {
 
@@ -81,9 +33,14 @@ namespace OPS.Pipeline
             get { return metadata.ReadAsInt("IMAGE", "FIRST_LINE_SAMPLE"); }
         }
 
-        public PDSProductID ProductId
+        public RoverProductId ProductId
         {
-            get { return PDSProductID.ParseFromString(metadata.ReadAsString("PRODUCT_ID")); }
+            get { return RoverProductId.ParseFromString(metadata.ReadAsString("PRODUCT_ID")); }
+        }
+
+        public string ProductIdString
+        {
+            get { return metadata.ReadAsString("PRODUCT_ID"); }
         }
 
         public double SpacecraftClock
@@ -94,7 +51,7 @@ namespace OPS.Pipeline
             }
         }
 
-        public PDSInstrument Instrument
+        public RoverProductCamera Camera
         {
             get
             {
@@ -103,46 +60,46 @@ namespace OPS.Pipeline
                     string id = metadata.ReadAsString("INSTRUMENT_ID");
                     if (id.StartsWith("FHAZ_LEFT"))
                     {
-                        return PDSInstrument.FrontHazcamLeft;
+                        return RoverProductCamera.FrontHazcamLeft;
                     }
                     else if (id.StartsWith("FHAZ_RIGHT"))
                     {
-                        return PDSInstrument.FrontHazcamRight;
+                        return RoverProductCamera.FrontHazcamRight;
                     }
                     else if (id.StartsWith("RHAZ_LEFT"))
                     {
-                        return PDSInstrument.RearHazcamLeft;
+                        return RoverProductCamera.RearHazcamLeft;
                     }
                     else if (id.StartsWith("RHAZ_RIGHT"))
                     {
-                        return PDSInstrument.RearHazcamRight;
+                        return RoverProductCamera.RearHazcamRight;
                     }
                     else if (id.StartsWith("NAV_LEFT"))
                     {
-                        return PDSInstrument.NavcamLeft;
+                        return RoverProductCamera.NavcamLeft;
                     }
                     else if (id.StartsWith("NAV_RIGHT"))
                     {
-                        return PDSInstrument.NavcamRight;
+                        return RoverProductCamera.NavcamRight;
                     }
                     else if (id.StartsWith("MAST_LEFT"))
                     {
-                        return PDSInstrument.MastcamLeft;
+                        return RoverProductCamera.MastcamLeft;
                     }
                     else if (id.StartsWith("MAST_RIGHT"))
                     {
-                        return PDSInstrument.MastcamRight;
+                        return RoverProductCamera.MastcamRight;
                     }
                     else if (id.StartsWith("MAHLI"))
                     {
-                        return PDSInstrument.MAHLI;
+                        return RoverProductCamera.MAHLI;
                     }
                 }
-                return PDSInstrument.Unknown;
+                return RoverProductCamera.Unknown;
             }
         }
 
-        public PDSGeometryProjection GeometricProjection
+        public RoverProductGeometry GeometricProjection
         {
             get
             {
@@ -151,18 +108,18 @@ namespace OPS.Pipeline
                     string geoType = metadata.ReadAsString("GEOMETRY_PROJECTION_TYPE");
                     if (geoType == "RAW")
                     {
-                        return PDSGeometryProjection.Raw;
+                        return RoverProductGeometry.Raw;
                     }
                     else if (geoType == "LINEARIZED")
                     {
-                       return PDSGeometryProjection.Linearized;
+                       return RoverProductGeometry.Linearized;
                     }
                 }
-                return PDSGeometryProjection.Unknown;
+                return RoverProductGeometry.Unknown;
             }
         }
 
-        public PDSImageSizeType ImageSizeType
+        public RoverProductSize ImageSizeType
         {
             get
             {
@@ -171,18 +128,18 @@ namespace OPS.Pipeline
                     string imageType = metadata.ReadAsString("IMAGE_TYPE");
                     if (imageType == "REGULAR")
                     {
-                        return PDSImageSizeType.Regular;
+                        return RoverProductSize.Regular;
                     }
                     else if (imageType == "THUMBNAIL")
                     {
-                      return PDSImageSizeType.Thumbnail;
+                      return RoverProductSize.Thumbnail;
                     }
                 }
-                return PDSImageSizeType.Unknown;
+                return RoverProductSize.Unknown;
             }          
         }
 
-        public PDSDerivedImageType DerivedImageType
+        public RoverProductType DerivedImageType
         {
             get
             {
@@ -191,62 +148,62 @@ namespace OPS.Pipeline
                     string imageType = metadata.ReadAsString("DERIVED_IMAGE_PARMS", "DERIVED_IMAGE_TYPE");
                     if (imageType == "IMAGE")
                     {
-                       return PDSDerivedImageType.Image;
+                       return RoverProductType.Image;
                     }
                     else if (imageType == "MASK")
                     {
-                       return PDSDerivedImageType.RoverMask;
+                       return RoverProductType.RoverMask;
                     }
                     else if (imageType == "RANGE_MAP")
                     {
-                       return PDSDerivedImageType.Range;
+                       return RoverProductType.Range;
                     }
                     else if (imageType == "REACHABILITY_MAP")
                     {
-                       return PDSDerivedImageType.ReachabilityMap;
+                       return RoverProductType.ReachabilityMap;
                     }
                     else if (imageType == "XYZ_MAP")
                     {
-                       return PDSDerivedImageType.XYZ;
+                       return RoverProductType.XYZ;
                     }
                     else if (imageType == "RANGE_ERROR_MAP")
                     {
-                       return PDSDerivedImageType.RangeErrorMap;
+                       return RoverProductType.RangeErrorMap;
                     }
                     else if (imageType == "UVW_MAP")
                     {
-                       return PDSDerivedImageType.NormalMap;
+                       return RoverProductType.NormalMap;
                     }
                     else if (imageType == "XYZ_ERROR_MAP")
                     {
-                       return PDSDerivedImageType.XYZErrorMap;
+                       return RoverProductType.XYZErrorMap;
                     }
                 }
                 else
                 {
-                    PDSInstrument inst = Instrument;
-                    if(inst == PDSInstrument.MastcamLeft || inst == PDSInstrument.MastcamRight || inst == PDSInstrument.MAHLI)
+                    RoverProductCamera inst = Camera;
+                    if(inst == RoverProductCamera.MastcamLeft || inst == RoverProductCamera.MastcamRight || inst == RoverProductCamera.MAHLI)
                     {
-                        return PDSDerivedImageType.Image;
+                        return RoverProductType.Image;
                     }
                 }
-                return PDSDerivedImageType.Unknown;            
+                return RoverProductType.Unknown;            
             }
         }
 
-        public PDSInstitution ProducingInstitution
+        public RoverProductProducer ProducingInstitution
         {
             get
             {
                 if (metadata.HasKey("PRODUCER_INSTITUTION_NAME") && metadata.ReadAsString("PRODUCER_INSTITUTION_NAME").Contains("MULTIMISSION INSTRUMENT PROCESSING"))
                 {
-                    return PDSInstitution.OPGS;
+                    return RoverProductProducer.OPGS;
                 }
                 else if (metadata.HasKey("INSTITUTION_NAME") && metadata.ReadAsString("INSTITUTION_NAME").Contains("MALIN SPACE SCIENCE SYSTEMS"))
                 {
-                    return PDSInstitution.MSSS;
+                    return RoverProductProducer.MSSS;
                 }
-                return PDSInstitution.Unknown;
+                return RoverProductProducer.Unknown;
             }
         }
 
@@ -327,11 +284,85 @@ namespace OPS.Pipeline
             }
         }
 
+        public int Site
+        {
+            get { return MotionCounter[0]; }
+        }
+
+        public int Drive
+        {
+            get { return MotionCounter[1]; }
+        }
+
+        public string RMC
+        {
+            get
+            {
+                int[] mc = MotionCounter;
+                StringBuilder builder = new StringBuilder();
+                foreach(int i in mc)
+                {
+                    builder.Append(i.ToString().PadLeft(5, '0'));
+                }
+                return builder.ToString();
+            }
+        }
+
         public int PlanetDayNumber
         {
             get
             {
                 return metadata.ReadAsInt("PLANET_DAY_NUMBER");
+            }
+        }
+
+
+        /// <summary>
+        /// Indicates that the image was only partially transmitted (i.e. image checksum failed).
+        /// The image may contains regions of 0 value.
+        /// </summary>
+        public bool IsPartial
+        {
+            get
+            {
+                string key = "MSL:PRODUCT_COMPLETION_STATUS";
+                if (!metadata.HasKey(key))
+                    return false; // Assume full image if key missing
+                return (string)metadata[key] == "PARTIAL";
+            }
+        }
+
+        public bool IsMastcam
+        {
+            get
+            {
+                return Camera == RoverProductCamera.MastcamLeft || Camera == RoverProductCamera.MastcamLeft;
+            }
+        }
+
+        /// <summary>
+        /// Indicates whether or not this image was captured with a navigation camera.
+        /// </summary>
+        public bool IsNavcam
+        {
+            get
+            {
+                return Camera == RoverProductCamera.NavcamLeft || Camera == RoverProductCamera.NavcamRight;
+            }
+        }
+
+        public bool IsDownsampled
+        {
+            get
+            {
+                if (metadata.ReadAsString("IMAGE_REQUEST_PARMS", "PIXEL_DOWNSAMPLE_OPTION") != "NONE")
+                {
+                    int avgWidth = metadata.ReadAsInt("IMAGE_REQUEST_PARMS", "PIXEL_AVERAGING_WIDTH");
+                    int avgHeight = metadata.ReadAsInt("IMAGE_REQUEST_PARMS", "PIXEL_AVERAGING_HEIGHT");
+                    return avgWidth > 1 || avgHeight > 1;
+                      
+                }
+                return false;
             }
         }
 

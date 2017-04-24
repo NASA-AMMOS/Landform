@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.IO;
+using Microsoft.Xna.Framework;
+using System.Diagnostics;
 
 namespace OPS.Geometry
 {
@@ -26,7 +28,7 @@ namespace OPS.Geometry
         public bool HasUVs = false;
         public bool HasColors = false;
         public bool HasFaces { get { return Faces.Count > 0; } }
-
+              
         /// <summary>
         /// Creates an empty mesh. 
         /// </summary>
@@ -81,6 +83,7 @@ namespace OPS.Geometry
                 Vertices.Add((Vertex)t.V1.Clone());
                 Vertices.Add((Vertex)t.V2.Clone());
             }
+            Clean();
         }
 
         /// <summary>
@@ -316,6 +319,14 @@ namespace OPS.Geometry
             }
         }
 
+        public void Translate(Vector3 offset)
+        {
+            for (int i = 0; i < this.Vertices.Count; i++)
+            {
+                this.Vertices[i].Position += offset;
+            }
+        }
+
         Vertex[] FaceToVertexArray(Face f)
         {
             return new Vertex[] { this.Vertices[f.P0], this.Vertices[f.P1], this.Vertices[f.P2] };
@@ -384,39 +395,115 @@ namespace OPS.Geometry
             result.MergeWith(meshesToCombine);
             return result;
         }
+        
+        public static Mesh Clip(Mesh m, BoundingBox box)
+        {
+            Mesh result;
+            if (m.Faces.Count > 0)
+            {
+                List<Triangle> resTriangles = new List<Triangle>();
+                foreach (Face f in m.Faces)
+                {
+                    Vertex v0 = m.Vertices[f.P0];
+                    Vertex v1 = m.Vertices[f.P1];
+                    Vertex v2 = m.Vertices[f.P2];
+                    Triangle t = new Triangle(v0, v1, v2);
+                    resTriangles.AddRange(t.Clip(box));
+                }
+                result = new Mesh(resTriangles, m.HasNormals, m.HasUVs, m.HasColors);
+            }
+            else
+            {
+                result = new Mesh(m.HasNormals, m.HasUVs, m.HasColors);
+                // this is a point cloud
+                foreach (var v in m.Vertices)
+                {
+                    if(box.Contains(v.Position) != ContainmentType.Disjoint)
+                    {
+                        result.Vertices.Add(v);
+                    }
+                }
+            }
+            Debug.Assert(box.FuzzyContains(result.Bounds()), "Clipped mesh exceeds bounding box");
+            return result;
+        }
 
+        /// <summary>
+        /// Returns a box thats bounds encompass the vertex positions in 3D space
+        /// </summary>
+        /// <returns></returns>
+        public BoundingBox Bounds()
+        {
+            BoundingBox b = new BoundingBox(Vector3.Largest, Vector3.Smallest);
+            foreach (Vertex v in this.Vertices)
+            {
+                b.Min = Vector3.Min(b.Min, v.Position);
+                b.Max = Vector3.Max(b.Max, v.Position);
+            }
+            return b;
+        }
+
+        /// <summary>
+        /// Returns a bounding box whose min/max represent the component wise minimum and maximum across all vertex normals
+        /// </summary>
+        /// <returns></returns>
+        public BoundingBox NormalBounds()
+        {
+            BoundingBox b = new BoundingBox(Vector3.Largest, Vector3.Smallest);
+            foreach (Vertex v in this.Vertices)
+            {
+                b.Min = Vector3.Min(b.Min, v.Normal);
+                b.Max = Vector3.Max(b.Max, v.Normal);
+            }
+            return b;
+        }
+
+        /// <summary>
+        /// Returns a bounding box whose min/max represent the component wise minimum and maximum across all vertex uvs
+        /// Since min and max are 3D vectors the z components are set to 0
+        /// </summary>
+        /// <returns></returns>
+        public BoundingBox UVBounds()
+        {
+            BoundingBox b = new BoundingBox(Vector3.Largest, Vector3.Smallest);
+            foreach (Vertex v in this.Vertices)
+            {
+                b.Min = Vector3.Min(b.Min, new Vector3(v.UV, 0));
+                b.Max = Vector3.Max(b.Max, new Vector3(v.UV, 0));
+            }
+            return b;
+        }
+
+        /// <summary>
+        /// Save a mesh to disk with an optional filename
+        /// </summary>
+        /// <param name="filename"></param>
+        /// <param name="textureFilename"></param>
         public void Save(string filename, string textureFilename = null)
         {
             string ext = Path.GetExtension(filename).ToLower();
-            if (ext.Equals(".obj"))
-            {
-                OBJSerializer.Write(this, filename, textureFilename);
-            }
-            else if(ext.Equals(".ply"))
-            {
-                PLYSerializer.Write(this, filename, textureFilename);
-            }
-            else
+            MeshSerializer s = MeshSerializers.GetSerializer(ext);
+            if(s == null)
             {
                 throw new MeshSerializerException("Mesh format not supported");
             }
+            s.Save(this, filename, textureFilename);
         }
 
+        /// <summary>
+        /// Read a mesh to disk
+        /// </summary>
+        /// <param name="filename"></param>
+        /// <returns></returns>
         public static Mesh Load(string filename)
         {
             string ext = Path.GetExtension(filename).ToLower();
-            if (ext.Equals(".obj"))
-            {
-                return OBJSerializer.Read(filename);
-            }
-            else if (ext.Equals(".ply"))
-            {
-                return PLYSerializer.Read(filename);
-            }
-            else
+            MeshSerializer s = MeshSerializers.GetSerializer(ext);
+            if (s == null)
             {
                 throw new MeshSerializerException("Mesh format not supported");
             }
+            return s.Load(filename);
         }
     }
 }
