@@ -21,11 +21,11 @@ namespace OPS.Imaging.Emgu
 
             for (int band = 0; band < img.Bands; band++)
             {
-                for (int row = 0; row < img.Width; row++)
+                for (int row = 0; row < img.Height; row++)
                 {
-                    for (int col = 0; col < img.Height; col++)
+                    for (int col = 0; col < img.Width; col++)
                     {
-                        res.Data[band, row, col] = (byte)(img[band, row, col] * 255);
+                        res.Data[row, col, band] = (byte)(img[band, row, col] * 255);
                     }
                 }
             }
@@ -35,9 +35,9 @@ namespace OPS.Imaging.Emgu
         public static Image<Gray, byte> ToEmguGrayscale(this Image img)
         {
             Image<Gray, byte> res = new Image<Gray, byte>(img.Width, img.Height);
-            for (int row = 0; row < img.Width; row++)
+            for (int row = 0; row < img.Height; row++)
             {
-                for (int col = 0; col < img.Height; col++)
+                for (int col = 0; col < img.Width; col++)
                 {
                     float value = 0;
                     for (int band = 0; band < img.Bands; band++)
@@ -55,11 +55,11 @@ namespace OPS.Imaging.Emgu
             Image res = new Image(img.NumberOfChannels, img.Width, img.Height);
             for (int band = 0; band < img.NumberOfChannels; band++)
             {
-                for (int row = 0; row < img.Width; row++)
+                for (int row = 0; row < img.Height; row++)
                 {
-                    for (int col = 0; col < img.Height; col++)
+                    for (int col = 0; col < img.Width; col++)
                     {
-                        res[band, row, col] = img.Data[band, row, col] / 255.0f;
+                        res[band, row, col] = img.Data[row, col, band] / 255.0f;
                     }
                 }
             }
