@@ -14,9 +14,9 @@ namespace OPS.Imaging.Emgu
         public static Image<TColor, byte> ToEmgu<TColor>(this Image img) where TColor : struct, IColor
         {
             Image<TColor, byte> res = new Image<TColor, byte>(img.Width, img.Height);
-            if (res.NumberOfChannels < img.Bands)
+            if (res.NumberOfChannels != img.Bands)
             {
-                throw new Exception("Not enough channels to fit result");
+                throw new Exception("Wrong number of channels in result type");
             }
 
             for (int band = 0; band < img.Bands; band++)
@@ -32,6 +32,9 @@ namespace OPS.Imaging.Emgu
             return res;
         }
 
+        /// <summary>
+        /// Convert image to a grayscale Emgu image by averaging all color channels.
+        /// </summary>
         public static Image<Gray, byte> ToEmguGrayscale(this Image img)
         {
             Image<Gray, byte> res = new Image<Gray, byte>(img.Width, img.Height);

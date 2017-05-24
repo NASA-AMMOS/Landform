@@ -8,10 +8,15 @@ using System.Threading.Tasks;
 
 namespace OPS.Alignment
 {
+    /// <summary>
+    /// Based on "A probabilistic criterion to detect rigid point matches between two images and estimate the fundamental matrix", L. Moisan, B. Stival
+    /// More info at http://www.math-info.univ-paris5.fr/~moisan/epipolar/
+    /// </summary>
     public class MoisanStivalEpipolar
     {
-        public Vector2[] modelPoints, dataPoints;
-        public Vector2 modelSize, dataSize;
+        public Vector2[] ModelPoints, DataPoints;
+        public Vector2 ModelSize, DataSize;
+
         List<int> bestPoints;
         double[] epipolarError;
         double logAlpha0;
@@ -27,12 +32,20 @@ namespace OPS.Alignment
 
         double modelNorm, dataNorm;
 
+        /// <summary>
+        /// Initialize the procedure with a set of potentially corresponding points.
+        /// The nth entry of modelPoints should correspond to the nth entry of dataPoints.
+        /// </summary>
+        /// <param name="modelPoints">Points in frame of "model" image</param>
+        /// <param name="dataPoints">Points in frame of "data" image</param>
+        /// <param name="modelSize">Dimensions (in same units as modelPoints) of "model" image</param>
+        /// <param name="dataSize">Dimensions (in same units as dataPoints) of "data" image</param>
         public MoisanStivalEpipolar(Vector2[] modelPoints, Vector2[] dataPoints, Vector2 modelSize, Vector2 dataSize)
         {
-            this.modelPoints = modelPoints;
-            this.dataPoints = dataPoints;
-            this.modelSize = modelSize;
-            this.dataSize = dataSize;
+            this.ModelPoints = modelPoints;
+            this.DataPoints = dataPoints;
+            this.ModelSize = modelSize;
+            this.DataSize = dataSize;
 
             log_cn = makelogcombi_n(modelPoints.Length);
             log_c7 = makelogcombi_k(7, modelPoints.Length);
@@ -75,20 +88,16 @@ namespace OPS.Alignment
             }
             else
             {
-                randomPoints = random_p7(modelPoints.Length);
+                randomPoints = random_p7(ModelPoints.Length);
             }
 
             foreach (Matrix<float> F in ComputeEpipolarMatrix(randomPoints))
             {
                 // Compute epipolar error and sort points by it
-                Parallel.For(0, modelPoints.Length, idx =>
+                Parallel.For(0, ModelPoints.Length, idx =>
                 {
-                    epipolarError[idx] = EpipolarError(modelPoints[idx], F, dataPoints[idx]);
+                    epipolarError[idx] = EpipolarError(ModelPoints[idx], F, DataPoints[idx]);
                 });
-                /*for (i = 0; i < modelPoints.Length; i++)
-                {
-                    epipolarError[i] = EpipolarError(modelPoints[i], F, dataPoints[i]);
-                }*/
                 bestPoints.Sort((i0, i1) => epipolarError[i0].CompareTo(epipolarError[i1]));
 
                 // Find the most meaningful subset
@@ -97,7 +106,7 @@ namespace OPS.Alignment
                 int minIdx = -1;
                 // Skip best seven points, as their epipolar is zero by definition
                 int i;
-                for (i = 7; i < modelPoints.Length; i++)
+                for (i = 7; i < ModelPoints.Length; i++)
                 {
                     double logAlpha = logAlpha0 + 0.5 * Math.Log10(epipolarError[bestPoints[i]]);
                     double eps = log_e0 + logAlpha * (i - 6) + log_cn[i + 1] + log_c7[i + 1];
@@ -120,6 +129,11 @@ namespace OPS.Alignment
             }
         }
 
+        /// <summary>
+        /// Run the procedure until convergence.
+        /// </summary>
+        /// <param name="maxIters">Maximum number of iterations to run</param>
+        /// <param name="refineStep">If true, will use the ORSA step from the paper</param>
         public void Run(int maxIters = 5000, bool refineStep = true)
         {
             bool refine = false;
@@ -137,6 +151,186 @@ namespace OPS.Alignment
                 }
             }
         }
+
+        /// <summary>
+        /// Return the indices of all valid correspondences given the current solution.
+        /// </summary>
+        /// <returns>Indices into (model|data)Points</returns>
+        public IEnumerable<int> ComputeInliers()
+        {
+            overallMinPointsGood = new bool[overallMinPoints.Length];
+            Matrix<float> F = overallMinF;
+            Matrix<float> FT = overallMinF.Transpose();
+            Matrix<float> W = new Matrix<float>(3, 1);
+            Matrix<float> U = new Matrix<float>(3, 3);
+            Matrix<float> V = new Matrix<float>(3, 3);
+            CvInvoke.SVDecomp(F, W, U, V, Emgu.CV.CvEnum.SvdFlag.Default);
+            Matrix<float> VT = V.Transpose();
+
+            Matrix<float> bestRotation = null;
+            Vector3 bestTranslation = Vector3.Zero;
+            int bestPositiveCount = 0;
+
+            foreach (var transform in PossibleTransforms(W, U, VT))
+            {
+                int positiveCount = overallMinPoints.Count(idx => PositiveDepth(transform.Key, transform.Value, ModelPoints[idx], DataPoints[idx]));
+                if (positiveCount > bestPositiveCount)
+                {
+                    bestPositiveCount = positiveCount;
+                    bestRotation = transform.Key;
+                    bestTranslation = transform.Value;
+                }
+            }
+
+            foreach (int idx in overallMinPoints)
+            {
+                if (PositiveDepth(bestRotation, bestTranslation, ModelPoints[idx], DataPoints[idx]))
+                {
+                    yield return idx;
+                }
+            }
+        }
+
+        /// <summary>
+        /// If true, resulting set of correspondences is epsilon-meaningful
+        /// </summary>
+        public bool Meaningful
+        {
+            get
+            {
+                return overallMinEps < 0;
+            }
+        }
+
+        /// <summary>
+        /// Compute the epipolar line in the "model" image corresponding to
+        /// a given point in the "data" image.
+        /// </summary>
+        public Vector3 ModelEpiLine(Vector2 dataPt)
+        {
+            Vector3 epiline = Transform((dataPt - DataSize / 2) * dataNorm, overallMinF.Transpose());
+            Vector3 imageSpace = new Vector3(
+                epiline.X * modelNorm,
+                epiline.Y * modelNorm,
+                epiline.Z - modelNorm * (epiline.X * ModelSize.X + epiline.Y * ModelSize.Y) / 2
+                );
+            return imageSpace;
+        }
+
+        /// <summary>
+        /// Compute the epipolar line in the "data" image corresponding to
+        /// a given point in the "model" image.
+        /// </summary>
+        public Vector3 DataEpiLine(Vector2 modelPt)
+        {
+            Vector3 epiline = Transform((modelPt - ModelSize / 2) * modelNorm, overallMinF);
+            Vector3 imageSpace = new Vector3(
+                epiline.X * dataNorm,
+                epiline.Y * dataNorm,
+                epiline.Z - dataNorm * (epiline.X * DataSize.X + epiline.Y * DataSize.Y) / 2
+                );
+            return imageSpace;
+        }
+
+        /// <summary>
+        /// Compute the epipolar error for a point match given a fundamental matrix.
+        /// </summary>
+        /// <param name="p0">Point 0</param>
+        /// <param name="F">3x3 fundamental matrix</param>
+        /// <param name="p1">Point 1</param>
+        double EpipolarError(Vector2 p0, Matrix<float> F, Vector2 p1)
+        {
+            Vector3 transformed = Transform(p0, F);
+            double a = transformed.X,
+                  b = transformed.Y,
+                  c = transformed.Z;
+            double d = (a * p1.X) + (b * p1.Y) + c;
+            return d * d / (a * a + b * b);
+        }
+
+        /// <summary>
+        /// Compute the F-rigidity of a subset of point matches.
+        /// </summary>
+        /// <param name="F">3x3 fundamental matrix</param>
+        /// <param name="useMatch">Match mask</param>
+        /// <returns></returns>
+        double Rigidity(Matrix<float> F, bool[] useMatch)
+        {
+            double maxModelError = double.NegativeInfinity,
+                   maxDataError = double.NegativeInfinity;
+            Matrix<float> FT = F.Transpose();
+            int i;
+            for (i = 0; i < ModelPoints.Length; i++)
+            {
+                if (useMatch != null && !useMatch[i]) continue;
+                double dataError = EpipolarError(ModelPoints[i], F, DataPoints[i]);
+                if (dataError > maxDataError) maxDataError = dataError;
+                double modelError = EpipolarError(DataPoints[i], FT, ModelPoints[i]);
+                if (modelError > maxModelError) maxModelError = modelError;
+            }
+            Vector2 size;
+            if (maxModelError > maxDataError)
+            {
+                size = ModelSize;
+            }
+            else
+            {
+                size = DataSize;
+            }
+            double D = 2 * size.X + 2 * size.Y;
+            double A = size.X * size.Y;
+            return (2 * D / A) * Math.Max(maxModelError, maxDataError);
+        }
+
+        /// <summary>
+        /// Find any valid epipolar matrices associated with a set of seven
+        /// correspondences.
+        /// </summary>
+        /// <param name="indices">Seven indices into (model|data)Points</param>
+        /// <returns>0 or more matrices</returns>
+        IEnumerable<Matrix<float>> ComputeEpipolarMatrix(int[] indices)//Vector2[] m1, Vector2[] m2)
+        {
+            Matrix<float> m1_cv = new Matrix<float>(7, 2),
+                          m2_cv = new Matrix<float>(7, 2);
+            int i;
+            for (i = 0; i < 7; i++)
+            {
+                m1_cv[i, 0] = (float)ModelPoints[indices[i]].X;
+                m1_cv[i, 1] = (float)ModelPoints[indices[i]].Y;
+                m2_cv[i, 0] = (float)DataPoints[indices[i]].X;
+                m2_cv[i, 1] = (float)DataPoints[indices[i]].Y;
+            }
+            Mat _F = new Mat();
+            CvInvoke.FindFundamentalMat(m1_cv, m2_cv, _F, Emgu.CV.CvEnum.FmType.SevenPoint);
+            int numMatrices = _F.Rows / 3;
+            if (numMatrices < 1) yield break;
+
+            Matrix<float> F = new Matrix<float>(_F.Rows, _F.Cols);
+            _F.ConvertTo(F, Emgu.CV.CvEnum.DepthType.Cv32F);
+            for (i = 0; i < numMatrices; i++)
+            {
+                Matrix<float> Fp = new Matrix<float>(3, 3);
+                bool hasData = false;
+                int row, col;
+                for (row = 0; row < 3; row++)
+                {
+                    for (col = 0; col < 3; col++)
+                    {
+                        Fp[row, col] = F[3 * i + row, col];
+                        if (Math.Abs(Fp[row, col]) > 1e-11)
+                        {
+                            hasData = true;
+                        }
+                    }
+                }
+                if (hasData)
+                {
+                    yield return Fp;
+                }
+            }
+        }
+
+        // end public facing
 
         IEnumerable<KeyValuePair<Matrix<float>, Vector3>> PossibleTransforms(Matrix<float> Wigma, Matrix<float> U, Matrix<float> VT)
         {
@@ -173,50 +367,6 @@ namespace OPS.Alignment
             return true;
         }
 
-        public IEnumerable<int> ComputeInliers()
-        {
-            overallMinPointsGood = new bool[overallMinPoints.Length];
-            Matrix<float> F = overallMinF;
-            Matrix<float> FT = overallMinF.Transpose();
-            Matrix<float> W = new Matrix<float>(3, 1);
-            Matrix<float> U = new Matrix<float>(3, 3);
-            Matrix<float> V = new Matrix<float>(3, 3);
-            CvInvoke.SVDecomp(F, W, U, V, Emgu.CV.CvEnum.SvdFlag.Default);
-            Matrix<float> VT = V.Transpose();
-
-            Matrix<float> bestRotation = null;
-            Vector3 bestTranslation = Vector3.Zero;
-            int bestPositiveCount = 0;
-
-            foreach (var transform in PossibleTransforms(W, U, VT))
-            {
-                int positiveCount = overallMinPoints.Count(idx => PositiveDepth(transform.Key, transform.Value, modelPoints[idx], dataPoints[idx]));
-                if (positiveCount > bestPositiveCount)
-                {
-                    bestPositiveCount = positiveCount;
-                    bestRotation = transform.Key;
-                    bestTranslation = transform.Value;
-                }
-            }
-
-
-            foreach (int idx in overallMinPoints)
-            {
-                if (PositiveDepth(bestRotation, bestTranslation, modelPoints[idx], dataPoints[idx]))
-                {
-                    yield return idx;
-                }
-            }
-        }
-
-        public bool Meaningful
-        {
-            get
-            {
-                return overallMinEps < 0;
-            }
-        }
-
         static Vector3 Transform(Vector3 p0, Matrix<float> F)
         {
             // HACK: For some reason Emgu is stomping all over the stack
@@ -233,135 +383,23 @@ namespace OPS.Alignment
                  p0.X * _F[2, 0] + p0.Y * _F[2, 1] + p0.Z * _F[2, 2]
                  );
         }
+
         static Vector3 Transform(Vector2 p0, Matrix<float> F)
         {
             return Transform(new Vector3(p0, 1), F);
         }
 
-        public Vector3 ModelEpiLine(Vector2 dataPt)
+        Vector2 NormToModel(Vector2 normalizedCoords)
         {
-            Vector3 epiline = Transform((dataPt - dataSize / 2) * dataNorm, overallMinF.Transpose());
-            Vector3 imageSpace = new Vector3(
-                epiline.X * modelNorm,
-                epiline.Y * modelNorm,
-                epiline.Z - modelNorm * (epiline.X * modelSize.X + epiline.Y * modelSize.Y) / 2
-                );
-            return imageSpace;
+            return (normalizedCoords / modelNorm) + ModelSize / 2;
         }
-        public Vector3 DataEpiLine(Vector2 modelPt)
+        Vector2 NormToData(Vector2 normalizedCoords)
         {
-            Vector3 epiline = Transform((modelPt - modelSize / 2) * modelNorm, overallMinF);
-            Vector3 imageSpace = new Vector3(
-                epiline.X * dataNorm,
-                epiline.Y * dataNorm,
-                epiline.Z - dataNorm * (epiline.X * dataSize.X + epiline.Y * dataSize.Y) / 2
-                );
-            return imageSpace;
+            return (normalizedCoords / dataNorm) + DataSize / 2;
         }
 
-        public Vector2 NormToModel(Vector2 normalizedCoords)
-        {
-            return (normalizedCoords / modelNorm) + modelSize / 2;
-        }
-        public Vector2 NormToData(Vector2 normalizedCoords)
-        {
-            return (normalizedCoords / dataNorm) + dataSize / 2;
-        }
+        // Following functions from http://www.math-info.univ-paris5.fr/~moisan/epipolar/stereomatch.c
 
-        /// <summary>
-        /// Compute the epipolar error for a point match given a fundamental matrix.
-        /// </summary>
-        /// <param name="p0">Point 0</param>
-        /// <param name="F">3x3 fundamental matrix</param>
-        /// <param name="p1">Point 1</param>
-        double EpipolarError(Vector2 p0, Matrix<float> F, Vector2 p1)
-        {
-            Vector3 transformed = Transform(p0, F);
-            double a = transformed.X,
-                  b = transformed.Y,
-                  c = transformed.Z;
-            double d = (a * p1.X) + (b * p1.Y) + c;
-            return d * d / (a * a + b * b);
-        }
-
-        /// <summary>
-        /// Compute the F-rigidity of a subset of point matches.
-        /// </summary>
-        /// <param name="F">3x3 fundamental matrix</param>
-        /// <param name="useMatch">Match mask</param>
-        /// <returns></returns>
-        double Rigidity(Matrix<float> F, bool[] useMatch)
-        {
-            double maxModelError = double.NegativeInfinity,
-                   maxDataError = double.NegativeInfinity;
-            Matrix<float> FT = F.Transpose();
-            int i;
-            for (i = 0; i < modelPoints.Length; i++)
-            {
-                if (useMatch != null && !useMatch[i]) continue;
-                double dataError = EpipolarError(modelPoints[i], F, dataPoints[i]);
-                if (dataError > maxDataError) maxDataError = dataError;
-                double modelError = EpipolarError(dataPoints[i], FT, modelPoints[i]);
-                if (modelError > maxModelError) maxModelError = modelError;
-            }
-            Vector2 size;
-            if (maxModelError > maxDataError)
-            {
-                size = modelSize;
-            }
-            else
-            {
-                size = dataSize;
-            }
-            double D = 2 * size.X + 2 * size.Y;
-            double A = size.X * size.Y;
-            return (2 * D / A) * Math.Max(maxModelError, maxDataError);
-        }
-
-        IEnumerable<Matrix<float>> ComputeEpipolarMatrix(int[] indices)//Vector2[] m1, Vector2[] m2)
-        {
-            Matrix<float> m1_cv = new Matrix<float>(7, 2),
-                          m2_cv = new Matrix<float>(7, 2);
-            int i;
-            for (i = 0; i < 7; i++)
-            {
-                m1_cv[i, 0] = (float)modelPoints[indices[i]].X;
-                m1_cv[i, 1] = (float)modelPoints[indices[i]].Y;
-                m2_cv[i, 0] = (float)dataPoints[indices[i]].X;
-                m2_cv[i, 1] = (float)dataPoints[indices[i]].Y;
-            }
-            Mat _F = new Mat();
-            CvInvoke.FindFundamentalMat(m1_cv, m2_cv, _F, Emgu.CV.CvEnum.FmType.SevenPoint);
-            int numMatrices = _F.Rows / 3;
-            if (numMatrices < 1) yield break;
-
-            Matrix<float> F = new Matrix<float>(_F.Rows, _F.Cols);
-            _F.ConvertTo(F, Emgu.CV.CvEnum.DepthType.Cv32F);
-            for (i = 0; i < numMatrices; i++)
-            {
-                Matrix<float> Fp = new Matrix<float>(3, 3);
-                bool hasData = false;
-                int row, col;
-                for (row = 0; row < 3; row++)
-                {
-                    for (col = 0; col < 3; col++)
-                    {
-                        Fp[row, col] = F[3 * i + row, col];
-                        if (Math.Abs(Fp[row, col]) > 1e-11)
-                        {
-                            hasData = true;
-                        }
-                    }
-                }
-                if (hasData)
-                {
-                    yield return Fp;
-                }
-            }
-        }
-
-
-        // From http://www.math-info.univ-paris5.fr/~moisan/epipolar/stereomatch.c
         /* logarithm (base 10) of binomial coefficient */
         float logcombi(int k, int n)
         {

@@ -7,19 +7,19 @@ using System.Threading.Tasks;
 
 namespace OPS.Alignment
 {
-    public class Feature
+    public class ImageFeature
     {
-        public Vector2 location;
-        public double size;
-        public double angle;
-        public float[] descriptor;
+        public Vector2 Location;
+        public double Size;
+        public double Angle;
+        public float[] Descriptor;
 
-        public Feature(Vector2 location, double size, double angle, float[] descriptor = null)
+        public ImageFeature(Vector2 location, double size, double angle, float[] descriptor = null)
         {
-            this.location = location;
-            this.size = size;
-            this.angle = angle;
-            this.descriptor = descriptor;
+            this.Location = location;
+            this.Size = size;
+            this.Angle = angle;
+            this.Descriptor = descriptor;
         }
     }
 }
