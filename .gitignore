@@ -1,7 +1,13 @@
+Alignment/bin/
+Alignment/obj/
 Imaging/bin/
 Imaging/obj/
 ImagingTest/bin/
 ImagingTest/obj/
+ImagingEmgu/bin/
+ImagingEmgu/obj/
+ImagingEmguTest/bin/
+ImagingEmguTest/obj/
 Pipeline/bin/
 Pipeline/obj/
 packages/
