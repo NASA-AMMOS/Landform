@@ -104,6 +104,10 @@
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Rover\RoverArticulation.cs" />
     <Compile Include="Rover\RoverProductEnum.cs" />
+    <Compile Include="Scene\NodeComponent.cs" />
+    <Compile Include="Scene\NodeTransform.cs" />
+    <Compile Include="Scene\SceneGraph.cs" />
+    <Compile Include="Scene\SceneNode.cs" />
     <Compile Include="Tiling\Tile3D.cs" />
   </ItemGroup>
   <ItemGroup>
