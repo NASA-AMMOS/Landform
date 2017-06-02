@@ -95,6 +95,7 @@
     <Compile Include="Commands\Commands.cs" />
     <Compile Include="Commands\ConvertBaselineMesh.cs" />
     <Compile Include="Commands\CrawlMSL.cs" />
+    <Compile Include="Commands\MatchImages.cs" />
     <Compile Include="General\ObservationEnums.cs" />
     <Compile Include="GdalConfiguration.cs" />
     <Compile Include="Rover\PDSParser.cs" />
