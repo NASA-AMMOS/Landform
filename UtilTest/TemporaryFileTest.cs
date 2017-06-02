@@ -12,6 +12,10 @@ namespace UtilTest
         public void TempFileGetAndMoveTest()
         {
             string tmpName = "";
+            if(File.Exists("getAndMove.txt"))
+            {
+                File.Delete("getAndMove.txt");
+            }
             TemporaryFile.GetAndMove("getAndMove.txt", tmp =>
             {
                 tmpName = tmp;
@@ -37,6 +41,30 @@ namespace UtilTest
             });
             Assert.IsFalse(File.Exists("getAndDel.txt"));
             Assert.IsFalse(File.Exists(tmpName));
+        }
+
+        [TestMethod]
+        public void TempFileGetAndDeleteMultipleTest()
+        {
+            String[] filelist = null;
+            TemporaryFile.GetAndDeleteMultiple(5, ".foo", tmp =>
+            {
+                Assert.AreEqual(5, tmp.Length);
+                filelist = tmp;
+                foreach(var f in tmp)
+                {
+                    Assert.AreEqual(".foo", Path.GetExtension(f));
+                    Assert.IsTrue(Directory.Exists("tmp"));
+                    File.WriteAllText(f, "Goodbye world");
+                    Assert.IsFalse(File.Exists("getAndDel.txt"));
+                }
+                
+            });
+            foreach (var f in filelist)
+            {
+                Assert.IsFalse(File.Exists(f));
+  
+            }
         }
 
         [TestMethod]
