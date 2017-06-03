@@ -42,7 +42,7 @@ namespace PipelineTest
                 for (int j = 0; j < numChildren; j++)
                 {
                     SceneNode newChild = new SceneNode();
-                    newChild.Transform.Parent = chosenOne.Transform;
+                    newChild.Transform.SetParent(chosenOne.Transform, false);
                     newChild.Transform.Translation = new Vector3(
                         r.NextDouble() * 2 - 1,
                         r.NextDouble() * 2 - 1,
