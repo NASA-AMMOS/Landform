@@ -19,6 +19,16 @@ namespace OPS.Geometry
         {
             return box.Max - box.Min;
         }
+        
+        public static double MaxDimension(this BoundingBox box)
+        {
+            return MathE.Max(box.Size().ToDoubleArray());
+        }
+
+        public static Vector3 Center(this BoundingBox box)
+        {
+            return (box.Max + box.Min) / 2;
+        }
 
         /// <summary>
         /// Returns true if the this box is totaly inside or equal to the outer box
