@@ -122,11 +122,12 @@ namespace OPS.Pipeline
                 "Yoko", "Mortality Itself", "Penny", "Jack", "Eve"
             // TODO: expand
         };
+        static Random nameRand = new Random();
         /// <summary>
         /// Create a new node with a random silly name.
         /// </summary>
         public SceneNode()
-            : this(SillyNames[new Random().Next(SillyNames.Length)])
+            : this(SillyNames[nameRand.Next(SillyNames.Length)])
         {
         }
     }

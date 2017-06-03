@@ -29,25 +29,49 @@ namespace OPS.Pipeline
         }
 
         NodeTransform parent;
+        /// <summary>
+        /// The transform above this node in the hierarchy. Null if this node
+        /// is the root.
+        /// </summary>
         public NodeTransform Parent
         {
             get { return parent; }
             set
             {
-                if (parent != null)
-                {
-                    parent.children.Remove(this);
-                }
-                parent = value;
-                if (parent != null)
-                {
-                    parent.children.Add(this);
-                }
-                localToWorldDirty = true;
+                SetParent(value);
             }
         }
 
+        /// <summary>
+        /// Set the parent of this transform.
+        /// 
+        /// If preserveWorldTransform is true, the world space transform of this
+        /// node will be preserved. If false, the local transform will be preserved.
+        /// </summary>
+        /// <param name="newParent">New parent transform</param>
+        /// <param name="preserveWorldTransform">Preserve world space transform</param>
+        public void SetParent(NodeTransform newParent, bool preserveWorldTransform = true)
+        {
+            Matrix oldLocalToWorld = default(Matrix);
+            if (preserveWorldTransform) oldLocalToWorld = LocalToWorld;
+
+            if (parent != null)
+            {
+                parent.children.Remove(this);
+            }
+            parent = newParent;
+            if (parent != null)
+            {
+                parent.children.Add(this);
+            }
+
+            if (preserveWorldTransform) LocalToWorld = oldLocalToWorld;
+        }
+
         HashSet<NodeTransform> children;
+        /// <summary>
+        /// All immediate descendants of this node.
+        /// </summary>
         public IEnumerable<NodeTransform> Children
         {
             get
@@ -60,21 +84,21 @@ namespace OPS.Pipeline
         public Quaternion Rotation
         {
             get { return rotation; }
-            set { rotation = value; matrixDirty = true; }
+            set { rotation = value; matrixDirty = true; localToWorldDirty = true; }
         }
 
         Vector3 translation;
         public Vector3 Translation
         {
             get { return translation; }
-            set { translation = value; matrixDirty = true; }
+            set { translation = value; matrixDirty = true; localToWorldDirty = true; }
         }
 
         Vector3 scale;
         public Vector3 Scale
         {
             get { return scale; }
-            set { scale = value; matrixDirty = true; }
+            set { scale = value; matrixDirty = true; localToWorldDirty = true; }
         }
 
 
@@ -106,9 +130,28 @@ namespace OPS.Pipeline
 
 
         Matrix localToWorld;
-        bool localToWorldDirty;
+        bool _localToWorldDirty;
         /// <summary>
-        /// A matrix transforming from the node's local coordinate frame to world space.
+        /// If true, the LocalToWorld matrix needs to be recomputed.
+        /// </summary>
+        bool localToWorldDirty
+        {
+            get { return _localToWorldDirty; }
+            set
+            {
+                // don't recurse down the tree if there is no state change
+                if (value == _localToWorldDirty) return;
+
+                _localToWorldDirty = value;
+
+                // only propagate filth
+                if (!_localToWorldDirty) return;
+                foreach (var child in children) child.localToWorldDirty = value;
+            }
+        }
+
+        /// <summary>
+        /// The matrix transforming from the node's local coordinate frame to world space.
         /// </summary>
         public Matrix LocalToWorld
         {
@@ -127,6 +170,25 @@ namespace OPS.Pipeline
                     localToWorldDirty = false;
                 }
                 return localToWorld;
+            }
+            set
+            {
+                Matrix = value * (parent != null ? parent.WorldToLocal : Matrix.Identity);
+            }
+        }
+
+        /// <summary>
+        /// The matrix transforming from world space to the coordinate frame of this node.
+        /// </summary>
+        public Matrix WorldToLocal
+        {
+            get
+            {
+                return Matrix.Invert(LocalToWorld);
+            }
+            set
+            {
+                LocalToWorld = Matrix.Invert(value);
             }
         }
     }
