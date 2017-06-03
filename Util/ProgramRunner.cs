@@ -13,21 +13,46 @@ namespace OPS.Util
     /// </summary>
     public class ProgramRunner
     {
-        /// <summary>
-        /// Helper method to execute a program.
-        /// Ignores output
-        /// </summary>
-        /// <param name="executableFilename"></param>
-        /// <param name="arguments"></param>
-        public static void Run(string executableFilename, string arguments)
+        string cmd;
+        string arguments;
+        bool createNoWindow;
+        bool useShellExecute;
+        bool captureOutput;
+        string workingDir;
+
+        public string OutputText { get; private set; }
+        public string ErrorText { get; private set; }
+
+        public ProgramRunner(string cmd, string arguments, bool createNoWindow = true, bool useShellExecute = false, bool captureOutput = false, string workingDir = null)
+        {
+            this.cmd = cmd;
+            this.arguments = arguments;           
+            this.createNoWindow = createNoWindow;
+            this.useShellExecute = useShellExecute;
+            this.captureOutput = captureOutput;
+            this.workingDir = workingDir;
+        }
+
+        public void Run()
         {
             ProcessStartInfo startInfo = new ProcessStartInfo();
-            startInfo.FileName = executableFilename;
-            startInfo.CreateNoWindow = true;
-            startInfo.UseShellExecute = false;
-            startInfo.Arguments = arguments;
+            startInfo.FileName = this.cmd;
+            startInfo.CreateNoWindow = createNoWindow;
+            startInfo.UseShellExecute = useShellExecute;
+            startInfo.Arguments = this.arguments;
             startInfo.WindowStyle = ProcessWindowStyle.Hidden;
+            startInfo.RedirectStandardOutput = this.captureOutput;
+            startInfo.RedirectStandardError = this.captureOutput;
+            if (workingDir != null)
+            {
+                startInfo.WorkingDirectory = workingDir;
+            }
             Process p = Process.Start(startInfo);
+            if (this.captureOutput)
+            {
+                OutputText = p.StandardOutput.ReadToEnd();
+                ErrorText = p.StandardError.ReadToEnd();
+            }
             p.WaitForExit();
             p.Close();
         }
