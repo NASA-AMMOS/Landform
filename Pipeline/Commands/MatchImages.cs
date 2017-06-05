@@ -4,6 +4,12 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Emgu.CV;
+using Emgu.CV.Structure;
+using Emgu.CV.CvEnum;
+using Microsoft.Xna.Framework;
+using Emgu.CV.XFeatures2D;
+using Emgu.CV.Util;
 
 namespace OPS.Pipeline
 {
