@@ -94,7 +94,7 @@ namespace PipelineTest
             List<SceneNode> allNodes = new List<SceneNode>() { graph.Root };
 
             // populate tree
-            int targetNodes = 10000;
+            int targetNodes = 1000;
             while (allNodes.Count < targetNodes)
             {
                 // choose a random leaf node
@@ -123,7 +123,7 @@ namespace PipelineTest
 
             // change a random node's transform and validate the state
             // of the entire tree
-            for (int i = 0; i < 5000; i++)
+            for (int i = 0; i < 2000; i++)
             {
                 int idx = rand.Next(allNodes.Count);
                 SceneNode n = allNodes[idx];
@@ -171,10 +171,9 @@ namespace PipelineTest
             if (!(t.LocalToWorld * t.WorldToLocal).AlmostEqual(Matrix.Identity)) return false;
             if (t.Parent == null)
             {
-                return t.Matrix == t.LocalToWorld;
+                if (t.Matrix != t.LocalToWorld) return false;
             }
-
-            if (!t.LocalToWorld.AlmostEqual(t.Matrix * t.Parent.LocalToWorld)) return false;
+            else if (!t.LocalToWorld.AlmostEqual(t.Matrix * t.Parent.LocalToWorld)) return false;
             if (recursive)
             {
                 foreach(var child in t.Children)
