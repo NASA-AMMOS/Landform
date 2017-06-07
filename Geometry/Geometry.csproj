@@ -37,6 +37,10 @@
       <HintPath>..\packages\log4net.2.0.8\lib\net45-full\log4net.dll</HintPath>
       <Private>True</Private>
     </Reference>
+    <Reference Include="MIConvexHull.NET Standard, Version=1.0.17.411, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\MIConvexHull.1.1.17.0411\lib\netstandard1.0\MIConvexHull.NET Standard.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
     <Reference Include="Newtonsoft.Json, Version=10.0.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed, processorArchitecture=MSIL">
       <HintPath>..\packages\Newtonsoft.Json.10.0.2\lib\net45\Newtonsoft.Json.dll</HintPath>
       <Private>True</Private>
@@ -64,6 +68,7 @@
     <Compile Include="Geometry\BarycentricPoint.cs" />
     <Compile Include="Geometry\BoundingBoxExtensions.cs" />
     <Compile Include="Geometry\QuadricEdgeCollapse\Edge.cs" />
+    <Compile Include="Geometry\ConvexTools.cs" />
     <Compile Include="Geometry\QuadricEdgeCollapse\EdgeCollapse.cs" />
     <Compile Include="Geometry\OctreeTriangleContent.cs" />
     <Compile Include="Geometry\HausdorffDistance.cs" />
@@ -72,6 +77,7 @@
     <Compile Include="Geometry\Octree.cs" />
     <Compile Include="Geometry\Face.cs" />
     <Compile Include="Geometry\EpipolarTransform.cs" />
+    <Compile Include="Geometry\GJKIntersection.cs" />
     <Compile Include="Geometry\Mesh.cs" />
     <Compile Include="Geometry\MeshOperator.cs" />
     <Compile Include="Geometry\PlaneExtensions.cs" />
