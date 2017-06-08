@@ -1,17 +1,7 @@
 ﻿using CommandLine;
-using System;
 using System.IO;
 using System.Diagnostics;
-using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using Emgu.CV;
-using Emgu.CV.Structure;
-using Emgu.CV.CvEnum;
-using Microsoft.Xna.Framework;
-using Emgu.CV.XFeatures2D;
-using Emgu.CV.Util;
 using OPS.Imaging;
 
 namespace OPS.Pipeline
@@ -44,21 +34,21 @@ namespace OPS.Pipeline
             bool directory = (attr & FileAttributes.Directory) == FileAttributes.Directory;
             string[] images = new string[0];
             string[] allowedFormats = new string[] { "jpeg", "png", "tiff" };
+            string outputType = options.OutputType != null ? options.OutputType : "png";
+            string destPath = "";
 
             if (directory)
             {
                 images = Directory.GetFiles(options.ImagePath, "*.IMG");
+                destPath = options.ImagePath + " Output";
             }
             else if(options.ImagePath.EndsWith(".IMG"))
             {
                 images = new string[] {  options.ImagePath };
+                destPath = Directory.GetParent(options.ImagePath).FullName + " Output";
             }
 
-            if (images.Length == 0 || !allowedFormats.Contains(options.OutputType)) { return 0; }
-
-            string destPath = Directory.GetParent(options.ImagePath).FullName + " Output";
-            destPath = options.OutputPath != null ? options.OutputPath : destPath;
-            string outputType = options.OutputType != null ? options.OutputType : "png";
+            if (images.Length == 0) { return 0; }
 
             Directory.CreateDirectory(destPath);
             for (int i = 0; i < images.Length; i++)
@@ -68,7 +58,7 @@ namespace OPS.Pipeline
                 string imageName = Path.GetFileName(imagePath); // remove .IMG extension
                 string newImageName = imageName.Substring(0, imageName.Length - 4) + '.' + outputType;
                 newImage.Save<byte>(destPath + '\\' + newImageName);
-                Debug.WriteLine("destPath: " + destPath + '\\' + Path.GetFileName(imagePath));
+                Debug.WriteLine("destPath: " + destPath + '\\' + newImageName);
                 Debug.WriteLine("processed image: " + imagePath);
             }
            
