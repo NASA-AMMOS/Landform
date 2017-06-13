@@ -52,6 +52,7 @@
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="app.config" />
     <None Include="ExternalApps\ivcat.com">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
