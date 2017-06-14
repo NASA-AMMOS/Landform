@@ -64,7 +64,7 @@ namespace OPS.Alignment
             Debug.WriteLine(principalVecs);
             Debug.WriteLine(principalVals);
 
-            WriteEigenvectorsToFile(gpcafile);
+            WriteEigenvectorsToFile(gpcafile + ".txt");
         }
 
         /// <summary>
@@ -96,8 +96,8 @@ namespace OPS.Alignment
             Emgu.CV.Image<Gray, float> grayModelImage = modelImage.Convert<Gray, float>();
             SIFT sift = new SIFT();
             MKeyPoint[] mKeypoints = sift.Detect(modelImage);
-            List<PCA_Keypoint> PCAKeypoints = PCA_KeypointDetector.getPatches(grayModelImage, mKeypoints, patchsize + 2);
-            gradients.AddRange(PCA_KeypointDetector.getGradients(PCAKeypoints));
+            List<PCA_Keypoint> PCAKeypoints = PCA_KeypointDetector.GetPatches(grayModelImage, mKeypoints, patchsize + 2);
+            gradients.AddRange(PCA_KeypointDetector.GetGradients(PCAKeypoints));
 
             return gradients;
         }

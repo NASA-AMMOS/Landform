@@ -17,7 +17,7 @@ namespace OPS.Alignment
         public float SX { get; set; }
         public float SY { get; set; }
         const int EPCALEN = 36;
-        public float[] Ld { get; set; }       
+        public float[] desc { get; set; }       
         public Image<Gray, float> Patch { get; set; }
 
         /// <summary>
@@ -33,17 +33,14 @@ namespace OPS.Alignment
             Y = point.Point.Y;
             SX = point.Point.X;
             SY = point.Point.Y;
-            Ld = new float[EPCALEN];
+            desc = new float[EPCALEN];
             UnpackOctaveAndScale(point.Octave);
         }
 
         /// <summary>
         /// Initializes a new instance of the <see cref="T:OPS.Alignment.PCA_Keypoint"/> class.
         /// </summary>
-        public PCA_Keypoint()
-        {
-
-        }
+        public PCA_Keypoint() { }
 
         /// <summary>
         /// Unpacks the octave and scale from SIFT-detected keypoints.

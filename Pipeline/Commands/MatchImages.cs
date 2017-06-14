@@ -60,23 +60,15 @@ namespace OPS.Pipeline
             Image<Gray, byte> modelImage = Imaging.Image.Load(imageFile).ToEmguGrayscale();
             Image<Gray, float> grayModelImage = modelImage.Convert<Gray, float>();
 
-            string gpcafile = trainingFile; // "C:\\Users\\charchut\\Downloads\\gpcavects.txt";
+            string gpcafile = trainingFile;
             string gradfile = "C:\\Users\\charchut\\Downloads\\grads.txt";
 
-            // 0. Pre-compute eigenspace on images
-            //PCA_Train train = new PCA_Train(gradfile);
-            //SIFT siftCPUt = new SIFT();
-            //MKeyPoint[] mKeypointst = siftCPUt.Detect(modelImage);
-            //List<PCA_Keypoint> keypointst = PCA_KeypointDetector.getPatches(grayModelImage, mKeypointst, patchsize);
-            //PCA_Train train = new PCA_Train(PCA_KeypointDetector.getGradients(keypointst));
-
+            // 0. Computes eigenspace from set of training images.
             if (trainingPath != null && trainingFile != null)
             {
                 PCA_Train train = new PCA_Train(trainingFile);
                 train.Train(trainingPath);
             }
-           
-            //train.writeEigsToFile(gpcafile);
 
             // 1. Calculate keypoints of an image using SIFT detection
             SIFT siftCPU = new SIFT();
@@ -88,7 +80,7 @@ namespace OPS.Pipeline
             // 2. Recalculate keypoints, given the eigenspace, an image, and its keypoints
             //// e.g. ./recalckeys gpcavects.txt image1.pgm image2.pgm image1.lkeys image1.pkeys    
             PCA_KeypointDetector detector = new PCA_KeypointDetector(gpcafile);
-            detector.RecalculateKeys(grayModelImage, keypoints);
+            detector.ProjectKeypoints(grayModelImage, keypoints);
 
             // 3. Return list of keypoints with updated descriptors?
 
