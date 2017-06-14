@@ -29,8 +29,14 @@ namespace OPS.Pipeline
         //[Value(1, Required = true, HelpText = "")]
         //public string ImageB { get; set; }
 
-        [Value(1, Required = true, HelpText = "Indicate saving location for gathered patches")]
+        [Value(1, Required = false, HelpText = "Indicate saving location for gathered patches")]
         public string Outfile { get; set; }
+
+        [Option('t', "train", Required = false, HelpText = "Indicate directory of training images")]
+        public string TrainingPath { get; set; }
+
+        [Option('o', "trainoutput", Required = false, HelpText = "Indicate saving location for computed eigenspace")]
+        public string TrainingFile { get; set; }
 
     }
 
@@ -46,20 +52,30 @@ namespace OPS.Pipeline
         {
             string imageFile = options.ImageA;
             string outputFile = options.Outfile;
+            string trainingPath = options.TrainingPath;
+            string trainingFile = options.TrainingFile;
+
             int patchsize = 41;
 
             Image<Gray, byte> modelImage = Imaging.Image.Load(imageFile).ToEmguGrayscale();
             Image<Gray, float> grayModelImage = modelImage.Convert<Gray, float>();
 
-            string gpcafile = "C:\\Users\\charchut\\Downloads\\gpcavects.txt";
+            string gpcafile = trainingFile; // "C:\\Users\\charchut\\Downloads\\gpcavects.txt";
             string gradfile = "C:\\Users\\charchut\\Downloads\\grads.txt";
 
             // 0. Pre-compute eigenspace on images
             //PCA_Train train = new PCA_Train(gradfile);
-            SIFT siftCPUt = new SIFT();
-            MKeyPoint[] mKeypointst = siftCPUt.Detect(modelImage);
-            List<PCA_Keypoint> keypointst = PCA_KeypointDetector.getPatches(grayModelImage, mKeypointst, patchsize);
-            PCA_Train train = new PCA_Train(PCA_KeypointDetector.getGradients(keypointst));
+            //SIFT siftCPUt = new SIFT();
+            //MKeyPoint[] mKeypointst = siftCPUt.Detect(modelImage);
+            //List<PCA_Keypoint> keypointst = PCA_KeypointDetector.getPatches(grayModelImage, mKeypointst, patchsize);
+            //PCA_Train train = new PCA_Train(PCA_KeypointDetector.getGradients(keypointst));
+
+            if (trainingPath != null && trainingFile != null)
+            {
+                PCA_Train train = new PCA_Train(trainingFile);
+                train.Train(trainingPath);
+            }
+           
             //train.writeEigsToFile(gpcafile);
 
             // 1. Calculate keypoints of an image using SIFT detection
