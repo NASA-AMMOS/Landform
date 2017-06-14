@@ -1,20 +1,9 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using Emgu.CV.UI;
-using Emgu.CV.Util;
-using Emgu.Util;
-using Emgu.CV.CvEnum;
-using Microsoft.Xna.Framework;
 using Emgu.CV.XFeatures2D;
-using Emgu.CV.Features2D;
-using System.Drawing;
 using OPS.Imaging.Emgu;
 using System.Diagnostics;
 using System.IO;
-using System.Numerics;
 using Emgu.CV.Structure;
 using MathNet.Numerics.LinearAlgebra;
 using MathNet.Numerics.LinearAlgebra.Factorization;
@@ -22,71 +11,33 @@ using MathNet.Numerics.Statistics;
 
 namespace OPS.Alignment
 {
+    /// <summary>
+    /// PCA Training Class.
+    /// </summary>
     public class PCA_Train
     {
-        private const int n = 36;
-        private const int patchsize = 39;
-        private const int patchlen = 3042; // = patchsize * patchsize * 2;
+        const int n = 36;
+        const int patchsize = 39;
+        const int patchlen = 3042; // = patchsize * patchsize * 2;
         string gpcafile;
-        Vector<float> mean;// { get; set; }
-        Evd<float> eigs;// { get; set; }
-        Matrix<float> eigvecs;// { get; set; }
+        Vector<float> mean;
+        Evd<float> eigs;
+        Matrix<float> eigvecs;
 
+        /// <summary>
+        /// Initializes a new instance of the <see cref="T:OPS.Alignment.PCA_Train"/> class.
+        /// </summary>
+        /// <param name="filename">Filename where the trained eigenspace is to be stored.</param>
         public PCA_Train(string filename)
         {
             gpcafile = filename;
-            ////List<PCA_Keypoint> keypoints = PCA_KeypointDetector.readPatchesFromFile(filename);
-            ////Image<Gray, float> data = keypoints[0].patch;
-            //Matrix<float> data = null;
-            //using (BinaryReader reader = new BinaryReader(new FileStream(filename, FileMode.Open)))
-            //{
-            //    double numKeypoints = reader.ReadSingle();
-            //    data = Matrix<float>.Build.Dense(patchlen, (int)numKeypoints);
-            //    int count = 0;
-            //    while (reader.BaseStream.Position != reader.BaseStream.Length)
-            //    {
-            //        for (int i = 0; i < patchlen; i++)
-            //        {
-            //            data[i, count++] = reader.ReadSingle();
-            //        }
-            //        //Matrix<float> newData = new Matrix<float>(patchlen, 1);
-            //        //for (int i = 0; i < patchlen; i++)
-            //        //{
-            //        //    newData[i, 0] = reader.ReadSingle();
-            //        //}
-            //        //if (data == null)
-            //        //{
-            //        //    data = newData.Clone();
-            //        //}
-            //        //else
-            //        //{
-            //        //    data = data.ConcateHorizontal(newData);
-            //        //}
-            //    }
-            //}
-
-
-            //mean = Vector<float>.Build.Dense(patchlen);
-            ////eigs = Matrix<float>.Build.Dense(patchlen, patchlen);
-
-            //Matrix<float> covar = Matrix<float>.Build.Dense(patchlen, patchlen);
-            //try
-            //{
-            //    //CvInvoke.CalcCovarMatrix(data, covar, mean, CovarMethod.Normal | CovarMethod.Cols, DepthType.Cv32F);
-            //    Debug.WriteLine(covar.ToString());
-            //}
-            //catch (Exception e)
-            //{
-            //    Debug.WriteLine(e, e.StackTrace);
-            //}
-            ////Matrix<float> eigvals = new Matrix<float>(patchlen, 1);
-            ////CvInvoke.Eigen(covar, eigvals);
-            ////covar = covar / (data.Cols - 1); // purpose of this line?
-            //Debug.WriteLine("DONE?");
-            //writeEigsToFile("C:\\Users\\charchut\\Downloads\\eigs.txt");
         }
 
-        void processGradients(List<float[]> gradients)
+        /// <summary>
+        /// Computes the eigenspace.
+        /// </summary>
+        /// <param name="gradients">Gradients calculated from training set image data.</param>
+        void ComputeEigenspace(List<float[]> gradients)
         {
             Matrix<float> data = Matrix<float>.Build.Dense(gradients.Count(), patchlen);
 
@@ -96,11 +47,11 @@ namespace OPS.Alignment
                 data.SetRow(i, Vector<float>.Build.Dense(gradients[i]));
             }
 
-            // row-wise mean
-            mean = columnWiseMean(data);
+            // Calculate column-wise mean
+            mean = ColumnWiseMean(data);
 
             // calculate covariance matrix
-            Matrix<float> covar = covarianceMatrix(data);
+            Matrix<float> covar = CovarianceMatrix(data);
 
             // eigendecomposition
             eigs = covar.Evd();
@@ -113,9 +64,13 @@ namespace OPS.Alignment
             Debug.WriteLine(principalVecs);
             Debug.WriteLine(principalVals);
 
-            writeEigsToFile(gpcafile);
+            WriteEigenvectorsToFile(gpcafile);
         }
 
+        /// <summary>
+        /// Train PCA with images in path.
+        /// </summary>
+        /// <param name="path">Path to training image files.</param>
         public void Train(string path)
         {
             string[] imageFiles = Directory.GetFiles(path, "*.jpg");
@@ -123,13 +78,19 @@ namespace OPS.Alignment
 
             for (int i = 0; i < imageFiles.Length; i++)
             {
-                gradients = processImage(imageFiles[i], gradients);
+                gradients = CalculateGradients(imageFiles[i], gradients);
             }
 
-            processGradients(gradients);
+            ComputeEigenspace(gradients);
         }
 
-        private List<float[]> processImage(string imageFile, List<float[]> gradients)
+        /// <summary>
+        /// Calculates the gradients for the given image and appends them to running gradients list.
+        /// </summary>
+        /// <returns>The updated gradients lsit.</returns>
+        /// <param name="imageFile">Image file.</param>
+        /// <param name="gradients">Running list of gradients.</param>
+        List<float[]> CalculateGradients(string imageFile, List<float[]> gradients)
         {
             Emgu.CV.Image<Gray, byte> modelImage = Imaging.Image.Load(imageFile).ToEmguGrayscale();
             Emgu.CV.Image<Gray, float> grayModelImage = modelImage.Convert<Gray, float>();
@@ -141,7 +102,12 @@ namespace OPS.Alignment
             return gradients;
         }
 
-        Matrix<float> covarianceMatrix(Matrix<float> data)
+        /// <summary>
+        /// Calculates the covariance matrix for a given dataset.
+        /// </summary>
+        /// <returns>The covariance matrix.</returns>
+        /// <param name="data">Dataset.</param>
+        Matrix<float> CovarianceMatrix(Matrix<float> data)
         {
             Matrix<float> result = Matrix<float>.Build.Dense(data.ColumnCount, data.ColumnCount);
             Dictionary<int, Vector<float>> A = new Dictionary<int, Vector<float>>();
@@ -153,7 +119,6 @@ namespace OPS.Alignment
                 Vector<float> vec = data.Column(i);
                 B[i] = vec.Subtract((float)vec.Mean());
                 A[i] = B[i].Conjugate();
-                
             }
 
             // set values in covariance matrix
@@ -168,7 +133,12 @@ namespace OPS.Alignment
             return result.Multiply(1f/(data.RowCount - 1));
         }
 
-        Vector<float> columnWiseMean(Matrix<float> input)
+		/// <summary>
+		/// Calculates the column-wise mean of a <see cref="T:MathNet.Numerics.LinearAlgebra"/> matrix.
+		/// </summary>
+		/// <returns>The column-wise mean.</returns>
+		/// <param name="input">Input matrix.</param>
+		Vector<float> ColumnWiseMean(Matrix<float> input)
         {
             Vector<float> result = Vector<float>.Build.Dense(input.ColumnCount);
 
@@ -180,7 +150,11 @@ namespace OPS.Alignment
             return result;
         }
 
-        private void writeEigsToFile(string filename)
+        /// <summary>
+        /// Writes the eigenvectors and mean to file.
+        /// </summary>
+        /// <param name="filename">Filename of location where the eigenvectors and mean are to be saved.</param>
+        void WriteEigenvectorsToFile(string filename)
         {
             Debug.WriteLine("Writing to " + filename);
             using (BinaryWriter writer = new BinaryWriter(new FileStream(filename, FileMode.Create)))
@@ -201,26 +175,6 @@ namespace OPS.Alignment
                 }
             }
 
-            // write to text file for debugging
-            //using (StreamWriter writer = new StreamWriter(new FileStream(filename, FileMode.Create)))
-            //{
-            //    StringBuilder builder = new StringBuilder();
-            //    for (int a = 0; a < patchsize + 1; a++)
-            //    {
-            //        //writer.WriteLine(mean[a, 0]);
-            //        builder.AppendLine(mean[a].ToString());
-            //    }
-
-            //    for (int i = 0; i < patchsize; i++)
-            //    {
-            //        for (int j = 0; j < patchsize; j++)
-            //        {
-            //            //writer.WriteLine(eigvecs[i, j]);
-            //            builder.AppendLine(eigvecs[i, j].ToString());
-            //        }
-            //    }
-            //    writer.Write(builder.ToString());
-            //}
             Debug.WriteLine("Wrote to " + filename);
         }
     }
