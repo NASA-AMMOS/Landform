@@ -23,6 +23,7 @@ namespace OPS.Alignment
         Vector<float> mean;
         Evd<float> eigs;
         Matrix<float> eigvecs;
+        Matrix<float> principalEigVecs;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="T:OPS.Alignment.PCA_Train"/> class.
@@ -51,17 +52,18 @@ namespace OPS.Alignment
             mean = ColumnWiseMean(data);
 
             // calculate covariance matrix
+            Debug.WriteLine("Calculating covariance matrix...");
             Matrix<float> covar = CovarianceMatrix(data);
 
-            // eigendecomposition
+            // eigen decomposition
+            Debug.WriteLine("Calculating eigen decomposition...");
             eigs = covar.Evd();
             eigvecs = eigs.EigenVectors;
-            Matrix<float> principalVecs = Matrix<float>.Build.Dense(eigvecs.RowCount, n);
-            principalVecs = eigvecs.SubMatrix(0, eigvecs.RowCount, 0, n);
+            principalEigVecs = eigvecs.SubMatrix(0, eigvecs.RowCount, 0, n);
             Vector<double> principalVals = Vector<double>.Build.Dense(n);
             principalVals = eigs.EigenValues.Real().SubVector(0, n);
 
-            Debug.WriteLine(principalVecs);
+            Debug.WriteLine(principalEigVecs);
             Debug.WriteLine(principalVals);
 
             WriteEigenvectorsToFile(gpcafile + ".txt");
@@ -110,13 +112,15 @@ namespace OPS.Alignment
         Matrix<float> CovarianceMatrix(Matrix<float> data)
         {
             Matrix<float> result = Matrix<float>.Build.Dense(data.ColumnCount, data.ColumnCount);
-            Dictionary<int, Vector<float>> A = new Dictionary<int, Vector<float>>();
-            Dictionary<int, Vector<float>> B = new Dictionary<int, Vector<float>>();
+            List<Vector<float>> A = new List<Vector<float>>();
+            List<Vector<float>> B = new List<Vector<float>>();
+            Vector<float> vec;
 
             // precompute A, B in cov(A, B)
+            // TODO take advantage of double multiplication!!!
             for (int i = 0; i < data.ColumnCount; i++)
             {
-                Vector<float> vec = data.Column(i);
+                vec = data.Column(i);
                 B[i] = vec.Subtract((float)vec.Mean());
                 A[i] = B[i].Conjugate();
             }
@@ -156,7 +160,7 @@ namespace OPS.Alignment
         /// <param name="filename">Filename of location where the eigenvectors and mean are to be saved.</param>
         void WriteEigenvectorsToFile(string filename)
         {
-            Debug.WriteLine("Writing to " + filename);
+            Debug.WriteLine("Writing eigenvectors to " + filename);
             using (BinaryWriter writer = new BinaryWriter(new FileStream(filename, FileMode.Create)))
             {
                 // mean should be of length 3042
@@ -166,7 +170,7 @@ namespace OPS.Alignment
                 }
 
                 // eigvecs should be 3042x3042
-                for (int i = 0; i < patchsize; i++)
+                for (int i = 0; i < n; i++)
                 {
                     for (int j = 0; j < patchsize; j++)
                     {
