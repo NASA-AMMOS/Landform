@@ -1,17 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using Emgu.CV;
 using Emgu.CV.Structure;
 using Emgu.CV.CvEnum;
-using Microsoft.Xna.Framework;
-using Emgu.CV.XFeatures2D;
-using Emgu.CV.Features2D;
-using Emgu.CV.Util;
 using System.Drawing;
-using OPS.Imaging.Emgu;
 using System.Diagnostics;
 using System.IO;
 
@@ -34,6 +27,10 @@ namespace OPS.Alignment
         float[] avgs = new float[GPLEN];
         float[,] eigs = new float[EPCALEN, GPLEN];
 
+        /// <summary>
+        /// Initializes a new instance of the <see cref="T:OPS.Alignment.PCA_KeypointDetector"/> class.
+        /// </summary>
+        /// <param name="file">File containing mean and eigenspace computed from training set.</param>
         public PCA_KeypointDetector(string file)
         {
             if (File.Exists(file))
@@ -61,11 +58,15 @@ namespace OPS.Alignment
             }
         }
 
-        void makeKeypointPCA(PCA_Keypoint keypoint, Image<Gray, float> blur)
+		/// <summary>
+		/// Create PCA descriptor for instance of <see cref="T:OPS.Alignment.PCA_Keypoint"/>.
+		/// </summary>
+		/// <param name="keypoint">Keypoint.</param>
+		/// <param name="blur">Blur.</param>
+		void MakeKeypointPCA(PCA_Keypoint keypoint, Image<Gray, float> blur)
         {
-            float[] vec = new float[GPLEN];
-            makeKeypointPatch(keypoint, blur, vec);
-            normalizeVector(vec);
+            float[] vec = KeypointPatchVector(keypoint, blur);
+            NormalizeVector(vec);
 
             for (int i = 0; i < GPLEN; i++)
             {
@@ -74,19 +75,25 @@ namespace OPS.Alignment
 
             for (int ldi = 0; ldi < EPCALEN; ldi++)
             {
-                keypoint.ld[ldi] = 0;
+                keypoint.Ld[ldi] = 0;
 
                 for (int x = 0; x < GPLEN; x++)
                 {
-                    keypoint.ld[ldi] += eigs[ldi, x] * vec[x];
+                    keypoint.Ld[ldi] += eigs[ldi, x] * vec[x];
                 }
             }
         }
 
-        void makeKeypointPatch(PCA_Keypoint keypoint, Image<Gray, float> blur, float[] vec)
+        /// <summary>
+        /// Calculates a gradient vector representing an keypoint's associated patch.
+        /// </summary>
+        /// <param name="keypoint">Keypoint.</param>
+        /// <param name="blur">Blur.</param>
+        float[] KeypointPatchVector(PCA_Keypoint keypoint, Image<Gray, float> blur)
         {
-            Debug.Assert(keypoint != null);
-            Debug.Assert(blur != null);
+            //Debug.Assert(keypoint != null);
+            //Debug.Assert(blur != null);
+            float[] vec = new float[GPLEN];
 
             int patchsize, iradius;
             float sine, cosine, sizeratio;
@@ -120,7 +127,7 @@ namespace OPS.Alignment
                 {
                     cpos = (cosine * x  + sine * y) + keypoint.SX;
                     rpos = (-sine * x  + cosine * y) + keypoint.SY;
-                    // not sure about this order of coordinates either lol
+                    // not sure about this order of coordinates either
                     patch[x + iradius, y + iradius] = new Gray(GetPixelBilinearInterpolation(blur, cpos, rpos));
                 }
             }
@@ -145,18 +152,19 @@ namespace OPS.Alignment
                     count += 2;
                 }
             }
+            return vec;
         }
 
-        void computeLocalDescriptors(List<PCA_Keypoint> keypoints, List<List<Image<Gray, float>>> octaves)
+        void ComputeLocalDescriptors(List<PCA_Keypoint> keypoints, List<List<Image<Gray, float>>> octaves)
         {
             for (int i = 0; i < keypoints.Count(); i++)
             {
                 PCA_Keypoint key = keypoints[i];
-                makeKeypointPCA(keypoints[i], octaves[key.Octave][key.Scale]);
+                MakeKeypointPCA(keypoints[i], octaves[key.Octave][key.Scale]);
             }
         }
 
-        public static void normalizeVector(float[] vector)
+        public static void NormalizeVector(float[] vector)
         {
             float total = 0;
 
@@ -173,7 +181,7 @@ namespace OPS.Alignment
             }
         }
 
-        static Image<Gray, float> scaleInitImage(Image<Gray, float> image)
+        static Image<Gray, float> ScaleInitImage(Image<Gray, float> image)
         {
             Image<Gray, float> dst;
 
@@ -194,7 +202,7 @@ namespace OPS.Alignment
             return dst;
         }
 
-        static List<Image<Gray, float>> buildGaussianScales(Image<Gray, float> image)
+        static List<Image<Gray, float>> BuildGaussianScales(Image<Gray, float> image)
         {
             List<Image<Gray, float>> GScales = new List<Image<Gray, float>>();
             double k = Math.Pow(2, 1.0 / ((float)SCALES_PER_OCTAVE));
@@ -218,7 +226,7 @@ namespace OPS.Alignment
             return GScales;
         }
 
-        static List<List<Image<Gray, float>>> buildGaussianOctaves(Image<Gray, float> image) // not void, find right type
+        static List<List<Image<Gray, float>>> BuildGaussianOctaves(Image<Gray, float> image) // not void, find right type
         {
             List<List<Image<Gray, float>>> octaves = new List<List<Image<Gray, float>>>();
             int dim = Math.Min(image.Height, image.Width);
@@ -236,7 +244,7 @@ namespace OPS.Alignment
             {
                 //Debug.WriteLine(string.Format("Building octave {0} of dimension ({1},{2})", i, imageCopy.Width, imageCopy.Height));
                 // Build Gaussian scales
-                List<Image<Gray, float>> scales = buildGaussianScales(imageCopy);
+                List<Image<Gray, float>> scales = BuildGaussianScales(imageCopy);
                 octaves.Add(scales);
 
                 // Halve the image 
@@ -253,7 +261,7 @@ namespace OPS.Alignment
             return octaves;
         }
 
-        static void makeLocalPatch(PCA_Keypoint keypoint, Image<Gray, float> blur, int windowsize)
+        static void MakeLocalPatch(PCA_Keypoint keypoint, Image<Gray, float> blur, int windowsize)
         {
             Debug.Assert(keypoint != null);
             Debug.Assert(blur != null);
@@ -276,7 +284,7 @@ namespace OPS.Alignment
             }
 
             sizeratio = patchsize / (float)PATCHSIZE;
-            keypoint.patch = new Image<Gray, float>(windowsize, windowsize);
+            keypoint.Patch = new Image<Gray, float>(windowsize, windowsize);
 
             sine = (float)Math.Sin(keypoint.Angle);
             cosine = (float)Math.Cos(keypoint.Angle);
@@ -291,14 +299,14 @@ namespace OPS.Alignment
                     cpos = (cosine * x * sizeratio + sine * y * sizeratio) + keypoint.SX;
                     rpos = (-sine * x * sizeratio + cosine * y * sizeratio) + keypoint.SY;
                     // not sure about this order of coordinates either lol
-                    keypoint.patch[x + iradius, y + iradius] = new Gray(GetPixelBilinearInterpolation(blur, cpos, rpos));
+                    keypoint.Patch[x + iradius, y + iradius] = new Gray(GetPixelBilinearInterpolation(blur, cpos, rpos));
                 }
             }
 
 
         }
 
-        static void computeLocalPatches(List<PCA_Keypoint> keypoints, List<List<Image<Gray, float>>> octaves, int patchsize)
+        static void ComputeLocalPatches(List<PCA_Keypoint> keypoints, List<List<Image<Gray, float>>> octaves, int patchsize)
         {
             for (int i = 0; i < keypoints.Count; i++)
             {
@@ -311,7 +319,7 @@ namespace OPS.Alignment
 
                 //Debug.WriteLine(string.Format("octave: {0}", key.Octave));
                 //Debug.WriteLine("scale: " + key.Scale);
-                makeLocalPatch(key, octaves[key.Octave][key.Scale], patchsize);
+                MakeLocalPatch(key, octaves[key.Octave][key.Scale], patchsize);
                 //key.patch.Save(string.Format(@"C:\Users\charchut\Desktop\MImages\octave images\fuck{0}.png", i)); 
             }
         }
@@ -361,25 +369,25 @@ namespace OPS.Alignment
             return rfrac * row1 + (1f - rfrac) * row2;
         }
 
-        public static List<PCA_Keypoint> getPatches(Image<Gray, float> image, MKeyPoint[] keypoints, int patchsize)
+        public static List<PCA_Keypoint> GetPatches(Image<Gray, float> image, MKeyPoint[] keypoints, int patchsize)
         {
-            List<PCA_Keypoint> keys = createPCAKeypoints(keypoints);
+            List<PCA_Keypoint> keys = CreatePCAKeypoints(keypoints);
             // 1. Scale image to create base of Gaussian pyramid
-            image = scaleInitImage(image);
+            image = ScaleInitImage(image);
 
             // 2. Build Gaussian octaves
-            List<List<Image<Gray, float>>> octaves = buildGaussianOctaves(image);
+            List<List<Image<Gray, float>>> octaves = BuildGaussianOctaves(image);
 
             // 3. Update all keypoint parameters
-            recalculateKeyIndices(keys);
+            RecalculateKeyIndices(keys);
 
             // 4. Compute local patches
-            computeLocalPatches(keys, octaves, patchsize);
+            ComputeLocalPatches(keys, octaves, patchsize);
 
             return keys;
         }
 
-        public static void writePatchesToFile(List<PCA_Keypoint> keys, string filename, int patchsize)
+        public static void WritePatchesToFile(List<PCA_Keypoint> keys, string filename, int patchsize)
         {
             Debug.WriteLine("Writing to " + filename);
             using (BinaryWriter writer = new BinaryWriter(new FileStream(filename, FileMode.Create)))
@@ -410,7 +418,7 @@ namespace OPS.Alignment
                     {
                         for (int x = 0; x < patchsize; x++)
                         {
-                            writer.Write(keys[i].patch[y, x].Intensity);
+                            writer.Write(keys[i].Patch[y, x].Intensity);
                         }
                     }
                 }
@@ -418,7 +426,7 @@ namespace OPS.Alignment
             Debug.WriteLine("Wrote to file.");
         }
 
-        public static List<PCA_Keypoint> readPatchesFromFile(string filename)
+        public static List<PCA_Keypoint> ReadPatchesFromFile(string filename)
         {
             Debug.WriteLine("Reading from " + filename);
             List<PCA_Keypoint> keypoints = new List<PCA_Keypoint>();
@@ -431,20 +439,21 @@ namespace OPS.Alignment
                     float pcaLength = reader.ReadSingle();
                     int sqrtLen = (int)Math.Sqrt(pcaLength);
 
-
-                    if (sqrtLen * sqrtLen != pcaLength)
+                    if (Math.Abs(sqrtLen * sqrtLen - pcaLength) > Double.Epsilon)
                     {
                         Debug.WriteLine("Invalid patch file - dimensions incorrect: {0}", pcaLength);
                     }
 
                     for (int i = 0; i < keyCount; i++)
                     {
-                        PCA_Keypoint key = new PCA_Keypoint();
-                        key.Y = reader.ReadSingle();
-                        key.X = reader.ReadSingle();
-                        key.GScale = reader.ReadSingle();
-                        key.Angle = reader.ReadSingle();
-                        key.patch = new Image<Gray, float>(sqrtLen, sqrtLen);
+                        PCA_Keypoint key = new PCA_Keypoint()
+                        {
+                            Y = reader.ReadSingle(),
+                            X = reader.ReadSingle(),
+                            GScale = reader.ReadSingle(),
+                            Angle = reader.ReadSingle(),
+                            Patch = new Image<Gray, float>(sqrtLen, sqrtLen)
+                        };
 
                         //Debug.WriteLine("New point at ({0},{1}) with gScale: {2} and angle: {3}", key.X, key.Y, key.GScale, key.Angle);
                         for (int y = 0; y < sqrtLen; y++)
@@ -452,7 +461,7 @@ namespace OPS.Alignment
                             for (int x = 0; x < sqrtLen; x++)
                             {
                                 float val = (float)reader.ReadDouble();
-                                key.patch[y, x] = new Gray(val);
+                                key.Patch[y, x] = new Gray(val);
                             }
                         }
                         keypoints.Add(key);
@@ -463,7 +472,7 @@ namespace OPS.Alignment
             return keypoints;
         }
 
-        static void recalculateKeyIndices(List<PCA_Keypoint> keypoints)
+        static void RecalculateKeyIndices(List<PCA_Keypoint> keypoints)
         {
             double log2 = (float)Math.Log(2);
 
@@ -504,15 +513,15 @@ namespace OPS.Alignment
             }
         }
 
-        public void recalculateKeys(Image<Gray, float> image, List<PCA_Keypoint> keypoints)
+        public void RecalculateKeys(Image<Gray, float> image, List<PCA_Keypoint> keypoints)
         {
-            Image<Gray, float> im = scaleInitImage(image);
-            List<List<Image<Gray, float>>> GOctaves = buildGaussianOctaves(im);
-            recalculateKeyIndices(keypoints);
-            computeLocalDescriptors(keypoints, GOctaves);
+            Image<Gray, float> im = ScaleInitImage(image);
+            List<List<Image<Gray, float>>> GOctaves = BuildGaussianOctaves(im);
+            RecalculateKeyIndices(keypoints);
+            ComputeLocalDescriptors(keypoints, GOctaves);
         }
 
-        static List<PCA_Keypoint> createPCAKeypoints(MKeyPoint[] keypoints)
+        static List<PCA_Keypoint> CreatePCAKeypoints(MKeyPoint[] keypoints)
         {
             List<PCA_Keypoint> result = new List<PCA_Keypoint>();
 
@@ -528,7 +537,7 @@ namespace OPS.Alignment
             return result;
         }
 
-        public static void writeGradientsToFile(List<PCA_Keypoint> keypoints, string filename)
+        public static void WriteGradientsToFile(List<PCA_Keypoint> keypoints, string filename)
         {
             using (BinaryWriter writer = new BinaryWriter(new FileStream(filename, FileMode.Append)))
             {
@@ -536,7 +545,7 @@ namespace OPS.Alignment
                 writer.Write((float)keypoints.Count());
                 for (int i = 0; i < keypoints.Count(); i++)
                 {
-                    int patchsize = keypoints[i].patch.Width;
+                    int patchsize = keypoints[i].Patch.Width;
                     int gsize = (patchsize - 2) * (patchsize - 2) * 2;
                     float[] vec = new float[gsize];
                     int count = 0;
@@ -547,10 +556,10 @@ namespace OPS.Alignment
                     {
                         for (int x = 1; x < patchsize - 1; x++)
                         {
-                            x1 = (float)key.patch[x + 1, y].Intensity;
-                            x2 = (float)key.patch[x - 1, y].Intensity;
-                            y1 = (float)key.patch[x, y + 1].Intensity;
-                            y2 = (float)key.patch[x, y - 1].Intensity;
+                            x1 = (float)key.Patch[x + 1, y].Intensity;
+                            x2 = (float)key.Patch[x - 1, y].Intensity;
+                            y1 = (float)key.Patch[x, y + 1].Intensity;
+                            y2 = (float)key.Patch[x, y - 1].Intensity;
 
                             gx = x1 - x2;
                             gy = y1 - y2;
@@ -561,7 +570,7 @@ namespace OPS.Alignment
                             count += 2;
                         }
                     }
-                    normalizeVector(vec);
+                    NormalizeVector(vec);
                     for (int z = 0; z < gsize; z++)
                     {
                         writer.Write(vec[z]);
@@ -570,13 +579,13 @@ namespace OPS.Alignment
             }
         }
 
-        public static List<float[]> getGradients(List<PCA_Keypoint> keypoints)
+        public static List<float[]> GetGradients(List<PCA_Keypoint> keypoints)
         {
             List<float[]> result = new List<float[]>();
 
             for (int i = 0; i < keypoints.Count(); i++)
             {
-                int patchsize = keypoints[i].patch.Width;
+                int patchsize = keypoints[i].Patch.Width;
                 int gsize = (patchsize - 2) * (patchsize - 2) * 2;
                 float[] vec = new float[gsize];
                 int count = 0;
@@ -587,10 +596,10 @@ namespace OPS.Alignment
                 {
                     for (int x = 1; x < patchsize - 1; x++)
                     {
-                        x1 = (float)key.patch[x + 1, y].Intensity;
-                        x2 = (float)key.patch[x - 1, y].Intensity;
-                        y1 = (float)key.patch[x, y + 1].Intensity;
-                        y2 = (float)key.patch[x, y - 1].Intensity;
+                        x1 = (float)key.Patch[x + 1, y].Intensity;
+                        x2 = (float)key.Patch[x - 1, y].Intensity;
+                        y1 = (float)key.Patch[x, y + 1].Intensity;
+                        y2 = (float)key.Patch[x, y - 1].Intensity;
 
                         gx = x1 - x2;
                         gy = y1 - y2;
@@ -601,7 +610,7 @@ namespace OPS.Alignment
                         count += 2;
                     }
                 }
-                normalizeVector(vec);
+                NormalizeVector(vec);
                 result.Add(vec);
             }
             return result;

@@ -81,14 +81,14 @@ namespace OPS.Pipeline
             // 1. Calculate keypoints of an image using SIFT detection
             SIFT siftCPU = new SIFT();
             MKeyPoint[] mKeypoints = siftCPU.Detect(modelImage);
-            List<PCA_Keypoint> keypoints = PCA_KeypointDetector.getPatches(grayModelImage, mKeypoints, patchsize);
-            PCA_KeypointDetector.writePatchesToFile(keypoints, "C:\\Users\\charchut\\Downloads\\patches.txt", patchsize);
-            PCA_KeypointDetector.writeGradientsToFile(keypoints, gradfile);
+            List<PCA_Keypoint> keypoints = PCA_KeypointDetector.GetPatches(grayModelImage, mKeypoints, patchsize);
+            PCA_KeypointDetector.WritePatchesToFile(keypoints, "C:\\Users\\charchut\\Downloads\\patches.txt", patchsize);
+            PCA_KeypointDetector.WriteGradientsToFile(keypoints, gradfile);
 
             // 2. Recalculate keypoints, given the eigenspace, an image, and its keypoints
             //// e.g. ./recalckeys gpcavects.txt image1.pgm image2.pgm image1.lkeys image1.pkeys    
             PCA_KeypointDetector detector = new PCA_KeypointDetector(gpcafile);
-            detector.recalculateKeys(grayModelImage, keypoints);
+            detector.RecalculateKeys(grayModelImage, keypoints);
 
             // 3. Return list of keypoints with updated descriptors?
 

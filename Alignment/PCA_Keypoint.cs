@@ -6,7 +6,6 @@ namespace OPS.Alignment
 {
     public class PCA_Keypoint
     {
-        // not sure if this needs to be done
         public float GScale { get; set; }
         public float FScale { get; set; }
         public int Scale { get; set; }
@@ -18,9 +17,13 @@ namespace OPS.Alignment
         public float SX { get; set; }
         public float SY { get; set; }
         const int EPCALEN = 36;
-        public float[] ld { get; set; }       
-        public Image<Gray, float> patch { get; set; }
+        public float[] Ld { get; set; }       
+        public Image<Gray, float> Patch { get; set; }
 
+        /// <summary>
+        /// Initializes a new instance of the <see cref="T:OPS.Alignment.PCA_Keypoint"/> class.
+        /// </summary>
+        /// <param name="point">Point.</param>
         public PCA_Keypoint(MKeyPoint point)
         {
             GScale = point.Size;
@@ -30,16 +33,23 @@ namespace OPS.Alignment
             Y = point.Point.Y;
             SX = point.Point.X;
             SY = point.Point.Y;
-            ld = new float[EPCALEN];
-            unpackOctaveAndScale(point.Octave);
+            Ld = new float[EPCALEN];
+            UnpackOctaveAndScale(point.Octave);
         }
 
+        /// <summary>
+        /// Initializes a new instance of the <see cref="T:OPS.Alignment.PCA_Keypoint"/> class.
+        /// </summary>
         public PCA_Keypoint()
         {
 
         }
 
-        void unpackOctaveAndScale(int octave)
+        /// <summary>
+        /// Unpacks the octave and scale from SIFT-detected keypoints.
+        /// </summary>
+        /// <param name="octave">Octave.</param>
+        void UnpackOctaveAndScale(int octave)
         {
             octave = octave & 255;
             Octave = octave < 128 ? octave : (-128 | octave) + 1;
