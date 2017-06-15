@@ -9,11 +9,52 @@ namespace OPS.Pipeline
 {
     public class ImageRef
     {
-        public string path;
+        public readonly string path;
 
-        public Image Resolve()
+        public ImageRef(string path)
         {
-            return Image.Load(path);
+            this.path = path;
+            this.image = null;
+        }
+
+        public ImageRef(Image image)
+        {
+            this.path = null;
+            this.image = image;
+        }
+
+        Image image;
+        public Image Image
+        {
+            get
+            {
+                if (image == null) Load();
+                return image;
+            }
+        }
+        public ImageMetadata Metadata
+        {
+            get
+            {
+                return Image.Metadata;
+            }
+        }
+
+        public void Unload()
+        {
+            image = null;
+        }
+        
+        private void Load(bool reload = false)
+        {
+            if (image != null && !reload) return;
+
+            if (path == null)
+            {
+                throw new Exception("Attempt to load image with null path");
+            }
+
+            image = Image.Load(path);
         }
 
         public override bool Equals(object obj)

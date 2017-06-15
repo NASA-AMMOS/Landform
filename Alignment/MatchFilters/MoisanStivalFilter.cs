@@ -27,8 +27,8 @@ namespace OPS.Alignment
             Vector2[] dataPoints = dataFeat.Select(f => f.Location).ToArray();
             Vector2[] modelPoints = Enumerable.Range(0, dataPoints.Length).Select(idx => modelFeat[dataToModel[idx]].Location).ToArray();
 
-            var modelMeta = ImageManager.GetPDSMetadata(matches.ModelImage);
-            var dataMeta = ImageManager.GetPDSMetadata(matches.DataImage);
+            var modelMeta = matches.ModelImage.Metadata;
+            var dataMeta = matches.DataImage.Metadata;
 
             MoisanStivalEpipolar mso = new MoisanStivalEpipolar(
                 modelPoints, dataPoints,
