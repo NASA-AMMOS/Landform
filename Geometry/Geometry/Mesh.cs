@@ -480,6 +480,18 @@ namespace OPS.Geometry
         }
 
         /// <summary>
+        /// Reverse the winding of faces - i.e. make them face the other direction
+        /// </summary>
+        public void ReverseWinding()
+        {
+            for(int i = 0; i < this.Faces.Count; i++)
+            {
+                Face f = this.Faces[i];
+                this.Faces[i] = new Face(f.P0, f.P2, f.P1);
+            }
+        }
+
+        /// <summary>
         /// Returns a box thats bounds encompass the vertex positions in 3D space
         /// </summary>
         /// <returns></returns>

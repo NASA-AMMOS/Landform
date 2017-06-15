@@ -315,6 +315,18 @@ namespace GeometryTest
         }
 
         [TestMethod]
+        public void ReverseWindingTest()
+        {
+            Mesh m = new Mesh();
+            m.Vertices.Add(new Vertex(0, 0, 0));
+            m.Vertices.Add(new Vertex(1, 0, 0));
+            m.Vertices.Add(new Vertex(0, 2, 3));
+            m.Faces.Add(new Face(0, 1, 2));
+            m.ReverseWinding();
+            Assert.AreEqual(new Face(0,2,1), m.Faces[0]);
+        }
+
+        [TestMethod]
         public void TransformMeshTest()
         {
             Mesh m = new Mesh(hasNormals: true);
