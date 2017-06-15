@@ -47,7 +47,7 @@ namespace OPS.Geometry
         {
             string exe = Path.Combine(PathHelper.GetApplicationPath(), "ExternalApps", "ivcat.exe");
             string args = string.Format("-o \"{0}\" \"{1}\"", asciiFilename, binFilename);
-            ProgramRunner.Run(exe, args);
+            new ProgramRunner(exe, args).Run();
         }
 
         public override Mesh Load(string filename)
