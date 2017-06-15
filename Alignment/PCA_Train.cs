@@ -8,6 +8,7 @@ using Emgu.CV.Structure;
 using MathNet.Numerics.LinearAlgebra;
 using MathNet.Numerics.LinearAlgebra.Factorization;
 using MathNet.Numerics.Statistics;
+using System.Threading.Tasks;
 
 namespace OPS.Alignment
 {
@@ -52,19 +53,19 @@ namespace OPS.Alignment
             mean = ColumnWiseMean(data);
 
             // calculate covariance matrix
-            Debug.WriteLine("Calculating covariance matrix...");
+            Trace.WriteLine("Calculating covariance matrix...");
             Matrix<float> covar = CovarianceMatrix(data);
 
             // eigen decomposition
-            Debug.WriteLine("Calculating eigen decomposition...");
+            Trace.WriteLine("Calculating eigen decomposition...");
             eigs = covar.Evd();
             eigvecs = eigs.EigenVectors;
             principalEigVecs = eigvecs.SubMatrix(0, eigvecs.RowCount, 0, n);
             Vector<double> principalVals = Vector<double>.Build.Dense(n);
             principalVals = eigs.EigenValues.Real().SubVector(0, n);
 
-            Debug.WriteLine(principalEigVecs);
-            Debug.WriteLine(principalVals);
+            Trace.WriteLine(principalEigVecs);
+            Trace.WriteLine(principalVals);
 
             WriteEigenvectorsToFile(gpcafile + ".txt");
         }
@@ -75,6 +76,13 @@ namespace OPS.Alignment
         /// <param name="path">Path to training image files.</param>
         public void Train(string path)
         {
+            //Matrix<float> test = Matrix<float>.Build.Dense(3, 3);
+            //test.SetRow(0, new float[] { 5, 0, 3 });
+            //test.SetRow(1, new float[] { 1, -5, 7 });
+            //test.SetRow(2, new float[] { 4, 9, 8 });
+
+            //Trace.WriteLine(CovarianceMatrix(test));
+
             string[] imageFiles = Directory.GetFiles(path, "*.jpg");
             List<float[]> gradients = new List<float[]>();
 
@@ -109,32 +117,35 @@ namespace OPS.Alignment
         /// </summary>
         /// <returns>The covariance matrix.</returns>
         /// <param name="data">Dataset.</param>
-        Matrix<float> CovarianceMatrix(Matrix<float> data)
+        public static Matrix<float> CovarianceMatrix(Matrix<float> data)
         {
             Matrix<float> result = Matrix<float>.Build.Dense(data.ColumnCount, data.ColumnCount);
-            List<Vector<float>> A = new List<Vector<float>>();
-            List<Vector<float>> B = new List<Vector<float>>();
+            Vector<float>[] A = new Vector<float>[data.ColumnCount];
+            Vector<float>[] B = new Vector<float>[data.ColumnCount];
+
             Vector<float> vec;
 
-            // precompute A, B in cov(A, B)
-            // TODO take advantage of double multiplication!!!
-            for (int i = 0; i < data.ColumnCount; i++)
+            Parallel.For(0, data.ColumnCount, i =>
             {
                 vec = data.Column(i);
-                B[i] = vec.Subtract((float)vec.Mean());
-                A[i] = B[i].Conjugate();
-            }
+                B[i] = (vec.Subtract((float)vec.Mean()));
+                A[i] = (B[i].Conjugate());
+                result[i, i] = (A[i].PointwiseMultiply(B[i])).Sum();
+            });
 
-            // set values in covariance matrix
-            for (int i = 0; i < result.ColumnCount; i++)
+            float resultNum;
+            float coeff = 1f / (data.RowCount - 1);
+            Parallel.For(0, data.ColumnCount, i =>
             {
-                for (int j = 0; j < result.ColumnCount; j++)
+                for (int j = i; j < data.ColumnCount; j++)
                 {
-                    result[i, j] = (A[i].PointwiseMultiply(B[j])).Sum();
+                    resultNum = (A[i].PointwiseMultiply(B[j])).Sum() * coeff;
+                    result[i, j] = resultNum;
+                    result[j, i] = resultNum;
                 }
-            }
+            });
 
-            return result.Multiply(1f/(data.RowCount - 1));
+            return result;
         }
 
 		/// <summary>
@@ -160,7 +171,7 @@ namespace OPS.Alignment
         /// <param name="filename">Filename of location where the eigenvectors and mean are to be saved.</param>
         void WriteEigenvectorsToFile(string filename)
         {
-            Debug.WriteLine("Writing eigenvectors to " + filename);
+            Trace.WriteLine("Writing eigenvectors to " + filename);
             using (BinaryWriter writer = new BinaryWriter(new FileStream(filename, FileMode.Create)))
             {
                 // mean should be of length 3042
@@ -179,7 +190,7 @@ namespace OPS.Alignment
                 }
             }
 
-            Debug.WriteLine("Wrote to " + filename);
+            Trace.WriteLine("Wrote to " + filename);
         }
     }
 }

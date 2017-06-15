@@ -66,10 +66,10 @@ namespace OPS.Pipeline
             // 0. Computes eigenspace from set of training images.
             if (trainingPath != null && trainingFile != null)
             {
-                Debug.WriteLine("Training...");
+                Trace.WriteLine("Training...");
                 PCA_Train train = new PCA_Train(trainingFile);
                 train.Train(trainingPath);
-                Debug.WriteLine("Trained.");
+                Trace.WriteLine("Trained.");
             }
             
             // 1. Calculate keypoints of an image using SIFT detection
@@ -82,8 +82,9 @@ namespace OPS.Pipeline
             // 2. Recalculate keypoints, given the eigenspace, an image, and its keypoints
             //// e.g. ./recalckeys gpcavects.txt image1.pgm image2.pgm image1.lkeys image1.pkeys    
             PCA_KeypointDetector detector = new PCA_KeypointDetector(gpcafile);
+            Trace.WriteLine("Projecting keypoints into lower dimension...");
             detector.ProjectKeypoints(grayModelImage, keypoints);
-            Debug.WriteLine("Keypoints projected into lower dimension.");
+            Trace.WriteLine("Keypoints projected.");
 
             // 3. Return list of keypoints with updated descriptors?
 
