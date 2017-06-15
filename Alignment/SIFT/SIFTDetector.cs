@@ -17,6 +17,7 @@ namespace OPS.Alignment
     public class SIFTDetector : IFeatureDetector
     {
         SIFT sift;
+        // For details, see http://www.cs.ubc.ca/~lowe/papers/ijcv04.pdf
         public SIFTDetector(int numFeatures = 0, int octaveLayers = 3, float contrastThreshold = 0.04f, float edgeThreshold = 10f, float sigma = 1.6f)
         {
             sift = new SIFT(numFeatures, octaveLayers, contrastThreshold, edgeThreshold, sigma);

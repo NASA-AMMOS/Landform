@@ -7,6 +7,10 @@ using System.Threading.Tasks;
 
 namespace OPS.Alignment
 {
+    /// <summary>
+    /// A point of interest in an image, optionally with an associated
+    /// feature descriptor.
+    /// </summary>
     public class ImageFeature
     {
         public Vector2 Location;
