@@ -24,9 +24,7 @@ namespace OPS.Alignment
             Mat descr1 = ToDescriptorMatrix(feat1);
             VectorOfKeyPoint kp0 = ToVOKP(feat0);
             VectorOfKeyPoint kp1 = ToVOKP(feat1);
-
-            if (kp0.Size < 30 || kp1.Size < 30) return null;
-
+            
             Matrix<int> indices = new Matrix<int>(descr1.Rows, 2);
 
             // Match descriptors
@@ -36,13 +34,17 @@ namespace OPS.Alignment
                 if (CudaInvoke.HasCuda)
                 {
                     using (GpuMat gpuKp0 = new GpuMat(kp0))
-                    using (GpuMat gpuDescr0 = new GpuMat(descr0))
-                    using (CudaBFMatcher matcher = new CudaBFMatcher(DistanceType.L2))
                     {
-                        using (GpuMat gpuObservedKeyPoints = new GpuMat(kp1))
-                        using (GpuMat gpuObservedDescriptors = new GpuMat(descr1))
+                        using (GpuMat gpuDescr0 = new GpuMat(descr0))
                         {
-                            matcher.KnnMatch(gpuObservedDescriptors, gpuDescr0, matches, 2);
+                            using (CudaBFMatcher matcher = new CudaBFMatcher(DistanceType.L2))
+                            {
+                                using (GpuMat gpuObservedKeyPoints = new GpuMat(kp1))
+                                using (GpuMat gpuObservedDescriptors = new GpuMat(descr1))
+                                {
+                                    matcher.KnnMatch(gpuObservedDescriptors, gpuDescr0, matches, 2);
+                                }
+                            }
                         }
                     }
                 }
@@ -68,12 +70,12 @@ namespace OPS.Alignment
                 }
             }
             int nonZero = CvInvoke.CountNonZero(mask);
-            if (nonZero < 1) return null;
+            if (nonZero < 1) { return null; }
             lock (GlobalLock)
             {
                 nonZero = Features2DToolbox.VoteForSizeAndOrientation(kp0, kp1, matches, mask.Mat, 1.5, 20);
             }
-            if (nonZero < 1) return null;
+            if (nonZero < 1) { return null; }
 
             List<KeyValuePair<int, int>> dataToModel = new List<KeyValuePair<int, int>>();
             for (int idx = 0; idx < matches.Size; idx++)
@@ -96,6 +98,8 @@ namespace OPS.Alignment
                 _kp.Size = (float)kp.Size;
                 _kp.Point = new System.Drawing.PointF((float)kp.Location.X, (float)kp.Location.Y);
                 _kp.Angle = (float)kp.Angle;
+                _kp.Octave = kp.Octave;
+                _kp.Response = (float)kp.Response;
                 return _kp;
             }).ToArray());
             return res;
