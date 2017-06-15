@@ -70,7 +70,10 @@ namespace OPS.Pipeline
         /// <typeparam name="T">Type of component.</typeparam>
         public T GetOrAddComponent<T>() where T : NodeComponent, new()
         {
-            if (HasComponent<T>()) return GetComponent<T>();
+            if (HasComponent<T>())
+            {
+                return GetComponent<T>();
+            }
             return AddComponent<T>();
         }
 
@@ -89,7 +92,10 @@ namespace OPS.Pipeline
         /// <typeparam name="T">Type of component to find.</typeparam>
         public T GetComponent<T>() where T : NodeComponent
         {
-            if (!HasComponent<T>()) return null;
+            if (!HasComponent<T>())
+            {
+                return null;
+            }
             return (T)components[typeof(T)];
         }
 
@@ -100,7 +106,10 @@ namespace OPS.Pipeline
         /// <param name="includeThis">If true, include this node in the search.</param>
         public IEnumerable<T> GetComponentsInTree<T>(bool includeThis = true) where T : NodeComponent
         {
-            if (includeThis && HasComponent<T>()) yield return GetComponent<T>();
+            if (includeThis && HasComponent<T>())
+            {
+                yield return GetComponent<T>();
+            }
             foreach (NodeTransform t in Transform.Children)
             {
                 foreach (T comp in t.Node.GetComponentsInTree<T>(includeThis: true)) yield return comp;

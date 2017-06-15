@@ -42,32 +42,6 @@ namespace OPS.Pipeline
             }
         }
 
-        /// <summary>
-        /// Set the parent of this transform.
-        /// 
-        /// If preserveWorldTransform is true, the world space transform of this
-        /// node will be preserved. If false, the local transform will be preserved.
-        /// </summary>
-        /// <param name="newParent">New parent transform</param>
-        /// <param name="preserveWorldTransform">Preserve world space transform</param>
-        public void SetParent(NodeTransform newParent, bool preserveWorldTransform = true)
-        {
-            Matrix oldLocalToWorld = default(Matrix);
-            if (preserveWorldTransform) oldLocalToWorld = LocalToWorld;
-
-            if (parent != null)
-            {
-                parent.children.Remove(this);
-            }
-            parent = newParent;
-            if (parent != null)
-            {
-                parent.children.Add(this);
-            }
-
-            if (preserveWorldTransform) LocalToWorld = oldLocalToWorld;
-        }
-
         HashSet<NodeTransform> children;
         /// <summary>
         /// All immediate descendants of this node.
@@ -190,6 +164,33 @@ namespace OPS.Pipeline
             {
                 LocalToWorld = Matrix.Invert(value);
             }
+        }
+        
+
+        /// <summary>
+        /// Set the parent of this transform.
+        /// 
+        /// If preserveWorldTransform is true, the world space transform of this
+        /// node will be preserved. If false, the local transform will be preserved.
+        /// </summary>
+        /// <param name="newParent">New parent transform</param>
+        /// <param name="preserveWorldTransform">Preserve world space transform</param>
+        public void SetParent(NodeTransform newParent, bool preserveWorldTransform = true)
+        {
+            Matrix oldLocalToWorld = default(Matrix);
+            if (preserveWorldTransform) oldLocalToWorld = LocalToWorld;
+
+            if (parent != null)
+            {
+                parent.children.Remove(this);
+            }
+            parent = newParent;
+            if (parent != null)
+            {
+                parent.children.Add(this);
+            }
+
+            if (preserveWorldTransform) LocalToWorld = oldLocalToWorld;
         }
     }
 }
