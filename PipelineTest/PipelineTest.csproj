@@ -80,6 +80,7 @@
     <Compile Include="Rover\PDSParserTest.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Rover\RoverProductIdTest.cs" />
+    <Compile Include="Scene\SceneNodeTest.cs" />
     <Compile Include="Tiling\Tile3DTest.cs" />
   </ItemGroup>
   <ItemGroup>

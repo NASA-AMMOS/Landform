@@ -67,6 +67,17 @@ namespace Microsoft.Xna.Framework
         {
             return Vector4.AlmostEqual(a, b, eps);
         }
+        public static bool AlmostEqual(this Matrix a, Matrix b, double eps = MathHelper.Epsilon)
+        {
+            double[] aa = Matrix.TodoubleArray(a);
+            double[] ba = Matrix.TodoubleArray(b);
+            for (int i = 0; i < aa.Length; i++)
+            {
+                var err = (aa[i] - ba[i]);
+                if (Math.Abs(err) > eps) return false;
+            }
+            return true;
+        }
 
         public static bool AlmostEqual(this double a, double b, double eps = MathHelper.Epsilon)
         {
