@@ -15,25 +15,25 @@ namespace PipelineTest
         [TestMethod]
         public void ChangeParent()
         {
-            SceneGraph graph = new SceneGraph();
-            var n1 = new SceneNode("n1", graph.Root.Transform);
+            SceneNode root = new SceneNode("Root");
+            var n1 = new SceneNode("n1", root.Transform);
             n1.Transform.Translation = new Vector3(1, 0, 0);
             var n2 = new SceneNode("n2", n1.Transform);
             n2.Transform.Translation = new Vector3(-1, 0, 0);
 
             Assert.AreEqual(Matrix.Identity, n2.Transform.LocalToWorld);
 
-            n2.Transform.Parent = graph.Root.Transform;
+            n2.Transform.Parent = root.Transform;
             Assert.AreEqual(Matrix.Identity, n2.Transform.LocalToWorld);
         }
 
         [TestMethod]
         public void MoveDeepParent()
         {
-            SceneGraph graph = new SceneGraph();
+            SceneNode root = new SceneNode("Root");
             int depth = 10;
 
-            SceneNode chosenOne = graph.Root;
+            SceneNode chosenOne = root;
             for (int i = 0; i < depth; i++)
             {
                 List<SceneNode> children = new List<SceneNode>();
@@ -57,7 +57,7 @@ namespace PipelineTest
             }
 
             Matrix oldTransform = chosenOne.Transform.LocalToWorld;
-            graph.Root.Transform.Translation = new Vector3(0, 0, 1);
+            root.Transform.Translation = new Vector3(0, 0, 1);
             Matrix newTransform = chosenOne.Transform.LocalToWorld;
             Matrix expected = oldTransform * Matrix.CreateTranslation(0, 0, 1);
             Assert.IsTrue(newTransform.AlmostEqual(expected));
@@ -88,10 +88,10 @@ namespace PipelineTest
         [TestMethod]
         public void StochasticTreeShuffle()
         {
-            SceneGraph graph = new SceneGraph();
+            SceneNode root = new SceneNode("Root");
 
-            List<SceneNode> leafNodes = new List<SceneNode> { graph.Root };
-            List<SceneNode> allNodes = new List<SceneNode>() { graph.Root };
+            List<SceneNode> leafNodes = new List<SceneNode> { root };
+            List<SceneNode> allNodes = new List<SceneNode>() { root };
 
             // populate tree
             int targetNodes = 1000;
@@ -136,7 +136,7 @@ namespace PipelineTest
                 n.Transform.Rotation = r;
                 n.Transform.Scale = s;
 
-                Assert.IsTrue(TransformStateValid(graph.Root.Transform, recursive: true));
+                Assert.IsTrue(TransformStateValid(root.Transform, recursive: true));
             }
         }
 
