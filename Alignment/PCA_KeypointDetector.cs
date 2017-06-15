@@ -39,6 +39,7 @@ namespace OPS.Alignment
             {
                 using (BinaryReader reader = new BinaryReader(new FileStream(file, FileMode.Open)))
                 {
+                    reader.BaseStream.Position = 0;
                     Debug.WriteLine("Reading averages.");
                     for (int i = 0; i < GPLEN; i++)
                     {
@@ -46,9 +47,9 @@ namespace OPS.Alignment
                     }
 
                     Debug.WriteLine("Reading pca vector {0}x{1}", GPLEN, PCALEN);
-                    for (int i = 0; i < GPLEN; i++)
+                    for (int i = 0; i < PCALEN; i++)
                     {
-                        for (int j = 0; j < PCALEN; j++)
+                        for (int j = 0; j < GPLEN; j++)
                         {
                             if (j < EPCALEN)
                             {
@@ -394,6 +395,7 @@ namespace OPS.Alignment
         public static List<PCA_Keypoint> GetPatches(Image<Gray, float> image, MKeyPoint[] keypoints, int patchsize)
         {
             List<PCA_Keypoint> keys = ConvertToPCAKeypoints(keypoints);
+
             // 1. Scale image to create base of Gaussian pyramid
             image = ScaleInitImage(image);
 

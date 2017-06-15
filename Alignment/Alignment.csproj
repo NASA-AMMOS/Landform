@@ -90,6 +90,7 @@
     <Compile Include="MoisanStivalEpipolar.cs" />
     <Compile Include="PCA_Keypoint.cs" />
     <Compile Include="PCA_KeypointDetector.cs" />
+    <Compile Include="PCA_Match.cs" />
     <Compile Include="PCA_SIFT.cs" />
     <Compile Include="PCA_Train.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />

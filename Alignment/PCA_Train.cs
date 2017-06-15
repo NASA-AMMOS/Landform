@@ -41,6 +41,7 @@ namespace OPS.Alignment
         /// <param name="gradients">Gradients calculated from training set image data.</param>
         void ComputeEigenspace(List<float[]> gradients)
         {
+            
             Matrix<float> data = Matrix<float>.Build.Dense(gradients.Count(), patchlen);
 
             // convert list of gradient vectors into data matrix
@@ -175,17 +176,17 @@ namespace OPS.Alignment
             using (BinaryWriter writer = new BinaryWriter(new FileStream(filename, FileMode.Create)))
             {
                 // mean should be of length 3042
-                for (int a = 0; a < patchsize; a++)
+                for (int a = 0; a < 3042; a++)
                 {
                     writer.Write(mean[a]);
                 }
 
                 // eigvecs should be 3042x3042
-                for (int i = 0; i < n; i++)
+                for (int i = 0; i < 3042; i++)
                 {
-                    for (int j = 0; j < patchsize; j++)
+                    for (int j = 0; j < n; j++)
                     {
-                        writer.Write(eigvecs[i, j]);
+                        writer.Write(principalEigVecs[i, j]);
                     }
                 }
             }

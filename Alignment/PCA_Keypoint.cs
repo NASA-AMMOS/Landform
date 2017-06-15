@@ -17,7 +17,8 @@ namespace OPS.Alignment
         public float SX { get; set; }
         public float SY { get; set; }
         const int EPCALEN = 36;
-        public float[] desc { get; set; }       
+        public float[] desc { get; set; }     
+        public float Size { get; set; }  
         public Image<Gray, float> Patch { get; set; }
 
         /// <summary>
@@ -27,6 +28,7 @@ namespace OPS.Alignment
         public PCA_Keypoint(MKeyPoint point)
         {
             GScale = point.Size;
+            Size = point.Size;
             Angle = point.Angle;
             Response = point.Response;
             X = point.Point.X;
