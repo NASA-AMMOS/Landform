@@ -34,6 +34,7 @@ namespace OPS.Pipeline
         }
         public ImageMetadata Metadata
         {
+            // TODO: lazy loading of just metadata
             get
             {
                 return Image.Metadata;
