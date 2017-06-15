@@ -315,6 +315,36 @@ namespace GeometryTest
         }
 
         [TestMethod]
+        public void TransformMeshTest()
+        {
+            Mesh m = new Mesh(hasNormals: true);
+            m.Vertices.Add(new Vertex(0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0));
+            m.Vertices.Add(new Vertex(1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0));
+            m.Vertices.Add(new Vertex(0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0));
+            m.Vertices.Add(new Vertex(0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0));
+            Matrix transmat = Matrix.CreateTranslation(new Vector3(1, 0, 0));
+            m.Transform(transmat);
+            Assert.IsTrue(Vector3.AlmostEqual(new Vector3(1, 0, 0), m.Vertices[0].Position));
+            Assert.IsTrue(Vector3.AlmostEqual(new Vector3(2, 0, 0), m.Vertices[1].Position));
+            Assert.IsTrue(Vector3.AlmostEqual(new Vector3(1, 1, 0), m.Vertices[2].Position));
+            Assert.IsTrue(Vector3.AlmostEqual(new Vector3(1, 0, 1), m.Vertices[3].Position));
+            Assert.IsTrue(Vector3.AlmostEqual(new Vector3(1, 0, 0), m.Vertices[0].Normal));
+            Assert.IsTrue(Vector3.AlmostEqual(new Vector3(0, 1, 0), m.Vertices[1].Normal));
+            Assert.IsTrue(Vector3.AlmostEqual(new Vector3(0, 0, 1), m.Vertices[2].Normal));
+            Assert.IsTrue(Vector3.AlmostEqual(new Vector3(0, 0, 0), m.Vertices[3].Normal));
+            Matrix rotmat = Matrix.CreateFromAxisAngle(new Vector3(0, 1, 0), MathHelper.ToRadians(90));
+            m.Transform(rotmat);
+            Assert.IsTrue(Vector3.AlmostEqual(new Vector3(0, 0, -1), m.Vertices[0].Position));
+            Assert.IsTrue(Vector3.AlmostEqual(new Vector3(0, 0, -2), m.Vertices[1].Position));
+            Assert.IsTrue(Vector3.AlmostEqual(new Vector3(0, 1, -1), m.Vertices[2].Position));
+            Assert.IsTrue(Vector3.AlmostEqual(new Vector3(1, 0, -1), m.Vertices[3].Position));
+            Assert.IsTrue(Vector3.AlmostEqual(new Vector3(0, 0, -1), m.Vertices[0].Normal));
+            Assert.IsTrue(Vector3.AlmostEqual(new Vector3(0, 1, 0), m.Vertices[1].Normal));
+            Assert.IsTrue(Vector3.AlmostEqual(new Vector3(1, 0, 0), m.Vertices[2].Normal));
+            Assert.IsTrue(Vector3.AlmostEqual(new Vector3(0, 0, 0), m.Vertices[3].Normal));
+        }
+
+        [TestMethod]
         public void MeshToTrianglesTest()
         {
 

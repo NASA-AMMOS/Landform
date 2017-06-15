@@ -319,6 +319,18 @@ namespace OPS.Geometry
             }
         }
 
+        public void Transform(Matrix m)
+        {
+            foreach(Vertex v in this.Vertices)
+            {
+                v.Position = Vector3.Transform(v.Position, m);
+                if(this.HasNormals)
+                {
+                    v.Normal = Vector3.TransformNormal(v.Normal, m);
+                }
+            }
+        }
+
         public void Translate(Vector3 offset)
         {
             for (int i = 0; i < this.Vertices.Count; i++)
