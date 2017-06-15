@@ -416,6 +416,7 @@ namespace OPS.Geometry
                     this.Faces.Add(f);
                 }
             }
+            Clean();
         }
 
         /// <summary>
@@ -428,11 +429,24 @@ namespace OPS.Geometry
         public static Mesh Merge(params Mesh[] meshesToCombine)
         {
             Mesh first = meshesToCombine[0];
-            Mesh result = new Mesh(first.HasNormals, first.HasUVs, first.HasColors);
+            return Merge(first.HasNormals, first.HasUVs, first.HasColors, meshesToCombine);
+        }
+
+        /// <summary>
+        /// Combines several meshes and returnes a new mesh with the specified attributes
+        /// </summary>
+        /// <param name="hasNormals"></param>
+        /// <param name="hasUvs"></param>
+        /// <param name="hasColors"></param>
+        /// <param name="meshesToCombine"></param>
+        /// <returns></returns>
+        public static Mesh Merge(bool hasNormals, bool hasUvs, bool hasColors, params Mesh[] meshesToCombine)
+        {
+            Mesh result = new Mesh(hasNormals, hasUvs, hasColors);
             result.MergeWith(meshesToCombine);
             return result;
         }
-        
+
         public static Mesh Clip(Mesh m, BoundingBox box)
         {
             Mesh result;

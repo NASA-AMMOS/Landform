@@ -461,6 +461,11 @@ namespace GeometryTest
             Assert.AreEqual(b.Vertices[2], a.Vertices[5]);
             Assert.AreEqual(6, a.Vertices.Count);
             Assert.AreEqual(2, a.Faces.Count);
+
+            Mesh c = Mesh.Merge(false, true, false, new Mesh[] { a, b });
+            Assert.AreEqual(false, c.HasNormals);
+            Assert.AreEqual(true, c.HasUVs);
+            Assert.AreEqual(false, c.HasColors);
         }
 
 
