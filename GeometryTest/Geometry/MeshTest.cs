@@ -377,6 +377,29 @@ namespace GeometryTest
         }
 
         [TestMethod]
+        public void AttributesEqualTest()
+        {
+            Mesh a = new Mesh(false, false, false);
+            Assert.IsTrue(a.AttributesEqual(new Mesh(false, false, false)));
+            Assert.IsFalse(a.AttributesEqual(new Mesh(true, false, false)));
+            Assert.IsFalse(a.AttributesEqual(new Mesh(false, true, false)));
+            Assert.IsFalse(a.AttributesEqual(new Mesh(false, false, true)));
+            Assert.IsTrue(a.AttributesAlsoExistIn(new Mesh(false, false, false)));
+            Assert.IsTrue(a.AttributesAlsoExistIn(new Mesh(true, false, false)));
+            Assert.IsTrue(a.AttributesAlsoExistIn(new Mesh(false, true, false)));
+            Assert.IsTrue(a.AttributesAlsoExistIn(new Mesh(false, false, true)));
+
+            a = new Mesh(false, true, true);
+            Assert.IsFalse(a.AttributesAlsoExistIn(new Mesh(false, false, false)));
+            Assert.IsFalse(a.AttributesAlsoExistIn(new Mesh(true, false, false)));
+            Assert.IsFalse(a.AttributesAlsoExistIn(new Mesh(false, true, false)));
+            Assert.IsFalse(a.AttributesAlsoExistIn(new Mesh(false, false, true)));
+            Assert.IsTrue(a.AttributesAlsoExistIn(new Mesh(true, true, true)));
+            Assert.IsTrue(a.AttributesAlsoExistIn(new Mesh(false, true, true)));
+        }
+        
+
+        [TestMethod]
         public void MeshMergeTest()
         {
             Mesh a = new Mesh(true, true, true);

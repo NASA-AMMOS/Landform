@@ -363,6 +363,31 @@ namespace OPS.Geometry
         }
 
         /// <summary>
+        /// Checks to see if this mesh has the same attributes as the other mesh (normal, uv, and texture)
+        /// </summary>
+        /// <param name="other"></param>
+        /// <returns></returns>
+        public bool AttributesEqual(Mesh other)
+        {
+            return this.HasNormals == other.HasNormals && this.HasUVs == other.HasUVs && this.HasColors == other.HasColors;
+        }
+
+
+        /// <summary>
+        /// Return true if all attributes that are true of this mesh are also true of other
+        /// </summary>
+        /// <param name="other"></param>
+        /// <returns></returns>
+        public bool AttributesAlsoExistIn(Mesh other)
+        {
+            if ((this.HasNormals && !other.HasNormals) || (this.HasUVs && !other.HasUVs) || (this.HasColors && !other.HasColors))
+            {
+                return false;
+            }
+            return true;
+        }
+
+        /// <summary>
         /// Combines one or more meshes with this one
         /// The proprties of the input meshes must match this one
         /// Vertex objects are cloned to avoid side effects in case the meshes are modifed in the future
@@ -373,9 +398,9 @@ namespace OPS.Geometry
             for (int i = 0; i < otherMeshes.Length; i++)
             {
                 Mesh m = otherMeshes[i];
-                if(this.HasNormals != m.HasNormals || this.HasUVs != m.HasUVs || this.HasColors != m.HasColors)
+                if(!AttributesAlsoExistIn(m))
                 {
-                    throw new Exception("Meshes must have the same attributes (uv, normal, color) in order to be combined");
+                    throw new Exception("Mesh to merge missing one or more attributes required by aggregate mesh");
                 }
                 int vertexBaseCount = this.Vertices.Count;
                 for (int j = 0; j < m.Vertices.Count; j++)
