@@ -87,7 +87,7 @@ namespace OPS.Alignment
         /// <param name="numFeatures">Maximum number of features to return</param>
         /// <param name="numOctaves">Number of SIFT octaves</param>
         /// <returns></returns>
-        static IEnumerable<ImageFeature> DetectSIFT(Image<Gray, byte> image, Image<Gray, byte> mask, int numFeatures = 1000, int numOctaves = 4)
+        static IEnumerable<SIFTFeature> DetectSIFT(Image<Gray, byte> image, Image<Gray, byte> mask, int numFeatures = 1000, int numOctaves = 4)
         {
             using (SIFT sift = new SIFT(numFeatures, numOctaves))
             {
@@ -106,11 +106,13 @@ namespace OPS.Alignment
                         {
                             desc[j] = descriptors[i, j];
                         }
-                        yield return new ImageFeature(
+                        yield return new SIFTFeature(
                             new Vector2(keypoints[i].Point.X, keypoints[i].Point.Y),
                             keypoints[i].Size,
                             keypoints[i].Angle,
-                            desc
+                            keypoints[i].Octave,
+                            keypoints[i].Response,
+                            new SIFTDescriptor(desc)
                            );
                     }
                 }
@@ -170,16 +172,18 @@ namespace OPS.Alignment
         /// <param name="affine">If false, will detect only base SIFT features</param>
         /// <param name="maxDim">Maximum dimension to use when generating artificial viewpoints, less than one for no maximum</param>
         /// <returns>Enumerable of all detected features</returns>
-        public static IEnumerable<ImageFeature> Detect(Image<Gray, byte> image, Image<Gray, byte> mask, bool affine = true, int maxDim = 512)
+        public static IEnumerable<SIFTFeature> Detect(Image<Gray, byte> image, Image<Gray, byte> mask, bool affine = true, int maxDim = 512)
         {
             double scale = 1;
 
-            foreach (ImageFeature feat in DetectSIFT(image, mask))
+            foreach (SIFTFeature feat in DetectSIFT(image, mask))
             {
-                yield return new ImageFeature(
+                yield return new SIFTFeature(
                     feat.Location / scale,
                     feat.Size / scale,
                     feat.Angle,
+                    feat.Octave,
+                    feat.Response,
                     feat.Descriptor
                     );
             }
@@ -210,7 +214,7 @@ namespace OPS.Alignment
                     float det = A[0, 0] * A[1, 1] - A[0, 1] * A[1, 0];
                     Matrix<float> Ai = InvertAffine(A);
 
-                    foreach (ImageFeature feat in DetectSIFT(skewImage, skewMask))
+                    foreach (SIFTFeature feat in DetectSIFT(skewImage, skewMask))
                     {
                         double fx = feat.Location.X;
                         double fy = feat.Location.Y;
@@ -220,10 +224,12 @@ namespace OPS.Alignment
                         {
                             continue;
                         }
-                        yield return new ImageFeature(
+                        yield return new SIFTFeature(
                             new Vector2(newX, newY) / scale,
                             feat.Size / scale,
                             feat.Angle,
+                            feat.Octave,
+                            feat.Response,
                             feat.Descriptor
                             );
                     }

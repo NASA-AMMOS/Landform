@@ -108,6 +108,7 @@
     <Compile Include="Scene\NodeTransform.cs" />
     <Compile Include="Scene\SceneNode.cs" />
     <Compile Include="Tiling\Tile3D.cs" />
+    <Compile Include="WIP\ImageRef.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="app.config" />
