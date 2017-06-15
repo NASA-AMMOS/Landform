@@ -66,6 +66,7 @@
   <ItemGroup>
     <Compile Include="Geometry\BoundingBoxExtensionsTest.cs" />
     <Compile Include="Geometry\FaceTest.cs" />
+    <Compile Include="Geometry\MeshOperatorTest.cs" />
     <Compile Include="Geometry\MeshTest.cs" />
     <Compile Include="Geometry\TriangleTest.cs" />
     <Compile Include="Geometry\PlaneExtensionTest.cs" />
