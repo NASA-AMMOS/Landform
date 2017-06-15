@@ -480,6 +480,46 @@ namespace OPS.Geometry
         }
 
         /// <summary>
+        /// Removes specified vertices from this mesh
+        /// Also removes any faces that reference a removed vertex 
+        /// </summary>
+        /// <param name="vertices"></param>
+        public void RemoveVertices(List<Vertex> vertices)
+        {
+            Dictionary<int, Vertex> originalIndexToVert = new Dictionary<int,Vertex>();
+            Dictionary<int, int> originalToClippedIndex = new Dictionary<int, int>();
+            HashSet<Vertex> vertsToRemove = new HashSet<Vertex>(vertices);
+            List<Vertex> clippedVerts = new List<Vertex>();
+            // Loop through all existing vertices and determine which ones to keep
+            // Record original and new indices
+            for(int i = 0; i <  this.Vertices.Count; i++)
+            {
+                Vertex v = this.Vertices[i];
+                originalIndexToVert.Add(i, v);
+                if (!vertsToRemove.Contains(v))
+                {
+                    originalToClippedIndex.Add(i, clippedVerts.Count);
+                    clippedVerts.Add(v);
+                }
+            }
+            // Remove faces that reference removed vertices
+            // Remap face indices to new vertex list
+            List<Face> clippedFaces = new List<Face>();
+            for(int i = 0; i < this.Faces.Count; i++)
+            {
+                Face face = this.Faces[i];
+                // Keep this face only if none of it's vertices have been clipped
+                bool keep = face.ToArray().All(j => originalToClippedIndex.ContainsKey(j));
+                if (keep)
+                {
+                    clippedFaces.Add(new Face(face.ToArray().Select(j => originalToClippedIndex[j]).ToArray()));
+                }
+            }
+            this.Vertices = clippedVerts;
+            this.Faces = clippedFaces;
+        }
+
+        /// <summary>
         /// Reverse the winding of faces - i.e. make them face the other direction
         /// </summary>
         public void ReverseWinding()

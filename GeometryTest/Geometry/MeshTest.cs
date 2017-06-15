@@ -315,6 +315,29 @@ namespace GeometryTest
         }
 
         [TestMethod]
+        public void RemoveVerticesTest()
+        {
+            Mesh m = new Mesh();
+            m.Vertices.Add(new Vertex(0, 0, 0));
+            m.Vertices.Add(new Vertex(1, 0, 0));
+            m.Vertices.Add(new Vertex(0, 2, 3));
+            m.Vertices.Add(new Vertex(0, 1, 0));
+            m.Vertices.Add(new Vertex(0, 0, 0));
+            m.Faces.Add(new Face(0, 1, 2));
+            m.Faces.Add(new Face(2, 3, 4));
+            List<Vertex> vertsToRemove = new List<Vertex>();
+            vertsToRemove.Add(new Vertex(0, 1, 0));
+            m.RemoveVertices(vertsToRemove);
+            Assert.AreEqual(4, m.Vertices.Count);
+            Assert.AreEqual(1, m.Faces.Count);
+            Assert.AreEqual(new Vertex(0, 0, 0), m.Vertices[0]);
+            Assert.AreEqual(new Vertex(1, 0, 0), m.Vertices[1]);
+            Assert.AreEqual(new Vertex(0, 2, 3), m.Vertices[2]);
+            Assert.AreEqual(new Vertex(0, 0, 0), m.Vertices[3]);
+            Assert.AreEqual(new Face(0, 1, 2), m.Faces[0]);
+        }
+
+        [TestMethod]
         public void ReverseWindingTest()
         {
             Mesh m = new Mesh();
