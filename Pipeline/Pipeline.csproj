@@ -128,10 +128,13 @@
     <Compile Include="Commands\CrawlMSL.cs" />
     <Compile Include="Commands\MatchAllImages.cs" />
     <Compile Include="Commands\MatchImages.cs" />
+    <Compile Include="ComputeGraph\ComputationContext.cs" />
+    <Compile Include="ComputeGraph\PersistedComputation.cs" />
     <Compile Include="Commands\PDSImageConverter.cs" />
     <Compile Include="Commands\TileBaselineMesh.cs" />
     <Compile Include="General\ObservationEnums.cs" />
     <Compile Include="GdalConfiguration.cs" />
+    <Compile Include="ComputeGraph\Computation.cs" />
     <Compile Include="Rover\MSLLocations.cs" />
     <Compile Include="Rover\RoverCoordinateSystem.cs" />
     <Compile Include="Rover\RoverReachability.cs" />
@@ -212,6 +215,7 @@
   <ItemGroup>
     <WCFMetadata Include="Service References\" />
   </ItemGroup>
+  <ItemGroup />
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <Import Project="..\packages\GDAL.Native.1.11.1\build\net40\GDAL.Native.targets" Condition="Exists('..\packages\GDAL.Native.1.11.1\build\net40\GDAL.Native.targets')" />
   <Target Name="EnsureNuGetPackageBuildImports" BeforeTargets="PrepareForBuild">
