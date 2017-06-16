@@ -5,7 +5,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace OPS.Pipeline
+namespace OPS.Geometry
 {
     /// <summary>
     /// Represents an affine transformation from a node to its parent frame.

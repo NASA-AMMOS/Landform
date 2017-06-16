@@ -3,7 +3,7 @@ using Emgu.CV.Cuda;
 using Emgu.CV.Features2D;
 using Emgu.CV.Structure;
 using Emgu.CV.Util;
-using OPS.Pipeline;
+using OPS.Imaging;
 using System;
 using System.Collections.Generic;
 using System.Linq;

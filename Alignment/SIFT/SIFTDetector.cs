@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using OPS.Pipeline;
 using Emgu.CV.Features2D;
 using Emgu.CV.XFeatures2D;
 using Emgu.CV;

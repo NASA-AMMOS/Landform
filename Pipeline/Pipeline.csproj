@@ -104,17 +104,17 @@
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Rover\RoverArticulation.cs" />
     <Compile Include="Rover\RoverProductEnum.cs" />
-    <Compile Include="Scene\NodeComponent.cs" />
-    <Compile Include="Scene\NodeTransform.cs" />
-    <Compile Include="Scene\SceneNode.cs" />
     <Compile Include="Tiling\Tile3D.cs" />
-    <Compile Include="WIP\ImageRef.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="app.config" />
     <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\Alignment\Alignment.csproj">
+      <Project>{ae1b74cc-7cbb-4aaf-9be6-68534d61d264}</Project>
+      <Name>Alignment</Name>
+    </ProjectReference>
     <ProjectReference Include="..\Cloud\Cloud.csproj">
       <Project>{52a91b3e-1d95-4715-a7ad-2840b2f9c6ac}</Project>
       <Name>Cloud</Name>

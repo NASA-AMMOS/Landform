@@ -60,6 +60,9 @@
     <Compile Include="Geometry\Triangle.cs" />
     <Compile Include="Geometry\Vertex.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="Scene\NodeComponent.cs" />
+    <Compile Include="Scene\NodeTransform.cs" />
+    <Compile Include="Scene\SceneNode.cs" />
     <Compile Include="Serializers\GLTFStructure.cs" />
     <Compile Include="Serializers\GLTFSerializer.cs" />
     <Compile Include="Serializers\MeshSerializer.cs" />
