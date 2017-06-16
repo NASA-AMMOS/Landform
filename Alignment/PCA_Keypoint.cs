@@ -52,7 +52,6 @@ namespace OPS.Alignment
         {
             octave = octave & 255;
             Octave = octave < 128 ? octave : (-128 | octave) + 1;
-            Scale = Octave; // I don't think this is right
         }
     }
 }

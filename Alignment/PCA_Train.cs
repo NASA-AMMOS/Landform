@@ -9,6 +9,7 @@ using MathNet.Numerics.LinearAlgebra;
 using MathNet.Numerics.LinearAlgebra.Factorization;
 using MathNet.Numerics.Statistics;
 using System.Threading.Tasks;
+using System;
 
 namespace OPS.Alignment
 {
@@ -25,6 +26,7 @@ namespace OPS.Alignment
         Evd<float> eigs;
         Matrix<float> eigvecs;
         Matrix<float> principalEigVecs;
+        Vector<double> principalEigVals;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="T:OPS.Alignment.PCA_Train"/> class.
@@ -41,37 +43,16 @@ namespace OPS.Alignment
         /// <param name="gradients">Gradients calculated from training set image data.</param>
         void ComputeEigenspace(List<float[]> gradients)
         {
-            Matrix<float> test = Matrix<float>.Build.Dense(4, 7);
-            test.SetRow(0, new float[] { 1, 3, 1, 7, -5, -2, 6 });
-            test.SetRow(1, new float[] { 2, 2, 5, 4, 7, -4, 7 });
-            test.SetRow(2, new float[] { 1, 3, 1, 7, -5, -2, 6 });
-            test.SetRow(3, new float[] { 2, 8, 5, 4, -9, -1, -1 });
+            Matrix<float> data = Matrix<float>.Build.Dense(gradients.Count, patchlen); // inf x 3042
 
-            Matrix<float> covartest = CovarianceMatrix(test);
-
-            eigs = covartest.Evd();
-
-            eigvecs = eigs.EigenVectors;
-            principalEigVecs = eigvecs.SubMatrix(0, eigvecs.RowCount, 0, n);
-            Vector<double> principalValst = Vector<double>.Build.Dense(n);
-            principalValst = eigs.EigenValues.Real().SubVector(0, n);
-
-            Trace.WriteLine(principalEigVecs);
-            Trace.WriteLine(principalValst);
-
-
-
-
-            Matrix<float> data = Matrix<float>.Build.Dense(patchlen, gradients.Count); // 3042 x inf
-
-            // convert list of gradient vectors into data matrix
+            // convert list of gradient vectors into data matrix of size inf x 3042
             for (int i = 0; i < gradients.Count(); i++)
             {
-                data.SetColumn(i, Vector<float>.Build.Dense(gradients[i]));
+                data.SetRow(i, Vector<float>.Build.Dense(gradients[i]));
             }
-
+            
             // Calculate column-wise mean
-            mean = RowWiseMean(data); // should be length 3042
+            mean = ColumnWiseMean(data); // should be length 3042
 
             // calculate covariance matrix
             Trace.WriteLine("Calculating covariance matrix...");
@@ -81,15 +62,34 @@ namespace OPS.Alignment
             Trace.WriteLine("Calculating eigen decomposition...");
             eigs = covar.Evd();
             eigvecs = eigs.EigenVectors;
+            Vector<double> eigvals = eigs.EigenValues.Real();
+            ReOrderEigenvectorMatrix(eigvecs, eigvals);
+
             principalEigVecs = eigvecs.SubMatrix(0, eigvecs.RowCount, 0, n);
-            Vector<double> principalVals = Vector<double>.Build.Dense(n);
-            principalVals = eigs.EigenValues.Real().SubVector(0, n);
+            principalEigVals = eigs.EigenValues.Real().SubVector(0, n);
 
             Trace.WriteLine(principalEigVecs);
-            Trace.WriteLine(principalVals);
+            Trace.WriteLine(principalEigVals);
 
             WriteEigenvectorsToFile(gpcafile + ".txt");
         }
+
+        void ReOrderEigenvectorMatrix(Matrix<float> eigvecs, Vector<double> eigvals)
+        {
+            Dictionary<double, Vector<float>> vectorDict = new Dictionary<double, Vector<float>>();
+            eigvecs.EnumerateColumnsIndexed().ToList().ForEach(x => vectorDict[eigvals[x.Item1]] = x.Item2);
+
+            IOrderedEnumerable<double> eigvalOrder = eigvals.OrderBy(x => -Math.Abs(x));
+            List<double> eigvalList = eigvalOrder.ToList();
+            eigvals.SetValues(eigvalOrder.ToArray());
+
+            for (int i = 0; i < eigvecs.ColumnCount; i++)
+            {
+                eigvecs.SetColumn(i, vectorDict[eigvalList[i]]);
+            }
+        }
+
+
 
         /// <summary>
         /// Train PCA with images in path.
@@ -97,13 +97,6 @@ namespace OPS.Alignment
         /// <param name="path">Path to training image files.</param>
         public void Train(string path)
         {
-            //Matrix<float> test = Matrix<float>.Build.Dense(3, 3);
-            //test.SetRow(0, new float[] { 5, 0, 3 });
-            //test.SetRow(1, new float[] { 1, -5, 7 });
-            //test.SetRow(2, new float[] { 4, 9, 8 });
-
-            //Trace.WriteLine(CovarianceMatrix(test));
-
             string[] imageFiles = Directory.GetFiles(path, "*.jpg");
             List<float[]> gradients = new List<float[]>();
 
@@ -171,17 +164,18 @@ namespace OPS.Alignment
         }
 
 		/// <summary>
-		/// Calculates the row-wise mean of a <see cref="T:MathNet.Numerics.LinearAlgebra"/> matrix.
+		/// Calculates the column-wise mean of a <see cref="T:MathNet.Numerics.LinearAlgebra"/> matrix.
 		/// </summary>
-		/// <returns>The row-wise mean as vector of length input.RowCount.</returns>
+		/// <returns>The column-wise mean as vector of length input.columnCount.</returns>
 		/// <param name="input">Input matrix.</param>
-		Vector<float> RowWiseMean(Matrix<float> input)
+		Vector<float> ColumnWiseMean(Matrix<float> input)
         {
-            Vector<float> result = Vector<float>.Build.Dense(input.RowCount);
+            Vector<float> result = Vector<float>.Build.Dense(input.ColumnCount);
+            Debug.Assert(input.ColumnCount == patchlen);
 
-            for (int i = 0; i < input.RowCount; i++)
+            for (int i = 0; i < input.ColumnCount; i++)
             {
-                result[i] = (float)input.Row(i).Mean();
+                result[i] = (float)input.Column(i).Mean();
             }
 
             return result;

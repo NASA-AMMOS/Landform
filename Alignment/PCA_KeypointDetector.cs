@@ -131,7 +131,7 @@ namespace OPS.Alignment
                     cpos = (cosine * x  + sine * y) + keypoint.SX;
                     rpos = (-sine * x  + cosine * y) + keypoint.SY;
                     // not sure about this order of coordinates either
-                    patch[x + iradius, y + iradius] = new Gray(GetPixelBilinearInterpolation(blur, cpos, rpos));
+                    patch[y + iradius, x + iradius] = new Gray(GetPixelBilinearInterpolation(blur, cpos, rpos));
                 }
             }
 
@@ -141,10 +141,10 @@ namespace OPS.Alignment
             {
                 for (int x = 1; x < PATCHSIZE - 1; x++)
                 {
-                    x1 = (float)patch[(x + 1) * (int)sizeratio, y * (int)sizeratio].Intensity;
-                    x2 = (float)patch[(x - 1) * (int)sizeratio, y * (int)sizeratio].Intensity;
-                    y1 = (float)patch[x * (int)sizeratio, (y + 1) * (int)sizeratio].Intensity;
-                    y2 = (float)patch[x * (int)sizeratio, (y - 1) * (int)sizeratio].Intensity;
+                    x1 = (float)patch[y * (int)sizeratio, (x + 1) * (int)sizeratio].Intensity;
+                    x2 = (float)patch[y * (int)sizeratio, (x - 1) * (int)sizeratio].Intensity;
+                    y1 = (float)patch[(y + 1) * (int)sizeratio, x * (int)sizeratio].Intensity;
+                    y2 = (float)patch[(y - 1) * (int)sizeratio, x * (int)sizeratio].Intensity;
 
                     gx = x1 - x2;
                     gy = y1 - y2;
@@ -311,7 +311,7 @@ namespace OPS.Alignment
                     cpos = (cosine * x * sizeratio + sine * y * sizeratio) + keypoint.SX;
                     rpos = (-sine * x * sizeratio + cosine * y * sizeratio) + keypoint.SY;
                     // not sure about this order of coordinates either lol
-                    keypoint.Patch[x + iradius, y + iradius] = new Gray(GetPixelBilinearInterpolation(blur, cpos, rpos));
+                    keypoint.Patch[y + iradius, x + iradius] = new Gray(GetPixelBilinearInterpolation(blur, cpos, rpos));
                 }
             }
 
@@ -513,7 +513,7 @@ namespace OPS.Alignment
         /// <param name="keypoints">Input keypoints.</param>
         static void UpdateKeypoints(List<PCA_Keypoint> keypoints)
         {
-            double log2 = (float)Math.Log(2);
+            float log2 = (float)Math.Log(2);
 
             for (int i = 0; i < keypoints.Count; i++)
             {
@@ -526,7 +526,7 @@ namespace OPS.Alignment
 
                 double tmp = Math.Log((double)k.GScale / SIGMA) / log2 + 1.0;
                 k.Octave = (int)tmp;
-                k.FScale = (int)(Math.Round((tmp - k.Octave) * SCALES_PER_OCTAVE));
+                k.FScale = (float)((tmp - k.Octave) * SCALES_PER_OCTAVE); //(int)(Math.Round((tmp - k.Octave) * SCALES_PER_OCTAVE));
                 k.Scale = (int)Math.Round(k.FScale);
 
                 if (k.Scale == 0 && k.Octave > 0)

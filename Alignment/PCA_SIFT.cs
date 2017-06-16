@@ -51,11 +51,13 @@ namespace OPS.Alignment
                         {
                             desc[j] = descriptors[i, j];
                         }
-                        yield return new ImageFeature(
+                        yield return new SIFTFeature(
                             new Vector2(keypoints[i].Point.X, keypoints[i].Point.Y),
                             keypoints[i].Size,
                             keypoints[i].Angle,
-                            desc
+                            keypoints[i].Octave,
+                            keypoints[i].Response,
+                            new SIFTDescriptor(desc)
                            );
                     }
                 }
