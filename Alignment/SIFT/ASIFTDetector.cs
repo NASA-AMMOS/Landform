@@ -9,14 +9,31 @@ using Emgu.CV.CvEnum;
 using Microsoft.Xna.Framework;
 using Emgu.CV.XFeatures2D;
 using Emgu.CV.Util;
+using OPS.Imaging;
+using OPS.Imaging.Emgu;
 
 namespace OPS.Alignment
 {
     // As described in ASIFT: A NEW FRAMEWORK FOR FULLY AFFINE INVARIANT IMAGE COMPARISON
     // http://www.cmap.polytechnique.fr/~yu/publications/ASIFT_SIIMS_final.pdf
 
-    public class ASIFT
+    public class ASIFTDetector : IFeatureDetector
     {
+        public ASIFTDetector(int maxSimulatedDimension=512)
+        {
+            this.MaxSimulatedDimension = maxSimulatedDimension;
+        }
+        public int MaxSimulatedDimension;
+
+        public IEnumerable<ImageFeature> Detect(Image image, Image mask = null)
+        {
+            var emguImg = image.ToEmguGrayscale();
+            var emguMask = (mask != null) ? mask.ToEmguGrayscale() : null;
+            foreach (var feat in Detect(emguImg, emguMask))
+            {
+                yield return feat;
+            }
+        }
 
         /// <summary>
         /// Apply a simulated affine deformation to an input image with mask.
@@ -75,10 +92,7 @@ namespace OPS.Alignment
             outImage = image;
             outMask = mask;
         }
-
-        static object KeypointLock = new object();
-        static object DescriptorLock = new object();
-
+        
         /// <summary>
         /// Detect raw SIFT features in an image.
         /// </summary>
@@ -114,6 +128,76 @@ namespace OPS.Alignment
                             keypoints[i].Response,
                             new SIFTDescriptor(desc)
                            );
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Detect ASIFT features in an image.
+        /// </summary>
+        /// <param name="image">Input image</param>
+        /// <param name="mask">Input mask, with zero signifying invalid pixels and</param>
+        /// <returns>Enumerable of all detected features</returns>
+        public IEnumerable<ImageFeature> Detect(Image<Gray, byte> image, Image<Gray, byte> mask)
+        {
+            double scale = 1;
+
+            foreach (SIFTFeature feat in DetectSIFT(image, mask))
+            {
+                yield return new SIFTFeature(
+                    feat.Location / scale,
+                    feat.Size / scale,
+                    feat.Angle,
+                    feat.Octave,
+                    feat.Response,
+                    feat.Descriptor
+                    );
+            }
+
+            if (MaxSimulatedDimension > 0 && image.Width > MaxSimulatedDimension || image.Height > MaxSimulatedDimension)
+            {
+                scale = ((double)MaxSimulatedDimension) / Math.Max(image.Width, image.Height);
+                image = image.Resize(scale, Inter.Lanczos4);
+                mask = mask.Resize(scale, Inter.Nearest);
+            }
+
+            // formula for generating tilt/phi values from ASIFT paper
+            int tiltIdx, phiIdx;
+            for (tiltIdx = 1; tiltIdx < 6; tiltIdx++)
+            {
+                double tilt = Math.Pow(2, tiltIdx / 2.0);
+                double deltaPhi = 72.0 / tilt;
+                int numPhiSteps = (int)Math.Ceiling(180 / deltaPhi);
+                for (phiIdx = 0; phiIdx < numPhiSteps; phiIdx++)
+                {
+                    double phi = phiIdx * deltaPhi;
+
+                    Image<Gray, byte> skewImage, skewMask;
+                    Matrix<float> A;
+                    AffineSkew(tilt, phi * Math.PI / 180, image, mask, out skewImage, out skewMask, out A);
+
+                    float det = A[0, 0] * A[1, 1] - A[0, 1] * A[1, 0];
+                    Matrix<float> Ai = InvertAffine(A);
+
+                    foreach (SIFTFeature feat in DetectSIFT(skewImage, skewMask))
+                    {
+                        double fx = feat.Location.X;
+                        double fy = feat.Location.Y;
+                        double newX = fx * Ai[0, 0] + fy * Ai[0, 1] + Ai[0, 2];
+                        double newY = fx * Ai[1, 0] + fy * Ai[1, 1] + Ai[1, 2];
+                        if (newX < 0 || newY < 0)
+                        {
+                            continue;
+                        }
+                        yield return new SIFTFeature(
+                            new Vector2(newX, newY) / scale,
+                            feat.Size / scale,
+                            feat.Angle,
+                            feat.Octave,
+                            feat.Response,
+                            feat.Descriptor
+                            );
                     }
                 }
             }
@@ -163,78 +247,5 @@ namespace OPS.Alignment
                 );
         }
         #endregion
-
-        /// <summary>
-        /// Detect ASIFT features in an image.
-        /// </summary>
-        /// <param name="image">Input image</param>
-        /// <param name="mask">Input mask, with zero signifying invalid pixels and</param>
-        /// <param name="affine">If false, will detect only base SIFT features</param>
-        /// <param name="maxDim">Maximum dimension to use when generating artificial viewpoints, less than one for no maximum</param>
-        /// <returns>Enumerable of all detected features</returns>
-        public static IEnumerable<SIFTFeature> Detect(Image<Gray, byte> image, Image<Gray, byte> mask, bool affine = true, int maxDim = 512)
-        {
-            double scale = 1;
-
-            foreach (SIFTFeature feat in DetectSIFT(image, mask))
-            {
-                yield return new SIFTFeature(
-                    feat.Location / scale,
-                    feat.Size / scale,
-                    feat.Angle,
-                    feat.Octave,
-                    feat.Response,
-                    feat.Descriptor
-                    );
-            }
-            if (!affine) yield break;
-
-            if (maxDim > 0 && image.Width > maxDim || image.Height > maxDim)
-            {
-                scale = ((double)maxDim) / Math.Max(image.Width, image.Height);
-                image = image.Resize(scale, Inter.Lanczos4);
-                mask = mask.Resize(scale, Inter.Nearest);
-            }
-
-            // formula for generating tilt/phi values from ASIFT paper
-            int tiltIdx, phiIdx;
-            for (tiltIdx = 1; tiltIdx < 6; tiltIdx++)
-            {
-                double tilt = Math.Pow(2, tiltIdx / 2.0);
-                double deltaPhi = 72.0 / tilt;
-                int numPhiSteps = (int)Math.Ceiling(180 / deltaPhi);
-                for (phiIdx = 0; phiIdx < numPhiSteps; phiIdx++)
-                {
-                    double phi = phiIdx * deltaPhi;
-
-                    Image<Gray, byte> skewImage, skewMask;
-                    Matrix<float> A;
-                    AffineSkew(tilt, phi * Math.PI / 180, image, mask, out skewImage, out skewMask, out A);
-
-                    float det = A[0, 0] * A[1, 1] - A[0, 1] * A[1, 0];
-                    Matrix<float> Ai = InvertAffine(A);
-
-                    foreach (SIFTFeature feat in DetectSIFT(skewImage, skewMask))
-                    {
-                        double fx = feat.Location.X;
-                        double fy = feat.Location.Y;
-                        double newX = fx * Ai[0, 0] + fy * Ai[0, 1] + Ai[0, 2];
-                        double newY = fx * Ai[1, 0] + fy * Ai[1, 1] + Ai[1, 2];
-                        if (newX < 0 || newY < 0)
-                        {
-                            continue;
-                        }
-                        yield return new SIFTFeature(
-                            new Vector2(newX, newY) / scale,
-                            feat.Size / scale,
-                            feat.Angle,
-                            feat.Octave,
-                            feat.Response,
-                            feat.Descriptor
-                            );
-                    }
-                }
-            }
-        }
     }
 }

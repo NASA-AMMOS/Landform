@@ -70,7 +70,7 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="SIFT\ASIFT.cs" />
+    <Compile Include="SIFT\ASIFTDetector.cs" />
     <Compile Include="EmguSIFTMatcher.cs" />
     <Compile Include="FeatureMatching\FeatureDescriptor.cs" />
     <Compile Include="Interfaces\IFeatureDetector.cs" />
