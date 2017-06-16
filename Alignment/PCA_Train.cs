@@ -41,17 +41,37 @@ namespace OPS.Alignment
         /// <param name="gradients">Gradients calculated from training set image data.</param>
         void ComputeEigenspace(List<float[]> gradients)
         {
-            
-            Matrix<float> data = Matrix<float>.Build.Dense(gradients.Count(), patchlen);
+            Matrix<float> test = Matrix<float>.Build.Dense(4, 7);
+            test.SetRow(0, new float[] { 1, 3, 1, 7, -5, -2, 6 });
+            test.SetRow(1, new float[] { 2, 2, 5, 4, 7, -4, 7 });
+            test.SetRow(2, new float[] { 1, 3, 1, 7, -5, -2, 6 });
+            test.SetRow(3, new float[] { 2, 8, 5, 4, -9, -1, -1 });
+
+            Matrix<float> covartest = CovarianceMatrix(test);
+
+            eigs = covartest.Evd();
+
+            eigvecs = eigs.EigenVectors;
+            principalEigVecs = eigvecs.SubMatrix(0, eigvecs.RowCount, 0, n);
+            Vector<double> principalValst = Vector<double>.Build.Dense(n);
+            principalValst = eigs.EigenValues.Real().SubVector(0, n);
+
+            Trace.WriteLine(principalEigVecs);
+            Trace.WriteLine(principalValst);
+
+
+
+
+            Matrix<float> data = Matrix<float>.Build.Dense(patchlen, gradients.Count); // 3042 x inf
 
             // convert list of gradient vectors into data matrix
             for (int i = 0; i < gradients.Count(); i++)
             {
-                data.SetRow(i, Vector<float>.Build.Dense(gradients[i]));
+                data.SetColumn(i, Vector<float>.Build.Dense(gradients[i]));
             }
 
             // Calculate column-wise mean
-            mean = ColumnWiseMean(data);
+            mean = RowWiseMean(data); // should be length 3042
 
             // calculate covariance matrix
             Trace.WriteLine("Calculating covariance matrix...");
@@ -136,6 +156,7 @@ namespace OPS.Alignment
 
             float resultNum;
             float coeff = 1f / (data.RowCount - 1);
+
             Parallel.For(0, data.ColumnCount, i =>
             {
                 for (int j = i; j < data.ColumnCount; j++)
@@ -150,17 +171,17 @@ namespace OPS.Alignment
         }
 
 		/// <summary>
-		/// Calculates the column-wise mean of a <see cref="T:MathNet.Numerics.LinearAlgebra"/> matrix.
+		/// Calculates the row-wise mean of a <see cref="T:MathNet.Numerics.LinearAlgebra"/> matrix.
 		/// </summary>
-		/// <returns>The column-wise mean.</returns>
+		/// <returns>The row-wise mean as vector of length input.RowCount.</returns>
 		/// <param name="input">Input matrix.</param>
-		Vector<float> ColumnWiseMean(Matrix<float> input)
+		Vector<float> RowWiseMean(Matrix<float> input)
         {
-            Vector<float> result = Vector<float>.Build.Dense(input.ColumnCount);
+            Vector<float> result = Vector<float>.Build.Dense(input.RowCount);
 
-            for (int i = 0; i < input.ColumnCount; i++)
+            for (int i = 0; i < input.RowCount; i++)
             {
-                result[i] = (float)input.Column(i).Mean();
+                result[i] = (float)input.Row(i).Mean();
             }
 
             return result;
