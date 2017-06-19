@@ -97,14 +97,14 @@ namespace OPS.Alignment
         /// <param name="path">Path to training image files.</param>
         public void Train(string path)
         {
-            string[] imageFiles = Directory.GetFiles(path, "*.jpg");
+            string[] imageFiles = Directory.GetFiles(path, "*.png");
             List<float[]> gradients = new List<float[]>();
 
-            for (int i = 0; i < imageFiles.Length; i++)
-            {
-                gradients = CalculateGradients(imageFiles[i], gradients);
-            }
+            Parallel.For(0, imageFiles.Count(), i => { 
+                gradients.AddRange(CalculateGradients(imageFiles[i]));
+            });
 
+            
             ComputeEigenspace(gradients);
         }
 
@@ -114,8 +114,9 @@ namespace OPS.Alignment
         /// <returns>The updated gradients lsit.</returns>
         /// <param name="imageFile">Image file.</param>
         /// <param name="gradients">Running list of gradients.</param>
-        List<float[]> CalculateGradients(string imageFile, List<float[]> gradients)
+        List<float[]> CalculateGradients(string imageFile)
         {
+            List<float[]> gradients = new List<float[]>();
             Emgu.CV.Image<Gray, byte> modelImage = Imaging.Image.Load(imageFile).ToEmguGrayscale();
             Emgu.CV.Image<Gray, float> grayModelImage = modelImage.Convert<Gray, float>();
             SIFT sift = new SIFT();
@@ -193,15 +194,23 @@ namespace OPS.Alignment
                 // mean should be of length 3042
                 for (int a = 0; a < 3042; a++)
                 {
+                    if (float.IsNaN(mean[a]))
+                    {
+                        Trace.WriteLine("NaN in mean :(");
+                    }
                     writer.Write(mean[a]);
                 }
 
-                // eigvecs should be 3042x3042
+                // eigvecs should be 3042x36
                 for (int i = 0; i < 3042; i++)
                 {
                     for (int j = 0; j < n; j++)
                     {
                         writer.Write(principalEigVecs[i, j]);
+                        if (float.IsNaN(principalEigVecs[i, j]))
+                        {
+                            Trace.WriteLine("NaN in eigvecs :(");
+                        }
                     }
                 }
             }

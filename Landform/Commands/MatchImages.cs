@@ -69,7 +69,6 @@ namespace OPS.Pipeline
             Image<Gray, float> grayModelImageB = modelImageB.Convert<Gray, float>();
 
             string gpcafile = options.TrainingFile;
-            string gradfile = "C:\\Users\\charchut\\Downloads\\grads.txt";
 
             // 0. Computes eigenspace from set of training images.
             if (trainingPath != null && trainingFile != null)
@@ -85,24 +84,11 @@ namespace OPS.Pipeline
             MKeyPoint[] mKeypointsA = siftCPU.Detect(modelImageA);
             MKeyPoint[] mKeypointsB = siftCPU.Detect(modelImageB);
             List<PCA_Keypoint> keypointsA = PCA_KeypointDetector.GetPatches(grayModelImageA, mKeypointsA, patchsize);
-
-            VectorOfKeyPoint vokp = new VectorOfKeyPoint(mKeypointsA);
-            //Matrix<float> mda = new Matrix<float>(1, 1);
-            //MKeyPoint[] mKeypointsB = 
-            //siftCPU.DetectAndCompute(modelImageB, null, mkpa, mda, false);
-            //VectorOfKeyPoint mkpb = new VectorOfKeyPoint();
-            //Matrix<float> mdb = new Matrix<float>(1, 1);
-            //MKeyPoint[] mKeypointsB = 
-            //siftCPU.DetectAndCompute(modelImageB, null, mkpb, mdb, false);
             List<PCA_Keypoint> keypointsB = PCA_KeypointDetector.GetPatches(grayModelImageB, mKeypointsB, patchsize);
-            //PCA_KeypointDetector.WritePatchesToFile(keypoints, "C:\\Users\\charchut\\Downloads\\patches.txt", patchsize);
-            //PCA_KeypointDetector.WriteGradientsToFile(keypoints, gradfile);
-
-            VectorOfKeyPoint vokp1 = new VectorOfKeyPoint(mKeypointsB);
+            VectorOfKeyPoint vokpA = new VectorOfKeyPoint(mKeypointsA);
+            VectorOfKeyPoint vokpB = new VectorOfKeyPoint(mKeypointsB);
             
-
-            // 2. Recalculate keypoints, given the eigenspace, an image, and its keypoints
-            //// e.g. ./recalckeys gpcavects.txt image1.pgm image2.pgm image1.lkeys image1.pkeys    
+            // 2. Recalculate keypoints, given the eigenspace, an image, and its keypoints  
             PCA_KeypointDetector detector = new PCA_KeypointDetector(gpcafile);
             Trace.WriteLine("Projecting keypoints into lower dimension...");
             detector.ProjectKeypoints(grayModelImageA, keypointsA);
@@ -112,10 +98,8 @@ namespace OPS.Pipeline
             Mat descriptorsA = ToDescriptorMatrix(keypointsA);
             Mat descriptorsB = ToDescriptorMatrix(keypointsB);
 
-
             // 3. Return list of keypoints with updated descriptors?
-            PCA_Match.Match(modelImageA, modelImageB, descriptorsA, vokp, descriptorsB, vokp1, outputFile);
-            //PCA_Match.Match(modelImageA, modelImageB, keypointsA, keypointsB, outputFile);
+            PCA_Match.Match(modelImageA, modelImageB, descriptorsA, vokpA, descriptorsB, vokpB, outputFile);
             return 0;
         }
         static Mat ToDescriptorMatrix(List<PCA_Keypoint> features)
@@ -129,6 +113,10 @@ namespace OPS.Pipeline
                 for (j = 0; j < d.Length; j++)
                 {
                     data[i, j] = d[j];
+                    if (float.IsNaN(d[j]))
+                    {
+                        Trace.WriteLine("nan");
+                    }
                 }
             }
             return res.Mat;

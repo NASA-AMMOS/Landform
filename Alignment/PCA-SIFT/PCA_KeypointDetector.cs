@@ -7,6 +7,7 @@ using Emgu.CV.CvEnum;
 using System.Drawing;
 using System.Diagnostics;
 using System.IO;
+using System.Threading.Tasks;
 
 namespace OPS.Alignment
 {
@@ -22,12 +23,12 @@ namespace OPS.Alignment
         static float SIGMA = 1.6F;
         const int SCALES_PER_OCTAVE = 5;
         const int MAX_OCTAVES = 14;
-        static int DOUBLE_BASE_IMAGE_SIZE = 1;
+        static int DOUBLE_BASE_IMAGE_SIZE = 0;//1;
         const int GPLEN = (PATCHSIZE - 2) * (PATCHSIZE - 2) * 2;
         const int PCALEN = 36;
         const int EPCALEN = 36;
         float[] avgs = new float[GPLEN];
-        float[,] eigs = new float[EPCALEN, GPLEN];
+        float[,] eigs = new float[GPLEN, PCALEN];
 
         /// <summary>
         /// Initializes a new instance of the <see cref="T:OPS.Alignment.PCA_KeypointDetector"/> class.
@@ -47,14 +48,12 @@ namespace OPS.Alignment
                     }
 
                     Debug.WriteLine("Reading pca vector {0}x{1}", GPLEN, PCALEN);
-                    for (int i = 0; i < PCALEN; i++)
+                    for (int i = 0; i < GPLEN; i++)
                     {
-                        for (int j = 0; j < GPLEN; j++)
+                        for (int j = 0; j < PCALEN; j++)
                         {
-                            if (j < EPCALEN)
-                            {
-                                eigs[i, j] = reader.ReadSingle(); // check if this is indexing correctly
-                            }
+
+                            eigs[i, j] = reader.ReadSingle();
                         }
                     }
                 }
@@ -82,7 +81,7 @@ namespace OPS.Alignment
 
                 for (int x = 0; x < GPLEN; x++)
                 {
-                    keypoint.desc[desci] += eigs[desci, x] * vec[x];
+                    keypoint.desc[desci] += eigs[x, desci] * vec[x];
                 }
             }
         }
@@ -165,11 +164,11 @@ namespace OPS.Alignment
         /// <param name="octaves">List of Guassian scales calculated for each octave.</param>
         void ComputeLocalDescriptors(List<PCA_Keypoint> keypoints, List<List<Image<Gray, float>>> octaves)
         {
-            for (int i = 0; i < keypoints.Count(); i++)
+            Parallel.For(0, keypoints.Count(), i =>
             {
                 PCA_Keypoint key = keypoints[i];
                 MakeKeypointPCA(keypoints[i], octaves[key.Octave][key.Scale]);
-            }
+            });
         }
 
         /// <summary>
@@ -528,6 +527,9 @@ namespace OPS.Alignment
                 k.Octave = (int)tmp;
                 k.FScale = (float)((tmp - k.Octave) * SCALES_PER_OCTAVE); //(int)(Math.Round((tmp - k.Octave) * SCALES_PER_OCTAVE));
                 k.Scale = (int)Math.Round(k.FScale);
+                if (float.IsNaN(k.Octave) || float.IsNaN(k.FScale) || float.IsNaN(k.Scale)) {
+                    Trace.WriteLine("NaN in updating keypoint params :(");
+                }
 
                 if (k.Scale == 0 && k.Octave > 0)
                 {
@@ -593,6 +595,11 @@ namespace OPS.Alignment
             for (int i = 0; i < vector.Length; i++)
             {
                 total += vector[i];
+            }
+
+            if (total == 0)
+            {
+                return;
             }
 
             total /= vector.Length;
