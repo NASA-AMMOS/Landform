@@ -117,12 +117,12 @@ namespace OPS.Alignment
         List<float[]> CalculateGradients(string imageFile)
         {
             List<float[]> gradients = new List<float[]>();
-            Emgu.CV.Image<Gray, byte> modelImage = Imaging.Image.Load(imageFile).ToEmguGrayscale();
-            Emgu.CV.Image<Gray, float> grayModelImage = modelImage.Convert<Gray, float>();
-            SIFT sift = new SIFT();
-            MKeyPoint[] mKeypoints = sift.Detect(modelImage);
-            List<PCA_Keypoint> PCAKeypoints = PCA_KeypointDetector.GetPatches(grayModelImage, mKeypoints, patchsize + 2);
-            gradients.AddRange(PCA_KeypointDetector.GetGradients(PCAKeypoints));
+            //Emgu.CV.Image<Gray, byte> modelImage = Imaging.Image.Load(imageFile).ToEmguGrayscale();
+            //Emgu.CV.Image<Gray, float> grayModelImage = modelImage.Convert<Gray, float>();
+            //SIFT sift = new SIFT();
+            //MKeyPoint[] mKeypoints = sift.Detect(modelImage);
+            //List<PCA_Keypoint> PCAKeypoints = PCA_KeypointDetector.GetPatches(grayModelImage, mKeypoints, patchsize + 2);
+            //gradients.AddRange(PCA_KeypointDetector.GetGradients(PCAKeypoints));
 
             return gradients;
         }

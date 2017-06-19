@@ -76,6 +76,8 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="PCA-SIFT\PCA_SIFTDescriptor.cs" />
+    <Compile Include="PCA-SIFT\PCA_SIFTDetector.cs" />
+    <Compile Include="PCA-SIFT\PCA_SIFTFeature.cs" />
     <Compile Include="SIFT\ASIFT.cs" />
     <Compile Include="EmguSIFTMatcher.cs" />
     <Compile Include="FeatureMatching\FeatureDescriptor.cs" />

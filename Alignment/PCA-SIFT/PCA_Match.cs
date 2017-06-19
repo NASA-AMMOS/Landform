@@ -55,10 +55,10 @@ namespace OPS.Alignment
             return true;
         }
         public static bool Match(Image<Gray, byte> model, Image<Gray, byte> data,
-           List<PCA_Keypoint> modelFeat, List<PCA_Keypoint> dataFeat, string outFile)
+           List<PCA_SIFTFeature> modelFeat, List<PCA_SIFTFeature> dataFeat, string outFile)
         {
-            List<PCA_Keypoint> feat0 = modelFeat;
-            List<PCA_Keypoint> feat1 = dataFeat;
+            List<PCA_SIFTFeature> feat0 = modelFeat;
+            List<PCA_SIFTFeature> feat1 = dataFeat;
 
             Mat descr0 = ToDescriptorMatrix(feat0);
             Mat descr1 = ToDescriptorMatrix(feat1);
@@ -68,28 +68,28 @@ namespace OPS.Alignment
             return Match(model, data, descr0, kp0, descr1, kp1, outFile);
         }
 
-        static VectorOfKeyPoint ToVOKP(List<PCA_Keypoint> kps)
+        static VectorOfKeyPoint ToVOKP(List<PCA_SIFTFeature> kps)
         {
             VectorOfKeyPoint res = new VectorOfKeyPoint();
             res.Push(kps.Select(kp =>
             {
                 MKeyPoint _kp = new MKeyPoint();
-                _kp.Size = kp.Size;
-                _kp.Point = new PointF(kp.X, kp.Y);
-                _kp.Angle = kp.Angle;
+                _kp.Size = (float)kp.Size;
+                _kp.Point = new PointF((float)kp.Location.X, (float)kp.Location.Y);
+                _kp.Angle = (float)kp.Angle;
                 return _kp;
             }).ToArray());
             return res;
         }
 
-        static Mat ToDescriptorMatrix(List<PCA_Keypoint> features)
+        static Mat ToDescriptorMatrix(List<PCA_SIFTFeature> features)
         {
-            Matrix<float> res = new Matrix<float>(features.Count, features[0].desc.Length);
+            Matrix<float> res = new Matrix<float>(features.Count, features[0].Descriptor.Length);
             float[,] data = res.Data;
             int i, j;
             for (i = 0; i < features.Count; i++)
             {
-                var d = features[i].desc;
+                var d = ((FeatureDescriptor<float>)features[i].Descriptor).Data;
                 for (j = 0; j < d.Length; j++)
                 {
                     data[i, j] = d[j];

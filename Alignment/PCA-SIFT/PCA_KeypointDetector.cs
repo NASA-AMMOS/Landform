@@ -8,6 +8,8 @@ using System.Drawing;
 using System.Diagnostics;
 using System.IO;
 using System.Threading.Tasks;
+using Microsoft.Xna.Framework;
+using OPS.Imaging.Emgu;
 
 namespace OPS.Alignment
 {
@@ -65,7 +67,7 @@ namespace OPS.Alignment
 		/// </summary>
 		/// <param name="keypoint">Keypoint.</param>
 		/// <param name="blur">Blur.</param>
-		void MakeKeypointPCA(PCA_Keypoint keypoint, Image<Gray, float> blur)
+		void MakeKeypointPCA(PCA_SIFTFeature keypoint, Image<Gray, float> blur)
         {
             float[] vec = KeypointPatchVector(keypoint, blur);
             NormalizeVector(vec);
@@ -75,15 +77,18 @@ namespace OPS.Alignment
                 vec[i] -= avgs[i];
             }
 
+            float[] result = new float[EPCALEN];
+
             for (int desci = 0; desci < EPCALEN; desci++)
             {
-                keypoint.desc[desci] = 0;
+                result[desci] = 0;
 
                 for (int x = 0; x < GPLEN; x++)
                 {
-                    keypoint.desc[desci] += eigs[x, desci] * vec[x];
+                    result[desci] += eigs[x, desci] * vec[x];
                 }
             }
+            keypoint.Descriptor = new PCA_SIFTDescriptor(result); 
         }
 
         /// <summary>
@@ -91,7 +96,7 @@ namespace OPS.Alignment
         /// </summary>
         /// <param name="keypoint">Keypoint.</param>
         /// <param name="blur">Blur.</param>
-        float[] KeypointPatchVector(PCA_Keypoint keypoint, Image<Gray, float> blur)
+        float[] KeypointPatchVector(PCA_SIFTFeature keypoint, Image<Gray, float> blur)
         {
             //Debug.Assert(keypoint != null);
             //Debug.Assert(blur != null);
@@ -162,11 +167,11 @@ namespace OPS.Alignment
         /// </summary>
         /// <param name="keypoints">list of <see cref="T:OPS.Alignment.PCA_Keypoint"/> instances</param>
         /// <param name="octaves">List of Guassian scales calculated for each octave.</param>
-        void ComputeLocalDescriptors(List<PCA_Keypoint> keypoints, List<List<Image<Gray, float>>> octaves)
+        void ComputeLocalDescriptors(List<PCA_SIFTFeature> keypoints, List<List<Image<Gray, float>>> octaves)
         {
             Parallel.For(0, keypoints.Count(), i =>
             {
-                PCA_Keypoint key = keypoints[i];
+                PCA_SIFTFeature key = keypoints[i];
                 MakeKeypointPCA(keypoints[i], octaves[key.Octave][key.Scale]);
             });
         }
@@ -179,21 +184,9 @@ namespace OPS.Alignment
         static Image<Gray, float> ScaleInitImage(Image<Gray, float> image)
         {
             Image<Gray, float> dst;
-
-            if (DOUBLE_BASE_IMAGE_SIZE == 1)
-            {
-                Image<Gray, float> im = image.Clone().Resize(2, Inter.Area);
-                dst = new Image<Gray, float>(im.Width, im.Height);
-
-                double sigma = Math.Sqrt(SIGMA * SIGMA - INIT_SIGMA * INIT_SIGMA * 4);
-                CvInvoke.GaussianBlur(im, dst, Size.Empty, sigma);
-            }
-            else
-            {
-                dst = new Image<Gray, float>(image.Width, image.Height);
-                double sigma = Math.Sqrt(SIGMA * SIGMA - INIT_SIGMA * INIT_SIGMA);
-                CvInvoke.GaussianBlur(image, dst, Size.Empty, sigma);
-            }
+            dst = new Image<Gray, float>(image.Width, image.Height);
+            double sigma = Math.Sqrt(SIGMA * SIGMA - INIT_SIGMA * INIT_SIGMA);
+            CvInvoke.GaussianBlur(image, dst, Size.Empty, sigma);
             return dst;
         }
 
@@ -272,7 +265,7 @@ namespace OPS.Alignment
         /// <param name="keypoint">Keypoint of interest.</param>
         /// <param name="blur">Source image.</param>
         /// <param name="windowsize">Height and width of patch.</param>
-        static void MakeLocalPatch(PCA_Keypoint keypoint, Image<Gray, float> blur, int windowsize)
+        static void MakeLocalPatch(PCA_SIFTFeature keypoint, Image<Gray, float> blur, int windowsize)
         {
             //Debug.Assert(keypoint != null);
             //Debug.Assert(blur != null);
@@ -323,11 +316,11 @@ namespace OPS.Alignment
         /// <param name="keypoints">List of keypoints</param>
         /// <param name="octaves">Calculated Gaussian pyramids for all octaves.</param>
         /// <param name="patchsize">Height and width of patch.</param>
-        static void ComputeLocalPatches(List<PCA_Keypoint> keypoints, List<List<Image<Gray, float>>> octaves, int patchsize)
+        static void ComputeLocalPatches(List<PCA_SIFTFeature> keypoints, List<List<Image<Gray, float>>> octaves, int patchsize)
         {
             for (int i = 0; i < keypoints.Count; i++)
             {
-                PCA_Keypoint key = keypoints[i];
+                PCA_SIFTFeature key = keypoints[i];
 
                 Debug.Assert(key.Octave >= 0 && key.Octave < octaves.Count);
                 Debug.Assert(key.Scale >= 0 && key.Scale < octaves[key.Octave].Count);
@@ -391,9 +384,8 @@ namespace OPS.Alignment
         /// <param name="keypoints">Keypoints detected with SIFT.</param>
         /// <param name="patchsize">Height and width of patch.</param>
         /// <returns></returns>
-        public static List<PCA_Keypoint> GetPatches(Image<Gray, float> image, MKeyPoint[] keypoints, int patchsize)
+        public static List<PCA_SIFTFeature> GetPatches(Image<Gray, float> image, List<PCA_SIFTFeature> keypoints, int patchsize)
         {
-            List<PCA_Keypoint> keys = ConvertToPCAKeypoints(keypoints);
 
             // 1. Scale image to create base of Gaussian pyramid
             image = ScaleInitImage(image);
@@ -402,12 +394,12 @@ namespace OPS.Alignment
             List<List<Image<Gray, float>>> octaves = BuildGaussianOctaves(image);
 
             // 3. Update all keypoint parameters
-            UpdateKeypoints(keys);
+            UpdateKeypoints(keypoints);
 
             // 4. Compute local patches
-            ComputeLocalPatches(keys, octaves, patchsize);
+            ComputeLocalPatches(keypoints, octaves, patchsize);
 
-            return keys;
+            return keypoints;
         }
 
         /// <summary>
@@ -510,22 +502,17 @@ namespace OPS.Alignment
         /// Updates the fields of given keypoints such that patches may be computed.
         /// </summary>
         /// <param name="keypoints">Input keypoints.</param>
-        static void UpdateKeypoints(List<PCA_Keypoint> keypoints)
+        static void UpdateKeypoints(List<PCA_SIFTFeature> keypoints)
         {
             float log2 = (float)Math.Log(2);
 
             for (int i = 0; i < keypoints.Count; i++)
             {
-                PCA_Keypoint k = keypoints[i];
-
-                //Debug.WriteLine(string.Format("updating keypoint {0} of {1}", i, keypoints.Count));
-                //Debug.WriteLine(string.Format("Previous values:"));
-                //Debug.WriteLine(string.Format("\tsx: {0}, sy: {1}, octave: {2}, scale: {3}, fscale {4}",
-                //                              k.SX, k.SY, k.Octave, k.Scale, k.FScale));
+                PCA_SIFTFeature k = keypoints[i];
 
                 double tmp = Math.Log((double)k.GScale / SIGMA) / log2 + 1.0;
                 k.Octave = (int)tmp;
-                k.FScale = (float)((tmp - k.Octave) * SCALES_PER_OCTAVE); //(int)(Math.Round((tmp - k.Octave) * SCALES_PER_OCTAVE));
+                k.FScale = (float)((tmp - k.Octave) * SCALES_PER_OCTAVE);
                 k.Scale = (int)Math.Round(k.FScale);
                 if (float.IsNaN(k.Octave) || float.IsNaN(k.FScale) || float.IsNaN(k.Scale)) {
                     Trace.WriteLine("NaN in updating keypoint params :(");
@@ -538,19 +525,16 @@ namespace OPS.Alignment
                     k.FScale += SCALES_PER_OCTAVE;
                 }
 
-                k.SX = k.X / (float)Math.Pow(2.0, k.Octave);
-                k.SY = k.Y / (float)Math.Pow(2.0, k.Octave);
+                k.SX = (float)(k.Location.X / Math.Pow(2.0, k.Octave));
+                k.SY = (float)(k.Location.Y / Math.Pow(2.0, k.Octave));
 
                 if (DOUBLE_BASE_IMAGE_SIZE == 1)
                 {
-                    k.X *= 2;
-                    k.Y *= 2;
+                    k.Location.X *= 2;
+                    k.Location.Y *= 2;
                     k.SX *= 2;
                     k.SY *= 2;
                 }
-                //Debug.WriteLine(string.Format("Updated values:"));
-                //Debug.WriteLine(string.Format("\tsx: {0}, sy: {1}, octave: {2}, scale: {3}, fscale {4}",
-                //                              k.SX, k.SY, k.Octave, k.Scale, k.FScale));
             }
         }
 
@@ -559,29 +543,13 @@ namespace OPS.Alignment
         /// </summary>
         /// <param name="image">Input image.</param>
         /// <param name="keypoints">List of keypoints.</param>
-        public void ProjectKeypoints(Image<Gray, float> image, List<PCA_Keypoint> keypoints)
+        public void ProjectKeypoints(Imaging.Image image, List<PCA_SIFTFeature> keypoints)
         {
-            Image<Gray, float> im = ScaleInitImage(image);
+            Image<Gray, float> im = ScaleInitImage(image.ToEmguGrayscale().Convert<Gray, float>());
             List<List<Image<Gray, float>>> GOctaves = BuildGaussianOctaves(im);
             UpdateKeypoints(keypoints);
+            ComputeLocalPatches(keypoints, GOctaves, PATCHSIZE);
             ComputeLocalDescriptors(keypoints, GOctaves);
-        }
-
-        /// <summary>
-        /// Converts a list of type <see cref="T:Emgu.CV.Structure.MKeyPoint"/> to <see cref="T:OPS.Alignment.PCA_Keypoint"/>  
-        /// </summary>
-        /// <param name="keypoints">Keypoints to convert.</param>
-        /// <returns>List of converted keypoints.</returns>
-        static List<PCA_Keypoint> ConvertToPCAKeypoints(MKeyPoint[] keypoints)
-        {
-            List<PCA_Keypoint> result = new List<PCA_Keypoint>();
-
-            for (int i = 0; i < keypoints.Length; i++)
-            {
-                result.Add(new PCA_Keypoint(keypoints[i]));
-            }
-
-            return result;
         }
 
         /// <summary>

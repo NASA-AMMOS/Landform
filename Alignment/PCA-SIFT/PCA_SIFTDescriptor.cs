@@ -11,6 +11,7 @@ namespace OPS.Alignment
                 return 36;
             }
         }
+
         public PCA_SIFTDescriptor(float[] data)
         {
             if (data.Length != Length)
@@ -18,6 +19,11 @@ namespace OPS.Alignment
                 throw new ArgumentException("Descriptor must have length " + Length.ToString());
             }
             this.Data = data;
+        }
+
+        public float[] GetData()
+        {
+            return (float[])Data.Clone();
         }
     }
 }
