@@ -71,12 +71,14 @@ namespace OPS.Pipeline
             string gpcafile = options.TrainingFile;
 
             // 0. Computes eigenspace from set of training images.
-            if (trainingPath != null && trainingFile != null)
+            if (trainingPath != null)
             {
+                if (trainingFile == null) {  trainingFile = trainingPath + ".txt"; }
                 Trace.WriteLine("Training...");
                 PCA_Train train = new PCA_Train(trainingFile);
                 train.Train(trainingPath);
                 Trace.WriteLine("Trained.");
+                return 0;
             }
 
             // 1. Calculate keypoints of an image using SIFT detection
@@ -109,6 +111,7 @@ namespace OPS.Pipeline
             Mat descriptorsB = ToDescriptorMatrix(featuresB);
 
             // 3. Return list of keypoints with updated descriptors?
+            if (outputFile == null) { outputFile = trainingFile + ".png"; }
             PCA_Match.Match(model.ToEmguGrayscale(), data.ToEmguGrayscale(), featuresA, featuresB, outputFile);
             return 0;
         }

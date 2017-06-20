@@ -583,7 +583,7 @@ namespace OPS.Alignment
         /// </summary>
         /// <param name="keypoints">Input keypoints.</param>
         /// <returns>List of concatenated horizontal and vertical gradients.</returns>
-        public static List<float[]> GetGradients(List<PCA_Keypoint> keypoints)
+        public static List<float[]> GetGradients(List<PCA_SIFTFeature> keypoints)
         {
             List<float[]> result = new List<float[]>();
 
@@ -594,7 +594,7 @@ namespace OPS.Alignment
                 float[] vec = new float[gsize];
                 int count = 0;
                 float x1, x2, y1, y2, gx, gy;
-                PCA_Keypoint key = keypoints[i];
+                PCA_SIFTFeature key = keypoints[i];
 
                 for (int y = 1; y < patchsize - 1; y++)
                 {

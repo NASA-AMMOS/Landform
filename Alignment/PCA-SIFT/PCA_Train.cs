@@ -117,12 +117,11 @@ namespace OPS.Alignment
         List<float[]> CalculateGradients(string imageFile)
         {
             List<float[]> gradients = new List<float[]>();
-            //Emgu.CV.Image<Gray, byte> modelImage = Imaging.Image.Load(imageFile).ToEmguGrayscale();
-            //Emgu.CV.Image<Gray, float> grayModelImage = modelImage.Convert<Gray, float>();
-            //SIFT sift = new SIFT();
-            //MKeyPoint[] mKeypoints = sift.Detect(modelImage);
-            //List<PCA_Keypoint> PCAKeypoints = PCA_KeypointDetector.GetPatches(grayModelImage, mKeypoints, patchsize + 2);
-            //gradients.AddRange(PCA_KeypointDetector.GetGradients(PCAKeypoints));
+            Imaging.Image modelImage = Imaging.Image.Load(imageFile);
+            Emgu.CV.Image<Gray, float> grayModelImage = modelImage.ToEmguGrayscale().Convert<Gray, float>();
+            List<PCA_SIFTFeature> featuresA = new PCA_SIFTDetector().Detect(modelImage, null).Cast<PCA_SIFTFeature>().ToList();
+            List<PCA_SIFTFeature> PCAKeypoints = PCA_KeypointDetector.GetPatches(grayModelImage, featuresA, patchsize + 2);
+            gradients.AddRange(PCA_KeypointDetector.GetGradients(featuresA));
 
             return gradients;
         }
@@ -148,14 +147,23 @@ namespace OPS.Alignment
                 result[i, i] = (A[i].PointwiseMultiply(B[i])).Sum();
             });
 
-            float resultNum;
             float coeff = 1f / (data.RowCount - 1);
 
             Parallel.For(0, data.ColumnCount, i =>
             {
+                float resultNum;
+                Vector<float> vecA, vecB;
                 for (int j = i; j < data.ColumnCount; j++)
                 {
-                    resultNum = (A[i].PointwiseMultiply(B[j])).Sum() * coeff;
+                    resultNum = 0;
+                    vecA = A[i];
+                    vecB = B[i];
+                    for (int k = 0; k < patchlen; k++)
+                    {
+                        resultNum += vecA[k] * vecB[k];
+                    }
+
+                    resultNum *= coeff;
                     result[i, j] = resultNum;
                     result[j, i] = resultNum;
                 }

@@ -19,8 +19,8 @@ namespace OPS.Alignment
 
         public IEnumerable<ImageFeature> Detect(Image image, Image mask = null)
         {
-            var emguImgByte = image.ToEmguGrayscale();
-            var emguImg = emguImgByte.Convert<Gray, float>();
+            var emguImg = image.ToEmguGrayscale();
+            //var emguImg = emguImgByte.Convert<Gray, float>();
             Image<Gray, byte> emguMask = (mask != null) ? (mask.ToEmguGrayscale()) : null;
 
             foreach (var kp in sift.Detect(emguImg, emguMask))
