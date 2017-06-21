@@ -103,7 +103,7 @@ namespace OPS.Alignment
         /// <returns></returns>
         static IEnumerable<SIFTFeature> DetectSIFT(Image<Gray, byte> image, Image<Gray, byte> mask, int numFeatures = 1000, int numOctaves = 4)
         {
-            using (SIFT sift = new SIFT(numFeatures, numOctaves))
+            using (Emgu.CV.XFeatures2D.SIFT sift = new Emgu.CV.XFeatures2D.SIFT(numFeatures, numOctaves))
             {
                 MKeyPoint[] keypoints = sift.Detect(image, mask);
                 if (keypoints.Length < 3) yield break;
