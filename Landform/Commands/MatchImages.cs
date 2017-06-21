@@ -4,18 +4,10 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using Emgu.CV;
-using Emgu.CV.Structure;
-using Emgu.CV.CvEnum;
-using Microsoft.Xna.Framework;
-using Emgu.CV.XFeatures2D;
-using Emgu.CV.Util;
-using Emgu.CV.Features2D;
-using System.Drawing;
-using Emgu.Util;
 using OPS.Imaging.Emgu;
 using OPS.Alignment;
 using System.Diagnostics;
+using OPS.Imaging;
 
 namespace OPS.Pipeline
 {
@@ -55,90 +47,50 @@ namespace OPS.Pipeline
         {
             string imageFileA = options.ImageA;
             string imageFileB = options.ImageB;
-
             string outputFile = options.OutputFile;
             string trainingPath = options.TrainingPath;
             string trainingFile = options.TrainingFile;
-
-            int patchsize = 41;
-
-            //Image<Gray, byte> modelImageA = Imaging.Image.Load(imageFileA).ToEmguGrayscale();
-            //Image<Gray, float> grayModelImageA = modelImageA.Convert<Gray, float>();
-
-            //Image<Gray, byte> modelImageB = Imaging.Image.Load(imageFileB).ToEmguGrayscale();
-            //Image<Gray, float> grayModelImageB = modelImageB.Convert<Gray, float>();
-
             string gpcafile = options.TrainingFile;
 
-            // 0. Computes eigenspace from set of training images.
             if (trainingPath != null)
             {
-                if (trainingFile == null) {  trainingFile = trainingPath + ".txt"; }
-                Trace.WriteLine("Training...");
-                PCA_Train train = new PCA_Train(trainingFile);
-                train.Train(trainingPath);
-                Trace.WriteLine("Trained.");
+                Train(trainingFile, trainingPath);
                 return 0;
             }
 
-            // 1. Calculate keypoints of an image using SIFT detection
-            //SIFT siftCPU = new SIFT();
-            //MKeyPoint[] mKeypointsA = siftCPU.Detect(modelImageA);
-            //MKeyPoint[] mKeypointsB = siftCPU.Detect(modelImageB);
-            //List<PCA_SIFTFeature> keypointsA = PCA_KeypointDetector.GetPatches(grayModelImageA, mKeypointsA, patchsize);
-            //List<PCA_SIFTFeature> keypointsB = PCA_KeypointDetector.GetPatches(grayModelImageB, mKeypointsB, patchsize);
-            //VectorOfKeyPoint vokpA = new VectorOfKeyPoint(mKeypointsA);
-            //VectorOfKeyPoint vokpB = new VectorOfKeyPoint(mKeypointsB);
+            if (outputFile == null)
+            {
+                outputFile = imageFileA.Substring(0, imageFileA.Length-4) + ".jpg";
+            }
+            Image model = Image.Load(imageFileA);
+            Image data =  Image.Load(imageFileB);
+            DetectAndMatch(model, data, gpcafile, outputFile);
 
-            // 2. Recalculate keypoints, given the eigenspace, an image, and its keypoints  
-            //PCA_KeypointDetector detector = new PCA_KeypointDetector(gpcafile);
-            //Trace.WriteLine("Projecting keypoints into lower dimension...");
-            //detector.ProjectKeypoints(grayModelImageA, keypointsA);
-            //detector.ProjectKeypoints(grayModelImageB, keypointsB);
-            //Trace.WriteLine("Keypoints projected.");
+            return 1;
+        }
 
-
-            Imaging.Image model = Imaging.Image.Load(imageFileA);
-            Imaging.Image data = Imaging.Image.Load(imageFileB);
-
+        void DetectAndMatch(Image model, Image data, string gpcafile, string outputFile)
+        {
+            Trace.WriteLine("Matching images...");
             List<PCA_SIFTFeature> featuresA = new PCA_SIFTDetector().Detect(model, null).Cast<PCA_SIFTFeature>().ToList();
             List<PCA_SIFTFeature> featuresB = new PCA_SIFTDetector().Detect(data, null).Cast<PCA_SIFTFeature>().ToList();
             PCA_KeypointDetector detector = new PCA_KeypointDetector(gpcafile);
+
             detector.ProjectKeypoints(model, featuresA);
             detector.ProjectKeypoints(data, featuresB);
 
-            Mat descriptorsA = ToDescriptorMatrix(featuresA);
-            Mat descriptorsB = ToDescriptorMatrix(featuresB);
-
-            // 3. Return list of keypoints with updated descriptors?
             if (outputFile == null) { outputFile = trainingFile + ".png"; }
             PCA_Match.Match(model.ToEmguGrayscale(), data.ToEmguGrayscale(), featuresA, featuresB, outputFile);
-            return 0;
-        }
-        static Mat ToDescriptorMatrix(List<PCA_SIFTFeature> features)
-        {
-            Matrix<float> res = new Matrix<float>(features.Count, features[0].Descriptor.Length);
-            float[,] data = res.Data;
-            int i, j;
-            for (i = 0; i < features.Count; i++)
-            {
-                float[] d = ((FeatureDescriptor<float>)features[i].Descriptor).Data;
-                for (j = 0; j < d.Length; j++)
-                {
-                    data[i, j] = d[j];
-                    if (float.IsNaN(d[j]))
-                    {
-                        Trace.WriteLine("nan");
-                    }
-                }
-            }
-            return res.Mat;
+            Trace.WriteLine("Images matched");
         }
 
-        void dfghdfgh()
+        void Train(string trainingFile, string trainingPath)
         {
-            //List<ImageFeature> features = new SIFTDetector().Detect(null, null).ToList();
-            //PCA_Something.ComputeDescriptors(Imaging.Image.Load(imageFileA).ToEmguGrayscale(), features);
+            if (trainingFile == null) { trainingFile = trainingPath; }
+            Trace.WriteLine("Training...");
+            PCA_Train train = new PCA_Train(trainingFile);
+            train.Train(trainingPath);
+            Trace.WriteLine("Trained.");
         }
     }
 }
