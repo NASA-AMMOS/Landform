@@ -83,10 +83,13 @@ namespace OPS.Alignment
                 if (mask[idx, 0] != 0)
                 {
                     var match = matches[idx][0];
-                    dataToModel.Add(new KeyValuePair<int, int>(match.TrainIdx, match.QueryIdx));
+                    dataToModel.Add(new KeyValuePair<int, int>(match.QueryIdx, match.TrainIdx));
                 }
             }
-            return new ImagePairCorrespondence(model, data, feat0, feat1, dataToModel);
+
+            var res = new ImagePairCorrespondence(model, data, feat0, feat1, dataToModel);
+            res.Compact();
+            return res;
         }
 
         static VectorOfKeyPoint ToVOKP(SIFTFeature[] kps)
