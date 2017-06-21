@@ -81,12 +81,14 @@ namespace OPS.Alignment
 
             for (int desci = 0; desci < EPCALEN; desci++)
             {
-                result[desci] = 0;
+                float total = 0;
 
                 for (int x = 0; x < GPLEN; x++)
                 {
-                    result[desci] += eigs[x, desci] * vec[x];
+                    total += eigs[x, desci] * vec[x];
                 }
+
+                result[desci] = total;
             }
             keypoint.Descriptor = new PCA_SIFTDescriptor(result); 
         }
@@ -121,11 +123,16 @@ namespace OPS.Alignment
 
             sizeratio = patchsize / (float)PATCHSIZE;
             Image<Gray, float> patch = new Image<Gray, float>(patchsize, patchsize);
+            float[,,] data = patch.Data;
 
             sine = (float)Math.Sin(keypoint.Angle);
             cosine = (float)Math.Cos(keypoint.Angle);
 
             iradius = patchsize / 2;
+
+            float[,,] blurData = blur.Data;
+            int height = blur.Height;
+            int width = blur.Width;
 
             float cpos, rpos;
             for (int y = -iradius; y <= iradius; y++)
@@ -135,7 +142,7 @@ namespace OPS.Alignment
                     cpos = (cosine * x  + sine * y) + keypoint.SX;
                     rpos = (-sine * x  + cosine * y) + keypoint.SY;
                     // not sure about this order of coordinates either
-                    patch[y + iradius, x + iradius] = new Gray(GetPixelBilinearInterpolation(blur, cpos, rpos));
+                    data[y + iradius, x + iradius, 0] = GetPixelBilinearInterpolation(blurData, cpos, rpos, height, width);
                 }
             }
 
@@ -145,10 +152,10 @@ namespace OPS.Alignment
             {
                 for (int x = 1; x < PATCHSIZE - 1; x++)
                 {
-                    x1 = (float)patch[y * (int)sizeratio, (x + 1) * (int)sizeratio].Intensity;
-                    x2 = (float)patch[y * (int)sizeratio, (x - 1) * (int)sizeratio].Intensity;
-                    y1 = (float)patch[(y + 1) * (int)sizeratio, x * (int)sizeratio].Intensity;
-                    y2 = (float)patch[(y - 1) * (int)sizeratio, x * (int)sizeratio].Intensity;
+                    x1 = data[y * (int)sizeratio, (x + 1) * (int)sizeratio, 0];
+                    x2 = data[y * (int)sizeratio, (x - 1) * (int)sizeratio, 0];
+                    y1 = data[(y + 1) * (int)sizeratio, x * (int)sizeratio, 0];
+                    y2 = data[(y - 1) * (int)sizeratio, x * (int)sizeratio, 0];
 
                     gx = x1 - x2;
                     gy = y1 - y2;
@@ -289,11 +296,15 @@ namespace OPS.Alignment
 
             sizeratio = patchsize / (float)PATCHSIZE;
             keypoint.Patch = new Image<Gray, float>(windowsize, windowsize);
+            float[,,] data = keypoint.Patch.Data;
 
             sine = (float)Math.Sin(keypoint.Angle);
             cosine = (float)Math.Cos(keypoint.Angle);
 
             iradius = windowsize / 2;
+            float[,,] blurData = blur.Data;
+            int height = blur.Height;
+            int width = blur.Width;
 
             float cpos, rpos;
             for (int y = -iradius; y <= iradius; y++)
@@ -303,11 +314,9 @@ namespace OPS.Alignment
                     cpos = (cosine * x * sizeratio + sine * y * sizeratio) + keypoint.SX;
                     rpos = (-sine * x * sizeratio + cosine * y * sizeratio) + keypoint.SY;
                     // not sure about this order of coordinates either lol
-                    keypoint.Patch[y + iradius, x + iradius] = new Gray(GetPixelBilinearInterpolation(blur, cpos, rpos));
+                    data[y + iradius, x + iradius, 0] = GetPixelBilinearInterpolation(blurData, cpos, rpos, height, width);
                 }
             }
-
-
         }
 
         /// <summary>
@@ -336,7 +345,7 @@ namespace OPS.Alignment
         /// <param name="col"></param>
         /// <param name="row"></param>
         /// <returns></returns>
-        static float GetPixelBilinearInterpolation(Image<Gray, float> image, float col, float row)
+        static float GetPixelBilinearInterpolation(float[,,] data, float col, float row, int height, int width)
         {
             int irow, icol;
             float rfrac, cfrac;
@@ -345,32 +354,32 @@ namespace OPS.Alignment
             irow = (int)row;
             icol = (int)col;
 
-            if (irow < 0 || irow >= image.Height || icol < 0 || icol >= image.Width) { return 0; }
+            if (irow < 0 || irow >= height || icol < 0 || icol >= width) { return 0; }
 
-            row = Math.Min(row, image.Height - 1);
-            col = Math.Min(col, image.Width - 1);
+            row = Math.Min(row, height - 1);
+            col = Math.Min(col, width - 1);
 
             rfrac = (float)1.0 - (row - irow); // casting may be in wrong area
             cfrac = (float)1.0 - (col - icol); // same problem as above
-
+            
             if (cfrac < 1)
             {
-                row1 = cfrac * (float)image[irow, icol].Intensity + (1.0f - cfrac) * (float)image[irow, icol + 1].Intensity;
+                row1 = cfrac * data[irow, icol, 0] + (1.0f - cfrac) * data[irow, icol + 1, 0];
             }
             else
             {
-                row1 = (float)image[irow, icol].Intensity;
+                row1 = data[irow, icol, 0];
             }
 
             if (rfrac < 1)
             {
                 if (cfrac < 1)
                 {
-                    row1 = cfrac * (float)image[irow + 1, icol].Intensity + (1.0f - cfrac) * (float)image[irow + 1, icol + 1].Intensity;
+                    row1 = cfrac * data[irow + 1, icol, 0] + (1.0f - cfrac) * data[irow + 1, icol + 1, 0];
                 }
                 else
                 {
-                    row2 = (float)image[irow + 1, icol].Intensity;
+                    row2 = data[irow + 1, icol, 0];
                 }
             }
 
@@ -408,7 +417,7 @@ namespace OPS.Alignment
         /// <param name="keys">List of keypoints with patches.</param>
         /// <param name="filename">Filename of place where the patches are to be saved.</param>
         /// <param name="patchsize">Height and width of patch.</param>
-        public static void WritePatchesToFile(List<PCA_Keypoint> keys, string filename, int patchsize)
+        public static void WritePatchesToFile(List<PCA_SIFTFeature> keys, string filename, int patchsize)
         {
             Debug.WriteLine("Writing to " + filename);
             using (BinaryWriter writer = new BinaryWriter(new FileStream(filename, FileMode.Create)))
@@ -420,21 +429,11 @@ namespace OPS.Alignment
 
                 for (int i = 0; i < keys.Count; i++)
                 {
-                    PCA_Keypoint key = keys[i];
-                    if (DOUBLE_BASE_IMAGE_SIZE == 1)
-                    {
-                        writer.Write(key.Y / 2);
-                        writer.Write(key.X / 2);
-                        writer.Write(key.GScale);
-                        writer.Write(key.Angle);
-                    }
-                    else
-                    {
-                        writer.Write(key.Y);
-                        writer.Write(key.X);
-                        writer.Write(key.GScale);
-                        writer.Write(key.Angle);
-                    }
+                    PCA_SIFTFeature key = keys[i];
+                    writer.Write(key.Location.Y);
+                    writer.Write(key.Location.X);
+                    writer.Write(key.GScale);
+                    writer.Write(key.Angle);
                     for (int y = 0; y < patchsize; y++)
                     {
                         for (int x = 0; x < patchsize; x++)

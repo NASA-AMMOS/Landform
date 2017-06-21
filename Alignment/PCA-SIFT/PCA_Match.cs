@@ -9,16 +9,21 @@ using Emgu.CV.Features2D;
 using Emgu.CV.XFeatures2D;
 using Emgu.CV;
 using System.Drawing;
+using OPS.Imaging.Emgu;
+using System.Runtime.ExceptionServices;
 
 namespace OPS.Alignment
 {
     public class PCA_Match
     {
+        [HandleProcessCorruptedStateExceptions]
         public static bool Match(Image<Gray, byte> model, Image<Gray, byte> data,
-           Mat descr0, VectorOfKeyPoint kp0, Mat descr1, VectorOfKeyPoint kp1, string outFile)
+           Matrix<float> descrA, VectorOfKeyPoint kp0, Matrix<float> descrB, VectorOfKeyPoint kp1, string outFile)
         {
             if (kp0.Size < 30 || kp1.Size < 30) return false;
 
+            Mat descr0 = descrA.Mat;
+            Mat descr1 = descrB.Mat;
             // Match descriptors
             VectorOfVectorOfDMatch matches = new VectorOfVectorOfDMatch();
             using (BFMatcher bfm = new BFMatcher(DistanceType.L2))
@@ -60,8 +65,8 @@ namespace OPS.Alignment
             List<PCA_SIFTFeature> feat0 = modelFeat;
             List<PCA_SIFTFeature> feat1 = dataFeat;
 
-            Mat descr0 = ToDescriptorMatrix(feat0);
-            Mat descr1 = ToDescriptorMatrix(feat1);
+            Matrix<float> descr0 = ToDescriptorMatrix(feat0);
+            Matrix<float> descr1 = ToDescriptorMatrix(feat1);
             VectorOfKeyPoint kp0 = ToVOKP(feat0);
             VectorOfKeyPoint kp1 = ToVOKP(feat1);
 
@@ -82,7 +87,7 @@ namespace OPS.Alignment
             return res;
         }
 
-        static Mat ToDescriptorMatrix(List<PCA_SIFTFeature> features)
+        public static Matrix<float> ToDescriptorMatrix(List<PCA_SIFTFeature> features)
         {
             Matrix<float> res = new Matrix<float>(features.Count, features[0].Descriptor.Length);
             float[,] data = res.Data;
@@ -95,7 +100,7 @@ namespace OPS.Alignment
                     data[i, j] = d[j];
                 }
             }
-            return res.Mat;
+            return res;
         }
 
 
@@ -135,6 +140,16 @@ namespace OPS.Alignment
             return result;
         }
 
+        public static bool Match(ImagePairCorrespondence matches, string outfile)
+        {
+            Imaging.Image model = matches.ModelImage.Image;
+            Imaging.Image data = matches.DataImage.Image;
+            Image<Gray, byte> modelImage = model.ToEmguGrayscale();
+            Image<Gray, byte> dataImage = data.ToEmguGrayscale();
+
+            return Match(modelImage, dataImage, matches.ModelFeatures.Cast<PCA_SIFTFeature>().ToList(), 
+                                                matches.DataFeatures.Cast<PCA_SIFTFeature>().ToList(), outfile);
+        }
     }
 }
 

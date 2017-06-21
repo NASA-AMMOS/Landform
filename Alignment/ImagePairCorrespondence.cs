@@ -64,7 +64,6 @@ namespace OPS.Alignment
         /// <param name="d2m">Output mapping from elements of df to mf</param>
         public void Flatten(out ImageFeature[] mf, out ImageFeature[] df, out int[] d2m)
         {
-            List<ImageFeature> mfl = new List<ImageFeature>();
             List<ImageFeature> dfl = new List<ImageFeature>();
             List<int> d2ml = new List<int>();
 
@@ -85,7 +84,7 @@ namespace OPS.Alignment
                 d2ml.Add(modelOldToNew[mi]);
             }
 
-            mf = mfl.ToArray();
+            mf = modelWinners.ToArray();
             df = dfl.ToArray();
             d2m = d2ml.ToArray();
         }
