@@ -207,7 +207,11 @@ namespace OPS.Pipeline
                     if (File.Exists(path))
                     {
                         byte[] data = File.ReadAllBytes(path);
-                        if (pc.Deserialize(data)) return state;
+                        if (pc.Deserialize(data))
+                        {
+                            state.Done = true;
+                            return state;
+                        }
                     }
                 }
             }
