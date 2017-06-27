@@ -63,7 +63,7 @@ namespace OPS.Alignment
             eigs = covar.Evd();
             eigvecs = eigs.EigenVectors;
             Vector<double> eigvals = eigs.EigenValues.Real();
-            ReOrderEigenvectorMatrix(eigvecs, eigvals);
+            OrderEigenvectors(eigvecs, eigvals);
 
             principalEigVecs = eigvecs.SubMatrix(0, eigvecs.RowCount, 0, n);
             principalEigVals = eigs.EigenValues.Real().SubVector(0, n);
@@ -74,7 +74,7 @@ namespace OPS.Alignment
             WriteEigenvectorsToFile(gpcafile + ".txt", true);
         }
 
-        void ReOrderEigenvectorMatrix(Matrix<float> eigvecs, Vector<double> eigvals)
+        void OrderEigenvectors(Matrix<float> eigvecs, Vector<double> eigvals)
         {
             Dictionary<double, Vector<float>> vectorDict = new Dictionary<double, Vector<float>>();
             eigvecs.EnumerateColumnsIndexed().ToList().ForEach(x => vectorDict[eigvals[x.Item1]] = x.Item2);
@@ -88,8 +88,6 @@ namespace OPS.Alignment
                 eigvecs.SetColumn(i, vectorDict[eigvalList[i]]);
             }
         }
-
-
 
         /// <summary>
         /// Train PCA with images in path.
@@ -119,9 +117,9 @@ namespace OPS.Alignment
             List<float[]> gradients = new List<float[]>();
             Imaging.Image modelImage = Imaging.Image.Load(imageFile);
             Emgu.CV.Image<Gray, float> grayModelImage = modelImage.ToEmguGrayscale().Convert<Gray, float>();
-            List<PCA_SIFTFeature> featuresA = new PCA_SIFTDetector().Detect(modelImage, null).Cast<PCA_SIFTFeature>().ToList();
-            List<PCA_SIFTFeature> PCAKeypoints = PCA_KeypointDetector.GetPatches(grayModelImage, featuresA, patchsize + 2);
-            gradients.AddRange(PCA_KeypointDetector.GetGradients(featuresA));
+            List<PCASIFTFeature> featuresA = new PCASIFTDetector().Detect(modelImage, null).Cast<PCASIFTFeature>().ToList();
+            List<PCASIFTFeature> PCAKeypoints = PCAKeypointProjector.GetPatches(grayModelImage, featuresA, patchsize + 2);
+            gradients.AddRange(PCASIFTUtil.GetGradients(featuresA));
 
             return gradients;
         }

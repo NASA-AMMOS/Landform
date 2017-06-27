@@ -75,9 +75,9 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="PCA-SIFT\PCA_SIFTDescriptor.cs" />
-    <Compile Include="PCA-SIFT\PCA_SIFTDetector.cs" />
-    <Compile Include="PCA-SIFT\PCA_SIFTFeature.cs" />
+    <Compile Include="PCA-SIFT\PCASIFTDescriptor.cs" />
+    <Compile Include="PCA-SIFT\PCASIFTDetector.cs" />
+    <Compile Include="PCA-SIFT\PCASIFTFeature.cs" />
     <Compile Include="SIFT\ASIFT.cs" />
     <Compile Include="EmguSIFTMatcher.cs" />
     <Compile Include="FeatureMatching\FeatureDescriptor.cs" />
@@ -91,11 +91,10 @@
     <Compile Include="Interfaces\IMatchFilter.cs" />
     <Compile Include="Interfaces\IFeatureMatcher.cs" />
     <Compile Include="MoisanStivalEpipolar.cs" />
-    <Compile Include="PCA-SIFT\PCA_Keypoint.cs" />
-    <Compile Include="PCA-SIFT\PCA_KeypointDetector.cs" />
-    <Compile Include="PCA-SIFT\PCA_Match.cs" />
-    <Compile Include="PCA-SIFT\PCA_SIFT.cs" />
-    <Compile Include="PCA-SIFT\PCA_Train.cs" />
+    <Compile Include="PCA-SIFT\PCAKeypointProjector.cs" />
+    <Compile Include="PCA-SIFT\PCAMatch.cs" />
+    <Compile Include="PCA-SIFT\PCASIFT.cs" />
+    <Compile Include="PCA-SIFT\PCASIFTTrain.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>

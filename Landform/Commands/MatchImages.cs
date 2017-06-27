@@ -23,9 +23,6 @@ namespace OPS.Pipeline
         [Value(1, Required = false, HelpText = "")]
         public string ImageB { get; set; }
 
-        [Option('p', "patches", Required = false, HelpText = "Indicate directory for gathering and saving patches")]
-        public string PatchFile { get; set; }
-
         [Option('t', "train", Required = false, HelpText = "Indicate directory of training images")]
         public string TrainingPath { get; set; }
 
@@ -34,6 +31,9 @@ namespace OPS.Pipeline
 
         [Option('e', "eigenspace", Required = false, HelpText = "Indicate saving location for computed eigenspace")]
         public string TrainingFile { get; set; }
+
+        [Option('s', "sift", Required = false, HelpText = "Use standard SIFT detection and description")]
+        public string SIFTbool { get; set; }
 
     }
 
@@ -53,14 +53,7 @@ namespace OPS.Pipeline
             string trainingPath = options.TrainingPath;
             string trainingFile = options.TrainingFile;
             string gpcafile = options.TrainingFile;
-            string patches = options.PatchFile;
-
-            if (patches != null)
-            {
-                PrecomputePatches(patches);
-                return -1;
-            }
-
+            string SIFTbool = options.SIFTbool;
 
             if (trainingPath != null)
             {
@@ -75,10 +68,13 @@ namespace OPS.Pipeline
             Imaging.Image model = Imaging.Image.Load(imageFileA);
             Imaging.Image data = Imaging.Image.Load(imageFileB);
 
-            //SIFT(model, data, outputFile);
+            if (SIFTbool != null)
+            {
+                SIFT(model, data, outputFile);
+                return 2;
+            }
 
-            Debug.WriteLine("Using images {0} and {1}", imageFileA, imageFileB);
-            DetectAndMatch(model, data, gpcafile, outputFile, true);
+            DetectAndMatch(model, data, gpcafile, outputFile);
 
             return 1;
         }
@@ -87,49 +83,38 @@ namespace OPS.Pipeline
         {
             string[] imageFiles = Directory.GetFiles(directory, "*.png");
 
-            List<PCA_SIFTFeature> features = new List<PCA_SIFTFeature>();
-            PCA_SIFTDetector detector = new PCA_SIFTDetector();
+            List<PCASIFTFeature> features = new List<PCASIFTFeature>();
+            PCASIFTDetector detector = new PCASIFTDetector();
 
             Parallel.For(0, imageFiles.Count(), i =>
             {
                 string imageFile = imageFiles[i];
                 Imaging.Image image = Imaging.Image.Load(imageFiles[i]);
-                List<PCA_SIFTFeature> featuresA = detector.Detect(image, null).Cast<PCA_SIFTFeature>().ToList();
-                features.AddRange(PCA_KeypointDetector.GetPatches(image.ToEmguGrayscale().Convert<Gray, float>(), featuresA, 41));
-                PCA_KeypointDetector.WritePatchesToFile(featuresA, imageFile.Substring(0, imageFile.Length - 4) + ".patch", 41);
+                List<PCASIFTFeature> featuresA = detector.Detect(image, null).Cast<PCASIFTFeature>().ToList();
+                features.AddRange(PCAKeypointProjector.GetPatches(image.ToEmguGrayscale().Convert<Gray, float>(), featuresA, 41));
+                PCASIFTIO.WritePatchesToFile(featuresA, imageFile.Substring(0, imageFile.Length - 4) + ".patch", 41);
             });
         }
 
-
-        void DetectAndMatch(Imaging.Image model, Imaging.Image data, string gpcafile, string outputFile, bool debug = false)
+        void DetectAndMatch(Imaging.Image model, Imaging.Image data, string gpcafile, string outputFile)
         {
             Trace.WriteLine("Matching images with PCA-SIFT...");
-            List<PCA_SIFTFeature> featuresA = new PCA_SIFTDetector().Detect(model, null).Cast<PCA_SIFTFeature>().ToList();
-            List<PCA_SIFTFeature> featuresB = new PCA_SIFTDetector().Detect(data, null).Cast<PCA_SIFTFeature>().ToList();
-            //new PCA_SIFTDetector().Write(model, @"C:\Users\charchut\Desktop\pcasift-0.91nd\image1.keys");
-            //new PCA_SIFTDetector().Write(data, @"C:\Users\charchut\Desktop\pcasift-0.91nd\image2.keys");
-            PCA_KeypointDetector detector = new PCA_KeypointDetector(gpcafile, false);
+            List<PCASIFTFeature> featuresA = new PCASIFTDetector().Detect(model, null).Cast<PCASIFTFeature>().ToList();
+            List<PCASIFTFeature> featuresB = new PCASIFTDetector().Detect(data, null).Cast<PCASIFTFeature>().ToList();
+            PCAKeypointProjector projector = new PCAKeypointProjector(gpcafile, true);
 
-            //detector.ProjectKeypoints(model, featuresA, 1);
-            //detector.ProjectKeypoints(data, featuresB, 2);
+            projector.Project(model, featuresA, 1);
+            projector.Project(data, featuresB, 2);
 
             if (outputFile == null) { outputFile = options.TrainingFile + ".png"; }
-
-            if (debug)
-            {
-                featuresA = PCA_KeypointDetector.ReadKeysFromFile(@"C:\cygwin64\home\charchut\pcasift-0.91nd\image1.keys");
-                featuresB = PCA_KeypointDetector.ReadKeysFromFile(@"C:\cygwin64\home\charchut\pcasift-0.91nd\image2.keys");
-                detector.ProjectKeypoints(model, featuresA, 1);
-                detector.ProjectKeypoints(data, featuresB, 2);
-            }
 
             EmguSIFTMatcher matcher = new EmguSIFTMatcher();
             ImagePairCorrespondence matches = matcher.Match(new ImageRef(model), new ImageRef(data), featuresA, featuresB);
             MoisanStivalFilter filter = new MoisanStivalFilter();
             matches = filter.Filter(matches);
-
-            PCA_Match.Match(matches, outputFile);
-            Trace.WriteLine("Images matched");
+            
+            PCAMatch.Match(matches, outputFile);
+            Trace.WriteLine("Matched images written to {0}", outputFile);
         }
 
         public void SIFT(Imaging.Image model, Imaging.Image data, string outputFile)
@@ -146,7 +131,7 @@ namespace OPS.Pipeline
             ImagePairCorrespondence matches = matcher.Match(new ImageRef(model), new ImageRef(data), modelfeat, datafeat);
             MoisanStivalFilter filter = new MoisanStivalFilter();
             matches = filter.Filter(matches);
-            PCA_Match.Match(matches, outputFile);
+            PCAMatch.Match(matches, outputFile);
             //PCA_Match.Match(model.ToEmguGrayscale(), data.ToEmguGrayscale(), descr0, kp0, descr1, kp1, outputFile);
         }
 

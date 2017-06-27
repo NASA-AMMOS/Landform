@@ -14,7 +14,7 @@ using System.Runtime.ExceptionServices;
 
 namespace OPS.Alignment
 {
-    public class PCA_Match
+    public class PCAMatch
     {
         [HandleProcessCorruptedStateExceptions]
         public static bool Match(Image<Gray, byte> model, Image<Gray, byte> data,
