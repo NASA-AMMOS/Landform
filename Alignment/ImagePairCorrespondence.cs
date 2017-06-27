@@ -38,7 +38,7 @@ namespace OPS.Alignment
 
                 int mi = pair.Value;
                 if (modelOldToNew.ContainsKey(mi)) continue;
-                modelOldToNew[di] = modelWinners.Count;
+                modelOldToNew[mi] = modelWinners.Count;
                 modelWinners.Add(ModelFeatures[mi]);
             }
 

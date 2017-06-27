@@ -60,10 +60,10 @@ namespace OPS.Alignment
             return true;
         }
         public static bool Match(Image<Gray, byte> model, Image<Gray, byte> data,
-           List<PCA_SIFTFeature> modelFeat, List<PCA_SIFTFeature> dataFeat, string outFile)
+           List<SIFTFeature> modelFeat, List<SIFTFeature> dataFeat, string outFile)
         {
-            List<PCA_SIFTFeature> feat0 = modelFeat;
-            List<PCA_SIFTFeature> feat1 = dataFeat;
+            List<SIFTFeature> feat0 = modelFeat;
+            List<SIFTFeature> feat1 = dataFeat;
 
             Matrix<float> descr0 = ToDescriptorMatrix(feat0);
             Matrix<float> descr1 = ToDescriptorMatrix(feat1);
@@ -73,7 +73,7 @@ namespace OPS.Alignment
             return Match(model, data, descr0, kp0, descr1, kp1, outFile);
         }
 
-        static VectorOfKeyPoint ToVOKP(List<PCA_SIFTFeature> kps)
+        static VectorOfKeyPoint ToVOKP(List<SIFTFeature> kps)
         {
             VectorOfKeyPoint res = new VectorOfKeyPoint();
             res.Push(kps.Select(kp =>
@@ -87,7 +87,7 @@ namespace OPS.Alignment
             return res;
         }
 
-        public static Matrix<float> ToDescriptorMatrix(List<PCA_SIFTFeature> features)
+        public static Matrix<float> ToDescriptorMatrix(List<SIFTFeature> features)
         {
             Matrix<float> res = new Matrix<float>(features.Count, features[0].Descriptor.Length);
             float[,] data = res.Data;
@@ -147,8 +147,8 @@ namespace OPS.Alignment
             Image<Gray, byte> modelImage = model.ToEmguGrayscale();
             Image<Gray, byte> dataImage = data.ToEmguGrayscale();
 
-            return Match(modelImage, dataImage, matches.ModelFeatures.Cast<PCA_SIFTFeature>().ToList(), 
-                                                matches.DataFeatures.Cast<PCA_SIFTFeature>().ToList(), outfile);
+            return Match(modelImage, dataImage, matches.ModelFeatures.Cast<SIFTFeature>().ToList(), 
+                                                matches.DataFeatures.Cast<SIFTFeature>().ToList(), outfile);
         }
     }
 }

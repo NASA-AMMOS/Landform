@@ -23,39 +23,76 @@ namespace OPS.Alignment
         const int PATCHSIZE = 41;
         const double INIT_SIGMA = 0.5;
         static float SIGMA = 1.6F;
-        const int SCALES_PER_OCTAVE = 5;
+        const int SCALES_PER_OCTAVE = 3;
         const int MAX_OCTAVES = 14;
-        static int DOUBLE_BASE_IMAGE_SIZE = 0;//1;
+        static int DOUBLE_BASE_IMAGE_SIZE = 1;
         const int GPLEN = (PATCHSIZE - 2) * (PATCHSIZE - 2) * 2;
         const int PCALEN = 36;
         const int EPCALEN = 36;
+        const int KERNEL_DIM = 11;
         float[] avgs = new float[GPLEN];
-        float[,] eigs = new float[GPLEN, PCALEN];
+        float[,] eigs = new float[EPCALEN, GPLEN];
+        static int counter = 0;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="T:OPS.Alignment.PCA_KeypointDetector"/> class.
         /// </summary>
         /// <param name="file">File containing mean and eigenspace computed from training set.</param>
-        public PCA_KeypointDetector(string file)
+        public PCA_KeypointDetector(string file, bool textFile = false)
         {
             if (File.Exists(file))
             {
-                using (BinaryReader reader = new BinaryReader(new FileStream(file, FileMode.Open)))
+                if (!textFile)
                 {
-                    reader.BaseStream.Position = 0;
-                    Debug.WriteLine("Reading averages.");
-                    for (int i = 0; i < GPLEN; i++)
+                    using (BinaryReader reader = new BinaryReader(new FileStream(file, FileMode.Open)))
                     {
-                        avgs[i] = reader.ReadSingle();
-                    }
-
-                    Debug.WriteLine("Reading pca vector {0}x{1}", GPLEN, PCALEN);
-                    for (int i = 0; i < GPLEN; i++)
-                    {
-                        for (int j = 0; j < PCALEN; j++)
+                        reader.BaseStream.Position = 0;
+                        Debug.WriteLine("Reading averages.");
+                        for (int i = 0; i < GPLEN; i++)
                         {
+                            avgs[i] = reader.ReadSingle();
+                        }
 
-                            eigs[i, j] = reader.ReadSingle();
+                        Debug.WriteLine("Reading pca vector {0}x{1}", GPLEN, EPCALEN);
+                        for (int i = 0; i < GPLEN; i++)
+                        {
+                            for (int j = 0; j < EPCALEN; j++)
+                            {
+
+                                eigs[j, i] = reader.ReadSingle();
+                            }
+                        }
+                    }
+                }
+                else
+                {
+                    using (TextReader reader = File.OpenText(file))
+                    {
+                        string[] numbers0 = reader.ReadToEnd().Split(new char[] {'\n', ' '});
+                        List<string> numbers = new List<string>();
+
+                        foreach (string num in numbers0)
+                        {
+                            if (num != "") numbers.Add(num);
+                        }
+
+
+                        Debug.WriteLine("Reading averages");
+                        int count = 0;
+
+                        for (int i = 0; i < GPLEN; i++)
+                        {
+                            avgs[i] = float.Parse(numbers[count++]);
+                        }
+
+                        Debug.WriteLine("Reading pca vector {0}x{1}", GPLEN, PCALEN);
+                        for (int i = 0; i < GPLEN; i++)
+                        {
+                            for (int j = 0; j < PCALEN; j++)
+                            {
+
+                                eigs[j, i] = float.Parse(numbers[count++]);
+                            }
                         }
                     }
                 }
@@ -85,7 +122,7 @@ namespace OPS.Alignment
 
                 for (int x = 0; x < GPLEN; x++)
                 {
-                    total += eigs[x, desci] * vec[x];
+                    total += eigs[desci, x] * vec[x];
                 }
 
                 result[desci] = total;
@@ -142,30 +179,34 @@ namespace OPS.Alignment
                     cpos = (cosine * x  + sine * y) + keypoint.SX;
                     rpos = (-sine * x  + cosine * y) + keypoint.SY;
                     // not sure about this order of coordinates either
-                    data[y + iradius, x + iradius, 0] = GetPixelBilinearInterpolation(blurData, cpos, rpos, height, width);
+                    data[x + iradius, y + iradius, 0] = GetPixelBilinearInterpolation(blurData, cpos, rpos, height, width);
                 }
             }
 
             int count = 0;
+            int diff_count = 0;
             float x1, x2, y1, y2, gx, gy;
-            for (int y = 1; y< PATCHSIZE - 1; y++)
+            for (int y = 1; y < PATCHSIZE - 1; y++)
             {
                 for (int x = 1; x < PATCHSIZE - 1; x++)
                 {
-                    x1 = data[y * (int)sizeratio, (x + 1) * (int)sizeratio, 0];
-                    x2 = data[y * (int)sizeratio, (x - 1) * (int)sizeratio, 0];
-                    y1 = data[(y + 1) * (int)sizeratio, x * (int)sizeratio, 0];
-                    y2 = data[(y - 1) * (int)sizeratio, x * (int)sizeratio, 0];
+                    x1 = GetPixelBilinearInterpolation(data, y * sizeratio, (x + 1) * sizeratio, height, width)/255;
+                    x2 = GetPixelBilinearInterpolation(data, y * sizeratio, (x - 1) * sizeratio, height, width)/255;
+                    y1 = GetPixelBilinearInterpolation(data, (y + 1) * sizeratio, x * sizeratio, height, width)/255;
+                    y2 = GetPixelBilinearInterpolation(data, (y - 1) * sizeratio, x * sizeratio, height, width)/255;
 
                     gx = x1 - x2;
                     gy = y1 - y2;
 
-                    vec[count] = gx;
-                    vec[count + 1] = gy;
-
-                    count += 2;
+                    vec[count++] = gx;
+                    vec[count++] = gy;
+                   // Debug.WriteLine("count: {0} | x1: {1}, x2: {2}, y1: {3}, y2: {4}", diff_count++, x1, x2, y1, y2);
+                   
                 }
             }
+
+           // Debug.WriteLine("x: {0}, y: {1}, gscale: {2}, ori: {3}", keypoint.Location.X, keypoint.Location.Y, keypoint.GScale, keypoint.Angle);
+            
             return vec;
         }
 
@@ -176,11 +217,13 @@ namespace OPS.Alignment
         /// <param name="octaves">List of Guassian scales calculated for each octave.</param>
         void ComputeLocalDescriptors(List<PCA_SIFTFeature> keypoints, List<List<Image<Gray, float>>> octaves)
         {
-            Parallel.For(0, keypoints.Count(), i =>
-            {
+            //Parallel.For(0, keypoints.Count(), i =>
+            //{
+            for (int i = 0; i < keypoints.Count; i++) {
                 PCA_SIFTFeature key = keypoints[i];
                 MakeKeypointPCA(keypoints[i], octaves[key.Octave][key.Scale]);
-            });
+            }
+            //});
         }
 
         /// <summary>
@@ -191,9 +234,21 @@ namespace OPS.Alignment
         static Image<Gray, float> ScaleInitImage(Image<Gray, float> image)
         {
             Image<Gray, float> dst;
-            dst = new Image<Gray, float>(image.Width, image.Height);
-            double sigma = Math.Sqrt(SIGMA * SIGMA - INIT_SIGMA * INIT_SIGMA);
-            CvInvoke.GaussianBlur(image, dst, Size.Empty, sigma);
+            if (DOUBLE_BASE_IMAGE_SIZE == 1)
+            {
+                Image<Gray, float> img = image.Clone().Resize(2, Inter.Linear);
+                dst = new Image<Gray, float>(img.Width, img.Height);
+                float sigma = (float)Math.Sqrt(SIGMA * SIGMA - 4 * INIT_SIGMA * INIT_SIGMA);
+                //dst = BlurImage(img, sigma);
+                dst = img.SmoothGaussian(KERNEL_DIM, KERNEL_DIM, SIGMA, SIGMA);
+            }
+            else
+            {
+                dst = new Image<Gray, float>(image.Width, image.Height);
+                float sigma = (float)Math.Sqrt(SIGMA * SIGMA - INIT_SIGMA * INIT_SIGMA);
+                //dst = BlurImage(image, sigma);
+                dst = image.SmoothGaussian(KERNEL_DIM, KERNEL_DIM, SIGMA, INIT_SIGMA);
+            }
             return dst;
         }
 
@@ -202,12 +257,12 @@ namespace OPS.Alignment
         /// </summary>
         /// <param name="image">Input image.</param>
         /// <returns>List of scales for the octave.</returns>
-        static List<Image<Gray, float>> BuildGaussianScales(Image<Gray, float> image)
+        static List<Image<Gray, float>> BuildGaussianScales(Image<Gray, float> image, int octave)
         {
             List<Image<Gray, float>> GScales = new List<Image<Gray, float>>();
             double k = Math.Pow(2, 1.0 / ((float)SCALES_PER_OCTAVE));
 
-            //Debug.WriteLine(string.Format("buildGaussianScales: building scales of dimension ({0},{1})", image.Width, image.Height));
+           // Debug.WriteLine(string.Format("buildGaussianScales: building scales of dimension ({0},{1})", image.Width, image.Height));
 
             GScales.Add(image.Clone());
 
@@ -220,7 +275,19 @@ namespace OPS.Alignment
                 double sigma = Math.Sqrt(sigma2 * sigma2 - sigma1 * sigma1);
 
                 //Debug.WriteLine(string.Format("buildGaussianScales: Blur {0}", sigma));
-                CvInvoke.GaussianBlur(GScales[GScales.Count - 1], dst, Size.Empty, sigma);
+                int kernelDim = (int)Math.Max(3, 2 * 4 * sigma + 1f);
+                kernelDim = kernelDim % 2 == 0 ? kernelDim + 1 : kernelDim;
+                //Debug.WriteLine("kernel dim: {0}", kernelDim);
+
+                try
+                {
+                    //dst = BlurImage(GScales[GScales.Count - 1], (float)sigma);
+                    dst = GScales[GScales.Count - 1].SmoothGaussian(kernelDim, kernelDim, sigma1, sigma2);
+                    //dst.Save("C:\\Users\\charchut\\Pictures\\junk\\CS\\oct_"+octave+"_"+ i +".pgm");
+                } catch (Exception e)
+                {
+                    Debug.WriteLine(e, e.StackTrace);
+                }
                 GScales.Add(dst);
             }
             return GScales;
@@ -235,9 +302,9 @@ namespace OPS.Alignment
         {
             List<List<Image<Gray, float>>> octaves = new List<List<Image<Gray, float>>>();
             int dim = Math.Min(image.Height, image.Width);
-            int numoctaves = (int)(Math.Log(dim) / Math.Log(2.0)) - 1; // -2??
+            int numoctaves = (int)(Math.Log(dim) / Math.Log(2.0)) - 2; // -2??
 
-            //Debug.WriteLine(string.Format("buildGaussianOctaves: Base image dimension is {0}x{1}", image.Width, image.Height));
+           // Debug.WriteLine(string.Format("BuildGaussianOctaves: Base image dimension is {0}x{1}", image.Width, image.Height));
 
             numoctaves = Math.Min(numoctaves, MAX_OCTAVES);
 
@@ -249,7 +316,7 @@ namespace OPS.Alignment
             {
                 //Debug.WriteLine(string.Format("Building octave {0} of dimension ({1},{2})", i, imageCopy.Width, imageCopy.Height));
                 // Build Gaussian scales
-                List<Image<Gray, float>> scales = BuildGaussianScales(imageCopy);
+                List<Image<Gray, float>> scales = BuildGaussianScales(imageCopy, i);
                 octaves.Add(scales);
 
                 // Halve the image 
@@ -278,7 +345,7 @@ namespace OPS.Alignment
             //Debug.Assert(blur != null);
 
             int patchsize, iradius;
-            float sine, cosine, sizeratio;
+            double sine, cosine, sizeratio;
 
             float scale = SIGMA * (float)Math.Pow(2.0, keypoint.FScale / SCALES_PER_OCTAVE);
 
@@ -306,17 +373,24 @@ namespace OPS.Alignment
             int height = blur.Height;
             int width = blur.Width;
 
-            float cpos, rpos;
+            double cpos, rpos;
+            //Debug.WriteLine("keypoint at ({0}, {1}", keypoint.Location.X, keypoint.Location.Y);
             for (int y = -iradius; y <= iradius; y++)
             {
                 for (int x = -iradius; x <= iradius; x++)
                 {
-                    cpos = (cosine * x * sizeratio + sine * y * sizeratio) + keypoint.SX;
-                    rpos = (-sine * x * sizeratio + cosine * y * sizeratio) + keypoint.SY;
+
+                        cpos = (float)(cosine * x * sizeratio + sine * y * sizeratio) + keypoint.SX;
+                    rpos = (float)(-sine * x * sizeratio + cosine * y * sizeratio) + keypoint.SY;
                     // not sure about this order of coordinates either lol
-                    data[y + iradius, x + iradius, 0] = GetPixelBilinearInterpolation(blurData, cpos, rpos, height, width);
+
+                    data[x + iradius, y + iradius, 0] = GetPixelBilinearInterpolation(blurData, cpos, rpos, height, width);
                 }
             }
+            //blur.Save(@"C:\Users\charchut\Desktop\blurrrrr.png");
+           // Debug.WriteLine("SX: {0}, SY: {1}", keypoint.SX, keypoint.SY);
+           //keypoint.Patch.Save("C:\\Users\\charchut\\Desktop\\new_patches\\patch_" + counter++ + ".png");
+
         }
 
         /// <summary>
@@ -345,7 +419,7 @@ namespace OPS.Alignment
         /// <param name="col"></param>
         /// <param name="row"></param>
         /// <returns></returns>
-        static float GetPixelBilinearInterpolation(float[,,] data, float col, float row, int height, int width)
+        static float GetPixelBilinearInterpolation(float[,,] data, double col, double row, int height, int width)
         {
             int irow, icol;
             float rfrac, cfrac;
@@ -359,12 +433,13 @@ namespace OPS.Alignment
             row = Math.Min(row, height - 1);
             col = Math.Min(col, width - 1);
 
-            rfrac = (float)1.0 - (row - irow); // casting may be in wrong area
-            cfrac = (float)1.0 - (col - icol); // same problem as above
+            rfrac = (float) (1.0 - (row - irow)); // casting may be in wrong area
+            cfrac = (float)(1.0 - (col - icol)); // same problem as above
             
             if (cfrac < 1)
             {
                 row1 = cfrac * data[irow, icol, 0] + (1.0f - cfrac) * data[irow, icol + 1, 0];
+                //Debug.WriteLine(data[irow, icol, 0] + " " + data[irow, icol + 1, 0]);
             }
             else
             {
@@ -375,14 +450,14 @@ namespace OPS.Alignment
             {
                 if (cfrac < 1)
                 {
-                    row1 = cfrac * data[irow + 1, icol, 0] + (1.0f - cfrac) * data[irow + 1, icol + 1, 0];
+                    row2 = cfrac * data[irow + 1, icol, 0] + (1.0f - cfrac) * data[irow + 1, icol + 1, 0];
                 }
                 else
                 {
                     row2 = data[irow + 1, icol, 0];
                 }
             }
-
+            //Debug.WriteLine(rfrac * row1 + (1f - rfrac) * row2);
             return rfrac * row1 + (1f - rfrac) * row2;
         }
 
@@ -395,7 +470,6 @@ namespace OPS.Alignment
         /// <returns></returns>
         public static List<PCA_SIFTFeature> GetPatches(Image<Gray, float> image, List<PCA_SIFTFeature> keypoints, int patchsize)
         {
-
             // 1. Scale image to create base of Gaussian pyramid
             image = ScaleInitImage(image);
 
@@ -504,7 +578,7 @@ namespace OPS.Alignment
         static void UpdateKeypoints(List<PCA_SIFTFeature> keypoints)
         {
             float log2 = (float)Math.Log(2);
-
+            int count = 50;
             for (int i = 0; i < keypoints.Count; i++)
             {
                 PCA_SIFTFeature k = keypoints[i];
@@ -513,9 +587,6 @@ namespace OPS.Alignment
                 k.Octave = (int)tmp;
                 k.FScale = (float)((tmp - k.Octave) * SCALES_PER_OCTAVE);
                 k.Scale = (int)Math.Round(k.FScale);
-                if (float.IsNaN(k.Octave) || float.IsNaN(k.FScale) || float.IsNaN(k.Scale)) {
-                    Trace.WriteLine("NaN in updating keypoint params :(");
-                }
 
                 if (k.Scale == 0 && k.Octave > 0)
                 {
@@ -529,8 +600,8 @@ namespace OPS.Alignment
 
                 if (DOUBLE_BASE_IMAGE_SIZE == 1)
                 {
-                    k.Location.X *= 2;
-                    k.Location.Y *= 2;
+                    //k.Location.X *= 2;
+                    //k.Location.Y *= 2;
                     k.SX *= 2;
                     k.SY *= 2;
                 }
@@ -542,13 +613,44 @@ namespace OPS.Alignment
         /// </summary>
         /// <param name="image">Input image.</param>
         /// <param name="keypoints">List of keypoints.</param>
-        public void ProjectKeypoints(Imaging.Image image, List<PCA_SIFTFeature> keypoints)
+        public void ProjectKeypoints(Imaging.Image image, List<PCA_SIFTFeature> keypoints, int number = 0)
         {
-            Image<Gray, float> im = ScaleInitImage(image.ToEmguGrayscale().Convert<Gray, float>());
+            Image<Gray, byte> imByte = image.ToEmguGrayscale();
+            Image<Gray, float> im = imByte.Convert<Gray, float>();
+            //visualizePatches(@"C:\Users\charchut\Desktop\og_patches.txt");
+            
+            //im = doubleImageSize(im);
+            //im = fillImage(im);
+            //im.Save(@"C:\Users\charchut\Desktop\test_patch.png");
+            im = ScaleInitImage(im);
             List<List<Image<Gray, float>>> GOctaves = BuildGaussianOctaves(im);
             UpdateKeypoints(keypoints);
-            ComputeLocalPatches(keypoints, GOctaves, PATCHSIZE);
+            // ComputeLocalPatches(keypoints, GOctaves, PATCHSIZE);
             ComputeLocalDescriptors(keypoints, GOctaves);
+            // WriteDescriptorsToFile(keypoints, @"C:\cygwin64\home\charchut\pcasift-0.91nd\CSrock_" + number + ".pkeys");
+        }
+
+        private void WriteDescriptorsToFile(List<PCA_SIFTFeature> keypoints, string filename)
+        {
+            using (StreamWriter writer = new StreamWriter(new FileStream(filename, FileMode.Create)))
+            {
+                // mean should be of length 3042
+                writer.WriteLine("{0} {1}", keypoints.Count, 36);
+                for (int a = 0; a < keypoints.Count; a++)
+                {
+                    PCA_SIFTFeature key = keypoints[a];
+                    writer.WriteLine("{0} {1} {2} {3}", string.Format("{0:0.00}", key.Location.Y), string.Format("{0:0.00}", key.Location.X),
+                        string.Format("{0:0.000}", key.Size), string.Format("{0:0.000}", key.Angle));
+                    var data = ((FeatureDescriptor<float>)key.Descriptor).Data;
+                    for (int j = 0; j < 36; j++)
+                    {
+                        if (j % 12 == 0) writer.WriteLine();
+                        writer.Write(" " + string.Format("{0:0.}", data[j]));
+                       
+                        
+                    }
+                }
+            }
         }
 
         /// <summary>
@@ -561,7 +663,7 @@ namespace OPS.Alignment
 
             for (int i = 0; i < vector.Length; i++)
             {
-                total += vector[i];
+                total += Math.Abs(vector[i]);
             }
 
             if (total == 0)
@@ -573,7 +675,7 @@ namespace OPS.Alignment
 
             for (int i = 0; i < vector.Length; i++)
             {
-                vector[i] /= total * 100f; // not sure if this is necessary.
+                vector[i] /= total / 100f; // not sure if this is necessary.
             }
         }
 
@@ -581,7 +683,7 @@ namespace OPS.Alignment
         /// Calculates list of gradients from a list of keypoints.
         /// </summary>
         /// <param name="keypoints">Input keypoints.</param>
-        /// <returns>List of concatenated horizontal and vertical gradients.</returns>
+        /// <returns>List of concatenated horizontal and vertical gradients.</returns>`
         public static List<float[]> GetGradients(List<PCA_SIFTFeature> keypoints)
         {
             List<float[]> result = new List<float[]>();
@@ -628,7 +730,7 @@ namespace OPS.Alignment
         {
             using (BinaryWriter writer = new BinaryWriter(new FileStream(filename, FileMode.Append)))
             {
-                Debug.WriteLine((float)keypoints.Count());
+                //Debug.WriteLine((float)keypoints.Count());
                 writer.Write((float)keypoints.Count());
                 for (int i = 0; i < keypoints.Count(); i++)
                 {
@@ -665,5 +767,243 @@ namespace OPS.Alignment
                 }
             }
         }
+
+
+
+        public static List<PCA_SIFTFeature> ReadKeysFromFile(string filename)
+        {
+            List<PCA_SIFTFeature> result = new List<PCA_SIFTFeature>();
+            using (TextReader reader = File.OpenText(filename))
+            {
+                string[] numbers0 = reader.ReadToEnd().Split(new char[] { '\n', ' ' });
+                List<string> numbers = new List<string>();
+
+                foreach (string num in numbers0)
+                {
+                    if (num != "") numbers.Add(num);
+                }
+
+                int keyCount = int.Parse(numbers[0]);
+                int count = 2;
+
+                for (int i = 0; i < keyCount; i++)
+                {
+
+                    Vector2 location = new Vector2(float.Parse(numbers[count++]), float.Parse(numbers[count++]));
+                    location = new Vector2(location.Y, location.X);
+                    float size = float.Parse(numbers[count++]);
+                    float angle = float.Parse(numbers[count++]);
+                    float[] descriptor = new float[PCALEN];
+                    for (int j = 0; j < 128; j++)
+                    {
+                        if (j > 35)
+                        {
+                            count++;
+                            continue;
+                        }
+                        descriptor[j] = float.Parse(numbers[count++]);
+                    }
+                    result.Add(new PCA_SIFTFeature(location, size, angle, 0, 0, new PCA_SIFTDescriptor(descriptor)));
+                }
+            }
+            return result;
+        }
+
+
+        public Image<Gray, float> doubleImageSize(Image<Gray, float> image)
+        {
+            Image<Gray, float> res = new Image<Gray, float>(image.Width * 2, image.Height * 2);
+            float[,,] data = res.Data;
+            float[,,] oldData = image.Data;
+
+            for (int j = 0; j < image.Height; j++)
+            {
+                for (int i = 0; i < image.Width; i++)
+                {
+                    data[j*2, i*2, 0] = oldData[j, i, 0];
+                }
+            }
+
+            return res;
+        }
+
+        public Image<Gray, float> fillImage(Image<Gray, float> image)
+        {
+            Image<Gray, float> res = new Image<Gray, float>(image.Width, image.Height);
+            float[,,] data = res.Data;
+            float[,,] oldData = image.Data;
+
+            for (int j = 0; j < image.Height; j++)
+            {
+                for (int i = 0; i < image.Width; i++)
+                {
+                    if (oldData[j, i, 0] == 0)
+                    {
+                        data[j, i, 0] = GetPixelBilinearInterpolation(oldData, i, j, image.Height, image.Width);
+                    }
+                    else
+                    {
+                        data[j, i, 0] = oldData[j, i, 0];
+                    }
+                }
+            }
+
+            return res;
+        }
+
+
+        public void visualizePatches(string filename)
+        {
+            Image<Gray, float> res = new Image<Gray, float>(41, 41);
+            float[,,] data = res.Data;
+            using (TextReader reader = File.OpenText(filename))
+            {
+                string[] numbers0 = reader.ReadToEnd().Split(new char[] { '\n', ' ' });
+                List<string> numbers = new List<string>();
+
+                foreach (string num in numbers0)
+                {
+                    if (num != "") numbers.Add(num);
+                }
+                int count = 2;
+
+                for (int x = 0; x < 17185; x++)
+                {
+                    count += 4;
+                    for (int j = 0; j < 41; j++)
+                    {
+                        for (int i = 0; i < 41; i++)
+                        {
+                            data[i, j, 0] = float.Parse(numbers[count++]) * 255;
+                        }
+                    }
+                    res.Save(@"C:\Users\charchut\Desktop\og_patches\patch" + x + ".jpg");
+                }
+            }
+
+            return;
+        }
+
+        static Image<Gray, float> BlurImage(Image<Gray, float> image, float sigma)
+        {
+            float[] kernel = GaussianKernel1D(sigma);
+            Image<Gray, float> temp = Convolve1DWidth(kernel, image);
+            Image<Gray, float> res = Convolve1DHeight(kernel, temp);
+            return res;
+        }
+
+        static float[] GaussianKernel1D(float sigma)
+        {
+            int dim = (int)Math.Max(3f, 2 * 4 * sigma + 1f);
+            if (dim % 2 == 0) dim++;
+            float[] kern = new float[dim];
+            float s2 = sigma * sigma;
+            int c = dim / 2;
+            for (int i = 0; i < (dim + 1)/2; i++)
+            {
+                double v = 1 / (2 * Math.PI * s2) * Math.Exp(-(i * i) / (2 * s2));
+                kern[c + i] = (float)v;
+                kern[c - i] = (float)v;
+            }
+
+            float sum = 0;
+            for (int i = 0; i < kern.Length; i++)
+                sum += kern[i];
+
+            for (int i = 0; i < kern.Length; i++)
+                kern[i] /= sum;
+
+            return kern;
+        }
+
+        static Image<Gray, float> Convolve1DHeight(float[] kern, Image<Gray, float> src)
+        {
+            Image<Gray, float> destImg = new Image<Gray, float>(src.Width, src.Height);
+            float[,,] dest = destImg.Data;
+            for (int j = 0; j < src.Height; j++)
+            {
+                for (int i = 0; i < src.Width; i++)
+                {
+                    //printf("%d, %d\n", i, j);
+                    dest[j, i, 0] = ConvolveLocHeight(kern, src, i, j);
+                }
+            }
+            return destImg;
+        }
+
+        static float ConvolveLocHeight(float[] kernel, Image<Gray, float> src, int x, int y)
+        {
+            float pixel = 0;
+
+            int cen = kernel.Length / 2;
+
+            float[,,] data = src.Data;
+            //printf("ConvolveLoc(): Applying convoluation at location (%d, %d)\n", x, y);
+
+            for (int j = 0; j < kernel.Length; j++)
+            {
+                int row = y + (j - cen);
+
+                if (row < 0)
+                    row = 0;
+
+                if (row >= src.Height)
+                    row = src.Height - 1;
+
+                float tmp = data[row, x, 0];
+                pixel += kernel[j] * tmp;
+            }
+
+            if (pixel > 255)
+                pixel = 255;
+
+            return pixel;
+        }
+
+        static Image<Gray, float> Convolve1DWidth(float[] kern, Image<Gray, float> src)
+        {
+            Image<Gray, float> res = new Image<Gray, float>(src.Width, src.Height);
+            float[,,] dst = res.Data;
+            for (int j = 0; j < src.Height; j++)
+            {
+                for (int i = 0; i < src.Width; i++)
+                {
+                    //printf("%d, %d\n", i, j);
+                    dst[j, i, 0] = ConvolveLocWidth(kern, src, i, j);
+                }
+            }
+            return res;
+        }
+
+        static float ConvolveLocWidth(float[] kernel, Image<Gray, float> src, int x, int y)
+        {
+            float pixel = 0;
+
+            int cen = kernel.Length / 2;
+
+            float[,,] data = src.Data;
+            //printf("ConvolveLoc(): Applying convoluation at location (%d, %d)\n", x, y);
+
+            for (int i = 0; i < kernel.Length; i++)
+            {
+                int col = x + (i - cen);
+                if (col < 0)
+                    col = 0;
+                if (col >= src.Width)
+                    col = src.Width - 1;
+
+                float tmp = data[y, col, 0];
+                pixel += kernel[i] * tmp;
+            }
+
+            if (pixel > 255)
+                pixel = 255;
+
+            return pixel;
+        }
+
     }
+
+
+    
 }

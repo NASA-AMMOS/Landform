@@ -70,7 +70,7 @@ namespace OPS.Pipeline
 
             if (outputFile == null)
             {
-                outputFile = imageFileA.Substring(0, imageFileA.Length-4) + ".jpg";
+                outputFile = imageFileA.Substring(0, imageFileA.Length - 4) + ".jpg";
             }
             Imaging.Image model = Imaging.Image.Load(imageFileA);
             Imaging.Image data = Imaging.Image.Load(imageFileB);
@@ -78,7 +78,7 @@ namespace OPS.Pipeline
             //SIFT(model, data, outputFile);
 
             Debug.WriteLine("Using images {0} and {1}", imageFileA, imageFileB);
-            DetectAndMatch(model, data, gpcafile, outputFile);
+            DetectAndMatch(model, data, gpcafile, outputFile, true);
 
             return 1;
         }
@@ -101,17 +101,27 @@ namespace OPS.Pipeline
         }
 
 
-        void DetectAndMatch(Imaging.Image model, Imaging.Image data, string gpcafile, string outputFile)
+        void DetectAndMatch(Imaging.Image model, Imaging.Image data, string gpcafile, string outputFile, bool debug = false)
         {
             Trace.WriteLine("Matching images with PCA-SIFT...");
             List<PCA_SIFTFeature> featuresA = new PCA_SIFTDetector().Detect(model, null).Cast<PCA_SIFTFeature>().ToList();
             List<PCA_SIFTFeature> featuresB = new PCA_SIFTDetector().Detect(data, null).Cast<PCA_SIFTFeature>().ToList();
-            PCA_KeypointDetector detector = new PCA_KeypointDetector(gpcafile);
+            //new PCA_SIFTDetector().Write(model, @"C:\Users\charchut\Desktop\pcasift-0.91nd\image1.keys");
+            //new PCA_SIFTDetector().Write(data, @"C:\Users\charchut\Desktop\pcasift-0.91nd\image2.keys");
+            PCA_KeypointDetector detector = new PCA_KeypointDetector(gpcafile, false);
 
-            detector.ProjectKeypoints(model, featuresA);
-            detector.ProjectKeypoints(data, featuresB);
+            //detector.ProjectKeypoints(model, featuresA, 1);
+            //detector.ProjectKeypoints(data, featuresB, 2);
 
             if (outputFile == null) { outputFile = options.TrainingFile + ".png"; }
+
+            if (debug)
+            {
+                featuresA = PCA_KeypointDetector.ReadKeysFromFile(@"C:\cygwin64\home\charchut\pcasift-0.91nd\image1.keys");
+                featuresB = PCA_KeypointDetector.ReadKeysFromFile(@"C:\cygwin64\home\charchut\pcasift-0.91nd\image2.keys");
+                detector.ProjectKeypoints(model, featuresA, 1);
+                detector.ProjectKeypoints(data, featuresB, 2);
+            }
 
             EmguSIFTMatcher matcher = new EmguSIFTMatcher();
             ImagePairCorrespondence matches = matcher.Match(new ImageRef(model), new ImageRef(data), featuresA, featuresB);
@@ -120,16 +130,6 @@ namespace OPS.Pipeline
 
             PCA_Match.Match(matches, outputFile);
             Trace.WriteLine("Images matched");
-            //Matrix<float> descr0 = ToDescriptorMatrix(featuresA.Cast<SIFTFeature>().ToList());
-            //Matrix<float> descr1 = ToDescriptorMatrix(featuresB.Cast<SIFTFeature>().ToList());
-            //VectorOfKeyPoint kp0 = ToVOKP(featuresA.Cast<SIFTFeature>().ToList());
-            //VectorOfKeyPoint kp1 = ToVOKP(featuresB.Cast<SIFTFeature>().ToList());
-            ////EmguSIFTMatcher matcher = new EmguSIFTMatcher();
-            ////ImagePairCorrespondence matches = matcher.Match(new ImageRef(model), new ImageRef(data), featuresA.Cast<SIFTFeature>().ToList(), featuresB.Cast<SIFTFeature>().ToList());
-            ////MoisanStivalFilter filter = new MoisanStivalFilter();
-            ////matches = filter.Filter(matches);
-            ////PCA_Match.Match(matches, outputFile);
-            //PCA_Match.Match(model.ToEmguGrayscale(), data.ToEmguGrayscale(), descr0, kp0, descr1, kp1, outputFile);
         }
 
         public void SIFT(Imaging.Image model, Imaging.Image data, string outputFile)

@@ -71,7 +71,7 @@ namespace OPS.Alignment
             Trace.WriteLine(principalEigVecs);
             Trace.WriteLine(principalEigVals);
 
-            WriteEigenvectorsToFile(gpcafile + ".txt");
+            WriteEigenvectorsToFile(gpcafile + ".txt", true);
         }
 
         void ReOrderEigenvectorMatrix(Matrix<float> eigvecs, Vector<double> eigvals)
@@ -100,11 +100,11 @@ namespace OPS.Alignment
             string[] imageFiles = Directory.GetFiles(path, "*.png");
             List<float[]> gradients = new List<float[]>();
 
-            Parallel.For(0, imageFiles.Count(), i => { 
+            Parallel.For(0, imageFiles.Count(), i =>
+            {
                 gradients.AddRange(CalculateGradients(imageFiles[i]));
             });
 
-            
             ComputeEigenspace(gradients);
         }
 
@@ -194,31 +194,48 @@ namespace OPS.Alignment
         /// Writes the eigenvectors and mean to file.
         /// </summary>
         /// <param name="filename">Filename of location where the eigenvectors and mean are to be saved.</param>
-        void WriteEigenvectorsToFile(string filename)
+        void WriteEigenvectorsToFile(string filename, bool readable = false)
         {
             Trace.WriteLine("Writing eigenvectors to " + filename);
-            using (BinaryWriter writer = new BinaryWriter(new FileStream(filename, FileMode.Create)))
-            {
-                // mean should be of length 3042
-                for (int a = 0; a < 3042; a++)
-                {
-                    if (float.IsNaN(mean[a]))
-                    {
-                        Trace.WriteLine("NaN in mean :(");
-                    }
-                    writer.Write(mean[a]);
-                }
 
-                // eigvecs should be 3042x36
-                for (int i = 0; i < 3042; i++)
+            if (!readable)
+            {
+                using (BinaryWriter writer = new BinaryWriter(new FileStream(filename, FileMode.Create)))
                 {
-                    for (int j = 0; j < n; j++)
+                    // mean should be of length 3042
+                    for (int a = 0; a < 3042; a++)
                     {
-                        writer.Write(principalEigVecs[i, j]);
-                        if (float.IsNaN(principalEigVecs[i, j]))
+                        writer.Write(mean[a]);
+                    }
+
+                    // eigvecs should be 3042x36
+                    for (int i = 0; i < 3042; i++)
+                    {
+                        for (int j = 0; j < n; j++)
                         {
-                            Trace.WriteLine("NaN in eigvecs :(");
+                            writer.Write(principalEigVecs[i, j]);
                         }
+                    }
+                }
+            }
+            else
+            {
+                using (StreamWriter writer = new StreamWriter(new FileStream(filename, FileMode.Create)))
+                {
+                    // mean should be of length 3042
+                    for (int a = 0; a < 3042; a++)
+                    {
+                        writer.WriteLine("  " + mean[a]);
+                    }
+
+                    // eigvecs should be 3042x36
+                    for (int i = 0; i < 3042; i++)
+                    {
+                        for (int j = 0; j < n; j++)
+                        {
+                            writer.Write("  " + principalEigVecs[i, j]);
+                        }
+                        writer.WriteLine();
                     }
                 }
             }
