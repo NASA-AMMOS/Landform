@@ -88,6 +88,7 @@
     <Compile Include="CameraModels\Reference\CAHVORE.cs" />
     <Compile Include="GdalConfiguration.cs" />
     <Compile Include="Imaging\ImageCoordinateTest.cs" />
+    <Compile Include="Imaging\ImageStatisticsTest.cs" />
     <Compile Include="Imaging\ImageTest.cs" />
     <Compile Include="Imaging\GenericImageTest.cs" />
     <Compile Include="Imaging\ImageMetadataTest.cs" />
@@ -101,6 +102,10 @@
     <ProjectReference Include="..\Imaging\Imaging.csproj">
       <Project>{c3ec3ab5-8dfd-4daa-9833-246f0db6a805}</Project>
       <Name>Imaging</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\MathExtensions\MathExtensions.csproj">
+      <Project>{8C7C8A71-0A4B-4D75-9CB2-32803BD8F86F}</Project>
+      <Name>MathExtensions</Name>
     </ProjectReference>
     <ProjectReference Include="..\TestData\TestData.csproj">
       <Project>{42298ee4-6937-4b4c-a8b8-89effbc40e80}</Project>
