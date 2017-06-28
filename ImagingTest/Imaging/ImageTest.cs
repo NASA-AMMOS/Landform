@@ -2,6 +2,7 @@
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using OPS.Imaging;
 using System.IO;
+using OPS.Test;
 
 namespace ImageTest
 {
@@ -116,6 +117,19 @@ namespace ImageTest
         }
 
         [TestMethod]
+        public void BandScaleValues()
+        {
+            Image img = new Image(3, 2, 3);
+            img[0, 0, 0] = 7;
+            img[0, 0, 1] = 1;
+            img[0, 0, 2] = 40;
+            img.ScaleValues(0, 3, 20, -1, 0);
+            AssertE.AreSimilar(-1 + (7 - 3) / (double)(20 - 3), img[0, 0, 0], 1E-5);
+            Assert.AreEqual(-1, img[0, 0, 1]);
+            Assert.AreEqual(0, img[0, 0, 2]);
+        }
+
+        [TestMethod]
         public void ImageScaleValues()
         {
             Image img = new Image(3, 2, 2);
@@ -128,6 +142,25 @@ namespace ImageTest
             Assert.AreEqual(40, img[1, 0, 1]);
             Assert.AreEqual(40, img[1, 1, 1]);
             Assert.AreEqual(20, img[0, 0, 1]);
+        }
+
+        [TestMethod]
+        public void TestImageCrop()
+        {
+            Image img = new Image(2, 4, 7);
+            foreach (ImageCoordinate ic in img.Coordinates(true))
+            {
+                img[ic.b, ic.r, ic.c] = ic.b * 100 + ic.r * 10 + ic.c;
+            }
+            Image crop = img.Crop(1, 2, 2, 3);
+            Assert.AreEqual(2, img.Bands);
+            Assert.AreEqual(2, crop.Width);
+            Assert.AreEqual(3, crop.Height);
+            foreach (ImageCoordinate ic in crop.Coordinates(true))
+            {
+                int value = (ic.b) * 100 + (ic.r + 1) * 10 + (ic.c + 2);
+                Assert.AreEqual(value, crop[ic.b, ic.r, ic.c]);
+            }
         }
     }
 }

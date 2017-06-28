@@ -82,6 +82,26 @@ namespace OPS.Imaging
         {
             serializer.Write<T>(filename, this, converter);
         }
+        
+        /// <summary>
+        /// Linearly scale values in this band
+        /// </summary>
+        /// <param name="band">band to scale</param>
+        /// <param name="beforeMin">any pixles currently at this value will be mapped to afterMin</param>
+        /// <param name="beforeMax">any pixels currently at this value will be mapped to afterMax</param>
+        /// <param name="afterMin">the new min value for this band</param>
+        /// <param name="afterMax">the new max value for this band</param>
+        public void ScaleValues(int band, float beforeMin, float beforeMax, float afterMin, float afterMax)
+        {
+            float beforeRange = beforeMax - beforeMin;
+            float afterRange = afterMax - afterMin;
+            ApplyInPlace(band, x =>
+            {
+                float amount = (x - beforeMin) / beforeRange;
+                float result = MathE.Clamp(afterMin + afterRange * amount, afterMin, afterMax);
+                return result;
+            });
+        }
 
         /// <summary>
         /// Linearly scales values in the image from [beforeMin, beforeMax] to [afterMin, afterMax]
@@ -98,14 +118,10 @@ namespace OPS.Imaging
         /// <param name="afterMax">max value in result image</param>
         public void ScaleValues(float beforeMin, float beforeMax, float afterMin, float afterMax)
         {
-            float beforeRange = beforeMax - beforeMin;
-            float afterRange = afterMax - afterMin;
-            ApplyInPlace(x =>
+            for(int b = 0; b < this.Bands; b++)
             {
-                float amount = (x - beforeMin) / beforeRange;
-                float result = MathE.Clamp(afterMin + afterRange * amount, afterMin, afterMax);
-                return result;
-            });
+                ScaleValues(b, beforeMin, beforeMax, afterMin, afterMax);
+            }
         }
 
         /// <summary>
