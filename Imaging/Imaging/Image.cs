@@ -167,7 +167,33 @@ namespace OPS.Imaging
             }
         }
 
+        /// <summary>
+        /// Crop the source image to the specified dimensions.  Return a new image of the cropped area.
+        /// This method does not retain metadata or camera model.
+        /// </summary>
+        /// <param name="source"></param>
+        /// <param name="startRow"></param>
+        /// <param name="startCol"></param>
+        /// <param name="width"></param>
+        /// <param name="height"></param>
+        /// <returns></returns>
+        public Image Crop(int startRow, int startCol, int width, int height)
+        {
+            Image result = new Image(this.Bands, width, height);
+            if(this.HasMask)
+            {
+                result.CreateMask();
             }
+            foreach (ImageCoordinate ic in result.Coordinates(true))
+            {
+                result[ic.b, ic.r, ic.c] = this[ic.b, ic.r + startRow, ic.c + startCol];
+                if(this.HasMask)
+                {
+                    result.SetMaskValue(ic.r, ic.c, this.IsMasked(ic.r + startRow, ic.c + startCol));
+                }
+            }
+            return result;
+        }
         }
 
     }
