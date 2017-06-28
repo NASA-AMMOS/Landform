@@ -10,6 +10,7 @@ using Emgu.CV.Structure;
 using System.Drawing;
 using System.IO;
 using System.Threading.Tasks;
+using OPS.Alignment.PCASIFT;
 
 namespace OPS.Pipeline
 {
@@ -91,7 +92,7 @@ namespace OPS.Pipeline
                 string imageFile = imageFiles[i];
                 Imaging.Image image = Imaging.Image.Load(imageFiles[i]);
                 List<PCASIFTFeature> featuresA = detector.Detect(image, null).Cast<PCASIFTFeature>().ToList();
-                features.AddRange(PCAKeypointProjector.GetPatches(image.ToEmguGrayscale().Convert<Gray, float>(), featuresA, 41));
+                features.AddRange(PCATrain.GetPatches(image.ToEmguGrayscale().Convert<Gray, float>(), featuresA, 41));
                 PCASIFTIO.WritePatchesToFile(featuresA, imageFile.Substring(0, imageFile.Length - 4) + ".patch", 41);
             });
         }
@@ -101,7 +102,7 @@ namespace OPS.Pipeline
             Trace.WriteLine("Matching images with PCA-SIFT...");
             List<PCASIFTFeature> featuresA = new PCASIFTDetector().Detect(model, null).Cast<PCASIFTFeature>().ToList();
             List<PCASIFTFeature> featuresB = new PCASIFTDetector().Detect(data, null).Cast<PCASIFTFeature>().ToList();
-            PCAKeypointProjector projector = new PCAKeypointProjector(gpcafile, true);
+            KeypointProjector projector = new KeypointProjector(gpcafile, true);
 
             projector.Project(model, featuresA, 1);
             projector.Project(data, featuresB, 2);
@@ -114,7 +115,7 @@ namespace OPS.Pipeline
             matches = filter.Filter(matches);
             
             PCAMatch.Match(matches, outputFile);
-            Trace.WriteLine("Matched images written to {0}", outputFile);
+            Trace.WriteLine(string.Format("Matched images written to {0}", outputFile));
         }
 
         public void SIFT(Imaging.Image model, Imaging.Image data, string outputFile)
@@ -132,14 +133,13 @@ namespace OPS.Pipeline
             MoisanStivalFilter filter = new MoisanStivalFilter();
             matches = filter.Filter(matches);
             PCAMatch.Match(matches, outputFile);
-            //PCA_Match.Match(model.ToEmguGrayscale(), data.ToEmguGrayscale(), descr0, kp0, descr1, kp1, outputFile);
         }
 
         void Train(string trainingFile, string trainingPath)
         {
             if (trainingFile == null) { trainingFile = trainingPath; }
             Trace.WriteLine("Training...");
-            PCA_Train train = new PCA_Train(trainingFile);
+            PCATrain train = new PCATrain(trainingFile);
             train.Train(trainingPath);
             Trace.WriteLine("Trained.");
         }

@@ -2,7 +2,7 @@
 
 namespace OPS.Alignment
 {
-    public class PCA_SIFTDescriptor : FeatureDescriptor<float>
+    public class PCASIFTDescriptor : FeatureDescriptor<float>
     {
         public override int Length
         {
@@ -12,7 +12,7 @@ namespace OPS.Alignment
             }
         }
 
-        public PCA_SIFTDescriptor(float[] data)
+        public PCASIFTDescriptor(float[] data)
         {
             if (data.Length != Length)
             {

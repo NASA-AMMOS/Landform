@@ -20,7 +20,7 @@ namespace OPS.Alignment
     // As described in PCA SIFT : A More Distinctive Representation for Local Image Descriptors
     // http://www.cs.cmu.edu/~yke/pcasift/
 
-    public class PCASIFT
+    public class PCA_SIFT
     {
         const double PI = 3.14159256358979323846;
         const int PATCHMAG = 20;

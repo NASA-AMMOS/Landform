@@ -1,6 +1,5 @@
 ﻿using System.Collections.Generic;
 using System.Linq;
-using Emgu.CV.XFeatures2D;
 using OPS.Imaging.Emgu;
 using System.Diagnostics;
 using System.IO;
@@ -11,12 +10,12 @@ using MathNet.Numerics.Statistics;
 using System.Threading.Tasks;
 using System;
 
-namespace OPS.Alignment
+namespace OPS.Alignment.PCASIFT
 {
     /// <summary>
     /// PCA Training Class.
     /// </summary>
-    public class PCA_Train
+    public class PCATrain
     {
         const int n = 36;
         const int patchsize = 39;
@@ -27,12 +26,24 @@ namespace OPS.Alignment
         Matrix<float> eigvecs;
         Matrix<float> principalEigVecs;
         Vector<double> principalEigVals;
+        const double PI = 3.14159256358979323846;
+        const int PATCHMAG = 20;
+        const int PATCHSIZE = 41;
+        const double INIT_SIGMA = 0.5;
+        static float SIGMA = 1.6F;
+        const int SCALES_PER_OCTAVE = 3;
+        const int MAX_OCTAVES = 14;
+        static int DOUBLE_BASE_IMAGE_SIZE = 1;
+        const int GPLEN = (PATCHSIZE - 2) * (PATCHSIZE - 2) * 2;
+        const int PCALEN = 36;
+        const int EPCALEN = 36;
+        const int KERNEL_DIM = 11;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="T:OPS.Alignment.PCA_Train"/> class.
         /// </summary>
         /// <param name="filename">Filename where the trained eigenspace is to be stored.</param>
-        public PCA_Train(string filename)
+        public PCATrain(string filename)
         {
             gpcafile = filename;
         }
@@ -118,8 +129,8 @@ namespace OPS.Alignment
             Imaging.Image modelImage = Imaging.Image.Load(imageFile);
             Emgu.CV.Image<Gray, float> grayModelImage = modelImage.ToEmguGrayscale().Convert<Gray, float>();
             List<PCASIFTFeature> featuresA = new PCASIFTDetector().Detect(modelImage, null).Cast<PCASIFTFeature>().ToList();
-            List<PCASIFTFeature> PCAKeypoints = PCAKeypointProjector.GetPatches(grayModelImage, featuresA, patchsize + 2);
-            gradients.AddRange(PCASIFTUtil.GetGradients(featuresA));
+            List<PCASIFTFeature> PCAKeypoints = GetPatches(grayModelImage, featuresA, patchsize + 2);
+            gradients.AddRange(Util.GetGradients(featuresA));
 
             return gradients;
         }
@@ -131,7 +142,7 @@ namespace OPS.Alignment
         /// <param name="data">Dataset.</param>
         public static Matrix<float> CovarianceMatrix(Matrix<float> data)
         {
-            Matrix<float> result = Matrix<float>.Build.Dense(data.ColumnCount, data.ColumnCount);
+            MathNet.Numerics.LinearAlgebra.Matrix<float> result = Matrix<float>.Build.Dense(data.ColumnCount, data.ColumnCount);
             Vector<float>[] A = new Vector<float>[data.ColumnCount];
             Vector<float>[] B = new Vector<float>[data.ColumnCount];
 
@@ -240,5 +251,84 @@ namespace OPS.Alignment
 
             Trace.WriteLine("Wrote to " + filename);
         }
+
+        /// <summary>
+        /// Creates an image patch for all keypoints of an image.
+        /// </summary>
+        /// <param name="keypoints">List of keypoints</param>
+        /// <param name="octaves">Calculated Gaussian pyramids for all octaves.</param>
+        /// <param name="patchsize">Height and width of patch.</param>
+        static void ComputeLocalPatches(List<PCASIFTFeature> keypoints, List<List<Emgu.CV.Image<Gray, float>>> octaves, int windowsize)
+        {
+            for (int i = 0; i < keypoints.Count; i++)
+            {
+                PCASIFTFeature key = keypoints[i];
+
+                Debug.Assert(key.Octave >= 0 && key.Octave < octaves.Count);
+                Debug.Assert(key.Scale >= 0 && key.Scale < octaves[key.Octave].Count);
+
+                int iradius, patchsize;
+                double sine, cosine, sizeratio;
+                float scale = SIGMA * (float)Math.Pow(2.0, key.FScale / SCALES_PER_OCTAVE);
+                Emgu.CV.Image<Gray, float> blur = octaves[key.Octave][key.Scale];
+
+                // Sampling window size
+                patchsize = (int)(PATCHMAG * scale);
+
+                // Make odd
+                patchsize = (patchsize / 2) * 2 + 1;
+
+                // Technically a bug fix but should do the trick for now
+                if (patchsize < PATCHSIZE) patchsize = PATCHSIZE;
+
+                sizeratio = patchsize / (float)PATCHSIZE;
+                key.Patch = new Emgu.CV.Image<Gray, float>(patchsize, patchsize);
+                float[,,] data = key.Patch.Data;
+
+                sine = (float)Math.Sin(key.Angle);
+                cosine = (float)Math.Cos(key.Angle);
+
+                iradius = windowsize / 2;
+                float[,,] blurData = blur.Data;
+                int height = blur.Height;
+                int width = blur.Width;
+
+                double cpos, rpos;
+                for (int y = -iradius; y <= iradius; y++)
+                {
+                    for (int x = -iradius; x <= iradius; x++)
+                    {
+                        cpos = (float)(cosine * x * sizeratio + sine * y * sizeratio) + key.SX;
+                        rpos = (float)(-sine * x * sizeratio + cosine * y * sizeratio) + key.SY;
+                        data[x + iradius, y + iradius, 0] = Util.GetPixelBilinearInterpolation(blurData, cpos, rpos, height, width);
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Gathers patches of size patchsize x patchsize for all keypoints of a given image.
+        /// </summary>
+        /// <param name="image">Input image.</param>
+        /// <param name="keypoints">Keypoints detected with SIFT.</param>
+        /// <param name="patchsize">Height and width of patch.</param>
+        /// <returns></returns>
+        public static List<PCASIFTFeature> GetPatches(Emgu.CV.Image<Gray, float> image, List<PCASIFTFeature> keypoints, int patchsize)
+        {
+            // 1. Scale image to create base of Gaussian pyramid
+            image = Util.ScaleInitImage(image);
+
+            // 2. Build Gaussian octaves
+            List<List<Emgu.CV.Image<Gray, float>>> octaves = Util.BuildGaussianOctaves(image);
+
+            // 3. Update all keypoint parameters
+            Util.UpdateKeypoints(keypoints);
+
+            // 4. Compute local patches
+            ComputeLocalPatches(keypoints, octaves, patchsize);
+
+            return keypoints;
+        }
+
     }
 }

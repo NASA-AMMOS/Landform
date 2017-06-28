@@ -12,7 +12,7 @@ using System.Drawing;
 using OPS.Imaging.Emgu;
 using System.Runtime.ExceptionServices;
 
-namespace OPS.Alignment
+namespace OPS.Alignment.PCASIFT
 {
     public class PCAMatch
     {

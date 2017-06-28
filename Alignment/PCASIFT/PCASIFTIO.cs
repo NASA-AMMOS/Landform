@@ -11,6 +11,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using OPS.Alignment.PCASIFT;
 
 namespace OPS.Alignment
 {
@@ -114,7 +115,7 @@ namespace OPS.Alignment
                         }
                         descriptor[j] = float.Parse(numbers[count++]);
                     }
-                    result.Add(new PCASIFTFeature(location, size, angle, 0, 0, new PCA_SIFTDescriptor(descriptor)));
+                    result.Add(new PCASIFTFeature(location, size, angle, 0, 0, new PCASIFTDescriptor(descriptor)));
                 }
             }
             return result;
@@ -157,7 +158,7 @@ namespace OPS.Alignment
                             count += 2;
                         }
                     }
-                    PCASIFTUtil.NormalizeVector(vec);
+                    Util.NormalizeVector(vec);
                     for (int z = 0; z < gsize; z++)
                     {
                         writer.Write(vec[z]);
