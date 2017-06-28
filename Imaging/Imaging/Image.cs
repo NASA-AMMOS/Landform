@@ -93,6 +93,10 @@ namespace OPS.Imaging
         /// <param name="afterMax">the new max value for this band</param>
         public void ScaleValues(int band, float beforeMin, float beforeMax, float afterMin, float afterMax)
         {
+            if (beforeMax == beforeMin)
+            {
+                throw new Exception("Cannot ScaleValues when beforeMin and beforeMax are the same");
+            }
             float beforeRange = beforeMax - beforeMin;
             float afterRange = afterMax - afterMin;
             ApplyInPlace(band, x =>
@@ -133,6 +137,38 @@ namespace OPS.Imaging
             return new Image(this);
         }
 
+        /// <summary>
+        /// Stretch the color channles of an image based the standard deviation of its values
+        /// The resulting image will have its values normalzied between 0 and 1
+        /// NOTE that bands with no variance (ie all the same value) will not be scaled and could be outside the 0-1 range
+        /// NOTE masked values are also not scaled and could remain outside the 0-1 range
+        /// </summary>
+        /// <param name="nStdev">Number of standard deviations from the mean to place the upper and lower values of the stretch</param>
+        public void ApplyStdDevStretch(double nStdev = 3)
+        {
+            ImageStatistics stats = new ImageStatistics(this);
+            for (int b = 0; b < this.Bands; b++)
+            {
+                // Cannot apply streatch with 1 or fewer values
+                if (stats.Average(b).Count <= 1)
+                {
+                    continue;
+                }
+                double stdev = stats.Average(b).StandardDeviation;
+                double mean = stats.Average(b).Mean;
+
+                double min = Math.Max(mean - stdev * nStdev, stats.Average(b).Min);
+                double max = Math.Min(mean + stdev * nStdev, stats.Average(b).Max);
+                // Scaling values is invalid if min and max are the same
+                if (min != max)
+                {
+                    ScaleValues(b, (float)min, (float)max, 0, 1);
+                }
+            }
+        }
+
+            }
+        }
 
     }
 }

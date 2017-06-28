@@ -145,6 +145,41 @@ namespace ImageTest
         }
 
         [TestMethod]
+        public void ImageStdStretch()
+        {
+            {
+                Image img = new Image(3, 2, 2);
+                img[0, 0, 0] = 4;
+                img[1, 0, 1] = 10;
+                img[1, 1, 1] = 20;
+                img[0, 0, 1] = -2;
+                img.ApplyStdDevStretch();
+                Assert.AreNotEqual(4, img[0, 0, 0]);
+                Assert.AreNotEqual(10, img[1, 0, 1]);
+                Assert.AreNotEqual(20, img[1, 1, 1]);
+                Assert.AreNotEqual(-2, img[0, 0, 1]);
+                Assert.AreEqual(0, img[2, 0, 1]);
+                foreach (double d in img)
+                {
+                    Assert.IsTrue(d >= 0 && d <= 1);
+                }
+            }
+            {
+                // Test masked values and bands with no variance
+                Image img = new Image(1, 1, 3);
+                img.CreateMask();
+                img.SetMaskValue(0, 0, true);
+                img[0, 0, 0] = 17;
+                img[0, 0, 1] = 7;
+                img[0, 0, 2] = 7;
+                img.ApplyStdDevStretch();
+                Assert.AreEqual(17, img[0, 0, 0]);
+                Assert.AreEqual(7, img[0, 0, 1]);
+                Assert.AreEqual(7, img[0, 0, 2]);
+            }
+        }
+
+        [TestMethod]
         public void TestImageCrop()
         {
             Image img = new Image(2, 4, 7);
