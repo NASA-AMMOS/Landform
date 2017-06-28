@@ -323,12 +323,25 @@ namespace OPS.Imaging
         {
             for (int b = 0; b < Data.Length; b++)
             {
-                for (int i = 0; i < Data[b].Length; i++)
+                ApplyInPlace(b, f, applyToMaskedValues);
+            }
+        }
+
+        /// <summary>
+        /// Apply a function to all values in the specified band. 
+        /// Result is written back to the array in place
+        /// Ignores masked values by default
+        /// </summary>
+        /// <param name="band"></param>
+        /// <param name="f"></param>
+        /// <param name="applyToMaskedValues"></param>
+        public void ApplyInPlace(int band, Func<T, T> f, bool applyToMaskedValues = false)
+        {
+            for (int i = 0; i < Data[band].Length; i++)
+            {
+                if (applyToMaskedValues || !IsMasked(i))
                 {
-                    if (applyToMaskedValues || !IsMasked(i))
-                    {
-                        this.Data[b][i] = f(this.Data[b][i]);
-                    }
+                    this.Data[band][i] = f(this.Data[band][i]);
                 }
             }
         }

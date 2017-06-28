@@ -178,6 +178,16 @@ namespace ImagingTest
             Assert.AreEqual(1, img[1, 2, 1]);
             Assert.AreEqual(1, img[0, 2, 4]);
             Assert.AreEqual(1, img[1, 2, 4]);
+
+            img = new GenericImage<byte>(2, 3, 4);
+            img.CreateMask();
+            img.SetMaskValue(0, 4, true);
+            img.ApplyInPlace(0, x =>
+            {
+                return 1;
+            });
+            int total = img.Sum(x => x);
+            Assert.AreEqual(3 * 4 - 1, total);
         }
 
         [TestMethod]
