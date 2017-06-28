@@ -10,7 +10,7 @@ using Emgu.CV.Structure;
 using System.Drawing;
 using System.IO;
 using System.Threading.Tasks;
-using OPS.Alignment.PCASIFT;
+
 
 namespace OPS.Pipeline
 {
@@ -102,7 +102,7 @@ namespace OPS.Pipeline
             Trace.WriteLine("Matching images with PCA-SIFT...");
             List<PCASIFTFeature> featuresA = new PCASIFTDetector().Detect(model, null).Cast<PCASIFTFeature>().ToList();
             List<PCASIFTFeature> featuresB = new PCASIFTDetector().Detect(data, null).Cast<PCASIFTFeature>().ToList();
-            KeypointProjector projector = new KeypointProjector(gpcafile, true);
+            PCAKeypointProjector projector = new PCAKeypointProjector(gpcafile, false);
 
             projector.Project(model, featuresA, 1);
             projector.Project(data, featuresB, 2);
@@ -120,6 +120,7 @@ namespace OPS.Pipeline
 
         public void SIFT(Imaging.Image model, Imaging.Image data, string outputFile)
         {
+            if (outputFile == null) { outputFile = options.TrainingFile + ".png"; }
             Image<Gray, byte> imageModel = model.ToEmguGrayscale();
             Image<Gray, byte> imageData = data.ToEmguGrayscale();
             List<SIFTFeature> modelfeat = ASIFT.Detect(imageModel, null, false).Cast<SIFTFeature>().ToList();
@@ -133,6 +134,7 @@ namespace OPS.Pipeline
             MoisanStivalFilter filter = new MoisanStivalFilter();
             matches = filter.Filter(matches);
             PCAMatch.Match(matches, outputFile);
+            Trace.WriteLine(string.Format("Matched images written to {0}", outputFile));
         }
 
         void Train(string trainingFile, string trainingPath)

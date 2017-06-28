@@ -4,12 +4,10 @@ using Emgu.CV.Structure;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
-namespace OPS.Alignment.PCASIFT
+namespace OPS.Alignment
 {
-    class Util
+    public class PCAUtil
     {
         const double PI = 3.14159256358979323846;
         const int PATCHMAG = 20;
@@ -18,7 +16,6 @@ namespace OPS.Alignment.PCASIFT
         static float SIGMA = 1.6F;
         const int SCALES_PER_OCTAVE = 3;
         const int MAX_OCTAVES = 14;
-        static int DOUBLE_BASE_IMAGE_SIZE = 1;
         const int GPLEN = (PATCHSIZE - 2) * (PATCHSIZE - 2) * 2;
         const int PCALEN = 36;
         const int EPCALEN = 36;
@@ -27,9 +24,10 @@ namespace OPS.Alignment.PCASIFT
         /// Normalizes a vector.
         /// </summary>
         /// <param name="vector">Normalized vector.</param>
-        public static void NormalizeVector(float[] vector)
+        public static float[] NormalizeVector(float[] vector)
         {
             float total = 0;
+            float[] res = new float[vector.Length];
 
             for (int i = 0; i < vector.Length; i++)
             {
@@ -38,15 +36,17 @@ namespace OPS.Alignment.PCASIFT
 
             if (total == 0)
             {
-                return;
+                return vector;
             }
 
             total /= vector.Length;
 
             for (int i = 0; i < vector.Length; i++)
             {
-                vector[i] /= total / 100f; // change constant value ?????
+                res[i] = vector[i] / total;// / 100f; // change constant value ?????
             }
+
+            return res;
         }
 
         /// <summary>
@@ -67,14 +67,21 @@ namespace OPS.Alignment.PCASIFT
                 float x1, x2, y1, y2, gx, gy;
                 PCASIFTFeature key = keypoints[i];
 
+                float[,,] data = key.Patch.Data;
                 for (int y = 1; y < patchsize - 1; y++)
                 {
                     for (int x = 1; x < patchsize - 1; x++)
                     {
-                        x1 = (float)key.Patch[x + 1, y].Intensity;
-                        x2 = (float)key.Patch[x - 1, y].Intensity;
-                        y1 = (float)key.Patch[x, y + 1].Intensity;
-                        y2 = (float)key.Patch[x, y - 1].Intensity;
+                        x1 = data[x + 1, y, 0];
+                        x2 = data[x - 1, y, 0];
+                        y1 = data[x, y + 1, 0];
+                        y2 = data[x, y - 1, 0];
+
+                        // not entirely sure on the above indexing
+                        //x1 = data[y, x + 1 , 0];
+                        //x2 = data[y, x - 1, 0];
+                        //y1 = data[y + 1, x, 0];
+                        //y2 = data[y - 1, x, 0];
 
                         gx = x1 - x2;
                         gy = y1 - y2;
@@ -85,9 +92,10 @@ namespace OPS.Alignment.PCASIFT
                         count += 2;
                     }
                 }
-                NormalizeVector(vec);
+                vec = NormalizeVector(vec);
                 result.Add(vec);
             }
+
             return result;
         }
 
@@ -146,24 +154,12 @@ namespace OPS.Alignment.PCASIFT
         public static Image<Gray, float> ScaleInitImage(Image<Gray, float> image)
         {
             Image<Gray, float> dst;
-            if (DOUBLE_BASE_IMAGE_SIZE == 1)
-            {
-                Image<Gray, float> img = image.Clone().Resize(2, Inter.Area);
-                dst = new Image<Gray, float>(img.Width, img.Height);
-                float sigma = (float)Math.Sqrt(SIGMA * SIGMA - 4 * INIT_SIGMA * INIT_SIGMA);
-                int kernelDim = (int)Math.Max(3, 2 * 4 * sigma + 1f);
-                kernelDim = kernelDim % 2 == 0 ? kernelDim + 1 : kernelDim;
-                dst = img.SmoothGaussian(kernelDim, kernelDim, SIGMA, SIGMA);
-            }
-            else
-            {
-                dst = new Image<Gray, float>(image.Width, image.Height);
-                float sigma = (float)Math.Sqrt(SIGMA * SIGMA - INIT_SIGMA * INIT_SIGMA);
-                int kernelDim = (int)Math.Max(3, 2 * 4 * sigma + 1f);
-                kernelDim = kernelDim % 2 == 0 ? kernelDim + 1 : kernelDim;
-                dst = image.SmoothGaussian(kernelDim, kernelDim, SIGMA, INIT_SIGMA);
-            }
-            return dst;
+            Image<Gray, float> img = image.Clone().Resize(2, Inter.Area);
+            dst = new Image<Gray, float>(img.Width, img.Height);
+            float sigma = (float)Math.Sqrt(SIGMA * SIGMA - 4 * INIT_SIGMA * INIT_SIGMA);
+            int kernelDim = (int)Math.Max(3, 2 * 4 * sigma + 1f);
+            kernelDim = kernelDim % 2 == 0 ? kernelDim + 1 : kernelDim;
+            return img.SmoothGaussian(kernelDim, kernelDim, SIGMA, SIGMA);
         }
 
         /// <summary>
@@ -250,13 +246,10 @@ namespace OPS.Alignment.PCASIFT
                 k.SX = (float)(k.Location.X / Math.Pow(2.0, k.Octave));
                 k.SY = (float)(k.Location.Y / Math.Pow(2.0, k.Octave));
 
-                if (DOUBLE_BASE_IMAGE_SIZE == 1)
-                {
-                    //k.Location.X *= 2;
-                    //k.Location.Y *= 2; // This doesn't need to change.
-                    k.SX *= 2;
-                    k.SY *= 2;
-                }
+                //k.Location.X *= 2;
+                //k.Location.Y *= 2; // This doesn't need to change.
+                k.SX *= 2;
+                k.SY *= 2;
             }
         }
     }

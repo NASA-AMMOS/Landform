@@ -24,6 +24,7 @@
     <DefineConstants>DEBUG;TRACE</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
+    <RunCodeAnalysis>false</RunCodeAnalysis>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
     <DebugType>pdbonly</DebugType>
@@ -93,7 +94,7 @@
     <Compile Include="Interfaces\IMatchFilter.cs" />
     <Compile Include="Interfaces\IFeatureMatcher.cs" />
     <Compile Include="MoisanStivalEpipolar.cs" />
-    <Compile Include="PCASIFT\KeypointProjector.cs" />
+    <Compile Include="PCASIFT\PCAKeypointProjector.cs" />
     <Compile Include="PCASIFT\PCAMatch.cs" />
     <Compile Include="PCASIFT\PCASIFTTrain.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />

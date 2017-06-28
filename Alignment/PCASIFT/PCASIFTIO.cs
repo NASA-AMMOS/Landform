@@ -9,9 +9,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using OPS.Alignment.PCASIFT;
+
 
 namespace OPS.Alignment
 {
@@ -158,7 +156,7 @@ namespace OPS.Alignment
                             count += 2;
                         }
                     }
-                    Util.NormalizeVector(vec);
+                    vec = PCAUtil.NormalizeVector(vec);
                     for (int z = 0; z < gsize; z++)
                     {
                         writer.Write(vec[z]);

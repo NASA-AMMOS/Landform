@@ -12,7 +12,7 @@ using System.Drawing;
 using OPS.Imaging.Emgu;
 using System.Runtime.ExceptionServices;
 
-namespace OPS.Alignment.PCASIFT
+namespace OPS.Alignment
 {
     public class PCAMatch
     {
@@ -20,7 +20,7 @@ namespace OPS.Alignment.PCASIFT
         public static bool Match(Image<Gray, byte> model, Image<Gray, byte> data,
            Matrix<float> descrA, VectorOfKeyPoint kp0, Matrix<float> descrB, VectorOfKeyPoint kp1, string outFile)
         {
-            if (kp0.Size < 30 || kp1.Size < 30) return false;
+            //if (kp0.Size < 30 || kp1.Size < 30) return false;
 
             Mat descr0 = descrA.Mat;
             Mat descr1 = descrB.Mat;

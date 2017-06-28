@@ -10,7 +10,7 @@ using MathNet.Numerics.Statistics;
 using System.Threading.Tasks;
 using System;
 
-namespace OPS.Alignment.PCASIFT
+namespace OPS.Alignment
 {
     /// <summary>
     /// PCA Training Class.
@@ -33,7 +33,6 @@ namespace OPS.Alignment.PCASIFT
         static float SIGMA = 1.6F;
         const int SCALES_PER_OCTAVE = 3;
         const int MAX_OCTAVES = 14;
-        static int DOUBLE_BASE_IMAGE_SIZE = 1;
         const int GPLEN = (PATCHSIZE - 2) * (PATCHSIZE - 2) * 2;
         const int PCALEN = 36;
         const int EPCALEN = 36;
@@ -108,12 +107,16 @@ namespace OPS.Alignment.PCASIFT
         {
             string[] imageFiles = Directory.GetFiles(path, "*.png");
             List<float[]> gradients = new List<float[]>();
+            object obj = new object();
 
             Parallel.For(0, imageFiles.Count(), i =>
-            {
-                gradients.AddRange(CalculateGradients(imageFiles[i]));
-            });
-
+                {
+                    List<float[]> grads = CalculateGradients(imageFiles[i]);
+                    lock (obj)
+                    {
+                        gradients.AddRange(grads);
+                    }
+                });
             ComputeEigenspace(gradients);
         }
 
@@ -130,7 +133,7 @@ namespace OPS.Alignment.PCASIFT
             Emgu.CV.Image<Gray, float> grayModelImage = modelImage.ToEmguGrayscale().Convert<Gray, float>();
             List<PCASIFTFeature> featuresA = new PCASIFTDetector().Detect(modelImage, null).Cast<PCASIFTFeature>().ToList();
             List<PCASIFTFeature> PCAKeypoints = GetPatches(grayModelImage, featuresA, patchsize + 2);
-            gradients.AddRange(Util.GetGradients(featuresA));
+            gradients.AddRange(PCAUtil.GetGradients(featuresA));
 
             return gradients;
         }
@@ -282,7 +285,7 @@ namespace OPS.Alignment.PCASIFT
                 if (patchsize < PATCHSIZE) patchsize = PATCHSIZE;
 
                 sizeratio = patchsize / (float)PATCHSIZE;
-                key.Patch = new Emgu.CV.Image<Gray, float>(patchsize, patchsize);
+                key.Patch = new Emgu.CV.Image<Gray, float>(windowsize, windowsize);
                 float[,,] data = key.Patch.Data;
 
                 sine = (float)Math.Sin(key.Angle);
@@ -300,7 +303,7 @@ namespace OPS.Alignment.PCASIFT
                     {
                         cpos = (float)(cosine * x * sizeratio + sine * y * sizeratio) + key.SX;
                         rpos = (float)(-sine * x * sizeratio + cosine * y * sizeratio) + key.SY;
-                        data[x + iradius, y + iradius, 0] = Util.GetPixelBilinearInterpolation(blurData, cpos, rpos, height, width);
+                        data[x + iradius, y + iradius, 0] = PCAUtil.GetPixelBilinearInterpolation(blurData, cpos, rpos, height, width);
                     }
                 }
             }
@@ -316,13 +319,13 @@ namespace OPS.Alignment.PCASIFT
         public static List<PCASIFTFeature> GetPatches(Emgu.CV.Image<Gray, float> image, List<PCASIFTFeature> keypoints, int patchsize)
         {
             // 1. Scale image to create base of Gaussian pyramid
-            image = Util.ScaleInitImage(image);
+            image = PCAUtil.ScaleInitImage(image);
 
             // 2. Build Gaussian octaves
-            List<List<Emgu.CV.Image<Gray, float>>> octaves = Util.BuildGaussianOctaves(image);
+            List<List<Emgu.CV.Image<Gray, float>>> octaves = PCAUtil.BuildGaussianOctaves(image);
 
             // 3. Update all keypoint parameters
-            Util.UpdateKeypoints(keypoints);
+            PCAUtil.UpdateKeypoints(keypoints);
 
             // 4. Compute local patches
             ComputeLocalPatches(keypoints, octaves, patchsize);

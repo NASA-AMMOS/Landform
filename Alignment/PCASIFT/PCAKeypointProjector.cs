@@ -8,7 +8,7 @@ using System.IO;
 using System.Threading.Tasks;
 using OPS.Imaging.Emgu;
 
-namespace OPS.Alignment.PCASIFT
+namespace OPS.Alignment
 {
     /// <summary>
     /// PCA Keypoint Projector class.
@@ -22,7 +22,6 @@ namespace OPS.Alignment.PCASIFT
         static float SIGMA = 1.6F;
         const int SCALES_PER_OCTAVE = 3;
         const int MAX_OCTAVES = 14;
-        static int DOUBLE_BASE_IMAGE_SIZE = 1;
         const int GPLEN = (PATCHSIZE - 2) * (PATCHSIZE - 2) * 2;
         const int PCALEN = 36;
         const int EPCALEN = 36;
@@ -102,7 +101,7 @@ namespace OPS.Alignment.PCASIFT
 		void MakeKeypointPCA(PCASIFTFeature keypoint, Image<Gray, float> blur)
         {
             float[] vec = KeypointPatchVector(keypoint, blur);
-            Util.NormalizeVector(vec);
+            vec = PCAUtil.NormalizeVector(vec);
 
             for (int i = 0; i < GPLEN; i++)
             {
@@ -171,7 +170,7 @@ namespace OPS.Alignment.PCASIFT
                 {
                     cpos = (cosine * x  + sine * y) + keypoint.SX;
                     rpos = (-sine * x + cosine * y) + keypoint.SY;
-                    data[x + iradius, y + iradius, 0] = Util.GetPixelBilinearInterpolation(blurData, cpos, rpos, height, width);
+                    data[x + iradius, y + iradius, 0] = PCAUtil.GetPixelBilinearInterpolation(blurData, cpos, rpos, height, width);
                 }
             }
 
@@ -181,10 +180,10 @@ namespace OPS.Alignment.PCASIFT
             {
                 for (int x = 1; x < PATCHSIZE - 1; x++)
                 {
-                    x1 = Util.GetPixelBilinearInterpolation(data, y * sizeratio, (x + 1) * sizeratio, height, width)/255;
-                    x2 = Util.GetPixelBilinearInterpolation(data, y * sizeratio, (x - 1) * sizeratio, height, width)/255;
-                    y1 = Util.GetPixelBilinearInterpolation(data, (y + 1) * sizeratio, x * sizeratio, height, width)/255;
-                    y2 = Util.GetPixelBilinearInterpolation(data, (y - 1) * sizeratio, x * sizeratio, height, width)/255;
+                    x1 = PCAUtil.GetPixelBilinearInterpolation(data, y * sizeratio, (x + 1) * sizeratio, height, width)/255;
+                    x2 = PCAUtil.GetPixelBilinearInterpolation(data, y * sizeratio, (x - 1) * sizeratio, height, width)/255;
+                    y1 = PCAUtil.GetPixelBilinearInterpolation(data, (y + 1) * sizeratio, x * sizeratio, height, width)/255;
+                    y2 = PCAUtil.GetPixelBilinearInterpolation(data, (y - 1) * sizeratio, x * sizeratio, height, width)/255;
 
                     gx = x1 - x2;
                     gy = y1 - y2;
@@ -221,9 +220,9 @@ namespace OPS.Alignment.PCASIFT
             Image<Gray, byte> imByte = image.ToEmguGrayscale();
             Image<Gray, float> im = imByte.Convert<Gray, float>();
 
-            im = Util.ScaleInitImage(im);
-            List<List<Image<Gray, float>>> GOctaves = Util.BuildGaussianOctaves(im);
-            Util.UpdateKeypoints(keypoints);
+            im = PCAUtil.ScaleInitImage(im);
+            List<List<Image<Gray, float>>> GOctaves = PCAUtil.BuildGaussianOctaves(im);
+            PCAUtil.UpdateKeypoints(keypoints);
             ComputeLocalDescriptors(keypoints, GOctaves);
         }
     }    
