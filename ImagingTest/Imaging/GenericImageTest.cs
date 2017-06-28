@@ -3,6 +3,7 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 using OPS.Imaging;
 using System.Linq;
 using System.Collections.Generic;
+using Microsoft.Xna.Framework;
 
 namespace ImagingTest
 {
@@ -64,7 +65,7 @@ namespace ImagingTest
             Assert.IsFalse(img.HasMask);
             img.CreateMask();
             Assert.IsTrue(img.HasMask);
-            for(int i = 0; i < img.Width * img.Height; i++)
+            for (int i = 0; i < img.Width * img.Height; i++)
             {
                 Assert.IsFalse(img.IsMasked(i));
             }
@@ -122,10 +123,10 @@ namespace ImagingTest
         {
             GenericImage<byte> img = new GenericImage<byte>(2, 3, 4);
             img.SetBandValues(3, new byte[] { 7, 9 });
-            img.SetBandValues(2,3, new byte[] { 6, 12 });
+            img.SetBandValues(2, 3, new byte[] { 6, 12 });
             CollectionAssert.AreEqual(img.GetBandValues(3), new byte[] { 7, 9 });
             CollectionAssert.AreEqual(img.GetBandValues(2, 3), new byte[] { 6, 12 });
-            CollectionAssert.AreEqual(img.GetBandValues(0), new byte[] { 0, 0});
+            CollectionAssert.AreEqual(img.GetBandValues(0), new byte[] { 0, 0 });
         }
 
         [TestMethod]
@@ -135,9 +136,9 @@ namespace ImagingTest
             img[2, 1, 4] = 4;
             img.ReplaceBandValues(new short[] { 0, 0, 0 }, new short[] { -2, 5, 6 });
             CollectionAssert.AreEqual(new short[] { -2, 5, 6 }, img.GetBandValues(3));
-            img.ReplaceBandValues(new short[] { 0,0,4}, new short[] { 7, 8, 9 });
+            img.ReplaceBandValues(new short[] { 0, 0, 4 }, new short[] { 7, 8, 9 });
             CollectionAssert.AreEqual(new short[] { -2, 5, 6 }, img.GetBandValues(3));
-            CollectionAssert.AreEqual(new short[] { 7, 8, 9 }, img.GetBandValues(1,4));
+            CollectionAssert.AreEqual(new short[] { 7, 8, 9 }, img.GetBandValues(1, 4));
         }
 
         [TestMethod]
@@ -194,7 +195,7 @@ namespace ImagingTest
         public void TestEnumerator()
         {
             var rand = new Random();
-            GenericImage<byte> img = new GenericImage<byte>(2, 20, 30);            
+            GenericImage<byte> img = new GenericImage<byte>(2, 20, 30);
             float sum = 0;
             double product = 1;
             img.ApplyInPlace(x =>
@@ -221,7 +222,7 @@ namespace ImagingTest
             img[1, 0, 0] = 1;
             img[1, 1, 2] = 1;
             sum = 0;
-            foreach(var x in img)
+            foreach (var x in img)
             {
                 sum += x;
             }
@@ -304,5 +305,33 @@ namespace ImagingTest
             }
         }
 
+        [TestMethod]
+        public void TestUVPixelCoordinateConversion()
+        {
+            GenericImage<float> img = new GenericImage<float>(1, 100, 200);
+            Assert.AreEqual(new Vector2(0, 1), img.PixelToUV(new Vector2(0, 0)));
+            Assert.AreEqual(new Vector2(1, 0), img.PixelToUV(new Vector2(100, 200)));
+            Assert.AreEqual(new Vector2(32 / 100.0, 1 - (150 / 200.0)), img.PixelToUV(new Vector2(32, 150)));
+
+            Assert.AreEqual(new Vector2(0, 200), img.UVToPixel(new Vector2(0, 0)));
+            Assert.AreEqual(new Vector2(100, 0), img.UVToPixel(new Vector2(1, 1)));
+            Assert.AreEqual(img.PixelToUV(new Vector2(32, 150)), new Vector2(32 / 100.0, 1 - (150 / 200.0)));
+
+            Assert.AreEqual(new Vector2(0, -200), img.UVToPixel(new Vector2(0, 2)));
+            Assert.AreEqual(new Vector2(2, 1), img.PixelToUV(new Vector2(200, 0)));
+        }
+
+        [TestMethod]
+        public void TestUVPixelBoundsCoordinateConversion()
+        {
+            GenericImage<float> img = new GenericImage<float>(1, 100, 200);
+            BoundingBox pixels = new BoundingBox(new Vector3(10, 30, 0), new Vector3(25, 60, 0));
+            BoundingBox uvs = img.PixelBoundsToUV(pixels);
+            Assert.AreEqual(new Vector3(10 / 100.0, 1 - (60 / 200.0), 0), uvs.Min);
+            Assert.AreEqual(new Vector3(25 / 100.0, 1 - (30 / 200.0), 0), uvs.Max);
+            BoundingBox p2 = img.UVBoundsToPixel(uvs);            
+            Assert.IsTrue(Vector3.AlmostEqual(pixels.Min, p2.Min));
+            Assert.IsTrue(Vector3.AlmostEqual(pixels.Max, p2.Max));
+        }
     }
 }
