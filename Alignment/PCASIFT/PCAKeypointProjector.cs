@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using Emgu.CV;
 using Emgu.CV.Structure;
-using Emgu.CV.CvEnum;
 using System.Diagnostics;
 using System.IO;
 using System.Threading.Tasks;
@@ -14,7 +13,7 @@ namespace OPS.Alignment.PCASIFT
     /// <summary>
     /// PCA Keypoint Projector class.
     /// </summary>
-    public class KeypointProjector
+    public class PCAKeypointProjector
     {
         const double PI = 3.14159256358979323846;
         const int PATCHMAG = 20;
@@ -34,7 +33,7 @@ namespace OPS.Alignment.PCASIFT
         /// Initializes a new instance of the <see cref="T:OPS.Alignment.PCA_KeypointDetector"/> class.
         /// </summary>
         /// <param name="file">File containing mean and eigenspace computed from training set.</param>
-        public KeypointProjector(string file, bool textFile = false)
+        public PCAKeypointProjector(string file, bool textFile = false)
         {
             if (File.Exists(file))
             {
