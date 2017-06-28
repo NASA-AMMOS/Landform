@@ -17,39 +17,6 @@ namespace GeometryThirdpartyTest
     [DeploymentItem("TestData", "TestData")]
     public class MeshLabTest
     {
-        public static Mesh CreateMesh(bool hasNormals, bool hasUvs, bool hasColors)
-        {
-            Mesh result = new Mesh(hasNormals, hasUvs, hasColors);
-            int width = 50;
-            int height = 50;
-            float frequency = 0.5f;
-            for (int r = 0; r < height; r++)
-            {
-                float angle1 = (float)Math.Cos(frequency * r);
-                for (int c = 0; c < width; c++)
-                {
-                    float angle2 = (float)Math.Sin(frequency * c);
-                    Vertex v = new Vertex(r, angle1 + angle2, c, 0, 1, 0, c / (double)width, r / (double)height, 1, 0, 0, 1);
-                    result.Vertices.Add(v);
-                }
-            }
-            for (int x = 0; x < width - 1; x++)
-            {
-                for (int y = 0; y < height - 1; y++)
-                {
-                    // a b
-                    // c d
-                    int a = (x * height) + y;
-                    int b = ((x + 1) * height) + y;
-                    int c = (x * height) + y + 1;
-                    int d = ((x + 1) * height) + y + 1;
-                    result.Faces.Add(new Face(a, b, c));
-                    result.Faces.Add(new Face(b, d, c));
-                }
-            }
-            return result;
-        }
-
         [TestInitialize]
         public void testInit()
         {
@@ -62,7 +29,7 @@ namespace GeometryThirdpartyTest
         public void ComputeNormalsTest()
         {
             {
-                Mesh m = CreateMesh(true, true, true);
+                Mesh m = TestMeshCreator.CreateMesh(true, true, true);
                 Mesh r = MeshLab.ComputeNormals(m);
                 Assert.IsTrue(r.HasNormals);
                 Assert.IsTrue(r.HasUVs);
@@ -73,7 +40,7 @@ namespace GeometryThirdpartyTest
                 r.Save("meshlab_normals.ply");
             }
             {
-                Mesh m = CreateMesh(false, true, true);
+                Mesh m = TestMeshCreator.CreateMesh(false, true, true);
                 Mesh r = MeshLab.ComputeNormals(m);
                 Assert.IsTrue(r.HasNormals);
                 Assert.IsTrue(r.HasUVs);
@@ -82,7 +49,7 @@ namespace GeometryThirdpartyTest
                 Assert.AreEqual(m.Faces.Count, r.Faces.Count);
             }
             {
-                Mesh m = CreateMesh(false, false, false);
+                Mesh m = TestMeshCreator.CreateMesh(false, false, false);
                 Mesh r = MeshLab.ComputeNormals(m);
                 Assert.IsTrue(r.HasNormals);
                 Assert.IsFalse(r.HasUVs);
@@ -91,7 +58,7 @@ namespace GeometryThirdpartyTest
                 Assert.AreEqual(m.Faces.Count, r.Faces.Count);
             }
             {
-                Mesh m = CreateMesh(false, false, false);
+                Mesh m = TestMeshCreator.CreateMesh(false, false, false);
                 m.Faces = new List<Face>();
                 Mesh r = MeshLab.ComputeNormals(m);
                 Assert.IsTrue(r.HasNormals);
@@ -106,7 +73,7 @@ namespace GeometryThirdpartyTest
         public void SampleTest()
         {
             {
-                Mesh m = CreateMesh(true, true, true);
+                Mesh m = TestMeshCreator.CreateMesh(true, true, true);
                 Mesh r = MeshLab.Sample(m, 1000);
                 Assert.IsTrue(r.HasNormals);
                 Assert.IsFalse(r.HasUVs);
@@ -116,7 +83,7 @@ namespace GeometryThirdpartyTest
                 r.Save("meshlab_sample.ply");
             }
             {
-                Mesh m = CreateMesh(false, false, false);
+                Mesh m = TestMeshCreator.CreateMesh(false, false, false);
                 Mesh r = MeshLab.Sample(m, 4000);
                 Assert.IsFalse(r.HasNormals);
                 Assert.IsFalse(r.HasUVs);
@@ -130,7 +97,7 @@ namespace GeometryThirdpartyTest
         public void DecimateTest()
         {
             {
-                Mesh m = CreateMesh(true, true, true);
+                Mesh m = TestMeshCreator.CreateMesh(true, true, true);
                 Mesh r = MeshLab.Decimate(m, 2000);
                 Assert.IsTrue(m.Bounds().FuzzyContains(r.Bounds(),0.1));
                 Assert.IsTrue(r.HasNormals);
@@ -142,7 +109,7 @@ namespace GeometryThirdpartyTest
                 r.Save("meshlab_decimate.ply");
             }
             {
-                Mesh m = CreateMesh(false, false, false);
+                Mesh m = TestMeshCreator.CreateMesh(false, false, false);
                 Mesh r = MeshLab.Decimate(m, 1000);
                 Assert.IsTrue(m.Bounds().FuzzyContains(r.Bounds(),0.1));
                 Assert.IsFalse(r.HasNormals);
@@ -158,7 +125,7 @@ namespace GeometryThirdpartyTest
         public void ResampleDecimateTest()
         {
             {
-                Mesh m = CreateMesh(true, true, true);
+                Mesh m = TestMeshCreator.CreateMesh(true, true, true);
                 Mesh r = MeshLab.ResampleDeimation(m, 2000, 2000);
                 Assert.IsTrue(m.Bounds().FuzzyContains(r.Bounds(), 0.01));
                 Assert.IsTrue(r.HasNormals);
@@ -170,7 +137,7 @@ namespace GeometryThirdpartyTest
                 r.Save("meshlab_resample_decimate.ply");
             }
             {
-                Mesh m = CreateMesh(false, false, false);
+                Mesh m = TestMeshCreator.CreateMesh(false, false, false);
                 Mesh r = MeshLab.ResampleDeimation(m, 1000, 1000);
                 Assert.IsTrue(m.Bounds().FuzzyContains(r.Bounds(), 0.01));
                 Assert.IsFalse(r.HasNormals);
@@ -186,7 +153,7 @@ namespace GeometryThirdpartyTest
         public void BidirectionalHausdorffDistanceTest()
         {
             {
-                Mesh m = CreateMesh(true, false, false);
+                Mesh m = TestMeshCreator.CreateMesh(true, false, false);
                 Mesh r = MeshLab.ResampleDeimation(m, 2000, 2000);
                 HausdorffDistance distA = MeshLab.BidirectionalHausdorffDistance(m, r);
                 HausdorffDistance distB = MeshLab.BidirectionalHausdorffDistance(r, m);

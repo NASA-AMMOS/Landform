@@ -59,10 +59,12 @@
   </Choose>
   <ItemGroup>
     <Compile Include="AssimpSerializerTest.cs" />
+    <Compile Include="FSSRTest.cs" />
     <Compile Include="MeshLabTest.cs" />
     <Compile Include="OpenInventorSerializerTest.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="HausdorffDistanceTest.cs" />
+    <Compile Include="TestMeshCreator.cs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\GeometryThirdparty\GeometryThirdparty.csproj">
