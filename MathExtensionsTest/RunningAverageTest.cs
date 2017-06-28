@@ -29,6 +29,30 @@ namespace MathExtensionsTest
             Assert.AreEqual(1400.32, ra.Max);
             AssertE.AreSimilar(sd, ra.StandardDeviation);
             AssertE.AreSimilar(variance, ra.Variance);
+
+
+            ra = new RunningAverage();
+
+        }
+
+        [TestMethod]
+        public void RunningAverageEdgeCasees()
+        {
+            RunningAverage ra = new RunningAverage();
+            Assert.AreEqual(0, ra.Count);
+            AssertE.AreSimilar(0, ra.Mean);
+            Assert.AreEqual(0, ra.Min);
+            Assert.AreEqual(0, ra.Max);
+            AssertE.AreSimilar(0, ra.StandardDeviation);
+            AssertE.AreSimilar(0, ra.Variance);
+
+            ra.Push(7);
+            Assert.AreEqual(1, ra.Count);
+            AssertE.AreSimilar(7, ra.Mean);
+            Assert.AreEqual(7, ra.Min);
+            Assert.AreEqual(7, ra.Max);
+            AssertE.AreSimilar(0, ra.StandardDeviation);
+            AssertE.AreSimilar(0, ra.Variance);
         }
     }
 }
