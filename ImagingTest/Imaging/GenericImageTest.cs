@@ -2,6 +2,7 @@
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using OPS.Imaging;
 using System.Linq;
+using System.Collections.Generic;
 
 namespace ImagingTest
 {
@@ -235,5 +236,63 @@ namespace ImagingTest
             Assert.AreEqual(27, img.Data[1][2 * 4 + 3]);
             Assert.AreEqual(29, img.Data[0][2 * 4 + 1]);
         }
+
+
+        [TestMethod]
+        public void TestCoordinates()
+        {
+            {
+                GenericImage<byte> img = new GenericImage<byte>(2, 3, 4);
+                List<ImageCoordinate> coords = img.Coordinates(true).ToList();
+                Assert.AreEqual(2 * 3 * 4, coords.Count);
+                Assert.AreEqual(new ImageCoordinate(0, 0, 0), coords.First());
+                Assert.AreEqual(new ImageCoordinate(1, 3, 2), coords.Last());
+                Assert.AreEqual(new ImageCoordinate(0, 2, 1), coords[7]);
+            }
+            {
+                GenericImage<int> img = new GenericImage<int>(3, 4, 5);
+                img.CreateMask();
+                img.SetMaskValue(7, true);
+                foreach (var ic in img.Coordinates(false))
+                {
+                    img[ic.b, ic.r, ic.c] += 1;
+                }
+                for (int b = 0; b < img.Data.Length; b++)
+                {
+                    for (int i = 0; i < img.Data[b].Length; i++)
+                    {
+                        int v = img.Data[b][i];
+                        if (i == 7)
+                        {
+                            Assert.AreEqual(0, v);
+                        }
+                        else
+                        {
+                            Assert.AreEqual(1, v);
+                        }
+                    }
+                }
+                foreach (var ic in img.Coordinates(true))
+                {
+                    img[ic.b, ic.r, ic.c] += 1;
+                }
+                for (int b = 0; b < img.Data.Length; b++)
+                {
+                    for (int i = 0; i < img.Data[b].Length; i++)
+                    {
+                        int v = img.Data[b][i];
+                        if (i == 7)
+                        {
+                            Assert.AreEqual(1, v);
+                        }
+                        else
+                        {
+                            Assert.AreEqual(2, v);
+                        }
+                    }
+                }
+            }
+        }
+
     }
 }

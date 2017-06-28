@@ -87,6 +87,7 @@
     <Compile Include="CameraModels\Reference\CAHVOR.cs" />
     <Compile Include="CameraModels\Reference\CAHVORE.cs" />
     <Compile Include="GdalConfiguration.cs" />
+    <Compile Include="Imaging\ImageCoordinateTest.cs" />
     <Compile Include="Imaging\ImageTest.cs" />
     <Compile Include="Imaging\GenericImageTest.cs" />
     <Compile Include="Imaging\ImageMetadataTest.cs" />

@@ -352,6 +352,27 @@ namespace OPS.Imaging
             }
         }
 
+        /// <summary>
+        /// Returns a coordinate for each pixel in the image and for each band
+        /// </summary>
+        /// <returns></returns>
+        public IEnumerable<ImageCoordinate> Coordinates(bool inlcudeMaskedValues)
+        {
+            for (int b = 0; b < this.Bands; b++)
+            {
+                for (int r = 0; r < this.Height; r++)
+                {
+                    for (int c = 0; c < this.Width; c++)
+                    {
+                        if (inlcudeMaskedValues || !IsMasked(r, c))
+                        {
+                            yield return new ImageCoordinate(b, r, c);
+                        }
+                    }
+                }
+            }
+        }
+
         System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator()
         {
             return this.GetEnumerator();
