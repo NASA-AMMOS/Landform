@@ -21,10 +21,17 @@ namespace OPS.Alignment
             // assumption: matched model features and data features occur in the same order of corresponding
             //             ImageCorrespondence fields, need to fix this using DataToModel???
             KeyValuePair<int, int>[] pairs = matches.DataToModel;
+            ImageFeature[] dataFeat = matches.DataFeatures;
+
+            ImageFeature[] P = (ImageFeature[])matches.ModelFeatures.Clone();
+            ImageFeature[] PPrime = new ImageFeature[dataFeat.Length];
+
+            for (int i = 0; i < pairs.Length; i++)
+            {
+                PPrime[pairs[i].Key] = dataFeat[pairs[i].Value];
+            }
 
             int K = 5, outlier;
-            ImageFeature[] P = matches.ModelFeatures;
-            ImageFeature[] PPrime = matches.DataFeatures;
             double[][] DistP = ComputeDistanceMatrix(P);
             double[][] DistPPrime = ComputeDistanceMatrix(PPrime);
             double MedianP = ComputeMedian(DistP);
