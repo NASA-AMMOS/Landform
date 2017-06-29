@@ -76,6 +76,7 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="MatchFilters\GTM.cs" />
     <Compile Include="PCASIFT\PCASIFTDescriptor.cs" />
     <Compile Include="PCASIFT\PCASIFTDetector.cs" />
     <Compile Include="PCASIFT\PCASIFTFeature.cs" />

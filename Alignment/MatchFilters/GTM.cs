@@ -1,9 +1,8 @@
 ﻿using Microsoft.Xna.Framework;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace OPS.Alignment
 {
@@ -20,7 +19,9 @@ namespace OPS.Alignment
         public ImagePairCorrespondence Filter(ImagePairCorrespondence matches)
         {
             // assumption: matched model features and data features occur in the same order of corresponding
-            //             ImageCorrespondence fields
+            //             ImageCorrespondence fields, need to fix this using DataToModel???
+            KeyValuePair<int, int>[] pairs = matches.DataToModel;
+
             int K = 5, outlier;
             ImageFeature[] P = matches.ModelFeatures;
             ImageFeature[] PPrime = matches.DataFeatures;
@@ -42,21 +43,73 @@ namespace OPS.Alignment
                 APPrime = BuildMedianKNNGraph(DistPPrime, K, MedianPPrime);
             }
 
-            Q = RemoveDisconnectedVertices(AP);
-            QPrime = RemoveDisconnectedVertices(APPrime);
+            Q = RemoveDisconnectedVertices(Q, AP);
+            QPrime = RemoveDisconnectedVertices(QPrime, APPrime);
+
+            System.Diagnostics.Debug.WriteLine("Number of residual matches: " + goodMatches.Count);
 
             return new ImagePairCorrespondence(
                 matches.ModelImage, matches.DataImage,
                 matches.ModelFeatures, matches.DataFeatures,
                 goodMatches);
+        
         }
 
-        private ImageFeature[] RemoveDisconnectedVertices(double[][] aPPrime)
+        /// <summary>
+        /// Computes the median of a 2D-array in linear time.
+        /// </summary>
+        /// <param name="arr">Input array.</param>
+        /// <returns>Median of input array.</returns>
+        double ComputeMedian(double[][] arr)
         {
-            throw new NotImplementedException();
+            List<double> A = new List<double>();
+            
+            // Flatten the array before beginning the algorithm.
+            for (int j = 0; j < arr.Length; j++)
+            {
+                for (int k = j + 1; k < arr.Length; k++)
+                {
+                    A.Add(arr[j][k]);
+                    A.Add(arr[k][j]);
+                }
+            }
+
+            int i = A.Count / 2;
+            return MedianOfMedians(A, i);
         }
 
-        void RemoveOutlier(int outlier, double[][] distP, double[][] distPPrime, ImageFeature[] Q, ImageFeature[] QPrime)
+        /// <summary>
+        /// Prunes erroneous features.
+        /// </summary>
+        /// <param name="features">Input list of features.</param>
+        /// <param name="graph">Adjacency matrix representation of graph.</param>
+        /// <returns>A copy of pruned features.</returns>
+        private ImageFeature[] RemoveDisconnectedVertices(ImageFeature[] features, double[][] graph)
+        {
+            ImageFeature[] result = (ImageFeature[])features.Clone();
+            ImageFeature deletedFeat = new ImageFeature(new Vector2(-1, -1), null);
+            List<double> rowsums = graph.Select(x => x.Sum()).ToList();
+            for (int i = 0; i < rowsums.Count; i++)
+            {
+                if (rowsums[i] == 0)
+                {
+                    result[i] = deletedFeat;
+                }
+            }
+
+            Vector2 deleted = new Vector2(-1, -1);
+            return result.Where(x => !x.Location.Equals(deleted)).ToArray();
+        }
+
+        /// <summary>
+        /// Removes an outlier from both adjacency graphs, as well as lists of features. 
+        /// </summary>
+        /// <param name="outlier">Index of feature to remove.</param>
+        /// <param name="distP">Adjacency matrix of model image features.</param>
+        /// <param name="distPPrime">Adjacency matrix of data image features.</param>
+        /// <param name="Q">List of features present in model image.</param>
+        /// <param name="QPrime">List of features present in data image.</param>
+        private void RemoveOutlier(int outlier, double[][] distP, double[][] distPPrime, ImageFeature[] Q, ImageFeature[] QPrime)
         {
             for (int i = 0; i < distP.Length; i++)
             {
@@ -106,33 +159,79 @@ namespace OPS.Alignment
                 int count = 0;
                 var distances = dist[i].Where(w => w > 0).Select(x => new { Value = x, Index = count++ }).OrderBy(v => v.Value).ToList();
 
-                for (int ki = 0; ki < k; ki++) // TODO could get out of bounds if not enough neighbors
+                for (int ki = 0; ki < k; ki++)
                 {
-                    result[i][distances[ki].Index] = 1;
+                    int index = 0;
+                    try
+                    {
+                        index = distances[ki].Index;
+                        if (distances[ki].Value <= median)
+                        {
+                            result[i][index] = 1;
+                        }
+                    }
+                    catch (Exception e)
+                    {
+                        Debug.WriteLine(e, e.StackTrace);
+                        break;
+                    }
                 }
             }
 
             return result;
         }
 
-        double ComputeMedian(double[][] dist) // could be optimized to linear time, instead of nlogn
-        { 
-            List<double> distances = new List<double>();
-            
-            // not sure if should include diagonal of zeroes
-            for (int i = 0; i < dist.Length; i++)
+        /// <summary>
+        /// Find the i-th smallest element in a given array.
+        /// </summary>
+        /// <param name="A">Input array.</param>
+        /// <param name="i">Ordinality of desired element.</param>
+        /// <returns></returns>
+        double MedianOfMedians(List<double> A, int i)
+        {
+            List<List<double>> sublists = new List<List<double>>();
+            List<double> medians = new List<double>();
+            double pivot;
+            int k;
+
+            // Break into sublists
+            for (int j = 0; j < A.Count; j += 5)
             {
-                distances.AddRange(dist[i].Where(x => x > 0));
+                k = j + 5 > A.Count - 1 ? A.Count - 1 : j + 5; // checking array bounds
+                sublists.Add(A.GetRange(j, k));
             }
-            distances.Sort();
-            return distances[distances.Count / 2];
+
+            foreach (List<double> sublist in sublists)
+            {
+                sublist.Sort();
+                medians.Add(sublist[sublist.Count / 2]);
+            }
+
+            // Identify pivot
+            if (medians.Count <= 5)
+            {
+                medians.Sort();
+                pivot = medians[medians.Count / 2];
+            }
+            else
+            {
+                pivot = MedianOfMedians(medians, medians.Count / 2);
+            }
+
+            List<double> low = A.Where(x => x < pivot).ToList();
+            List<double> high = A.Where(x => x > pivot).ToList();
+
+            int m = low.Count;
+            if (i < m) return MedianOfMedians(low, i);
+            else if (i > m) return MedianOfMedians(high, i - m - 1);
+            else return pivot;
         }
 
         /// <summary>
-        /// TODO
+        /// Computes adjacency matrix of distances from list of image features.
         /// </summary>
-        /// <param name="features"></param>
-        /// <returns></returns>
+        /// <param name="features">Input list of features.</param>
+        /// <returns>Adjacency graph of distances.</returns>
         double[][] ComputeDistanceMatrix(ImageFeature[] features)
         {
             Vector2[] coords = features.Select(v => v.Location).ToArray();
@@ -153,8 +252,7 @@ namespace OPS.Alignment
                     result[j][k] = dist;
                     result[k][j] = dist;
                 }
-            }
-
+            }          
             return result;
         }
     }
