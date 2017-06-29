@@ -115,7 +115,7 @@ namespace OPS.Imaging
         }
 
         /// <summary>
-        /// Writing of pds images is not supported
+        /// Method for writing very basic PDSImages with minimal header information
         /// </summary>
         /// <typeparam name="T"></typeparam>
         /// <param name="filename"></param>
@@ -124,7 +124,78 @@ namespace OPS.Imaging
         /// <param name="fillValue"></param>
         public void Write<T>(string filename, Image image, IImageConverter converter, float[] fillValue = null)
         {
-            throw new NotImplementedException();
+            string template = @"
+RECORD_BYTES                      = {0}
+^IMAGE                       = 2
+OBJECT = IMAGE
+INTERCHANGE_FORMAT = BINARY
+LINES = {1}
+LINE_SAMPLES = {2}
+SAMPLE_TYPE = {3}
+SAMPLE_BITS = {4}
+BANDS = {5}
+BAND_STORAGE_TYPE = BAND_SEQUENTIAL
+END_OBJECT                        = IMAGE
+END
+";
+            string type = null;
+            int bits = 0;
+            if(typeof(T) == typeof(byte))
+            {
+                type = "MSB_UNSIGNED_INTEGER";
+                bits = 8;
+            }
+            else if (typeof(T) == typeof(ushort))
+            {
+                type = "MSB_UNSIGNED_INTEGER";
+                bits = 16;
+            }
+            else
+            {
+                throw new ImageSerializationException("Unsuppprted type");
+            }
+            int headerSize = 2048;
+            string header = string.Format(template, headerSize, image.Height, image.Width, type, bits, image.Bands);
+            if(header.Length > headerSize)
+            {
+                throw new ImageSerializationException("Header larger than expected");
+            }
+            StringBuilder sb = new StringBuilder(header);
+            while(sb.Length < headerSize)
+            {
+                sb.Append(" ");
+            }
+            header = sb.ToString();
+            Image convertedImage = converter.Convert<T>(image);
+            if (fillValue != null && convertedImage.HasMask)
+            {
+                convertedImage.SetValuesForMaskedData(fillValue);
+            }
+            using (FileStream fs = new FileStream(filename, FileMode.Create, FileAccess.Write))
+            {
+                byte[] headerBytes = Encoding.ASCII.GetBytes(header);
+                fs.Write(headerBytes, 0, headerBytes.Length);
+
+                for (int b = 0; b < convertedImage.Bands; b++)
+                {
+                    for(int r = 0; r< convertedImage.Height; r++)
+                    {
+                        for (int c = 0; c< convertedImage.Width; c++)
+                        {
+                            if (typeof(T) == typeof(byte))
+                            {
+                                fs.WriteByte((byte)convertedImage[b, r, c]);
+                                
+                            }
+                            else if (typeof(T) == typeof(ushort))
+                            {
+                                byte[] output = BitConverter.GetBytes(ReverseBytes16((ushort)convertedImage[b, r, c]));
+                                fs.Write(output, 0, output.Length);
+                            }   
+                        }
+                    }
+                }                
+            }
         }
         
         public static uint ReverseBytes32(uint value)

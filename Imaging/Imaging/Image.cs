@@ -69,6 +69,11 @@ namespace OPS.Imaging
         /// <param name="filename"></param>
         public void Save<T>(string filename)
         {
+            if (filename.ToUpper().EndsWith(".IMG"))
+            {
+                new PDSSeralizer().Write<T>(filename, this, ImageConverters.NormalizedImageToValueRange);
+                return;
+            }
             new GDALSeralizer().Write<T>(filename, this, ImageConverters.NormalizedImageToValueRange);
         }
 
