@@ -97,6 +97,8 @@
     <Compile Include="Commands\CrawlMSL.cs" />
     <Compile Include="General\ObservationEnums.cs" />
     <Compile Include="GdalConfiguration.cs" />
+    <Compile Include="Rover\RoverCoordinateSystem.cs" />
+    <Compile Include="Rover\RoverReachability.cs" />
     <Compile Include="Rover\PDSParser.cs" />
     <Compile Include="Rover\PDSParserException.cs" />
     <Compile Include="Rover\RoverProductId.cs" />
