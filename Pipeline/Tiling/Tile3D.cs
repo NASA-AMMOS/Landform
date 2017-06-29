@@ -336,6 +336,13 @@ namespace OPS.Pipeline
                 children = new List<Tile>();
             }
 
+            public Tile(BoundingBox bounds, double geometricError)
+            {
+                boundingVolume = new BoundingVolume();
+                children = new List<Tile>();
+                this.boundingVolume.Bounds = bounds;
+            }
+
             public bool IsValid()
             {
                 if (boundingVolume == null || !boundingVolume.IsValid())
