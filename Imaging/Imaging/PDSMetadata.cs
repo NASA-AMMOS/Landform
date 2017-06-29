@@ -26,7 +26,15 @@ namespace OPS.Imaging
         public uint BitMask;
         // Optional Metadata
         public CameraModel CameraModel;
-        
+
+        /// <summary>
+        /// Start location of image data
+        /// </summary>
+        public long DataOffset
+        {
+            get { return (this.Carrot - 1) * this.RecordBytes; }
+        }
+
         protected Dictionary<string, Dictionary<string, string>> rawHeader;
         const string NULL_GROUP = "";
 

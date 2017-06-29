@@ -17,6 +17,7 @@ namespace ImagingTest.Serializers
                 string filename = Path.Combine("TestData", "img", "ML0_451292526RCX_S0311094MCAM02555M1.IMG");
                 var m = new PDSMetadata(filename);
                 Assert.AreEqual(20, m.Carrot);
+                Assert.AreEqual(26752, m.DataOffset);
                 Assert.AreEqual(m.Width, 1408);
                 Assert.AreEqual(m.Height, 1200);
                 Assert.AreEqual(m.Bands, 3);

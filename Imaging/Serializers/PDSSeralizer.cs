@@ -41,7 +41,7 @@ namespace OPS.Imaging
 
             using (FileStream fs = File.OpenRead(filename))
             {
-                fs.Seek((metadata.Carrot-1) * metadata.RecordBytes, SeekOrigin.Begin);
+                fs.Seek(metadata.DataOffset, SeekOrigin.Begin);
 
                 using (BinaryReader br = new BinaryReader(fs))
                 {
