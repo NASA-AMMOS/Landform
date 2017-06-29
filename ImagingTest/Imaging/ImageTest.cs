@@ -197,5 +197,16 @@ namespace ImageTest
                 Assert.AreEqual(value, crop[ic.b, ic.r, ic.c]);
             }
         }
+
+        [TestMethod]
+        [DeploymentItem("TestData", "TestData")]
+        public void TestImageResize()
+        {
+            Image img = Image.Load(Path.Combine("TestData", "img", "testPattern.png"));
+            Image smaller = img.ResizeSimpleBicubic(64, 64);
+            smaller.Save<byte>("testPatternSmall.png");
+            Image bigger = img.ResizeSimpleBicubic(1200, 1401);
+            bigger.Save<byte>("testPatternBigger.png");
+        }
     }
 }
