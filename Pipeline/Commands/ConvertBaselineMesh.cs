@@ -102,7 +102,7 @@ namespace OPS.Pipeline
                     RoverCoordinateSystem.SiteToLocalLevelMesh(m, parser.OriginOffset);
                     // Create an atlaser so that we can uv our decimated mesh.  Camera model is in rover frame.
                     Matrix localLevelToRover = RoverCoordinateSystem.LocalLevelToRover(parser.RoverOriginRotation);
-                    BaselineAtlaser atlaser = new BaselineAtlaser(localLevelToRover, img.CameraModel, img);
+                    BaselineAtlaser atlaser = new BaselineAtlaser(localLevelToRover, img);
                     m = atlaser.GenerateAtlas(m);
                     // Convert the mesh back to site frame
                     RoverCoordinateSystem.LocalLevelToSiteMesh(m, parser.OriginOffset);

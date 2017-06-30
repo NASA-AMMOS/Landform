@@ -18,11 +18,18 @@ namespace OPS.Pipeline
         {
             /// Commands are defined by the list of types passed into ParseArguments
             /// Each passed in object must have a [Verb] decorator
-            return CommandLine.Parser.Default.ParseArguments<CralwMSLOptions, ConvertBaselineMeshOptions, ConvertBaselineMeshesOptions, BenchmarkS3Options>(args)
+            return CommandLine.Parser.Default.ParseArguments<CralwMSLOptions, 
+                                                             ConvertBaselineMeshOptions, 
+                                                             ConvertBaselineMeshesOptions,
+                                                             TileBaselineMeshOptions, 
+                                                             TileBaselineMeshesOptions, 
+                                                             BenchmarkS3Options>(args)
               .MapResult(
                 (CralwMSLOptions opts) => new CrawlMSL(opts).Run(),
                 (ConvertBaselineMeshOptions opts) => new ConvertBaselineMesh(opts).Run(),
                 (ConvertBaselineMeshesOptions opts) => new ConvertBaselineMeshes(opts).Run(),
+                (TileBaselineMeshOptions opts) => new TileBaselineMesh(opts).Run(),
+                (TileBaselineMeshesOptions opts) => new TileBaselineMeshes(opts).Run(),
                 (BenchmarkS3Options opts) => new BenchmarkS3(opts).Run(),
                 errs => 1);
         }
