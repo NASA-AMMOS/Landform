@@ -21,6 +21,7 @@ namespace OPS.Geometry
         /// <summary>
         /// Build a mesh from the provided point cloud or mesh with faces
         /// Requires the mesh has normals but not uvs or colors
+        /// Returns a mesh with normals
         /// </summary>
         /// <param name="pointCloud"></param>
         /// <returns></returns>
@@ -76,9 +77,17 @@ namespace OPS.Geometry
                     });
                 });
             });
+            result = MeshLab.ComputeNormals(result);
             return result;
         }
 
+        /// <summary>
+        /// Decimate a mesh by resampling it and then reconstructing it using FSSR
+        /// </summary>
+        /// <param name="mesh"></param>
+        /// <param name="numSamples"></param>
+        /// <param name="targetFaces"></param>
+        /// <returns></returns>
         public static Mesh ResampleDeimation(Mesh mesh, int numSamples, int targetFaces)
         {
             Mesh points = MeshLab.Sample(mesh, numSamples);
