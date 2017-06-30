@@ -10,54 +10,137 @@ namespace OPS.Alignment
     {
         public int MaxIterations;
         public bool RefineStep;
-        public GTM(int maxIterations = 5000, bool refineStep = true)
+        public int K;
+
+        public GTM(int k = 5)
         {
-            MaxIterations = maxIterations;
-            RefineStep = refineStep;
+            K = k;
         }
 
         public ImagePairCorrespondence Filter(ImagePairCorrespondence matches)
         {
-            // assumption: matched model features and data features occur in the same order of corresponding
-            //             ImageCorrespondence fields, need to fix this using DataToModel???
             KeyValuePair<int, int>[] pairs = matches.DataToModel;
+            ImageFeature[] modelFeat = matches.ModelFeatures;
             ImageFeature[] dataFeat = matches.DataFeatures;
 
-            ImageFeature[] P = (ImageFeature[])matches.ModelFeatures.Clone();
-            ImageFeature[] PPrime = new ImageFeature[dataFeat.Length];
+            ImageFeature zero = new ImageFeature(new Vector2(0, 0), null);
+            ImageFeature[] P = new ImageFeature[pairs.Length];
+            ImageFeature[] PPrime = new ImageFeature[pairs.Length];
 
-            foreach (KeyValuePair<int, int> pair in pairs) {
-                PPrime[pair.Key] = dataFeat[pair.Value];
+            // Create sets P and PPrime, where P[i] and PPrime[i] are matched features
+            for (int i = 0; i < pairs.Length; i++) {
+                P[i] = modelFeat[pairs[i].Value];
+                PPrime[i] = dataFeat[pairs[i].Key];
             }
 
-            int K = 5, outlier;
+            int counter = 0;
+            int outlier;
+
+
+            // DEBUG
+            ImageFeature u1 = new ImageFeature(new Vector2(0, 3), null);
+            ImageFeature u2 = new ImageFeature(new Vector2(1, 2), null);
+            ImageFeature u3 = new ImageFeature(new Vector2(3, 0.9), null);
+            ImageFeature u4 = new ImageFeature(new Vector2(1, 3), null);
+            ImageFeature u5 = new ImageFeature(new Vector2(3, 3), null);
+            ImageFeature u6 = new ImageFeature(new Vector2(2, 4), null);
+
+            ImageFeature[] testSet = new ImageFeature[] { u1, u2, u3, u4, u5, u6 };
+            double[][] dist = ComputeDistanceMatrix(testSet);
+            int[][] testKNN = InitMedianKNNGraphOptimized(dist, 2);
+            List<int>[] Ill = InitNeighborVector(testKNN, 2);
+            //for (int kl = 0; kl < testKNN.Length; kl++)
+            //{
+            //    for (int oi = 0; oi < testKNN.Length; oi++)
+            //    {
+            //        Debug.Write(String.Format("{0:0.0}", dist[kl][oi]) + " ");
+            //    }
+            //    Debug.WriteLine("\n");
+            //}
+            Debug.WriteLine("-------");
+            //for (int kl = 0; kl < testKNN.Length; kl++)
+            //{
+            //    for (int oi = 0; oi < testKNN.Length; oi++)
+            //    {
+            //        Debug.Write(testKNN[kl][oi] + " ");
+            //    }
+            //    Debug.WriteLine("");
+            //}
+            foreach (List<int> list in Ill)
+            {
+                foreach (int num in list)
+                {
+                    Debug.Write(num + " ");
+                }
+                Debug.Write('\n');
+            
+            }
+
+            Debug.WriteLine("please work");
+            // DEBUG
+
+
+            // <OPTIMIZED
             double[][] DistP = ComputeDistanceMatrix(P);
             double[][] DistPPrime = ComputeDistanceMatrix(PPrime);
             double MedianP = ComputeMedian(DistP);
             double MedianPPrime = ComputeMedian(DistPPrime);
+            int[][] O = InitMedianKNNGraphOptimized(DistP, MedianP);
+            int[][] OPrime = InitMedianKNNGraphOptimized(DistPPrime, MedianPPrime);
+            List<int>[] I = InitNeighborVector(O);
+            List<int>[] IPrime = InitNeighborVector(OPrime);
+            int[] C = new int[pairs.Length].Select(x => K + 1).ToArray();
+            int[] CPrime = new int[pairs.Length].Select(x => K + 1).ToArray();
+
+
+
+
+            // OPTIMIZED>
+
+            //double[][] DistP = ComputeDistanceMatrix(P);
+            //double[][] DistPPrime = ComputeDistanceMatrix(PPrime);
+            //double MedianP = ComputeMedian(DistP);
+            //double MedianPPrime = ComputeMedian(DistPPrime);
             ImageFeature[] Q = (ImageFeature[])P.Clone();
             ImageFeature[] QPrime = (ImageFeature[])PPrime.Clone();
+            HashSet<int> outliers = new HashSet<int>();
 
-            double[][] AP = BuildMedianKNNGraph(DistP, K, MedianP);
-            double[][] APPrime = BuildMedianKNNGraph(DistPPrime, K, MedianPPrime);
+            double[][] AP = BuildMedianKNNGraph(DistP, K, MedianP, outliers);
+            double[][] APPrime = BuildMedianKNNGraph(DistPPrime, K, MedianPPrime, outliers);
 
-            while (!AP.SequenceEqual(APPrime))
+
+            while (!GraphEqual(AP, APPrime))
             {
-                outlier = FindOutlier(AP, APPrime);
-                RemoveOutlier(outlier, DistP, DistPPrime, Q, QPrime);
-                AP = BuildMedianKNNGraph(DistP, K, MedianP);
-                APPrime = BuildMedianKNNGraph(DistPPrime, K, MedianPPrime);
+                counter++;
+                outlier = FindOutlier(AP, APPrime, outliers);
+
+                if (outliers.Contains(outlier))
+                {
+                    break;
+                }
+                outliers.Add(outlier);
+                //RemoveOutlier(outlier, DistP, DistPPrime, Q, QPrime);
+                AP = BuildMedianKNNGraph(DistP, K, MedianP, outliers);
+                APPrime = BuildMedianKNNGraph(DistPPrime, K, MedianPPrime, outliers);
             }
 
+
+            for (int oo = 0; oo < pairs.Length; oo++)
+            {
+                if (!outliers.Contains(oo))
+                {
+                    Debug.WriteLine("Match at index: " + oo);
+                }
+            }
             Q = RemoveDisconnectedVertices(Q, AP);
             QPrime = RemoveDisconnectedVertices(QPrime, APPrime);
 
-            if (Q.Length != QPrime.Length) 
+            if (Q.Length != QPrime.Length)
                 throw new Exception("Matched features not equal in length.");
-            
+
             KeyValuePair<int, int>[] goodMatches = ConstructFinalMatches(Q.Length);
                                                                               
-            Debug.WriteLine("Number of residual matches: " + goodMatches.Length);
+            Debug.WriteLine("Number of residual matches: " + goodMatches.Length + " after " + counter + " iterations of GTM");
 
             return new ImagePairCorrespondence(
                 matches.ModelImage, matches.DataImage,
@@ -65,6 +148,26 @@ namespace OPS.Alignment
                 goodMatches);
         
         }
+
+        /// <summary>
+        /// Checks if the two graphs contain equivalent values.
+        /// </summary>
+        /// <param name="A"></param>
+        /// <param name="AP"></param>
+        /// <returns></returns>
+        bool GraphEqual(double[][] A, double[][] AP)
+        {
+            for (int i = 0; i < A.Length; i++)
+            {
+                for (int j = 0; j < A.Length; j++)
+                {
+                    if (Math.Abs(A[i][j] - AP[i][j]) > double.Epsilon)
+                        return false;
+                }
+            }
+            return true;
+        }
+
 
         /// <summary>
         /// Constructs the final matches as i:i mappings for i in [0, length).
@@ -81,11 +184,11 @@ namespace OPS.Alignment
         }
 
         /// <summary>
-        /// Computes the median of a 2D-array in linear time.
+        /// Computes the median of a 2D-array.
         /// </summary>
         /// <param name="arr">Input array.</param>
         /// <returns>Median of input array.</returns>
-        double ComputeMedian(double[][] arr)
+        double ComputeMedian(double[][] arr, bool linear = false)
         {
             List<double> A = new List<double>();
             
@@ -100,7 +203,13 @@ namespace OPS.Alignment
             }
 
             int i = A.Count / 2;
-            return MedianOfMedians(A, i);
+            if (linear)
+            {
+                return MedianOfMedians(A, i);
+            }
+
+            A.Sort();
+            return A[A.Count / 2];
         }
 
         /// <summary>
@@ -116,7 +225,7 @@ namespace OPS.Alignment
             List<double> rowsums = graph.Select(x => x.Sum()).ToList();
             for (int i = 0; i < rowsums.Count; i++)
             {
-                if (Math.Abs(rowsums[i]) < Double.Epsilon)
+                if (Math.Abs(rowsums[i]) < double.Epsilon)
                     result[i] = deletedFeat;
             }
 
@@ -136,34 +245,111 @@ namespace OPS.Alignment
         {
             for (int i = 0; i < distP.Length; i++)
             {
-                distP[outlier][i] = -1;
-                distP[i][outlier] = -1;
-                distPPrime[outlier][i] = -1;
-                distPPrime[i][outlier] = -1;
+                distP[outlier][i] = 0;
+                distP[i][outlier] = 0;
+                distPPrime[outlier][i] = 0;
+                distPPrime[i][outlier] = 0;
             }
 
             Q[outlier] = new ImageFeature(new Vector2(-1, -1), null);
             QPrime[outlier] = new ImageFeature(new Vector2(-1, -1), null);
         }
 
-        int FindOutlier(double[][] AP, double[][] APPrime)
+        int FindOutlier(double[][] AP, double[][] APPrime, HashSet<int> outliers)
         {
             double[][] R = new double[AP.Length][].Select(x => new double[AP.Length]).ToArray();
             double diff;
 
             for (int i = 0; i < AP.Length; i++)
             {
-                for (int j = i; j < AP.Length; j++)
+                if (outliers.Contains(i)) continue;
+
+                for (int j = 0; j < AP.Length; j++)
                 {
+                    if (outliers.Contains(j)) continue;
                     diff = Math.Abs(AP[i][j] - APPrime[i][j]);
                     R[i][j] = diff;
-                    R[j][i] = diff;
                 }
             }
 
             List<double> rowsums = R.Select(x => x.Sum()).ToList();
 
             return rowsums.IndexOf(rowsums.Max());
+        }
+
+        int FindOutlier(int[][] O, int[][] OPrime, List<int>[] I, List<int>[] IPrime)
+        {
+            HashSet<int> A = new HashSet<int>();
+            HashSet<int> APrime = new HashSet<int>();
+            int maxcount = -1;
+            IEnumerable<int> possibleOutliers;
+            int outlier = -1;
+
+            for (int i = 0; i < O.Length; i++)
+            {
+                foreach (int num in I[i])
+                    A.Add(num);
+                foreach (int num in IPrime[i])
+                    APrime.Add(num);
+
+                for (int k = 0; k < K; k++)
+                {
+                    A.Add(O[i][k]);
+                    APrime.Add(OPrime[i][k]);
+                }
+
+                possibleOutliers = A.Except(APrime).Union(APrime.Except(A));
+                if (possibleOutliers.Count() > maxcount)
+                {
+                    maxcount = possibleOutliers.Count();
+                    outlier = possibleOutliers.First();
+                }
+                A.Clear();
+                APrime.Clear();
+            }
+
+            return outlier;
+        }
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="dist"></param>
+        /// <param name="median"></param>
+        /// <returns></returns>
+        int[][] InitMedianKNNGraphOptimized(double[][] dist, double median)
+        {
+            int[][] res = new int[dist.Length][].Select(x => new int[dist.Length]).ToArray();
+
+            for (int i = 0; i < dist.Length; i++) {
+                int j = 0;
+                res[i] = dist[i].Select(x => new { Value = x, Index = j++ })
+                                .Where(y => y.Value > 0)
+                                .OrderBy(v => v.Value)
+                                .Select(w => w.Index)
+                                .Concat(new int[] { -2 }).ToArray();
+            }
+
+            return res;
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="knnGraph"></param>
+        /// <returns></returns>
+        List<int>[] InitNeighborVector(int[][] knnGraph, int k = 5)
+        {
+            List<int>[] res = new List<int>[knnGraph.Length].Select(x => new List<int>()).ToArray();
+            int[] vertexCount = new int[knnGraph.Length];
+
+            for (int i = 0; i < knnGraph.Length; i++)
+            {
+                for (int j = 0; j < k; j++)
+                {
+                    res[knnGraph[i][j]].Add(i);
+                }
+            }
+            return res;
         }
 
         /// <summary>
@@ -173,25 +359,60 @@ namespace OPS.Alignment
         /// <param name="k"></param>
         /// <param name="median"></param>
         /// <returns></returns>
-        double[][] BuildMedianKNNGraph(double[][] dist, int k, double median)
+        double[][] BuildMedianKNNGraph(double[][] dist, int k, double median, HashSet<int> outliers)
+        {
+            double[][] result = new double[dist.Length][].Select(x => new double[dist.Length]).ToArray();
+
+            for (int i = 0; i < result.Length; i++)
+            {
+
+                if (outliers.Contains(i)) continue;
+                int count = 0;
+                var distances1 = dist[i].Select(x => new { Value = x, Index = count++ })
+                                        .Where(y => y.Value > 0 && !outliers.Contains(y.Index)) // not itself or outlier
+                                        .OrderBy(v => v.Value).ToArray();
+
+                for (int ki = 0; ki < k; ki++)
+                {
+                    try
+                    {
+                        int index = distances1[ki].Index;
+                        if (distances1[ki].Value <= median)
+                        {
+                            result[i][index] = 1;
+                            result[index][i] = 1;
+                        }
+                    }
+                    catch (Exception e)
+                    {
+                        break;
+                    }
+                }
+            }
+
+            return result;
+        }
+
+        double[][] BuildMedianKNNGraph(double[][] dist, int k)
         {
             double[][] result = new double[dist.Length][].Select(x => new double[dist.Length]).ToArray();
 
             for (int i = 0; i < result.Length; i++)
             {
                 int count = 0;
-                var distances = dist[i].Where(w => w > 0).Select(x => new { Value = x, Index = count++ }).OrderBy(v => v.Value).ToList();
+
+                var distances1 = dist[i].Select(x => new { Value = x, Index = count++ })
+                                       .Where(y => y.Value > 0) // not itself
+                                       .OrderBy(v => v.Value).ToList();
 
                 for (int ki = 0; ki < k; ki++)
                 {
                     int index = 0;
                     try
                     {
-                        index = distances[ki].Index;
-                        if (distances[ki].Value <= median)
-                        {
-                            result[i][index] = 1;
-                        }
+                        index = distances1[ki].Index;
+                        result[i][index] = 1;
+                        result[index][i] = 1;
                     }
                     catch (Exception e)
                     {
@@ -200,7 +421,6 @@ namespace OPS.Alignment
                     }
                 }
             }
-
             return result;
         }
 
@@ -212,6 +432,7 @@ namespace OPS.Alignment
         /// <returns></returns>
         double MedianOfMedians(List<double> A, int i)
         {
+            if (A.Count == 1) return A[0];
             List<List<double>> sublists = new List<List<double>>();
             List<double> medians = new List<double>();
             double pivot;
@@ -221,7 +442,8 @@ namespace OPS.Alignment
             for (int j = 0; j < A.Count; j += 5)
             {
                 k = j + 5 > A.Count - 1 ? A.Count - 1 : j + 5; // checking array bounds
-                sublists.Add(A.GetRange(j, k));
+                if (j == k) continue;
+                sublists.Add(new List<double>(A.GetRange(j, k - j)));
             }
 
             foreach (List<double> sublist in sublists)
@@ -242,7 +464,7 @@ namespace OPS.Alignment
             }
 
             List<double> low = A.Where(x => x < pivot).ToList();
-            List<double> high = A.Where(x => x > pivot).ToList();
+            List<double> high = A.Where(x => x >= pivot).ToList();
 
             int m = low.Count;
             if (i < m) return MedianOfMedians(low, i);
