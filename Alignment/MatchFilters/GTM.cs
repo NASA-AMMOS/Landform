@@ -1,4 +1,4 @@
-﻿using Microsoft.Xna.Framework;
+﻿﻿using Microsoft.Xna.Framework;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -26,9 +26,8 @@ namespace OPS.Alignment
             ImageFeature[] P = (ImageFeature[])matches.ModelFeatures.Clone();
             ImageFeature[] PPrime = new ImageFeature[dataFeat.Length];
 
-            for (int i = 0; i < pairs.Length; i++)
-            {
-                PPrime[pairs[i].Key] = dataFeat[pairs[i].Value];
+            foreach (KeyValuePair<int, int> pair in pairs) {
+                PPrime[pair.Key] = dataFeat[pair.Value];
             }
 
             int K = 5, outlier;
@@ -53,13 +52,32 @@ namespace OPS.Alignment
             Q = RemoveDisconnectedVertices(Q, AP);
             QPrime = RemoveDisconnectedVertices(QPrime, APPrime);
 
-            System.Diagnostics.Debug.WriteLine("Number of residual matches: " + goodMatches.Count);
+            if (Q.Length != QPrime.Length) 
+                throw new Exception("Matched features not equal in length.");
+            
+            KeyValuePair<int, int>[] goodMatches = ConstructFinalMatches(Q.Length);
+                                                                              
+            Debug.WriteLine("Number of residual matches: " + goodMatches.Length);
 
             return new ImagePairCorrespondence(
                 matches.ModelImage, matches.DataImage,
-                matches.ModelFeatures, matches.DataFeatures,
+                Q, QPrime,
                 goodMatches);
         
+        }
+
+        /// <summary>
+        /// Constructs the final matches as i:i mappings for i in [0, length).
+        /// </summary>
+        /// <returns>The final matches.</returns>
+        /// <param name="length">Length of mapping.</param>
+        KeyValuePair<int, int>[] ConstructFinalMatches(int length)
+        {
+            KeyValuePair<int, int>[] result = new KeyValuePair<int, int>[length];
+            for (int i = 0; i < length; i++) {
+                result[i] = new KeyValuePair<int, int>(i, i);
+            }
+            return result;
         }
 
         /// <summary>
@@ -91,17 +109,15 @@ namespace OPS.Alignment
         /// <param name="features">Input list of features.</param>
         /// <param name="graph">Adjacency matrix representation of graph.</param>
         /// <returns>A copy of pruned features.</returns>
-        private ImageFeature[] RemoveDisconnectedVertices(ImageFeature[] features, double[][] graph)
+        ImageFeature[] RemoveDisconnectedVertices(ImageFeature[] features, double[][] graph)
         {
             ImageFeature[] result = (ImageFeature[])features.Clone();
             ImageFeature deletedFeat = new ImageFeature(new Vector2(-1, -1), null);
             List<double> rowsums = graph.Select(x => x.Sum()).ToList();
             for (int i = 0; i < rowsums.Count; i++)
             {
-                if (rowsums[i] == 0)
-                {
+                if (Math.Abs(rowsums[i]) < Double.Epsilon)
                     result[i] = deletedFeat;
-                }
             }
 
             Vector2 deleted = new Vector2(-1, -1);
@@ -230,8 +246,8 @@ namespace OPS.Alignment
 
             int m = low.Count;
             if (i < m) return MedianOfMedians(low, i);
-            else if (i > m) return MedianOfMedians(high, i - m - 1);
-            else return pivot;
+            if  (i > m) return MedianOfMedians(high, i - m - 1);
+            return pivot;
         }
 
         /// <summary>
