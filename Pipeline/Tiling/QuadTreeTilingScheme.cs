@@ -20,7 +20,7 @@ namespace OPS.Pipeline
             Z
         }
 
-        public SplitDirection Direction { get; private set};
+        public SplitDirection Direction { get; private set;  }
 
         /// <summary>
         /// Split direction defines the axis that will not be subdivided

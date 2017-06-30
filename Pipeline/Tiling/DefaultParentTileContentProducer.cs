@@ -42,9 +42,9 @@ namespace OPS.Pipeline
         /// <param name="curNode"></param>
         /// <param name="meshOperator"></param>
         public void ProduceContent(SceneNode curNode, MeshOperator meshOperator)
-        {
+        {            
             // Get children
-            Mesh[] childMeshes = curNode.Children.Select(child => (child.GetContent<MeshImagePair>()).Mesh).Where(m => m != null).ToArray();
+            Mesh[] childMeshes = curNode.Children.Select(child => (child.GetComponent<MeshImagePair>()).Mesh).Where(m => m != null).ToArray();
             // Merge into a parent mesh
             Mesh parentMesh = Mesh.Merge(true, false, false, childMeshes);
             // Resample, Remesh, and decimate
@@ -64,7 +64,9 @@ namespace OPS.Pipeline
                 img = imageProducer.GenerateImage(clippedMesh);
             }
             // Add content to node
-            curNode.Content.Add(new MeshImagePair(clippedMesh, img));
+            MeshImagePair pair = curNode.AddComponent<MeshImagePair>();
+            pair.Mesh = clippedMesh;
+            pair.Image = img;
         }
     }
 }

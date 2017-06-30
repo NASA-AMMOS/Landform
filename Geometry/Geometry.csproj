@@ -58,15 +58,16 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Geometry\BoundingBoxExtensions.cs" />
-    <Compile Include="Geometry\SceneContent.cs" />
     <Compile Include="Geometry\Face.cs" />
     <Compile Include="Geometry\Mesh.cs" />
     <Compile Include="Geometry\MeshOperator.cs" />
     <Compile Include="Geometry\PlaneExtensions.cs" />
-    <Compile Include="Geometry\SceneNode.cs" />
     <Compile Include="Geometry\Triangle.cs" />
     <Compile Include="Geometry\Vertex.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="Scene\NodeComponent.cs" />
+    <Compile Include="Scene\NodeTransform.cs" />
+    <Compile Include="Scene\SceneNode.cs" />
     <Compile Include="Serializers\GLTFStructure.cs" />
     <Compile Include="Serializers\GLTFSerializer.cs" />
     <Compile Include="Serializers\MeshSerializer.cs" />

@@ -42,9 +42,9 @@ namespace OPS.Pipeline
                     var tile = SceneNodeToTile(curNode, nodeToUrl);
                     nodesToTiles.Add(curNode, tile);
                     // Should only be null for root node
-                    if(curNode.Parent != null)
+                    if(curNode.Transform.Parent != null)
                     {
-                        nodesToTiles[curNode.Parent].children.Add(tile);
+                        nodesToTiles[curNode.Transform.Parent.Node].children.Add(tile);
                     }
                 }
             }
@@ -80,7 +80,7 @@ namespace OPS.Pipeline
         {
             Tile3D.Tile tile = new Tile3D.Tile(node.Bounds, 0);
             tile.refine = Tile3D.RefineMode.replace;
-            if(node.Content.Count > 0)
+            if(node.GetComponent<MeshImagePair>() != null)
             {
                 tile.content = new Tile3D.Content();
                 tile.content.url = nodeToUrl(node);
@@ -96,7 +96,7 @@ namespace OPS.Pipeline
         /// <returns></returns>
         double CalculateGeometricError(SceneNode node)
         {
-            if(node.Children.Count == 0)
+            if(node.Transform.ChildCount == 0)
             {
                 return 0;
             }
@@ -106,34 +106,34 @@ namespace OPS.Pipeline
             SceneNode parent = node;
             while(parent != null)
             {
-                var pair = parent.GetContent<MeshImagePair>();
+                var pair = parent.GetComponent<MeshImagePair>();
                 if(pair != null && pair.Mesh != null)
                 {
                     parentMesh = pair.Mesh;
                     break;
                 }
-                parent = parent.Parent;
+                parent = parent.Transform.Parent.Node;
             }
             // Get first set of dicendants that have meshes
             List<Mesh> childrenMeshes = new List<Mesh>();
             Queue<SceneNode> childrenQueue = new Queue<SceneNode>();
-            foreach (var c in node.Children)
+            foreach (var n in node.Children)
             {
-                childrenQueue.Enqueue(c);
+                childrenQueue.Enqueue(n);
             }
             while (childrenQueue.Count > 0)
             {
                 SceneNode curNode = childrenQueue.Dequeue();
-                var pair = curNode.GetContent<MeshImagePair>();
+                var pair = curNode.GetComponent<MeshImagePair>();
                 if (pair != null && pair.Mesh != null)
                 {
                     childrenMeshes.Add(pair.Mesh);
                 }
                 else
                 {
-                    foreach (var c in curNode.Children)
+                    foreach (var n in curNode.Children)
                     {
-                        childrenQueue.Enqueue(c);
+                        childrenQueue.Enqueue(n);
                     }
                 }
             }

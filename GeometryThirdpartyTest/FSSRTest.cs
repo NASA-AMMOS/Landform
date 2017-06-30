@@ -2,12 +2,21 @@
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using OPS.Geometry;
 using System.Collections.Generic;
+using OPS.Util;
 
 namespace GeometryThirdpartyTest
 {
     [TestClass]
     public class FSSRTest
     {
+        [TestInitialize]
+        public void testInit()
+        {
+            // Current version of meshlab has a bug when using filepaths with spaces in the name
+            // https://github.com/cnr-isti-vclab/meshlab/issues/164
+            TemporaryFile.TemporaryDirectory = AppDomain.CurrentDomain.BaseDirectory.Replace(" ", "_") + "_tmp";
+        }
+
         [TestMethod]
         public void FSSRReconstruct()
         {

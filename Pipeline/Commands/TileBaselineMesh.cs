@@ -57,11 +57,11 @@ namespace OPS.Pipeline
         public string NodeToId(SceneNode node)
         {
             string id = "";
-            while(node.Parent != null)
+            while(node.Transform.Parent != null)
             {
-                int i = node.Parent.Children.IndexOf(node);
+                int i = node.Parent.Children.ToList().IndexOf(node);
                 id = i + id;
-                node = node.Parent;
+                node = node.Transform.Parent.Node;
             }
             return "0" + id;
         }
@@ -223,9 +223,11 @@ namespace OPS.Pipeline
                 if(File.Exists(imageName))
                 {
                     img = Image.Load(imageName);
-                }                
-                MeshImagePair pair = new MeshImagePair(Mesh.Load(NodeToMeshFilename(node)), img);
-                node.Content.Add(pair);
+                }               
+              
+                MeshImagePair pair = node.AddComponent<MeshImagePair>();
+                pair.Mesh = Mesh.Load(NodeToMeshFilename(node));
+                pair.Image = img;
             }
         }
 
@@ -235,7 +237,7 @@ namespace OPS.Pipeline
         /// <param name="node"></param>
         void SaveNode(SceneNode node)
         {
-            MeshImagePair pair = node.GetContent<MeshImagePair>();
+            MeshImagePair pair = node.GetComponent<MeshImagePair>();
             if (pair != null && pair.Mesh != null)
             {
                 string imageName = null;

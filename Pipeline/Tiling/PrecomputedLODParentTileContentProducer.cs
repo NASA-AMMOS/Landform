@@ -48,7 +48,9 @@ namespace OPS.Pipeline
             }
             if (m != null && m.Vertices.Count > 0)
             {
-                curNode.Content.Add(new MeshImagePair(m, null));
+                MeshImagePair pair = curNode.AddComponent<MeshImagePair>();
+                pair.Mesh = m;
+                pair.Image = null;
             }
         }
     }

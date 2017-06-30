@@ -72,7 +72,7 @@ namespace OPS.Pipeline
                     foreach (BoundingBox bounds in tilingScheme.Split(meshOperator, curNode.Bounds))
                     {
                         SceneNode child = new SceneNode();
-                        curNode.AddChild(child);
+                        child.Transform.SetParent(curNode.Transform);
                         child.Bounds = bounds;
                         tilesToProcess.Enqueue(child);
                     }
@@ -92,7 +92,7 @@ namespace OPS.Pipeline
         {
             Parallel.ForEach(this.Root.DepthFirstTraverse(), curNode =>
             {
-                if (curNode.GetContent<MeshImagePair>() == null)
+                if (curNode.GetComponent<MeshImagePair>() == null)
                 {
                     loadNode(curNode);
                 }
@@ -111,17 +111,18 @@ namespace OPS.Pipeline
             HashSet<SceneNode> nodesToProcess = new HashSet<SceneNode>();
             HashSet<SceneNode> processedNodes = new HashSet<SceneNode>();
             // Get a list of leaf tiles and seed the initial list of tiles to process with them
-            foreach (SceneNode leaf in Root.LeafNodes())
+            foreach (SceneNode leaf in Root.Leafs())
             {
                 nodesToProcess.Add(leaf);
             }
             while (nodesToProcess.Count > 0)
             {
                 // Generate assets for our nodes to process
-                Parallel.ForEach(nodesToProcess, curNode =>
+                Serial.ForEach(nodesToProcess, curNode =>
                 {
-                    if (curNode.GetContent<MeshImagePair>() == null)
+                    if (curNode.GetComponent<MeshImagePair>() == null)
                     {
+                        // Is a leaf
                         if (curNode.IsLeaf)
                         {
                             leafProducer.ProduceContent(curNode, this.meshOperator);                           
@@ -143,13 +144,13 @@ namespace OPS.Pipeline
                 foreach (SceneNode curNode in nodesToProcess)
                 {
                     // Skip the root node and any nodes we have already marked to process
-                    if (curNode.Parent != null && !nextToProcess.Contains(curNode.Parent))
+                    if (curNode.Transform.Parent != null && !nextToProcess.Contains(curNode.Transform.Parent.Node))
                     {
                         // If all the parent's nodes have content it can be processed
-                        bool canProcess = curNode.Parent.Children.All(c => processedNodes.Contains(c));
+                        bool canProcess = curNode.Parent.Children.All(n => processedNodes.Contains(n));
                         if (canProcess)
                         {
-                            nextToProcess.Add(curNode.Parent);
+                            nextToProcess.Add(curNode.Transform.Parent.Node);
                         }
                     }
                 }

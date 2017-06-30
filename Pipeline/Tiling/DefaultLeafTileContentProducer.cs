@@ -37,7 +37,9 @@ namespace OPS.Pipeline
             {
                 image = imageProducer.GenerateImage(mesh);
             }
-            curNode.Content.Add(new MeshImagePair(mesh, image));
+            MeshImagePair pair = curNode.AddComponent<MeshImagePair>();
+            pair.Mesh = mesh;
+            pair.Image = image;
         }
     }
 
