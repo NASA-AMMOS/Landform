@@ -55,7 +55,10 @@ namespace OPS.Pipeline
             string trainingFile = options.TrainingFile;
             string gpcafile = options.TrainingFile;
             string SIFTbool = options.SIFTbool;
-
+            // Testing GTM operations
+            //GTM gtm = new GTM();
+            //gtm.DebugOptimizer();
+            //
             if (trainingPath != null)
             {
                 Train(trainingFile, trainingPath);
@@ -66,6 +69,7 @@ namespace OPS.Pipeline
             {
                 outputFile = imageFileA.Substring(0, imageFileA.Length - 4) + ".jpg";
             }
+
             Imaging.Image model = Imaging.Image.Load(imageFileA);
             Imaging.Image data = Imaging.Image.Load(imageFileB);
 
@@ -111,10 +115,14 @@ namespace OPS.Pipeline
 
             EmguSIFTMatcher matcher = new EmguSIFTMatcher();
             ImagePairCorrespondence matches = matcher.Match(new ImageRef(model), new ImageRef(data), featuresA, featuresB);
-            MoisanStivalFilter filter = new MoisanStivalFilter();
-            matches = filter.Filter(matches);
-            GTM gtm = new GTM(5);
-            matches = gtm.Filter(matches);
+
+            // UNCOMMENT THE FOLLOWING TO FILTER
+            //MoisanStivalFilter filter = new MoisanStivalFilter();
+            //matches = filter.Filter(matches);
+            //GTM gtm = new GTM(5);
+            //matches = gtm.Filter(matches);
+            //
+
             PCAMatch.Match(matches, outputFile);
             Trace.WriteLine(string.Format("Matched images written to {0}", outputFile));
         }
