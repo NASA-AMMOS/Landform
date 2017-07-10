@@ -11,6 +11,7 @@ namespace OPS.Alignment
         public int MaxIterations;
         public bool RefineStep;
         public int K;
+        public int counter;
 
         public GTM(int k = 5)
         {
@@ -33,23 +34,76 @@ namespace OPS.Alignment
                 PPrime[i] = dataFeat[pairs[i].Key];
             }
 
-            int counter = 0;
+            counter = 0;
             int outlier;
 
 
             // DEBUG
-            //ImageFeature u1 = new ImageFeature(new Vector2(0, 3), null);
-            //ImageFeature u2 = new ImageFeature(new Vector2(1, 2), null);
-            //ImageFeature u3 = new ImageFeature(new Vector2(3, 0.9), null);
-            //ImageFeature u4 = new ImageFeature(new Vector2(1, 3), null);
-            //ImageFeature u5 = new ImageFeature(new Vector2(3, 3), null);
-            //ImageFeature u6 = new ImageFeature(new Vector2(2, 4), null);
+            // K = 2;
+            //ImageFeature u1 = new ImageFeature(new Vector2(0, 4), null);
+            //ImageFeature u2 = new ImageFeature(new Vector2(1, 3), null);
+            //ImageFeature u3 = new ImageFeature(new Vector2(3, 0), null);
+            //ImageFeature u4 = new ImageFeature(new Vector2(1, 4), null);
+            //ImageFeature u5 = new ImageFeature(new Vector2(3, 4), null);
+            //ImageFeature u6 = new ImageFeature(new Vector2(2, 5), null);
 
             //ImageFeature[] testSet = new ImageFeature[] { u1, u2, u3, u4, u5, u6 };
+
+            //ImageFeature u1 = new ImageFeature(new Vector2(0, 0), null);
+            //ImageFeature u2 = new ImageFeature(new Vector2(0, 1), null);
+            //ImageFeature u3 = new ImageFeature(new Vector2(2, 0), null);
+            //ImageFeature u4 = new ImageFeature(new Vector2(3, 1), null);
+
+            //ImageFeature[] testSet = new ImageFeature[] { u1, u2, u3, u4 };
+            //int[][] At = new int[6][];
+            //int[][] Atp = new int[6][];
+            //At[0] = new int[] { 4, 2, 3, 5, 6, -2 };
+            //At[1] = new int[] { 3, 4, 5, 1, 6, -2 };
+            //At[2] = new int[] { 2, 5, 4, 1, 6, -2 };
+            //At[3] = new int[] { 2, 3, 5, 1, 6, -2 };
+            //At[4] = new int[] { 3, 2, 4, 1, 6, -2 };
+            //At[5] = new int[] { 4, 1, 5, 2, 3, -2 };
+
+            //Atp[0] = new int[] { 4, 2, 3, 5, 6, -2 };
+            //Atp[1] = new int[] { 3, 4, 6, 5, 1, -2 };
+            //Atp[2] = new int[] { 6, 2, 5, 4, 1, -2 };
+            //Atp[3] = new int[] { 2, 3, 1, 5, 6, -2 };
+            //Atp[4] = new int[] { 6, 3, 2, 4, 1, -2 };
+            //Atp[5] = new int[] { 3, 5, 2, 4, 1, -2 };
+
+            //HashSet<int>[] It = new HashSet<int>[6];
+            //It[0] = new HashSet<int>(new int[]{ 6 });
+            //It[1] = new HashSet<int>(new int[] { 1, 3, 4, 5 });
+            //It[2] = new HashSet<int>(new int[] { 2, 4, 5 });
+            //It[3] = new HashSet<int>(new int[] { 1, 2, 6 });
+            //It[4] = new HashSet<int>(new int[] { 3 });
+            //It[5] = new HashSet<int>(new int[] {  });
+
+            //HashSet<int>[] Itp = new HashSet<int>[6];
+            //Itp[0] = new HashSet<int>(new int[] {  });
+            //Itp[1] = new HashSet<int>(new int[] { 1, 3, 4 });
+            //Itp[2] = new HashSet<int>(new int[] { 2, 4, 5, 6 });
+            //Itp[3] = new HashSet<int>(new int[] { 1, 2 });
+            //Itp[4] = new HashSet<int>(new int[] { 6 });
+            //Itp[5] = new HashSet<int>(new int[] { 3, 5 });
+
+            //Debug.WriteLine(FindOutlier(At, Atp, It, Itp, new HashSet<int>()));
+            Debug.WriteLine("");
+
+            //Debug.WriteLine(GraphEqual(At, Atp, 2));
+            //Debug.WriteLine(GraphEqual(At, Atp, 3));
+
+
             //double[][] dist = ComputeDistanceMatrix(testSet);
             //int[][] Ot = InitMedianKNNGraphOptimized(dist, 2);
-            //List<int>[] It = InitNeighborVector(Ot, 2);
-            //List<int> Ct = InitNextVector(testSet.Length);
+            //HashSet<int>[] It = InitNeighborVector(Ot, 2);
+            //int[] Ct = new int[testSet.Count()].Select(x => K).ToArray();
+
+            //printIntermediates(Ot, It, Ct);
+            //RefreshKNNGraph(Ot, Ct, 3);
+            //printIntermediates(Ot, It, Ct);
+            //RefreshKNNGraph(Ot, Ct, 2);
+            //printIntermediates(Ot, It, Ct);
             //for (int kl = 0; kl < testKNN.Length; kl++)
             //{
             //    for (int oi = 0; oi < testKNN.Length; oi++)
@@ -59,17 +113,16 @@ namespace OPS.Alignment
             //    Debug.WriteLine("\n");
             //}
             //Debug.WriteLine("-------");
-            //for (int kl = 0; kl < testKNN.Length; kl++)
+            //for (int kl = 0; kl < Ot.Length; kl++)
             //{
-            //    for (int oi = 0; oi < testKNN.Length; oi++)
+            //    for (int oi = 0; oi < Ot.Length; oi++)
             //    {
-            //        Debug.Write(testKNN[kl][oi] + " ");
+            //        Debug.Write(Ot[kl][oi] + 1 + " ");
             //    }
             //    Debug.WriteLine("");
             //}
             //foreach (int num in Ct)
             //{
-
             //    Debug.WriteLine(num + " ");
             //}
 
@@ -78,160 +131,167 @@ namespace OPS.Alignment
 
 
             // <OPTIMIZED
-            //double[][] DistP = ComputeDistanceMatrix(P);
-            //double[][] DistPPrime = ComputeDistanceMatrix(PPrime);
-            //double MedianP = ComputeMedian(DistP);
-            //double MedianPPrime = ComputeMedian(DistPPrime);
-            //int[][] O = InitMedianKNNGraphOptimized(DistP, MedianP);
-            //int[][] OPrime = InitMedianKNNGraphOptimized(DistPPrime, MedianPPrime);
-            //List<int>[] I = InitNeighborVector(O);
-            //List<int>[] IPrime = InitNeighborVector(OPrime);
-            //int[] C = new int[pairs.Length].Select(x => K + 1).ToArray();
-            //int[] CPrime = new int[pairs.Length].Select(x => K + 1).ToArray();
-            //HashSet<int> outliers = new HashSet<int>();
-
-            //while (!GraphEqual(O, OPrime))
-            //{
-            //    counter++;
-            //    outlier = FindOutlier(O, OPrime, I, IPrime);
-
-            //    if (outliers.Contains(outlier))
-            //        break;
-
-            //    outliers.Add(outlier);
-
-            //    RemoveOutlier(outlier, O, OPrime, I, IPrime, C, CPrime);
-            //    printIntermediates(O, I, C);
-                    
-            //}
-            //return new ImagePairCorrespondence(matches.ModelImage, matches.DataImage, null, null, new KeyValuePair<int, int>[0]);
-
-
-            // /OPTIMIZED>
-
+            counter = 0;
             double[][] DistP = ComputeDistanceMatrix(P);
             double[][] DistPPrime = ComputeDistanceMatrix(PPrime);
             double MedianP = ComputeMedian(DistP);
             double MedianPPrime = ComputeMedian(DistPPrime);
+            int[][] O = InitMedianKNNGraphOptimized(DistP, MedianP);
+            int[][] OPrime = InitMedianKNNGraphOptimized(DistPPrime, MedianPPrime);
+            HashSet<int>[] I = InitNeighborVector(O);
+            HashSet<int>[] IPrime = InitNeighborVector(OPrime);
+            int[] C = new int[pairs.Length].Select(x => K).ToArray();
+            int[] CPrime = new int[pairs.Length].Select(x => K).ToArray();
+            HashSet<int> outliers = new HashSet<int>();
             ImageFeature[] Q = (ImageFeature[])P.Clone();
             ImageFeature[] QPrime = (ImageFeature[])PPrime.Clone();
-            HashSet<int> outliers = new HashSet<int>();
 
-            double[][] AP = BuildMedianKNNGraph(DistP, K, MedianP, outliers);
-            double[][] APPrime = BuildMedianKNNGraph(DistPPrime, K, MedianPPrime, outliers);
-
-
-            while (!GraphEqual(AP, APPrime))
+            while (!GraphEqual(O, OPrime))
             {
                 counter++;
-                outlier = FindOutlier(AP, APPrime, outliers);
+                outlier = FindOutlier(O, OPrime, I, IPrime, outliers);
 
                 if (outliers.Contains(outlier))
-                {
-                    break;
-                }
+                    Debug.Write("here lol");
                 outliers.Add(outlier);
-                //RemoveOutlier(outlier, DistP, DistPPrime, Q, QPrime);
-                AP = BuildMedianKNNGraph(DistP, K, MedianP, outliers);
-                APPrime = BuildMedianKNNGraph(DistPPrime, K, MedianPPrime, outliers);
+                //printIntermediates(O, I, C);
+               // if (outlier == -1) break;
+                RemoveOutlier(outlier, O, OPrime, I, IPrime, C, CPrime, outliers);
+                //printIntermediates(O, I, C);
+
             }
 
-            Q = RemoveDisconnectedVertices(Q, AP);
-            QPrime = RemoveDisconnectedVertices(QPrime, APPrime);
+            for (int kk = 0; kk < O.Length; kk++){
+                Debug.WriteLine(O[kk][0] + " " + O[kk][1] + " " + O[kk][2] + " " + O[kk][3] + " " + O[kk][4]);
+            }
+
+
+
+            Debug.WriteLine(counter + " iterations");
+            Q = RemoveDisconnectedVertices(Q, outliers);
+            QPrime = RemoveDisconnectedVertices(QPrime, outliers);
 
             if (Q.Length != QPrime.Length)
                 throw new Exception("Matched features not equal in length.");
 
             KeyValuePair<int, int>[] goodMatches = ConstructFinalMatches(Q.Length);
-                                                                              
+
             Debug.WriteLine("Number of residual matches: " + goodMatches.Length + " after " + counter + " iterations of GTM");
 
-            return new ImagePairCorrespondence(
-                matches.ModelImage, matches.DataImage,
-                Q, QPrime,
-                goodMatches);
-      }
+            return new ImagePairCorrespondence(matches.ModelImage, matches.DataImage, Q, QPrime, goodMatches);
 
-        private void printIntermediates(int[][] o, List<int>[] i, int[] c)
+
+            // /OPTIMIZED>
+
+            //double[][] DistP = ComputeDistanceMatrix(P);
+            //double[][] DistPPrime = ComputeDistanceMatrix(PPrime);
+            //double MedianP = ComputeMedian(DistP);
+            //double MedianPPrime = ComputeMedian(DistPPrime);
+            //ImageFeature[] Q = (ImageFeature[])P.Clone();
+            //ImageFeature[] QPrime = (ImageFeature[])PPrime.Clone();
+            //HashSet<int> outliers = new HashSet<int>();
+
+            //double[][] AP = BuildMedianKNNGraph(DistP, K, MedianP, outliers);
+            //double[][] APPrime = BuildMedianKNNGraph(DistPPrime, K, MedianPPrime, outliers);
+
+
+            //while (!GraphEqual(AP, APPrime))
+            //{
+            //    counter++;
+            //    outlier = FindOutlier(AP, APPrime, outliers);
+
+            //    if (outliers.Contains(outlier))
+            //    {
+            //        break;
+            //    }
+            //    outliers.Add(outlier);
+            //    //RemoveOutlier(outlier, DistP, DistPPrime, Q, QPrime);
+            //    AP = BuildMedianKNNGraph(DistP, K, MedianP, outliers);
+            //    APPrime = BuildMedianKNNGraph(DistPPrime, K, MedianPPrime, outliers);
+            //}
+
+            //Q = RemoveDisconnectedVertices(Q, AP);
+            //QPrime = RemoveDisconnectedVertices(QPrime, APPrime);
+
+            //if (Q.Length != QPrime.Length)
+            //    throw new Exception("Matched features not equal in length.");
+
+            //KeyValuePair<int, int>[] goodMatches = ConstructFinalMatches(Q.Length);
+
+            //Debug.WriteLine("Number of residual matches: " + goodMatches.Length + " after " + counter + " iterations of GTM");
+
+            //return new ImagePairCorrespondence(
+            //    matches.ModelImage, matches.DataImage,
+            //    Q, QPrime,
+            //    goodMatches);
+        }
+
+        private void printIntermediates(int[][] o, HashSet<int>[] i, int[] c, int numrows = 10)
         {
+            int count = 0;
             foreach (int[] row in o)
             {
-                for (int j = 0; j < o.Length; j++)
+                for (int j = 0; j < Math.Min(o.Length, numrows); j++)
                 {
-                    // TODO
+                    Debug.Write(row[j] + 1 + " ");
+                }
+                Debug.WriteLine("");
+                if (count++ > 10) break;
+            }
+            Debug.WriteLine("---------");
+        }
+
+        private void RefreshKNNGraph(int[][] o, int[] c, int outlier, HashSet<int> outliers)
+        {
+            int[] row;
+            int tmp = 0;
+            for (int i = 0; i < o.Length; i++)
+            {
+                row = o[i];
+                int tmpi = c[i];
+                for (int j = 0; j < K; j++)
+                {
+                    if (row[j] == outlier)
+                    {
+                        while (outliers.Contains(row[tmpi]))
+                        {
+                            tmpi++;
+                            if (tmpi == o.Length)
+                            {
+                                tmpi--;
+                                break;
+                            }
+                        }
+                        row[j] = row[tmpi];
+                        c[i] = tmpi;
+                    }
                 }
             }
         }
 
-        private void RemoveOutlier(int outlier, int[][] o, int[][] oPrime, List<int>[] i, List<int>[] iprime, int[] c, int[] cPrime)
+        private void RemoveOutlier(int outlier, int[][] o, int[][] oPrime, HashSet<int>[] i, HashSet<int>[] iprime, int[] c, int[] cPrime, HashSet<int> outliers)
         {
             // Remove from I and IPrime
-            i[outlier] = null;
-            iprime[outlier] = null;
-
-            foreach (List<int> list in i)
+            foreach (int index in i[outlier])
             {
-                for (int j = 0; j < list.Count; j++)
-                {
-                    if (list[j] == outlier)
-                        list[j] = -1;
-                }
+                i[index].Remove(outlier);
             }
 
-            foreach (List<int> list in iprime)
+            foreach (int index in iprime[outlier])
             {
-                for (int j = 0; j < list.Count; j++)
-                {
-                    if (list[j] == outlier)
-                        list[j] = -1;
-                }
+                iprime[index].Remove(outlier);
             }
+
+            i[outlier].Clear();
+            iprime[outlier].Clear();
 
             // Remove from O and OPrime
             o[outlier][0] = -1;
             oPrime[outlier][0] = -1;
 
-            // Reconnect edges in C and CPrime
+            RefreshKNNGraph(o, c, outlier, outliers);
+            RefreshKNNGraph(oPrime, cPrime, outlier, outliers);
 
-            for (int m = 0; m < o.Length; m++)
-            {
-                int[] row = o[m];
-                for (int k = 0; k < K; k++)
-                {
-                    if (row[k] == outlier)
-                    {
-                        try
-                        {
-                            row[k] = i[m][c[m]];
-                            c[m]++;
-                        }
-                        catch (IndexOutOfRangeException e)
-                        {
-                            continue;
-                        }
-                    }
-                }
-            }
-
-            for (int m = 0; m < oPrime.Length; m++)
-            {
-                int[] row = oPrime[m];
-                for (int k = 0; k < K; k++)
-                {
-                    if (row[k] == outlier)
-                    {
-                        try
-                        {
-                            row[k] = i[m][c[m]];
-                            c[m]++;
-                        }
-                        catch (IndexOutOfRangeException e)
-                        {
-                            continue;
-                        }
-                    }
-                }
-            }
         }
 
         /// <summary>
@@ -253,21 +313,25 @@ namespace OPS.Alignment
             return true;
         }
 
-        bool GraphEqual(int[][] A, int[][] AP)
+        /// <summary>
+        /// Checks if two optimized graphs are equal.
+        /// </summary>
+        /// <param name="A"></param>
+        /// <param name="AP"></param>
+        /// <returns></returns>
+        bool GraphEqual(int[][] A, int[][] AP, int kk = 5)
         {
             for (int i = 0; i < A.Length; i++)
             {
-                for (int j = 0; j < A.Length; j++)
+                if (A[i][0] == -1 && AP[i][0] == -1) continue;
+                for (int k = 0; k < kk; k++)
                 {
-                    if (Math.Abs(A[i][j] - AP[i][j]) > double.Epsilon)
+                    if (A[i][k] != AP[i][k])
                         return false;
                 }
             }
             return true;
         }
-
-
-
 
         /// <summary>
         /// Constructs the final matches as i:i mappings for i in [0, length).
@@ -334,6 +398,17 @@ namespace OPS.Alignment
         }
 
         /// <summary>
+        /// Prunes erroneous features.
+        /// </summary>
+        /// <param name="features">Input list of features.</param>
+        /// <param name="graph">Adjacency matrix representation of graph.</param>
+        /// <returns>A copy of pruned features.</returns>
+        ImageFeature[] RemoveDisconnectedVertices(ImageFeature[] features, HashSet<int> outliers)
+        {
+            return features.Where((x, i) => !outliers.Contains(i)).ToArray();
+        }
+
+        /// <summary>
         /// Removes an outlier from both adjacency graphs, as well as lists of features. 
         /// </summary>
         /// <param name="outlier">Index of feature to remove.</param>
@@ -377,16 +452,18 @@ namespace OPS.Alignment
             return rowsums.IndexOf(rowsums.Max());
         }
 
-        int FindOutlier(int[][] O, int[][] OPrime, List<int>[] I, List<int>[] IPrime)
+        int FindOutlier(int[][] O, int[][] OPrime, HashSet<int>[] I, HashSet<int>[] IPrime, HashSet<int> outliers)
         {
             HashSet<int> A = new HashSet<int>();
             HashSet<int> APrime = new HashSet<int>();
             int maxcount = -1;
-            IEnumerable<int> possibleOutliers;
+            IEnumerable<int> outlierSet;
             int outlier = -1;
 
             for (int i = 0; i < O.Length; i++)
             {
+                if (outliers.Contains(i)) continue;
+
                 foreach (int num in I[i])
                     A.Add(num);
                 foreach (int num in IPrime[i])
@@ -398,11 +475,12 @@ namespace OPS.Alignment
                     APrime.Add(OPrime[i][k]);
                 }
 
-                possibleOutliers = A.Except(APrime).Union(APrime.Except(A));
-                if (possibleOutliers.Where(number => number > -1).Count() > maxcount)
+                outlierSet = A.Except(APrime).Union(APrime.Except(A));
+                int[] outlierSetArr = outlierSet.ToArray();
+                if (outlierSet.Count() > maxcount)
                 {
-                    maxcount = possibleOutliers.Count();
-                    outlier = possibleOutliers.First();
+                    maxcount = outlierSet.Count();
+                    outlier = i;
                 }
                 A.Clear();
                 APrime.Clear();
@@ -421,12 +499,13 @@ namespace OPS.Alignment
             int[][] res = new int[dist.Length][].Select(x => new int[dist.Length]).ToArray();
 
             for (int i = 0; i < dist.Length; i++) {
-                int j = 0;
-                res[i] = dist[i].Select(x => new { Value = x, Index = j++ })
-                                .Where(y => y.Value > 0)
+                res[i] = dist[i].Select((x, j) => new { Value = x, Index = j })
+                                .Where(y => y.Value > 0 && y.Value <= median)
                                 .OrderBy(v => v.Value)
                                 .Select(w => w.Index)
-                                .Concat(new int[] { -2 }).ToArray();
+                                .ToArray();
+                int fill = dist.Length - res[i].Length;
+                res[i] = res[i].Concat(Enumerable.Repeat(-2, fill)).ToArray();
             }
 
             return res;
@@ -437,9 +516,9 @@ namespace OPS.Alignment
         /// </summary>
         /// <param name="knnGraph"></param>
         /// <returns></returns>
-        List<int>[] InitNeighborVector(int[][] knnGraph, int k = 5)
+        HashSet<int>[] InitNeighborVector(int[][] knnGraph, int k = 5)
         {
-            List<int>[] res = new List<int>[knnGraph.Length].Select(x => new List<int>()).ToArray();
+            HashSet<int>[] res = new HashSet<int>[knnGraph.Length].Select(x => new HashSet<int>()).ToArray();
             int[] vertexCount = new int[knnGraph.Length];
 
             for (int i = 0; i < knnGraph.Length; i++)
@@ -472,8 +551,7 @@ namespace OPS.Alignment
             {
 
                 if (outliers.Contains(i)) continue;
-                int count = 0;
-                var distances1 = dist[i].Select(x => new { Value = x, Index = count++ })
+                var distances1 = dist[i].Select((x, j) => new { Value = x, Index = j })
                                         .Where(y => y.Value > 0 && !outliers.Contains(y.Index)) // not itself or outlier
                                         .OrderBy(v => v.Value).ToArray();
 
