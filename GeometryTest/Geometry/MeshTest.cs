@@ -419,18 +419,18 @@ namespace GeometryTest
             Assert.IsFalse(a.AttributesEqual(new Mesh(true, false, false)));
             Assert.IsFalse(a.AttributesEqual(new Mesh(false, true, false)));
             Assert.IsFalse(a.AttributesEqual(new Mesh(false, false, true)));
-            Assert.IsTrue(a.AttributesAlsoExistIn(new Mesh(false, false, false)));
-            Assert.IsTrue(a.AttributesAlsoExistIn(new Mesh(true, false, false)));
-            Assert.IsTrue(a.AttributesAlsoExistIn(new Mesh(false, true, false)));
-            Assert.IsTrue(a.AttributesAlsoExistIn(new Mesh(false, false, true)));
+            Assert.IsTrue(a.AttributesSubsetOf(new Mesh(false, false, false)));
+            Assert.IsTrue(a.AttributesSubsetOf(new Mesh(true, false, false)));
+            Assert.IsTrue(a.AttributesSubsetOf(new Mesh(false, true, false)));
+            Assert.IsTrue(a.AttributesSubsetOf(new Mesh(false, false, true)));
 
             a = new Mesh(false, true, true);
-            Assert.IsFalse(a.AttributesAlsoExistIn(new Mesh(false, false, false)));
-            Assert.IsFalse(a.AttributesAlsoExistIn(new Mesh(true, false, false)));
-            Assert.IsFalse(a.AttributesAlsoExistIn(new Mesh(false, true, false)));
-            Assert.IsFalse(a.AttributesAlsoExistIn(new Mesh(false, false, true)));
-            Assert.IsTrue(a.AttributesAlsoExistIn(new Mesh(true, true, true)));
-            Assert.IsTrue(a.AttributesAlsoExistIn(new Mesh(false, true, true)));
+            Assert.IsFalse(a.AttributesSubsetOf(new Mesh(false, false, false)));
+            Assert.IsFalse(a.AttributesSubsetOf(new Mesh(true, false, false)));
+            Assert.IsFalse(a.AttributesSubsetOf(new Mesh(false, true, false)));
+            Assert.IsFalse(a.AttributesSubsetOf(new Mesh(false, false, true)));
+            Assert.IsTrue(a.AttributesSubsetOf(new Mesh(true, true, true)));
+            Assert.IsTrue(a.AttributesSubsetOf(new Mesh(false, true, true)));
         }
         
 

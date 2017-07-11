@@ -16,9 +16,9 @@ namespace ImagingTest
         public void TestCoordinateConstructor()
         {
             ImageCoordinate ic = new ImageCoordinate(1, 2, 3);
-            Assert.AreEqual(1, ic.b);
-            Assert.AreEqual(2, ic.r);
-            Assert.AreEqual(3, ic.c);
+            Assert.AreEqual(1, ic.Band);
+            Assert.AreEqual(2, ic.Row);
+            Assert.AreEqual(3, ic.Col);
         }
     }
 }

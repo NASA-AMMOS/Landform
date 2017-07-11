@@ -41,7 +41,7 @@ namespace OPS.Pipeline
         public Image GenerateImage(Mesh mesh)
         {
             // Find the area of pixels in the source image covered by this mesh
-            var pixelBounds = fullImage.UVBoundsToPixel(mesh.UVBounds());
+            var pixelBounds = fullImage.UVToPixel(mesh.UVBounds());
 
             // Compute the starting position
             var start = pixelBounds.Min;
@@ -83,7 +83,7 @@ namespace OPS.Pipeline
             // Round up size to nearest power of 2
             var targetWidth = MathE.CeilPowerOf2(pixelSize.X);
             var targetHeight = MathE.CeilPowerOf2(pixelSize.Y);
-            // Is image resizing enabled?
+            // Resize if a max number of output pixels has been specified
             if (maxPixels != 0)
             {
                 // Divide the largest dimensio of the image in half until total pixels is less than limit

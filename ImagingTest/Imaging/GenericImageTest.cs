@@ -266,7 +266,7 @@ namespace ImagingTest
                 img.SetMaskValue(7, true);
                 foreach (var ic in img.Coordinates(false))
                 {
-                    img[ic.b, ic.r, ic.c] += 1;
+                    img[ic.Band, ic.Row, ic.Col] += 1;
                 }
                 for (int b = 0; b < img.Data.Length; b++)
                 {
@@ -285,7 +285,7 @@ namespace ImagingTest
                 }
                 foreach (var ic in img.Coordinates(true))
                 {
-                    img[ic.b, ic.r, ic.c] += 1;
+                    img[ic.Band, ic.Row, ic.Col] += 1;
                 }
                 for (int b = 0; b < img.Data.Length; b++)
                 {
@@ -326,10 +326,10 @@ namespace ImagingTest
         {
             GenericImage<float> img = new GenericImage<float>(1, 100, 200);
             BoundingBox pixels = new BoundingBox(new Vector3(10, 30, 0), new Vector3(25, 60, 0));
-            BoundingBox uvs = img.PixelBoundsToUV(pixels);
+            BoundingBox uvs = img.PixelToUv(pixels);
             Assert.AreEqual(new Vector3(10 / 100.0, 1 - (60 / 200.0), 0), uvs.Min);
             Assert.AreEqual(new Vector3(25 / 100.0, 1 - (30 / 200.0), 0), uvs.Max);
-            BoundingBox p2 = img.UVBoundsToPixel(uvs);            
+            BoundingBox p2 = img.UVToPixel(uvs);            
             Assert.IsTrue(Vector3.AlmostEqual(pixels.Min, p2.Min));
             Assert.IsTrue(Vector3.AlmostEqual(pixels.Max, p2.Max));
         }
