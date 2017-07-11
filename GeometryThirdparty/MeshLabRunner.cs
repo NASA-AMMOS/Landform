@@ -16,7 +16,8 @@ namespace OPS.Geometry
     {
         private static readonly ILog logger = LogManager.GetLogger(typeof(MeshLabRunner));
 
-        const string DEFAULT_SERVER_DIR = @"C:\Program Files\VCG\MeshLab_2016";
+        const string MESHLAB_LOCATION_ENVIRONMENT_VAR_NAME = "LANDFORM_MESHLAB_DIR";
+        const string DEFAULT_SERVER_DIR = @"C:\Program Files\VCG\MeshLab";
         const string EXECUTABLE_NAME = "meshlabserver.exe";
         static string meshlabServerDir = DEFAULT_SERVER_DIR;
 
@@ -49,6 +50,18 @@ namespace OPS.Geometry
         static string FullMeshlabServerPath
         {
             get { return Path.Combine(meshlabServerDir, EXECUTABLE_NAME); }
+        }
+
+
+        static MeshLabRunner()
+        {           
+            string meshlabLocation = Environment.GetEnvironmentVariable(MESHLAB_LOCATION_ENVIRONMENT_VAR_NAME);
+            if(meshlabLocation != null)
+            {
+                logger.Info("Meshlab location specified by environmental variable");
+                logger.Info(MESHLAB_LOCATION_ENVIRONMENT_VAR_NAME + "=" + meshlabLocation);
+                MeshlabServerDirectory = meshlabLocation;
+            }
         }
 
         /// <summary>
