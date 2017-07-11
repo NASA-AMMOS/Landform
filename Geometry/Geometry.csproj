@@ -59,6 +59,7 @@
   <ItemGroup>
     <Compile Include="Geometry\BoundingBoxExtensions.cs" />
     <Compile Include="Geometry\Face.cs" />
+    <Compile Include="Geometry\EpipolarTransform.cs" />
     <Compile Include="Geometry\Mesh.cs" />
     <Compile Include="Geometry\MeshOperator.cs" />
     <Compile Include="Geometry\PlaneExtensions.cs" />

@@ -70,14 +70,15 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="SIFT\ASIFT.cs" />
+    <Compile Include="Interfaces\IDescriptorCalculator.cs" />
+    <Compile Include="SIFT\ASIFTDetector.cs" />
     <Compile Include="EmguSIFTMatcher.cs" />
     <Compile Include="FeatureMatching\FeatureDescriptor.cs" />
     <Compile Include="Interfaces\IFeatureDetector.cs" />
     <Compile Include="SIFT\SIFTDescriptor.cs" />
     <Compile Include="MatchFilters\MoisanStivalFilter.cs" />
     <Compile Include="ImagePairCorrespondence.cs" />
-    <Compile Include="SIFT\SIFTDetector.cs" />
+    <Compile Include="SIFT\SIFT.cs" />
     <Compile Include="SIFT\SIFTFeature.cs" />
     <Compile Include="FeatureMatching\ImageFeature.cs" />
     <Compile Include="Interfaces\IMatchFilter.cs" />

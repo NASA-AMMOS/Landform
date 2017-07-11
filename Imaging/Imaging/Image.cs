@@ -191,10 +191,10 @@ namespace OPS.Imaging
             }
             foreach (ImageCoordinate ic in result.Coordinates(true))
             {
-                result[ic.b, ic.r, ic.c] = this[ic.b, ic.r + startRow, ic.c + startCol];
+                result[ic.Band, ic.Row, ic.Col] = this[ic.Band, ic.Row + startRow, ic.Col + startCol];
                 if(this.HasMask)
                 {
-                    result.SetMaskValue(ic.r, ic.c, this.IsMasked(ic.r + startRow, ic.c + startCol));
+                    result.SetMaskValue(ic.Row, ic.Col, this.IsMasked(ic.Row + startRow, ic.Col + startCol));
                 }
             }
             return result;
@@ -215,7 +215,7 @@ namespace OPS.Imaging
             float hRatio = (this.Height-1) / ((float)result.Height-1);
             foreach (ImageCoordinate ic in result.Coordinates(true))
             {
-                result[ic.b, ic.r, ic.c] = BicubicSample(ic.b, ic.r * hRatio, ic.c * wRatio);        
+                result[ic.Band, ic.Row, ic.Col] = BicubicSample(ic.Band, ic.Row * hRatio, ic.Col * wRatio);        
             }
             return result;
         }

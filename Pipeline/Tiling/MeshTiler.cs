@@ -111,7 +111,7 @@ namespace OPS.Pipeline
             HashSet<SceneNode> nodesToProcess = new HashSet<SceneNode>();
             HashSet<SceneNode> processedNodes = new HashSet<SceneNode>();
             // Get a list of leaf tiles and seed the initial list of tiles to process with them
-            foreach (SceneNode leaf in Root.Leafs())
+            foreach (SceneNode leaf in Root.Leaves())
             {
                 nodesToProcess.Add(leaf);
             }
