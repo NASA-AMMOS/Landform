@@ -283,7 +283,7 @@ namespace OPS.Geometry
 
     /// <summary>
     /// Same as maximum compatibility writer except
-    /// - Position valeus always stored as doubles
+    /// - Position values always stored as doubles
     /// - Color values stored as floats
     /// - Texture coordintes stored as doubles.  Only uses s and t        
     /// Sample Header 
@@ -321,6 +321,65 @@ namespace OPS.Geometry
         {
             WriteDoubleValue(v.UV.U, s);
             WriteDoubleValue(v.UV.V, s);
+        }
+
+        protected override void WriteVertexColorHeader(StreamWriter sw)
+        {
+            sw.WriteLine("property float red");
+            sw.WriteLine("property float green");
+            sw.WriteLine("property float blue");
+            sw.WriteLine("property float alpha");
+        }
+
+        protected override void WriteVertexColor(Vertex v, Stream s)
+        {
+            WriteFloatValue((float)v.Color.R, s);
+            WriteFloatValue((float)v.Color.G, s);
+            WriteFloatValue((float)v.Color.B, s);
+            WriteFloatValue((float)v.Color.A, s);
+        }
+    }
+
+    /// <summary>
+    /// Save a PLY in a way that minimizes file size 
+    /// - Position values can be stored as float or doubles
+    /// - Color values stored as floats
+    /// - Texture coordintes stored as floats   
+    /// Sample Header 
+    /// ply
+    /// format binary_little_endian 1.0
+    /// [comments TextureFile filename]
+    /// element vertex 3
+    /// property float/double x
+    /// property float/double y
+    /// property float/double z
+    /// property float nx
+    /// property float ny
+    /// property float nz
+    /// property float texture_u
+    /// property float texture_v
+    /// property float red
+    /// property float green
+    /// property float blue
+    /// property float alpha
+    /// element face 1
+    /// property list uchar int vertex_indices
+    /// end_header
+    /// </summary>
+    public class PLYCompactFileWriter : PLYBaseWriter
+    {
+        public PLYCompactFileWriter(bool writeXYZValuesAsFloat = false) : base(writeXYZValuesAsFloat) { }
+
+        protected override void WriteVertexUVHeader(StreamWriter sw)
+        {
+            sw.WriteLine("property float texture_u");
+            sw.WriteLine("property float texture_v");
+        }
+
+        protected override void WriteVertexUV(Vertex v, Stream s)
+        {
+            WriteFloatValue((float)v.UV.U, s);
+            WriteFloatValue((float)v.UV.V, s);
         }
 
         protected override void WriteVertexColorHeader(StreamWriter sw)

@@ -42,5 +42,22 @@ namespace GeometryTest.Geometry
             Assert.AreEqual(bb.Min, bb8.Min);
             Assert.AreEqual(bb.Max, bb8.Max);
         }
+
+        [TestMethod]
+        public void BoundingBoxMaxDimension()
+        {
+            BoundingBox bb = new BoundingBox(new Vector3(3, -2, 5), new Vector3(5, -1, 8));
+            Assert.AreEqual(3, bb.MaxDimension());
+            bb = new BoundingBox(new Vector3(3, -2, 5), new Vector3(5, 7, 8));
+            Assert.AreEqual(9, bb.MaxDimension());
+        }
+
+        [TestMethod]
+        public void BoundingBoxCenterTest()
+        {
+            BoundingBox bb = new BoundingBox(new Vector3(3, -2, 5), new Vector3(5, -1, 8));
+            Assert.AreEqual(new Vector3(4, -1.5, 6.5), bb.Center());
+        }
+
     }
 }

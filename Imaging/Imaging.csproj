@@ -71,7 +71,9 @@
     <Compile Include="Imaging\GenericImage.cs" />
     <Compile Include="Imaging\CameraModels\GDALCameraModel.cs" />
     <Compile Include="Imaging\Image.cs" />
+    <Compile Include="Imaging\ImageCoordinate.cs" />
     <Compile Include="Imaging\ImageMetadata.cs" />
+    <Compile Include="Imaging\ImageStatistics.cs" />
     <Compile Include="Imaging\ImageRef.cs" />
     <Compile Include="Imaging\PDSCameraModelParser.cs" />
     <Compile Include="Imaging\PDSMetadata.cs" />

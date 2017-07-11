@@ -74,6 +74,11 @@ namespace OPS.MathExtensions
             return v;
         }
 
+        public static double Clamp01(double v)
+        {
+            return Clamp(v, 0.0, 1.0);
+        }
+
         public static float Lerp(float start, float end, float amount)
         {
             return start + (end - start) * amount;
@@ -112,6 +117,52 @@ namespace OPS.MathExtensions
         public static double Min(params double[] values)
         {
             return Enumerable.Min(values);
+        }
+
+        /// <summary>
+        /// Find the nearest integer power of 2 that is less than or equal to value
+        /// </summary>
+        /// <param name="value">Valid range 0 - Int32.MaxValue</param>
+        /// <returns></returns>
+        public static int FloorPowerOf2(double value)
+        {
+            if (value < 0 || value > Int32.MaxValue)
+            {
+                throw new Exception("Cannot floor negative numbers to power of 2");
+            }
+            uint v = (uint)value;
+            if (v == 0)
+            {
+                return 0;
+            }
+            v |= (v >> 1);
+            v |= (v >> 2);
+            v |= (v >> 4);
+            v |= (v >> 8);
+            v |= (v >> 16);
+            return (int)(v - (v >> 1));
+        }
+
+        /// <summary>
+        /// Find the nearest integer power of 2 that is greather than or equal to value 
+        /// </summary>
+        /// <param name="value">Valid range 0 - (Int32.MaxValue/2)</param>
+        /// <returns></returns>
+        public static int CeilPowerOf2(double value)
+        {
+            if(value < 0 || value > Int32.MaxValue / 2)
+            {
+                throw new Exception("Value must be between 0 and Int32.MaxValue / 2");
+            }
+            uint v = (uint)Math.Ceiling(value);
+            v--;
+            v |= v >> 1;
+            v |= v >> 2;
+            v |= v >> 4;
+            v |= v >> 8;
+            v |= v >> 16;
+            v++;
+            return (int)v;
         }
     }
 }

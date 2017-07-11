@@ -319,6 +319,18 @@ namespace OPS.Geometry
             }
         }
 
+        public void Transform(Matrix m)
+        {
+            foreach(Vertex v in this.Vertices)
+            {
+                v.Position = Vector3.Transform(v.Position, m);
+                if(this.HasNormals)
+                {
+                    v.Normal = Vector3.TransformNormal(v.Normal, m);
+                }
+            }
+        }
+
         public void Translate(Vector3 offset)
         {
             for (int i = 0; i < this.Vertices.Count; i++)
@@ -351,6 +363,31 @@ namespace OPS.Geometry
         }
 
         /// <summary>
+        /// Checks to see if this mesh has the same attributes as the other mesh (normal, uv, and texture)
+        /// </summary>
+        /// <param name="other"></param>
+        /// <returns></returns>
+        public bool AttributesEqual(Mesh other)
+        {
+            return this.HasNormals == other.HasNormals && this.HasUVs == other.HasUVs && this.HasColors == other.HasColors;
+        }
+
+
+        /// <summary>
+        /// Return true if all attributes that are true of this mesh are also true of other
+        /// </summary>
+        /// <param name="other"></param>
+        /// <returns></returns>
+        public bool AttributesSubsetOf(Mesh other)
+        {
+            if ((this.HasNormals && !other.HasNormals) || (this.HasUVs && !other.HasUVs) || (this.HasColors && !other.HasColors))
+            {
+                return false;
+            }
+            return true;
+        }
+
+        /// <summary>
         /// Combines one or more meshes with this one
         /// The proprties of the input meshes must match this one
         /// Vertex objects are cloned to avoid side effects in case the meshes are modifed in the future
@@ -361,9 +398,9 @@ namespace OPS.Geometry
             for (int i = 0; i < otherMeshes.Length; i++)
             {
                 Mesh m = otherMeshes[i];
-                if(this.HasNormals != m.HasNormals || this.HasUVs != m.HasUVs || this.HasColors != m.HasColors)
+                if(!AttributesSubsetOf(m))
                 {
-                    throw new Exception("Meshes must have the same attributes (uv, normal, color) in order to be combined");
+                    throw new Exception("Mesh to merge missing one or more attributes required by aggregate mesh");
                 }
                 int vertexBaseCount = this.Vertices.Count;
                 for (int j = 0; j < m.Vertices.Count; j++)
@@ -379,6 +416,7 @@ namespace OPS.Geometry
                     this.Faces.Add(f);
                 }
             }
+            Clean();
         }
 
         /// <summary>
@@ -391,11 +429,24 @@ namespace OPS.Geometry
         public static Mesh Merge(params Mesh[] meshesToCombine)
         {
             Mesh first = meshesToCombine[0];
-            Mesh result = new Mesh(first.HasNormals, first.HasUVs, first.HasColors);
+            return Merge(first.HasNormals, first.HasUVs, first.HasColors, meshesToCombine);
+        }
+
+        /// <summary>
+        /// Combines several meshes and returnes a new mesh with the specified attributes
+        /// </summary>
+        /// <param name="hasNormals"></param>
+        /// <param name="hasUvs"></param>
+        /// <param name="hasColors"></param>
+        /// <param name="meshesToCombine"></param>
+        /// <returns></returns>
+        public static Mesh Merge(bool hasNormals, bool hasUvs, bool hasColors, params Mesh[] meshesToCombine)
+        {
+            Mesh result = new Mesh(hasNormals, hasUvs, hasColors);
             result.MergeWith(meshesToCombine);
             return result;
         }
-        
+
         public static Mesh Clip(Mesh m, BoundingBox box)
         {
             Mesh result;
@@ -426,6 +477,58 @@ namespace OPS.Geometry
             }
             Debug.Assert(box.FuzzyContains(result.Bounds()), "Clipped mesh exceeds bounding box");
             return result;
+        }
+
+        /// <summary>
+        /// Removes specified vertices from this mesh
+        /// Also removes any faces that reference a removed vertex 
+        /// </summary>
+        /// <param name="vertices"></param>
+        public void RemoveVertices(IEnumerable<Vertex> vertices)
+        {
+            Dictionary<int, Vertex> originalIndexToVert = new Dictionary<int,Vertex>();
+            Dictionary<int, int> originalToClippedIndex = new Dictionary<int, int>();
+            HashSet<Vertex> vertsToRemove = new HashSet<Vertex>(vertices);
+            List<Vertex> clippedVerts = new List<Vertex>();
+            // Loop through all existing vertices and determine which ones to keep
+            // Record original and new indices
+            for(int i = 0; i <  this.Vertices.Count; i++)
+            {
+                Vertex v = this.Vertices[i];
+                originalIndexToVert.Add(i, v);
+                if (!vertsToRemove.Contains(v))
+                {
+                    originalToClippedIndex.Add(i, clippedVerts.Count);
+                    clippedVerts.Add(v);
+                }
+            }
+            // Remove faces that reference removed vertices
+            // Remap face indices to new vertex list
+            List<Face> clippedFaces = new List<Face>();
+            for(int i = 0; i < this.Faces.Count; i++)
+            {
+                Face face = this.Faces[i];
+                // Keep this face only if none of it's vertices have been clipped
+                bool keep = face.ToArray().All(j => originalToClippedIndex.ContainsKey(j));
+                if (keep)
+                {
+                    clippedFaces.Add(new Face(face.ToArray().Select(j => originalToClippedIndex[j]).ToArray()));
+                }
+            }
+            this.Vertices = clippedVerts;
+            this.Faces = clippedFaces;
+        }
+
+        /// <summary>
+        /// Reverse the winding of faces - i.e. make them face the other direction
+        /// </summary>
+        public void ReverseWinding()
+        {
+            for(int i = 0; i < this.Faces.Count; i++)
+            {
+                Face f = this.Faces[i];
+                this.Faces[i] = new Face(f.P0, f.P2, f.P1);
+            }
         }
 
         /// <summary>

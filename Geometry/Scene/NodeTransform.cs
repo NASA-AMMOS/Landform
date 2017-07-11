@@ -54,6 +54,22 @@ namespace OPS.Geometry
             }
         }
 
+        /// <summary>
+        /// Number of immediate descendants 
+        /// </summary>
+        public int ChildCount
+        {
+            get { return this.children.Count; }
+        }
+
+        /// <summary>
+        /// Returns true if this node is a leaf (has no children)
+        /// </summary>
+        public bool IsLeaf
+        {
+            get { return this.children.Count == 0; }
+        }
+
         Quaternion rotation;
         public Quaternion Rotation
         {
@@ -191,6 +207,53 @@ namespace OPS.Geometry
             }
 
             if (preserveWorldTransform) LocalToWorld = oldLocalToWorld;
+        }
+                
+        /// <summary>
+        /// Breadth first traversal of all leaf transforms
+        /// </summary>
+        /// <returns></returns>
+        public IEnumerable<NodeTransform> Leafs()
+        {
+            Stack<NodeTransform> stack = new Stack<NodeTransform>();
+            stack.Push(this);
+            while (stack.Count > 0)
+            {
+                NodeTransform curTrans = stack.Pop();
+                // This node is a leaf node if it has no children
+                if (curTrans.IsLeaf)
+                {
+                    yield return curTrans;
+                }
+                else
+                {
+                    foreach (var child in curTrans.Children)
+                    {
+                        stack.Push(child);
+                    }
+                }
+            }
+        }
+
+
+        /// <summary>
+        /// Perform a breadth first traversal starting at this node
+        /// </summary>
+        /// <returns></returns>
+        public IEnumerable<NodeTransform> DepthFirstTraverse()
+        {
+            Stack<NodeTransform> stack = new Stack<NodeTransform>();
+            stack.Push(this);
+            while (stack.Count > 0)
+            {
+                NodeTransform curTrans = stack.Pop();
+                // This node is a leaf node if it has no children
+                yield return curTrans;
+                foreach (var child in curTrans.Children)
+                {
+                    stack.Push(child);
+                }
+            }
         }
     }
 }

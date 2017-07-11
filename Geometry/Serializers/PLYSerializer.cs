@@ -60,6 +60,7 @@ namespace OPS.Geometry
         {      
             using (StreamWriter sw = new StreamWriter(filename, false))
             {
+                sw.NewLine = "\n";
                 plyWriter.WriteHeader(m, sw, textureFilename, comments);
             }            
             var output = new FileStream(filename, FileMode.Append, FileAccess.Write);  

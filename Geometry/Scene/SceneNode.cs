@@ -13,6 +13,11 @@ namespace OPS.Geometry
         public readonly NodeTransform Transform;
 
         /// <summary>
+        /// Bounding box of this node
+        /// </summary>
+        public BoundingBox Bounds;
+
+        /// <summary>
         /// Create a new node with a given name.
         /// </summary>
         public SceneNode(string name)
@@ -138,6 +143,72 @@ namespace OPS.Geometry
         public SceneNode()
             : this(SillyNames[nameRand.Next(SillyNames.Length)])
         {
+        }
+
+        /// <summary>
+        /// All immediate descendants of this node.
+        /// </summary>
+        public IEnumerable<SceneNode> Children
+        {
+            get
+            {
+                return Transform.Children.Select(t => t.Node);
+            }
+        }
+
+        /// <summary>
+        /// Number of immediate descendants 
+        /// </summary>
+        public int ChildCount
+        {
+            get { return this.Transform.ChildCount; }
+        }
+
+        /// <summary>
+        /// Return this nodes parent
+        /// </summary>
+        public SceneNode Parent
+        {
+            get
+            {
+                if (this.Transform.Parent == null)
+                {
+                    return null;
+                }
+                return this.Transform.Parent.Node;
+            }
+        }
+
+        /// <summary>
+        /// Returns true if this node is a leaf (has no children)
+        /// </summary>
+        public bool IsLeaf
+        {
+            get { return Transform.IsLeaf;  }
+        }
+
+        /// <summary>
+        /// Perform a breadth first traversal of leaf nodes starting at this node
+        /// </summary>
+        /// <returns></returns>
+        public IEnumerable<SceneNode> Leaves()
+        {
+            foreach(NodeTransform t in this.Transform.Leafs())
+            {
+                yield return t.Node; 
+            }
+        }
+
+        /// <summary>
+        /// Perform a breadth first traversal starting at this node
+        /// </summary>
+        /// <returns></returns>
+        public IEnumerable<SceneNode> DepthFirstTraverse()
+        {
+            foreach(NodeTransform t in this.Transform.DepthFirstTraverse())
+            {
+                yield return t.Node;
+            }
         }
     }
 }

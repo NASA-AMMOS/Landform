@@ -156,5 +156,14 @@ namespace OPS.Geometry
             result.Color = Vector4.Lerp(a.Color, b.Color, t);
             return result;
         }
+
+        /// <summary>
+        /// Generate a Bounding box of zero size centered on this vertex's position
+        /// </summary>
+        /// <returns></returns>
+        public BoundingBox Bounds()
+        {
+            return new BoundingBox(this.Position, this.Position);
+        }
     }
 }

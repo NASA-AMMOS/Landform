@@ -10,13 +10,10 @@ namespace OPS.Util
 {
     public class TemporaryFile
     {
-        static System.Object tmpNameLock = new System.Object();
-        static long tmpNameCounter = 0;
-        static Random tmpNameRandom = new Random();
         static string tmpDirectory = "tmp";
-
         public delegate void FilenameDelegate(string s);
-
+        public delegate void MultipleFilenameDelegate(string[] s);
+        
         /// <summary>
         /// Sets the temporary directory.  If relative it will be set in respect to the current working directory
         /// </summary>
@@ -40,16 +37,7 @@ namespace OPS.Util
         /// <param name="func">Delegate to execute.</param>
         public static void GetAndMove(string realFilename, FilenameDelegate func)
         {
-            string tempFile = GetTempName(Path.GetFileNameWithoutExtension(realFilename), Path.GetExtension(realFilename));
-            string directory = Path.GetDirectoryName(tempFile);
-            if (!Directory.Exists(directory))
-            {
-                Directory.CreateDirectory(directory);
-            }
-            if (File.Exists(tempFile))
-            {
-                File.Delete(tempFile);
-            }
+            string tempFile = GetTempName(Path.GetExtension(realFilename));
             func(tempFile);
             if (File.Exists(tempFile))
             {
@@ -67,18 +55,9 @@ namespace OPS.Util
         /// </summary>
         /// <param name="tmpBasename">Base name for the temporary file.</param>
         /// <param name="func">Delegate to execute.</param>
-        public static void GetAndDelete(string tmpBasename, FilenameDelegate func)
+        public static void GetAndDelete(string extension, FilenameDelegate func)
         {
-            string tempFile = GetTempName(Path.GetFileNameWithoutExtension(tmpBasename), Path.GetExtension(tmpBasename));
-            string directory = Path.GetDirectoryName(tempFile);
-            if (!Directory.Exists(directory))
-            {
-                Directory.CreateDirectory(directory);
-            }
-            if (File.Exists(tempFile))
-            {
-                File.Delete(tempFile);
-            }
+            string tempFile = GetTempName(extension);
             func(tempFile);
             if (File.Exists(tempFile))
             {
@@ -86,17 +65,39 @@ namespace OPS.Util
             }
         }
 
-        private static string GetTempName(string baseName, string extension)
+        /// <summary>
+        /// Get multiple temporary files that will be deleted at the end of the delegate function block
+        /// </summary>
+        /// <param name="count"></param>
+        /// <param name="extension"></param>
+        /// <param name="func"></param>
+        public static void GetAndDeleteMultiple(int count, string extension, MultipleFilenameDelegate func)
         {
-            lock (tmpNameLock)
+            string[] tmpFiles = new string[count];
+            for(int i = 0; i < tmpFiles.Length; i++)
             {
-                tmpNameCounter++;
-                long now = DateTime.Now.Ticks;
-                string tempFilename = string.Format("{0}.{1}_{2}_{3}_{4}.tmp{5}", baseName, now, Process.GetCurrentProcess().Id.ToString("00000000"), tmpNameRandom.Next(99999999).ToString("00000000"), tmpNameCounter.ToString("00000000"), Path.GetExtension(extension));
-                string fullPathToTempDirectory = Path.GetFullPath(tmpDirectory);
-                PathHelper.EnsureExists(fullPathToTempDirectory);
-                return Path.Combine(fullPathToTempDirectory, tempFilename);
+                tmpFiles[i] = GetTempName(extension);
             }
+            func(tmpFiles);
+            for (int i = 0; i < tmpFiles.Length; i++)
+            {
+                if (File.Exists(tmpFiles[i]))
+                {
+                    File.Delete(tmpFiles[i]);
+                }
+            }
+        }
+
+        private static string GetTempName(string extension)
+        {
+            string tempFilename = string.Format("{0}.tmp{1}", Guid.NewGuid(), Path.GetExtension(extension));
+            string fullPathToTempDirectory = Path.GetFullPath(tmpDirectory);
+            PathHelper.EnsureExists(fullPathToTempDirectory);
+            if (File.Exists(tempFilename))
+            {
+                File.Delete(tempFilename);
+            }
+            return Path.Combine(fullPathToTempDirectory, tempFilename);
         }
     }
 }
