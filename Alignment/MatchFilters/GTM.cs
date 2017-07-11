@@ -131,6 +131,7 @@ namespace OPS.Alignment
 
 
             // <OPTIMIZED
+            Debug.WriteLine("Filtering with GTM...");
             counter = 0;
             double[][] DistP = ComputeDistanceMatrix(P);
             double[][] DistPPrime = ComputeDistanceMatrix(PPrime);
@@ -142,7 +143,7 @@ namespace OPS.Alignment
             HashSet<int>[] IPrime = InitNeighborVector(OPrime);
             int[] C = new int[pairs.Length].Select(x => K).ToArray();
             int[] CPrime = new int[pairs.Length].Select(x => K).ToArray();
-            HashSet<int> outliers = new HashSet<int>();
+            HashSet<int> outliers = new HashSet<int>(new int[] { -2 });
             ImageFeature[] Q = (ImageFeature[])P.Clone();
             ImageFeature[] QPrime = (ImageFeature[])PPrime.Clone();
 
@@ -154,15 +155,25 @@ namespace OPS.Alignment
                 if (outliers.Contains(outlier))
                     Debug.Write("here lol");
                 outliers.Add(outlier);
-                //printIntermediates(O, I, C);
-               // if (outlier == -1) break;
+                if (outlier == -1)
+                    Debug.WriteLine("what");
                 RemoveOutlier(outlier, O, OPrime, I, IPrime, C, CPrime, outliers);
-                //printIntermediates(O, I, C);
-
             }
 
-            for (int kk = 0; kk < O.Length; kk++){
-                Debug.WriteLine(O[kk][0] + " " + O[kk][1] + " " + O[kk][2] + " " + O[kk][3] + " " + O[kk][4]);
+            for (int kk = 0; kk < O.Length; kk++)
+            {
+                //Debug.WriteLine(O[kk][0] + " " + O[kk][1] + " " + O[kk][2] + " " + O[kk][3] + " " + O[kk][4] + " " + O[kk][5]);
+                //Debug.WriteLine(OPrime[kk][0] + " " + OPrime[kk][1] + " " + OPrime[kk][2] + " " + OPrime[kk][3] + " " + OPrime[kk][4] + " " + OPrime[kk][5]);
+                //Debug.WriteLine("------");
+                if (O[kk][0] == OPrime[kk][0] &&
+                    O[kk][1] == OPrime[kk][1] &&
+                    O[kk][2] == OPrime[kk][2] &&
+                    O[kk][3] == OPrime[kk][3] &&
+                    O[kk][4] == OPrime[kk][4] &&
+                    O[kk][5] == OPrime[kk][5])
+                {
+                    outliers.Remove(kk);
+                }
             }
 
 
@@ -182,7 +193,7 @@ namespace OPS.Alignment
 
 
             // /OPTIMIZED>
-
+            //Debug.WriteLine("Filtering with GTM...");
             //double[][] DistP = ComputeDistanceMatrix(P);
             //double[][] DistPPrime = ComputeDistanceMatrix(PPrime);
             //double MedianP = ComputeMedian(DistP);
@@ -241,57 +252,88 @@ namespace OPS.Alignment
             Debug.WriteLine("---------");
         }
 
-        private void RefreshKNNGraph(int[][] o, int[] c, int outlier, HashSet<int> outliers)
+        private void RefreshKNNGraph(int[][] o, int[] c, HashSet<int>[] i, int outlier, int index, HashSet<int> outliers)
         {
             int[] row;
-            int tmp = 0;
-            for (int i = 0; i < o.Length; i++)
+            row = o[index];
+            if (row[0] == -1)
+                return;
+
+            //if (index == 282)
+            //{
+            //    Debug.WriteLine("here");
+            //}
+            int tmpi = c[index];
+            for (int j = 0; j < K; j++)
             {
-                row = o[i];
-                int tmpi = c[i];
-                for (int j = 0; j < K; j++)
+                if (row[j] == outlier)
                 {
-                    if (row[j] == outlier)
+                    //Debug.WriteLine("outliers contains " + row[tmpi] + ": " + outliers.Contains(row[tmpi]));
+                    while (outliers.Contains(row[tmpi]))
                     {
-                        while (outliers.Contains(row[tmpi]))
+                        // Debug.WriteLine("Trying j: " + tmpi + ", with value: " + row[tmpi]);
+                        if (tmpi == o.Length - 1)
                         {
-                            tmpi++;
-                            if (tmpi == o.Length)
-                            {
-                                tmpi--;
-                                break;
-                            }
+                            // Debug.WriteLine("J: " + j);
+                            //Debug.WriteLine("number of outliers identified: " + outliers.Count());
+                            tmpi--; // START HERE TOMORROW
+                            break;
                         }
-                        row[j] = row[tmpi];
-                        c[i] = tmpi;
+                        tmpi++;
                     }
+                    row[j] = row[tmpi];
+                    c[index] = tmpi + 1;
+                    //if (c[index] == 607)
+                    //{
+                    //    Debug.WriteLine("here");
+                    //}
+                    if (row[tmpi] == -2) continue;
+                    i[row[tmpi]].Add(index);
+                    break;
                 }
+            }
+            if (row[tmpi] == -2)
+            {
+                ShiftRow(row);
+                return;
             }
         }
 
-        private void RemoveOutlier(int outlier, int[][] o, int[][] oPrime, HashSet<int>[] i, HashSet<int>[] iprime, int[] c, int[] cPrime, HashSet<int> outliers)
+        private void ShiftRow(int[] v)
         {
-            // Remove from I and IPrime
-            foreach (int index in i[outlier])
-            {
-                i[index].Remove(outlier);
-            }
+            IEnumerable<int> temp = v.Where(x => x != -2);
+            v = temp.Concat(Enumerable.Repeat(-2, v.Length - temp.Count())).ToArray();
+        }
 
-            foreach (int index in iprime[outlier])
-            {
-                iprime[index].Remove(outlier);
-            }
-
-            i[outlier].Clear();
-            iprime[outlier].Clear();
-
+        public void RemoveOutlier(int outlier, int[][] o, int[][] oPrime, HashSet<int>[] i, HashSet<int>[] iPrime, int[] c, int[] cPrime, HashSet<int> outliers)
+        {
             // Remove from O and OPrime
             o[outlier][0] = -1;
             oPrime[outlier][0] = -1;
 
-            RefreshKNNGraph(o, c, outlier, outliers);
-            RefreshKNNGraph(oPrime, cPrime, outlier, outliers);
+            // Remove from I and IPrime
+            foreach (int index in i[outlier])
+            {
+               
+                i[index].Remove(outlier);
+                RefreshKNNGraph(o, c, i, outlier, index, outliers);
+            }
 
+            foreach (int index in iPrime[outlier])
+            {
+                
+                iPrime[index].Remove(outlier);
+                RefreshKNNGraph(oPrime, cPrime, iPrime, outlier, index, outliers);
+            }
+
+            i[outlier].Clear();
+            iPrime[outlier].Clear();
+
+            for (int j = 0; j < i.Length; j++)
+            {
+                i[j].Remove(outlier);
+                iPrime[j].Remove(outlier);
+            }
         }
 
         /// <summary>
@@ -319,16 +361,29 @@ namespace OPS.Alignment
         /// <param name="A"></param>
         /// <param name="AP"></param>
         /// <returns></returns>
-        bool GraphEqual(int[][] A, int[][] AP, int kk = 5)
+        public bool GraphEqual(int[][] A, int[][] AP)
         {
+            HashSet<int> ARow, APRow;
             for (int i = 0; i < A.Length; i++)
             {
+
+                ARow = new HashSet<int>();
+                APRow = new HashSet<int>();
+
                 if (A[i][0] == -1 && AP[i][0] == -1) continue;
-                for (int k = 0; k < kk; k++)
+
+                
+
+                for (int k = 0; k < K; k++)
                 {
-                    if (A[i][k] != AP[i][k])
-                        return false;
+                    ARow.Add(A[i][k]);
+                    APRow.Add(AP[i][k]);
                 }
+
+                if (!ARow.SetEquals(APRow))
+                    return false;
+                ARow.Clear();
+                APRow.Clear();
             }
             return true;
         }
@@ -362,18 +417,19 @@ namespace OPS.Alignment
                 for (int k = j + 1; k < arr.Length; k++)
                 {
                     A.Add(arr[j][k]);
-                    A.Add(arr[k][j]);
+                    //A.Add(arr[k][j]);
                 }
             }
 
             int i = A.Count / 2;
+
             if (linear)
             {
                 return MedianOfMedians(A, i);
             }
 
             A.Sort();
-            return A[A.Count / 2];
+            return A[i];
         }
 
         /// <summary>
@@ -452,7 +508,7 @@ namespace OPS.Alignment
             return rowsums.IndexOf(rowsums.Max());
         }
 
-        int FindOutlier(int[][] O, int[][] OPrime, HashSet<int>[] I, HashSet<int>[] IPrime, HashSet<int> outliers)
+        public int FindOutlier(int[][] O, int[][] OPrime, HashSet<int>[] I, HashSet<int>[] IPrime, HashSet<int> outliers)
         {
             HashSet<int> A = new HashSet<int>();
             HashSet<int> APrime = new HashSet<int>();
@@ -477,11 +533,13 @@ namespace OPS.Alignment
 
                 outlierSet = A.Except(APrime).Union(APrime.Except(A));
                 int[] outlierSetArr = outlierSet.ToArray();
+
                 if (outlierSet.Count() > maxcount)
                 {
                     maxcount = outlierSet.Count();
                     outlier = i;
                 }
+
                 A.Clear();
                 APrime.Clear();
             }
@@ -521,7 +579,7 @@ namespace OPS.Alignment
             HashSet<int>[] res = new HashSet<int>[knnGraph.Length].Select(x => new HashSet<int>()).ToArray();
             int[] vertexCount = new int[knnGraph.Length];
 
-            for (int i = 0; i < knnGraph.Length; i++)
+            for (int i = 0; i < knnGraph.Length - 1; i++)
             {
                 for (int j = 0; j < k; j++)
                 {
