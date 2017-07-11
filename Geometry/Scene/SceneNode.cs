@@ -191,7 +191,7 @@ namespace OPS.Geometry
         /// Perform a breadth first traversal of leaf nodes starting at this node
         /// </summary>
         /// <returns></returns>
-        public IEnumerable<SceneNode> Leafs()
+        public IEnumerable<SceneNode> Leaves()
         {
             foreach(NodeTransform t in this.Transform.Leafs())
             {

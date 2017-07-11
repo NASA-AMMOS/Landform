@@ -143,11 +143,11 @@ namespace OPS.Geometry
         /// <param name="numSamples"></param>
         /// <param name="targetFaces"></param>
         /// <returns></returns>
-        public static Mesh ResampleDeimation(Mesh m, int numSamples = 2000, int targetFaces = 2000)
+        public static Mesh ResampleDecimation(Mesh m, int numSamples = 2000, int targetFaces = 2000)
         {
             if (m.Faces.Count == 0)
             {
-                throw new MeshLabException("Cannot Resample Deimate mesh without faces");
+                throw new MeshLabException("Cannot Resample Decimate mesh without faces");
             }
             BoundingBox bounds = m.Bounds();
             double deblobRadius =  MathE.Max(bounds.Size().ToDoubleArray()) * 0.2f;

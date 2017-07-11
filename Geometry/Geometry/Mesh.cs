@@ -378,7 +378,7 @@ namespace OPS.Geometry
         /// </summary>
         /// <param name="other"></param>
         /// <returns></returns>
-        public bool AttributesAlsoExistIn(Mesh other)
+        public bool AttributesSubsetOf(Mesh other)
         {
             if ((this.HasNormals && !other.HasNormals) || (this.HasUVs && !other.HasUVs) || (this.HasColors && !other.HasColors))
             {
@@ -398,7 +398,7 @@ namespace OPS.Geometry
             for (int i = 0; i < otherMeshes.Length; i++)
             {
                 Mesh m = otherMeshes[i];
-                if(!AttributesAlsoExistIn(m))
+                if(!AttributesSubsetOf(m))
                 {
                     throw new Exception("Mesh to merge missing one or more attributes required by aggregate mesh");
                 }
@@ -484,7 +484,7 @@ namespace OPS.Geometry
         /// Also removes any faces that reference a removed vertex 
         /// </summary>
         /// <param name="vertices"></param>
-        public void RemoveVertices(List<Vertex> vertices)
+        public void RemoveVertices(IEnumerable<Vertex> vertices)
         {
             Dictionary<int, Vertex> originalIndexToVert = new Dictionary<int,Vertex>();
             Dictionary<int, int> originalToClippedIndex = new Dictionary<int, int>();
