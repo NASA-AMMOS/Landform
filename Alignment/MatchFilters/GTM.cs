@@ -407,7 +407,7 @@ namespace OPS.Alignment
         /// </summary>
         /// <param name="arr">Input array.</param>
         /// <returns>Median of input array.</returns>
-        double ComputeMedian(double[][] arr, bool linear = false)
+        public double ComputeMedian(double[][] arr, bool linear = false)
         {
             List<double> A = new List<double>();
             
@@ -552,7 +552,7 @@ namespace OPS.Alignment
         /// <param name="dist"></param>
         /// <param name="median"></param>
         /// <returns></returns>
-        int[][] InitMedianKNNGraphOptimized(double[][] dist, double median)
+        public int[][] InitMedianKNNGraphOptimized(double[][] dist, double median)
         {
             int[][] res = new int[dist.Length][].Select(x => new int[dist.Length]).ToArray();
 
@@ -574,7 +574,7 @@ namespace OPS.Alignment
         /// </summary>
         /// <param name="knnGraph"></param>
         /// <returns></returns>
-        HashSet<int>[] InitNeighborVector(int[][] knnGraph, int k = 5)
+        public HashSet<int>[] InitNeighborVector(int[][] knnGraph, int k = 5)
         {
             HashSet<int>[] res = new HashSet<int>[knnGraph.Length].Select(x => new HashSet<int>()).ToArray();
             int[] vertexCount = new int[knnGraph.Length];
@@ -718,7 +718,7 @@ namespace OPS.Alignment
         /// </summary>
         /// <param name="features">Input list of features.</param>
         /// <returns>Adjacency graph of distances.</returns>
-        double[][] ComputeDistanceMatrix(ImageFeature[] features)
+        public double[][] ComputeDistanceMatrix(ImageFeature[] features)
         {
             Vector2[] coords = features.Select(v => v.Location).ToArray();
             double[][] result = new double[features.Length][].Select(x => new double[features.Length]).ToArray();
