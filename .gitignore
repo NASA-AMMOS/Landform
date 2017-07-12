@@ -54,3 +54,5 @@ Alignment/Alignment_BACKUP_22044.csproj
 Alignment/Alignment_BASE_22044.csproj
 Alignment/Alignment_LOCAL_22044.csproj
 Alignment/Alignment_REMOTE_22044.csproj
+AlignmentTest/bin/
+AlignmentTest/obj/
