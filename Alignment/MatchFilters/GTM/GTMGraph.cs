@@ -1,37 +1,35 @@
 ﻿using Microsoft.Xna.Framework;
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+
 
 namespace OPS.Alignment
 {
     /// <summary>
-    /// 
+    /// Graph ADT as described in Section 4.2 Optimization in http://www.sciencedirect.com/science/article/pii/S0262885608001078#aep-section-id31 .
     /// </summary>
     internal class GTMGraph
     {
-        // Number of nearest-neighbors
+        // Number of nearest-neighbors.
         int K;
 
         // Distance matrix.
         public double[][] Dist { get; set; }
 
-        // Medians of flattened P and PPRime matrices.
+        // Median of flattened P and PPRime matrices.
         public double Median;
 
         // Graph where the node at (i, j) represents the jth nearest-neighbor of node i.
         public int[][] O { get; set; }
 
-        // Sets where index refers to node (call it A), and values correspond to nodes of which A is part of its KNN.
+        // Set where index refers to node (call it A), and values correspond to nodes of which A is part of its KNN.
         public HashSet<int>[] I { get; set; }
 
         // Indexed by node, where the value corresponds to next node to try when updating a row in the KNN graph.
         public int[] C { get; set; }
 
-        // Arrays of filtered image features.
+        // Array of filtered image features.
         public ImageFeature[] Q { get; set; }
 
         // Set of removed vertices.
@@ -45,12 +43,12 @@ namespace OPS.Alignment
         static int FILLER = -2;
 
         /// <summary>
-        /// Creates a
+        /// Creates a GTMGraph object.
         /// </summary>
-        /// <param name="p"></param>
-        /// <param name="outliers"></param>
-        /// <param name="falseOutliers"></param>
-        /// <param name="k"></param>
+        /// <param name="p">List of ImageFeatures </param>
+        /// <param name="outliers">Set of identified outliers.</param>
+        /// <param name="falseOutliers">Set of falsely identified outliers.</param>
+        /// <param name="k">K, representing the number of nearest neighbors.</param>
         internal GTMGraph(ImageFeature[] p, HashSet<int> outliers, HashSet<int> falseOutliers, int k)
         {
             K = k;
@@ -65,12 +63,12 @@ namespace OPS.Alignment
         }
 
         /// <summary>
-        /// 
+        /// Initializes a KNN graph, where the value at (i, j) represents jth nearest neighbor of the ImageFeature at i.
         /// </summary>
-        /// <param name="dist"></param>
-        /// <param name="median"></param>
-        /// <returns></returns>
-        public int[][] InitMedianKNNGraph(double[][] dist, double median)
+        /// <param name="dist">Input distance matrix.</param>
+        /// <param name="median">Median of the distance matrix</param>
+        /// <returns>A KNN graph, as described above.</returns>
+        private int[][] InitMedianKNNGraph(double[][] dist, double median)
         {
             int[][] res = new int[dist.Length][].Select(x => new int[dist.Length]).ToArray();
 
@@ -89,18 +87,18 @@ namespace OPS.Alignment
         }
 
         /// <summary>
-        /// 
+        /// Array where index refers to node (call it A), and values correspond to features of which A is part of its KNN.
         /// </summary>
-        /// <param name="knnGraph"></param>
-        /// <returns></returns>
-        public HashSet<int>[] InitNeighborVector(int[][] knnGraph, int k = 5)
+        /// <param name="knnGraph">Median-KNN graph.</param>
+        /// <returns>Array as described above.</returns>
+        private HashSet<int>[] InitNeighborVector(int[][] knnGraph)
         {
             HashSet<int>[] res = new HashSet<int>[knnGraph.Length].Select(x => new HashSet<int>()).ToArray();
             int[] vertexCount = new int[knnGraph.Length];
 
             for (int i = 0; i < knnGraph.Length - 1; i++)
             {
-                for (int j = 0; j < k; j++)
+                for (int j = 0; j < K; j++)
                 {
                     res[knnGraph[i][j]].Add(i);
                 }
@@ -109,9 +107,10 @@ namespace OPS.Alignment
         }
 
         /// <summary>
-        /// 
+        /// Given another graph to compare against, identifies an outlier in the feature mapping.
         /// </summary>
-        /// <returns></returns>
+        /// <param name="data">Graph to compare against.</param>
+        /// <returns>Index of identified outlier.</returns>
         public int FindOutlier(GTMGraph data)
         {
             HashSet<int> A = new HashSet<int>();
@@ -126,6 +125,7 @@ namespace OPS.Alignment
             {
                 if (Outliers.Contains(i)) continue;
 
+                // Create sets of comparison from each graph
                 foreach (int num in I[i])
                     A.Add(num);
                 foreach (int num in data.I[i])
@@ -137,8 +137,10 @@ namespace OPS.Alignment
                     APrime.Add(data.O[i][k]);
                 }
 
+                // XOR on the elements in the comparison set
                 outlierSet = A.Except(APrime).Union(APrime.Except(A)).Where(x => x != FILLER);
 
+                // The outlier is the index with the greatest outlierSet size
                 if (outlierSet.Count() > maxcount)
                 {
                     maxcount = outlierSet.Count();
@@ -153,13 +155,11 @@ namespace OPS.Alignment
             return outlier;
         }
 
-
         /// <summary>
-        /// Checks if the first K columns of both KNN graphs are set equivalent.
+        /// Checks if the first K columns of the given KNN graph and this KNN graph are set-equivalent.
         /// </summary>
-        /// <param name="modelGraph"></param>
         /// <param name="dataGraph"></param>
-        /// <returns></returns>
+        /// <returns>True if the KNN graphs are equal, else false.</returns>
         public bool GraphEqual(GTMGraph dataGraph)
         {
             HashSet<int> ARow, APRow;
@@ -186,6 +186,10 @@ namespace OPS.Alignment
             return true;
         }
 
+        /// <summary>
+        /// Removes all reference to the given outlier.
+        /// </summary>
+        /// <param name="outlier">Index of feature to be removed.</param>
         public void RemoveOutlier(int outlier)
         {
             // Remove from O and OPrime
@@ -212,15 +216,17 @@ namespace OPS.Alignment
         /// </summary>
         public void RemoveDisconnectedVertices()
         {
-            Q = Q.Where((x, i) => !Outliers.Contains(i)).ToArray();
+            int[] connected = O.Select((x, j) => new {Value = x.Take(5), Index = j})
+                                  .Where(y => !y.Value.Contains(-1) && !y.Value.Contains(-2))
+                                  .Select(z => z.Index).ToArray();
+            Q = Q.Where((x, i) => connected.Contains(i)).ToArray();
         }
 
-        private void ShiftRow(int[] v)
-        {
-            IEnumerable<int> temp = v.Where(x => x != FILLER);
-            v = temp.Concat(Enumerable.Repeat(FILLER, v.Length - temp.Count())).ToArray();
-        }
-
+        /// <summary>
+        /// Substitutes for outliers in the row of the KNN specifid by index.
+        /// </summary>
+        /// <param name="outlier">Outlier referece to remove.</param>
+        /// <param name="index">Row to be updated.</param>
         public void RefreshKNNGraph(int outlier, int index)
         {
             int[] row;
@@ -235,6 +241,7 @@ namespace OPS.Alignment
                 {
                     while (Outliers.Contains(row[tmpi]))
                     {
+                        // Got to end, no more possible neigbors
                         if (tmpi == O.Length - 1)
                         {
                             tmpi--;
@@ -254,11 +261,6 @@ namespace OPS.Alignment
                     break;
                 }
             }
-            if (row[tmpi] == FILLER)
-            {
-                ShiftRow(row);
-                return;
-            }
         }
 
         /// <summary>
@@ -266,7 +268,7 @@ namespace OPS.Alignment
         /// </summary>
         /// <param name="features">Input list of features.</param>
         /// <returns>Adjacency graph of distances.</returns>
-        public static double[][] ComputeDistanceMatrix(ImageFeature[] features)
+        public double[][] ComputeDistanceMatrix(ImageFeature[] features)
         {
             Vector2[] coords = features.Select(v => v.Location).ToArray();
             double[][] result = new double[features.Length][].Select(x => new double[features.Length]).ToArray();
@@ -295,7 +297,7 @@ namespace OPS.Alignment
         /// </summary>
         /// <param name="arr">Input array.</param>
         /// <returns>Median of input array.</returns>
-        public static double ComputeMedian(double[][] arr, bool linear = false)
+        public double ComputeMedian(double[][] arr, bool linear = false)
         {
             List<double> A = new List<double>();
 
@@ -305,7 +307,6 @@ namespace OPS.Alignment
                 for (int k = j + 1; k < arr.Length; k++)
                 {
                     A.Add(arr[j][k]);
-                    //A.Add(arr[k][j]);
                 }
             }
 
@@ -326,7 +327,7 @@ namespace OPS.Alignment
         /// <param name="A">Input array.</param>
         /// <param name="i">Ordinality of desired element.</param>
         /// <returns></returns>
-        static double MedianOfMedians(List<double> A, int i)
+        double MedianOfMedians(List<double> A, int i)
         {
             if (A.Count == 1) return A[0];
             List<List<double>> sublists = new List<List<double>>();
@@ -366,6 +367,21 @@ namespace OPS.Alignment
             if (i < m) return MedianOfMedians(low, i);
             if (i > m) return MedianOfMedians(high, i - m - 1);
             return pivot;
+        }
+
+        /// <summary>
+        /// Constructs the final matches as i:i mappings for i in [0, length).
+        /// </summary>
+        /// <returns>The final matches.</returns>
+        /// <param name="length">Length of mapping.</param>
+        public static KeyValuePair<int, int>[] ConstructFinalMatches(int length)
+        {
+            KeyValuePair<int, int>[] result = new KeyValuePair<int, int>[length];
+            for (int i = 0; i < length; i++)
+            {
+                result[i] = new KeyValuePair<int, int>(i, i);
+            }
+            return result;
         }
     }
 }
