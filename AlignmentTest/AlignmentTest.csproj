@@ -62,6 +62,10 @@
       <Project>{ae1b74cc-7cbb-4aaf-9be6-68534d61d264}</Project>
       <Name>Alignment</Name>
     </ProjectReference>
+    <ProjectReference Include="..\Xna\Xna.csproj">
+      <Project>{46759719-42D9-473B-A8AD-0848A33BDAC6}</Project>
+      <Name>Xna</Name>
+    </ProjectReference>
   </ItemGroup>
   <ItemGroup />
   <Choose>

@@ -118,7 +118,7 @@ namespace OPS.Pipeline
 
             // UNCOMMENT THE FOLLOWING TO FILTER
             //MoisanStivalFilter filter = new MoisanStivalFilter();
-           // matches = filter.Filter(matches);
+            //matches = filter.Filter(matches);
             GTM gtm = new GTM(5);
             matches = gtm.Filter(matches);
             //
