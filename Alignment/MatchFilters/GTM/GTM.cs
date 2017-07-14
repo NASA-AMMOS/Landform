@@ -36,7 +36,7 @@ namespace OPS.Alignment
             }
       
             Debug.WriteLine("Filtering with GTM...");
-            GTMOptimized gtmO = new GTMOptimized(matches, P, PPrime, K);;
+            GTMOptimized gtmO = new GTMOptimized(matches, K);
 
             return gtmO.Filter();
         }
