@@ -13,12 +13,10 @@ namespace OPS.Alignment
         public bool RefineStep;
         public int K;
         public int counter;
-        public bool Optimized;
 
-        public GTM(int k = 5, bool optimized = true)
+        public GTM(int k = 5)
         {
             K = k;
-            Optimized = optimized;
         }
 
         public ImagePairCorrespondence Filter(ImagePairCorrespondence matches)
@@ -36,107 +34,13 @@ namespace OPS.Alignment
                 P[i] = modelFeat[pairs[i].Value];
                 PPrime[i] = dataFeat[pairs[i].Key];
             }
+      
+            Debug.WriteLine("Filtering with GTM...");
+            GTMOptimized gtmO = new GTMOptimized(matches, P, PPrime, K);;
 
-            ImagePairCorrespondence debugMatches;
-            if (Optimized)
-            {
-                Debug.WriteLine("Filtering with new optimized GTM...");
-                GTMOptimized gtmO = new GTMOptimized(matches, P, PPrime, K);
-                matches = gtmO.Filter();
-            }
-            else
-            {
-                int outlier;
-                Debug.WriteLine("Filtering with old GTM...");
-                double[][] DistP = ComputeDistanceMatrix(P);
-                double[][] DistPPrime = ComputeDistanceMatrix(PPrime);
-                double MedianP = ComputeMedian(DistP);
-                double MedianPPrime = ComputeMedian(DistPPrime);
-                ImageFeature[] Q = (ImageFeature[])P.Clone();
-                ImageFeature[] QPrime = (ImageFeature[])PPrime.Clone();
-                HashSet<int> outliers = new HashSet<int>();
-
-                double[][] AP = BuildMedianKNNGraph(DistP, K, MedianP, outliers);
-                double[][] APPrime = BuildMedianKNNGraph(DistPPrime, K, MedianPPrime, outliers);
-
-                List<int> debugOutliers1 = new List<int>();
-                counter = 0;
-                while (!GraphEqual(AP, APPrime))
-                {
-                    counter++;
-                    outlier = FindOutlier(AP, APPrime, outliers);
-                    debugOutliers1.Add(outlier);
-                    outliers.Add(outlier);
-                    AP = BuildMedianKNNGraph(DistP, K, MedianP, outliers);
-                    APPrime = BuildMedianKNNGraph(DistPPrime, K, MedianPPrime, outliers);
-                }
-
-                List<double> rowsums = AP.Select(x => x.Sum()).ToList();
-                List<double> rowsums1 = APPrime.Select(x => x.Sum()).ToList();
-                Debug.WriteLine(rowsums.Where(x => x == 5).Count());
-                Debug.WriteLine(rowsums1.Where(x => x == 5).Count());
-                //for (int x = 0; x < rowsums.Count; x++)
-                //{
-                //    if (rowsums[x] == K)
-                //        Debug.WriteLine(x + ": little neighbors in rowsums");
-                //    if (rowsums1[x] == K)
-                //        Debug.WriteLine(x + ": little neighbors in rowsums1");
-                //}
-
-                writeListToFile(@"C:\Users\charchut\Desktop\outliersOldOld", debugOutliers1);
-
-                Q = RemoveDisconnectedVertices(Q, AP);
-                QPrime = RemoveDisconnectedVertices(QPrime, APPrime);
-
-                if (Q.Length != QPrime.Length)
-                    throw new Exception("Matched features not equal in length.");
-
-                KeyValuePair<int, int>[] goodMatches2 = ConstructFinalMatches(Q.Length);
-
-                Debug.WriteLine("Number of residual matches: " + goodMatches2.Length + " after " + counter + " iterations of GTM");
-
-                matches = new ImagePairCorrespondence(
-                    matches.ModelImage, matches.DataImage,
-                    Q, QPrime,
-                    goodMatches2);
-            }
-
-            return matches;
+            return gtmO.Filter();
         }
 
-        private void printIntermediates(int[][] o, HashSet<int>[] i, int[] c, int numrows = 10)
-        {
-            int count = 0;
-            foreach (int[] row in o)
-            {
-                for (int j = 0; j < Math.Min(o.Length, numrows); j++)
-                {
-                    Debug.Write(row[j] + 1 + " ");
-                }
-                Debug.WriteLine("");
-                if (count++ > 10) break;
-            }
-            Debug.WriteLine("---------");
-        }
-
-        /// <summary>
-        /// Checks if the two graphs contain equivalent values.
-        /// </summary>
-        /// <param name="A"></param>
-        /// <param name="AP"></param>
-        /// <returns></returns>
-        bool GraphEqual(double[][] A, double[][] AP)
-        {
-            for (int i = 0; i < A.Length; i++)
-            {
-                for (int j = 0; j < A.Length; j++)
-                {
-                    if (Math.Abs(A[i][j] - AP[i][j]) > double.Epsilon)
-                        return false;
-                }
-            }
-            return true;
-        }
 
         /// <summary>
         /// Constructs the final matches as i:i mappings for i in [0, length).
@@ -180,116 +84,6 @@ namespace OPS.Alignment
 
             A.Sort();
             return A[i];
-        }
-
-        /// <summary>
-        /// Prunes erroneous features.
-        /// </summary>
-        /// <param name="features">Input list of features.</param>
-        /// <param name="graph">Adjacency matrix representation of graph.</param>
-        /// <returns>A copy of pruned features.</returns>
-        ImageFeature[] RemoveDisconnectedVertices(ImageFeature[] features, double[][] graph)
-        {
-            ImageFeature[] result = (ImageFeature[])features.Clone();
-            ImageFeature deletedFeat = new ImageFeature(new Vector2(-1, -1), null);
-            List<double> rowsums = graph.Select(x => x.Sum()).ToList();
-            for (int i = 0; i < rowsums.Count; i++)
-            {
-                if (Math.Abs(rowsums[i]) < double.Epsilon)
-                    result[i] = deletedFeat;
-
-            }
-
-            Vector2 deleted = new Vector2(-1, -1);
-            return result.Where(x => !x.Location.Equals(deleted)).ToArray();
-        }
-
-        /// <summary>
-        /// Prunes erroneous features.
-        /// </summary>
-        /// <param name="features">Input list of features.</param>
-        /// <param name="graph">Adjacency matrix representation of graph.</param>
-        /// <returns>A copy of pruned features.</returns>
-        public ImageFeature[] RemoveDisconnectedVertices(ImageFeature[] features, HashSet<int> outliers)
-        {
-            return features.Where((x, i) => !outliers.Contains(i)).ToArray();
-        }
-
-        /// <summary>
-        /// Removes an outlier from both adjacency graphs, as well as lists of features. 
-        /// </summary>
-        /// <param name="outlier">Index of feature to remove.</param>
-        /// <param name="distP">Adjacency matrix of model image features.</param>
-        /// <param name="distPPrime">Adjacency matrix of data image features.</param>
-        /// <param name="Q">List of features present in model image.</param>
-        /// <param name="QPrime">List of features present in data image.</param>
-        private void RemoveOutlier(int outlier, double[][] distP, double[][] distPPrime, ImageFeature[] Q, ImageFeature[] QPrime)
-        {
-            for (int i = 0; i < distP.Length; i++)
-            {
-                distP[outlier][i] = 0;
-                distP[i][outlier] = 0;
-                distPPrime[outlier][i] = 0;
-                distPPrime[i][outlier] = 0;
-            }
-
-            Q[outlier] = new ImageFeature(new Vector2(-1, -1), null);
-            QPrime[outlier] = new ImageFeature(new Vector2(-1, -1), null);
-        }
-
-        int FindOutlier(double[][] AP, double[][] APPrime, HashSet<int> outliers)
-        {
-            double[][] R = new double[AP.Length][].Select(x => new double[AP.Length]).ToArray();
-            double diff;
-
-            for (int i = 0; i < AP.Length; i++)
-            {
-                if (outliers.Contains(i)) continue;
-
-                for (int j = 0; j < AP.Length; j++)
-                {
-                    if (outliers.Contains(j)) continue;
-                    diff = Math.Abs(AP[i][j] - APPrime[i][j]);
-                    R[i][j] = diff;
-                }
-            }
-
-            List<double> rowsums = R.Select(x => x.Sum()).ToList();
-
-            return rowsums.IndexOf(rowsums.Max());
-        }
-
-        /// <summary>
-        /// Brute force implementation of adjacency graph building.
-        /// </summary>
-        /// <param name="dist"></param>
-        /// <param name="k"></param>
-        /// <param name="median"></param>
-        /// <returns></returns>
-        double[][] BuildMedianKNNGraph(double[][] dist, int k, double median, HashSet<int> outliers)
-        {
-            double[][] result = new double[dist.Length][].Select(x => new double[dist.Length]).ToArray();
-
-            for (int i = 0; i < result.Length; i++)
-            {
-
-                if (outliers.Contains(i)) continue;
-                var distances1 = dist[i].Select((x, j) => new { Value = x, Index = j })
-                                        .Where(y => y.Value > 0 && !outliers.Contains(y.Index)) // not itself or outlier
-                                        .OrderBy(v => v.Value).ToArray();
-
-                for (int ki = 0; ki < k; ki++)
-                {
-                    int index = distances1[ki].Index;
-                    if (distances1[ki].Value <= median)
-                    {
-                        result[i][index] = 1;
-                        result[index][i] = 1;
-                    }
-                }
-            }
-
-            return result;
         }
 
         /// <summary>
