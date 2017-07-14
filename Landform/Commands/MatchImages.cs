@@ -142,8 +142,8 @@ namespace OPS.Pipeline
             ImagePairCorrespondence matches = matcher.Match(new ImageRef(model), new ImageRef(data), modelfeat, datafeat);
             //MoisanStivalFilter filter = new MoisanStivalFilter();
             //matches = filter.Filter(matches);
-            //GTM gtm = new GTM();
-            //matches = gtm.Filter(matches);
+            GTM gtm = new GTM(5);
+            matches = gtm.Filter(matches);
 
             PCAMatch.Match(matches, outputFile);
             Trace.WriteLine(string.Format("Matched images written to {0}", outputFile));

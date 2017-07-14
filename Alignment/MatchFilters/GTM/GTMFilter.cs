@@ -2,13 +2,13 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace OPS.Alignment
 {
-    public class GTMOptimized
+    /// <summary>
+    /// GTM Filter class.
+    /// </summary>
+    public class GTMFilter
     {
         // Number of nearest-neighbors
         int K;
@@ -27,9 +27,15 @@ namespace OPS.Alignment
         const int FILLER = -2;
         const int FALSE_POSTIVE = -3;
 
+        // The graph representations of matched keypoints in each image.
         GTMGraph ModelGraph, DataGraph;
 
-        public GTMOptimized(ImagePairCorrespondence matches, int k)
+        /// <summary>
+        /// Given matches, filters them using the GTM method of size k.
+        /// </summary>
+        /// <param name="matches">Identified matches.</param>
+        /// <param name="k">The number of nearest neighbors.</param>
+        public GTMFilter(ImagePairCorrespondence matches, int k)
         {
             KeyValuePair<int, int>[] pairs = matches.DataToModel;
             ImageFeature[] modelFeat = matches.ModelFeatures;
@@ -54,6 +60,10 @@ namespace OPS.Alignment
             DataGraph = new GTMGraph(PPrime, Outliers, FalseOutliers, k);
         }
 
+        /// <summary>
+        /// Filters the given matches.
+        /// </summary>
+        /// <returns>Filtered matches.</returns>
         internal ImagePairCorrespondence Filter()
         {
             int outlier;
@@ -64,19 +74,22 @@ namespace OPS.Alignment
                 counter++;
                 outlier = ModelGraph.FindOutlier(DataGraph);
 
+                // the following check shouldn't be needed if executing correctly
                 if (outlier == -1)
                 {
                     break;
                 }
 
+                // A bug fix, temporary
                 if (!isFalseOutlier(outlier))
                 {
                     FalseOutliers.Add(outlier);
                     continue;
                 }
-  
+
                 Outliers.Add(outlier);
-                RemoveOutlier(outlier);
+                ModelGraph.RemoveOutlier(outlier);
+                DataGraph.RemoveOutlier(outlier);
             }
 
             ModelGraph.RemoveDisconnectedVertices();
@@ -87,11 +100,16 @@ namespace OPS.Alignment
                 throw new Exception("Matched features not equal in length.");
             }
 
-            KeyValuePair<int, int>[] goodMatches = GTM.ConstructFinalMatches(ModelGraph.Q.Length);
+            KeyValuePair<int, int>[] goodMatches = GTMGraph.ConstructFinalMatches(ModelGraph.Q.Length);
             Debug.WriteLine("Number of residual matches: " + goodMatches.Length + " after " + counter + " iterations of GTM");
             return new ImagePairCorrespondence(Matches.ModelImage, Matches.DataImage, ModelGraph.Q, DataGraph.Q, goodMatches);
         }
 
+        /// <summary>
+        /// Checks if determined outlier is valid.
+        /// </summary>
+        /// <param name="outlier">Outlier candidate.</param>
+        /// <returns>True, if the outlier is valid.</returns>
         private bool isFalseOutlier(int outlier)
         {
             if (ModelGraph.O[outlier][0] == DataGraph.O[outlier][0] &&
@@ -104,14 +122,6 @@ namespace OPS.Alignment
             }
 
             return true;
-        }
-
-
-
-        public void RemoveOutlier(int outlier)
-        {
-            ModelGraph.RemoveOutlier(outlier);
-            DataGraph.RemoveOutlier(outlier);
         }
     }
 }

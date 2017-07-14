@@ -78,7 +78,7 @@
   <ItemGroup>
     <Compile Include="MatchFilters\GTM\GTM.cs" />
     <Compile Include="MatchFilters\GTM\GTMGraph.cs" />
-    <Compile Include="MatchFilters\GTM\GTMOptimized.cs" />
+    <Compile Include="MatchFilters\GTM\GTMFilter.cs" />
     <Compile Include="PCASIFT\PCASIFTDescriptor.cs" />
     <Compile Include="PCASIFT\PCASIFTDetector.cs" />
     <Compile Include="PCASIFT\PCASIFTFeature.cs" />
