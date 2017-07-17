@@ -116,6 +116,9 @@ namespace OPS.Pipeline
             EmguSIFTMatcher matcher = new EmguSIFTMatcher();
             ImagePairCorrespondence matches = matcher.Match(new ImageRef(model), new ImageRef(data), featuresA, featuresB);
 
+
+            //BFMatcherR matcher2 = new BFMatcherR((ImageFeature[])featuresA, featuresB);
+
             // UNCOMMENT THE FOLLOWING TO FILTER
             //MoisanStivalFilter filter = new MoisanStivalFilter();
             //matches = filter.Filter(matches);

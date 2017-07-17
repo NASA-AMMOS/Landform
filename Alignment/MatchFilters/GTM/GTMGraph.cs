@@ -297,7 +297,7 @@ namespace OPS.Alignment
         /// </summary>
         /// <param name="arr">Input array.</param>
         /// <returns>Median of input array.</returns>
-        public double ComputeMedian(double[][] arr, bool linear = false)
+        static public double ComputeMedian(double[][] arr, bool linear = false)
         {
             List<double> A = new List<double>();
 
@@ -327,7 +327,7 @@ namespace OPS.Alignment
         /// <param name="A">Input array.</param>
         /// <param name="i">Ordinality of desired element.</param>
         /// <returns></returns>
-        double MedianOfMedians(List<double> A, int i)
+        static double MedianOfMedians(List<double> A, int i)
         {
             if (A.Count == 1) return A[0];
             List<List<double>> sublists = new List<List<double>>();

@@ -84,6 +84,7 @@
     <Compile Include="PCASIFT\PCASIFTFeature.cs" />
     <Compile Include="PCASIFT\PCASIFTIO.cs" />
     <Compile Include="PCASIFT\PCASIFTUtil.cs" />
+    <Compile Include="PCG\KDNode.cs" />
     <Compile Include="SIFT\ASIFT.cs" />
     <Compile Include="EmguSIFTMatcher.cs" />
     <Compile Include="FeatureMatching\FeatureDescriptor.cs" />
