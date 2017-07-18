@@ -1,5 +1,4 @@
 ﻿using OPS.Imaging;
-using OPS.Pipeline;
 using System;
 using System.Collections.Generic;
 using System.Linq;

@@ -17,7 +17,7 @@ namespace OPS.Alignment
     {
         public void WriteSIFTFeatures(Image image, string filename, Image mask = null, int numFeatures = 0, int octaveLayers = 3, float contrastThreshold = 0.04f, float edgeThreshold = 10f, float sigma = 1.6f)
         {
-            SIFT sift = new SIFT(numFeatures, octaveLayers, contrastThreshold, edgeThreshold, sigma);
+            Emgu.CV.XFeatures2D.SIFT sift = new Emgu.CV.XFeatures2D.SIFT(numFeatures, octaveLayers, contrastThreshold, edgeThreshold, sigma);
             var emguImg = image.ToEmguGrayscale();
             //var emguImg = emguImgByte.Convert<Gray, float>();
             Image<Gray, byte> emguMask = (mask != null) ? (mask.ToEmguGrayscale()) : null;

@@ -315,6 +315,71 @@ namespace GeometryTest
         }
 
         [TestMethod]
+        public void RemoveVerticesTest()
+        {
+            Mesh m = new Mesh();
+            m.Vertices.Add(new Vertex(0, 0, 0));
+            m.Vertices.Add(new Vertex(1, 0, 0));
+            m.Vertices.Add(new Vertex(0, 2, 3));
+            m.Vertices.Add(new Vertex(0, 1, 0));
+            m.Vertices.Add(new Vertex(0, 0, 0));
+            m.Faces.Add(new Face(0, 1, 2));
+            m.Faces.Add(new Face(2, 3, 4));
+            List<Vertex> vertsToRemove = new List<Vertex>();
+            vertsToRemove.Add(new Vertex(0, 1, 0));
+            m.RemoveVertices(vertsToRemove);
+            Assert.AreEqual(4, m.Vertices.Count);
+            Assert.AreEqual(1, m.Faces.Count);
+            Assert.AreEqual(new Vertex(0, 0, 0), m.Vertices[0]);
+            Assert.AreEqual(new Vertex(1, 0, 0), m.Vertices[1]);
+            Assert.AreEqual(new Vertex(0, 2, 3), m.Vertices[2]);
+            Assert.AreEqual(new Vertex(0, 0, 0), m.Vertices[3]);
+            Assert.AreEqual(new Face(0, 1, 2), m.Faces[0]);
+        }
+
+        [TestMethod]
+        public void ReverseWindingTest()
+        {
+            Mesh m = new Mesh();
+            m.Vertices.Add(new Vertex(0, 0, 0));
+            m.Vertices.Add(new Vertex(1, 0, 0));
+            m.Vertices.Add(new Vertex(0, 2, 3));
+            m.Faces.Add(new Face(0, 1, 2));
+            m.ReverseWinding();
+            Assert.AreEqual(new Face(0,2,1), m.Faces[0]);
+        }
+
+        [TestMethod]
+        public void TransformMeshTest()
+        {
+            Mesh m = new Mesh(hasNormals: true);
+            m.Vertices.Add(new Vertex(0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0));
+            m.Vertices.Add(new Vertex(1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0));
+            m.Vertices.Add(new Vertex(0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0));
+            m.Vertices.Add(new Vertex(0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0));
+            Matrix transmat = Matrix.CreateTranslation(new Vector3(1, 0, 0));
+            m.Transform(transmat);
+            Assert.IsTrue(Vector3.AlmostEqual(new Vector3(1, 0, 0), m.Vertices[0].Position));
+            Assert.IsTrue(Vector3.AlmostEqual(new Vector3(2, 0, 0), m.Vertices[1].Position));
+            Assert.IsTrue(Vector3.AlmostEqual(new Vector3(1, 1, 0), m.Vertices[2].Position));
+            Assert.IsTrue(Vector3.AlmostEqual(new Vector3(1, 0, 1), m.Vertices[3].Position));
+            Assert.IsTrue(Vector3.AlmostEqual(new Vector3(1, 0, 0), m.Vertices[0].Normal));
+            Assert.IsTrue(Vector3.AlmostEqual(new Vector3(0, 1, 0), m.Vertices[1].Normal));
+            Assert.IsTrue(Vector3.AlmostEqual(new Vector3(0, 0, 1), m.Vertices[2].Normal));
+            Assert.IsTrue(Vector3.AlmostEqual(new Vector3(0, 0, 0), m.Vertices[3].Normal));
+            Matrix rotmat = Matrix.CreateFromAxisAngle(new Vector3(0, 1, 0), MathHelper.ToRadians(90));
+            m.Transform(rotmat);
+            Assert.IsTrue(Vector3.AlmostEqual(new Vector3(0, 0, -1), m.Vertices[0].Position));
+            Assert.IsTrue(Vector3.AlmostEqual(new Vector3(0, 0, -2), m.Vertices[1].Position));
+            Assert.IsTrue(Vector3.AlmostEqual(new Vector3(0, 1, -1), m.Vertices[2].Position));
+            Assert.IsTrue(Vector3.AlmostEqual(new Vector3(1, 0, -1), m.Vertices[3].Position));
+            Assert.IsTrue(Vector3.AlmostEqual(new Vector3(0, 0, -1), m.Vertices[0].Normal));
+            Assert.IsTrue(Vector3.AlmostEqual(new Vector3(0, 1, 0), m.Vertices[1].Normal));
+            Assert.IsTrue(Vector3.AlmostEqual(new Vector3(1, 0, 0), m.Vertices[2].Normal));
+            Assert.IsTrue(Vector3.AlmostEqual(new Vector3(0, 0, 0), m.Vertices[3].Normal));
+        }
+
+        [TestMethod]
         public void MeshToTrianglesTest()
         {
 
@@ -345,6 +410,29 @@ namespace GeometryTest
             t1.V0.Position.X = 7;
             Assert.AreEqual(0, m.Vertices[0].Position.X);
         }
+
+        [TestMethod]
+        public void AttributesEqualTest()
+        {
+            Mesh a = new Mesh(false, false, false);
+            Assert.IsTrue(a.AttributesEqual(new Mesh(false, false, false)));
+            Assert.IsFalse(a.AttributesEqual(new Mesh(true, false, false)));
+            Assert.IsFalse(a.AttributesEqual(new Mesh(false, true, false)));
+            Assert.IsFalse(a.AttributesEqual(new Mesh(false, false, true)));
+            Assert.IsTrue(a.AttributesSubsetOf(new Mesh(false, false, false)));
+            Assert.IsTrue(a.AttributesSubsetOf(new Mesh(true, false, false)));
+            Assert.IsTrue(a.AttributesSubsetOf(new Mesh(false, true, false)));
+            Assert.IsTrue(a.AttributesSubsetOf(new Mesh(false, false, true)));
+
+            a = new Mesh(false, true, true);
+            Assert.IsFalse(a.AttributesSubsetOf(new Mesh(false, false, false)));
+            Assert.IsFalse(a.AttributesSubsetOf(new Mesh(true, false, false)));
+            Assert.IsFalse(a.AttributesSubsetOf(new Mesh(false, true, false)));
+            Assert.IsFalse(a.AttributesSubsetOf(new Mesh(false, false, true)));
+            Assert.IsTrue(a.AttributesSubsetOf(new Mesh(true, true, true)));
+            Assert.IsTrue(a.AttributesSubsetOf(new Mesh(false, true, true)));
+        }
+        
 
         [TestMethod]
         public void MeshMergeTest()
@@ -408,6 +496,11 @@ namespace GeometryTest
             Assert.AreEqual(b.Vertices[2], a.Vertices[5]);
             Assert.AreEqual(6, a.Vertices.Count);
             Assert.AreEqual(2, a.Faces.Count);
+
+            Mesh c = Mesh.Merge(false, true, false, new Mesh[] { a, b });
+            Assert.AreEqual(false, c.HasNormals);
+            Assert.AreEqual(true, c.HasUVs);
+            Assert.AreEqual(false, c.HasColors);
         }
 
 

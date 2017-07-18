@@ -26,7 +26,15 @@ namespace OPS.Imaging
         public uint BitMask;
         // Optional Metadata
         public CameraModel CameraModel;
-        
+
+        /// <summary>
+        /// Start location of image data
+        /// </summary>
+        public long DataOffset
+        {
+            get { return (this.Carrot - 1) * this.RecordBytes; }
+        }
+
         protected Dictionary<string, Dictionary<string, string>> rawHeader;
         const string NULL_GROUP = "";
 
@@ -74,10 +82,17 @@ namespace OPS.Imaging
             this.rawHeader = ReadHeader(stream);
             this.Width = ReadAsInt("IMAGE", "LINE_SAMPLES");
             this.Height = ReadAsInt("IMAGE", "LINES");
-            this.Bands = ReadAsInt("IMAGE", "BANDS");
+            // If a number of band's isn't specified, assume this is a single band image
+            if(HasKey("IMAGE", "BANDS"))
+            {
+                this.Bands = ReadAsInt("IMAGE", "BANDS");
+            }
+            else
+            {
+                this.Bands = 1;
+            }            
             this.BitDepth = ReadAsInt("IMAGE", "SAMPLE_BITS");
-            string[] tokens = ParseString(this["IMAGE", "SAMPLE_BIT_MASK"]).Split('#');
-            this.BitMask = Convert.ToUInt32(tokens[1], int.Parse(tokens[0]));
+            
             this.RecordBytes = ReadAsLong("RECORD_BYTES");
             this.Carrot = (int)ReadAsInt("^IMAGE");
             try
@@ -92,6 +107,7 @@ namespace OPS.Imaging
             if ((sampleType == "MSB_INTEGER" || sampleType == "MSB_UNSIGNED_INTEGER") && BitDepth == 16)
             {
                 this.SampleType = typeof(ushort);
+                this.BitMask = ushort.MaxValue;
             }
             else if (sampleType == "IEEE_REAL" && BitDepth == 32)
             {
@@ -100,6 +116,14 @@ namespace OPS.Imaging
             else if ((sampleType == "UNSIGNED_INTEGER" || sampleType == "MSB_UNSIGNED_INTEGER") && BitDepth == 8)
             {
                 this.SampleType = typeof(byte);
+                this.BitMask = byte.MaxValue;
+            }
+
+            // If a bit mask is specified, use it to override the per-type default masks assigned above
+            if (HasKey("IMAGE", "SAMPLE_BIT_MASK"))
+            {
+                string[] tokens = ParseString(this["IMAGE", "SAMPLE_BIT_MASK"]).Split('#');
+                this.BitMask = Convert.ToUInt32(tokens[1], int.Parse(tokens[0]));
             }
         }
 

@@ -11,11 +11,11 @@ namespace OPS.Alignment
 {
     public class PCASIFTDetector : IFeatureDetector
     {
-        SIFT sift;
+        Emgu.CV.XFeatures2D.SIFT sift;
         // For details, see http://www.cs.ubc.ca/~lowe/papers/ijcv04.pdf
         public PCASIFTDetector(int numFeatures = 0, int octaveLayers = 3, float contrastThreshold = 0.04f, float edgeThreshold = 10f, float sigma = 1.6f)
         {
-            sift = new SIFT(numFeatures, octaveLayers, contrastThreshold, edgeThreshold, sigma);
+            sift = new Emgu.CV.XFeatures2D.SIFT(numFeatures, octaveLayers, contrastThreshold, edgeThreshold, sigma);
         }
 
         public IEnumerable<ImageFeature> Detect(Image image, Image mask = null)

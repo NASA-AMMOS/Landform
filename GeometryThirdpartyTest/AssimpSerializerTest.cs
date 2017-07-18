@@ -5,7 +5,7 @@ using Microsoft.Xna.Framework;
 using System.IO;
 using OPS.Geometry;
 
-namespace AssimpInterfaceTest
+namespace GeometryThirdpartyTest
 {
     [TestClass]
     [DeploymentItem("Assimp32.dll")]

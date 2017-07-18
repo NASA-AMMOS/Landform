@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using OPS.Pipeline;
+using OPS.Imaging;
 using Microsoft.Xna.Framework;
 
 namespace OPS.Alignment

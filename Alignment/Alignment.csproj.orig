@@ -10,7 +10,7 @@
     <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>OPS.Alignment</RootNamespace>
     <AssemblyName>Alignment</AssemblyName>
-    <TargetFrameworkVersion>v4.6.1</TargetFrameworkVersion>
+    <TargetFrameworkVersion>v4.6.2</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <TargetFrameworkProfile />
     <NuGetPackageImportStamp>
@@ -24,6 +24,7 @@
     <DefineConstants>DEBUG;TRACE</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
+    <RunCodeAnalysis>false</RunCodeAnalysis>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
     <DebugType>pdbonly</DebugType>
@@ -75,23 +76,40 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
+<<<<<<< HEAD
+    <Compile Include="BFMatcher.cs" />
+    <Compile Include="MatchFilters\GTM\GTM.cs" />
+    <Compile Include="MatchFilters\GTM\GTMGraph.cs" />
+    <Compile Include="MatchFilters\GTM\GTMFilter.cs" />
+    <Compile Include="PCASIFT\PCASIFTDescriptor.cs" />
+    <Compile Include="PCASIFT\PCASIFTDetector.cs" />
+    <Compile Include="PCASIFT\PCASIFTFeature.cs" />
+    <Compile Include="PCASIFT\PCASIFTIO.cs" />
+    <Compile Include="PCASIFT\PCASIFTUtil.cs" />
+    <Compile Include="PCS\KDNode.cs" />
+    <Compile Include="PCS\MRF.cs" />
+    <Compile Include="PCS\PCSFeature.cs" />
+    <Compile Include="PCS\PCSMatch.cs" />
     <Compile Include="SIFT\ASIFT.cs" />
+=======
+    <Compile Include="Interfaces\IDescriptorCalculator.cs" />
+    <Compile Include="SIFT\ASIFTDetector.cs" />
+>>>>>>> master
     <Compile Include="EmguSIFTMatcher.cs" />
     <Compile Include="FeatureMatching\FeatureDescriptor.cs" />
     <Compile Include="Interfaces\IFeatureDetector.cs" />
     <Compile Include="SIFT\SIFTDescriptor.cs" />
     <Compile Include="MatchFilters\MoisanStivalFilter.cs" />
     <Compile Include="ImagePairCorrespondence.cs" />
-    <Compile Include="SIFT\SIFTDetector.cs" />
+    <Compile Include="SIFT\SIFT.cs" />
     <Compile Include="SIFT\SIFTFeature.cs" />
     <Compile Include="FeatureMatching\ImageFeature.cs" />
     <Compile Include="Interfaces\IMatchFilter.cs" />
     <Compile Include="Interfaces\IFeatureMatcher.cs" />
     <Compile Include="MoisanStivalEpipolar.cs" />
-    <Compile Include="PCA_Keypoint.cs" />
-    <Compile Include="PCA_KeypointDetector.cs" />
-    <Compile Include="PCA_SIFT.cs" />
-    <Compile Include="PCA_Train.cs" />
+    <Compile Include="PCASIFT\PCAKeypointProjector.cs" />
+    <Compile Include="PCASIFT\PCAMatch.cs" />
+    <Compile Include="PCASIFT\PCASIFTTrain.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>
@@ -117,16 +135,13 @@
     <None Include="OpenTK.dll.config" />
     <None Include="packages.config" />
   </ItemGroup>
-<<<<<<< HEAD
-  <ItemGroup />
-=======
   <ItemGroup>
     <Content Include="License-LGPL.txt" />
   </ItemGroup>
   <ItemGroup>
     <WCFMetadata Include="Service References\" />
   </ItemGroup>
->>>>>>> eigenvectors determined, need to reduce to principal number
+  <ItemGroup />
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <Target Name="EnsureNuGetPackageBuildImports" BeforeTargets="PrepareForBuild">
     <PropertyGroup>

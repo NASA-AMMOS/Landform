@@ -9,7 +9,7 @@
     <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>Geometry</RootNamespace>
     <AssemblyName>Geometry</AssemblyName>
-    <TargetFrameworkVersion>v4.6.1</TargetFrameworkVersion>
+    <TargetFrameworkVersion>v4.6.2</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <TargetFrameworkProfile />
   </PropertyGroup>
@@ -45,6 +45,10 @@
       <HintPath>..\packages\RTree.1.0.2.1\lib\RTree.dll</HintPath>
       <Private>True</Private>
     </Reference>
+    <Reference Include="Supercluster.KDTree, Version=1.0.4.0, Culture=neutral, PublicKeyToken=4423da5f8ba350cf, processorArchitecture=MSIL">
+      <HintPath>..\packages\Supercluster.KDTree.1.0.4\lib\Supercluster.KDTree.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
     <Reference Include="System" />
     <Reference Include="System.Core" />
     <Reference Include="System.Xml.Linq" />
@@ -55,11 +59,16 @@
   <ItemGroup>
     <Compile Include="Geometry\BoundingBoxExtensions.cs" />
     <Compile Include="Geometry\Face.cs" />
+    <Compile Include="Geometry\EpipolarTransform.cs" />
     <Compile Include="Geometry\Mesh.cs" />
+    <Compile Include="Geometry\MeshOperator.cs" />
     <Compile Include="Geometry\PlaneExtensions.cs" />
     <Compile Include="Geometry\Triangle.cs" />
     <Compile Include="Geometry\Vertex.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="Scene\NodeComponent.cs" />
+    <Compile Include="Scene\NodeTransform.cs" />
+    <Compile Include="Scene\SceneNode.cs" />
     <Compile Include="Serializers\GLTFStructure.cs" />
     <Compile Include="Serializers\GLTFSerializer.cs" />
     <Compile Include="Serializers\MeshSerializer.cs" />

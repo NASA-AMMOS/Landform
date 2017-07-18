@@ -156,5 +156,14 @@ namespace GeometryTest
             Vertex d = new Vertex(1.7, 2.7, 3.7, 4.7, 5.7, 6.7, 7.7, 8.7, 9.7, 10.7, 11.7, 13.4);
             Assert.AreEqual(d, c);
         }
+
+        [TestMethod]
+        public void VertexBoundsTest()
+        {
+            Vertex a = new Vertex(3, 2, 4);
+            Assert.AreEqual(a.Position, a.Bounds().Min);
+            Assert.AreEqual(a.Position, a.Bounds().Max);
+
+        }
     }
 }

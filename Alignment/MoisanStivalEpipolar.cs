@@ -1,5 +1,6 @@
 ﻿using Emgu.CV;
 using Microsoft.Xna.Framework;
+using OPS.Geometry;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -203,33 +204,22 @@ namespace OPS.Alignment
         }
 
         /// <summary>
-        /// Compute the epipolar line in the "model" image corresponding to
-        /// a given point in the "data" image.
+        /// The computed epipolar transformation from model to data.
         /// </summary>
-        public Vector3 ModelEpiLine(Vector2 dataPt)
+        public EpipolarTransform EpipolarTransform
         {
-            Vector3 epiline = Transform((dataPt - DataSize / 2) * dataNorm, overallMinF.Transpose());
-            Vector3 imageSpace = new Vector3(
-                epiline.X * modelNorm,
-                epiline.Y * modelNorm,
-                epiline.Z - modelNorm * (epiline.X * ModelSize.X + epiline.Y * ModelSize.Y) / 2
-                );
-            return imageSpace;
-        }
-
-        /// <summary>
-        /// Compute the epipolar line in the "data" image corresponding to
-        /// a given point in the "model" image.
-        /// </summary>
-        public Vector3 DataEpiLine(Vector2 modelPt)
-        {
-            Vector3 epiline = Transform((modelPt - ModelSize / 2) * modelNorm, overallMinF);
-            Vector3 imageSpace = new Vector3(
-                epiline.X * dataNorm,
-                epiline.Y * dataNorm,
-                epiline.Z - dataNorm * (epiline.X * DataSize.X + epiline.Y * DataSize.Y) / 2
-                );
-            return imageSpace;
+            get
+            {
+                return new ScaledEpipolarTransform(
+                    new Matrix(
+                        overallMinF[0, 0], overallMinF[1, 0], overallMinF[2, 0], 0,
+                        overallMinF[0, 1], overallMinF[1, 1], overallMinF[2, 1], 0,
+                        overallMinF[0, 2], overallMinF[1, 2], overallMinF[2, 2], 0,
+                        0, 0, 0, 0
+                    ),
+                    ModelSize,
+                    DataSize);
+            }
         }
 
         /// <summary>

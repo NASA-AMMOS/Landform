@@ -10,7 +10,7 @@
     <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>Pipeline</RootNamespace>
     <AssemblyName>Pipeline</AssemblyName>
-    <TargetFrameworkVersion>v4.6.1</TargetFrameworkVersion>
+    <TargetFrameworkVersion>v4.6.2</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <TargetFrameworkProfile />
     <NuGetPackageImportStamp>
@@ -118,8 +118,22 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Commands\TileBaselineMesh.cs" />
     <Compile Include="General\ObservationEnums.cs" />
     <Compile Include="GdalConfiguration.cs" />
+    <Compile Include="Rover\RoverCoordinateSystem.cs" />
+    <Compile Include="Rover\RoverReachability.cs" />
+    <Compile Include="Tiling\BaselineAtlaser.cs" />
+    <Compile Include="Tiling\BaselineImageProducer.cs" />
+    <Compile Include="Tiling\DefaultLeafTileContentProducer.cs" />
+    <Compile Include="Tiling\DefaultParentTileContentProducer.cs" />
+    <Compile Include="Tiling\FaceLimitSplitCriteria.cs" />
+    <Compile Include="Tiling\IContentProducer.cs" />
+    <Compile Include="Tiling\IImageProducer.cs" />
+    <Compile Include="Tiling\IMeshAtlaser.cs" />
+    <Compile Include="Tiling\ITileSplitCriteria.cs" />
+    <Compile Include="Tiling\MeshImagePair.cs" />
+    <Compile Include="Tiling\MeshTiler.cs" />
     <Compile Include="Rover\PDSParser.cs" />
     <Compile Include="Rover\PDSParserException.cs" />
     <Compile Include="Rover\RoverProductId.cs" />
@@ -127,11 +141,11 @@
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Rover\RoverArticulation.cs" />
     <Compile Include="Rover\RoverProductEnum.cs" />
-    <Compile Include="Scene\NodeComponent.cs" />
-    <Compile Include="Scene\NodeTransform.cs" />
-    <Compile Include="Scene\SceneNode.cs" />
+    <Compile Include="Tiling\PrecomputedLODParentTileContentProducer.cs" />
+    <Compile Include="Tiling\QuadTreeTilingScheme.cs" />
     <Compile Include="Tiling\Tile3D.cs" />
-    <Compile Include="WIP\ImageRef.cs" />
+    <Compile Include="Tiling\ITilingScheme.cs" />
+    <Compile Include="Tiling\Tile3DBuilder.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="app.config" />
@@ -158,6 +172,10 @@
     <ProjectReference Include="..\Imaging\Imaging.csproj">
       <Project>{c3ec3ab5-8dfd-4daa-9833-246f0db6a805}</Project>
       <Name>Imaging</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\MathExtensions\MathExtensions.csproj">
+      <Project>{8c7c8a71-0a4b-4d75-9cb2-32803bd8f86f}</Project>
+      <Name>MathExtensions</Name>
     </ProjectReference>
     <ProjectReference Include="..\Util\Util.csproj">
       <Project>{8145aa65-ba61-4e27-81ff-b64217b49929}</Project>

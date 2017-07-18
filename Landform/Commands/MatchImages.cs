@@ -1,6 +1,7 @@
 ﻿using CommandLine;
 using System.Collections.Generic;
 using System.Linq;
+using OPS.Imaging;
 using OPS.Imaging.Emgu;
 using OPS.Alignment;
 using System.Diagnostics;
@@ -148,8 +149,11 @@ namespace OPS.Pipeline
             if (outputFile == null) { outputFile = options.TrainingFile + ".png"; }
             Image<Gray, byte> imageModel = model.ToEmguGrayscale();
             Image<Gray, byte> imageData = data.ToEmguGrayscale();
-            List<SIFTFeature> modelfeat = ASIFT.Detect(imageModel, null, false).Cast<SIFTFeature>().ToList();
-            List<SIFTFeature> datafeat = ASIFT.Detect(imageData, null, false).Cast<SIFTFeature>().ToList();
+
+            ASIFTDetector asift = new ASIFTDetector();
+
+            List<SIFTFeature> modelfeat = asift.Detect(imageModel, null).Cast<SIFTFeature>().ToList();
+            List<SIFTFeature> datafeat = asift.Detect(imageData, null).Cast<SIFTFeature>().ToList();
             Matrix<float> descr0 = ToDescriptorMatrix(modelfeat);
             Matrix<float> descr1 = ToDescriptorMatrix(datafeat);
             VectorOfKeyPoint kp0 = ToVOKP(modelfeat);

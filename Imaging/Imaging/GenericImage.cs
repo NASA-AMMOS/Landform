@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Microsoft.Xna.Framework;
 
 namespace OPS.Imaging
 {
@@ -323,12 +324,25 @@ namespace OPS.Imaging
         {
             for (int b = 0; b < Data.Length; b++)
             {
-                for (int i = 0; i < Data[b].Length; i++)
+                ApplyInPlace(b, f, applyToMaskedValues);
+            }
+        }
+
+        /// <summary>
+        /// Apply a function to all values in the specified band. 
+        /// Result is written back to the array in place
+        /// Ignores masked values by default
+        /// </summary>
+        /// <param name="band"></param>
+        /// <param name="f"></param>
+        /// <param name="applyToMaskedValues"></param>
+        public void ApplyInPlace(int band, Func<T, T> f, bool applyToMaskedValues = false)
+        {
+            for (int i = 0; i < Data[band].Length; i++)
+            {
+                if (applyToMaskedValues || !IsMasked(i))
                 {
-                    if (applyToMaskedValues || !IsMasked(i))
-                    {
-                        this.Data[b][i] = f(this.Data[b][i]);
-                    }
+                    this.Data[band][i] = f(this.Data[band][i]);
                 }
             }
         }
@@ -347,6 +361,27 @@ namespace OPS.Imaging
                     if (!IsMasked(i))
                     {
                         yield return this.Data[b][i];
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Returns a coordinate for each pixel in the image and for each band
+        /// </summary>
+        /// <returns></returns>
+        public IEnumerable<ImageCoordinate> Coordinates(bool includeMaskedValues)
+        {
+            for (int b = 0; b < this.Bands; b++)
+            {
+                for (int r = 0; r < this.Height; r++)
+                {
+                    for (int c = 0; c < this.Width; c++)
+                    {
+                        if (includeMaskedValues || !IsMasked(r, c))
+                        {
+                            yield return new ImageCoordinate(b, r, c);
+                        }
                     }
                 }
             }
@@ -379,5 +414,54 @@ namespace OPS.Imaging
             }
         }
 
+        /// <summary>
+        /// Convert a pixel coordinate to a uv coordinate
+        /// </summary>
+        /// <param name="pixelCoordinate"></param>
+        /// <returns></returns>
+        public Vector2 PixelToUV(Vector2 pixelCoordinate)
+        {
+            return new Vector2(pixelCoordinate.X / Width, 1 - (pixelCoordinate.Y / Height));
+        }
+
+        /// <summary>
+        /// Convert a uv coordinate to a pixel coordinate
+        /// </summary>
+        /// <param name="uvCoordinate"></param>
+        /// <returns></returns>
+        public Vector2 UVToPixel(Vector2 uvCoordinate)
+        {
+            return new Vector2(uvCoordinate.X * Width, (1 - uvCoordinate.Y) * Height);
+        }
+
+        /// <summary>
+        /// Convert a bounding box in uv space to pixel space
+        /// Ignores Z
+        /// </summary>
+        /// <param name="uvBounds"></param>
+        /// <returns></returns>
+        public BoundingBox UVToPixel(BoundingBox uvBounds)
+        {
+            BoundingBox pixelBounds = new BoundingBox();
+            // Swap max and min because UV corrdintes flip the vertical component
+            pixelBounds.Min = new Vector3(UVToPixel(new Vector2(uvBounds.Min.X, uvBounds.Max.Y)), 0);
+            pixelBounds.Max = new Vector3(UVToPixel(new Vector2(uvBounds.Max.X, uvBounds.Min.Y)), 0);
+            return pixelBounds;
+        }
+
+        /// <summary>
+        /// Convert a bouding box in pixel space to uv space
+        /// Ignore Z
+        /// </summary>
+        /// <param name="pixelBounds"></param>
+        /// <returns></returns>
+        public BoundingBox PixelToUv(BoundingBox pixelBounds)
+        {
+            BoundingBox uvBounds = new BoundingBox();
+            // Swap max and min because UV corrdintes flip the vertical component
+            uvBounds.Min = new Vector3(PixelToUV(new Vector2(pixelBounds.Min.X, pixelBounds.Max.Y)), 0);
+            uvBounds.Max = new Vector3(PixelToUV(new Vector2(pixelBounds.Max.X, pixelBounds.Min.Y)), 0);
+            return uvBounds;
+        }
     }
 }

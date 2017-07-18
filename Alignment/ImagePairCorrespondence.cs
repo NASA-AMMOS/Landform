@@ -1,9 +1,6 @@
-﻿using OPS.Pipeline;
-using System;
+﻿using OPS.Imaging;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace OPS.Alignment
 {
@@ -64,29 +61,29 @@ namespace OPS.Alignment
         /// <param name="d2m">Output mapping from elements of df to mf</param>
         public void Flatten(out ImageFeature[] mf, out ImageFeature[] df, out int[] d2m)
         {
-            List<ImageFeature> dfl = new List<ImageFeature>();
-            List<int> d2ml = new List<int>();
+            List<ImageFeature> resModelFeatures = new List<ImageFeature>();
+            List<ImageFeature> resDataFeatures = new List<ImageFeature>();
+            List<int> resDataToModel = new List<int>();
 
             Dictionary<int, int> modelOldToNew = new Dictionary<int, int>();
-            List<ImageFeature> modelWinners = new List<ImageFeature>();
 
             foreach (var pair in DataToModel)
             {
                 var di = pair.Key;
                 var mi = pair.Value;
-                dfl.Add(DataFeatures[di]);
+                resDataFeatures.Add(DataFeatures[di]);
 
                 if (!modelOldToNew.ContainsKey(mi))
                 {
-                    modelOldToNew[mi] = modelWinners.Count;
-                    modelWinners.Add(ModelFeatures[mi]);
+                    modelOldToNew[mi] = resModelFeatures.Count;
+                    resModelFeatures.Add(ModelFeatures[mi]);
                 }
-                d2ml.Add(modelOldToNew[mi]);
+                resDataToModel.Add(modelOldToNew[mi]);
             }
 
-            mf = modelWinners.ToArray();
-            df = dfl.ToArray();
-            d2m = d2ml.ToArray();
+            mf = resModelFeatures.ToArray();
+            df = resDataFeatures.ToArray();
+            d2m = resDataToModel.ToArray();
         }
 
         public ImagePairCorrespondence(ImageRef model, ImageRef data,

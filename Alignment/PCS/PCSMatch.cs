@@ -11,7 +11,7 @@ using Emgu.CV;
 using System.Drawing;
 using OPS.Imaging.Emgu;
 using System.Runtime.ExceptionServices;
-using OPS.Pipeline;
+using OPS.Imaging;
 
 namespace OPS.Alignment
 {
