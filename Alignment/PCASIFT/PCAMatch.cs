@@ -50,11 +50,6 @@ namespace OPS.Alignment
             nonZero = Features2DToolbox.VoteForSizeAndOrientation(kp0, kp1, matches, mask.Mat, 1.5, 20);
             if (nonZero < 1) return false;
 
-            //Mat result = new Mat();
-           // Features2DToolbox.DrawMatches(model, kp0, data, kp1, matches, result,
-            //                              new MCvScalar(135, 206, 250), new MCvScalar(235, 53, 53),
-             //                             mask, Features2DToolbox.KeypointDrawType.DrawRichKeypoints);
-
             Image<Bgr, byte> result = CreateMatchImage(kp0, kp1, model.Convert<Gray, byte>(), data.Convert<Gray, byte>(), matches, mask, nonZero);
             result.Save(outFile);
             return true;

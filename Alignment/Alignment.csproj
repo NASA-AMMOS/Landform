@@ -76,6 +76,7 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="BFMatcher.cs" />
     <Compile Include="MatchFilters\GTM\GTM.cs" />
     <Compile Include="MatchFilters\GTM\GTMGraph.cs" />
     <Compile Include="MatchFilters\GTM\GTMFilter.cs" />
@@ -84,7 +85,10 @@
     <Compile Include="PCASIFT\PCASIFTFeature.cs" />
     <Compile Include="PCASIFT\PCASIFTIO.cs" />
     <Compile Include="PCASIFT\PCASIFTUtil.cs" />
-    <Compile Include="PCG\KDNode.cs" />
+    <Compile Include="PCS\KDNode.cs" />
+    <Compile Include="PCS\MRF.cs" />
+    <Compile Include="PCS\PCSFeature.cs" />
+    <Compile Include="PCS\PCSMatch.cs" />
     <Compile Include="SIFT\ASIFT.cs" />
     <Compile Include="EmguSIFTMatcher.cs" />
     <Compile Include="FeatureMatching\FeatureDescriptor.cs" />

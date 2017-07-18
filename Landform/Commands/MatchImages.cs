@@ -10,7 +10,7 @@ using Emgu.CV.Structure;
 using System.Drawing;
 using System.IO;
 using System.Threading.Tasks;
-
+using System.Threading;
 
 namespace OPS.Pipeline
 {
@@ -108,16 +108,28 @@ namespace OPS.Pipeline
             List<PCASIFTFeature> featuresB = new PCASIFTDetector().Detect(data, null).Cast<PCASIFTFeature>().ToList();
             PCAKeypointProjector projector = new PCAKeypointProjector(gpcafile, false);
 
-            projector.Project(model, featuresA, 1);
-            projector.Project(data, featuresB, 2);
+            var taskA = Task.Run(() =>
+            {
+                projector.Project(model, featuresA, 1);
+            });
+            var taskB = Task.Run(() =>
+            {
+                projector.Project(data, featuresB, 2);
+            });
+
+            taskA.Wait();
+            taskB.Wait();
 
             if (outputFile == null) { outputFile = options.TrainingFile + ".png"; }
 
             EmguSIFTMatcher matcher = new EmguSIFTMatcher();
             ImagePairCorrespondence matches = matcher.Match(new ImageRef(model), new ImageRef(data), featuresA, featuresB);
 
+            //PCSMatch matcher = new PCSMatch();
+            //ImagePairCorrespondence matches = matcher.Match(new ImageRef(model), new ImageRef(data), featuresA, featuresB);
 
-            //BFMatcherR matcher2 = new BFMatcherR((ImageFeature[])featuresA, featuresB);
+            //BFMatcherR matcher2 = new BFMatcherR(featuresA, featuresB);
+            //ImagePairCorrespondence matches = matcher2.Match(new ImageRef(model), new ImageRef(data), featuresA, featuresB);
 
             // UNCOMMENT THE FOLLOWING TO FILTER
             //MoisanStivalFilter filter = new MoisanStivalFilter();
@@ -125,6 +137,7 @@ namespace OPS.Pipeline
             GTM gtm = new GTM(5);
             matches = gtm.Filter(matches);
             //
+            //MRF mrf = new MRF(matches); 
 
             PCAMatch.Match(matches, outputFile);
             Trace.WriteLine(string.Format("Matched images written to {0}", outputFile));

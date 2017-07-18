@@ -14,9 +14,9 @@ namespace OPS.Alignment
         ImageFeature[] DataFeatures;
         knnNode[][] Matches;
 
-        public BFMatcherR(ImageFeature[] modelFeatures, ImageFeature[] dataFeatures)
+        public BFMatcherR(IEnumerable<ImageFeature> modelFeatures, IEnumerable<ImageFeature> dataFeatures)
         {
-            Matches = modelFeatures.Select((x, j) => new knnNode[] { new knnNode(0, j) }).ToArray();
+            Matches = modelFeatures.Select((x, j) => new knnNode[2]).ToArray();
         }
 
         public ImagePairCorrespondence Match(ImageRef model, ImageRef data, 
@@ -26,7 +26,7 @@ namespace OPS.Alignment
             SIFTFeature[] feat1 = dataFeat.Cast<SIFTFeature>().ToArray();
 
             // Match descriptors
-            KnnMatch(feat0, feat1,2);
+            KnnMatch(feat0, feat1, 2);
             
             Matrix<byte> mask = Matrix<byte>.Build.Dense(Matches.Length, 1);
 
@@ -49,7 +49,7 @@ namespace OPS.Alignment
                 if (mask[idx, 0] != 0)
                 {
                     var match = Matches[idx][0];
-                    dataToModel.Add(new KeyValuePair<int, int>(match.Index, match.Index));
+                    dataToModel.Add(new KeyValuePair<int, int>(idx, match.Index));
                 }
             }
 
@@ -62,6 +62,8 @@ namespace OPS.Alignment
         private void KnnMatch(SIFTFeature[] modelFeat, SIFTFeature[] dataFeat, int k)
         {
             Matrix<double> dist = Matrix<double>.Build.Dense(modelFeat.Length, dataFeat.Length);
+            knnNode[][] knnModel = new knnNode[modelFeat.Length][].Select(x => new knnNode[k]).ToArray();
+            knnNode[][] knnData = new knnNode[dataFeat.Length][].Select(x => new knnNode[k]).ToArray();
 
             // Compute distance matrix
             for (int i = 0; i < modelFeat.Length; i++)
@@ -74,32 +76,50 @@ namespace OPS.Alignment
             }
 
             // Get k-nearest neighbors for each image
-            knnNode[] knn = new knnNode[k];
             knnNode[] row;
             for (int i = 0; i < dist.RowCount; i++)
-            {
+            { 
+                knnNode[] knn = new knnNode[k];
                 row = dist.Row(i).Select((x, j) => new knnNode(x, j)).ToArray();
                 for (int kk = 0; kk < k; kk++)
                 {
-                    knn[kk] = ComputeMedianIndex(row, true);
+                    knn[kk] = ComputeMedianIndex(row, row.Length - 1, true);
                     row = row.Take(row.Length - 1).ToArray();
                 }
-                Matches[i] = Matches[i].Concat(knn).ToArray();
+                knnModel[i] = knn;
             }
-            /// START HERE TOMORROW, WILL NEED SEPARATE DATA STRUCTURE FOR DATAIMAGE MATCHES
 
             for (int i = 0; i < dist.ColumnCount; i++)
             {
+                knnNode[] knn = new knnNode[k];
                 row = dist.Column(i).Select((x, j) => new knnNode(x, j)).ToArray();
                 for (int kk = 0; kk < k; kk++)
                 {
-                    knn[kk] = ComputeMedianIndex(row, true);
+                    knn[kk] = ComputeMedianIndex(row, row.Length - 1, true);
                     row = row.Take(row.Length - 1).ToArray();
                 }
+                knnData[i] = knn;
             }
 
-
-            throw new NotImplementedException();
+            // Filter matches that aren't symmetric
+            for (int i = 0; i < knnModel.Length; i++)
+            {
+                try
+                {
+                    if (knnData[knnModel[i][0].Index][0].Index != i)
+                    {
+                        knnModel[i][0] = null;
+                    }
+                    else
+                    {
+                        Matches[i] = new knnNode[] { knnData[i][0], knnData[i][1] };
+                    }
+                }
+                catch (IndexOutOfRangeException e)
+                {
+                    knnModel[i][0] = null;
+                }
+            }
         }
 
         public class knnNode : Comparer<knnNode> {
@@ -116,6 +136,11 @@ namespace OPS.Alignment
             {
                 return x.Value > y.Value ? 1 : -1;
             }
+
+            public override string ToString()
+            {
+                return Index + ": " + Value;
+            }
         }
 
         /// <summary>
@@ -123,7 +148,7 @@ namespace OPS.Alignment
         /// </summary>
         /// <param name="arr">Input array.</param>
         /// <returns>Median of input array.</returns>
-        static public knnNode ComputeMedianIndex(knnNode[] arr, bool linear = false)
+        static public knnNode ComputeMedianIndex(knnNode[] arr, int index = 0, bool linear = false)
         {
             List<knnNode> A = new List<knnNode>();
 
@@ -204,7 +229,7 @@ namespace OPS.Alignment
                 res += Math.Pow(data0[i] - data1[i], 2);
             }
 
-            return Math.Sqrt(res);
+            return res;
         }
 
         public void Dispose()
