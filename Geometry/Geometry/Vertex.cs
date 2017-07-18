@@ -165,5 +165,11 @@ namespace OPS.Geometry
         {
             return new BoundingBox(this.Position, this.Position);
         }
+
+        public BoundingBox UVBounds()
+        {
+            var uv3 = new Vector3(UV.X, UV.Y, 0);
+            return new BoundingBox(uv3, uv3);
+        }
     }
 }

@@ -16,7 +16,7 @@ namespace OPS.Geometry
     {
         private static readonly ILog logger = LogManager.GetLogger(typeof(MeshLabRunner));
 
-        const string DEFAULT_SERVER_DIR = @"C:\Program Files\VCG\MeshLab_2016";
+        const string DEFAULT_SERVER_DIR = @"C:\Program Files\VCG\MeshLab";
         const string EXECUTABLE_NAME = "meshlabserver.exe";
         static string meshlabServerDir = DEFAULT_SERVER_DIR;
 

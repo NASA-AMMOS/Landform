@@ -5,6 +5,7 @@ using System.Text;
 using Microsoft.Xna.Framework;
 using OPS.MathExtensions;
 using System.Diagnostics;
+using OPS.Imaging;
 
 namespace OPS.Geometry
 {
@@ -83,6 +84,18 @@ namespace OPS.Geometry
             Vector3 max = Vector3.Max(V0.Position, Vector3.Max(V1.Position, V2.Position));
             return new BoundingBox(min, max);
         }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <returns></returns>
+        public BoundingBox UVBounds()
+        {
+            Vector2 min2 = Vector2.Min(V0.UV, Vector2.Min(V1.UV, V2.UV));
+            Vector2 max2 = Vector2.Max(V0.UV, Vector2.Max(V1.UV, V2.UV));
+            return new BoundingBox(new Vector3(min2.X, min2.Y, 0), new Vector3(max2.X, max2.Y, 0));
+        }
+
 
         /// <summary>
         /// Helper method for adding vertices to an array.  Returns the index of the added vertex.
@@ -180,6 +193,237 @@ namespace OPS.Geometry
             else
             {              
                 Debug.Fail("Triangle.Clip produced an invalid number of points");
+            }
+        }
+        
+
+        public double SqrdDistToTri(Vector3 p)
+        {
+            Barycentric closestPoint = ClosestPointOnTriangle(p);
+            return Vector3.DistanceSquared(p, closestPoint.Position);
+        }
+
+        // from https://www.geometrictools.com/Documentation/DistancePoint3Triangle3.pdf
+        // matlab implementation at http://www.mathworks.com/matlabcentral/fileexchange/22857-distance-between-a-point-and-a-triangle-in-3d
+        // get the closest point on the triangle to p
+        public Barycentric ClosestPointOnTriangle(Vector3 P)
+        {
+            //Points on triangle can be parameterized in 2d as T(s, t) = B + s(E_0) + t(E_1), for s, t >= 0 and s + t <= 1
+            Vector3 B = V0.Position;
+            Vector3 E_0 = V1.Position - B;
+            Vector3 E_1 = V2.Position - B;
+
+            //Often used values
+            Vector3 D = B - P;
+            double a = E_0.Dot(E_0);
+            double b = E_0.Dot(E_1);
+            double c = E_1.Dot(E_1);
+            double d = E_0.Dot(D);
+            double e = E_1.Dot(D);
+            double f = D.Dot(D);
+
+            double det = a * c - b * b;
+            double s = b * e - c * d;
+            double t = b * d - a * e;
+
+            if (s + t <= det)
+            {
+                if (s < 0)
+                {
+                    if (t < 0)
+                    {
+                        //region4
+                        if (d < 0)
+                        {
+                            t = 0;
+                            s = (-d >= a ? 1 : -d / a);
+                        }
+                        else
+                        {
+                            s = 0;
+                            t = (e >= 0 ? 0 : (-e >= c ? 1 : -e / c));
+                        }
+                    }
+                    else
+                    {
+                        //region3
+                        s = 0;
+                        t = (e >= 0 ? 0 : (-e >= c ? 1 : -e / c));
+                    }
+                }
+                else if (t < 0)
+                {
+                    //region5
+                    t = 0;
+                    s = (d >= 0 ? 0 : (-d >= a ? 1 : -d / a));
+                }
+                else
+                {
+                    //region0
+                    double invDet = 1 / det;
+                    s *= invDet;
+                    t *= invDet;
+                }
+            }
+            else
+            {
+                if (s < 0)
+                {
+                    //region 2
+                    double tmp0 = b + d;
+                    double tmp1 = c + e;
+                    if (tmp1 > tmp0)
+                    {
+                        double numer = tmp1 - tmp0;
+                        double denom = a - 2 * b + c;
+                        s = (numer >= denom ? 1 : numer / denom);
+                        t = 1 - s;
+                    }
+                    else
+                    {
+                        s = 0;
+                        t = (tmp1 <= 0 ? 1 : (e >= 0 ? 0 : -e / c));
+                    }
+                }
+                else if (t < 0)
+                {
+                    //region6
+                    double tmp0 = b + e;
+                    double tmp1 = a + d;
+                    if (tmp1 > tmp0)
+                    {
+                        double numer = tmp1 - tmp0;
+                        double denom = a - 2 * b + c;
+                        t = (numer >= denom ? 1 : numer / denom);
+                        s = 1 - t;
+                    }
+                    else
+                    {
+                        t = 0;
+                        s = (tmp1 <= 0 ? 1 : (d >= 0 ? 0 : -d / a));
+                    }
+                }
+                else
+                {
+                    //region1
+                    double numer = c + e - b - d;
+                    if (numer <= 0)
+                    {
+                        s = 0;
+                    }
+                    else
+                    {
+                        double denom = a - 2 * b + c;
+                        s = (numer >= denom ? 1 : numer / denom);
+                    }
+                    t = 1 - s;
+                }
+            }
+
+            if (s < 0) s = 0;
+            if (t < 0) t = 0;
+
+            return new Barycentric(s, t, this);
+        }
+
+        /// <summary>
+        /// Class to store s, t coordinates of a point within a triangle (using triangle edges as basis vectors relative to one corner)
+        /// </summary>
+        public class Barycentric
+        {
+            public double s; // nomralized along V0 -> V1
+            public double t; // normalized along V0 -> V2
+            public Triangle tri;
+
+            public Barycentric(double s, double t, Triangle tri)
+            {
+                this.s = s;
+                this.t = t;
+                this.tri = tri;
+            }
+
+            public Vector3 Position
+            {
+                get { return tri.V0.Position + 
+                        s * (tri.V1.Position - tri.V0.Position) + 
+                        t * (tri.V2.Position - tri.V0.Position); }
+            }
+
+            public Vector2 UV
+            {
+                get { return tri.V0.UV +
+                     s * (tri.V1.UV - tri.V0.UV) +
+                     t * (tri.V2.UV - tri.V0.UV); }
+            }
+        }
+
+        /// <summary>
+        /// Given a uv coordinate, returns the position of the uv if is within
+        /// the bounds of the triangle.  Null otherwise.
+        /// </summary>
+        /// <param name="uv"></param>
+        /// <returns></returns>
+        public Vector3? UVToPosition(Vector2 uv)
+        {
+            //Pat Sweeney port:
+
+            Vector2 uv0 = V0.UV;
+            Vector2 uv1 = V1.UV;
+            Vector2 uv2 = V2.UV;
+
+            Vector3 v0 = V0.Position;
+            Vector3 v1 = V1.Position;
+            Vector3 v2 = V2.Position;
+
+            double lowLimit = 0;
+            double highLimit = 1;
+
+            double x1 = uv0.X;
+            double x2 = uv1.X;
+            double x3 = uv2.X;
+            double y1 = uv0.Y;
+            double y2 = uv1.Y;
+            double y3 = uv2.Y;
+            double xf = uv.X;
+            double yf = uv.Y;
+
+            double b0 = (((y2 - y3) * (xf - x3) + (x3 - x2) * (yf - y3)) /
+                ((y2 - y3) * (x1 - x3) + (x3 - x2) * (y1 - y3)));
+            double b1 = (((y3 - y1) * (xf - x3) + (x1 - x3) * (yf - y3)) /
+                ((y2 - y3) * (x1 - x3) + (x3 - x2) * (y1 - y3)));
+            double b2 = 1.0f - b0 - b1;
+
+            Vector3? r = null;
+            if (b0 >= lowLimit && b0 <= highLimit &&
+                b1 >= lowLimit && b1 <= highLimit &&
+                b2 >= lowLimit && b2 <= highLimit)
+            {
+                r = v0 * b0 + v1 * b1 + v2 * b2;
+            }
+            return r;
+        }
+
+        /// <summary>
+        /// Returns a normal for this face
+        /// </summary>
+        public Vector3 Normal
+        {
+            get
+            {
+                Vector3 v1v0 = V1.Position - V0.Position;
+                Vector3 v2v0 = V2.Position - V0.Position;
+                Vector3 norm = Vector3.Cross(v2v0, v1v0);
+                //normalize and flip direction
+                if (norm.Length() > 0)
+                {
+                    norm.Normalize();
+                }
+                else
+                {
+                    throw new Exception("Normal error, Zero length face");
+                }
+                norm *= -1;
+                return Normal;
             }
         }
 
