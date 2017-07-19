@@ -21,7 +21,7 @@ namespace OPS.Cloud
         [Index("IX_FrameUniqueness", 1, IsUnique = true)]
         public int ProjectId { get; set; }
         [Index("IX_FrameUniqueness", 2, IsUnique = true)]
-        [MaxLength(900)]
+        [MaxLength(255)]
         public string Name { get; set; }
 
         public Frame()
