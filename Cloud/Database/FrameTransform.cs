@@ -99,6 +99,18 @@ namespace OPS.Cloud
             return null;
         }
 
+        /// <summary>
+        /// Find all FrameTransforms that map fromFrame->toFrame
+        /// </summary>
+        /// <param name="context"></param>
+        /// <param name="fromFrame"></param>
+        /// <param name="toFrame"></param>
+        /// <returns></returns>
+        public static IEnumerable<FrameTransform> Find(LandformDbContext context, Frame fromFrame, Frame toFrame)
+        {
+            return context.FrameTransforms.Where(f => f.FromFrameId == fromFrame.Id && f.ToFrameId == toFrame.Id);
+        }
+
         [NotMapped]
         public Vector3 Translation
         {
