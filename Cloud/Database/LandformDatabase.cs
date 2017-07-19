@@ -16,7 +16,7 @@ namespace OPS.Cloud
     /// Helper class for connecting to the landform database with Entity Framwork
     /// 
     /// IMPORTANT NOTE!  For any EntityFramework stuff to work with mysql you must do 
-    /// the following magic encantation on your app.config files
+    /// the following magic incantation on your app.config files
     /// https://dev.mysql.com/doc/connector-net/en/connector-net-entityframework60.html
     /// 
     /// </summary>

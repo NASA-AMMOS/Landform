@@ -17,7 +17,7 @@ namespace OPS.Pipeline
     [Verb("crawlmsl", HelpText = "Crawl MSL S3 bucket for dataproducts and add them to the landform database")]
     public class CralwMSLOptions
     {
-        [Option(Required =true, HelpText = "Hostname of mysql server thedatabase.com")]
+        [Option(Required = true, HelpText = "Hostname of mysql server thedatabase.com")]
         public string DatabaseLocation { get; set; }
 
         [Option(Required = true, HelpText = "Port of database 1433")]
