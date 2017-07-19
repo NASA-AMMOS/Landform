@@ -135,10 +135,6 @@ namespace OPS.Pipeline
             {
                 return false;
             }
-            if(id.Geometry != RoverProductGeometry.Raw)
-            {
-                return false;
-            }
             if(id.Producer == RoverProductProducer.OPGS)
             {
                 OPGSProductId opgsId = (OPGSProductId)id;
@@ -167,7 +163,6 @@ namespace OPS.Pipeline
         bool ShouldIndexBasedOnMetadata(PDSParser parser)
         {
             return productTypeToObservationType.ContainsKey(parser.DerivedImageType) &&
-                    parser.GeometricProjection == RoverProductGeometry.Raw &&
                     parser.ImageSizeType == RoverProductSize.Regular;                    
         }
 
