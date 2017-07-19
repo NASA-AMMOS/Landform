@@ -13,11 +13,15 @@ using log4net;
 
 namespace OPS.Pipeline
 {
+
     [Verb("crawlmsl", HelpText = "Crawl MSL S3 bucket for dataproducts and add them to the landform database")]
     public class CralwMSLOptions
     {
-        [Option(Required =true, HelpText = "Comma seperated url and port of database server (example: http:\\thedatabase.com,1433")]
+        [Option(Required =true, HelpText = "Hostname of mysql server thedatabase.com")]
         public string DatabaseLocation { get; set; }
+
+        [Option(Required = true, HelpText = "Port of database 1433")]
+        public uint DatabasePort { get; set; }
 
         [Option(Required = true, HelpText = "Name of the database to connect to")]
         public string DatabaseName { get; set; }
@@ -38,8 +42,6 @@ namespace OPS.Pipeline
         [Option(Required = true, HelpText = "Ending sol on s3 to index")]
 
         public int EndSol { get; set; }
-
-
     }
 
     public class MSLProject
@@ -74,7 +76,7 @@ namespace OPS.Pipeline
         public CrawlMSL(CralwMSLOptions options)
         {
             this.options = options;
-            this.database = new LandformDatabase(options.DatabaseLocation, options.DatabaseName, options.DatabaseUser, options.DatabasePassword);
+            this.database = new LandformDatabase(options.DatabaseLocation, options.DatabasePort, options.DatabaseName, options.DatabaseUser, options.DatabasePassword);
         }                
                 
         /// <summary>
