@@ -46,7 +46,6 @@ namespace OPS.Alignment
                 PPrime[i] = dataFeat[pairs[i].Key];
             }
       
-            Debug.WriteLine("Filtering with GTM...");
             GTMFilter filter = new GTMFilter(matches, K);
 
             return filter.Filter();

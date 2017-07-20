@@ -106,17 +106,20 @@ namespace OPS.Alignment
         public void Train(string path)
         {
             string[] imageFiles = Directory.GetFiles(path, "*.png");
-            List<float[]> gradients = new List<float[]>();
+            //List<float[]> gradients = new List<float[]>();
             object obj = new object();
 
+            //float[][][] gradients = new float[imageFiles.Length][][];
+            List<float[]> gradients = new List<float[]>();
             Parallel.For(0, imageFiles.Count(), i =>
                 {
-                    List<float[]> grads = CalculateGradients(imageFiles[i]);
+                    float[][] grads = CalculateGradients(imageFiles[i]);
                     lock (obj)
                     {
-                        gradients.AddRange(grads);
+                    gradients.AddRange(CalculateGradients(imageFiles[i]));
                     }
                 });
+            
             ComputeEigenspace(gradients);
         }
 
@@ -126,16 +129,13 @@ namespace OPS.Alignment
         /// <returns>The updated gradients lsit.</returns>
         /// <param name="imageFile">Image file.</param>
         /// <param name="gradients">Running list of gradients.</param>
-        List<float[]> CalculateGradients(string imageFile)
+        float[][] CalculateGradients(string imageFile)
         {
-            List<float[]> gradients = new List<float[]>();
             Imaging.Image modelImage = Imaging.Image.Load(imageFile);
             Emgu.CV.Image<Gray, float> grayModelImage = modelImage.ToEmguGrayscale().Convert<Gray, float>();
             List<PCASIFTFeature> featuresA = new PCASIFTDetector().Detect(modelImage, null).Cast<PCASIFTFeature>().ToList();
             List<PCASIFTFeature> PCAKeypoints = GetPatches(grayModelImage, featuresA, patchsize + 2);
-            gradients.AddRange(PCAUtil.GetGradients(featuresA));
-
-            return gradients;
+            return PCAUtil.GetGradients(featuresA);
         }
 
         /// <summary>
@@ -145,7 +145,7 @@ namespace OPS.Alignment
         /// <param name="data">Dataset.</param>
         public static Matrix<float> CovarianceMatrix(Matrix<float> data)
         {
-            MathNet.Numerics.LinearAlgebra.Matrix<float> result = Matrix<float>.Build.Dense(data.ColumnCount, data.ColumnCount);
+            Matrix<float> result = Matrix<float>.Build.Dense(data.ColumnCount, data.ColumnCount);
             Vector<float>[] A = new Vector<float>[data.ColumnCount];
             Vector<float>[] B = new Vector<float>[data.ColumnCount];
 
@@ -170,7 +170,8 @@ namespace OPS.Alignment
                     resultNum = 0;
                     vecA = A[i];
                     vecB = B[i];
-                    for (int k = 0; k < patchlen; k++)
+
+                    for (int k = 0; k < vecA.Count; k++)
                     {
                         resultNum += vecA[k] * vecB[k];
                     }

@@ -92,8 +92,7 @@ namespace OPS.Alignment
                 DataGraph.RemoveOutlier(outlier);
             }
 
-            ModelGraph.RemoveDisconnectedVertices();
-            DataGraph.RemoveDisconnectedVertices();
+            GTMGraph.RemoveDisconnectedVertices(ModelGraph, DataGraph);
 
             if (ModelGraph.Q.Length != DataGraph.Q.Length)
             {
@@ -101,7 +100,7 @@ namespace OPS.Alignment
             }
 
             KeyValuePair<int, int>[] goodMatches = GTMGraph.ConstructFinalMatches(ModelGraph.Q.Length);
-            Debug.WriteLine("Number of residual matches: " + goodMatches.Length + " after " + counter + " iterations of GTM");
+            Trace.WriteLine("Number of residual matches: " + goodMatches.Length + " after " + counter + " iterations of GTM");
             return new ImagePairCorrespondence(Matches.ModelImage, Matches.DataImage, ModelGraph.Q, DataGraph.Q, goodMatches);
         }
 

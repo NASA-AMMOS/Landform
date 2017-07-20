@@ -11,13 +11,16 @@ namespace OPS.Alignment
         SIFTFeature[] ModelFeatures;
         SIFTFeature[] DataFeatures;
         Dictionary<SIFTFeature, SIFTFeature> C;
-        Dictionary<SIFTFeature, SIFTFeature[]> KNN;
+        Dictionary<MRFCorrespondence, MRFCorrespondence[]> KNN;
+        Dictionary<int, Matrix<double>> TransformPatches;
         double Alpha = 0.5;
         int K = 5;
+        const int ABSENT = -1;
 
         public MRF(IEnumerable<SIFTFeature> modelFeat, IEnumerable<SIFTFeature> dataFeat)
         {
             Features = InitialSeedFeatures(modelFeat, dataFeat);
+            TransformPatches = new Dictionary<int, Matrix<double>>();
         }
 
         public MRF(ImagePairCorrespondence initialMatches)
@@ -113,13 +116,19 @@ namespace OPS.Alignment
             return result;
         }
 
-        public double PairwisePotential(Dictionary<SIFTFeature, SIFTFeature> correspondence)
+        /// <summary>
+        /// Given a list of feature correspondences, calculates total pairwise potential due to forward
+        ///     and backward feature warping.
+        /// </summary>
+        /// <param name="correspondences">List of correspondences.</param>
+        /// <returns>Total pairwise potential.</returns>
+        public double PairwisePotential(List<MRFCorrespondence> correspondences)
         {
             double res = 0;
 
-            foreach (SIFTFeature c_i in correspondence.Keys)
+            foreach (MRFCorrespondence c_i in correspondences)
             {
-                foreach (SIFTFeature c_j in KNN[c_i])
+                foreach (MRFCorrespondence c_j in KNN[c_i])
                 {
                     res += PairwiseEnergy(c_i, c_j);
                 }
@@ -128,14 +137,53 @@ namespace OPS.Alignment
             return res;
         }
 
-        public double PairwiseEnergy(ImageFeature c_i, ImageFeature c_j)
+        /// <summary>
+        /// Calcultes pairwise energy between two correspondences by considering one-way transfer distance 
+        ///     in both directions.
+        /// </summary>
+        /// <param name="c"></param>
+        /// <param name="cPrime"></param>
+        /// <returns></returns>
+        public double PairwiseEnergy(MRFCorrespondence c, MRFCorrespondence cPrime)
         {
-            return OneWayTransferDistance(c_i, c_j) + OneWayTransferDistance(c_j, c_i);
+            return OneWayTransferDistance(c, cPrime) + OneWayTransferDistance(cPrime, c) +
+                   OneWayTransferDistance(c.Inverse(), cPrime.Inverse()) + OneWayTransferDistance(cPrime.Inverse(), c.Inverse());
         }
 
-        public double OneWayTransferDistance(ImageFeature c, ImageFeature cPrime)
+        /// <summary>
+        /// Calculates approximate distance between warped features. 
+        /// </summary>
+        /// <param name="cPrime">Correspondence to check.</param>
+        /// <param name="c">Base correspondence.</param>
+        /// <returns></returns>
+        public double OneWayTransferDistance(MRFCorrespondence cPrime, MRFCorrespondence c)
         {
-            throw new NotImplementedException();
+            if (c.T == ABSENT || cPrime.T == ABSENT)
+            {
+                return 0;
+            }
+            Matrix<double>  x_sPc = WarpedPosition(c, cPrime.S);
+            SIFTFeature feat = DataFeatures[cPrime.T];
+            Matrix<double> x_tP = Matrix<double>.Build.Dense(3, 1, new double[] { feat.Location.X, feat.Location.Y, 1 });
+            Matrix<double> resMatrix = (x_sPc - x_tP);
+            double res = 0;
+
+            for (int row = 0; row < resMatrix.RowCount; row++)
+            {
+                for (int col = 0; col < resMatrix.ColumnCount; col++)
+                {
+                    res += resMatrix[row, col] * resMatrix[row, col];
+                }
+            }
+
+            return res;
+        }
+
+        public Matrix<double> WarpedPosition(MRFCorrespondence c, int sP)
+        {
+            SIFTFeature feature = DataFeatures[sP];
+            Matrix<double> location = Matrix<double>.Build.Dense(3, 1, new double[] { feature.Location.X, feature.Location.Y, 1 });
+            return TransformPatches[c.T] * TransformPatches[c.S].Inverse() * location;
         }
 
         public class MRFCorrespondence
@@ -143,13 +191,13 @@ namespace OPS.Alignment
             public int S;
             public int T;
 
-            public MRFCorrespondence(int i, int j)
+            public MRFCorrespondence(int i, int j = ABSENT)
             {
                 S = i;
                 T = j;
             }
 
-            public MRFCorrespondence Prime()
+            public MRFCorrespondence Inverse()
             {
                 return new MRFCorrespondence(T, S);
             }

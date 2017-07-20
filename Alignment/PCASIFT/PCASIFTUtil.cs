@@ -54,9 +54,9 @@ namespace OPS.Alignment
         /// </summary>
         /// <param name="keypoints">Input keypoints.</param>
         /// <returns>List of concatenated horizontal and vertical gradients.</returns>`
-        public static List<float[]> GetGradients(List<PCASIFTFeature> keypoints)
+        public static float[][] GetGradients(List<PCASIFTFeature> keypoints)
         {
-            List<float[]> result = new List<float[]>();
+            float[][] result = new float[keypoints.Count()][];
 
             for (int i = 0; i < keypoints.Count(); i++)
             {
@@ -72,16 +72,16 @@ namespace OPS.Alignment
                 {
                     for (int x = 1; x < patchsize - 1; x++)
                     {
-                        x1 = data[x + 1, y, 0];
-                        x2 = data[x - 1, y, 0];
-                        y1 = data[x, y + 1, 0];
-                        y2 = data[x, y - 1, 0];
+                        //x1 = data[x + 1, y, 0];
+                        //x2 = data[x - 1, y, 0];
+                        //y1 = data[x, y + 1, 0];
+                        //y2 = data[x, y - 1, 0];
 
                         // not entirely sure on the above indexing
-                        //x1 = data[y, x + 1 , 0];
-                        //x2 = data[y, x - 1, 0];
-                        //y1 = data[y + 1, x, 0];
-                        //y2 = data[y - 1, x, 0];
+                        x1 = data[y, x + 1, 0];
+                        x2 = data[y, x - 1, 0];
+                        y1 = data[y + 1, x, 0];
+                        y2 = data[y - 1, x, 0];
 
                         gx = x1 - x2;
                         gy = y1 - y2;
@@ -93,7 +93,7 @@ namespace OPS.Alignment
                     }
                 }
                 vec = NormalizeVector(vec);
-                result.Add(vec);
+                result[i] = vec;
             }
 
             return result;

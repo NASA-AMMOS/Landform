@@ -100,6 +100,8 @@ namespace OPS.Alignment
             {
                 for (int j = 0; j < K; j++)
                 {
+                    int index = knnGraph[i][j];
+                    if (index == FILLER) continue;
                     res[knnGraph[i][j]].Add(i);
                 }
             }
@@ -214,12 +216,13 @@ namespace OPS.Alignment
         /// <summary>
         /// Removes nodes disconnected from the graph. 
         /// </summary>
-        public void RemoveDisconnectedVertices()
+        public static void RemoveDisconnectedVertices(GTMGraph S, GTMGraph T)
         {
-            int[] connected = O.Select((x, j) => new {Value = x.Take(5), Index = j})
+            int[] connected = S.O.Select((x, j) => new {Value = x.Take(5), Index = j})
                                   .Where(y => !y.Value.Contains(-1) && !y.Value.Contains(-2))
                                   .Select(z => z.Index).ToArray();
-            Q = Q.Where((x, i) => connected.Contains(i)).ToArray();
+            S.Q = S.Q.Where((x, i) => connected.Contains(i)).ToArray();
+            T.Q = T.Q.Where((x, i) => connected.Contains(i)).ToArray();
         }
 
         /// <summary>

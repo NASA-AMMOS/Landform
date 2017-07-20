@@ -159,7 +159,7 @@ namespace OPS.Alignment
             {
                 scale = ((double)MaxSimulatedDimension) / Math.Max(image.Width, image.Height);
                 image = image.Resize(scale, Inter.Lanczos4);
-                mask = mask.Resize(scale, Inter.Nearest);
+                if (mask != null) mask = mask.Resize(scale, Inter.Nearest);
             }
 
             // formula for generating tilt/phi values from ASIFT paper

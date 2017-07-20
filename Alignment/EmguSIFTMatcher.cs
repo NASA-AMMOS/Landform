@@ -20,8 +20,8 @@ namespace OPS.Alignment
             SIFTFeature[] feat0 = modelFeat.Cast<SIFTFeature>().ToArray();
             SIFTFeature[] feat1 = dataFeat.Cast<SIFTFeature>().ToArray();
 
-            Mat descr0 = ToDescriptorMatrix(feat0);
-            Mat descr1 = ToDescriptorMatrix(feat1);
+            Matrix<float> descr0 = ToDescriptorMatrix1(feat0);
+            Matrix<float> descr1 = ToDescriptorMatrix1(feat1);
             VectorOfKeyPoint kp0 = ToVOKP(feat0);
             VectorOfKeyPoint kp1 = ToVOKP(feat1);
             
@@ -29,34 +29,13 @@ namespace OPS.Alignment
 
             // Match descriptors
             VectorOfVectorOfDMatch matches = new VectorOfVectorOfDMatch();
-            lock (GlobalLock)
+
+            using (BFMatcher bfm = new BFMatcher(DistanceType.L2))
             {
-                if (CudaInvoke.HasCuda)
-                {
-                    using (GpuMat gpuKp0 = new GpuMat(kp0))
-                    {
-                        using (GpuMat gpuDescr0 = new GpuMat(descr0))
-                        {
-                            using (CudaBFMatcher matcher = new CudaBFMatcher(DistanceType.L2))
-                            {
-                                using (GpuMat gpuObservedKeyPoints = new GpuMat(kp1))
-                                using (GpuMat gpuObservedDescriptors = new GpuMat(descr1))
-                                {
-                                    matcher.KnnMatch(gpuObservedDescriptors, gpuDescr0, matches, 2);
-                                }
-                            }
-                        }
-                    }
-                }
-                else
-                {
-                    using (BFMatcher bfm = new BFMatcher(DistanceType.L2))
-                    {
-                        bfm.Add(descr0);
-                        bfm.KnnMatch(descr1, matches, 2, null);
-                    }
-                }
+                bfm.Add(descr0);
+                bfm.KnnMatch(descr1, matches, 2, null);
             }
+     
 
             Matrix<byte> mask = new Matrix<byte>(matches.Size, 1);
             mask.SetValue(255);
@@ -108,7 +87,7 @@ namespace OPS.Alignment
             return res;
         }
 
-        static Mat ToDescriptorMatrix<T>(SIFTFeature[] features) where T: struct
+        static Matrix<T> ToDescriptorMatrix2<T>(SIFTFeature[] features) where T: struct
         {
             Matrix<T> res = new Matrix<T>(features.Length, features[0].Descriptor.Length);
             T[,] data = res.Data;
@@ -127,19 +106,19 @@ namespace OPS.Alignment
                     data[i, j] = fd.Data[j];
                 }
             }
-            return res.Mat;
+            return res;
         }
-        static Mat ToDescriptorMatrix(SIFTFeature[] features)
+        static Matrix<float> ToDescriptorMatrix1(SIFTFeature[] features)
         {
             var d0 = features[0].Descriptor;
             if (d0.ElementType == typeof(float))
             {
-                return ToDescriptorMatrix<float>(features);
+                return ToDescriptorMatrix2<float>(features);
             }
-            else if (d0.ElementType == typeof(byte))
-            {
-                return ToDescriptorMatrix<byte>(features);
-            }
+            //else if (d0.ElementType == typeof(byte))
+            //{
+            //    return ToDescriptorMatrix2<byte>(features);
+            //}
             throw new ArgumentException("descriptors must be byte or float");
         }
 

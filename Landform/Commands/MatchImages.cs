@@ -56,10 +56,12 @@ namespace OPS.Pipeline
             string trainingFile = options.TrainingFile;
             string gpcafile = options.TrainingFile;
             string SIFTbool = options.SIFTbool;
-            // Testing GTM operations
-            //GTM gtm = new GTM();
-            //gtm.DebugOptimizer();
-            //
+
+            if (gpcafile == null)
+            {
+                gpcafile = Path.Combine(Util.PathHelper.GetApplicationPath(), @"Training Spaces\default.txt");
+            }
+
             if (trainingPath != null)
             {
                 Train(trainingFile, trainingPath);
@@ -126,19 +128,10 @@ namespace OPS.Pipeline
             EmguSIFTMatcher matcher = new EmguSIFTMatcher();
             ImagePairCorrespondence matches = matcher.Match(new ImageRef(model), new ImageRef(data), featuresA, featuresB);
 
-            //PCSMatch matcher = new PCSMatch();
-            //ImagePairCorrespondence matches = matcher.Match(new ImageRef(model), new ImageRef(data), featuresA, featuresB);
-
-            //BFMatcherR matcher2 = new BFMatcherR(featuresA, featuresB);
-            //ImagePairCorrespondence matches = matcher2.Match(new ImageRef(model), new ImageRef(data), featuresA, featuresB);
-
-            // UNCOMMENT THE FOLLOWING TO FILTER
             //MoisanStivalFilter filter = new MoisanStivalFilter();
             //matches = filter.Filter(matches);
             GTM gtm = new GTM(5);
             matches = gtm.Filter(matches);
-            //
-            //MRF mrf = new MRF(matches); 
 
             PCAMatch.Match(matches, outputFile);
             Trace.WriteLine(string.Format("Matched images written to {0}", outputFile));
@@ -160,8 +153,8 @@ namespace OPS.Pipeline
             VectorOfKeyPoint kp1 = ToVOKP(datafeat);
             EmguSIFTMatcher matcher = new EmguSIFTMatcher();
             ImagePairCorrespondence matches = matcher.Match(new ImageRef(model), new ImageRef(data), modelfeat, datafeat);
-            //MoisanStivalFilter filter = new MoisanStivalFilter();
-            //matches = filter.Filter(matches);
+            MoisanStivalFilter filter = new MoisanStivalFilter();
+            matches = filter.Filter(matches);
             GTM gtm = new GTM(5);
             matches = gtm.Filter(matches);
 

@@ -20,7 +20,7 @@ namespace OPS.Alignment
         public static bool Match(Image<Gray, byte> model, Image<Gray, byte> data,
            Matrix<float> descrA, VectorOfKeyPoint kp0, Matrix<float> descrB, VectorOfKeyPoint kp1, string outFile)
         {
-            //if (kp0.Size < 30 || kp1.Size < 30) return false;
+            if (kp0.Size < 30 || kp1.Size < 30) return false;
 
             Mat descr0 = descrA.Mat;
             Mat descr1 = descrB.Mat;
@@ -66,6 +66,40 @@ namespace OPS.Alignment
             VectorOfKeyPoint kp1 = ToVOKP(feat1);
 
             return Match(model, data, descr0, kp0, descr1, kp1, outFile);
+        }
+
+        public static void WriteMatchImage(ImagePairCorrespondence matches, string outFile)
+        {
+            Imaging.Image model = matches.ModelImage.Image;
+            Imaging.Image data = matches.DataImage.Image;
+            Image<Gray, byte> modelImage = model.ToEmguGrayscale();
+            Image<Gray, byte> dataImage = data.ToEmguGrayscale();
+
+            matches.Compact();
+            ImageFeature[] feat0;
+            ImageFeature[] feat1;
+            int[] indices;
+            matches.Flatten(out feat0, out feat1, out indices);
+
+            Matrix<float> descr0 = ToDescriptorMatrix(feat0.Cast<SIFTFeature>().ToList());
+            Matrix<float> descr1 = ToDescriptorMatrix(feat1.Cast<SIFTFeature>().ToList());
+            VectorOfKeyPoint kp0 = ToVOKP(feat0.Cast<SIFTFeature>().ToList());
+            VectorOfKeyPoint kp1 = ToVOKP(feat1.Cast<SIFTFeature>().ToList());
+
+            VectorOfVectorOfDMatch matchVector = new VectorOfVectorOfDMatch();
+            for (int i = 0; i < feat1.Length; i++)
+            {
+                matchVector.Push(new VectorOfDMatch(new MDMatch[]
+                {
+                    new MDMatch() { TrainIdx = indices[i], QueryIdx = i }
+                }));
+            }
+            Matrix<byte> mask = new Matrix<byte>(feat1.Length, 1);
+            mask.SetValue(255);
+            int nonZero = feat1.Length;
+
+            Image<Bgr, byte> result = CreateMatchImage(kp0, kp1, modelImage, dataImage, matchVector, mask, nonZero);
+            result.Save(outFile);
         }
 
         static VectorOfKeyPoint ToVOKP(List<SIFTFeature> kps)
@@ -131,6 +165,9 @@ namespace OPS.Alignment
                 result.Draw(new LineSegment2DF(modelPoint, dataPoint + new SizeF(modelImage.Width, 0)), new Bgr(0, 255, 0), 1);
                 pointNum++;
             }
+
+            result.Draw(new Rectangle(0, 0, 490, 70), new Bgr(255, 50, 50), -1);
+            result.Draw("matches: " + kp0.Size, new Point(5, 55), Emgu.CV.CvEnum.FontFace.HersheySimplex, 2, new Bgr(255, 255, 255), 2);
 
             return result;
         }

@@ -21,6 +21,7 @@ namespace OPS.Pipeline
             return CommandLine.Parser.Default.ParseArguments<CralwMSLOptions, 
                                                              ConvertBaselineMeshOptions,
                                                              MatchImagesOptions,
+                                                             MatchAllImagesOptions,
                                                              PDSImageConverterOptions,
                                                              ConvertBaselineMeshesOptions,
                                                              TileBaselineMeshOptions, 
@@ -34,6 +35,7 @@ namespace OPS.Pipeline
                 (TileBaselineMeshesOptions opts) => new TileBaselineMeshes(opts).Run(),
                 (BenchmarkS3Options opts) => new BenchmarkS3(opts).Run(),
                 (MatchImagesOptions opts) => new MatchImages(opts).Run(),
+                (MatchAllImagesOptions opts) => new MatchAllImages(opts).Run(),
                 (PDSImageConverterOptions opts) => new PDSImageConverter(opts).Run(),
                 errs => 1);
         }

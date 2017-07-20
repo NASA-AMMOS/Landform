@@ -125,6 +125,10 @@
       <Project>{c45f0cd6-c998-47ec-b67c-ad77196b06a0}</Project>
       <Name>Pipeline</Name>
     </ProjectReference>
+    <ProjectReference Include="..\Util\Util.csproj">
+      <Project>{8145AA65-BA61-4E27-81FF-B64217B49929}</Project>
+      <Name>Util</Name>
+    </ProjectReference>
     <ProjectReference Include="..\Xna\Xna.csproj">
       <Project>{46759719-42D9-473B-A8AD-0848A33BDAC6}</Project>
       <Name>Xna</Name>
@@ -137,6 +141,12 @@
   </ItemGroup>
   <ItemGroup>
     <Content Include="License-LGPL.txt" />
+    <Content Include="Training Spaces\default.txt">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Training Spaces\spaceOne.txt">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
   <ItemGroup>
     <WCFMetadata Include="Service References\" />
