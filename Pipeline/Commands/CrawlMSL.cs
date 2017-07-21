@@ -17,21 +17,6 @@ namespace OPS.Pipeline
     [Verb("crawlmsl", HelpText = "Crawl MSL S3 bucket for dataproducts and add them to the landform database")]
     public class CralwMSLOptions
     {
-        [Option(Required = true, HelpText = "Hostname of mysql server thedatabase.com")]
-        public string DatabaseLocation { get; set; }
-
-        [Option(Required = true, HelpText = "Port of database 1433")]
-        public uint DatabasePort { get; set; }
-
-        [Option(Required = true, HelpText = "Name of the database to connect to")]
-        public string DatabaseName { get; set; }
-
-        [Option(Required = true, HelpText = "Username to use when connecting to database")]
-        public string DatabaseUser { get; set; }
-
-        [Option(Required = true, HelpText = "Password to use when connecting to database")]
-        public string DatabasePassword { get; set; }
-
         [Option(Required = true, HelpText = "Name of the aws profile to use to authenticate with s3")]
         public string AwsProfile { get; set; }
 
@@ -76,7 +61,7 @@ namespace OPS.Pipeline
         public CrawlMSL(CralwMSLOptions options)
         {
             this.options = options;
-            this.database = new LandformDatabase(options.DatabaseLocation, options.DatabasePort, options.DatabaseName, options.DatabaseUser, options.DatabasePassword);
+            this.database = new LandformDatabase();
         }                
                 
         /// <summary>
