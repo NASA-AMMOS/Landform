@@ -17,7 +17,7 @@ namespace OPS.Cloud
         public int Id { get; set; }
         [Required]
         [Index("IX_ProjectUniqueness", IsUnique = true)]
-        [MaxLength(900)]
+        [MaxLength(255)]
         public string Name { get; set; }
         
         public Project()

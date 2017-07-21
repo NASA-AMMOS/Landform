@@ -29,7 +29,7 @@ namespace OPS.Cloud
         public int FrameId { get; set; }
 
         [Required]
-        [MaxLength(900)]
+        [MaxLength(255)]
         [Index("IX_ObservationUniqueness", 2, IsUnique = true)]
         public string Name { get; set; }
 
