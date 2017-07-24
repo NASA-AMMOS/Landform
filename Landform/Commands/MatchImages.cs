@@ -125,13 +125,21 @@ namespace OPS.Pipeline
 
             if (outputFile == null) { outputFile = options.TrainingFile + ".png"; }
 
-            EmguSIFTMatcher matcher = new EmguSIFTMatcher();
+            //EmguSIFTMatcher matcher = new EmguSIFTMatcher();
+            //ImagePairCorrespondence matches = matcher.Match(new ImageRef(model), new ImageRef(data), featuresA, featuresB);
+
+            BFMatcher2 matcher = new BFMatcher2(featuresA, featuresB);
             ImagePairCorrespondence matches = matcher.Match(new ImageRef(model), new ImageRef(data), featuresA, featuresB);
 
-            //MoisanStivalFilter filter = new MoisanStivalFilter();
-            //matches = filter.Filter(matches);
-            GTM gtm = new GTM(5);
-            matches = gtm.Filter(matches);
+            MoisanStivalFilter filter = new MoisanStivalFilter();
+            matches = filter.Filter(matches);
+            //GTM gtm = new GTM(5);
+            //matches = gtm.Filter(matches);
+            if (matches.ModelFeatures.Length == 0)
+            {
+                Trace.WriteLine("No matches found. :(");
+                return;
+            }
 
             PCAMatch.WriteMatchImage(matches, outputFile);
             Trace.WriteLine(string.Format("Matched images written to {0}", outputFile));

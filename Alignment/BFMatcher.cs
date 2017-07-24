@@ -8,13 +8,11 @@ using MathNet.Numerics.LinearAlgebra;
 
 namespace OPS.Alignment
 {
-    public class BFMatcherR : IDisposable
+    public class BFMatcher2
     {
-        ImageFeature[] ModelFeatures;
-        ImageFeature[] DataFeatures;
         knnNode[][] Matches;
 
-        public BFMatcherR(IEnumerable<ImageFeature> modelFeatures, IEnumerable<ImageFeature> dataFeatures)
+        public BFMatcher2(IEnumerable<ImageFeature> modelFeatures, IEnumerable<ImageFeature> dataFeatures)
         {
             Matches = modelFeatures.Select((x, j) => new knnNode[2]).ToArray();
         }
@@ -28,7 +26,7 @@ namespace OPS.Alignment
             // Match descriptors
             KnnMatch(feat0, feat1, 2);
             
-            Matrix<byte> mask = Matrix<byte>.Build.Dense(Matches.Length, 1);
+            Matrix<float> mask = Matrix<float>.Build.Dense(Matches.Length, 1);
 
             // OpenCV standard correspondence checks
             for (int idx = 0; idx < Matches.Length; idx++)
@@ -61,68 +59,110 @@ namespace OPS.Alignment
 
         private void KnnMatch(SIFTFeature[] modelFeat, SIFTFeature[] dataFeat, int k)
         {
-            Matrix<double> dist = Matrix<double>.Build.Dense(modelFeat.Length, dataFeat.Length);
+            double[][] dist = new double[modelFeat.Length][].Select(x => new double[dataFeat.Length]).ToArray();
             knnNode[][] knnModel = new knnNode[modelFeat.Length][].Select(x => new knnNode[k]).ToArray();
             knnNode[][] knnData = new knnNode[dataFeat.Length][].Select(x => new knnNode[k]).ToArray();
 
+            FeatureDescriptor<float>[] modelDescr = modelFeat.Select(m => (FeatureDescriptor<float>)m.Descriptor).ToArray();
+            FeatureDescriptor<float>[] dataDescr = dataFeat.Select(m => (FeatureDescriptor<float>)m.Descriptor).ToArray();
+
             // Compute distance matrix
-            for (int i = 0; i < modelFeat.Length; i++)
+            Parallel.For(0, modelFeat.Length, i =>
             {
                 SIFTFeature modelFeature = modelFeat[i];
-                for (int j = i; j < dataFeat.Length; j++)
+                for (int j = 0; j < dataFeat.Length; j++)
                 {
-                    dist[i, j] = DescriptorDistance(modelFeature, dataFeat[j]);
+                    double err = 0;
+                    var d0 = modelDescr[i];
+                    var d1 = dataDescr[j];
+                    for (int jerry = 0; jerry < d0.Length; jerry++)
+                    {
+                        double signedError = (d1[jerry] - d0[jerry]);
+                        err += signedError * signedError;
+                    }
+                    dist[i][j] = err;
                 }
-            }
+            });
 
-            // Get k-nearest neighbors for each image
-            knnNode[] row;
-            for (int i = 0; i < dist.RowCount; i++)
+            // Get 2-nearest neighbors for each image, horizontally
+            for (int i = 0; i < dist.Length; i++)
             { 
-                knnNode[] knn = new knnNode[k];
-                row = dist.Row(i).Select((x, j) => new knnNode(x, j)).ToArray();
-                for (int kk = 0; kk < k; kk++)
+                double minval = double.MaxValue;
+                double minval2 = double.MaxValue;
+                int minI = 0;
+                int minI2 = 0;
+
+                for (int j = 0; j < dist[0].Length; j++)
                 {
-                    knn[kk] = ComputeMedianIndex(row, row.Length - 1, true);
-                    row = row.Take(row.Length - 1).ToArray();
+                    double currentDist = dist[i][j];
+                    if (currentDist < minval2)
+                    {
+                        if (currentDist < minval)
+                        {
+                            minval2 = minval;
+                            minI2 = minI;
+                            minval = currentDist;
+                            minI = j;
+                        }
+                        else
+                        {
+                            minval2 = currentDist;
+                            minI2 = j;
+                        }
+                    }
                 }
-                knnModel[i] = knn;
+                knnModel[i] = new knnNode[] { new knnNode(minval, minI), new knnNode(minval2, minI2) };
             }
 
-            for (int i = 0; i < dist.ColumnCount; i++)
+            // Get 2-nearest neighbors for each image, vertically
+            for (int i = 0; i < dist[0].Length; i++)
             {
-                knnNode[] knn = new knnNode[k];
-                row = dist.Column(i).Select((x, j) => new knnNode(x, j)).ToArray();
-                for (int kk = 0; kk < k; kk++)
+                double minval = double.MaxValue;
+                double minval2 = double.MaxValue;
+                int minI = 0;
+                int minI2 = 0;
+
+                for (int j = 0; j < dist.Length; j++)
                 {
-                    knn[kk] = ComputeMedianIndex(row, row.Length - 1, true);
-                    row = row.Take(row.Length - 1).ToArray();
+                    double currentDist = dist[j][i];
+                    if (currentDist < minval2)
+                    {
+                        if (currentDist < minval)
+                        {
+                            minval2 = minval;
+                            minI2 = minI;
+                            minval = currentDist;
+                            minI = j;
+                        }
+                        else
+                        {
+                            minval2 = currentDist;
+                            minI2 = j;
+                        }
+                    }
                 }
-                knnData[i] = knn;
+                knnData[i] = new knnNode[] { new knnNode(minval, minI), new knnNode(minval2, minI2) };
             }
 
+            HashSet<int> removed = new HashSet<int>();
             // Filter matches that aren't symmetric
             for (int i = 0; i < knnModel.Length; i++)
             {
-                try
+                int modelI = knnModel[i][0].Index;
+                int dataI = knnData[modelI][0].Index;
+                if (dataI != i)
                 {
-                    if (knnData[knnModel[i][0].Index][0].Index != i)
-                    {
-                        knnModel[i][0] = null;
-                    }
-                    else
-                    {
-                        Matches[i] = new knnNode[] { knnData[i][0], knnData[i][1] };
-                    }
+                    removed.Add(i);
                 }
-                catch (IndexOutOfRangeException e)
+                else
                 {
-                    knnModel[i][0] = null;
+                    Matches[i] = new knnNode[] { knnData[i][0], knnData[i][1] };
                 }
             }
+            Matches = Matches.Where((x, j) => !removed.Contains(j)).ToArray();
         }
 
-        public class knnNode : Comparer<knnNode> {
+        public class knnNode : IComparable<knnNode> {
             public int Index;
             public double Value;
 
@@ -132,109 +172,15 @@ namespace OPS.Alignment
                 Index = index;
             }
 
-            public override int Compare(knnNode x, knnNode y)
+            public int CompareTo(knnNode y)
             {
-                return x.Value > y.Value ? 1 : -1;
+                return Value > y.Value ? 1 : -1;
             }
 
             public override string ToString()
             {
                 return Index + ": " + Value;
             }
-        }
-
-        /// <summary>
-        /// Computes the median of a 2D-array.
-        /// </summary>
-        /// <param name="arr">Input array.</param>
-        /// <returns>Median of input array.</returns>
-        static public knnNode ComputeMedianIndex(knnNode[] arr, int index = 0, bool linear = false)
-        {
-            List<knnNode> A = new List<knnNode>();
-
-            // Flatten the array before beginning the algorithm.
-            for (int j = 0; j < arr.Length; j++)
-            {
-                A.Add(arr[j]);
-            }
-
-            int i = A.Count / 2;
-
-            if (linear)
-            {
-                return MedianOfMedians(A, i);
-            }
-
-            A.Sort();
-            return A[i];
-        }
-
-        /// <summary>
-        /// Find the i-th smallest element in a given array.
-        /// </summary>
-        /// <param name="A">Input array.</param>
-        /// <param name="i">Ordinality of desired element.</param>
-        /// <returns></returns>
-        static knnNode MedianOfMedians(List<knnNode> A, int i)
-        {
-            if (A.Count == 1) return A[0];
-            List<List<knnNode>> sublists = new List<List<knnNode>>();
-            List<knnNode> medians = new List<knnNode>();
-            knnNode pivot;
-            int k;
-
-            // Break into sublists
-            for (int j = 0; j < A.Count; j += 5)
-            {
-                k = j + 5 > A.Count - 1 ? A.Count - 1 : j + 5; // checking array bounds
-                if (j == k) continue;
-                sublists.Add(new List<knnNode>(A.GetRange(j, k - j)));
-            }
-
-            foreach (List<knnNode> sublist in sublists)
-            {
-                sublist.Sort();
-                medians.Add(sublist[sublist.Count / 2]);
-            }
-
-            // Identify pivot
-            if (medians.Count <= 5)
-            {
-                medians.Sort();
-                pivot = medians[medians.Count / 2];
-            }
-            else
-            {
-                pivot = MedianOfMedians(medians, medians.Count / 2);
-            }
-
-            List<knnNode> low = A.Where(x => x.Value < pivot.Value).ToList();
-            List<knnNode> high = A.Where(x => x.Value >= pivot.Value).ToList();
-
-            int m = low.Count;
-            if (i < m) return MedianOfMedians(low, i);
-            if (i > m) return MedianOfMedians(high, i - m - 1);
-            return pivot;
-        }
-
-        double DescriptorDistance(SIFTFeature feat0, SIFTFeature feat1)
-        {
-            float[] data0 = ((FeatureDescriptor<float>)feat0.Descriptor).Data;
-            float[] data1 = ((FeatureDescriptor<float>)feat1.Descriptor).Data;
-
-            double res = 0;
-
-            for (int i = 0; i < data0.Length; i++)
-            {
-                res += Math.Pow(data0[i] - data1[i], 2);
-            }
-
-            return res;
-        }
-
-        public void Dispose()
-        {
-            throw new NotImplementedException();
         }
     }
 }
