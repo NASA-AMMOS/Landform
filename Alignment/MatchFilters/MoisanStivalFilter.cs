@@ -44,7 +44,7 @@ namespace OPS.Alignment
             {
                 goodMatches.Add(matches.DataToModel[idx]);
             }
-            //System.Diagnostics.Debug.WriteLine("Number of residual matches: " + goodMatches.Count);
+            System.Diagnostics.Debug.WriteLine("Number of residual matches: " + goodMatches.Count);
             return new ImagePairCorrespondence(
                 matches.ModelImage, matches.DataImage,
                 matches.ModelFeatures, matches.DataFeatures,

@@ -128,18 +128,14 @@ namespace OPS.Pipeline
             //EmguSIFTMatcher matcher = new EmguSIFTMatcher();
             //ImagePairCorrespondence matches = matcher.Match(new ImageRef(model), new ImageRef(data), featuresA, featuresB);
 
-            BFMatcher2 matcher = new BFMatcher2(featuresA, featuresB);
+            BFMatcher2 matcher = new BFMatcher2();
             ImagePairCorrespondence matches = matcher.Match(new ImageRef(model), new ImageRef(data), featuresA, featuresB);
 
             MoisanStivalFilter filter = new MoisanStivalFilter();
             matches = filter.Filter(matches);
-            //GTM gtm = new GTM(5);
-            //matches = gtm.Filter(matches);
-            if (matches.ModelFeatures.Length == 0)
-            {
-                Trace.WriteLine("No matches found. :(");
-                return;
-            }
+            GTM gtm = new GTM(5);
+            matches = gtm.Filter(matches);
+
 
             PCAMatch.WriteMatchImage(matches, outputFile);
             Trace.WriteLine(string.Format("Matched images written to {0}", outputFile));

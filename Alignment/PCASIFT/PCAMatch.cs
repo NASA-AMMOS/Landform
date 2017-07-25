@@ -159,10 +159,10 @@ namespace OPS.Alignment
                 PointF modelPoint = kp0[matches[i][0].TrainIdx].Point,
                        dataPoint = kp1[matches[i][0].QueryIdx].Point;
 
-                result.Draw(new CircleF(modelPoint, 5.0f), bgrColors[pointNum, 0], 2);
-                result.Draw(new CircleF(dataPoint + new SizeF(modelImage.Width, 0), 5.0f), bgrColors[pointNum, 0], 2);
-
-                result.Draw(new LineSegment2DF(modelPoint, dataPoint + new SizeF(modelImage.Width, 0)), new Bgr(0, 255, 0), 1);
+                result.Draw(new CircleF(modelPoint, 5.0f), new Bgr(0, 255, 0), 2);
+                result.Draw(new CircleF(dataPoint + new SizeF(modelImage.Width, 0), 5.0f), new Bgr(0, 255, 0), 2);
+                
+                result.Draw(new LineSegment2DF(modelPoint, dataPoint + new SizeF(modelImage.Width, 0)), bgrColors[pointNum, 0], 1);
                 pointNum++;
             }
 

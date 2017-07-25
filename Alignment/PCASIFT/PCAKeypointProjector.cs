@@ -204,7 +204,7 @@ namespace OPS.Alignment
         /// <param name="octaves">List of Guassian scales calculated for each octave.</param>
         void ComputeLocalDescriptors(List<PCASIFTFeature> keypoints, List<List<Image<Gray, float>>> octaves)
         {
-            Serial.For(0, keypoints.Count(), i =>
+            Parallel.For(0, keypoints.Count(), i =>
             {
                 PCASIFTFeature key = keypoints[i];
                 MakeKeypointPCA(keypoints[i], octaves[key.Octave][key.Scale]);
