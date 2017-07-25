@@ -8,15 +8,91 @@ using OPS.MathExtensions;
 
 namespace OPS.Alignment
 {
-    class GTMVertex
+    class GTMNode
     {
         public readonly int Index;
         public readonly ImageFeature Feature;
-
-        public GTMVertex(int index, ImageFeature feature)
+        public HashSet<GTMNode> Neighbors;              // Nodes that are my neighbors
+        public HashSet<GTMNode> NeighborOf;             // Nodes that I am a neighbor of
+        public LinkedList<GTMNode> BackupNeighors;      // Sorted list of nearest neighbors
+        
+        public GTMNode(int index, ImageFeature feature)
         {
             this.Index = index;
             this.Feature = feature;
+            Neighbors = new HashSet<GTMNode>();
+            NeighborOf = new HashSet<GTMNode>();
+            BackupNeighors = new LinkedList<GTMNode>();
+        }
+
+        /// <summary>
+        /// Given a list of neighbors sorted by ascending distance from this node
+        /// Add them to this nodes Neighbor list and backup neighbor list.
+        /// </summary>
+        /// <param name="sortedNearestNeighbors"></param>
+        /// <param name="k"></param>
+        public void AddNeighbors(List<GTMNode> sortedNearestNeighbors, int k)
+        {
+            for (int i = 0; i < sortedNearestNeighbors.Count; i++)
+            {
+                // If this is one of the closest k nodes
+                if (i < k)
+                {
+                    Neighbors.Add(sortedNearestNeighbors[i]);        // Add other node as my neighbor 
+                    sortedNearestNeighbors[i].NeighborOf.Add(this);  // Add myself to the list of nodes that refernce the other node as its neighbor
+                }
+                else
+                {
+                    BackupNeighors.AddLast(sortedNearestNeighbors[i]);
+                }
+            }
+        }
+        
+        /// <summary>
+        /// Given a dictioanry of all nodes in the graph, remove this node
+        /// from both the graph and the set
+        /// </summary>
+        /// <param name="allNodes"></param>
+        public void Remove(Dictionary<int, GTMNode> graphNodes)
+        {
+            // (ii) remove outlier from O
+            graphNodes.Remove(this.Index);
+            // (i) remove all occurence of outlier from I 
+            // (iii) remove outlire from the first k columns of O and reconect it updating the respective entries
+            foreach(GTMNode node in this.Neighbors)
+            {
+                node.RemoveNeighbor(graphNodes, this);
+            }
+        }
+
+        void RemoveNeighbor(Dictionary<int, GTMNode> graphNodes, GTMNode nodeToRemove)
+        {
+            // Remove myself from being a neighbor of node being removed         
+            nodeToRemove.NeighborOf.Remove(this);
+            // Remove node from my list of neighbors
+            this.Neighbors.Remove(nodeToRemove);
+            // Replace removed node with the next closest neighbor in my neighbor list that is still in the graph
+            while (this.BackupNeighors.Count > 0)
+            {
+                GTMNode replacement = this.BackupNeighors.First.Value;
+                this.BackupNeighors.RemoveFirst();
+                // Is this backup node still int he graph or has it been removed
+                if(graphNodes.ContainsKey(replacement.Index))
+                {
+                    // Add as my neighbor
+                    this.Neighbors.Add(replacement);
+                    // Register myself as a neighbor to the replacement node
+                    replacement.NeighborOf.Add(this);
+                    break;
+                }
+            }
+        }
+
+        public IEnumerable<GTMNode> JoinedSet()
+        {
+            var r = new HashSet<GTMNode>(Neighbors);
+            r.UnionWith(NeighborOf);
+            return r;
         }
 
         // Override for speed
@@ -30,182 +106,106 @@ namespace OPS.Alignment
         {
             if (obj == null || GetType() != obj.GetType())
                 return false;
-            GTMVertex p = (GTMVertex)obj;
+            GTMNode p = (GTMNode)obj;
             return this.Index == p.Index;
         }
     }
 
-    class GTMEdgeRecord
-    {
-        public readonly GTMVertex Vertex;           // Vertex this recored represents
-        public List<GTMVertex> FirstK;              // Orderd closest matches (length K or less)    (O)
-        LinkedList<GTMVertex> remainingEdges;       // Ordered closet matches after the first K     (O)
-        public HashSet<GTMVertex> InFirstKOf;       // Other vertices which reference this vertex   (I and C)
-
-        public GTMEdgeRecord(GTMVertex vertex, List<GTMVertex> sortedNeighbors, int k)
-        {
-            this.Vertex = vertex;
-            FirstK = new List<GTMVertex>();
-            remainingEdges = new LinkedList<GTMVertex>();
-            InFirstKOf = new HashSet<GTMVertex>();
-            for(int i = 0; i < sortedNeighbors.Count; i++)
-            {
-                if(i < k)
-                {
-                    FirstK.Add(sortedNeighbors[i]);
-                }
-                else
-                {
-                    remainingEdges.AddLast(sortedNeighbors[i]);
-                }
-            }
-        }
-
-        /// <summary>
-        /// Removes a vertex and replaces it with the next closest
-        /// Returns the next closest in the list or null if there are no more
-        /// </summary>
-        /// <param name="vertexToRemove"></param>
-        /// <returns></returns>
-        public GTMVertex PopVert(GTMVertex vertexToRemove)
-        {
-            if(remainingEdges.Count == 0)
-            {
-                FirstK.Remove(vertexToRemove);
-                return null;
-            }
-            var replacement =  remainingEdges.First.Value;
-            remainingEdges.RemoveFirst();
-            FirstK[FirstK.IndexOf(vertexToRemove)] = replacement;
-            return replacement;
-        }
-
-
-        public IEnumerable<GTMVertex> JoinedSet()
-        {
-            return new HashSet<GTMVertex>(FirstK).Union(InFirstKOf);
-        }
-    }
+   
 
     class GTMDistances
     {
         double[,] distances;
         public readonly double Median;
 
-        public GTMDistances(List<GTMVertex> verts)
+        public GTMDistances(List<GTMNode> nodes)
         {
             List<double> values = new List<double>();
-            distances = new double[verts.Count, verts.Count];
-            for (int j = 0; j < verts.Count; j++)
+            distances = new double[nodes.Count, nodes.Count];
+            for (int j = 0; j < nodes.Count; j++)
             {
-                for (int k = j + 1; k < verts.Count; k++)
+                for (int k = j + 1; k < nodes.Count; k++)
                 {
-                    double dist = Vector2.Distance(verts[j].Feature.Location, verts[k].Feature.Location);
+                    double dist = Vector2.Distance(nodes[j].Feature.Location, nodes[k].Feature.Location);
                     values.Add(dist);
                     // L2 Norm
-                    distances[verts[j].Index, verts[k].Index] = dist;
-                    distances[verts[k].Index, verts[j].Index] = dist;
+                    distances[nodes[j].Index, nodes[k].Index] = dist;
+                    distances[nodes[k].Index, nodes[j].Index] = dist;
                 }
             }
             Median = MathExtensions.Median.MedianOfMedians(values, values.Count / 2);
         }
 
-        public double Distance(GTMVertex v1, GTMVertex v2)
+        public double Distance(GTMNode n1, GTMNode n2)
         {
-            return distances[v1.Index, v2.Index];
+            return distances[n1.Index, n2.Index];
         }
     }
 
-    class GTMMatrix
+    class GTMGraphNice
     {
-        Dictionary<GTMVertex, GTMEdgeRecord> records;
+        /// <summary>
+        /// Set of all nodes in the graph
+        /// </summary>
+        Dictionary<int, GTMNode> graphNodes; 
+        
         int K;  
 
-        public GTMMatrix(List<GTMVertex> verts, int k)
+        public GTMGraphNice(List<GTMNode> nodes, int k)
         {
             this.K = k;
-            records = new Dictionary<GTMVertex, GTMEdgeRecord>();
-            GTMDistances distances = new GTMDistances(verts);
-            // Create records
-            foreach (GTMVertex curVert in verts)
-            {                
-                // For each vertex, find all other verts with dist under or equal to mean
-                var neighbors = verts.Where(v => v != curVert && distances.Distance(curVert, v) <= distances.Median).OrderBy(v => distances.Distance(curVert,v)).ToList();
+            this.graphNodes = new Dictionary<int, GTMNode>();
+            GTMDistances distances = new GTMDistances(nodes);
+            // Add a nearest neighbors list to each node
+            foreach (GTMNode curNode in nodes)
+            {
+                // Add node to graph
+                graphNodes.Add(curNode.Index, curNode);
+                // For each node, find all other nodes with dist <= to mean
+                var neighbors = nodes.Where(n => n != curNode && distances.Distance(curNode, n) <= distances.Median).OrderBy(n => distances.Distance(curNode,n)).ToList();
                 if(neighbors.Count < k)
                 {
                     continue;
                 }
-                GTMEdgeRecord record = new GTMEdgeRecord(curVert, neighbors, k);
-                records.Add(curVert, record);
-            }
-            // Update each record with the vertices that it is referenced by in the first k neighbors
-            foreach(GTMEdgeRecord record in records.Values)
-            {
-                foreach(GTMVertex vert in record.FirstK)
-                {
-                    records[vert].FirstK.Add(record.Vertex);
-                }
+                curNode.AddNeighbors(neighbors, k);
             }
         }
-
-        public void RemoveOutlier(GTMVertex vertToRemove)
-        {
-            // (iii) remove outlier from first k columns of O and reconnect it updating the respective entries
-            // For each vertex connected to the vertex we want to remove
-            foreach(GTMVertex connectedVert in records[vertToRemove].InFirstKOf)
-            {
-                // Remove the vertex from its nearest K neighbors.              
-                GTMVertex replacement = records[connectedVert].PopVert(vertToRemove);
-                /// Check the replacement vertex to make sure it hasn't also been removed. 
-                /// If it has replace it with the next option.  Stop if we run out of verts.   
-                while (replacement != null && !records.ContainsKey(replacement))
-                { 
-                    replacement = records[connectedVert].PopVert(replacement);
-                }
-                // Replacement vert is now referenced by connectedVert
-                records[replacement].FirstK.Add(connectedVert);
-            }
-
-            // (i) remove all occurences of outlier from I (i.e. all records that reference this vertex)
-            foreach(var record in records.Values)
-            {
-                record.InFirstKOf.Remove(vertToRemove);
-            }
-
-            // (ii) remove the outlier from O
-            records.Remove(vertToRemove);
-        }
-
-        public GTMVertex FindOutlier(GTMMatrix other)
+        
+        public int FindOutlier(GTMGraphNice other)
         {
             int maxcount = -1;
-            GTMVertex worstVertex = null;
-            foreach(GTMVertex vertex in records.Keys)
+            int worstNodeIndex = -1;
+            foreach(GTMNode myNode in this.graphNodes.Values)
             {
-                var a = this.records[vertex].JoinedSet();
-                var b = other.records[vertex].JoinedSet();
+                GTMNode otherNode = other.graphNodes[myNode.Index]; 
+                var a = myNode.JoinedSet();
+                var b = otherNode.JoinedSet();
                 int count = a.Except(b).Union(b.Except(a)).Count();
                 if(count > maxcount)
                 {
                     maxcount = count;
-                    worstVertex = vertex;
+                    worstNodeIndex = myNode.Index;
                 }
             }
-            return worstVertex;
+            return worstNodeIndex;
         }
 
-        public bool GraphEqual(GTMMatrix other)
+        public void RemoveOutlier(int index)
         {
-            if(other.records.Count != this.records.Count)
+            this.graphNodes[index].Remove(this.graphNodes);
+        }
+
+        public bool GraphEqual(GTMGraphNice other)
+        {
+            if(other.graphNodes.Count != this.graphNodes.Count)
             {
-                // this is unexpected
-                return false;
+                // this is unexpected in our algorithm
+                throw new Exception("Cannot compare GTM graphs of different sizes");
             }
-            // Could  have an edge bug case here, might want to think about checkin the other direction too           
-            foreach(var record in this.records.Values)
+            foreach(int index in this.graphNodes.Keys)
             {
-                HashSet<GTMVertex> a = new HashSet<GTMVertex>(record.FirstK);
-                HashSet<GTMVertex> b = new HashSet<GTMVertex>(other.records[record.Vertex].FirstK);
+                HashSet<GTMNode> a = new HashSet<GTMNode>(this.graphNodes[index].Neighbors);
+                HashSet<GTMNode> b = new HashSet<GTMNode>(other.graphNodes[index].Neighbors);
                 if (!a.SetEquals(b))
                 {
                     return false;
@@ -213,50 +213,74 @@ namespace OPS.Alignment
             }
             return true;
         }
+
+        public void RemoveDisconnected()
+        {
+            // Remove all nodes that don't have neighbors or aren't referenced as a neighbor
+            this.graphNodes = graphNodes.Where(pair => pair.Value.Neighbors.Count == 0 && pair.Value.NeighborOf.Count == 0).ToDictionary(pair => pair.Key, pair => pair.Value);
+        }
+
+        public IEnumerable<ImageFeature> OrderedFeatures()
+        {
+            return this.graphNodes.Values.OrderBy(n => n.Index).Select(n => n.Feature);
+        }
+
+        public int Count
+        {
+            get { return this.graphNodes.Count;  }
+        }
     }
 
     public class GTMNuevo
     {
-        GTMMatrix dataGraph;
-        GTMMatrix modelGraph;
+        GTMGraphNice dataGraph;
+        GTMGraphNice modelGraph;
+        ImagePairCorrespondence matches;
 
         public GTMNuevo(ImagePairCorrespondence matches, int k)
         {
+            this.matches = matches;
             KeyValuePair<int, int>[] pairs = matches.DataToModel;
             ImageFeature[] modelFeat = matches.ModelFeatures;
             ImageFeature[] dataFeat = matches.DataFeatures;
             
             // Create data and model verts and add to graphs           
-            List<GTMVertex> dataVerts = new List<GTMVertex>();
-            List<GTMVertex> modelVerts = new List<GTMVertex>();
+            List<GTMNode> dataNodes = new List<GTMNode>();
+            List<GTMNode> modelNodes = new List<GTMNode>();
             int i = 0;
             foreach(var pair in pairs)
             {
-                dataVerts.Add(new GTMVertex(i, dataFeat[pair.Key]));
-                modelVerts.Add(new GTMVertex(i, modelFeat[pair.Value]));
+                dataNodes.Add(new GTMNode(i, dataFeat[pair.Key]));
+                modelNodes.Add(new GTMNode(i, modelFeat[pair.Value]));
                 i++;
             }
-            dataGraph = new GTMMatrix(dataVerts, k);
-            modelGraph = new GTMMatrix(modelVerts, k);
+            dataGraph = new GTMGraphNice(dataNodes, k);
+            modelGraph = new GTMGraphNice(modelNodes, k);
 
         }
 
         internal ImagePairCorrespondence Filter()
         {
-            GTMVertex outlier;
-            int counter = 0;
+              int counter = 0;
 
             while (!modelGraph.GraphEqual(dataGraph))
             {
                 counter++;
-                outlier = modelGraph.FindOutlier(dataGraph);
+                int outlier = modelGraph.FindOutlier(dataGraph);
                 modelGraph.RemoveOutlier(outlier);
                 dataGraph.RemoveOutlier(outlier);
             }
+            modelGraph.RemoveDisconnected();
+            dataGraph.RemoveDisconnected();
 
-            // TODO: remove disconnected vertices
-            // TODO: finsih method
-            return null;
+            // Both graphs are the same size and we return the features ordered by index so we just need a one-to-one dataToModel array
+            List<int> dataToModel = new List<int>();
+            for(int i = 0; i < modelGraph.Count; i++)
+            {
+                dataToModel.Add(i);
+            }
+            return new ImagePairCorrespondence(matches.ModelImage, matches.DataImage, modelGraph.OrderedFeatures(), dataGraph.OrderedFeatures(), dataToModel);
+            
         }
 
     }
