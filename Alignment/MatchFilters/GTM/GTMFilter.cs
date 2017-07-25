@@ -13,8 +13,11 @@ namespace OPS.Alignment
         // Number of nearest-neighbors
         int K;
 
-        // Original image correspondence representing matched nodes/
+        // Original image correspondence representing matched nodes
         public ImagePairCorrespondence Matches;
+
+        // Keeps track of matched features throughout iteration.
+        int[][] FeatureMap;
 
         // Set of removed vertices.
         HashSet<int> Outliers { get; set; }
@@ -44,12 +47,15 @@ namespace OPS.Alignment
             ImageFeature zero = new ImageFeature(new Vector2(0, 0), null);
             ImageFeature[] P = new ImageFeature[pairs.Length];
             ImageFeature[] PPrime = new ImageFeature[pairs.Length];
+            FeatureMap = new int[pairs.Length][];
 
             // Create sets P and PPrime, where P[i] and PPrime[i] are matched features
+            // featureMap is maintained to return correct mapping at conclusion
             for (int i = 0; i < pairs.Length; i++)
             {
                 P[i] = modelFeat[pairs[i].Value];
                 PPrime[i] = dataFeat[pairs[i].Key];
+                FeatureMap[i] = new int[] { pairs[i].Key, pairs[i].Value };
             }
 
             K = k;
@@ -92,16 +98,17 @@ namespace OPS.Alignment
                 DataGraph.RemoveOutlier(outlier);
             }
 
-            GTMGraph.RemoveDisconnectedVertices(ModelGraph, DataGraph);
+            FeatureMap = GTMGraph.RemoveDisconnectedVertices(ModelGraph, DataGraph, FeatureMap);
 
             if (ModelGraph.Q.Length != DataGraph.Q.Length)
             {
                 throw new Exception("Matched features not equal in length.");
             }
 
-            KeyValuePair<int, int>[] goodMatches = GTMGraph.ConstructFinalMatches(ModelGraph.Q.Length);
+            KeyValuePair<int, int>[] goodMatches = GTMGraph.ConstructFinalMatches(FeatureMap);
             Trace.WriteLine("Number of residual matches: " + goodMatches.Length + " after " + counter + " iterations of GTM");
-            return new ImagePairCorrespondence(Matches.ModelImage, Matches.DataImage, ModelGraph.Q, DataGraph.Q, goodMatches);
+            if (goodMatches.Length == 0) return null;
+            return new ImagePairCorrespondence(Matches.ModelImage, Matches.DataImage, Matches.ModelFeatures, Matches.DataFeatures, goodMatches);
         }
 
         /// <summary>

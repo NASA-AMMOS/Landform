@@ -216,13 +216,14 @@ namespace OPS.Alignment
         /// <summary>
         /// Removes nodes disconnected from the graph. 
         /// </summary>
-        public static void RemoveDisconnectedVertices(GTMGraph S, GTMGraph T)
+        public static int[][] RemoveDisconnectedVertices(GTMGraph S, GTMGraph T, int[][] featureMap)
         {
             int[] connected = S.O.Select((x, j) => new {Value = x.Take(5), Index = j})
                                   .Where(y => !y.Value.Contains(-1) && !y.Value.Contains(-2))
                                   .Select(z => z.Index).ToArray();
             S.Q = S.Q.Where((x, i) => connected.Contains(i)).ToArray();
             T.Q = T.Q.Where((x, i) => connected.Contains(i)).ToArray();
+            return featureMap.Where((x, i) => connected.Contains(i)).ToArray();
         }
 
         /// <summary>
@@ -377,12 +378,13 @@ namespace OPS.Alignment
         /// </summary>
         /// <returns>The final matches.</returns>
         /// <param name="length">Length of mapping.</param>
-        public static KeyValuePair<int, int>[] ConstructFinalMatches(int length)
+        public static KeyValuePair<int, int>[] ConstructFinalMatches(int[][] featureMap)
         {
-            KeyValuePair<int, int>[] result = new KeyValuePair<int, int>[length];
-            for (int i = 0; i < length; i++)
+            KeyValuePair<int, int>[] result = new KeyValuePair<int, int>[featureMap.Length];
+            for (int i = 0; i < featureMap.Length; i++)
             {
-                result[i] = new KeyValuePair<int, int>(i, i);
+                int[] pair = featureMap[i];
+                result[i] = new KeyValuePair<int, int>(pair[0], pair[1]);
             }
             return result;
         }
