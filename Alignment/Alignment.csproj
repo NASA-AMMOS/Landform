@@ -86,6 +86,7 @@
   <ItemGroup>
     <Compile Include="Components\AdjustedNode.cs" />
     <Compile Include="Components\NodeImageReference.cs" />
+    <Compile Include="MatchFilters\GTM\GTMNuevo.cs" />
     <Compile Include="ImageFeatures\Interfaces\IOverlapDetector.cs" />
     <Compile Include="ImageFeatures\Matching\BruteForceMatcher.cs" />
     <Compile Include="ImageFeatures\MatchFilters\GTM\GTM.cs" />
@@ -142,6 +143,10 @@
     <ProjectReference Include="..\Imaging\Imaging.csproj">
       <Project>{c3ec3ab5-8dfd-4daa-9833-246f0db6a805}</Project>
       <Name>Imaging</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\MathExtensions\MathExtensions.csproj">
+      <Project>{8c7c8a71-0a4b-4d75-9cb2-32803bd8f86f}</Project>
+      <Name>MathExtensions</Name>
     </ProjectReference>
     <ProjectReference Include="..\Plumbing\Plumbing.csproj">
       <Project>{2f63d586-130f-42eb-ba25-76d31bc26283}</Project>
