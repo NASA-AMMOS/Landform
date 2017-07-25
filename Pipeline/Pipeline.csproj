@@ -121,8 +121,10 @@
     <Compile Include="Commands\TileBaselineMesh.cs" />
     <Compile Include="General\ObservationEnums.cs" />
     <Compile Include="GdalConfiguration.cs" />
+    <Compile Include="Rover\MSLLocations.cs" />
     <Compile Include="Rover\RoverCoordinateSystem.cs" />
     <Compile Include="Rover\RoverReachability.cs" />
+    <Compile Include="Rover\SiteDrive.cs" />
     <Compile Include="Tiling\BaselineAtlaser.cs" />
     <Compile Include="Tiling\BaselineImageProducer.cs" />
     <Compile Include="Tiling\DefaultLeafTileContentProducer.cs" />
