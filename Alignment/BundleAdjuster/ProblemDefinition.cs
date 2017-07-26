@@ -10,13 +10,15 @@ namespace OPS.Alignment.BundleAdjusterStructures
     [StructLayout(LayoutKind.Sequential, Pack = 0)]
     public struct ProblemDefinition
     {
-        public UInt64 magic;
+        public static readonly UInt64 MAGIC_NUMBER = 0x42756E646C653121;
 
-        public UInt32 numTransforms;
-        public UInt32 numCameraModels;
-        public UInt32 numPoints;
-        public UInt32 numProjections;
-        public UInt32 numPriors;
+        public UInt64 Magic;
+
+        public UInt32 NumTransforms;
+        public UInt32 NumCameraModels;
+        public UInt32 NumPoints;
+        public UInt32 NumProjections;
+        public UInt32 NumPriors;
     }
 
     [StructLayout(LayoutKind.Sequential, Pack = 0)]
@@ -52,23 +54,41 @@ namespace OPS.Alignment.BundleAdjusterStructures
     [StructLayout(LayoutKind.Sequential, Pack = 0)]
     public struct CameraModel
     {
-        public CameraModelType type;
+        public CameraModelType Type;
         [MarshalAs(UnmanagedType.ByValArray, SizeConst = 3 * 7 + 1)]
-        public double[] parameters;
+        public double[] Parameters;
     }
 
     [StructLayout(LayoutKind.Sequential, Pack = 0)]
     public struct Point
     {
-        public double x, y, z, w;
+        public double X, Y, Z, W;
+
+        public Point(double x, double y, double z, double w)
+        {
+            X = x;
+            Y = y;
+            Z = z;
+            W = w;
+        }
     }
 
     [StructLayout(LayoutKind.Sequential, Pack = 0)]
     public struct Projection
     {
-        public UInt32 cameraModelIdx;
-        public UInt32 transformIdx;
-        public UInt32 pointIdx;
-        public double x, y, z, d;
+        public UInt32 CameraModelIdx;
+        public UInt32 TransformIdx;
+        public UInt32 PointIdx;
+        public double X, Y, D;
+
+        public Projection(int cameraModelIdx, int transformIdx, int pointIdx, double x, double y, double d)
+        {
+            CameraModelIdx = (uint)cameraModelIdx;
+            TransformIdx = (uint)transformIdx;
+            PointIdx = (uint)pointIdx;
+            X = x;
+            Y = y;
+            D = d;
+        }
     }
 }
