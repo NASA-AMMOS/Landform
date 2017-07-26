@@ -55,10 +55,6 @@ namespace OPS.Alignment
         /// <param name="allNodes"></param>
         public void Remove(Dictionary<int, GTMNode> graphNodes)
         {
-            // (ii) remove outlier from O
-            graphNodes.Remove(this.Index);
-            // (i) remove all occurence of outlier from I 
-            // (iii) remove outlire from the first k columns of O and reconect it updating the respective entries
             foreach(GTMNode node in this.Neighbors)
             {
                 node.RemoveNeighbor(graphNodes, this);
@@ -88,7 +84,7 @@ namespace OPS.Alignment
             }
         }
 
-        public IEnumerable<GTMNode> JoinedSet()
+        public IEnumerable<GTMNode> AllEdges()
         {
             var r = new HashSet<GTMNode>(Neighbors);
             r.UnionWith(NeighborOf);
@@ -109,9 +105,7 @@ namespace OPS.Alignment
             GTMNode p = (GTMNode)obj;
             return this.Index == p.Index;
         }
-    }
-
-   
+    } 
 
     class GTMDistances
     {
@@ -178,8 +172,8 @@ namespace OPS.Alignment
             foreach(GTMNode myNode in this.graphNodes.Values)
             {
                 GTMNode otherNode = other.graphNodes[myNode.Index]; 
-                var a = myNode.JoinedSet();
-                var b = otherNode.JoinedSet();
+                var a = myNode.AllEdges();
+                var b = otherNode.AllEdges();
                 int count = a.Except(b).Union(b.Except(a)).Count();
                 if(count > maxcount)
                 {
@@ -192,6 +186,10 @@ namespace OPS.Alignment
 
         public void RemoveOutlier(int index)
         {
+            // (ii) remove outlier from O
+            graphNodes.Remove(index);
+            // (i) remove all occurence of outlier from I 
+            // (iii) remove outlire from the first k columns of O and reconect it updating the respective entries
             this.graphNodes[index].Remove(this.graphNodes);
         }
 
@@ -231,38 +229,40 @@ namespace OPS.Alignment
         }
     }
 
-    public class GTMNuevo
+    public class GTMNuevo : IMatchFilter
     {
         GTMGraphNice dataGraph;
         GTMGraphNice modelGraph;
         ImagePairCorrespondence matches;
+        int K;
 
-        public GTMNuevo(ImagePairCorrespondence matches, int k)
+        public GTMNuevo(int k)
         {
-            this.matches = matches;
+            this.K = k;
+        }
+
+        public ImagePairCorrespondence Filter(ImagePairCorrespondence matches)
+        {
+            // Construct graph
             KeyValuePair<int, int>[] pairs = matches.DataToModel;
             ImageFeature[] modelFeat = matches.ModelFeatures;
             ImageFeature[] dataFeat = matches.DataFeatures;
-            
+
             // Create data and model verts and add to graphs           
             List<GTMNode> dataNodes = new List<GTMNode>();
             List<GTMNode> modelNodes = new List<GTMNode>();
             int i = 0;
-            foreach(var pair in pairs)
+            foreach (var pair in pairs)
             {
                 dataNodes.Add(new GTMNode(i, dataFeat[pair.Key]));
                 modelNodes.Add(new GTMNode(i, modelFeat[pair.Value]));
                 i++;
             }
-            dataGraph = new GTMGraphNice(dataNodes, k);
-            modelGraph = new GTMGraphNice(modelNodes, k);
+            dataGraph = new GTMGraphNice(dataNodes, this.K);
+            modelGraph = new GTMGraphNice(modelNodes, this.K);
 
-        }
-
-        internal ImagePairCorrespondence Filter()
-        {
-              int counter = 0;
-
+            // Do filter
+            int counter = 0;
             while (!modelGraph.GraphEqual(dataGraph))
             {
                 counter++;
@@ -275,15 +275,11 @@ namespace OPS.Alignment
 
             // Both graphs are the same size and we return the features ordered by index so we just need a one-to-one dataToModel array
             List<int> dataToModel = new List<int>();
-            for(int i = 0; i < modelGraph.Count; i++)
+            for (i = 0; i < modelGraph.Count; i++)
             {
                 dataToModel.Add(i);
             }
             return new ImagePairCorrespondence(matches.ModelImage, matches.DataImage, modelGraph.OrderedFeatures(), dataGraph.OrderedFeatures(), dataToModel);
-            
         }
-
     }
-
-
 }
