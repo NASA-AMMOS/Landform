@@ -54,6 +54,7 @@ namespace OPS.Alignment
             var i0 = Images[image0];
             var i1 = Images[image1];
 
+            // TODO: add parameter for point guess or do ray closest intersection thing
             Points.Add(new Point(0, 0, 0, 0));
 
             Projections.Add(new Projection(
