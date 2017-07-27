@@ -194,7 +194,7 @@ namespace OPS.Imaging
                 result[ic.b, ic.r, ic.c] = this[ic.b, ic.r + startRow, ic.c + startCol];
                 if(this.HasMask)
                 {
-                    result.SetMaskValue(ic.r, ic.c, this.IsMasked(ic.r + startRow, ic.c + startCol));
+                    result.SetMaskValue(ic.r, ic.c, this.IsInvalid(ic.r + startRow, ic.c + startCol));
                 }
             }
             return result;

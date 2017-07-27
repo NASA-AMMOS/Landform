@@ -112,7 +112,7 @@ namespace ImagingTest
                 for (int c = 0; c < pattern.Width; c++)
                 {
                     bool shouldBeMasked = r >= 30 && r < 100 && c >= 70 && c < 80;
-                    Assert.AreEqual(shouldBeMasked, maskedImg.IsMasked(r, c));
+                    Assert.AreEqual(shouldBeMasked, maskedImg.IsInvalid(r, c));
 
                 }
             }
@@ -129,7 +129,7 @@ namespace ImagingTest
                         AssertE.AreSimilar(nonMaskedImg[1, r, c], 1, 0.0001);
                         AssertE.AreSimilar(nonMaskedImg[2, r, c], 1.0/255, 0.0001);
                     }
-                    Assert.IsFalse(nonMaskedImg.IsMasked(r, c));
+                    Assert.IsFalse(nonMaskedImg.IsInvalid(r, c));
                 }
             }
         }

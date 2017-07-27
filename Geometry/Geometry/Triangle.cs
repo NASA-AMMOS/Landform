@@ -5,7 +5,6 @@ using System.Text;
 using Microsoft.Xna.Framework;
 using OPS.MathExtensions;
 using System.Diagnostics;
-using OPS.Imaging;
 
 namespace OPS.Geometry
 {
@@ -197,16 +196,16 @@ namespace OPS.Geometry
         }
         
 
-        public double SqrdDistToTri(Vector3 p)
+        public double SquaredDistance(Vector3 p)
         {
-            Barycentric closestPoint = ClosestPointOnTriangle(p);
+            BarycentricPoint closestPoint = ClosestPoint(p);
             return Vector3.DistanceSquared(p, closestPoint.Position);
         }
 
         // from https://www.geometrictools.com/Documentation/DistancePoint3Triangle3.pdf
         // matlab implementation at http://www.mathworks.com/matlabcentral/fileexchange/22857-distance-between-a-point-and-a-triangle-in-3d
         // get the closest point on the triangle to p
-        public Barycentric ClosestPointOnTriangle(Vector3 P)
+        public BarycentricPoint ClosestPoint(Vector3 P)
         {
             //Points on triangle can be parameterized in 2d as T(s, t) = B + s(E_0) + t(E_1), for s, t >= 0 and s + t <= 1
             Vector3 B = V0.Position;
@@ -323,47 +322,17 @@ namespace OPS.Geometry
             if (s < 0) s = 0;
             if (t < 0) t = 0;
 
-            return new Barycentric(s, t, this);
+            return new BarycentricPoint(s, t, this);
         }
 
+        
         /// <summary>
-        /// Class to store s, t coordinates of a point within a triangle (using triangle edges as basis vectors relative to one corner)
-        /// </summary>
-        public class Barycentric
-        {
-            public double s; // nomralized along V0 -> V1
-            public double t; // normalized along V0 -> V2
-            public Triangle tri;
-
-            public Barycentric(double s, double t, Triangle tri)
-            {
-                this.s = s;
-                this.t = t;
-                this.tri = tri;
-            }
-
-            public Vector3 Position
-            {
-                get { return tri.V0.Position + 
-                        s * (tri.V1.Position - tri.V0.Position) + 
-                        t * (tri.V2.Position - tri.V0.Position); }
-            }
-
-            public Vector2 UV
-            {
-                get { return tri.V0.UV +
-                     s * (tri.V1.UV - tri.V0.UV) +
-                     t * (tri.V2.UV - tri.V0.UV); }
-            }
-        }
-
-        /// <summary>
-        /// Given a uv coordinate, returns the position of the uv if is within
+        /// Given a uv coordinate, returns the the barycentric position if is within
         /// the bounds of the triangle.  Null otherwise.
         /// </summary>
         /// <param name="uv"></param>
         /// <returns></returns>
-        public Vector3? UVToPosition(Vector2 uv)
+        public BarycentricPoint UVToBarycentric(Vector2 uv)
         {
             //Pat Sweeney port:
 
@@ -391,14 +360,14 @@ namespace OPS.Geometry
                 ((y2 - y3) * (x1 - x3) + (x3 - x2) * (y1 - y3)));
             double b1 = (((y3 - y1) * (xf - x3) + (x1 - x3) * (yf - y3)) /
                 ((y2 - y3) * (x1 - x3) + (x3 - x2) * (y1 - y3)));
-            double b2 = 1.0f - b0 - b1;
+            double b2 = 1.0f - b0 - b1;        
 
-            Vector3? r = null;
+            BarycentricPoint r = null;
             if (b0 >= lowLimit && b0 <= highLimit &&
                 b1 >= lowLimit && b1 <= highLimit &&
                 b2 >= lowLimit && b2 <= highLimit)
             {
-                r = v0 * b0 + v1 * b1 + v2 * b2;
+                r = new BarycentricPoint(b0, b1, b2, this);
             }
             return r;
         }
@@ -412,7 +381,7 @@ namespace OPS.Geometry
             {
                 Vector3 v1v0 = V1.Position - V0.Position;
                 Vector3 v2v0 = V2.Position - V0.Position;
-                Vector3 norm = Vector3.Cross(v2v0, v1v0);
+                Vector3 norm = Vector3.Cross(v1v0, v2v0);
                 //normalize and flip direction
                 if (norm.Length() > 0)
                 {
@@ -422,7 +391,6 @@ namespace OPS.Geometry
                 {
                     throw new Exception("Normal error, Zero length face");
                 }
-                norm *= -1;
                 return Normal;
             }
         }

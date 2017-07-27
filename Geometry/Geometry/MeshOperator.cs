@@ -149,11 +149,11 @@ namespace OPS.Geometry
         }
 
         /// <summary>
-        /// Returns the position in the first face intersected by the point in uv space, null otherwise
+        /// Returns the barycentric position in the first face intersected by the point in uv space, null otherwise
         /// </summary>
         /// <param name="uv"></param>
         /// <returns></returns>
-        public Vector3? UVToPosition(Vector2 uv)
+        public BarycentricPoint UVToBarycentric(Vector2 uv)
         {
             // convert the 2d point to bounding box
             BoundingBox box = new BoundingBox(
@@ -164,15 +164,14 @@ namespace OPS.Geometry
             var triangleList = uvFaceTree.Intersects(box.ToRectangle());
 
             // position returned by attempt to locate uv in r tree triangle
-            Vector3? xyz;
+            BarycentricPoint b;
 
             // find first actual face that intersects point and return interpolated position, null otherwise
             foreach (var triangle in triangleList) {
-                xyz = triangle.UVToPosition(uv);
-                if (xyz.HasValue)
-                    return xyz;
+                b = triangle.UVToBarycentric(uv);
+                if (b != null)
+                    return b;
             }
-
             return null;
         }
     }
