@@ -8,6 +8,9 @@ using OPS.MathExtensions;
 
 namespace OPS.Alignment
 {
+    /// <summary>
+    /// Represents a node in a GTM graph
+    /// </summary>
     class GTMNode
     {
         public readonly int Index;
@@ -55,16 +58,27 @@ namespace OPS.Alignment
         /// <param name="allNodes"></param>
         public void Remove(Dictionary<int, GTMNode> graphNodes)
         {
-            foreach(GTMNode node in this.Neighbors)
+            // Remove myself from the neighborsof lists of my neighbors                         
+            foreach(GTMNode n in this.Neighbors)
             {
-                node.RemoveNeighbor(graphNodes, this);
+                n.NeighborOf.Remove(this);
             }
+            // Remove me from the neighbors list of things I am a neighbor to
+            foreach (GTMNode n in this.NeighborOf)
+            {
+                n.RemoveNeighbor(graphNodes, this);
+            }
+            this.NeighborOf.Clear();
         }
 
+        /// <summary>
+        /// Remove target node from Neighbors list and replace
+        /// Does not update nodeToRemove.NeighborOf
+        /// </summary>
+        /// <param name="graphNodes"></param>
+        /// <param name="nodeToRemove"></param>
         void RemoveNeighbor(Dictionary<int, GTMNode> graphNodes, GTMNode nodeToRemove)
         {
-            // Remove myself from being a neighbor of node being removed         
-            nodeToRemove.NeighborOf.Remove(this);
             // Remove node from my list of neighbors
             this.Neighbors.Remove(nodeToRemove);
             // Replace removed node with the next closest neighbor in my neighbor list that is still in the graph
@@ -83,7 +97,11 @@ namespace OPS.Alignment
                 }
             }
         }
-
+        
+        /// <summary>
+        /// Returns all nodes that this node is connected too (i.e. its neighbors and everone it is a neighbor to)
+        /// </summary>
+        /// <returns></returns>
         public IEnumerable<GTMNode> AllEdges()
         {
             var r = new HashSet<GTMNode>(Neighbors);
@@ -96,17 +114,11 @@ namespace OPS.Alignment
         {
             return this.Index;
         }
-
-        // Override this to only use Index, this way all our hash table lookups will work
-        public override bool Equals(Object obj)
-        {
-            if (obj == null || GetType() != obj.GetType())
-                return false;
-            GTMNode p = (GTMNode)obj;
-            return this.Index == p.Index;
-        }
     } 
 
+    /// <summary>
+    /// Pre-computes distances between a set of nodes
+    /// </summary>
     class GTMDistances
     {
         double[,] distances;
@@ -127,15 +139,26 @@ namespace OPS.Alignment
                     distances[nodes[k].Index, nodes[j].Index] = dist;
                 }
             }
-            Median = MathExtensions.Median.MedianOfMedians(values, values.Count / 2);
+            //Median = MathExtensions.Median.MedianOfMedians(values, values.Count / 2);  // This gives wrong answere
+            values.Sort();
+            Median = values[values.Count / 2];
         }
-
+        
+        /// <summary>
+        /// Return the distance between the two nodes, either order is fine
+        /// </summary>
+        /// <param name="n1"></param>
+        /// <param name="n2"></param>
+        /// <returns></returns>
         public double Distance(GTMNode n1, GTMNode n2)
         {
             return distances[n1.Index, n2.Index];
         }
     }
 
+    /// <summary>
+    /// Class represents a GTM Graph
+    /// </summary>
     class GTMGraphNice
     {
         /// <summary>
@@ -149,22 +172,38 @@ namespace OPS.Alignment
         {
             this.K = k;
             this.graphNodes = new Dictionary<int, GTMNode>();
-            GTMDistances distances = new GTMDistances(nodes);
+            GTMDistances distances = new GTMDistances(nodes);            
             // Add a nearest neighbors list to each node
             foreach (GTMNode curNode in nodes)
             {
                 // Add node to graph
                 graphNodes.Add(curNode.Index, curNode);
-                // For each node, find all other nodes with dist <= to mean
-                var neighbors = nodes.Where(n => n != curNode && distances.Distance(curNode, n) <= distances.Median).OrderBy(n => distances.Distance(curNode,n)).ToList();
-                if(neighbors.Count < k)
+                // For each node, find all other nodes with dist <= to mean, and distance greater than 0
+                List<GTMNode> potentialNeighbors = new List<GTMNode>();
+                foreach(var n in nodes)
+                {
+                    double d = distances.Distance(curNode, n);
+                    if (n != curNode && d != 0 && d <= distances.Median)
+                    {
+                        potentialNeighbors.Add(n);
+                    }
+                }
+                // Sort by proximity
+                potentialNeighbors = potentialNeighbors.OrderBy(n => distances.Distance(curNode, n)).ToList();
+                // Only create edges for this node if there are at least k neighbors
+                if (potentialNeighbors.Count < k)
                 {
                     continue;
                 }
-                curNode.AddNeighbors(neighbors, k);
+                curNode.AddNeighbors(potentialNeighbors, k);
             }
         }
-        
+
+        /// <summary>
+        /// Finds the index of the next outlier to remove
+        /// </summary>
+        /// <param name="other"></param>
+        /// <returns></returns>
         public int FindOutlier(GTMGraphNice other)
         {
             int maxcount = -1;
@@ -172,27 +211,43 @@ namespace OPS.Alignment
             foreach(GTMNode myNode in this.graphNodes.Values)
             {
                 GTMNode otherNode = other.graphNodes[myNode.Index]; 
-                var a = myNode.AllEdges();
-                var b = otherNode.AllEdges();
-                int count = a.Except(b).Union(b.Except(a)).Count();
+                var a = myNode.AllEdges().Select(n => n.Index);
+                var b = otherNode.AllEdges().Select(n => n.Index);
+                // Compute xor of the sets
+                var differences = a.Except(b).Union(b.Except(a));
+                int count = differences.Count();
                 if(count > maxcount)
                 {
                     maxcount = count;
                     worstNodeIndex = myNode.Index;
                 }
             }
+            if(worstNodeIndex == -1)
+            {
+                throw new Exception("No outlier found, did you check if graphs were equal before calling FindOutlier?");
+            }
             return worstNodeIndex;
         }
 
-        public void RemoveOutlier(int index)
+        /// <summary>
+        /// Removes a node from the graph
+        /// </summary>
+        /// <param name="index"></param>
+        public void RemoveNode(int index)
         {
+            GTMNode nodeToRemove = this.graphNodes[index];
             // (ii) remove outlier from O
             graphNodes.Remove(index);
             // (i) remove all occurence of outlier from I 
             // (iii) remove outlire from the first k columns of O and reconect it updating the respective entries
-            this.graphNodes[index].Remove(this.graphNodes);
+            nodeToRemove.Remove(this.graphNodes);
         }
 
+        /// <summary>
+        /// Returns true if two graphs are equal
+        /// </summary>
+        /// <param name="other"></param>
+        /// <returns></returns>
         public bool GraphEqual(GTMGraphNice other)
         {
             if(other.graphNodes.Count != this.graphNodes.Count)
@@ -202,8 +257,8 @@ namespace OPS.Alignment
             }
             foreach(int index in this.graphNodes.Keys)
             {
-                HashSet<GTMNode> a = new HashSet<GTMNode>(this.graphNodes[index].Neighbors);
-                HashSet<GTMNode> b = new HashSet<GTMNode>(other.graphNodes[index].Neighbors);
+                HashSet<int> a = new HashSet<int>(this.graphNodes[index].AllEdges().Select(n => n.Index));
+                HashSet<int> b = new HashSet<int>(other.graphNodes[index].AllEdges().Select(n => n.Index));
                 if (!a.SetEquals(b))
                 {
                     return false;
@@ -212,20 +267,72 @@ namespace OPS.Alignment
             return true;
         }
 
+        /// <summary>
+        /// Removes any nodes that aren't connected to another node
+        /// </summary>
         public void RemoveDisconnected()
         {
             // Remove all nodes that don't have neighbors or aren't referenced as a neighbor
-            this.graphNodes = graphNodes.Where(pair => pair.Value.Neighbors.Count == 0 && pair.Value.NeighborOf.Count == 0).ToDictionary(pair => pair.Key, pair => pair.Value);
+            this.graphNodes = graphNodes.Where(pair => pair.Value.AllEdges().Count() != 0).ToDictionary(pair => pair.Key, pair => pair.Value);
         }
 
+        /// <summary>
+        /// Return features from this graph ordered by node index
+        /// </summary>
+        /// <returns></returns>
         public IEnumerable<ImageFeature> OrderedFeatures()
         {
             return this.graphNodes.Values.OrderBy(n => n.Index).Select(n => n.Feature);
         }
 
+        /// <summary>
+        /// Return number of nodes in this graph
+        /// </summary>
         public int Count
         {
             get { return this.graphNodes.Count;  }
+        }
+
+        /// <summary>
+        /// Check if this graph is in a valid state
+        /// Throw an exception otherwise
+        /// </summary>
+        public void IsValid()
+        {
+            foreach(var me in graphNodes.Values)
+            {
+                ExceptionAssert(me == graphNodes[me.Index]);
+                ExceptionAssert(me.Neighbors.Count <= this.K);
+                ExceptionAssert(me.Neighbors.Count == this.K || me.BackupNeighors.Count == 0);
+                foreach (var neighbor in me.Neighbors)
+                {
+                    ExceptionAssert(this.graphNodes.ContainsValue(neighbor));
+                    ExceptionAssert(neighbor.NeighborOf.Contains(me));
+                }
+                if (me.BackupNeighors.Count > 1)
+                {
+                    var cur = me.BackupNeighors.First;
+                    var next = cur.Next;
+                    if(next != null)
+                    {
+                        ExceptionAssert(Vector2.Distance(cur.Value.Feature.Location, me.Feature.Location) <= Vector2.Distance(next.Value.Feature.Location, me.Feature.Location));
+                    }
+                    next = cur;
+                }                
+                foreach (var neighborOf in me.NeighborOf)
+                {
+                    ExceptionAssert(this.graphNodes.ContainsValue(neighborOf));
+                    ExceptionAssert(neighborOf.Neighbors.Contains(me));
+                }
+            }
+        }
+
+        void ExceptionAssert(bool value)
+        {
+            if(!value)
+            {
+                throw new Exception();
+            }
         }
     }
 
@@ -233,49 +340,56 @@ namespace OPS.Alignment
     {
         GTMGraphNice dataGraph;
         GTMGraphNice modelGraph;
-        ImagePairCorrespondence matches;
         int K;
 
-        public GTMNuevo(int k)
+        /// <summary>
+        /// Create a GTM filter
+        /// </summary>
+        /// <param name="k">Paper says to use 5</param>
+        public GTMNuevo(int k = 5)
         {
             this.K = k;
         }
 
+        /// <summary>
+        /// Filter matches based on transforms of clusters of points
+        /// </summary>
+        /// <param name="matches"></param>
+        /// <returns></returns>
         public ImagePairCorrespondence Filter(ImagePairCorrespondence matches)
         {
             // Construct graph
-            KeyValuePair<int, int>[] pairs = matches.DataToModel;
             ImageFeature[] modelFeat = matches.ModelFeatures;
             ImageFeature[] dataFeat = matches.DataFeatures;
 
             // Create data and model verts and add to graphs           
-            List<GTMNode> dataNodes = new List<GTMNode>();
             List<GTMNode> modelNodes = new List<GTMNode>();
-            int i = 0;
-            foreach (var pair in pairs)
+            List<GTMNode> dataNodes = new List<GTMNode>();
+            for(int i=0; i < matches.DataToModel.Length; i++)
             {
-                dataNodes.Add(new GTMNode(i, dataFeat[pair.Key]));
+                var pair = matches.DataToModel[i];
                 modelNodes.Add(new GTMNode(i, modelFeat[pair.Value]));
-                i++;
+                dataNodes.Add(new GTMNode(i, dataFeat[pair.Key]));
             }
-            dataGraph = new GTMGraphNice(dataNodes, this.K);
             modelGraph = new GTMGraphNice(modelNodes, this.K);
-
+            dataGraph = new GTMGraphNice(dataNodes, this.K);
             // Do filter
-            int counter = 0;
             while (!modelGraph.GraphEqual(dataGraph))
             {
-                counter++;
                 int outlier = modelGraph.FindOutlier(dataGraph);
-                modelGraph.RemoveOutlier(outlier);
-                dataGraph.RemoveOutlier(outlier);
+                modelGraph.RemoveNode(outlier);
+                dataGraph.RemoveNode(outlier);
+                outlier = modelGraph.FindOutlier(dataGraph);
             }
             modelGraph.RemoveDisconnected();
             dataGraph.RemoveDisconnected();
-
+            if(modelGraph.Count != dataGraph.Count)
+            {
+                throw new Exception("Unexpected difference in graph sizes");
+            }
             // Both graphs are the same size and we return the features ordered by index so we just need a one-to-one dataToModel array
             List<int> dataToModel = new List<int>();
-            for (i = 0; i < modelGraph.Count; i++)
+            for (int i = 0; i < modelGraph.Count; i++)
             {
                 dataToModel.Add(i);
             }
