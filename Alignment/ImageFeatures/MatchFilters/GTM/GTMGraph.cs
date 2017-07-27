@@ -96,7 +96,7 @@ namespace OPS.Alignment
             HashSet<int>[] res = new HashSet<int>[knnGraph.Length].Select(x => new HashSet<int>()).ToArray();
             int[] vertexCount = new int[knnGraph.Length];
 
-            for (int i = 0; i < knnGraph.Length - 1; i++)
+            for (int i = 0; i < knnGraph.Length; i++)
             {
                 for (int j = 0; j < K; j++)
                 {
