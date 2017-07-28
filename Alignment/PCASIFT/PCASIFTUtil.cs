@@ -1,6 +1,7 @@
 ﻿using Emgu.CV;
 using Emgu.CV.CvEnum;
 using Emgu.CV.Structure;
+using OPS.Alignment.PCASIFT;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -9,17 +10,6 @@ namespace OPS.Alignment
 {
     public class PCAUtil
     {
-        const double PI = 3.14159256358979323846;
-        const int PATCHMAG = 20;
-        const int PATCHSIZE = 41;
-        const double INIT_SIGMA = 0.5;
-        static float SIGMA = 1.6F;
-        const int SCALES_PER_OCTAVE = 3;
-        const int MAX_OCTAVES = 14;
-        const int GPLEN = (PATCHSIZE - 2) * (PATCHSIZE - 2) * 2;
-        const int PCALEN = 36;
-        const int EPCALEN = 36;
-
         /// <summary>
         /// Normalizes a vector.
         /// </summary>
@@ -72,12 +62,6 @@ namespace OPS.Alignment
                 {
                     for (int x = 1; x < patchsize - 1; x++)
                     {
-                        //x1 = data[x + 1, y, 0];
-                        //x2 = data[x - 1, y, 0];
-                        //y1 = data[x, y + 1, 0];
-                        //y2 = data[x, y - 1, 0];
-
-                        // not entirely sure on the above indexing
                         x1 = data[y, x + 1, 0];
                         x2 = data[y, x - 1, 0];
                         y1 = data[y + 1, x, 0];
@@ -156,10 +140,10 @@ namespace OPS.Alignment
             Image<Gray, float> dst;
             Image<Gray, float> img = image.Clone().Resize(2, Inter.Area);
             dst = new Image<Gray, float>(img.Width, img.Height);
-            float sigma = (float)Math.Sqrt(SIGMA * SIGMA - 4 * INIT_SIGMA * INIT_SIGMA);
+            float sigma = (float)Math.Sqrt(PCAConstants.SIGMA * PCAConstants.SIGMA - 4 * PCAConstants.INIT_SIGMA * PCAConstants.INIT_SIGMA);
             int kernelDim = (int)Math.Max(3, 2 * 4 * sigma + 1f);
             kernelDim = kernelDim % 2 == 0 ? kernelDim + 1 : kernelDim;
-            return img.SmoothGaussian(kernelDim, kernelDim, SIGMA, SIGMA);
+            return img.SmoothGaussian(kernelDim, kernelDim, PCAConstants.SIGMA, PCAConstants.SIGMA);
         }
 
         /// <summary>
@@ -170,16 +154,16 @@ namespace OPS.Alignment
         public static List<Image<Gray, float>> BuildGaussianScales(Image<Gray, float> image)
         {
             List<Image<Gray, float>> GScales = new List<Image<Gray, float>>();
-            double k = Math.Pow(2, 1.0 / ((float)SCALES_PER_OCTAVE));
+            double k = Math.Pow(2, 1.0 / ((float)PCAConstants.SCALES_PER_OCTAVE));
 
             GScales.Add(image.Clone());
 
-            for (int i = 1; i < SCALES_PER_OCTAVE + 3; i++)
+            for (int i = 1; i < PCAConstants.SCALES_PER_OCTAVE + 3; i++)
             {
                 Image<Gray, float> dst = new Image<Gray, float>(image.Width, image.Height);
 
-                double sigma1 = Math.Pow(k, i - 1) * SIGMA;
-                double sigma2 = Math.Pow(k, i) * SIGMA;
+                double sigma1 = Math.Pow(k, i - 1) * PCAConstants.SIGMA;
+                double sigma2 = Math.Pow(k, i) * PCAConstants.SIGMA;
                 double sigma = Math.Sqrt(sigma2 * sigma2 - sigma1 * sigma1);
                 int kernelDim = (int)Math.Max(3, 2 * 4 * sigma + 1f);
 
@@ -202,7 +186,7 @@ namespace OPS.Alignment
             int numoctaves = (int)(Math.Log(dim) / Math.Log(2.0)) - 2;// ????????
             if (dim < 1000) numoctaves += 1;
 
-            numoctaves = Math.Min(numoctaves, MAX_OCTAVES);
+            numoctaves = Math.Min(numoctaves, PCAConstants.MAX_OCTAVES);
 
             Image<Gray, float> imageCopy = image.Clone();
 
@@ -213,7 +197,7 @@ namespace OPS.Alignment
                 octaves.Add(scales);
 
                 // Halve the image 
-                Image<Gray, float> halvedImageCopy = scales[SCALES_PER_OCTAVE].Clone().Resize(0.5, Inter.Area);
+                Image<Gray, float> halvedImageCopy = scales[PCAConstants.SCALES_PER_OCTAVE].Clone().Resize(0.5, Inter.Area);
                 imageCopy = halvedImageCopy;
             }
 
@@ -231,16 +215,16 @@ namespace OPS.Alignment
             {
                 PCASIFTFeature k = keypoints[i];
 
-                double tmp = Math.Log((double)k.GScale / SIGMA) / log2 + 1.0;
+                double tmp = Math.Log((double)k.GScale / PCAConstants.SIGMA) / log2 + 1.0;
                 k.Octave = (int)tmp;
-                k.FScale = (float)((tmp - k.Octave) * SCALES_PER_OCTAVE);
+                k.FScale = (float)((tmp - k.Octave) * PCAConstants.SCALES_PER_OCTAVE);
                 k.Scale = (int)Math.Round(k.FScale);
 
                 if (k.Scale == 0 && k.Octave > 0)
                 {
-                    k.Scale = SCALES_PER_OCTAVE;
+                    k.Scale = PCAConstants.SCALES_PER_OCTAVE;
                     k.Octave -= 1;
-                    k.FScale += SCALES_PER_OCTAVE;
+                    k.FScale += PCAConstants.SCALES_PER_OCTAVE;
                 }
 
                 k.SX = (float)(k.Location.X / Math.Pow(2.0, k.Octave));

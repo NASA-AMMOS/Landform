@@ -19,7 +19,6 @@ namespace OPS.Alignment
         {
             Emgu.CV.XFeatures2D.SIFT sift = new Emgu.CV.XFeatures2D.SIFT(numFeatures, octaveLayers, contrastThreshold, edgeThreshold, sigma);
             var emguImg = image.ToEmguGrayscale();
-            //var emguImg = emguImgByte.Convert<Gray, float>();
             Image<Gray, byte> emguMask = (mask != null) ? (mask.ToEmguGrayscale()) : null;
 
             using (StreamWriter writer = new StreamWriter(new FileStream(filename, FileMode.Create)))
@@ -31,13 +30,14 @@ namespace OPS.Alignment
                     writer.WriteLine("{0} {1} {2} {3}", string.Format("{0:0.0000000000}", kp.Point.Y), string.Format("{0:0.0000000000}", kp.Point.X),
                                                         string.Format("{0:0.0000000000}", kp.Size), string.Format("{0:0.0000000000000}", kp.Angle / 180 * Math.PI));
 
-                    for (int i = 0; i < 6; i++)
+                    // features are written in rows of 20
+                    for (int i = 0; i < 120; i++)
                     {
-                        for (int j = 0; j < 20; j++)
+                        writer.Write(" 0");
+                        if (i % 20 == 0)
                         {
-                            writer.Write(" 0");
+                            writer.WriteLine();
                         }
-                        writer.WriteLine();
                     }
                     for (int k = 0; k < 8; k++)
                     {
@@ -46,37 +46,6 @@ namespace OPS.Alignment
                     writer.WriteLine();
                 }
             }
-        }
-
-        public void visualizePatches(string filename, string dstTemplate)
-        {
-            Image<Gray, float> res = new Image<Gray, float>(41, 41);
-            float[,,] data = res.Data;
-            using (TextReader reader = File.OpenText(filename))
-            {
-                string[] numbers0 = reader.ReadToEnd().Split(new char[] { '\n', ' ' });
-                List<string> numbers = new List<string>();
-
-                foreach (string num in numbers0)
-                {
-                    if (num != "") numbers.Add(num);
-                }
-                int count = 2;
-
-                for (int x = 0; x < 17185; x++)
-                {
-                    count += 4;
-                    for (int j = 0; j < 41; j++)
-                    {
-                        for (int i = 0; i < 41; i++)
-                        {
-                            data[i, j, 0] = float.Parse(numbers[count++]) * 255;
-                        }
-                    }
-                    res.Save(dstTemplate + x + ".jpg");
-                }
-            }
-            return;
         }
 
         public static List<PCASIFTFeature> ReadKeysFromFile(string filename)
