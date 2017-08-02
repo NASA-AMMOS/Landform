@@ -137,7 +137,7 @@ namespace OPS.Pipeline
             matches = gtm.Filter(matches);
 
 
-            PCAMatch.WriteMatchImage(matches, outputFile);
+            MatchImage.WriteMatchImage(matches, outputFile);
             Trace.WriteLine(string.Format("Matched images written to {0}", outputFile));
         }
 
@@ -162,7 +162,7 @@ namespace OPS.Pipeline
             GTM gtm = new GTM(5);
             matches = gtm.Filter(matches);
 
-            PCAMatch.WriteMatchImage(matches, outputFile);
+            MatchImage.WriteMatchImage(matches, outputFile);
             Trace.WriteLine(string.Format("Matched images written to {0}", outputFile));
         }
 

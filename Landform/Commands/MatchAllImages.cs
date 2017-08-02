@@ -196,7 +196,7 @@ namespace OPS.Pipeline
                 return;
             }
 
-            PCAMatch.WriteMatchImage(matchesCopy, outputFile);
+            MatchImage.WriteMatchImage(matchesCopy, outputFile);
             Trace.WriteLine(string.Format("Matched images written to {0}", outputFile));
         }
 

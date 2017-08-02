@@ -10,7 +10,10 @@ using OPS.Imaging.Emgu;
 
 namespace OPS.Alignment
 {
-    public class PCAMatch
+    /// <summary>
+    /// Creates a debug output image showing matches between two images
+    /// </summary>
+    public class MatchImage
     {
         public static void WriteMatchImage(ImagePairCorrespondence matches, string outFile)
         {
