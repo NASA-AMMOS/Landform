@@ -5,18 +5,34 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using MathNet.Numerics.LinearAlgebra;
+using log4net;
 
 namespace OPS.Alignment
 {
+
+    /// <summary>
+    /// Given two images and a list of features in each and 
+    /// returns a set of matches between them using nearest descriptor distance (L2Norm)
+    /// </summary>
     public class BruteForceMatcher
     {
         knnNode[][] Matches;
+        private static readonly ILog logger = LogManager.GetLogger(typeof(BruteForceMatcher));
+        const int K = 2;
 
         public BruteForceMatcher()
         {
             
         }
 
+        /// <summary>
+        /// Compute correspondences between two images
+        /// </summary>
+        /// <param name="model"></param>
+        /// <param name="data"></param>
+        /// <param name="modelFeat"></param>
+        /// <param name="dataFeat"></param>
+        /// <returns></returns>
         public ImagePairCorrespondence Match(ImageRef model, ImageRef data, 
             IEnumerable<ImageFeature> modelFeat, IEnumerable<ImageFeature> dataFeat)
         {
@@ -24,7 +40,7 @@ namespace OPS.Alignment
             SIFTFeature[] feat1 = dataFeat.Cast<SIFTFeature>().ToArray();
             Matches = dataFeat.Select((x, j) => new knnNode[2]).ToArray();
             // Match descriptors
-            KnnMatch(feat0, feat1, 2);
+            KnnMatch(feat0, feat1);
             
             Matrix<float> mask = Matrix<float>.Build.Dense(Matches.Length, 1);
 
@@ -33,7 +49,7 @@ namespace OPS.Alignment
             {
                 if (Matches[idx][0] == null)
                 {
-                    //mask[idx, 0] = 0;
+                    //mask[idx, 0] = 0;     // Unsure if this is needed.  
                     continue;
                 }
 
@@ -57,17 +73,18 @@ namespace OPS.Alignment
                 }
             }
 
-            System.Diagnostics.Debug.WriteLine(string.Format("Model features: {0}, Data features: {1}, Matches: {2}", feat0.Length, feat1.Length, dataToModel.Count));
+            logger.Info(string.Format("Model features: {0}, Data features: {1}, Matches: {2}", feat0.Length, feat1.Length, dataToModel.Count));
             var res = new ImagePairCorrespondence(model, data, feat0, feat1, dataToModel);
             res.Compact();
             return res;
         }
 
-        private void KnnMatch(SIFTFeature[] modelFeat, SIFTFeature[] dataFeat, int k)
+
+        private void KnnMatch(SIFTFeature[] modelFeat, SIFTFeature[] dataFeat)
         {
             double[][] dist = new double[modelFeat.Length][].Select(x => new double[dataFeat.Length]).ToArray();
-            knnNode[][] knnModel = new knnNode[modelFeat.Length][].Select(x => new knnNode[k]).ToArray();
-            knnNode[][] knnData = new knnNode[dataFeat.Length][].Select(x => new knnNode[k]).ToArray();
+            knnNode[][] knnModel = new knnNode[modelFeat.Length][].Select(x => new knnNode[K]).ToArray();
+            knnNode[][] knnData = new knnNode[dataFeat.Length][].Select(x => new knnNode[K]).ToArray();
 
             FeatureDescriptor<float>[] modelDescr = modelFeat.Select(m => (FeatureDescriptor<float>)m.Descriptor).ToArray();
             FeatureDescriptor<float>[] dataDescr = dataFeat.Select(m => (FeatureDescriptor<float>)m.Descriptor).ToArray();
@@ -96,8 +113,6 @@ namespace OPS.Alignment
             {
                 Parallel.For(0, dist.Length, i =>
                 {
-                    //for (int i = 0; i < dist.Length; i++)
-                    //{
                     double minval = double.MaxValue;
                     double minval2 = double.MaxValue;
                     int minI = 0;
@@ -123,15 +138,12 @@ namespace OPS.Alignment
                         }
                     }
                     knnModel[i] = new knnNode[] { new knnNode(minval, minI), new knnNode(minval2, minI2) };
-                    //}
                 });
             });
             var taskB = Task.Run(() =>
             {
                 Parallel.For(0, dist[0].Length, i =>
                 {
-                    //for (int i = 0; i < dist[0].Length; i++)
-                    //{
                     double minval = double.MaxValue;
                     double minval2 = double.MaxValue;
                     int minI = 0;
@@ -157,79 +169,18 @@ namespace OPS.Alignment
                         }
                     }
                     knnData[i] = new knnNode[] { new knnNode(minval, minI), new knnNode(minval2, minI2) };
-                    //}
                 });
             });
 
             taskA.Wait();
             taskB.Wait();
-            // Get 2-nearest neighbors for each image, horizontally
-            //for (int i = 0; i < dist.Length; i++)
-            //{ 
-            //    double minval = double.MaxValue;
-            //    double minval2 = double.MaxValue;
-            //    int minI = 0;
-            //    int minI2 = 0;
-
-            //    for (int j = 0; j < dist[0].Length; j++)
-            //    {
-            //        double currentDist = dist[i][j];
-            //        if (currentDist < minval2)
-            //        {
-            //            if (currentDist < minval)
-            //            {
-            //                minval2 = minval;
-            //                minI2 = minI;
-            //                minval = currentDist;
-            //                minI = j;
-            //            }
-            //            else
-            //            {
-            //                minval2 = currentDist;
-            //                minI2 = j;
-            //            }
-            //        }
-            //    }
-            //    knnModel[i] = new knnNode[] { new knnNode(minval, minI), new knnNode(minval2, minI2) };
-            //}
-
-            // Get 2-nearest neighbors for each image, vertically
-            //for (int i = 0; i < dist[0].Length; i++)
-            //{
-            //    double minval = double.MaxValue;
-            //    double minval2 = double.MaxValue;
-            //    int minI = 0;
-            //    int minI2 = 0;
-
-            //    for (int j = 0; j < dist.Length; j++)
-            //    {
-            //        double currentDist = dist[j][i];
-            //        if (currentDist < minval2)
-            //        {
-            //            if (currentDist < minval)
-            //            {
-            //                minval2 = minval;
-            //                minI2 = minI;
-            //                minval = currentDist;
-            //                minI = j;
-            //            }
-            //            else
-            //            {
-            //                minval2 = currentDist;
-            //                minI2 = j;
-            //            }
-            //        }
-            //    }
-            //    knnData[i] = new knnNode[] { new knnNode(minval, minI), new knnNode(minval2, minI2) };
-            //}
-
             for (int i = 0; i < knnData.Length; i++)
             {
                 Matches[i] = new knnNode[] { knnData[i][0], knnData[i][1] };
             }
         }
 
-        public class knnNode {
+        class knnNode {
             public int Index;
             public double Value;
 
