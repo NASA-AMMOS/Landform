@@ -50,3 +50,7 @@ CloudTest/bin/
 CloudTest/obj/
 MathExtensionsTest/bin/
 MathExtensionsTest/obj/
+RayTrace/bin
+RayTrace/obj
+RayTraceTest/bin/
+RayTraceTest/obj/
