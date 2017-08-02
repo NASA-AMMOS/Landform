@@ -63,7 +63,7 @@ namespace OPS.Pipeline
 
             if (eigenspace == null)
             {
-                eigenspace = Path.Combine(Util.PathHelper.GetApplicationPath(), @"Training Spaces\default.txt");
+                eigenspace = PCAKeypointProjector.DefaultTrainingSpace;
             }
 
             string[] imageFiles = Directory.GetFiles(directory, "*.png").Concat(Directory.GetFiles(directory, "*.jpg")).ToArray();

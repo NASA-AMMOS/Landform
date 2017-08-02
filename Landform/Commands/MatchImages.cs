@@ -59,7 +59,7 @@ namespace OPS.Pipeline
 
             if (gpcafile == null)
             {
-                gpcafile = Path.Combine(Util.PathHelper.GetApplicationPath(), @"Training Spaces\default.txt");
+                gpcafile = PCAKeypointProjector.DefaultTrainingSpace;
             }
 
             if (trainingPath != null)

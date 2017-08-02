@@ -146,10 +146,10 @@
   </ItemGroup>
   <ItemGroup>
     <Content Include="License-LGPL.txt" />
-    <Content Include="Training Spaces\default.txt">
+    <Content Include="TrainingSpaces\default.txt">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
-    <Content Include="Training Spaces\spaceOne.txt">
+    <Content Include="TrainingSpaces\spaceOne.txt">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>

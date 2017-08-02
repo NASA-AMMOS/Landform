@@ -21,6 +21,15 @@ namespace OPS.Alignment
 
         private static readonly ILog logger = LogManager.GetLogger(typeof(PCAKeypointProjector));
 
+
+        public static string DefaultTrainingSpace
+        {
+            get
+            {
+                return Path.Combine(Util.PathHelper.GetApplicationPath(), @"TrainingSpaces\default.txt");
+            }
+        }
+
         /// <summary>
         /// Initializes a new instance of the <see cref="T:OPS.Alignment.PCA_KeypointDetector"/> class.
         /// </summary>
