@@ -128,7 +128,7 @@ namespace OPS.Pipeline
             //EmguSIFTMatcher matcher = new EmguSIFTMatcher();
             //ImagePairCorrespondence matches = matcher.Match(new ImageRef(model), new ImageRef(data), featuresA, featuresB);
 
-            BFMatcher2 matcher = new BFMatcher2();
+            BruteForceMatcher matcher = new BruteForceMatcher();
             ImagePairCorrespondence matches = matcher.Match(new ImageRef(model), new ImageRef(data), featuresA, featuresB);
 
             MoisanStivalFilter filter = new MoisanStivalFilter();

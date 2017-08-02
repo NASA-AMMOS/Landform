@@ -8,11 +8,11 @@ using MathNet.Numerics.LinearAlgebra;
 
 namespace OPS.Alignment
 {
-    public class BFMatcher2
+    public class BruteForceMatcher
     {
         knnNode[][] Matches;
 
-        public BFMatcher2()
+        public BruteForceMatcher()
         {
             
         }

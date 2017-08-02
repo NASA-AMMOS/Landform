@@ -145,7 +145,7 @@ namespace OPS.Pipeline
                 taskA.Wait();
                 taskB.Wait();
 
-                BFMatcher2 matcher = new BFMatcher2();
+                BruteForceMatcher matcher = new BruteForceMatcher();
                 matches = matcher.Match(new ImageRef(model), new ImageRef(data), featuresA, featuresB);
             }
 
@@ -227,7 +227,7 @@ namespace OPS.Pipeline
             VectorOfKeyPoint kp0 = ToVOKP(modelfeat);
             VectorOfKeyPoint kp1 = ToVOKP(datafeat);
 
-            BFMatcher2 matcher = new BFMatcher2();
+            BruteForceMatcher matcher = new BruteForceMatcher();
             return matcher.Match(new ImageRef(model), new ImageRef(data), modelfeat, datafeat);
         }
 
