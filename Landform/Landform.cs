@@ -27,6 +27,7 @@ namespace Landform
             log4net.Config.XmlConfigurator.Configure();
             // Register filetype handlers
             new OpenInventorSerializer().Register();
+
             // Parse command line arguments
             int returnCode = Commands.RunFromCommandline(args);
             return returnCode;
