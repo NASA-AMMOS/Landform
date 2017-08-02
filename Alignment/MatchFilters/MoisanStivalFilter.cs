@@ -5,11 +5,14 @@ using System.Text;
 using System.Threading.Tasks;
 using OPS.Imaging;
 using Microsoft.Xna.Framework;
+using log4net;
 
 namespace OPS.Alignment
 {
     public class MoisanStivalFilter : IMatchFilter
     {
+        private static readonly ILog logger = LogManager.GetLogger(typeof(MoisanStivalFilter));
+
         public int MaxIterations;
         public bool RefineStep;
         public MoisanStivalFilter(int maxIterations = 5000, bool refineStep = true)
@@ -44,7 +47,7 @@ namespace OPS.Alignment
             {
                 goodMatches.Add(matches.DataToModel[idx]);
             }
-            System.Diagnostics.Debug.WriteLine("Number of residual matches: " + goodMatches.Count);
+            logger.Info("Number of residual matches: " + goodMatches.Count);
             return new ImagePairCorrespondence(
                 matches.ModelImage, matches.DataImage,
                 matches.ModelFeatures, matches.DataFeatures,

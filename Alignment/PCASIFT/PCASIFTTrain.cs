@@ -39,7 +39,7 @@ namespace OPS.Alignment
         /// <param name="gradients">Gradients calculated from training set image data.</param>
         void ComputeEigenspace(List<float[]> gradients)
         {
-            Matrix<float> data = Matrix<float>.Build.Dense(gradients.Count, PCAConstants.patchlen); // inf x 3042
+            Matrix<float> data = Matrix<float>.Build.Dense(gradients.Count, PCAConstants.PATCH_LEN); // inf x 3042
 
             // convert list of gradient vectors into data matrix of size inf x 3042
             for (int i = 0; i < gradients.Count(); i++)
@@ -61,8 +61,8 @@ namespace OPS.Alignment
             Vector<double> eigvals = eigs.EigenValues.Real();
             OrderEigenvectors(eigvecs, eigvals);
 
-            principalEigVecs = eigvecs.SubMatrix(0, eigvecs.RowCount, 0, PCAConstants.n);
-            principalEigVals = eigs.EigenValues.Real().SubVector(0, PCAConstants.n);
+            principalEigVecs = eigvecs.SubMatrix(0, eigvecs.RowCount, 0, PCAConstants.N);
+            principalEigVals = eigs.EigenValues.Real().SubVector(0, PCAConstants.N);
 
             Trace.WriteLine(principalEigVecs);
             Trace.WriteLine(principalEigVals);
@@ -120,7 +120,7 @@ namespace OPS.Alignment
             Imaging.Image modelImage = Imaging.Image.Load(imageFile);
             Emgu.CV.Image<Gray, float> grayModelImage = modelImage.ToEmguGrayscale().Convert<Gray, float>();
             List<PCASIFTFeature> featuresA = new PCASIFTDetector().Detect(modelImage, null).Cast<PCASIFTFeature>().ToList();
-            List<PCASIFTFeature> PCAKeypoints = GetPatches(grayModelImage, featuresA, PCAConstants.PATCHSIZE);
+            List<PCASIFTFeature> PCAKeypoints = GetPatches(grayModelImage, featuresA, PCAConstants.PATCH_SIZE);
             return PCAUtil.GetGradients(featuresA);
         }
 
@@ -179,7 +179,7 @@ namespace OPS.Alignment
 		Vector<float> ColumnWiseMean(Matrix<float> input)
         {
             Vector<float> result = Vector<float>.Build.Dense(input.ColumnCount);
-            Debug.Assert(input.ColumnCount == PCAConstants.patchlen);
+            Debug.Assert(input.ColumnCount == PCAConstants.PATCH_LEN);
 
             for (int i = 0; i < input.ColumnCount; i++)
             {
@@ -210,7 +210,7 @@ namespace OPS.Alignment
                     // eigvecs should be 3042x36
                     for (int i = 0; i < 3042; i++)
                     {
-                        for (int j = 0; j < PCAConstants.n; j++)
+                        for (int j = 0; j < PCAConstants.N; j++)
                         {
                             writer.Write(principalEigVecs[i, j]);
                         }
@@ -230,7 +230,7 @@ namespace OPS.Alignment
                     // eigvecs should be 3042x36
                     for (int i = 0; i < 3042; i++)
                     {
-                        for (int j = 0; j < PCAConstants.n; j++)
+                        for (int j = 0; j < PCAConstants.N; j++)
                         {
                             writer.Write("  " + principalEigVecs[i, j]);
                         }
@@ -263,15 +263,15 @@ namespace OPS.Alignment
                 Emgu.CV.Image<Gray, float> blur = octaves[key.Octave][key.Scale];
 
                 // Sampling window size
-                patchsize = (int)(PCAConstants.PATCHMAG * scale);
+                patchsize = (int)(PCAConstants.PATCH_MAG * scale);
 
                 // Make odd
                 patchsize = (patchsize / 2) * 2 + 1;
 
                 // Technically a bug fix but should do the trick for now
-                if (patchsize < PCAConstants.PATCHSIZE) patchsize = PCAConstants.PATCHSIZE;
+                if (patchsize < PCAConstants.PATCH_SIZE) patchsize = PCAConstants.PATCH_SIZE;
 
-                sizeratio = patchsize / (float)PCAConstants.PATCHSIZE;
+                sizeratio = patchsize / (float)PCAConstants.PATCH_SIZE;
                 key.Patch = new Emgu.CV.Image<Gray, float>(windowsize, windowsize);
                 float[,,] data = key.Patch.Data;
 

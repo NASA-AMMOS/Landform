@@ -3,18 +3,17 @@ namespace OPS.Alignment
 {
     class PCAConstants
     {
-        public static int n = 36;
-        public static int patchsize = 39;
-        public static int patchlen =  patchsize * patchsize * 2;
-        public static double PI = 3.14159256358979323846;
-        public static int PATCHMAG = 20;
-        public static int PATCHSIZE = 41;
-        public static double INIT_SIGMA = 0.5;
-        public static float SIGMA = 1.6F;
-        public static int SCALES_PER_OCTAVE = 3;
-        public static int MAX_OCTAVES = 14;
-        public static int GPLEN = (PATCHSIZE - 2) * (PATCHSIZE - 2) * 2;
-        public static int PCALEN = 36;
-        public static int EPCALEN = 36;
+        public const int N = 36;
+        const int SHORT_PATCH_SIZE = 39;
+        public const int PATCH_LEN = SHORT_PATCH_SIZE * SHORT_PATCH_SIZE * 2;
+        public const int PATCH_MAG = 20;
+        public const int PATCH_SIZE = 41;
+        public const double INIT_SIGMA = 0.5;
+        public const float SIGMA = 1.6F;
+        public const int SCALES_PER_OCTAVE = 3;
+        public const int MAX_OCTAVES = 14;
+        public const int GPLEN = (PATCH_SIZE - 2) * (PATCH_SIZE - 2) * 2;
+        public const int PCALEN = 36;
+        public const int EPCALEN = 36;
     }
 }

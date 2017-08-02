@@ -51,7 +51,6 @@ namespace OPS.Alignment
         public static List<PCASIFTFeature> ReadKeysFromFile(string filename)
         {
             List<PCASIFTFeature> result = new List<PCASIFTFeature>();
-            int PCALEN = 36;
             using (TextReader reader = File.OpenText(filename))
             {
                 string[] numbers0 = reader.ReadToEnd().Split(new char[] { '\n', ' ' });
@@ -72,7 +71,7 @@ namespace OPS.Alignment
                     location = new Vector2(location.Y, location.X);
                     float size = float.Parse(numbers[count++]);
                     float angle = float.Parse(numbers[count++]);
-                    float[] descriptor = new float[PCALEN];
+                    float[] descriptor = new float[PCAConstants.PCALEN];
                     for (int j = 0; j < 128; j++)
                     {
                         if (j > 35)

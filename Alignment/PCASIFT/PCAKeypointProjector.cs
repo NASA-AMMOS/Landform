@@ -15,17 +15,8 @@ namespace OPS.Alignment
     /// </summary>
     public class PCAKeypointProjector
     {
-        const int PATCHMAG = 20;
-        const int PATCHSIZE = 41;
-        const double INIT_SIGMA = 0.5;
-        static float SIGMA = 1.6F;
-        const int SCALES_PER_OCTAVE = 3;
-        const int MAX_OCTAVES = 14;
-        const int GPLEN = (PATCHSIZE - 2) * (PATCHSIZE - 2) * 2;
-        const int PCALEN = 36;
-        const int EPCALEN = 36;
-        float[] avgs = new float[GPLEN];
-        float[,] eigs = new float[EPCALEN, GPLEN];
+        float[] avgs = new float[PCAConstants.GPLEN];
+        float[,] eigs = new float[PCAConstants.EPCALEN, PCAConstants.GPLEN];
 
         /// <summary>
         /// Initializes a new instance of the <see cref="T:OPS.Alignment.PCA_KeypointDetector"/> class.
@@ -41,15 +32,15 @@ namespace OPS.Alignment
                     {
                         reader.BaseStream.Position = 0;
                         Debug.WriteLine("Reading averages.");
-                        for (int i = 0; i < GPLEN; i++)
+                        for (int i = 0; i < PCAConstants.GPLEN; i++)
                         {
                             avgs[i] = reader.ReadSingle();
                         }
 
-                        Debug.WriteLine("Reading pca vector {0}x{1}", GPLEN, EPCALEN);
-                        for (int i = 0; i < GPLEN; i++)
+                        Debug.WriteLine("Reading pca vector {0}x{1}", PCAConstants.GPLEN, PCAConstants.EPCALEN);
+                        for (int i = 0; i < PCAConstants.GPLEN; i++)
                         {
-                            for (int j = 0; j < EPCALEN; j++)
+                            for (int j = 0; j < PCAConstants.EPCALEN; j++)
                             {
 
                                 eigs[j, i] = reader.ReadSingle();
@@ -73,15 +64,15 @@ namespace OPS.Alignment
                         Debug.WriteLine("Reading averages");
                         int count = 0;
 
-                        for (int i = 0; i < GPLEN; i++)
+                        for (int i = 0; i < PCAConstants.GPLEN; i++)
                         {
                             avgs[i] = float.Parse(numbers[count++]);
                         }
 
-                        Debug.WriteLine("Reading pca vector {0}x{1}", GPLEN, PCALEN);
-                        for (int i = 0; i < GPLEN; i++)
+                        Debug.WriteLine("Reading pca vector {0}x{1}", PCAConstants.GPLEN, PCAConstants.PCALEN);
+                        for (int i = 0; i < PCAConstants.GPLEN; i++)
                         {
-                            for (int j = 0; j < PCALEN; j++)
+                            for (int j = 0; j < PCAConstants.PCALEN; j++)
                             {
 
                                 eigs[j, i] = float.Parse(numbers[count++]);
@@ -102,18 +93,18 @@ namespace OPS.Alignment
             float[] vec = KeypointPatchVector(keypoint, blur);
             vec = PCAUtil.NormalizeVector(vec);
 
-            for (int i = 0; i < GPLEN; i++)
+            for (int i = 0; i < PCAConstants.GPLEN; i++)
             {
                 vec[i] -= avgs[i];
             }
 
-            float[] result = new float[EPCALEN];
+            float[] result = new float[PCAConstants.EPCALEN];
 
-            for (int desci = 0; desci < EPCALEN; desci++)
+            for (int desci = 0; desci < PCAConstants.EPCALEN; desci++)
             {
                 float total = 0;
 
-                for (int x = 0; x < GPLEN; x++)
+                for (int x = 0; x < PCAConstants.GPLEN; x++)
                 {
                     total += eigs[desci, x] * vec[x];
                 }
@@ -130,26 +121,26 @@ namespace OPS.Alignment
         /// <param name="blur">Blur.</param>
         float[] KeypointPatchVector(PCASIFTFeature keypoint, Image<Gray, float> blur)
         {
-            float[] vec = new float[GPLEN];
+            float[] vec = new float[PCAConstants.GPLEN];
 
             int patchsize, iradius;
             float sine, cosine, sizeratio;
 
-            float scale = SIGMA * (float)Math.Pow(2.0, keypoint.FScale / SCALES_PER_OCTAVE);
+            float scale = PCAConstants.SIGMA * (float)Math.Pow(2.0, keypoint.FScale / PCAConstants.SCALES_PER_OCTAVE);
 
             // Sampling window size
-            patchsize = (int)(PATCHMAG * scale);
+            patchsize = (int)(PCAConstants.PATCH_MAG * scale);
 
             // Make odd
             patchsize = (patchsize / 2) * 2 + 1;
 
             // Technically a bug fix but should do the trick for now
-            if (patchsize < PATCHSIZE)
+            if (patchsize < PCAConstants.PATCH_SIZE)
             {
-                patchsize = PATCHSIZE;
+                patchsize = PCAConstants.PATCH_SIZE;
             }
 
-            sizeratio = patchsize / (float)PATCHSIZE;
+            sizeratio = patchsize / (float)PCAConstants.PATCH_SIZE;
             Image<Gray, float> patch = new Image<Gray, float>(patchsize, patchsize);
             float[,,] data = patch.Data;
 
@@ -175,9 +166,9 @@ namespace OPS.Alignment
 
             int count = 0;
             float x1, x2, y1, y2, gx, gy;
-            for (int y = 1; y < PATCHSIZE - 1; y++)
+            for (int y = 1; y < PCAConstants.PATCH_SIZE - 1; y++)
             {
-                for (int x = 1; x < PATCHSIZE - 1; x++)
+                for (int x = 1; x < PCAConstants.PATCH_SIZE - 1; x++)
                 {
                     x1 = PCAUtil.GetPixelBilinearInterpolation(data, y * sizeratio, (x + 1) * sizeratio, height, width)/255;
                     x2 = PCAUtil.GetPixelBilinearInterpolation(data, y * sizeratio, (x - 1) * sizeratio, height, width)/255;
