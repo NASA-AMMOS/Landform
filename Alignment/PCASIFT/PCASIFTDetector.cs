@@ -28,7 +28,7 @@ namespace OPS.Alignment
                 yield return new PCASIFTFeature(
                     new Vector2(kp.Point.X, kp.Point.Y),
                     kp.Size,
-                    kp.Angle / 180f * Math.PI,
+                    MathHelper.ToRadians(kp.Angle),
                     kp.Octave,
                     kp.Response);
             }
