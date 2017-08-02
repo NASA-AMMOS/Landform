@@ -9,7 +9,6 @@ using MathNet.Numerics.LinearAlgebra.Factorization;
 using MathNet.Numerics.Statistics;
 using System.Threading.Tasks;
 using System;
-using OPS.Alignment.PCASIFT;
 
 namespace OPS.Alignment
 {

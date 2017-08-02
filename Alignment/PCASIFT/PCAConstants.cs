@@ -1,7 +1,7 @@
 ﻿
-namespace OPS.Alignment.PCASIFT
+namespace OPS.Alignment
 {
-    public class PCAConstants
+    class PCAConstants
     {
         public static int n = 36;
         public static int patchsize = 39;

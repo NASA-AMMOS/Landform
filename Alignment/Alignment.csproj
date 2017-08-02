@@ -79,6 +79,7 @@
     <Compile Include="BFMatcher.cs" />
     <Compile Include="MatchFilters\GTM\GTM.cs" />
     <Compile Include="Interfaces\IDescriptorCalculator.cs" />
+    <Compile Include="PCASIFT\PCAConstants.cs" />
     <Compile Include="SIFT\ASIFTDetector.cs" />
     <Compile Include="MatchFilters\GTM\GTMGraph.cs" />
     <Compile Include="MatchFilters\GTM\GTMFilter.cs" />

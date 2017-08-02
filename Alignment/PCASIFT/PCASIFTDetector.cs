@@ -1,9 +1,9 @@
 ﻿using System.Collections.Generic;
-//using Emgu.CV.XFeatures2D;
-//using Emgu.CV;
+using Emgu.CV.XFeatures2D;
+using Emgu.CV;
 using OPS.Imaging;
-//using OPS.Imaging.Emgu;
-//using Emgu.CV.Structure;
+using OPS.Imaging.Emgu;
+using Emgu.CV.Structure;
 using Microsoft.Xna.Framework;
 using System;
 
@@ -20,8 +20,8 @@ namespace OPS.Alignment
 
         public IEnumerable<ImageFeature> Detect(Image image, Image mask = null)
         {
-            var emguImg = image;
-            Image emguMask = (mask != null) ? (mask) : null;
+            var emguImg = image.ToEmguGrayscale();
+            var emguMask = (mask != null) ? (mask.ToEmguGrayscale()) : null;
 
             foreach (var kp in sift.Detect(emguImg, emguMask))
             {
