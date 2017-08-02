@@ -68,47 +68,5 @@ namespace OPS.Imaging.Emgu
             }
             return res;
         }
-
-        public static float GetPixelBilinearInterpolation(this Image image, float col, float row)
-        {
-            int irow, icol;
-            float rfrac, cfrac;
-            float row1 = 0, row2 = 0;
-
-            irow = (int)row;
-            icol = (int)col;
-
-            if (irow < 0 || irow >= image.Height || icol < 0 || icol >= image.Width) { return 0; }
-
-            row = Math.Min(row, image.Height - 1);
-            col = Math.Min(col, image.Width - 1);
-
-            rfrac = (float)1.0 - (row - irow); // casting may be in wrong area
-            cfrac = (float)1.0 - (col - icol); // same problem as above
-
-            if (cfrac < 1)
-            {
-                row1 = cfrac * image.Data[irow][icol] + (float)(1.0 - cfrac) * image.Data[irow][icol + 1];
-            }
-            else
-            {
-                row1 = image.Data[irow][icol];
-            }
-
-            if (rfrac < 1)
-            {
-                if (cfrac < 1)
-                {
-                    row2 = cfrac * image.Data[irow + 1][icol] + (float)(1.0 - cfrac) * image.Data[irow + 1][icol + 1];
-                }
-                else
-                {
-                    row2 = image.Data[irow + 1][icol];
-                }
-            }
-
-
-            return rfrac * row1 + (1 - rfrac) * row2;
-        }
     }
 }
