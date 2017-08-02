@@ -8,7 +8,7 @@ namespace OPS.Alignment
         {
             get
             {
-                return 36;
+                return PCAConstants.EPCALEN;
             }
         }
 

@@ -9,6 +9,7 @@ using MathNet.Numerics.LinearAlgebra.Factorization;
 using MathNet.Numerics.Statistics;
 using System.Threading.Tasks;
 using System;
+using log4net;
 
 namespace OPS.Alignment
 {
@@ -23,6 +24,9 @@ namespace OPS.Alignment
         Matrix<float> eigvecs;
         Matrix<float> principalEigVecs;
         Vector<double> principalEigVals;
+
+
+        private static readonly ILog logger = LogManager.GetLogger(typeof(PCATrain));
 
         /// <summary>
         /// Initializes a new instance of the <see cref="T:OPS.Alignment.PCA_Train"/> class.
@@ -51,11 +55,11 @@ namespace OPS.Alignment
             mean = ColumnWiseMean(data); // should be length 3042
 
             // calculate covariance matrix
-            Trace.WriteLine("Calculating covariance matrix...");
+            logger.Info("Calculating covariance matrix...");
             Matrix<float> covar = CovarianceMatrix(data);
 
             // eigen decomposition
-            Trace.WriteLine("Calculating eigen decomposition...");
+            logger.Info("Calculating eigen decomposition...");
             eigs = covar.Evd();
             eigvecs = eigs.EigenVectors;
             Vector<double> eigvals = eigs.EigenValues.Real();
@@ -64,8 +68,8 @@ namespace OPS.Alignment
             principalEigVecs = eigvecs.SubMatrix(0, eigvecs.RowCount, 0, PCAConstants.N);
             principalEigVals = eigs.EigenValues.Real().SubVector(0, PCAConstants.N);
 
-            Trace.WriteLine(principalEigVecs);
-            Trace.WriteLine(principalEigVals);
+            logger.Info(principalEigVecs);
+            logger.Info(principalEigVals);
 
             WriteEigenvectorsToFile(gpcafile + ".txt", true);
         }
@@ -92,10 +96,7 @@ namespace OPS.Alignment
         public void Train(string path)
         {
             string[] imageFiles = Directory.GetFiles(path, "*.png");
-            //List<float[]> gradients = new List<float[]>();
             object obj = new object();
-
-            //float[][][] gradients = new float[imageFiles.Length][][];
             List<float[]> gradients = new List<float[]>();
             Parallel.For(0, imageFiles.Count(), i =>
                 {
@@ -195,7 +196,7 @@ namespace OPS.Alignment
         /// <param name="filename">Filename of location where the eigenvectors and mean are to be saved.</param>
         void WriteEigenvectorsToFile(string filename, bool readable = false)
         {
-            Trace.WriteLine("Writing eigenvectors to " + filename);
+            logger.Info("Writing eigenvectors to " + filename);
 
             if (!readable)
             {
@@ -239,7 +240,7 @@ namespace OPS.Alignment
                 }
             }
 
-            Trace.WriteLine("Wrote to " + filename);
+            logger.Info("Wrote to " + filename);
         }
 
         /// <summary>
