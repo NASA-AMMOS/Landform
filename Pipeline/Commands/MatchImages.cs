@@ -137,10 +137,18 @@ namespace OPS.Pipeline
 
             MoisanStivalFilter filter = new MoisanStivalFilter();
             matches = filter.Filter(matches);
+            if(matches == null)
+            {
+                logger.Info("No matches found after MoisanStivalFilter");
+                return;
+            }
             GTM gtm = new GTM(5);
             matches = gtm.Filter(matches);
-
-
+            if (matches == null)
+            {
+                logger.Info("No matches found after GTM Filter");
+                return;
+            }
             MatchImage.WriteMatchImage(matches, outputFile);
             logger.Info(string.Format("Matched images written to {0}", outputFile));
         }
