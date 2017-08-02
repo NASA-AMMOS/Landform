@@ -109,7 +109,7 @@
     <Compile Include="Interfaces\IFeatureMatcher.cs" />
     <Compile Include="MatchFilters\MoisanStivalEpipolar.cs" />
     <Compile Include="PCASIFT\PCAKeypointProjector.cs" />
-    <Compile Include="PCASIFT\PCAMatch.cs" />
+    <Compile Include="FeatureMatching\MatchImage.cs" />
     <Compile Include="PCASIFT\PCASIFTTrain.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
