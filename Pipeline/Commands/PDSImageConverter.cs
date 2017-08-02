@@ -10,7 +10,7 @@ namespace OPS.Pipeline
     [Verb("convertpds", HelpText = "Convert PDS images to different format")]
     public class PDSImageConverterOptions
     {
-        [Option('t', "type", Required = false, HelpText = "Output file type, available types: jpeg, tiff, default is png")]
+        [Option('t', "type", Required = false, HelpText = "Output file type, available types: jpg, tif, default is png")]
         public string OutputType { get; set; }
 
         [Value(0, Required = true, HelpText = "Path to file or directory to be converted")]
@@ -33,19 +33,23 @@ namespace OPS.Pipeline
             FileAttributes attr = File.GetAttributes(options.ImagePath);
             bool directory = (attr & FileAttributes.Directory) == FileAttributes.Directory;
             string[] images = new string[0];
-            string[] allowedFormats = new string[] { "jpeg", "png", "tiff" };
+            string[] allowedFormats = new string[] { "jpg", "png", "tif" };
             string outputType = options.OutputType != null ? options.OutputType : "png";
-            string destPath = "";
+            string destPath = null;
 
             if (directory)
             {
                 images = Directory.GetFiles(options.ImagePath, "*.IMG");
-                destPath = options.ImagePath + " Output";
+                destPath = options.ImagePath;
             }
             else if(options.ImagePath.EndsWith(".IMG"))
             {
                 images = new string[] {  options.ImagePath };
-                destPath = Directory.GetParent(options.ImagePath).FullName + " Output";
+                destPath = Path.GetDirectoryName(options.ImagePath);
+            }
+            if(options.OutputPath != null)
+            {
+                destPath = options.OutputPath;
             }
 
             if (images.Length == 0) { return 0; }
@@ -55,14 +59,11 @@ namespace OPS.Pipeline
             {
                 string imagePath = images[i];
                 Image newImage = Image.Load(imagePath);
-                string imageName = Path.GetFileName(imagePath); // remove .IMG extension
-                string newImageName = imageName.Substring(0, imageName.Length - 4) + '.' + outputType;
-                newImage.Save<byte>(destPath + '\\' + newImageName);
-                Debug.WriteLine("destPath: " + destPath + '\\' + newImageName);
-                Debug.WriteLine("processed image: " + imagePath);
-            }
-           
-            return 1;
+                string imageName = Path.GetFileNameWithoutExtension(imagePath); 
+                string newImageName = imageName + '.' + outputType;
+                newImage.Save<byte>(Path.Combine(destPath, newImageName));
+            }          
+            return 0;
         }
     }
 }
