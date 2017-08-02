@@ -7,7 +7,6 @@ using System.Diagnostics;
 using System.IO;
 using System.Threading.Tasks;
 using OPS.Imaging.Emgu;
-using OPS.Util;
 
 namespace OPS.Alignment
 {
@@ -16,7 +15,6 @@ namespace OPS.Alignment
     /// </summary>
     public class PCAKeypointProjector
     {
-        const double PI = 3.14159256358979323846;
         const int PATCHMAG = 20;
         const int PATCHSIZE = 41;
         const double INIT_SIGMA = 0.5;
