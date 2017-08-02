@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using OPS.Imaging;
 using OPS.Imaging.Emgu;
-using OPS.Alignment;
 using System.Diagnostics;
 using Emgu.CV;
 using Emgu.CV.Util;
@@ -13,7 +12,7 @@ using System.IO;
 using System.Threading.Tasks;
 using System;
 using OPS.Util;
-
+using OPS.Alignment;
 namespace OPS.Pipeline
 {
 

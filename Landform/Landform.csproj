@@ -108,13 +108,6 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="Commands\BenchmarkS3.cs" />
-    <Compile Include="Commands\Commands.cs" />
-    <Compile Include="Commands\ConvertBaselineMesh.cs" />
-    <Compile Include="Commands\CrawlMSL.cs" />
-    <Compile Include="Commands\MatchAllImages.cs" />
-    <Compile Include="Commands\MatchImages.cs" />
-    <Compile Include="Commands\PDSImageConverter.cs" />
     <Compile Include="GdalConfiguration.cs" />
     <Compile Include="Landform.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />

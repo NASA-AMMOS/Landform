@@ -126,10 +126,6 @@
       <Project>{c3ec3ab5-8dfd-4daa-9833-246f0db6a805}</Project>
       <Name>Imaging</Name>
     </ProjectReference>
-    <ProjectReference Include="..\Pipeline\Pipeline.csproj">
-      <Project>{c45f0cd6-c998-47ec-b67c-ad77196b06a0}</Project>
-      <Name>Pipeline</Name>
-    </ProjectReference>
     <ProjectReference Include="..\Util\Util.csproj">
       <Project>{8145AA65-BA61-4E27-81FF-B64217B49929}</Project>
       <Name>Util</Name>
