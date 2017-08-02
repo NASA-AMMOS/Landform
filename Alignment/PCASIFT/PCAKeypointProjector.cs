@@ -7,6 +7,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Threading.Tasks;
 using OPS.Imaging.Emgu;
+using log4net;
 
 namespace OPS.Alignment
 {
@@ -17,6 +18,8 @@ namespace OPS.Alignment
     {
         float[] avgs = new float[PCAConstants.GPLEN];
         float[,] eigs = new float[PCAConstants.EPCALEN, PCAConstants.GPLEN];
+
+        private static readonly ILog logger = LogManager.GetLogger(typeof(PCAKeypointProjector));
 
         /// <summary>
         /// Initializes a new instance of the <see cref="T:OPS.Alignment.PCA_KeypointDetector"/> class.
@@ -31,13 +34,10 @@ namespace OPS.Alignment
                     using (BinaryReader reader = new BinaryReader(new FileStream(file, FileMode.Open)))
                     {
                         reader.BaseStream.Position = 0;
-                        Debug.WriteLine("Reading averages.");
                         for (int i = 0; i < PCAConstants.GPLEN; i++)
                         {
                             avgs[i] = reader.ReadSingle();
                         }
-
-                        Debug.WriteLine("Reading pca vector {0}x{1}", PCAConstants.GPLEN, PCAConstants.EPCALEN);
                         for (int i = 0; i < PCAConstants.GPLEN; i++)
                         {
                             for (int j = 0; j < PCAConstants.EPCALEN; j++)
@@ -54,22 +54,15 @@ namespace OPS.Alignment
                     {
                         string[] numbers0 = reader.ReadToEnd().Split(new char[] {'\n', ' '});
                         List<string> numbers = new List<string>();
-
                         foreach (string num in numbers0)
                         {
                             if (num != "") numbers.Add(num);
-                        }
-
-
-                        Debug.WriteLine("Reading averages");
+                        }                        
                         int count = 0;
-
                         for (int i = 0; i < PCAConstants.GPLEN; i++)
                         {
                             avgs[i] = float.Parse(numbers[count++]);
                         }
-
-                        Debug.WriteLine("Reading pca vector {0}x{1}", PCAConstants.GPLEN, PCAConstants.PCALEN);
                         for (int i = 0; i < PCAConstants.GPLEN; i++)
                         {
                             for (int j = 0; j < PCAConstants.PCALEN; j++)
