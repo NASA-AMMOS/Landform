@@ -13,6 +13,10 @@ using System.Linq;
 
 namespace OPS.Alignment
 {
+
+    /// <summary>
+    /// Support for read and writing PCA sift features for debugging
+    /// </summary>
     public class PCASIFTIO
     {
         public void WriteSIFTFeatures(Image image, string filename, Image mask = null, int numFeatures = 0, int octaveLayers = 3, float contrastThreshold = 0.04f, float edgeThreshold = 10f, float sigma = 1.6f)
@@ -28,7 +32,7 @@ namespace OPS.Alignment
                 foreach (var kp in kps)
                 {
                     writer.WriteLine("{0} {1} {2} {3}", string.Format("{0:0.0000000000}", kp.Point.Y), string.Format("{0:0.0000000000}", kp.Point.X),
-                                                        string.Format("{0:0.0000000000}", kp.Size), string.Format("{0:0.0000000000000}", kp.Angle / 180 * Math.PI));
+                                                        string.Format("{0:0.0000000000}", kp.Size), string.Format("{0:0.0000000000000}", MathHelper.ToRadians(kp.Angle)));
 
                     // features are written in rows of 20
                     for (int i = 0; i < 120; i++)
@@ -158,58 +162,7 @@ namespace OPS.Alignment
                 }
             }
         }
-
-        /// <summary>
-        /// Reads keypoints and their associated patches from file.
-        /// </summary>
-        /// <param name="filename">Filename of place from where the patches are to be read.</param>
-        /// <returns></returns>
-        public static List<PCASIFTFeature> ReadPatchesFromFile(string filename)
-        {
-            Debug.WriteLine("Reading from " + filename);
-            List<PCASIFTFeature> keypoints = new List<PCASIFTFeature>();
-            if (File.Exists(filename))
-            {
-                using (BinaryReader reader = new BinaryReader(new FileStream(filename, FileMode.Open)))
-                {
-                    Debug.WriteLine(reader.PeekChar());
-                    float keyCount = reader.ReadSingle();
-                    float pcaLength = reader.ReadSingle();
-                    int sqrtLen = (int)Math.Sqrt(pcaLength);
-
-                    if (Math.Abs(sqrtLen * sqrtLen - pcaLength) > double.Epsilon)
-                    {
-                        Debug.WriteLine("Invalid patch file - dimensions incorrect: {0}", pcaLength);
-                    }
-
-                    for (int i = 0; i < keyCount; i++)
-                    {
-                        // The following raises an argument error for whatever reason.
-                        //PCASIFTFeature key = new PCASIFTFeature()
-                        //{
-                        //    Location = new Vector2(reader.ReadSingle(), reader.ReadSingle()),
-                        //    GScale = reader.ReadSingle(),
-                        //    Angle = reader.ReadSingle(),
-                        //    Response = 0,
-                        //    Patch = new Image<Gray, float>(sqrtLen, sqrtLen)
-                        //};
-
-                        //Debug.WriteLine("New point at ({0},{1}) with gScale: {2} and angle: {3}", key.X, key.Y, key.GScale, key.Angle);
-                        //for (int y = 0; y < sqrtLen; y++)
-                        //{
-                        //    for (int x = 0; x < sqrtLen; x++)
-                        //    {
-                        //        float val = (float)reader.ReadDouble();
-                        //        key.Patch[y, x] = new Gray(val);
-                        //    }
-                        //}
-                        //keypoints.Add(key);
-                    }
-                }
-            }
-            Debug.WriteLine("Read from file.");
-            return keypoints;
-        }
+               
         /// <summary>
         /// Writes keypoints and their associated patches to file.
         /// </summary>
@@ -218,14 +171,11 @@ namespace OPS.Alignment
         /// <param name="patchsize">Height and width of patch.</param>
         public static void WritePatchesToFile(List<PCASIFTFeature> keys, string filename, int patchsize)
         {
-            Debug.WriteLine("Writing to " + filename);
             using (BinaryWriter writer = new BinaryWriter(new FileStream(filename, FileMode.Create)))
             {
                 // number of keypoints and vector length
                 writer.Write((float)keys.Count());
                 writer.Write((float)patchsize * patchsize);
-                Debug.WriteLine("key count: {0}, patchsize^2: {1}", keys.Count(), patchsize * patchsize);
-
                 for (int i = 0; i < keys.Count; i++)
                 {
                     PCASIFTFeature key = keys[i];
@@ -242,8 +192,6 @@ namespace OPS.Alignment
                     }
                 }
             }
-            Debug.WriteLine("Wrote to file.");
         }
-
     }
 }
