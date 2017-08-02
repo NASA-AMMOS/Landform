@@ -13,6 +13,8 @@ using System.Threading.Tasks;
 using System;
 using OPS.Util;
 using OPS.Alignment;
+using log4net;
+
 namespace OPS.Pipeline
 {
 
@@ -35,6 +37,9 @@ namespace OPS.Pipeline
     public class MatchAllImages
     {
         public MatchAllImagesOptions options;
+
+        private static readonly ILog logger = LogManager.GetLogger(typeof(MatchAllImages));
+
         public MatchAllImages(MatchAllImagesOptions options)
         {
             this.options = options;
@@ -125,7 +130,7 @@ namespace OPS.Pipeline
             ImagePairCorrespondence matches = null;
             if (matchAlg == MatchAlg.PCASIFT)
             {
-                Trace.WriteLine("Matching images with PCA-SIFT...");
+                logger.Info("Matching images with PCA-SIFT...");
                 List<PCASIFTFeature> featuresA = null;
                 List<PCASIFTFeature> featuresB = null;
                 PCAKeypointProjector projector = new PCAKeypointProjector(eigenspace, false);
@@ -150,7 +155,7 @@ namespace OPS.Pipeline
 
             else if (matchAlg == MatchAlg.ASIFT)
             {
-                Trace.WriteLine("Matching with ASIFT...");
+                logger.Info("Matching with ASIFT...");
                 matches = ASIFT(model, data, outputFile);
             }
 
@@ -164,25 +169,25 @@ namespace OPS.Pipeline
             ImagePairCorrespondence matchesCopy = null;
             if (filter == Filter.MoisanStival)
             {
-                Trace.WriteLine("Filtering with Moisan Stival...");
+                logger.Info("Filtering with Moisan Stival...");
                 MoisanStivalFilter MSfilter = new MoisanStivalFilter();
                 matchesCopy = MSfilter.Filter(matches);
             }
             else if (filter == Filter.GTM)
             {
-                Trace.WriteLine("Filtering with GTM...");
+                logger.Info("Filtering with GTM...");
                 GTM gtm = new GTM(5);
                 matchesCopy = gtm.Filter(matches);
             }
             else if (filter == Filter.MoisanStival_GTM)
             {
-                Trace.WriteLine("Filtering with MoisanStival and GTM...");
+                logger.Info("Filtering with MoisanStival and GTM...");
                 MoisanStivalFilter MSfilter = new MoisanStivalFilter();
                 matchesCopy = MSfilter.Filter(matches);
 
                 if (matchesCopy == null)
                 {
-                    Trace.WriteLine("No matches found. :(");
+                    logger.Info("No matches found. :(");
                     return;
                 }
 
@@ -191,12 +196,12 @@ namespace OPS.Pipeline
             }
 
             if (matchesCopy == null) {
-                Trace.WriteLine("No matches found. :(");
+                logger.Info("No matches found. :(");
                 return;
             }
 
             MatchImage.WriteMatchImage(matchesCopy, outputFile);
-            Trace.WriteLine(string.Format("Matched images written to {0}", outputFile));
+            logger.Info(string.Format("Matched images written to {0}", outputFile));
         }
 
         public ImagePairCorrespondence ASIFT(Imaging.Image model, Imaging.Image data, string outputFile)
@@ -233,10 +238,10 @@ namespace OPS.Pipeline
         void Train(string trainingFile, string trainingPath)
         {
             if (trainingFile == null) { trainingFile = trainingPath; }
-            Trace.WriteLine("Training...");
+            logger.Info("Training...");
             PCATrain train = new PCATrain(trainingFile);
             train.Train(trainingPath);
-            Trace.WriteLine("Trained.");
+            logger.Info("Trained.");
         }
 
         public static Matrix<float> ToDescriptorMatrix(List<SIFTFeature> features)

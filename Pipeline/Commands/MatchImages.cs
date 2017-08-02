@@ -12,6 +12,7 @@ using System.Drawing;
 using System.IO;
 using System.Threading.Tasks;
 using System.Threading;
+using log4net;
 
 namespace OPS.Pipeline
 {
@@ -42,6 +43,9 @@ namespace OPS.Pipeline
     public class MatchImages
     {
         public MatchImagesOptions options;
+
+        private static readonly ILog logger = LogManager.GetLogger(typeof(MatchImages));
+
         public MatchImages(MatchImagesOptions options)
         {
             this.options = options;
@@ -106,7 +110,7 @@ namespace OPS.Pipeline
 
         void DetectAndMatch(Imaging.Image model, Imaging.Image data, string gpcafile, string outputFile)
         {
-            Trace.WriteLine("Matching images with PCA-SIFT...");
+            logger.Info("Matching images with PCA-SIFT...");
             List<PCASIFTFeature> featuresA = new PCASIFTDetector().Detect(model, null).Cast<PCASIFTFeature>().ToList();
             List<PCASIFTFeature> featuresB = new PCASIFTDetector().Detect(data, null).Cast<PCASIFTFeature>().ToList();
             PCAKeypointProjector projector = new PCAKeypointProjector(gpcafile, false);
@@ -138,7 +142,7 @@ namespace OPS.Pipeline
 
 
             MatchImage.WriteMatchImage(matches, outputFile);
-            Trace.WriteLine(string.Format("Matched images written to {0}", outputFile));
+            logger.Info(string.Format("Matched images written to {0}", outputFile));
         }
 
         public void SIFT(Imaging.Image model, Imaging.Image data, string outputFile)
@@ -163,16 +167,16 @@ namespace OPS.Pipeline
             matches = gtm.Filter(matches);
 
             MatchImage.WriteMatchImage(matches, outputFile);
-            Trace.WriteLine(string.Format("Matched images written to {0}", outputFile));
+            logger.Info(string.Format("Matched images written to {0}", outputFile));
         }
 
         void Train(string trainingFile, string trainingPath)
         {
             if (trainingFile == null) { trainingFile = trainingPath; }
-            Trace.WriteLine("Training...");
+            logger.Info("Training...");
             PCATrain train = new PCATrain(trainingFile);
             train.Train(trainingPath);
-            Trace.WriteLine("Trained.");
+            logger.Info("Trained.");
         }
 
         public static Matrix<float> ToDescriptorMatrix(List<SIFTFeature> features)
