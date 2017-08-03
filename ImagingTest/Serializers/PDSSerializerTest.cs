@@ -21,8 +21,8 @@ namespace ImagingTest
 
             Image imgMasked = new PDSSeralizer().Read(Path.Combine("TestData", "img", "FLB_509619692RAS_T0530000FHAZ00323M_.IMG"), ImageConverters.PDSBitMaskValueRangeToNormalizedImage, new float[] { 0 });
             Assert.IsTrue(imgMasked.HasMask);
-            Assert.IsTrue(imgMasked.IsMasked(4, 6));
-            Assert.IsFalse(imgMasked.IsMasked(5, 6));
+            Assert.IsTrue(imgMasked.IsInvalid(4, 6));
+            Assert.IsFalse(imgMasked.IsInvalid(5, 6));
 
             Image mastcam = new PDSSeralizer().Read(Path.Combine("TestData", "img", "ML0_451292526RCX_S0311094MCAM02555M1.IMG"), ImageConverters.PDSBitMaskValueRangeToNormalizedImage, new float[] { 0, 0, 0 });
             Assert.IsTrue(mastcam.HasMask);

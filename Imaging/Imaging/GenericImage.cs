@@ -145,7 +145,7 @@ namespace OPS.Imaging
         /// <param name="row"></param>
         /// <param name="column"></param>
         /// <returns></returns>
-        public bool IsMasked(int row, int column)
+        public bool IsInvalid(int row, int column)
         {
             return this.Mask != null && this.Mask[(row * Width) + column];
         }
@@ -156,9 +156,32 @@ namespace OPS.Imaging
         /// </summary>
         /// <param name="i"></param>
         /// <returns></returns>
-        public bool IsMasked(int i)
+        public bool IsInvalid(int i)
         {
             return this.Mask != null && this.Mask[i];
+        }
+
+        /// <summary>
+        /// Returns true if the value at row and column should be masked out (ignored)
+        /// If a mask is not defined for this image this will always return false
+        /// </summary>
+        /// <param name="row"></param>
+        /// <param name="column"></param>
+        /// <returns></returns>
+        public bool IsValid(int row, int column)
+        {
+            return this.Mask == null || !this.Mask[(row * Width) + column];
+        }
+
+        /// <summary>
+        /// Returns true if the value at the given index should be masked out (ignored)
+        /// If a mask is not defined for this image this will always return false
+        /// </summary>
+        /// <param name="i"></param>
+        /// <returns></returns>
+        public bool IsValid(int i)
+        {
+            return this.Mask == null || !this.Mask[i];
         }
 
         /// <summary>
@@ -193,7 +216,7 @@ namespace OPS.Imaging
         {
             for(int i = 0; i < Width*Height; i++)
             {
-                if(IsMasked(i))
+                if(IsInvalid(i))
                 {
                     SetBandValues(i, perBandValues);
                 }
@@ -340,7 +363,7 @@ namespace OPS.Imaging
         {
             for (int i = 0; i < Data[band].Length; i++)
             {
-                if (applyToMaskedValues || !IsMasked(i))
+                if (applyToMaskedValues || !IsInvalid(i))
                 {
                     this.Data[band][i] = f(this.Data[band][i]);
                 }
@@ -358,7 +381,7 @@ namespace OPS.Imaging
             {
                 for (int i = 0; i < this.Data[b].Length; i++)
                 {
-                    if (!IsMasked(i))
+                    if (!IsInvalid(i))
                     {
                         yield return this.Data[b][i];
                     }
@@ -370,7 +393,7 @@ namespace OPS.Imaging
         /// Returns a coordinate for each pixel in the image and for each band
         /// </summary>
         /// <returns></returns>
-        public IEnumerable<ImageCoordinate> Coordinates(bool includeMaskedValues)
+        public IEnumerable<ImageCoordinate> Coordinates(bool includeInvalidValues)
         {
             for (int b = 0; b < this.Bands; b++)
             {
@@ -378,7 +401,7 @@ namespace OPS.Imaging
                 {
                     for (int c = 0; c < this.Width; c++)
                     {
-                        if (includeMaskedValues || !IsMasked(r, c))
+                        if (includeInvalidValues || IsValid(r, c))
                         {
                             yield return new ImageCoordinate(b, r, c);
                         }

@@ -134,6 +134,17 @@ namespace OPS.Imaging
         }
 
         /// <summary>
+        /// Given an image with a mask, extend the image and the mask by border pixels
+        /// If border is negative (the default) continue inpainting until there are no
+        /// masked pixels left.  Inpainted pixels are an average of their non-masked neighbors
+        /// </summary>
+        /// <param name="border"></param>
+        public void Inpaint(int border = -1)
+        {
+            Inpainter.Apply(this, border);
+        }
+
+        /// <summary>
         /// Performs a deep copy of the image and all associated objects
         /// </summary>
         /// <returns></returns>
@@ -194,10 +205,50 @@ namespace OPS.Imaging
                 result[ic.Band, ic.Row, ic.Col] = this[ic.Band, ic.Row + startRow, ic.Col + startCol];
                 if(this.HasMask)
                 {
-                    result.SetMaskValue(ic.Row, ic.Col, this.IsMasked(ic.Row + startRow, ic.Col + startCol));
+                    result.SetMaskValue(ic.Row, ic.Col, this.IsInvalid(ic.Row + startRow, ic.Col + startCol));
                 }
             }
             return result;
+        }
+
+        public float BilinearSample(int band, float row, float col)
+        {
+            int irow, icol;
+            float rfrac, cfrac;
+            float row1 = 0, row2 = 0;
+
+            irow = (int)row;
+            icol = (int)col;
+
+            if (irow < 0 || irow >= Height || icol < 0 || icol >= Width) { return 0; }
+
+            row = Math.Min(row, Height - 1);
+            col = Math.Min(col, Width - 1);
+
+            rfrac = (float)(1.0 - (row - irow));
+            cfrac = (float)(1.0 - (col - icol));
+
+            if (cfrac < 1)
+            {
+                row1 = cfrac * this[band, irow, icol] + (1.0f - cfrac) * this[band, irow, icol + 1];
+            }
+            else
+            {
+                row1 = this[band, irow, icol];
+            }
+
+            if (rfrac < 1)
+            {
+                if (cfrac < 1)
+                {
+                    row2 = cfrac * this[band, irow + 1, icol] + (1.0f - cfrac) * this[band, irow + 1, icol + 1];
+                }
+                else
+                {
+                    row2 = this[band, irow + 1, icol];
+                }
+            }
+            return rfrac * row1 + (1f - rfrac) * row2;
         }
 
         /// <summary>
@@ -342,5 +393,7 @@ namespace OPS.Imaging
             int col = (int)MathE.Clamp(x, 0, this.Width - 1);
             return this[b, row, col];
         }
+
+
     }
 }
