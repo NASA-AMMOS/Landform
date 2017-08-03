@@ -57,7 +57,10 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Geometry\BarycentricPoint.cs" />
     <Compile Include="Geometry\BoundingBoxExtensions.cs" />
+    <Compile Include="Geometry\OctreeNode.cs" />
+    <Compile Include="Geometry\Octree.cs" />
     <Compile Include="Geometry\Face.cs" />
     <Compile Include="Geometry\EpipolarTransform.cs" />
     <Compile Include="Geometry\Mesh.cs" />
