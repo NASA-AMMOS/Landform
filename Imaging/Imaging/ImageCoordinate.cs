@@ -14,15 +14,15 @@ namespace OPS.Imaging
         /// <summary>
         /// Band
         /// </summary>
-        public int b;
+        public int Band;
         /// <summary>
         /// Row
         /// </summary>
-        public int r;
+        public int Row;
         /// <summary>
         /// Column
         /// </summary>
-        public int c;
+        public int Col;
         
         /// <summary>
         /// 
@@ -32,9 +32,9 @@ namespace OPS.Imaging
         /// <param name="c">Column</param>
         public ImageCoordinate(int b, int r, int c)
         {
-            this.b = b;
-            this.r = r;
-            this.c = c;
+            this.Band = b;
+            this.Row = r;
+            this.Col = c;
         }
     }
 }

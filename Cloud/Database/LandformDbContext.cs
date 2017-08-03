@@ -1,4 +1,5 @@
 ﻿//using OPS.Cloud.Migrations;
+using MySql.Data.Entity;
 using System;
 using System.Collections.Generic;
 using System.Data.Entity;
@@ -11,6 +12,7 @@ namespace OPS.Cloud
     /// <summary>
     /// Entity Framework context object for the landform database
     /// </summary>
+    [DbConfigurationType(typeof(MySqlEFConfiguration))]
     public class LandformDbContext : DbContext
     {
         public DbSet<Project> Projects { get; set; }

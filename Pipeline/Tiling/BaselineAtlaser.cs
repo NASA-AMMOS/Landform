@@ -53,7 +53,7 @@ namespace OPS.Pipeline
                 double range;
                 Vector2 pixel = this.image.CameraModel.Backproject(cameraFramePoint, out range);
                 // Remove this vertex if it is outside the field of view of the camera
-                if (pixel.X < 0 || pixel.X >= this.image.Width || pixel.Y < 0 || pixel.Y >= this.image.Height)
+                if (pixel.X < 0 || pixel.X > (this.image.Width - 1) || pixel.Y < 0 || pixel.Y > (this.image.Height - 1))
                 {
                     verticesToRemove.Add(v);
                 }
@@ -70,7 +70,7 @@ namespace OPS.Pipeline
                 }
             });
             // Remove any verts that were outside our field of view
-            result.RemoveVertices(verticesToRemove.ToList());
+            result.RemoveVertices(verticesToRemove);
             return result;
         }
     }

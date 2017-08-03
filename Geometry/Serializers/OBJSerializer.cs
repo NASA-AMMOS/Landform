@@ -98,12 +98,12 @@ namespace OPS.Geometry
             List<OBJFace> objFaces = new List<OBJFace>(capacity);     
             using (StreamReader sr = new StreamReader(filename))
             {
-                String line = sr.ReadLine();
+                String line = sr.ReadLine();                
                 while (line != null)
                 {
+                    string[] parts = line.Split().Where(s => s.Length != 0).ToArray();
                     if (line.StartsWith("v "))
-                    {
-                        string[] parts = line.Split();
+                    {                        
                         vertices.Add(new Vector3(double.Parse(parts[1]), double.Parse(parts[2]), double.Parse(parts[3])));
                         // obj doesn't offically support vertex colors but some tools pack them after the xyz component in 
                         if(parts.Length >= 7)
@@ -113,18 +113,15 @@ namespace OPS.Geometry
                     }
                     else if (line.StartsWith("vt"))
                     {
-                        string[] parts = line.Split();
                         uvs.Add(new Vector2(double.Parse(parts[1]), double.Parse(parts[2])));
                     }
                     else if (line.StartsWith("vn"))
                     {
-                        string[] parts = line.Split();
                         normals.Add(new Vector3(double.Parse(parts[1]), double.Parse(parts[2]), double.Parse(parts[3])));
                     }
                     else if (line.StartsWith("f"))
                     {
                         OBJFace f = new OBJFace();
-                        string[] parts = line.Split();
                         for (int i = 1; i < 4; i++)
                         {
                             string[] pointParts = parts[i].Split('/');

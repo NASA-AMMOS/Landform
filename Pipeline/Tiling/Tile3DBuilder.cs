@@ -78,7 +78,7 @@ namespace OPS.Pipeline
         /// <returns></returns>
         Tile3D.Tile SceneNodeToTile(SceneNode node, NodeToRelativeUrl nodeToUrl)
         {
-            Tile3D.Tile tile = new Tile3D.Tile(node.Bounds, 0);
+            Tile3D.Tile tile = new Tile3D.Tile(node.Bounds);
             tile.refine = Tile3D.RefineMode.replace;
             if(node.GetComponent<MeshImagePair>() != null)
             {

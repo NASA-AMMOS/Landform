@@ -185,7 +185,7 @@ namespace ImageTest
             Image img = new Image(2, 4, 7);
             foreach (ImageCoordinate ic in img.Coordinates(true))
             {
-                img[ic.b, ic.r, ic.c] = ic.b * 100 + ic.r * 10 + ic.c;
+                img[ic.Band, ic.Row, ic.Col] = ic.Band * 100 + ic.Row * 10 + ic.Col;
             }
             Image crop = img.Crop(1, 2, 2, 3);
             Assert.AreEqual(2, img.Bands);
@@ -193,8 +193,8 @@ namespace ImageTest
             Assert.AreEqual(3, crop.Height);
             foreach (ImageCoordinate ic in crop.Coordinates(true))
             {
-                int value = (ic.b) * 100 + (ic.r + 1) * 10 + (ic.c + 2);
-                Assert.AreEqual(value, crop[ic.b, ic.r, ic.c]);
+                int value = (ic.Band) * 100 + (ic.Row + 1) * 10 + (ic.Col + 2);
+                Assert.AreEqual(value, crop[ic.Band, ic.Row, ic.Col]);
             }
         }
 

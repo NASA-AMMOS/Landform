@@ -126,7 +126,7 @@ namespace GeometryThirdpartyTest
         {
             {
                 Mesh m = TestMeshCreator.CreateMesh(true, true, true);
-                Mesh r = MeshLab.ResampleDeimation(m, 2000, 2000);
+                Mesh r = MeshLab.ResampleDecimation(m, 2000, 2000);
                 Assert.IsTrue(m.Bounds().FuzzyContains(r.Bounds(), 0.01));
                 Assert.IsTrue(r.HasNormals);
                 Assert.IsFalse(r.HasUVs);
@@ -138,7 +138,7 @@ namespace GeometryThirdpartyTest
             }
             {
                 Mesh m = TestMeshCreator.CreateMesh(false, false, false);
-                Mesh r = MeshLab.ResampleDeimation(m, 1000, 1000);
+                Mesh r = MeshLab.ResampleDecimation(m, 1000, 1000);
                 Assert.IsTrue(m.Bounds().FuzzyContains(r.Bounds(), 0.01));
                 Assert.IsFalse(r.HasNormals);
                 Assert.IsFalse(r.HasUVs);
@@ -154,7 +154,7 @@ namespace GeometryThirdpartyTest
         {
             {
                 Mesh m = TestMeshCreator.CreateMesh(true, false, false);
-                Mesh r = MeshLab.ResampleDeimation(m, 2000, 2000);
+                Mesh r = MeshLab.ResampleDecimation(m, 2000, 2000);
                 HausdorffDistance distA = MeshLab.BidirectionalHausdorffDistance(m, r);
                 HausdorffDistance distB = MeshLab.BidirectionalHausdorffDistance(r, m);
                 Assert.AreEqual(distA.Max, distB.Max);

@@ -393,7 +393,7 @@ namespace OPS.Imaging
         /// Returns a coordinate for each pixel in the image and for each band
         /// </summary>
         /// <returns></returns>
-        public IEnumerable<ImageCoordinate> Coordinates(bool inlcudeMaskedValues)
+        public IEnumerable<ImageCoordinate> Coordinates(bool includeInvalidValues)
         {
             for (int b = 0; b < this.Bands; b++)
             {
@@ -401,7 +401,7 @@ namespace OPS.Imaging
                 {
                     for (int c = 0; c < this.Width; c++)
                     {
-                        if (inlcudeMaskedValues || !IsInvalid(r, c))
+                        if (includeInvalidValues || IsValid(r, c))
                         {
                             yield return new ImageCoordinate(b, r, c);
                         }
@@ -463,7 +463,7 @@ namespace OPS.Imaging
         /// </summary>
         /// <param name="uvBounds"></param>
         /// <returns></returns>
-        public BoundingBox UVBoundsToPixel(BoundingBox uvBounds)
+        public BoundingBox UVToPixel(BoundingBox uvBounds)
         {
             BoundingBox pixelBounds = new BoundingBox();
             // Swap max and min because UV corrdintes flip the vertical component
@@ -478,7 +478,7 @@ namespace OPS.Imaging
         /// </summary>
         /// <param name="pixelBounds"></param>
         /// <returns></returns>
-        public BoundingBox PixelBoundsToUV(BoundingBox pixelBounds)
+        public BoundingBox PixelToUv(BoundingBox pixelBounds)
         {
             BoundingBox uvBounds = new BoundingBox();
             // Swap max and min because UV corrdintes flip the vertical component

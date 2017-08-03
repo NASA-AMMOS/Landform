@@ -52,13 +52,13 @@ namespace ImagingTest
             Image other = Image.Load("pds_write_byte.IMG");
             foreach(ImageCoordinate coord in img.Coordinates(false))
             {
-                AssertE.AreSimilar(img[coord.b, coord.r, coord.c], other[coord.b, coord.r, coord.c], 1E-2);
+                AssertE.AreSimilar(img[coord.Band, coord.Row, coord.Col], other[coord.Band, coord.Row, coord.Col], 1E-2);
             }
             img.Save<ushort>("pds_write_ushort.IMG");
             other = Image.Load("pds_write_ushort.IMG");
             foreach (ImageCoordinate coord in img.Coordinates(false))
             {
-                AssertE.AreSimilar(img[coord.b, coord.r, coord.c], other[coord.b, coord.r, coord.c], 1E-3);
+                AssertE.AreSimilar(img[coord.Band, coord.Row, coord.Col], other[coord.Band, coord.Row, coord.Col], 1E-3);
             }
         }
     }

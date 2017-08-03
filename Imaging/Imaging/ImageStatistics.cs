@@ -28,7 +28,7 @@ namespace OPS.Imaging
             }
             foreach(var coord in image.Coordinates(false))
             {
-                bandAverages[coord.b].Push(image[coord.b, coord.r, coord.c]);
+                bandAverages[coord.Band].Push(image[coord.Band, coord.Row, coord.Col]);
             }
         }
 

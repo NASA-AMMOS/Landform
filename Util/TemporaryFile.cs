@@ -1,4 +1,5 @@
-﻿using System;
+﻿using log4net;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -13,7 +14,21 @@ namespace OPS.Util
         static string tmpDirectory = "tmp";
         public delegate void FilenameDelegate(string s);
         public delegate void MultipleFilenameDelegate(string[] s);
-        
+
+        private static readonly ILog logger = LogManager.GetLogger(typeof(TemporaryFile));
+        const string TEMP_ENVIRONMENT_VAR_NAME = "LANDFORM_TEMP";
+
+        static TemporaryFile()
+        {
+            string tmpLocation = Environment.GetEnvironmentVariable(TEMP_ENVIRONMENT_VAR_NAME);
+            if (tmpLocation != null)
+            {
+                logger.Info("Temporary directory specified by environmental variable");
+                logger.Info(TEMP_ENVIRONMENT_VAR_NAME + "=" + tmpLocation);
+                TemporaryDirectory = tmpLocation;
+            }
+        }
+
         /// <summary>
         /// Sets the temporary directory.  If relative it will be set in respect to the current working directory
         /// </summary>

@@ -14,7 +14,7 @@ using log4net;
 
 namespace OPS.Pipeline
 {
-    [Verb("convertbaselinemesh", HelpText = "Converts a basline mesh in open inventor format into obj or ply")]
+    [Verb("convertbaselinemesh", HelpText = "Converts a baseline mesh in open inventor format into obj or ply")]
     public class ConvertBaselineMeshOptions
     {
         [Value(0, Required = true, HelpText = "Filename of baseline mesh")]
@@ -32,7 +32,7 @@ namespace OPS.Pipeline
         [Option(HelpText = "Image output filename")]
         public string OutputImage { get; set; }
 
-        [Option(HelpText = "Convert this mesh to unity frame.  Requires an input image with metadat for site drive coordinate conversion", Default = false)]
+        [Option(HelpText = "Convert this mesh to unity frame.  Requires an input image with metadata for site drive coordinate conversion", Default = false)]
         public bool UseUnityFrame { get; set; }
 
         [Option(HelpText = "Decimate mesh to reduce number of faces by this ratio.  Default of 1 means no decimation", Default = 1)]
@@ -75,7 +75,7 @@ namespace OPS.Pipeline
             m.Clean();
             if (!m.HasNormals)
             {
-                logger.Info("Computing nomrals");
+                logger.Info("Computing normals");
                 m = MeshLab.ComputeNormals(m);
                 m.Clean();
             }           

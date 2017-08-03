@@ -336,9 +336,10 @@ namespace OPS.Pipeline
                 children = new List<Tile>();
             }
 
-            public Tile(BoundingBox bounds, double geometricError)
+            public Tile(BoundingBox bounds, double geometricError = 0)
             {
                 boundingVolume = new BoundingVolume();
+                this.geometricError = geometricError;
                 children = new List<Tile>();
                 this.boundingVolume.Bounds = bounds;
             }
