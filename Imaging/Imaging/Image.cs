@@ -134,6 +134,17 @@ namespace OPS.Imaging
         }
 
         /// <summary>
+        /// Given an image with a mask, extend the image and the mask by border pixels
+        /// If border is negative (the default) continue inpainting until there are no
+        /// masked pixels left.  Inpainted pixels are an average of their non-masked neighbors
+        /// </summary>
+        /// <param name="border"></param>
+        public void Inpaint(int border = -1)
+        {
+            Inpainter.Apply(this, border);
+        }
+
+        /// <summary>
         /// Performs a deep copy of the image and all associated objects
         /// </summary>
         /// <returns></returns>
@@ -342,5 +353,7 @@ namespace OPS.Imaging
             int col = (int)MathE.Clamp(x, 0, this.Width - 1);
             return this[b, row, col];
         }
+
+
     }
 }

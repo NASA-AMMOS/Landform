@@ -91,8 +91,7 @@ namespace OPS.Pipeline
             }
 
             // in paint
-            InPainter.InPaint(destImage, padWidth);
-
+            destImage.Inpaint(padWidth);
             return destImage;
         } 
     }

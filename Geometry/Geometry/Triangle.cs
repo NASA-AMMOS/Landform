@@ -85,7 +85,7 @@ namespace OPS.Geometry
         }
 
         /// <summary>
-        /// 
+        /// Returns a uv bounding box for this triangle
         /// </summary>
         /// <returns></returns>
         public BoundingBox UVBounds()
@@ -195,16 +195,24 @@ namespace OPS.Geometry
             }
         }
         
-
+        /// <summary>
+        /// Returns the squared distance between p and the the nearest point on this triangle 
+        /// </summary>
+        /// <param name="p"></param>
+        /// <returns></returns>
         public double SquaredDistance(Vector3 p)
         {
             BarycentricPoint closestPoint = ClosestPoint(p);
             return Vector3.DistanceSquared(p, closestPoint.Position);
         }
 
-        // from https://www.geometrictools.com/Documentation/DistancePoint3Triangle3.pdf
-        // matlab implementation at http://www.mathworks.com/matlabcentral/fileexchange/22857-distance-between-a-point-and-a-triangle-in-3d
-        // get the closest point on the triangle to p
+        /// <summary>
+        /// Get the closest point on the triangle to p
+        /// from https://www.geometrictools.com/Documentation/DistancePoint3Triangle3.pdf
+        /// matlab implementation at http://www.mathworks.com/matlabcentral/fileexchange/22857-distance-between-a-point-and-a-triangle-in-3d 
+        /// </summary>
+        /// <param name="P"></param>
+        /// <returns></returns>
         public BarycentricPoint ClosestPoint(Vector3 P)
         {
             //Points on triangle can be parameterized in 2d as T(s, t) = B + s(E_0) + t(E_1), for s, t >= 0 and s + t <= 1

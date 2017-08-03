@@ -15,7 +15,7 @@ namespace OPS.Geometry
     /// </summary>
     public class BarycentricPoint
     {
-        bool isST;
+        bool isST; // Was this created using ST or b0,b1,b2
 
         double s; // normalized along V0 -> V1
         double t; // normalized along V0 -> V2
@@ -26,6 +26,12 @@ namespace OPS.Geometry
 
         public Triangle tri;
 
+        /// <summary>
+        /// Create a new point
+        /// </summary>
+        /// <param name="s">Ratio along V0->V1 between 0-1</param>
+        /// <param name="t">Ratio along V0->V2 between 0-1</param>
+        /// <param name="tri"></param>
         public BarycentricPoint(double s, double t, Triangle tri)
         {
             this.isST = true;
@@ -34,6 +40,13 @@ namespace OPS.Geometry
             this.tri = tri;
         }
 
+        /// <summary>
+        /// Create a new point using area barycentric coordinates
+        /// </summary>
+        /// <param name="b0">V0 normalzied 0-1</param>
+        /// <param name="b1">V1 normalzied 0-1</param>
+        /// <param name="b2">V2 normalzied 0-1</param>
+        /// <param name="tri"></param>
         public BarycentricPoint(double b0, double b1, double b2, Triangle tri)
         {
             this.isST = false;

@@ -166,6 +166,10 @@ namespace OPS.Geometry
             return new BoundingBox(this.Position, this.Position);
         }
 
+        /// <summary>
+        /// Get a bounding box of zero size representing this vertex's uv
+        /// </summary>
+        /// <returns></returns>
         public BoundingBox UVBounds()
         {
             var uv3 = new Vector3(UV.X, UV.Y, 0);

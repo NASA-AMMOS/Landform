@@ -7,10 +7,10 @@ using System.Threading.Tasks;
 using OPS.Imaging;
 using Microsoft.Xna.Framework;
 
-namespace OPS.Pipeline
+namespace OPS.Imaging
 {
 
-    public static class InPainter
+    static class Inpainter
     {
         /// <summary>
         /// Return trues if at least one of 4 neighbors of position (r, c) in image is unmasked
@@ -101,8 +101,12 @@ namespace OPS.Pipeline
             writeImage.SetBandValues(r, c, average);
         }
 
-        public static void InPaint(Image image, int padWidth = -1)
+        public static void Apply(Image image, int padWidth = -1)
         {
+            if(!image.HasMask)
+            {
+                throw new ImageException("Image must have a mask in order to inpaint");
+            }
             // in paint set up:
             //   create copy of image
             //   add "edge points" to the mask of image, and store them in a new list
