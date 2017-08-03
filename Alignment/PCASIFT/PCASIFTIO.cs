@@ -19,7 +19,7 @@ namespace OPS.Alignment
     /// </summary>
     public class PCASIFTIO
     {
-        public void WriteSIFTFeatures(Image image, string filename, Image mask = null, int numFeatures = 0, int octaveLayers = 3, float contrastThreshold = 0.04f, float edgeThreshold = 10f, float sigma = 1.6f)
+        public static void WriteSIFTFeatures(Image image, string filename, Image mask = null, int numFeatures = 0, int octaveLayers = 3, float contrastThreshold = 0.04f, float edgeThreshold = 10f, float sigma = 1.6f)
         {
             Emgu.CV.XFeatures2D.SIFT sift = new Emgu.CV.XFeatures2D.SIFT(numFeatures, octaveLayers, contrastThreshold, edgeThreshold, sigma);
             var emguImg = image.ToEmguGrayscale();

@@ -15,7 +15,7 @@ namespace OPS.Alignment
     /// </summary>
     public class MatchImage
     {
-        public static void WriteMatchImage(ImagePairCorrespondence matches, string outFile)
+        public static void WriteMatchImage(ImagePairCorrespondence matches, string outFile, string time = null)
         {
             Imaging.Image model = matches.ModelImage.Image;
             Imaging.Image data = matches.DataImage.Image;
@@ -45,7 +45,7 @@ namespace OPS.Alignment
             mask.SetValue(255);
             int nonZero = feat1.Length;
 
-            Image<Bgr, byte> result = CreateMatchImage(kp0, kp1, modelImage, dataImage, matchVector, mask, nonZero);
+            Image<Bgr, byte> result = CreateMatchImage(kp0, kp1, modelImage, dataImage, matchVector, mask, nonZero, time);
             result.Save(outFile);
         }
 
@@ -79,7 +79,7 @@ namespace OPS.Alignment
             return res;
         }
 
-        private static Image<Bgr, byte> CreateMatchImage(VectorOfKeyPoint kp0, VectorOfKeyPoint kp1, Image<Gray, byte> modelImage, Image<Gray, byte> dataImage, VectorOfVectorOfDMatch matches, Matrix<byte> mask, int nonZero)
+        private static Image<Bgr, byte> CreateMatchImage(VectorOfKeyPoint kp0, VectorOfKeyPoint kp1, Image<Gray, byte> modelImage, Image<Gray, byte> dataImage, VectorOfVectorOfDMatch matches, Matrix<byte> mask, int nonZero, string time = null)
         {
             int i;
 
@@ -113,6 +113,12 @@ namespace OPS.Alignment
 
             result.Draw(new Rectangle(0, 0, 490, 70), new Bgr(255, 50, 50), -1);
             result.Draw("matches: " + kp0.Size, new Point(5, 55), Emgu.CV.CvEnum.FontFace.HersheySimplex, 2, new Bgr(255, 255, 255), 2);
+
+            if (time != null)
+            {
+                result.Draw(new Rectangle(0, 70, 490, 70), new Bgr(255, 50, 50), -1);
+                result.Draw("time: " + time, new Point(5, 125), Emgu.CV.CvEnum.FontFace.HersheySimplex, 2, new Bgr(255, 255, 255), 2);
+            }
 
             return result;
         }

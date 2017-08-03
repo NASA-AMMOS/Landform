@@ -111,6 +111,8 @@ namespace OPS.Pipeline
         void DetectAndMatch(Imaging.Image model, Imaging.Image data, string gpcafile, string outputFile)
         {
             logger.Info("Matching images with PCA-SIFT...");
+            Stopwatch watch = new Stopwatch();
+            watch.Start();
             List<PCASIFTFeature> featuresA = new PCASIFTDetector().Detect(model, null).Cast<PCASIFTFeature>().ToList();
             List<PCASIFTFeature> featuresB = new PCASIFTDetector().Detect(data, null).Cast<PCASIFTFeature>().ToList();
             PCAKeypointProjector projector = new PCAKeypointProjector(gpcafile, false);
@@ -137,7 +139,7 @@ namespace OPS.Pipeline
 
             MoisanStivalFilter filter = new MoisanStivalFilter();
             matches = filter.Filter(matches);
-            if(matches == null)
+            if (matches == null)
             {
                 logger.Info("No matches found after MoisanStivalFilter");
                 return;
@@ -149,7 +151,9 @@ namespace OPS.Pipeline
                 logger.Info("No matches found after GTM Filter");
                 return;
             }
-            MatchImage.WriteMatchImage(matches, outputFile);
+
+            watch.Stop();
+            MatchImage.WriteMatchImage(matches, outputFile, watch.ElapsedMilliseconds.ToString());
             logger.Info(string.Format("Matched images written to {0}", outputFile));
         }
 
