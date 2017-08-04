@@ -98,7 +98,7 @@ namespace OPS.Imaging
         /// <summary>
         /// Creates a mask for this image and sets all pixels to the initial value specifed
         /// </summary>
-        /// <param name="initialValue"></param>
+        /// <param name="initialValue">false means all pixels will be valid at the end of initilization</param>
         public void CreateMask(bool initialValue = false)
         {
             this.Mask = new bool[Width * Height];
@@ -109,6 +109,14 @@ namespace OPS.Imaging
                     this.Mask[i] = initialValue;
                 }
             }
+        }
+
+        /// <summary>
+        /// Removes the mask if there is one
+        /// </summary>
+        public void DeleteMask()
+        {
+            this.Mask = null;
         }
 
         /// <summary>
