@@ -25,10 +25,17 @@ namespace OPS.RayTrace
         public readonly Vector3 Position;
 
         /// <summary>
-        /// Normal at intersection as defined by vertices not normals on the mesh
+        /// Normal of face intersected as defined by vertex position and winding order
         /// Normal is in world coordinates
         /// </summary>
-        public readonly Vector3 Normal;
+        public readonly Vector3 FaceNormal;
+
+        /// <summary>
+        /// Normal at intersection point as interpolated between vertex normals
+        /// Null if the mesh hit does not specify vertex normals
+        /// Normal is in world coordinates
+        /// </summary>
+        public readonly Vector3? PointNormal;
 
         /// <summary>
         /// UV at intersection point.  This is set only if the collision mesh had UVs
@@ -45,11 +52,12 @@ namespace OPS.RayTrace
         /// </summary>
         public readonly Image Texture;
 
-        public HitData(Vector3 position, Vector3 normal, Vector2? uv, Mesh mesh, Image texture, double distance)
+        public HitData(Vector3 position, Vector3 geometryNormal, Vector3? meshNormal, Vector2? uv, Mesh mesh, Image texture, double distance)
         {
             this.Distance = distance;
             this.Position = position;
-            this.Normal = normal;
+            this.FaceNormal = geometryNormal;
+            this.PointNormal = meshNormal;
             this.UV = uv;
             this.mesh = mesh;
             this.Texture = texture;
