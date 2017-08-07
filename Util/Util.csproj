@@ -49,6 +49,7 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Config.cs" />
     <Compile Include="JsonHelper.cs" />
     <Compile Include="PathHelper.cs" />
     <Compile Include="ProgramRunner.cs" />

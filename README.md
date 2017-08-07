@@ -2,11 +2,15 @@
 Terrain Pipeline - The Next Generation
 
 # Environment Variables
-| Name | Description | Default |
-|------|-------------|---------|
-| LANDFORM_MESHLAB_DIR | Location of MeshLab 2016 | C:\Program Files\VCG\MeshLab |
+| Name |  Description | Default |
+|------|------------|---------|
+| LANDFORM_MESHLAB_DIR | | Location of MeshLab 2016 | C:\Program Files\VCG\MeshLab |
 | LANDFORM_TEMP | Override temporary file location | CWD\tmp |
-
+| LANDFORM_DATABASE_SERVER (database.json: Server)| | 
+| LANDFORM_DATABASE_PORT (database.json: Port) |  | 
+| LANDFORM_DATABASE_NAME ( database.json: DatabaseName )|| 
+| LANDFORM_DATABASE_USER (database.json: Username )| | 
+| LANDFORM_DATABASE_PASS (database.json: Password)|  | 
 
 # Dependencies
 
