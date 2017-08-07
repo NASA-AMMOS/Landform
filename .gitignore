@@ -50,5 +50,6 @@ CloudTest/bin/
 CloudTest/obj/
 MathExtensionsTest/bin/
 MathExtensionsTest/obj/
+out/
 AlignmentTest/bin/
 AlignmentTest/obj/
