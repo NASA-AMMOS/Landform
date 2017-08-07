@@ -211,6 +211,11 @@ namespace OPS.Imaging
             return result;
         }
 
+        public void SimulateGuassianBlur(int r)
+        {
+            Blur.SimulateGuassian(this, r); 
+        }
+
         public float BilinearSample(int band, float row, float col)
         {
             int irow, icol;

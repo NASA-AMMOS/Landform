@@ -76,6 +76,7 @@
     <Compile Include="Imaging\ImageMetadata.cs" />
     <Compile Include="Imaging\ImageStatistics.cs" />
     <Compile Include="Imaging\ImageRef.cs" />
+    <Compile Include="Imaging\Operations\Blur.cs" />
     <Compile Include="Imaging\Operations\Inpainter.cs" />
     <Compile Include="Imaging\PDSCameraModelParser.cs" />
     <Compile Include="Imaging\PDSMetadata.cs" />

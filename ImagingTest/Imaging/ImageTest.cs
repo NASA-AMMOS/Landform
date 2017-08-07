@@ -208,5 +208,16 @@ namespace ImageTest
             Image bigger = img.ResizeSimpleBicubic(1200, 1401);
             bigger.Save<byte>("testPatternBigger.png");
         }
+
+
+        [TestMethod]
+        [DeploymentItem("TestData", "TestData")]
+        public void TestImageBlur()
+        {
+            Image img = Image.Load(Path.Combine("TestData", "img", "testPattern.png"));
+            img.CreateMask(true);
+            img.SimulateGuassianBlur(10);
+            img.Save<byte>(@"E:\Repos\Pipeline\TestResults\testPatternBlur.png");
+        }
     }
 }
