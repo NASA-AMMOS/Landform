@@ -33,72 +33,34 @@ namespace OPS.Imaging
         }
 
         /// <summary>
-        /// Write average of up to 8 non null neighbor pixels in readImage to position (r, c) in writeImage 
+        /// Write average of up to 8 non null neighbor pixels in readImage to position (r, c) in writeImage. Does NOT modify mask
         /// </summary>
         /// <param name="r"></param>
         /// <param name="c"></param>
-        /// <param name="readImage"></param>
-        /// <param name="writeImage"></param>
-        static void Pad(int r, int c, Image readImage, Image writeImage)
+        /// <param name="image"></param>
+        static void Pad(int r, int c, Image image)
         {
             float num = 0;
-            float[] average = new float[readImage.Bands];
-            for (int b = 0; b < readImage.Bands; b++)
+            float[] average = new float[image.Bands];
+            for (int b = 0; b < image.Bands; b++)
                 average[b] = 0;
-            if (r > 0 && readImage.IsValid(r - 1, c))
+
+            for (int r2 = Math.Max(0, r - 1); r2 <= Math.Min(image.Height - 1, r + 1); r2++)
             {
-                num++;
-                for (int b = 0; b < readImage.Bands; b++)
-                    average[b] += readImage.GetBandValues(r - 1, c)[b];
-            }
-            if (c > 0 && readImage.IsValid(r, c - 1))
-            {
-                num++;
-                for (int b = 0; b < readImage.Bands; b++)
-                    average[b] += readImage.GetBandValues(r, c - 1)[b];
-            }
-            if (r < readImage.Height - 1 && readImage.IsValid(r + 1, c))
-            {
-                num++;
-                for (int b = 0; b < readImage.Bands; b++)
-                    average[b] += readImage.GetBandValues(r + 1, c)[b];
-            }
-            if (c < readImage.Width - 1 && readImage.IsValid(r, c + 1))
-            {
-                num++;
-                for (int b = 0; b < readImage.Bands; b++)
-                    average[b] += readImage.GetBandValues(r, c + 1)[b];
+                for (int d2 = Math.Max(0, c - 1); d2 <= Math.Min(image.Width - 1, c + 1); d2++)
+                { 
+                    if (image.IsValid(r2, d2))
+                    {
+                        num++;
+                        for (int b = 0; b < image.Bands; b++)
+                            average[b] += image.GetBandValues(r2, d2)[b];
+                    }
+                }
             }
 
-            if (r > 0 && c > 0 && readImage.IsValid(r - 1, c - 1))
-            {
-                num++;
-                for (int b = 0; b < readImage.Bands; b++)
-                    average[b] += readImage.GetBandValues(r - 1, c - 1)[b];
-            }
-            if (r > 0 && c < readImage.Width - 1 && readImage.IsValid(r - 1, c + 1))
-            {
-                num++;
-                for (int b = 0; b < readImage.Bands; b++)
-                    average[b] += readImage.GetBandValues(r - 1, c + 1)[b];
-            }
-            if (r < readImage.Height - 1 && c > 0 && readImage.IsValid(r + 1, c - 1))
-            {
-                num++;
-                for (int b = 0; b < readImage.Bands; b++)
-                    average[b] += readImage.GetBandValues(r + 1, c - 1)[b];
-            }
-
-            if (r < readImage.Height - 1 && c < readImage.Width - 1 && readImage.IsValid(r + 1, c + 1))
-            {
-                num++;
-                for (int b = 0; b < readImage.Bands; b++)
-                    average[b] += readImage.GetBandValues(r + 1, c + 1)[b];
-            }
-
-            for (int b = 0; b < readImage.Bands; b++)
+            for (int b = 0; b < image.Bands; b++)
                 average[b] /= num;
-            writeImage.SetBandValues(r, c, average);
+            image.SetBandValues(r, c, average);
         }
 
         public static void Apply(Image image, int padWidth = -1)
@@ -108,27 +70,25 @@ namespace OPS.Imaging
                 throw new ImageException("Image must have a mask in order to inpaint");
             }
             // in paint set up:
-            //   create copy of image
             //   add "edge points" to the mask of image, and store them in a new list
-            Image imageCopy = (Image)image.Clone();
+            //Image imageCopy = (Image)image.Clone();
 
             List<Vector2> edgePoints = new List<Vector2>();
-            List<Vector2> newEdgePoints;
+            List<Vector2> newEdgePoints = new List<Vector2>();
 
             for (int r = 0; r < image.Height; r++)
             {
                 for (int c = 0; c < image.Width; c++)
                 {
-                    if (HasNeighbors(r, c, imageCopy) && imageCopy.IsInvalid(r, c))
+                    if (HasNeighbors(r, c, image) && image.IsInvalid(r, c))
                     {
-                        image.SetMaskValue(r, c, false);
                         edgePoints.Add(new Vector2(r, c));
                     }
                 }
             }
-
+      
             // in paint:
-            //   Use copy to populate current edge points in destImage
+            //   Populate current edge points in image
             //   Use edge points to get new list of edge points and continue padding outwards
             for (int i = 0; i != padWidth; i++)
             {
@@ -136,36 +96,44 @@ namespace OPS.Imaging
                     break;
                 foreach (Vector2 edge in edgePoints)
                 {
-                    Pad((int)edge.X, (int)edge.Y, imageCopy, image);
+                    image.SetMaskValue((int)edge.X, (int)edge.Y, true);
                 }
-                imageCopy = (Image)image.Clone();
-                newEdgePoints = new List<Vector2>();
+                foreach (Vector2 edge in edgePoints)
+                {
+                    Pad((int)edge.X, (int)edge.Y, image);
+                }   
+                foreach (Vector2 edge in edgePoints)
+                {
+                    image.SetMaskValue((int)edge.X, (int)edge.Y, false);
+                }
+                newEdgePoints.Clear();
                 foreach (Vector2 edge in edgePoints)
                 {
                     int r = (int)edge.X;
                     int c = (int)edge.Y;
+
                     if (r > 0 && image.IsInvalid(r - 1, c))
                     {
-                        image.SetMaskValue(r - 1, c, false);
                         newEdgePoints.Add(new Vector2(r - 1, c));
+                        image.SetMaskValue(r-1, c, false);
                     }
                     if (c > 0 && image.IsInvalid(r, c - 1))
                     {
-                        image.SetMaskValue(r, c - 1, false);
                         newEdgePoints.Add(new Vector2(r, c - 1));
+                        image.SetMaskValue(r, c-1, false);
                     }
                     if (r < image.Height - 1 && image.IsInvalid(r + 1, c))
                     {
-                        image.SetMaskValue(r + 1, c, false);
                         newEdgePoints.Add(new Vector2(r + 1, c));
+                        image.SetMaskValue(r+1, c, false);
                     }
                     if (c < image.Width - 1 && image.IsInvalid(r, c + 1))
                     {
-                        image.SetMaskValue(r, c + 1, false);
                         newEdgePoints.Add(new Vector2(r, c + 1));
+                        image.SetMaskValue(r, c+1, false);
                     }
                 }
-                edgePoints = newEdgePoints;
+                edgePoints = newEdgePoints.ToList();
             }
         }
     }
