@@ -8,7 +8,7 @@ namespace OPS.Imaging
 {
     class Blur
     {
-        static public void SimulateGuassian(Image img, int r)
+        static public void GuassianBoxBlur(Image img, int r)
         {
             int[] boxes = BoxesForGauss(r, 3);
             Image tmp = new Image(img.Bands, img.Width, img.Height);
@@ -98,7 +98,7 @@ namespace OPS.Imaging
                 }
             }
             // Next compute the total blur by bluring vertically
-            for(int col = 0; col < src.Width; col++)
+            for (int col = 0; col < src.Width; col++)
             {
                 double[] curSum = new double[src.Bands];
                 int curCount = 0;
