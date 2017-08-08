@@ -10,6 +10,9 @@ namespace OPS.Imaging
     {
         /// <summary>
         /// Simulates a guassian blur using 3 box blurs
+        /// Reference:
+        /// http://blog.ivank.net/fastest-gaussian-blur.html
+        /// http://elynxsdk.free.fr/ext-docs/Blur/Fast_box_blur.pdf
         /// </summary>
         /// <param name="img">image to blur</param>
         /// <param name="r">radius of blur</param>
