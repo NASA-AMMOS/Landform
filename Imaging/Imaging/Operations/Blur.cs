@@ -8,6 +8,11 @@ namespace OPS.Imaging
 {
     class Blur
     {
+        /// <summary>
+        /// Simulates a guassian blur using 3 box blurs
+        /// </summary>
+        /// <param name="img">image to blur</param>
+        /// <param name="r">radius of blur</param>
         static public void GuassianBoxBlur(Image img, int r)
         {
             int[] boxes = BoxesForGauss(r, 3);
@@ -17,6 +22,12 @@ namespace OPS.Imaging
             BoxBlur(img, tmp, (boxes[2] - 1) / 2);
         }
 
+        /// <summary>
+        /// Computes a set of radius parameters to use in a box blur to simulate a guassian blur
+        /// </summary>
+        /// <param name="sigma"></param>
+        /// <param name="n"></param>
+        /// <returns></returns>
         static int[] BoxesForGauss(double sigma, int n)  // standard deviation, number of boxes
         {
             var wIdeal = Math.Sqrt((12 * sigma * sigma / n) + 1);  // Ideal averaging filter width 
@@ -29,8 +40,6 @@ namespace OPS.Imaging
 
             var mIdeal = (12 * sigma * sigma - n * wl * wl - 4 * n * wl - 3 * n) / (-4 * wl - 4);
             int m = (int)Math.Round(mIdeal);
-            // var sigmaActual = Math.sqrt( (m*wl*wl + (n-m)*wu*wu - n)/12 );
-
             int[] sizes = new int[n];
             for (var i = 0; i < n; i++)
             {
@@ -39,6 +48,13 @@ namespace OPS.Imaging
             return sizes;
         }
 
+        /// <summary>
+        /// Performs a box blur of radius r on the src image
+        /// Takes a tmp image of the same dimensions as src
+        /// </summary>
+        /// <param name="src">The image to blur</param>
+        /// <param name="tmp">Temporary image same size as src used to store intermediate computations</param>
+        /// <param name="r">radius of blur</param>
         static void BoxBlur(Image src, Image tmp, int r)
         {
             // First compute the horizontal blur 
@@ -86,7 +102,8 @@ namespace OPS.Imaging
                     // Set tmp to the average
                     for (int b = 0; b < src.Bands; b++)
                     {
-                        if (curCount > 0)
+                        // Don't change this pixel if it is masked out or if we had zero values to include in the average
+                        if (curCount > 0 && src.IsValid(row, col))
                         {
                             tmp[b, row, col] = (float)(curSum[b] / curCount);
                         }
@@ -140,10 +157,10 @@ namespace OPS.Imaging
                         curCount++;
                     }
                     // Set src to the average.  We write back to the source
-
+                    // Don't modify the value if this pixel is masked out or if we didn't have any valid values in the average
                     for (int b = 0; b < src.Bands; b++)
                     {
-                        if (curCount > 0)
+                        if (curCount > 0 && src.IsValid(row, col))
                         {
                             src[b, row, col] = (float)(curSum[b] / curCount);
                         }
