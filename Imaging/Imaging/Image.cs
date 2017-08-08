@@ -215,6 +215,10 @@ namespace OPS.Imaging
         {
             Blur.GuassianBoxBlur(this, r); 
         }
+
+        public void GuassianBlur(int r)
+        {
+            Blur.GuassianBlur(this, r);
         }
 
         public float BilinearSample(int band, float row, float col)

@@ -156,5 +156,61 @@ namespace OPS.Imaging
             }
 
         }
+
+        static public void GuassianBlur(Image img, int radius)
+        {
+            // Make a copy to read from while we write back to img
+            Image tmp = (Image)img.Clone();
+            int n = radius * 2 + 1;
+            double sigma = 20;// 0.3 * (n / 2 - 1) + 0.8;
+            double[,] kernel = new double[n, n];
+
+            double scalar = 1 / (2 * Math.PI * sigma * sigma);
+            for (int x = 0; x < n; x++)
+            {
+                double xTop = x - radius;
+                for (int y = 0; y < n; y++)
+                {
+                    double yTop = y - radius;
+                    double co = scalar * Math.Pow(Math.E, -(xTop * xTop + yTop * yTop) / (2 * sigma * sigma));
+                    kernel[x, y] = co;
+                }
+            }
+            for (int row = 0; row < img.Height; row++)
+            {
+                for (int col = 0; col < img.Width; col++)
+                {
+                    double totalWeight = 0;
+                    double[] weightedSum = new double[img.Bands];
+                    for(int r = 0;  r < n; r++)
+                    {
+                        for (int c = 0; c < n; c++)
+                        {
+                            int curRow = row - radius + r;
+                            int curCol = col - radius + c;
+                            if(curRow < 0 || curRow >= img.Height || curCol < 0 || curCol >= img.Width || img.IsInvalid(curRow, curCol))
+                            {
+                                continue;
+                            }
+                            double co = kernel[r, c];
+                            totalWeight += co;
+                            for (int b = 0; b < img.Bands; b++)
+                            {
+                                weightedSum[b] += tmp[b, curRow, curCol] * co;
+                            }
+                        }
+                    }
+                    if (totalWeight != 0)
+                    {
+                        double normalizeRatio = 1 / totalWeight;
+                        for (int b = 0; b < img.Bands; b++)
+                        {
+                            img[b, row, col] = (float)(weightedSum[b] * normalizeRatio);
+                        }
+                    }
+                }
+            }
+
+        }
     }
 }
