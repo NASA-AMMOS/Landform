@@ -1,0 +1,16 @@
+<?xml version="1.0"?>
+<package >
+  <metadata>
+    <id>JPL.Landform</id>
+    <version>$version$-alpha</version>
+    <title>$title$</title>
+    <authors>Alexander Menzies, Charley Goddard</authors>
+    <owners>Alexander Menzies</owners>
+    <projectUrl>https://github.jpl.nasa.gov/OnSight/Pipeline</projectUrl>
+    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+    <description>JPL Landform Photogrammetry Pipeline</description>
+    <releaseNotes></releaseNotes>
+    <copyright>Copyright 2017</copyright>
+    <tags>mesh image pipeline landform</tags>
+  </metadata>
+</package>

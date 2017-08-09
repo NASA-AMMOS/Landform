@@ -26,7 +26,8 @@ namespace OPS.Geometry
         /// </summary>
         RTree<Triangle> faceTree;
         RTree<Vertex> vertexTree;
-    
+        RTree<Triangle> uvFaceTree;
+
         bool hasUVs;
         bool hasNormals;
         bool hasColors;
@@ -48,6 +49,7 @@ namespace OPS.Geometry
         {
             faceTree = new RTree<Triangle>(10, 5);
             vertexTree = new RTree<Vertex>(10, 5);
+            uvFaceTree = new RTree<Triangle>(10, 5);
 
             hasUVs = mesh.HasUVs;
             hasNormals = mesh.HasNormals;
@@ -60,6 +62,13 @@ namespace OPS.Geometry
             foreach(var v in mesh.Vertices)
             {
                 vertexTree.Add(v.Bounds().ToRectangle(), v);
+            }
+            if(hasUVs)
+            {
+                foreach(var t in triangles)
+                {
+                    uvFaceTree.Add(t.UVBounds().ToRectangle(), t);
+                }
             }
             this.hasFaces = mesh.Faces.Count > 0;
             this.Bounds = mesh.Bounds();
@@ -137,6 +146,33 @@ namespace OPS.Geometry
                 }
             }
             return true;
+        }
+
+        /// <summary>
+        /// Returns the barycentric position in the first face intersected by the point in uv space, null otherwise
+        /// </summary>
+        /// <param name="uv"></param>
+        /// <returns></returns>
+        public BarycentricPoint UVToBarycentric(Vector2 uv)
+        {
+            // convert the 2d point to bounding box
+            BoundingBox box = new BoundingBox(
+                new Vector3(uv, 0), 
+                new Vector3(uv, 0));
+
+            // get all intersected faces in r tree (based on face bounding boxes)
+            var triangleList = uvFaceTree.Intersects(box.ToRectangle());
+
+            // position returned by attempt to locate uv in r tree triangle
+            BarycentricPoint b;
+
+            // find first actual face that intersects point and return interpolated position, null otherwise
+            foreach (var triangle in triangleList) {
+                b = triangle.UVToBarycentric(uv);
+                if (b != null)
+                    return b;
+            }
+            return null;
         }
     }
 

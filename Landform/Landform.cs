@@ -9,6 +9,7 @@ using OPS.Geometry;
 using OPS.Cloud;
 using OPS.Pipeline;
 using log4net;
+using OPS.Util;
 
 namespace Landform
 {
@@ -22,11 +23,13 @@ namespace Landform
         /// <param name="args"></param>
         /// <returns></returns>
         static int Main(string[] args)
-        {            
+        {
+            Config.ApplicationConfigFolder = ".landform";
             // Enable logging
             log4net.Config.XmlConfigurator.Configure();
             // Register filetype handlers
             new OpenInventorSerializer().Register();
+
             // Parse command line arguments
             int returnCode = Commands.RunFromCommandline(args);
             return returnCode;

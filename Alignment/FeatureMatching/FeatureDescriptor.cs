@@ -46,5 +46,16 @@ namespace OPS.Alignment
         /// Array of descriptor elements.
         /// </summary>
         public T[] Data;
+        public T this[int idx]
+        {
+            get
+            {
+                return Data[idx];
+            }
+            set
+            {
+                Data[idx] = value;
+            }
+        }
     }
 }

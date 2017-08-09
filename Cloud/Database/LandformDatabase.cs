@@ -1,5 +1,6 @@
 ﻿using MySql.Data.Entity;
 using MySql.Data.MySqlClient;
+using OPS.Util;
 using System;
 using System.Collections.Generic;
 using System.Data.Entity;
@@ -23,7 +24,30 @@ namespace OPS.Cloud
     public class LandformDatabase
     {
         string connectionString;
-        
+
+        class DatabaseConfig : Config
+        {
+            [ConfigEnvironmentVariable("LANDFORM_DATABASE_SERVER")]
+            public string Server {get; set;}
+
+            [ConfigEnvironmentVariable("LANDFORM_DATABASE_PORT")]
+            public uint Port { get; set; }
+
+            [ConfigEnvironmentVariable("LANDFORM_DATABASE_NAME")]
+            public string DatabaseName { get; set; }
+
+            [ConfigEnvironmentVariable("LANDFORM_DATABASE_USER")]
+            public string Username { get; set; }
+
+            [ConfigEnvironmentVariable("LANDFORM_DATABASE_PASS")]
+            public string Password { get; set; }
+
+            protected override string ConfigFilename()
+            {
+                return "database";
+            }
+        }
+
         static LandformDatabase()
         {
             DbConfiguration.SetConfiguration(new MySqlEFConfiguration());
@@ -37,7 +61,21 @@ namespace OPS.Cloud
         /// <param name="databaseName">Name of database to connect to</param>
         /// <param name="user">DB username</param>
         /// <param name="password">DB password</param>
-        public LandformDatabase(string server, uint port, string databaseName, string user, string password)
+        public LandformDatabase(string server, uint port, string databaseName, string user, string password)            
+        {
+            SetConnectionString(server, port, databaseName, user, password);
+        }
+
+        /// <summary>
+        /// Create a database using values specified in config file or environment variables
+        /// </summary>
+        public LandformDatabase()
+        {
+            var config = new DatabaseConfig();
+            SetConnectionString(config.Server, config.Port, config.DatabaseName, config.Username, config.Password);
+        }
+
+        void SetConnectionString(string server, uint port, string databaseName, string user, string password)
         {
             MySqlConnectionStringBuilder sqlBuilder = new MySqlConnectionStringBuilder();
             sqlBuilder.Server = server;

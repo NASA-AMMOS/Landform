@@ -20,6 +20,33 @@ namespace OPS.Geometry
             return box.Max - box.Min;
         }
         
+        /// <summary>
+        /// Returns the union of all inputs
+        /// </summary>
+        /// <param name="box"></param>
+        /// <returns></returns>
+        public static BoundingBox Union(List<BoundingBox> boxes)
+        {
+            double minX = double.MaxValue;
+            double minY = double.MaxValue;
+            double minZ = double.MaxValue;
+            double maxX = double.MinValue;
+            double maxY = double.MinValue;
+            double maxZ = double.MinValue;
+
+            for (int i = 0; i < boxes.Count; i++)
+            {
+                minX = Math.Min(minX, boxes[i].Min.X);
+                minY = Math.Min(minY, boxes[i].Min.Y);
+                minZ = Math.Min(minZ, boxes[i].Min.Z);
+                maxX = Math.Max(maxX, boxes[i].Max.X);
+                maxY = Math.Max(maxY, boxes[i].Max.Y);
+                maxZ = Math.Max(maxZ, boxes[i].Max.Z);
+            }
+
+            return new BoundingBox(new Vector3(minX, minY, minZ), new Vector3(maxX, maxY, maxZ));
+        }
+
         public static double MaxDimension(this BoundingBox box)
         {
             return MathE.Max(box.Size().ToDoubleArray());

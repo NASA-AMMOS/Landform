@@ -9,8 +9,15 @@ using System.Threading.Tasks;
 
 namespace OPS.Util
 {
+
     public class TemporaryFile
     {
+        class TempFileConfig : Config
+        {
+            [ConfigEnvironmentVariable("LANDFORM_TEMP")]
+            public string LandformTempDir { get; set; }
+        }
+
         static string tmpDirectory = "tmp";
         public delegate void FilenameDelegate(string s);
         public delegate void MultipleFilenameDelegate(string[] s);
@@ -20,11 +27,10 @@ namespace OPS.Util
 
         static TemporaryFile()
         {
-            string tmpLocation = Environment.GetEnvironmentVariable(TEMP_ENVIRONMENT_VAR_NAME);
+            string tmpLocation = new TempFileConfig().LandformTempDir;
             if (tmpLocation != null)
             {
                 logger.Info("Temporary directory specified by environmental variable");
-                logger.Info(TEMP_ENVIRONMENT_VAR_NAME + "=" + tmpLocation);
                 TemporaryDirectory = tmpLocation;
             }
         }
