@@ -30,12 +30,6 @@ namespace OPS.Geometry
         {
             List<Triangle> tris = input.Triangles();
 
-            Vector3[] triangleNormals = new Vector3[tris.Count];
-            for (int i = 0; i < tris.Count; i++)
-            {
-                triangleNormals[i] = tris[i].Normal;
-            }
-
             double[] runningTriAreas = new double[tris.Count];
             double surfaceArea = 0;
             for (int i = 0; i < runningTriAreas.Length; i++)
@@ -47,13 +41,13 @@ namespace OPS.Geometry
             Vector3WithTri[] samples = new Vector3WithTri[quantity];
             for (int i = 0; i < samples.Length; i++)
             {
-                samples[i] = PickPointOnMesh(tris, surfaceArea, runningTriAreas, triangleNormals);
+                samples[i] = PickPointOnMesh(tris, surfaceArea, runningTriAreas);
             }
 
             return samples;
         }
 
-        private static Vector3WithTri PickPointOnMesh(List<Triangle> tris, double surfaceArea, double[] runningTriAreas, Vector3[] triangleNormals)
+        private static Vector3WithTri PickPointOnMesh(List<Triangle> tris, double surfaceArea, double[] runningTriAreas)
         {
             double chosenFaceRunningArea = random.NextDouble() * surfaceArea;
 
@@ -78,7 +72,6 @@ namespace OPS.Geometry
             int index = runningTriAreas[first] >= chosenFaceRunningArea ? first : last;
 
             Triangle chosenTri = tris[index];
-            Vector3 chosenTriNormal = triangleNormals[index];
 
             Vector3WithTri result = new Vector3WithTri(PickPointOnTriangle(chosenTri), chosenTri);
 
@@ -167,7 +160,9 @@ namespace OPS.Geometry
             Vertex[] vertex = new Vertex[points.Length];
             for (int i = 0; i < points.Length; i++)
             {
-                vertex[i] = new Vertex(points[i].coordinates, points[i].triangle.Normal);
+                Vector3 point = points[i].coordinates;
+                Triangle tri = points[i].triangle;
+                vertex[i] = new Vertex(point, tri.ClosestPoint(point).Normal);
             }
             return vertex;
         }
