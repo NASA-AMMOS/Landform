@@ -9,7 +9,7 @@ using OPS.Imaging;
 namespace ImagingTest
 {
     [TestClass]
-    class ImageCoordinateTest
+    public class ImageCoordinateTest
     {
 
         [TestMethod]

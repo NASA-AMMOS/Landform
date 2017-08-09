@@ -133,5 +133,49 @@ namespace GeometryTest
                 }
             }
         }
+
+        [TestMethod]
+        public void TriangleUVToBarycentricTest()
+        {
+            Vertex v0 = new Vertex();
+            Vertex v1 = new Vertex();
+            Vertex v2 = new Vertex();
+            v0.UV = new Vector2(1, 1);
+            v1.UV = new Vector2(1, 2);
+            v2.UV = new Vector2(3, 1);
+            Triangle tri = new Triangle(v0, v1, v2);
+            Assert.AreEqual(new Vector2(1, 1), tri.UVToBarycentric(new Vector2(1, 1)).UV);
+            Assert.AreEqual(new Vector2(1, 2), tri.UVToBarycentric(new Vector2(1, 2)).UV);
+            Assert.AreEqual(new Vector2(3, 1), tri.UVToBarycentric(new Vector2(3, 1)).UV);
+            Assert.AreEqual(new Vector2(2, 1), tri.UVToBarycentric(new Vector2(2, 1)).UV);
+            Assert.AreEqual(new Vector2(1, 1.5), tri.UVToBarycentric(new Vector2(1, 1.5)).UV);
+            Assert.AreEqual(new Vector2(2, 1.5), tri.UVToBarycentric(new Vector2(2, 1.5)).UV);
+            Assert.AreEqual(new Vector2(2, 1.25), tri.UVToBarycentric(new Vector2(2, 1.25)).UV);
+            Assert.AreEqual(null, tri.UVToBarycentric(new Vector2(3, 2)));
+        }
+
+        [TestMethod]
+        public void TriangleClosestPointTest()
+        {
+            Triangle tri1 = new Triangle(new Vertex(1, 1, 1), new Vertex(1, 2, 2), new Vertex(3, 1, 2));
+            Assert.AreEqual(new Vector3(1, 1, 1), tri1.ClosestPoint(new Vector3(1, 1, 1)).Position);
+            Assert.AreEqual(new Vector3(1, 2, 2), tri1.ClosestPoint(new Vector3(1, 2, 2)).Position);
+            Assert.AreEqual(new Vector3(3, 1, 2), tri1.ClosestPoint(new Vector3(3, 1, 2)).Position);
+            Assert.AreEqual(new Vector3(2, 1, 1.5), tri1.ClosestPoint(new Vector3(2, 1, 1.5)).Position);
+            Assert.AreEqual(new Vector3(1, 1.5, 1.5), tri1.ClosestPoint(new Vector3(1, 1.5, 1.5)).Position);
+            Assert.AreEqual(new Vector3(2, 1.5, 2), tri1.ClosestPoint(new Vector3(2, 1.5, 2)).Position);
+            Assert.AreEqual(new Vector3(2, 1.25, 1.75), tri1.ClosestPoint(new Vector3(2, 1.25, 1.75)).Position);
+
+            Assert.AreEqual(new Vector3(1,1,1), tri1.ClosestPoint(new Vector3(1, 0, -1)).Position);
+            Assert.AreEqual(new Vector3(1, 2, 2), tri1.ClosestPoint(new Vector3(1, 10, 2)).Position);
+            Assert.AreEqual(new Vector3(3, 1, 2), tri1.ClosestPoint(new Vector3(20, 1, 4)).Position);
+
+            Triangle tri = new Triangle(new Vertex(1, 1, 0), new Vertex(0, 1, 0), new Vertex(1, 0, 0));
+            Assert.AreEqual(new Vector3(1, 1, 0), tri.ClosestPoint(new Vector3(1, 1, 1)).Position);
+            Assert.AreEqual(new Vector3(.75, .75, 0), tri.ClosestPoint(new Vector3(.75, .75, -1.6456168)).Position);
+            Assert.AreEqual(new Vector3(.5, .5, 0), tri.ClosestPoint(new Vector3(0, 0, 0)).Position);
+            Assert.AreEqual(new Vector3(.5, .5, 0), tri.ClosestPoint(new Vector3(0, 0, 8798797.65)).Position);
+            Assert.AreEqual(new Vector3(1, 0, 0), tri.ClosestPoint(new Vector3(1.5, -7, -654)).Position);
+        }
     }
 }
