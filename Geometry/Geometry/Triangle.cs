@@ -14,16 +14,16 @@ namespace OPS.Geometry
     /// however Triangles own their vertices while Faces only hold indices to vertices
     /// in an array.  This can make some mesh operations easier to implement by reducing
     /// the amount of indirection.
-    /// 
+    ///
     /// Triangles always perform a deep copy of input vertices to avoid potential side effects
-    /// 
+    ///
     /// A typical pattern is to convert a mesh into a list of traingles, perform an operation on the
     /// triangles, and then generate a new mesh from the array of triangles.  When generating a mesh
     /// from a list of triangles the mesh should deep copy the vertices so as to avoid side effects in
     /// the case that the triangles are later modified.
-    /// 
+    ///
     /// Algorithms seeking to work with vertices by reference should consider operating on a list
-    /// of Faces (such as the one in the Mesh object) instead.  
+    /// of Faces (such as the one in the Mesh object) instead.
     /// </summary>
     public class Triangle
     {
@@ -95,6 +95,18 @@ namespace OPS.Geometry
             return new BoundingBox(new Vector3(min2.X, min2.Y, 0), new Vector3(max2.X, max2.Y, 0));
         }
 
+        /// <summary>
+        /// Returns the area of the triangle
+        /// </summary>
+        /// <returns></returns>
+        public double Area()
+        {
+            double a = (this.V0.Position - this.V1.Position).Length();
+            double b = (this.V1.Position - this.V2.Position).Length();
+            double c = (this.V2.Position - this.V0.Position).Length();
+            double s = (a + b + c) / 2;
+            return Math.Sqrt(s * (s - a) * (s - b) * (s - c));
+        }
 
         /// <summary>
         /// Helper method for adding vertices to an array.  Returns the index of the added vertex.
@@ -190,13 +202,13 @@ namespace OPS.Geometry
                 yield return new Triangle(vertices[1], vertices[2], vertices[3]);
             }
             else
-            {              
+            {
                 Debug.Fail("Triangle.Clip produced an invalid number of points");
             }
         }
         
         /// <summary>
-        /// Returns the squared distance between p and the the nearest point on this triangle 
+        /// Returns the squared distance between p and the the nearest point on this triangle
         /// </summary>
         /// <param name="p"></param>
         /// <returns></returns>
@@ -209,7 +221,7 @@ namespace OPS.Geometry
         /// <summary>
         /// Get the closest point on the triangle to p
         /// from https://www.geometrictools.com/Documentation/DistancePoint3Triangle3.pdf
-        /// matlab implementation at http://www.mathworks.com/matlabcentral/fileexchange/22857-distance-between-a-point-and-a-triangle-in-3d 
+        /// matlab implementation at http://www.mathworks.com/matlabcentral/fileexchange/22857-distance-between-a-point-and-a-triangle-in-3d
         /// </summary>
         /// <param name="P"></param>
         /// <returns></returns>
@@ -368,7 +380,7 @@ namespace OPS.Geometry
                 ((y2 - y3) * (x1 - x3) + (x3 - x2) * (y1 - y3)));
             double b1 = (((y3 - y1) * (xf - x3) + (x1 - x3) * (yf - y3)) /
                 ((y2 - y3) * (x1 - x3) + (x3 - x2) * (y1 - y3)));
-            double b2 = 1.0f - b0 - b1;        
+            double b2 = 1.0f - b0 - b1;
 
             BarycentricPoint r = null;
             if (b0 >= lowLimit && b0 <= highLimit &&
@@ -399,7 +411,7 @@ namespace OPS.Geometry
                 {
                     throw new Exception("Normal error, Zero length face");
                 }
-                return Normal;
+                return norm;
             }
         }
 
