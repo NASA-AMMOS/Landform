@@ -11,6 +11,22 @@ namespace OPS.Geometry
         private static Random random = new Random();
         private static double PRESAMPLE_FACTOR = 20;
 
+        public static Mesh GenerateSampledMesh(Mesh input, double density)
+        {
+            Vertex[] sampled = SurfacePointSample.Sample(input, density);
+
+            List<Vertex> sampledVertexList = new List<Vertex>(sampled.Length);
+            for (int i = 0; i < sampled.Length; i++)
+            {
+                sampledVertexList.Add(sampled[i]);
+            }
+
+            Mesh pointCloud = new Mesh(hasNormals: input.HasNormals, hasColors: input.HasColors, hasUVs: input.HasUVs);
+            pointCloud.Vertices = sampledVertexList;
+
+            return pointCloud;
+        }
+
         public static Vertex[] Sample(Mesh input, double density)
         {
             int presampleQuantity = (int)(density * PRESAMPLE_FACTOR * input.SurfaceArea());
@@ -21,7 +37,7 @@ namespace OPS.Geometry
             Dictionary<Vector3Int, List<Vector3WithTri>> cells = FillCells(oversampledPoints, cellSize);
             List<Vector3Int> shuffledCells = cells.Keys.OrderBy(key => random.Next()).ToList();
             Vector3WithTri[] prunedPoints = Prune(cells, shuffledCells, radius);
-            Vertex[] verticesWithNormals = CalculateNormals(prunedPoints);
+            Vertex[] verticesWithNormals = GenerateVertices(prunedPoints, input);
 
             return verticesWithNormals;
         }
@@ -155,16 +171,24 @@ namespace OPS.Geometry
             }
         }
 
-        private static Vertex[] CalculateNormals(Vector3WithTri[] points)
+        private static Vertex[] GenerateVertices(Vector3WithTri[] points, Mesh input)
         {
-            Vertex[] vertex = new Vertex[points.Length];
+            Vertex[] vertices = new Vertex[points.Length];
             for (int i = 0; i < points.Length; i++)
             {
                 Vector3 point = points[i].coordinates;
                 Triangle tri = points[i].triangle;
-                vertex[i] = new Vertex(point, tri.ClosestPoint(point).Normal);
+
+
+                Vertex vertex = new Vertex(point);
+
+                if (input.HasNormals) vertex.Normal = tri.ClosestPoint(point).Normal;
+                if (input.HasUVs) vertex.UV = tri.ClosestPoint(point).UV;
+                if (input.HasColors) vertex.Color = tri.ClosestPoint(point).Color;
+
+                vertices[i] = vertex;
             }
-            return vertex;
+            return vertices;
         }
     }
 }

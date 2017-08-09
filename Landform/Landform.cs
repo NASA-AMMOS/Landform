@@ -29,26 +29,17 @@ namespace Landform
             // Register filetype handlers
             new OpenInventorSerializer().Register();
             // Load mesh
-            Mesh mesh = Mesh.Load(@"C:\Users\kchamber.JPL\Desktop\normals.obj");
+            Mesh mesh = Mesh.Load(@"C:\Users\kchamber.JPL\Desktop\colors.ply");
 
             // Sample points on mesh
-            Vertex[] sampled = SurfacePointSample.Sample(mesh, 300);
-
-            List<Vertex> sampledVertexList = new List<Vertex>(sampled.Length);
-            for (int i = 0; i < sampled.Length; i++)
-            {
-                sampledVertexList.Add(sampled[i]);
-            }
-
-            Mesh pointCloud = new Mesh(hasNormals: true);
-            pointCloud.Vertices = sampledVertexList;
+            Mesh pointCloud = SurfacePointSample.GenerateSampledMesh(mesh, 300);
 
             // return 0;
 
             // Save and open mesh
             // Mesh r = MeshLab.Sample(mesh, 20000);
-            pointCloud.Save(@"C:\Users\kchamber.JPL\Desktop\points.ply");
-            System.Diagnostics.Process.Start(@"C:\Users\kchamber.JPL\Desktop\points.ply");
+            pointCloud.Save(@"C:\Users\kchamber.JPL\Desktop\points.obj");
+            System.Diagnostics.Process.Start(@"C:\Users\kchamber.JPL\Desktop\points.obj");
             return 0;
             // Parse command line arguments
             // int returnCode = Commands.RunFromCommandline(args);
