@@ -63,7 +63,7 @@ namespace OPS.Pipeline
         public CrawlMSL(CralwMSLOptions options)
         {
             this.options = options;
-            this.database = new LandformDatabase(options.DatabaseLocation, options.DatabasePort, options.DatabaseName, options.DatabaseUser, options.DatabasePassword);
+            this.database = new LandformDatabase();
             this.locations = new MSLLocations();
         }                
                 
