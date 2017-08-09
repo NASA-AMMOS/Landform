@@ -43,8 +43,7 @@ namespace OPS.Pipeline
         /// <returns></returns>
         public override string ToString()
         {
-            return string.Format("{0:D5}{1:D5}", Site, Drive);
-            
+            return string.Format("{0:D5}{1:D5}", Site, Drive);            
         }
 
         public override int GetHashCode()
