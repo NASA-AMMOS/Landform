@@ -99,6 +99,44 @@ namespace OPS.Geometry
             this.HasColors = hasColors;
         }
 
+        /// <summary>
+        /// Generates vertex normals for all vertices based on the sum of the connected face normals
+        /// </summary>
+        public void GenerateVertexNormals()
+        {
+            foreach (Vertex vertex in Vertices)
+            {
+                vertex.Normal *= 0;
+            }
+
+            foreach (Face face in Faces)
+            {
+                Vertex v0 = Vertices[face.P0];
+                Vertex v1 = Vertices[face.P1];
+                Vertex v2 = Vertices[face.P2];
+
+                Vector3 faceNormal = new Triangle(v0, v1, v2).Normal;
+
+                v0.Normal += faceNormal;
+                v1.Normal += faceNormal;
+                v2.Normal += faceNormal;
+            }
+
+            //Random random = new Random();
+            foreach (Vertex vertex in Vertices)
+            {
+                //vertex.Normal = new Vector3(random.NextDouble() - 0.5, random.NextDouble() - 0.5, random.NextDouble() - 0.5);
+                if (vertex.Normal.Length() > 0.000001) vertex.Normal.Normalize();
+            }
+
+            HasNormals = true;
+        }
+
+        /// <summary>
+        /// Checks if the face contains any vertices located at the same point in space which would render it invalid
+        /// </summary>
+        /// <param name="f"></param>
+        /// <returns></returns>
         bool FaceIsValid(Face f)
         {
             // Are any two of the vertices referenced by this face the same index
@@ -319,18 +357,26 @@ namespace OPS.Geometry
             }
         }
 
+        /// <summary>
+        /// Applies a transformation matrix to each vertex in the mesh
+        /// </summary>
+        /// <param name="m"></param>
         public void Transform(Matrix m)
         {
             foreach(Vertex v in this.Vertices)
             {
                 v.Position = Vector3.Transform(v.Position, m);
-                if(this.HasNormals)
+                if (this.HasNormals)
                 {
                     v.Normal = Vector3.TransformNormal(v.Normal, m);
                 }
             }
         }
 
+        /// <summary>
+        /// Applies an offset to all vertices in the mesh
+        /// </summary>
+        /// <param name="offset"></param>
         public void Translate(Vector3 offset)
         {
             for (int i = 0; i < this.Vertices.Count; i++)
@@ -339,6 +385,11 @@ namespace OPS.Geometry
             }
         }
 
+        /// <summary>
+        /// Returns an array of the three vertices held by the given face
+        /// </summary>
+        /// <param name="f"></param>
+        /// <returns></returns>
         Vertex[] FaceToVertexArray(Face f)
         {
             return new Vertex[] { this.Vertices[f.P0], this.Vertices[f.P1], this.Vertices[f.P2] };
@@ -447,6 +498,12 @@ namespace OPS.Geometry
             return result;
         }
 
+        /// <summary>
+        /// Clips the mesh to fit within the given bounding box
+        /// </summary>
+        /// <param name="m"></param>
+        /// <param name="box"></param>
+        /// <returns></returns>
         public static Mesh Clip(Mesh m, BoundingBox box)
         {
             Mesh result;
