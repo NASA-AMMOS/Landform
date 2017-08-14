@@ -399,7 +399,7 @@ namespace OPS.Geometry
                 {
                     throw new Exception("Normal error, Zero length face");
                 }
-                return Normal;
+                return norm;
             }
         }
 
