@@ -39,7 +39,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="Embree.NET, Version=1.0.0.0, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\packages\Embree.NET.1.0.0.1-alpha\lib\net40\Embree.NET.dll</HintPath>
+      <HintPath>..\packages\Embree.NET.1.0.0.1\lib\net40\Embree.NET.dll</HintPath>
       <Private>True</Private>
     </Reference>
     <Reference Include="gdalconst_csharp, Version=1.0.5387.28601, Culture=neutral, PublicKeyToken=db5a52b08dc5b321, processorArchitecture=MSIL">
@@ -132,9 +132,9 @@
       <ErrorText>This project references NuGet package(s) that are missing on this computer. Use NuGet Package Restore to download them.  For more information, see http://go.microsoft.com/fwlink/?LinkID=322105. The missing file is {0}.</ErrorText>
     </PropertyGroup>
     <Error Condition="!Exists('..\packages\GDAL.Native.1.11.1\build\net40\GDAL.Native.targets')" Text="$([System.String]::Format('$(ErrorText)', '..\packages\GDAL.Native.1.11.1\build\net40\GDAL.Native.targets'))" />
-    <Error Condition="!Exists('..\packages\Embree.NET.1.0.0.1-alpha\build\Embree.NET.targets')" Text="$([System.String]::Format('$(ErrorText)', '..\packages\Embree.NET.1.0.0.1-alpha\build\Embree.NET.targets'))" />
+    <Error Condition="!Exists('..\packages\Embree.NET.1.0.0.1\build\Embree.NET.targets')" Text="$([System.String]::Format('$(ErrorText)', '..\packages\Embree.NET.1.0.0.1\build\Embree.NET.targets'))" />
   </Target>
-  <Import Project="..\packages\Embree.NET.1.0.0.1-alpha\build\Embree.NET.targets" Condition="Exists('..\packages\Embree.NET.1.0.0.1-alpha\build\Embree.NET.targets')" />
+  <Import Project="..\packages\Embree.NET.1.0.0.1\build\Embree.NET.targets" Condition="Exists('..\packages\Embree.NET.1.0.0.1\build\Embree.NET.targets')" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
        Other similar extension points exist, see Microsoft.Common.targets.
   <Target Name="BeforeBuild">

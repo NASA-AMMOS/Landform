@@ -106,13 +106,12 @@ namespace OPS.RayTrace
                 float u = hit.U;
                 float v = hit.V;
                 var f = mesh.Faces[(int)hit.Primitive];
+                var tri = new Geometry.Triangle(mesh.Vertices[f.P0], mesh.Vertices[f.P1], mesh.Vertices[f.P2]);
+                var bp = new Geometry.BarycentricPoint(1.0 - u - v, u, v, tri);
                 Vector2? uv = null;
                 if (mesh.HasUVs)
                 {                    
-                    var t0 = mesh.Vertices[f.P0].UV;
-                    var t1 = mesh.Vertices[f.P1].UV;
-                    var t2 = mesh.Vertices[f.P2].UV;
-                    uv = (1.0 - u - v) * t0 + u * t1 + v * t2;                    
+                    uv = bp.UV;                   
                 }
                 Vector3? meshNorm = null;
                 if(mesh.HasNormals)

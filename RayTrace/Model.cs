@@ -58,7 +58,7 @@ namespace OPS.RayTrace
             this.Enabled = true;
             this.geometry = new Embree.Geometry(device, sceneFlags, traversalFlags);
             this.transform = new EmbreeMatrix(transform);
-            this.inverseTranspose = Matrix.Transpose(Matrix.Invert(transform));     // TODO: Can this just be invert since we we use Vector.TransformNormal when converting back to world space
+            this.inverseTranspose = Matrix.Transpose(Matrix.Invert(transform));
             this.mesh = mesh;
             this.texture = texture;
 

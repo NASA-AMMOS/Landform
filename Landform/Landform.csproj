@@ -44,7 +44,7 @@
       <Private>True</Private>
     </Reference>
     <Reference Include="Embree.NET, Version=1.0.0.0, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\packages\Embree.NET.1.0.0.1-alpha\lib\net40\Embree.NET.dll</HintPath>
+      <HintPath>..\packages\Embree.NET.1.0.0.1\lib\net40\Embree.NET.dll</HintPath>
       <Private>True</Private>
     </Reference>
     <Reference Include="Emgu.CV.UI.GL, Version=3.1.0.2282, Culture=neutral, PublicKeyToken=7281126722ab4438, processorArchitecture=MSIL">
@@ -177,9 +177,10 @@
     <Error Condition="!Exists('..\packages\GDAL.Native.1.11.1\build\net40\GDAL.Native.targets')" Text="$([System.String]::Format('$(ErrorText)', '..\packages\GDAL.Native.1.11.1\build\net40\GDAL.Native.targets'))" />
     <Error Condition="!Exists('..\packages\EmguCV.3.1.0.1\build\EmguCV.props')" Text="$([System.String]::Format('$(ErrorText)', '..\packages\EmguCV.3.1.0.1\build\EmguCV.props'))" />
     <Error Condition="!Exists('..\packages\EmguCV.3.1.0.1\build\EmguCV.targets')" Text="$([System.String]::Format('$(ErrorText)', '..\packages\EmguCV.3.1.0.1\build\EmguCV.targets'))" />
+    <Error Condition="!Exists('..\packages\Embree.NET.1.0.0.1\build\Embree.NET.targets')" Text="$([System.String]::Format('$(ErrorText)', '..\packages\Embree.NET.1.0.0.1\build\Embree.NET.targets'))" />
   </Target>
   <Import Project="..\packages\EmguCV.3.1.0.1\build\EmguCV.targets" Condition="Exists('..\packages\EmguCV.3.1.0.1\build\EmguCV.targets')" />
-  <Import Project="..\packages\Embree.NET.1.0.0.1-alpha\build\Embree.NET.targets" Condition="Exists('..\packages\Embree.NET.1.0.0.1-alpha\build\Embree.NET.targets')" />
+  <Import Project="..\packages\Embree.NET.1.0.0.1\build\Embree.NET.targets" Condition="Exists('..\packages\Embree.NET.1.0.0.1\build\Embree.NET.targets')" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
        Other similar extension points exist, see Microsoft.Common.targets.
   <Target Name="BeforeBuild">
