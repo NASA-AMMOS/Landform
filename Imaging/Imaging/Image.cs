@@ -211,6 +211,15 @@ namespace OPS.Imaging
             return result;
         }
 
+        /// <summary>
+        /// Simulate a guassian blur with a series of box blurs
+        /// </summary>
+        /// <param name="r"></param>
+        public void GuassianBoxBlur(int r)
+        {
+            Blur.GuassianBoxBlur(this, r); 
+        }
+
         public float BilinearSample(int band, float row, float col)
         {
             int irow, icol;

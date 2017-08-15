@@ -52,6 +52,7 @@ MathExtensionsTest/bin/
 MathExtensionsTest/obj/
 RayTrace/bin
 RayTrace/obj
+out/
 AlignmentTest/bin/
 AlignmentTest/obj/
 RayTraceTest/bin/
