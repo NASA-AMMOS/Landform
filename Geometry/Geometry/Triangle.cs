@@ -393,26 +393,31 @@ namespace OPS.Geometry
         }
 
         /// <summary>
-        /// Returns a normal for this face
+        /// Returns a normal for this face.  Normal is determined by position and winding order of vertices
         /// </summary>
         public Vector3 Normal
         {
             get
             {
-                Vector3 v1v0 = V1.Position - V0.Position;
-                Vector3 v2v0 = V2.Position - V0.Position;
-                Vector3 norm = Vector3.Cross(v1v0, v2v0);
-                //normalize and flip direction
-                if (norm.Length() > 0)
-                {
-                    norm.Normalize();
-                }
-                else
-                {
-                    throw new Exception("Normal error, Zero length face");
-                }
-                return norm;
+                return ComputeNormal(V0.Position, V1.Position, V2.Position);
             }
+        }
+
+        public static Vector3 ComputeNormal(Vector3 v0, Vector3 v1, Vector3 v2)
+        {
+            Vector3 v1v0 = v1 - v0;
+            Vector3 v2v0 = v2 - v0;
+            Vector3 norm = Vector3.Cross(v1v0, v2v0);
+            // Normalize
+            if (norm.Length() > 0)
+            {
+                norm.Normalize();
+            }
+            else
+            {
+                throw new Exception("Normal error, Zero length face");
+            }
+            return norm;
         }
 
         public IEnumerable<Triangle> Clip(BoundingBox box)
