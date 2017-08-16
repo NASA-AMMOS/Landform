@@ -104,31 +104,39 @@ namespace OPS.Geometry
         /// </summary>
         public void GenerateVertexNormals()
         {
+            // Start with each vertex normal at 0
             foreach (Vertex vertex in Vertices)
             {
-                vertex.Normal *= 0;
+                vertex.Normal = Vector3.Zero;
             }
 
+            // Calculate each face's normal and add that normal to each point face's points
             foreach (Face face in Faces)
             {
+                // Find the three vertices used in the face
                 Vertex v0 = Vertices[face.P0];
                 Vertex v1 = Vertices[face.P1];
                 Vertex v2 = Vertices[face.P2];
 
+                // Calculate the face's normal
                 Vector3 faceNormal = new Triangle(v0, v1, v2).Normal;
 
+                // Add the face's normal to the three vertices
                 v0.Normal += faceNormal;
                 v1.Normal += faceNormal;
                 v2.Normal += faceNormal;
             }
 
-            //Random random = new Random();
+            // Normalize each vertex normal
             foreach (Vertex vertex in Vertices)
             {
-                //vertex.Normal = new Vector3(random.NextDouble() - 0.5, random.NextDouble() - 0.5, random.NextDouble() - 0.5);
-                if (vertex.Normal.Length() > 0.000001) vertex.Normal.Normalize();
+                if (vertex.Normal.Length() > 0.000001)
+                {
+                    vertex.Normal.Normalize();
+                }
             }
 
+            // The mesh should now be set as having normals
             HasNormals = true;
         }
 
