@@ -183,7 +183,58 @@ namespace GeometryTest
             m.Faces[1] = new Face(1, 1, 2);
             Assert.IsTrue(m.HasInvalidFaces());
         }
-        
+
+        [TestMethod]
+        public void MeshGenerateVertexNormalsSquareTest()
+        {
+            Mesh m = new Mesh();
+            m.Vertices.Add(new Vertex(-1, -1, 0));
+            m.Vertices.Add(new Vertex(1, 0, 0));
+            m.Vertices.Add(new Vertex(0, 1, 0));
+            m.Vertices.Add(new Vertex(1, 1, 0));
+            m.Faces.Add(new Face(0, 1, 2));
+            m.Faces.Add(new Face(3, 2, 1));
+            m.GenerateVertexNormals();
+
+            Assert.IsTrue(m.HasNormals);
+            Assert.IsTrue((Vector3.Forward - m.Vertices[0].Normal).Length() < 1e-8);
+            Assert.IsTrue((Vector3.Forward - m.Vertices[1].Normal).Length() < 1e-8);
+            Assert.IsTrue((Vector3.Forward - m.Vertices[2].Normal).Length() < 1e-8);
+            Assert.IsTrue((Vector3.Forward - m.Vertices[3].Normal).Length() < 1e-8);
+        }
+
+        [TestMethod]
+        public void MeshGenerateVertexNormalsPyramidTest()
+        {
+            Mesh m = new Mesh();
+            m.Vertices.Add(new Vertex(-1, -1, 0));
+            m.Vertices.Add(new Vertex(1, -1, 0));
+            m.Vertices.Add(new Vertex(1, 1, 0));
+            m.Vertices.Add(new Vertex(-1, 1, 0));
+            m.Vertices.Add(new Vertex(0, 0, 1));
+            m.Faces.Add(new Face(0, 1, 4));
+            m.Faces.Add(new Face(1, 2, 4));
+            m.Faces.Add(new Face(2, 3, 4));
+            m.Faces.Add(new Face(3, 0, 4));
+            m.GenerateVertexNormals();
+
+            Vector3 bottomLeft = new Vector3(-1, -1, 2);
+            Vector3 bottomRight = new Vector3(1, -1, 2);
+            Vector3 topRight = new Vector3(1, 1, 2);
+            Vector3 topLeft = new Vector3(-1, 1, 2);
+            Vector3 up = new Vector3(0, 0, 1);
+            bottomLeft.Normalize();
+            bottomRight.Normalize();
+            topRight.Normalize();
+            topLeft.Normalize();
+
+            Assert.IsTrue(m.HasNormals);
+            Assert.IsTrue((bottomLeft - m.Vertices[0].Normal).Length() < 1e-8);
+            Assert.IsTrue((bottomRight - m.Vertices[1].Normal).Length() < 1e-8);
+            Assert.IsTrue((topRight - m.Vertices[2].Normal).Length() < 1e-8);
+            Assert.IsTrue((topLeft - m.Vertices[3].Normal).Length() < 1e-8);
+        }
+
         [TestMethod]
         public void MeshRemoveIdenticalFacesTest()
         {
