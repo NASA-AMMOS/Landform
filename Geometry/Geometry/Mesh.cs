@@ -643,6 +643,14 @@ namespace OPS.Geometry
         }
 
         /// <summary>
+        /// Translate this mesh to be centered on its bounds
+        /// </summary>
+        public void Center()
+        {
+            this.Translate(-this.Bounds().Center());
+        }
+
+        /// <summary>
         /// Save a mesh to disk with an optional filename
         /// </summary>
         /// <param name="filename"></param>
