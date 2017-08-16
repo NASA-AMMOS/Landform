@@ -22,29 +22,41 @@ namespace GeometryTest
         [TestMethod]
         public void VertexConstructorTest()
         {
-            Vertex v = new Vertex(1, 2, 3);
-            Assert.AreEqual(v.Position, new Vector3(1, 2, 3));
-            Assert.AreEqual(v.Normal, Vector3.Zero);
-            Assert.AreEqual(v.UV, Vector2.Zero);
-            Assert.AreEqual(v.Color, Vector4.Zero);
-
             Vertex v1 = new Vertex(new Vector3(1, 2, 3));
             Assert.AreEqual(v1.Position, new Vector3(1, 2, 3));
             Assert.AreEqual(v1.Normal, Vector3.Zero);
             Assert.AreEqual(v1.UV, Vector2.Zero);
             Assert.AreEqual(v1.Color, Vector4.Zero);
 
-            Vertex v2 = new Vertex(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12);
+            Vertex v2 = new Vertex(1, 2, 3);
             Assert.AreEqual(v2.Position, new Vector3(1, 2, 3));
-            Assert.AreEqual(v2.Normal, new Vector3(4, 5, 6));
-            Assert.AreEqual(v2.UV, new Vector2(7, 8));
-            Assert.AreEqual(v2.Color, new Vector4(9, 10, 11, 12));
+            Assert.AreEqual(v2.Normal, Vector3.Zero);
+            Assert.AreEqual(v2.UV, Vector2.Zero);
+            Assert.AreEqual(v2.Color, Vector4.Zero);
 
-            Vertex v3 = new Vertex(v2);
+            Vertex v3 = new Vertex(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12);
             Assert.AreEqual(v3.Position, new Vector3(1, 2, 3));
             Assert.AreEqual(v3.Normal, new Vector3(4, 5, 6));
             Assert.AreEqual(v3.UV, new Vector2(7, 8));
             Assert.AreEqual(v3.Color, new Vector4(9, 10, 11, 12));
+
+            Vertex v4 = new Vertex(new Vector3(1, 2, 3), new Vector3(1, 0, 0));
+            Assert.AreEqual(v4.Position, new Vector3(1, 2, 3));
+            Assert.AreEqual(v4.Normal, new Vector3(1, 0, 0));
+            Assert.AreEqual(v4.UV, Vector2.Zero);
+            Assert.AreEqual(v4.Color, Vector4.Zero);
+
+            Vertex v5 = new Vertex(new Vector3(1, 2, 3), new Vector3(1, 0, 0), new Vector4(1, 0, 1, 1), new Vector2(1, 1));
+            Assert.AreEqual(v5.Position, new Vector3(1, 2, 3));
+            Assert.AreEqual(v5.Normal, new Vector3(1, 0, 0));
+            Assert.AreEqual(v5.UV, new Vector2(1, 1));
+            Assert.AreEqual(v5.Color, new Vector4(1, 0, 1, 1));
+
+            Vertex v6 = new Vertex(v3);
+            Assert.AreEqual(v6.Position, new Vector3(1, 2, 3));
+            Assert.AreEqual(v6.Normal, new Vector3(4, 5, 6));
+            Assert.AreEqual(v6.UV, new Vector2(7, 8));
+            Assert.AreEqual(v6.Color, new Vector4(9, 10, 11, 12));
         }
 
         [TestMethod]
@@ -163,7 +175,6 @@ namespace GeometryTest
             Vertex a = new Vertex(3, 2, 4);
             Assert.AreEqual(a.Position, a.Bounds().Min);
             Assert.AreEqual(a.Position, a.Bounds().Max);
-
         }
     }
 }
