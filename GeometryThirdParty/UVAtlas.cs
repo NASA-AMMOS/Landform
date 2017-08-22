@@ -6,9 +6,26 @@ using System.Threading.Tasks;
 
 namespace OPS.Geometry
 {
+    /// <summary>
+    /// Static methods for getting UV's
+    /// </summary>
     public static class UVAtlas
     {
-        public static Mesh Atlas(Mesh mesh, int maxCharts = 0, float maxStretch = 0.25f, float gutter = 4, int width = 512, int height = 512)
+        /// <summary>
+        /// Returns a new mesh with UV's.
+        /// Resulting UV coordinates will be normalized 0 - 1, and centered on pixels for an image with resolution `width` x `height`
+        /// UV Atlas will have at most `maxCharts` disconnected components (0 inidicates no limit)
+        /// `maxStretch` should be 0-1, 0 being no stretch, 1 being no limit
+        /// `gutter` indicates minimum distance between components in pixels
+        /// </summary>
+        /// <param name="mesh"></param>
+        /// <param name="width"></param>
+        /// <param name="height"></param>
+        /// <param name="maxCharts"></param>
+        /// <param name="maxStretch"></param>
+        /// <param name="gutter"></param>
+        /// <returns></returns>
+        public static Mesh Atlas(Mesh mesh, int width, int height, int maxCharts = 0, float maxStretch = 0.25f, float gutter = 4)
         {
             List<Triangle> triangleList = mesh.Triangles();
             int nFaces = triangleList.Count;
@@ -40,7 +57,9 @@ namespace OPS.Geometry
             }
 
             for (i = 0; i < nVerts; i++)
+            {
                 indices[i] = i;
+            }
 
             UVAtlasNET.UVAtlas.Atlas(outU, outV, inX, inY, inZ, nFaces, indices, maxCharts, maxStretch, gutter, width, height);
 
