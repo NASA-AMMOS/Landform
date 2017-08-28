@@ -145,14 +145,14 @@ namespace OPS.Alignment.BundleAdjusterStructures
             
             Parameters = new double[]
             {
-                                C.X, C.Y, C.Z,
-                                A.X, A.Y, A.Z,
-                                H.X, H.Y, H.Z,
-                                V.X, V.Y, V.Z,
-                                O.X, O.Y, O.Z,
-                                R.X, R.Y, R.Z,
-                                E.X, E.Y, E.Z,
-                                linearity
+                C.X, C.Y, C.Z,
+                A.X, A.Y, A.Z,
+                H.X, H.Y, H.Z,
+                V.X, V.Y, V.Z,
+                O.X, O.Y, O.Z,
+                R.X, R.Y, R.Z,
+                E.X, E.Y, E.Z,
+                linearity
             };
         }
 
