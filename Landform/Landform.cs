@@ -24,15 +24,18 @@ namespace Landform
         /// <returns></returns>
         static int Main(string[] args)
         {
-            Config.ApplicationConfigFolder = ".landform";
-            // Enable logging
-            log4net.Config.XmlConfigurator.Configure();
-            // Register filetype handlers
-            new OpenInventorSerializer().Register();
+            Mesh a = Mesh.Load(@"C:\Users\kchamber.JPL\Desktop/original.obj");
+            Mesh b = Mesh.Load(@"C:\Users\kchamber.JPL\Desktop/decimated.obj");
 
-            // Parse command line arguments
-            int returnCode = Commands.RunFromCommandline(args);
-            return returnCode;
+            HausdorffDistance hausdorff = new HausdorffDistance();
+
+            double newHausdorff = hausdorff.Calculate(a, b);
+            Console.WriteLine("New: " + newHausdorff);
+
+            //double oldHausdorff = MeshLab.BidirectionalHausdorffDistance(a, b).Max;
+            //Console.WriteLine("Old: " + oldHausdorff);
+
+            return 0;
         }
     }
 }

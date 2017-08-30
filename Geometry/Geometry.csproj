@@ -41,6 +41,9 @@
       <HintPath>..\packages\Newtonsoft.Json.10.0.2\lib\net45\Newtonsoft.Json.dll</HintPath>
       <Private>True</Private>
     </Reference>
+    <Reference Include="Priority Queue, Version=4.1.1.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\OptimizedPriorityQueue.4.1.1\lib\net45\Priority Queue.dll</HintPath>
+    </Reference>
     <Reference Include="RTree, Version=1.0.0.0, Culture=neutral, processorArchitecture=MSIL">
       <HintPath>..\packages\RTree.1.0.2.1\lib\RTree.dll</HintPath>
       <Private>True</Private>
@@ -59,6 +62,9 @@
   <ItemGroup>
     <Compile Include="Geometry\BarycentricPoint.cs" />
     <Compile Include="Geometry\BoundingBoxExtensions.cs" />
+    <Compile Include="Geometry\TriangleBoxCollision.cs" />
+    <Compile Include="Geometry\VoxelTriangle.cs" />
+    <Compile Include="Geometry\HausdorffDistance.cs" />
     <Compile Include="Geometry\OctreeNode.cs" />
     <Compile Include="Geometry\Octree.cs" />
     <Compile Include="Geometry\Face.cs" />

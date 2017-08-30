@@ -24,7 +24,7 @@ namespace OPS.Geometry
         public int MaxOctreeNodeSize;
 
         // Maximum depth of the tree, OctreeNodes at this depth will not be split
-        public int MaxDepth;
+        public int DepthLimit;
 
         // The number of OctreeNodes in the tree
         public int NodeCount;
@@ -32,13 +32,17 @@ namespace OPS.Geometry
         // The number of leaf OctreeNodes in the tree
         public int LeafCount;
 
+        // The depth of the deepest node
+        public int Deepest;
+
         public Octree(BoundingBox bounds, int maxOctreeNodeSize = 10, int maxDepth = 8)
         {
             this.MaxOctreeNodeSize = maxOctreeNodeSize;
-            this.MaxDepth = maxDepth;
+            this.DepthLimit = maxDepth;
             this.Root = new OctreeNode(this, null, bounds, 0);
             this.NodeCount = 1;
             this.LeafCount = 1;
+            this.Deepest = 1;
         }
 
         /// <summary>
@@ -156,7 +160,7 @@ namespace OPS.Geometry
             }
             Visit(node =>
             {
-                if (node.Depth >= MaxDepth)
+                if (node.Depth >= DepthLimit)
                     return;
 
                 if (node.IsLeaf() && node.Contained.Count > MaxOctreeNodeSize)

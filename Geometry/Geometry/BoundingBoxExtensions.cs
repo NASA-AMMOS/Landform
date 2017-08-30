@@ -20,6 +20,34 @@ namespace OPS.Geometry
             return box.Max - box.Min;
         }
         
+        public static double DistanceSquared(BoundingBox a, BoundingBox b)
+        {
+            double x = AxisSeparationDistance(a.Min.X, a.Max.X, b.Min.X, b.Max.X);
+            double y = AxisSeparationDistance(a.Min.Y, a.Max.Y, b.Min.Y, b.Max.Y);
+            double z = AxisSeparationDistance(a.Min.Z, a.Max.Z, b.Min.Z, b.Max.Z);
+
+            return (x * x) + (y * y) + (z * z);
+        }
+
+        public static double FurthestDistanceSquared(BoundingBox a, BoundingBox b)
+        {
+            BoundingBox union = Union(new List<BoundingBox> { a, b });
+            return Size(union).Length();
+        }
+
+        private static double AxisSeparationDistance(double aMin, double aMax, double bMin, double bMax)
+        {
+            if (bMin > aMax)
+            {
+                return bMin - aMax;
+            }
+            if (aMin > bMax)
+            {
+                return aMin - bMax;
+            }
+            return 0;
+        }
+
         /// <summary>
         /// Returns the union of all inputs
         /// </summary>
