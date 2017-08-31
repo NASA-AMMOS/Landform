@@ -12,8 +12,8 @@ namespace OPS.Geometry
     class VoxelTriangle : OctreeNodeContents
     {
         public Triangle Triangle { get; internal set; }
-
         public BasePoint[] BasePoints = null;
+        public List<int> TraversalPath;
 
         public VoxelTriangle(Triangle tri)
         {
@@ -28,19 +28,6 @@ namespace OPS.Geometry
         public bool Intersects(BoundingBox other)
         {
             return Triangle.Clip(other).Count() > 0;
-
-            //return Triangle.Bounds().Intersects(other);
-
-            //bool intersects = TriangleBoxCollision.IsTriangleInBox(Triangle, other);
-            //if (intersects)
-            //{
-            //    ; // Intersects
-            //}
-            //else
-            //{
-            //    ; // Doesn't intersect
-            //}
-            //return intersects;
         }
 
         public double SquaredDistance(Vector3 xyz)

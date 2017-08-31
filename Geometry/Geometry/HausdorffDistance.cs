@@ -6,26 +6,55 @@ using System.Threading.Tasks;
 using Priority_Queue;
 using OPS.Geometry;
 using Microsoft.Xna.Framework;
+using System.Diagnostics;
 
 namespace OPS.Geometry
 {
     public class HausdorffDistance
     {
-        private double ONE_THIRD = 1.0 / 3.0;
         private double hausdorffDistanceSquared;
         private SimplePriorityQueue<OctreeNode> queue;
+        private double epsilon;
 
-        public double Calculate(Mesh meshA, Mesh meshB)
+        public double Calculate(Mesh meshA, Mesh meshB, double maxErrorEpsilon)
         {
+            Stopwatch sw = new Stopwatch();
+            sw.Start();
+
             // Start with zero minimum distance and an empty priority queue
             hausdorffDistanceSquared = 0;
             queue = new SimplePriorityQueue<OctreeNode>();
+            epsilon = maxErrorEpsilon;
+
+            sw.Stop();
+            Console.WriteLine(sw.ElapsedMilliseconds + " initialization");
+            sw.Reset();
+            sw.Start();
 
             // Build an octree for both meshes and insert the mesh triangles into them
-            Octree a = new Octree(meshA.Bounds());
-            Octree b = new Octree(meshB.Bounds());
+            BoundingBox combinedBounds = BoundingBoxExtensions.Union(new List<BoundingBox> { meshA.Bounds(), meshB.Bounds() });
+
+            sw.Stop();
+            Console.WriteLine(sw.ElapsedMilliseconds + " combine bounds");
+            sw.Reset();
+            sw.Start();
+
+            Octree a = new Octree(combinedBounds);
+            Octree b = new Octree(combinedBounds);
+
+            sw.Stop();
+            Console.WriteLine(sw.ElapsedMilliseconds + " construct octrees");
+            sw.Reset();
+            sw.Start();
+
             List<OctreeNodeContents> triListA = new List<OctreeNodeContents>();
             List<OctreeNodeContents> triListB = new List<OctreeNodeContents>();
+
+            sw.Stop();
+            Console.WriteLine(sw.ElapsedMilliseconds + " prepare octree lists");
+            sw.Reset();
+            sw.Start();
+
             foreach (Triangle tri in meshA.Triangles())
             {
                 triListA.Add(new VoxelTriangle(tri));
@@ -34,12 +63,64 @@ namespace OPS.Geometry
             {
                 triListB.Add(new VoxelTriangle(tri));
             }
+
+            sw.Stop();
+            Console.WriteLine(sw.ElapsedMilliseconds + " put triangles in list");
+            sw.Reset();
+            sw.Start();
+
             a.InsertList(triListA);
             b.InsertList(triListB);
+
+            sw.Stop();
+            Console.WriteLine(sw.ElapsedMilliseconds + " insert triangle lists into octrees");
+            sw.Reset();
+            sw.Start();
+
+            // Cache the traversal path in each voxel triangle
+            Action<OctreeNode> saveTraversal = (node => {
+                List<int> path = new List<int>();
+
+                OctreeNode current = node;
+                while (current.Parent != null)
+                {
+                    int i = 0;
+                    foreach (OctreeNode child in current.Parent.Children)
+                    {
+                        if (child == current)
+                        {
+                            break;
+                        }
+                        i++;
+                    }
+
+                    path.Add(i);
+                    current = current.Parent;
+                }
+
+                foreach (VoxelTriangle voxelTri in node.Contained)
+                {
+                    List<int> reversedPath = new List<int>(path);
+                    reversedPath.Reverse();
+                    voxelTri.TraversalPath = reversedPath;
+                }
+            });
+            a.Traverse(saveTraversal);
+            b.Traverse(saveTraversal);
+
+            sw.Stop();
+            Console.WriteLine(sw.ElapsedMilliseconds + " cache traversal paths");
+            sw.Reset();
+            sw.Start();
 
             // Enqueue the root cell of both octrees
             queue.Enqueue(a.Root, (float)ComputeMaxGeometricDistanceToClosestCellSquared(a.Root, b));
             queue.Enqueue(b.Root, (float)ComputeMaxGeometricDistanceToClosestCellSquared(b.Root, a));
+
+            sw.Stop();
+            Console.WriteLine(sw.ElapsedMilliseconds + " stick octrees into priority queue");
+            sw.Reset();
+            sw.Start();
 
             // Process each cell or triangle
             while (queue.Count > 0)
@@ -66,7 +147,7 @@ namespace OPS.Geometry
                 // The current cell actually represents an individual triangle, 
                 if (current.Owner == null)
                 {
-                    VoxelTriangle currentVoxelTri = (VoxelTriangle) current.Contained[0];
+                    VoxelTriangle currentVoxelTri = (VoxelTriangle)current.Contained[0];
                     Triangle currentTri = currentVoxelTri.Triangle;
 
                     // Triangle points
@@ -92,19 +173,25 @@ namespace OPS.Geometry
                     VoxelTriangle voxelTri3 = new VoxelTriangle(tri3);
 
                     // Find the corresponding base points for each point used in the subdivided mesh
-                    OctreeNode lastTree = otherTree.Root;
+                    OctreeNode lastTree = otherTree.FollowPath(currentVoxelTri.TraversalPath);
                     BasePoint basepointP0 = currentVoxelTri.BasePoints[0];
                     BasePoint basepointP1 = currentVoxelTri.BasePoints[1];
                     BasePoint basepointP2 = currentVoxelTri.BasePoints[2];
-                    BasePoint basepointM01 = FindNearestBasepointFromPoint(m01.Position, otherTree, lastTree, out lastTree);
-                    BasePoint basepointM12 = FindNearestBasepointFromPoint(m12.Position, otherTree, lastTree, out lastTree);
-                    BasePoint basepointM20 = FindNearestBasepointFromPoint(m20.Position, otherTree, lastTree, out lastTree);
+                    BasePoint basepointM01 = FindNearestBasePointFromPoint(m01.Position, otherTree, lastTree, out lastTree);
+                    BasePoint basepointM12 = FindNearestBasePointFromPoint(m12.Position, otherTree, lastTree, out lastTree);
+                    BasePoint basepointM20 = FindNearestBasePointFromPoint(m20.Position, otherTree, lastTree, out lastTree);
 
                     // Attach the base points to each subdivided triangle
                     voxelTri0.BasePoints = new BasePoint[] { basepointM01, basepointM12, basepointM20 };
                     voxelTri1.BasePoints = new BasePoint[] { basepointP0, basepointM01, basepointM20 };
                     voxelTri2.BasePoints = new BasePoint[] { basepointP1, basepointM01, basepointM12 };
                     voxelTri3.BasePoints = new BasePoint[] { basepointP2, basepointM12, basepointM20 };
+
+                    // Add the traversal path to each new triangle
+                    voxelTri0.TraversalPath = currentVoxelTri.TraversalPath;
+                    voxelTri1.TraversalPath = currentVoxelTri.TraversalPath;
+                    voxelTri2.TraversalPath = currentVoxelTri.TraversalPath;
+                    voxelTri3.TraversalPath = currentVoxelTri.TraversalPath;
 
                     // Process each of the four new triangles
                     ProcessTriangle(voxelTri0, current, otherTree);
@@ -135,6 +222,11 @@ namespace OPS.Geometry
                 }
             }
 
+            sw.Stop();
+            Console.WriteLine(sw.ElapsedMilliseconds + " main loop");
+            sw.Reset();
+            sw.Start();
+
             // Return the final hausdorff distance
             return Math.Sqrt(hausdorffDistanceSquared);
         }
@@ -142,7 +234,7 @@ namespace OPS.Geometry
         private void ProcessTriangle(VoxelTriangle tri, OctreeNode current, Octree otherTree)
         {
             // Compute the barycenter of this triangle
-            Vector3 barycenter = new BarycentricPoint(ONE_THIRD, ONE_THIRD, ONE_THIRD, tri.Triangle).Position;
+            Vector3 barycenter = tri.Triangle.GetBarycenter();
 
             // Find the nearest base points to each of this triangle's three vertices if needed
             if (tri.BasePoints == null)
@@ -170,47 +262,46 @@ namespace OPS.Geometry
             // Update the global hausdorff distance with the minimum
             hausdorffDistanceSquared = Math.Max(hausdorffDistanceSquared, maxShortestDistanceSquared);
 
-            // Don't bother adding most triangles to the queue since they are already less far than the hausdorff distance
+            // Don't bother adding the triangle to the queue if its furthest case is already shorter than the hausdorff distance
             if (maxFurthestDistanceSquared < hausdorffDistanceSquared)
             {
                 return;
             }
 
-            // Stop subdividing once triangles become too small so they don't subdivide forever
-            if (maxFurthestDistanceSquared - maxShortestDistanceSquared < 1e-1)
+            // Stop subdividing once triangles become too small so that they don't subdivide forever
+            if (maxShortestDistanceSquared > epsilon || maxFurthestDistanceSquared < epsilon)
             {
                 return;
             }
 
-            // If it hit the same triangle with each of the three base points, the shortest is the actual distance, so just use that
-            // Otherwise, add this triangle to the queue based on its furthest possible distance from the triangle to the mesh
-            // TODO: Fix this comment ^^^
-            if (!(tri.BasePoints[0].Triangle == tri.BasePoints[1].Triangle && tri.BasePoints[1].Triangle == tri.BasePoints[2].Triangle))
+            // If it hit the same triangle with each of the three base points, the shortest case distance is the actual distance, so don't add the triangle to the queue
+            if (tri.BasePoints[0].Triangle == tri.BasePoints[1].Triangle && tri.BasePoints[1].Triangle == tri.BasePoints[2].Triangle)
             {
-                // Mis-using an octree node as a singular triangle by setting its owner property (first argument) to null
-                OctreeNode voxelTriangle = new OctreeNode(null, null, tri.Bounds(), current.Depth);
-                voxelTriangle.Contained.Add(tri);
-
-                // Enqueue the triangle using the furthest distance metric
-                queue.Enqueue(voxelTriangle, (float)maxFurthestDistanceSquared);
+                return;
             }
+
+            // Add this triangle to the queue by mis-using an octree node as a singular triangle by setting its owner property (first argument) to null
+            OctreeNode voxelTriangle = new OctreeNode(null, null, tri.Bounds(), current.Depth);
+            voxelTriangle.Contained.Add(tri);
+
+            // Enqueue the triangle using the furthest distance metric
+            queue.Enqueue(voxelTriangle, (float)maxFurthestDistanceSquared);
         }
 
         private BasePoint[] FindNearestBasePointsFromTriangle(VoxelTriangle tri, Octree otherTree)
         {
             BasePoint[] basePoints = new BasePoint[3];
-            OctreeNode last = otherTree.Root;
             Vertex[] vertices = tri.Triangle.Vertices();
+            OctreeNode last = otherTree.FollowPath(tri.TraversalPath);
 
-            for (int i = 0; i < vertices.Length; i++)
-            {
-                basePoints[i] = FindNearestBasepointFromPoint(vertices[i].Position, otherTree, last, out last);
-            }
+            basePoints[0] = FindNearestBasePointFromPoint(vertices[0].Position, otherTree, last, out last);
+            basePoints[1] = FindNearestBasePointFromPoint(vertices[1].Position, otherTree, last, out last);
+            basePoints[2] = FindNearestBasePointFromPoint(vertices[2].Position, otherTree, last, out last);
 
             return basePoints;
         }
 
-        private BasePoint FindNearestBasepointFromPoint(Vector3 point, Octree otherTree, OctreeNode startingOctreeNode, out OctreeNode lastOctreeNode)
+        private BasePoint FindNearestBasePointFromPoint(Vector3 point, Octree otherTree, OctreeNode startingOctreeNode, out OctreeNode lastOctreeNode)
         {
             VoxelTriangle triangle = (VoxelTriangle)otherTree.Closest(point, startingOctreeNode, out lastOctreeNode);
             Vector3 closestPoint = triangle.Triangle.ClosestPoint(point).Position;

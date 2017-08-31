@@ -10,6 +10,7 @@ using OPS.Cloud;
 using OPS.Pipeline;
 using log4net;
 using OPS.Util;
+using System.Diagnostics;
 
 namespace Landform
 {
@@ -24,16 +25,30 @@ namespace Landform
         /// <returns></returns>
         static int Main(string[] args)
         {
-            Mesh a = Mesh.Load(@"C:\Users\kchamber.JPL\Desktop/original.obj");
-            Mesh b = Mesh.Load(@"C:\Users\kchamber.JPL\Desktop/decimated.obj");
+            Mesh a = Mesh.Load(@"C:\Users\kchamber.JPL\Desktop/mars_original.obj");
+            Mesh b = Mesh.Load(@"C:\Users\kchamber.JPL\Desktop/mars_decimated.obj");
+
+            //Mesh a = Mesh.Load(@"C:\Users\kchamber.JPL\Desktop/bunny.obj");
+            //Mesh b = Mesh.Load(@"C:\Users\kchamber.JPL\Desktop/bunny_decimated.obj");
+
+            //Mesh a = Mesh.Load(@"C:\Users\kchamber.JPL\Desktop/smooth_suzanne.obj");
+            //Mesh b = Mesh.Load(@"C:\Users\kchamber.JPL\Desktop/rough_suzanne.obj");
 
             HausdorffDistance hausdorff = new HausdorffDistance();
 
-            double newHausdorff = hausdorff.Calculate(a, b);
-            Console.WriteLine("New: " + newHausdorff);
+            Stopwatch sw = new Stopwatch();
+            sw.Start();
 
-            //double oldHausdorff = MeshLab.BidirectionalHausdorffDistance(a, b).Max;
-            //Console.WriteLine("Old: " + oldHausdorff);
+            double newHausdorff = hausdorff.Calculate(a, b, 1000000);
+            sw.Stop();
+            Console.WriteLine("New: " + newHausdorff + " in " + sw.ElapsedMilliseconds + " ms");
+
+            sw.Reset();
+            sw.Start();
+
+            double oldHausdorff = MeshLab.BidirectionalHausdorffDistance(a, b).Max;
+            sw.Stop();
+            Console.WriteLine("Old: " + oldHausdorff + " in " + sw.ElapsedMilliseconds + " ms");
 
             return 0;
         }

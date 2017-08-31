@@ -333,6 +333,11 @@ namespace OPS.Geometry
             return new BarycentricPoint(s, t, this);
         }
 
+        public Vector3 GetBarycenter()
+        {
+            double oneThird = 1.0 / 3.0;
+            return new BarycentricPoint(oneThird, oneThird, oneThird, this).Position;
+        }
         
         /// <summary>
         /// Given a uv coordinate, returns the the barycentric position if is within

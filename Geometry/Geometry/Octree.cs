@@ -45,6 +45,11 @@ namespace OPS.Geometry
             this.Deepest = 1;
         }
 
+        public void Traverse(Action<OctreeNode> applyFunc)
+        {
+            Visit(applyFunc, new Func<OctreeNode, bool>(node => true ));
+        }
+
         /// <summary>
         /// Recurses down the tree calling function applyFunc on each OctreeNode if should_expand returns true on that OctreeNode
         /// Note: When applyFunc is NOT called on a OctreeNode, this function will ignore the OctreeNode's children
@@ -147,6 +152,7 @@ namespace OPS.Geometry
                 return contents.Intersects( OctreeNode.Bounds);
             });
         }
+
         /// <summary>
         /// Loops over the triangles in mesh and adds them to the Oct tree, then splits OctreeNodes from the root down as needed
         /// </summary>
@@ -170,7 +176,23 @@ namespace OPS.Geometry
             }, OctreeNode => { return true; });
         }
 
-        
+        public OctreeNode FollowPath(List<int> path)
+        {
+            OctreeNode current = Root;
+
+            foreach (int i in path)
+            {
+                if (current.IsLeaf())
+                {
+                    break;
+                }
+
+                current = current.Children[i];
+            }
+
+            return current;
+        }
+
         /// <summary>
         /// Returns the closest triangle (with its texture) on the mesh to query point xyz. Returns null if mesh is empty
         /// </summary>
