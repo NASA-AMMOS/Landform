@@ -35,20 +35,11 @@ namespace Landform
             //Mesh b = Mesh.Load(@"C:\Users\kchamber.JPL\Desktop/rough_suzanne.obj");
 
             HausdorffDistance hausdorff = new HausdorffDistance();
-
-            Stopwatch sw = new Stopwatch();
-            sw.Start();
-
-            double newHausdorff = hausdorff.Calculate(a, b, 1000000);
-            sw.Stop();
-            Console.WriteLine("New: " + newHausdorff + " in " + sw.ElapsedMilliseconds + " ms");
-
-            sw.Reset();
-            sw.Start();
+            double newHausdorff = hausdorff.Calculate(a, b, 1);
+            Console.WriteLine("New: " + newHausdorff);
 
             double oldHausdorff = MeshLab.BidirectionalHausdorffDistance(a, b).Max;
-            sw.Stop();
-            Console.WriteLine("Old: " + oldHausdorff + " in " + sw.ElapsedMilliseconds + " ms");
+            Console.WriteLine("Old: " + oldHausdorff);
 
             return 0;
         }

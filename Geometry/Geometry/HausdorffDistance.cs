@@ -18,42 +18,19 @@ namespace OPS.Geometry
 
         public double Calculate(Mesh meshA, Mesh meshB, double maxErrorEpsilon)
         {
-            Stopwatch sw = new Stopwatch();
-            sw.Start();
-
             // Start with zero minimum distance and an empty priority queue
             hausdorffDistanceSquared = 0;
             queue = new SimplePriorityQueue<OctreeNode>();
             epsilon = maxErrorEpsilon;
 
-            sw.Stop();
-            Console.WriteLine(sw.ElapsedMilliseconds + " initialization");
-            sw.Reset();
-            sw.Start();
-
             // Build an octree for both meshes and insert the mesh triangles into them
             BoundingBox combinedBounds = BoundingBoxExtensions.Union(new List<BoundingBox> { meshA.Bounds(), meshB.Bounds() });
-
-            sw.Stop();
-            Console.WriteLine(sw.ElapsedMilliseconds + " combine bounds");
-            sw.Reset();
-            sw.Start();
 
             Octree a = new Octree(combinedBounds);
             Octree b = new Octree(combinedBounds);
 
-            sw.Stop();
-            Console.WriteLine(sw.ElapsedMilliseconds + " construct octrees");
-            sw.Reset();
-            sw.Start();
-
             List<OctreeNodeContents> triListA = new List<OctreeNodeContents>();
             List<OctreeNodeContents> triListB = new List<OctreeNodeContents>();
-
-            sw.Stop();
-            Console.WriteLine(sw.ElapsedMilliseconds + " prepare octree lists");
-            sw.Reset();
-            sw.Start();
 
             foreach (Triangle tri in meshA.Triangles())
             {
@@ -64,18 +41,8 @@ namespace OPS.Geometry
                 triListB.Add(new VoxelTriangle(tri));
             }
 
-            sw.Stop();
-            Console.WriteLine(sw.ElapsedMilliseconds + " put triangles in list");
-            sw.Reset();
-            sw.Start();
-
             a.InsertList(triListA);
             b.InsertList(triListB);
-
-            sw.Stop();
-            Console.WriteLine(sw.ElapsedMilliseconds + " insert triangle lists into octrees");
-            sw.Reset();
-            sw.Start();
 
             // Cache the traversal path in each voxel triangle
             Action<OctreeNode> saveTraversal = (node => {
@@ -108,19 +75,9 @@ namespace OPS.Geometry
             a.Traverse(saveTraversal);
             b.Traverse(saveTraversal);
 
-            sw.Stop();
-            Console.WriteLine(sw.ElapsedMilliseconds + " cache traversal paths");
-            sw.Reset();
-            sw.Start();
-
             // Enqueue the root cell of both octrees
             queue.Enqueue(a.Root, (float)ComputeMaxGeometricDistanceToClosestCellSquared(a.Root, b));
             queue.Enqueue(b.Root, (float)ComputeMaxGeometricDistanceToClosestCellSquared(b.Root, a));
-
-            sw.Stop();
-            Console.WriteLine(sw.ElapsedMilliseconds + " stick octrees into priority queue");
-            sw.Reset();
-            sw.Start();
 
             // Process each cell or triangle
             while (queue.Count > 0)
@@ -222,11 +179,6 @@ namespace OPS.Geometry
                 }
             }
 
-            sw.Stop();
-            Console.WriteLine(sw.ElapsedMilliseconds + " main loop");
-            sw.Reset();
-            sw.Start();
-
             // Return the final hausdorff distance
             return Math.Sqrt(hausdorffDistanceSquared);
         }
@@ -246,8 +198,8 @@ namespace OPS.Geometry
             Vertex[] trianglePoints = tri.Triangle.Vertices();
 
             // Shortest case and furthest case distances from this triangle to the mesh itself
-            double maxShortestDistanceSquared = 0;
-            double maxFurthestDistanceSquared = 0;
+            double shortestDistanceSquared = 0;
+            double furthestDistanceSquared = 0;
 
             // Calculate the vector from triangle point (V) to base point (P) and update the shortest and furthest distances
             for (int i = 0; i < 3; i++)
@@ -255,21 +207,21 @@ namespace OPS.Geometry
                 double vToPLengthSquared = (tri.BasePoints[i].Position - trianglePoints[i].Position).LengthSquared();
                 double bToPLengthSquared = (tri.BasePoints[i].Position - barycenter).LengthSquared();
 
-                maxShortestDistanceSquared = Math.Max(maxShortestDistanceSquared, vToPLengthSquared);
-                maxFurthestDistanceSquared = Math.Max(maxFurthestDistanceSquared, bToPLengthSquared);
+                shortestDistanceSquared = Math.Max(shortestDistanceSquared, vToPLengthSquared);
+                furthestDistanceSquared = Math.Max(furthestDistanceSquared, bToPLengthSquared);
             }
 
             // Update the global hausdorff distance with the minimum
-            hausdorffDistanceSquared = Math.Max(hausdorffDistanceSquared, maxShortestDistanceSquared);
+            hausdorffDistanceSquared = Math.Max(hausdorffDistanceSquared, shortestDistanceSquared);
 
             // Don't bother adding the triangle to the queue if its furthest case is already shorter than the hausdorff distance
-            if (maxFurthestDistanceSquared < hausdorffDistanceSquared)
+            if (furthestDistanceSquared < hausdorffDistanceSquared)
             {
                 return;
             }
 
             // Stop subdividing once triangles become too small so that they don't subdivide forever
-            if (maxShortestDistanceSquared > epsilon || maxFurthestDistanceSquared < epsilon)
+            if (shortestDistanceSquared > epsilon || furthestDistanceSquared < epsilon)
             {
                 return;
             }
@@ -285,7 +237,7 @@ namespace OPS.Geometry
             voxelTriangle.Contained.Add(tri);
 
             // Enqueue the triangle using the furthest distance metric
-            queue.Enqueue(voxelTriangle, (float)maxFurthestDistanceSquared);
+            queue.Enqueue(voxelTriangle, (float)furthestDistanceSquared);
         }
 
         private BasePoint[] FindNearestBasePointsFromTriangle(VoxelTriangle tri, Octree otherTree)

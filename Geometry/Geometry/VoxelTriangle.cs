@@ -5,7 +5,6 @@ using System.Text;
 using System.Threading.Tasks;
 using OPS.Geometry;
 using Microsoft.Xna.Framework;
-using OPS.Geometry;
 
 namespace OPS.Geometry
 {
