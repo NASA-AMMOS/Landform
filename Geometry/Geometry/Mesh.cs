@@ -28,7 +28,7 @@ namespace OPS.Geometry
         public bool HasUVs = false;
         public bool HasColors = false;
         public bool HasFaces { get { return Faces.Count > 0; } }
-              
+        
         /// <summary>
         /// Creates an empty mesh. 
         /// </summary>
@@ -197,7 +197,7 @@ namespace OPS.Geometry
             List<Face> uniqueFaces = new List<Face>();
             // For each face i
             for (int i = 0; i < this.Faces.Count; i++)
-            {                
+            {
                 // If there is another face like this one, then all of the other faces vertices must be identical
                 // Thus we can just look up the hashset for one of this faces vertices
                 HashSet<int> potentiallyIdenticalFaces = vertexToFaceIndex[this.Vertices[this.Faces[i].P0]];
@@ -211,7 +211,7 @@ namespace OPS.Geometry
                     {
                         // Check the three possible offsets the vertices could have
                         Vertex[] a = FaceToVertexArray(Faces[i]);
-                        Vertex[] b = FaceToVertexArray(Faces[j]);                        
+                        Vertex[] b = FaceToVertexArray(Faces[j]);
                         for (int offset = 0; offset < 3; offset++)
                         {
                             // For each offset, check to see if the vertices are identical between the faces
@@ -221,7 +221,7 @@ namespace OPS.Geometry
                                 break;
                             }
                         }
-                    }                    
+                    }
                 }
                 if(isFirstInstance)
                 {
@@ -232,7 +232,7 @@ namespace OPS.Geometry
         }
 
         /// <summary>
-        /// Removes any vertices that are not referenced by a face.  
+        /// Removes any vertices that are not referenced by a face.
         /// </summary>
         public void RemoveUnreferencedVertices()
         {
@@ -253,7 +253,7 @@ namespace OPS.Geometry
                 if(referencedIndices.Contains(i))
                 {
                     oldToNewIndex.Add(i, referencedVertices.Count);
-                    referencedVertices.Add(this.Vertices[i]);                    
+                    referencedVertices.Add(this.Vertices[i]);
                 }
             }
             this.Vertices = referencedVertices;
@@ -286,7 +286,7 @@ namespace OPS.Geometry
                     vertexToIndex.Add(v, vertexToIndex.Count);
                     uniqueVertices.Add(v);
                 }
-                oldToNewIndex.Add(i, vertexToIndex[v]);                             
+                oldToNewIndex.Add(i, vertexToIndex[v]);
             }
             // Update the vertex list
             this.Vertices = uniqueVertices;
@@ -300,6 +300,113 @@ namespace OPS.Geometry
                 this.Faces[i] = f;
             }
             RemoveIdenticalFaces();
+        }
+
+        public void RemoveSkirt()
+        {
+            List<Edge> edges = GetExteriorEdges();
+
+            // Put each vertex in another hashset from all the edges
+            HashSet<Vertex> vertices = new HashSet<Vertex>();
+            foreach (Edge edge in edges)
+            {
+                vertices.Add(edge.A);
+                vertices.Add(edge.B);
+            }
+
+            RemoveVertices(vertices);
+        }
+
+        public void AddSkirt()
+        {
+            AddSkirt(new Vector3(0, -0.1, 0));
+        }
+
+        public void AddSkirt(Vector3 offset)
+        {
+            List<Edge> edges = GetExteriorEdges();
+
+            Dictionary<Vertex, Vertex> edgeToSkirtPoints = new Dictionary<Vertex, Vertex>();
+            foreach (Edge edge in edges)
+            {
+                // Copy edge vertex A to the skirt position
+                Vertex a = edge.A;
+                Vertex aSkirt;
+                if (edgeToSkirtPoints.ContainsKey(a))
+                {
+                    aSkirt = edgeToSkirtPoints[a];
+                }
+                else
+                {
+                    aSkirt = new Vertex(a.Position + offset);
+                    Vertices.Add(aSkirt);
+                }
+                int aIndex = Vertices.IndexOf(a);
+                int aSkirtIndex = Vertices.IndexOf(aSkirt);
+
+                // Copy edge vertex B to the skirt position
+                Vertex b = edge.B;
+                Vertex bSkirt;
+                if (edgeToSkirtPoints.ContainsKey(b))
+                {
+                    bSkirt = edgeToSkirtPoints[b];
+                }
+                else
+                {
+                    bSkirt = new Vertex(b.Position + offset);
+                    Vertices.Add(bSkirt);
+                }
+                int bIndex = Vertices.IndexOf(b);
+                int bSkirtIndex = Vertices.IndexOf(bSkirt);
+
+                // Construct both triangles for the face
+                Faces.Add(new Face(aIndex, aSkirtIndex, bIndex));
+                Faces.Add(new Face(bIndex, aSkirtIndex, bSkirtIndex));
+            }
+
+            Clean();
+        }
+
+        private List<Edge> GetExteriorEdges()
+        {
+            // Unordered set of edges
+            List<Edge> edges = new List<Edge>();
+
+            // Put each edge in the hashset and remove it if it already exists
+            foreach (Face face in Faces)
+            {
+                Edge edge0 = new Edge(Vertices[face.P0], Vertices[face.P1]);
+                if (edges.Contains(edge0))
+                {
+                    edges.Remove(edge0);
+                }
+                else
+                {
+                    edges.Add(edge0);
+                }
+
+                Edge edge1 = new Edge(Vertices[face.P1], Vertices[face.P2]);
+                if (edges.Contains(edge1))
+                {
+                    edges.Remove(edge1);
+                }
+                else
+                {
+                    edges.Add(edge1);
+                }
+
+                Edge edge2 = new Edge(Vertices[face.P2], Vertices[face.P0]);
+                if (edges.Contains(edge2))
+                {
+                    edges.Remove(edge2);
+                }
+                else
+                {
+                    edges.Add(edge2);
+                }
+            }
+
+            return edges;
         }
 
         /// <summary>
@@ -345,7 +452,7 @@ namespace OPS.Geometry
         }
 
         /// <summary>
-        /// Returns a list of triangles for this mesh.  Triangles each contain thier own
+        /// Returns a list of triangles for this mesh. Triangles each contain thier own
         /// clone of vertices so modifications to the triangles or mesh will not have side effects on the other
         /// </summary>
         /// <returns></returns>
@@ -492,7 +599,7 @@ namespace OPS.Geometry
             List<Vertex> clippedVerts = new List<Vertex>();
             // Loop through all existing vertices and determine which ones to keep
             // Record original and new indices
-            for(int i = 0; i <  this.Vertices.Count; i++)
+            for(int i = 0; i < this.Vertices.Count; i++)
             {
                 Vertex v = this.Vertices[i];
                 originalIndexToVert.Add(i, v);
@@ -615,6 +722,33 @@ namespace OPS.Geometry
                 throw new MeshSerializerException("Mesh format not supported");
             }
             return s.Load(filename);
+        }
+        
+        private struct Edge
+        {
+            public Vertex A;
+            public Vertex B;
+
+            public Edge(Vertex a, Vertex b)
+            {
+                A = a;
+                B = b;
+            }
+
+            public override int GetHashCode()
+            {
+                // Warning: Unlike the Equals() method below, this is exact, not AlmostEqual
+                return A.GetHashCode() + B.GetHashCode();
+            }
+
+            public override bool Equals(Object other)
+            {
+                if (other.GetType() != typeof(Edge)) return false;
+
+                Edge e = (Edge)other;
+                return (A.Position.AlmostEqual(e.A.Position) && B.Position.AlmostEqual(e.B.Position))
+                    || (B.Position.AlmostEqual(e.A.Position) && A.Position.AlmostEqual(e.B.Position));
+            }
         }
     }
 }
