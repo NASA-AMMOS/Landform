@@ -25,13 +25,13 @@ namespace Landform
         /// <returns></returns>
         static int Main(string[] args)
         {
-            //Mesh mesh = Mesh.Load(@"C:\Users\kchamber.JPL\Desktop\output\12222030.obj");
-            Mesh mesh = Mesh.Load(@"C:\Users\kchamber.JPL\Desktop\output\3000000000333.obj");
+            Mesh mesh = Mesh.Load(@"C:\Users\kchamber.JPL\Desktop\output\12222030.obj");
+            //Mesh mesh = Mesh.Load(@"C:\Users\kchamber.JPL\Desktop\bunny.obj");
 
-            mesh.RemoveSkirt();
-            //mesh.AddSkirt(new Vector3(0, -1, 0));
+            //mesh.RemoveSkirt();
+            mesh.AddSkirt(new Vector3(0, -1, 0));
 
-            string path = @"C:\Users\kchamber.JPL\Desktop\output\result.obj";
+            string path = @"C:\Users\kchamber.JPL\Desktop\result.obj";
             mesh.Save(path);
             System.Diagnostics.Process.Start(path);
 

@@ -317,9 +317,13 @@ namespace OPS.Geometry
             RemoveVertices(vertices);
         }
 
-        public void AddSkirt()
+        public void AddSkirt(double heightAsPercentOfWidth = 1)
         {
-            AddSkirt(new Vector3(0, -0.1, 0));
+            // Calculate skirt height offset
+            Vector3 size = Bounds().Size();
+            double actualHeight = Math.Max(size.X, size.Z) * heightAsPercentOfWidth / 100;
+            Vector3 offset = new Vector3(0, heightAsPercentOfWidth, 0);
+            AddSkirt(offset);
         }
 
         public void AddSkirt(Vector3 offset)
@@ -338,7 +342,7 @@ namespace OPS.Geometry
                 }
                 else
                 {
-                    aSkirt = new Vertex(a.Position + offset);
+                    aSkirt = new Vertex(a.Position + offset, a.Normal, a.Color, a.UV);
                     Vertices.Add(aSkirt);
                 }
                 int aIndex = Vertices.IndexOf(a);
@@ -353,7 +357,7 @@ namespace OPS.Geometry
                 }
                 else
                 {
-                    bSkirt = new Vertex(b.Position + offset);
+                    bSkirt = new Vertex(b.Position + offset, b.Normal, b.Color, b.UV);
                     Vertices.Add(bSkirt);
                 }
                 int bIndex = Vertices.IndexOf(b);
