@@ -302,65 +302,153 @@ namespace OPS.Geometry
             RemoveIdenticalFaces();
         }
 
-        public void RemoveSkirt()
+        /// <summary>
+        /// Remove the skirt along the specified axis
+        /// The skirt's edge vertex must share the normals, UVs, and color of the connected skirt vertex on the mesh
+        /// The edge and its connected corresponding one on the mesh must be aligned on the axis specified
+        /// </summary>
+        /// <param name="axis">The axis which the skirt is extruded along, where the other two axes must be equal between the two skirt vertices</param>
+        public void RemoveSkirt(SkirtAxis axis)
         {
+            // List of edges in the mesh located on the exterior (edges adjacent to only one triangle)
             List<Edge> edges = GetExteriorEdges();
 
             // Put each vertex in another hashset from all the edges
-            HashSet<Vertex> vertices = new HashSet<Vertex>();
+            HashSet<Vertex> edgeVertices = new HashSet<Vertex>();
             foreach (Edge edge in edges)
             {
-                vertices.Add(edge.A);
-                vertices.Add(edge.B);
+                edgeVertices.Add(edge.A);
+                edgeVertices.Add(edge.B);
             }
 
-            RemoveVertices(vertices);
+            // Vertices that are part of the skirt that need to be removed at the end
+            List<Vertex> verticesToRemove = new List<Vertex>();
+
+            // Run through each unique vertex on the edge and remove it if it qualifies as part of a skirt
+            foreach (Vertex edgeVertex in edgeVertices)
+            {
+                // Find index of the current edge vertex
+                int vertexIndexInMesh = Vertices.IndexOf(edgeVertex);
+
+                // Find the connected faces to the edge vertex
+                Face[] facesUsingEdgeVertex = Faces.Where(face => Vertices[face.P0] == edgeVertex || Vertices[face.P1] == edgeVertex || Vertices[face.P2] == edgeVertex).ToArray();
+
+                // All vertices connected to this vertex
+                HashSet<Vertex> otherVertices = new HashSet<Vertex>();
+
+                // Add the other two vertices to the set
+                foreach (Face face in facesUsingEdgeVertex)
+                {
+                    int[] vertexIndices = face.ToArray();
+                    int vertexIndexInFace = Array.IndexOf(vertexIndices, vertexIndexInMesh);
+                    otherVertices.Add(Vertices[vertexIndices[(vertexIndexInFace + 1) % 3]]);
+                    otherVertices.Add(Vertices[vertexIndices[(vertexIndexInFace + 2) % 3]]);
+                }
+
+                // Go through each vertex and attempt to find one that matches this one's normals/UVs/color/position
+                foreach (Vertex candidateVertex in otherVertices)
+                {
+                    // Skip this point because it doesn't qualify if it has a mismatched normal or UV or color
+                    if ((HasNormals && !edgeVertex.Normal.AlmostEqual(candidateVertex.Normal)) ||
+                        (HasUVs && !edgeVertex.UV.AlmostEqual(candidateVertex.UV)) ||
+                        (HasColors && !edgeVertex.Color.AlmostEqual(candidateVertex.Color))
+                    )
+                    {
+                        continue;
+                    }
+
+                    // Check if the other two axes are almost equal between the edge vertex and candidate vertex
+                    if ((axis == SkirtAxis.X && edgeVertex.Position.Y.AlmostEqual(candidateVertex.Position.Y) && edgeVertex.Position.Z.AlmostEqual(candidateVertex.Position.Z)) ||
+                        (axis == SkirtAxis.Y && edgeVertex.Position.X.AlmostEqual(candidateVertex.Position.X) && edgeVertex.Position.Z.AlmostEqual(candidateVertex.Position.Z)) ||
+                        (axis == SkirtAxis.Z && edgeVertex.Position.X.AlmostEqual(candidateVertex.Position.X) && edgeVertex.Position.Y.AlmostEqual(candidateVertex.Position.Y))
+                    )
+                    {
+                        // Include the edge vertex in the list to be deleted
+                        verticesToRemove.Add(edgeVertex);
+                    }
+                }
+            }
+
+            // Remove the vertices selected on the edge that are part of the skirt
+            RemoveVertices(verticesToRemove);
         }
 
-        public void AddSkirt(double heightAsPercentOfWidth = 1)
+        /// <summary>
+        /// Adds a skirt to all open edges (edges which are connected on only one side) in the direction specified
+        /// </summary>
+        /// <param name="axis">Extrudes the skirt in the X, Y, or Z axis</param>
+        /// <param name="heightAsPercentOfWidth">Specifies the height of the skirt, where 100% is the width or</param>
+        public void AddSkirt(SkirtAxis axis = SkirtAxis.Y, double heightAsPercentOfWidth = 1)
         {
-            // Calculate skirt height offset
+            // Calculate skirt offset height
             Vector3 size = Bounds().Size();
-            double actualHeight = Math.Max(size.X, size.Z) * heightAsPercentOfWidth / 100;
-            Vector3 offset = new Vector3(0, heightAsPercentOfWidth, 0);
-            AddSkirt(offset);
-        }
 
-        public void AddSkirt(Vector3 offset)
-        {
+            // Finds the maximum extent of either of the other two axes that the skirt is not being created along
+            double maxDimension;
+            if (axis == SkirtAxis.X)
+            {
+                maxDimension = Math.Max(size.Y, size.Z);
+            }
+            else if (axis == SkirtAxis.Y)
+            {
+                maxDimension = Math.Max(size.X, size.Z);
+            }
+            else
+            {
+                maxDimension = Math.Max(size.X, size.Y);
+            }
+
+            // Determines the actual number of model units to extrude the skirt along
+            double actualHeight = maxDimension * -heightAsPercentOfWidth / 100;
+
+            // Set the offset in the correct axis
+            Vector3 offset = Vector3.Zero;
+            if (axis == SkirtAxis.X)
+            {
+                offset = new Vector3(actualHeight, 0, 0);
+            }
+            else if (axis == SkirtAxis.Y)
+            {
+                offset = new Vector3(0, actualHeight, 0);
+            }
+            else if (axis == SkirtAxis.Z)
+            {
+                offset = new Vector3(0, 0, actualHeight);
+            }
+
+            // List of resulting exterior edges that are connected by only one face
             List<Edge> edges = GetExteriorEdges();
 
+            // Pairing between points at the edge and the corresponding skirt point on the mesh
             Dictionary<Vertex, Vertex> edgeToSkirtPoints = new Dictionary<Vertex, Vertex>();
+
+            // Copy each vertex down from the edge of the mesh to the skirt and form two triangles along the edge
             foreach (Edge edge in edges)
             {
                 // Copy edge vertex A to the skirt position
-                Vertex a = edge.A;
-                Vertex aSkirt;
-                if (edgeToSkirtPoints.ContainsKey(a))
+                if (!edgeToSkirtPoints.ContainsKey(edge.A))
                 {
-                    aSkirt = edgeToSkirtPoints[a];
+                    Vertex newVertex = new Vertex(edge.A.Position + offset, edge.A.Normal, edge.A.Color, edge.A.UV);
+                    Vertices.Add(newVertex);
+                    edgeToSkirtPoints.Add(edge.A, newVertex);
                 }
-                else
-                {
-                    aSkirt = new Vertex(a.Position + offset, a.Normal, a.Color, a.UV);
-                    Vertices.Add(aSkirt);
-                }
-                int aIndex = Vertices.IndexOf(a);
+                Vertex aSkirt = edgeToSkirtPoints[edge.A];
+
+                // Get the indexes of the new point and skirt point in the list of mesh vertices
+                int aIndex = Vertices.IndexOf(edge.A);
                 int aSkirtIndex = Vertices.IndexOf(aSkirt);
 
                 // Copy edge vertex B to the skirt position
-                Vertex b = edge.B;
-                Vertex bSkirt;
-                if (edgeToSkirtPoints.ContainsKey(b))
+                if (!edgeToSkirtPoints.ContainsKey(edge.B))
                 {
-                    bSkirt = edgeToSkirtPoints[b];
+                    Vertex newVertex = new Vertex(edge.B.Position + offset, edge.B.Normal, edge.B.Color, edge.B.UV);
+                    Vertices.Add(newVertex);
+                    edgeToSkirtPoints.Add(edge.B, newVertex);
                 }
-                else
-                {
-                    bSkirt = new Vertex(b.Position + offset, b.Normal, b.Color, b.UV);
-                    Vertices.Add(bSkirt);
-                }
-                int bIndex = Vertices.IndexOf(b);
+                Vertex bSkirt = edgeToSkirtPoints[edge.B];
+
+                // Get the indexes of the new point and skirt point in the list of mesh vertices
+                int bIndex = Vertices.IndexOf(edge.B);
                 int bSkirtIndex = Vertices.IndexOf(bSkirt);
 
                 // Construct both triangles for the face
@@ -368,9 +456,14 @@ namespace OPS.Geometry
                 Faces.Add(new Face(bIndex, aSkirtIndex, bSkirtIndex));
             }
 
+            // Clean the mesh for good measure
             Clean();
         }
 
+        /// <summary>
+        /// Returns a list of edge structs holding the two vertices forming the edges wherever the mesh has only one face using the edge
+        /// </summary>
+        /// <returns></returns>
         private List<Edge> GetExteriorEdges()
         {
             // Unordered set of edges
@@ -482,7 +575,6 @@ namespace OPS.Geometry
         {
             return this.HasNormals == other.HasNormals && this.HasUVs == other.HasUVs && this.HasColors == other.HasColors;
         }
-
 
         /// <summary>
         /// Return true if all attributes that are true of this mesh are also true of other
@@ -728,6 +820,9 @@ namespace OPS.Geometry
             return s.Load(filename);
         }
         
+        /// <summary>
+        /// An edge that holds two vertices
+        /// </summary>
         private struct Edge
         {
             public Vertex A;
@@ -753,6 +848,16 @@ namespace OPS.Geometry
                 return (A.Position.AlmostEqual(e.A.Position) && B.Position.AlmostEqual(e.B.Position))
                     || (B.Position.AlmostEqual(e.A.Position) && A.Position.AlmostEqual(e.B.Position));
             }
+        }
+
+        /// <summary>
+        /// X, Y, or Z axis which the skirt is directed along
+        /// </summary>
+        public enum SkirtAxis
+        {
+            X,
+            Y,
+            Z
         }
     }
 }
