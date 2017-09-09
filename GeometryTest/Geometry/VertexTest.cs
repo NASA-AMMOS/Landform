@@ -57,6 +57,12 @@ namespace GeometryTest
             Assert.AreEqual(v6.Normal, new Vector3(4, 5, 6));
             Assert.AreEqual(v6.UV, new Vector2(7, 8));
             Assert.AreEqual(v6.Color, new Vector4(9, 10, 11, 12));
+
+            Vertex v7 = new Vertex(1.23, 4.56, 7.89, -1, 0, 0, 0.25, 0.75, 255, 127, 0, 1);
+            Assert.AreEqual(v7.Position, new Vector3(1.23, 4.56, 7.89));
+            Assert.AreEqual(v7.Normal, new Vector3(-1, 0, 0));
+            Assert.AreEqual(v7.UV, new Vector2(0.25, 0.75));
+            Assert.AreEqual(v7.Color, new Vector4(255, 127, 0, 1));
         }
 
         [TestMethod]

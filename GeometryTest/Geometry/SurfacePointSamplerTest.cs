@@ -11,7 +11,7 @@ namespace GeometryTest.Geometry
     [TestClass]
     public class SurfacePointSamplerTest
     {
-        private Mesh meshFactory()
+        private Mesh MeshFactory()
         {
             Mesh m = new Mesh(true, true, true);
             m.Vertices.Add(new Vertex(0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 1));
@@ -27,7 +27,7 @@ namespace GeometryTest.Geometry
         [TestMethod]
         public void DeterministicTest()
         {
-            Mesh m = meshFactory();
+            Mesh m = MeshFactory();
             SurfacePointSampler samplerA = new SurfacePointSampler();
             SurfacePointSampler samplerB = new SurfacePointSampler(0);
             SurfacePointSampler samplerC = new SurfacePointSampler(100);
@@ -59,7 +59,7 @@ namespace GeometryTest.Geometry
         [TestMethod]
         public void DensityTest()
         {
-            Mesh m = meshFactory();
+            Mesh m = MeshFactory();
             SurfacePointSampler sampler = new SurfacePointSampler();
 
             var a = sampler.Sample(m, 1);
@@ -77,7 +77,7 @@ namespace GeometryTest.Geometry
         [TestMethod]
         public void MeshSamplerTest()
         {
-            Mesh m = meshFactory();
+            Mesh m = MeshFactory();
             SurfacePointSampler sampler = new SurfacePointSampler();
 
             var vertices = sampler.Sample(m, 100);
@@ -93,7 +93,7 @@ namespace GeometryTest.Geometry
         [TestMethod]
         public void PointsInBounds()
         {
-            Mesh m = meshFactory();
+            Mesh m = MeshFactory();
             SurfacePointSampler sampler = new SurfacePointSampler();
 
             var vertices = sampler.Sample(m, 1000);
@@ -109,7 +109,7 @@ namespace GeometryTest.Geometry
         [TestMethod]
         public void PointsNotTooClose()
         {
-            Mesh m = meshFactory();
+            Mesh m = MeshFactory();
             SurfacePointSampler sampler = new SurfacePointSampler();
 
             var vertices = sampler.Sample(m, 1000);

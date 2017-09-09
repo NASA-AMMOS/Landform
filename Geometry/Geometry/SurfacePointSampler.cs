@@ -8,6 +8,9 @@ namespace OPS.Geometry
 {
     /// <summary>
     /// Contains methods for placing Poisson-disc point samples across the surface of a given mesh at a chosen density
+    /// Based upon the paper "Efficient and Flexible Sampling with BlueNoise Properties of Triangular Meshes"
+    /// by Massimiliano Corsini, Paolo Cignoni, and Roberto Scopigno
+    /// http://ieeexplore.ieee.org/document/6143943/
     /// </summary>
     public class SurfacePointSampler
     {
@@ -27,9 +30,11 @@ namespace OPS.Geometry
 
         /// <summary>
         /// Generates and returns a point cloud mesh of samples across the surface of a given mesh at a specified density
+        /// Density is a metric that approximates how many points to place on a flat surface within a given square unit area
         /// </summary>
         /// <param name="input">Mesh which will have points sampled across its surface</param>
-        /// <param name="density">Factor that controls the density and quantity of points needed to cover the surface mesh surface area</param>
+        /// <param name="density">Factor that controls the density and quantity of points needed to cover the surface mesh surface area.
+        /// This is a metric that approximates how many points to place on a flat surface within a given square unit area, where denser = more points.</param>
         /// <param name="presampleFactor">Factor of how many points to sample randomly before pruning away ones that are too close together</param>
         /// <returns>New mesh containing a point cloud of samples across the surface of the given mesh</returns>
         public Mesh GenerateSampledMesh(Mesh input, double density, int presampleFactor = 20)
@@ -54,7 +59,8 @@ namespace OPS.Geometry
         /// Generates and returns a point cloud vertex array of samples across the surface of a given mesh at a specified density
         /// </summary>
         /// <param name="input">Mesh which will have points sampled across its surface</param>
-        /// <param name="density">Factor that controls the density and quantity of points needed to cover the surface mesh surface area</param>
+        /// <param name="density">Factor that controls the density and quantity of points needed to cover the surface mesh surface area.
+        /// This is a metric that approximates how many points to place on a flat surface within a given square unit area, where denser = more points.</param>
         /// <param name="presampleFactor">Factor of how many points to sample randomly before pruning away ones that are too close together</param>
         /// <returns>Vertex array containing a point cloud of samples across the surface of the given mesh</returns>
         public Vertex[] Sample(Mesh input, double density, int presampleFactor = 20)
@@ -66,6 +72,8 @@ namespace OPS.Geometry
             int presampleQuantity = (int)(density * presampleFactor * input.SurfaceArea());
 
             // Calculate the minimum allowed radius between points after pruning
+            // Four circles packed into a grid with their overlapping radiuses separating them form a square defined at its edges by the circle centers
+            // This area is about 1/4 (or 0.25) the circle areas
             double radius = 1 / Math.Sqrt(density) * 0.25;
 
             // Calculate the size of each cell in which points are bucketed
