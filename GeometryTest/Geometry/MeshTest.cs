@@ -235,6 +235,27 @@ namespace GeometryTest
             Assert.IsTrue((topLeft - m.Vertices[3].Normal).Length() < 1e-8);
         }
 
+
+        [TestMethod]
+        public void GenerateVertexNormalsSkinnyPyramidTest()
+        {
+            Mesh m = new Mesh();
+            m.Vertices.Add(new Vertex(0, 0, 0.5));
+            m.Vertices.Add(new Vertex(-0.75, -0.43301, 0));
+            m.Vertices.Add(new Vertex(0.75, -0.43301, 0));
+            m.Vertices.Add(new Vertex(0, 0.8660254, 0));
+            m.Faces.Add(new Face(0, 1, 2));
+            m.Faces.Add(new Face(0, 2, 3));
+            m.Faces.Add(new Face(0, 3, 1));
+            m.Faces.Add(new Face(1, 2, 3));
+
+            Assert.IsFalse(m.HasNormals);
+            m.GenerateVertexNormals();
+            Assert.IsTrue(m.HasNormals);
+
+            Assert.AreEqual(0, (new Vector3(0, 0, 1) - m.Vertices[0].Normal).Length(), 0.0001);
+        }
+
         [TestMethod]
         public void MeshRemoveIdenticalFacesTest()
         {

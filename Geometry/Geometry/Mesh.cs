@@ -130,7 +130,7 @@ namespace OPS.Geometry
             // Normalize each vertex normal
             foreach (Vertex vertex in Vertices)
             {
-                if (vertex.Normal.Length() > 0.000001)
+                if (vertex.Normal.Length() > MathHelper.Epsilon)
                 {
                     vertex.Normal.Normalize();
                 }
