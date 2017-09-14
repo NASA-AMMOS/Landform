@@ -57,6 +57,34 @@ namespace GeometryTest
         }
 
         [TestMethod]
+        public void TriangleAreaTest()
+        {
+            Triangle zeroCornerSimpleXY = new Triangle(new Vertex(0, 0, 0), new Vertex(10, 0, 0), new Vertex(5, 5, 0));
+            Assert.AreEqual(25, zeroCornerSimpleXY.Area(), 1e-8);
+
+            Triangle zeroCornerSimpleYZ = new Triangle(new Vertex(0, 0, 0), new Vertex(0, 10, 0), new Vertex(0, 5, 5));
+            Assert.AreEqual(25, zeroCornerSimpleYZ.Area(), 1e-8);
+
+            Triangle zeroCornerSimpleZX = new Triangle(new Vertex(0, 0, 0), new Vertex(0, 0, 10), new Vertex(5, 0, 5));
+            Assert.AreEqual(25, zeroCornerSimpleZX.Area(), 1e-8);
+
+            Triangle offsetCornerSimpleXY = new Triangle(new Vertex(10, 10, 10), new Vertex(20, 10, 10), new Vertex(15, 15, 10));
+            Assert.AreEqual(25, offsetCornerSimpleXY.Area(), 1e-8);
+
+            Triangle offsetCornerSimpleYZ = new Triangle(new Vertex(10, 10, 10), new Vertex(10, 20, 10), new Vertex(10, 15, 15));
+            Assert.AreEqual(25, offsetCornerSimpleYZ.Area(), 1e-8);
+
+            Triangle offsetCornerSimpleZX = new Triangle(new Vertex(10, 10, 10), new Vertex(10, 10, 20), new Vertex(15, 10, 15));
+            Assert.AreEqual(25, offsetCornerSimpleZX.Area(), 1e-8);
+
+            Triangle zeroArea = new Triangle(new Vertex(0, 0, 0), new Vertex(10, 0, 0), new Vertex(5, 0, 0));
+            Assert.AreEqual(0, zeroArea.Area(), 1e-8);
+
+            Triangle allAxisComplex = new Triangle(new Vertex(-1, -1, 0), new Vertex(1, 1, 0), new Vertex(-1, 1, 2));
+            Assert.AreEqual(3.4641016151377557, allAxisComplex.Area(), 1e-8);
+        }
+
+        [TestMethod]
         public void TriangleVerticesTest()
         {
             Triangle a = new Triangle(new Vertex(0, 0, 0), new Vertex(10, 1, 2), new Vertex(-1, -3, 1));
@@ -110,7 +138,7 @@ namespace GeometryTest
         }
 
         [TestMethod]
-        public void TraingleClibBoxTest()
+        public void TraingleClipBoxTest()
         {
             BoundingBox box = new BoundingBox(new Vector3(1, 0, 2), new Vector3(3, 2, 4));
             Random r = new Random(17);
