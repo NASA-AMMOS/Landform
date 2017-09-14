@@ -18,17 +18,23 @@ namespace OPS.Pipeline
         {
             /// Commands are defined by the list of types passed into ParseArguments
             /// Each passed in object must have a [Verb] decorator
-            return CommandLine.Parser.Default.ParseArguments<CralwMSLOptions, 
+            return CommandLine.Parser.Default.ParseArguments<CralwMSLOptions,
                                                              ConvertBaselineMeshOptions,
                                                              MatchImagesOptions,
                                                              MatchAllImagesOptions,
                                                              PDSImageConverterOptions,
                                                              ConvertBaselineMeshesOptions,
-                                                             TileBaselineMeshOptions, 
-                                                             TileBaselineMeshesOptions, 
+                                                             TileBaselineMeshOptions,
+                                                             ClientOptions,
+                                                             CheckTilesOptions,
+                                                             QueueListenerOptions,
+                                                             TileBaselineMeshesOptions,
                                                              BenchmarkS3Options>(args)
               .MapResult(
                 (CralwMSLOptions opts) => new CrawlMSL(opts).Run(),
+                (ClientOptions opts) =>  new Client(opts).Run(),
+                (CheckTilesOptions opts) => new CheckTiles(opts).Run(),
+                (QueueListenerOptions opts) => new QueueListener(opts).Run(),
                 (ConvertBaselineMeshOptions opts) => new ConvertBaselineMesh(opts).Run(),
                 (ConvertBaselineMeshesOptions opts) => new ConvertBaselineMeshes(opts).Run(),
                 (TileBaselineMeshOptions opts) => new TileBaselineMesh(opts).Run(),
