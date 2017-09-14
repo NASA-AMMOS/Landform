@@ -215,7 +215,6 @@ namespace OPS.Geometry
         /// <returns></returns>
         public static Mesh QuadricEdgeCollapse(Mesh mesh, int targetNumFaces, sink perimeterFactor = 1, List<Vertex> notTouched = null)
         {
-            System.IO.StreamWriter file = new System.IO.StreamWriter(@"C:\Users\schibler\Desktop\test_compare.txt");
             mesh.HasUVs = false;
             mesh.HasColors = false;
             mesh.HasNormals = false;
@@ -349,8 +348,6 @@ namespace OPS.Geometry
                 {
                     continue;
                 }
-
-                file.WriteLine(temp);
 
                 //Collapsing edge v1, v2 -> vNew
                 vNew.Q = v1.Q + v2.Q;
