@@ -16,39 +16,6 @@ using sink = System.Double; //Doesn't float
 namespace OPS.Geometry
 {
     /// <summary>
-    /// Stores a vertex with its associated error matrix, edges, and flags
-    /// </summary>
-    class VertexData
-    {
-        public Vertex Vert;
-        public Matrix Q;
-        public List<Edge> AdjacentEdges;
-        public bool IsOnPerimeter;
-        public bool IsTouchable;
-        public bool IsActive;
-
-        public VertexData(Vertex vert)
-        {
-            this.Vert = vert;
-            this.Q = new Matrix();
-            this.AdjacentEdges = new List<Edge>();
-            this.IsOnPerimeter = false;
-            this.IsTouchable = true;
-            this.IsActive = true;
-        }
-
-        public VertexData(Vertex vert, Matrix Q, List<Edge> adjacentEdges, bool isOnPerimeter, bool isTouchable)
-        {
-            this.Vert = vert;
-            this.Q = Q;
-            this.AdjacentEdges = adjacentEdges;
-            this.IsOnPerimeter = isOnPerimeter;
-            this.IsTouchable = isTouchable;
-            this.IsActive = true;
-        }
-    }
-
-    /// <summary>
     /// Comparer passed to fast priority queue
     /// </summary>
     class EdgeComparer : IEqualityComparer<Edge>
@@ -67,132 +34,27 @@ namespace OPS.Geometry
     }
 
     /// <summary>
-    /// Stores two VertexData, and the third VertexData of its left face to store winding order
-    /// </summary>
-    class Edge {
-        public VertexData Src, Dst;
-        public VertexData Left;
-        public bool IsPerimeterEdge;
-
-        public Edge(VertexData v1, VertexData v2, VertexData left, bool isPerimeterEdge = false)
-        {
-            this.Src = v1;
-            this.Dst = v2;
-            this.Left = left;
-            this.IsPerimeterEdge = isPerimeterEdge;
-        }
-
-        public override bool Equals(object obj)
-        {
-            if (obj == null || this.GetType() != obj.GetType()) return false;
-            Edge edgeObj = (Edge)obj;
-            if (Object.ReferenceEquals(this.Src, edgeObj.Src) && Object.ReferenceEquals(this.Dst, edgeObj.Dst)) return true;
-            if (Object.ReferenceEquals(this.Src, edgeObj.Dst) && Object.ReferenceEquals(this.Dst, edgeObj.Src)) return true;
-            return false;
-        }
-
-        public static bool operator ==(Edge lhs, Edge rhs)
-        {
-            if (Object.ReferenceEquals(lhs, null)) return Object.ReferenceEquals(rhs, null);
-            return lhs.Equals(rhs);
-        }
-
-        public static bool operator !=(Edge lhs, Edge rhs)
-        {
-            return !(lhs == rhs);
-        }
-
-        public override int GetHashCode()
-        {
-            return Src.Vert.GetHashCode() + Dst.Vert.GetHashCode();
-        }
-
-        /// <summary>
-        /// Compute Quadric Error Metric (QEM) for a new vertex position using sum of Q matrices
-        /// </summary>
-        /// <param name="vert"></param>
-        /// <param name="Q"></param>
-        /// <returns></returns>
-        public sink QEM(Vertex vert)
-        {
-            Matrix v = new Matrix(vert.Position.X, 0, 0, 0, vert.Position.Y, 0, 0, 0, vert.Position.Z, 0, 0, 0, 1, 0, 0, 0);
-            return (Matrix.Transpose(v) * (Src.Q + Dst.Q) * v).M11;
-        }
-
-        /// <summary>
-        /// Compares the error cost of collapsing this edge to either or the two end points, or the midpoint. Returns the best option.
-        /// </summary>
-        /// <returns></returns>
-        Vertex GetNewVertPosSimple()
-        {
-            Vertex v1 = this.Src.Vert;
-            Vertex best = v1;
-            sink minCost = QEM(v1); 
-            Vertex v2 = this.Dst.Vert;
-            if(QEM(v2) < minCost)
-            {
-                best = v2;
-                minCost = QEM(v2);
-            }
-            Vertex mid = new Vertex((Src.Vert.Position.X + Dst.Vert.Position.X) / 2, (Src.Vert.Position.Y + Dst.Vert.Position.Y) / 2, (Src.Vert.Position.Z + Dst.Vert.Position.Z) / 2);
-            if(QEM(mid) < minCost)
-            {
-                best = mid;
-            }
-            return best;
-        }
-
-        /// <summary>
-        /// Returns the position of the Vertex to create upon collapsing this edge. Attempts to find local minimum in error, otherwise defaults to comparing ends and midpoint. Restriced for edges and user-specified vertices.
-        /// </summary>
-        /// <returns></returns>
-        public Vertex GetNewVertPos()
-        {
-            if(Src.IsOnPerimeter && !Dst.IsOnPerimeter || !Src.IsTouchable && Dst.IsTouchable)
-            {
-                return Src.Vert;
-            }
-            if(Dst.IsOnPerimeter && !Src.IsOnPerimeter || !Dst.IsTouchable && Src.IsTouchable)
-            {
-                return Dst.Vert;
-            }
-            if (!IsPerimeterEdge)
-            {
-                Matrix Q = Src.Q + Dst.Q;
-                Q[3, 0] = 0;
-                Q[3, 1] = 0;
-                Q[3, 2] = 0;
-                Q[3, 3] = 1;
-                if (Q.Determinant() > 1e-8)
-                {
-                    Matrix res = Matrix.Invert(Q) * new Matrix(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0);
-                    return new Vertex(res.M11, res.M21, res.M31);
-                }
-            }
-            return GetNewVertPosSimple();
-        }
-    }
-
-    /// <summary>
     /// Node used for the edge collapse queue
     /// </summary>
     class EdgeCollapseQueueNode : FastPriorityQueueNode
     {
         public Edge Edge;
-        public VertexData VNew;
+        public VertexNode VNew;
 
-        public EdgeCollapseQueueNode(VertexData v1, VertexData v2, VertexData vNew, bool isOnPerimeter) : base()
+        public EdgeCollapseQueueNode(VertexNode v1, VertexNode v2, VertexNode vNew, bool isOnPerimeter) : base()
         {
             this.Edge = new Edge(v1, v2, null, isOnPerimeter);
             this.VNew = vNew;
         }
 
-        public EdgeCollapseQueueNode(Edge e, VertexData vNew)
+        public EdgeCollapseQueueNode(Edge e, VertexNode vNew)
         {
             this.Edge = new Edge(e.Src, e.Dst, null, e.IsPerimeterEdge);
             this.VNew = vNew;
         }
     }
+
+
 
     public static class EdgeCollapse
     {
@@ -215,51 +77,19 @@ namespace OPS.Geometry
         /// <returns></returns>
         public static Mesh QuadricEdgeCollapse(Mesh mesh, int targetNumFaces, sink perimeterFactor = 1, List<Vertex> notTouched = null)
         {
-            System.IO.StreamWriter file = new System.IO.StreamWriter(@"C:\Users\schibler\Desktop\test_compare.txt");
             mesh.HasUVs = false;
             mesh.HasColors = false;
             mesh.HasNormals = false;
             OnlyPositions(mesh.Vertices);
             mesh.Clean();
 
-            List<VertexData> currentVerts = new List<VertexData>();
-
-            //Construct VertexData objects for each vertex
-            for (int i = 0; i < mesh.Vertices.Count; i++)
-            {
-                currentVerts.Add(new VertexData(mesh.Vertices[i]));
-            }
-
-            //Add adjacency info
-            foreach (Face face in mesh.Faces)
-            {
-                currentVerts[face.P0].AdjacentEdges.Add(new Edge(currentVerts[face.P0], currentVerts[face.P1], currentVerts[face.P2]));
-                currentVerts[face.P1].AdjacentEdges.Add(new Edge(currentVerts[face.P1], currentVerts[face.P2], currentVerts[face.P0]));
-                currentVerts[face.P2].AdjacentEdges.Add(new Edge(currentVerts[face.P2], currentVerts[face.P0], currentVerts[face.P1]));
-            }
-
-            //Flag perimeter vertices and edges
-            foreach(VertexData v in currentVerts)
-            {
-                foreach(Edge e in v.AdjacentEdges)
-                {
-                    VertexData other = e.Dst;
-                    if(!other.AdjacentEdges.Contains(e))
-                    {
-                        e.IsPerimeterEdge = true;
-                        other.AdjacentEdges.Add(new Edge(other, v, null, true));
-                        v.IsOnPerimeter = true;
-                        other.IsOnPerimeter = true;
-                    }
-                }
-            }
-
+            EdgeGraph edgeGraph = new EdgeGraph(mesh);
 
             //Flag user specified vertices as untouchable
             if (notTouched != null)
             {
                 OnlyPositions(notTouched);
-                foreach (VertexData v in currentVerts)
+                foreach (VertexNode v in edgeGraph.vertNodes)
                 {
                     if (notTouched.Contains(v.Vert))
                     {
@@ -273,18 +103,18 @@ namespace OPS.Geometry
             List<Face>[] adjacentFaces = GetVertexFaceAdjacency(mesh);
             for (int i = 0; i < mesh.Vertices.Count; i++)
             {
-                currentVerts[i].Q = GetQMatrix(i, mesh, currentVerts, adjacentFaces, perimeterFactor);
+                edgeGraph.vertNodes[i].Q = GetQMatrix(i, mesh, edgeGraph.vertNodes, adjacentFaces, perimeterFactor);
             }
 
             // build min heap on QEM for each edge vertex pair
             FastPriorityQueue<EdgeCollapseQueueNode> heap = new FastPriorityQueue<EdgeCollapseQueueNode>(6*mesh.Faces.Count);
-            foreach (VertexData v in currentVerts)
+            foreach (VertexNode v in edgeGraph.vertNodes)
             {
                 foreach (Edge e in v.AdjacentEdges)
                 {
-                    if (compareVerts(e.Src.Vert, e.Dst.Vert))
+                    if (e.Src < e.Dst)
                     {
-                        VertexData vNew = new VertexData(e.GetNewVertPos());
+                        VertexNode vNew = new VertexNode(e.GetNewVertPos(), edgeGraph.GetNewID());
                         sink cost = e.QEM(vNew.Vert);
                         heap.Enqueue(new EdgeCollapseQueueNode(e, vNew), (triple)cost);                      
                     }
@@ -293,13 +123,13 @@ namespace OPS.Geometry
 
             // process edge collapses until target number of faces are left
             int numFaces = mesh.Faces.Count;
-            int nVerts = currentVerts.Count;
+            int nVerts = edgeGraph.vertNodes.Count;
 
             while (numFaces > targetNumFaces && heap.Count > 0)
             {
                 if (_DEBUG)
                 {
-                    foreach (VertexData v in currentVerts)
+                    foreach (VertexNode v in edgeGraph.vertNodes)
                     {
                         foreach (Edge e in v.AdjacentEdges)
                         {
@@ -321,9 +151,9 @@ namespace OPS.Geometry
                 //Pop lowest cost edge
                 EdgeCollapseQueueNode collapsingEdge = heap.Dequeue();
                 Edge edge = collapsingEdge.Edge;
-                VertexData v1 = edge.Src;
-                VertexData v2 = edge.Dst;
-                VertexData vNew = collapsingEdge.VNew;
+                VertexNode v1 = edge.Src;
+                VertexNode v2 = edge.Dst;
+                VertexNode vNew = collapsingEdge.VNew;
                 sink temp = edge.QEM(vNew.Vert);
 
                 //Skip if either vertex has been collapsed
@@ -349,8 +179,6 @@ namespace OPS.Geometry
                 {
                     continue;
                 }
-
-                file.WriteLine(temp);
 
                 //Collapsing edge v1, v2 -> vNew
                 vNew.Q = v1.Q + v2.Q;
@@ -427,7 +255,7 @@ namespace OPS.Geometry
                 //Update neighbor's edges
                 foreach(Edge e in vNew.AdjacentEdges)
                 {
-                    VertexData neighbor = e.Dst;
+                    VertexNode neighbor = e.Dst;
                     foreach(Edge f in neighbor.AdjacentEdges.FindAll(dstEdge => dstEdge.Dst == v1 || dstEdge.Dst == v2))
                     {
                         f.Dst = vNew;
@@ -441,7 +269,7 @@ namespace OPS.Geometry
 
                 if (_DEBUG)
                 {
-                    foreach (VertexData v in currentVerts)
+                    foreach (VertexNode v in edgeGraph.vertNodes)
                     {
                         foreach (Edge e in v.AdjacentEdges)
                         {
@@ -454,19 +282,16 @@ namespace OPS.Geometry
                 }
 
                 //Add new vertex
-                currentVerts.Add(vNew);
+                edgeGraph.vertNodes.Add(vNew);
 
                 //Remove old vertices
                 v1.IsActive = false;
                 v2.IsActive = false;
-                currentVerts.Remove(v1);
-                currentVerts.Remove(v2);
-
 
                 //Add new edges to the queue
                 foreach (Edge e in vNew.AdjacentEdges)
                 {
-                    VertexData v3 = new VertexData(e.GetNewVertPos());
+                    VertexNode v3 = new VertexNode(e.GetNewVertPos(), edgeGraph.GetNewID());
                     double cost = e.QEM(v3.Vert);
                     heap.Enqueue(new EdgeCollapseQueueNode(e, v3), (triple)cost);
                 }
@@ -475,13 +300,16 @@ namespace OPS.Geometry
 
             //Create a new mesh from list of edges
             var triangleList = new List<Triangle>();
-            foreach (VertexData v in currentVerts)
+            foreach (VertexNode v in edgeGraph.vertNodes)
             {
-                foreach (Edge e in v.AdjacentEdges)
+                if (v.IsActive)
                 {
-                    if (e.Left != null /*&& compareVerts(e.Src.Vert, e.Dst.Vert) && compareVerts(e.Src.Vert, e.Left.Vert)*/)
+                    foreach (Edge e in v.AdjacentEdges)
                     {
-                        triangleList.Add(new Triangle(e.Src.Vert, e.Dst.Vert, e.Left.Vert));
+                        if (e.Left != null /*&& compareVerts(e.Src.Vert, e.Dst.Vert) && compareVerts(e.Src.Vert, e.Left.Vert)*/)
+                        {
+                            triangleList.Add(new Triangle(e.Src.Vert, e.Dst.Vert, e.Left.Vert));
+                        }
                     }
                 }
             }
@@ -502,30 +330,7 @@ namespace OPS.Geometry
             }
         }
 
-        /// <summary>
-        /// Defines a simple total ordering on unique Vertex positions, useful for avoiding duplicate edges - only create edge if v1 "less than" v2
-        /// </summary>
-        /// <param name="v1"></param>
-        /// <param name="v2"></param>
-        /// <returns></returns>
-        static bool compareVerts(Vertex v1, Vertex v2)
-        {
-            if (v1.Position.X > v2.Position.X)
-                return true;
-            if (v1.Position.X < v2.Position.X)
-                return false;
-            if (v1.Position.Y > v2.Position.Y)
-                return true;
-            if (v1.Position.Y < v2.Position.Y)
-                return false;
-            if (v1.Position.Z > v2.Position.Z)
-                return true;
-            if (v1.Position.Z < v2.Position.Z)
-                return false;
-            //Should never be reached as mesh is cleaned; if two vertices coincide as a result of decimation, keep both and clean after
-            Console.Out.WriteLine("Duplicate vertices detected after clean during mesh decimation.");
-            return true;
-        }
+        
 
         /// <summary>
         /// Creates a 4x4 matrix where first column vector is the triangle normal, and all other entries are zero
@@ -548,7 +353,7 @@ namespace OPS.Geometry
         /// <param name="adjacentFaces"></param>
         /// <param name="perimeterFactor"></param>
         /// <returns></returns>
-        static Matrix GetQMatrix(int vertexIndex, Mesh mesh, List<VertexData> currentVerts, List<Face>[] adjacentFaces, sink perimeterFactor)
+        static Matrix GetQMatrix(int vertexIndex, Mesh mesh, List<VertexNode> currentVerts, List<Face>[] adjacentFaces, sink perimeterFactor)
         {
             Matrix vertQ = new Matrix(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
             
@@ -626,12 +431,12 @@ namespace OPS.Geometry
         /// <param name="v1"></param>
         /// <param name="v2"></param>
         /// <returns></returns>
-        static int NumCommonNeighbors(VertexData v1, VertexData v2)
+        static int NumCommonNeighbors(VertexNode v1, VertexNode v2)
         {
             int common = 0;
             foreach(Edge e in v1.AdjacentEdges)
             {
-                VertexData v = e.Dst;
+                VertexNode v = e.Dst;
                 common += v2.AdjacentEdges.FindAll(f => e.Dst == f.Dst).Count;
                
             }
@@ -641,7 +446,7 @@ namespace OPS.Geometry
                 int common1 = 0;
                 foreach (Edge e in v2.AdjacentEdges)
                 {
-                    VertexData v = e.Dst;
+                    VertexNode v = e.Dst;
                     common1 += v1.AdjacentEdges.FindAll(f => e.Dst == f.Dst).Count;
                 }
                 if (common != common1)
