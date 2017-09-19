@@ -41,8 +41,8 @@ namespace OPS.Geometry
                     VertexNode other = e.Dst;
                     if (!other.AdjacentEdges.Contains(e))
                     {
-                        e.IsPerimeterEdge = true;
                         other.AdjacentEdges.Add(new Edge(other, v, null, true));
+                        e.IsPerimeterEdge = true;
                         v.IsOnPerimeter = true;
                         other.IsOnPerimeter = true;
                     }
