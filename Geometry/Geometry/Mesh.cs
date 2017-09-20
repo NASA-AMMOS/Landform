@@ -28,7 +28,7 @@ namespace OPS.Geometry
         public bool HasUVs = false;
         public bool HasColors = false;
         public bool HasFaces { get { return Faces.Count > 0; } }
-              
+        
         /// <summary>
         /// Creates an empty mesh. 
         /// </summary>
@@ -419,6 +419,20 @@ namespace OPS.Geometry
                 triangles.Add(t);
             }
             return triangles;
+        }
+
+        /// <summary>
+        /// Returns total mesh surface area by summing area of each triangle
+        /// </summary>
+        /// <returns></returns>
+        public double SurfaceArea()
+        {
+            double area = 0;
+            this.Triangles().ForEach(tri =>
+            {
+                area += tri.Area();
+            });
+            return area;
         }
 
         /// <summary>
