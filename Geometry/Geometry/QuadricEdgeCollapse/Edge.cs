@@ -67,8 +67,16 @@ namespace OPS.Geometry
         /// Compares the error cost of collapsing this edge to either or the two end points, or the midpoint. Returns the best option.
         /// </summary>
         /// <returns></returns>
-        Vertex GetNewVertPosSimple()
+        public Vertex GetNewVertPosSimple()
         {
+            if (Src.IsOnPerimeter && !Dst.IsOnPerimeter || !Src.IsTouchable && Dst.IsTouchable)
+            {
+                return Src.Vert;
+            }
+            if (Dst.IsOnPerimeter && !Src.IsOnPerimeter || !Dst.IsTouchable && Src.IsTouchable)
+            {
+                return Dst.Vert;
+            }
             Vertex v1 = this.Src.Vert;
             Vertex best = v1;
             double minCost = QEM(v1);

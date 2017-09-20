@@ -69,13 +69,13 @@ namespace OPS.Geometry
         /// </summary>
         /// <param name="mesh"></param>
         /// <param name="targetNumFaces"></param>
-        /// <param name="perimeterFactor"></param>
+        /// <param name="perimeterPenaltyFactor"></param>
         /// <param name="preservePerimeter"></param>
         /// <param name="fillPerimeter"></param>
         /// <param name="notTouched"></param>
         /// <param name="avoidTetrahedrons"></param>
         /// <returns></returns>
-        public static Mesh QuadricEdgeCollapse(Mesh mesh, int targetNumFaces, sink perimeterFactor = 1, List<Vertex> notTouched = null)
+        public static Mesh QuadricEdgeCollapse(Mesh mesh, int targetNumFaces, sink perimeterPenaltyFactor = 1, bool preserveTopology = true, bool weightByArea = false, bool avoidFlips = false, List<Vertex> notTouched = null)
         {
             mesh.HasUVs = false;
             mesh.HasColors = false;
@@ -103,7 +103,8 @@ namespace OPS.Geometry
             List<Face>[] adjacentFaces = GetVertexFaceAdjacency(mesh);
             for (int i = 0; i < mesh.Vertices.Count; i++)
             {
-                edgeGraph.vertNodes[i].Q = GetQMatrix(i, mesh, edgeGraph.vertNodes, adjacentFaces, perimeterFactor);
+                edgeGraph.vertNodes[i].Q = GetQMatrix(i, mesh, edgeGraph.vertNodes, adjacentFaces, perimeterPenaltyFactor, weightByArea);
+                edgeGraph.vertNodes[i].AdjFaceCount = adjacentFaces[i].Count;
             }
 
             // build min heap on QEM for each edge vertex pair
@@ -114,9 +115,7 @@ namespace OPS.Geometry
                 {
                     if (e.Src < e.Dst)
                     {
-                        VertexNode vNew = new VertexNode(e.GetNewVertPos(), edgeGraph.GetNewID());
-                        sink cost = e.QEM(vNew.Vert);
-                        heap.Enqueue(new EdgeCollapseQueueNode(e, vNew), (triple)cost);                      
+                        AddEdgeToQueue(heap, e, edgeGraph.GetNewID(), avoidFlips);
                     }
                 }
             }
@@ -153,35 +152,38 @@ namespace OPS.Geometry
                 Edge edge = collapsingEdge.Edge;
                 VertexNode v1 = edge.Src;
                 VertexNode v2 = edge.Dst;
-                VertexNode vNew = collapsingEdge.VNew;
-                sink temp = edge.QEM(vNew.Vert);
 
                 //Skip if either vertex has been collapsed
-                if(!v1.IsActive || !v2.IsActive)
+                if (!v1.IsActive || !v2.IsActive)
                 {
                     continue;
                 }
 
                 //Skip if this would collapse around a corner
-                if(v1.IsOnPerimeter && v2.IsOnPerimeter && !edge.IsPerimeterEdge)
+                if (v1.IsOnPerimeter && v2.IsOnPerimeter && !edge.IsPerimeterEdge)
                 {
                     continue;
                 }
 
                 //Skip if both untouchable
-                if(!v1.IsTouchable && !v2.IsTouchable)
+                if (!v1.IsTouchable && !v2.IsTouchable)
                 {
                     continue;
                 }
 
                 //Skip if this would collapse a tetrahedron or other complex geometry
-                if((NumCommonNeighbors(v1, v2) > 2 || (edge.IsPerimeterEdge && NumCommonNeighbors(v1, v2) > 1)))
+                if (preserveTopology && (NumCommonNeighbors(v1, v2) > 2 || (edge.IsPerimeterEdge && NumCommonNeighbors(v1, v2) > 1)))
                 {
                     continue;
                 }
 
+
+                VertexNode vNew = collapsingEdge.VNew;
+                sink temp = edge.QEM(vNew.Vert);
+                
                 //Collapsing edge v1, v2 -> vNew
                 vNew.Q = v1.Q + v2.Q;
+                vNew.AdjFaceCount = v1.AdjFaceCount + v2.AdjFaceCount;
                 vNew.IsTouchable = true;
                 if(!v1.IsTouchable || !v2.IsTouchable)
                 {
@@ -194,66 +196,195 @@ namespace OPS.Geometry
                 vNew.AdjacentEdges = new List<Edge>();
 
                 //Get edges between v1 and v2
-                Edge e12 = v1.AdjacentEdges.Find(e => e.Dst == v2);
-                Edge e21 = v2.AdjacentEdges.Find(e => e.Dst == v1);
+                List<Edge> e12s = v1.AdjacentEdges.FindAll(e => e.Dst == v2);
+                List<Edge> e21s = v2.AdjacentEdges.FindAll(e => e.Dst == v1);
+                //delete collapsing edges
+                foreach (Edge e12 in e12s)
+                {
+                    if(e12.Left != null)
+                    {
+                        numFaces -= 1;
+                    }
+                    v1.AdjacentEdges.Remove(e12);
+                }
+                foreach (Edge e21 in e21s)
+                {
+                    if(e21.Left != null)
+                    {
+                        numFaces -= 1;
+                    }
+                    v2.AdjacentEdges.Remove(e21);
+                }
+
+                foreach(Edge e1x in v1.AdjacentEdges)
+                {
+                    VertexNode vx = e1x.Dst;
+                    foreach(Edge exy in vx.AdjacentEdges)
+                    {
+                        if(exy.Dst == v1 || exy.Dst == v2)
+                        {
+                            if(exy.Left == v1 || exy.Left == v2)
+                            {
+                                /*if(exy.IsPerimeterEdge)
+                                {
+                                    if(exy.Dst == v1)
+                                    {
+                                        foreach (Edge exz in vx.AdjacentEdges.FindAll(e => e.Dst == v2 || e.Dst == vNew))
+                                        {
+                                            exz.IsPerimeterEdge = true;
+                                        }
+                                    } else
+                                    {
+                                        foreach (Edge exz in vx.AdjacentEdges.FindAll(e => e.Dst == v1 || e.Dst == vNew))
+                                        {
+                                            exz.IsPerimeterEdge = true;
+                                        }
+                                    }
+                                }*/
+                                exy.Dst = null;
+                            } else
+                            {
+                                exy.Dst = vNew;
+                            }
+
+                        } else if(exy.Left == v1 || exy.Left == v2)
+                        {
+                            exy.Left = vNew;
+                        }
+                    }
+                    vx.AdjacentEdges = vx.AdjacentEdges.Where(e => e.Dst != null).ToList();
+                    if (e1x.Left == v1 || e1x.Left == v2) //TODO: update check against itself
+                    {
+                    } else
+                    {
+                        vNew.AdjacentEdges.Add(new Edge(vNew, e1x.Dst, e1x.Left, e1x.IsPerimeterEdge));
+                    }
+                }
+                foreach(Edge e2x in v2.AdjacentEdges)
+                {
+                    VertexNode vx = e2x.Dst;
+                    foreach(Edge exy in e2x.Dst.AdjacentEdges)
+                    {
+                        if(exy.Dst == v1 || exy.Dst == v2)
+                        {
+                            if(exy.Left == v1 || exy.Left == v2)
+                            {
+                                /*if (exy.IsPerimeterEdge)
+                                {
+                                    if (exy.Dst == v1)
+                                    {
+                                        foreach (Edge exz in vx.AdjacentEdges.FindAll(e => e.Dst == v2 || e.Dst == vNew))
+                                        {
+                                            exz.IsPerimeterEdge = true;
+                                        }
+                                    }
+                                    else
+                                    {
+                                        foreach (Edge exz in vx.AdjacentEdges.FindAll(e => e.Dst == v1 || e.Dst == vNew))
+                                        {
+                                            exz.IsPerimeterEdge = true;
+                                        }
+                                    }
+                                }*/
+                                exy.Dst = null;
+                            } else
+                            {
+                                exy.Dst = vNew;
+                            }
+                        } else if(exy.Left == v1 || exy.Left == v2)
+                        {
+                            exy.Left = vNew;
+                        }
+                    }
+                    vx.AdjacentEdges = vx.AdjacentEdges.Where(e => e.Dst != null).ToList();
+                    if (e2x.Left == v1 || e2x.Left == v2) //TODO: update check against itself
+                    {
+                    } else
+                    {
+                        vNew.AdjacentEdges.Add(new Edge(vNew, e2x.Dst, e2x.Left, e2x.IsPerimeterEdge));
+                    }
+                }
+
+
 
                 //Delete edges with a collapsing left face in v1/v2 and shared neighbors
                 //preserve perimeter knowledge when collapsing an interior vertex to the perimeter
-                if (e12.Left != null)
+                /*foreach (Edge e12 in e12s)
                 {
-                    Edge neighborEdge = e12.Left.AdjacentEdges.Find(e => e.Left == v2 && e.Dst == v1);
-                    if(neighborEdge.IsPerimeterEdge)
+                    if (e12.Left != null)
                     {
-                        e12.Left.AdjacentEdges.Find(e => e.Dst == v2).IsPerimeterEdge = true;
-                    }
-                    e12.Left.AdjacentEdges.Remove(neighborEdge);
+                        List<Edge> neighborEdges = e12.Left.AdjacentEdges.FindAll(e => (e.Left == v2 || e.Left == v1) && (e.Dst == v1 || e.Dst == v2));
+                        foreach (Edge neighborEdge in neighborEdges)
+                        {
+                            if (neighborEdge.IsPerimeterEdge)
+                            {
+                                foreach(Edge otherFaceEdge in e12.Left.AdjacentEdges.FindAll(e => e.Dst == v2)) {
+                                    otherFaceEdge.IsPerimeterEdge = true;
+                                }
+                            }
+                            e12.Left.AdjacentEdges.Remove(neighborEdge);
 
-                    Edge v2Edge = v2.AdjacentEdges.Find(e => e.Dst == e12.Left);
-                    Edge v1Edge = v1.AdjacentEdges.Find(e => e.Dst == e12.Left);
-                    if(v2Edge.IsPerimeterEdge)
-                    {
-                        v1Edge.IsPerimeterEdge = true;
+                            Edge v2Edge = v2.AdjacentEdges.Find(e => e.Dst == e12.Left);
+                            /*Edge v1Edge = v1.AdjacentEdges.Find(e => e.Dst == e12.Left);
+                            if (v2Edge.IsPerimeterEdge)
+                            {
+                                v1Edge.IsPerimeterEdge = true;
+                            }*/
+                            /*v2.AdjacentEdges.Remove(v2Edge);
+                            numFaces -= 1;
+                        }
                     }
-                    v2.AdjacentEdges.Remove(v2Edge);
-
-                    numFaces -= 1;
-                }
-                if (e21.Left != null)
+                }*/
+                /*foreach (Edge e21 in e21s)
                 {
-                    Edge neighborEdge = e21.Left.AdjacentEdges.Find(e => e.Left == v1 && e.Dst == v2);
-                    if(neighborEdge.IsPerimeterEdge)
+                    if (e21.Left != null)
                     {
-                        e21.Left.AdjacentEdges.Find(e => e.Dst == v1).IsPerimeterEdge = true;
-                    }
-                    e21.Left.AdjacentEdges.Remove(neighborEdge);
+                        List<Edge> neighborEdges = e21.Left.AdjacentEdges.FindAll(e => (e.Left == v2 || e.Left == v1) && (e.Dst == v1 || e.Dst == v2));
+                        foreach (Edge neighborEdge in neighborEdges)
+                        {
+                            if (neighborEdge.IsPerimeterEdge)
+                            {
+                                foreach (Edge otherFaceEdge in e21.Left.AdjacentEdges.FindAll(e => e.Dst == v1))
+                                {
+                                    otherFaceEdge.IsPerimeterEdge = true;
+                                }
+                            }
+                            e21.Left.AdjacentEdges.Remove(neighborEdge);
 
-                    Edge v1Edge = v1.AdjacentEdges.Find(e => e.Dst == e21.Left);
-                    Edge v2Edge = v2.AdjacentEdges.Find(e => e.Dst == e21.Left);
-                    if(v1Edge.IsPerimeterEdge)
-                    {
-                        v2Edge.IsPerimeterEdge = true;
+                            Edge v1Edge = v1.AdjacentEdges.Find(e => e.Dst == e21.Left);
+                            /*Edge v2Edge = v2.AdjacentEdges.Find(e => e.Dst == e21.Left);
+                            if (v1Edge.IsPerimeterEdge)
+                            {
+                                v2Edge.IsPerimeterEdge = true;
+                            }*/
+                            /*v1.AdjacentEdges.Remove(v1Edge);
+                            numFaces -= 1;
+                        }
                     }
-                    v1.AdjacentEdges.Remove(v1Edge);
-
-                    numFaces -= 1;
-                }
+                }*/
 
                 //delete collapsing edges
-                v1.AdjacentEdges.Remove(e12);
-                v2.AdjacentEdges.Remove(e21);
+                /*foreach (Edge e12 in e12s)
+                {
+                    v1.AdjacentEdges.Remove(e12);
+                }
+                foreach (Edge e21 in e21s)
+                {
+                    v2.AdjacentEdges.Remove(e21);
+                }*/
 
                 //Add edges to vNew
-                foreach (Edge e in v1.AdjacentEdges)
+                /*foreach (Edge e in v1.AdjacentEdges)
                 {
                     vNew.AdjacentEdges.Add(new Edge(vNew, e.Dst, e.Left, e.IsPerimeterEdge));
                 }
                 foreach (Edge e in v2.AdjacentEdges)
                 {
                     vNew.AdjacentEdges.Add(new Edge(vNew, e.Dst, e.Left, e.IsPerimeterEdge));
-                }
+                }*/
 
                 //Update neighbor's edges
-                foreach(Edge e in vNew.AdjacentEdges)
+                /*foreach(Edge e in vNew.AdjacentEdges)
                 {
                     VertexNode neighbor = e.Dst;
                     foreach(Edge f in neighbor.AdjacentEdges.FindAll(dstEdge => dstEdge.Dst == v1 || dstEdge.Dst == v2))
@@ -265,7 +396,7 @@ namespace OPS.Geometry
                     {
                         leftEdge.Left = vNew;
                     }
-                }
+                }*/
 
                 if (_DEBUG)
                 {
@@ -291,9 +422,7 @@ namespace OPS.Geometry
                 //Add new edges to the queue
                 foreach (Edge e in vNew.AdjacentEdges)
                 {
-                    VertexNode v3 = new VertexNode(e.GetNewVertPos(), edgeGraph.GetNewID());
-                    double cost = e.QEM(v3.Vert);
-                    heap.Enqueue(new EdgeCollapseQueueNode(e, v3), (triple)cost);
+                    AddEdgeToQueue(heap, e, edgeGraph.GetNewID(), avoidFlips);
                 }
                 nVerts -= 1;
             }
@@ -306,7 +435,7 @@ namespace OPS.Geometry
                 {
                     foreach (Edge e in v.AdjacentEdges)
                     {
-                        if (e.Left != null /*&& compareVerts(e.Src.Vert, e.Dst.Vert) && compareVerts(e.Src.Vert, e.Left.Vert)*/)
+                        if (e.Left != null && e.Src < e.Dst && e.Src < e.Left)
                         {
                             triangleList.Add(new Triangle(e.Src.Vert, e.Dst.Vert, e.Left.Vert));
                         }
@@ -314,6 +443,32 @@ namespace OPS.Geometry
                 }
             }
             return new Mesh(triangleList);
+        }
+
+        static void AddEdgeToQueue(FastPriorityQueue<EdgeCollapseQueueNode> heap, Edge e, int newID, bool checkFlip)
+        {
+            VertexNode vNew = new VertexNode(e.GetNewVertPos(), newID);
+            
+            if (!checkFlip)
+            {
+                sink cost = e.QEM(vNew.Vert);
+                heap.Enqueue(new EdgeCollapseQueueNode(e, vNew), (triple)cost);
+            } else
+            {
+                if (MaxAngleChange(e, vNew) > -1)
+                {
+                    sink cost = e.QEM(vNew.Vert);
+                    heap.Enqueue(new EdgeCollapseQueueNode(e, vNew), (triple)cost);
+                } else
+                {
+                    vNew.Vert = e.GetNewVertPosSimple();
+                    if (MaxAngleChange(e, vNew) > -1)
+                    {
+                        sink cost = e.QEM(vNew.Vert);
+                        heap.Enqueue(new EdgeCollapseQueueNode(e, vNew), (triple)cost);
+                    }
+                }
+            }
         }
 
         /// <summary>
@@ -330,8 +485,6 @@ namespace OPS.Geometry
             }
         }
 
-        
-
         /// <summary>
         /// Creates a 4x4 matrix where first column vector is the triangle normal, and all other entries are zero
         /// </summary>
@@ -345,6 +498,79 @@ namespace OPS.Geometry
         }
 
         /// <summary>
+        /// Returns the angle between two NORMALIZED vectors
+        /// </summary>
+        /// <param name="v1"></param>
+        /// <param name="v2"></param>
+        /// <returns></returns>
+        public static sink Angle(Vector3 v1, Vector3 v2)
+        {
+            return Math.Acos(v1.Dot(v2));
+        }
+
+        public static sink MaxAngleChange(Edge collapsingEdge, VertexNode newVert)
+        {
+            List<Vector3> oldNormals = new List<Vector3>();
+            List<Vector3> newNormals = new List<Vector3>();
+            if (newVert.Vert.Position != collapsingEdge.Src.Vert.Position)
+            {
+                foreach (Edge e in collapsingEdge.Src.AdjacentEdges)
+                {
+                    if (e.Left != null)
+                    {
+                        if (e.Left != collapsingEdge.Dst && e.Dst != collapsingEdge.Dst)
+                        {
+                            try
+                            {
+                                Vector3 norm1 = Triangle.ComputeNormal(e.Src.Vert.Position, e.Dst.Vert.Position, e.Left.Vert.Position);
+                                Vector3 norm2 = Triangle.ComputeNormal(newVert.Vert.Position, e.Dst.Vert.Position, e.Left.Vert.Position);
+                                oldNormals.Add(norm1);
+                                newNormals.Add(norm2);     
+                            }
+                            catch { }         
+                        }
+                    }
+                }
+            }
+            if (newVert.Vert.Position != collapsingEdge.Dst.Vert.Position)
+            {
+                foreach (Edge e in collapsingEdge.Dst.AdjacentEdges)
+                {
+                    if (e.Left != null)
+                    {
+                        if (e.Left != collapsingEdge.Src && e.Dst != collapsingEdge.Src)
+                        {
+                            try
+                            {
+                                Vector3 norm1 = Triangle.ComputeNormal(e.Src.Vert.Position, e.Dst.Vert.Position, e.Left.Vert.Position);
+                                Vector3 norm2 = Triangle.ComputeNormal(newVert.Vert.Position, e.Dst.Vert.Position, e.Left.Vert.Position);
+                                oldNormals.Add(norm1);
+                                newNormals.Add(norm2);
+
+                            }
+                            catch { }                    
+                        }
+                    }
+                }
+            }
+            Vector3 oldMean = new Vector3(0,0,0);
+            foreach(Vector3 v in oldNormals)
+            {
+                oldMean += v;
+            }
+            Vector3 newMean = new Vector3(0, 0, 0);
+            foreach (Vector3 v in newNormals)
+            {
+                newMean += v;
+            }
+            if(newMean.LengthSquared() == 0)
+            {
+                return 1;
+            }
+            return (newMean.LengthSquared() - oldMean.LengthSquared())/*/(oldNormals.Count)*/;
+        }
+
+        /// <summary>
         /// Get Q (sum squared error) matrix for a vertex from the orinal mesh
         /// </summary>
         /// <param name="vertexIndex"></param>
@@ -353,19 +579,21 @@ namespace OPS.Geometry
         /// <param name="adjacentFaces"></param>
         /// <param name="perimeterFactor"></param>
         /// <returns></returns>
-        static Matrix GetQMatrix(int vertexIndex, Mesh mesh, List<VertexNode> currentVerts, List<Face>[] adjacentFaces, sink perimeterFactor)
+        static Matrix GetQMatrix(int vertexIndex, Mesh mesh, List<VertexNode> currentVerts, List<Face>[] adjacentFaces, sink perimeterFactor, bool normalizeArea)
         {
             Matrix vertQ = new Matrix(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
-            
             foreach (Face face in adjacentFaces[vertexIndex])
             {
-                Matrix planeNormal = GetPlaneNormalAsMatrix(new Triangle(mesh.Vertices[face.P0], mesh.Vertices[face.P1], mesh.Vertices[face.P2]));
-                vertQ += planeNormal * Matrix.Transpose(planeNormal);
+                Triangle tri = new Triangle(mesh.Vertices[face.P0], mesh.Vertices[face.P1], mesh.Vertices[face.P2]);
+                Matrix planeNormal = GetPlaneNormalAsMatrix(tri);
+                double area = normalizeArea ? tri.Area() : 1;
+                vertQ += planeNormal * Matrix.Transpose(planeNormal) * area;
             }
             if (currentVerts[vertexIndex].IsOnPerimeter)
             {
                 vertQ *= perimeterFactor;
             }
+            
             return vertQ;
         }
 

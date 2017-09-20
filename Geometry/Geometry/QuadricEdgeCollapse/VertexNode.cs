@@ -20,6 +20,7 @@ namespace OPS.Geometry
         public bool IsOnPerimeter;
         public bool IsTouchable;
         public bool IsActive;
+        public int AdjFaceCount;
         public int ID;
 
         public VertexNode(Vertex vert, int id)
@@ -27,17 +28,19 @@ namespace OPS.Geometry
             this.Vert = vert;
             this.ID = id;
             this.Q = new Matrix();
+            this.AdjFaceCount = 0;
             this.AdjacentEdges = new List<Edge>();
             this.IsOnPerimeter = false;
             this.IsTouchable = true;
             this.IsActive = true;
         }
 
-        public VertexNode(Vertex vert, int id, Matrix Q, List<Edge> adjacentEdges, bool isOnPerimeter, bool isTouchable)
+        public VertexNode(Vertex vert, int id, Matrix Q, int adjFaceCount, List<Edge> adjacentEdges, bool isOnPerimeter, bool isTouchable)
         {
             this.Vert = vert;
             this.ID = id;
             this.Q = Q;
+            this.AdjFaceCount = adjFaceCount;
             this.AdjacentEdges = adjacentEdges;
             this.IsOnPerimeter = isOnPerimeter;
             this.IsTouchable = isTouchable;

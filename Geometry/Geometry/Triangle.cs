@@ -415,6 +415,9 @@ namespace OPS.Geometry
             }
             else
             {
+                var a = v1;
+                var b = v2;
+                var c = v0;
                 throw new Exception("Normal error, Zero length face");
             }
             return norm;
