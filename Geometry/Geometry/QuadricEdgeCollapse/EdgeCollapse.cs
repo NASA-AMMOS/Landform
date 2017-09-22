@@ -9,73 +9,59 @@ using OPS.Geometry;
 
 using Priority_Queue;
 using System.Collections;
-
-using triple = System.Single; //Will not double
-using sink = System.Double; //Doesn't float
+using System.Runtime.CompilerServices;
 
 namespace OPS.Geometry
 {
-    /// <summary>
-    /// Comparer passed to fast priority queue
-    /// </summary>
-    class EdgeComparer : IEqualityComparer<Edge>
-    {
-        public EdgeComparer() { }
-
-        public bool Equals(Edge e1, Edge e2)
-        {
-            return e1.Equals(e2);
-        }
-
-        public int GetHashCode(Edge e)
-        {
-            return e.GetHashCode();
-        }
-    }
-
     /// <summary>
     /// Node used for the edge collapse queue
     /// </summary>
     class EdgeCollapseQueueNode : FastPriorityQueueNode
     {
         public Edge Edge;
-        public VertexNode VNew;
 
-        public EdgeCollapseQueueNode(VertexNode v1, VertexNode v2, VertexNode vNew, bool isOnPerimeter) : base()
+        public EdgeCollapseQueueNode(VertexNode v1, VertexNode v2, Vertex vNew, bool isOnPerimeter) : base()
         {
-            this.Edge = new Edge(v1, v2, null, isOnPerimeter);
-            this.VNew = vNew;
+            this.Edge = new Edge(v1, v2, null, vNew, isOnPerimeter);
         }
 
-        public EdgeCollapseQueueNode(Edge e, VertexNode vNew)
+        public EdgeCollapseQueueNode(Edge e) : base()
         {
-            this.Edge = new Edge(e.Src, e.Dst, null, e.IsPerimeterEdge);
-            this.VNew = vNew;
+            this.Edge = new Edge(e.Src, e.Dst, null, e.VNew, e.IsPerimeterEdge);
         }
     }
 
 
-
     public static class EdgeCollapse
     {
+        //Flag to enable checks for bad mesh topology (not geometry) in the graph structure after each collapse. Note that without preserveTopology, perimeter checks will fail, but others should succeed.
         const bool _DEBUG = false;
 
-        //from http://ieeexplore.ieee.org/document/6211122/?reload=true and http://hhoppe.com/newqem.pdf and https://www.cs.cmu.edu/~./garland/Papers/quadrics.pdf
+        //algorithms from http://ieeexplore.ieee.org/document/6211122/?reload=true and http://hhoppe.com/newqem.pdf and https://www.cs.cmu.edu/~./garland/Papers/quadrics.pdf
         /// <summary>
-        /// Returns a new mesh by iteratively collapsing edges in mesh until reaching approximately `targetNumFaces` polygons
-        /// Increasing `perimeterFactor` will weight the algorithm away from collapsing perimeter edges
-        /// `avoidPerimeter` prevents the perimeter from collapsing inward
-        /// Vertices in `notTouched` will never be collapsed (though vertices around them might be, this can lead malformed meshes when used without `avoidPerimeter` flag)
+        /// Returns a new mesh by iteratively collapsing edges in mesh until reaching approximately `targetNumFaces` polygons.
+        /// perimeterPenaltyFactor scales the cost of collapsing edges touching the perimeter, as they will have fewer surrounding faces contributing to cost.
+        /// preserveTopology when true forces collapses only to occur where an edge with only two neighboring faces (or perimeter with one face) to be collapsed. Also will not collapse outer edge of a tetrahedron.
+        ///     Without this flag, algorithm will allow collapsing of non-manifold geometries (better for extreme collapsing), perimeters of holes may not be tracked properly.
+        /// weightByArea when true will scale cost based on surrounding triangle area, rather than number of triangles. This will result in more collapses in areas of high triangle density and more uniform resulting meshes. When false, will better preserve triangle distribution.
+        /// avoidFlips when true will prevent collapses that result in large changes to face normals that were previously uniform. Specifically, before preforming a collapse, a check will compare the magnitude of the sum of local face normals before and after. The collapse will be skipped if the result is less than flipThreshold.
+        ///     Note that if flipThreshold is set too high (close to 0), collapses may be prevented where there is already high variance in normal direction, and flipping normal direction is not necessarily bad. For reference, if all normals are initially aligned and one is flipped, the result compared to threshold will be -2. 
+        /// avoidSmallTris when true will prevent collapses that scale the smallest angle in a triangle past angle threshold. I.e. if angleThreshold is set to 0.5, then any collapse that halves the smallest angle of a triangle would be skipped. Similar to flips, a high threshold can prevent large numbers of collapses and produce bad (but interesting) meshes.
+        ///     Note that this check involves angle computation (slow). Combined with checking flips, observed runtime was up to 2x compared to without in 1 million polygon meshes.
+        /// notTouched takes a list of vertices that will not be allowed to move in the resulting mesh. This is useful for pinning corners of tiles, or areas of needed detail in meshes.
         /// </summary>
         /// <param name="mesh"></param>
         /// <param name="targetNumFaces"></param>
         /// <param name="perimeterPenaltyFactor"></param>
-        /// <param name="preservePerimeter"></param>
-        /// <param name="fillPerimeter"></param>
+        /// <param name="preserveTopology"></param>
+        /// <param name="weightByArea"></param>
+        /// <param name="avoidFlips"></param>
+        /// <param name="flipThreshold"></param>
+        /// <param name="avoidSmallTris"></param>
+        /// <param name="angleThreshold"></param>
         /// <param name="notTouched"></param>
-        /// <param name="avoidTetrahedrons"></param>
         /// <returns></returns>
-        public static Mesh QuadricEdgeCollapse(Mesh mesh, int targetNumFaces, sink perimeterPenaltyFactor = 1, bool preserveTopology = true, bool weightByArea = false, bool avoidFlips = false, List<Vertex> notTouched = null)
+        public static Mesh QuadricEdgeCollapse(Mesh mesh, int targetNumFaces, double perimeterPenaltyFactor = 1, bool preserveTopology = true, bool weightByArea = false, bool avoidFlips = false, double flipThreshold = -1.0, bool avoidSmallTris = false, double angleThreshold = 0.25, List<Vertex> notTouched = null)
         {
             mesh.HasUVs = false;
             mesh.HasColors = false;
@@ -115,7 +101,8 @@ namespace OPS.Geometry
                 {
                     if (e.Src < e.Dst)
                     {
-                        AddEdgeToQueue(heap, e, edgeGraph.GetNewID(), avoidFlips);
+                        e.SetNewVertPos();
+                        TryAddEdgeToQueue(heap, e, avoidFlips, flipThreshold, avoidSmallTris, angleThreshold, preserveTopology);
                     }
                 }
             }
@@ -130,18 +117,21 @@ namespace OPS.Geometry
                 {
                     foreach (VertexNode v in edgeGraph.vertNodes)
                     {
-                        foreach (Edge e in v.AdjacentEdges)
+                        if (v.IsActive)
                         {
-                            if (!e.Dst.AdjacentEdges.Contains(e))
+                            foreach (Edge e in v.AdjacentEdges)
                             {
-                                //Found an edge in which only one vertex has knowledge of the other (should each store an edge)
-                                throw new Exception("Edge(s) missing from mesh.");
-                            }
-                            Edge other = e.Dst.AdjacentEdges.Find(newEdge => newEdge == e);
-                            if (other.IsPerimeterEdge != e.IsPerimeterEdge)
-                            {
-                                //Found two instances of same edge with different perimeter property
-                                throw new Exception("Bad mesh perimeter.");
+                                if (!e.Dst.AdjacentEdges.Contains(e))
+                                {
+                                    //Found an edge in which only one vertex has knowledge of the other (should each store an edge)
+                                    throw new Exception("Edge(s) missing from mesh.");
+                                }
+                                Edge other = e.Dst.AdjacentEdges.Find(newEdge => newEdge == e);
+                                if (other.IsPerimeterEdge != e.IsPerimeterEdge)
+                                {
+                                    //Found two instances of same edge with different perimeter property
+                                    throw new Exception("Bad mesh perimeter.");
+                                }
                             }
                         }
                     }
@@ -159,27 +149,7 @@ namespace OPS.Geometry
                     continue;
                 }
 
-                //Skip if this would collapse around a corner
-                if (v1.IsOnPerimeter && v2.IsOnPerimeter && !edge.IsPerimeterEdge)
-                {
-                    continue;
-                }
-
-                //Skip if both untouchable
-                if (!v1.IsTouchable && !v2.IsTouchable)
-                {
-                    continue;
-                }
-
-                //Skip if this would collapse a tetrahedron or other complex geometry
-                if (preserveTopology && (NumCommonNeighbors(v1, v2) > 2 || (edge.IsPerimeterEdge && NumCommonNeighbors(v1, v2) > 1)))
-                {
-                    continue;
-                }
-
-
-                VertexNode vNew = collapsingEdge.VNew;
-                sink temp = edge.QEM(vNew.Vert);
+                VertexNode vNew = new VertexNode(edge.VNew, edgeGraph.GetNewID());
                 
                 //Collapsing edge v1, v2 -> vNew
                 vNew.Q = v1.Q + v2.Q;
@@ -225,7 +195,7 @@ namespace OPS.Geometry
                         {
                             if(exy.Left == v1 || exy.Left == v2)
                             {
-                                /*if(exy.IsPerimeterEdge)
+                                if(exy.IsPerimeterEdge)
                                 {
                                     if(exy.Dst == v1)
                                     {
@@ -240,7 +210,7 @@ namespace OPS.Geometry
                                             exz.IsPerimeterEdge = true;
                                         }
                                     }
-                                }*/
+                                }
                                 exy.Dst = null;
                             } else
                             {
@@ -253,8 +223,16 @@ namespace OPS.Geometry
                         }
                     }
                     vx.AdjacentEdges = vx.AdjacentEdges.Where(e => e.Dst != null).ToList();
-                    if (e1x.Left == v1 || e1x.Left == v2) //TODO: update check against itself
+                    if (e1x.Left == v1 || e1x.Left == v2)
                     {
+                        if (_DEBUG && e1x.Left == v1) { throw new Exception("Edge Left is Src"); }
+                        if (e1x.IsPerimeterEdge)
+                        {
+                            foreach (Edge e2x in v2.AdjacentEdges.FindAll(e => e.Dst == e1x.Dst))
+                            {
+                                e2x.IsPerimeterEdge = true;
+                            }
+                        }
                     } else
                     {
                         vNew.AdjacentEdges.Add(new Edge(vNew, e1x.Dst, e1x.Left, e1x.IsPerimeterEdge));
@@ -269,7 +247,7 @@ namespace OPS.Geometry
                         {
                             if(exy.Left == v1 || exy.Left == v2)
                             {
-                                /*if (exy.IsPerimeterEdge)
+                                if (exy.IsPerimeterEdge)
                                 {
                                     if (exy.Dst == v1)
                                     {
@@ -285,7 +263,7 @@ namespace OPS.Geometry
                                             exz.IsPerimeterEdge = true;
                                         }
                                     }
-                                }*/
+                                }
                                 exy.Dst = null;
                             } else
                             {
@@ -297,116 +275,34 @@ namespace OPS.Geometry
                         }
                     }
                     vx.AdjacentEdges = vx.AdjacentEdges.Where(e => e.Dst != null).ToList();
-                    if (e2x.Left == v1 || e2x.Left == v2) //TODO: update check against itself
+                    if (e2x.Left == v1 || e2x.Left == v2)
                     {
+                        if (_DEBUG && e2x.Left == v2) { throw new Exception("Edge Left is Src"); }
+                        if (e2x.IsPerimeterEdge)
+                        {
+                            foreach (Edge e1x in vNew.AdjacentEdges.FindAll(e => e.Dst == e2x.Dst))
+                            {
+                                e1x.IsPerimeterEdge = true;
+                            }
+                        }
                     } else
                     {
                         vNew.AdjacentEdges.Add(new Edge(vNew, e2x.Dst, e2x.Left, e2x.IsPerimeterEdge));
                     }
-                }
-
-
-
-                //Delete edges with a collapsing left face in v1/v2 and shared neighbors
-                //preserve perimeter knowledge when collapsing an interior vertex to the perimeter
-                /*foreach (Edge e12 in e12s)
-                {
-                    if (e12.Left != null)
-                    {
-                        List<Edge> neighborEdges = e12.Left.AdjacentEdges.FindAll(e => (e.Left == v2 || e.Left == v1) && (e.Dst == v1 || e.Dst == v2));
-                        foreach (Edge neighborEdge in neighborEdges)
-                        {
-                            if (neighborEdge.IsPerimeterEdge)
-                            {
-                                foreach(Edge otherFaceEdge in e12.Left.AdjacentEdges.FindAll(e => e.Dst == v2)) {
-                                    otherFaceEdge.IsPerimeterEdge = true;
-                                }
-                            }
-                            e12.Left.AdjacentEdges.Remove(neighborEdge);
-
-                            Edge v2Edge = v2.AdjacentEdges.Find(e => e.Dst == e12.Left);
-                            /*Edge v1Edge = v1.AdjacentEdges.Find(e => e.Dst == e12.Left);
-                            if (v2Edge.IsPerimeterEdge)
-                            {
-                                v1Edge.IsPerimeterEdge = true;
-                            }*/
-                            /*v2.AdjacentEdges.Remove(v2Edge);
-                            numFaces -= 1;
-                        }
-                    }
-                }*/
-                /*foreach (Edge e21 in e21s)
-                {
-                    if (e21.Left != null)
-                    {
-                        List<Edge> neighborEdges = e21.Left.AdjacentEdges.FindAll(e => (e.Left == v2 || e.Left == v1) && (e.Dst == v1 || e.Dst == v2));
-                        foreach (Edge neighborEdge in neighborEdges)
-                        {
-                            if (neighborEdge.IsPerimeterEdge)
-                            {
-                                foreach (Edge otherFaceEdge in e21.Left.AdjacentEdges.FindAll(e => e.Dst == v1))
-                                {
-                                    otherFaceEdge.IsPerimeterEdge = true;
-                                }
-                            }
-                            e21.Left.AdjacentEdges.Remove(neighborEdge);
-
-                            Edge v1Edge = v1.AdjacentEdges.Find(e => e.Dst == e21.Left);
-                            /*Edge v2Edge = v2.AdjacentEdges.Find(e => e.Dst == e21.Left);
-                            if (v1Edge.IsPerimeterEdge)
-                            {
-                                v2Edge.IsPerimeterEdge = true;
-                            }*/
-                            /*v1.AdjacentEdges.Remove(v1Edge);
-                            numFaces -= 1;
-                        }
-                    }
-                }*/
-
-                //delete collapsing edges
-                /*foreach (Edge e12 in e12s)
-                {
-                    v1.AdjacentEdges.Remove(e12);
-                }
-                foreach (Edge e21 in e21s)
-                {
-                    v2.AdjacentEdges.Remove(e21);
-                }*/
-
-                //Add edges to vNew
-                /*foreach (Edge e in v1.AdjacentEdges)
-                {
-                    vNew.AdjacentEdges.Add(new Edge(vNew, e.Dst, e.Left, e.IsPerimeterEdge));
-                }
-                foreach (Edge e in v2.AdjacentEdges)
-                {
-                    vNew.AdjacentEdges.Add(new Edge(vNew, e.Dst, e.Left, e.IsPerimeterEdge));
-                }*/
-
-                //Update neighbor's edges
-                /*foreach(Edge e in vNew.AdjacentEdges)
-                {
-                    VertexNode neighbor = e.Dst;
-                    foreach(Edge f in neighbor.AdjacentEdges.FindAll(dstEdge => dstEdge.Dst == v1 || dstEdge.Dst == v2))
-                    {
-                        f.Dst = vNew;
-                    }
-                    Edge leftEdge = neighbor.AdjacentEdges.Find(lftEdge => lftEdge.Left == v1 || lftEdge.Left == v2);
-                    if (leftEdge != null)
-                    {
-                        leftEdge.Left = vNew;
-                    }
-                }*/
+                }         
 
                 if (_DEBUG)
                 {
                     foreach (VertexNode v in edgeGraph.vertNodes)
                     {
-                        foreach (Edge e in v.AdjacentEdges)
+                        if (v.IsActive)
                         {
-                            if (e.Dst == v1 || e.Dst == v2)
+                            foreach (Edge e in v.AdjacentEdges)
                             {
-                                throw new Exception("Edge exists to deleted vertex in mesh.");
+                                if (e.Dst == v1 || e.Dst == v2)
+                                {
+                                    throw new Exception("Edge exists to deleted vertex in mesh.");
+                                }
                             }
                         }
                     }
@@ -422,7 +318,8 @@ namespace OPS.Geometry
                 //Add new edges to the queue
                 foreach (Edge e in vNew.AdjacentEdges)
                 {
-                    AddEdgeToQueue(heap, e, edgeGraph.GetNewID(), avoidFlips);
+                    e.SetNewVertPos();
+                    TryAddEdgeToQueue(heap, e, avoidFlips, flipThreshold, avoidSmallTris, angleThreshold, preserveTopology);
                 }
                 nVerts -= 1;
             }
@@ -445,29 +342,43 @@ namespace OPS.Geometry
             return new Mesh(triangleList);
         }
 
-        static void AddEdgeToQueue(FastPriorityQueue<EdgeCollapseQueueNode> heap, Edge e, int newID, bool checkFlip)
+        /// <summary>
+        /// Adds the edge to the queue with its cost as priority, unless it meets skip criteria
+        /// </summary>
+        /// <param name="queue"></param>
+        /// <param name="e"></param>
+        /// <param name="checkFlip"></param>
+        /// <param name="flipThreshold"></param>
+        /// <param name="checkTris"></param>
+        /// <param name="angleThreshold"></param>
+        /// <param name="preserveTopology"></param>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        static void TryAddEdgeToQueue(FastPriorityQueue<EdgeCollapseQueueNode> queue, Edge e, bool checkFlip, double flipThreshold, bool checkTris, double angleThreshold, bool preserveTopology)
         {
-            VertexNode vNew = new VertexNode(e.GetNewVertPos(), newID);
+            //Skip if this would collapse around a corner
+            if (e.Src.IsOnPerimeter && e.Dst.IsOnPerimeter && !e.IsPerimeterEdge)
+            {
+                return;
+            }
+
+            //Skip if both untouchable
+            if (!e.Src.IsTouchable && !e.Dst.IsTouchable)
+            {
+                return;
+            }
+
+            //Skip if this would collapse a tetrahedron or other complex geometry
+            if (preserveTopology && (NumCommonNeighbors(e.Src, e.Dst) > 2 || (e.IsPerimeterEdge && NumCommonNeighbors(e.Src, e.Dst) > 1)))
+            {
+                return;
+            }
             
-            if (!checkFlip)
+            ///Skip if the collapse would result in bad local changes
+            if ((!checkTris || GetSmallestAngleRatio(e) > angleThreshold)
+                && (!checkFlip || CheckNormalChanges(e) > flipThreshold))
             {
-                sink cost = e.QEM(vNew.Vert);
-                heap.Enqueue(new EdgeCollapseQueueNode(e, vNew), (triple)cost);
-            } else
-            {
-                if (MaxAngleChange(e, vNew) > -1)
-                {
-                    sink cost = e.QEM(vNew.Vert);
-                    heap.Enqueue(new EdgeCollapseQueueNode(e, vNew), (triple)cost);
-                } else
-                {
-                    vNew.Vert = e.GetNewVertPosSimple();
-                    if (MaxAngleChange(e, vNew) > -1)
-                    {
-                        sink cost = e.QEM(vNew.Vert);
-                        heap.Enqueue(new EdgeCollapseQueueNode(e, vNew), (triple)cost);
-                    }
-                }
+                double cost = e.QEM(e.VNew);
+                queue.Enqueue(new EdgeCollapseQueueNode(e), (float)cost);
             }
         }
 
@@ -493,26 +404,31 @@ namespace OPS.Geometry
         static Matrix GetPlaneNormalAsMatrix(Triangle triangle)
         {
             Vector3 normal = triangle.Normal;
-            sink offset = -1 * triangle.V0.Position.Dot(normal);
+            double offset = -1 * triangle.V0.Position.Dot(normal);
             return new Matrix(normal.X,0,0,0,normal.Y,0,0,0,normal.Z,0,0,0,offset,0,0,0);
         }
 
         /// <summary>
-        /// Returns the angle between two NORMALIZED vectors
+        /// Returns the angle between two vectors
         /// </summary>
         /// <param name="v1"></param>
         /// <param name="v2"></param>
         /// <returns></returns>
-        public static sink Angle(Vector3 v1, Vector3 v2)
+        public static double Angle(Vector3 v1, Vector3 v2)
         {
-            return Math.Acos(v1.Dot(v2));
+            return Math.Acos(v1.Dot(v2) / (v1.Length() * v2.Length()));
         }
 
-        public static sink MaxAngleChange(Edge collapsingEdge, VertexNode newVert)
+        /// <summary>
+        /// Compares all triangles before a collapse to after the collapse (pairwise). Returns the smallest ratio of angle change. 0 indicates a degenerate triangle would be created, 0-1 indicates at least one "skinnier" (smaller smallest angle) would be created. 1+ indicates all triangles would be less acute.
+        /// </summary>
+        /// <param name="collapsingEdge"></param>
+        /// <returns></returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static double GetSmallestAngleRatio(Edge collapsingEdge)
         {
-            List<Vector3> oldNormals = new List<Vector3>();
-            List<Vector3> newNormals = new List<Vector3>();
-            if (newVert.Vert.Position != collapsingEdge.Src.Vert.Position)
+            double minRatio = double.MaxValue;
+            if (collapsingEdge.VNew.Position != collapsingEdge.Src.Vert.Position)
             {
                 foreach (Edge e in collapsingEdge.Src.AdjacentEdges)
                 {
@@ -520,19 +436,28 @@ namespace OPS.Geometry
                     {
                         if (e.Left != collapsingEdge.Dst && e.Dst != collapsingEdge.Dst)
                         {
-                            try
+                            Vector3 v0a = collapsingEdge.VNew.Position;
+                            Vector3 v0b = e.Src.Vert.Position;
+                            Vector3 v1 = e.Dst.Vert.Position;
+                            Vector3 v2 = e.Left.Vert.Position;
+                            double a0 = Angle(v1 - v0a, v2 - v0a);
+                            double a1 = Angle(v2 - v1, v0a - v1);
+                            double a2 = Angle(v0a - v2, v1 - v2);
+                            double b0 = Angle(v1 - v0b, v2 - v0b);
+                            double b1 = Angle(v2 - v1, v0b - v1);
+                            double b2 = Angle(v0b - v2, v1 - v2);
+                            double minAngleNew = Math.Min(a0, Math.Min(a1, a2));
+                            double minAngleOld = Math.Min(b0, Math.Min(b1, b2));
+                            if(minAngleOld == 0)
                             {
-                                Vector3 norm1 = Triangle.ComputeNormal(e.Src.Vert.Position, e.Dst.Vert.Position, e.Left.Vert.Position);
-                                Vector3 norm2 = Triangle.ComputeNormal(newVert.Vert.Position, e.Dst.Vert.Position, e.Left.Vert.Position);
-                                oldNormals.Add(norm1);
-                                newNormals.Add(norm2);     
+                                return 1;
                             }
-                            catch { }         
+                            minRatio = Math.Min(minRatio, minAngleNew/minAngleOld);
                         }
                     }
                 }
             }
-            if (newVert.Vert.Position != collapsingEdge.Dst.Vert.Position)
+            if (collapsingEdge.VNew.Position != collapsingEdge.Dst.Vert.Position)
             {
                 foreach (Edge e in collapsingEdge.Dst.AdjacentEdges)
                 {
@@ -540,34 +465,83 @@ namespace OPS.Geometry
                     {
                         if (e.Left != collapsingEdge.Src && e.Dst != collapsingEdge.Src)
                         {
-                            try
+                            Vector3 v0a = collapsingEdge.VNew.Position;
+                            Vector3 v0b = e.Src.Vert.Position;
+                            Vector3 v1 = e.Dst.Vert.Position;
+                            Vector3 v2 = e.Left.Vert.Position;
+                            double a0 = Angle(v1 - v0a, v2 - v0a);
+                            double a1 = Angle(v2 - v1, v0a - v1);
+                            double a2 = Angle(v0a - v2, v1 - v2);
+                            double b0 = Angle(v1 - v0b, v2 - v0b);
+                            double b1 = Angle(v2 - v1, v0b - v1);
+                            double b2 = Angle(v0b - v2, v1 - v2);
+                            double minAngleNew = Math.Min(a0, Math.Min(a1, a2));
+                            double minAngleOld = Math.Min(b0, Math.Min(b1, b2));
+                            if (minAngleOld == 0)
                             {
-                                Vector3 norm1 = Triangle.ComputeNormal(e.Src.Vert.Position, e.Dst.Vert.Position, e.Left.Vert.Position);
-                                Vector3 norm2 = Triangle.ComputeNormal(newVert.Vert.Position, e.Dst.Vert.Position, e.Left.Vert.Position);
-                                oldNormals.Add(norm1);
-                                newNormals.Add(norm2);
-
+                                return 1;
                             }
-                            catch { }                    
+                            minRatio = Math.Min(minRatio, minAngleNew / minAngleOld);
                         }
                     }
                 }
             }
-            Vector3 oldMean = new Vector3(0,0,0);
-            foreach(Vector3 v in oldNormals)
-            {
-                oldMean += v;
-            }
+            return minRatio;
+        }
+
+        /// <summary>
+        /// Returns the change magnitude in sum of normal vectors before and after collapse. If this value is positive, the collapse results in local normals that are more aligned. In general, a higher return value indicates a "smoother" collapse. A low value can be used to detect face inversions. I.e. if all normals are initially pointing up and one is flipped, the result would be -2.
+        /// </summary>
+        /// <param name="collapsingEdge"></param>
+        /// <returns></returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static double CheckNormalChanges(Edge collapsingEdge)
+        {
+            Vector3 oldMean = new Vector3(0, 0, 0);
             Vector3 newMean = new Vector3(0, 0, 0);
-            foreach (Vector3 v in newNormals)
+            Vector3 oldNorm;
+            Vector3 newNorm;
+            if (collapsingEdge.VNew.Position != collapsingEdge.Src.Vert.Position)
             {
-                newMean += v;
+                foreach (Edge e in collapsingEdge.Src.AdjacentEdges)
+                {
+                    if (e.Left != null)
+                    {
+                        if (e.Left != collapsingEdge.Dst && e.Dst != collapsingEdge.Dst)
+                        {
+                            if( Triangle.ComputeNormal(e.Src.Vert.Position, e.Dst.Vert.Position, e.Left.Vert.Position, out oldNorm)
+                                && Triangle.ComputeNormal(collapsingEdge.VNew.Position, e.Dst.Vert.Position, e.Left.Vert.Position, out newNorm))
+                            {
+                                oldMean += oldNorm;
+                                newMean += newNorm;
+                            }     
+                        }
+                    }
+                }
+            }
+            if (collapsingEdge.VNew.Position != collapsingEdge.Dst.Vert.Position)
+            {
+                foreach (Edge e in collapsingEdge.Dst.AdjacentEdges)
+                {
+                    if (e.Left != null)
+                    {
+                        if (e.Left != collapsingEdge.Src && e.Dst != collapsingEdge.Src)
+                        {
+                            if (Triangle.ComputeNormal(e.Src.Vert.Position, e.Dst.Vert.Position, e.Left.Vert.Position, out oldNorm)
+                                && Triangle.ComputeNormal(collapsingEdge.VNew.Position, e.Dst.Vert.Position, e.Left.Vert.Position, out newNorm))
+                            {
+                                oldMean += oldNorm;
+                                newMean += newNorm;
+                            }
+                        }
+                    }
+                }
             }
             if(newMean.LengthSquared() == 0)
             {
                 return 1;
             }
-            return (newMean.LengthSquared() - oldMean.LengthSquared())/*/(oldNormals.Count)*/;
+            return (newMean.LengthSquared() - oldMean.LengthSquared());
         }
 
         /// <summary>
@@ -579,7 +553,7 @@ namespace OPS.Geometry
         /// <param name="adjacentFaces"></param>
         /// <param name="perimeterFactor"></param>
         /// <returns></returns>
-        static Matrix GetQMatrix(int vertexIndex, Mesh mesh, List<VertexNode> currentVerts, List<Face>[] adjacentFaces, sink perimeterFactor, bool normalizeArea)
+        static Matrix GetQMatrix(int vertexIndex, Mesh mesh, List<VertexNode> currentVerts, List<Face>[] adjacentFaces, double perimeterFactor, bool normalizeArea)
         {
             Matrix vertQ = new Matrix(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
             foreach (Face face in adjacentFaces[vertexIndex])
@@ -618,39 +592,6 @@ namespace OPS.Geometry
             }
 
             return vertexFaceList;
-        }
-
-        /// <summary>
-        /// Return the corners of a mesh (min x+y, x-y, -x+y, -x-y)
-        /// </summary>
-        /// <param name="mesh"></param>
-        /// <returns></returns>
-        public static List<Vertex> GetCorners(Mesh mesh)
-        {
-            Vertex lowerLeft = mesh.Vertices[0];
-            Vertex lowerRight = mesh.Vertices[0];
-            Vertex upperLeft = mesh.Vertices[0];
-            Vertex upperRight = mesh.Vertices[0];
-            foreach (Vertex v in mesh.Vertices)
-            {
-                if (v.Position.X + v.Position.Y < lowerLeft.Position.X + lowerLeft.Position.Y)
-                {
-                    lowerLeft = v;
-                }
-                if (-1 * v.Position.X + v.Position.Y < -1 * lowerRight.Position.X + lowerRight.Position.Y)
-                {
-                    lowerRight = v;
-                }
-                if (v.Position.X - v.Position.Y < upperLeft.Position.X - upperLeft.Position.Y)
-                {
-                    upperLeft = v;
-                }
-                if (-1 * v.Position.X - v.Position.Y < -1 * upperRight.Position.X - upperRight.Position.Y)
-                {
-                    upperRight = v;
-                }
-            }
-            return new List<Vertex> { lowerLeft, lowerRight, upperLeft, upperRight };
         }
 
         /// <summary>

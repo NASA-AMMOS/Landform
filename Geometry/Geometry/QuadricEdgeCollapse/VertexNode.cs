@@ -10,7 +10,7 @@ using OPS.Geometry;
 namespace OPS.Geometry
 {
     /// <summary>
-    /// Stores a vertex with its associated error matrix, edges, and flags
+    /// Stores a vertex with its associated error matrix, edges, and flags for representing meshes as node-edge graphs when doing edge collapses
     /// </summary>
     public class VertexNode
     {

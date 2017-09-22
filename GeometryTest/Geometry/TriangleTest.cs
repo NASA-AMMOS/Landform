@@ -205,5 +205,21 @@ namespace GeometryTest
             Assert.AreEqual(new Vector3(.5, .5, 0), tri.ClosestPoint(new Vector3(0, 0, 8798797.65)).Position);
             Assert.AreEqual(new Vector3(1, 0, 0), tri.ClosestPoint(new Vector3(1.5, -7, -654)).Position);
         }
+
+        [TestMethod]
+        public void TestComputeNormal()
+        {
+            Vector3 norm;
+            Assert.IsFalse(Triangle.ComputeNormal(new Vector3(6546, 646.168, -1654.5165468), new Vector3(6546, 646.168, -1654.5165468), new Vector3(6546, 646.168, -1654.5165468), out norm));
+            Vector3 v1 = new Vector3(0,0,0);
+            Vector3 v2 = new Vector3(1,1,1);
+            Vector3 v3 = new Vector3(2,2,2);
+            Vector3 v4 = new Vector3(1,-1,2);
+            Vector3 v5 = new Vector3(1,0,10);
+            Assert.AreEqual(Triangle.ComputeNormal(v2, v4, v5), new Vector3(-1, 0, 0));
+            Assert.AreEqual(Triangle.ComputeNormal(v1, v2, v5).Length(), 1, 1e-7);
+            Assert.AreEqual(Triangle.ComputeNormal(v1, v3, v5).Length(), 1, 1e-7);
+            Assert.AreEqual(Triangle.ComputeNormal(v1, v4, v2).Length(), 1, 1e-7);
+        }
     }
 }

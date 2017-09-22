@@ -6,16 +6,18 @@ using System.Threading.Tasks;
 
 using Microsoft.Xna.Framework;
 using OPS.Geometry;
+using Priority_Queue;
 
 namespace OPS.Geometry
 {
     /// <summary>
-    /// Stores two VertexData, and the third VertexData of its left face to store winding order
+    /// Stores two VertexData, the third VertexData of its left face (for winding order), and the location of the collapsed vertex
     /// </summary>
     public class Edge
     {
         public VertexNode Src, Dst;
         public VertexNode Left;
+        public Vertex VNew;
         public bool IsPerimeterEdge;
 
         public Edge(VertexNode v1, VertexNode v2, VertexNode left, bool isPerimeterEdge = false)
@@ -24,6 +26,16 @@ namespace OPS.Geometry
             this.Dst = v2;
             this.Left = left;
             this.IsPerimeterEdge = isPerimeterEdge;
+            SetNewVertPos();
+        }
+
+        public Edge(VertexNode v1, VertexNode v2, VertexNode left, Vertex vNew, bool isPerimeterEdge = false)
+        {
+            this.Src = v1;
+            this.Dst = v2;
+            this.Left = left;
+            this.IsPerimeterEdge = isPerimeterEdge;
+            this.VNew = vNew;
         }
 
         public override bool Equals(object obj)
@@ -57,9 +69,9 @@ namespace OPS.Geometry
         /// <param name="vert"></param>
         /// <param name="Q"></param>
         /// <returns></returns>
-        public double QEM(Vertex vert)
+        public double QEM(Vertex vNew)
         {
-            Matrix v = new Matrix(vert.Position.X, 0, 0, 0, vert.Position.Y, 0, 0, 0, vert.Position.Z, 0, 0, 0, 1, 0, 0, 0);
+            Matrix v = new Matrix(vNew.Position.X, 0, 0, 0, vNew.Position.Y, 0, 0, 0, vNew.Position.Z, 0, 0, 0, 1, 0, 0, 0);
             return (Matrix.Transpose(v) * (Src.Q + Dst.Q) * v).M11;
         }
 
@@ -67,46 +79,49 @@ namespace OPS.Geometry
         /// Compares the error cost of collapsing this edge to either or the two end points, or the midpoint. Returns the best option.
         /// </summary>
         /// <returns></returns>
-        public Vertex GetNewVertPosSimple()
+        public void SetNewVertPosSimple()
         {
             if (Src.IsOnPerimeter && !Dst.IsOnPerimeter || !Src.IsTouchable && Dst.IsTouchable)
             {
-                return Src.Vert;
+                VNew = Src.Vert;
+                return;
             }
             if (Dst.IsOnPerimeter && !Src.IsOnPerimeter || !Dst.IsTouchable && Src.IsTouchable)
             {
-                return Dst.Vert;
+                VNew = Dst.Vert;
+                return;
             }
             Vertex v1 = this.Src.Vert;
-            Vertex best = v1;
+            VNew = v1;
             double minCost = QEM(v1);
             Vertex v2 = this.Dst.Vert;
             if (QEM(v2) < minCost)
             {
-                best = v2;
+                VNew = v2;
                 minCost = QEM(v2);
             }
             Vertex mid = new Vertex((Src.Vert.Position.X + Dst.Vert.Position.X) / 2, (Src.Vert.Position.Y + Dst.Vert.Position.Y) / 2, (Src.Vert.Position.Z + Dst.Vert.Position.Z) / 2);
             if (QEM(mid) < minCost)
             {
-                best = mid;
+                VNew = mid;
             }
-            return best;
         }
 
         /// <summary>
         /// Returns the position of the Vertex to create upon collapsing this edge. Attempts to find local minimum in error, otherwise defaults to comparing ends and midpoint. Restriced for edges and user-specified vertices.
         /// </summary>
         /// <returns></returns>
-        public Vertex GetNewVertPos()
+        public void SetNewVertPos()
         {
             if (Src.IsOnPerimeter && !Dst.IsOnPerimeter || !Src.IsTouchable && Dst.IsTouchable)
             {
-                return Src.Vert;
+                VNew = Src.Vert;
+                return;
             }
             if (Dst.IsOnPerimeter && !Src.IsOnPerimeter || !Dst.IsTouchable && Src.IsTouchable)
             {
-                return Dst.Vert;
+                VNew = Dst.Vert;
+                return;
             }
             if (!IsPerimeterEdge)
             {
@@ -118,10 +133,11 @@ namespace OPS.Geometry
                 if (Q.Determinant() > 1e-8)
                 {
                     Matrix res = Matrix.Invert(Q) * new Matrix(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0);
-                    return new Vertex(res.M11, res.M21, res.M31);
+                    VNew = new Vertex(res.M11, res.M21, res.M31);
+                    return;
                 }
             }
-            return GetNewVertPosSimple();
+            SetNewVertPosSimple();
         }
     }
 }

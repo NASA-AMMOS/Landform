@@ -9,6 +9,9 @@ using Microsoft.Xna.Framework;
 
 namespace OPS.Geometry
 {
+    /// <summary>
+    /// Stores a mesh as a node-edge graph along with local metrics used in edge collapse
+    /// </summary>
     public class EdgeGraph
     {
         public List<VertexNode> vertNodes;
@@ -28,9 +31,9 @@ namespace OPS.Geometry
             //Add adjacency info
             foreach (Face face in mesh.Faces)
             {
-                vertNodes[face.P0].AdjacentEdges.Add(new Edge(vertNodes[face.P0], vertNodes[face.P1], vertNodes[face.P2]));
-                vertNodes[face.P1].AdjacentEdges.Add(new Edge(vertNodes[face.P1], vertNodes[face.P2], vertNodes[face.P0]));
-                vertNodes[face.P2].AdjacentEdges.Add(new Edge(vertNodes[face.P2], vertNodes[face.P0], vertNodes[face.P1]));
+                vertNodes[face.P0].AdjacentEdges.Add(new Edge(vertNodes[face.P0], vertNodes[face.P1], vertNodes[face.P2], null));
+                vertNodes[face.P1].AdjacentEdges.Add(new Edge(vertNodes[face.P1], vertNodes[face.P2], vertNodes[face.P0], null));
+                vertNodes[face.P2].AdjacentEdges.Add(new Edge(vertNodes[face.P2], vertNodes[face.P0], vertNodes[face.P1], null));
             }
 
             //Flag perimeter vertices and edges
@@ -50,12 +53,20 @@ namespace OPS.Geometry
             }
         }
 
+        /// <summary>
+        /// Returns a fresh id for a new node
+        /// </summary>
+        /// <returns></returns>
         public int GetNewID()
         {
             newID += 1;
             return newID;
         }
 
+        /// <summary>
+        /// Returns the nodes that fall on the mesh perimeter, note that non-perimeter edges can exist between two nodes on the perimeter
+        /// </summary>
+        /// <returns></returns>
         public List<VertexNode> GetPerimeterNodes()
         {
             var res = new List<VertexNode>();
@@ -69,6 +80,10 @@ namespace OPS.Geometry
             return res;
         }
 
+        /// <summary>
+        /// Returns the edges on the mesh perimeter
+        /// </summary>
+        /// <returns></returns>
         public List<Edge> GetPerimeterEdges()
         {
             var res = new List<Edge>();

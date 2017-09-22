@@ -592,6 +592,58 @@ namespace OPS.Geometry
         }
 
         /// <summary>
+        /// Assumes mesh with axis-aligned rectangular convex hull when projected onto the plane defined by upAxis.
+        /// Returns the vertex posisitions of the 3 corners.
+        /// </summary>
+        /// <param name="upAxis">"up" axis of mesh (given as vector3 with single non-zero component) </param>
+        /// <returns></returns>
+        public List<Vertex> Corners(Vector3 upAxis)
+        {
+            List<int> axes = new List<int>();
+            for(int i = 0; i < 3; i++)
+            {
+                if(upAxis.ToDoubleArray()[i] == 0)
+                {
+                    axes.Add(i);
+                }
+            }
+            if(axes.Count != 2)
+            {
+                throw new Exception("Axis must have exactly one non-zero component");
+            }
+
+            int a1 = axes[0];
+            int a2 = axes[1];
+
+            Vertex lowerLeft = Vertices[0];
+            Vertex lowerRight = Vertices[0];
+            Vertex upperLeft = Vertices[0];
+            Vertex upperRight = Vertices[0];
+            foreach (Vertex v in Vertices)
+            {
+                double[] pos = v.Position.ToDoubleArray();
+                if (pos[a1] + pos[a2] < lowerLeft.Position.X + lowerLeft.Position.ToDoubleArray()[a2])
+                {
+                    lowerLeft = v;
+                }
+                if (-1 * pos[a1] + pos[a2] < -1 * lowerRight.Position.ToDoubleArray()[a1] + lowerRight.Position.ToDoubleArray()[a2])
+                {
+                    lowerRight = v;
+                }
+                if (pos[a1] - pos[a2] < upperLeft.Position.ToDoubleArray()[a1] - upperLeft.Position.ToDoubleArray()[a2])
+                {
+                    upperLeft = v;
+                }
+                if (-1 * pos[a1] - pos[a2] < -1 * upperRight.Position.ToDoubleArray()[a1] - upperRight.Position.ToDoubleArray()[a2])
+                {
+                    upperRight = v;
+                }
+            }
+            return new List<Vertex> { lowerLeft, lowerRight, upperLeft, upperRight };
+
+        }
+
+        /// <summary>
         /// Translate this mesh to be centered on its bounds
         /// </summary>
         public void Center()

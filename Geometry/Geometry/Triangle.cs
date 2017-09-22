@@ -405,9 +405,22 @@ namespace OPS.Geometry
 
         public static Vector3 ComputeNormal(Vector3 v0, Vector3 v1, Vector3 v2)
         {
+            Vector3 norm;
+            if (ComputeNormal(v0, v1, v2, out norm))
+            {
+                return norm;
+            }
+            else
+            {
+                throw new Exception("Normal error, Zero length face");
+            }
+        }
+
+        public static bool ComputeNormal(Vector3 v0, Vector3 v1, Vector3 v2, out Vector3 norm)
+        {
             Vector3 v1v0 = v1 - v0;
             Vector3 v2v0 = v2 - v0;
-            Vector3 norm = Vector3.Cross(v1v0, v2v0);
+            norm = Vector3.Cross(v1v0, v2v0);
             // Normalize
             if (norm.Length() > 0)
             {
@@ -415,12 +428,9 @@ namespace OPS.Geometry
             }
             else
             {
-                var a = v1;
-                var b = v2;
-                var c = v0;
-                throw new Exception("Normal error, Zero length face");
+                return false;
             }
-            return norm;
+            return true;
         }
 
         public IEnumerable<Triangle> Clip(BoundingBox box)
