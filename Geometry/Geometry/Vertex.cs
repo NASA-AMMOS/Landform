@@ -49,6 +49,12 @@ namespace OPS.Geometry
             this.Color = new Vector4(r, g, b, a);
         }
 
+        public Vertex(Vector3 position, Vector3 normal)
+        {
+            this.Position = position;
+            this.Normal = normal;
+        }
+
         public Vertex(Vector3 position, Vector3 normal, Vector4 color, Vector2 uv)
         {
             this.Position = position;

@@ -28,7 +28,7 @@ namespace OPS.Geometry
         public bool HasUVs = false;
         public bool HasColors = false;
         public bool HasFaces { get { return Faces.Count > 0; } }
-              
+        
         /// <summary>
         /// Creates an empty mesh. 
         /// </summary>
@@ -99,6 +99,52 @@ namespace OPS.Geometry
             this.HasColors = hasColors;
         }
 
+        /// <summary>
+        /// Generates vertex normals for all vertices based on the sum of the connected face normals
+        /// </summary>
+        public void GenerateVertexNormals()
+        {
+            // Start with each vertex normal at 0
+            foreach (Vertex vertex in Vertices)
+            {
+                vertex.Normal = Vector3.Zero;
+            }
+
+            // Calculate each face's normal and add that normal to each point face's points
+            foreach (Face face in Faces)
+            {
+                // Find the three vertices used in the face
+                Vertex v0 = Vertices[face.P0];
+                Vertex v1 = Vertices[face.P1];
+                Vertex v2 = Vertices[face.P2];
+
+                // Calculate the face's normal
+                Vector3 faceNormal = new Triangle(v0, v1, v2).Normal;
+
+                // Add the face's normal to the three vertices
+                v0.Normal += faceNormal;
+                v1.Normal += faceNormal;
+                v2.Normal += faceNormal;
+            }
+
+            // Normalize each vertex normal
+            foreach (Vertex vertex in Vertices)
+            {
+                if (vertex.Normal.Length() > MathHelper.Epsilon)
+                {
+                    vertex.Normal.Normalize();
+                }
+            }
+
+            // The mesh should now be set as having normals
+            HasNormals = true;
+        }
+
+        /// <summary>
+        /// Checks if the face contains any vertices located at the same point in space which would render it invalid
+        /// </summary>
+        /// <param name="f"></param>
+        /// <returns></returns>
         bool FaceIsValid(Face f)
         {
             // Are any two of the vertices referenced by this face the same index
@@ -319,18 +365,26 @@ namespace OPS.Geometry
             }
         }
 
+        /// <summary>
+        /// Applies a transformation matrix to each vertex in the mesh
+        /// </summary>
+        /// <param name="m"></param>
         public void Transform(Matrix m)
         {
             foreach(Vertex v in this.Vertices)
             {
                 v.Position = Vector3.Transform(v.Position, m);
-                if(this.HasNormals)
+                if (this.HasNormals)
                 {
                     v.Normal = Vector3.TransformNormal(v.Normal, m);
                 }
             }
         }
 
+        /// <summary>
+        /// Applies an offset to all vertices in the mesh
+        /// </summary>
+        /// <param name="offset"></param>
         public void Translate(Vector3 offset)
         {
             for (int i = 0; i < this.Vertices.Count; i++)
@@ -339,6 +393,11 @@ namespace OPS.Geometry
             }
         }
 
+        /// <summary>
+        /// Returns an array of the three vertices held by the given face
+        /// </summary>
+        /// <param name="f"></param>
+        /// <returns></returns>
         Vertex[] FaceToVertexArray(Face f)
         {
             return new Vertex[] { this.Vertices[f.P0], this.Vertices[f.P1], this.Vertices[f.P2] };
@@ -360,6 +419,20 @@ namespace OPS.Geometry
                 triangles.Add(t);
             }
             return triangles;
+        }
+
+        /// <summary>
+        /// Returns total mesh surface area by summing area of each triangle
+        /// </summary>
+        /// <returns></returns>
+        public double SurfaceArea()
+        {
+            double area = 0;
+            this.Triangles().ForEach(tri =>
+            {
+                area += tri.Area();
+            });
+            return area;
         }
 
         /// <summary>
@@ -447,6 +520,12 @@ namespace OPS.Geometry
             return result;
         }
 
+        /// <summary>
+        /// Clips the mesh to fit within the given bounding box
+        /// </summary>
+        /// <param name="m"></param>
+        /// <param name="box"></param>
+        /// <returns></returns>
         public static Mesh Clip(Mesh m, BoundingBox box)
         {
             Mesh result;
