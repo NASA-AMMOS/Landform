@@ -153,6 +153,9 @@ namespace OPS.Geometry
             double deblobRadius =  MathE.Max(bounds.Size().ToDoubleArray()) * 0.2f;
             string script = @"<!DOCTYPE FilterScript>
 <FilterScript>
+ <filter name=""Re-Compute Vertex Normals"">
+  <Param enum_val1=""By Angle"" enum_val3=""As defined by N. Max"" value=""0"" description=""Weighting Mode:"" type=""RichEnum"" enum_cardinality=""4"" enum_val2=""By Area"" name=""weightMode"" enum_val0=""None (avg)"" tooltip=""""/>
+ </filter>
  <filter name=""Poisson-disk Sampling"">
   <Param value=""{0}"" description=""Number of samples"" type=""RichInt"" name=""SampleNum"" tooltip=""The desired number of samples. The ray of the disk is calculated according to the sampling density.""/>
   <Param min=""0"" value=""0"" description=""Explicit Radius"" type=""RichAbsPerc"" max=""0.302604"" name=""Radius"" tooltip=""If not zero this parameter override the previous parameter to allow exact radius specification""/>
@@ -201,9 +204,29 @@ namespace OPS.Geometry
 </FilterScript>
 ";
             string meshlabScript = string.Format(script, numSamples, deblobRadius, targetFaces);
-            MeshLabOutputAttributes attributes = new MeshLabOutputAttributes(normals: m.HasNormals, uvs: false, colors: false);            
-            MeshLabRunner mlr = new MeshLabRunner(m, meshlabScript, attributes, ".obj", ".obj");
-            Mesh result = mlr.Run();
+            MeshLabOutputAttributes attributes = new MeshLabOutputAttributes(normals: m.HasNormals, uvs: false, colors: false);
+            Mesh result = null;
+            // This meshlab script fails to produce an output some small precentage of the time
+            // Retry up to 3 times before giving up
+            int maxTries = 3;
+            for (int i = 1; i <= maxTries; i++)
+            {
+                try
+                {
+                    MeshLabRunner mlr = new MeshLabRunner(m, meshlabScript, attributes, ".obj", ".obj");
+                    result = mlr.Run();
+                    // No exception, break so we don't retry
+                    break;
+                }
+                catch (MeshLabException e)
+                {
+                    logger.Warn(string.Format("Meshlab error.  Retry attempt {0}/{1}", i, maxTries), e);
+                    if (i == maxTries)
+                    {
+                        throw(e);
+                    }
+                }
+            }
             return Mesh.Clip(result, bounds);
         }
         
