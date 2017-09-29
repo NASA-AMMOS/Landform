@@ -1,4 +1,4 @@
-﻿using OPS.Imaging;
+using OPS.Imaging;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -10,7 +10,6 @@ using OPS.Cloud;
 using OPS.Pipeline;
 using log4net;
 using OPS.Util;
-using Microsoft.Xna.Framework;
 
 namespace Landform
 {
@@ -25,18 +24,15 @@ namespace Landform
         /// <returns></returns>
         static int Main(string[] args)
         {
-            //Mesh mesh = Mesh.Load(@"C:\Users\kchamber.JPL\Desktop\output\12222030.obj");
-            //Mesh mesh = Mesh.Load(@"C:\Users\kchamber.JPL\Desktop\output\3000000000333.obj");
-            Mesh mesh = Mesh.Load(@"C:\Users\kchamber.JPL\Desktop\testing.obj");
+            Config.ApplicationConfigFolder = ".landform";
+            // Enable logging
+            log4net.Config.XmlConfigurator.Configure();
+            // Register filetype handlers
+            new OpenInventorSerializer().Register();
 
-            mesh.AddSkirt(heightAsPercentOfWidth: 10);
-            //mesh.RemoveSkirt(Mesh.SkirtAxis.Y);
-
-            string path = @"C:\Users\kchamber.JPL\Desktop\result.obj";
-            mesh.Save(path);
-            System.Diagnostics.Process.Start(path);
-
-            return 0;
+            // Parse command line arguments
+            int returnCode = Commands.RunFromCommandline(args);
+            return returnCode;
         }
     }
 }
