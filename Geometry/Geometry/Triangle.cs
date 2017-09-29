@@ -63,6 +63,19 @@ namespace OPS.Geometry
         }
 
         /// <summary>
+        /// Creates a new triangle from 3 vector positions, all other vertex attributes will be set to default values
+        /// </summary>
+        /// <param name="v0"></param>
+        /// <param name="v1"></param>
+        /// <param name="v2"></param>
+        public Triangle(Vector3 v0, Vector3 v1, Vector3 v2)
+        {
+            this.V0 = new Vertex(v0);
+            this.V1 = new Vertex(v1);
+            this.V2 = new Vertex(v2);
+        }
+
+        /// <summary>
         /// Return the vertices of this triangle as a list.
         /// Note that these are NOT copies of the vertices and any changes to them
         /// will have side effects to the triangle.
