@@ -757,7 +757,10 @@ namespace OPS.Geometry
                     }
                 }
             }
-            Debug.Assert(box.FuzzyContains(result.Bounds()), "Clipped mesh exceeds bounding box");
+            if (!box.FuzzyContains(result.Bounds(), 1E-5))
+            {
+                throw new Exception("Clipped mesh exceeds bounding box");
+            }
             return result;
         }
 
