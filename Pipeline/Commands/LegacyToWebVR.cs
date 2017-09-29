@@ -1,9 +1,13 @@
 ﻿using CommandLine;
 using log4net;
 using Microsoft.Xna.Framework;
+using Newtonsoft.Json;
 using OPS.Geometry;
 using OPS.Imaging;
+using OPS.MathExtensions;
+using OPS.Util;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -19,12 +23,22 @@ namespace OPS.Pipeline
         public string InputDirectory { get; set; }
 
         [Value(1, Required = true, HelpText = "Directory to write new tiles to")]
-
         public string OutpitDirectory { get; set; }
 
         [Option(Required = false, Default = 4096, HelpText = "Total extent of legacy tiles")]
+        public int InputExtent { get; set; }
 
-        public int Extent { get; set; }
+        [Option(Required = false, Default = 4096, HelpText = "Total extent of output tiles")]
+        public int OutputExtent { get; set; }
+
+        [Option(Required = false, Default = 2048, HelpText = "Maxium texture size for a tile")]
+        public int MaxTextureSize { get; set; }
+
+        [Option(Required = false, Default = 2000, HelpText = "Number of allowed faces per tile")]
+        public int FacesPerTile { get; set; }
+
+        [Option(Required = false, Default = true, HelpText = "Only process the inner most set of tiles")]
+        public bool InnerMostTilesOnly { get; set; }
     }
 
     public class LegacyToWebVR
@@ -38,10 +52,22 @@ namespace OPS.Pipeline
             options = opts;
         }
 
+        struct TextureSize
+        {
+            public int s;
+            public bool lg;
+
+            public TextureSize(int size, bool hasLarge)
+            {
+                this.s = size;
+                this.lg = hasLarge;
+            }
+        }
+
         public int Run()
         {
-
-            LegacyScene scene = new LegacyScene(options.InputDirectory, options.Extent);
+            PathHelper.EnsureExists(options.OutpitDirectory);
+            LegacyScene scene = new LegacyScene(options.InputDirectory, options.InputExtent);
             //foreach (var leaf in scene.TerrainRoot.Leaves())
             //{
             //    var tmp = leaf.GetComponent<MeshImagePair>();
@@ -51,7 +77,9 @@ namespace OPS.Pipeline
             //}
 
             SceneNode root = new SceneNode("");
-            root.Bounds = new BoundingBox(new Vector3(-500, double.MinValue, 500), new Vector3(500, double.MaxValue, 500));
+
+            double initExtent = options.OutputExtent / 2.0;
+            root.Bounds = new BoundingBox(new Vector3(-initExtent, double.MinValue, -initExtent), new Vector3(initExtent, double.MaxValue, initExtent));
 
             SceneNode[,] innerFour = Split(root);
             SceneNode[,] sixteen = null;
@@ -63,51 +91,118 @@ namespace OPS.Pipeline
                 innerFour[0, 1] = sixteen[1, 2];
                 innerFour[1, 1] = sixteen[2, 2];
             }
+
+            List<SceneNode> innerNodes = new List<SceneNode>();
             // Make walkabe tiles starting slide 8
             for (int x = 0; x < 4; x++)
             {
                 for (int y = 0; y < 4; y++)
                 {
-                    Split(sixteen[x, y]);
+                    var sub = Split(sixteen[x, y]);
+
+                    foreach (var n in sub)
+                    {
+                        innerNodes.Add(n);
+                    }
                 }
             }
 
-            foreach (var leaf in root.Leaves())
+            ConcurrentDictionary<string, TextureSize> textureSizeData = new ConcurrentDictionary<string, TextureSize>();
+            IEnumerable<SceneNode> nodesToProcess = options.InnerMostTilesOnly ? innerNodes : root.Leaves();
+            Parallel.ForEach(nodesToProcess, leaf =>
             {
-                int textureWidth = 512;
-                int textureHeight = 512;
-
-
+                //if (File.Exists(Path.Combine(options.OutpitDirectory, leaf.Name + ".obj")))
+                //{
+                //    return;
+                //}
+                Console.WriteLine(leaf.Name);
 
                 var overlaps = FindOverlappingLeaves(leaf, scene.TerrainRoot);
+ 
                 var meshes = overlaps.Select(x => x.GetComponent<MeshImagePair>().Mesh).ToArray();
                 // TODO: Remove skirts
                 var m = Mesh.Merge(meshes);
-                m = MeshLab.ResampleDecimation(m);
-                m = UVAtlas.Atlas(m, textureWidth, textureHeight);
+                m.Clean();
+                m = MeshLab.ResampleDecimation(m, targetFaces: options.FacesPerTile);
                 m = Mesh.Clip(m, leaf.Bounds);
-               
+                
                 var pairs = overlaps.Select(x => x.GetComponent<MeshImagePair>());
+
+                // Read all overlapping meshes, crop each to the extent of the leaf tile
+                // and calculate the area the triangles occupy in units of pixels.  Sum all
+                // the areas and round up to nearest power of two to decide size of the new tile
+                double totalPixels = 0;
+                foreach (var p in pairs)
+                {
+                    var triangles = Mesh.Clip(p.Mesh, leaf.Bounds).Triangles();
+                    foreach (var t in triangles)
+                    {
+                        Vector3 a = new Vector3(p.Image.UVToPixel(t.V0.UV), 0);
+                        Vector3 b = new Vector3(p.Image.UVToPixel(t.V1.UV), 0);
+                        Vector3 c = new Vector3(p.Image.UVToPixel(t.V2.UV), 0);
+                        var pixelTri = new Triangle(a, b, c);
+                        totalPixels += pixelTri.Area();
+                    }
+                }
+                double size = Math.Sqrt(totalPixels);
+                size = MathE.CeilPowerOf2(size);
+                size = Math.Min(size, options.MaxTextureSize);
+
+                int textureWidth = (int)size;
+                int textureHeight = (int)size;
+                m = UVAtlas.Atlas(m, textureWidth, textureHeight);
                 var img = TextureBaker.BakeTexture(pairs.ToArray(), m, textureWidth, textureHeight);
+
                 // TODO: Add skirts
                 leaf.Bounds = m.Bounds();
                 // TODO: offset leaf
                 leaf.AddComponent(new MeshImagePair(m, img));
-            }
-            // TODO: bake parent tiles
+                var ts = WriteTile(leaf);
+                textureSizeData.TryAdd(leaf.Name, ts);
 
-            foreach (var tile in root.DepthFirstTraverse())
-            {
-                var pair = tile.GetComponent<MeshImagePair>();
-                if (pair != null)
-                {
-                    string name = Path.Combine(options.OutpitDirectory, tile.Name);
-                    string imgName = name + ".jpg";
-                    pair.Image.Save<byte>(imgName);
-                    pair.Mesh.Save(name + ".ply", imgName);
-                }
-            }
+            });
+            File.WriteAllText(Path.Combine(options.OutpitDirectory, "index.json"), JsonConvert.SerializeObject(textureSizeData));
+            
+            // TODO: bake parent tiles
             return 0;
+        }
+
+        TextureSize WriteTile(SceneNode tile)
+        {
+            var pair = tile.GetComponent<MeshImagePair>();
+
+            Image img = (Image) pair.Image.Clone();
+            string name = Path.Combine(options.OutpitDirectory, tile.Name);
+
+
+            int baseSize = img.Width;
+            int sizeLG = Math.Min(options.MaxTextureSize, baseSize);
+            int sizeMD = Math.Min(options.MaxTextureSize / 2, baseSize);
+            int sizeSM = sizeMD / 2;
+            int sizeXSM = Math.Max(64, sizeSM / 2);
+
+            TextureSize ts = new TextureSize(sizeMD, false);
+            string imgName = name + ".jpg";
+            if (sizeLG == baseSize)
+            {
+                img.Save<byte>(name + "_lg.jpg");
+                imgName = name + "_lg.jpg";
+                ts.lg = true;
+            }
+            if (baseSize != sizeMD)
+            {
+                img = img.ResizeSimpleBicubic(sizeMD, sizeMD);
+            }
+            img.Save<byte>(name + ".jpg");
+            img = img.ResizeSimpleBicubic(sizeSM, sizeSM);
+            img.Save<byte>(name + "_sm.jpg");
+            img = img.ResizeSimpleBicubic(sizeXSM, sizeXSM);
+            img.Save<byte>(name + "_xsm.jpg");
+
+
+            pair.Mesh.Save(name + ".obj", imgName);
+            DracoSerializer.SaveMesh(pair.Mesh, name + ".drc", 12, 10, 4, compressionLevel: 5);
+            return ts;
         }
 
         List<SceneNode> FindOverlappingLeaves(SceneNode target, SceneNode root)
@@ -159,20 +254,35 @@ namespace OPS.Pipeline
             var max = parent.Bounds.Max;
             var center = parent.Bounds.Center();
 
-            //  X ---> 
-            // Y  0 1
-            // |  2 3
+
+            bool topDown = false;
+            string[] tileNames;
+            if (topDown)
+            {
+                //  X ---> 
+                // Y  0 1
+                // |  2 3
+                tileNames = new string[] {"0", "1", "2", "3"};
+            }
+            else
+            {
+                //  X ---> 
+                // Y  1 0
+                // |  3 2
+                tileNames = new string[] { "1", "0", "3", "2" };
+            }
+
             
-            SceneNode n0 = new SceneNode(parent.Name + "0", parent.Transform);
+            SceneNode n0 = new SceneNode(parent.Name + tileNames[0], parent.Transform);
             n0.Bounds = new BoundingBox(new Vector3(min.X, double.MinValue, min.Z), new Vector3(center.X, double.MaxValue, center.Z));
 
-            SceneNode n1 = new SceneNode(parent.Name + "1", parent.Transform);
+            SceneNode n1 = new SceneNode(parent.Name + tileNames[1], parent.Transform);
             n1.Bounds = new BoundingBox(new Vector3(center.X, double.MinValue, min.Z), new Vector3(max.X, double.MaxValue, center.Z));
 
-            SceneNode n2 = new SceneNode(parent.Name + "2", parent.Transform);
+            SceneNode n2 = new SceneNode(parent.Name + tileNames[2], parent.Transform);
             n2.Bounds = new BoundingBox(new Vector3(min.X, double.MinValue, center.Z), new Vector3(center.X, double.MaxValue, max.Z));
 
-            SceneNode n3 = new SceneNode(parent.Name + "3", parent.Transform);
+            SceneNode n3 = new SceneNode(parent.Name + tileNames[3], parent.Transform);
             n3.Bounds = new BoundingBox(new Vector3(center.X, double.MinValue, center.Z), new Vector3(max.X, double.MaxValue, max.Z));
             SceneNode[,] result = new SceneNode[2, 2];
             result[0, 0] = n0;
