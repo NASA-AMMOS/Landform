@@ -56,6 +56,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="AssimpSerializer.cs" />
+    <Compile Include="DracoSerializer.cs" />
     <Compile Include="FSSR.cs" />
     <Compile Include="FSSRException.cs" />
     <Compile Include="FSSRPlyWriter.cs" />
@@ -78,6 +79,12 @@
   </ItemGroup>
   <ItemGroup>
     <Content Include="ExternalApps\Coin3.dll">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="ExternalApps\draco_decoder.exe">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="ExternalApps\draco_encoder.exe">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
     <Content Include="ExternalApps\fssrecon.exe">
