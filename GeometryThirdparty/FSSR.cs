@@ -24,7 +24,7 @@ namespace OPS.Geometry
             {
                 throw new Exception("Empty point cloud passed into PoissonRecon");
             }
-            string poissonReconExe = Path.Combine(PathHelper.GetApplicationPath(), "ExternalApps", "PoissonRecon.exe");
+            string poissonReconExe = Path.Combine(PathHelper.GetApplicationPath(), "ExternalApps", "PoissonReconV9.exe");
             Mesh result = null;
             float scale = MathE.Max(pointCloud.Bounds().Size().ToFloatArray()) / (float)Math.Sqrt(pointCloud.Vertices.Count) * 2;
             TemporaryFile.GetAndDelete(".ply", inputFile =>

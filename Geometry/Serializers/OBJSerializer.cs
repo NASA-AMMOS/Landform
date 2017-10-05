@@ -64,6 +64,14 @@ namespace OPS.Geometry
             }
         }
 
+        public static Mesh Read(string filename, double defaultAlpha = 1, int capacity=100)
+        {
+            using (StreamReader sr = new StreamReader(filename))
+            {
+                return Read(sr, defaultAlpha, capacity);
+            }
+        }
+
         /// <summary>
         /// Reads an obj mesh from a file.  
         /// This method supports two types of obj meshes
@@ -81,7 +89,7 @@ namespace OPS.Geometry
         /// <param name="defaultAlpha">OBJ doesn't support vertex colors but some tools write the RGB component anyway.  Use this value to set the alpha</param>
         /// <param name="capacity">Optional starting capacity for mesh data structure</param>
         /// <returns></returns>
-        public static Mesh Read(string filename, double defaultAlpha = 1, int capacity=100)
+        public static Mesh Read(StreamReader sr, double defaultAlpha = 1, int capacity = 100)
         {
             // OBJs can contain different length arrays of vert, uv, normals.
             // Thus each face indices each of these attributes individually.
@@ -95,72 +103,70 @@ namespace OPS.Geometry
             List<Vector4> colors = new List<Vector4>(capacity);
             List<Vector2> uvs = new List<Vector2>(capacity);
             List<Vector3> normals = new List<Vector3>(capacity);
-            List<OBJFace> objFaces = new List<OBJFace>(capacity);     
-            using (StreamReader sr = new StreamReader(filename))
+            List<OBJFace> objFaces = new List<OBJFace>(capacity);
+            String line = sr.ReadLine();
+            while (line != null)
             {
-                String line = sr.ReadLine();                
-                while (line != null)
+                string[] parts = line.Split().Where(s => s.Length != 0).ToArray();
+                if (line.StartsWith("v "))
                 {
-                    string[] parts = line.Split().Where(s => s.Length != 0).ToArray();
-                    if (line.StartsWith("v "))
-                    {                        
-                        vertices.Add(new Vector3(double.Parse(parts[1]), double.Parse(parts[2]), double.Parse(parts[3])));
-                        // obj doesn't offically support vertex colors but some tools pack them after the xyz component in 
-                        if(parts.Length >= 7)
+                    vertices.Add(new Vector3(double.Parse(parts[1]), double.Parse(parts[2]), double.Parse(parts[3])));
+                    // obj doesn't offically support vertex colors but some tools pack them after the xyz component in 
+                    if (parts.Length >= 7)
+                    {
+                        colors.Add(new Vector4(double.Parse(parts[4]), double.Parse(parts[5]), double.Parse(parts[6]), defaultAlpha));
+                    }
+                }
+                else if (line.StartsWith("vt"))
+                {
+                    uvs.Add(new Vector2(double.Parse(parts[1]), double.Parse(parts[2])));
+                }
+                else if (line.StartsWith("vn"))
+                {
+                    normals.Add(new Vector3(double.Parse(parts[1]), double.Parse(parts[2]), double.Parse(parts[3])));
+                }
+                else if (line.StartsWith("f"))
+                {
+                    OBJFace f = new OBJFace();
+                    for (int i = 1; i < 4; i++)
+                    {
+                        string[] pointParts = parts[i].Split('/');
+                        if (pointParts.Length == 1)
                         {
-                            colors.Add(new Vector4(double.Parse(parts[4]), double.Parse(parts[5]), double.Parse(parts[6]), defaultAlpha));
+                            f.vertDef[i - 1].vertIdx = int.Parse(pointParts[0]) - 1;
                         }
-                    }
-                    else if (line.StartsWith("vt"))
-                    {
-                        uvs.Add(new Vector2(double.Parse(parts[1]), double.Parse(parts[2])));
-                    }
-                    else if (line.StartsWith("vn"))
-                    {
-                        normals.Add(new Vector3(double.Parse(parts[1]), double.Parse(parts[2]), double.Parse(parts[3])));
-                    }
-                    else if (line.StartsWith("f"))
-                    {
-                        OBJFace f = new OBJFace();
-                        for (int i = 1; i < 4; i++)
+                        else if (pointParts.Length == 2)
                         {
-                            string[] pointParts = parts[i].Split('/');
-                            if (pointParts.Length == 1)
+                            f.vertDef[i - 1].vertIdx = int.Parse(pointParts[0]) - 1;
+                            f.vertDef[i - 1].uvIdx = int.Parse(pointParts[1]) - 1;
+                        }
+                        else if (pointParts.Length == 3)
+                        {
+                            f.vertDef[i - 1].vertIdx = int.Parse(pointParts[0]) - 1;
+                            if (pointParts[1].Length > 0)
                             {
-                                f.vertDef[i - 1].vertIdx = int.Parse(pointParts[0]) - 1;
-                            }
-                            else if (pointParts.Length == 2)
-                            {
-                                f.vertDef[i - 1].vertIdx = int.Parse(pointParts[0]) - 1;
                                 f.vertDef[i - 1].uvIdx = int.Parse(pointParts[1]) - 1;
                             }
-                            else if (pointParts.Length == 3)
+                            if (pointParts[2].Length > 0)
                             {
-                                f.vertDef[i - 1].vertIdx = int.Parse(pointParts[0]) - 1;
-                                if (pointParts[1].Length > 0)
-                                {
-                                    f.vertDef[i - 1].uvIdx = int.Parse(pointParts[1]) - 1;
-                                }
-                                if (pointParts[2].Length > 0)
-                                {
-                                    f.vertDef[i - 1].normalIdx = int.Parse(pointParts[2]) - 1;
-                                }
+                                f.vertDef[i - 1].normalIdx = int.Parse(pointParts[2]) - 1;
                             }
                         }
-                        objFaces.Add(f);
                     }
-                    line = sr.ReadLine();
+                    objFaces.Add(f);
                 }
+                line = sr.ReadLine();
             }
+
             // Generate a mesh
             Mesh result = new Mesh();
             result.HasNormals = normals.Count != 0;
             result.HasUVs = uvs.Count != 0;
             result.HasColors = colors.Count != 0;
-            if(result.HasColors && vertices.Count != colors.Count)
+            if (result.HasColors && vertices.Count != colors.Count)
             {
                 throw new OBJSerializerException("Not all vertices in OBJ defined colors.  If any vertex defines a color then they all must");
-            } 
+            }
             if (objFaces.Count == 0)
             {
                 // This is a weird OBJ file which doesn't define any faces.  The spec is unclear on how to interpret the relationship between vertices and
@@ -175,7 +181,7 @@ namespace OPS.Geometry
                 {
                     throw new OBJSerializerException("OBJ did not contain face discription and number of vertices and uvs differs");
                 }
-                for(int i = 0; i < vertices.Count; i++)
+                for (int i = 0; i < vertices.Count; i++)
                 {
                     Vertex v = new Vertex();
                     v.Position = vertices[i];
@@ -197,7 +203,7 @@ namespace OPS.Geometry
                     {
                         VertexDefinition vertDef = f.vertDef[i];
                         // If we haven't seen a vertex like this before, create a new one
-                        if(!vertDefToIndex.ContainsKey(vertDef))
+                        if (!vertDefToIndex.ContainsKey(vertDef))
                         {
                             Vertex v = new Vertex();
                             v = new Vertex();
@@ -213,10 +219,10 @@ namespace OPS.Geometry
                     // Create a face from our vertex indices
                     result.Faces.Add(new Face(indices));
                 }
-            }           
-            return result;            
+            }
+            return result;
         }
-        
+
         /// <summary>
         /// Saves a mesh out as an obj file.  Note that obj format does not offically support
         /// color vertex attributes so these will be lost.  Only position, uv, and normals will be 

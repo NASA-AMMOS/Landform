@@ -6,6 +6,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System.Threading;
 
 namespace OPS.Util
 {
@@ -15,7 +16,7 @@ namespace OPS.Util
         class TempFileConfig : Config
         {
             [ConfigEnvironmentVariable("LANDFORM_TEMP")]
-            public string LandformTempDir { get; set; }
+            public string LandformTempDir { get { return @"C:\tmp"; } set {; } } // TODO get this to actually read environmental var
         }
 
         static string tmpDirectory = "tmp";
@@ -32,6 +33,24 @@ namespace OPS.Util
             {
                 logger.Info("Temporary directory specified by environmental variable");
                 TemporaryDirectory = tmpLocation;
+            }
+        }
+
+        //File name for non-static use
+        public string FilePath { get; private set; }
+
+        //Create a single temporary file 
+        public TemporaryFile(string extension)
+        {
+            FilePath = GetTempName(extension);
+        }
+
+        //Remove the created file 
+        public void Cleanup()
+        {
+            if (File.Exists(FilePath))
+            {
+                File.Delete(FilePath);
             }
         }
 
@@ -98,6 +117,35 @@ namespace OPS.Util
             for(int i = 0; i < tmpFiles.Length; i++)
             {
                 tmpFiles[i] = GetTempName(extension);
+            }
+            func(tmpFiles);
+            for (int i = 0; i < tmpFiles.Length; i++)
+            {
+                if (File.Exists(tmpFiles[i]))
+                {
+                    File.Delete(tmpFiles[i]);
+                }
+            }
+            // Wrapping below...
+            //string[] extensions = new string[count];
+            //for (int i = 0; i<count; i++)
+            //{
+            //    extensions[i] = extension;
+            //}
+            //GetAndDeleteMultiple(extensions, func);
+        }
+
+        /// <summary>
+        /// Get multiple temporary files that will be deleted at the end of the delegate function block
+        /// </summary>
+        /// <param name="extensions">The extensions to be used for each file. There will be as many files as extensions</param>
+        /// <param name="func"></param>
+        public static void GetAndDeleteMultiple(string[] extensions, MultipleFilenameDelegate func)
+        {
+            string[] tmpFiles = new string[extensions.Count()];
+            for (int i = 0; i < tmpFiles.Length; i++)
+            {
+                tmpFiles[i] = GetTempName(extensions[i]);
             }
             func(tmpFiles);
             for (int i = 0; i < tmpFiles.Length; i++)
