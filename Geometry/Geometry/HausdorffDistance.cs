@@ -43,7 +43,7 @@ namespace OPS.Geometry
             epsilon = maxErrorEpsilon;
 
             // Build an octree for both meshes and insert the mesh triangles into them
-            BoundingBox combinedBounds = BoundingBoxExtensions.Union(new List<BoundingBox> { meshA.Bounds(), meshB.Bounds() });
+            BoundingBox combinedBounds = BoundingBoxExtensions.Union(meshA.Bounds(), meshB.Bounds());
 
             // Build two separate octrees with the same bounds so that each cell can correspond to a cell in the other octree
             Octree octreeA = new Octree(combinedBounds);

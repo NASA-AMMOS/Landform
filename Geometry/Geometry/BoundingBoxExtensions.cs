@@ -31,7 +31,7 @@ namespace OPS.Geometry
 
         public static double FurthestDistanceSquared(BoundingBox a, BoundingBox b)
         {
-            BoundingBox union = Union(new List<BoundingBox> { a, b });
+            BoundingBox union = Union(a, b);
             return Size(union).Length();
         }
 

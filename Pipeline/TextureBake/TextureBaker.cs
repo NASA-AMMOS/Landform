@@ -34,7 +34,7 @@ namespace OPS.Pipeline
             {
                 boxes.Add(pair.Mesh.Bounds());
             }
-            BoundingBox finalBox = BoundingBoxExtensions.Union(boxes);
+            BoundingBox finalBox = BoundingBoxExtensions.Union(boxes.ToArray());
 
             // construct oct tree on source meshes
             Octree triOctTree = new Octree(finalBox);
