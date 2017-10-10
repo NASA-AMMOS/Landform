@@ -127,7 +127,7 @@ namespace OPS.Geometry
                 OctreeNode nearestCellOnOtherMesh = FindNearestCellToGivenCellAtSameLevel(current, otherTree);
 
                 // Compute the shortest and furthest distance between these cells
-                double shortestSquared = BoundingBoxExtensions.DistanceSquared(current.Bounds, nearestCellOnOtherMesh.Bounds);
+                double shortestSquared = BoundingBoxExtensions.ClosestDistanceSquared(current.Bounds, nearestCellOnOtherMesh.Bounds);
                 double furthestSquared = BoundingBoxExtensions.FurthestDistanceSquared(current.Bounds, nearestCellOnOtherMesh.Bounds);
 
                 // Grow the current hausdorff distance if the shortest is bigger
@@ -370,7 +370,7 @@ namespace OPS.Geometry
             Func<OctreeNode, bool> shouldSearchNode = (node =>
             {
                 // Find the distance from the given cell to this current node being traversed and cache that result in case it is indeed shorter, so it can be used in the update function
-                currentDistanceSquared = BoundingBoxExtensions.DistanceSquared(sourceCell.Bounds, node.Bounds);
+                currentDistanceSquared = BoundingBoxExtensions.ClosestDistanceSquared(sourceCell.Bounds, node.Bounds);
 
                 // Return true if his node's distance is shorter than the current shortest and without going deeper than this cell
                 return currentDistanceSquared < minDistanceSquared && (node.Depth <= sourceCell.Depth || sourceCell.IsLeaf());

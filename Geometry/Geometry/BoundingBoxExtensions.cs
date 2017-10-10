@@ -20,21 +20,41 @@ namespace OPS.Geometry
             return box.Max - box.Min;
         }
         
-        public static double DistanceSquared(BoundingBox a, BoundingBox b)
+        /// <summary>
+        /// Returns the squared distance between the closest points on to bounding boxes
+        /// </summary>
+        /// <param name="a"></param>
+        /// <param name="b"></param>
+        /// <returns></returns>
+        public static double ClosestDistanceSquared(this BoundingBox a, BoundingBox b)
         {
             double x = AxisSeparationDistance(a.Min.X, a.Max.X, b.Min.X, b.Max.X);
             double y = AxisSeparationDistance(a.Min.Y, a.Max.Y, b.Min.Y, b.Max.Y);
             double z = AxisSeparationDistance(a.Min.Z, a.Max.Z, b.Min.Z, b.Max.Z);
-
             return (x * x) + (y * y) + (z * z);
         }
 
-        public static double FurthestDistanceSquared(BoundingBox a, BoundingBox b)
+        /// <summary>
+        /// Returns a maximum possible squared difference between two bounding boxes even if they overlap
+        /// </summary>
+        /// <param name="a"></param>
+        /// <param name="b"></param>
+        /// <returns></returns>
+        public static double FurthestDistanceSquared(this BoundingBox a, BoundingBox b)
         {
             BoundingBox union = Union(a, b);
             return Size(union).LengthSquared();
         }
 
+        /// <summary>
+        /// Finds the minimal distance between the ranges [amin,amax] and [bmin, bmax]
+        /// Returns 0 if the ranges overlap
+        /// </summary>
+        /// <param name="aMin"></param>
+        /// <param name="aMax"></param>
+        /// <param name="bMin"></param>
+        /// <param name="bMax"></param>
+        /// <returns></returns>
         private static double AxisSeparationDistance(double aMin, double aMax, double bMin, double bMax)
         {
             if (bMin > aMax)
