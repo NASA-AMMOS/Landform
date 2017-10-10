@@ -32,7 +32,7 @@ namespace OPS.Geometry
         public static double FurthestDistanceSquared(BoundingBox a, BoundingBox b)
         {
             BoundingBox union = Union(a, b);
-            return Size(union).Length();
+            return Size(union).LengthSquared();
         }
 
         private static double AxisSeparationDistance(double aMin, double aMax, double bMin, double bMax)
