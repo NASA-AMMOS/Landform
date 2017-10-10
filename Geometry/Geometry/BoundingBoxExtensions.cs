@@ -53,7 +53,7 @@ namespace OPS.Geometry
         /// </summary>
         /// <param name="box"></param>
         /// <returns></returns>
-        public static BoundingBox Union(List<BoundingBox> boxes)
+        public static BoundingBox Union(params BoundingBox[] boxes)
         {
             double minX = double.MaxValue;
             double minY = double.MaxValue;
@@ -62,7 +62,7 @@ namespace OPS.Geometry
             double maxY = double.MinValue;
             double maxZ = double.MinValue;
 
-            for (int i = 0; i < boxes.Count; i++)
+            for (int i = 0; i < boxes.Length; i++)
             {
                 minX = Math.Min(minX, boxes[i].Min.X);
                 minY = Math.Min(minY, boxes[i].Min.Y);
