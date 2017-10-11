@@ -18,15 +18,6 @@ namespace OPS.Geometry
     /// </summary>
     public class HausdorffDistance
     {
-        // The square of the Hausdorff distance, which starts at 0 and grows until the algorithm ends, when it returns its square root
-        private double hausdorffDistanceSquared;
-
-        // Priority queue holding the octree node cells and also triangles themselves which get directed by the cell or tree's maximum possible distance to another triangle
-        private SimplePriorityQueue<OctreeNode> queue;
-
-        // The max error in distance allowed when the algorithm runs, telling it when it can stop subdividing for higher accuracy
-        // Subdivision is disabled when 0, meaning it runs fast but isn't accurate
-        private double epsilon;
 
         /// <summary>
         /// Calculates the bidirectional Hausdorff error distance (in model units) between mesh A and B within an allowed error distance (in model units)
@@ -35,12 +26,15 @@ namespace OPS.Geometry
         /// <param name="meshB">The second model</param>
         /// <param name="maxErrorEpsilon">Maximum allowed uncertainty in the answer, where accuracy comes at the cost of speed</param>
         /// <returns></returns>
-        public double Calculate(Mesh meshA, Mesh meshB, double maxErrorEpsilon)
+        public static double Calculate(Mesh meshA, Mesh meshB, double maxErrorEpsilon)
         {
-            // Start with zero minimum distance and an empty priority queue
-            hausdorffDistanceSquared = 0;
-            queue = new SimplePriorityQueue<OctreeNode>();
-            epsilon = maxErrorEpsilon;
+            // The square of the Hausdorff distance, which starts at 0 and grows until the algorithm ends, when it returns its square root
+            double hausdorffDistanceSquared = 0;
+            // Priority queue holding the octree node cells and also triangles themselves which get directed by the cell or tree's maximum possible distance to another triangle
+            SimplePriorityQueue<OctreeNode> queue = new SimplePriorityQueue<OctreeNode>();
+            // The max error in distance allowed when the algorithm runs, telling it when it can stop subdividing for higher accuracy
+            // Subdivision is disabled when 0, meaning it runs fast but isn't accurate
+            double epsilon = maxErrorEpsilon;
 
             // Build an octree for both meshes and insert the mesh triangles into them
             BoundingBox combinedBounds = BoundingBoxExtensions.Union(meshA.Bounds(), meshB.Bounds());
@@ -189,10 +183,10 @@ namespace OPS.Geometry
                     voxelTri3.TraversalPath = currentVoxelTri.TraversalPath;
 
                     // Process each of the four new triangles
-                    ProcessTriangle(voxelTri0, current, otherTree);
-                    ProcessTriangle(voxelTri1, current, otherTree);
-                    ProcessTriangle(voxelTri2, current, otherTree);
-                    ProcessTriangle(voxelTri3, current, otherTree);
+                    ProcessTriangle(voxelTri0, current, otherTree, epsilon, ref hausdorffDistanceSquared, queue);
+                    ProcessTriangle(voxelTri1, current, otherTree, epsilon, ref hausdorffDistanceSquared, queue);
+                    ProcessTriangle(voxelTri2, current, otherTree, epsilon, ref hausdorffDistanceSquared, queue);
+                    ProcessTriangle(voxelTri3, current, otherTree, epsilon, ref hausdorffDistanceSquared, queue);
                 }
                 // If the current cell is a leaf, process its triangles and insert them into the queue
                 else if (current.IsLeaf())
@@ -200,7 +194,7 @@ namespace OPS.Geometry
                     // Process each triangle that intersects this cell (including those wholly contained)
                     foreach (VoxelTriangle tri in current.Intersecting)
                     {
-                        ProcessTriangle(tri, current, otherTree);
+                        ProcessTriangle(tri, current, otherTree, epsilon, ref hausdorffDistanceSquared, queue);
                     }
                 }
                 // If not a leaf, insert its sub-cells into the queue
@@ -229,7 +223,7 @@ namespace OPS.Geometry
         /// <param name="tri">The voxel triangle getting processed</param>
         /// <param name="current">The cell which contains this triangle</param>
         /// <param name="otherTree">The entire other octree from the other mesh which this triangle is not a part of</param>
-        private void ProcessTriangle(VoxelTriangle tri, OctreeNode current, Octree otherTree)
+        private static void ProcessTriangle(VoxelTriangle tri, OctreeNode current, Octree otherTree, double epsilon, ref double hausdorffDistanceSquared, SimplePriorityQueue<OctreeNode> queue)
         {
             // Compute the barycenter of this triangle
             Vector3 barycenter = tri.Triangle.Barycenter();
@@ -292,7 +286,7 @@ namespace OPS.Geometry
         /// <param name="tri">The triangle which we are finding nearby points from</param>
         /// <param name="otherTree">The entire other octree for the mesh which this triangle is not a part of</param>
         /// <returns></returns>
-        private BasePoint[] FindNearestBasePointsFromTriangle(VoxelTriangle tri, Octree otherTree)
+        private static BasePoint[] FindNearestBasePointsFromTriangle(VoxelTriangle tri, Octree otherTree)
         {
             // Prepare a home for the three base points that will be found
             BasePoint[] basePoints = new BasePoint[3];
@@ -321,7 +315,7 @@ namespace OPS.Geometry
         /// <param name="startingOctreeNode">A shortcut octree cell where we can begin searching its surroundings</param>
         /// <param name="lastOctreeNode">An octree node that gets mutated after the search is finished to be used as a refined shortcut in future nearby searches</param>
         /// <returns>The base point where the triangle on the other mesh is closest to this point in 3D space</returns>
-        private BasePoint FindNearestBasePointFromPoint(Vector3 point, Octree otherTree, OctreeNode startingOctreeNode, out OctreeNode lastOctreeNode)
+        private static BasePoint FindNearestBasePointFromPoint(Vector3 point, Octree otherTree, OctreeNode startingOctreeNode, out OctreeNode lastOctreeNode)
         {
             // Find the closest triangle to this requested point in 3D space
             VoxelTriangle triangle = (VoxelTriangle)otherTree.Closest(point, startingOctreeNode, out lastOctreeNode);
@@ -339,7 +333,7 @@ namespace OPS.Geometry
         /// <param name="sourceCell">The octree cell from which we are finding the closest other cell's furthest possible distance</param>
         /// <param name="otherOctreeRoot">The root of the other octree which must be traversed to find the closest cell to the given one</param>
         /// <returns>A distance between the two cells from furthest corner to furthest corner, squared</returns>
-        private double ComputeMaxGeometricDistanceToClosestCellSquared(OctreeNode sourceCell, Octree otherOctreeRoot)
+        private static double ComputeMaxGeometricDistanceToClosestCellSquared(OctreeNode sourceCell, Octree otherOctreeRoot)
         {
             // Find the nearest cell in the other mesh's octree at the same level
             OctreeNode nearestCell = FindNearestCellToGivenCellAtSameLevel(sourceCell, otherOctreeRoot);
@@ -354,7 +348,7 @@ namespace OPS.Geometry
         /// <param name="sourceCell">The cell from which we are looking for the closest neighbor</param>
         /// <param name="otherOctreeRoot">The root of the other octree so it can look for neighbors to the given cell at its depth</param>
         /// <returns>The cell that is found to be closest to the given cell in the other octree</returns>
-        private OctreeNode FindNearestCellToGivenCellAtSameLevel(OctreeNode sourceCell, Octree otherOctreeRoot)
+        private static OctreeNode FindNearestCellToGivenCellAtSameLevel(OctreeNode sourceCell, Octree otherOctreeRoot)
         {
             // Start with the biggest possible distance that represents the shortest distance to the queried cells so far
             double minDistanceSquared = Double.MaxValue;
