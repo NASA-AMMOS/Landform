@@ -142,6 +142,9 @@
     <None Include="TestData\mesh\raptor.obj">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+    <None Include="TestData\mesh\raptor_decimated.obj">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <Content Include="TestData\img\testPattern.png">
