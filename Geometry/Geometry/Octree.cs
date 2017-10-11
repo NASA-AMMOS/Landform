@@ -45,6 +45,10 @@ namespace OPS.Geometry
             this.Deepest = 1;
         }
 
+        /// <summary>
+        /// Applys a function to every node in the tree
+        /// </summary>
+        /// <param name="applyFunc"></param>
         public void Traverse(Action<OctreeNode> applyFunc)
         {
             Visit(applyFunc, new Func<OctreeNode, bool>(node => true ));
@@ -176,10 +180,15 @@ namespace OPS.Geometry
             }, OctreeNode => { return true; });
         }
 
+        /// <summary>
+        /// Given a list of child indicies, this method will decend the tree correspoinding to each
+        /// child index and return the last child or the first leaf node along the path
+        /// </summary>
+        /// <param name="path"></param>
+        /// <returns></returns>
         public OctreeNode FollowPath(List<int> path)
         {
             OctreeNode current = Root;
-
             foreach (int i in path)
             {
                 if (current.IsLeaf())
@@ -189,7 +198,6 @@ namespace OPS.Geometry
 
                 current = current.Children[i];
             }
-
             return current;
         }
 

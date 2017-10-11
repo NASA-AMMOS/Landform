@@ -160,24 +160,26 @@ namespace OPS.Geometry
             {
                 Owner.Deepest = Depth + 1;
             }
-
             return true;
         }
 
         public bool IsEmpty()
         {
             if (Contained.Count > 0)
+            {
                 return false;
+            }
 
             if (!IsLeaf())
             {
                 foreach (OctreeNode child in Children)
                 {
                     if (!child.IsEmpty())
+                    {
                         return false;
+                    }
                 }
             }
-
             return true;
         }
     }
