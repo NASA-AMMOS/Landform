@@ -192,5 +192,22 @@ namespace GeometryTest
             var b = t.Barycenter();
             Assert.AreEqual(new Vector3(2, 4/3.0, 1), b);
         }
+        
+        [TestMethod]
+        public void TriangleBoundingBoxIntersectionTest()
+        {
+            Triangle t = new Triangle(new Vertex(1, 1, 1), new Vertex(2, 2, 1), new Vertex(3, 1, 1));
+            BoundingBox b = new BoundingBox(new Vector3(-1, -1, 1), new Vector3(0, 0, 1));
+            Assert.AreEqual(false, t.Intersects(b));
+            b = new BoundingBox(new Vector3(-1, -1, -1), new Vector3(2, 2, 2));
+            Assert.AreEqual(true, t.Intersects(b));
+        }
+
+        [TestMethod]
+        public void TriangleBoundingBoxSquaredDistanceTest()
+        {
+            Triangle t = new Triangle(new Vertex(1, 1, 1), new Vertex(2, 2, 1), new Vertex(3, 1, 1));
+            Assert.AreEqual(3, t.SquaredDistance(new Vector3(0,0,0)));
+        }
     }
 }

@@ -434,5 +434,15 @@ namespace OPS.Geometry
                                 .SelectMany(tri => tri.Clip(new Plane(new Vector3(0, 0, -1), -(box.Min.Z + size.Z))));
             return clipped;
         }
+
+        /// <summary>
+        /// Returns true if this triangle intersects the given bounding box
+        /// </summary>
+        /// <param name="box"></param>
+        /// <returns></returns>
+        public bool Intersects(BoundingBox box)
+        {
+            return Clip(box).Count() > 0;
+        }
     }
 }

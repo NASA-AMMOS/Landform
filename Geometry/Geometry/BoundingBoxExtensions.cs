@@ -143,5 +143,16 @@ namespace OPS.Geometry
             return new BoundingBox(new Vector3(dimx.min, dimy.min, dimz.min),
                                    new Vector3(dimx.max, dimy.max, dimz.max));
         }
+
+        /// <summary>
+        /// Returns true if the given triangle intersects with a bounding box
+        /// </summary>
+        /// <param name="box"></param>
+        /// <param name="tri"></param>
+        /// <returns></returns>
+        public static bool Intersects(this BoundingBox box, Triangle tri)
+        {
+            return tri.Intersects(box);
+        }
     }
 }
