@@ -177,5 +177,14 @@ namespace GeometryTest
             Assert.AreEqual(new Vector3(.5, .5, 0), tri.ClosestPoint(new Vector3(0, 0, 8798797.65)).Position);
             Assert.AreEqual(new Vector3(1, 0, 0), tri.ClosestPoint(new Vector3(1.5, -7, -654)).Position);
         }
+
+
+        [TestMethod]
+        public void TriangleBarycenterTest()
+        {
+            Triangle t = new Triangle(new Vertex(1, 1, 1), new Vertex(2, 2, 1), new Vertex(3, 1, 1));
+            var b = t.Barycenter();
+            Assert.AreEqual(new Vector3(2, 4/3.0, 1), b);
+        }
     }
 }

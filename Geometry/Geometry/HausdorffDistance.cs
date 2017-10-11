@@ -232,7 +232,7 @@ namespace OPS.Geometry
         private void ProcessTriangle(VoxelTriangle tri, OctreeNode current, Octree otherTree)
         {
             // Compute the barycenter of this triangle
-            Vector3 barycenter = tri.Triangle.GetBarycenter();
+            Vector3 barycenter = tri.Triangle.Barycenter();
 
             // Find the nearest base points to each of this triangle's three vertices if needed
             if (tri.BasePoints == null)

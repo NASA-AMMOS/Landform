@@ -333,7 +333,11 @@ namespace OPS.Geometry
             return new BarycentricPoint(s, t, this);
         }
 
-        public Vector3 GetBarycenter()
+        /// <summary>
+        /// Finds the center of the triangle in barycentric coordinates and returns its position
+        /// </summary>
+        /// <returns></returns>
+        public Vector3 Barycenter()
         {
             double oneThird = 1.0 / 3.0;
             return new BarycentricPoint(oneThird, oneThird, oneThird, this).Position;
