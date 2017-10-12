@@ -156,7 +156,30 @@ namespace OPS.Geometry
 
             Owner.NodeCount += 8;
             Owner.LeafCount += 7;
+            if (Depth + 1 > Owner.Deepest)
+            {
+                Owner.Deepest = Depth + 1;
+            }
+            return true;
+        }
 
+        public bool IsEmpty()
+        {
+            if (Contained.Count > 0)
+            {
+                return false;
+            }
+
+            if (!IsLeaf())
+            {
+                foreach (OctreeNode child in Children)
+                {
+                    if (!child.IsEmpty())
+                    {
+                        return false;
+                    }
+                }
+            }
             return true;
         }
     }

@@ -94,11 +94,11 @@ namespace GeometryTest
         {
             List<Triangle> ts = new List<Triangle>();
             Triangle t1 = new Triangle(new Vertex(0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 1),
-                                       new Vertex(1, 0, 0, 0, 0, 1, 0.5, 0, 0, 1, 0, 1),
-                                       new Vertex(1, 1, 0, 0, 0, 1, 0.5, 1, 0, 0, 1, 1));
+                new Vertex(1, 0, 0, 0, 0, 1, 0.5, 0, 0, 1, 0, 1),
+                new Vertex(1, 1, 0, 0, 0, 1, 0.5, 1, 0, 0, 1, 1));
             Triangle t2 = new Triangle(new Vertex(0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 1),
-                                       new Vertex(1, 1, 0, 0, 0, 1, 0.5, 1, 0, 0, 1, 1),
-                                       new Vertex(0.5, 1, 0, 0, 0, 1, 0.25, 1, 0, 0, 1, 1));
+                new Vertex(1, 1, 0, 0, 0, 1, 0.5, 1, 0, 0, 1, 1),
+                new Vertex(0.5, 1, 0, 0, 0, 1, 0.25, 1, 0, 0, 1, 1));
 
             ts.Add(t1);
             ts.Add(t2);
@@ -183,7 +183,79 @@ namespace GeometryTest
             m.Faces[1] = new Face(1, 1, 2);
             Assert.IsTrue(m.HasInvalidFaces());
         }
-        
+
+        [TestMethod]
+        public void MeshGenerateVertexNormalsSquareTest()
+        {
+            Mesh m = new Mesh();
+            m.Vertices.Add(new Vertex(-1, -1, 0));
+            m.Vertices.Add(new Vertex(1, 0, 0));
+            m.Vertices.Add(new Vertex(0, 1, 0));
+            m.Vertices.Add(new Vertex(1, 1, 0));
+            m.Faces.Add(new Face(0, 1, 2));
+            m.Faces.Add(new Face(3, 2, 1));
+            m.GenerateVertexNormals();
+
+            Assert.IsTrue(m.HasNormals);
+            Assert.IsTrue((Vector3.Forward - m.Vertices[0].Normal).Length() < 1e-8);
+            Assert.IsTrue((Vector3.Forward - m.Vertices[1].Normal).Length() < 1e-8);
+            Assert.IsTrue((Vector3.Forward - m.Vertices[2].Normal).Length() < 1e-8);
+            Assert.IsTrue((Vector3.Forward - m.Vertices[3].Normal).Length() < 1e-8);
+        }
+
+        [TestMethod]
+        public void MeshGenerateVertexNormalsPyramidTest()
+        {
+            Mesh m = new Mesh();
+            m.Vertices.Add(new Vertex(-1, -1, 0));
+            m.Vertices.Add(new Vertex(1, -1, 0));
+            m.Vertices.Add(new Vertex(1, 1, 0));
+            m.Vertices.Add(new Vertex(-1, 1, 0));
+            m.Vertices.Add(new Vertex(0, 0, 1));
+            m.Faces.Add(new Face(0, 1, 4));
+            m.Faces.Add(new Face(1, 2, 4));
+            m.Faces.Add(new Face(2, 3, 4));
+            m.Faces.Add(new Face(3, 0, 4));
+            m.GenerateVertexNormals();
+
+            Vector3 bottomLeft = new Vector3(-1, -1, 2);
+            Vector3 bottomRight = new Vector3(1, -1, 2);
+            Vector3 topRight = new Vector3(1, 1, 2);
+            Vector3 topLeft = new Vector3(-1, 1, 2);
+            Vector3 up = new Vector3(0, 0, 1);
+            bottomLeft.Normalize();
+            bottomRight.Normalize();
+            topRight.Normalize();
+            topLeft.Normalize();
+
+            Assert.IsTrue(m.HasNormals);
+            Assert.IsTrue((bottomLeft - m.Vertices[0].Normal).Length() < 1e-8);
+            Assert.IsTrue((bottomRight - m.Vertices[1].Normal).Length() < 1e-8);
+            Assert.IsTrue((topRight - m.Vertices[2].Normal).Length() < 1e-8);
+            Assert.IsTrue((topLeft - m.Vertices[3].Normal).Length() < 1e-8);
+        }
+
+
+        [TestMethod]
+        public void GenerateVertexNormalsSkinnyPyramidTest()
+        {
+            Mesh m = new Mesh();
+            m.Vertices.Add(new Vertex(0, 0, 0.5));
+            m.Vertices.Add(new Vertex(-0.75, -0.43301, 0));
+            m.Vertices.Add(new Vertex(0.75, -0.43301, 0));
+            m.Vertices.Add(new Vertex(0, 0.8660254, 0));
+            m.Faces.Add(new Face(0, 1, 2));
+            m.Faces.Add(new Face(0, 2, 3));
+            m.Faces.Add(new Face(0, 3, 1));
+            m.Faces.Add(new Face(1, 2, 3));
+
+            Assert.IsFalse(m.HasNormals);
+            m.GenerateVertexNormals();
+            Assert.IsTrue(m.HasNormals);
+
+            Assert.AreEqual(0, (new Vector3(0, 0, 1) - m.Vertices[0].Normal).Length(), 0.0001);
+        }
+
         [TestMethod]
         public void MeshRemoveIdenticalFacesTest()
         {
@@ -346,7 +418,7 @@ namespace GeometryTest
             m.Vertices.Add(new Vertex(0, 2, 3));
             m.Faces.Add(new Face(0, 1, 2));
             m.ReverseWinding();
-            Assert.AreEqual(new Face(0,2,1), m.Faces[0]);
+            Assert.AreEqual(new Face(0, 2, 1), m.Faces[0]);
         }
 
         [TestMethod]
@@ -393,11 +465,11 @@ namespace GeometryTest
 
             List<Triangle> ts = m.Triangles();
             Triangle t1 = new Triangle(new Vertex(0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 1),
-                                       new Vertex(1, 0, 0, 0, 0, 1, 0.5, 0, 0, 1, 0, 1),
-                                       new Vertex(1, 1, 0, 0, 0, 1, 0.5, 1, 0, 0, 1, 1));
+                new Vertex(1, 0, 0, 0, 0, 1, 0.5, 0, 0, 1, 0, 1),
+                new Vertex(1, 1, 0, 0, 0, 1, 0.5, 1, 0, 0, 1, 1));
             Triangle t2 = new Triangle(new Vertex(0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 1),
-                                       new Vertex(1, 1, 0, 0, 0, 1, 0.5, 1, 0, 0, 1, 1),
-                                       new Vertex(0.5, 1, 0, 0, 0, 1, 0.25, 1, 0, 0, 1, 1));
+                new Vertex(1, 1, 0, 0, 0, 1, 0.5, 1, 0, 0, 1, 1),
+                new Vertex(0.5, 1, 0, 0, 0, 1, 0.25, 1, 0, 0, 1, 1));
             Assert.AreEqual(2, ts.Count);
             Assert.AreEqual(t1.V0, ts[0].V0);
             Assert.AreEqual(t1.V1, ts[0].V1);
@@ -432,7 +504,7 @@ namespace GeometryTest
             Assert.IsTrue(a.AttributesSubsetOf(new Mesh(true, true, true)));
             Assert.IsTrue(a.AttributesSubsetOf(new Mesh(false, true, true)));
         }
-        
+
 
         [TestMethod]
         public void MeshMergeTest()
@@ -448,7 +520,7 @@ namespace GeometryTest
             b.Vertices.Add(new Vertex(1, 2, 0, 0, 0, 1, 0.5, 1, 2, 0, 1, 1));
             b.Vertices.Add(new Vertex(0.5, 1, 2, 0, 0, 1, 0.25, 1, 0, 2, 1, 1));
             b.Faces.Add(new Face(0, 1, 2));
-            
+
             Mesh t = Mesh.Merge(a, b);
             Assert.AreEqual(6, t.Vertices.Count);
             Assert.AreEqual(2, t.Faces.Count);
@@ -460,18 +532,21 @@ namespace GeometryTest
             Assert.AreEqual(b.Vertices[2], t.Vertices[5]);
             Assert.AreEqual(new Face(0, 1, 2), t.Faces[0]);
             Assert.AreEqual(new Face(3, 4, 5), t.Faces[1]);
-            
+
             a.Vertices[0].UV.X = 3;
             a.Faces[0] = new Face(2, 1, 0);
             Assert.AreNotEqual(a.Vertices[0], t.Vertices[0]);
             Assert.AreNotEqual(a.Faces[0], t.Faces[0]);
-            
+
             try
             {
                 a.HasNormals = false;
                 Mesh.Merge(a, b);
                 Assert.Fail();
-            } catch { }
+            }
+            catch
+            {
+            }
             a.HasNormals = true;
 
             try
@@ -480,7 +555,9 @@ namespace GeometryTest
                 Mesh.Merge(a, b);
                 Assert.Fail();
             }
-            catch { }
+            catch
+            {
+            }
             a.HasColors = true;
 
             try
@@ -489,7 +566,9 @@ namespace GeometryTest
                 Mesh.Merge(a, b);
                 Assert.Fail();
             }
-            catch { }
+            catch
+            {
+            }
             a.HasUVs = true;
 
             a.MergeWith(b);
@@ -497,7 +576,7 @@ namespace GeometryTest
             Assert.AreEqual(6, a.Vertices.Count);
             Assert.AreEqual(2, a.Faces.Count);
 
-            Mesh c = Mesh.Merge(false, true, false, new Mesh[] { a, b });
+            Mesh c = Mesh.Merge(false, true, false, new Mesh[] {a, b});
             Assert.AreEqual(false, c.HasNormals);
             Assert.AreEqual(true, c.HasUVs);
             Assert.AreEqual(false, c.HasColors);
@@ -511,13 +590,14 @@ namespace GeometryTest
             List<Triangle> tris = new List<Triangle>();
             for (int i = 0; i < 200; i++)
             {
-                tris.Add(new Triangle(new Vertex((r.NextDouble() - 0.5) * 10, (r.NextDouble() - 0.5) * 10, (r.NextDouble() - 0.5) * 10),
-                                     new Vertex((r.NextDouble() - 0.5) * 10, (r.NextDouble() - 0.5) * 10, (r.NextDouble() - 0.5) * 10),
-                                     new Vertex((r.NextDouble() - 0.5) * 10, (r.NextDouble() - 0.5) * 10, (r.NextDouble() - 0.5) * 10)));
+                tris.Add(new Triangle(
+                    new Vertex((r.NextDouble() - 0.5) * 10, (r.NextDouble() - 0.5) * 10, (r.NextDouble() - 0.5) * 10),
+                    new Vertex((r.NextDouble() - 0.5) * 10, (r.NextDouble() - 0.5) * 10, (r.NextDouble() - 0.5) * 10),
+                    new Vertex((r.NextDouble() - 0.5) * 10, (r.NextDouble() - 0.5) * 10, (r.NextDouble() - 0.5) * 10)));
             }
             Mesh m = new Mesh(tris);
             BoundingBox bb = new BoundingBox(new Vector3(-2, -3, -4), new Vector3(-1, -1, -2));
-            Mesh clipped = Mesh.Clip(m,bb);
+            Mesh clipped = Mesh.Clip(m, bb);
             BoundingBox clippedBB = clipped.Bounds();
             Assert.IsTrue(Vector3.AlmostEqual(clippedBB.Min, bb.Min));
             Assert.IsTrue(Vector3.AlmostEqual(clippedBB.Max, bb.Max));
@@ -530,8 +610,9 @@ namespace GeometryTest
             Mesh m = new Mesh();
             for (int i = 0; i < 10000; i++)
             {
-                m.Vertices.Add(new Vertex((r.NextDouble() - 0.5) * 5, (r.NextDouble() - 0.5) * 5, (r.NextDouble() - 0.5) * 5));
-            }            
+                m.Vertices.Add(new Vertex((r.NextDouble() - 0.5) * 5, (r.NextDouble() - 0.5) * 5,
+                    (r.NextDouble() - 0.5) * 5));
+            }
             BoundingBox bb = new BoundingBox(new Vector3(-2, -3, -4), new Vector3(-1, -1, -2));
             Mesh clipped = Mesh.Clip(m, bb);
             BoundingBox clippedBB = clipped.Bounds();
@@ -568,6 +649,42 @@ namespace GeometryTest
             bounds = m.UVBounds();
             Assert.AreEqual(new Vector3(0, -8, 0), bounds.Min);
             Assert.AreEqual(new Vector3(9, 3, 0), bounds.Max);
+        }
+
+
+
+        [TestMethod]
+        public void MeshSkirtTest()
+        {
+            Mesh m = new Mesh(true, true, true);
+            m.Vertices.Add(new Vertex(0, 0, 0, 2, 3, 7, 1, 3, 5, 6, 7, 8));
+            m.Vertices.Add(new Vertex(1, 0, 0, 3, 1, 0, 3, 5, 2, 1, 4, 0));
+            m.Vertices.Add(new Vertex(0, 0, 1, 6, 2, 7, 8, 3, 5, 2, 3, 4));
+            m.Vertices.Add(new Vertex(1, 0, 1, 4, 6, 8, 0, 4, 2, 3, 4, 2));
+            m.Faces.Add(new Face(0, 1, 3));
+            m.Faces.Add(new Face(0, 2, 3));
+            m.AddSkirt(SkirtAxis.Y);
+            Assert.AreEqual(8, m.Vertices.Count);
+            foreach (var v1 in m.Vertices)
+            {
+                int similarVerts = 0;
+                foreach (var v2 in m.Vertices)
+                {
+                    if (v1.Position.X == v2.Position.X && v1.Position.Z == v2.Position.Z && v1.UV == v2.UV && v1.Normal == v2.Normal && v1.Color == v2.Color)
+                    {
+                        similarVerts++;
+                    }
+                }
+                Assert.AreEqual(2, similarVerts);
+            }
+            m.RemoveSkirt(SkirtAxis.Y);
+            Assert.AreEqual(4, m.Vertices.Count);
+            m.RemoveSkirt(SkirtAxis.Y);
+            Assert.AreEqual(4, m.Vertices.Count);
+            m.RemoveSkirt(SkirtAxis.Z);
+            Assert.AreEqual(4, m.Vertices.Count);
+            m.RemoveSkirt(SkirtAxis.X);
+            Assert.AreEqual(4, m.Vertices.Count);
         }
     }
 }

@@ -28,5 +28,5 @@ Terrain Pipeline - The Next Generation
 | Newtonsoft | Json parser | nuget | [Json.NET 10.0.1](https://www.nuget.org/packages/Newtonsoft.Json/) |
 | RTree | Datastructure for spatial queries | nuget | [RTree - Spatial Index 1.0.2.1](https://www.nuget.org/packages/RTree/) |
 | Neumerics | Numeric computation library | nuget | [Math.NET Numerics 3.20.0](https://www.nuget.org/packages/MathNet.Numerics/) |
-
+| OptimizedPriorityQueue | Data structure | nuget | [OptimizedPriorityQueue 4.1.1](https://www.nuget.org/packages/OptimizedPriorityQueue/) |
 

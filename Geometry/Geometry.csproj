@@ -65,6 +65,8 @@
     <Compile Include="Geometry\BoundingBoxExtensions.cs" />
     <Compile Include="Geometry\QuadricEdgeCollapse\Edge.cs" />
     <Compile Include="Geometry\QuadricEdgeCollapse\EdgeCollapse.cs" />
+    <Compile Include="Geometry\OctreeTriangleContent.cs" />
+    <Compile Include="Geometry\HausdorffDistance.cs" />
     <Compile Include="Geometry\QuadricEdgeCollapse\EdgeGraph.cs" />
     <Compile Include="Geometry\OctreeNode.cs" />
     <Compile Include="Geometry\Octree.cs" />
