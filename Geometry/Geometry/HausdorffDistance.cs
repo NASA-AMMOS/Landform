@@ -50,11 +50,11 @@ namespace OPS.Geometry
             // Fill each list of triangles with all the triangles from their respective mesh
             foreach (Triangle tri in meshA.Triangles())
             {
-                triListA.Add(new VoxelTriangle(tri));
+                triListA.Add(new OctreeTriangleContent(tri));
             }
             foreach (Triangle tri in meshB.Triangles())
             {
-                triListB.Add(new VoxelTriangle(tri));
+                triListB.Add(new OctreeTriangleContent(tri));
             }
 
             // Insert all the triangles from each mesh into their respective octree
@@ -92,7 +92,7 @@ namespace OPS.Geometry
                 }
 
                 // Place the traversal path in the triangle structure so it knows how to reach its octree node cell
-                foreach (VoxelTriangle voxelTri in node.Contained)
+                foreach (OctreeTriangleContent voxelTri in node.Contained)
                 {
                     // Traversal goes from the bottom up, so it must be reversed to traverse from the top back down
                     List<int> reversedPath = new List<int>(path);
@@ -136,8 +136,8 @@ namespace OPS.Geometry
                 // The current cell actually represents an individual triangle, 
                 if (current.Owner == null)
                 {
-                    VoxelTriangle currentVoxelTri = (VoxelTriangle)current.Contained[0];
-                    Triangle currentTri = currentVoxelTri.Triangle;
+                    OctreeTriangleContent currentOctreeTri = (OctreeTriangleContent)current.Contained[0];
+                    Triangle currentTri = currentOctreeTri.Triangle;
 
                     // Triangle points
                     Vertex p0 = currentTri.V0;
@@ -156,43 +156,43 @@ namespace OPS.Geometry
                     Triangle tri3 = new Triangle(p2, m12, m20);
 
                     // Turn triangles into voxel triangles
-                    VoxelTriangle voxelTri0 = new VoxelTriangle(tri0);
-                    VoxelTriangle voxelTri1 = new VoxelTriangle(tri1);
-                    VoxelTriangle voxelTri2 = new VoxelTriangle(tri2);
-                    VoxelTriangle voxelTri3 = new VoxelTriangle(tri3);
+                    OctreeTriangleContent octreeTri0 = new OctreeTriangleContent(tri0);
+                    OctreeTriangleContent octreeTri1 = new OctreeTriangleContent(tri1);
+                    OctreeTriangleContent octreeTri2 = new OctreeTriangleContent(tri2);
+                    OctreeTriangleContent octreeTri3 = new OctreeTriangleContent(tri3);
 
                     // Find the corresponding base points for each point used in the subdivided mesh
-                    OctreeNode lastTree = otherTree.FollowPath(currentVoxelTri.TraversalPath);
-                    BasePoint basepointP0 = currentVoxelTri.BasePoints[0];
-                    BasePoint basepointP1 = currentVoxelTri.BasePoints[1];
-                    BasePoint basepointP2 = currentVoxelTri.BasePoints[2];
+                    OctreeNode lastTree = otherTree.FollowPath(currentOctreeTri.TraversalPath);
+                    BasePoint basepointP0 = currentOctreeTri.BasePoints[0];
+                    BasePoint basepointP1 = currentOctreeTri.BasePoints[1];
+                    BasePoint basepointP2 = currentOctreeTri.BasePoints[2];
                     BasePoint basepointM01 = FindNearestBasePointFromPoint(m01.Position, otherTree, lastTree, out lastTree);
                     BasePoint basepointM12 = FindNearestBasePointFromPoint(m12.Position, otherTree, lastTree, out lastTree);
                     BasePoint basepointM20 = FindNearestBasePointFromPoint(m20.Position, otherTree, lastTree, out lastTree);
 
                     // Attach the base points to each subdivided triangle
-                    voxelTri0.BasePoints = new BasePoint[] { basepointM01, basepointM12, basepointM20 };
-                    voxelTri1.BasePoints = new BasePoint[] { basepointP0, basepointM01, basepointM20 };
-                    voxelTri2.BasePoints = new BasePoint[] { basepointP1, basepointM01, basepointM12 };
-                    voxelTri3.BasePoints = new BasePoint[] { basepointP2, basepointM12, basepointM20 };
+                    octreeTri0.BasePoints = new BasePoint[] { basepointM01, basepointM12, basepointM20 };
+                    octreeTri1.BasePoints = new BasePoint[] { basepointP0, basepointM01, basepointM20 };
+                    octreeTri2.BasePoints = new BasePoint[] { basepointP1, basepointM01, basepointM12 };
+                    octreeTri3.BasePoints = new BasePoint[] { basepointP2, basepointM12, basepointM20 };
 
                     // Add the traversal path to each new triangle
-                    voxelTri0.TraversalPath = currentVoxelTri.TraversalPath;
-                    voxelTri1.TraversalPath = currentVoxelTri.TraversalPath;
-                    voxelTri2.TraversalPath = currentVoxelTri.TraversalPath;
-                    voxelTri3.TraversalPath = currentVoxelTri.TraversalPath;
+                    octreeTri0.TraversalPath = currentOctreeTri.TraversalPath;
+                    octreeTri1.TraversalPath = currentOctreeTri.TraversalPath;
+                    octreeTri2.TraversalPath = currentOctreeTri.TraversalPath;
+                    octreeTri3.TraversalPath = currentOctreeTri.TraversalPath;
 
                     // Process each of the four new triangles
-                    ProcessTriangle(voxelTri0, current, otherTree, epsilon, ref hausdorffDistanceSquared, queue);
-                    ProcessTriangle(voxelTri1, current, otherTree, epsilon, ref hausdorffDistanceSquared, queue);
-                    ProcessTriangle(voxelTri2, current, otherTree, epsilon, ref hausdorffDistanceSquared, queue);
-                    ProcessTriangle(voxelTri3, current, otherTree, epsilon, ref hausdorffDistanceSquared, queue);
+                    ProcessTriangle(octreeTri0, current, otherTree, epsilon, ref hausdorffDistanceSquared, queue);
+                    ProcessTriangle(octreeTri1, current, otherTree, epsilon, ref hausdorffDistanceSquared, queue);
+                    ProcessTriangle(octreeTri2, current, otherTree, epsilon, ref hausdorffDistanceSquared, queue);
+                    ProcessTriangle(octreeTri3, current, otherTree, epsilon, ref hausdorffDistanceSquared, queue);
                 }
                 // If the current cell is a leaf, process its triangles and insert them into the queue
                 else if (current.IsLeaf())
                 {
                     // Process each triangle that intersects this cell (including those wholly contained)
-                    foreach (VoxelTriangle tri in current.Intersecting)
+                    foreach (OctreeTriangleContent tri in current.Intersecting)
                     {
                         ProcessTriangle(tri, current, otherTree, epsilon, ref hausdorffDistanceSquared, queue);
                     }
@@ -223,7 +223,7 @@ namespace OPS.Geometry
         /// <param name="tri">The voxel triangle getting processed</param>
         /// <param name="current">The cell which contains this triangle</param>
         /// <param name="otherTree">The entire other octree from the other mesh which this triangle is not a part of</param>
-        private static void ProcessTriangle(VoxelTriangle tri, OctreeNode current, Octree otherTree, double epsilon, ref double hausdorffDistanceSquared, SimplePriorityQueue<OctreeNode> queue)
+        private static void ProcessTriangle(OctreeTriangleContent tri, OctreeNode current, Octree otherTree, double epsilon, ref double hausdorffDistanceSquared, SimplePriorityQueue<OctreeNode> queue)
         {
             // Compute the barycenter of this triangle
             Vector3 barycenter = tri.Triangle.Barycenter();
@@ -267,7 +267,7 @@ namespace OPS.Geometry
             }
 
             // If it hit the same triangle with each of the three base points, the shortest case distance is the actual distance, so don't add the triangle to the queue
-            if (tri.BasePoints[0].Triangle == tri.BasePoints[1].Triangle && tri.BasePoints[1].Triangle == tri.BasePoints[2].Triangle)
+            if (tri.BasePoints[0].TriangleContent == tri.BasePoints[1].TriangleContent && tri.BasePoints[1].TriangleContent == tri.BasePoints[2].TriangleContent)
             {
                 return;
             }
@@ -286,7 +286,7 @@ namespace OPS.Geometry
         /// <param name="tri">The triangle which we are finding nearby points from</param>
         /// <param name="otherTree">The entire other octree for the mesh which this triangle is not a part of</param>
         /// <returns></returns>
-        private static BasePoint[] FindNearestBasePointsFromTriangle(VoxelTriangle tri, Octree otherTree)
+        private static BasePoint[] FindNearestBasePointsFromTriangle(OctreeTriangleContent tri, Octree otherTree)
         {
             // Prepare a home for the three base points that will be found
             BasePoint[] basePoints = new BasePoint[3];
@@ -318,13 +318,13 @@ namespace OPS.Geometry
         private static BasePoint FindNearestBasePointFromPoint(Vector3 point, Octree otherTree, OctreeNode startingOctreeNode, out OctreeNode lastOctreeNode)
         {
             // Find the closest triangle to this requested point in 3D space
-            VoxelTriangle triangle = (VoxelTriangle)otherTree.Closest(point, startingOctreeNode, out lastOctreeNode);
+            OctreeTriangleContent triangleContent = (OctreeTriangleContent)otherTree.Closest(point, startingOctreeNode, out lastOctreeNode);
 
             // Find the physical point on the triangle which is geometrically closest to the requested point
-            Vector3 closestPoint = triangle.Triangle.ClosestPoint(point).Position;
+            Vector3 closestPoint = triangleContent.Triangle.ClosestPoint(point).Position;
 
             // Create a basepoint that wraps the point in space along with the triangle it's on
-            return new BasePoint(closestPoint, triangle);
+            return new BasePoint(closestPoint, triangleContent);
         }
 
         /// <summary>
@@ -394,12 +394,12 @@ namespace OPS.Geometry
     struct BasePoint
     {
         public Vector3 Position;
-        public VoxelTriangle Triangle;
+        public OctreeTriangleContent TriangleContent;
 
-        public BasePoint(Vector3 position, VoxelTriangle triangle)
+        public BasePoint(Vector3 position, OctreeTriangleContent triangleContent)
         {
             Position = position;
-            Triangle = triangle;
+            TriangleContent = triangleContent;
         }
     }
 }
