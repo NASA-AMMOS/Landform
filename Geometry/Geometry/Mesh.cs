@@ -414,7 +414,6 @@ namespace OPS.Geometry
                     }
                 }
             }
-
             // Remove the vertices selected on the edge that are part of the skirt
             RemoveVertices(verticesToRemove);
         }
@@ -424,7 +423,7 @@ namespace OPS.Geometry
         /// </summary>
         /// <param name="axis">Extrudes the skirt in the X, Y, or Z axis</param>
         /// <param name="heightAsPercentOfWidth">Specifies the height of the skirt, where 100% is the width or</param>
-        public void AddSkirt(SkirtAxis axis = SkirtAxis.Y, double heightAsPercentOfWidth = 1)
+        public void AddSkirt(SkirtAxis axis, double heightAsPercentOfWidth = 1)
         {
             // Calculate skirt offset height
             Vector3 size = Bounds().Size();
@@ -928,15 +927,15 @@ namespace OPS.Geometry
                     || (B.Position.AlmostEqual(e.A.Position) && A.Position.AlmostEqual(e.B.Position));
             }
         }
+    }
 
-        /// <summary>
-        /// X, Y, or Z axis which the skirt is directed along
-        /// </summary>
-        public enum SkirtAxis
-        {
-            X,
-            Y,
-            Z
-        }
+    /// <summary>
+    /// X, Y, or Z axis which the skirt is directed along
+    /// </summary>
+    public enum SkirtAxis
+    {
+        X,
+        Y,
+        Z
     }
 }
