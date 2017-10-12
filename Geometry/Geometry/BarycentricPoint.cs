@@ -61,11 +61,20 @@ namespace OPS.Geometry
             get
             {
                 if (isST)
-                    return tri.V0.Position +
-                        s * (tri.V1.Position - tri.V0.Position) +
-                        t * (tri.V2.Position - tri.V0.Position);
+                    return tri.V0.Position + s * (tri.V1.Position - tri.V0.Position) + t * (tri.V2.Position - tri.V0.Position);
                 else
                     return b0 * tri.V0.Position + b1 * tri.V1.Position + b2 * tri.V2.Position;
+            }
+        }
+
+        public Vector3 Normal
+        {
+            get
+            {
+                if (isST)
+                    return tri.V0.Normal + s * (tri.V1.Normal - tri.V0.Normal) + t * (tri.V2.Normal - tri.V0.Normal);
+                else
+                    return b0 * tri.V0.Normal + b1 * tri.V1.Normal + b2 * tri.V2.Normal;
             }
         }
 
@@ -73,12 +82,21 @@ namespace OPS.Geometry
         {
             get
             {
-                if(isST)
-                    return tri.V0.UV +
-                        s * (tri.V1.UV - tri.V0.UV) +
-                     t * (tri.V2.UV - tri.V0.UV);
+                if (isST)
+                    return tri.V0.UV + s * (tri.V1.UV - tri.V0.UV) + t * (tri.V2.UV - tri.V0.UV);
                 else
                     return b0 * tri.V0.UV + b1 * tri.V1.UV + b2 * tri.V2.UV;
+            }
+        }
+
+        public Vector4 Color
+        {
+            get
+            {
+                if (isST)
+                    return tri.V0.Color + s * (tri.V1.Color - tri.V0.Color) + t * (tri.V2.Color - tri.V0.Color);
+                else
+                    return b0 * tri.V0.Color + b1 * tri.V1.Color + b2 * tri.V2.Color;
             }
         }
     }

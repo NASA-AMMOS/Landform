@@ -24,7 +24,7 @@ namespace OPS.Geometry
         public int MaxOctreeNodeSize;
 
         // Maximum depth of the tree, OctreeNodes at this depth will not be split
-        public int MaxDepth;
+        public int DepthLimit;
 
         // The number of OctreeNodes in the tree
         public int NodeCount;
@@ -32,13 +32,26 @@ namespace OPS.Geometry
         // The number of leaf OctreeNodes in the tree
         public int LeafCount;
 
+        // The depth of the deepest node
+        public int Deepest;
+
         public Octree(BoundingBox bounds, int maxOctreeNodeSize = 10, int maxDepth = 8)
         {
             this.MaxOctreeNodeSize = maxOctreeNodeSize;
-            this.MaxDepth = maxDepth;
+            this.DepthLimit = maxDepth;
             this.Root = new OctreeNode(this, null, bounds, 0);
             this.NodeCount = 1;
             this.LeafCount = 1;
+            this.Deepest = 1;
+        }
+
+        /// <summary>
+        /// Applys a function to every node in the tree
+        /// </summary>
+        /// <param name="applyFunc"></param>
+        public void Traverse(Action<OctreeNode> applyFunc)
+        {
+            Visit(applyFunc, new Func<OctreeNode, bool>(node => true ));
         }
 
         /// <summary>
@@ -143,6 +156,7 @@ namespace OPS.Geometry
                 return contents.Intersects( OctreeNode.Bounds);
             });
         }
+
         /// <summary>
         /// Loops over the triangles in mesh and adds them to the Oct tree, then splits OctreeNodes from the root down as needed
         /// </summary>
@@ -156,7 +170,7 @@ namespace OPS.Geometry
             }
             Visit(node =>
             {
-                if (node.Depth >= MaxDepth)
+                if (node.Depth >= DepthLimit)
                     return;
 
                 if (node.IsLeaf() && node.Contained.Count > MaxOctreeNodeSize)
@@ -166,7 +180,27 @@ namespace OPS.Geometry
             }, OctreeNode => { return true; });
         }
 
-        
+        /// <summary>
+        /// Given a list of child indicies, this method will decend the tree correspoinding to each
+        /// child index and return the last child or the first leaf node along the path
+        /// </summary>
+        /// <param name="path"></param>
+        /// <returns></returns>
+        public OctreeNode FollowPath(List<int> path)
+        {
+            OctreeNode current = Root;
+            foreach (int i in path)
+            {
+                if (current.IsLeaf())
+                {
+                    break;
+                }
+
+                current = current.Children[i];
+            }
+            return current;
+        }
+
         /// <summary>
         /// Returns the closest triangle (with its texture) on the mesh to query point xyz. Returns null if mesh is empty
         /// </summary>

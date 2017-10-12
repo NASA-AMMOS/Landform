@@ -67,6 +67,7 @@
   <ItemGroup>
     <Compile Include="Geometry\BarycentricPointTest.cs" />
     <Compile Include="Geometry\BoundingBoxExtensionsTest.cs" />
+    <Compile Include="Geometry\SurfacePointSamplerTest.cs" />
     <Compile Include="Geometry\FaceTest.cs" />
     <Compile Include="Geometry\MeshOperatorTest.cs" />
     <Compile Include="Geometry\MeshTest.cs" />

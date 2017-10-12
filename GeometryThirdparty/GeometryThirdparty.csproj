@@ -59,7 +59,7 @@
     <Compile Include="FSSR.cs" />
     <Compile Include="FSSRException.cs" />
     <Compile Include="FSSRPlyWriter.cs" />
-    <Compile Include="HausdorffDistance.cs" />
+    <Compile Include="HausdorffDistanceStats.cs" />
     <Compile Include="MeshLab.cs" />
     <Compile Include="MeshLabException.cs" />
     <Compile Include="MeshLabOutputAttributes.cs" />
