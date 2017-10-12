@@ -345,6 +345,15 @@ namespace OPS.Geometry
             return new BarycentricPoint(s, t, this);
         }
 
+        /// <summary>
+        /// Finds the center of the triangle in barycentric coordinates and returns its position
+        /// </summary>
+        /// <returns></returns>
+        public Vector3 Barycenter()
+        {
+            double oneThird = 1.0 / 3.0;
+            return new BarycentricPoint(oneThird, oneThird, oneThird, this).Position;
+        }
         
         /// <summary>
         /// Given a uv coordinate, returns the the barycentric position if is within
@@ -436,6 +445,16 @@ namespace OPS.Geometry
                                 .SelectMany(tri => tri.Clip(new Plane(new Vector3(0, 0, 1), box.Min.Z)))
                                 .SelectMany(tri => tri.Clip(new Plane(new Vector3(0, 0, -1), -(box.Min.Z + size.Z))));
             return clipped;
+        }
+
+        /// <summary>
+        /// Returns true if this triangle intersects the given bounding box
+        /// </summary>
+        /// <param name="box"></param>
+        /// <returns></returns>
+        public bool Intersects(BoundingBox box)
+        {
+            return Clip(box).Count() > 0;
         }
     }
 }

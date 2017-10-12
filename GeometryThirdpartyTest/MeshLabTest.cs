@@ -155,8 +155,8 @@ namespace GeometryThirdpartyTest
             {
                 Mesh m = TestMeshCreator.CreateMesh(true, false, false);
                 Mesh r = MeshLab.ResampleDecimation(m, 2000, 2000);
-                HausdorffDistance distA = MeshLab.BidirectionalHausdorffDistance(m, r);
-                HausdorffDistance distB = MeshLab.BidirectionalHausdorffDistance(r, m);
+                HausdorffDistanceStats distA = MeshLab.BidirectionalHausdorffDistance(m, r);
+                HausdorffDistanceStats distB = MeshLab.BidirectionalHausdorffDistance(r, m);
                 Assert.AreEqual(distA.Max, distB.Max);
                 Assert.AreEqual(distA.Mean, distB.Mean);
                 Assert.AreEqual(distA.Min, distB.Min);

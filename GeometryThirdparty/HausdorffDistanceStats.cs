@@ -11,16 +11,16 @@ namespace OPS.Geometry
     /// <summary>
     /// Stores the distance between two meshes
     /// </summary>
-    public class HausdorffDistance
+    public class HausdorffDistanceStats
     {
-        private static readonly ILog logger = LogManager.GetLogger(typeof(HausdorffDistance));
+        private static readonly ILog logger = LogManager.GetLogger(typeof(HausdorffDistanceStats));
 
         public double Min;
         public double Max;
         public double Mean;
         public double RMS;
 
-        public HausdorffDistance(double min, double max, double mean, double rms)
+        public HausdorffDistanceStats(double min, double max, double mean, double rms)
         {
             this.Min = min;
             this.Max = max;
@@ -28,12 +28,12 @@ namespace OPS.Geometry
             this.RMS = rms;
         }
 
-        public static HausdorffDistance Largest(HausdorffDistance hd1, HausdorffDistance hd2)
+        public static HausdorffDistanceStats Largest(HausdorffDistanceStats hd1, HausdorffDistanceStats hd2)
         {
-            return new HausdorffDistance(Math.Max(hd1.Min, hd2.Min), Math.Max(hd1.Max, hd2.Max), Math.Max(hd1.Mean, hd2.Mean), Math.Max(hd1.RMS, hd2.RMS));
+            return new HausdorffDistanceStats(Math.Max(hd1.Min, hd2.Min), Math.Max(hd1.Max, hd2.Max), Math.Max(hd1.Mean, hd2.Mean), Math.Max(hd1.RMS, hd2.RMS));
         }
 
-        public static HausdorffDistance ParseFromMeshLabOutput(string text)
+        public static HausdorffDistanceStats ParseFromMeshLabOutput(string text)
         {
             string[] lines = text.Split('\n');
             int i = 0;
@@ -59,7 +59,7 @@ namespace OPS.Geometry
             double max = double.Parse(m.Groups[2].Value);
             double mean = double.Parse(m.Groups[3].Value);
             double rms = double.Parse(m.Groups[4].Value);
-            return new HausdorffDistance(min, max, mean, rms);
+            return new HausdorffDistanceStats(min, max, mean, rms);
         }
 
         public static void InvalidText(bool isInvalid, string text)
