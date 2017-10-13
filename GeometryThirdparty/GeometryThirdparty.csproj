@@ -66,6 +66,7 @@
     <Compile Include="MeshLabRunner.cs" />
     <Compile Include="OpenInventorParser.cs" />
     <Compile Include="OpenInventorSerializer.cs" />
+    <Compile Include="PoissonReconstruction.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="UVAtlas.cs" />
   </ItemGroup>
@@ -87,6 +88,12 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
     <Content Include="ExternalApps\meshclean.exe">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="ExternalApps\PoissonRecon.exe">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="ExternalApps\SurfaceTrimmer.exe">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>
