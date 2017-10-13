@@ -6,6 +6,8 @@ using System.Threading.Tasks;
 using OPS.Cloud;
 using CommandLine;
 using System.Threading;
+using System.Timers;
+using Amazon.Util;
 using Amazon.S3;
 using Amazon.S3.Model;
 using System.IO;
@@ -15,6 +17,8 @@ using Amazon.CloudWatch;
 using Amazon.CloudWatch.Model;
 using Amazon.SQS;
 using Amazon.SQS.Model;
+using Amazon.EC2.Util;
+
 using OPS.Geometry;
 using OPS.Imaging;
 using OPS.Util;
@@ -39,22 +43,58 @@ namespace OPS.Pipeline
     {
         public QueueListenerOptions options;
 
-        public IAmazonSQS SQSClient;
-        public IAmazonS3 S3Client;
-        public IAmazonSimpleNotificationService SNSClient;
+        public static IAmazonSQS SQSClient;
+        public static IAmazonS3 S3Client;
+        public static IAmazonSimpleNotificationService SNSClient;
+        public static IAmazonCloudWatch CWClient;
         
-        private readonly string[] EXTENSIONS = new string[] { ".obj", ".mtl" , ".jpg"};
+        private readonly string[] EXTENSIONS = new string[3] { ".obj", ".mtl" , ".jpg"}; 
         private const int OBJ = 0; private const int MTL = 1; private const int IMG = 2; //indices of file types in extension array 
         private readonly int[] INDICES = new int[] { 0, 1, 2, 3 };
+
+        //monitoring counts 
+        private int messagesRecieved = 0;
+        private int messagesSucceeded = 0;
+        private int messagesFailed = 0;
+
+        //timer for monitoring job 
+        private System.Timers.Timer metricsTimer; 
 
         public QueueListener(QueueListenerOptions options)
         {
             this.options = options;
-            //TODO below is just because I'm lazy, irl queue name should be given 
+            //If no queue was specified, check the env vars 
             if (options.QueueUrl == null)
             {
-                this.options.QueueUrl = "https://sqs.us-west-1.amazonaws.com/589270964471/LandformsTestQueue";
+                this.options.QueueUrl = Environment.GetEnvironmentVariable("JOB_QUEUE");
             }
+        }
+
+        private void sendMetrics(object source, ElapsedEventArgs e)
+        {
+            //gather and reset metrics for this interval
+            int total = Interlocked.Exchange(ref messagesRecieved, 0);
+            int successes = Interlocked.Exchange(ref messagesSucceeded, 0);
+            int failures = Interlocked.Exchange(ref messagesFailed, 0);
+
+            Console.WriteLine("Recieved " + total + " messages, writing to CloudWatch");
+
+            //publish custom metric
+            var CWResponse = CWClient.PutMetricData(new PutMetricDataRequest
+            {
+                MetricData = new List<MetricDatum> { new MetricDatum
+                {
+                    MetricName = "MessagesRecieved",
+                    Unit = StandardUnit.Count,
+                    Value = total,
+                    Dimensions = new List<Dimension> {
+                        new Dimension {Name = "OwnerName", Value = Environment.GetEnvironmentVariable("PIPELINE_NAME")}, //what pipeline does this metric belong to? 
+                        new Dimension {Name = "PipelineType", Value = Environment.GetEnvironmentVariable("PIPELINE_TYPE") }, //Dev or prod pipeline? 
+                        new Dimension {Name = "Instance", Value = EC2InstanceMetadata.InstanceId != null ? EC2InstanceMetadata.InstanceId : "dev_machine" }
+                    }
+                } },
+                Namespace = "Pipeline"
+            });
         }
 
         public int Run()
@@ -62,7 +102,13 @@ namespace OPS.Pipeline
             //TODO check that the given queue name is valid before we wait around a long time 
             SQSClient = new AmazonSQSClient(Amazon.RegionEndpoint.USWest1); //TODO should pull region from somewhere?
             S3Client = new AmazonS3Client(Amazon.RegionEndpoint.USWest1);
-            SNSClient = new AmazonSimpleNotificationServiceClient(Amazon.RegionEndpoint.USWest1); 
+            SNSClient = new AmazonSimpleNotificationServiceClient(Amazon.RegionEndpoint.USWest1);
+            CWClient = new AmazonCloudWatchClient(Amazon.RegionEndpoint.USWest1);
+
+            //start collecting metrics! 
+            metricsTimer = new System.Timers.Timer(120000); //publish metrics every 2 minutes
+            metricsTimer.Elapsed += new ElapsedEventHandler(sendMetrics);
+            metricsTimer.Enabled = true;
 
             Parallel.For(0, 8, (int i) => //Gather a max of 8 messages at once. TODO should be configurable
             {
@@ -76,9 +122,16 @@ namespace OPS.Pipeline
                         QueueUrl = options.QueueUrl,
                         WaitTimeSeconds = (int)TimeSpan.FromSeconds(15).TotalSeconds //how long I'll wait for a message
                     };
+                    Console.WriteLine("Message to send: " + req.QueueUrl);
+                    var list = SQSClient.ListQueues(new ListQueuesRequest { }).QueueUrls;
+                    foreach (string queue in list)
+                    {
+                        Console.WriteLine(queue);
+                    }
                     ReceiveMessageResponse r = SQSClient.ReceiveMessage(req);
                     if (r.Messages.Count > 0) //we have a message
                     {
+                        Interlocked.Increment(ref messagesRecieved);
                         Message m = r.Messages[0];
                         Console.WriteLine(".....Message recieved:"
                             +"\r\n        Message ID = " + m.MessageId
@@ -87,10 +140,12 @@ namespace OPS.Pipeline
                         {
                             Console.WriteLine("--- thread"+Convert.ToString(i) + " in message processing");
                             processMessage(m); //Process messages synchronously 
+                            Interlocked.Increment(ref messagesSucceeded);
                             Console.WriteLine("--- thread"+Convert.ToString(i) + " done message processing");
                         }
                         catch (Exception e)
                         {
+                            Interlocked.Increment(ref messagesFailed);
                             string msg = "Processing failed for message " + m.MessageId + "; additional message info: " + m.MessageAttributes["ParentPath"].StringValue
                                 + "\r\n Error msg is: " + e.Message
                                 + "\r\n Stack trace is: " + e.StackTrace;
@@ -117,7 +172,8 @@ namespace OPS.Pipeline
 
         private int processMessage(Message m)
         {
-            string s3url = "s3://" + m.MessageAttributes["ParentPath"].StringValue; //TODO this is the full path, including bucket name, of the (to-be-computed) parent of the added file. Missing file ending
+            //ParentPath is currently the path, including bucket, to the s3 resource that the parent WILL be; minus endings 
+            string s3url = "s3://" + m.MessageAttributes["ParentPath"].StringValue; 
 
             //run a lil image pipeline 
 
@@ -130,6 +186,8 @@ namespace OPS.Pipeline
             int newFaceCount = 0;
             foreach (int index in INDICES)
             {
+                //GOD KNOWS WHY but this doesn't break very often, so using this while working on AWS resources
+                //Frequency of breakage: a few in a thousand 
                 //inline temp files 
                 S3Url url = new S3Url(s3url);
                 string root = (@"C:\tmp\in\" + Guid.NewGuid()).Replace('/', '\\');
@@ -148,16 +206,103 @@ namespace OPS.Pipeline
                     File.Delete(root + EXTENSIONS[IMG]);
                 }
 
-                //using temp file helper
                 /*
+                //using temp file helper
+                //Frequency of breakage: one in 10 to one in 20? 
                 TemporaryFile.GetAndDeleteMultiple(EXTENSIONS, tmp =>
                 {
                     storage.DownloadFile(s3url + Convert.ToString(index) + EXTENSIONS[OBJ], tmp[OBJ]);
                     storage.DownloadFile(s3url + Convert.ToString(index) + EXTENSIONS[IMG], tmp[IMG]);
 
-                    meshes[index] = new MeshImagePair(OBJSerializer.Read(tmp[OBJ]), Image.Load(tmp[IMG]));
+                    meshes[index] = new MeshImagePair(Mesh.Load(tmp[OBJ]), Image.Load(tmp[IMG]));
+                    newFaceCount += meshes[index].Mesh.Faces.Count;
+                });
+                */
+
+                /*
+                //using temp files with streaming 
+                //Frequency of breakage: same as with DownloadFile
+                TemporaryFile.GetAndDeleteMultiple(EXTENSIONS, tmp =>
+                {
+                    storage.GetStream(s3url + Convert.ToString(index) + EXTENSIONS[OBJ], (Stream s) => {
+                        using (var fileStream = File.Create(tmp[OBJ]))
+                        {
+                            s.CopyTo(fileStream);
+                        }
+                    });
+                    storage.GetStream(s3url + Convert.ToString(index) + EXTENSIONS[IMG], (Stream s) => {
+                        using (var fileStream = File.Create(tmp[IMG]))
+                        {
+                            s.CopyTo(fileStream);
+                        }
+                    });
+
+                    meshes[index] = new MeshImagePair(Mesh.Load(tmp[OBJ]), Image.Load(tmp[IMG]));
                     newFaceCount += meshes[index].Mesh.Faces.Count;
                 });*/
+
+                /*
+                //grabbing local files instead, to isolate TU vs mesh and image loading 
+                //breaks
+                TemporaryFile.GetAndDeleteMultiple(EXTENSIONS, tmp =>
+                {
+                    File.Copy(@"C:\Users\gpease\Documents\data\Terrain\Terrain-clean\2111111111000.obj", tmp[OBJ]);
+                    File.Copy(@"C:\Users\gpease\Documents\data\Terrain\Terrain-clean\2111111111000.jpg", tmp[IMG]);
+
+                    meshes[index] = new MeshImagePair(Mesh.Load(tmp[OBJ]), Image.Load(tmp[IMG]));
+                    newFaceCount += meshes[index].Mesh.Faces.Count;
+                });
+                */
+
+                /*
+                //hardcoding, no temp file use, just get and delete 
+                //doesn't break
+                TemporaryFile.GetAndDeleteMultiple(EXTENSIONS, tmp =>
+                {
+                    meshes[index] = new MeshImagePair(Mesh.Load(@"C:\Users\gpease\Documents\data\Terrain\Terrain-clean\2111111111000.obj"), Image.Load(@"C:\Users\gpease\Documents\data\Terrain\Terrain-clean\2111111111000.jpg"));
+                    newFaceCount += meshes[index].Mesh.Faces.Count;
+                });
+                */
+
+                
+                //mesh or image breaking? 
+                //Image!
+                //image seems to load ok even when loader doesn't give up file...
+                /*
+                Mesh mesh = null; Image image = null; string impath;
+                TemporaryFile.GetAndDeleteMultiple(EXTENSIONS, tmp =>
+                {
+                    File.Copy(@"C:\Users\gpease\Documents\data\Terrain\Terrain-clean\2111111111000.obj", tmp[OBJ]);
+                    mesh = Mesh.Load(tmp[OBJ]);
+                });
+                TemporaryFile.GetAndDeleteMultiple(EXTENSIONS, tmp =>
+                {
+                    File.Copy(@"C:\Users\gpease\Documents\data\Terrain\Terrain-clean\2111111111000.jpg", tmp[IMG]);
+                    image = Image.Load(tmp[IMG]);
+                    impath = tmp[IMG];
+                    try
+                    {
+                        File.Delete(impath);
+                    }
+                    catch
+                    {
+                        Console.WriteLine("pasta");
+                    }
+                });
+                meshes[index] = new MeshImagePair(mesh, image);
+                newFaceCount += meshes[index].Mesh.Faces.Count;
+                */
+
+                //using temp file only for TU - just to check if this is also breaking (it's not, at least for ~hundreds)
+                /*
+                TemporaryFile.GetAndDeleteMultiple(EXTENSIONS, tmp =>
+                {
+                    storage.DownloadFile(s3url + Convert.ToString(index) + EXTENSIONS[OBJ], tmp[OBJ]);
+                    storage.DownloadFile(s3url + Convert.ToString(index) + EXTENSIONS[IMG], tmp[IMG]);
+                });
+                meshes[index] = new MeshImagePair(Mesh.Load(@"C:\Users\gpease\Documents\data\Terrain\Terrain-clean\2111111111000.obj"), Image.Load(@"C:\Users\gpease\Documents\data\Terrain\Terrain-clean\2111111111000.jpg"));
+                newFaceCount += meshes[index].Mesh.Faces.Count;
+                */
             }
             newFaceCount = Convert.ToInt32(newFaceCount / 4.0);
 
@@ -227,65 +372,12 @@ namespace OPS.Pipeline
             };
 
             var delResponse = SQSClient.DeleteMessage(delRequest);
-            Console.WriteLine(".....Message " + m.MessageId + " deleted.");
-
-            return 0; //TODO check response 
-        }
-
-        /*
-        //modeled off http://docs.aws.amazon.com/AmazonS3/latest/dev/RetrievingObjectUsingNetSDK.html
-        //Get an object that we know exists in S3. Copy it to a local file. 
-        public async Task<string> ReadObjectData(string bucket, string key, string temp)
-        {
-            GetObjectRequest request = new GetObjectRequest
+            if (delResponse.HttpStatusCode == System.Net.HttpStatusCode.OK)
             {
-                BucketName = bucket,
-                Key = key
-            };
-
-            GetObjectResponse response = null;
-            for (int i = 0; i < 4; i++) //Eventual consistency means we may have to wait for the object to appear
-            {
-                try
-                {
-                    response = await S3Client.GetObjectAsync(request);
-                    break;
-                }
-                catch (AmazonS3Exception e)
-                {
-                    if (i < 3 && e.StatusCode == System.Net.HttpStatusCode.NotFound)
-                    {
-                        await Task.Delay(1000); //wait a second. TODO what is the usual time to consistency? 
-                        continue; 
-                    }
-                    throw;
-                }
+                Console.WriteLine(".....Message " + m.MessageId + " deleted.");
             }
 
-            //Stream responseStream = response.ResponseStream;
-            //StreamReader reader = new StreamReader(responseStream);
-            response.WriteResponseStreamToFile(temp);
-            Console.WriteLine("wrote " + key + " to temporary file.");
-            return temp;
-        }*/
-
-        //upload the .obj, .mtl, and .jpg files for this prefix where: 
-        //bucket/prefix.extention is where the files will end up on S3
-        //local.extension is the full path of the files locally locally
-        
-        public int UploadResult(string bucket, string prefix, string local)
-        {
-            foreach (string extension in EXTENSIONS)
-            {
-                PutObjectRequest r = new PutObjectRequest
-                {
-                    BucketName = bucket,
-                    Key = prefix + extension,
-                    FilePath = local + extension
-                };
-                PutObjectResponse response = S3Client.PutObject(r);
-            }
-            return 0; //TODO check response
+            return 0; 
         }
     }
 }

@@ -1,0 +1,782 @@
+{
+    "AWSTemplateFormatVersion": "2010-09-09",
+    "Metadata": {
+        "AWS::CloudFormation::Designer": {
+            "d103da43-464b-4fda-b9fd-7931e60cb8bd": {
+                "size": {
+                    "width": 60,
+                    "height": 60
+                },
+                "position": {
+                    "x": 80,
+                    "y": -10
+                },
+                "z": 0
+            },
+            "f0ebaeb9-c31d-408b-a58d-a8d52e34d5aa": {
+                "size": {
+                    "width": 60,
+                    "height": 60
+                },
+                "position": {
+                    "x": 280,
+                    "y": -10
+                },
+                "z": 0
+            },
+            "1d9efd92-90cb-487b-a533-7e13e2542fda": {
+                "size": {
+                    "width": 60,
+                    "height": 60
+                },
+                "position": {
+                    "x": 580,
+                    "y": 320
+                },
+                "z": 1,
+                "embeds": [],
+                "isrelatedto": [
+                    "235d25bb-6d38-4e9f-8b5d-f17950a3950e"
+                ]
+            },
+            "a8aff6a3-43c1-4d59-848e-903e1bc9592d": {
+                "size": {
+                    "width": 60,
+                    "height": 60
+                },
+                "position": {
+                    "x": 470,
+                    "y": 400
+                },
+                "z": 1,
+                "embeds": [],
+                "isassociatedwith": [
+                    "1d9efd92-90cb-487b-a533-7e13e2542fda"
+                ]
+            },
+            "c435b7b4-7bd7-4290-9352-bdf0f97a5807": {
+                "size": {
+                    "width": 60,
+                    "height": 60
+                },
+                "position": {
+                    "x": 140,
+                    "y": 30
+                },
+                "z": 1,
+                "embeds": [],
+                "isrelatedto": [
+                    "55436a04-b468-4815-b7aa-10ad54a07e86"
+                ]
+            },
+            "e01ff5ff-610b-4e13-9ddd-efca116516ef": {
+                "size": {
+                    "width": 60,
+                    "height": 60
+                },
+                "position": {
+                    "x": 140,
+                    "y": 140
+                },
+                "z": 1,
+                "embeds": [],
+                "isassociatedwith": [
+                    "c435b7b4-7bd7-4290-9352-bdf0f97a5807"
+                ]
+            },
+            "55436a04-b468-4815-b7aa-10ad54a07e86": {
+                "size": {
+                    "width": 60,
+                    "height": 60
+                },
+                "position": {
+                    "x": 270,
+                    "y": 30
+                },
+                "z": 1,
+                "embeds": []
+            },
+            "4dc71c48-73c2-4068-9a85-305aaddf6709": {
+                "size": {
+                    "width": 60,
+                    "height": 60
+                },
+                "position": {
+                    "x": 450,
+                    "y": 150
+                },
+                "z": 1,
+                "embeds": [],
+                "isrelatedto": [
+                    "55436a04-b468-4815-b7aa-10ad54a07e86",
+                    "235d25bb-6d38-4e9f-8b5d-f17950a3950e"
+                ]
+            },
+            "235d25bb-6d38-4e9f-8b5d-f17950a3950e": {
+                "size": {
+                    "width": 60,
+                    "height": 60
+                },
+                "position": {
+                    "x": 450,
+                    "y": 270
+                },
+                "z": 1,
+                "embeds": []
+            },
+            "1dcbfd85-e62c-4308-bfd3-9a63edf38b33": {
+                "size": {
+                    "width": 60,
+                    "height": 60
+                },
+                "position": {
+                    "x": 450,
+                    "y": 30
+                },
+                "z": 1,
+                "embeds": [],
+                "isassociatedwith": [
+                    "4dc71c48-73c2-4068-9a85-305aaddf6709"
+                ],
+                "isrelatedto": [
+                    "55436a04-b468-4815-b7aa-10ad54a07e86"
+                ]
+            },
+            "cb5be509-28f4-4c0b-8d10-8212ac95b2a0": {
+                "size": {
+                    "width": 60,
+                    "height": 60
+                },
+                "position": {
+                    "x": 660,
+                    "y": 140
+                },
+                "z": 1,
+                "embeds": [],
+                "isrelatedto": [
+                    "235d25bb-6d38-4e9f-8b5d-f17950a3950e"
+                ]
+            },
+            "154b7855-ca5a-4c12-a131-8bbfb0418f58": {
+                "size": {
+                    "width": 60,
+                    "height": 60
+                },
+                "position": {
+                    "x": 660,
+                    "y": -10
+                },
+                "z": 1,
+                "embeds": [],
+                "isrelatedto": [
+                    "cb5be509-28f4-4c0b-8d10-8212ac95b2a0"
+                ]
+            },
+            "33568c8f-1bfe-43ad-815e-d661f0542267": {
+                "size": {
+                    "width": 60,
+                    "height": 60
+                },
+                "position": {
+                    "x": 800,
+                    "y": 60
+                },
+                "z": 1,
+                "embeds": [],
+                "isassociatedwith": [
+                    "cb5be509-28f4-4c0b-8d10-8212ac95b2a0"
+                ],
+                "isrelatedto": [
+                    "154b7855-ca5a-4c12-a131-8bbfb0418f58"
+                ]
+            },
+            "4a4319be-be3d-47b9-a5ee-7ae736296593": {
+                "size": {
+                    "width": 60,
+                    "height": 60
+                },
+                "position": {
+                    "x": 620,
+                    "y": 500
+                },
+                "z": 0,
+                "embeds": [],
+                "isassociatedwith": [
+                    "a8aff6a3-43c1-4d59-848e-903e1bc9592d"
+                ]
+            },
+            "7ccf0739-acd0-4bf7-80dc-8d573f9c804e": {
+                "size": {
+                    "width": 60,
+                    "height": 60
+                },
+                "position": {
+                    "x": 770,
+                    "y": 500
+                },
+                "z": 0,
+                "embeds": [],
+                "isrelatedto": [
+                    "4a4319be-be3d-47b9-a5ee-7ae736296593"
+                ]
+            },
+            "08a5916b-701f-4ce8-86bf-cff286999852": {
+                "size": {
+                    "width": 60,
+                    "height": 60
+                },
+                "position": {
+                    "x": 620,
+                    "y": 400
+                },
+                "z": 0,
+                "embeds": [],
+                "isassociatedwith": [
+                    "a8aff6a3-43c1-4d59-848e-903e1bc9592d"
+                ]
+            },
+            "90ec83e9-5fd3-4ef2-a1dc-c55572a4a20d": {
+                "size": {
+                    "width": 60,
+                    "height": 60
+                },
+                "position": {
+                    "x": 770,
+                    "y": 400
+                },
+                "z": 0,
+                "embeds": [],
+                "isrelatedto": [
+                    "08a5916b-701f-4ce8-86bf-cff286999852"
+                ]
+            },
+            "5b6c9112-2239-4dd9-8248-bd9bd9b8ecd6": {
+                "size": {
+                    "width": 60,
+                    "height": 60
+                },
+                "position": {
+                    "x": 350,
+                    "y": 510
+                },
+                "z": 0,
+                "embeds": []
+            },
+            "b10e61ad-853d-456a-8095-b9c02a15ebb4": {
+                "size": {
+                    "width": 60,
+                    "height": 60
+                },
+                "position": {
+                    "x": 470,
+                    "y": 510
+                },
+                "z": 0,
+                "embeds": [],
+                "isassociatedwith": [
+                    "5b6c9112-2239-4dd9-8248-bd9bd9b8ecd6",
+                    "a8aff6a3-43c1-4d59-848e-903e1bc9592d"
+                ]
+            }
+        }
+    },
+    "Resources": {
+        "PipelineWorkers": {
+            "Type": "AWS::AutoScaling::AutoScalingGroup",
+            "Properties": {
+                "AvailabilityZones": {
+                    "Fn::GetAZs": ""
+                },
+                "MetricsCollection": [
+                    {
+                        "Granularity": "1Minute"
+                    }
+                ],
+                "LaunchConfigurationName": {
+                    "Ref": "PipelineConfig"
+                },
+                "MinSize": "1",
+                "MaxSize": "10"
+            },
+            "Metadata": {
+                "AWS::CloudFormation::Designer": {
+                    "id": "a8aff6a3-43c1-4d59-848e-903e1bc9592d"
+                }
+            }
+        },
+        "PipelineConfig": {
+            "Type": "AWS::AutoScaling::LaunchConfiguration",
+            "Properties": {
+                "ImageId": "ami-947c4cf4",
+                "InstanceMonitoring": true,
+                "KeyName": {
+                    "Ref": "UserKeyName"
+                },
+                "SecurityGroups": [
+                    "sg-9578eaf3"
+                ],
+                "InstanceType": "t2.2xlarge",
+                "IamInstanceProfile": "landlords",
+                "UserData": {
+                    "Fn::Base64": {
+                        "Fn::Join": [
+                            "",
+                            [
+                                "<powershell>\r\n",
+                                "New-Item -Path c:\\temp -ItemType \"directory\" -Force;\r\n",
+                                "powershell.exe -Command Read-S3Object -BucketName aws-codedeploy-us-west-1/latest -Key codedeploy-agent.msi -File c:\\temp\\codedeploy-agent.msi;",
+                                "Start-Process -Wait -FilePath c:\\temp\\codedeploy-agent.msi -WindowStyle Hidden;",
+                                "[Environment]::SetEnvironmentVariable(\"PIPELINE_NAME\", \"",
+                                {
+                                    "Ref": "DevName"
+                                },
+                                "\", \"Machine\");",
+                                "[Environment]::SetEnvironmentVariable(\"JOB_QUEUE\", \"",
+                                {
+                                    "Ref": "JobQueue"
+                                },
+                                "\", \"Machine\");",
+                                "</powershell>\r\n<persist>true</persist>"
+                            ]
+                        ]
+                    }
+                }
+            },
+            "Metadata": {
+                "AWS::CloudFormation::Designer": {
+                    "id": "1d9efd92-90cb-487b-a533-7e13e2542fda"
+                }
+            }
+        },
+        "S3Watcher": {
+            "Type": "AWS::Lambda::Function",
+            "Properties": {
+                "Code": {
+                    "S3Bucket": {
+                        "Ref": "BucketName"
+                    },
+                    "S3Key": {
+                        "Ref": "S3ResponseLambda"
+                    }
+                },
+                "Description": "Submitts DynamoDB metadata for S3 PUTs",
+                "Environment": {
+                    "Variables": {
+                        "DB_NAME": {
+                            "Ref": "MetadataTable"
+                        }
+                    }
+                },
+                "Handler": "AWSLambda7::AWSLambda7.Function::FunctionHandler",
+                "Role": "arn:aws:iam::589270964471:role/lambda-dynamodb",
+                "Runtime": "dotnetcore1.0",
+                "Timeout": 30
+            },
+            "Metadata": {
+                "AWS::CloudFormation::Designer": {
+                    "id": "c435b7b4-7bd7-4290-9352-bdf0f97a5807"
+                }
+            }
+        },
+        "S3WatcherPerms": {
+            "Type": "AWS::Lambda::Permission",
+            "Properties": {
+                "FunctionName": {
+                    "Fn::GetAtt": [
+                        "S3Watcher",
+                        "Arn"
+                    ]
+                },
+                "Action": "lambda:InvokeFunction",
+                "Principal": "s3.amazonaws.com"
+            },
+            "Metadata": {
+                "AWS::CloudFormation::Designer": {
+                    "id": "e01ff5ff-610b-4e13-9ddd-efca116516ef"
+                }
+            }
+        },
+        "MetadataTable": {
+            "Type": "AWS::DynamoDB::Table",
+            "Properties": {
+                "AttributeDefinitions": [
+                    {
+                        "AttributeName": "mesh_name",
+                        "AttributeType": "S"
+                    }
+                ],
+                "KeySchema": [
+                    {
+                        "AttributeName": "mesh_name",
+                        "KeyType": "HASH"
+                    }
+                ],
+                "ProvisionedThroughput": {
+                    "ReadCapacityUnits": "5",
+                    "WriteCapacityUnits": "5"
+                },
+                "StreamSpecification": {
+                    "StreamViewType": "NEW_AND_OLD_IMAGES"
+                }
+            },
+            "Metadata": {
+                "AWS::CloudFormation::Designer": {
+                    "id": "55436a04-b468-4815-b7aa-10ad54a07e86"
+                }
+            }
+        },
+        "MetadataTriggerProcessing": {
+            "Type": "AWS::Lambda::Function",
+            "Properties": {
+                "Code": {
+                    "S3Bucket": {
+                        "Ref": "BucketName"
+                    },
+                    "S3Key": {
+                        "Ref": "DynamoLambda"
+                    }
+                },
+                "Description": "Listens to Dynamo stream and submitts messages to SQS",
+                "Environment": {
+                    "Variables": {
+                        "SQS_URL": {
+                            "Ref": "JobQueue"
+                        }
+                    }
+                },
+                "Handler": "AWSLambda1::AWSLambda1.Function::FunctionHandler",
+                "Role": "arn:aws:iam::589270964471:role/lambda-dynamodb",
+                "Runtime": "dotnetcore1.0",
+                "Timeout": 30
+            },
+            "Metadata": {
+                "AWS::CloudFormation::Designer": {
+                    "id": "4dc71c48-73c2-4068-9a85-305aaddf6709"
+                }
+            }
+        },
+        "JobQueue": {
+            "Type": "AWS::SQS::Queue",
+            "Properties": {
+                "VisibilityTimeout": 30
+            },
+            "Metadata": {
+                "AWS::CloudFormation::Designer": {
+                    "id": "235d25bb-6d38-4e9f-8b5d-f17950a3950e"
+                }
+            }
+        },
+        "DynamoLambdaMap": {
+            "Type": "AWS::Lambda::EventSourceMapping",
+            "Properties": {
+                "BatchSize": 100,
+                "Enabled": true,
+                "EventSourceArn": {
+                    "Fn::GetAtt": [
+                        "MetadataTable",
+                        "StreamArn"
+                    ]
+                },
+                "FunctionName": {
+                    "Fn::GetAtt": [
+                        "MetadataTriggerProcessing",
+                        "Arn"
+                    ]
+                },
+                "StartingPosition": "TRIM_HORIZON"
+            },
+            "Metadata": {
+                "AWS::CloudFormation::Designer": {
+                    "id": "1dcbfd85-e62c-4308-bfd3-9a63edf38b33"
+                }
+            }
+        },
+        "QueueMonitor": {
+            "Type": "AWS::Lambda::Function",
+            "Properties": {
+                "Code": {
+                    "S3Bucket": {
+                        "Ref": "BucketName"
+                    },
+                    "S3Key": {
+                        "Ref": "QueueMonitorLambda"
+                    }
+                },
+                "Description": "Loggs approximate queue size to CloudWatch on 1-minute intervals",
+                "Environment": {
+                    "Variables": {
+                        "SQS_URL": {
+                            "Ref": "JobQueue"
+                        },
+                        "PIPELINE_TYPE": "dev",
+                        "PIPELINE_NAME": {
+                            "Ref": "DevName"
+                        }
+                    }
+                },
+                "Handler": "QueueSizeMetric::QueueSizeMetric.Function::FunctionHandler",
+                "Role": "arn:aws:iam::589270964471:role/lambda-dynamodb",
+                "Runtime": "dotnetcore1.0",
+                "Timeout": 30
+            },
+            "Metadata": {
+                "AWS::CloudFormation::Designer": {
+                    "id": "cb5be509-28f4-4c0b-8d10-8212ac95b2a0"
+                }
+            }
+        },
+        "QueueMonitorRule": {
+            "Type": "AWS::Events::Rule",
+            "Properties": {
+                "ScheduleExpression": "rate(1 minute)",
+                "Targets": [
+                    {
+                        "Id": "TagWatcherScheduler",
+                        "Arn": {
+                            "Fn::GetAtt": [
+                                "QueueMonitor",
+                                "Arn"
+                            ]
+                        }
+                    }
+                ]
+            },
+            "Metadata": {
+                "AWS::CloudFormation::Designer": {
+                    "id": "154b7855-ca5a-4c12-a131-8bbfb0418f58"
+                }
+            }
+        },
+        "QueueMonitorPerms": {
+            "Type": "AWS::Lambda::Permission",
+            "Properties": {
+                "FunctionName": {
+                    "Fn::GetAtt": [
+                        "QueueMonitor",
+                        "Arn"
+                    ]
+                },
+                "Action": "lambda:InvokeFunction",
+                "Principal": "events.amazonaws.com",
+                "SourceArn": {
+                    "Fn::GetAtt": [
+                        "QueueMonitorRule",
+                        "Arn"
+                    ]
+                }
+            },
+            "Metadata": {
+                "AWS::CloudFormation::Designer": {
+                    "id": "33568c8f-1bfe-43ad-815e-d661f0542267"
+                }
+            }
+        },
+        "ScaleUpPolicy": {
+            "Type": "AWS::AutoScaling::ScalingPolicy",
+            "Properties": {
+                "AutoScalingGroupName": {
+                    "Ref": "PipelineWorkers"
+                },
+                "AdjustmentType": "ChangeInCapacity",
+                "PolicyType": "StepScaling",
+                "EstimatedInstanceWarmup": 200,
+                "StepAdjustments": [
+                    {
+                        "MetricIntervalLowerBound": 0,
+                        "MetricIntervalUpperBound": 200,
+                        "ScalingAdjustment": 1
+                    },
+                    {
+                        "MetricIntervalLowerBound": 200,
+                        "MetricIntervalUpperBound": 400,
+                        "ScalingAdjustment": 2
+                    },
+                    {
+                        "MetricIntervalLowerBound": 400,
+                        "ScalingAdjustment": 4
+                    }
+                ]
+            },
+            "Metadata": {
+                "AWS::CloudFormation::Designer": {
+                    "id": "4a4319be-be3d-47b9-a5ee-7ae736296593"
+                }
+            }
+        },
+        "LargeQueueAlarm": {
+            "Type": "AWS::CloudWatch::Alarm",
+            "Properties": {
+                "ActionsEnabled": true,
+                "AlarmActions": [
+                    {
+                        "Ref": "ScaleUpPolicy"
+                    }
+                ],
+                "ComparisonOperator": "GreaterThanOrEqualToThreshold",
+                "Dimensions": [
+                    {
+                        "Name": "OwnerName",
+                        "Value": {
+                            "Ref": "DevName"
+                        }
+                    },
+                    {
+                        "Name": "PipelineType",
+                        "Value": "dev"
+                    }
+                ],
+                "EvaluationPeriods": 1,
+                "Period": 60,
+                "Statistic": "Average",
+                "MetricName": "SQSSize",
+                "Namespace": "Pipeline",
+                "Threshold": 100
+            },
+            "Metadata": {
+                "AWS::CloudFormation::Designer": {
+                    "id": "7ccf0739-acd0-4bf7-80dc-8d573f9c804e"
+                }
+            }
+        },
+        "ScaleDownPolicy": {
+            "Type": "AWS::AutoScaling::ScalingPolicy",
+            "Properties": {
+                "AutoScalingGroupName": {
+                    "Ref": "PipelineWorkers"
+                },
+                "AdjustmentType": "ChangeInCapacity",
+                "PolicyType": "StepScaling",
+                "EstimatedInstanceWarmup": 200,
+                "StepAdjustments": [
+                    {
+                        "MetricIntervalUpperBound": -1,
+                        "ScalingAdjustment": -2
+                    }
+                ]
+            },
+            "Metadata": {
+                "AWS::CloudFormation::Designer": {
+                    "id": "08a5916b-701f-4ce8-86bf-cff286999852"
+                }
+            }
+        },
+        "SmallQueueAlarm": {
+            "Type": "AWS::CloudWatch::Alarm",
+            "Properties": {
+                "ActionsEnabled": true,
+                "AlarmActions": [
+                    {
+                        "Ref": "ScaleDownPolicy"
+                    }
+                ],
+                "ComparisonOperator": "LessThanOrEqualToThreshold",
+                "Dimensions": [
+                    {
+                        "Name": "OwnerName",
+                        "Value": {
+                            "Ref": "DevName"
+                        }
+                    },
+                    {
+                        "Name": "PipelineType",
+                        "Value": "dev"
+                    }
+                ],
+                "EvaluationPeriods": 1,
+                "Period": 60,
+                "Statistic": "Average",
+                "MetricName": "SQSSize",
+                "Namespace": "Pipeline",
+                "Threshold": 15
+            },
+            "Metadata": {
+                "AWS::CloudFormation::Designer": {
+                    "id": "90ec83e9-5fd3-4ef2-a1dc-c55572a4a20d"
+                }
+            }
+        },
+        "WorkerApplication": {
+            "Type": "AWS::CodeDeploy::Application",
+            "Properties": {},
+            "Metadata": {
+                "AWS::CloudFormation::Designer": {
+                    "id": "5b6c9112-2239-4dd9-8248-bd9bd9b8ecd6"
+                }
+            }
+        },
+        "WorkerDeploymentGroup": {
+            "Type": "AWS::CodeDeploy::DeploymentGroup",
+            "Properties": {
+                "ApplicationName": {
+                    "Ref": "WorkerApplication"
+                },
+                "AutoScalingGroups": [
+                    {
+                        "Ref": "PipelineWorkers"
+                    }
+                ],
+                "DeploymentConfigName": "CodeDeployDefault.OneAtATime",
+                "ServiceRoleArn": "arn:aws:iam::589270964471:role/CodeDeploy"
+            },
+            "Metadata": {
+                "AWS::CloudFormation::Designer": {
+                    "id": "b10e61ad-853d-456a-8095-b9c02a15ebb4"
+                }
+            }
+        }
+    },
+    "Parameters": {
+        "BucketName": {
+            "Type": "String",
+            "Description": "Enter the bucket for the stack's data"
+        },
+        "UserKeyName": {
+            "Type": "String",
+            "Description": "Name of the key pair used to connect to EC2 instances"
+        },
+        "DevName": {
+            "Type": "String",
+            "Description": "Name of the dev. Will be associated with custom metrics."
+        },
+        "WorkerCode": {
+            "Type": "String",
+            "Default": "gailin/pipeline-service.zip",
+            "Description": "S3 path to the zip file of the worker application"
+        },
+        "S3ResponseLambda": {
+            "Type": "String",
+            "Default": "gailin/watchs3.zip",
+            "Description": "The S3 path to the lambda that turns S3 PUTs into DynamoDB metadata"
+        },
+        "DynamoLambda": {
+            "Type": "String",
+            "Default": "gailin/dynamolambda.zip",
+            "Description": "The S3 path to the lambda that recieves a stream from DynamoDB and submits jobs to the queue"
+        },
+        "QueueMonitorLambda": {
+            "Type": "String",
+            "Default": "gailin/queuesizemetric.zip",
+            "Description": "The S3 path to the lambda that checks queue size and publishes to a custom CloudWatch metric"
+        }
+    },
+    "Outputs": {
+        "JobQueue": {
+            "Description": "The jobs queue for this stack. Set as env var JOB_QUEUE in EC2 instances for this stack.",
+            "Value": {
+                "Ref": "JobQueue"
+            }
+        }, 
+        "ApplicationName": {
+            "Description": "The CodeDeploy application for this stack's workers.",
+            "Value": {
+                "Ref": "WorkerApplication"
+            }
+        },
+        "DeploymentGroup": {
+            "Description": "The CodeDeploy deployment group for this stack's workers.",
+            "Value": {
+                "Ref": "WorkerDeploymentGroup"
+            }
+        }
+    }
+}

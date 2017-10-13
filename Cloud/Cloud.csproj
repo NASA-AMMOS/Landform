@@ -82,6 +82,12 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="App.config" />
+    <None Include="Infrastructure\appspec.yml" />
+    <None Include="Infrastructure\buildrelease.ps1" />
+    <None Include="Infrastructure\README.md" />
+    <None Include="Infrastructure\Scripts\appkill.ps1" />
+    <None Include="Infrastructure\Scripts\preinstall.ps1" />
+    <None Include="Infrastructure\Scripts\appstart.ps1" />
     <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup>
@@ -96,6 +102,9 @@
   </ItemGroup>
   <ItemGroup>
     <Analyzer Include="..\packages\AWSSDK.S3.3.3.6.2\analyzers\dotnet\cs\AWSSDK.S3.CodeAnalysis.dll" />
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="Infrastructure\pipeline.template" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 

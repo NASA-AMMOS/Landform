@@ -8,6 +8,7 @@ ImagingEmgu/bin/
 ImagingEmgu/obj/
 ImagingEmguTest/bin/
 ImagingEmguTest/obj/
+Cloud/Infrastructure/release/
 Pipeline/bin/
 Pipeline/obj/
 packages/

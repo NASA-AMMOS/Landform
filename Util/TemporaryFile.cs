@@ -16,7 +16,7 @@ namespace OPS.Util
         class TempFileConfig : Config
         {
             [ConfigEnvironmentVariable("LANDFORM_TEMP")]
-            public string LandformTempDir { get { return @"C:\tmp"; } set {; } } // TODO get this to actually read environmental var
+            public string LandformTempDir { get ;  set; } 
         }
 
         static string tmpDirectory = "tmp";
