@@ -35,7 +35,7 @@ namespace OPS.Geometry
     public static class EdgeCollapse
     {
         //Flag to enable checks for bad mesh topology (not geometry) in the graph structure after each collapse. Note that without preserveTopology, perimeter checks will fail, but others should succeed.
-        const bool _DEBUG = false;
+        readonly static bool _DEBUG = false;
 
         //algorithms from http://ieeexplore.ieee.org/document/6211122/?reload=true and http://hhoppe.com/newqem.pdf and https://www.cs.cmu.edu/~./garland/Papers/quadrics.pdf
         /// <summary>
@@ -277,7 +277,10 @@ namespace OPS.Geometry
                     vx.AdjacentEdges = vx.AdjacentEdges.Where(e => e.Dst != null).ToList();
                     if (e2x.Left == v1 || e2x.Left == v2)
                     {
-                        if (_DEBUG && e2x.Left == v2) { throw new Exception("Edge Left is Src"); }
+                        if (_DEBUG && e2x.Left == v2)
+                        {
+                            throw new Exception("Edge Left is Src");
+                        }
                         if (e2x.IsPerimeterEdge)
                         {
                             foreach (Edge e1x in vNew.AdjacentEdges.FindAll(e => e.Dst == e2x.Dst))

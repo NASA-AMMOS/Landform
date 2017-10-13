@@ -675,7 +675,7 @@ namespace OPS.Geometry
                 Mesh m = otherMeshes[i];
                 if(!AttributesSubsetOf(m))
                 {
-                    throw new Exception("Mesh to merge missing one or more attributes required by aggregate mesh");
+                    throw new MeshException("Mesh to merge missing one or more attributes required by aggregate mesh");
                 }
                 int vertexBaseCount = this.Vertices.Count;
                 for (int j = 0; j < m.Vertices.Count; j++)
@@ -876,7 +876,7 @@ namespace OPS.Geometry
             }
             if(axes.Count != 2)
             {
-                throw new Exception("Axis must have exactly one non-zero component");
+                throw new MeshException("Axis must have exactly one non-zero component");
             }
 
             int a1 = axes[0];
@@ -907,7 +907,6 @@ namespace OPS.Geometry
                 }
             }
             return new List<Vertex> { lowerLeft, lowerRight, upperLeft, upperRight };
-
         }
 
         /// <summary>

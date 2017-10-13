@@ -40,16 +40,28 @@ namespace OPS.Geometry
 
         public override bool Equals(object obj)
         {
-            if (obj == null || this.GetType() != obj.GetType()) return false;
+            if (obj == null || this.GetType() != obj.GetType())
+            {
+                return false;
+            }
             Edge edgeObj = (Edge)obj;
-            if (Object.ReferenceEquals(this.Src, edgeObj.Src) && Object.ReferenceEquals(this.Dst, edgeObj.Dst)) return true;
-            if (Object.ReferenceEquals(this.Src, edgeObj.Dst) && Object.ReferenceEquals(this.Dst, edgeObj.Src)) return true;
+            if (Object.ReferenceEquals(this.Src, edgeObj.Src) && Object.ReferenceEquals(this.Dst, edgeObj.Dst))
+            {
+                return true;
+            }
+            if (Object.ReferenceEquals(this.Src, edgeObj.Dst) && Object.ReferenceEquals(this.Dst, edgeObj.Src))
+            {
+                return true;
+            }
             return false;
         }
 
         public static bool operator ==(Edge lhs, Edge rhs)
         {
-            if (Object.ReferenceEquals(lhs, null)) return Object.ReferenceEquals(rhs, null);
+            if (Object.ReferenceEquals(lhs, null))
+            {
+                return Object.ReferenceEquals(rhs, null);
+            }
             return lhs.Equals(rhs);
         }
 
