@@ -345,6 +345,15 @@ namespace OPS.Geometry
             return new BarycentricPoint(s, t, this);
         }
 
+        /// <summary>
+        /// Finds the center of the triangle in barycentric coordinates and returns its position
+        /// </summary>
+        /// <returns></returns>
+        public Vector3 Barycenter()
+        {
+            double oneThird = 1.0 / 3.0;
+            return new BarycentricPoint(oneThird, oneThird, oneThird, this).Position;
+        }
         
         /// <summary>
         /// Given a uv coordinate, returns the the barycentric position if is within
@@ -405,9 +414,22 @@ namespace OPS.Geometry
 
         public static Vector3 ComputeNormal(Vector3 v0, Vector3 v1, Vector3 v2)
         {
+            Vector3 norm;
+            if (ComputeNormal(v0, v1, v2, out norm))
+            {
+                return norm;
+            }
+            else
+            {
+                throw new Exception("Normal error, Zero length face");
+            }
+        }
+
+        public static bool ComputeNormal(Vector3 v0, Vector3 v1, Vector3 v2, out Vector3 norm)
+        {
             Vector3 v1v0 = v1 - v0;
             Vector3 v2v0 = v2 - v0;
-            Vector3 norm = Vector3.Cross(v1v0, v2v0);
+            norm = Vector3.Cross(v1v0, v2v0);
             // Normalize
             if (norm.Length() > 0)
             {
@@ -415,9 +437,9 @@ namespace OPS.Geometry
             }
             else
             {
-                throw new Exception("Normal error, Zero length face");
+                return false;
             }
-            return norm;
+            return true;
         }
 
         public IEnumerable<Triangle> Clip(BoundingBox box)
@@ -436,6 +458,16 @@ namespace OPS.Geometry
                                 .SelectMany(tri => tri.Clip(new Plane(new Vector3(0, 0, 1), box.Min.Z)))
                                 .SelectMany(tri => tri.Clip(new Plane(new Vector3(0, 0, -1), -(box.Min.Z + size.Z))));
             return clipped;
+        }
+
+        /// <summary>
+        /// Returns true if this triangle intersects the given bounding box
+        /// </summary>
+        /// <param name="box"></param>
+        /// <returns></returns>
+        public bool Intersects(BoundingBox box)
+        {
+            return Clip(box).Count() > 0;
         }
     }
 }

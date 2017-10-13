@@ -59,13 +59,14 @@
     <Compile Include="FSSR.cs" />
     <Compile Include="FSSRException.cs" />
     <Compile Include="FSSRPlyWriter.cs" />
-    <Compile Include="HausdorffDistance.cs" />
+    <Compile Include="HausdorffDistanceStats.cs" />
     <Compile Include="MeshLab.cs" />
     <Compile Include="MeshLabException.cs" />
     <Compile Include="MeshLabOutputAttributes.cs" />
     <Compile Include="MeshLabRunner.cs" />
     <Compile Include="OpenInventorParser.cs" />
     <Compile Include="OpenInventorSerializer.cs" />
+    <Compile Include="PoissonReconstruction.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="UVAtlas.cs" />
   </ItemGroup>

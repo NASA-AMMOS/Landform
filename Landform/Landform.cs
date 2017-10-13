@@ -1,4 +1,4 @@
-﻿using OPS.Imaging;
+using OPS.Imaging;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -16,7 +16,7 @@ namespace Landform
     class Landform
     {
         static ILog logger = LogManager.GetLogger(typeof(Landform));
-        
+
         /// <summary>
         /// The start of everything
         /// </summary>

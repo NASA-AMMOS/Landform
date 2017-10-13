@@ -63,7 +63,11 @@
   <ItemGroup>
     <Compile Include="Geometry\BarycentricPoint.cs" />
     <Compile Include="Geometry\BoundingBoxExtensions.cs" />
-    <Compile Include="Geometry\EdgeCollapse.cs" />
+    <Compile Include="Geometry\QuadricEdgeCollapse\Edge.cs" />
+    <Compile Include="Geometry\QuadricEdgeCollapse\EdgeCollapse.cs" />
+    <Compile Include="Geometry\OctreeTriangleContent.cs" />
+    <Compile Include="Geometry\HausdorffDistance.cs" />
+    <Compile Include="Geometry\QuadricEdgeCollapse\EdgeGraph.cs" />
     <Compile Include="Geometry\OctreeNode.cs" />
     <Compile Include="Geometry\Octree.cs" />
     <Compile Include="Geometry\Face.cs" />
@@ -74,6 +78,7 @@
     <Compile Include="Geometry\SurfacePointSampler.cs" />
     <Compile Include="Geometry\Triangle.cs" />
     <Compile Include="Geometry\Vertex.cs" />
+    <Compile Include="Geometry\QuadricEdgeCollapse\VertexNode.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Scene\NodeComponent.cs" />
     <Compile Include="Scene\NodeTransform.cs" />
