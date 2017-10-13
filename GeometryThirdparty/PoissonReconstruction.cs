@@ -23,19 +23,19 @@ namespace OPS.Geometry
         {
             if (pointCloud.Vertices.Count == 0)
             {
-                throw new Exception("Empty point cloud passed into PoissonRecon");
+                throw new MeshException("Empty point cloud passed into PoissonRecon");
             }
             if (!pointCloud.HasNormals)
             {
-                throw new Exception("PoissonRecon requires normals");
+                throw new MeshException("PoissonRecon requires normals");
             }
             if (pointCloud.HasUVs)
             {
-                throw new Exception("PoissonRecon meshes cannot have uvs");
+                throw new MeshException("PoissonRecon meshes cannot have uvs");
             }
             if (pointCloud.HasColors)
             {
-                throw new Exception("PoissonRecon meshes cannot have colors");
+                throw new MeshException("PoissonRecon meshes cannot have colors");
             }
             string poissonReconExe = Path.Combine(PathHelper.GetApplicationPath(), "ExternalApps", "PoissonRecon.exe");
             Mesh result = null;
@@ -61,7 +61,7 @@ namespace OPS.Geometry
                     result = Mesh.Load(outputFile);
                     if (result.Vertices.Count == 0)
                     {
-                        throw new Exception("Failed to reconstruct mesh");
+                        throw new MeshException("Failed to reconstruct mesh");
                     }
                 });
             });
