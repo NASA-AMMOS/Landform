@@ -122,12 +122,6 @@ namespace OPS.Pipeline
                         QueueUrl = options.QueueUrl,
                         WaitTimeSeconds = (int)TimeSpan.FromSeconds(15).TotalSeconds //how long I'll wait for a message
                     };
-                    Console.WriteLine("Message to send: " + req.QueueUrl);
-                    var list = SQSClient.ListQueues(new ListQueuesRequest { }).QueueUrls;
-                    foreach (string queue in list)
-                    {
-                        Console.WriteLine(queue);
-                    }
                     ReceiveMessageResponse r = SQSClient.ReceiveMessage(req);
                     if (r.Messages.Count > 0) //we have a message
                     {
@@ -322,7 +316,7 @@ namespace OPS.Pipeline
             Mesh dst1 = FSSR.PoissonReconstruct(pc);
 
             //Collapse so we have the same num faces our children did 
-            var dst2 = EdgeCollapse.QuadricEdgeCollapse(dst1, newFaceCount, 1, notTouched: EdgeCollapse.GetCorners(dst1));
+            var dst2 = EdgeCollapse.QuadricEdgeCollapse(dst1, newFaceCount, 1);
             dst2.HasNormals = false;
 
             //Make us pretty again 
