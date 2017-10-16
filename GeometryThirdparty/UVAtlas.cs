@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using log4net;
 
 namespace OPS.Geometry
 {
@@ -11,6 +12,9 @@ namespace OPS.Geometry
     /// </summary>
     public static class UVAtlas
     {
+
+        private static readonly ILog logger = LogManager.GetLogger(typeof(UVAtlas));
+
         /// <summary>
         /// Returns a new mesh with UV's.
         /// Resulting UV coordinates will be normalized 0 - 1, and centered on pixels for an image with resolution `width` x `height`
@@ -60,8 +64,23 @@ namespace OPS.Geometry
             {
                 indices[i] = i;
             }
-
-            UVAtlasNET.UVAtlas.Atlas(outU, outV, inX, inY, inZ, nFaces, indices, maxCharts, maxStretch, gutter, width, height);
+            int maxTries = 3;
+            for (int count = 1; count <= maxTries; count++)
+            {
+                try
+                {
+                    UVAtlasNET.UVAtlas.Atlas(outU, outV, inX, inY, inZ, nFaces, indices, maxCharts, maxStretch, gutter, width, height);
+                    break;
+                }
+                catch (System.AccessViolationException e)
+                {
+                    logger.Warn(string.Format("UVAtlas error.  Retry attempt {0}/{1}", i, maxTries), e);
+                    if (i == maxTries)
+                    {
+                        throw (e);
+                    }
+                }
+            }
 
             i = 0;
             foreach (Triangle tri in triangleList)
