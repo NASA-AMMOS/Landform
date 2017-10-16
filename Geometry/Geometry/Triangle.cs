@@ -450,5 +450,42 @@ namespace OPS.Geometry
                                 .SelectMany(tri => tri.Clip(new Plane(new Vector3(0, 0, -1), -(box.Min.Z + size.Z))));
             return clipped;
         }
+
+
+        public IEnumerable<Triangle> SplitAlongPlane(Plane plane)
+        {
+            // Clip in first direction
+            foreach (var t in this.Clip(plane))
+            {
+                yield return t;
+            }
+            // Clip in other direction
+            plane.D = -plane.D;
+            plane.Normal = -plane.Normal;
+            foreach (var t in this.Clip(plane))
+            {
+                yield return t;
+            }
+        }
+
+        public IEnumerable<Triangle> Cut(BoundingBox box)
+        {
+            // This triangle does not intersect the box.  Clip nothing by returning the triangle
+            if (!this.Bounds().Intersects(box))
+            {
+                return new Triangle[] { this };
+            }
+            Vector3 size = box.Size();
+            IEnumerable<Triangle> clipped = new Triangle[] { this };
+            // Clip each triangle against each plane of the box, against both directions
+            // This will garantee we generate triangles on both sides of the box boundary with edges along the box
+            clipped = clipped.SelectMany(tri => tri.SplitAlongPlane(new Plane(new Vector3(1, 0, 0), box.Min.X)))
+                .SelectMany(tri => tri.SplitAlongPlane(new Plane(new Vector3(-1, 0, 0), -(box.Min.X + size.X))))
+                .SelectMany(tri => tri.SplitAlongPlane(new Plane(new Vector3(0, 1, 0), box.Min.Y)))
+                .SelectMany(tri => tri.SplitAlongPlane(new Plane(new Vector3(0, -1, 0), -(box.Min.Y + size.Y))))
+                .SelectMany(tri => tri.SplitAlongPlane(new Plane(new Vector3(0, 0, 1), box.Min.Z)))
+                .SelectMany(tri => tri.SplitAlongPlane(new Plane(new Vector3(0, 0, -1), -(box.Min.Z + size.Z))));
+            return clipped.Where(tri => !box.FuzzyContains(tri.Bounds()));
+        }
     }
 }

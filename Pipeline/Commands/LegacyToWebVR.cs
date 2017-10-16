@@ -11,6 +11,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using OPS.RayTrace;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -31,14 +32,20 @@ namespace OPS.Pipeline
         [Option(Required = false, Default = 4096, HelpText = "Total extent of output tiles")]
         public int OutputExtent { get; set; }
 
-        [Option(Required = false, Default = 2048, HelpText = "Maxium texture size for a tile")]
+        [Option(Required = false, Default = 2048, HelpText = "Maxium tewrxture size for a tile")]
         public int MaxTextureSize { get; set; }
 
         [Option(Required = false, Default = 2000, HelpText = "Number of allowed faces per tile")]
         public int FacesPerTile { get; set; }
 
+        [Option(Required = false, Default = null, HelpText = "If specified, this json file can specify a specific number of faces per tile")]
+        public string FaceCountFile { get; set; }
+
         [Option(Required = false, Default = true, HelpText = "Only process the inner most set of tiles")]
         public bool InnerMostTilesOnly { get; set; }
+
+        [Option(Required = false, Default = "jpg", HelpText = "Export format for textures (examples: jpg or png")]
+        public string ImageFormat { get; set; }
     }
 
     public class LegacyToWebVR
@@ -64,10 +71,123 @@ namespace OPS.Pipeline
             }
         }
 
+        public void RenderOrtho(SceneCaster sc, int imageRes, int demRes, float extent)
+        {
+            var mat = Matrix.CreateLookAt(new Vector3(0, 100, 0), new Vector3(0, 0, 0), new Vector3(0,0,1));
+            Image img = new Image(3, imageRes, imageRes);
+            var cam = new OrthographicCameraModel(mat, new Vector2(img.Width, img.Height), extent);
+            Parallel.For(0, img.Height, r => {
+                for (int c = 0; c < img.Width; c++)
+                {
+                    Ray ray = cam.ProjectRay(new Vector2(c + 0.5, r + 0.5));
+                    HitData hit = sc.Raycast(ray);
+                    if (hit != null)
+                    {
+                        var pixel = hit.Texture.UVToPixel(hit.UV.Value);
+                        img[0, r, c] = hit.Texture[0, (int) pixel.Y, (int) pixel.X];
+                        img[1, r, c] = hit.Texture[1, (int) pixel.Y, (int) pixel.X];
+                        img[2, r, c] = hit.Texture[2, (int) pixel.Y, (int) pixel.X];
+                    }
+                }
+            });
+            img.Save<byte>(Path.Combine(options.OutpitDirectory, "orthoImage.tif"));
+
+            img = new Image(1, demRes, demRes);
+            cam = new OrthographicCameraModel(mat, new Vector2(img.Width, img.Height), 40);
+            float maxDist = 0;
+            Parallel.For(0, img.Height, r =>
+            {
+                for (int c = 0; c < img.Width; c++)
+                {
+                    Ray ray = cam.ProjectRay(new Vector2(c + 0.5, r + 0.5));
+                    HitData hit = sc.Raycast(ray);
+                    if (hit != null)
+                    {
+                        var pixel = hit.Texture.UVToPixel(hit.UV.Value);
+                        img[0, r, c] = (float) hit.Distance;
+                        maxDist = Math.Max(maxDist, img[0, r, c]);
+                    }
+                }
+            });
+            Parallel.For(0, img.Height, r =>
+            {
+                for (int c = 0; c < img.Width; c++)
+                {
+                    var v = img[0, r, c];
+                    img[0, r, c] = maxDist - v;
+                }
+            });
+            img.Save<byte>(Path.Combine(options.OutpitDirectory, "orthoDEM.tif"));
+        }
+
+        void MakeOrthos(LegacyScene scene, int imageRes, int demRes, float extent)
+        {
+            SceneCaster sc = new SceneCaster();
+            foreach (var leaf in scene.TerrainRoot.Leaves())
+            {
+                var pair = leaf.GetComponent<MeshImagePair>();
+                sc.AddMesh(pair.Mesh, pair.Image, Matrix.Identity);
+            }
+            sc.Build();
+            RenderOrtho(sc, imageRes, demRes, extent);
+        }
+
+
+        class FacesPerTileFileEntry
+        {
+            public int faces = 0;
+            public List<string> ids = null;
+        }
+
+        Dictionary<string, int> ReadFacesPerTileFile(string filename)
+        {
+            var entries = JsonConvert.DeserializeObject<List<FacesPerTileFileEntry>>(File.ReadAllText(filename));
+            Dictionary<string, int> faceCounts = new Dictionary<string, int>();
+            foreach (var e in entries)
+            {
+                foreach (var id in e.ids)
+                {
+                    faceCounts.Add(id, e.faces);
+                }
+            }
+            return faceCounts;
+        }
+
+
+        void XYtoUV(double x, double y, out double u, out double v, double minDist, double maxDist, double minUvDist)
+        {
+            double baseDist = minDist;
+            double centerDist = Math.Max(Math.Abs(x), Math.Abs(y));
+
+            double maxVal =  (Math.Log(maxDist) - Math.Log(baseDist));
+            double newDist =  (Math.Log(centerDist) - Math.Log(baseDist)) / maxVal;
+            double scale = (newDist * (1 - minUvDist) + minUvDist) / centerDist;
+
+            double xp = x * scale,
+                yp = y * scale;
+
+            u = (xp + 1) / 2;
+            v = 1 - (yp + 1) / 2;
+        }
+
+
         public int Run()
         {
+
+            Dictionary<string, int> nameToFaceCount = new Dictionary<string, int>();
+            if (options.FaceCountFile != null)
+            {
+                logger.Info("Reading facecount file");
+                nameToFaceCount = ReadFacesPerTileFile(options.FaceCountFile);
+            }
             PathHelper.EnsureExists(options.OutpitDirectory);
+
+            logger.Info("Loading legacy scene");
             LegacyScene scene = new LegacyScene(options.InputDirectory, options.InputExtent);
+
+            logger.Info("Rendering Orthos");
+            MakeOrthos(scene, 4096, 1024, 20);
+
             //foreach (var leaf in scene.TerrainRoot.Leaves())
             //{
             //    var tmp = leaf.GetComponent<MeshImagePair>();
@@ -76,8 +196,8 @@ namespace OPS.Pipeline
             //    tmp.Mesh.Save(filenameRoot + ".obj", filenameRoot + ".jpg");
             //}
 
+            logger.Info("Computing new scene bounds");
             SceneNode root = new SceneNode("");
-
             double initExtent = options.OutputExtent / 2.0;
             root.Bounds = new BoundingBox(new Vector3(-initExtent, double.MinValue, -initExtent), new Vector3(initExtent, double.MaxValue, initExtent));
 
@@ -107,6 +227,71 @@ namespace OPS.Pipeline
                 }
             }
 
+            BoundingBox innerBounds = BoundingBoxExtensions.Union(innerNodes.Select(n => n.Bounds).ToList());
+            // Compute collision tile
+            {
+                logger.Info("Creating low poly collision mesh");
+                var meshes = innerNodes.SelectMany(leaf => FindOverlappingLeaves(leaf, scene.TerrainRoot)).Select(node => node.GetComponent<MeshImagePair>().Mesh).ToArray();
+                var m = Mesh.Merge(false, false, false, meshes);
+                m = MeshLab.ResampleDecimation(m, 20000, 2000);
+                m.Clean();
+                m = Mesh.Clip(m, innerBounds);
+                m.Clean();
+                SceneNode n = new SceneNode("simple");
+                n.AddComponent<MeshImagePair>(new MeshImagePair(m));
+                WriteTile(n);
+            }
+
+            // Compute background tile
+            {
+                logger.Info("Creating background tile");
+                int backgroundFaces = 32000;
+                int backgroundResolution = 512;
+                HashSet<SceneNode> outterNodes = new HashSet<SceneNode>();
+                foreach (var leaf in root.Leaves())
+                {
+                    if (!innerNodes.Contains(leaf))
+                    {
+                        var overlaps = FindOverlappingLeaves(leaf, scene.TerrainRoot);
+                        foreach (var ol in overlaps)
+                        {
+                            outterNodes.Add(ol);
+                        }
+                    }
+                }
+                
+
+                Mesh border = Mesh.Merge(outterNodes.Select(n => n.GetComponent<MeshImagePair>().Mesh).ToArray());
+                border = MeshLab.ResampleDecimation(border, backgroundFaces * 10, backgroundFaces);
+                border = Mesh.Cut(border, innerBounds);
+                border.Clean();
+
+
+                double maxDist = 0;
+                double minDist = 64;//double.MaxValue;
+                foreach (var v in border.Vertices)
+                {
+                    maxDist = Math.Max(maxDist, Math.Max(Math.Abs(v.Position.X), Math.Abs(v.Position.Z)));
+                    //minDist = Math.Min(minDist, Math.Min(Math.Abs(v.Position.X), Math.Abs(v.Position.Z)));
+                }
+                foreach (var vert in border.Vertices)
+                {
+                    double u, v;
+                    XYtoUV(vert.Position.X, vert.Position.Z, out u, out v, minDist, maxDist, 0.1);
+                    vert.UV = new Vector2(u, v);
+                }
+                border.HasUVs = true;
+                var borderImage =
+                    TextureBaker.BakeTexture(outterNodes.Select(n => n.GetComponent<MeshImagePair>()).ToArray(), border,
+                        backgroundResolution, backgroundResolution);
+                border.AddSkirt(Mesh.SkirtAxis.Y, 0.25);
+                SceneNode background = new SceneNode("background");
+                background.AddComponent<MeshImagePair>(new MeshImagePair(border, borderImage));
+                WriteTile(background);
+            }
+
+
+            logger.Info("Creating inner tile meshes");
             ConcurrentDictionary<string, TextureSize> textureSizeData = new ConcurrentDictionary<string, TextureSize>();
             IEnumerable<SceneNode> nodesToProcess = options.InnerMostTilesOnly ? innerNodes : root.Leaves();
             Parallel.ForEach(nodesToProcess, leaf =>
@@ -121,9 +306,19 @@ namespace OPS.Pipeline
  
                 var meshes = overlaps.Select(x => x.GetComponent<MeshImagePair>().Mesh).ToArray();
                 // TODO: Remove skirts
+                foreach (var mesh in meshes)
+                {
+                    mesh.RemoveSkirt(Mesh.SkirtAxis.Y);
+                }
                 var m = Mesh.Merge(meshes);
                 m.Clean();
-                m = MeshLab.ResampleDecimation(m, targetFaces: options.FacesPerTile);
+
+                int targetFaces = options.FacesPerTile;
+                if (nameToFaceCount.ContainsKey(leaf.Name))
+                {
+                    targetFaces = nameToFaceCount[leaf.Name];
+                }
+                m = MeshLab.ResampleDecimation(m, numSamples: targetFaces*10, targetFaces: targetFaces);
                 m = Mesh.Clip(m, leaf.Bounds);
                 
                 var pairs = overlaps.Select(x => x.GetComponent<MeshImagePair>());
@@ -150,10 +345,12 @@ namespace OPS.Pipeline
 
                 int textureWidth = (int)size;
                 int textureHeight = (int)size;
+
                 m = UVAtlas.Atlas(m, textureWidth, textureHeight);
                 var img = TextureBaker.BakeTexture(pairs.ToArray(), m, textureWidth, textureHeight);
 
                 // TODO: Add skirts
+                m.AddSkirt(Mesh.SkirtAxis.Y);
                 leaf.Bounds = m.Bounds();
                 // TODO: offset leaf
                 leaf.AddComponent(new MeshImagePair(m, img));
@@ -171,35 +368,37 @@ namespace OPS.Pipeline
         {
             var pair = tile.GetComponent<MeshImagePair>();
 
-            Image img = (Image) pair.Image.Clone();
+            string imgName = null;
+            TextureSize ts = new TextureSize();
             string name = Path.Combine(options.OutpitDirectory, tile.Name);
-
-
-            int baseSize = img.Width;
-            int sizeLG = Math.Min(options.MaxTextureSize, baseSize);
-            int sizeMD = Math.Min(options.MaxTextureSize / 2, baseSize);
-            int sizeSM = sizeMD / 2;
-            int sizeXSM = Math.Max(64, sizeSM / 2);
-
-            TextureSize ts = new TextureSize(sizeMD, false);
-            string imgName = name + ".jpg";
-            if (sizeLG == baseSize)
+            if (pair.Image != null)
             {
-                img.Save<byte>(name + "_lg.jpg");
-                imgName = name + "_lg.jpg";
-                ts.lg = true;
-            }
-            if (baseSize != sizeMD)
-            {
-                img = img.ResizeSimpleBicubic(sizeMD, sizeMD);
-            }
-            img.Save<byte>(name + ".jpg");
-            img = img.ResizeSimpleBicubic(sizeSM, sizeSM);
-            img.Save<byte>(name + "_sm.jpg");
-            img = img.ResizeSimpleBicubic(sizeXSM, sizeXSM);
-            img.Save<byte>(name + "_xsm.jpg");
+                Image img = (Image) pair.Image.Clone();
+                int baseSize = img.Width;
+                int sizeLG = Math.Min(options.MaxTextureSize, baseSize);
+                int sizeMD = Math.Min(options.MaxTextureSize / 2, baseSize);
+                int sizeSM = sizeMD / 2;
+                int sizeXSM = Math.Max(64, sizeSM / 2);
 
+                ts = new TextureSize(sizeMD, false);
+                imgName = name + "." + options.ImageFormat;
+                if (sizeLG == baseSize)
+                {
+                    img.Save<byte>(name + "_lg." + options.ImageFormat);
+                    imgName = name + "_lg." + options.ImageFormat;
+                    ts.lg = true;
+                }
+                if (baseSize != sizeMD)
+                {
+                    img = img.ResizeSimpleBicubic(sizeMD, sizeMD);
+                }
+                img.Save<byte>(name + "." + options.ImageFormat);
+                img = img.ResizeSimpleBicubic(sizeSM, sizeSM);
+                img.Save<byte>(name + "_sm." + options.ImageFormat);
+                img = img.ResizeSimpleBicubic(sizeXSM, sizeXSM);
+                img.Save<byte>(name + "_xsm." + options.ImageFormat);
 
+            }
             pair.Mesh.Save(name + ".obj", imgName);
             DracoSerializer.SaveMesh(pair.Mesh, name + ".drc", 12, 10, 4, compressionLevel: 5);
             return ts;
@@ -325,7 +524,9 @@ namespace OPS.Pipeline
                     {
                         var uv = m.Vertices[i].UV;
                         m.Vertices[i].UV = new Vector2(uv.X, 1.0 - uv.Y);
+                        m.Vertices[i].Normal = Vector3.Zero; // Zero out normals since sometimes they are invalid
                     }
+                    m.HasNormals = false; // Turn off normals since sometimes they are invalid
                     var node = FindOrCreateNode(id, root);
                     MeshImagePair pair = new MeshImagePair(m, img);
                     node.AddComponent(pair);
