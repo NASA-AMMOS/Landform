@@ -9,6 +9,12 @@ ImagingEmgu/obj/
 ImagingEmguTest/bin/
 ImagingEmguTest/obj/
 Cloud/Infrastructure/release/
+LambdaDynamoProcessing/bin/
+LambdaDynamoProcessing/obj/
+LambdaQueueSizeMetric/bin/
+LambdaQueueSizeMetric/obj/
+LambdaS3PutProcessing/bin/
+LambdaS3PutProcessing/obj/
 Pipeline/bin/
 Pipeline/obj/
 packages/
