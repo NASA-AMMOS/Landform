@@ -96,7 +96,7 @@ namespace OPS.Geometry
                     m.HasNormals = true;
                     if (numNorms != numVerts)
                     {
-                        throw new BOBSerializerException("Nomral count must match vertex length");
+                        throw new BOBSerializerException("Normal count must match vertex length");
                     }
                     for (int i = 0; i < m.Vertices.Count; i++)
                     {
