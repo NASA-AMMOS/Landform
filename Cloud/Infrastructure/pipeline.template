@@ -646,10 +646,6 @@
                         "Value": {
                             "Ref": "AWS::StackName"
                         }
-                    },
-                    {
-                        "Name": "PipelineType",
-                        "Value": "dev"
                     }
                 ],
                 "EvaluationPeriods": 1,
@@ -703,10 +699,6 @@
                         "Value": {
                             "Ref": "AWS::StackName"
                         }
-                    },
-                    {
-                        "Name": "PipelineType",
-                        "Value": "dev"
                     }
                 ],
                 "EvaluationPeriods": 1,
