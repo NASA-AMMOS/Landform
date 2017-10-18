@@ -14,7 +14,7 @@
     "function-memory-size" : 256,
     "function-timeout"     : 30,
     "function-handler"     : "LambdaDynamoProcessing::LambdaDynamoProcessing.Function::FunctionHandler",
-    "function-name"        : "deploy-to-me-MetadataTriggerProcessing-1C33POWLKXNXZ",
+    "function-name"        : "",
     "function-role"        : "arn:aws:iam::589270964471:role/lambda-dynamodb",
-    "environment-variables" : ""
+    "environment-variables": ""
 }

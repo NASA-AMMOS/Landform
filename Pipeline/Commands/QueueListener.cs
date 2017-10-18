@@ -29,24 +29,35 @@ namespace OPS.Pipeline
     [Verb("queuelisten", HelpText = "Listen for messages on an SQS queue")]
     public class QueueListenerOptions
     {
-        [Option(Required = false, HelpText = "Name of the aws profile to use to authenticate")]
-        public string AwsProfile { get; set; }
+    }
 
-        [Option(Required = false, HelpText = "ARN of the SNS topic to alert on failures, if desired")]
+    /// <summary>
+    /// Stack configuration specifies the other resources in this worker's stack relevant to this worker. 
+    /// For dev - set in a file in the user's home directory/.landform/pipelineworker.json
+    /// In AWS deployment, this file is created by the autoscale group configuration in UserData, executed whenever a machine starts up. 
+    /// </summary>
+    class StackConfig : Config
+    {
+        public string JobQueue { get; set; }
+        
+        public string PipelineName { get; set; }
+        
         public string FailureSns { get; set; }
 
-        [Option(Required = false, HelpText = "HTTP address of the queue")]
-        public string QueueUrl { get; set; }
+        protected override string ConfigFilename()
+        {
+            return "pipelineworker";
+        }
     }
 
     public class QueueListener
     {
-        public QueueListenerOptions options;
+        private StackConfig config;
 
-        public static IAmazonSQS SQSClient;
-        public static IAmazonS3 S3Client;
-        public static IAmazonSimpleNotificationService SNSClient;
-        public static IAmazonCloudWatch CWClient;
+        private static IAmazonSQS SQSClient;
+        private static IAmazonS3 S3Client;
+        private static IAmazonSimpleNotificationService SNSClient;
+        private static IAmazonCloudWatch CWClient;
         
         private readonly string[] EXTENSIONS = new string[3] { ".obj", ".mtl" , ".jpg"}; 
         private const int OBJ = 0; private const int MTL = 1; private const int IMG = 2; //indices of file types in extension array 
@@ -60,14 +71,9 @@ namespace OPS.Pipeline
         //timer for monitoring job 
         private System.Timers.Timer metricsTimer; 
 
-        public QueueListener(QueueListenerOptions options)
+        public QueueListener()
         {
-            this.options = options;
-            //If no queue was specified, check the env vars 
-            if (options.QueueUrl == null)
-            {
-                this.options.QueueUrl = Environment.GetEnvironmentVariable("JOB_QUEUE");
-            }
+            this.config = new StackConfig();
         }
 
         private void sendMetrics(object source, ElapsedEventArgs e)
@@ -88,8 +94,7 @@ namespace OPS.Pipeline
                     Unit = StandardUnit.Count,
                     Value = total,
                     Dimensions = new List<Dimension> {
-                        new Dimension {Name = "OwnerName", Value = Environment.GetEnvironmentVariable("PIPELINE_NAME")}, //what pipeline does this metric belong to? 
-                        new Dimension {Name = "PipelineType", Value = Environment.GetEnvironmentVariable("PIPELINE_TYPE") }, //Dev or prod pipeline? 
+                        new Dimension {Name = "OwnerName", Value = this.config.PipelineName},  
                         new Dimension {Name = "Instance", Value = EC2InstanceMetadata.InstanceId != null ? EC2InstanceMetadata.InstanceId : "dev_machine" }
                     }
                 } },
@@ -119,7 +124,7 @@ namespace OPS.Pipeline
                         AttributeNames = new List<string>() { "All" }, //metadata about recieved message - will enable some benchmarking
                         MessageAttributeNames = new List<string>() { "All" },
                         MaxNumberOfMessages = 1,
-                        QueueUrl = options.QueueUrl,
+                        QueueUrl = config.JobQueue,
                         WaitTimeSeconds = (int)TimeSpan.FromSeconds(15).TotalSeconds //how long I'll wait for a message
                     };
                     ReceiveMessageResponse r = SQSClient.ReceiveMessage(req);
@@ -145,12 +150,12 @@ namespace OPS.Pipeline
                                 + "\r\n Stack trace is: " + e.StackTrace;
                             Console.WriteLine(msg);
                             //if an SNS has been specified for failiure messages, publish there 
-                            if (options.FailureSns != null)
+                            if (config.FailureSns != null)
                             {
                                 PublishRequest notification = new PublishRequest
                                 {
                                     Message = msg,
-                                    TopicArn = options.FailureSns
+                                    TopicArn = config.FailureSns
                                 };
                                 var s = SNSClient.Publish(notification);
                                 Console.WriteLine("published " + Convert.ToString(s));
@@ -361,7 +366,7 @@ namespace OPS.Pipeline
             //message is still in queue until we tell it to delete 
             var delRequest = new DeleteMessageRequest
             {
-                QueueUrl = options.QueueUrl,
+                QueueUrl = config.JobQueue,
                 ReceiptHandle = m.ReceiptHandle
             };
 

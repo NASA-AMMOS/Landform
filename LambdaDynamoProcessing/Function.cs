@@ -118,11 +118,16 @@ namespace LambdaDynamoProcessing
                     }
                 },
                 MessageBody = "I was started by DynamoDB Stream event with ID " + id,
-                QueueUrl = Environment.GetEnvironmentVariable("SQS_URL")
+                QueueUrl = Environment.GetEnvironmentVariable("JOB_QUEUE")
             };
             SendMessageResponse response = await SQSClient.SendMessageAsync(request);
             LambdaLogger.Log("Sent message with MessageID " + response.MessageId);
-            //TODO check HTTP status code of the response 
+
+            if (response.HttpStatusCode != System.Net.HttpStatusCode.OK)
+            {
+                //Something is wrong with the connection. Quit, another lambda will try again 
+                throw new Exception("Problem sending message to SQS queue");
+            }
 
             return response.MessageId;
         }

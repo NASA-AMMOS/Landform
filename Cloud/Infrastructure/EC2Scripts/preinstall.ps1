@@ -13,11 +13,12 @@ if ($pshome -like "*syswow64*") {
   exit
 }
 
-[Environment]::SetEnvironmentVariable("PIPELINE_TYPE", "dev", "Machine")
-
 #aw geez guys
-[Environment]::SetEnvironmentVariable("JOB_QUEUE", "https://sqs.us-west-1.amazonaws.com/589270964471/deploy-to-me-JobQueue-11ZCQBIFKHEJ0", "Machine")
+#[Environment]::SetEnvironmentVariable("JOB_QUEUE", "https://sqs.us-west-1.amazonaws.com/589270964471/deploy-to-me-JobQueue-11ZCQBIFKHEJ0", "Machine")
 
 
 ## Additional environment variables PIPELINE_NAME and JOB_QUEUE are set 
 ## by the template on resource creation. You can overwrite those defaults here. 
+## You can also use the AWS CLI to connect to other amazon services here if neccecary 
+
+#Actually no you can't because CodeDeploy can't access env vars >.<

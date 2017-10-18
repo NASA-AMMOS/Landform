@@ -34,7 +34,7 @@ namespace OPS.Pipeline
                 (CralwMSLOptions opts) => new CrawlMSL(opts).Run(),
                 (ClientOptions opts) =>  new Client(opts).Run(),
                 (CheckTilesOptions opts) => new CheckTiles(opts).Run(),
-                (QueueListenerOptions opts) => new QueueListener(opts).Run(),
+                (QueueListenerOptions opts) => new QueueListener().Run(),
                 (ConvertBaselineMeshOptions opts) => new ConvertBaselineMesh(opts).Run(),
                 (ConvertBaselineMeshesOptions opts) => new ConvertBaselineMeshes(opts).Run(),
                 (TileBaselineMeshOptions opts) => new TileBaselineMesh(opts).Run(),

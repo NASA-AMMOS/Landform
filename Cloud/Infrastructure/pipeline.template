@@ -307,7 +307,9 @@
         "PipelineConfig": {
             "Type": "AWS::AutoScaling::LaunchConfiguration",
             "Properties": {
-                "ImageId": "ami-947c4cf4",
+                "ImageId": {
+                    "Ref": "AmiId"
+                },
                 "InstanceMonitoring": true,
                 "KeyName": {
                     "Ref": "UserKeyName"
@@ -323,20 +325,36 @@
                             "",
                             [
                                 "<powershell>\r\n",
+                                "#Get and start code deploy agent \r\n",
                                 "New-Item -Path c:\\temp -ItemType \"directory\" -Force;\r\n",
                                 "powershell.exe -Command Read-S3Object -BucketName aws-codedeploy-us-west-1/latest -Key codedeploy-agent.msi -File c:\\temp\\codedeploy-agent.msi;",
                                 "Start-Process -Wait -FilePath c:\\temp\\codedeploy-agent.msi -WindowStyle Hidden;",
-                                "[Environment]::SetEnvironmentVariable(\"PIPELINE_NAME\", \"",
+                                
+                                "#Get and install C++ tools distribution \r\n",
+                                "Read-S3Object -BucketName ",
                                 {
-                                    "Ref": "DevName"
+                                    "Ref": "BucketName"
                                 },
-                                "\", \"Machine\");",
-                                "[Environment]::SetEnvironmentVariable(\"JOB_QUEUE\", \"",
+                                " -Key ",
+                                {
+                                    "Ref": "CppDistResource"
+                                },
+                                " -File C:\\temp\\vc_redist.x64.exe;",
+                                "cd C:\\temp;",
+                                ".\\vc_redist.x64.exe -s -a install -eula=accept | Wait-Process;",
+                                
+                                "#Write user config file specifying stack resources \r\n",
+                                " mkdir C:\\Users\\Administrator\\.landform;",
+                                "echo `{`\"JobQueue`\":`\"",
                                 {
                                     "Ref": "JobQueue"
                                 },
-                                "\", \"Machine\");",
-                                "</powershell>\r\n<persist>true</persist>"
+                                "`\"`,`\"PipelineName`\":`\"",
+                                {
+                                    "Ref": "AWS::StackName"
+                                },
+                                "`\"`} > C:\\Users\\Administrator\\.landform\\pipelineworker.json",
+                                "</powershell>"
                             ]
                         ]
                     }
@@ -367,7 +385,7 @@
                         }
                     }
                 },
-                "Handler": "AWSLambda7::AWSLambda7.Function::FunctionHandler",
+                "Handler": "LambdaS3PutProcessing::LambdaS3PutProcessing.Function::FunctionHandler",
                 "Role": "arn:aws:iam::589270964471:role/lambda-dynamodb",
                 "Runtime": "dotnetcore1.0",
                 "Timeout": 30
@@ -439,12 +457,12 @@
                 "Description": "Listens to Dynamo stream and submitts messages to SQS",
                 "Environment": {
                     "Variables": {
-                        "SQS_URL": {
+                        "JOB_QUEUE": {
                             "Ref": "JobQueue"
                         }
                     }
                 },
-                "Handler": "AWSLambda1::AWSLambda1.Function::FunctionHandler",
+                "Handler": "LambdaDynamoProcessing::LambdaDynamoProcessing.Function::FunctionHandler",
                 "Role": "arn:aws:iam::589270964471:role/lambda-dynamodb",
                 "Runtime": "dotnetcore1.0",
                 "Timeout": 30
@@ -505,16 +523,15 @@
                 "Description": "Loggs approximate queue size to CloudWatch on 1-minute intervals",
                 "Environment": {
                     "Variables": {
-                        "SQS_URL": {
+                        "JOB_QUEUE": {
                             "Ref": "JobQueue"
                         },
-                        "PIPELINE_TYPE": "dev",
                         "PIPELINE_NAME": {
-                            "Ref": "DevName"
+                            "Ref": "AWS::StackName"
                         }
                     }
                 },
-                "Handler": "QueueSizeMetric::QueueSizeMetric.Function::FunctionHandler",
+                "Handler": "LambdaQueueSizeMetric::LambdaQueueSizeMetric.Function::FunctionHandler",
                 "Role": "arn:aws:iam::589270964471:role/lambda-dynamodb",
                 "Runtime": "dotnetcore1.0",
                 "Timeout": 30
@@ -617,7 +634,7 @@
                     {
                         "Name": "OwnerName",
                         "Value": {
-                            "Ref": "DevName"
+                            "Ref": "AWS::StackName"
                         }
                     },
                     {
@@ -674,7 +691,7 @@
                     {
                         "Name": "OwnerName",
                         "Value": {
-                            "Ref": "DevName"
+                            "Ref": "AWS::StackName"
                         }
                     },
                     {
@@ -734,28 +751,29 @@
             "Type": "String",
             "Description": "Name of the key pair used to connect to EC2 instances"
         },
-        "DevName": {
+        "AmiId": {
             "Type": "String",
-            "Description": "Name of the dev. Will be associated with custom metrics."
-        },
-        "WorkerCode": {
-            "Type": "String",
-            "Default": "gailin/pipeline-service.zip",
-            "Description": "S3 path to the zip file of the worker application"
+            "Default": "ami-32320452",
+            "Description": "AMI ID. Should be the newest version windows base provided by Amazon. Update whenever a new version is availible."
         },
         "S3ResponseLambda": {
             "Type": "String",
-            "Default": "gailin/watchs3.zip",
+            "Default": "pipeline_resources/LambdaS3PutProcessing.zip",
             "Description": "The S3 path to the lambda that turns S3 PUTs into DynamoDB metadata"
+        },
+        "CppDistResource": {
+            "Type": "String",
+            "Default": "pipeline_resources/vc_redist.x64.exe",
+            "Description": "The S3 path to the executable for C++ resources. Executable originally from https://www.microsoft.com/en-us/search/result.aspx?q=Microsoft+Visual+C%2B%2B+Redistributable"
         },
         "DynamoLambda": {
             "Type": "String",
-            "Default": "gailin/dynamolambda.zip",
+            "Default": "pipeline_resources/LambdaDynamoProcessing.zip",
             "Description": "The S3 path to the lambda that recieves a stream from DynamoDB and submits jobs to the queue"
         },
         "QueueMonitorLambda": {
             "Type": "String",
-            "Default": "gailin/queuesizemetric.zip",
+            "Default": "pipeline_resources/LambdaQueueSizeMetric.zip",
             "Description": "The S3 path to the lambda that checks queue size and publishes to a custom CloudWatch metric"
         }
     },
@@ -765,7 +783,7 @@
             "Value": {
                 "Ref": "JobQueue"
             }
-        }, 
+        },
         "ApplicationName": {
             "Description": "The CodeDeploy application for this stack's workers.",
             "Value": {

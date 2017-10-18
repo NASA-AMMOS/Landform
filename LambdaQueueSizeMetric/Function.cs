@@ -39,7 +39,7 @@ namespace LambdaQueueSizeMetric
             //get queue size 
             var response = await SQSClient.GetQueueAttributesAsync(new GetQueueAttributesRequest
             {
-                QueueUrl = Environment.GetEnvironmentVariable("SQS_URL"),
+                QueueUrl = Environment.GetEnvironmentVariable("JOB_QUEUE"),
                 AttributeNames = new List<string>() { "ApproximateNumberOfMessages" }
             });
 
@@ -53,7 +53,6 @@ namespace LambdaQueueSizeMetric
                     Value = response.ApproximateNumberOfMessages,
                     Dimensions = new List<Dimension> {
                         new Dimension {Name = "OwnerName", Value = Environment.GetEnvironmentVariable("PIPELINE_NAME")}, //what pipeline does this metric belong to? 
-                        new Dimension {Name = "PipelineType", Value = Environment.GetEnvironmentVariable("PIPELINE_TYPE") } //Dev or prod pipeline? 
                     }
                 } },
                 Namespace = "Pipeline"

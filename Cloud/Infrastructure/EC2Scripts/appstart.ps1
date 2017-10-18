@@ -13,7 +13,9 @@ if ($pshome -like "*syswow64*") {
   exit
 }
 
+#I better be able to see this 
+cat C:\Users\Administrator\.landform\pipelineworker.json
 
+#start the app
 cd C:\Users\Administrator\Landform\Source
-echo $env:JOB_QUEUE
-.\Landform.exe queuelisten
+Start-Process Landform.exe queuelisten # try with -WindowStyle Hidden

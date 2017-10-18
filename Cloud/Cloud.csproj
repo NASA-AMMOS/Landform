@@ -83,11 +83,12 @@
   <ItemGroup>
     <None Include="App.config" />
     <None Include="Infrastructure\appspec.yml" />
-    <None Include="Infrastructure\buildrelease.ps1" />
+    <None Include="Infrastructure\deploylandform.ps1" />
+    <None Include="Infrastructure\deploylambdas.ps1" />
     <None Include="Infrastructure\README.md" />
-    <None Include="Infrastructure\Scripts\appkill.ps1" />
-    <None Include="Infrastructure\Scripts\preinstall.ps1" />
-    <None Include="Infrastructure\Scripts\appstart.ps1" />
+    <None Include="Infrastructure\EC2Scripts\appkill.ps1" />
+    <None Include="Infrastructure\EC2Scripts\preinstall.ps1" />
+    <None Include="Infrastructure\EC2Scripts\appstart.ps1" />
     <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup>
