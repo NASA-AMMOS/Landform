@@ -8,19 +8,22 @@ using Amazon.Lambda.S3Events;
 using Amazon.S3;
 using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.DocumentModel;
+using Amazon.DynamoDBv2.DataModel;
+
+using Lambda.LambdaUtil;
 
 // Assembly attribute to enable the Lambda function's JSON input to be converted into a .NET class.
 [assembly: LambdaSerializer(typeof(Amazon.Lambda.Serialization.Json.JsonSerializer))]
 
-namespace LambdaS3PutProcessing
+namespace Lambda.LambdaS3PutProcessing
 {
     //This uploads metadata to dynamoDB
     public class Function
     {
         private const string DB_PRIMARY_KEY = "mesh_name";
 
-        IAmazonS3 S3Client { get; set; }
-        Table table { get; set; }
+        private IAmazonS3 S3Client { get; set; }
+        private IAmazonDynamoDB DBClient { get; set; }
 
         /// <summary>
         /// Default constructor. This constructor is used by Lambda to construct the instance. When invoked in a Lambda environment
@@ -30,6 +33,7 @@ namespace LambdaS3PutProcessing
         public Function()
         {
             S3Client = new AmazonS3Client();
+            DBClient = new AmazonDynamoDBClient();
         }
 
         /// <summary>
@@ -48,7 +52,7 @@ namespace LambdaS3PutProcessing
         /// <param name="evnt"></param>
         /// <param name="context"></param>
         /// <returns></returns>
-        public async Task<string> FunctionHandler(S3Event evnt, ILambdaContext context) //TODO return type?? 
+        public async Task<string> FunctionHandler(S3Event evnt, ILambdaContext context) 
         {
             var s3Event = evnt.Records?[0].S3;
             if (s3Event == null)
@@ -68,7 +72,6 @@ namespace LambdaS3PutProcessing
             {
                 return "I only like object files";
             }
-
 
             Table table = GetTableObject(Environment.GetEnvironmentVariable("DB_NAME"));
             if (table == null)

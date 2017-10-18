@@ -85,6 +85,7 @@
     <None Include="Infrastructure\appspec.yml" />
     <None Include="Infrastructure\deploylandform.ps1" />
     <None Include="Infrastructure\deploylambdas.ps1" />
+    <None Include="Infrastructure\deploystack.ps1" />
     <None Include="Infrastructure\README.md" />
     <None Include="Infrastructure\EC2Scripts\appkill.ps1" />
     <None Include="Infrastructure\EC2Scripts\preinstall.ps1" />

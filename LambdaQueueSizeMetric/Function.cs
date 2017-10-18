@@ -12,8 +12,12 @@ using Amazon.SQS.Model;
 // Assembly attribute to enable the Lambda function's JSON input to be converted into a .NET class.
 [assembly: LambdaSerializer(typeof(Amazon.Lambda.Serialization.Json.JsonSerializer))]
 
-namespace LambdaQueueSizeMetric
+namespace Lambda.LambdaQueueSizeMetric
 {
+    /// <summary>
+    /// Class for (potentially multiple) calls of this lambda handler. 
+    /// Note: changing the class name requires changing the lambda handler in pipeline.template 
+    /// </summary>
     public class Function
     {
         IAmazonCloudWatch CWClient;
@@ -21,6 +25,7 @@ namespace LambdaQueueSizeMetric
 
         /// <summary>
         /// Constructor for a lambda instance. Multiple handler calls may reuse this. 
+        /// 
         /// </summary>
         public Function()
         {
@@ -30,6 +35,7 @@ namespace LambdaQueueSizeMetric
 
         /// <summary>
         /// Get queue size and write it to a cloudwatch metric. 
+        /// Note: Changing the function name requires changing the labda handler in pipeline.template
         /// </summary>
         /// <param name="input"></param>
         /// <param name="context"></param>

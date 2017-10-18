@@ -15,8 +15,8 @@
         "version": "1.8.0"
     },
     "AWSSDK.DynamoDBv2": "3.3.4.18",
-    "Amazon.Lambda.S3Events": "1.0.1"
-  },
+    "Amazon.Lambda.S3Events": "1.0.1",
+    "LambdaUtil": "1.0.0-*"  },
 
   "tools": {
     "Amazon.Lambda.Tools" : "1.8.0"

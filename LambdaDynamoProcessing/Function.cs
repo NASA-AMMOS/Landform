@@ -12,40 +12,13 @@ using Amazon.SQS;
 using Amazon.SQS.Model;
 using Amazon.DynamoDBv2.Model;
 
+using Lambda.LambdaUtil; 
+
 // Assembly attribute to enable the Lambda function's JSON input to be converted into a .NET class.
 [assembly: LambdaSerializer(typeof(Amazon.Lambda.Serialization.Json.JsonSerializer))]
 
-namespace LambdaDynamoProcessing
+namespace Lambda.LambdaDynamoProcessing
 {
-
-    //Object types for deserializing Dynamo stream JSON 
-    public class Record
-    {
-        public Keys keys;
-        public Image NewImage;
-        public Image OldImage;
-    }
-
-    public class Image
-    {
-        public Value mesh_name;
-        public Value bucket;
-        public Value child0;
-        public Value child1;
-        public Value child2;
-        public Value child3;
-    }
-
-    public class Keys
-    {
-        public Value mesh_name;
-    }
-
-    public class Value
-    {
-        public string S; //string value of a field
-    }
-
     //This class processes dynamoDB records. 
     public class Function
     {
@@ -75,19 +48,14 @@ namespace LambdaDynamoProcessing
                 context.Logger.LogLine($"DynamoDB Record:");
                 context.Logger.LogLine(streamRecordJson);
 
-                //Get civilized and actually deserialize this json 
-                Record recordObj = new Record();
-                JsonSerializer serializer = new JsonSerializer();
-                serializer.Populate(new JsonTextReader(new StringReader(streamRecordJson)), recordObj);
-
-                context.Logger.LogLine(recordObj.NewImage.mesh_name.S);
+                context.Logger.LogLine(record.Dynamodb.NewImage[TableNames.PARENT_MESH_ID_FIELD].S);
 
                 //check if each child is in this update 
-                if (recordObj.NewImage.child0 != null && recordObj.NewImage.child1 != null &&
-                    recordObj.NewImage.child2 != null && recordObj.NewImage.child3 != null)
+                if (record.Dynamodb.NewImage.ContainsKey(TableNames.CHILD0) && record.Dynamodb.NewImage.ContainsKey(TableNames.CHILD1) &&
+                    record.Dynamodb.NewImage.ContainsKey(TableNames.CHILD2) && record.Dynamodb.NewImage.ContainsKey(TableNames.CHILD3))
                 {
                     context.Logger.LogLine("Ready to create parent");
-                    await sendMessage(recordObj.NewImage.bucket.S, recordObj.keys.mesh_name.S, record.EventID);
+                    await sendMessage(record.Dynamodb.NewImage[TableNames.BUCKET].S, record.Dynamodb.NewImage[TableNames.PARENT_MESH_ID_FIELD].S, record.EventID);
                 }
             }
 

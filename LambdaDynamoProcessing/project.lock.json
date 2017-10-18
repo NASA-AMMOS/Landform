@@ -2314,6 +2314,20 @@
         "runtime": {
           "lib/netstandard1.3/YamlDotNet.dll": {}
         }
+      },
+      "LambdaUtil/1.0.0": {
+        "type": "project",
+        "framework": ".NETStandard,Version=v1.6",
+        "dependencies": {
+          "AWSSDK.DynamoDBv2": "3.3.4.18",
+          "NETStandard.Library": "1.6.0"
+        },
+        "compile": {
+          "netstandard1.6/LambdaUtil.dll": {}
+        },
+        "runtime": {
+          "netstandard1.6/LambdaUtil.dll": {}
+        }
       }
     }
   },
@@ -7302,6 +7316,11 @@
         "lib/portable-net45+netcore45+wpa81+wp8+MonoAndroid1+MonoTouch1/YamlDotNet.dll",
         "lib/portable-net45+netcore45+wpa81+wp8+MonoAndroid1+MonoTouch1/YamlDotNet.xml"
       ]
+    },
+    "LambdaUtil/1.0.0": {
+      "type": "project",
+      "path": "../LambdaUtil/project.json",
+      "msbuildProject": "../LambdaUtil/LambdaUtil.xproj"
     }
   },
   "projectFileDependencyGroups": {
@@ -7312,6 +7331,7 @@
       "Amazon.Lambda.DynamoDBEvents >= 1.0.1",
       "Amazon.Lambda.Serialization.Json >= 1.1.0",
       "Amazon.Lambda.Tools >= 1.8.0",
+      "LambdaUtil >= 1.0.0-*",
       "Microsoft.NETCore.App >= 1.0.0",
       "Newtonsoft.Json >= 9.0.1"
     ],

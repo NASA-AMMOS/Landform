@@ -13,7 +13,7 @@
     "function-runtime" : "dotnetcore1.0",
     "function-memory-size" : 256,
     "function-timeout"     : 30,
-    "function-handler"     : "LambdaS3PutProcessing::LambdaS3PutProcessing.Function::FunctionHandler",
+    "function-handler"     : "LambdaS3PutProcessing::Lambda.LambdaS3PutProcessing.Function::FunctionHandler",
     "function-name"        : "",
     "function-role"        : "arn:aws:iam::589270964471:role/lambda-dynamodb",
     "environment-variables" : ""

@@ -395,7 +395,7 @@
                         }
                     }
                 },
-                "Handler": "LambdaS3PutProcessing::LambdaS3PutProcessing.Function::FunctionHandler",
+                "Handler": "LambdaS3PutProcessing::Lambda.LambdaS3PutProcessing.Function::FunctionHandler",
                 "Role": "arn:aws:iam::589270964471:role/lambda-dynamodb",
                 "Runtime": "dotnetcore1.0",
                 "Timeout": 30
@@ -472,7 +472,7 @@
                         }
                     }
                 },
-                "Handler": "LambdaDynamoProcessing::LambdaDynamoProcessing.Function::FunctionHandler",
+                "Handler": "LambdaDynamoProcessing::Lambda.LambdaDynamoProcessing.Function::FunctionHandler",
                 "Role": "arn:aws:iam::589270964471:role/lambda-dynamodb",
                 "Runtime": "dotnetcore1.0",
                 "Timeout": 30
@@ -541,7 +541,7 @@
                         }
                     }
                 },
-                "Handler": "LambdaQueueSizeMetric::LambdaQueueSizeMetric.Function::FunctionHandler",
+                "Handler": "LambdaQueueSizeMetric::Lambda.LambdaQueueSizeMetric.Function::FunctionHandler",
                 "Role": "arn:aws:iam::589270964471:role/lambda-dynamodb",
                 "Runtime": "dotnetcore1.0",
                 "Timeout": 30
