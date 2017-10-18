@@ -343,7 +343,7 @@
                                 "cd C:\\temp;",
                                 ".\\vc_redist.x64.exe -s -a install -eula=accept | Wait-Process;",
                                 
-                                "#Write user config file specifying stack resources \r\n",
+                                "#Write user config file specifying stack resources. If dev connects and runs, we need it in Administrator/, for CodeDeploy script, need in system32/ \r\n",
                                 " mkdir C:\\Users\\Administrator\\.landform;",
                                 "echo `{`\"JobQueue`\":`\"",
                                 {
@@ -353,7 +353,17 @@
                                 {
                                     "Ref": "AWS::StackName"
                                 },
-                                "`\"`} > C:\\Users\\Administrator\\.landform\\pipelineworker.json",
+                                "`\"`} > C:\\Users\\Administrator\\.landform\\pipelineworker.json;",
+                                " mkdir C:\\Windows\\system32\\config\\systemprofile\\.landform;",
+                                "echo `{`\"JobQueue`\":`\"",
+                                {
+                                    "Ref": "JobQueue"
+                                },
+                                "`\"`,`\"PipelineName`\":`\"",
+                                {
+                                    "Ref": "AWS::StackName"
+                                },
+                                "`\"`} > C:\\Windows\\system32\\config\\systemprofile\\.landform\\pipelineworker.json",
                                 "</powershell>"
                             ]
                         ]

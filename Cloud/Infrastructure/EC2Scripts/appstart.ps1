@@ -18,4 +18,4 @@ cat C:\Users\Administrator\.landform\pipelineworker.json
 
 #start the app
 cd C:\Users\Administrator\Landform\Source
-Start-Process Landform.exe queuelisten # try with -WindowStyle Hidden
+Start-Process Landform.exe queuelisten  -WindowStyle Hidden

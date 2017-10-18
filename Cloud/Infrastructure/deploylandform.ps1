@@ -1,17 +1,19 @@
 ﻿###############################
-## Deploys current release build of landform to specified Application/Deployment Group
+## Deploys current release build of landform to Application/Deployment Group for user-specified stack
+## Assumes a dev stack. S3 upload paths should change for prod
 ## (does not build project) 
 ###############################
 
 #name of stack 
 param([Parameter(Mandatory=$true)][System.String]$StackName)
 
-$UploadKey = "gailin/landform-cd.zip"
+#Where to put code deploy resources in S3. Change as needed
+$UploadKey = "pipeline_resources/landform-cd-$StackName.zip"
 $UploadBucket = "landlords-dev"
 $UploadLocation = "s3://$UploadBucket/$UploadKey"
 
 
-#logical id for deployment infrastructure within stack 
+#logical ids for deployment infrastructure within stack (as defined in cloud formation template)
 $WorkerApplicationResource = "WorkerApplication"
 $WorkerDeploymentGroupResource = "WorkerDeploymentGroup"
 
