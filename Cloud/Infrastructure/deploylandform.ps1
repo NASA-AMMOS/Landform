@@ -2,6 +2,8 @@
 ## Deploys current release build of landform to Application/Deployment Group for user-specified stack
 ## Assumes a dev stack. S3 upload paths should change for prod
 ## (does not build project) 
+## Note: If you have RPCed into a worker and started landform yourself, this will *fail*. 
+##       Either terminate that instance or manually kill the Landform you started
 ###############################
 
 #name of stack 
@@ -44,7 +46,6 @@ Write-Host ".....Copying files to release folder"
 Copy-Item -Recurse ..\..\..\Landform\bin\Release\* Source
 
 #copy scripts. 
-#NOTE: CodeDeploy only executes powershell scripts in the root directory of the release (the directory containing appspec)
 Copy-Item -Recurse ..\EC2Scripts\* .
 
 #copy yaml 

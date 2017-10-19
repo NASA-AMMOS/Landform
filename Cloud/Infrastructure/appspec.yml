@@ -29,6 +29,8 @@ files:
     destination: c:\Users\Administrator\Landform
   - source: preinstall.ps1
     destination: c:\Users\Administrator\Landform      
+  - source: appvalidate.ps1
+    destination: c:\Users\Administrator\Landform
 
 # If you are not running any commands on the Amazon EC2 instance, then remove 
 #   the "hooks" section altogether. A blank or incomplete "hooks" section
@@ -70,4 +72,9 @@ hooks:
 #   TODO this should not timeout? 
   ApplicationStart:
     - location: .\appstart.ps1
-      timeout: 3600 
+      timeout: 120
+# During the ValidateService deployment lifecycle event, run the commands 
+#   in the script specified in "location".
+  ValidateService: 
+    - location: .\appvalidate.ps1
+      timeout: 120 
