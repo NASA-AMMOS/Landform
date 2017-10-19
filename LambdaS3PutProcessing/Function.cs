@@ -8,6 +8,7 @@ using Amazon.Lambda.S3Events;
 using Amazon.S3;
 using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.DocumentModel;
+using Amazon.DynamoDBv2.Model;
 using Amazon.DynamoDBv2.DataModel;
 
 using Lambda.LambdaUtil;
@@ -73,6 +74,50 @@ namespace Lambda.LambdaS3PutProcessing
                 return "I only like object files";
             }
 
+            //in a world where no one supports .net ... 
+            //Using low-level API to get access to ADD operations 
+            // TODO I can't find documentation on concurrent ADD operations. I *assume* it's ok??? 
+
+            // Define item key
+            //  Hash-key of the target item is string value "Mark Twain"
+            //  Range-key of the target item is string value "The Adventures of Tom Sawyer"
+            Dictionary<string, AttributeValue> primarykey = new Dictionary<string, AttributeValue>
+            {
+                { TableNames.PARENT_MESH_ID_FIELD, new AttributeValue { S = prefix } }
+            };
+            // Define attribute updates
+            Dictionary< string, AttributeValueUpdate > updates = new Dictionary<string, AttributeValueUpdate> ();
+            
+            // For now hard code a size of 4 here 
+            updates[TableNames.NUM_CHILDREN] = new AttributeValueUpdate()
+            {
+                Action = AttributeAction.PUT,
+                Value = new AttributeValue { N = TableNames.HARDCODED_4 }
+            };
+            //update children map 
+            updates[TableNames.CHILDREN] = new AttributeValueUpdate()
+            {
+                Action = AttributeAction.ADD,
+                Value = new AttributeValue { SS = new List<string>() { key } }
+            };
+            //update bucket
+            updates[TableNames.BUCKET] = new AttributeValueUpdate()
+            {
+                Action = AttributeAction.PUT,
+                Value = new AttributeValue { S = bucket }
+            };
+
+            // Create UpdateItem request
+            UpdateItemRequest request = new UpdateItemRequest
+            {
+                TableName = Environment.GetEnvironmentVariable("DB_NAME"),
+                Key = primarykey,
+                AttributeUpdates = updates
+            };
+
+            await DBClient.UpdateItemAsync(request);
+
+            /*  
             Table table = GetTableObject(Environment.GetEnvironmentVariable("DB_NAME"));
             if (table == null)
             {
@@ -94,6 +139,7 @@ namespace Lambda.LambdaS3PutProcessing
             {
                 LambdaLogger.Log("\n Error: Table.PutItem failed because: " + ex.Message);
             }
+            */
             return "success";
         }
 

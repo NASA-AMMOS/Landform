@@ -61,7 +61,6 @@ namespace OPS.Pipeline
         
         private readonly string[] EXTENSIONS = new string[3] { ".obj", ".mtl" , ".jpg"}; 
         private const int OBJ = 0; private const int MTL = 1; private const int IMG = 2; //indices of file types in extension array 
-        private readonly int[] INDICES = new int[] { 0, 1, 2, 3 };
 
         //monitoring counts 
         private int messagesRecieved = 0;
@@ -172,7 +171,8 @@ namespace OPS.Pipeline
         private int processMessage(Message m)
         {
             //ParentPath is currently the path, including bucket, to the s3 resource that the parent WILL be; minus endings 
-            string s3url = "s3://" + m.MessageAttributes["ParentPath"].StringValue; 
+            string s3url = "s3://" + m.MessageAttributes["ParentPath"].StringValue;
+            int numChildren = Convert.ToInt32(m.MessageAttributes["NumChildren"].StringValue);
 
             //run a lil image pipeline 
 
@@ -180,10 +180,11 @@ namespace OPS.Pipeline
             int height = 512;
 
             //Download files 
-            MeshImagePair[] meshes = new MeshImagePair[4];
+            MeshImagePair[] meshes = new MeshImagePair[numChildren];
+            Mesh[] justmesh = new Mesh[numChildren];
             StorageHelper storage = new StorageHelper();
             int newFaceCount = 0;
-            foreach (int index in INDICES)
+            for (int index = 0; index < numChildren; index++)
             {
                 //GOD KNOWS WHY but this doesn't break very often, so using this while working on AWS resources
                 //Frequency of breakage: a few in a thousand 
@@ -194,6 +195,7 @@ namespace OPS.Pipeline
                 storage.DownloadFile(s3url + Convert.ToString(index) + EXTENSIONS[IMG], root + EXTENSIONS[IMG]);
 
                 meshes[index] = new MeshImagePair(Mesh.Load(root + EXTENSIONS[OBJ]), Image.Load(root + EXTENSIONS[IMG]));
+                justmesh[index] = meshes[index].Mesh;
                 newFaceCount += meshes[index].Mesh.Faces.Count;
 
                 if (File.Exists(root + EXTENSIONS[OBJ]))
@@ -303,10 +305,10 @@ namespace OPS.Pipeline
                 newFaceCount += meshes[index].Mesh.Faces.Count;
                 */
             }
-            newFaceCount = Convert.ToInt32(newFaceCount / 4.0);
+            newFaceCount = Convert.ToInt32(newFaceCount / Convert.ToDouble(numChildren));
 
             //Merge the meshes 
-            Mesh dst = Mesh.Merge(meshes[0].Mesh, meshes[1].Mesh, meshes[2].Mesh, meshes[3].Mesh);
+            Mesh dst = Mesh.Merge(justmesh);
 
             //Recompute normals 
             //dst.GenerateVertexNormals();

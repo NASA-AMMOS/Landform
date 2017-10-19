@@ -50,12 +50,18 @@ namespace Lambda.LambdaDynamoProcessing
 
                 context.Logger.LogLine(record.Dynamodb.NewImage[TableNames.PARENT_MESH_ID_FIELD].S);
 
+                //check the length of the children list in this update 
+                //Dictionary<string, AttributeValue> childmap = record.Dynamodb.NewImage[TableNames.CHILDREN].M;
+
+
                 //check if each child is in this update 
-                if (record.Dynamodb.NewImage.ContainsKey(TableNames.CHILD0) && record.Dynamodb.NewImage.ContainsKey(TableNames.CHILD1) &&
-                    record.Dynamodb.NewImage.ContainsKey(TableNames.CHILD2) && record.Dynamodb.NewImage.ContainsKey(TableNames.CHILD3))
+                if (record.Dynamodb.NewImage.ContainsKey(TableNames.CHILDREN) &&
+                    record.Dynamodb.NewImage.ContainsKey(TableNames.NUM_CHILDREN) &&
+                    record.Dynamodb.NewImage[TableNames.CHILDREN].SS.Count == Convert.ToInt32(record.Dynamodb.NewImage[TableNames.NUM_CHILDREN].N))
                 {
                     context.Logger.LogLine("Ready to create parent");
-                    await sendMessage(record.Dynamodb.NewImage[TableNames.BUCKET].S, record.Dynamodb.NewImage[TableNames.PARENT_MESH_ID_FIELD].S, record.EventID);
+                    await sendMessage(record.Dynamodb.NewImage[TableNames.BUCKET].S, record.Dynamodb.NewImage[TableNames.PARENT_MESH_ID_FIELD].S,
+                        record.Dynamodb.NewImage[TableNames.NUM_CHILDREN].N, record.EventID);
                 }
             }
 
@@ -73,7 +79,7 @@ namespace Lambda.LambdaDynamoProcessing
         }
 
         //Add this tile processing request to the queue with this prefix
-        private async Task<string> sendMessage(string bucket, string parentPath, string id)
+        private async Task<string> sendMessage(string bucket, string parentPath, string numChildren, string id)
         {
             SendMessageRequest request = new SendMessageRequest
             {
@@ -83,6 +89,10 @@ namespace Lambda.LambdaDynamoProcessing
                     {
                     "ParentPath", new MessageAttributeValue
                     {DataType = "String", StringValue = bucket + "/" + parentPath }
+                    },
+                    {
+                    "NumChildren", new MessageAttributeValue 
+                    {DataType = "String", StringValue = numChildren } //No data types other than string currently supported
                     }
                 },
                 MessageBody = "I was started by DynamoDB Stream event with ID " + id,

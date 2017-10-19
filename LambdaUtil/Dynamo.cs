@@ -16,14 +16,12 @@ namespace Lambda.LambdaUtil
     public class TableNames
     {
         public const string PARENT_MESH_ID_FIELD = "mesh_name";
-        public const string CHILDREN_FIELD = "children";
+        public const string CHILDREN = "children"; //a map from childId -> 0. Eventually map to version #
         public const string BUCKET = "bucket";
+        public const string NUM_CHILDREN = "numchildren";
 
-        //TODO depreciate me 
-        public const string CHILD0 = "child0";
-        public const string CHILD1 = "child1";
-        public const string CHILD2 = "child2";
-        public const string CHILD3 = "child3";
+        //As a reminder to stop hardcoding this in the near future... 
+        public const string HARDCODED_4 = "4";
     }
     
 }
