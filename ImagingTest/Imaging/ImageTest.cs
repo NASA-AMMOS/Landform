@@ -212,6 +212,25 @@ namespace ImageTest
 
         [TestMethod]
         [DeploymentItem("TestData", "TestData")]
+        public void TestImageResizeResampling()
+        {
+
+            Image img = Image.Load(Path.Combine("TestData", "img", "testPattern.png"));
+            Image smaller = img.Resize(64, 64);
+            Assert.AreEqual(64, smaller.Width);
+            Assert.AreEqual(64, smaller.Height);
+            smaller.Save<byte>("testPatternSmall.png");
+            Image bigger = img.Resize(1200, 1401);
+            Assert.AreEqual(1200, bigger.Width);
+            Assert.AreEqual(1401, bigger.Height);
+            bigger.Save<byte>("testPatternBigger.png");
+
+
+        }
+
+
+        [TestMethod]
+        [DeploymentItem("TestData", "TestData")]
         public void TestImageBlur()
         {
             Image orig = Image.Load(Path.Combine("TestData", "img", "testPattern.png"));
