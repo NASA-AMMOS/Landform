@@ -13,16 +13,14 @@ if ($pshome -like "*syswow64*") {
   exit
 }
 
-$ErrorActionPreference = ‘Stop’ #fail on all errors 
+#$ErrorActionPreference = ‘Stop’ #fail on all errors 
 
 #wait a sec 
 Start-Sleep -s 10
 
 #make sure that landform is running 
 if((get-process "landform") -eq $Null){ 
-        #echo "geez" > c:\\Users\\Administrator\\Desktop\\ohgosh.txt
-        throw "landform not running" 
-        echo "still here"
-        #exit 1&
+        echo "landform not running, exiting with 1" > c:\\Users\\Administrator\\Desktop\\shouldfail2.txt
+        exit(1)
 }
 

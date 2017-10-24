@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System.Diagnostics;
 using OPS.Cloud;
 using CommandLine;
 using Amazon.StepFunctions;
@@ -14,8 +15,6 @@ using System.IO;
 using OPS.Geometry;
 using OPS.Imaging;
 using OPS.Util;
-using Amazon.DynamoDBv2.DocumentModel;
-using Amazon.DynamoDBv2;
 
 
 /// <summary>
@@ -38,6 +37,10 @@ namespace OPS.Pipeline
         private const int OBJ = 0; private const int MTL = 1; private const int IMG = 2; //indices of file types in extension array 
         private readonly int[] INDICES = new int[] { 0, 1, 2, 3 };
 
+        private const string PROJECT = "pasta";
+        private const string FRAME = "spagetti";
+        private const string OBSERVATION = "lasangia"; 
+
         public ClientOptions options;
 
         public Client(ClientOptions options)
@@ -47,127 +50,69 @@ namespace OPS.Pipeline
 
         public int Run()
         {
-            string s3url = "s3://landlords-dev/gailin/211111111103";
+            //load and resize an image 
+            Image im = Image.Load(@"C:\Users\gpease\Documents\image\test\rings_sm_orig.gif");
+            var newim = im.ResizeSimpleBicubic(800,800);
+            newim.Save<byte>(@"C:\Users\gpease\Documents\image\test\old.jpg");
 
-            Parallel.For(0, 8, (int i) =>
+            newim = im.ResizeSimpleBicubic(150, 150);
+            newim.Save<byte>(@"C:\Users\gpease\Documents\image\test\oldshrink.jpg");
+
+            var wideim = im.Resize(800, 800);
+            wideim.Save<byte>(@"C:\Users\gpease\Documents\image\test\bigrings.jpg");
+
+            var small = im.Resize(150, 150);
+            small.Save<byte>(@"C:\Users\gpease\Documents\image\test\smallrings.jpg");
+
+            //im.GuassianBoxBlur(1);
+            //small = im.Shrink(200, 200);
+            //small.Save<byte>(@"C:\Users\gpease\Documents\image\test\refactor\smallwithblur.jpg");
+
+            //trying logging to windows application event log 
+            /*
+            string sSource = "Landform";
+            string sLog = "Application";
+            string sEvent = "Sample Event";
+
+            if (!EventLog.Exists(sSource))
             {
-                while (true) //run till i break
-                {
-                    if (i<7)
-                    {
-                        //grab-o some files 
-                        MeshImagePair[] meshes = new MeshImagePair[4];
-                        StorageHelper storage = new StorageHelper();
-                        int newFaceCount = 0;
-                        foreach (int index in INDICES)
-                        {
-                            TemporaryFile.GetAndDeleteMultiple(EXTENSIONS, tmp =>
-                            {
-                                storage.DownloadFile(s3url + Convert.ToString(index) + EXTENSIONS[OBJ], tmp[OBJ]);
-                                storage.DownloadFile(s3url + Convert.ToString(index) + EXTENSIONS[IMG], tmp[IMG]);
+                EventLog.CreateEventSource(sSource, sLog);
+            }
 
-                                meshes[index] = new MeshImagePair(OBJSerializer.Read(tmp[OBJ]), Image.Load(tmp[IMG]));
-                                newFaceCount += meshes[index].Mesh.Faces.Count;
-                            });
-                        }
-                        Console.WriteLine("download complete thread " + Convert.ToString(i));
-                    }
-                    else
-                    {
-                        foreach (int index in INDICES)
-                        {
-                            StorageHelper storage = new StorageHelper();
-                            string local = @"C:\Users\gpease\Documents\data\Terrain\Terrain-clean-renamed\211111111103";
-                            storage.UploadFileSingleThread(local + Convert.ToString(index) + EXTENSIONS[IMG], s3url + EXTENSIONS[IMG]);
-                            storage.UploadFileSingleThread(local + Convert.ToString(index) + EXTENSIONS[OBJ], s3url + EXTENSIONS[OBJ]);
-                            Console.WriteLine("upload complete" + Convert.ToString(i));
-                        }
-                        
-                    }
-                }
-            });
+            //loooooooooooooog
+            EventLog.WriteEntry(sSource, sEvent);
+            //other logging option 
+            EventLog.WriteEntry(sSource, sEvent, EventLogEntryType.Warning); 
+
+            /*
+            //old connection string landformtest-cluster.cluster-cr2odjbwyrq6.us-west-1.rds.amazonaws.com
+            LandformDatabase db = new LandformDatabase();
+
+            LandformDbContext context = db.CreateContext();
+
+            Project p = Project.Find(context, PROJECT);
+
+            //display all projects in the database 
+            var query = from proj in context.Projects
+                        orderby proj.Name
+                        select proj;
+
+
+
+            Console.WriteLine("all projects in db");
+            foreach (var item in query)
+            {
+                Console.WriteLine(item.Name);
+            }
+            /*
+            Project p = Project.Create(context, PROJECT);
+
+            Frame f = Frame.Create(context, p, FRAME);
+
+            Observation.Create(context, f, OBSERVATION, "I'm a url", "I'm an obs type", "I'm a camera model", false);
+            */
             return 0;
-            
-        }
 
-
-        /// <summary>
-        /// For getting a table on the initialization of the Lambda
-        /// from http://docs.aws.amazon.com/amazondynamodb/latest/developerguide/GettingStarted.NET.03.html
-        /// </summary>
-        /// <param name="tableName"></param>
-        /// <returns></returns>
-        public static Table GetTableObject(string tableName)
-        {
-            AmazonDynamoDBConfig ddbConfig = new AmazonDynamoDBConfig();
-            ddbConfig.RegionEndpoint = Amazon.RegionEndpoint.USWest1;
-            AmazonDynamoDBClient client;
-            try
-            {
-                client = new AmazonDynamoDBClient(ddbConfig);
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine("\n Error: failed to create a DynamoDB client; " + ex.Message);
-                return (null);
-            }
-
-            // Now, create a Table object for the specified table
-            Table table = null;
-            try
-            {
-                table = Table.LoadTable(client, tableName);
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine("\n Error: failed to load the " + tableName + " table; " + ex.Message);
-                return (null);
-            }
-            return (table);
-        }
-
-        //below here is just old stuff
-
-        public static string getGreeting(string who)
-        {
-            return "{\"Hello\": \"" + who + "\"}";
-        }
-
-        private async Task<bool> objectExists(string bucket, string key)
-        {
-            //Try to get this object. According to https://forums.aws.amazon.com/message.jspa?messageID=215792, this is faster than listing with key as prefix
-            using (IAmazonS3 client = new AmazonS3Client(Amazon.RegionEndpoint.USEast1))
-                try
-            {
-                GetObjectMetadataResponse data = await client.GetObjectMetadataAsync(bucket, key);
-            }
-            catch (AmazonS3Exception e) //If this is a NoSuchKey exception, the object does not exist 
-            {
-                if (e.StatusCode == System.Net.HttpStatusCode.NotFound)
-                {
-                    return false; //if e.ErrorCode == "NotFound"
-                }
-                throw; //otherwise this is some other error 
-            }
-            return true;
-        }
-
-        //Use list instead of get to preserve read-before-write consistency for new puts 
-        private async Task<bool> objectExistsLite(string bucket, string key)
-        {
-            //List objects in bucket with this name as prefix. According to https://forums.aws.amazon.com/message.jspa?messageID=215792, this is slower than get metadata approach
-            //Relies on file endings (so no filename is a prefix of another) 
-            using (IAmazonS3 client = new AmazonS3Client(Amazon.RegionEndpoint.USWest1))
-            {
-                ListObjectsRequest r = new ListObjectsRequest
-                {
-                    BucketName = bucket,
-                    Prefix = key,
-                    MaxKeys = 1
-                };
-                ListObjectsResponse data = await client.ListObjectsAsync(r);
-                return data.S3Objects.Count == 1;
-            }
         }
     }
 }

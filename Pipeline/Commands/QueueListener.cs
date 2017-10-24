@@ -103,6 +103,8 @@ namespace OPS.Pipeline
 
         public int Run()
         {
+            return 0; //testing deployment validation
+
             //TODO check that the given queue name is valid before we wait around a long time 
             SQSClient = new AmazonSQSClient(Amazon.RegionEndpoint.USWest1); //TODO should pull region from somewhere?
             S3Client = new AmazonS3Client(Amazon.RegionEndpoint.USWest1);
@@ -136,10 +138,8 @@ namespace OPS.Pipeline
                             +"\r\n        URL = " + m.MessageAttributes["ParentPath"].StringValue);
                         try
                         {
-                            Console.WriteLine("--- thread"+Convert.ToString(i) + " in message processing");
                             processMessage(m); //Process messages synchronously 
                             Interlocked.Increment(ref messagesSucceeded);
-                            Console.WriteLine("--- thread"+Convert.ToString(i) + " done message processing");
                         }
                         catch (Exception e)
                         {

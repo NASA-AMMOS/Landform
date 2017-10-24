@@ -19,6 +19,7 @@ LambdaUtil/bin/
 LambdaUtil/obj/
 Pipeline/bin/
 Pipeline/obj/
+Pipeline/Commands/Client.cs
 packages/
 .vs/
 Xna/bin/

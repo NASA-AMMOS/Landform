@@ -21,7 +21,7 @@ namespace OPS.Cloud
     public class FrameTransform
     {
         public int Id { get; set; }
-        public int ProjectId { get; set; }
+        public int ProjectId { get; set; } //Why is this not a reference??
         public int FromFrameId { get; set; }
         public int ToFrameId { get; set; }
         public string TransformSource { get; set; }
