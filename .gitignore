@@ -17,6 +17,8 @@ LambdaS3PutProcessing/bin/
 LambdaS3PutProcessing/obj/
 LambdaUtil/bin/
 LambdaUtil/obj/
+LambdaRDSAccess/bin/
+LambdaRDSAccess/obj/
 Pipeline/bin/
 Pipeline/obj/
 Pipeline/Commands/Client.cs
