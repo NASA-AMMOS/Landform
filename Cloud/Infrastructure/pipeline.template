@@ -277,6 +277,42 @@
                     "5b6c9112-2239-4dd9-8248-bd9bd9b8ecd6",
                     "a8aff6a3-43c1-4d59-848e-903e1bc9592d"
                 ]
+            },
+            "b579b3b9-c326-403d-b688-182031b7cbf9": {
+                "size": {
+                    "width": 180,
+                    "height": 100
+                },
+                "position": {
+                    "x": -420,
+                    "y": 450
+                },
+                "z": 0,
+                "embeds": [
+                    "4a9680b4-aa6a-4586-a61a-b76d2ddb311a"
+                ]
+            },
+            "4a9680b4-aa6a-4586-a61a-b76d2ddb311a": {
+                "size": {
+                    "width": 60,
+                    "height": 60
+                },
+                "position": {
+                    "x": -310,
+                    "y": 480
+                },
+                "z": 1,
+                "parent": "b579b3b9-c326-403d-b688-182031b7cbf9",
+                "embeds": [],
+                "isrelatedto": [
+                    "e9d4c245-5662-4088-8cfd-7dfb3da574e4",
+                    "235d25bb-6d38-4e9f-8b5d-f17950a3950e",
+                    "55436a04-b468-4815-b7aa-10ad54a07e86",
+                    "a8aff6a3-43c1-4d59-848e-903e1bc9592d",
+                    "4dc71c48-73c2-4068-9a85-305aaddf6709",
+                    "c435b7b4-7bd7-4290-9352-bdf0f97a5807",
+                    "cb5be509-28f4-4c0b-8d10-8212ac95b2a0"
+                ]
             }
         }
     },
@@ -329,7 +365,6 @@
                                 "New-Item -Path c:\\temp -ItemType \"directory\" -Force;\r\n",
                                 "powershell.exe -Command Read-S3Object -BucketName aws-codedeploy-us-west-1/latest -Key codedeploy-agent.msi -File c:\\temp\\codedeploy-agent.msi;",
                                 "Start-Process -Wait -FilePath c:\\temp\\codedeploy-agent.msi -WindowStyle Hidden;",
-                                
                                 "#Get and install C++ tools distribution \r\n",
                                 "Read-S3Object -BucketName ",
                                 {
@@ -342,7 +377,6 @@
                                 " -File C:\\temp\\vc_redist.x64.exe;",
                                 "cd C:\\temp;",
                                 ".\\vc_redist.x64.exe -s -a install -eula=accept | Wait-Process;",
-                                
                                 "#Write user config file specifying stack resources. If dev connects and runs, we need it in Administrator/, for CodeDeploy script, need in system32/ \r\n",
                                 " mkdir C:\\Users\\Administrator\\.landform;",
                                 "echo `{`\"JobQueue`\":`\"",
@@ -742,6 +776,100 @@
                     "id": "b10e61ad-853d-456a-8095-b9c02a15ebb4"
                 }
             }
+        },
+        "FrontEnd": {
+            "Type": "AWS::ElasticBeanstalk::Application",
+            "Properties": {},
+            "Metadata": {
+                "AWS::CloudFormation::Designer": {
+                    "id": "b579b3b9-c326-403d-b688-182031b7cbf9"
+                }
+            }
+        },
+		"FrontendEnvironment": {
+			"Type" : "AWS::ElasticBeanstalk::Environment",
+			"Properties" : {
+				"ApplicationName" : { "Ref" : "FrontEnd" },
+				"Description" :  "AWS Elastic Beanstalk Environment to run front end of pipeline",
+				"TemplateName" : {"Ref" : "FrontendConfiguration"}
+			}
+		},   
+        "FrontendConfiguration": {
+            "Type": "AWS::ElasticBeanstalk::ConfigurationTemplate",
+            "Properties": {
+                "ApplicationName": {
+                    "Ref": "FrontEnd"
+                },
+                "SolutionStackName": "64bit Amazon Linux 2017.03 v4.3.0 running Node.js",
+                "OptionSettings": [
+                    {
+                        "Namespace": "aws:elasticbeanstalk:application:environment",
+                        "OptionName": "JOB_QUEUE",
+                        "Value": {
+                            "Ref": "JobQueue"
+                        }
+                    },
+                    {
+                        "Namespace": "aws:elasticbeanstalk:application:environment",
+                        "OptionName": "METADATA_TABLE",
+                        "Value": {
+                            "Ref": "MetadataTable"
+                        }
+                    },
+                    {
+                        "Namespace": "aws:elasticbeanstalk:application:environment",
+                        "OptionName": "PIPELINE_WORKERS",
+                        "Value": {
+                            "Ref": "PipelineWorkers"
+                        }
+                    },
+                    {
+                        "Namespace": "aws:elasticbeanstalk:application:environment",
+                        "OptionName": "METADATA_TRIGGER_PROCESSING",
+                        "Value": {
+                            "Ref": "MetadataTriggerProcessing"
+                        }
+                    },
+                    {
+                        "Namespace": "aws:elasticbeanstalk:application:environment",
+                        "OptionName": "QUEUE_MONITOR",
+                        "Value": {
+                            "Ref": "QueueMonitor"
+                        }
+                    },
+                    {
+                        "Namespace": "aws:elasticbeanstalk:application:environment",
+                        "OptionName": "S3_WATCHER",
+                        "Value": {
+                            "Ref": "S3Watcher"
+                        }
+                    },
+                    {
+                        "Namespace": "aws:autoscaling:launchconfiguration",
+                        "OptionName": "EC2KeyName",
+                        "Value": {
+                            "Ref": "UserKeyName"
+                        }
+                    },
+                    {
+                        "Namespace": "aws:autoscaling:launchconfiguration",
+                        "OptionName": "IamInstanceProfile",
+                        "Value": {
+                            "Ref": "FrontendInstanceProfile"
+                        }
+                    },
+                    {
+                        "Namespace": "aws:elasticbeanstalk:environment",
+                        "OptionName": "ServiceRole",
+                        "Value": "aws-elasticbeanstalk-service-role"
+                    }
+                ]
+            },
+            "Metadata": {
+                "AWS::CloudFormation::Designer": {
+                    "id": "4a9680b4-aa6a-4586-a61a-b76d2ddb311a"
+                }
+            }
         }
     },
     "Parameters": {
@@ -777,6 +905,11 @@
             "Type": "String",
             "Default": "pipeline_resources/LambdaQueueSizeMetric.zip",
             "Description": "The S3 path to the lambda that checks queue size and publishes to a custom CloudWatch metric"
+        },
+        "FrontendInstanceProfile": {
+            "Type": "String",
+            "Default": "landlords",
+            "Description": "The role EB servers will assume. Must have access to all the resources that the front end will monitor."
         }
     },
     "Outputs": {
