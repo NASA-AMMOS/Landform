@@ -58,11 +58,11 @@ namespace OPS.Pipeline
             newim = im.ResizeSimpleBicubic(150, 150);
             newim.Save<byte>(@"C:\Users\gpease\Documents\image\test\oldshrink.jpg");
 
-            var wideim = im.Resize(800, 800);
-            wideim.Save<byte>(@"C:\Users\gpease\Documents\image\test\bigrings.jpg");
+            //var wideim = im.Resize(800, 800);
+            //ideim.Save<byte>(@"C:\Users\gpease\Documents\image\test\bigrings.jpg");
 
-            var small = im.Resize(150, 150);
-            small.Save<byte>(@"C:\Users\gpease\Documents\image\test\smallrings.jpg");
+            //var small = im.Resize(150, 150);
+            //small.Save<byte>(@"C:\Users\gpease\Documents\image\test\smallrings.jpg");
 
             //im.GuassianBoxBlur(1);
             //small = im.Shrink(200, 200);

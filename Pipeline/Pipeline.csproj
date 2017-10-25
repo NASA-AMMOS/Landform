@@ -159,7 +159,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Commands\BenchmarkS3.cs" />
-    <Compile Include="Commands\CheckTiles.cs" />
+    <Compile Include="Commands\ImageIntake.cs" />
     <Compile Include="Commands\QueueListener.cs" />
     <Compile Include="Commands\Client.cs" />
     <Compile Include="Commands\Commands.cs" />

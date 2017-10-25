@@ -26,14 +26,14 @@ namespace OPS.Pipeline
                                                              ConvertBaselineMeshesOptions,
                                                              TileBaselineMeshOptions,
                                                              ClientOptions,
-                                                             CheckTilesOptions,
+                                                             ImageIntakeOptions,
                                                              QueueListenerOptions,
                                                              TileBaselineMeshesOptions,
                                                              BenchmarkS3Options>(args)
               .MapResult(
                 (CralwMSLOptions opts) => new CrawlMSL(opts).Run(),
                 (ClientOptions opts) =>  new Client(opts).Run(),
-                (CheckTilesOptions opts) => new CheckTiles(opts).Run(),
+                (ImageIntakeOptions opts) => new ImageIntake(opts).Run(),
                 (QueueListenerOptions opts) => new QueueListener().Run(),
                 (ConvertBaselineMeshOptions opts) => new ConvertBaselineMesh(opts).Run(),
                 (ConvertBaselineMeshesOptions opts) => new ConvertBaselineMeshes(opts).Run(),

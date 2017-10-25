@@ -36,7 +36,7 @@ namespace OPS.Pipeline
     /// For dev - set in a file in the user's home directory/.landform/pipelineworker.json
     /// In AWS deployment, this file is created by the autoscale group configuration in UserData, executed whenever a machine starts up. 
     /// </summary>
-    class StackConfig : Config
+    class MeshTilingConfig : Config
     {
         public string JobQueue { get; set; }
         
@@ -44,6 +44,7 @@ namespace OPS.Pipeline
         
         public string FailureSns { get; set; }
 
+        //keep up-to-date with resource stack (defined in pipeline.template)
         protected override string ConfigFilename()
         {
             return "pipelineworker";
@@ -52,7 +53,7 @@ namespace OPS.Pipeline
 
     public class QueueListener
     {
-        private StackConfig config;
+        private MeshTilingConfig config;
 
         private static IAmazonSQS SQSClient;
         private static IAmazonS3 S3Client;
@@ -72,7 +73,7 @@ namespace OPS.Pipeline
 
         public QueueListener()
         {
-            this.config = new StackConfig();
+            this.config = new MeshTilingConfig();
         }
 
         private void sendMetrics(object source, ElapsedEventArgs e)
@@ -103,8 +104,6 @@ namespace OPS.Pipeline
 
         public int Run()
         {
-            return 0; //testing deployment validation
-
             //TODO check that the given queue name is valid before we wait around a long time 
             SQSClient = new AmazonSQSClient(Amazon.RegionEndpoint.USWest1); //TODO should pull region from somewhere?
             S3Client = new AmazonS3Client(Amazon.RegionEndpoint.USWest1);
