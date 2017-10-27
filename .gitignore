@@ -19,6 +19,8 @@ LambdaUtil/bin/
 LambdaUtil/obj/
 LambdaScanS3/bin/
 LambdaScanS3/obj/
+LambdaS3ImageIntake/bin/
+LambdaS3ImageIntake/obj/
 LambdaRDSAccess/bin/
 LambdaRDSAccess/obj/
 Pipeline/bin/
