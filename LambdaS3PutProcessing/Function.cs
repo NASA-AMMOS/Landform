@@ -79,8 +79,6 @@ namespace Lambda.LambdaS3PutProcessing
             // TODO I can't find documentation on concurrent ADD operations. I *assume* it's ok??? 
 
             // Define item key
-            //  Hash-key of the target item is string value "Mark Twain"
-            //  Range-key of the target item is string value "The Adventures of Tom Sawyer"
             Dictionary<string, AttributeValue> primarykey = new Dictionary<string, AttributeValue>
             {
                 { TableNames.PARENT_MESH_ID_FIELD, new AttributeValue { S = prefix } }

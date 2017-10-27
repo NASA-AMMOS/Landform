@@ -7,28 +7,23 @@
 
 #####To create your stack: 
 
-*TODO someone - dev or script - has to create account, pem file, perms for the dev*
+You need: an AWS account with creation permissions for all stack resources, a pem file for accessing 
 
 From the CLI or console, create a new stack using pipeline.template. You must specify a username, which will be a tag for your CloudWatch metrics, and the name of your key file. 
+
+Stack creation does not set up any mappings between S3 and the stack. 
 
 *TO IMPLEMENT* The stack by default gets code for lambda functions and the worker application from *repo*. If you want to point at your own copy of the build, specify its S3 address in the parameters of your stack. 
 
 Cloud Formation cannot update existing resources, so you need to add a notification configuration to the bucket where your stack will recieve data. 
 
-#####To make your workers point at a build of your choice: 
+#####Deploying code to worker instances : 
 
-Use Cloud Formation's stack update (from the CLI, aws `cloudformation update-stack`, or from the Console) to change the stack's input parameter from the default zipped package to your own zipped build in S3. Cloud Formation will replace only the 
+Use the deploylambdas and deploylandform scripts to deploy to your workers and lambdas. 
 
-#####To change the application version used by workers: 
+#####Deploying frontend code : 
 
-1. Upload a zip file of your build to the S3 location your stack points to. 
-2. Mark as unhealthy any workers currently running in your stack. From the CLI: `aws autoscaling set-instance-health --instance-id your-instance-id --health-status Unhealthy`
-
-#####To change the function version used by lambdas: 
-+ Use the AWS Visual Studio plug-in to upload your code (right click on the lambda project, then enter your lambda's name)
-+ OR build your code and upload a zip file of the binaries to the lambda 
-
-(Unlike EC2 instances, lambda instances do not read their source on creation from the S3 location you pointed to in your Cloud Formation parameters, so replacing this zip file is not enough to update your lambda)
+Deploying the stack will create a frontend that runs a node.js app. 
 
 #### Some failures: 
 During deployment: 

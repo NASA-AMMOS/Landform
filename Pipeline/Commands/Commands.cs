@@ -33,7 +33,7 @@ namespace OPS.Pipeline
               .MapResult(
                 (CralwMSLOptions opts) => new CrawlMSL(opts).Run(),
                 (ClientOptions opts) =>  new Client(opts).Run(),
-                (ImageIntakeOptions opts) => new ImageIntake(opts).Run(),
+                (ImageIntakeOptions opts) => new ImageIntake().Run(),
                 (QueueListenerOptions opts) => new QueueListener().Run(),
                 (ConvertBaselineMeshOptions opts) => new ConvertBaselineMesh(opts).Run(),
                 (ConvertBaselineMeshesOptions opts) => new ConvertBaselineMeshes(opts).Run(),

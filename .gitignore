@@ -17,6 +17,8 @@ LambdaS3PutProcessing/bin/
 LambdaS3PutProcessing/obj/
 LambdaUtil/bin/
 LambdaUtil/obj/
+LambdaScanS3/bin/
+LambdaScanS3/obj/
 LambdaRDSAccess/bin/
 LambdaRDSAccess/obj/
 Pipeline/bin/
