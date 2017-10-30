@@ -843,7 +843,7 @@
                 "Handler": "LambdaScanS3::Lambda.LambdaScanS3.Function::FunctionHandler",
                 "Role": "arn:aws:iam::589270964471:role/lambda-dynamodb",
                 "Runtime": "dotnetcore1.0",
-                "Timeout": 30
+                "Timeout": 300
             },
             "Metadata": {
                 "AWS::CloudFormation::Designer": {

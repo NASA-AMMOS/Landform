@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using System.Diagnostics;
 
 using Amazon.Lambda.Core;
 
@@ -29,6 +30,8 @@ namespace Lambda.LambdaScanS3
         IAmazonS3 S3Client { get; set; }
         IAmazonSQS SQSClient { get; set; }
 
+        private const int NUM_SEQUENTIAL = 50; //if we do many more messages than this at once, we run out of memory
+
         /// <summary>
         /// Default constructor. This constructor is used by Lambda to construct the instance. When invoked in a Lambda environment
         /// the AWS credentials will come from the IAM role associated with the function and the AWS region will be set to the
@@ -42,33 +45,45 @@ namespace Lambda.LambdaScanS3
 
         /// <summary>
         /// A simple function that takes a string and does a ToUpper
+        /// TODO could speed this by listing maximum possible chunk of s3 (1000) at once before sending messages 
         /// </summary>
         /// <param name="input"></param>
         /// <param name="context"></param>
         /// <returns></returns>
         public async Task<string> FunctionHandler(ScanRequest s3url, ILambdaContext context)
         {
-            //scan all items at that path 
+            //scan all items at that path
+            ListObjectsV2Request request = new ListObjectsV2Request()
+            {
+                BucketName = s3url.Bucket,
+                Prefix = s3url.Prefix,
+                MaxKeys = NUM_SEQUENTIAL
+            };
             ListObjectsV2Response response;
+
             do
             {
-                response = await S3Client.ListObjectsV2Async(new ListObjectsV2Request()
-                {
-                    BucketName = s3url.Bucket,
-                    Prefix = s3url.Prefix,
-                    MaxKeys = 100
-                });
-
+                Stopwatch time = Stopwatch.StartNew();
+                response = await S3Client.ListObjectsV2Async(request);
+                time.Stop();
+                LambdaLogger.Log("time spend requesting messages: " + time.Elapsed);
                 //add item to queue for each message 
+                time.Reset();
+                time.Start();
+                List<Task<System.Net.HttpStatusCode>> running = new List<Task<System.Net.HttpStatusCode>>();
                 foreach (S3Object entry in response.S3Objects)
                 {
-                    if (entry.Key.Length > 0)
+                    if (entry.Size > 0)
                     {
-                        SendMessage(entry.BucketName, entry.Key);
+                        running.Add(SendMessage(entry.BucketName, entry.Key));
                     }
                 }
+                Task.WaitAll(running.ToArray());
+                time.Stop();
+                LambdaLogger.Log("time spent sending to queue: " + time.Elapsed);
+                request.ContinuationToken = response.NextContinuationToken;
+                
             } while (response.IsTruncated == true);
-
 
             //put messages for all valid images in our job queue
             LambdaLogger.Log(s3url.Prefix);
@@ -96,7 +111,6 @@ namespace Lambda.LambdaScanS3
                 QueueUrl = Environment.GetEnvironmentVariable("JOB_QUEUE")
             };
             SendMessageResponse response = await SQSClient.SendMessageAsync(request);
-            LambdaLogger.Log("Sent message with MessageID " + response.MessageId);
 
             if (response.HttpStatusCode != System.Net.HttpStatusCode.OK)
             {
