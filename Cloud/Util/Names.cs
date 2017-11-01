@@ -1,11 +1,13 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text;
 using System.Threading.Tasks;
 
-
-namespace Lambda.LambdaUtil
+namespace OPS.Cloud.Util
 {
+    //Keep me up-to-date with LambdaUtil/Names
+
     //Note: In Visual Studio 2017, it should be easy(ish) to compile a project to both .NET Framework and .NET Core. Sharing names!!!
 
 
@@ -46,5 +48,5 @@ namespace Lambda.LambdaUtil
         public const string FIND_OVERLAPS_MSG = "FIND_OVERLAPS";
         public const string MATCH_PAIR_MSG = "MATCH_PAIR";
     }
-    
+
 }

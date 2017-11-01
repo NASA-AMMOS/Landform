@@ -7,6 +7,8 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
+using Amazon.DynamoDBv2.DataModel;
+
 namespace OPS.Cloud
 {
     /// <summary>
@@ -14,8 +16,10 @@ namespace OPS.Cloud
     /// Can be connected to Frames and aligned with other observations through
     /// FrameTransforms
     /// </summary>
+    [DynamoDBTable("mango-Images-7E5Q35VK1BL6")]
     public class Observation
     {
+        //TODO get rid of this 
         public int Id { get; set; }
 
         [Required]
@@ -31,6 +35,8 @@ namespace OPS.Cloud
         [Required]
         [MaxLength(255)]
         [Index("IX_ObservationUniqueness", 2, IsUnique = true)]
+        [DynamoDBHashKey] //Partition key
+        [DynamoDBProperty("image_id")]
         public string Name { get; set; }
 
         [Required]
@@ -111,6 +117,17 @@ namespace OPS.Cloud
         public static Observation Find(LandformDbContext context, Project p, string name)
         {
             return context.Observations.Where(f => f.Name == name && f.ProjectId == p.Id).FirstOrDefault();
+        }
+
+        /// <summary>
+        /// DynamoDB version of find above. 
+        /// </summary>
+        /// <param name="context"></param>
+        /// <param name="imageId"></param>
+        /// <returns></returns>
+        public static Observation Find(DynamoDBContext context, string name)
+        {
+            return context.Load<Observation>(name);
         }
     }
 }

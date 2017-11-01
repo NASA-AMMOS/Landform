@@ -7,13 +7,16 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
+using Amazon.DynamoDBv2.DataModel;
+
 namespace OPS.Cloud
 {
 
     /// <summary>
     /// Represents a coordinate frame in the database
     /// Coordiante frames can have one or more observations associated with them
-    /// </summary>
+    /// </summary>\
+    [DynamoDBTable("mango-Frames-1WJM6NAS02DTW")]
     public class Frame
     {
         public int Id { get; set; }
@@ -22,6 +25,8 @@ namespace OPS.Cloud
         public int ProjectId { get; set; }
         [Index("IX_FrameUniqueness", 2, IsUnique = true)]
         [MaxLength(255)]
+        [DynamoDBHashKey] //Partition key
+        [DynamoDBProperty("image_id")]
         public string Name { get; set; }
 
         public Frame()
@@ -38,6 +43,7 @@ namespace OPS.Cloud
         /// <param name="name"></param>
         protected Frame(Project project, string name = null)
         {
+            //TODO: the equivalent thing in Dynamo is to use version numbers (optimistic locking) and check that version number > 0
             if(!project.HasValidId())
             {
                 throw new CloudException("Cannot create frame with a project that has not been saved to database.");

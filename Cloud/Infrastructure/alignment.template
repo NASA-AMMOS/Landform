@@ -37,7 +37,8 @@
                 "embeds": [],
                 "isrelatedto": [
                     "235d25bb-6d38-4e9f-8b5d-f17950a3950e",
-                    "c96fe7b3-e305-4d7f-bdfe-19dd35f8fc86"
+                    "c96fe7b3-e305-4d7f-bdfe-19dd35f8fc86",
+                    "0ef36a29-8b27-4502-b2ed-380c53c0f6fd"
                 ]
             },
             "a8aff6a3-43c1-4d59-848e-903e1bc9592d": {
@@ -301,7 +302,52 @@
                     "y": 370
                 },
                 "z": 0,
+                "embeds": [],
+                "isrelatedto": [
+                    "c96fe7b3-e305-4d7f-bdfe-19dd35f8fc86"
+                ]
+            },
+            "53008f2a-153c-484e-baad-561716ec4c22": {
+                "size": {
+                    "width": 60,
+                    "height": 60
+                },
+                "position": {
+                    "x": 990,
+                    "y": 300
+                },
+                "z": 0,
                 "embeds": []
+            },
+            "0ef36a29-8b27-4502-b2ed-380c53c0f6fd": {
+                "size": {
+                    "width": 60,
+                    "height": 60
+                },
+                "position": {
+                    "x": 870,
+                    "y": 300
+                },
+                "z": 0,
+                "embeds": [],
+                "references": [
+                    "53008f2a-153c-484e-baad-561716ec4c22"
+                ]
+            },
+            "885610f8-7e41-4593-9185-e7974a022141": {
+                "size": {
+                    "width": 60,
+                    "height": 60
+                },
+                "position": {
+                    "x": -90,
+                    "y": -50
+                },
+                "z": 0,
+                "embeds": [],
+                "dependson": [
+                    "91767755-8ca8-4e72-b3a5-e47e435c3d58"
+                ]
             }
         }
     },
@@ -376,6 +422,10 @@
                                 {
                                     "Ref": "AWS::StackName"
                                 },
+                                "`\"`,`\"KeyAlias`\":`\"",
+                                {
+                                    "Ref": "KeyAlias"
+                                },
                                 "`\"`} > C:\\Users\\Administrator\\.landform\\alignmentworker.json;",
                                 " mkdir C:\\Windows\\system32\\config\\systemprofile\\.landform;",
                                 "echo `{`\"JobQueue`\":`\"",
@@ -385,6 +435,10 @@
                                 "`\"`,`\"PipelineName`\":`\"",
                                 {
                                     "Ref": "AWS::StackName"
+                                },
+                                "`\"`,`\"KeyAlias`\":`\"",
+                                {
+                                    "Ref": "KeyAlias"
                                 },
                                 "`\"`} > C:\\Windows\\system32\\config\\systemprofile\\.landform\\alignmentworker.json",
                                 "</powershell>"
@@ -843,11 +897,117 @@
                 "Handler": "LambdaScanS3::Lambda.LambdaScanS3.Function::FunctionHandler",
                 "Role": "arn:aws:iam::589270964471:role/lambda-dynamodb",
                 "Runtime": "dotnetcore1.0",
-                "Timeout": 300
+                "Timeout": 300,
+                "MemorySize": 256
             },
             "Metadata": {
                 "AWS::CloudFormation::Designer": {
                     "id": "5b04d9fa-b967-49e9-b2aa-e1ef3d8f3274"
+                }
+            }
+        },
+        "Key": {
+            "Type": "AWS::KMS::Key",
+            "Properties": {
+                "KeyPolicy": {
+                    "Version": "2012-10-17",
+                    "Id": "key-consolepolicy-3",
+                    "Statement": [
+                        {
+                            "Sid": "Enable IAM User Permissions",
+                            "Effect": "Allow",
+                            "Principal": {
+                                "AWS": "arn:aws:iam::589270964471:root"
+                            },
+                            "Action": "kms:*",
+                            "Resource": "*"
+                        },
+                        {
+                            "Sid": "Allow use of the key",
+                            "Effect": "Allow",
+                            "Principal": {
+                                "AWS": [
+                                    "arn:aws:iam::589270964471:role/landlords",
+                                    "arn:aws:iam::589270964471:user/gpease"
+                                ]
+                            },
+                            "Action": [
+                                "kms:Encrypt",
+                                "kms:Decrypt",
+                                "kms:ReEncrypt*",
+                                "kms:GenerateDataKey*",
+                                "kms:DescribeKey"
+                            ],
+                            "Resource": "*"
+                        },
+                        {
+                            "Sid": "Allow attachment of persistent resources",
+                            "Effect": "Allow",
+                            "Principal": {
+                                "AWS": [
+                                    "arn:aws:iam::589270964471:role/landlords",
+                                    "arn:aws:iam::589270964471:user/gpease"
+                                ]
+                            },
+                            "Action": [
+                                "kms:CreateGrant",
+                                "kms:ListGrants",
+                                "kms:RevokeGrant"
+                            ],
+                            "Resource": "*",
+                            "Condition": {
+                                "Bool": {
+                                    "kms:GrantIsForAWSResource": "true"
+                                }
+                            }
+                        }
+                    ]
+                }
+            },
+            "Metadata": {
+                "AWS::CloudFormation::Designer": {
+                    "id": "53008f2a-153c-484e-baad-561716ec4c22"
+                }
+            }
+        },
+        "KeyAlias": {
+            "Type": "AWS::KMS::Alias",
+            "Properties": {
+                "AliasName": "alias/AlignmentKey",
+                "TargetKeyId": {
+                    "Ref": "Key"
+                }
+            },
+            "Metadata": {
+                "AWS::CloudFormation::Designer": {
+                    "id": "0ef36a29-8b27-4502-b2ed-380c53c0f6fd"
+                }
+            }
+        },
+        "Projects": {
+            "Type": "AWS::DynamoDB::Table",
+            "DependsOn": "Images",
+            "Properties": {
+                "AttributeDefinitions": [
+                    {
+                        "AttributeName": "project_name",
+                        "AttributeType": "S"
+                    }
+                ],
+                "KeySchema": [
+                    {
+                        "AttributeName": "project_name",
+                        "KeyType": "HASH"
+                    }
+                ],
+                "ProvisionedThroughput": {
+                    "ReadCapacityUnits": "5",
+                    "WriteCapacityUnits": "5"
+                }
+            },
+            "Metadata": {
+                "AWS::CloudFormation::Designer": {
+                    "id": "885610f8-7e41-4593-9185-e7974a022141"
                 }
             }
         }

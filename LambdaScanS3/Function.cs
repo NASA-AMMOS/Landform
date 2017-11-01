@@ -31,6 +31,9 @@ namespace Lambda.LambdaScanS3
         IAmazonSQS SQSClient { get; set; }
 
         private const int NUM_SEQUENTIAL = 50; //if we do many more messages than this at once, we run out of memory
+        private string lastRequestId; //if this lambda retries, we hope we're in the same env and can see we're a retry 
+
+        private List<String> Failures; 
 
         /// <summary>
         /// Default constructor. This constructor is used by Lambda to construct the instance. When invoked in a Lambda environment
@@ -44,20 +47,36 @@ namespace Lambda.LambdaScanS3
         }
 
         /// <summary>
-        /// A simple function that takes a string and does a ToUpper
-        /// TODO could speed this by listing maximum possible chunk of s3 (1000) at once before sending messages 
+        /// Lists all objects in the requested bucket with the requested prefix. 
+        /// Warning/TODO: If this fails (eg out of memory or out of time), it will retry itself, and listing starts over from The Beginning
+        ///     Lambda retry policies can't be disabled or edited :|
+        /// Run me from the command line like: aws lambda invoke --function-name mango-S3Scan-12OKSXXEPPL65 --payload "{\"Bucket\":\"landlords-dev\",\"Prefix\":\"gailin-alignment/images/\"}" C:\Users\gpease\Desktop\output.txt
         /// </summary>
         /// <param name="input"></param>
         /// <param name="context"></param>
         /// <returns></returns>
         public async Task<string> FunctionHandler(ScanRequest s3url, ILambdaContext context)
         {
+            //Hack from https://forums.aws.amazon.com/thread.jspa?messageID=643046
+            //This quits retries IFF we are using the same env. It will not work 100% of the time. 
+            if (lastRequestId == context.AwsRequestId)
+            {
+                LambdaLogger.Log("I'm a retry, quitting");
+                return "quit";
+            }
+            else
+            {
+                lastRequestId = context.AwsRequestId;
+            };
+
+            Failures = new List<string>(); //start with a new list of failures for this invocation
+
             //scan all items at that path
             ListObjectsV2Request request = new ListObjectsV2Request()
             {
                 BucketName = s3url.Bucket,
                 Prefix = s3url.Prefix,
-                MaxKeys = NUM_SEQUENTIAL
+                MaxKeys = 80
             };
             ListObjectsV2Response response;
 
@@ -73,11 +92,21 @@ namespace Lambda.LambdaScanS3
                 List<Task<System.Net.HttpStatusCode>> running = new List<Task<System.Net.HttpStatusCode>>();
                 foreach (S3Object entry in response.S3Objects)
                 {
+                    if (running.Count == NUM_SEQUENTIAL) //stop and process these before we get any more
+                    {
+                        Task.WaitAll(running.ToArray());
+                        running.Clear();
+                        time.Stop();
+                        LambdaLogger.Log("time spent sending to queue: " + time.Elapsed);
+                        time.Reset(); time.Start();
+                    }
+                    //add to array
                     if (entry.Size > 0)
                     {
                         running.Add(SendMessage(entry.BucketName, entry.Key));
                     }
                 }
+
                 Task.WaitAll(running.ToArray());
                 time.Stop();
                 LambdaLogger.Log("time spent sending to queue: " + time.Elapsed);
@@ -88,11 +117,13 @@ namespace Lambda.LambdaScanS3
             //put messages for all valid images in our job queue
             LambdaLogger.Log(s3url.Prefix);
 
-            return "ok";
+            return Failures.ToString();
         }
 
         private async Task<System.Net.HttpStatusCode> SendMessage(string bucket, string key)
         {
+            string address = "s3://" + bucket + "/" + key;
+
             SendMessageRequest request = new SendMessageRequest
             {
                 DelaySeconds = (int)TimeSpan.FromSeconds(5).TotalSeconds,
@@ -104,7 +135,7 @@ namespace Lambda.LambdaScanS3
                     },
                     {
                     MessageFields.FILE_S3_PATH, new MessageAttributeValue
-                    {DataType = "String", StringValue = "s3://" + bucket + "/" + key } //No data types other than string currently supported
+                    {DataType = "String", StringValue = address } //No data types other than string currently supported
                     }
                 },
                 MessageBody = "{}",
@@ -114,8 +145,7 @@ namespace Lambda.LambdaScanS3
 
             if (response.HttpStatusCode != System.Net.HttpStatusCode.OK)
             {
-                //TODO this is def the wrong approach
-                throw new Exception("Problem sending message to SQS queue");
+                Failures.Add(address);
             }
 
             return response.HttpStatusCode;

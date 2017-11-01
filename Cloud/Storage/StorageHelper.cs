@@ -243,6 +243,7 @@ namespace OPS.Cloud
         public StorageHelper()
         {
             //leave all the things null 
+            //This works if there is a default profile (on a user machine) or an IAM role (an EC2 instance)
         }
 
         //Return credential-specific only if we have credentials. 

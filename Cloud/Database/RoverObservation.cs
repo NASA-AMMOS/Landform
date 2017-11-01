@@ -5,6 +5,8 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
+using Amazon.DynamoDBv2.DataModel;
+
 namespace OPS.Cloud
 {
     /// <summary>
@@ -74,6 +76,12 @@ namespace OPS.Cloud
                 // A record with this unique name and project id combination already exists
             }
             return null;
+        }
+
+        public static RoverObservation Create(DynamoDBContext context, Frame frame, string name, string url, string observationType, string cameraModel, bool useForReconstruction, int site, int drive, string version, string sensor, string imageFrameSize)
+        {
+            context.Save(new RoverObservation(frame, name, url, observationType, cameraModel, useForReconstruction, site, drive, version, sensor, imageFrameSize));
+            return (RoverObservation)Find(context, name);
         }
     }
 }

@@ -26,6 +26,8 @@ $S3ScanName = ($json | ConvertFrom-Json).StackResources.PhysicalResourceId
 
 ### Build and upload lambdas to the physical resources we found above 
 
+## TODO: also push the zip file to the resource folder so that updates to the stack (and creates of new stacks) will get these newest lambdas.
+
 cd ..\..\LambdaS3ImageIntake 
 dotnet restore 
 dotnet lambda deploy-function $S3ImageIntakeName 

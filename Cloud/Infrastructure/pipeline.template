@@ -30,8 +30,8 @@
                     "height": 60
                 },
                 "position": {
-                    "x": 580,
-                    "y": 320
+                    "x": 570,
+                    "y": 330
                 },
                 "z": 1,
                 "embeds": [],
@@ -45,8 +45,8 @@
                     "height": 60
                 },
                 "position": {
-                    "x": 470,
-                    "y": 400
+                    "x": 390,
+                    "y": 390
                 },
                 "z": 1,
                 "embeds": [],
@@ -60,7 +60,7 @@
                     "height": 60
                 },
                 "position": {
-                    "x": 140,
+                    "x": 150,
                     "y": 30
                 },
                 "z": 1,
@@ -75,8 +75,8 @@
                     "height": 60
                 },
                 "position": {
-                    "x": 140,
-                    "y": 140
+                    "x": 150,
+                    "y": 150
                 },
                 "z": 1,
                 "embeds": [],
@@ -149,7 +149,7 @@
                 },
                 "position": {
                     "x": 660,
-                    "y": 140
+                    "y": 150
                 },
                 "z": 1,
                 "embeds": [],
@@ -163,8 +163,8 @@
                     "height": 60
                 },
                 "position": {
-                    "x": 660,
-                    "y": -10
+                    "x": 540,
+                    "y": 90
                 },
                 "z": 1,
                 "embeds": [],
@@ -178,7 +178,7 @@
                     "height": 60
                 },
                 "position": {
-                    "x": 800,
+                    "x": 810,
                     "y": 60
                 },
                 "z": 1,
@@ -196,10 +196,10 @@
                     "height": 60
                 },
                 "position": {
-                    "x": 620,
-                    "y": 500
+                    "x": 630,
+                    "y": 510
                 },
-                "z": 0,
+                "z": 1,
                 "embeds": [],
                 "isassociatedwith": [
                     "a8aff6a3-43c1-4d59-848e-903e1bc9592d"
@@ -211,10 +211,10 @@
                     "height": 60
                 },
                 "position": {
-                    "x": 770,
-                    "y": 500
+                    "x": 780,
+                    "y": 510
                 },
-                "z": 0,
+                "z": 1,
                 "embeds": [],
                 "isrelatedto": [
                     "4a4319be-be3d-47b9-a5ee-7ae736296593"
@@ -226,10 +226,10 @@
                     "height": 60
                 },
                 "position": {
-                    "x": 620,
-                    "y": 400
+                    "x": 630,
+                    "y": 390
                 },
-                "z": 0,
+                "z": 1,
                 "embeds": [],
                 "isassociatedwith": [
                     "a8aff6a3-43c1-4d59-848e-903e1bc9592d"
@@ -241,10 +241,10 @@
                     "height": 60
                 },
                 "position": {
-                    "x": 770,
-                    "y": 400
+                    "x": 780,
+                    "y": 390
                 },
-                "z": 0,
+                "z": 1,
                 "embeds": [],
                 "isrelatedto": [
                     "08a5916b-701f-4ce8-86bf-cff286999852"
@@ -256,10 +256,10 @@
                     "height": 60
                 },
                 "position": {
-                    "x": 350,
+                    "x": 360,
                     "y": 510
                 },
-                "z": 0,
+                "z": 1,
                 "embeds": []
             },
             "b10e61ad-853d-456a-8095-b9c02a15ebb4": {
@@ -268,10 +268,10 @@
                     "height": 60
                 },
                 "position": {
-                    "x": 470,
+                    "x": 480,
                     "y": 510
                 },
-                "z": 0,
+                "z": 1,
                 "embeds": [],
                 "isassociatedwith": [
                     "5b6c9112-2239-4dd9-8248-bd9bd9b8ecd6",
@@ -280,16 +280,17 @@
             },
             "b579b3b9-c326-403d-b688-182031b7cbf9": {
                 "size": {
-                    "width": 180,
-                    "height": 100
+                    "width": 390,
+                    "height": 210
                 },
                 "position": {
-                    "x": -420,
-                    "y": 450
+                    "x": -130,
+                    "y": 310
                 },
-                "z": 0,
+                "z": 1,
                 "embeds": [
-                    "4a9680b4-aa6a-4586-a61a-b76d2ddb311a"
+                    "4a9680b4-aa6a-4586-a61a-b76d2ddb311a",
+                    "9aa11db5-b3f8-4d76-be80-bae35a8fa1ce"
                 ]
             },
             "4a9680b4-aa6a-4586-a61a-b76d2ddb311a": {
@@ -298,10 +299,10 @@
                     "height": 60
                 },
                 "position": {
-                    "x": -310,
-                    "y": 480
+                    "x": -10,
+                    "y": 340
                 },
-                "z": 1,
+                "z": 2,
                 "parent": "b579b3b9-c326-403d-b688-182031b7cbf9",
                 "embeds": [],
                 "isrelatedto": [
@@ -311,8 +312,37 @@
                     "a8aff6a3-43c1-4d59-848e-903e1bc9592d",
                     "4dc71c48-73c2-4068-9a85-305aaddf6709",
                     "c435b7b4-7bd7-4290-9352-bdf0f97a5807",
-                    "cb5be509-28f4-4c0b-8d10-8212ac95b2a0"
+                    "cb5be509-28f4-4c0b-8d10-8212ac95b2a0",
+                    "1146faf0-f0d1-4934-aebc-397130ad206c"
                 ]
+            },
+            "9aa11db5-b3f8-4d76-be80-bae35a8fa1ce": {
+                "size": {
+                    "width": 60,
+                    "height": 60
+                },
+                "position": {
+                    "x": 80,
+                    "y": 370
+                },
+                "z": 2,
+                "parent": "b579b3b9-c326-403d-b688-182031b7cbf9",
+                "embeds": [],
+                "isrelatedto": [
+                    "4a9680b4-aa6a-4586-a61a-b76d2ddb311a"
+                ]
+            },
+            "1146faf0-f0d1-4934-aebc-397130ad206c": {
+                "size": {
+                    "width": 60,
+                    "height": 60
+                },
+                "position": {
+                    "x": -250,
+                    "y": 400
+                },
+                "z": 0,
+                "embeds": []
             }
         }
     },
@@ -786,14 +816,23 @@
                 }
             }
         },
-		"FrontendEnvironment": {
-			"Type" : "AWS::ElasticBeanstalk::Environment",
-			"Properties" : {
-				"ApplicationName" : { "Ref" : "FrontEnd" },
-				"Description" :  "AWS Elastic Beanstalk Environment to run front end of pipeline",
-				"TemplateName" : {"Ref" : "FrontendConfiguration"}
-			}
-		},   
+        "FrontendEnvironment": {
+            "Type": "AWS::ElasticBeanstalk::Environment",
+            "Properties": {
+                "ApplicationName": {
+                    "Ref": "FrontEnd"
+                },
+                "Description": "AWS Elastic Beanstalk Environment to run front end of pipeline",
+                "TemplateName": {
+                    "Ref": "FrontendConfiguration"
+                }
+            },
+            "Metadata": {
+                "AWS::CloudFormation::Designer": {
+                    "id": "9aa11db5-b3f8-4d76-be80-bae35a8fa1ce"
+                }
+            }
+        },
         "FrontendConfiguration": {
             "Type": "AWS::ElasticBeanstalk::ConfigurationTemplate",
             "Properties": {
@@ -862,12 +901,52 @@
                         "Namespace": "aws:elasticbeanstalk:environment",
                         "OptionName": "ServiceRole",
                         "Value": "aws-elasticbeanstalk-service-role"
+                    },
+                    {
+                        "Namespace": "aws:elb:loadbalancer",
+                        "OptionName": "SecurityGroups",
+                        "Value": {
+                            "Fn::GetAtt": [
+                                "LoadBalencerSecurityGroup",
+                                "GroupId"
+                            ]
+                        }
                     }
                 ]
             },
             "Metadata": {
                 "AWS::CloudFormation::Designer": {
                     "id": "4a9680b4-aa6a-4586-a61a-b76d2ddb311a"
+                }
+            }
+        },
+        "LoadBalencerSecurityGroup": {
+            "Type": "AWS::EC2::SecurityGroup",
+            "Properties": {
+                "GroupDescription": "Allow only limited IP addrs to access EB application",
+                "VpcId": {
+                    "Ref": "VPC"
+                },
+                "SecurityGroupIngress": [
+                    {
+                        "IpProtocol": "tcp",
+                        "FromPort": "80",
+                        "ToPort": "80",
+                        "CidrIp": "137.78.29.235/24"
+                    }
+                ],
+                "SecurityGroupEgress": [
+                    {
+                        "IpProtocol": "tcp",
+                        "FromPort": "80",
+                        "ToPort": "80",
+                        "CidrIp": "0.0.0.0/0"
+                    }
+                ]
+            },
+            "Metadata": {
+                "AWS::CloudFormation::Designer": {
+                    "id": "1146faf0-f0d1-4934-aebc-397130ad206c"
                 }
             }
         }
@@ -910,6 +989,11 @@
             "Type": "String",
             "Default": "landlords",
             "Description": "The role EB servers will assume. Must have access to all the resources that the front end will monitor."
+        },
+        "VPC": {
+            "Type": "String",
+            "Default": "vpc-577e9832",
+            "Description": "The VPC the application will launch in. TODO: application should create its own subnets and security groups within this VPC"
         }
     },
     "Outputs": {

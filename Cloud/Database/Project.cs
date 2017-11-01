@@ -7,17 +7,22 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
+using Amazon.DynamoDBv2.DataModel;
+
 namespace OPS.Cloud
 {
     /// <summary>
     /// A project specifies a container for a 3D reconstruction consiting of mutliple observations
     /// </summary>
+    [DynamoDBTable("mango-Projects-PLFABTRIK1ZX")]
     public class Project
     {
-        public int Id { get; set; }
+        public int Id { get; set; } //DynamoDB transition: could transition to using optimistic locking & version numbers, but for now just set Id != 0 on create. 
         [Required]
         [Index("IX_ProjectUniqueness", IsUnique = true)]
         [MaxLength(255)]
+        [DynamoDBHashKey] //Partition key
+        [DynamoDBProperty("project_name")]
         public string Name { get; set; }
         
         public Project()
@@ -93,6 +98,11 @@ namespace OPS.Cloud
         public static Project Find(LandformDbContext context, string name)
         {
             return context.Projects.Where(p => p.Name == name).FirstOrDefault();
+        }
+
+        public static Project Find(DynamoDBContext context, string name)
+        {
+            return context.Load<Project>(name);
         }
 
         /// <summary>
