@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Collections.Concurrent;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -12,24 +13,10 @@ using System.IO;
 using log4net;
 using Microsoft.Xna.Framework;
 
+using Amazon.DynamoDBv2.DataModel;
+
 namespace OPS.Pipeline
 {
-
-    [Verb("crawlmsl", HelpText = "Crawl MSL S3 bucket for dataproducts and add them to the landform database")]
-    public class CralwMSLOptions
-    {
-        [Option(Required = true, HelpText = "Name of the aws profile to use to authenticate with s3")]
-        public string AwsProfile { get; set; }
-
-        [Option(Required = true, HelpText = "Starting sol on s3 to index")]
-
-        public int StartSol { get; set; }
-
-        [Option(Required = true, HelpText = "Ending sol on s3 to index")]
-
-        public int EndSol { get; set; }
-    }
-
     public class MSLProject
     {
         public const string PROJECT_NAME = "MSL";
@@ -39,33 +26,33 @@ namespace OPS.Pipeline
         public const int MIN_NAV_HAZ_EXPOSURE = 80;
         public const int MIN_MASTCAM_FOCUS_CUTOFF = 3;
         public const int MAX_MASTCAM_WIDTH = 1344;
-
     }
 
     /// <summary>
-    /// The crawl MSL command 
+    /// Downloads images, reads metadata, and saves metadata to DynamoDB
+    /// Threadsafe. 
     /// </summary>
-    public class CrawlMSL
+    public class MetadataIndexer
     {
-        private static readonly ILog logger = LogManager.GetLogger(typeof(CrawlMSL));
+        private static readonly ILog logger = LogManager.GetLogger(typeof(MetadataIndexer));
 
+        //Thread-safe shared helpers
+        private DynamoDBContext context;
+        private StorageHelper storage; //TODO I think this is thread safe, but it's not documented as such
+        private MSLLocations locations;
 
-        CralwMSLOptions options;
-        LandformDatabase database;
-        MSLLocations locations;
-
-        static Dictionary<RoverProductType, ObservationType> productTypeToObservationType = new Dictionary<RoverProductType, ObservationType>();
-        static CrawlMSL()
+        static ConcurrentDictionary<RoverProductType, ObservationType> productTypeToObservationType = new ConcurrentDictionary<RoverProductType, ObservationType>();
+        static MetadataIndexer()
         {
-            productTypeToObservationType.Add(RoverProductType.Image, ObservationType.Image);
-            productTypeToObservationType.Add(RoverProductType.Range, ObservationType.Points);
-            productTypeToObservationType.Add(RoverProductType.XYZ, ObservationType.Points);
+            productTypeToObservationType.TryAdd(RoverProductType.Image, ObservationType.Image);
+            productTypeToObservationType.TryAdd(RoverProductType.Range, ObservationType.Points);
+            productTypeToObservationType.TryAdd(RoverProductType.XYZ, ObservationType.Points);
         }
 
-        public CrawlMSL(CralwMSLOptions options)
+        public MetadataIndexer(DynamoDBContext context, StorageHelper storage)
         {
-            this.options = options;
-            this.database = new LandformDatabase();
+            this.context = context;
+            this.storage = storage;
             this.locations = new MSLLocations();
         }                
                 
@@ -214,8 +201,12 @@ namespace OPS.Pipeline
         /// </summary>
         /// <param name="storage"></param>
         /// <param name="url"></param>
-        void IndexMetadata(StorageHelper storage, string url)
+        public void IndexMetadata(string url)
         {
+            //Rule out some files
+            if (!ShouldDownloadHeader(url)) return;
+
+            //Index the rest! 
             storage.GetStorageStream(url, stream =>
             {
                 string status = "";
@@ -225,98 +216,60 @@ namespace OPS.Pipeline
                     PDSParser parser = new PDSParser(metadata);
                     if (ShouldIndexBasedOnMetadata(parser))
                     {
-                        using (LandformDbContext context = database.CreateContext())
-                        {
-                            Project project = Project.Find(context, MSLProject.PROJECT_NAME);
-                            SiteDrive sd = new SiteDrive(parser.Site, parser.Drive);
-                            
-                            Frame siteDriveFrame = Frame.FindOrCreate(context, project, SiteDriveFrameName(parser));
-                            Frame observationFrame = Frame.FindOrCreate(context, project, ObservationFrameName(parser));
-                            Frame rootFrame = Frame.Find(context, project, MSLProject.ROOT_FRAME_NAME);
-                            Quaternion roverToLocalLevel = parser.RoverOriginRotation;
-                            if(FrameTransform.Find(context, observationFrame, siteDriveFrame).FirstOrDefault() == null)
+                        Console.WriteLine("My observation name was " + ObservationName(parser));
+
+                        Project project = Project.Find(context, MSLProject.PROJECT_NAME);
+                        SiteDrive sd = new SiteDrive(parser.Site, parser.Drive);
+
+                        Frame siteDriveFrame = Frame.FindOrCreate(context, project, SiteDriveFrameName(parser));
+                        Frame observationFrame = Frame.FindOrCreate(context, project, ObservationFrameName(parser));
+                        Frame rootFrame = Frame.Find(context, project, MSLProject.ROOT_FRAME_NAME);
+                        Quaternion roverToLocalLevel = parser.RoverOriginRotation;
+                        /*
+                            if (FrameTransform.Find(Context, observationFrame, siteDriveFrame).FirstOrDefault() == null)
                             {
-                                FrameTransform observationToSiteDrive = FrameTransform.Create(context, observationFrame, siteDriveFrame, Vector3.Zero, roverToLocalLevel, TransformSource.Prior, 0);
+                                FrameTransform observationToSiteDrive = FrameTransform.Create(Context, observationFrame, siteDriveFrame, Vector3.Zero, roverToLocalLevel, TransformSource.Prior, 0);
                             }
                             var loc = locations.Location(sd);
-                            if (loc != null && FrameTransform.Find(context, siteDriveFrame, rootFrame).FirstOrDefault() == null)
+                            if (loc != null && FrameTransform.Find(Context, siteDriveFrame, rootFrame).FirstOrDefault() == null)
                             {
-                                FrameTransform siteDriveToRoot = FrameTransform.Create(context, siteDriveFrame, rootFrame, loc.Position, Quaternion.Identity, TransformSource.Prior, 0.5);
-                            }                            
-                            string observationName = ObservationName(parser);
-                            Observation observation = RoverObservation.Find(context, project, observationName);
-                            if (observation == null)
+                                FrameTransform siteDriveToRoot = FrameTransform.Create(Context, siteDriveFrame, rootFrame, loc.Position, Quaternion.Identity, TransformSource.Prior, 0.5);
+                            }
+                            */
+                        string observationName = ObservationName(parser);
+                        Observation observation = RoverObservation.Find(context, project, observationName);
+                        if (observation == null)
+                        {
+                            string cameraModel = JsonHelper.ToJson(metadata.CameraModel);
+                            observation = RoverObservation.Create(context, observationFrame, observationName, url, productTypeToObservationType[parser.DerivedImageType].ToString(), cameraModel, UseForReconstruction(parser, metadata), parser.Site, parser.Drive, parser.ProductId.Version, parser.Camera.ToString(), parser.ImageSizeType.ToString());
+                            //observation = Observation.Create(Context, observationFrame, observationName, url, productTypeToObservationType[parser.DerivedImageType].ToString(), cameraModel, UseForReconstruction(parser, metadata));
+                            if (observation != null)
                             {
-                                string cameraModel = JsonHelper.ToJson(metadata.CameraModel);
-                                observation = RoverObservation.Create(context, observationFrame, observationName, url, productTypeToObservationType[parser.DerivedImageType].ToString(), cameraModel, UseForReconstruction(parser, metadata), parser.Site, parser.Drive, parser.ProductId.Version, parser.Camera.ToString(), parser.ImageSizeType.ToString());
-                                if (observation != null)
-                                {
-                                    status = "Add";
-                                }
-                                else
-                                {
-                                    status = "Failed to add";
-                                }
+                                status = "Add";
                             }
                             else
                             {
-                                status = "Exists";
+                                status = "Failed to add";
                             }
                         }
+                        else
+                        {
+                            status = "Exists";
+                        }
+
                     }
                     else
                     {
                         status = "Skipped(metadata)";
                     }
-      
+
                 }
                 catch (Exception e)
                 {
                     status = "Failed " + e.Message;
                 }
-                logger.Info(url + "\t" + status);
+                Console.WriteLine(url + "\t" + status);
             });
-        }
-        
-        /// <summary>
-        /// Add files in a directory to the database
-        /// </summary>
-        /// <param name="storage"></param>
-        /// <param name="dir"></param>
-        void IndexDirectory(StorageHelper storage, string dir)
-        {
-            foreach (var url in storage.SearchObjects(dir, "*.IMG", true))
-            {
-                if (ShouldDownloadHeader(url))
-                {
-                    IndexMetadata(storage, url);
-                }
-            }
-        }
-
-        public int Run()
-        {
-            using (LandformDbContext context = database.CreateContext())
-            {
-                Project p = Project.FindOrCreate(context, MSLProject.PROJECT_NAME);
-                Frame.FindOrCreate(context, p, MSLProject.ROOT_FRAME_NAME);
-            }
-            string opgsPattern = "s3://red-product/proj/msl/redops/ods/surface/sol/{0}/opgs/rdr";
-            string msssPattern = "s3://red-product/ods/surface/sol/{0}/soas/rdr";
-            StorageHelper storage = new StorageHelper(options.AwsProfile);
-            Parallel.For(options.StartSol, options.EndSol+1, sol => 
-            {
-                
-                foreach (string pattern in new string[] { opgsPattern, msssPattern })
-                {
-                    string dir = string.Format(pattern, sol.ToString().PadLeft(5, '0'));
-                    if (ShouldIndexDirectory(dir))
-                    {
-                        IndexDirectory(storage, dir);
-                    }
-                }
-            });            
-            return 0;
-        }       
+        }      
     }
 }

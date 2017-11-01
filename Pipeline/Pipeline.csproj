@@ -164,7 +164,7 @@
     <Compile Include="Commands\Client.cs" />
     <Compile Include="Commands\Commands.cs" />
     <Compile Include="Commands\ConvertBaselineMesh.cs" />
-    <Compile Include="Commands\CrawlMSL.cs" />
+    <Compile Include="Allignment\MetadataIndexer.cs" />
     <Compile Include="Commands\MatchAllImages.cs" />
     <Compile Include="Commands\MatchImages.cs" />
     <Compile Include="Commands\PDSImageConverter.cs" />

@@ -46,7 +46,7 @@ namespace OPS.Cloud
         /// <param name="cameraModel"></param>
         /// <param name="useForReconstruction"></param>
         /// <returns></returns>
-        new public static Observation Create(LandformDbContext context, Frame frame, string name, string url, string observationType, string cameraModel, bool useForReconstruction)
+        new public static Observation Create(DynamoDBContext context, Frame frame, string name, string url, string observationType, string cameraModel, bool useForReconstruction)
         {
             throw new NotImplementedException("Call the other version of RoverObservation.Create with rover specific arguments");
         }
@@ -63,21 +63,6 @@ namespace OPS.Cloud
         /// <param name="observationType"></param>
         /// <param name="cameraModel"></param>
         /// <returns></returns>
-        public static RoverObservation Create(LandformDbContext context, Frame frame, string name, string url, string observationType, string cameraModel, bool useForReconstruction, int site, int drive, string version, string sensor, string imageFrameSize)
-        {
-            try
-            {
-                Observation observation = context.Observations.Add(new RoverObservation(frame, name, url, observationType, cameraModel, useForReconstruction, site, drive, version, sensor, imageFrameSize));
-                context.SaveChanges();
-                return (RoverObservation)observation;
-            }
-            catch (DbUpdateException)
-            {
-                // A record with this unique name and project id combination already exists
-            }
-            return null;
-        }
-
         public static RoverObservation Create(DynamoDBContext context, Frame frame, string name, string url, string observationType, string cameraModel, bool useForReconstruction, int site, int drive, string version, string sensor, string imageFrameSize)
         {
             RoverObservation ro = new RoverObservation(frame, name, url, observationType, cameraModel, useForReconstruction, site, drive, version, sensor, imageFrameSize);

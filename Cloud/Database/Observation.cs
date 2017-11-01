@@ -96,21 +96,6 @@ namespace OPS.Cloud
         /// <param name="observationType"></param>
         /// <param name="cameraModel"></param>
         /// <returns></returns>
-        public static Observation Create(LandformDbContext context, Frame frame, string name, string url, string observationType, string cameraModel, bool useForReconstruction)
-        {
-            try
-            {
-                Observation observation = context.Observations.Add(new Observation(frame, name, url, observationType, cameraModel, useForReconstruction));
-                context.SaveChanges();
-                return observation;
-            }
-            catch (DbUpdateException)
-            {
-                // A record with this unique name and project id combination already exists
-            }
-            return null;
-        }
-
         public static Observation Create(DynamoDBContext context, Frame frame, string name, string url, string observationType, string cameraModel, bool useForReconstruction)
         {
             Observation obs = new Observation(frame, name, url, observationType, cameraModel, useForReconstruction);
@@ -122,18 +107,6 @@ namespace OPS.Cloud
         /// <summary>
         /// Finds an observation based on its name and project
         /// Return null if observation cannot be found
-        /// </summary>
-        /// <param name="context"></param>
-        /// <param name="p"></param>
-        /// <param name="name"></param>
-        /// <returns></returns>
-        public static Observation Find(LandformDbContext context, Project p, string name)
-        {
-            return context.Observations.Where(f => f.Name == name && f.ProjectId == p.Id).FirstOrDefault();
-        }
-
-        /// <summary>
-        /// DynamoDB version of find above. 
         /// </summary>
         /// <param name="context"></param>
         /// <param name="imageId"></param>

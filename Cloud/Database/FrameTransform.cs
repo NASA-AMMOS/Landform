@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using Microsoft.Xna.Framework;
 using System.ComponentModel.DataAnnotations.Schema;
 using System.Data.Entity.Infrastructure;
+using Amazon.DynamoDBv2.DataModel;
 
 namespace OPS.Cloud
 {
@@ -84,21 +85,22 @@ namespace OPS.Cloud
         /// <param name="transformSource"></param>
         /// <param name="error"></param>
         /// <returns></returns>
-        public static FrameTransform Create(LandformDbContext context, Frame fromFrame, Frame toFrame, Vector3 translation, Quaternion rotation, string transformSource, double error)
-        {
-            try
-            {
-                FrameTransform transform = context.FrameTransforms.Add(new FrameTransform(fromFrame, toFrame, translation, rotation, transformSource, error));
-                context.SaveChanges();
-                return transform;
-            }
-            catch (DbUpdateException)
-            {
-                // A record with this unique name and project id combination already exists
-            }
-            return null;
-        }
+        //public static FrameTransform Create(DynamoDBContext context, Frame fromFrame, Frame toFrame, Vector3 translation, Quaternion rotation, string transformSource, double error)
+        //{
+        //    try
+        //    {
+        //        FrameTransform transform = context.FrameTransforms.Add(new FrameTransform(fromFrame, toFrame, translation, rotation, transformSource, error));
+        //        context.SaveChanges();
+        //        return transform;
+        //    }
+        //    catch (DbUpdateException)
+        //    {
+        //        // A record with this unique name and project id combination already exists
+        //    }
+        //    return null;
+        //}
 
+            /*
         /// <summary>
         /// Find all FrameTransforms that map fromFrame->toFrame
         /// </summary>
@@ -109,9 +111,9 @@ namespace OPS.Cloud
         public static IEnumerable<FrameTransform> Find(LandformDbContext context, Frame fromFrame, Frame toFrame)
         {
             return context.FrameTransforms.Where(f => f.FromFrameId == fromFrame.Id && f.ToFrameId == toFrame.Id);
-        }
+        }*/
 
-        [NotMapped]
+        [DynamoDBIgnore]
         public Vector3 Translation
         {
             get
@@ -126,7 +128,7 @@ namespace OPS.Cloud
             }
         }
         
-        [NotMapped]
+        [DynamoDBIgnore]
         public Quaternion Rotation
         {
             get

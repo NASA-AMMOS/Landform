@@ -18,8 +18,7 @@ namespace OPS.Pipeline
         {
             /// Commands are defined by the list of types passed into ParseArguments
             /// Each passed in object must have a [Verb] decorator
-            return CommandLine.Parser.Default.ParseArguments<CralwMSLOptions,
-                                                             ConvertBaselineMeshOptions,
+            return CommandLine.Parser.Default.ParseArguments<ConvertBaselineMeshOptions,
                                                              MatchImagesOptions,
                                                              MatchAllImagesOptions,
                                                              PDSImageConverterOptions,
@@ -31,7 +30,6 @@ namespace OPS.Pipeline
                                                              TileBaselineMeshesOptions,
                                                              BenchmarkS3Options>(args)
               .MapResult(
-                (CralwMSLOptions opts) => new CrawlMSL(opts).Run(),
                 (ClientOptions opts) =>  new Client(opts).Run(),
                 (ImageIntakeOptions opts) => new ImageIntake().Run(),
                 (QueueListenerOptions opts) => new QueueListener().Run(),

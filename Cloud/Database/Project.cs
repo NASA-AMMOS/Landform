@@ -47,19 +47,16 @@ namespace OPS.Cloud
         /// <param name="context"></param>
         /// <param name="name">Project names in the database must be unique</param>
         /// <returns></returns>
-        public static Project Create(LandformDbContext context, string name)
+        public static Project Create(DynamoDBContext context, string name)
         {
-            try
+            if (Find(context, name) != null)
             {
-                Project project = context.Projects.Add(new Project(name));
-                context.SaveChanges();
-                return project;
+                return null; // A record with this unique name already exists
             }
-            catch (DbUpdateException)
-            {
-                // A record with this unique name already exists
-            }            
-            return null;
+            Project project = new Project(name);
+            project.Id = 1;
+            context.Save(project);
+            return project;
         }
 
         /// <summary>
@@ -69,7 +66,7 @@ namespace OPS.Cloud
         /// <param name="context"></param>
         /// <param name="name">Project names in the database must be unique</param>
         /// <returns></returns>
-        public static Project FindOrCreate(LandformDbContext context, string name)
+        public static Project FindOrCreate(DynamoDBContext context, string name)
         {
             // Try to find this project
             Project project = Find(context, name);
@@ -95,11 +92,6 @@ namespace OPS.Cloud
         /// <param name="context"></param>
         /// <param name="name">Project names in the database must be unique</param>
         /// <returns></returns>
-        public static Project Find(LandformDbContext context, string name)
-        {
-            return context.Projects.Where(p => p.Name == name).FirstOrDefault();
-        }
-
         public static Project Find(DynamoDBContext context, string name)
         {
             return context.Load<Project>(name);

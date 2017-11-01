@@ -67,29 +67,13 @@ namespace OPS.Cloud
         /// <summary>
         /// Creates a frame for the given project with the given name.  If no name is specifed a random GUID will be used.
         /// Saves the frame the the database and returns an object with a valid id.
-        /// Returns null if a frame with the given name already exists for this project.
+        /// Returns null if a frame with the given name already exists for this project. -- TODO not implemented
+        /// TODO optimistic locking to return null
         /// </summary>
         /// <param name="context"></param>
         /// <param name="p">Project with a valid id (has been saved to database context)</param>
         /// <param name="name"></param>
         /// <returns></returns>
-        public static Frame Create(LandformDbContext context, Project p, string name = null)
-        {
-            try
-            {
-                Frame frame = context.Frames.Add(new Frame(p, name));
-                context.SaveChanges();
-                return frame;
-            }
-            catch (DbUpdateException)
-            {
-                // A record with this unique name and project id combination already exists
-            }
-            return null;
-        }
-
-        //Currently this will always succeed. Maybe want to use optimistic locking. 
-        //Though currently I think that's unnececary
         public static Frame Create(DynamoDBContext context, Project p, string name = null)
         {
             if (name == null)
@@ -111,25 +95,6 @@ namespace OPS.Cloud
         /// <param name="p">Project with a valid id (has been saved to database context)</param>
         /// <param name="name"></param>
         /// <returns></returns>
-        public static Frame FindOrCreate(LandformDbContext context, Project p, string name)
-        {
-            // Try to find this project
-            Frame frame = Find(context, p, name);
-            if (frame != null)
-            {
-                return frame;
-            }
-            // If it doesn't exist try to create it
-            frame = Create(context, p, name);
-            if (frame != null)
-            {
-                return frame;
-            }
-            // If our create failed someone else may have created one between our find and create calls
-            // Look for it again.
-            return Find(context, p, name);
-        }
-
         public static Frame FindOrCreate(DynamoDBContext context, Project p, string name)
         {
             // Try to find this project
@@ -156,11 +121,6 @@ namespace OPS.Cloud
         /// <param name="p">Project with a valid id (has been saved to database context)</param>
         /// <param name="name"></param>
         /// <returns></returns>
-        public static Frame Find(LandformDbContext context, Project p, string name)
-        {
-            return context.Frames.Where(f => f.Name == name && f.ProjectId == p.Id).FirstOrDefault();
-        }
-
         public static Frame Find(DynamoDBContext context, Project p, string name)
         {
             return context.Load<Frame>(name, p.Name);

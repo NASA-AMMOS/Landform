@@ -72,14 +72,11 @@
   <ItemGroup>
     <Compile Include="Credentials.cs" />
     <Compile Include="Database\Frame.cs" />
-    <Compile Include="Database\LandformDatabase.cs" />
-    <Compile Include="Database\LandformDbContext.cs" />
     <Compile Include="Database\Observation.cs" />
     <Compile Include="Database\Overlap.cs" />
     <Compile Include="Database\Project.cs" />
     <Compile Include="Database\FrameTransform.cs" />
     <Compile Include="Database\RoverObservation.cs" />
-    <Compile Include="Migrations\Configuration.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="CloudException.cs" />
     <Compile Include="Storage\S3Url.cs" />
