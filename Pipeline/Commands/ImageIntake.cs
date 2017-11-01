@@ -17,6 +17,7 @@ using Amazon.SQS.Model;
 using Amazon.DynamoDBv2.DataModel;
 using Amazon.DynamoDBv2;
 using OPS.Util;
+using Microsoft.Xna.Framework;
 
 namespace OPS.Pipeline
 {
@@ -38,12 +39,7 @@ namespace OPS.Pipeline
         public string PipelineName { get; set; }
 
         public string KeyAlias { get; set; }
-
-        public string FramesDb { get; set; }
-
-        public string ImagesDb { get; set; }
-
-        public string SectorsDb { get; set; }
+        
 
         protected override string ConfigFilename()
         {
@@ -56,10 +52,13 @@ namespace OPS.Pipeline
         private AllignmentConfig config;
 
         //AWS clients. All thread safe and reusable 
-        public IAmazonSQS SQSClient;
-        public IAmazonS3 S3Client;
-        public IAmazonDynamoDB DDBClient;
-        public DynamoDBContext Context;
+        IAmazonSQS SQSClient;
+        IAmazonS3 S3Client;
+        IAmazonDynamoDB DDBClient;
+        DynamoDBContext Context;
+
+        //Other thread-safe utilities 
+        MSLLocations locations;
 
         //monitoring counts 
         private int messagesRecieved = 0;
@@ -71,7 +70,11 @@ namespace OPS.Pipeline
         //Constructor creates clients and reads config file 
         public ImageIntake()
         {
+            //Initialize our utils
             this.config = new AllignmentConfig();
+            locations = new MSLLocations();
+
+            //Initialize AWS utils 
             SQSClient = new AmazonSQSClient(Amazon.RegionEndpoint.USWest1); 
             S3Client = new AmazonS3Client(Amazon.RegionEndpoint.USWest1);
             DDBClient = new AmazonDynamoDBClient(Amazon.RegionEndpoint.USWest1);
@@ -220,31 +223,33 @@ namespace OPS.Pipeline
                     if (ShouldIndexBasedOnMetadata(parser))
                     {
                         Console.WriteLine("My observation name was " + ObservationName(parser));
-                        /*
-                            Project project = Project.Find(context, MSLProject.PROJECT_NAME);
+                        
+                            Project project = Project.Find(Context, MSLProject.PROJECT_NAME);
                             SiteDrive sd = new SiteDrive(parser.Site, parser.Drive);
 
-                            Frame siteDriveFrame = Frame.FindOrCreate(context, project, SiteDriveFrameName(parser));
-                            Frame observationFrame = Frame.FindOrCreate(context, project, ObservationFrameName(parser));
-                            Frame rootFrame = Frame.Find(context, project, MSLProject.ROOT_FRAME_NAME);
+                            Frame siteDriveFrame = Frame.FindOrCreate(Context, project, SiteDriveFrameName(parser));
+                            Frame observationFrame = Frame.FindOrCreate(Context, project, ObservationFrameName(parser));
+                            Frame rootFrame = Frame.Find(Context, project, MSLProject.ROOT_FRAME_NAME);
                             Quaternion roverToLocalLevel = parser.RoverOriginRotation;
-                            if (FrameTransform.Find(context, observationFrame, siteDriveFrame).FirstOrDefault() == null)
+                        /*
+                            if (FrameTransform.Find(Context, observationFrame, siteDriveFrame).FirstOrDefault() == null)
                             {
-                                FrameTransform observationToSiteDrive = FrameTransform.Create(context, observationFrame, siteDriveFrame, Vector3.Zero, roverToLocalLevel, TransformSource.Prior, 0);
+                                FrameTransform observationToSiteDrive = FrameTransform.Create(Context, observationFrame, siteDriveFrame, Vector3.Zero, roverToLocalLevel, TransformSource.Prior, 0);
                             }
                             var loc = locations.Location(sd);
-                            if (loc != null && FrameTransform.Find(context, siteDriveFrame, rootFrame).FirstOrDefault() == null)
+                            if (loc != null && FrameTransform.Find(Context, siteDriveFrame, rootFrame).FirstOrDefault() == null)
                             {
-                                FrameTransform siteDriveToRoot = FrameTransform.Create(context, siteDriveFrame, rootFrame, loc.Position, Quaternion.Identity, TransformSource.Prior, 0.5);
+                                FrameTransform siteDriveToRoot = FrameTransform.Create(Context, siteDriveFrame, rootFrame, loc.Position, Quaternion.Identity, TransformSource.Prior, 0.5);
                             }
-                            
+                            */
                             string observationName = ObservationName(parser);
-                            Observation observation = RoverObservation.Find(this.Context, observationName);
-                            if (observation == null)
-                            {
-                                string cameraModel = JsonHelper.ToJson(metadata.CameraModel);
-                                observation = RoverObservation.Create(Context, observationFrame, observationName, url, productTypeToObservationType[parser.DerivedImageType].ToString(), cameraModel, UseForReconstruction(parser, metadata), parser.Site, parser.Drive, parser.ProductId.Version, parser.Camera.ToString(), parser.ImageSizeType.ToString());
-                                if (observation != null)
+                            Observation observation = RoverObservation.Find(this.Context, project, observationName);
+                        if (observation == null)
+                        {
+                            string cameraModel = JsonHelper.ToJson(metadata.CameraModel);
+                            observation = RoverObservation.Create(Context, observationFrame, observationName, url, productTypeToObservationType[parser.DerivedImageType].ToString(), cameraModel, UseForReconstruction(parser, metadata), parser.Site, parser.Drive, parser.ProductId.Version, parser.Camera.ToString(), parser.ImageSizeType.ToString());
+                            //observation = Observation.Create(Context, observationFrame, observationName, url, productTypeToObservationType[parser.DerivedImageType].ToString(), cameraModel, UseForReconstruction(parser, metadata));
+                            if (observation != null)
                                 {
                                     status = "Add";
                                 }
@@ -257,7 +262,7 @@ namespace OPS.Pipeline
                             {
                                 status = "Exists";
                             }
-                            */
+                            
                     }
                     else
                     {
@@ -314,6 +319,59 @@ namespace OPS.Pipeline
         public string ObservationName(PDSParser parser)
         {
             return parser.ProductIdString;
+        }
+
+        /// <summary>
+        /// Return true if this file should be used for reconstruction
+        /// </summary>
+        /// <param name="parser"></param>
+        /// <param name="metadata"></param>
+        /// <returns></returns>
+        bool UseForReconstruction(PDSParser parser, PDSMetadata metadata)
+        {
+            // Partial downloads
+            if (parser.IsPartial)
+            {
+                return false;
+            }
+            // Low exposure hazcams
+            if (parser.DerivedImageType == RoverProductType.Image)
+            {
+                if (parser.ExposureDuration != 0 && parser.ExposureDuration < MSLProject.MIN_NAV_HAZ_EXPOSURE)
+                {
+                    return false;
+                }
+            }
+            if (parser.IsMastcam)
+            {
+                // Skip single band mastcams
+                if (metadata.Bands != 3)
+                {
+                    return false;
+                }
+                // Skip mastcam taken with color filters
+                if (parser.FilterNumber != 0)
+                {
+                    return false;
+                }
+                // Skip mastcam with short focal distances (probably closeup of rover part with terrain out of focus in background)
+                if (parser.MaximumFocusDistance < MSLProject.MIN_MASTCAM_FOCUS_CUTOFF)
+                {
+                    return false;
+                }
+                // Assume that if the mastcam is bigger enough to cause vinetting on the ccd that this has been special processed
+                // We do mask the vinetted parts so this check may not be strictly neccessary and may reduce our available images
+                // unneccessarily in some cases
+                if (metadata.Width > MSLProject.MAX_MASTCAM_WIDTH)
+                {
+                    return false;
+                }
+            }
+            if (parser.IsNavcam && parser.IsDownsampled)
+            {
+                return false;
+            }
+            return true;
         }
 
         /// <summary>

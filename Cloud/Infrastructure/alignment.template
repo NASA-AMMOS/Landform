@@ -742,7 +742,11 @@
             "Properties": {
                 "AttributeDefinitions": [
                     {
-                        "AttributeName": "image_id",
+                        "AttributeName": "observation_name",
+                        "AttributeType": "S"
+                    },
+					{
+                        "AttributeName": "project_name",
                         "AttributeType": "S"
                     },
                     {
@@ -752,8 +756,12 @@
                 ],
                 "KeySchema": [
                     {
-                        "AttributeName": "image_id",
+                        "AttributeName": "observation_name",
                         "KeyType": "HASH"
+                    },
+					{
+                        "AttributeName": "project_name",
+                        "KeyType": "RANGE"
                     }
                 ],
                 "ProvisionedThroughput": {
@@ -769,7 +777,7 @@
                                 "KeyType": "HASH"
                             },
                             {
-                                "AttributeName": "image_id",
+                                "AttributeName": "observation_name",
                                 "KeyType": "RANGE"
                             }
                         ],
@@ -854,14 +862,22 @@
             "Properties": {
                 "AttributeDefinitions": [
                     {
-                        "AttributeName": "frame_id",
+                        "AttributeName": "frame_name",
+                        "AttributeType": "S"
+                    },
+					{
+                        "AttributeName": "project_name",
                         "AttributeType": "S"
                     }
                 ],
                 "KeySchema": [
                     {
-                        "AttributeName": "frame_id",
+                        "AttributeName": "frame_name",
                         "KeyType": "HASH"
+                    },
+					{
+                        "AttributeName": "project_name",
+                        "KeyType": "RANGE"
                     }
                 ],
                 "ProvisionedThroughput": {

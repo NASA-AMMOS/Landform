@@ -16,17 +16,23 @@ namespace OPS.Cloud
     /// Represents a coordinate frame in the database
     /// Coordiante frames can have one or more observations associated with them
     /// </summary>\
-    [DynamoDBTable("mango-Frames-1WJM6NAS02DTW")]
+    [DynamoDBTable("mango-Frames-1VOU76GJPKP27")]
     public class Frame
     {
         public int Id { get; set; }
+
         [Required]
         [Index("IX_FrameUniqueness", 1, IsUnique = true)]
         public int ProjectId { get; set; }
+
+        [DynamoDBRangeKey]
+        [DynamoDBProperty("project_name")]
+        public string ProjectName { get; set; }
+
         [Index("IX_FrameUniqueness", 2, IsUnique = true)]
         [MaxLength(255)]
         [DynamoDBHashKey] //Partition key
-        [DynamoDBProperty("image_id")]
+        [DynamoDBProperty("frame_name")]
         public string Name { get; set; }
 
         public Frame()
@@ -54,6 +60,7 @@ namespace OPS.Cloud
             }
             this.Name = name;
             this.ProjectId = project.Id;
+            this.ProjectName = project.Name;
         }
 
 
@@ -79,6 +86,20 @@ namespace OPS.Cloud
                 // A record with this unique name and project id combination already exists
             }
             return null;
+        }
+
+        //Currently this will always succeed. Maybe want to use optimistic locking. 
+        //Though currently I think that's unnececary
+        public static Frame Create(DynamoDBContext context, Project p, string name = null)
+        {
+            if (name == null)
+            {
+                name = Guid.NewGuid().ToString();
+            }
+            Frame f = new Frame(p, name);
+            f.Id = 1; //so later checks give us "valid id"
+            context.Save<Frame>(f);
+            return f;
         }
 
         /// <summary>
@@ -109,6 +130,25 @@ namespace OPS.Cloud
             return Find(context, p, name);
         }
 
+        public static Frame FindOrCreate(DynamoDBContext context, Project p, string name)
+        {
+            // Try to find this project
+            Frame frame = Find(context, p, name);
+            if (frame != null)
+            {
+                return frame;
+            }
+            // If it doesn't exist try to create it
+            frame = Create(context, p, name);
+            if (frame != null)
+            {
+                return frame;
+            }
+            // If our create failed someone else may have created one between our find and create calls
+            // Look for it again.
+            return Find(context, p, name);
+        }
+
         /// <summary>
         /// Find a frame in the database with the specified project and name.  Returns null if none exists.
         /// </summary>
@@ -119,6 +159,11 @@ namespace OPS.Cloud
         public static Frame Find(LandformDbContext context, Project p, string name)
         {
             return context.Frames.Where(f => f.Name == name && f.ProjectId == p.Id).FirstOrDefault();
+        }
+
+        public static Frame Find(DynamoDBContext context, Project p, string name)
+        {
+            return context.Load<Frame>(name, p.Name);
         }
 
         /// <summary>

@@ -16,7 +16,7 @@ namespace OPS.Cloud
     /// Can be connected to Frames and aligned with other observations through
     /// FrameTransforms
     /// </summary>
-    [DynamoDBTable("mango-Images-7E5Q35VK1BL6")]
+    [DynamoDBTable("mango-Images-12P2U288Z8KQ8")]
     public class Observation
     {
         //TODO get rid of this 
@@ -29,6 +29,10 @@ namespace OPS.Cloud
         [Index("IX_ObservationUniqueness", 1, IsUnique = true)]
         public int ProjectId { get; set; }
 
+        [DynamoDBRangeKey]
+        [DynamoDBProperty("project_name")]
+        public string ProjectName { get; set; }
+
         [Required]
         public int FrameId { get; set; }
 
@@ -36,7 +40,7 @@ namespace OPS.Cloud
         [MaxLength(255)]
         [Index("IX_ObservationUniqueness", 2, IsUnique = true)]
         [DynamoDBHashKey] //Partition key
-        [DynamoDBProperty("image_id")]
+        [DynamoDBProperty("observation_name")]
         public string Name { get; set; }
 
         [Required]
@@ -72,6 +76,7 @@ namespace OPS.Cloud
                 throw new CloudException("Cannot create observation with unexpected project id found in frame");
             }            
             this.ProjectId = frame.ProjectId;
+            this.ProjectName = frame.ProjectName;
             this.Name = name;
             this.FrameId = frame.Id;
             this.Url = url;
@@ -106,6 +111,14 @@ namespace OPS.Cloud
             return null;
         }
 
+        public static Observation Create(DynamoDBContext context, Frame frame, string name, string url, string observationType, string cameraModel, bool useForReconstruction)
+        {
+            Observation obs = new Observation(frame, name, url, observationType, cameraModel, useForReconstruction);
+            obs.Id = 1; //so we show up as valid. this is not great....
+            context.Save<Observation>(obs);
+            return obs;
+        }
+
         /// <summary>
         /// Finds an observation based on its name and project
         /// Return null if observation cannot be found
@@ -125,9 +138,9 @@ namespace OPS.Cloud
         /// <param name="context"></param>
         /// <param name="imageId"></param>
         /// <returns></returns>
-        public static Observation Find(DynamoDBContext context, string name)
+        public static Observation Find(DynamoDBContext context, Project p, string name)
         {
-            return context.Load<Observation>(name);
+            return context.Load<Observation>(name, p.Name);
         }
     }
 }

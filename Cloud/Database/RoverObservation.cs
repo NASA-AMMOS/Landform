@@ -80,8 +80,10 @@ namespace OPS.Cloud
 
         public static RoverObservation Create(DynamoDBContext context, Frame frame, string name, string url, string observationType, string cameraModel, bool useForReconstruction, int site, int drive, string version, string sensor, string imageFrameSize)
         {
-            context.Save(new RoverObservation(frame, name, url, observationType, cameraModel, useForReconstruction, site, drive, version, sensor, imageFrameSize));
-            return (RoverObservation)Find(context, name);
+            RoverObservation ro = new RoverObservation(frame, name, url, observationType, cameraModel, useForReconstruction, site, drive, version, sensor, imageFrameSize);
+            ro.Id = 1; 
+            context.Save(ro);
+            return ro;
         }
     }
 }

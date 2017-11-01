@@ -35,6 +35,11 @@ namespace OPS.Pipeline
         public const string PROJECT_NAME = "MSL";
         public const string ROOT_FRAME_NAME = "root";
 
+        //constants for cutoffs
+        public const int MIN_NAV_HAZ_EXPOSURE = 80;
+        public const int MIN_MASTCAM_FOCUS_CUTOFF = 3;
+        public const int MAX_MASTCAM_WIDTH = 1344;
+
     }
 
     /// <summary>
@@ -42,9 +47,6 @@ namespace OPS.Pipeline
     /// </summary>
     public class CrawlMSL
     {
-        const int MIN_NAV_HAZ_EXPOSURE = 80;
-        const int MIN_MASTCAM_FOCUS_CUTOFF = 3;
-        const int MAX_MASTCAM_WIDTH = 1344;
         private static readonly ILog logger = LogManager.GetLogger(typeof(CrawlMSL));
 
 
@@ -170,7 +172,7 @@ namespace OPS.Pipeline
             // Low exposure hazcams
             if(parser.DerivedImageType == RoverProductType.Image)
             {
-                if(parser.ExposureDuration != 0 && parser.ExposureDuration < MIN_NAV_HAZ_EXPOSURE)
+                if(parser.ExposureDuration != 0 && parser.ExposureDuration < MSLProject.MIN_NAV_HAZ_EXPOSURE)
                 {
                     return false;
                 }
@@ -188,14 +190,14 @@ namespace OPS.Pipeline
                     return false;
                 }
                 // Skip mastcam with short focal distances (probably closeup of rover part with terrain out of focus in background)
-                if (parser.MaximumFocusDistance < MIN_MASTCAM_FOCUS_CUTOFF)
+                if (parser.MaximumFocusDistance < MSLProject.MIN_MASTCAM_FOCUS_CUTOFF)
                 {
                     return false;
                 }
                 // Assume that if the mastcam is bigger enough to cause vinetting on the ccd that this has been special processed
                 // We do mask the vinetted parts so this check may not be strictly neccessary and may reduce our available images
                 // unneccessarily in some cases
-                if (metadata.Width > MAX_MASTCAM_WIDTH)
+                if (metadata.Width > MSLProject.MAX_MASTCAM_WIDTH)
                 {
                     return false;
                 }
