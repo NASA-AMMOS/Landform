@@ -22,7 +22,7 @@ namespace OPS.Cloud
         
         public RoverObservation()
         {
-
+            //throw new CloudException("Only create RoverObservations via Create so they are saved to the database.");
         }
 
         protected RoverObservation(Frame frame, string name, string url, string observationType, string cameraModel, bool useForReconstruction, int site, int drive, string version, string sensor, string imageFrameSize) :
@@ -65,8 +65,11 @@ namespace OPS.Cloud
         /// <returns></returns>
         public static RoverObservation Create(DynamoDBContext context, Frame frame, string name, string url, string observationType, string cameraModel, bool useForReconstruction, int site, int drive, string version, string sensor, string imageFrameSize)
         {
+            if (Observation.Find(context, frame.ProjectName, name) != null)
+            {
+                return null; //An observation with this name and project already exists 
+            }
             RoverObservation ro = new RoverObservation(frame, name, url, observationType, cameraModel, useForReconstruction, site, drive, version, sensor, imageFrameSize);
-            ro.Id = 1; 
             context.Save(ro);
             return ro;
         }

@@ -350,20 +350,6 @@ namespace OPS.Pipeline
                 //storage.UploadFile(Path.ChangeExtension(tmp[OBJ], EXTENSIONS[MTL]), s3url + EXTENSIONS[MTL]); //MTL file is path-dependent so *shrug*
             });
 
-
-            /*
-            //When files are saved like this (in one go) only one HTTP PUT lambda is generated. The SUPER FAST SPEEDY upload above generates multiple. TODO
-            S3Url url = new S3Url(s3url);
-            string root = (@"C:\tmp\out\" + url.Prefix).Replace('/', '\\');
-            string imgFilename = root + ".jpg";
-            PathHelper.EnsureExists(root); //TODO this will make extra directories (prefix/) that are unneeded 
-            //dst1.Save(root + ".obj");
-            img.Save<byte>(imgFilename);
-            dst3.Save(root + ".obj", Path.GetFileName(imgFilename));
-
-            UploadResult(url.BucketName, url.Prefix, root);
-            */
-
             //message is still in queue until we tell it to delete 
             var delRequest = new DeleteMessageRequest
             {

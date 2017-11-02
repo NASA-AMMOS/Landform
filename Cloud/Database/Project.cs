@@ -1,8 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.ComponentModel.DataAnnotations;
-using System.ComponentModel.DataAnnotations.Schema;
-using System.Data.Entity.Infrastructure;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -17,17 +14,16 @@ namespace OPS.Cloud
     [DynamoDBTable("mango-Projects-PLFABTRIK1ZX")]
     public class Project
     {
-        public int Id { get; set; } //DynamoDB transition: could transition to using optimistic locking & version numbers, but for now just set Id != 0 on create. 
-        [Required]
-        [Index("IX_ProjectUniqueness", IsUnique = true)]
-        [MaxLength(255)]
         [DynamoDBHashKey] //Partition key
         [DynamoDBProperty("project_name")]
         public string Name { get; set; }
-        
+
+        [DynamoDBVersion]
+        public int? VersionNumber { get; set; }
+
         public Project()
         {
-
+            //throw new CloudException("Only create FrameTransforms via Create so they are saved to the database.");
         }
 
         /// <summary>
@@ -54,7 +50,6 @@ namespace OPS.Cloud
                 return null; // A record with this unique name already exists
             }
             Project project = new Project(name);
-            project.Id = 1;
             context.Save(project);
             return project;
         }
@@ -95,15 +90,6 @@ namespace OPS.Cloud
         public static Project Find(DynamoDBContext context, string name)
         {
             return context.Load<Project>(name);
-        }
-
-        /// <summary>
-        /// Returns true if Id is valid (this object has been saved to the database)
-        /// </summary>
-        /// <returns></returns>
-        public bool HasValidId()
-        {
-            return Id != 0;           
         }
     }
 }

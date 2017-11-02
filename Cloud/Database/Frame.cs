@@ -1,8 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.ComponentModel.DataAnnotations;
-using System.ComponentModel.DataAnnotations.Schema;
-using System.Data.Entity.Infrastructure;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -19,25 +16,20 @@ namespace OPS.Cloud
     [DynamoDBTable("mango-Frames-1VOU76GJPKP27")]
     public class Frame
     {
-        public int Id { get; set; }
-
-        [Required]
-        [Index("IX_FrameUniqueness", 1, IsUnique = true)]
-        public int ProjectId { get; set; }
-
         [DynamoDBRangeKey]
         [DynamoDBProperty("project_name")]
         public string ProjectName { get; set; }
 
-        [Index("IX_FrameUniqueness", 2, IsUnique = true)]
-        [MaxLength(255)]
         [DynamoDBHashKey] //Partition key
         [DynamoDBProperty("frame_name")]
         public string Name { get; set; }
 
+        [DynamoDBVersion]
+        public int? VersionNumber { get; set; }
+
         public Frame()
         {
-
+            //throw new CloudException("Only create Frames via Create so they are saved to the database.");
         }
 
         /// <summary>
@@ -49,17 +41,11 @@ namespace OPS.Cloud
         /// <param name="name"></param>
         protected Frame(Project project, string name = null)
         {
-            //TODO: the equivalent thing in Dynamo is to use version numbers (optimistic locking) and check that version number > 0
-            if(!project.HasValidId())
-            {
-                throw new CloudException("Cannot create frame with a project that has not been saved to database.");
-            }
             if(name == null)
             {
                 name = Guid.NewGuid().ToString();
             }
             this.Name = name;
-            this.ProjectId = project.Id;
             this.ProjectName = project.Name;
         }
 
@@ -80,8 +66,11 @@ namespace OPS.Cloud
             {
                 name = Guid.NewGuid().ToString();
             }
+            if (Find(context, p, name) != null) 
+            {
+                return null; // A record with this unique name already exists
+            }
             Frame f = new Frame(p, name);
-            f.Id = 1; //so later checks give us "valid id"
             context.Save<Frame>(f);
             return f;
         }
@@ -124,15 +113,6 @@ namespace OPS.Cloud
         public static Frame Find(DynamoDBContext context, Project p, string name)
         {
             return context.Load<Frame>(name, p.Name);
-        }
-
-        /// <summary>
-        /// Returns true if Id is valid (this object has been saved to the database)
-        /// </summary>
-        /// <returns></returns>
-        public bool HasValidId()
-        {
-            return Id != 0;
         }
     }   
 }

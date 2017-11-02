@@ -256,8 +256,8 @@
                     "height": 60
                 },
                 "position": {
-                    "x": 30,
-                    "y": -50
+                    "x": 270,
+                    "y": -20
                 },
                 "z": 0,
                 "embeds": [],
@@ -271,8 +271,8 @@
                     "height": 60
                 },
                 "position": {
-                    "x": 150,
-                    "y": -50
+                    "x": 390,
+                    "y": -20
                 },
                 "z": 0,
                 "embeds": [],
@@ -286,8 +286,8 @@
                     "height": 60
                 },
                 "position": {
-                    "x": 270,
-                    "y": -50
+                    "x": 510,
+                    "y": -20
                 },
                 "z": 0,
                 "embeds": []
@@ -340,14 +340,40 @@
                     "height": 60
                 },
                 "position": {
-                    "x": -90,
-                    "y": -50
+                    "x": 150,
+                    "y": -20
                 },
                 "z": 0,
                 "embeds": [],
                 "dependson": [
                     "91767755-8ca8-4e72-b3a5-e47e435c3d58"
                 ]
+            },
+            "c84d97ee-a93a-448f-89f4-f0e45ddf0cb8": {
+                "size": {
+                    "width": 60,
+                    "height": 60
+                },
+                "position": {
+                    "x": 30,
+                    "y": -20
+                },
+                "z": 0,
+                "embeds": [],
+                "dependson": [
+                    "885610f8-7e41-4593-9185-e7974a022141"
+                ]
+            },
+            "d366b383-a5da-4080-b47f-1fae203ac792": {
+                "size": {
+                    "width": 60,
+                    "height": 60
+                },
+                "position": {
+                    "x": -100,
+                    "y": -20
+                },
+                "z": 0
             }
         }
     },
@@ -745,7 +771,7 @@
                         "AttributeName": "observation_name",
                         "AttributeType": "S"
                     },
-					{
+                    {
                         "AttributeName": "project_name",
                         "AttributeType": "S"
                     },
@@ -759,7 +785,7 @@
                         "AttributeName": "observation_name",
                         "KeyType": "HASH"
                     },
-					{
+                    {
                         "AttributeName": "project_name",
                         "KeyType": "RANGE"
                     }
@@ -865,7 +891,7 @@
                         "AttributeName": "frame_name",
                         "AttributeType": "S"
                     },
-					{
+                    {
                         "AttributeName": "project_name",
                         "AttributeType": "S"
                     }
@@ -875,7 +901,7 @@
                         "AttributeName": "frame_name",
                         "KeyType": "HASH"
                     },
-					{
+                    {
                         "AttributeName": "project_name",
                         "KeyType": "RANGE"
                     }
@@ -1024,6 +1050,98 @@
             "Metadata": {
                 "AWS::CloudFormation::Designer": {
                     "id": "885610f8-7e41-4593-9185-e7974a022141"
+                }
+            }
+        },
+        "FrameTransformLookup": {
+            "Type": "AWS::DynamoDB::Table",
+            "DependsOn": "Projects",
+            "Properties": {
+                "AttributeDefinitions": [
+                    {
+                        "AttributeName": "from_frame_name",
+                        "AttributeType": "S"
+                    },
+                    {
+                        "AttributeName": "to_frame_name",
+                        "AttributeType": "S"
+                    }
+                ],
+                "KeySchema": [
+                    {
+                        "AttributeName": "from_frame_name",
+                        "KeyType": "HASH"
+                    },
+                    {
+                        "AttributeName": "to_frame_name",
+                        "KeyType": "RANGE"
+                    }
+                ],
+                "ProvisionedThroughput": {
+                    "ReadCapacityUnits": "5",
+                    "WriteCapacityUnits": "5"
+                },
+                "GlobalSecondaryIndexes": [
+                    {
+                        "IndexName": "SectorLookupByLocation",
+                        "KeySchema": [
+                            {
+                                "AttributeName": "to_frame_name",
+                                "KeyType": "HASH"
+                            },
+                            {
+                                "AttributeName": "from_frame_name",
+                                "KeyType": "RANGE"
+                            }
+                        ],
+                        "Projection": {
+                            "ProjectionType": "ALL"
+                        },
+                        "ProvisionedThroughput": {
+                            "ReadCapacityUnits": "5",
+                            "WriteCapacityUnits": "5"
+                        }
+                    }
+                ]
+            },
+            "Metadata": {
+                "AWS::CloudFormation::Designer": {
+                    "id": "c84d97ee-a93a-448f-89f4-f0e45ddf0cb8"
+                }
+            }
+        },
+        "FrameTransforms": {
+            "Type": "AWS::DynamoDB::Table",
+            "DependsOn": "FrameTransformLookup",
+            "Properties": {
+                "AttributeDefinitions": [
+                    {
+                        "AttributeName": "id",
+                        "AttributeType": "S"
+                    },
+                    {
+                        "AttributeName": "project_name",
+                        "AttributeType": "S"
+                    }
+                ],
+                "KeySchema": [
+                    {
+                        "AttributeName": "id",
+                        "KeyType": "HASH"
+                    },
+                    {
+                        "AttributeName": "project_name",
+                        "KeyType": "RANGE"
+                    }
+                ],
+                "ProvisionedThroughput": {
+                    "ReadCapacityUnits": "5",
+                    "WriteCapacityUnits": "5"
+                }
+            },
+            "Metadata": {
+                "AWS::CloudFormation::Designer": {
+                    "id": "d366b383-a5da-4080-b47f-1fae203ac792"
                 }
             }
         }

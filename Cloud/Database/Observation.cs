@@ -1,8 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.ComponentModel.DataAnnotations;
-using System.ComponentModel.DataAnnotations.Schema;
-using System.Data.Entity.Infrastructure;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -19,40 +16,42 @@ namespace OPS.Cloud
     [DynamoDBTable("mango-Images-12P2U288Z8KQ8")]
     public class Observation
     {
-        //TODO get rid of this 
-        public int Id { get; set; }
-
-        [Required]
-        public string Url { get; set; }
-
-        [Required]
-        [Index("IX_ObservationUniqueness", 1, IsUnique = true)]
-        public int ProjectId { get; set; }
-
         [DynamoDBRangeKey]
         [DynamoDBProperty("project_name")]
         public string ProjectName { get; set; }
 
-        [Required]
-        public int FrameId { get; set; }
-
-        [Required]
-        [MaxLength(255)]
-        [Index("IX_ObservationUniqueness", 2, IsUnique = true)]
         [DynamoDBHashKey] //Partition key
         [DynamoDBProperty("observation_name")]
         public string Name { get; set; }
 
-        [Required]
+        public string Url { get; set; }
+
+        public string FeatureUrl { get; set; }
+
+        public string FrameName { get; set; }
+
         public string ObservationType { get; set; }
 
         public string CameraModel { get; set; }
 
         public bool UseForReconstruction { get; set; }
 
+        [DynamoDBVersion]
+        public int? VersionNumber { get; set; }
+
+        /// Add required fields here 
+        private bool validate()
+        {
+            return (Url != null &&
+                FrameName != null &&
+                ProjectName != null &&
+                Name != null &&
+                ObservationType != null);
+        }
+
         public Observation()
         {
-
+            //throw new CloudException("Only create Observations via Create so they are saved to the database.");
         }
 
         /// <summary>
@@ -67,23 +66,16 @@ namespace OPS.Cloud
         /// <param name="cameraModel"></param>
         protected Observation(Frame frame, string name, string url, string observationType, string cameraModel, bool useForReconstruction)
         {
-            if (!frame.HasValidId())
-            {
-                throw new CloudException("Cannot create observation with a frame that has not been saved to database.");
-            }
-            if(frame.ProjectId == 0)
-            {
-                throw new CloudException("Cannot create observation with unexpected project id found in frame");
-            }            
-            this.ProjectId = frame.ProjectId;
+            //TODO: checks for valid (saved) frame and project removed here 
             this.ProjectName = frame.ProjectName;
             this.Name = name;
-            this.FrameId = frame.Id;
             this.Url = url;
             this.ObservationType = observationType;
             this.CameraModel = cameraModel;
             this.UseForReconstruction = useForReconstruction;
         }
+
+
 
         /// <summary>
         /// Creates a new observation and saves it to the database.  Returned observation has a valid id.
@@ -98,9 +90,16 @@ namespace OPS.Cloud
         /// <returns></returns>
         public static Observation Create(DynamoDBContext context, Frame frame, string name, string url, string observationType, string cameraModel, bool useForReconstruction)
         {
+            if (Find(context, frame.ProjectName, name) != null)
+            {
+                return null; // A record with this unique name already exists
+            }
             Observation obs = new Observation(frame, name, url, observationType, cameraModel, useForReconstruction);
-            obs.Id = 1; //so we show up as valid. this is not great....
-            context.Save<Observation>(obs);
+            if (!obs.validate())
+            {
+                throw new CloudException("Missing required property in Observation");
+            }
+            context.Save(obs);
             return obs;
         }
 
@@ -111,9 +110,9 @@ namespace OPS.Cloud
         /// <param name="context"></param>
         /// <param name="imageId"></param>
         /// <returns></returns>
-        public static Observation Find(DynamoDBContext context, Project p, string name)
+        public static Observation Find(DynamoDBContext context, string projectName, string name)
         {
-            return context.Load<Observation>(name, p.Name);
+            return context.Load<Observation>(name, projectName);
         }
     }
 }

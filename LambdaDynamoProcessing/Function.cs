@@ -54,7 +54,7 @@ namespace Lambda.LambdaDynamoProcessing
                 //Dictionary<string, AttributeValue> childmap = record.Dynamodb.NewImage[TableNames.CHILDREN].M;
 
 
-                //check if each child is in this update 
+                //check if all children are in this update 
                 if (record.Dynamodb.NewImage.ContainsKey(TableNames.CHILDREN) &&
                     record.Dynamodb.NewImage.ContainsKey(TableNames.NUM_CHILDREN) &&
                     record.Dynamodb.NewImage[TableNames.CHILDREN].SS.Count == Convert.ToInt32(record.Dynamodb.NewImage[TableNames.NUM_CHILDREN].N))

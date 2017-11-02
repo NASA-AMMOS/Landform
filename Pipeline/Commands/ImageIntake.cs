@@ -17,7 +17,9 @@ using Amazon.SQS.Model;
 using Amazon.DynamoDBv2.DataModel;
 using Amazon.DynamoDBv2;
 using OPS.Util;
+using OPS.Alignment;
 using Microsoft.Xna.Framework;
+using Newtonsoft.Json;
 
 namespace OPS.Pipeline
 {
@@ -59,6 +61,7 @@ namespace OPS.Pipeline
 
         //thread-safe processing helpers
         MetadataIndexer indexer;
+        StorageHelper storage; //TODO seems thread safe, but I'm not 100% sure
 
         //monitoring counts 
         private int messagesRecieved = 0;
@@ -72,10 +75,11 @@ namespace OPS.Pipeline
             SQSClient = new AmazonSQSClient(Amazon.RegionEndpoint.USWest1); 
             S3Client = new AmazonS3Client(Amazon.RegionEndpoint.USWest1);
             DDBClient = new AmazonDynamoDBClient(Amazon.RegionEndpoint.USWest1);
-            context = new DynamoDBContext(DDBClient);
+            context = new DynamoDBContext(DDBClient, new DynamoDBContextConfig { TableNamePrefix = ""});
 
             //Initialize our utils
             this.config = new AllignmentConfig();
+            storage = new StorageHelper();
             indexer = new MetadataIndexer(context, new StorageHelper());
         }
 
@@ -129,7 +133,7 @@ namespace OPS.Pipeline
                         catch (Exception e)
                         {
                             Interlocked.Increment(ref messagesFailed);
-                            string msg = "Processing failed for message " + m.MessageId + "; additional message info: " + m.MessageAttributes["ParentPath"].StringValue
+                            string msg = "Processing failed for message " + m.MessageId + "; additional message info: " + m.MessageAttributes[MessageFields.FILE_S3_PATH].StringValue
                                 + "\r\n Error msg is: " + e.Message
                                 + "\r\n Stack trace is: " + e.StackTrace;
                             Console.WriteLine(msg);
@@ -149,27 +153,68 @@ namespace OPS.Pipeline
         /// <returns></returns>
         public int IngestImage(Message m)
         {
-            Thread.Sleep(1000); //slow down for debugging
-
-            //Index metadata 
+            //Index metadata, look up or calculate transforms 
             S3Url url = new S3Url(m.MessageAttributes[MessageFields.FILE_S3_PATH].StringValue); 
-            indexer.IndexMetadata(url.Url);
-
-            
-
-            //look up or calculate estimated position 
-
+            MetadataIndexerStatus indexed = indexer.IndexMetadata(url.Url);
+            switch (indexed.status)
+            {
+                case (Status.SKIPPED):
+                    DeleteMessage(m);
+                    return 0;
+                case (Status.FAILED):
+                case (Status.FAILEDTOADD):
+                    return 1; //don't delete message, let another handler try again
+                case (Status.PREEXISTING):
+                    if (indexed.obs.FeatureUrl != null) //Features have already been uploaded
+                    {
+                        DeleteMessage(m);
+                        return 0;
+                    }
+                    break;
+            }
 
             //do keypoint and feature detection 
+            //Downloading image. Image.Load() does spooky things with temp files which are mitigated (somewhat) by not using the temp file wrapper
+            string root = (@"C:\tmp\in\" + Guid.NewGuid()).Replace('/', '\\');
+            storage.DownloadFile(url.Url, root + Path.GetExtension(url.Url)); //TODO metadata indexing opens a stream. Is it signifiantly more efficient to download file there?
+            Image im = Image.Load(root + Path.GetExtension(url.Url));
+
+            IFeatureDetector detector = new SIFT(); //TODO which detector? 
+            var features = detector.Detect(im);
+            S3Url featureUrl = new S3Url(url.BucketName, Path.ChangeExtension(url.Prefix, ".json")); //TODO think about this
 
             //save keypoints and features to S3
+            TemporaryFile.GetAndDelete(".json", temp =>
+            {
+                using (StreamWriter file = File.CreateText(temp))
+                {
+                    JsonSerializer serializer = new JsonSerializer();
+                    serializer.Serialize(file,features);
+                }
+                storage.UploadFile(temp, featureUrl.Url);
+            });
+
 
             //save to Dynamo: 
             //   Image record: S3 locaiton, S3 keypoints location, metadata 
             //   Transforms record: this image's transform 
+            //Use the observation we made or found while indexing metadata
+            //TODO could reduce dynamo writes by not writing the observation until here
+            indexed.obs.FeatureUrl = featureUrl.Url;
+            try 
+            {
+                context.Save(indexed.obs);
+            }
+            catch (AmazonDynamoDBException e)
+            {
+                Console.WriteLine("save failed: "+e.Message);
+                return 1; //Don't delete message; our processing failed
+            }
 
             //Start an overlap job in the queue. 
             //Make it invisible for a few seconds so that overlaps don't have to do strongly consistent reads. 
+
+            if (DeleteMessage(m) == System.Net.HttpStatusCode.OK) Console.WriteLine(".....Message " + m.MessageId + " deleted");
 
             return 0; 
         }
@@ -197,6 +242,18 @@ namespace OPS.Pipeline
 
             //save mapping to S3, save address of mapping to Dynamo 
             return 0;
+        }
+
+        private System.Net.HttpStatusCode DeleteMessage(Message m)
+        {
+            var delRequest = new DeleteMessageRequest
+            {
+                QueueUrl = config.JobQueue,
+                ReceiptHandle = m.ReceiptHandle
+            };
+
+            var delResponse = SQSClient.DeleteMessage(delRequest);
+            return delResponse.HttpStatusCode;
         }
     }
 }

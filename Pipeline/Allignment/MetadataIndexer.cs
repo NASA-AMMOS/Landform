@@ -28,6 +28,17 @@ namespace OPS.Pipeline
         public const int MAX_MASTCAM_WIDTH = 1344;
     }
 
+    public enum Status { ADDED, FAILEDTOADD, PREEXISTING, SKIPPED, FAILED};
+
+    /// <summary>
+    /// Return type for indexer so caller can decide what action to take with the message that started this job
+    /// </summary>
+    public class MetadataIndexerStatus
+    {
+        public Status status;
+        public Observation obs;
+    }
+
     /// <summary>
     /// Downloads images, reads metadata, and saves metadata to DynamoDB
     /// Threadsafe. 
@@ -198,13 +209,20 @@ namespace OPS.Pipeline
 
         /// <summary>
         /// Add a file to the database
+        /// Return an observation IFF it is in the database. Else (if should not index or error) return null. 
         /// </summary>
         /// <param name="storage"></param>
         /// <param name="url"></param>
-        public void IndexMetadata(string url)
+        public MetadataIndexerStatus IndexMetadata(string url)
         {
+            MetadataIndexerStatus toReturn = new MetadataIndexerStatus();
+
             //Rule out some files
-            if (!ShouldDownloadHeader(url)) return;
+            if (!ShouldDownloadHeader(url))
+            {
+                toReturn.status = Status.SKIPPED;
+                return toReturn;
+            }
 
             //Index the rest! 
             storage.GetStorageStream(url, stream =>
@@ -225,19 +243,20 @@ namespace OPS.Pipeline
                         Frame observationFrame = Frame.FindOrCreate(context, project, ObservationFrameName(parser));
                         Frame rootFrame = Frame.Find(context, project, MSLProject.ROOT_FRAME_NAME);
                         Quaternion roverToLocalLevel = parser.RoverOriginRotation;
-                        /*
-                            if (FrameTransform.Find(Context, observationFrame, siteDriveFrame).FirstOrDefault() == null)
-                            {
-                                FrameTransform observationToSiteDrive = FrameTransform.Create(Context, observationFrame, siteDriveFrame, Vector3.Zero, roverToLocalLevel, TransformSource.Prior, 0);
-                            }
-                            var loc = locations.Location(sd);
-                            if (loc != null && FrameTransform.Find(Context, siteDriveFrame, rootFrame).FirstOrDefault() == null)
-                            {
-                                FrameTransform siteDriveToRoot = FrameTransform.Create(Context, siteDriveFrame, rootFrame, loc.Position, Quaternion.Identity, TransformSource.Prior, 0.5);
-                            }
-                            */
+
+                        //TODO Charley said we'll save multiple transforms per frame/frame pair but right now we specifically don't
+                        if (FrameTransform.Find(context, observationFrame, siteDriveFrame).FirstOrDefault() == null)
+                        {
+                            FrameTransform observationToSiteDrive = FrameTransform.Create(context, observationFrame, siteDriveFrame, Vector3.Zero, roverToLocalLevel, TransformSource.Prior, 0);
+                        }
+                        var loc = locations.Location(sd);
+                        if (loc != null && FrameTransform.Find(context, siteDriveFrame, rootFrame).FirstOrDefault() == null)
+                        {
+                            FrameTransform siteDriveToRoot = FrameTransform.Create(context, siteDriveFrame, rootFrame, loc.Position, Quaternion.Identity, TransformSource.Prior, 0.5);
+                        }
+
                         string observationName = ObservationName(parser);
-                        Observation observation = RoverObservation.Find(context, project, observationName);
+                        Observation observation = RoverObservation.Find(context, project.Name, observationName);
                         if (observation == null)
                         {
                             string cameraModel = JsonHelper.ToJson(metadata.CameraModel);
@@ -246,30 +265,38 @@ namespace OPS.Pipeline
                             if (observation != null)
                             {
                                 status = "Add";
+                                toReturn.obs = observation;
+                                toReturn.status = Status.ADDED;
                             }
                             else
                             {
                                 status = "Failed to add";
+                                toReturn.status = Status.FAILEDTOADD;
                             }
                         }
                         else
                         {
                             status = "Exists";
+                            toReturn.obs = observation;
+                            toReturn.status = Status.PREEXISTING;
                         }
 
                     }
                     else
                     {
                         status = "Skipped(metadata)";
+                        toReturn.status = Status.SKIPPED;
                     }
 
                 }
                 catch (Exception e)
                 {
                     status = "Failed " + e.Message;
+                    toReturn.status = Status.FAILED;
                 }
                 Console.WriteLine(url + "\t" + status);
             });
+            return toReturn;
         }      
     }
 }
