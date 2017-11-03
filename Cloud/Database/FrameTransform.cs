@@ -19,47 +19,12 @@ namespace OPS.Cloud
         public const string Derived = "derived";
     }
 
-    /// <summary>
-    /// Record the ID for a frame transform 
-    /// If a transform is in the database, it will always be in the Lookup table. 
-    /// However, a transform in the lookup table may not always be in the Transform table 
-    /// Should not be used except by FrameTransform class 
-    /// TODO see if Dynamo still works if this is Protected 
-    /// </summary>
-    [DynamoDBTable("mango-FrameTransformLookup-14BGDS2GICVKW")]
-    public class FrameTransformLookup
-    {
-        [DynamoDBHashKey]
-        [DynamoDBProperty("from_frame_name")]
-        public string FromFrameName { get; set; }
 
-        [DynamoDBRangeKey]
-        [DynamoDBProperty("to_frame_name")]
-        public string ToFrameName { get; set; }
-
-        public Dictionary<string,HashSet<String>> Ids { get; set; }
-
-        [DynamoDBVersion]
-        public int? VersionNumber { get; set; }
-
-        public FrameTransformLookup()
-        {
-
-        }
-
-        //Should always be constructed empty, since simultaneous creates to DynamoDB can overwrite each other. 
-        public FrameTransformLookup(string FromFrameName, string ToFrameName)
-        {
-            this.FromFrameName = FromFrameName;
-            this.ToFrameName = ToFrameName;
-            Ids = new Dictionary<string, HashSet<string>>(); 
-        }
-    }
 
     /// <summary>
     /// Represents the rotation and translation between two frames
     /// </summary>
-    [DynamoDBTable("mango-FrameTransforms-1EXV1L0E82XWE")]
+    [DynamoDBTable("FrameTransforms")]
     public class FrameTransform
     {
         [DynamoDBHashKey]
@@ -68,7 +33,7 @@ namespace OPS.Cloud
 
         [DynamoDBRangeKey]
         [DynamoDBProperty("project_name")]
-        public string ProjectName { get; set; } 
+        public string ProjectName { get; set; }
 
         public string FromFrameName { get; set; }
         public string ToFrameName { get; set; }
@@ -86,9 +51,10 @@ namespace OPS.Cloud
         [DynamoDBVersion]
         public int? VersionNumber { get; set; }
 
+        //This constructor must be public for DynamoDb but should not be used
         public FrameTransform()
         {
-            //throw new CloudException("Only create FrameTransforms via Create so they are saved to the database.");
+            
         }
 
         /// <summary>
@@ -125,20 +91,6 @@ namespace OPS.Cloud
         /// <param name="transformSource"></param>
         /// <param name="error"></param>
         /// <returns></returns>
-        //public static FrameTransform Create(DynamoDBContext context, Frame fromFrame, Frame toFrame, Vector3 translation, Quaternion rotation, string transformSource, double error)
-        //{
-        //    try
-        //    {
-        //        FrameTransform transform = context.FrameTransforms.Add(new FrameTransform(fromFrame, toFrame, translation, rotation, transformSource, error));
-        //        context.SaveChanges();
-        //        return transform;
-        //    }
-        //    catch (DbUpdateException)
-        //    {
-        //        // A record with this unique name and project id combination already exists
-        //    }
-        //    return null;
-        //}*/
         public static FrameTransform Create(DynamoDBContext context, Frame fromFrame, Frame toFrame, Vector3 translation, Quaternion rotation, string transformSource, double error)
         {
             //generate a guid for this transform 
@@ -157,7 +109,7 @@ namespace OPS.Cloud
             //attempt to upload to the lookup table. Backoff and repeat if high traffic to this from/to pair. 
             //TODO check how often this is happening. May need a workaround. 
             Random rand = new Random();
-            for (int i = 0; i<4; i++)
+            for (int i = 0; i < 4; i++)
             {
                 FrameTransformLookup lookup = context.Load<FrameTransformLookup>(fromFrame.Name, toFrame.Name);
                 if (lookup.Ids == null) lookup.Ids = new Dictionary<string, HashSet<string>>();
@@ -185,7 +137,7 @@ namespace OPS.Cloud
             return ft;
         }
 
-            
+
         /// <summary>
         /// Find all FrameTransforms that map fromFrame->toFrame
         /// Returns an empty set if none found
@@ -194,17 +146,12 @@ namespace OPS.Cloud
         /// <param name="fromFrame"></param>
         /// <param name="toFrame"></param>
         /// <returns></returns>
-        //public static IEnumerable<FrameTransform> Find(DynamoDBContext context, FrameTransformId id)
-        //{
-        //    return context.Load<FrameTransform>(id);
-        //}
-
         public static IEnumerable<FrameTransform> Find(DynamoDBContext context, Frame fromFrame, Frame toFrame)
         {
             //get list of IDs from lookup table 
             FrameTransformLookup lookup = context.Load<FrameTransformLookup>(fromFrame.Name, toFrame.Name);
-            if (lookup == null || lookup.Ids == null || 
-                !lookup.Ids.ContainsKey(fromFrame.ProjectName) || 
+            if (lookup == null || lookup.Ids == null ||
+                !lookup.Ids.ContainsKey(fromFrame.ProjectName) ||
                 lookup.Ids[fromFrame.ProjectName].Count == 0)
             {
                 return new HashSet<FrameTransform>(); //none saved 
@@ -218,7 +165,7 @@ namespace OPS.Cloud
             }
             return transforms;
         }
-        
+
 
         [DynamoDBIgnore]
         public Vector3 Translation
@@ -234,7 +181,7 @@ namespace OPS.Cloud
                 this.Z = value.Z;
             }
         }
-        
+
         [DynamoDBIgnore]
         public Quaternion Rotation
         {
@@ -248,6 +195,43 @@ namespace OPS.Cloud
                 this.QY = value.Y;
                 this.QZ = value.Z;
                 this.QW = value.W;
+            }
+        }
+
+
+        /// <summary>
+        /// Record the ID for a frame transform 
+        /// If a transform is in the database, it will always be in the Lookup table. 
+        /// However, a transform in the lookup table may not always be in the Transform table 
+        /// Should not be used except by FrameTransform class 
+        /// </summary>
+        [DynamoDBTable("FrameTransformLookup")]
+        protected class FrameTransformLookup
+        {
+            [DynamoDBHashKey]
+            [DynamoDBProperty("from_frame_name")]
+            public string FromFrameName { get; set; }
+
+            [DynamoDBRangeKey]
+            [DynamoDBProperty("to_frame_name")]
+            public string ToFrameName { get; set; }
+
+            public Dictionary<string, HashSet<String>> Ids { get; set; }
+
+            [DynamoDBVersion]
+            public int? VersionNumber { get; set; }
+
+            public FrameTransformLookup()
+            {
+
+            }
+
+            //Should always be constructed empty, since simultaneous creates to DynamoDB can overwrite each other. 
+            public FrameTransformLookup(string FromFrameName, string ToFrameName)
+            {
+                this.FromFrameName = FromFrameName;
+                this.ToFrameName = ToFrameName;
+                Ids = new Dictionary<string, HashSet<string>>();
             }
         }
     }

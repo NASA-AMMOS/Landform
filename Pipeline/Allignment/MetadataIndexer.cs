@@ -228,8 +228,6 @@ namespace OPS.Pipeline
             storage.GetStorageStream(url, stream =>
             {
                 string status = "";
-                try
-                {
                     PDSMetadata metadata = new PDSMetadata(stream);
                     PDSParser parser = new PDSParser(metadata);
                     if (ShouldIndexBasedOnMetadata(parser))
@@ -237,6 +235,12 @@ namespace OPS.Pipeline
                         Console.WriteLine("My observation name was " + ObservationName(parser));
 
                         Project project = Project.Find(context, MSLProject.PROJECT_NAME);
+                        if (project == null)
+                        {
+                            Console.WriteLine("Project does not exist.");
+                            toReturn.status = Status.FAILED;
+                            return;
+                        }
                         SiteDrive sd = new SiteDrive(parser.Site, parser.Drive);
 
                         Frame siteDriveFrame = Frame.FindOrCreate(context, project, SiteDriveFrameName(parser));
@@ -287,13 +291,6 @@ namespace OPS.Pipeline
                         status = "Skipped(metadata)";
                         toReturn.status = Status.SKIPPED;
                     }
-
-                }
-                catch (Exception e)
-                {
-                    status = "Failed " + e.Message;
-                    toReturn.status = Status.FAILED;
-                }
                 Console.WriteLine(url + "\t" + status);
             });
             return toReturn;

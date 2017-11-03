@@ -448,6 +448,10 @@
                                 {
                                     "Ref": "AWS::StackName"
                                 },
+								"`\"`,`\"TablePrefix`\":`\"",
+                                {
+                                    "Ref": "TablePrefix"
+                                },
                                 "`\"`,`\"KeyAlias`\":`\"",
                                 {
                                     "Ref": "KeyAlias"
@@ -461,6 +465,10 @@
                                 "`\"`,`\"PipelineName`\":`\"",
                                 {
                                     "Ref": "AWS::StackName"
+                                },
+								"`\"`,`\"TablePrefix`\":`\"",
+                                {
+                                    "Ref": "TablePrefix"
                                 },
                                 "`\"`,`\"KeyAlias`\":`\"",
                                 {
@@ -762,10 +770,16 @@
                 }
             }
         },
-        "Images": {
+        "Observations": {
             "Type": "AWS::DynamoDB::Table",
             "DependsOn": "Sectors",
             "Properties": {
+				"TableName": {"Fn::Join": [
+								"",
+								[ 
+									{"Ref":"TablePrefix"},
+									"Observations"]
+								]},
                 "AttributeDefinitions": [
                     {
                         "AttributeName": "observation_name",
@@ -827,6 +841,12 @@
             "Type": "AWS::DynamoDB::Table",
             "DependsOn": "Frames",
             "Properties": {
+				"TableName": {"Fn::Join": [
+								"",
+								[ 
+									{"Ref":"TablePrefix"},
+									"Sectors"]
+								]},
                 "AttributeDefinitions": [
                     {
                         "AttributeName": "sector_id",
@@ -886,6 +906,12 @@
         "Frames": {
             "Type": "AWS::DynamoDB::Table",
             "Properties": {
+				"TableName": {"Fn::Join": [
+								"",
+								[ 
+									{"Ref":"TablePrefix"},
+									"Frames"]
+								]},
                 "AttributeDefinitions": [
                     {
                         "AttributeName": "frame_name",
@@ -1028,8 +1054,14 @@
         },
         "Projects": {
             "Type": "AWS::DynamoDB::Table",
-            "DependsOn": "Images",
+            "DependsOn": "Observations",
             "Properties": {
+				"TableName": {"Fn::Join": [
+								"",
+								[ 
+									{"Ref":"TablePrefix"},
+									"Projects"]
+								]},
                 "AttributeDefinitions": [
                     {
                         "AttributeName": "project_name",
@@ -1057,6 +1089,12 @@
             "Type": "AWS::DynamoDB::Table",
             "DependsOn": "Projects",
             "Properties": {
+				"TableName": {"Fn::Join": [
+								"",
+								[ 
+									{"Ref":"TablePrefix"},
+									"FrameTransformLookup"]
+								]},
                 "AttributeDefinitions": [
                     {
                         "AttributeName": "from_frame_name",
@@ -1114,6 +1152,12 @@
             "Type": "AWS::DynamoDB::Table",
             "DependsOn": "FrameTransformLookup",
             "Properties": {
+				"TableName": {"Fn::Join": [
+								"",
+								[ 
+									{"Ref":"TablePrefix"},
+									"FrameTransforms"]
+								]},
                 "AttributeDefinitions": [
                     {
                         "AttributeName": "id",
@@ -1179,6 +1223,10 @@
             "Type": "String",
             "Default": "pipeline_resources/LambdaScanS3.zip",
             "Description": "The S3 path to the lambda that scans an S3 path and adds images to the job queue"
+        },
+        "TablePrefix": {
+            "Type": "String",
+            "Description": "The table name prefix. Workers will use this to publish to their tables even if multiple stacks run in the same region."
         }
     },
     "Outputs": {

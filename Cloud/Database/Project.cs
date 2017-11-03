@@ -11,7 +11,7 @@ namespace OPS.Cloud
     /// <summary>
     /// A project specifies a container for a 3D reconstruction consiting of mutliple observations
     /// </summary>
-    [DynamoDBTable("mango-Projects-PLFABTRIK1ZX")]
+    [DynamoDBTable("Projects")]
     public class Project
     {
         [DynamoDBHashKey] //Partition key
@@ -21,9 +21,10 @@ namespace OPS.Cloud
         [DynamoDBVersion]
         public int? VersionNumber { get; set; }
 
+        //This constructor must be public for DynamoDb but should not be used
         public Project()
         {
-            //throw new CloudException("Only create FrameTransforms via Create so they are saved to the database.");
+
         }
 
         /// <summary>

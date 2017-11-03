@@ -13,7 +13,7 @@ namespace OPS.Cloud
     /// Represents a coordinate frame in the database
     /// Coordiante frames can have one or more observations associated with them
     /// </summary>\
-    [DynamoDBTable("mango-Frames-1VOU76GJPKP27")]
+    [DynamoDBTable("Frames")]
     public class Frame
     {
         [DynamoDBRangeKey]
@@ -27,9 +27,10 @@ namespace OPS.Cloud
         [DynamoDBVersion]
         public int? VersionNumber { get; set; }
 
+        //This constructor must be public for DynamoDb but should not be used
         public Frame()
         {
-            //throw new CloudException("Only create Frames via Create so they are saved to the database.");
+            
         }
 
         /// <summary>

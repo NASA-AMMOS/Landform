@@ -51,6 +51,7 @@
     </Otherwise>
   </Choose>
   <ItemGroup>
+    <Compile Include="Database\DatabaseTest.cs" />
     <Compile Include="Storage\S3UrlTest.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>

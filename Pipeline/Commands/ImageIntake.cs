@@ -41,7 +41,8 @@ namespace OPS.Pipeline
         public string PipelineName { get; set; }
 
         public string KeyAlias { get; set; }
-        
+
+        public string TablePrefix { get; set; }
 
         protected override string ConfigFilename()
         {
@@ -71,14 +72,15 @@ namespace OPS.Pipeline
         //Constructor creates clients and reads config file 
         public ImageIntake()
         {
+            //Initialize our utils
+            this.config = new AllignmentConfig();
+
             //Initialize AWS utils 
             SQSClient = new AmazonSQSClient(Amazon.RegionEndpoint.USWest1); 
             S3Client = new AmazonS3Client(Amazon.RegionEndpoint.USWest1);
             DDBClient = new AmazonDynamoDBClient(Amazon.RegionEndpoint.USWest1);
-            context = new DynamoDBContext(DDBClient, new DynamoDBContextConfig { TableNamePrefix = ""});
+            context = new DynamoDBContext(DDBClient, new DynamoDBContextConfig { TableNamePrefix = config.TablePrefix});
 
-            //Initialize our utils
-            this.config = new AllignmentConfig();
             storage = new StorageHelper();
             indexer = new MetadataIndexer(context, new StorageHelper());
         }
@@ -124,13 +126,14 @@ namespace OPS.Pipeline
                                     IngestImage(m);
                                     break;
                                 case MessageTypes.FIND_OVERLAPS_MSG:
+                                    FindOverlaps(m);
                                     break;
                                 case MessageTypes.MATCH_PAIR_MSG:
                                     break;
                             }
                             Interlocked.Increment(ref messagesSucceeded);
                         }
-                        catch (Exception e)
+                        catch (Exception e) //TODO I'm catching stuff so much that this block is not helpful. Let things throw. 
                         {
                             Interlocked.Increment(ref messagesFailed);
                             string msg = "Processing failed for message " + m.MessageId + "; additional message info: " + m.MessageAttributes[MessageFields.FILE_S3_PATH].StringValue
@@ -213,8 +216,10 @@ namespace OPS.Pipeline
 
             //Start an overlap job in the queue. 
             //Make it invisible for a few seconds so that overlaps don't have to do strongly consistent reads. 
+            if (!(PublishMessage(m) == System.Net.HttpStatusCode.OK)) return 1; //Didn't send message, another worker can try
 
             if (DeleteMessage(m) == System.Net.HttpStatusCode.OK) Console.WriteLine(".....Message " + m.MessageId + " deleted");
+
 
             return 0; 
         }
@@ -242,6 +247,30 @@ namespace OPS.Pipeline
 
             //save mapping to S3, save address of mapping to Dynamo 
             return 0;
+        }
+
+        private System.Net.HttpStatusCode PublishMessage(Message m)
+        {
+            var pubRequest = new SendMessageRequest
+            {
+                QueueUrl = config.JobQueue,
+                DelaySeconds = (int)TimeSpan.FromSeconds(5).TotalSeconds,
+                MessageAttributes = new Dictionary<string, MessageAttributeValue>
+                {
+                    {
+                    MessageFields.FILE_S3_PATH, new MessageAttributeValue
+                    {DataType = "String", StringValue = m.MessageAttributes[MessageFields.FILE_S3_PATH].StringValue }
+                    },
+                    {
+                    MessageFields.MSG_TYPE_FIELD, new MessageAttributeValue
+                    {DataType = "String", StringValue = MessageTypes.FIND_OVERLAPS_MSG } //No data types other than string currently supported
+                    }
+                },
+                MessageBody = "{}"
+            };
+
+            var pubResponse = SQSClient.SendMessage(pubRequest);
+            return pubResponse.HttpStatusCode;
         }
 
         private System.Net.HttpStatusCode DeleteMessage(Message m)

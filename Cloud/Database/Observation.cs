@@ -13,7 +13,7 @@ namespace OPS.Cloud
     /// Can be connected to Frames and aligned with other observations through
     /// FrameTransforms
     /// </summary>
-    [DynamoDBTable("mango-Images-12P2U288Z8KQ8")]
+    [DynamoDBTable("Observations")]
     public class Observation
     {
         [DynamoDBRangeKey]
@@ -49,9 +49,10 @@ namespace OPS.Cloud
                 ObservationType != null);
         }
 
+        //This constructor must be public for DynamoDb but should not be used
         public Observation()
         {
-            //throw new CloudException("Only create Observations via Create so they are saved to the database.");
+            
         }
 
         /// <summary>

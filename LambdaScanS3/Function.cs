@@ -135,7 +135,7 @@ namespace Lambda.LambdaScanS3
                     },
                     {
                     MessageFields.FILE_S3_PATH, new MessageAttributeValue
-                    {DataType = "String", StringValue = address } //No data types other than string currently supported
+                    {DataType = "String", StringValue = address } 
                     }
                 },
                 MessageBody = "{}",

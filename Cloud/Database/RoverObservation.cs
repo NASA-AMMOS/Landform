@@ -19,10 +19,11 @@ namespace OPS.Cloud
         public string Version { get; set; }
         public string Sensor { get; set; }
         public string ImageFrameSize { get; set; }
-        
+
+        //This constructor must be public for DynamoDb but should not be used
         public RoverObservation()
         {
-            //throw new CloudException("Only create RoverObservations via Create so they are saved to the database.");
+           
         }
 
         protected RoverObservation(Frame frame, string name, string url, string observationType, string cameraModel, bool useForReconstruction, int site, int drive, string version, string sensor, string imageFrameSize) :
