@@ -28,7 +28,7 @@ namespace OPS.Pipeline
         public const int MAX_MASTCAM_WIDTH = 1344;
     }
 
-    public enum Status { ADDED, FAILEDTOADD, PREEXISTING, SKIPPED, FAILED};
+    public enum Status { ADDED, FAILEDTOADD, PREEXISTING, SKIPPED};
 
     /// <summary>
     /// Return type for indexer so caller can decide what action to take with the message that started this job
@@ -235,12 +235,7 @@ namespace OPS.Pipeline
                         Console.WriteLine("My observation name was " + ObservationName(parser));
 
                         Project project = Project.Find(context, MSLProject.PROJECT_NAME);
-                        if (project == null)
-                        {
-                            Console.WriteLine("Project does not exist.");
-                            toReturn.status = Status.FAILED;
-                            return;
-                        }
+                    if (project == null) throw new CloudException("Project does not exist");
                         SiteDrive sd = new SiteDrive(parser.Site, parser.Drive);
 
                         Frame siteDriveFrame = Frame.FindOrCreate(context, project, SiteDriveFrameName(parser));

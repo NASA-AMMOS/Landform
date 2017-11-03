@@ -111,7 +111,8 @@ namespace OPS.Cloud
             Random rand = new Random();
             for (int i = 0; i < 4; i++)
             {
-                FrameTransformLookup lookup = context.Load<FrameTransformLookup>(fromFrame.Name, toFrame.Name);
+                //Get the most recent lookup record 
+                FrameTransformLookup lookup = context.Load<FrameTransformLookup>(fromFrame.Name, toFrame.Name, new DynamoDBOperationConfig{ConsistentRead=true});
                 if (lookup.Ids == null) lookup.Ids = new Dictionary<string, HashSet<string>>();
                 if (!lookup.Ids.ContainsKey(fromFrame.ProjectName)) lookup.Ids[fromFrame.ProjectName] = new HashSet<string>();
                 lookup.Ids[fromFrame.ProjectName].Add(id);

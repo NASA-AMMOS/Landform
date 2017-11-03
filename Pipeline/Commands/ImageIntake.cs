@@ -164,9 +164,8 @@ namespace OPS.Pipeline
                 case (Status.SKIPPED):
                     DeleteMessage(m);
                     return 0;
-                case (Status.FAILED):
                 case (Status.FAILEDTOADD):
-                    return 1; //don't delete message, let another handler try again
+                    throw new CloudException("Could not add observation metadata"); //don't delete message, let another handler try again
                 case (Status.PREEXISTING):
                     if (indexed.obs.FeatureUrl != null) //Features have already been uploaded
                     {
@@ -210,16 +209,15 @@ namespace OPS.Pipeline
             }
             catch (AmazonDynamoDBException e)
             {
-                Console.WriteLine("save failed: "+e.Message);
-                return 1; //Don't delete message; our processing failed
+                if (e.ErrorCode == "ConditionalCheckFailedException") throw new CloudException("Simultaneous edit attempted, try again");
+                else throw e;
             }
 
             //Start an overlap job in the queue. 
             //Make it invisible for a few seconds so that overlaps don't have to do strongly consistent reads. 
-            if (!(PublishMessage(m) == System.Net.HttpStatusCode.OK)) return 1; //Didn't send message, another worker can try
+            if (!(PublishMessage(m) == System.Net.HttpStatusCode.OK)) throw new CloudException("Failed to publish message"); //Didn't send message, another worker can try
 
             if (DeleteMessage(m) == System.Net.HttpStatusCode.OK) Console.WriteLine(".....Message " + m.MessageId + " deleted");
-
 
             return 0; 
         }
@@ -227,6 +225,8 @@ namespace OPS.Pipeline
         public int FindOverlaps(Message m)
         {
             //for this image, look up nearby images in Dynamo
+            //for now, look at all other images in Dynamo 
+
 
             //check all nearby images for overlapping frusta 
 

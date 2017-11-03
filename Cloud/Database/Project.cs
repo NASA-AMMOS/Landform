@@ -5,6 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 
 using Amazon.DynamoDBv2.DataModel;
+using Amazon.DynamoDBv2;
 
 namespace OPS.Cloud
 {
@@ -46,10 +47,7 @@ namespace OPS.Cloud
         /// <returns></returns>
         public static Project Create(DynamoDBContext context, string name)
         {
-            if (Find(context, name) != null)
-            {
-                return null; // A record with this unique name already exists
-            }
+            if (Find(context, name) != null) return null; //project already exists
             Project project = new Project(name);
             context.Save(project);
             return project;

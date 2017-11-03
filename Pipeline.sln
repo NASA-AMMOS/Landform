@@ -34,6 +34,9 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Cloud", "Cloud\Cloud.csproj", "{52A91B3E-1D95-4715-A7AD-2840B2F9C6AC}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CloudTest", "CloudTest\CloudTest.csproj", "{BA84E85E-6E70-4298-8DCB-4E843543EBCE}"
+	ProjectSection(ProjectDependencies) = postProject
+		{46759719-42D9-473B-A8AD-0848A33BDAC6} = {46759719-42D9-473B-A8AD-0848A33BDAC6}
+	EndProjectSection
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UtilTest", "UtilTest\UtilTest.csproj", "{65949ADB-C7A1-4353-9133-E606B066DD1B}"
 EndProject
