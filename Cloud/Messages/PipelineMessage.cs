@@ -25,6 +25,7 @@ namespace OPS.Cloud
             public const string FILE_S3_PATH = "FileS3Path";
             public const string OBSERVATION_NAME = "ObservationName";
             public const string OBSERVATION_NAME_2 = "ObservationName2";
+            public const string PROJECT_NAME = "ProjectName";
         }
 
         /// <summary>
@@ -40,6 +41,8 @@ namespace OPS.Cloud
                     return new NewObservationMsg(m);
                 case FindOverlapsMsg.TYPE:
                     return new FindOverlapsMsg(m);
+                case MatchPairsMsg.TYPE:
+                    return new MatchPairsMsg(m);
             }
             throw new CloudException("Unrecognized message type");
         }

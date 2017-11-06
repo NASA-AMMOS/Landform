@@ -81,6 +81,7 @@
     <Compile Include="Database\Project.cs" />
     <Compile Include="Database\FrameTransform.cs" />
     <Compile Include="Database\RoverObservation.cs" />
+    <Compile Include="Messages\MatchPairsMsg.cs" />
     <Compile Include="Messages\PipelineMessage.cs" />
     <Compile Include="Messages\FindOverlapsMsg.cs" />
     <Compile Include="Messages\NewObservationMsg.cs" />

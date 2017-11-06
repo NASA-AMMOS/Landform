@@ -127,10 +127,11 @@ namespace OPS.Pipeline
                                     IngestImage((NewObservationMsg)m);
                                     break;
                                 case FindOverlapsMsg.TYPE:
-                                    FindOverlaps((FindOverlapsMsg)m);
+                                    //FindOverlaps((FindOverlapsMsg)m);
                                     break;
-                                //case AlignmentMessageTypes.MATCH_PAIR_MSG:
-                                //    break;
+                                case MatchPairsMsg.TYPE:
+                                    MatchPairs((MatchPairsMsg)m);
+                                    break;
                             }
                             Interlocked.Increment(ref messagesSucceeded);
                         }
@@ -182,8 +183,12 @@ namespace OPS.Pipeline
             storage.DownloadFile(url.Url, root + Path.GetExtension(url.Url)); //TODO metadata indexing opens a stream. Is it signifiantly more efficient to download file there?
             Image im = Image.Load(root + Path.GetExtension(url.Url));
 
-            IFeatureDetector detector = new SIFT(); //TODO which detector? 
-            var features = detector.Detect(im);
+            //snagged from MatchImages
+            string gpcafile = PCAKeypointProjector.DefaultTrainingSpace;
+            List<PCASIFTFeature> features = new PCASIFTDetector().Detect(im, null).Cast<PCASIFTFeature>().ToList();
+            PCAKeypointProjector projector = new PCAKeypointProjector(gpcafile, false);
+            projector.Project(im, features, 1);
+
             S3Url featureUrl = new S3Url(url.BucketName, Path.ChangeExtension(url.Prefix, ".json")); //TODO think about this
 
             //save keypoints and features to S3
@@ -203,6 +208,7 @@ namespace OPS.Pipeline
             //   Transforms record: this image's transform 
             //Use the observation we made or found while indexing metadata
             //TODO could reduce dynamo writes by not writing the observation until here
+            //TODO this kind of direct interaction with Dynamo should be in the Object Persistence classes
             indexed.obs.FeatureUrl = featureUrl.Url;
             try 
             {
@@ -230,35 +236,81 @@ namespace OPS.Pipeline
             IEnumerable<RoverObservation> observations = context.Scan<RoverObservation>(new ScanCondition("ProjectName",
                 Amazon.DynamoDBv2.DocumentModel.ScanOperator.Equal, MSLProject.PROJECT_NAME));
 
-            //check all nearby images for overlapping frusta 
-
+            //check all nearby images for overlapping frusta. TODO only check spacially nearby observations
             foreach (RoverObservation obs in observations)
             {
                 bool outcome = false;
-                if (thisobs.Name == obs.Name)
+                if (thisobs.Name != obs.Name)
                 {
                     outcome = detector.ProjectiveFrustumOverlap(thisobs, obs);
                 }
-                else
+                if (outcome)
                 {
-                    outcome = detector.ProjectiveFrustumOverlap(thisobs, obs);
+                    //write to dynamoDb and, if successful, create a new MatchPairs job
+                    if (Overlap.Create(context, thisobs.Name, obs.Name, obs.ProjectName) != null)
+                    {
+                        new MatchPairsMsg(thisobs.Name, obs.Name, obs.ProjectName).Send(SQSClient, config.JobQueue);
+                    }
                 }
-
 
             }
 
-            //write message for each potential overlap 
+            //delete message 
+            m.DeleteMessage(SQSClient, config.JobQueue);
 
             return 0; 
         }
 
-        public int MatchPairs(Message m)
+        public int MatchPairs(MatchPairsMsg m)
         {
             //SEE MATCHALLIMAGES 
 
             //get metadata for both images from Dynamo 
+            Observation obs0 = Observation.Find(context, m.ProjectName, m.ObservationName0);
+            Observation obs1 = Observation.Find(context, m.ProjectName, m.ObservationName1);
 
-            //read keypoint and feature data for both images from S3
+            //read feature data and image for both images from S3
+            JsonSerializer serializer = new JsonSerializer();
+            TemporaryFile.GetAndDeleteMultiple(4, ".json", (temp) =>
+            {
+                storage.DownloadFile(obs0.FeatureUrl, temp[0]);
+                IEnumerable<SIFTFeature> features0; 
+                using (JsonReader file = new JsonTextReader(File.OpenText(temp[0])))
+                {
+                    features0 = serializer.Deserialize<IEnumerable<SIFTFeature>>(file);
+                }
+                storage.DownloadFile(obs0.Url, temp[1]);
+                Image im0 = Image.Load(temp[1]);
+                storage.DownloadFile(obs1.FeatureUrl, temp[2]);
+                IEnumerable<SIFTFeature> features1;
+                using (JsonReader file = new JsonTextReader(File.OpenText(temp[2])))
+                {
+                    features1 = serializer.Deserialize<IEnumerable<SIFTFeature>>(file);
+                }
+                storage.DownloadFile(obs1.Url, temp[3]);
+                Image im1 = Image.Load(temp[3]);
+
+                //below is from MatchImages.cs
+                BruteForceMatcher matcher = new BruteForceMatcher();
+                ImagePairCorrespondence matches = matcher.Match(new ImageRef(im0), new ImageRef(im1), features0, features1);
+
+                MoisanStivalFilter filter = new MoisanStivalFilter();
+                matches = filter.Filter(matches);
+                if (matches == null)
+                {
+                    Console.WriteLine("No matches found after MoisanStivalFilter");
+                    return;
+                }
+                GTM gtm = new GTM(5);
+                matches = gtm.Filter(matches);
+                if (matches == null)
+                {
+                    Console.WriteLine("No matches found after GTM Filter");
+                    return;
+                }
+                
+                MatchImage.WriteMatchImage(matches, @"C:\Users\gpease\Desktop\imoutput.jpg");
+            });
 
             //compute mapping between keypoints 
 

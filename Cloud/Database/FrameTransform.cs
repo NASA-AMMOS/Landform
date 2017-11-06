@@ -108,6 +108,7 @@ namespace OPS.Cloud
 
             //attempt to upload to the lookup table. Backoff and repeat if high traffic to this from/to pair. 
             //TODO check how often this is happening. May need a workaround. 
+            //We could just use the low-level API and create an add query for the set
             Random rand = new Random();
             for (int i = 0; i < 4; i++)
             {
@@ -153,7 +154,7 @@ namespace OPS.Cloud
         }
 
         /// <summary>
-        /// In most cases we'll know the project names and it's a waste of Dynamo read capacity units to pull them out just to find the transform.
+        /// In most cases we'll know the frame names and it's a waste of Dynamo read capacity units to pull them out just to find the transform.
         /// TODO why do we need the Frames table? 
         /// </summary>
         /// <param name="context"></param>
@@ -242,6 +243,7 @@ namespace OPS.Cloud
             }
 
             //Should always be constructed empty, since simultaneous creates to DynamoDB can overwrite each other. 
+            //After an empty entry has been saved, updates will be protected by version number checks
             public FrameTransformLookup(string FromFrameName, string ToFrameName)
             {
                 this.FromFrameName = FromFrameName;

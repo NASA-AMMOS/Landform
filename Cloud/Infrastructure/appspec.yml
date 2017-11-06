@@ -69,7 +69,6 @@ hooks:
       timeout: 60
 # During the ApplicationInstall deployment lifecycle event, run the commands 
 #   in the script specified in "location".
-#   TODO this should not timeout? 
   ApplicationStart:
     - location: .\appstart.ps1
       timeout: 120

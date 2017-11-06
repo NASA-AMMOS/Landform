@@ -43,7 +43,7 @@ namespace OPS.Cloud
                     },
                     {
                     MessageFields.OBSERVATION_NAME, new MessageAttributeValue
-                    {DataType = "String", StringValue = observationName } //No data types other than string currently supported
+                    {DataType = "String", StringValue = observationName } 
                     }
                 }, queueUrl);
         }

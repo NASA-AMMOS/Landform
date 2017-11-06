@@ -373,6 +373,21 @@
                     "x": -100,
                     "y": -20
                 },
+                "z": 0,
+                "embeds": [],
+                "dependson": [
+                    "c84d97ee-a93a-448f-89f4-f0e45ddf0cb8"
+                ]
+            },
+            "1da12c0d-e8b7-4fdc-8fff-d8ec0d92d7c7": {
+                "size": {
+                    "width": 60,
+                    "height": 60
+                },
+                "position": {
+                    "x": -230,
+                    "y": -20
+                },
                 "z": 0
             }
         }
@@ -448,7 +463,7 @@
                                 {
                                     "Ref": "AWS::StackName"
                                 },
-								"`\"`,`\"TablePrefix`\":`\"",
+                                "`\"`,`\"TablePrefix`\":`\"",
                                 {
                                     "Ref": "TablePrefix"
                                 },
@@ -466,7 +481,7 @@
                                 {
                                     "Ref": "AWS::StackName"
                                 },
-								"`\"`,`\"TablePrefix`\":`\"",
+                                "`\"`,`\"TablePrefix`\":`\"",
                                 {
                                     "Ref": "TablePrefix"
                                 },
@@ -774,12 +789,17 @@
             "Type": "AWS::DynamoDB::Table",
             "DependsOn": "Sectors",
             "Properties": {
-				"TableName": {"Fn::Join": [
-								"",
-								[ 
-									{"Ref":"TablePrefix"},
-									"Observations"]
-								]},
+                "TableName": {
+                    "Fn::Join": [
+                        "",
+                        [
+                            {
+                                "Ref": "TablePrefix"
+                            },
+                            "Observations"
+                        ]
+                    ]
+                },
                 "AttributeDefinitions": [
                     {
                         "AttributeName": "observation_name",
@@ -841,12 +861,17 @@
             "Type": "AWS::DynamoDB::Table",
             "DependsOn": "Frames",
             "Properties": {
-				"TableName": {"Fn::Join": [
-								"",
-								[ 
-									{"Ref":"TablePrefix"},
-									"Sectors"]
-								]},
+                "TableName": {
+                    "Fn::Join": [
+                        "",
+                        [
+                            {
+                                "Ref": "TablePrefix"
+                            },
+                            "Sectors"
+                        ]
+                    ]
+                },
                 "AttributeDefinitions": [
                     {
                         "AttributeName": "sector_id",
@@ -906,12 +931,17 @@
         "Frames": {
             "Type": "AWS::DynamoDB::Table",
             "Properties": {
-				"TableName": {"Fn::Join": [
-								"",
-								[ 
-									{"Ref":"TablePrefix"},
-									"Frames"]
-								]},
+                "TableName": {
+                    "Fn::Join": [
+                        "",
+                        [
+                            {
+                                "Ref": "TablePrefix"
+                            },
+                            "Frames"
+                        ]
+                    ]
+                },
                 "AttributeDefinitions": [
                     {
                         "AttributeName": "frame_name",
@@ -1056,12 +1086,17 @@
             "Type": "AWS::DynamoDB::Table",
             "DependsOn": "Observations",
             "Properties": {
-				"TableName": {"Fn::Join": [
-								"",
-								[ 
-									{"Ref":"TablePrefix"},
-									"Projects"]
-								]},
+                "TableName": {
+                    "Fn::Join": [
+                        "",
+                        [
+                            {
+                                "Ref": "TablePrefix"
+                            },
+                            "Projects"
+                        ]
+                    ]
+                },
                 "AttributeDefinitions": [
                     {
                         "AttributeName": "project_name",
@@ -1089,12 +1124,17 @@
             "Type": "AWS::DynamoDB::Table",
             "DependsOn": "Projects",
             "Properties": {
-				"TableName": {"Fn::Join": [
-								"",
-								[ 
-									{"Ref":"TablePrefix"},
-									"FrameTransformLookup"]
-								]},
+                "TableName": {
+                    "Fn::Join": [
+                        "",
+                        [
+                            {
+                                "Ref": "TablePrefix"
+                            },
+                            "FrameTransformLookup"
+                        ]
+                    ]
+                },
                 "AttributeDefinitions": [
                     {
                         "AttributeName": "from_frame_name",
@@ -1152,12 +1192,17 @@
             "Type": "AWS::DynamoDB::Table",
             "DependsOn": "FrameTransformLookup",
             "Properties": {
-				"TableName": {"Fn::Join": [
-								"",
-								[ 
-									{"Ref":"TablePrefix"},
-									"FrameTransforms"]
-								]},
+                "TableName": {
+                    "Fn::Join": [
+                        "",
+                        [
+                            {
+                                "Ref": "TablePrefix"
+                            },
+                            "FrameTransforms"
+                        ]
+                    ]
+                },
                 "AttributeDefinitions": [
                     {
                         "AttributeName": "id",
@@ -1186,6 +1231,52 @@
             "Metadata": {
                 "AWS::CloudFormation::Designer": {
                     "id": "d366b383-a5da-4080-b47f-1fae203ac792"
+                }
+            }
+        },
+        "Overlaps": {
+            "Type": "AWS::DynamoDB::Table",
+            "DependsOn":"FrameTransforms",
+            "Properties": {
+                "TableName": {
+                    "Fn::Join": [
+                        "",
+                        [
+                            {
+                                "Ref": "TablePrefix"
+                            },
+                            "Overlaps"
+                        ]
+                    ]
+                },
+                "AttributeDefinitions": [
+                    {
+                        "AttributeName": "id",
+                        "AttributeType": "S"
+                    },
+                    {
+                        "AttributeName": "project_name",
+                        "AttributeType": "S"
+                    }
+                ],
+                "KeySchema": [
+                    {
+                        "AttributeName": "id",
+                        "KeyType": "HASH"
+                    },
+                    {
+                        "AttributeName": "project_name",
+                        "KeyType": "RANGE"
+                    }
+                ],
+                "ProvisionedThroughput": {
+                    "ReadCapacityUnits": "5",
+                    "WriteCapacityUnits": "5"
+                }
+            },
+            "Metadata": {
+                "AWS::CloudFormation::Designer": {
+                    "id": "1da12c0d-e8b7-4fdc-8fff-d8ec0d92d7c7"
                 }
             }
         }
