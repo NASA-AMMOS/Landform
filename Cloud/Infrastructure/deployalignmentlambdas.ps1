@@ -31,13 +31,16 @@ $S3ScanName = ($json | ConvertFrom-Json).StackResources.PhysicalResourceId
 cd ..\..\LambdaS3ImageIntake 
 dotnet restore 
 dotnet lambda deploy-function $S3ImageIntakeName 
+aws s3 cp bin\Release\netcoreapp1.0\LambdaS3ImageIntake.zip s3://landlords-dev/pipeline_resources/LambdaS3ImageIntake.zip
 
 cd ..\LambdaQueueSizeMetric
 dotnet restore 
 dotnet lambda deploy-function $QueueSizeMetricName 
+aws s3 cp bin\Release\netcoreapp1.0\LambdaQueueSizeMetric.zip s3://landlords-dev/pipeline_resources/LambdaQueueSizeMetric.zip
 
 cd ..\LambdaScanS3
 dotnet restore 
 dotnet lambda deploy-function $S3ScanName 
+aws s3 cp bin\Release\netcoreapp1.0\LambdaScanS3.zip s3://landlords-dev/pipeline_resources/LambdaScanS3.zip
 
 cd ..
