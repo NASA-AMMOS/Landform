@@ -16,7 +16,7 @@ using Lambda.LambdaUtil;
 // Assembly attribute to enable the Lambda function's JSON input to be converted into a .NET class.
 [assembly: LambdaSerializer(typeof(Amazon.Lambda.Serialization.Json.JsonSerializer))]
 
-namespace Lambda.LambdaS3PutProcessing
+namespace Lambda.LambdaS3TileIntake
 {
     //This uploads metadata to dynamoDB
     public class Function
@@ -115,29 +115,6 @@ namespace Lambda.LambdaS3PutProcessing
 
             await DBClient.UpdateItemAsync(request);
 
-            /*  
-            Table table = GetTableObject(Environment.GetEnvironmentVariable("DB_NAME"));
-            if (table == null)
-            {
-                LambdaLogger.Log("Failed to connect to dynamo DB table");
-            }
-            //upload metadata to DynamoDB
-            Document document = new Document();
-            document[DB_PRIMARY_KEY] = prefix;
-            document["child" + Convert.ToString(suffix)] = key;
-            document["updated"] = DateTime.UtcNow;
-            document["bucket"] = bucket;
-
-            try
-            {
-                await table.UpdateItemAsync(document);
-                LambdaLogger.Log("\nPutItem succeeded.\n");
-            }
-            catch (Exception ex)
-            {
-                LambdaLogger.Log("\n Error: Table.PutItem failed because: " + ex.Message);
-            }
-            */
             return "success";
         }
 

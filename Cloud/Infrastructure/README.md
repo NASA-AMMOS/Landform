@@ -29,3 +29,4 @@ The appspec yaml file may not be saving with the correct encoding in Visual Stud
 Running worker code on your own machine: 
 Workers just run the Landform command. Tiling workers run queuelisten, Alignment workers run alignmentworker. To run on your machine, you need a config file with the resource names specified in the Config type at the top of those files. 
 
+#### Structural overview: 

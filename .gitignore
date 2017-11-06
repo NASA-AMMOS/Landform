@@ -13,8 +13,8 @@ LambdaDynamoProcessing/bin/
 LambdaDynamoProcessing/obj/
 LambdaQueueSizeMetric/bin/
 LambdaQueueSizeMetric/obj/
-LambdaS3PutProcessing/bin/
-LambdaS3PutProcessing/obj/
+LambdaS3TileIntake/bin/
+LambdaS3TileIntake/obj/
 LambdaUtil/bin/
 LambdaUtil/obj/
 LambdaScanS3/bin/

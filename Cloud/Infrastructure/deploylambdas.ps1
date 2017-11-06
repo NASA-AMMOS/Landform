@@ -30,13 +30,16 @@ $S3PutProcessingName = ($json | ConvertFrom-Json).StackResources.PhysicalResourc
 cd ..\..\LambdaDynamoProcessing 
 dotnet restore 
 dotnet lambda deploy-function $DynamoProcessingName 
+aws s3 cp bin\Release\netcoreapp1.0\LambdaDynamoProcessing.zip s3://landlords-dev/pipeline_resources/LambdaDynamoProcessing.zip
 
 cd ..\LambdaQueueSizeMetric
 dotnet restore 
 dotnet lambda deploy-function $QueueSizeMetricName 
+aws s3 cp bin\Release\netcoreapp1.0\LambdaQueueSizeMetric.zip s3://landlords-dev/pipeline_resources/LambdaQueueSizeMetric.zip
 
-cd ..\LambdaS3PutProcessing
+cd ..\LambdaS3TileIntake
 dotnet restore
 dotnet lambda deploy-function $S3PutProcessingName
+aws s3 cp bin\Release\netcoreapp1.0\LambdaS3TileIntake.zip s3://landlords-dev/pipeline_resources/LambdaS3TileIntake.zip
 
 cd ..
