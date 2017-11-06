@@ -14,8 +14,9 @@ Terrain Pipeline - The Next Generation
 
 # Configuration files 
 | Location | Description | 
-| %userprofile%\\.landform\\pipelineworker.json | Specifies AWS resources for queuelisten command
-| %userprofile%\\.landform\\alignmentworker.json | Specifies AWS resources for alignmentworker command 
+|------|------------|
+| %userprofile%\\.landform\\pipelineworker.json | Specifies AWS resources for queuelisten command |
+| %userprofile%\\.landform\\alignmentworker.json | Specifies AWS resources for alignmentworker command | 
 
 For worker instances, the above files are set by the userdata section of the EC2 launch configuration, created by cloudformation. 
 
