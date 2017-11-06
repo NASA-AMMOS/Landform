@@ -149,19 +149,33 @@ namespace OPS.Cloud
         /// <returns></returns>
         public static IEnumerable<FrameTransform> Find(DynamoDBContext context, Frame fromFrame, Frame toFrame)
         {
+            return Find(context, fromFrame.Name, toFrame.Name, fromFrame.ProjectName);
+        }
+
+        /// <summary>
+        /// In most cases we'll know the project names and it's a waste of Dynamo read capacity units to pull them out just to find the transform.
+        /// TODO why do we need the Frames table? 
+        /// </summary>
+        /// <param name="context"></param>
+        /// <param name="fromFrameName"></param>
+        /// <param name="toFrameName"></param>
+        /// <param name="projectName"></param>
+        /// <returns></returns>
+        public static IEnumerable<FrameTransform> Find(DynamoDBContext context, string fromFrameName, string toFrameName, string projectName)
+        {
             //get list of IDs from lookup table 
-            FrameTransformLookup lookup = context.Load<FrameTransformLookup>(fromFrame.Name, toFrame.Name);
+            FrameTransformLookup lookup = context.Load<FrameTransformLookup>(fromFrameName, toFrameName);
             if (lookup == null || lookup.Ids == null ||
-                !lookup.Ids.ContainsKey(fromFrame.ProjectName) ||
-                lookup.Ids[fromFrame.ProjectName].Count == 0)
+                !lookup.Ids.ContainsKey(projectName) ||
+                lookup.Ids[projectName].Count == 0)
             {
                 return new HashSet<FrameTransform>(); //none saved 
             }
             //lookup ids in FrameTransform table 
             HashSet<FrameTransform> transforms = new HashSet<FrameTransform>();
-            foreach (string id in lookup.Ids[fromFrame.ProjectName])
+            foreach (string id in lookup.Ids[projectName])
             {
-                FrameTransform ft = context.Load<FrameTransform>(id, fromFrame.ProjectName);
+                FrameTransform ft = context.Load<FrameTransform>(id, projectName);
                 if (ft != null) transforms.Add(ft);
             }
             return transforms;

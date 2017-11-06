@@ -26,7 +26,7 @@ namespace CloudTest
         private const string frame = "root-test";
         private const string frame2 = "ant-perspective";
 
-        //[TestMethod] //Don't automatically run this test
+        //[TestMethod] //Don't automatically run this test, since it interacts with Dynamodb irl
         public void FrameTransformTest()
         {
             DynamoDBContext context = new DynamoDBContext(new AmazonDynamoDBClient(Amazon.RegionEndpoint.USWest1),

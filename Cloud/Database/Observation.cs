@@ -69,6 +69,7 @@ namespace OPS.Cloud
         {
             //TODO: checks for valid (saved) frame and project removed here 
             this.ProjectName = frame.ProjectName;
+            this.FrameName = frame.Name;
             this.Name = name;
             this.Url = url;
             this.ObservationType = observationType;

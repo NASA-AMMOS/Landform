@@ -158,13 +158,14 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Alignment\OverlapDetection.cs" />
     <Compile Include="Commands\BenchmarkS3.cs" />
-    <Compile Include="Commands\ImageIntake.cs" />
+    <Compile Include="Commands\AlignmentWorker.cs" />
     <Compile Include="Commands\QueueListener.cs" />
     <Compile Include="Commands\Client.cs" />
     <Compile Include="Commands\Commands.cs" />
     <Compile Include="Commands\ConvertBaselineMesh.cs" />
-    <Compile Include="Allignment\MetadataIndexer.cs" />
+    <Compile Include="Alignment\MetadataIndexer.cs" />
     <Compile Include="Commands\MatchAllImages.cs" />
     <Compile Include="Commands\MatchImages.cs" />
     <Compile Include="Commands\PDSImageConverter.cs" />

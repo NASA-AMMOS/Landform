@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace OPS.Cloud.Util
+namespace OPS.Cloud
 {
     //Keep me up-to-date with LambdaUtil/Names
 
@@ -32,21 +32,23 @@ namespace OPS.Cloud.Util
     /// Message fields in allignment job queue messages 
     /// Keep in sync with names in Pipeline/Commands/ImageIntake.cs
     /// </summary>
-    public class MessageFields
-    {
-        public const string MSG_TYPE_FIELD = "MessageType";
-        public const string FILE_S3_PATH = "FileS3Path";
-    }
+    //public class AlignmentMessageFields
+    //{
+    //    public const string MSG_TYPE_FIELD = "MessageType";
+    //    public const string FILE_S3_PATH = "FileS3Path";
+    //    public const string OBSERVATION_NAME = "ObservationName";
+    //    public const string OBSERVATION_NAME_2 = "ObservationName2";
+    //}
 
     /// <summary>
     /// Message types for communication between lambda and allignment workers 
     /// Keep in sync with names in Pipeline/Commands/ImageIntake.cs
     /// </summary>
-    public class MessageTypes
-    {
-        public const string NEW_IMAGE_MSG = "NEW_IMAGE";
-        public const string FIND_OVERLAPS_MSG = "FIND_OVERLAPS";
-        public const string MATCH_PAIR_MSG = "MATCH_PAIR";
-    }
+    //public class AlignmentMessageTypes
+    //{
+    //    public const string NEW_IMAGE_MSG = "NEW_IMAGE";
+    //    public const string FIND_OVERLAPS_MSG = "FIND_OVERLAPS";
+    //    public const string MATCH_PAIR_MSG = "MATCH_PAIR";
+    //}
 
 }

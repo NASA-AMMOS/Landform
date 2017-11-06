@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 
 namespace Lambda.LambdaUtil
 {
+    //Keep me up-to-date with Cloud/Util/Names
     //Note: In Visual Studio 2017, it should be easy(ish) to compile a project to both .NET Framework and .NET Core. Sharing names!!!
 
 
@@ -30,17 +31,19 @@ namespace Lambda.LambdaUtil
     /// Message fields in allignment job queue messages 
     /// Keep in sync with names in Pipeline/Commands/ImageIntake.cs
     /// </summary>
-    public class MessageFields
+    public class AlignmentMessageFields
     {
         public const string MSG_TYPE_FIELD = "MessageType";
         public const string FILE_S3_PATH = "FileS3Path";
+        public const string OBSERVATION_NAME = "ObservationName";
+        public const string OBSERVATION_NAME_2 = "ObservationName2";
     }
 
     /// <summary>
     /// Message types for communication between lambda and allignment workers 
     /// Keep in sync with names in Pipeline/Commands/ImageIntake.cs
     /// </summary>
-    public class MessageTypes
+    public class AlignmentMessageTypes
     {
         public const string NEW_IMAGE_MSG = "NEW_IMAGE";
         public const string FIND_OVERLAPS_MSG = "FIND_OVERLAPS";

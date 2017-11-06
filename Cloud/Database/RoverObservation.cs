@@ -74,5 +74,17 @@ namespace OPS.Cloud
             context.Save(ro);
             return ro;
         }
+
+        /// <summary>
+        /// Finds an observation based on its name and project
+        /// Return null if observation cannot be found
+        /// </summary>
+        /// <param name="context"></param>
+        /// <param name="imageId"></param>
+        /// <returns></returns>
+        new public static RoverObservation Find(DynamoDBContext context, string projectName, string name)
+        {
+            return context.Load<RoverObservation>(name, projectName);
+        }
     }
 }

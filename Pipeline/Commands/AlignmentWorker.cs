@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using OPS.Cloud.Util;
 using OPS.Cloud;
 using OPS.Imaging;
 using CommandLine;
@@ -24,8 +23,8 @@ using Newtonsoft.Json;
 namespace OPS.Pipeline
 {
 
-    [Verb("imageintake", HelpText = "Poll image queue. When new images appear, upload their metadata and potential overlaps to DynamoDB. Requires an allignmentworker config file. ")]
-    public class ImageIntakeOptions
+    [Verb("alignmentworker", HelpText = "Poll image queue. When new images appear, upload their metadata and potential overlaps to DynamoDB. Requires an allignmentworker config file. ")]
+    public class AlignmentWorkerOptions
     {
     }
 
@@ -50,7 +49,7 @@ namespace OPS.Pipeline
         }
     }
 
-    public class ImageIntake
+    public class AlignmentWorker
     {
         private AllignmentConfig config;
 
@@ -62,6 +61,7 @@ namespace OPS.Pipeline
 
         //thread-safe processing helpers
         MetadataIndexer indexer;
+        OverlapDetection detector;
         StorageHelper storage; //TODO seems thread safe, but I'm not 100% sure
 
         //monitoring counts 
@@ -70,7 +70,7 @@ namespace OPS.Pipeline
         private int messagesFailed = 0;
 
         //Constructor creates clients and reads config file 
-        public ImageIntake()
+        public AlignmentWorker()
         {
             //Initialize our utils
             this.config = new AllignmentConfig();
@@ -83,6 +83,7 @@ namespace OPS.Pipeline
 
             storage = new StorageHelper();
             indexer = new MetadataIndexer(context, new StorageHelper());
+            detector = new OverlapDetection(context);
         }
 
         /// <summary>
@@ -115,28 +116,28 @@ namespace OPS.Pipeline
                     if (r.Messages.Count > 0) //we have a message
                     {
                         Interlocked.Increment(ref messagesRecieved);
-                        Message m = r.Messages[0];
+                        PipelineMessage m = PipelineMessage.FromMessage(r.Messages[0]);
                         Console.WriteLine(".....Message recieved:"
                             + "\r\n        Message ID = " + m.MessageId);
                         try
                         {
-                            switch (m.MessageAttributes[MessageFields.MSG_TYPE_FIELD].StringValue)
+                            switch (m.MessageType)
                             {
-                                case MessageTypes.NEW_IMAGE_MSG:
-                                    IngestImage(m);
+                                case NewObservationMsg.TYPE:
+                                    IngestImage((NewObservationMsg)m);
                                     break;
-                                case MessageTypes.FIND_OVERLAPS_MSG:
-                                    FindOverlaps(m);
+                                case FindOverlapsMsg.TYPE:
+                                    FindOverlaps((FindOverlapsMsg)m);
                                     break;
-                                case MessageTypes.MATCH_PAIR_MSG:
-                                    break;
+                                //case AlignmentMessageTypes.MATCH_PAIR_MSG:
+                                //    break;
                             }
                             Interlocked.Increment(ref messagesSucceeded);
                         }
-                        catch (Exception e) //TODO I'm catching stuff so much that this block is not helpful. Let things throw. 
+                        catch (Exception e)  
                         {
                             Interlocked.Increment(ref messagesFailed);
-                            string msg = "Processing failed for message " + m.MessageId + "; additional message info: " + m.MessageAttributes[MessageFields.FILE_S3_PATH].StringValue
+                            string msg = "Processing failed for message " + m.MessageId + " of type " + m.MessageType
                                 + "\r\n Error msg is: " + e.Message
                                 + "\r\n Stack trace is: " + e.StackTrace;
                             Console.WriteLine(msg);
@@ -145,7 +146,7 @@ namespace OPS.Pipeline
                 }
             });
 
-            return 0;
+            return 0; 
         }
 
 
@@ -154,22 +155,22 @@ namespace OPS.Pipeline
         /// </summary>
         /// <param name="m"></param>
         /// <returns></returns>
-        public int IngestImage(Message m)
+        public int IngestImage(NewObservationMsg m)
         {
             //Index metadata, look up or calculate transforms 
-            S3Url url = new S3Url(m.MessageAttributes[MessageFields.FILE_S3_PATH].StringValue); 
+            S3Url url = new S3Url(m.Url); 
             MetadataIndexerStatus indexed = indexer.IndexMetadata(url.Url);
             switch (indexed.status)
             {
                 case (Status.SKIPPED):
-                    DeleteMessage(m);
+                    m.DeleteMessage(SQSClient, config.JobQueue);
                     return 0;
                 case (Status.FAILEDTOADD):
                     throw new CloudException("Could not add observation metadata"); //don't delete message, let another handler try again
                 case (Status.PREEXISTING):
                     if (indexed.obs.FeatureUrl != null) //Features have already been uploaded
                     {
-                        DeleteMessage(m);
+                        m.DeleteMessage(SQSClient, config.JobQueue);
                         return 0;
                     }
                     break;
@@ -215,22 +216,38 @@ namespace OPS.Pipeline
 
             //Start an overlap job in the queue. 
             //Make it invisible for a few seconds so that overlaps don't have to do strongly consistent reads. 
-            if (!(PublishMessage(m) == System.Net.HttpStatusCode.OK)) throw new CloudException("Failed to publish message"); //Didn't send message, another worker can try
-
-            if (DeleteMessage(m) == System.Net.HttpStatusCode.OK) Console.WriteLine(".....Message " + m.MessageId + " deleted");
+            FindOverlapsMsg.Send(SQSClient, indexed.obs.Name, config.JobQueue);
+            m.DeleteMessage(SQSClient, config.JobQueue);
 
             return 0; 
         }
 
-        public int FindOverlaps(Message m)
+        public int FindOverlaps(FindOverlapsMsg m)
         {
             //for this image, look up nearby images in Dynamo
-            //for now, look at all other images in Dynamo 
-
+            RoverObservation thisobs = RoverObservation.Find(context, MSLProject.PROJECT_NAME, m.ObservationName);
+            //for now, look at all other images in Dynamo for this same project 
+            IEnumerable<RoverObservation> observations = context.Scan<RoverObservation>(new ScanCondition("ProjectName",
+                Amazon.DynamoDBv2.DocumentModel.ScanOperator.Equal, MSLProject.PROJECT_NAME));
 
             //check all nearby images for overlapping frusta 
 
-            //write potentially overlapping images to Dynamo 
+            foreach (RoverObservation obs in observations)
+            {
+                bool outcome = false;
+                if (thisobs.Name == obs.Name)
+                {
+                    outcome = detector.ProjectiveFrustumOverlap(thisobs, obs);
+                }
+                else
+                {
+                    outcome = detector.ProjectiveFrustumOverlap(thisobs, obs);
+                }
+
+
+            }
+
+            //write message for each potential overlap 
 
             return 0; 
         }
@@ -247,42 +264,6 @@ namespace OPS.Pipeline
 
             //save mapping to S3, save address of mapping to Dynamo 
             return 0;
-        }
-
-        private System.Net.HttpStatusCode PublishMessage(Message m)
-        {
-            var pubRequest = new SendMessageRequest
-            {
-                QueueUrl = config.JobQueue,
-                DelaySeconds = (int)TimeSpan.FromSeconds(5).TotalSeconds,
-                MessageAttributes = new Dictionary<string, MessageAttributeValue>
-                {
-                    {
-                    MessageFields.FILE_S3_PATH, new MessageAttributeValue
-                    {DataType = "String", StringValue = m.MessageAttributes[MessageFields.FILE_S3_PATH].StringValue }
-                    },
-                    {
-                    MessageFields.MSG_TYPE_FIELD, new MessageAttributeValue
-                    {DataType = "String", StringValue = MessageTypes.FIND_OVERLAPS_MSG } //No data types other than string currently supported
-                    }
-                },
-                MessageBody = "{}"
-            };
-
-            var pubResponse = SQSClient.SendMessage(pubRequest);
-            return pubResponse.HttpStatusCode;
-        }
-
-        private System.Net.HttpStatusCode DeleteMessage(Message m)
-        {
-            var delRequest = new DeleteMessageRequest
-            {
-                QueueUrl = config.JobQueue,
-                ReceiptHandle = m.ReceiptHandle
-            };
-
-            var delResponse = SQSClient.DeleteMessage(delRequest);
-            return delResponse.HttpStatusCode;
         }
     }
 }
