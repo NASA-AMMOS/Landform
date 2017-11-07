@@ -12,6 +12,14 @@ Terrain Pipeline - The Next Generation
 | LANDFORM_DATABASE_USER (database.json: Username )| | 
 | LANDFORM_DATABASE_PASS (database.json: Password)|  | 
 
+# Configuration files 
+| Location | Description | 
+|------|------------|
+| %userprofile%\\.landform\\pipelineworker.json | Specifies AWS resources for queuelisten command |
+| %userprofile%\\.landform\\alignmentworker.json | Specifies AWS resources for alignmentworker command | 
+
+For worker instances, the above files are set by the userdata section of the EC2 launch configuration, created by cloudformation. 
+
 # Dependencies
 
 | Name | Use | Install Method | Source |
