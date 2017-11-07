@@ -30,6 +30,7 @@ namespace OPS.Cloud
             }
             ObservationName = m.MessageAttributes[MessageFields.OBSERVATION_NAME].StringValue;
             MessageId = m.MessageId;
+            receiptHandle = m.ReceiptHandle;
         }
 
         public static void Send(IAmazonSQS client, string observationName, string queueUrl)

@@ -93,11 +93,13 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="App.config" />
-    <None Include="Infrastructure\appspec.yml" />
+    <None Include="Infrastructure\align-appspec.yml" />
+    <None Include="Infrastructure\mesh-appspec.yml" />
     <None Include="Infrastructure\deployalignmentlambdas.ps1" />
     <None Include="Infrastructure\deploylandform.ps1" />
     <None Include="Infrastructure\deploylambdas.ps1" />
     <None Include="Infrastructure\deploystack.ps1" />
+    <None Include="Infrastructure\EC2Scripts\alignmentappstart.ps1" />
     <None Include="Infrastructure\EC2Scripts\appvalidate.ps1" />
     <None Include="Infrastructure\getworkerconfig.ps1" />
     <None Include="Infrastructure\README.md" />

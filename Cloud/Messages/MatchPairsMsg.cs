@@ -29,7 +29,7 @@ namespace OPS.Cloud
         public MatchPairsMsg(string observationName, string observationName2, string projectName)
         {
             this.ObservationName0 = observationName;
-            this.ObservationName1 = observationName;
+            this.ObservationName1 = observationName2;
             this.ProjectName = projectName;
         }
 
@@ -43,6 +43,7 @@ namespace OPS.Cloud
             ObservationName1 = m.MessageAttributes[MessageFields.OBSERVATION_NAME_2].StringValue;
             ProjectName = m.MessageAttributes[MessageFields.PROJECT_NAME].StringValue;
             MessageId = m.MessageId;
+            receiptHandle = m.ReceiptHandle;
         }
 
         /// <summary>

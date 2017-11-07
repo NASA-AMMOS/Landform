@@ -31,6 +31,7 @@ The appspec yaml file may not be saving with the correct encoding in Visual Stud
 + For "Found a tab character" errors: check yaml files in an online checker. 
 + Code deploy not running your powershell hooks? They have to be in the root folder of the deployment (the same level as appspec.yml)
 + Failures of powershell scripts do not cause deployments to fail. This is a bug, there is an open support request to Amazon about it. (Support case id 4564068771)
++ Infrastructure updates that change Userdata (defined in the Launch Configuration, how workers get config params), all workers will need to be restarted. Cloudformation does not do this for you. 
 
 Running worker code on your own machine: 
 Workers just run the Landform command. Tiling workers run queuelisten, Alignment workers run alignmentworker. To run on your machine, you need a config file with the resource names specified in the Config type at the top of those files. 

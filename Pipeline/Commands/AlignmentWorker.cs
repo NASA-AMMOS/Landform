@@ -127,7 +127,7 @@ namespace OPS.Pipeline
                                     IngestImage((NewObservationMsg)m);
                                     break;
                                 case FindOverlapsMsg.TYPE:
-                                    //FindOverlaps((FindOverlapsMsg)m);
+                                    FindOverlaps((FindOverlapsMsg)m);
                                     break;
                                 case MatchPairsMsg.TYPE:
                                     MatchPairs((MatchPairsMsg)m);
@@ -189,7 +189,7 @@ namespace OPS.Pipeline
             PCAKeypointProjector projector = new PCAKeypointProjector(gpcafile, false);
             projector.Project(im, features, 1);
 
-            S3Url featureUrl = new S3Url(url.BucketName, Path.ChangeExtension(url.Prefix, ".json")); //TODO think about this
+            S3Url featureUrl = new S3Url(url.BucketName, "gailin-alignment/features/" + Path.ChangeExtension(Path.GetFileName(url.Url), ".json")); //TODO think about this
 
             //save keypoints and features to S3
             TemporaryFile.GetAndDelete(".json", temp =>
@@ -197,6 +197,7 @@ namespace OPS.Pipeline
                 using (StreamWriter file = File.CreateText(temp))
                 {
                     JsonSerializer serializer = new JsonSerializer();
+                    serializer.TypeNameHandling = TypeNameHandling.Auto;
                     serializer.Serialize(file,features);
                 }
                 storage.UploadFile(temp, featureUrl.Url);
@@ -244,10 +245,11 @@ namespace OPS.Pipeline
                 {
                     outcome = detector.ProjectiveFrustumOverlap(thisobs, obs);
                 }
+                Console.WriteLine("Overlap: " + outcome);
                 if (outcome)
                 {
                     //write to dynamoDb and, if successful, create a new MatchPairs job
-                    if (Overlap.Create(context, thisobs.Name, obs.Name, obs.ProjectName) != null)
+                    if (Overlap.Create(context, thisobs.Name, obs.Name, obs.ProjectName) != null) 
                     {
                         new MatchPairsMsg(thisobs.Name, obs.Name, obs.ProjectName).Send(SQSClient, config.JobQueue);
                     }
@@ -269,15 +271,25 @@ namespace OPS.Pipeline
             Observation obs0 = Observation.Find(context, m.ProjectName, m.ObservationName0);
             Observation obs1 = Observation.Find(context, m.ProjectName, m.ObservationName1);
 
+            //get overlap and check that a match has not already been uploaded 
+            Overlap overlap = Overlap.Find(context, obs0.Name, obs1.Name, obs0.ProjectName);
+            if (overlap == null) throw new CloudException("Could not find overlap between these two observations for match images");
+            if (overlap.MatchUrl != null && overlap.MatchUrl.Length > 0) //someone has already finished this request
+            {
+                m.DeleteMessage(SQSClient, config.JobQueue);
+                return 0;
+            }
+
             //read feature data and image for both images from S3
             JsonSerializer serializer = new JsonSerializer();
-            TemporaryFile.GetAndDeleteMultiple(4, ".json", (temp) =>
+            serializer.TypeNameHandling = TypeNameHandling.Auto;
+            TemporaryFile.GetAndDeleteMultiple(new string[5]{ ".json", ".img", ".json", ".img", ".jpg"}, (temp) =>
             {
                 storage.DownloadFile(obs0.FeatureUrl, temp[0]);
                 IEnumerable<SIFTFeature> features0; 
                 using (JsonReader file = new JsonTextReader(File.OpenText(temp[0])))
                 {
-                    features0 = serializer.Deserialize<IEnumerable<SIFTFeature>>(file);
+                    features0 = serializer.Deserialize<IEnumerable<SIFTFeature>>(file); //TODO problem: the FeatureDescriptor in the feature is a PCASIFT descriptor as created by ImageIntake 
                 }
                 storage.DownloadFile(obs0.Url, temp[1]);
                 Image im0 = Image.Load(temp[1]);
@@ -299,6 +311,7 @@ namespace OPS.Pipeline
                 if (matches == null)
                 {
                     Console.WriteLine("No matches found after MoisanStivalFilter");
+                    m.DeleteMessage(SQSClient, config.JobQueue); //TODO if no matches, might be nice to delete Overlaps entry
                     return;
                 }
                 GTM gtm = new GTM(5);
@@ -306,10 +319,25 @@ namespace OPS.Pipeline
                 if (matches == null)
                 {
                     Console.WriteLine("No matches found after GTM Filter");
+                    m.DeleteMessage(SQSClient, config.JobQueue);
                     return;
                 }
                 
-                MatchImage.WriteMatchImage(matches, @"C:\Users\gpease\Desktop\imoutput.jpg");
+                MatchImage.WriteMatchImage(matches, temp[4]);
+                S3Url s3featurematch = new S3Url("landlords-dev", "gailin-alignment/matches/"+overlap.Id+".jpg");
+                storage.UploadFile(temp[4], s3featurematch.Url);
+                overlap.MatchUrl = s3featurematch.Url;
+                try
+                {
+                    context.Save(overlap);
+                }
+                catch (AmazonDynamoDBException e)
+                {
+                    if (e.ErrorCode == "ConditionalCheckFailedException") return; //another worker updated this overlap
+                    else throw e; //unexpected error
+                }
+                //we know we computed the match and uploaded it and its location 
+                m.DeleteMessage(SQSClient, config.JobQueue);
             });
 
             //compute mapping between keypoints 

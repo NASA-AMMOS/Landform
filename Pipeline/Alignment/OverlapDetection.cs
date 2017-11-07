@@ -31,6 +31,7 @@ namespace OPS.Pipeline
         public bool ProjectiveFrustumOverlap(RoverObservation obs0, RoverObservation obs1)
         {
             //snagging these from the header but that's not a good way to do it obv
+            //TODO hacky
             CameraModel model1 = null; 
             CameraModel model0 = null;
             int width0 =0; int width1=0;
@@ -59,7 +60,8 @@ namespace OPS.Pipeline
                 roverToLocalLevel1 = parser.RoverOriginRotation;
             });
 
-            //snagged from PDSParser
+            //snagged from PDSParser TODO this is a hack to get the other frame transforms and it should probably be a real search through FrameTransformLookup (?)
+            //Only works when there's exactly two transforms between observation frame and root, and the intermediate frame is the site drive frame, and it's named as below. YIKE
             string siteDriveFrameName0 = obs0.Site.ToString().PadLeft(5, '0') + obs0.Drive.ToString().PadLeft(5, '0');
             string siteDriveFrameName1 = obs1.Site.ToString().PadLeft(5, '0') + obs1.Drive.ToString().PadLeft(5, '0');
 
@@ -67,7 +69,7 @@ namespace OPS.Pipeline
             FrameTransform roverToLocal0 = FrameTransform.Find(context, obs0.FrameName, siteDriveFrameName0, obs0.ProjectName).FirstOrDefault();
             FrameTransform roverToLocal1 = FrameTransform.Find(context, obs1.FrameName, siteDriveFrameName1, obs0.ProjectName).FirstOrDefault();
 
-            //there's just no way this is right (modeled off SitedriveTransforms)
+            //there's just no way this is right (modeled off SitedriveTransforms in old pipeline code)
             FrameTransform siteDriveToRoot = FrameTransform.Find(context, siteDriveFrameName0, MSLProject.ROOT_FRAME_NAME, obs0.ProjectName).FirstOrDefault();//currently all the same site drive
             double[,] trans = new double[4, 4];
             trans[0, 0] = 1;

@@ -2,12 +2,17 @@
 ## Deploys current release build of landform to Application/Deployment Group for user-specified stack
 ## Assumes a dev stack. S3 upload paths should change for prod
 ## (does not build project) 
-## Note: If you have RPCed into a worker and started landform yourself, this will *fail*. 
+## Note: If you have RPCed into a worker and started landform yourself, deployment will *fail*. 
 ##       Either terminate that instance or manually kill the Landform you started
 ###############################
 
 #name of stack 
-param([Parameter(Mandatory=$true)][System.String]$StackName)
+#and
+#applicaiton type. options are mesh (runs queuelisten) | align (runs alignmentworker)
+param([Parameter(Mandatory=$true)][System.String]$StackName,
+    [Parameter(Mandatory=$true, HelpMessage="What kind of worker app: mesh or align")][ValidateSet("mesh","align")][System.String]$ApplicationType)
+
+
 
 #Where to put code deploy resources in S3. Change as needed
 $UploadKey = "pipeline_resources/landform-cd-$StackName.zip"
@@ -16,6 +21,7 @@ $UploadLocation = "s3://$UploadBucket/$UploadKey"
 
 
 #logical ids for deployment infrastructure within stack (as defined in cloud formation template)
+#TODO Currently, alignment.template and pipeline.template use the same logical IDs. If they are combined into a single template, this will need to change
 $WorkerApplicationResource = "WorkerApplication"
 $WorkerDeploymentGroupResource = "WorkerDeploymentGroup"
 
@@ -49,7 +55,14 @@ Copy-Item -Recurse ..\..\..\Landform\bin\Release\* Source
 Copy-Item -Recurse ..\EC2Scripts\* .
 
 #copy yaml 
-Copy-Item ..\appspec.yml appspec.yml
+if ($ApplicationType -eq "mesh"){
+    Copy-Item ..\mesh-appspec.yml appspec.yml
+}
+if ($ApplicationType -eq "align"){
+    echo "copying align-appspec"
+    Copy-Item ..\align-appspec.yml appspec.yml
+}
+
 
 #push revision to s3
 Write-Host ".....Pushing revision to s3 application $WorkerApplicationName"

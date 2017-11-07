@@ -41,6 +41,10 @@ namespace OPS.Cloud
         //This is set during creation to verify that only one worker can successfully create a single overlap item in Dynamo
         public bool Uploaded { get; set; }
 
+        //S3 URL of image match (for now this is what we're saving)
+        //Always upload file before writing MatchUrl to keep state consistent 
+        public string MatchUrl { get; set; }
+
         [DynamoDBVersion]
         public int? VersionNumber { get; set; }
 
@@ -74,7 +78,16 @@ namespace OPS.Cloud
         {
             //create an overlap without setting Uploaded
             Overlap newOverlap = new Overlap(observationName1, observationName2, projectName);
-            context.Save(newOverlap);
+            try
+            {
+                context.Save(newOverlap);
+            }
+            catch(AmazonDynamoDBException e)
+            {
+                if (e.ErrorCode == "ConditionalCheckFailedException") return null; //if create fails another worker has already uploaded and updated this overlap
+                else throw e; //unexpected error
+            }
+            
 
             //set Uploaded=true and save updated Overlap
             newOverlap.Uploaded = true;
@@ -94,7 +107,8 @@ namespace OPS.Cloud
 
         public static Overlap Find(DynamoDBContext context, string observationName1, string observationName2, string projectName)
         {
-            throw new NotImplementedException();
+            OverlapObs name = new OverlapObs(observationName1, observationName2);
+            return context.Load<Overlap>(name.idFromObs, projectName);
         }
         
         /// <summary>
