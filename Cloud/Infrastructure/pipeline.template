@@ -932,7 +932,19 @@
                         "IpProtocol": "tcp",
                         "FromPort": "80",
                         "ToPort": "80",
-                        "CidrIp": "137.78.29.235/24"
+                        "CidrIp": "128.149.0.0/16"
+                    },
+					{
+                        "IpProtocol": "tcp",
+                        "FromPort": "80",
+                        "ToPort": "80",
+                        "CidrIp": "137.78.0.0/16"
+                    },
+					{
+                        "IpProtocol": "tcp",
+                        "FromPort": "80",
+                        "ToPort": "80",
+                        "CidrIp": "137.79.0.0/16"
                     }
                 ],
                 "SecurityGroupEgress": [
