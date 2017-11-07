@@ -339,16 +339,40 @@ namespace OPS.Pipeline
             }
 
             //Save out to temporary files on disk then upload those to S3
-            
+            /*
             TemporaryFile.GetAndDeleteMultiple(EXTENSIONS, tmp =>
             {
                 img.Save<byte>(tmp[IMG]);
-                dst3.Save(tmp[OBJ], Path.GetFileName(tmp[IMG]));
+                dst3.Save(tmp[OBJ], Path.GetFileName(s3url + EXTENSIONS[IMG])); 
                 storage.UploadFileSingleThread(tmp[IMG], s3url + EXTENSIONS[IMG]);
                 storage.UploadFileSingleThread(tmp[OBJ], s3url + EXTENSIONS[OBJ]);
                 Console.WriteLine(".....Upload finished for Message ID = " + m.MessageId);
-                //storage.UploadFile(Path.ChangeExtension(tmp[OBJ], EXTENSIONS[MTL]), s3url + EXTENSIONS[MTL]); //MTL file is path-dependent so *shrug*
+                storage.UploadFile(Path.ChangeExtension(tmp[OBJ], EXTENSIONS[MTL]), s3url + EXTENSIONS[MTL]); 
             });
+            */
+            //Save out to temporary files with the names we'll eventually use 
+            //TODO this is a temporary fix because there is a filename dependency when writing out MTL files. This will break if a worker gets two of the same message at once (which is possible)
+            string filename = Path.GetFileName(s3url);
+            string location = (@"C:\tmp\in\" + filename).Replace('/', '\\');
+            img.Save<byte>(location + EXTENSIONS[IMG]);
+            dst3.Save(location + EXTENSIONS[OBJ], Path.GetFileName(s3url + EXTENSIONS[IMG]));
+            storage.UploadFileSingleThread(location + EXTENSIONS[IMG], s3url + EXTENSIONS[IMG]);
+            storage.UploadFileSingleThread(location + EXTENSIONS[OBJ], s3url + EXTENSIONS[OBJ]);
+            storage.UploadFileSingleThread(location + EXTENSIONS[MTL], s3url + EXTENSIONS[MTL]);
+            Console.WriteLine(".....Upload finished for Message ID = " + m.MessageId);
+
+            if (File.Exists(location + EXTENSIONS[OBJ]))
+            {
+                File.Delete(location + EXTENSIONS[OBJ]);
+            }
+            if (File.Exists(location + EXTENSIONS[IMG]))
+            {
+                File.Delete(location + EXTENSIONS[IMG]);
+            }
+            if (File.Exists(location + EXTENSIONS[MTL]))
+            {
+                File.Delete(location + EXTENSIONS[MTL]);
+            }
 
             //message is still in queue until we tell it to delete 
             var delRequest = new DeleteMessageRequest
