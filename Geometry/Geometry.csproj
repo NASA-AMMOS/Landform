@@ -67,6 +67,7 @@
   <ItemGroup>
     <Compile Include="Geometry\BarycentricPoint.cs" />
     <Compile Include="Geometry\BoundingBoxExtensions.cs" />
+    <Compile Include="Geometry\MeshException.cs" />
     <Compile Include="Geometry\QuadricEdgeCollapse\Edge.cs" />
     <Compile Include="Geometry\ConvexTools.cs" />
     <Compile Include="Geometry\QuadricEdgeCollapse\EdgeCollapse.cs" />
