@@ -25,13 +25,14 @@ namespace OPS.Geometry
             for (int i = 0; i < faces.Length; i++)
             {
                 var f = faces[i];
+                var normal = Vector3.Normalize(new Vector3(f.Normal));
                 int baseIdx = res.Vertices.Count;
                 for (int j = 0; j < f.Vertices.Length; j++)
                 {
                     int idx = res.Vertices.Count;
                     res.Vertices.Add(new Vertex(
                         new Vector3(f.Vertices[j].Position),
-                        Vector3.Normalize(new Vector3(f.Normal)),
+                        normal,
                         Vector4.Zero,
                         Vector2.Zero
                         ));
@@ -61,7 +62,6 @@ namespace OPS.Geometry
                     Debug.Assert(faceNorm.AlmostEqual(norm));
                 }
 #endif
-
                 double dist = v.Position.Dot(norm);
                 if (point.Dot(norm) > dist)
                 {
