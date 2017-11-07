@@ -35,6 +35,9 @@
                 },
                 "z": 1,
                 "embeds": [],
+                "isassociatedwith": [
+                    "48a94db5-35f9-4c58-91bf-954a51e0c738"
+                ],
                 "isrelatedto": [
                     "235d25bb-6d38-4e9f-8b5d-f17950a3950e"
                 ]
@@ -256,8 +259,8 @@
                     "height": 60
                 },
                 "position": {
-                    "x": 360,
-                    "y": 510
+                    "x": 230,
+                    "y": 620
                 },
                 "z": 1,
                 "embeds": []
@@ -268,8 +271,8 @@
                     "height": 60
                 },
                 "position": {
-                    "x": 480,
-                    "y": 510
+                    "x": 390,
+                    "y": 620
                 },
                 "z": 1,
                 "embeds": [],
@@ -300,7 +303,7 @@
                 },
                 "position": {
                     "x": -10,
-                    "y": 340
+                    "y": 390
                 },
                 "z": 2,
                 "parent": "b579b3b9-c326-403d-b688-182031b7cbf9",
@@ -322,8 +325,8 @@
                     "height": 60
                 },
                 "position": {
-                    "x": 80,
-                    "y": 370
+                    "x": 110,
+                    "y": 340
                 },
                 "z": 2,
                 "parent": "b579b3b9-c326-403d-b688-182031b7cbf9",
@@ -339,7 +342,19 @@
                 },
                 "position": {
                     "x": -250,
-                    "y": 400
+                    "y": 390
+                },
+                "z": 0,
+                "embeds": []
+            },
+            "48a94db5-35f9-4c58-91bf-954a51e0c738": {
+                "size": {
+                    "width": 60,
+                    "height": 60
+                },
+                "position": {
+                    "x": 680,
+                    "y": 290
                 },
                 "z": 0,
                 "embeds": []
@@ -381,10 +396,17 @@
                     "Ref": "UserKeyName"
                 },
                 "SecurityGroups": [
-                    "sg-9578eaf3"
+                    {
+                        "Fn::GetAtt": [
+                            "WorkerSecurityGroup",
+                            "GroupId"
+                        ]
+                    }
                 ],
                 "InstanceType": "t2.2xlarge",
-                "IamInstanceProfile": "landlords",
+                "IamInstanceProfile": {
+                            "Ref": "FrontendInstanceProfile"
+                        },
                 "UserData": {
                     "Fn::Base64": {
                         "Fn::Join": [
@@ -934,13 +956,13 @@
                         "ToPort": "80",
                         "CidrIp": "128.149.0.0/16"
                     },
-					{
+                    {
                         "IpProtocol": "tcp",
                         "FromPort": "80",
                         "ToPort": "80",
                         "CidrIp": "137.78.0.0/16"
                     },
-					{
+                    {
                         "IpProtocol": "tcp",
                         "FromPort": "80",
                         "ToPort": "80",
@@ -959,6 +981,40 @@
             "Metadata": {
                 "AWS::CloudFormation::Designer": {
                     "id": "1146faf0-f0d1-4934-aebc-397130ad206c"
+                }
+            }
+        },
+        "WorkerSecurityGroup": {
+            "Type": "AWS::EC2::SecurityGroup",
+            "Properties": {
+                "GroupDescription": "Allow RDP access to workers only from within JPL net",
+                "VpcId": {
+                    "Ref": "VPC"
+                },
+                "SecurityGroupIngress": [
+                    {
+                        "IpProtocol": "tcp",
+                        "FromPort": "3389",
+                        "ToPort": "3389",
+                        "CidrIp": "128.149.0.0/16"
+                    },
+                    {
+                        "IpProtocol": "tcp",
+                        "FromPort": "3389",
+                        "ToPort": "3389",
+                        "CidrIp": "137.78.0.0/16"
+                    },
+                    {
+                        "IpProtocol": "tcp",
+                        "FromPort": "3389",
+                        "ToPort": "3389",
+                        "CidrIp": "137.79.0.0/16"
+                    }
+                ]
+            },
+            "Metadata": {
+                "AWS::CloudFormation::Designer": {
+                    "id": "48a94db5-35f9-4c58-91bf-954a51e0c738"
                 }
             }
         }
@@ -1000,7 +1056,12 @@
         "FrontendInstanceProfile": {
             "Type": "String",
             "Default": "landlords",
-            "Description": "The role EB servers will assume. Must have access to all the resources that the front end will monitor."
+            "Description": "The role EB EC2 instances will assume. Must have access to all the resources that the front end will monitor."
+        },
+		"WorkerInstanceProfile": {
+            "Type": "String",
+            "Default": "landlords",
+            "Description": "The role worker EC2 instances will assume. Must have read/write access to S3, SQS, CloudWatch, DynamoDB."
         },
         "VPC": {
             "Type": "String",

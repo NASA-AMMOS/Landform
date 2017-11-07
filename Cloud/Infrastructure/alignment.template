@@ -35,6 +35,9 @@
                 },
                 "z": 1,
                 "embeds": [],
+                "isassociatedwith": [
+                    "7e4c60d0-b220-4f44-a1ee-79a23eb6005e"
+                ],
                 "isrelatedto": [
                     "235d25bb-6d38-4e9f-8b5d-f17950a3950e",
                     "c96fe7b3-e305-4d7f-bdfe-19dd35f8fc86",
@@ -388,7 +391,23 @@
                     "x": -230,
                     "y": -20
                 },
-                "z": 0
+                "z": 0,
+                "embeds": [],
+                "dependson": [
+                    "d366b383-a5da-4080-b47f-1fae203ac792"
+                ]
+            },
+            "7e4c60d0-b220-4f44-a1ee-79a23eb6005e": {
+                "size": {
+                    "width": 60,
+                    "height": 60
+                },
+                "position": {
+                    "x": 360,
+                    "y": 400
+                },
+                "z": 0,
+                "embeds": []
             }
         }
     },
@@ -427,10 +446,15 @@
                     "Ref": "UserKeyName"
                 },
                 "SecurityGroups": [
-                    "sg-9578eaf3"
+                    {
+                        "Fn::GetAtt": [
+                            "AlignmentWorkerSecurityGroup",
+                            "GroupId"
+                        ]
+                    }
                 ],
                 "InstanceType": "t2.2xlarge",
-                "IamInstanceProfile": "landlords",
+                "IamInstanceProfile": {"Ref": "WorkerInstanceProfile"},
                 "UserData": {
                     "Fn::Base64": {
                         "Fn::Join": [
@@ -1024,9 +1048,13 @@
                             "Sid": "Allow use of the key",
                             "Effect": "Allow",
                             "Principal": {
-                                "AWS": [
-                                    "arn:aws:iam::589270964471:role/landlords",
-                                    "arn:aws:iam::589270964471:user/gpease"
+                                "AWS": 
+								[{"Fn::Join": [
+									"",
+									["arn:aws:iam::589270964471:role/",
+									{"Ref":"WorkerInstanceProfile"}]
+								]},
+                                "arn:aws:iam::589270964471:user/gpease"
                                 ]
                             },
                             "Action": [
@@ -1043,7 +1071,11 @@
                             "Effect": "Allow",
                             "Principal": {
                                 "AWS": [
-                                    "arn:aws:iam::589270964471:role/landlords",
+                                    {"Fn::Join": [
+										"",
+										["arn:aws:iam::589270964471:role/",
+										{"Ref":"WorkerInstanceProfile"}]
+									]},
                                     "arn:aws:iam::589270964471:user/gpease"
                                 ]
                             },
@@ -1236,7 +1268,7 @@
         },
         "Overlaps": {
             "Type": "AWS::DynamoDB::Table",
-            "DependsOn":"FrameTransforms",
+            "DependsOn": "FrameTransforms",
             "Properties": {
                 "TableName": {
                     "Fn::Join": [
@@ -1279,6 +1311,40 @@
                     "id": "1da12c0d-e8b7-4fdc-8fff-d8ec0d92d7c7"
                 }
             }
+        },
+        "AlignmentWorkerSecurityGroup": {
+            "Type": "AWS::EC2::SecurityGroup",
+            "Properties": {
+                "GroupDescription": "Allow RDP access to workers only from within JPL net",
+                "VpcId": {
+                    "Ref": "VPC"
+                },
+                "SecurityGroupIngress": [
+                    {
+                        "IpProtocol": "tcp",
+                        "FromPort": "3389",
+                        "ToPort": "3389",
+                        "CidrIp": "128.149.0.0/16"
+                    },
+                    {
+                        "IpProtocol": "tcp",
+                        "FromPort": "3389",
+                        "ToPort": "3389",
+                        "CidrIp": "137.78.0.0/16"
+                    },
+                    {
+                        "IpProtocol": "tcp",
+                        "FromPort": "3389",
+                        "ToPort": "3389",
+                        "CidrIp": "137.79.0.0/16"
+                    }
+                ]
+            },
+            "Metadata": {
+                "AWS::CloudFormation::Designer": {
+                    "id": "7e4c60d0-b220-4f44-a1ee-79a23eb6005e"
+                }
+            }
         }
     },
     "Parameters": {
@@ -1318,6 +1384,16 @@
         "TablePrefix": {
             "Type": "String",
             "Description": "The table name prefix. Workers will use this to publish to their tables even if multiple stacks run in the same region."
+        },
+        "VPC": {
+            "Type": "String",
+            "Default": "vpc-577e9832",
+            "Description": "The VPC the application will launch in. TODO: application should create its own subnets and security groups within this VPC"
+        },
+		"WorkerInstanceProfile": {
+            "Type": "String",
+            "Default": "landlords",
+            "Description": "The role worker EC2 instances will assume. Must have read/write access to S3, SQS, CloudWatch, DynamoDB."
         }
     },
     "Outputs": {
