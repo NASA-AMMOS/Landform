@@ -10,6 +10,11 @@ From the CLI or console, create a new stack using pipeline.template. You must sp
 
 Stack creation does not set up any mappings between S3 and the stack. Configure S3 bukets to send notifications to S3 listener lambdas for the prefixes where observations/tiles/whatever will go. 
 
+######Making changes to the stack: 
+
+Always change the template and upadate the stack from the changed template, so that infrastructure changes are recorded and any nececary updates changes cause elsewhere in the stack actually happen. 
+For example, an edit to a table primary key will require a replacement of the table, so the worker configuration has to be changed so workers have the new table name. Updating the stack with a changed template takes care of anything like that. 
+
 #####Deploying code to worker instances: 
 
 Use the deploylambdas and deploylandform scripts to deploy to your workers and lambdas. The workers do not (currently) have an initial deployment, so you have to deploy at least once before they will do anything.
@@ -46,9 +51,11 @@ LambdaQueueSizeMetric publishes a custom CloudWatch metric describing the size o
 An alarm on that custom metric triggers autoscaling of the worker group when the alarm is above a given level. 
 TODO this autoscaling (rate, trigger level, etc) can definitely be optimized. 
 
+Along with the custom metric provided by the QueueWatcher lambda, workers also publish custom metrics about the number of messages they have recieved. All these metrics are in the Pipeline namespace in cloudwatch. 
+
 ##### Alignment pipeline: 
 
-No physical resources are shared between the mesh tiling and alignment pipeline, although the two share the worker code (though use a different command) and share the LambdaQueueSizeMetric code. 
+No physical resources are shared between the mesh tiling and alignment pipeline, although the two share the worker code (though use a different command on app startup) and share the LambdaQueueSizeMetric code. 
 
 Jobs are added to the alignment job queue by either LambdaS3ImageIntake (configured like TileIntake) or by LambdaScanS3, which is a one-time job that scans through an existing S3 bucket or folder and adds the files it finds to the queue. 
 
