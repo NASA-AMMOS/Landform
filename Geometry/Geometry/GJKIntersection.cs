@@ -40,22 +40,18 @@ namespace OPS.Geometry
             int maxIters = 100;
             for (int i = 0; i < maxIters; i++)
             {
-                d.Normalize();
                 Vector3 a = Support(one, two, d);
                 if (a.Dot(d) < 0) return false;
 
                 simplex.Add(a);
                 if (ProcessSimplex(ref simplex, ref d)) return true;
+                d.Normalize();
             }
             return true; // eh, probably intersects?
         }
 
         private static bool ProcessSimplex(ref List<Vector3> simplex, ref Vector3 d)
         {
-            if (simplex.Count == 1)
-            {
-                d = -simplex[0];
-            }
             if (simplex.Count == 2) return ProcessLine(ref simplex, ref d);
             else if (simplex.Count == 3) return ProcessTriangle(ref simplex, ref d);
             else return ProcessTetrahedron(ref simplex, ref d);
@@ -72,8 +68,8 @@ namespace OPS.Geometry
                 d = Vector3.Cross(Vector3.Cross(ab, a0), ab);
                 if (d.LengthSquared() < 1e-7)
                 {
-                    // a0 and ab colinear
-                    d = new Vector3(-d.X, 0, 0);
+                    // line intersects origin
+                    return true;
                 }
             }
             else
@@ -93,174 +89,103 @@ namespace OPS.Geometry
             Vector3 ac = c - a;
             Vector3 abc = Vector3.Cross(ab, ac);
             Vector3 a0 = -a;
-            Vector3 acNormal = Vector3.Cross(abc, ac);
-            Vector3 abNormal = Vector3.Cross(ab, abc);
 
-            if (acNormal.Dot(a0) > 0)
+            if (Vector3.Cross(ab, abc).Dot(a0) > 0)
             {
-                if (ac.Dot(a0) > 0)
-                {
-                    simplex.Remove(b);
-                    d = Vector3.Cross(Vector3.Cross(ac, a0), ac);
-                }
-                else
-                {
-                    if (ab.Dot(a0) > 0)
-                    {
-                        simplex.Remove(c);
-                        d = Vector3.Cross(Vector3.Cross(ab, a0), ab);
-                    }
-                    else
-                    {
-                        simplex.Remove(b);
-                        simplex.Remove(c);
-                        d = a0;
-                    }
-                }
+                // closest to edge ab
+                simplex.Remove(c);
+                d = Vector3.Cross(Vector3.Cross(ab, a0), ab);
             }
-            else
+            else if (Vector3.Cross(abc, ac).Dot(a0) > 0)
             {
-                if (abNormal.Dot(a0) > 0)
-                {
-                    if (ab.Dot(a0) > 0)
-                    {
-                        simplex.Remove(c);
-                        d = Vector3.Cross(Vector3.Cross(ab, a0), ab);
-                    }
-                    else
-                    {
-                        simplex.Remove(b);
-                        simplex.Remove(c);
-                        d = a0;
-                    }
-                }
-                else
-                {
-                    if (abc.Dot(a0) > 0)
-                    {
-                        d = Vector3.Cross(Vector3.Cross(abc, a0), abc);
-                    }
-                    else
-                    {
-                        d = Vector3.Cross(Vector3.Cross(-abc, a0), -abc);
-                    }
-                }
+                // closest to edge ac
+                simplex.Remove(b);
+                d = Vector3.Cross(Vector3.Cross(ac, a0), ac);
             }
-            return false;
-
-            /*if (abNormal.Dot(a0) > 0)
-            {
-                simplex = new List<Vector3>() { a, b };
-                d = ab.Cross(a0).Cross(ab);
-                return false;
-            }
-
-            if (acNormal.Dot(a0) > 0)
-            {
-                simplex = new List<Vector3>() { a, c };
-                d = ac.Cross(a0).Cross(ac);
-                return false;
-            }
-
+            
+            // must be inside triangle
+            // is it above or below?
             if (abc.Dot(a0) > 0)
             {
+                // above
                 d = abc;
             }
-            else
+            else if (abc.Dot(a0) < 0)
             {
-                simplex = new List<Vector3>() { a, c, b };
+                // below, reverse winding order
+                simplex = new List<Vector3> { b, c, a };
                 d = -abc;
             }
-            return false;*/
-        }
-
-        /*private static bool _innerTetrahedron(ref List<Vector3> simplex, Vector3 a, Vector3 b, Vector3 c, Vector3 d, ref Vector3 direction)
-        {
-            Vector3 abNormal = null; 
-        }*/
-        private static bool ProcessTetrahedron(ref List<Vector3> simplex, ref Vector3 direction)
-        {
-            Vector3 a = simplex[3];
-            Vector3 b = simplex[2];
-            Vector3 c = simplex[1];
-            Vector3 d = simplex[0];
-            Vector3 ac = c - a;
-            Vector3 ad = d - a;
-            Vector3 ab = b - a;
-            Vector3 bc = c - b;
-            Vector3 bd = d - b;
-
-            Vector3 acd = Vector3.Cross(ad, ac);
-            Vector3 abd = Vector3.Cross(ab, ad);
-            Vector3 abc = Vector3.Cross(ac, ab);
-
-            Vector3 a0 = -a;
-
-            if (abc.Dot(a0) > 0)
-            {
-                if (Vector3.Cross(abc, ac).Dot(a0) > 0)
-                {
-                    simplex.Remove(b);
-                    simplex.Remove(d);
-                    direction = Vector3.Cross(Vector3.Cross(ac, a0), ac);
-                }
-                else if (Vector3.Cross(ab, abc).Dot(a0) > 0)
-                {
-                    simplex.Remove(c);
-                    simplex.Remove(d);
-                    direction = Vector3.Cross(Vector3.Cross(ab, a0), ab);
-                }
-                else
-                {
-                    simplex.Remove(d);
-                    direction = abc;
-                }
-            }
-            else if (acd.Dot(a0) > 0)
-            {
-                if (Vector3.Cross(acd, ad).Dot(a0) > 0)
-                {
-                    simplex.Remove(b);
-                    simplex.Remove(c);
-                    direction = Vector3.Cross(Vector3.Cross(ad, a0), ad);
-                }
-                else if (Vector3.Cross(ac, acd).Dot(a0) > 0)
-                {
-                    simplex.Remove(b);
-                    simplex.Remove(d);
-                    direction = Vector3.Cross(Vector3.Cross(ac, a0), ac);
-                }
-                else
-                {
-                    simplex.Remove(b);
-                    direction = acd;
-                }
-            }
-            else if (abd.Dot(a0) > 0)
-            {
-                if (Vector3.Cross(abd, ab).Dot(a0) > 0)
-                {
-                    simplex.Remove(c);
-                    simplex.Remove(d);
-                    direction = Vector3.Cross(Vector3.Cross(ab, a0), ab);
-                }
-                else if (Vector3.Cross(ad, abd).Dot(a0) > 0)
-                {
-                    simplex.Remove(b);
-                    simplex.Remove(c);
-                    direction = Vector3.Cross(Vector3.Cross(ad, a0), ad);
-                }
-                else
-                {
-                    simplex.Remove(c);
-                    direction = abd;
-                }
-            }
             else
             {
+                // nope, triangle contains origin
                 return true;
             }
 
+            return false;
+        }
+        
+        private static bool ProcessTetrahedron(ref List<Vector3> simplex, ref Vector3 direction)
+        {
+            Vector3 ap, bp, cp;
+            {
+                Vector3 a = simplex[3];
+                Vector3 b = simplex[2];
+                Vector3 c = simplex[1];
+                Vector3 d = simplex[0];
+
+                Vector3 a0 = -a;
+
+                Vector3 ab = b - a;
+                Vector3 ac = c - a;
+                Vector3 ad = d - a;
+
+
+                if (ab.Cross(ac).Dot(a0) > 0)
+                {
+                    ap = a;
+                    bp = b;
+                    cp = c;
+                }
+                else if (ac.Cross(ad).Dot(a0) > 0)
+                {
+                    ap = a;
+                    bp = c;
+                    cp = d;
+                }
+                else if (ad.Cross(b).Dot(a0) > 0)
+                {
+                    ap = a;
+                    bp = d;
+                    cp = b;
+                }
+                else
+                {
+                    return true;
+                }
+            }
+
+            Vector3 a0p = -ap;
+
+            Vector3 abp = bp - ap;
+            Vector3 acp = cp - ap;
+            Vector3 abcp = Vector3.Cross(abp, acp);
+
+            if (abp.Cross(abcp).Dot(a0p) > 0)
+            {
+                simplex = new List<Vector3> { bp, ap };
+                direction = Vector3.Cross(Vector3.Cross(abp, a0p), abp);
+            }
+            else if (abcp.Cross(acp).Dot(a0p) > 0)
+            {
+                simplex = new List<Vector3> { cp, ap };
+                direction = Vector3.Cross(Vector3.Cross(acp, a0p), acp);
+            }
+            else
+            {
+                simplex = new List<Vector3> { cp, bp, ap };
+                direction = abcp;
+            }
             return false;
         }
     }
