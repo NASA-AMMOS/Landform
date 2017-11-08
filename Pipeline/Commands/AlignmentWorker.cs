@@ -52,6 +52,10 @@ namespace OPS.Pipeline
     public class AlignmentWorker
     {
         private AllignmentConfig config;
+        //urls for feature and match uploads. TODO configure from somewhere sensible 
+        //perhaps from Dynamo project entry, with the thought that the REST API will eventually configure them? 
+        private string s3FeatureUrl = "s3://landlords-dev/gailin-alignment/features/"; 
+        private string s3MatchesUrl = "s3://landlords-dev/gailin-alignment/matches/";
 
         //AWS clients. All thread safe and reusable 
         IAmazonSQS SQSClient;
@@ -189,7 +193,7 @@ namespace OPS.Pipeline
             PCAKeypointProjector projector = new PCAKeypointProjector(gpcafile, false);
             projector.Project(im, features, 1);
 
-            S3Url featureUrl = new S3Url(url.BucketName, "gailin-alignment/features/" + Path.ChangeExtension(Path.GetFileName(url.Url), ".json")); //TODO think about this
+            S3Url featureUrl = new S3Url(s3FeatureUrl + Path.ChangeExtension(Path.GetFileName(url.Url), ".json")); //TODO think about this
 
             //save keypoints and features to S3
             TemporaryFile.GetAndDelete(".json", temp =>
@@ -324,9 +328,9 @@ namespace OPS.Pipeline
                 }
                 
                 MatchImage.WriteMatchImage(matches, temp[4]);
-                S3Url s3featurematch = new S3Url("landlords-dev", "gailin-alignment/matches/"+overlap.Id+".jpg");
-                storage.UploadFile(temp[4], s3featurematch.Url);
-                overlap.MatchUrl = s3featurematch.Url;
+                string url = s3MatchesUrl + overlap.Id + ".jpg";
+                storage.UploadFile(temp[4], url);
+                overlap.MatchUrl = url;
                 try
                 {
                     context.Save(overlap);
