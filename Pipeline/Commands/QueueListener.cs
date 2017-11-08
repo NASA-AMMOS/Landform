@@ -131,10 +131,10 @@ namespace OPS.Pipeline
                     if (r.Messages.Count > 0) //we have a message
                     {
                         Interlocked.Increment(ref messagesRecieved);
-                        Message m = r.Messages[0];
+                        CreateParentTileMsg m = (CreateParentTileMsg)PipelineMessage.FromMessage(r.Messages[0]);
                         Console.WriteLine(".....Message recieved:"
                             +"\r\n        Message ID = " + m.MessageId
-                            +"\r\n        URL = " + m.MessageAttributes["ParentPath"].StringValue);
+                            +"\r\n        URL = " + m.ParentPath);
                         try
                         {
                             processMessage(m); //Process messages synchronously 
@@ -143,7 +143,7 @@ namespace OPS.Pipeline
                         catch (Exception e)
                         {
                             Interlocked.Increment(ref messagesFailed);
-                            string msg = "Processing failed for message " + m.MessageId + "; additional message info: " + m.MessageAttributes["ParentPath"].StringValue
+                            string msg = "Processing failed for message " + m.MessageId + "; additional message info: " + m.ParentPath
                                 + "\r\n Error msg is: " + e.Message
                                 + "\r\n Stack trace is: " + e.StackTrace;
                             Console.WriteLine(msg);
@@ -167,11 +167,10 @@ namespace OPS.Pipeline
         }
 
 
-        private int processMessage(Message m)
+        private int processMessage(CreateParentTileMsg m)
         {
             //ParentPath is currently the path, including bucket, to the s3 resource that the parent WILL be; minus endings 
-            string s3url = "s3://" + m.MessageAttributes["ParentPath"].StringValue;
-            int numChildren = Convert.ToInt32(m.MessageAttributes["NumChildren"].StringValue);
+            string s3url = "s3://" + m.ParentPath;
 
             //run a lil image pipeline 
 
@@ -179,11 +178,11 @@ namespace OPS.Pipeline
             int height = 512;
 
             //Download files 
-            MeshImagePair[] meshes = new MeshImagePair[numChildren];
-            Mesh[] justmesh = new Mesh[numChildren];
+            MeshImagePair[] meshes = new MeshImagePair[m.NumChildren];
+            Mesh[] justmesh = new Mesh[m.NumChildren];
             StorageHelper storage = new StorageHelper();
             int newFaceCount = 0;
-            for (int index = 0; index < numChildren; index++)
+            for (int index = 0; index < m.NumChildren; index++)
             {
                 //GOD KNOWS WHY but this doesn't break very often, so using this while working on AWS resources
                 //Frequency of breakage: a few in a thousand 
@@ -304,7 +303,7 @@ namespace OPS.Pipeline
                 newFaceCount += meshes[index].Mesh.Faces.Count;
                 */
             }
-            newFaceCount = Convert.ToInt32(newFaceCount / Convert.ToDouble(numChildren));
+            newFaceCount = Convert.ToInt32(newFaceCount / Convert.ToDouble(m.NumChildren));
 
             //Merge the meshes 
             Mesh dst = Mesh.Merge(justmesh);
@@ -375,17 +374,7 @@ namespace OPS.Pipeline
             }
 
             //message is still in queue until we tell it to delete 
-            var delRequest = new DeleteMessageRequest
-            {
-                QueueUrl = config.JobQueue,
-                ReceiptHandle = m.ReceiptHandle
-            };
-
-            var delResponse = SQSClient.DeleteMessage(delRequest);
-            if (delResponse.HttpStatusCode == System.Net.HttpStatusCode.OK)
-            {
-                Console.WriteLine(".....Message " + m.MessageId + " deleted.");
-            }
+            m.DeleteMessage(SQSClient, config.JobQueue);
 
             return 0; 
         }

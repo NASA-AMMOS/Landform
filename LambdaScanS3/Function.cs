@@ -130,11 +130,11 @@ namespace Lambda.LambdaScanS3
                 MessageAttributes = new Dictionary<string, MessageAttributeValue>
                 {
                     {
-                    AlignmentMessageFields.MSG_TYPE_FIELD, new MessageAttributeValue
-                    {DataType = "String", StringValue = AlignmentMessageTypes.NEW_IMAGE_MSG }
+                    NewObservationMsgFields.MSG_TYPE_FIELD, new MessageAttributeValue
+                    {DataType = "String", StringValue = PipelineMessageTypes.NEW_OBSERVATION_MESSAGE }
                     },
                     {
-                    AlignmentMessageFields.FILE_S3_PATH, new MessageAttributeValue
+                    NewObservationMsgFields.FILE_S3_PATH, new MessageAttributeValue
                     {DataType = "String", StringValue = address } 
                     }
                 },

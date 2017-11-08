@@ -19,13 +19,24 @@ namespace OPS.Cloud
 
         //protected string queueUrl; 
 
+        /// <summary>
+        /// Fields used by messages. 
+        /// TODO I'm sure there's a cleaner way to do this
+        /// </summary>
         protected class MessageFields
         {
+            //used by all messages 
             public const string MSG_TYPE_FIELD = "MessageType";
+
+            //used (in various combinations) by alignment pipeline messages 
             public const string FILE_S3_PATH = "FileS3Path";
             public const string OBSERVATION_NAME = "ObservationName";
             public const string OBSERVATION_NAME_2 = "ObservationName2";
             public const string PROJECT_NAME = "ProjectName";
+
+            //used by CreateParentTileMsg only
+            public const string PARENT_PATH = "ParentPath"; 
+            public const string NUM_CHILDREN = "NumChildren";
         }
 
         /// <summary>
@@ -43,6 +54,8 @@ namespace OPS.Cloud
                     return new FindOverlapsMsg(m);
                 case MatchPairsMsg.TYPE:
                     return new MatchPairsMsg(m);
+                case CreateParentTileMsg.TYPE:
+                    return new CreateParentTileMsg(m);
             }
             throw new CloudException("Unrecognized message type");
         }

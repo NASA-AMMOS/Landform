@@ -87,12 +87,16 @@ namespace Lambda.LambdaDynamoProcessing
                 MessageAttributes = new Dictionary<string, MessageAttributeValue>
                 {
                     {
-                    "ParentPath", new MessageAttributeValue
+                    CreateParentTileMsgFields.PARENT_PATH, new MessageAttributeValue
                     {DataType = "String", StringValue = bucket + "/" + parentPath }
                     },
                     {
-                    "NumChildren", new MessageAttributeValue 
+                    CreateParentTileMsgFields.NUM_CHILDREN, new MessageAttributeValue 
                     {DataType = "String", StringValue = numChildren } //No data types other than string currently supported
+                    },
+                    {
+                    CreateParentTileMsgFields.MSG_TYPE_FIELD, new MessageAttributeValue
+                    {DataType = "String", StringValue = PipelineMessageTypes.CREATE_PARENT_TILE_MSG } //No data types other than string currently supported
                     }
                 },
                 MessageBody = "I was started by DynamoDB Stream event with ID " + id,

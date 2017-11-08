@@ -56,11 +56,11 @@ namespace Lambda.LambdaS3ImageIntake
                 MessageAttributes = new Dictionary<string, MessageAttributeValue>
                 {
                     {
-                    AlignmentMessageFields.MSG_TYPE_FIELD, new MessageAttributeValue
-                    {DataType = "String", StringValue = AlignmentMessageTypes.NEW_IMAGE_MSG }
+                    NewObservationMsgFields.MSG_TYPE_FIELD, new MessageAttributeValue
+                    {DataType = "String", StringValue = PipelineMessageTypes.NEW_OBSERVATION_MESSAGE }
                     },
                     {
-                    AlignmentMessageFields.FILE_S3_PATH, new MessageAttributeValue
+                    NewObservationMsgFields.FILE_S3_PATH, new MessageAttributeValue
                     {DataType = "String", StringValue = "s3://" + s3Event.Bucket.Name + "/" + s3Event.Object.Key } //No data types other than string currently supported
                     }
                 },

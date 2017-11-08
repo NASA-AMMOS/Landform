@@ -81,6 +81,7 @@
     <Compile Include="Database\Project.cs" />
     <Compile Include="Database\FrameTransform.cs" />
     <Compile Include="Database\RoverObservation.cs" />
+    <Compile Include="Messages\CreateParentTileMsg.cs" />
     <Compile Include="Messages\MatchPairsMsg.cs" />
     <Compile Include="Messages\PipelineMessage.cs" />
     <Compile Include="Messages\FindOverlapsMsg.cs" />
@@ -89,7 +90,6 @@
     <Compile Include="CloudException.cs" />
     <Compile Include="Storage\S3Url.cs" />
     <Compile Include="Storage\StorageHelper.cs" />
-    <Compile Include="Util\Names.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="App.config" />

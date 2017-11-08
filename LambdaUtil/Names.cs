@@ -6,48 +6,60 @@ using System.Threading.Tasks;
 
 namespace Lambda.LambdaUtil
 {
-    //Keep me up-to-date with Cloud/Util/Names
-    //Note: In Visual Studio 2017, it should be easy(ish) to compile a project to both .NET Framework and .NET Core. Sharing names!!!
-
+    //This namespace stores all AWS names (message types, fields, dynamo column names, etc) that need to be kept consistent between Landform and Lambda code. 
+    //Also contains names shared between lambdas 
+    //Names that are NOT shared with lambdas (eg message types that are only created/read by workers) are not included here
 
     // TODO : 
     // For dynamo, we can either do json -> obj conversions for all communications with table 
     // or just use document model and save the strings here. I think that's better - i don't think we have enough complexity to justify the setup complexity of classes
     // (especailly since the built in version of that, dynamodbv2.datamodel, doesn't allow us to specify the table name at runtime (need for transfering between stacks)) 
 
-    /// Column names within table for Pipeline (Mesh Metadata table)
+    /// Column names within table for Mesh tiling pipeline (Mesh Metadata table)
+    ///          Shared between LambdaS3TileIntake (which uploads metadata entries) and 
+    ///          LambdaDynamoProcessing (which creates CreateParentTile messages from complete metadata entries)
     public class TableNames
     {
-        public const string PARENT_MESH_ID_FIELD = "mesh_name";
-        public const string CHILDREN = "children"; //a map from childId -> 0. Eventually map to version #
-        public const string BUCKET = "bucket";
-        public const string NUM_CHILDREN = "numchildren";
+        public const string PARENT_MESH_ID_FIELD = "mesh_name"; //name of parent mesh
+        public const string CHILDREN = "children"; //a string set of child tile names 
+        public const string BUCKET = "bucket"; //bucket name where these children are (with child tile names, is a fully specified S3 location)
+        public const string NUM_CHILDREN = "numchildren"; //total number of children this parent tile will have
 
-        //As a reminder to stop hardcoding this in the near future... 
+        //Currently, specifying #children for a parent tile is difficult, so LambdaS3TileIntake enters 4 for all parent tiles. 
+        //TODO: use REST API to specify this for a job
         public const string HARDCODED_4 = "4";
     }
 
     /// <summary>
-    /// Message fields in allignment job queue messages 
-    /// Keep in sync with names in Pipeline/Commands/ImageIntake.cs
+    /// Message fields in the message for a new observation in the Alignment pipeline
+    /// Keep in sync with message type in Cloud/Messages/NewObservationMessage
     /// </summary>
-    public class AlignmentMessageFields
+    public class NewObservationMsgFields
     {
         public const string MSG_TYPE_FIELD = "MessageType";
         public const string FILE_S3_PATH = "FileS3Path";
         public const string OBSERVATION_NAME = "ObservationName";
-        public const string OBSERVATION_NAME_2 = "ObservationName2";
+    }
+
+    /// <summary>
+    /// Message fields in the message for a new observation in the Alignment pipeline
+    /// Keep in sync with message type in Cloud/Messages/CreateParentTileMsg
+    /// </summary>
+    public class CreateParentTileMsgFields
+    {
+        public const string MSG_TYPE_FIELD = "MessageType";
+        public const string PARENT_PATH = "ParentPath";
+        public const string NUM_CHILDREN = "NumChildren";
     }
 
     /// <summary>
     /// Message types for communication between lambda and allignment workers 
     /// Keep in sync with names in Pipeline/Commands/ImageIntake.cs
     /// </summary>
-    public class AlignmentMessageTypes
+    public class PipelineMessageTypes
     {
-        public const string NEW_IMAGE_MSG = "NEW_IMAGE";
-        public const string FIND_OVERLAPS_MSG = "FIND_OVERLAPS";
-        public const string MATCH_PAIR_MSG = "MATCH_PAIR";
+        public const string NEW_OBSERVATION_MESSAGE = "NEW_IMAGE";
+        public const string CREATE_PARENT_TILE_MSG = "CREATE_PARENT_TILE";
     }
     
 }
