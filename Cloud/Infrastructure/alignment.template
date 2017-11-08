@@ -672,7 +672,7 @@
                 "Statistic": "Average",
                 "MetricName": "SQSSize",
                 "Namespace": "Pipeline",
-                "Threshold": 100
+                "Threshold": 40
             },
             "Metadata": {
                 "AWS::CloudFormation::Designer": {
@@ -725,7 +725,7 @@
                 "Statistic": "Average",
                 "MetricName": "SQSSize",
                 "Namespace": "Pipeline",
-                "Threshold": 15
+                "Threshold": 7
             },
             "Metadata": {
                 "AWS::CloudFormation::Designer": {
