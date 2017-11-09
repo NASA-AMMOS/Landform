@@ -12,25 +12,28 @@ namespace OPS.MathExtensions
         /// <summary>
         /// Compute a set of 2n points with mean and covariance equal to <paramref name="distrib"/>
         /// </summary>
-        public static IEnumerable<Vector<double>> SigmaPoints(GaussianND distrib)
+        public static IEnumerable<Vector<double>> SigmaPoints(GaussianND distrib, double lambda = 0)
         {
             var mean = distrib.Mean;
             var covariance = distrib.Covariance;
 
+            yield return mean;
+
             // If covariance is zero, just return the one point
             if (covariance.IsZero())
             {
-                yield return mean;
                 yield break;
             }
 
-            Matrix<double> nX = covariance * covariance.RowCount;
+            Matrix<double> nX = covariance * (covariance.RowCount + lambda);
+
+            // TODO: try using Cholesky instead, see if more go fast
             var svd = nX.Svd();
             var U = svd.U;
             var VT = svd.VT;
             var sqrtS = svd.S.PointwiseSqrt();
+            var sqrtNX = U * CreateMatrix.Diagonal(sqrtS.ToArray()) * VT;
 
-            var sqrtNX = U * CreateMatrix.Diagonal<double>(sqrtS.ToArray()) * VT;
             for (int i = 0; i < sqrtNX.ColumnCount; i++)
             {
                 var column = sqrtNX.Column(i);
@@ -48,9 +51,21 @@ namespace OPS.MathExtensions
         /// <param name="x">Input probablity distribution</param>
         /// <param name="func">Function to apply</param>
         /// <returns>GaussianND over the codomain of <paramref name="func"/></returns>
-        public static GaussianND Transform(GaussianND x, UnaryFunctor func)
+        public static GaussianND Transform(GaussianND x, UnaryFunctor func, double k=3, double a=0.5)
         {
-            return new GaussianND(SigmaPoints(x).Select(pt => func(pt)));
+            double lambda = (a * a) * (x.N + k) - x.N;
+            List<Vector<double>> sigmaPoints = SigmaPoints(x, lambda).ToList();
+            List<double> meanWeights = new List<double>(sigmaPoints.Count);
+            List<double> covarianceWeights = new List<double>(sigmaPoints.Count);
+
+            double firstMeanWeight = lambda / (x.N + lambda);
+            meanWeights.Add(firstMeanWeight);
+            covarianceWeights.Add(firstMeanWeight + (1 - a * a + 2));
+            for (int i = 1; i < sigmaPoints.Count; i++)
+            {
+                meanWeights[i] = covarianceWeights[i] = 1 / (2 * (x.N + lambda));
+            }
+            return new GaussianND(sigmaPoints, meanWeights, covarianceWeights);
         }
 
         /// <summary>
@@ -60,7 +75,7 @@ namespace OPS.MathExtensions
         /// <param name="y">Input probablity distribution, assumed independent from x</param>
         /// <param name="func">Function to apply</param>
         /// <returns>GaussianND over the codomain of <paramref name="func"/></returns>
-        public static GaussianND Transform(GaussianND x, GaussianND y, BinaryFunctor func)
+        public static GaussianND Transform(GaussianND x, GaussianND y, BinaryFunctor func, double k=3, double a=0.5)
         {
             GaussianND joint = GaussianND.IndependentJoint(x, y);
             return Transform(joint, vec =>
@@ -68,7 +83,7 @@ namespace OPS.MathExtensions
                 var xVec = vec.SubVector(0, x.N);
                 var yVec = vec.SubVector(x.N, y.N);
                 return func(xVec, yVec);
-            });
+            }, k, a);
         }
     }
 }

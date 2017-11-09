@@ -47,6 +47,7 @@ namespace OPS.Geometry
                 return t;
             }
         }
+
         public UncertainRigidTransform WorldToLocal
         {
             get

@@ -1,4 +1,5 @@
 ﻿using Microsoft.Xna.Framework;
+using OPS.MathExtensions;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -146,6 +147,36 @@ namespace OPS.Geometry
             ConvexHull res = new ConvexHull(this);
             res.Transform(mat);
             return res;
+        }
+
+
+        /// <summary>
+        /// Return a copy of this hull transformed by an uncertain transform.
+        /// </summary>
+        public ConvexHull Transformed(UncertainRigidTransform transform, double sigma=3.0, int numSamples=10)
+        {
+            // If input transform is actually just a matrix, fall back to other overload for performance
+            if (!transform.Uncertain) return Transformed(transform.Mean);
+
+            List<double[]> pts = new List<double[]>();
+            foreach (var vtx in Mesh.Vertices)
+            {
+                var pt = vtx.Position;
+                GaussianND transformed = transform.TransformPoint(pt);
+                var cov = transformed.Covariance;
+
+                pts.Add(transformed.Mean.ToArray());
+                if (!cov.IsZero())
+                {
+                    var L = cov.Cholesky().Factor;
+                    for (int dim = 0; dim < L.ColumnCount; dim++)
+                    {
+                        pts.Add((transformed.Mean + L.Column(dim) * sigma).ToArray());
+                        pts.Add((transformed.Mean + L.Column(dim) * sigma).ToArray());
+                    }
+                }
+            }
+            return new ConvexHull(pts);
         }
     }
 }

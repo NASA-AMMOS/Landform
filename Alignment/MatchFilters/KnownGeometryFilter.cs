@@ -21,6 +21,13 @@ namespace OPS.Alignment.MatchFilters
         }
         ImageNodeDelegate ImageToNode;
 
+        internal struct ProjectionResult
+        {
+            public bool intersection;
+            public double modelT, dataT;
+            public Vector2 error;
+        }
+
         public ImagePairCorrespondence Filter(ImagePairCorrespondence matches)
         {
             SceneNode modelNode = ImageToNode(matches.ModelImage);
@@ -40,20 +47,7 @@ namespace OPS.Alignment.MatchFilters
             var ch = dataNode.GetComponent<NodeConvexHull>();
             if (ch != null)
             {
-                if (dataToModel.Uncertain)
-                {
-                    List<Vector3> inflatedVerts = new List<Vector3>(ch.hull.Vertices.Count * 6);
-                    foreach (var vert in ch.hull.Vertices)
-                    {
-                        var vertDistrib = dataToModel.TransformPoint(vert.Position);
-                        inflatedVerts.AddRange(UnscentedTransform.SigmaPoints(vertDistrib).Select(pt => pt.ToXna()));
-                    }
-                    dataHullInModel = new ConvexHull(inflatedVerts);
-                }
-                else
-                {
-                    dataHullInModel = ch.hull.Transformed(dataToModel.Mean);
-                }
+                dataHullInModel = ch.hull.Transformed(dataToModel);
             }
 
             Dictionary<int, bool> modelRayIntersects = new Dictionary<int, bool>();
@@ -78,8 +72,10 @@ namespace OPS.Alignment.MatchFilters
                     if (!modelRayIntersects[pair.Value]) continue;
                 }
 
-                Func<Matrix, Vector2> ReprojectionError = (mat) =>
+                Func<Matrix, ProjectionResult> Reproject = (mat) =>
                 {
+                    ProjectionResult res = new ProjectionResult();
+
                     var mdrm = Ray.Transform(dataRay, mat);
                     double modelT, dataT;
                     Vector2 backprojected;
@@ -88,19 +84,35 @@ namespace OPS.Alignment.MatchFilters
                     {
                         // Rays are parallel or very close to parallel - try backprojecting from ~infinity
                         dataT = 1000;
+                        modelT = 0;
+                        res.intersection = false;
+                    }
+                    else
+                    {
+                        res.intersection = true;
                     }
                     Vector3 dataPt = mdrm.Position + mdrm.Direction * dataT;
                     backprojected = modelCam.Backproject(dataPt, out range);
-                    return backprojected - modelFeature.Location;
+                    res.error = backprojected - modelFeature.Location;
+                    res.modelT = modelT;
+                    res.dataT = dataT;
+                    return res;
                 };
 
                 if (dataToModel.Uncertain)
                 {
                     // Compute probability distribution of reprojection error for closest point
+                    int badPoints = 0;
+                    int totalPoints = 0;
                     var error = dataToModel.Transform((mat) =>
                     {
-                        return ReprojectionError(mat).ToMathNet();
+                        totalPoints++;
+                        var res = Reproject(mat);
+                        if (!res.intersection || res.dataT < -0.01 || res.modelT < -0.01) badPoints++;
+                        return res.error.ToMathNet();
                     });
+                    // If more than 30% of points failed to meaningfully project, skip match
+                    if (badPoints / (double)totalPoints > 0.3) continue;
                     // If zero error is >4 sigma away from mean, skip match
                     double mhDistSqr = error.MahalanobisDistanceSquared(Vector2.Zero.ToMathNet());
                     if (mhDistSqr > 4*4) continue;
@@ -108,14 +120,17 @@ namespace OPS.Alignment.MatchFilters
                 else
                 {
                     // Transform is exact-ish, just make sure it's close
-                    var error = ReprojectionError(dataToModel.Mean);
-                    if (error.LengthSquared() > 10 * 10) continue;
+                    var res = Reproject(dataToModel.Mean);
+                    if (res.modelT < -0.01 || res.dataT < -0.01) continue;
+                    if (res.error.LengthSquared() > 10 * 10) continue;
                 }
 
                 // we peachy
                 goodMatches.Add(pair);
             }
-            return new ImagePairCorrespondence(matches.ModelImage, matches.DataImage, matches.ModelFeatures, matches.DataFeatures, goodMatches);
+            matches = new ImagePairCorrespondence(matches.ModelImage, matches.DataImage, matches.ModelFeatures, matches.DataFeatures, goodMatches);
+            matches.Compact();
+            return matches;
         }
     }
 }

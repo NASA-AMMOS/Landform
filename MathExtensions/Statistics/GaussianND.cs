@@ -80,37 +80,29 @@ namespace OPS.MathExtensions
             N = 3;
         }
 
-        /// <summary>
-        /// Construct from a set of sampled points
-        /// </summary>
-        /// <param name="points">Set of points to compute distribution from</param>
-        /// <param name="population">If true, `points` is an exhaustive sampling</param>
-        public GaussianND(IEnumerable<Vector<double>> points, bool population = false)
+        static void Compute(List<Vector<double>> points, List<double> meanWeights, List<double> covarianceWeights, out Vector<double> Mean, out Matrix<double> Covariance)
         {
-            bool first = true;
-            List<Vector<double>> myPts = new List<Vector<double>>();
-            foreach (var v in points)
+            Mean = null;
+            for (int i = 0; i < points.Count; i++)
             {
-                myPts.Add(v);
-                if (first)
+                var v = points[i];
+                if (i == 0)
                 {
-                    Mean = v;
-                    first = false;
+                    Mean = v * covarianceWeights[i];
                 }
                 else
                 {
-                    Mean += v;
+                    Mean += v * covarianceWeights[i];
                 }
             }
-            Mean /= myPts.Count;
 
             Covariance = new DenseMatrix(Mean.Count);
-            if (myPts.Count == 1) return;
+            if (points.Count == 1) return;
 
-            for (int i = 0; i < myPts.Count; i++)
+            for (int i = 0; i < points.Count; i++)
             {
-                var v = myPts[i];
-                var offset = v - Mean;
+                var v = points[i];
+                var offset = (v - Mean) * covarianceWeights[i];
                 for (int j = 0; j < Mean.Count; j++)
                 {
                     for (int k = 0; k < Mean.Count; k++)
@@ -119,14 +111,33 @@ namespace OPS.MathExtensions
                     }
                 }
             }
-            if (population)
-            {
-                Covariance *= 1.0 / (myPts.Count);
-            }
-            else
-            {
-                Covariance *= 1.0 / (myPts.Count - 1.0);
-            }
+        }
+
+        /// <summary>
+        /// Compute from a set of samples and associated weights
+        /// </summary>
+        /// <param name="points">Sample points</param>
+        /// <param name="meanWeights">Per-sample weight for computing mean (typically 1/N)</param>
+        /// <param name="covarianceWeights">Per-sample weight for computing covariance (typically 1/(N-1))</param>
+        public GaussianND(List<Vector<double>> points, List<double> meanWeights, List<double> covarianceWeights)
+        {
+            Compute(points, meanWeights, covarianceWeights, out Mean, out Covariance);
+            N = Mean.Count;
+        }
+
+        /// <summary>
+        /// Construct from a set of sampled points
+        /// </summary>
+        /// <param name="points">Set of points to compute distribution from</param>
+        /// <param name="population">If true, `points` is an exhaustive sampling</param>
+        public GaussianND(IEnumerable<Vector<double>> points, bool population = false)
+        {
+            List<Vector<double>> pointList = points.ToList();
+            double meanWeight = 1.0 / pointList.Count;
+            double covarianceWeight = population ? (1.0 / pointList.Count) : (1.0 / (pointList.Count - 1));
+            List<double> meanWeights = Enumerable.Repeat(meanWeight, pointList.Count).ToList();
+            List<double> covarianceWeights = Enumerable.Repeat(covarianceWeight, pointList.Count).ToList();
+            Compute(pointList, meanWeights, covarianceWeights, out Mean, out Covariance);
             N = Mean.Count;
         }
         
