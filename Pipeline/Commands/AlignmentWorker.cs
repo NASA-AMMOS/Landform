@@ -103,8 +103,11 @@ namespace OPS.Pipeline
             //wait on queue for images 
             SQSClient = new AmazonSQSClient(Amazon.RegionEndpoint.USWest1); 
             S3Client = new AmazonS3Client(Amazon.RegionEndpoint.USWest1);
-
-            Parallel.For(0, 1, (int i) => //Gather a max of 8 messages at once. TODO should be configurable
+            
+            //TODO: what's the proper parallel situation here? 
+            //These jobs are CPU intensive - feature detection and matching, for example, use 100% of cpu for short bursts.
+            //However, overlap detection (as it is currently) is a lot of reading from Dynamo but is NOT cpu intensive, so would benefit from parallization 
+            Parallel.For(0, 1, (int i) =>  
             {
                 while (true)
                 {
@@ -144,6 +147,7 @@ namespace OPS.Pipeline
                             Interlocked.Increment(ref messagesFailed);
                             string msg = "Processing failed for message " + m.MessageId + " of type " + m.MessageType
                                 + "\r\n Error msg is: " + e.Message
+                                + "\r\n Inner exception is: " + e.InnerException
                                 + "\r\n Stack trace is: " + e.StackTrace;
                             Console.WriteLine(msg);
                         }

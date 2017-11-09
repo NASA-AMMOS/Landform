@@ -27,7 +27,7 @@ namespace Lambda.LambdaUtil
 
         //Currently, specifying #children for a parent tile is difficult, so LambdaS3TileIntake enters 4 for all parent tiles. 
         //TODO: use REST API to specify this for a job
-        public const string HARDCODED_4 = "4";
+        public const int HARDCODED_4 = 4;
     }
 
     /// <summary>

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using System.IO;
 
 using Amazon.Lambda.Core;
 using Amazon.Lambda.S3Events;
@@ -25,6 +26,7 @@ namespace Lambda.LambdaS3TileIntake
 
         private IAmazonS3 S3Client { get; set; }
         private IAmazonDynamoDB DBClient { get; set; }
+        private DynamoDBContext DBContext { get; set; }
 
         /// <summary>
         /// Default constructor. This constructor is used by Lambda to construct the instance. When invoked in a Lambda environment
@@ -35,6 +37,7 @@ namespace Lambda.LambdaS3TileIntake
         {
             S3Client = new AmazonS3Client();
             DBClient = new AmazonDynamoDBClient();
+            DBContext = new DynamoDBContext(DBClient, new DynamoDBContextConfig { TableNamePrefix = Environment.GetEnvironmentVariable("TABLE_PREFIX") });
         }
 
         /// <summary>
@@ -63,8 +66,9 @@ namespace Lambda.LambdaS3TileIntake
 
             //decide whether we should process parent tile
             string key = s3Event.Object.Key;
+            //string prefix = Path.GetFileNameWithoutExtension(key).Substring(0, key.Length-1);
             string prefix = key.Substring(0, key.Length - 5);
-            int suffix = Convert.ToInt32(key.Substring(key.Length - 5, 1));
+            string suffix = key.Substring(key.Length - 5, 1);
             string file_ending = key.Substring(key.Length - 4, 4);
             string bucket = s3Event.Bucket.Name;
             LambdaLogger.Log("Prefix: " + prefix + "\nSuffix: " + suffix + "\nFile ending: " + file_ending + "\nBucket: " + bucket);
@@ -78,81 +82,13 @@ namespace Lambda.LambdaS3TileIntake
             //Using low-level API to get access to ADD operations 
             // TODO I can't find documentation on concurrent ADD operations. I *assume* it's ok??? 
 
-            // Define item key
-            Dictionary<string, AttributeValue> primarykey = new Dictionary<string, AttributeValue>
-            {
-                { TableNames.PARENT_MESH_ID_FIELD, new AttributeValue { S = prefix } }
-            };
-            // Define attribute updates
-            Dictionary< string, AttributeValueUpdate > updates = new Dictionary<string, AttributeValueUpdate> ();
-            
-            // For now hard code a size of 4 here 
-            updates[TableNames.NUM_CHILDREN] = new AttributeValueUpdate()
-            {
-                Action = AttributeAction.PUT,
-                Value = new AttributeValue { N = TableNames.HARDCODED_4 }
-            };
-            //update children map 
-            updates[TableNames.CHILDREN] = new AttributeValueUpdate()
-            {
-                Action = AttributeAction.ADD,
-                Value = new AttributeValue { SS = new List<string>() { key } }
-            };
-            //update bucket
-            updates[TableNames.BUCKET] = new AttributeValueUpdate()
-            {
-                Action = AttributeAction.PUT,
-                Value = new AttributeValue { S = bucket }
-            };
+            // If parent does not exist, create parent 
+            await ParentTile.CreateIfNotPresent(DBContext, prefix, bucket, TableNames.HARDCODED_4);
 
-            // Create UpdateItem request
-            UpdateItemRequest request = new UpdateItemRequest
-            {
-                TableName = Environment.GetEnvironmentVariable("DB_NAME"),
-                Key = primarykey,
-                AttributeUpdates = updates
-            };
-
-            await DBClient.UpdateItemAsync(request);
+            // Put this child tile into the db 
+            await ChildTile.Create(DBContext, prefix, suffix);
 
             return "success";
-        }
-
-
-
-        /// <summary>
-        /// For getting a table on the initialization of the Lambda
-        /// from http://docs.aws.amazon.com/amazondynamodb/latest/developerguide/GettingStarted.NET.03.html
-        /// </summary>
-        /// <param name="tableName"></param>
-        /// <returns></returns>
-        public static Table GetTableObject(string tableName)
-        {
-            AmazonDynamoDBConfig ddbConfig = new AmazonDynamoDBConfig();
-            ddbConfig.RegionEndpoint = Amazon.RegionEndpoint.USWest1;
-            AmazonDynamoDBClient client;
-            try
-            {
-                client = new AmazonDynamoDBClient(ddbConfig);
-            }
-            catch (Exception ex)
-            {
-                LambdaLogger.Log("\n Error: failed to create a DynamoDB client; " + ex.Message);
-                return (null);
-            }
-
-            // Now, create a Table object for the specified table
-            Table table = null;
-            try
-            {
-                table = Table.LoadTable(client, tableName);
-            }
-            catch (Exception ex)
-            {
-                LambdaLogger.Log("\n Error: failed to load the " + tableName + " table; " + ex.Message);
-                return (null);
-            }
-            return (table);
         }
     }
 }

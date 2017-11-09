@@ -10,7 +10,9 @@ using Amazon.Lambda.Core;
 using Amazon.Lambda.DynamoDBEvents;
 using Amazon.SQS;
 using Amazon.SQS.Model;
+using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.Model;
+using Amazon.DynamoDBv2.DataModel;
 
 using Lambda.LambdaUtil; 
 
@@ -25,10 +27,14 @@ namespace Lambda.LambdaDynamoProcessing
         private static readonly JsonSerializer _jsonSerializer = new JsonSerializer();
 
         IAmazonSQS SQSClient { get; set; }
+        IAmazonDynamoDB DBClient { get; set; }
+        DynamoDBContext DBContext { get; set; }
 
         public Function()
         {
             SQSClient = new AmazonSQSClient();
+            DBClient = new AmazonDynamoDBClient();
+            DBContext = new DynamoDBContext(DBClient, new DynamoDBContextConfig { TableNamePrefix = Environment.GetEnvironmentVariable("TABLE_PREFIX") });
         }
 
         public async Task<int> FunctionHandler(DynamoDBEvent dynamoEvent, ILambdaContext context)
@@ -44,24 +50,18 @@ namespace Lambda.LambdaDynamoProcessing
                     return 0; //we don't need to process remove events 
                 }
 
-                string streamRecordJson = SerializeStreamRecord(record.Dynamodb);
-                context.Logger.LogLine($"DynamoDB Record:");
-                context.Logger.LogLine(streamRecordJson);
+                string parentMeshName = record.Dynamodb.NewImage["parent_mesh_name"].S;
 
-                context.Logger.LogLine(record.Dynamodb.NewImage[TableNames.PARENT_MESH_ID_FIELD].S);
+                //Look up all children for this parent tile 
+                IEnumerable<ChildTile> children = await ChildTile.FindAll(DBContext, parentMeshName);
 
-                //check the length of the children list in this update 
-                //Dictionary<string, AttributeValue> childmap = record.Dynamodb.NewImage[TableNames.CHILDREN].M;
+                //Look up this parent tile to check how many children it should have 
+                ParentTile parent = await ParentTile.Find(DBContext, parentMeshName);
 
-
-                //check if all children are in this update 
-                if (record.Dynamodb.NewImage.ContainsKey(TableNames.CHILDREN) &&
-                    record.Dynamodb.NewImage.ContainsKey(TableNames.NUM_CHILDREN) &&
-                    record.Dynamodb.NewImage[TableNames.CHILDREN].SS.Count == Convert.ToInt32(record.Dynamodb.NewImage[TableNames.NUM_CHILDREN].N))
+                //if #children = #total children, send message with extensions of all children in body of message 
+                if (parent.NumChildren == children.Count())
                 {
-                    context.Logger.LogLine("Ready to create parent");
-                    await sendMessage(record.Dynamodb.NewImage[TableNames.BUCKET].S, record.Dynamodb.NewImage[TableNames.PARENT_MESH_ID_FIELD].S,
-                        record.Dynamodb.NewImage[TableNames.NUM_CHILDREN].N, record.EventID);
+                    await sendMessage(parent.Bucket, parentMeshName, Convert.ToString(parent.NumChildren), children);
                 }
             }
 
@@ -69,17 +69,8 @@ namespace Lambda.LambdaDynamoProcessing
             return 0;
         }
 
-        private string SerializeStreamRecord(StreamRecord streamRecord)
-        {
-            using (var writer = new StringWriter())
-            {
-                _jsonSerializer.Serialize(writer, streamRecord);
-                return writer.ToString();
-            }
-        }
-
         //Add this tile processing request to the queue with this prefix
-        private async Task<string> sendMessage(string bucket, string parentPath, string numChildren, string id)
+        private async Task<string> sendMessage(string bucket, string parentPath, string numChildren, IEnumerable<ChildTile> children)
         {
             SendMessageRequest request = new SendMessageRequest
             {
@@ -99,7 +90,7 @@ namespace Lambda.LambdaDynamoProcessing
                     {DataType = "String", StringValue = PipelineMessageTypes.CREATE_PARENT_TILE_MSG } //No data types other than string currently supported
                     }
                 },
-                MessageBody = "I was started by DynamoDB Stream event with ID " + id,
+                MessageBody = "{}",
                 QueueUrl = Environment.GetEnvironmentVariable("JOB_QUEUE")
             };
             SendMessageResponse response = await SQSClient.SendMessageAsync(request);
