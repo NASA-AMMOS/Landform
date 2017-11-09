@@ -39,17 +39,36 @@ namespace OPS.MathExtensions
             }
         }
 
-        public delegate Vector<double> Functor(Vector<double> input);
+        public delegate Vector<double> UnaryFunctor(Vector<double> input);
+        public delegate Vector<double> BinaryFunctor(Vector<double> x, Vector<double> y);
 
         /// <summary>
         /// Approximate the distribution of <paramref name="func"/>(<paramref name="x"/>) with the unscented transform.
         /// </summary>
         /// <param name="x">Input probablity distribution</param>
         /// <param name="func">Function to apply</param>
-        /// <returns>GaussianND</returns>
-        public static GaussianND Transform(GaussianND x, Functor func)
+        /// <returns>GaussianND over the codomain of <paramref name="func"/></returns>
+        public static GaussianND Transform(GaussianND x, UnaryFunctor func)
         {
             return new GaussianND(SigmaPoints(x).Select(pt => func(pt)));
+        }
+
+        /// <summary>
+        /// Approximate the distribution of <paramref name="func"/>(<paramref name="x"/>, <paramref name="y"/>) with the unscented transform.
+        /// </summary>
+        /// <param name="x">Input probablity distribution, assumed independent from y</param>
+        /// <param name="y">Input probablity distribution, assumed independent from x</param>
+        /// <param name="func">Function to apply</param>
+        /// <returns>GaussianND over the codomain of <paramref name="func"/></returns>
+        public static GaussianND Transform(GaussianND x, GaussianND y, BinaryFunctor func)
+        {
+            GaussianND joint = GaussianND.IndependentJoint(x, y);
+            return Transform(joint, vec =>
+            {
+                var xVec = vec.SubVector(0, x.N);
+                var yVec = vec.SubVector(x.N, y.N);
+                return func(xVec, yVec);
+            });
         }
     }
 }

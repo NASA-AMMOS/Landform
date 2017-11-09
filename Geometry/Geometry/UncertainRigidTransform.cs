@@ -47,11 +47,8 @@ namespace OPS.Geometry
         /// </summary>
         public static UncertainRigidTransform operator *(UncertainRigidTransform lhs, UncertainRigidTransform rhs)
         {
-            var uberDistrib = GaussianND.IndependentJoint(lhs.Distribution, rhs.Distribution);
-            return new UncertainRigidTransform(UnscentedTransform.Transform(uberDistrib, uberVec =>
+            return new UncertainRigidTransform(UnscentedTransform.Transform(lhs.Distribution, rhs.Distribution, (lhsVec, rhsVec) =>
             {
-                var lhsVec = uberVec.SubVector(0, 6);
-                var rhsVec = uberVec.SubVector(6, 6);
                 return ToVector(ToMatrix(lhsVec) * ToMatrix(rhsVec));
             }));
         }
@@ -96,6 +93,20 @@ namespace OPS.Geometry
             return Transform(mat =>
             {
                 return Vector3.Transform(point, mat).ToMathNet();
+            });
+        }
+
+
+        /// <summary>
+        /// Compute a probability distribution for the result of transforming an uncertain point.
+        /// </summary>
+        /// <param name="point">Point distribution in 3D space</param>
+        /// <returns>Gaussian3D</returns>
+        public GaussianND TransformPoint(GaussianND point)
+        {
+            return UnscentedTransform.Transform(Distribution, point, (poseVec, pointVec) =>
+            {
+                return Vector3.Transform(new Vector3(pointVec.ToArray()), ToMatrix(poseVec)).ToMathNet();
             });
         }
 
