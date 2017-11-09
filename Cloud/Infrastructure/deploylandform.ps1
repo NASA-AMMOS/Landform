@@ -59,7 +59,6 @@ if ($ApplicationType -eq "mesh"){
     Copy-Item ..\mesh-appspec.yml appspec.yml
 }
 if ($ApplicationType -eq "align"){
-    echo "copying align-appspec"
     Copy-Item ..\align-appspec.yml appspec.yml
 }
 

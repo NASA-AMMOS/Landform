@@ -1115,7 +1115,13 @@
         "KeyAlias": {
             "Type": "AWS::KMS::Alias",
             "Properties": {
-                "AliasName": "alias/AlignmentKey",
+                "AliasName": {"Fn::Join":[
+				"",
+				["alias/AlignmentKey/",
+				{
+                    "Ref": "AWS::StackName"
+                }]
+				]},
                 "TargetKeyId": {
                     "Ref": "Key"
                 }
