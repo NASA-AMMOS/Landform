@@ -112,9 +112,9 @@ namespace OPS.MathExtensions
             {
                 var v = myPts[i];
                 var offset = v - Mean;
-                for (int j = 0; j < 3; j++)
+                for (int j = 0; j < Mean.Count; j++)
                 {
-                    for (int k = 0; k < 3; k++)
+                    for (int k = 0; k < Mean.Count; k++)
                     {
                         Covariance[j, k] += offset[j] * offset[k];
                     }

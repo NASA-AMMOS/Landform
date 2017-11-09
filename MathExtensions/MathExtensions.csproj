@@ -45,13 +45,12 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="Gaussian3D.cs" />
     <Compile Include="Statistics\GaussianND.cs" />
     <Compile Include="MathE.cs" />
     <Compile Include="MathNetXna.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="RunningAverage.cs" />
-    <Compile Include="UnscentedTransform.cs" />
+    <Compile Include="Statistics\UnscentedTransform.cs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Xna\Xna.csproj">
