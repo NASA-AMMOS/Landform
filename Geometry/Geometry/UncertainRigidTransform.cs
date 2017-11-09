@@ -102,9 +102,9 @@ namespace OPS.Geometry
         /// <summary>
         /// Compute a probability distribution for the result of transforming a direction.
         /// </summary>
-        /// <param name="point">Point in 3D space</param>
+        /// <param name="direction">Vector in 3D space</param>
         /// <returns>Gaussian3D</returns>
-        public GaussianND TransformNormal(Vector3 point)
+        public GaussianND TransformNormal(Vector3 direction)
         {
             // Translation has no effect on vector transformations - just extract the rotation
             var mean = Distribution.Mean.SubVector(3, 3);
@@ -112,7 +112,7 @@ namespace OPS.Geometry
             GaussianND axisAngle = new GaussianND(mean, cov);
             return UnscentedTransform.Transform(axisAngle, rot =>
             {
-                return new AxisAngleVector(rot.ToXna()).Transform(point).ToMathNet();
+                return new AxisAngleVector(rot.ToXna()).Transform(direction).ToMathNet();
             });
         }
 
