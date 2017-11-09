@@ -77,6 +77,11 @@ namespace OPS.Pipeline
             return GetState(reference).Computation;
         }
 
+        public T Evaluate<T>(object args) where T : Computation
+        {
+            return (T)Evaluate(new Reference(typeof(T), args));
+        }
+
 
         /// <summary>
         /// Return True if the referenced computation has already been

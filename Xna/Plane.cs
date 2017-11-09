@@ -115,13 +115,8 @@ namespace Microsoft.Xna.Framework
             result = ((this.Normal.X * value.X) + (this.Normal.Y * value.Y)) + (this.Normal.Z * value.Z);
         }
         
-        /*
-        public static void Transform(ref Plane plane, ref Quaternion rotation, out Plane result)
-        {
-            throw new NotImplementedException();
-        }
-
-        public static void Transform(ref Plane plane, ref Matrix matrix, out Plane result)
+        
+        /*public static void Transform(ref Plane plane, ref Quaternion rotation, out Plane result)
         {
             throw new NotImplementedException();
         }
@@ -129,13 +124,29 @@ namespace Microsoft.Xna.Framework
         public static Plane Transform(Plane plane, Quaternion rotation)
         {
             throw new NotImplementedException();
+        }*/
+
+        public static void Transform(ref Plane plane, ref Matrix matrix, out Plane result)
+        {
+            // transform plane equation by inverse transpose of matrix
+            Matrix inverseTranspose;
+            Matrix.Invert(ref matrix, out inverseTranspose);
+            Matrix.Transpose(
+                ref inverseTranspose,
+                out inverseTranspose
+            );
+            Vector4 eq = new Vector4(plane.Normal, plane.D);
+            Vector4 newEq;
+            Vector4.Transform(ref eq, ref inverseTranspose, out newEq);
+            result = new Plane(newEq);
         }
 
         public static Plane Transform(Plane plane, Matrix matrix)
         {
-            throw new NotImplementedException();
+            Plane result;
+            Transform(ref plane, ref matrix, out result);
+            return result;
         }
-        */
 
         public void Normalize()
         {

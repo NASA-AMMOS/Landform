@@ -228,6 +228,21 @@ namespace Microsoft.Xna.Framework
             result = (dist < 0) ? null : distanceAlongRay - (double?)Math.Sqrt(dist);
         }
 
+        public static void Transform(ref Ray ray, ref Matrix matrix, out Ray result)
+        {
+            Vector3 newPosition, newDirection;
+            Vector3.Transform(ref ray.Position, ref matrix, out newPosition);
+            Vector3.TransformNormal(ref ray.Direction, ref matrix, out newDirection);
+            result = new Ray(newPosition, newDirection);
+        }
+
+        public static Ray Transform(Ray ray, Matrix matrix)
+        {
+            Ray result;
+            Transform(ref ray, ref matrix, out result);
+            return result;
+        }
+
 
         public static bool operator !=(Ray a, Ray b)
         {

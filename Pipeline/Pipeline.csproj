@@ -130,11 +130,11 @@
     <Compile Include="Commands\MatchImages.cs" />
     <Compile Include="ComputeGraph\ComputationContext.cs" />
     <Compile Include="ComputeGraph\PersistedComputation.cs" />
+    <Compile Include="ComputeGraph\Computation.cs" />
     <Compile Include="Commands\PDSImageConverter.cs" />
     <Compile Include="Commands\TileBaselineMesh.cs" />
     <Compile Include="General\ObservationEnums.cs" />
     <Compile Include="GdalConfiguration.cs" />
-    <Compile Include="ComputeGraph\Computation.cs" />
     <Compile Include="Rover\MSLLocations.cs" />
     <Compile Include="Rover\RoverCoordinateSystem.cs" />
     <Compile Include="Rover\RoverReachability.cs" />

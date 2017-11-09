@@ -941,6 +941,48 @@ namespace Microsoft.Xna.Framework
             return new float[] { (float)X, (float)Y, (float)Z };
         }
 
+        public double this[int idx]
+        {
+            get
+            {
+                if (idx == 0)
+                {
+                    return X;
+                }
+                else if (idx == 1)
+                {
+                    return Y;
+                }
+                else if (idx == 2)
+                {
+                    return Z;
+                }
+                else
+                {
+                    throw new IndexOutOfRangeException();
+                }
+            }
+            set
+            {
+                if (idx == 0)
+                {
+                    X = value;
+                }
+                else if (idx == 1)
+                {
+                    Y = value;
+                }
+                else if (idx == 2)
+                {
+                    Z = value;
+                }
+                else
+                {
+                    throw new IndexOutOfRangeException();
+                }
+            }
+        }
+
         #endregion
     }
 }
