@@ -7,7 +7,6 @@ using MathNet.Numerics.LinearAlgebra;
 using MathNet.Numerics.LinearAlgebra.Double;
 
 using Xna = Microsoft.Xna.Framework;
-using MathExtensions;
 
 namespace OPS.MathExtensions
 {
