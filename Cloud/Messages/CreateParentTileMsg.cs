@@ -7,11 +7,15 @@ using System.Threading.Tasks;
 using Amazon.SQS;
 using Amazon.SQS.Model;
 
+using Newtonsoft.Json;
+
+using OPS.Util;
+
 namespace OPS.Cloud
 {
     /// <summary>
     /// This message type is used by Pipeline/Commands/QueueListener and LambdaDynamoProcessing 
-    /// Message fields must be kept in sync with names in LambdaUtil/Names and LambdaDynamoProcessing
+    /// Message fields & body must be kept in sync with names in LambdaUtil/Names and LambdaDynamoProcessing
     /// </summary>
     public class CreateParentTileMsg : PipelineMessage
     {
@@ -22,6 +26,8 @@ namespace OPS.Cloud
         public string ParentPath { get; set; }
 
         public int NumChildren { get; set; }
+
+        public List<string> ChildExtensions { get; set; }
 
         protected CreateParentTileMsg()
         {
@@ -38,27 +44,11 @@ namespace OPS.Cloud
             NumChildren = Convert.ToInt32(m.MessageAttributes[MessageFields.NUM_CHILDREN].StringValue);
             MessageId = m.MessageId;
             receiptHandle = m.ReceiptHandle;
+            ChildExtensions = JsonConvert.DeserializeObject<List<string>>(m.Body); //can't use type handling here because converting from .NET core to .NET
+            //ChildExtensions = (List<string>)JsonHelper.FromJson(m.Body);
+
         }
 
-        public static void Send(IAmazonSQS client, string parentPath, string numChildren, string queueUrl)
-        {
-
-            string MessageId = Send(client, new Dictionary<string, MessageAttributeValue>
-                {
-                    {
-                    MessageFields.MSG_TYPE_FIELD, new MessageAttributeValue
-                    {DataType = "String", StringValue = TYPE }
-                    },
-                    {
-                    MessageFields.PARENT_PATH, new MessageAttributeValue
-                    {DataType = "String", StringValue = parentPath } 
-                    },
-                    {
-                    MessageFields.NUM_CHILDREN, new MessageAttributeValue
-                    {DataType = "String", StringValue = numChildren }
-                    }
-                }, queueUrl);
-        }
-
+        //No send method because these messages always pass lambda -> tiling worker
     }
 }

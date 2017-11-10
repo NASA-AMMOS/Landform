@@ -182,15 +182,17 @@ namespace OPS.Pipeline
             Mesh[] justmesh = new Mesh[m.NumChildren];
             StorageHelper storage = new StorageHelper();
             int newFaceCount = 0;
-            for (int index = 0; index < m.NumChildren; index++)
+            int index = 0; 
+            foreach (string extension in m.ChildExtensions)
             {
                 //GOD KNOWS WHY but this doesn't break very often, so using this while working on AWS resources
                 //Frequency of breakage: a few in a thousand 
+                //Issue: sometimes Image.Load() doesn't give up the temp file, so temp file deletion fails. Happens much more often when using Temp file wrapper. 
                 //inline temp files 
                 S3Url url = new S3Url(s3url);
                 string root = (@"C:\tmp\in\" + Guid.NewGuid()).Replace('/', '\\');
-                storage.DownloadFile(s3url + Convert.ToString(index) + EXTENSIONS[OBJ], root + EXTENSIONS[OBJ]);
-                storage.DownloadFile(s3url + Convert.ToString(index) + EXTENSIONS[IMG], root + EXTENSIONS[IMG]);
+                storage.DownloadFile(s3url + extension + EXTENSIONS[OBJ], root + EXTENSIONS[OBJ]);
+                storage.DownloadFile(s3url + extension + EXTENSIONS[IMG], root + EXTENSIONS[IMG]);
 
                 meshes[index] = new MeshImagePair(Mesh.Load(root + EXTENSIONS[OBJ]), Image.Load(root + EXTENSIONS[IMG]));
                 justmesh[index] = meshes[index].Mesh;
@@ -204,104 +206,8 @@ namespace OPS.Pipeline
                 {
                     File.Delete(root + EXTENSIONS[IMG]);
                 }
-
-                /*
-                //using temp file helper
-                //Frequency of breakage: one in 10 to one in 20? 
-                TemporaryFile.GetAndDeleteMultiple(EXTENSIONS, tmp =>
-                {
-                    storage.DownloadFile(s3url + Convert.ToString(index) + EXTENSIONS[OBJ], tmp[OBJ]);
-                    storage.DownloadFile(s3url + Convert.ToString(index) + EXTENSIONS[IMG], tmp[IMG]);
-
-                    meshes[index] = new MeshImagePair(Mesh.Load(tmp[OBJ]), Image.Load(tmp[IMG]));
-                    newFaceCount += meshes[index].Mesh.Faces.Count;
-                });
-                */
-
-                /*
-                //using temp files with streaming 
-                //Frequency of breakage: same as with DownloadFile
-                TemporaryFile.GetAndDeleteMultiple(EXTENSIONS, tmp =>
-                {
-                    storage.GetStream(s3url + Convert.ToString(index) + EXTENSIONS[OBJ], (Stream s) => {
-                        using (var fileStream = File.Create(tmp[OBJ]))
-                        {
-                            s.CopyTo(fileStream);
-                        }
-                    });
-                    storage.GetStream(s3url + Convert.ToString(index) + EXTENSIONS[IMG], (Stream s) => {
-                        using (var fileStream = File.Create(tmp[IMG]))
-                        {
-                            s.CopyTo(fileStream);
-                        }
-                    });
-
-                    meshes[index] = new MeshImagePair(Mesh.Load(tmp[OBJ]), Image.Load(tmp[IMG]));
-                    newFaceCount += meshes[index].Mesh.Faces.Count;
-                });*/
-
-                /*
-                //grabbing local files instead, to isolate TU vs mesh and image loading 
-                //breaks
-                TemporaryFile.GetAndDeleteMultiple(EXTENSIONS, tmp =>
-                {
-                    File.Copy(@"C:\Users\gpease\Documents\data\Terrain\Terrain-clean\2111111111000.obj", tmp[OBJ]);
-                    File.Copy(@"C:\Users\gpease\Documents\data\Terrain\Terrain-clean\2111111111000.jpg", tmp[IMG]);
-
-                    meshes[index] = new MeshImagePair(Mesh.Load(tmp[OBJ]), Image.Load(tmp[IMG]));
-                    newFaceCount += meshes[index].Mesh.Faces.Count;
-                });
-                */
-
-                /*
-                //hardcoding, no temp file use, just get and delete 
-                //doesn't break
-                TemporaryFile.GetAndDeleteMultiple(EXTENSIONS, tmp =>
-                {
-                    meshes[index] = new MeshImagePair(Mesh.Load(@"C:\Users\gpease\Documents\data\Terrain\Terrain-clean\2111111111000.obj"), Image.Load(@"C:\Users\gpease\Documents\data\Terrain\Terrain-clean\2111111111000.jpg"));
-                    newFaceCount += meshes[index].Mesh.Faces.Count;
-                });
-                */
-
+                index += 1;
                 
-                //mesh or image breaking? 
-                //Image!
-                //image seems to load ok even when loader doesn't give up file...
-                /*
-                Mesh mesh = null; Image image = null; string impath;
-                TemporaryFile.GetAndDeleteMultiple(EXTENSIONS, tmp =>
-                {
-                    File.Copy(@"C:\Users\gpease\Documents\data\Terrain\Terrain-clean\2111111111000.obj", tmp[OBJ]);
-                    mesh = Mesh.Load(tmp[OBJ]);
-                });
-                TemporaryFile.GetAndDeleteMultiple(EXTENSIONS, tmp =>
-                {
-                    File.Copy(@"C:\Users\gpease\Documents\data\Terrain\Terrain-clean\2111111111000.jpg", tmp[IMG]);
-                    image = Image.Load(tmp[IMG]);
-                    impath = tmp[IMG];
-                    try
-                    {
-                        File.Delete(impath);
-                    }
-                    catch
-                    {
-                        Console.WriteLine("pasta");
-                    }
-                });
-                meshes[index] = new MeshImagePair(mesh, image);
-                newFaceCount += meshes[index].Mesh.Faces.Count;
-                */
-
-                //using temp file only for TU - just to check if this is also breaking (it's not, at least for ~hundreds)
-                /*
-                TemporaryFile.GetAndDeleteMultiple(EXTENSIONS, tmp =>
-                {
-                    storage.DownloadFile(s3url + Convert.ToString(index) + EXTENSIONS[OBJ], tmp[OBJ]);
-                    storage.DownloadFile(s3url + Convert.ToString(index) + EXTENSIONS[IMG], tmp[IMG]);
-                });
-                meshes[index] = new MeshImagePair(Mesh.Load(@"C:\Users\gpease\Documents\data\Terrain\Terrain-clean\2111111111000.obj"), Image.Load(@"C:\Users\gpease\Documents\data\Terrain\Terrain-clean\2111111111000.jpg"));
-                newFaceCount += meshes[index].Mesh.Faces.Count;
-                */
             }
             newFaceCount = Convert.ToInt32(newFaceCount / Convert.ToDouble(m.NumChildren));
 

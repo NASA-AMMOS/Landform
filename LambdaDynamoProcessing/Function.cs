@@ -72,6 +72,16 @@ namespace Lambda.LambdaDynamoProcessing
         //Add this tile processing request to the queue with this prefix
         private async Task<string> sendMessage(string bucket, string parentPath, string numChildren, IEnumerable<ChildTile> children)
         {
+            //Get json of child extensions for worker
+            List<string> extensions = new List<string>();
+            foreach(ChildTile child in children)
+            {
+                extensions.Add(child.ChildExtension);
+            }
+            var settings = new JsonSerializerSettings { TypeNameHandling = TypeNameHandling.None };
+            string extensionsMsg = JsonConvert.SerializeObject(extensions, typeof(object), settings);
+
+            //Send message
             SendMessageRequest request = new SendMessageRequest
             {
                 DelaySeconds = (int)TimeSpan.FromSeconds(5).TotalSeconds,
@@ -90,7 +100,7 @@ namespace Lambda.LambdaDynamoProcessing
                     {DataType = "String", StringValue = PipelineMessageTypes.CREATE_PARENT_TILE_MSG } //No data types other than string currently supported
                     }
                 },
-                MessageBody = "{}",
+                MessageBody = extensionsMsg,
                 QueueUrl = Environment.GetEnvironmentVariable("JOB_QUEUE")
             };
             SendMessageResponse response = await SQSClient.SendMessageAsync(request);
