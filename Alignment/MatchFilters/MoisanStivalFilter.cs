@@ -23,6 +23,8 @@ namespace OPS.Alignment
 
         public ImagePairCorrespondence Filter(ImagePairCorrespondence matches)
         {
+            if (matches.DataToModel.Length < 8) return matches;
+
             ImageFeature[] modelFeat, dataFeat;
             int[] dataToModel;
             matches.Flatten(out modelFeat, out dataFeat, out dataToModel);

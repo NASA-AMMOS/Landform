@@ -57,6 +57,12 @@ namespace OPS.Cloud
 
         }
 
+        /// <summary>
+        /// Constructor for a new overlap
+        /// </summary>
+        /// <param name="obs1"></param>
+        /// <param name="obs2"></param>
+        /// <param name="projectName"></param>
         protected Overlap(string obs1, string obs2, string projectName)
         {
             this.Observations = new OverlapObs(obs1, obs2);

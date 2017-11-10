@@ -20,13 +20,17 @@ namespace OPS.Cloud
         public string Sensor { get; set; }
         public string ImageFrameSize { get; set; }
 
+        //width and height are JUST for current sketchy old overlap detection. TODO probably not nececary 
+        public int Width { get; set; }
+        public int Height { get; set; }
+
         //This constructor must be public for DynamoDb but should not be used
         public RoverObservation()
         {
            
         }
 
-        protected RoverObservation(Frame frame, string name, string url, string observationType, string cameraModel, bool useForReconstruction, int site, int drive, string version, string sensor, string imageFrameSize) :
+        protected RoverObservation(Frame frame, string name, string url, string observationType, string cameraModel, bool useForReconstruction, int site, int drive, string version, string sensor, string imageFrameSize, int width, int height) :
             base(frame, name, url, observationType, cameraModel, useForReconstruction)
         {
             this.Site = site;
@@ -34,6 +38,8 @@ namespace OPS.Cloud
             this.Version = version;
             this.Sensor = sensor;
             this.ImageFrameSize = imageFrameSize;
+            this.Width = width;
+            this.Height = height;
         }
 
         /// <summary>
@@ -64,13 +70,13 @@ namespace OPS.Cloud
         /// <param name="observationType"></param>
         /// <param name="cameraModel"></param>
         /// <returns></returns>
-        public static RoverObservation Create(DynamoDBContext context, Frame frame, string name, string url, string observationType, string cameraModel, bool useForReconstruction, int site, int drive, string version, string sensor, string imageFrameSize)
+        public static RoverObservation Create(DynamoDBContext context, Frame frame, string name, string url, string observationType, string cameraModel, bool useForReconstruction, int site, int drive, string version, string sensor, string imageFrameSize, int width, int height)
         {
             if (Observation.Find(context, frame.ProjectName, name) != null)
             {
                 return null; //An observation with this name and project already exists 
             }
-            RoverObservation ro = new RoverObservation(frame, name, url, observationType, cameraModel, useForReconstruction, site, drive, version, sensor, imageFrameSize);
+            RoverObservation ro = new RoverObservation(frame, name, url, observationType, cameraModel, useForReconstruction, site, drive, version, sensor, imageFrameSize, width, height);
             context.Save(ro);
             return ro;
         }

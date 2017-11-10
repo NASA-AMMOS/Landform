@@ -9,13 +9,14 @@ using Amazon.DynamoDBv2;
 
 using OPS.Imaging;
 using OPS.Cloud;
+using OPS.Util;
 using Microsoft.Xna.Framework;
 
 namespace OPS.Pipeline
 {
     /// <summary>
     /// Utility for detecting images that might overlap. 
-    /// TODO: replace with Charley's code (also b/c this might not work at all tbh)
+    /// TODO: replace with Charley's code b/c this is hella sketch
     /// </summary>
     class OverlapDetection
     {
@@ -32,33 +33,12 @@ namespace OPS.Pipeline
         {
             //snagging these from the header but that's not a good way to do it obv
             //TODO hacky
-            CameraModel model1 = null; 
-            CameraModel model0 = null;
-            int width0 =0; int width1=0;
-            int height0=0; int height1=0;
-            Quaternion roverToLocalLevel0 = Quaternion.Identity ;
-            Quaternion roverToLocalLevel1 = Quaternion.Identity;
+            int width0 = obs0.Width; int width1= obs1.Width;
+            int height0= obs0.Height; int height1= obs1.Height;
 
-
-            //get the camera models the dumb way, by going and getting the file headers again......
-            storage.GetStorageStream(obs0.Url, stream =>
-            {
-                PDSMetadata metadata = new PDSMetadata(stream);
-                PDSParser parser = new PDSParser(metadata);
-                model0 = metadata.CameraModel;
-                width0 = metadata.Width;
-                height0 = metadata.Height;
-                roverToLocalLevel0 = parser.RoverOriginRotation;
-            });
-            storage.GetStorageStream(obs1.Url, stream =>
-            {
-                PDSMetadata metadata = new PDSMetadata(stream);
-                PDSParser parser = new PDSParser(metadata);
-                model1 = metadata.CameraModel;
-                width1 = metadata.Width;
-                height1 = metadata.Height;
-                roverToLocalLevel1 = parser.RoverOriginRotation;
-            });
+            //get metadata from observations 
+            CameraModel model0 = (CameraModel)JsonHelper.FromJson(obs0.CameraModel);
+            CameraModel model1 = (CameraModel)JsonHelper.FromJson(obs1.CameraModel);
 
             //snagged from PDSParser TODO this is a hack to get the other frame transforms and it should probably be a real search through FrameTransformLookup (?)
             //Only works when there's exactly two transforms between observation frame and root, and the intermediate frame is the site drive frame, and it's named as below. YIKE

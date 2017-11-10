@@ -259,7 +259,7 @@ namespace OPS.Pipeline
                     if (observation == null)
                     {
                         string cameraModel = JsonHelper.ToJson(metadata.CameraModel);
-                        observation = RoverObservation.Create(context, observationFrame, observationName, url, productTypeToObservationType[parser.DerivedImageType].ToString(), cameraModel, UseForReconstruction(parser, metadata), parser.Site, parser.Drive, parser.ProductId.Version, parser.Camera.ToString(), parser.ImageSizeType.ToString());
+                        observation = RoverObservation.Create(context, observationFrame, observationName, url, productTypeToObservationType[parser.DerivedImageType].ToString(), cameraModel, UseForReconstruction(parser, metadata), parser.Site, parser.Drive, parser.ProductId.Version, parser.Camera.ToString(), parser.ImageSizeType.ToString(), metadata.Width, metadata.Height);
                         if (observation != null)
                         {
                             status = "Add";

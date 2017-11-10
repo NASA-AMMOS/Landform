@@ -14,6 +14,12 @@ namespace OPS.Imaging
         public Vector3 H;
         public Vector3 V;
 
+        //Default constructor for JSOn deserialization
+        public CAHV()
+        {
+
+        }
+
         public CAHV(Vector3 c, Vector3 a, Vector3 h, Vector3 v)
         {
             this.C = c;

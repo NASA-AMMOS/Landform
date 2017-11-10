@@ -316,14 +316,14 @@ namespace OPS.Pipeline
 
                 MoisanStivalFilter filter = new MoisanStivalFilter();
                 matches = filter.Filter(matches);
-                if (matches == null)
+                if (matches == null || matches.DataToModel.Length < 8) //next filter breaks idk man
                 {
                     Console.WriteLine("No matches found after MoisanStivalFilter");
                     m.DeleteMessage(SQSClient, config.JobQueue); //TODO if no matches, might be nice to delete Overlaps entry
                     return;
                 }
                 GTM gtm = new GTM(5);
-                matches = gtm.Filter(matches);
+                matches = gtm.Filter(matches); //replicate break: 0601ML0025370360301244E01_DRCX x 0604ML0025490030301399D01_DRCX
                 if (matches == null)
                 {
                     Console.WriteLine("No matches found after GTM Filter");
