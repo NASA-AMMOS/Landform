@@ -8,11 +8,14 @@ using System.Threading.Tasks;
 using Microsoft.Xna.Framework;
 using OPS.MathExtensions;
 using MathNet.Numerics.LinearAlgebra;
+using log4net;
 
-namespace OPS.Alignment.MatchFilters
+namespace OPS.Alignment
 {
     public class KnownGeometryFilter : IMatchFilter
     {
+        private static readonly ILog logger = LogManager.GetLogger(typeof(KnownGeometryFilter));
+
         public delegate SceneNode ImageNodeDelegate(ImageRef image);
 
         public KnownGeometryFilter(ImageNodeDelegate imageToNode)
@@ -53,6 +56,10 @@ namespace OPS.Alignment.MatchFilters
             Dictionary<int, bool> modelRayIntersects = new Dictionary<int, bool>();
             List<KeyValuePair<int, int>> goodMatches = new List<KeyValuePair<int, int>>();
 
+            int rejectedBad = 0;
+            int rejectedSigma = 0;
+            int rejectedHull = 0;
+
             foreach (var pair in matches.DataToModel)
             {
                 var modelFeature = matches.ModelFeatures[pair.Value];
@@ -69,7 +76,11 @@ namespace OPS.Alignment.MatchFilters
                         bool intersects = dataHullInModel.Intersects(modelRay);
                         modelRayIntersects[pair.Value] = intersects;
                     }
-                    if (!modelRayIntersects[pair.Value]) continue;
+                    if (!modelRayIntersects[pair.Value])
+                    {
+                        rejectedHull++;
+                        continue;
+                    }
                 }
 
                 Func<Matrix, ProjectionResult> Reproject = (mat) =>
@@ -108,14 +119,25 @@ namespace OPS.Alignment.MatchFilters
                     {
                         totalPoints++;
                         var res = Reproject(mat);
-                        if (!res.intersection || res.dataT < -0.01 || res.modelT < -0.01) badPoints++;
+                        if (!res.intersection || res.dataT < -0.01 || res.modelT < -0.01)
+                        {
+                            badPoints++;
+                        }
                         return res.error.ToMathNet();
                     });
-                    // If more than 30% of points failed to meaningfully project, skip match
-                    if (badPoints / (double)totalPoints > 0.3) continue;
+                    // If more than 40% of points failed to meaningfully project, skip match
+                    if (badPoints / (double)totalPoints > 0.4)
+                    {
+                        rejectedBad++;
+                        continue;
+                    }
                     // If zero error is >4 sigma away from mean, skip match
                     double mhDistSqr = error.MahalanobisDistanceSquared(Vector2.Zero.ToMathNet());
-                    if (mhDistSqr > 4*4) continue;
+                    if (mhDistSqr > 4*4)
+                    {
+                        rejectedSigma++;
+                        continue;
+                    }
                 }
                 else
                 {
@@ -128,6 +150,10 @@ namespace OPS.Alignment.MatchFilters
                 // we peachy
                 goodMatches.Add(pair);
             }
+
+            logger.Debug(string.Format("Rejected: {0} for bad projection, {1} for sigma threshold, {2} for hull intersection", rejectedBad, rejectedSigma, rejectedHull));
+
+            if (goodMatches.Count == 0) return null;
             matches = new ImagePairCorrespondence(matches.ModelImage, matches.DataImage, matches.ModelFeatures, matches.DataFeatures, goodMatches);
             matches.Compact();
             return matches;

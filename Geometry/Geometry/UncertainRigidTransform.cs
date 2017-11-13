@@ -47,6 +47,14 @@ namespace OPS.Geometry
         /// </summary>
         public static UncertainRigidTransform operator *(UncertainRigidTransform lhs, UncertainRigidTransform rhs)
         {
+            if (!rhs.Uncertain)
+            {
+                return lhs * rhs.Mean;
+            }
+            else if (!lhs.Uncertain)
+            {
+                return lhs.Mean * rhs;
+            }
             return new UncertainRigidTransform(UnscentedTransform.Transform(lhs.Distribution, rhs.Distribution, (lhsVec, rhsVec) =>
             {
                 return ToVector(ToMatrix(lhsVec) * ToMatrix(rhsVec));
@@ -160,7 +168,7 @@ namespace OPS.Geometry
             Quaternion rotation;
             mat.Decompose(out scale, out rotation, out translation);
             AxisAngleVector axisAngle = new AxisAngleVector(rotation);
-            return CreateVector.Dense<double>(new double[] { translation.X, translation.Y, translation.Y, axisAngle.X, axisAngle.Y, axisAngle.Z });
+            return CreateVector.Dense<double>(new double[] { translation.X, translation.Y, translation.Z, axisAngle.X, axisAngle.Y, axisAngle.Z });
         }
     }
 }

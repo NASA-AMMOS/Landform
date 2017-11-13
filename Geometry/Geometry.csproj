@@ -98,7 +98,6 @@
     <Compile Include="Scene\NodeComponent.cs" />
     <Compile Include="Scene\NodeTransform.cs" />
     <Compile Include="Scene\NodeTransformUncertainty.cs" />
-    <Compile Include="Scene\SceneIndexer.cs" />
     <Compile Include="Scene\SceneNode.cs" />
     <Compile Include="Serializers\GLTFStructure.cs" />
     <Compile Include="Serializers\GLTFSerializer.cs" />
@@ -111,6 +110,10 @@
     <Compile Include="Serializers\PLYWriter.cs" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\Imaging\Imaging.csproj">
+      <Project>{C3EC3AB5-8DFD-4DAA-9833-246F0DB6A805}</Project>
+      <Name>Imaging</Name>
+    </ProjectReference>
     <ProjectReference Include="..\MathExtensions\MathExtensions.csproj">
       <Project>{8c7c8a71-0a4b-4d75-9cb2-32803bd8f86f}</Project>
       <Name>MathExtensions</Name>

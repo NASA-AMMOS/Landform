@@ -13,6 +13,10 @@ using System.IO;
 using System.Threading.Tasks;
 using System.Threading;
 using log4net;
+using OPS.Geometry;
+using System;
+using Microsoft.Xna.Framework;
+using MathNet.Numerics.LinearAlgebra;
 
 namespace OPS.Pipeline
 {
@@ -77,12 +81,12 @@ namespace OPS.Pipeline
                 outputFile = imageFileA.Substring(0, imageFileA.Length - 4) + ".jpg";
             }
 
-            Imaging.Image model = Imaging.Image.Load(imageFileA);
-            Imaging.Image data = Imaging.Image.Load(imageFileB);
+            ImageRef model = new ImageRef(imageFileA);
+            ImageRef data = new ImageRef(imageFileB);
 
             if (SIFTbool != null)
             {
-                SIFT(model, data, outputFile);
+                SIFT(model.Image, data.Image, outputFile);
                 return 2;
             }
 
@@ -108,8 +112,11 @@ namespace OPS.Pipeline
             });
         }
 
-        void DetectAndMatch(Imaging.Image model, Imaging.Image data, string gpcafile, string outputFile)
+        void DetectAndMatch(ImageRef modelRef, ImageRef dataRef, string gpcafile, string outputFile)
         {
+            var model = modelRef.Image;
+            var data = dataRef.Image;
+
             logger.Info("Matching images with PCA-SIFT...");
             Stopwatch watch = new Stopwatch();
             watch.Start();
@@ -131,11 +138,52 @@ namespace OPS.Pipeline
 
             if (outputFile == null) { outputFile = options.TrainingFile + ".png"; }
 
-            //EmguSIFTMatcher matcher = new EmguSIFTMatcher();
-            //ImagePairCorrespondence matches = matcher.Match(new ImageRef(model), new ImageRef(data), featuresA, featuresB);
-
             BruteForceMatcher matcher = new BruteForceMatcher();
-            ImagePairCorrespondence matches = matcher.Match(new ImageRef(model), new ImageRef(data), featuresA, featuresB);
+            ImagePairCorrespondence matches = matcher.Match(modelRef, dataRef, featuresA, featuresB);
+
+            if (model.Metadata is PDSMetadata && data.Metadata is PDSMetadata)
+            {
+                logger.Info("Using KnownGeometryFilter");
+                MSLLocations loc = new MSLLocations();
+                SceneNode root = new SceneNode();
+                Dictionary<ImageRef, SceneNode> nodes = new Dictionary<ImageRef, SceneNode>();
+
+                Action<ImageRef> makeNode = (imgRef) =>
+                {
+                    var res = new SceneNode(imgRef.FilenameWithoutExtension, root.Transform);
+
+                    PDSParser p = new PDSParser(imgRef.Metadata as PDSMetadata);
+                    var quat = p.RoverOriginRotation;
+                    var siteLoc = loc.Location(new SiteDrive(p.SiteDrive));
+                    Matrix toWorld = Matrix.CreateFromQuaternion(quat) * Matrix.CreateTranslation(siteLoc.Position);
+                    res.Transform.Matrix = toWorld;
+
+                    var chc = res.AddComponent<NodeConvexHull>();
+                    chc.hull = ConvexHull.FromImage(imgRef.Image);
+
+                    var uncertainty = res.AddComponent<NodeTransformUncertainty>();
+                    uncertainty.Covariance = CreateMatrix.Diagonal(new double[] { 0.25, 0.25, 0.25, 0.0003, 0.0003, 0.0006 });
+                    nodes[imgRef] = res;
+                };
+                makeNode(modelRef);
+                makeNode(dataRef);
+                var t0 = nodes[modelRef].Transform.Translation;
+                nodes[modelRef].Transform.Translation -= t0;
+                nodes[dataRef].Transform.Translation -= t0;
+
+                KnownGeometryFilter kg = new KnownGeometryFilter(imgRef => nodes[imgRef]);
+                matches = kg.Filter(matches);
+                if (matches == null)
+                {
+                    logger.Info("No matches found after KnownGeometryFilter");
+                    return;
+                }
+                logger.Info(string.Format("{0} matches after KnownGeometryFilter", matches.DataToModel.Length));
+            }
+            else
+            {
+                logger.Info("Not using KnownGeometryFilter");
+            }
 
             MoisanStivalFilter filter = new MoisanStivalFilter();
             matches = filter.Filter(matches);
@@ -144,6 +192,7 @@ namespace OPS.Pipeline
                 logger.Info("No matches found after MoisanStivalFilter");
                 return;
             }
+            logger.Info(string.Format("{0} matches after MoisanStivalFilter", matches.DataToModel.Length));
             GTM gtm = new GTM(5);
             matches = gtm.Filter(matches);
             if (matches == null)
@@ -151,6 +200,7 @@ namespace OPS.Pipeline
                 logger.Info("No matches found after GTM Filter");
                 return;
             }
+            logger.Info(string.Format("{0} matches after GTM Filter", matches.DataToModel.Length));
 
             watch.Stop();
             MatchImage.WriteMatchImage(matches, outputFile, watch.ElapsedMilliseconds.ToString());
@@ -167,10 +217,6 @@ namespace OPS.Pipeline
 
             List<SIFTFeature> modelfeat = asift.Detect(imageModel, null).Cast<SIFTFeature>().ToList();
             List<SIFTFeature> datafeat = asift.Detect(imageData, null).Cast<SIFTFeature>().ToList();
-            Matrix<float> descr0 = ToDescriptorMatrix(modelfeat);
-            Matrix<float> descr1 = ToDescriptorMatrix(datafeat);
-            VectorOfKeyPoint kp0 = ToVOKP(modelfeat);
-            VectorOfKeyPoint kp1 = ToVOKP(datafeat);
             EmguSIFTMatcher matcher = new EmguSIFTMatcher();
             ImagePairCorrespondence matches = matcher.Match(new ImageRef(model), new ImageRef(data), modelfeat, datafeat);
             MoisanStivalFilter filter = new MoisanStivalFilter();
@@ -189,36 +235,6 @@ namespace OPS.Pipeline
             PCATrain train = new PCATrain(trainingFile);
             train.Train(trainingPath);
             logger.Info("Trained.");
-        }
-
-        public static Matrix<float> ToDescriptorMatrix(List<SIFTFeature> features)
-        {
-            Matrix<float> res = new Matrix<float>(features.Count, features[0].Descriptor.Length);
-            float[,] data = res.Data;
-            int i, j;
-            for (i = 0; i < features.Count; i++)
-            {
-                var d = ((FeatureDescriptor<float>)features[i].Descriptor).Data;
-                for (j = 0; j < d.Length; j++)
-                {
-                    data[i, j] = d[j];
-                }
-            }
-            return res;
-        }
-
-        static VectorOfKeyPoint ToVOKP(List<SIFTFeature> kps)
-        {
-            VectorOfKeyPoint res = new VectorOfKeyPoint();
-            res.Push(kps.Select(kp =>
-            {
-                MKeyPoint _kp = new MKeyPoint();
-                _kp.Size = (float)kp.Size;
-                _kp.Point = new PointF((float)kp.Location.X, (float)kp.Location.Y);
-                _kp.Angle = (float)kp.Angle;
-                return _kp;
-            }).ToArray());
-            return res;
         }
     }
 }

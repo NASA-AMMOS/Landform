@@ -88,11 +88,11 @@ namespace OPS.MathExtensions
                 var v = points[i];
                 if (i == 0)
                 {
-                    Mean = v * covarianceWeights[i];
+                    Mean = v * meanWeights[i];
                 }
                 else
                 {
-                    Mean += v * covarianceWeights[i];
+                    Mean += v * meanWeights[i];
                 }
             }
 
@@ -102,12 +102,12 @@ namespace OPS.MathExtensions
             for (int i = 0; i < points.Count; i++)
             {
                 var v = points[i];
-                var offset = (v - Mean) * covarianceWeights[i];
+                var offset = v - Mean;
                 for (int j = 0; j < Mean.Count; j++)
                 {
                     for (int k = 0; k < Mean.Count; k++)
                     {
-                        Covariance[j, k] += offset[j] * offset[k];
+                        Covariance[j, k] += covarianceWeights[i] * (offset[j] * offset[k]);
                     }
                 }
             }

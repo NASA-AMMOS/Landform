@@ -22,7 +22,7 @@ namespace OPS.MathExtensions
 
         public static Vector<double> ToMathNet(this Vector2 vec)
         {
-            return CreateVector.Dense<double>(vec.ToDoubleArray());
+            return CreateVector.Dense(vec.ToDoubleArray());
         }
 
         public static Matrix ToXna(this Matrix<double> mat)

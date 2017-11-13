@@ -1,4 +1,5 @@
 ﻿using Microsoft.Xna.Framework;
+using OPS.Imaging;
 using OPS.MathExtensions;
 using System;
 using System.Collections.Generic;
@@ -56,6 +57,34 @@ namespace OPS.Geometry
         {
             Mesh = new Mesh(other.Mesh);
             Planes = new List<Plane>(other.Planes);
+        }
+
+        public static ConvexHull FromImage(Image img, double nearClip=0.1, double farClip=20)
+        {
+            // Get points, either just corners for CAHV or denser for CAHVOR(E)
+            int subdiv = 2;
+            var camera = img.CameraModel;
+            if (camera is CAHVOR) // includes CAHVORE
+            {
+                subdiv = 5;
+            }
+
+            List<Vector3> pts = new List<Vector3>();
+            for (int i = 0; i < subdiv; i++)
+            {
+                double x = (img.Width - 1.0) * (i / (subdiv - 1.0));
+                for (int j = 0; j < subdiv; j++)
+                {
+                    double y = (img.Height - 1.0) * (j / (subdiv - 1.0));
+                    for (int k = 0; k < subdiv; k++)
+                    {
+                        double z = (farClip - nearClip) * (k / (subdiv - 1.0)) + nearClip;
+                        pts.Add(camera.ProjectPoint(new Vector2(x, y), z));
+                    }
+                }
+            }
+
+            return new ConvexHull(pts);
         }
 
         /// <summary>

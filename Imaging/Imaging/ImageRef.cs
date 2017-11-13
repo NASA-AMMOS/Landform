@@ -71,6 +71,7 @@ namespace OPS.Imaging
         {
             var ir = obj as ImageRef;
             if (ir == null) return false;
+            if (path == null) return ir.Image == image;
             return ir.path == path;
         }
 

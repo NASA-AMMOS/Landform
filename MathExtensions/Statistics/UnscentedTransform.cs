@@ -54,16 +54,20 @@ namespace OPS.MathExtensions
         public static GaussianND Transform(GaussianND x, UnaryFunctor func, double k=3, double a=0.5)
         {
             double lambda = (a * a) * (x.N + k) - x.N;
-            List<Vector<double>> sigmaPoints = SigmaPoints(x, lambda).ToList();
+            List<Vector<double>> sigmaPoints = SigmaPoints(x, lambda).Select(pt => func(pt)).ToList();
             List<double> meanWeights = new List<double>(sigmaPoints.Count);
             List<double> covarianceWeights = new List<double>(sigmaPoints.Count);
+
+            List<double[]> sigmaPointArrs = sigmaPoints.Select(pt => pt.ToArray()).ToList();
 
             double firstMeanWeight = lambda / (x.N + lambda);
             meanWeights.Add(firstMeanWeight);
             covarianceWeights.Add(firstMeanWeight + (1 - a * a + 2));
             for (int i = 1; i < sigmaPoints.Count; i++)
             {
-                meanWeights[i] = covarianceWeights[i] = 1 / (2 * (x.N + lambda));
+                double weight = 1 / (2 * (x.N + lambda));
+                meanWeights.Add(weight);
+                covarianceWeights.Add(weight);
             }
             return new GaussianND(sigmaPoints, meanWeights, covarianceWeights);
         }
