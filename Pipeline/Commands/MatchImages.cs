@@ -167,6 +167,11 @@ namespace OPS.Pipeline
                 };
                 makeNode(modelRef);
                 makeNode(dataRef);
+
+                // Subtract translation of model node.
+                // Because rotation is applied before translation, a little uncertainty in rotation
+                // on top of a 6000+ meter translation leads to astronomical uncertainty in position.
+                // Maybe reverse order of operations in UncertainRigidTransform?
                 var t0 = nodes[modelRef].Transform.Translation;
                 nodes[modelRef].Transform.Translation -= t0;
                 nodes[dataRef].Transform.Translation -= t0;
