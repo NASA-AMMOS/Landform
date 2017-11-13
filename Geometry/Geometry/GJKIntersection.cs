@@ -7,7 +7,11 @@ using System.Threading.Tasks;
 
 namespace OPS.Geometry
 {
-    // from http://programyourfaceoff.blogspot.com/2012/01/gjk-algorithm.html
+    // Written with much help from this page:
+    // http://programyourfaceoff.blogspot.com/2012/01/gjk-algorithm.html
+    /// <summary>
+    /// Intersection algorithm for convex 3D shapes.
+    /// </summary>
     public static class GJKIntersection
     {
         static Vector3 FurthestPoint(Mesh m, Vector3 dir)

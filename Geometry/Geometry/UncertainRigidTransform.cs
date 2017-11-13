@@ -9,10 +9,28 @@ using MathNet.Numerics.LinearAlgebra;
 
 namespace OPS.Geometry
 {
+    /// <summary>
+    /// A probability distribution for a 3D rigid transformation.
+    /// </summary>
     public class UncertainRigidTransform
     {
+        /// <summary>
+        /// Underlying 6D normal distribution.
+        /// </summary>
+        /// <remarks>
+        /// The transformation is parameterized as a 6D vector with the following interpretation:
+        /// 
+        ///   [t_x, t_y, t_z, r_x, r_y, r_z] 
+        /// t_[xyz]: Translation
+        /// r_[xyz]: Rotation as <see cref="AxisAngleVector"/> 
+        /// 
+        /// Rotation is applied before translation.
+        /// </remarks>
         public readonly GaussianND Distribution;
 
+        /// <summary>
+        /// If False, this transform is an exact value.
+        /// </summary>
         public bool Uncertain
         {
             get { return !Distribution.Covariance.IsZero(); }
@@ -27,6 +45,11 @@ namespace OPS.Geometry
             Distribution = distribution;
         }
 
+        /// <summary>
+        /// Construct from a known mean transform and covariance.
+        /// </summary>
+        /// <param name="mean">Mean transform</param>
+        /// <param name="covariance">6D parameter covariance matrix</param>
         public UncertainRigidTransform(Matrix mean, Matrix<double> covariance)
         {
             var meanVec = ToVector(mean);
@@ -47,6 +70,8 @@ namespace OPS.Geometry
         /// </summary>
         public static UncertainRigidTransform operator *(UncertainRigidTransform lhs, UncertainRigidTransform rhs)
         {
+            // These two cases would produce the same results using UnscentedTransform, but are
+            // short-circuited here for performance.
             if (!rhs.Uncertain)
             {
                 return lhs * rhs.Mean;
@@ -55,6 +80,7 @@ namespace OPS.Geometry
             {
                 return lhs.Mean * rhs;
             }
+
             return new UncertainRigidTransform(UnscentedTransform.Transform(lhs.Distribution, rhs.Distribution, (lhsVec, rhsVec) =>
             {
                 return ToVector(ToMatrix(lhsVec) * ToMatrix(rhsVec));
@@ -83,6 +109,9 @@ namespace OPS.Geometry
             }));
         }
 
+        /// <summary>
+        /// <see cref="UnscentedTransform"/> for functions taking a matrix.
+        /// </summary>
         public GaussianND Transform(Func<Matrix, Vector<double>> func)
         {
             return UnscentedTransform.Transform(Distribution, vec =>
@@ -119,23 +148,6 @@ namespace OPS.Geometry
         }
 
         /// <summary>
-        /// Compute a probability distribution for the result of transforming a direction.
-        /// </summary>
-        /// <param name="direction">Vector in 3D space</param>
-        /// <returns>Gaussian3D</returns>
-        public GaussianND TransformNormal(Vector3 direction)
-        {
-            // Translation has no effect on vector transformations - just extract the rotation
-            var mean = Distribution.Mean.SubVector(3, 3);
-            var cov = Distribution.Covariance.SubMatrix(3, 3, 3, 3);
-            GaussianND axisAngle = new GaussianND(mean, cov);
-            return UnscentedTransform.Transform(axisAngle, rot =>
-            {
-                return new AxisAngleVector(rot.ToXna()).Transform(direction).ToMathNet();
-            });
-        }
-
-        /// <summary>
         /// Compute the distribution of this transform's inverse.
         /// </summary>
         public UncertainRigidTransform Inverse()
@@ -153,6 +165,8 @@ namespace OPS.Geometry
                 return ToMatrix(Distribution.Mean);
             }
         }
+
+        // Helper vector <-> matrix functions
 
         private static Matrix ToMatrix(Vector<double> vec6)
         {
