@@ -164,7 +164,7 @@ namespace OPS.Pipeline
                     chc.hull = ConvexHull.FromImage(imgRef.Image);
 
                     // Made up covariance values, more or less signifying SD of 0.5m translation and ~1deg rotation (a little more for Z)
-                    var uncertainty = res.AddComponent<NodeTransformUncertainty>();
+                    var uncertainty = res.AddComponent<NodeUncertainTransform>();
                     uncertainty.Covariance = CreateMatrix.Diagonal(new double[] { 0.25, 0.25, 0.25, 0.0003, 0.0003, 0.0006 });
                     nodes[imgRef] = res;
                 };

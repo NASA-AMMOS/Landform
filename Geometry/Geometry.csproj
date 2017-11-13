@@ -97,7 +97,7 @@
     <Compile Include="Scene\NodeConvexHull.cs" />
     <Compile Include="Scene\NodeComponent.cs" />
     <Compile Include="Scene\NodeTransform.cs" />
-    <Compile Include="Scene\NodeTransformUncertainty.cs" />
+    <Compile Include="Scene\NodeUncertainTransform.cs" />
     <Compile Include="Scene\SceneNode.cs" />
     <Compile Include="Serializers\GLTFStructure.cs" />
     <Compile Include="Serializers\GLTFSerializer.cs" />

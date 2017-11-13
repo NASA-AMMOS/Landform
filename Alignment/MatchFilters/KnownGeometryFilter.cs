@@ -38,8 +38,8 @@ namespace OPS.Alignment
 
             if (modelNode == null || dataNode == null) return matches;
 
-            var dataToWorld = dataNode.GetOrAddComponent<NodeTransformUncertainty>().LocalToWorld;
-            var worldToModel = modelNode.GetOrAddComponent<NodeTransformUncertainty>().WorldToLocal;
+            var dataToWorld = dataNode.GetOrAddComponent<NodeUncertainTransform>().LocalToWorld;
+            var worldToModel = modelNode.GetOrAddComponent<NodeUncertainTransform>().WorldToLocal;
             UncertainRigidTransform dataToModel = dataToWorld * worldToModel;
 
             var modelCam = matches.ModelImage.Image.CameraModel;
