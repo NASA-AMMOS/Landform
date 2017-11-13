@@ -8,6 +8,9 @@ using System.Threading.Tasks;
 
 namespace OPS.Geometry
 {
+    /// <summary>
+    /// Represents a 3D rotation as an axis of rotation multiplied by an angle.
+    /// </summary>
     public struct AxisAngleVector
     {
         public Vector3 axisAngle;
@@ -113,6 +116,10 @@ namespace OPS.Geometry
             return Vector3.Transform(point, ToQuaternion());
         }
 
+        /// <summary>
+        /// Compute the jacobian matrix for a point transformed by this vector.
+        /// </summary>
+        /// <param name="point">Point to compute jacobian at</param>
         public Matrix Jacobian(Vector3 point)
         {
             // \theta = \sqrt{r_x^2 + r_y^2 + r_z^2}
