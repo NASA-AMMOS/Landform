@@ -53,12 +53,15 @@ namespace OPS.Alignment
                 dataHullInModel = ch.hull.Transformed(dataToModel);
             }
 
+            // Cache result of model ray -> data frustum intersection, because model rays
+            // can be repeated
             Dictionary<int, bool> modelRayIntersects = new Dictionary<int, bool>();
             List<KeyValuePair<int, int>> goodMatches = new List<KeyValuePair<int, int>>();
 
-            int rejectedBad = 0;
-            int rejectedSigma = 0;
             int rejectedHull = 0;
+            int rejectedSigma = 0;
+            int rejectedInvalid = 0;
+            int rejectedError = 0;
 
             foreach (var pair in matches.DataToModel)
             {
@@ -128,7 +131,7 @@ namespace OPS.Alignment
                     // If more than 40% of points failed to meaningfully project, skip match
                     if (badPoints / (double)totalPoints > 0.4)
                     {
-                        rejectedBad++;
+                        rejectedInvalid++;
                         continue;
                     }
                     // If zero error is >4 sigma away from mean, skip match
@@ -143,15 +146,18 @@ namespace OPS.Alignment
                 {
                     // Transform is exact-ish, just make sure it's close
                     var res = Reproject(dataToModel.Mean);
-                    if (res.modelT < -0.01 || res.dataT < -0.01) continue;
-                    if (res.error.LengthSquared() > 10 * 10) continue;
+                    if (res.modelT < -0.01 || res.dataT < -0.01 || res.error.LengthSquared() > 20 * 20)
+                    {
+                        rejectedError++;
+                        continue;
+                    }
                 }
 
                 // we peachy
                 goodMatches.Add(pair);
             }
 
-            logger.Debug(string.Format("Rejected: {0} for bad projection, {1} for sigma threshold, {2} for hull intersection", rejectedBad, rejectedSigma, rejectedHull));
+            logger.Debug(string.Format("Rejected: {0} for hull intersection, {1} for bad projection, {2} for sigma threshold, {3} for error", rejectedHull, rejectedInvalid, rejectedSigma, rejectedError));
 
             if (goodMatches.Count == 0) return null;
             matches = new ImagePairCorrespondence(matches.ModelImage, matches.DataImage, matches.ModelFeatures, matches.DataFeatures, goodMatches);

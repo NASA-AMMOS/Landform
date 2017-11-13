@@ -144,6 +144,8 @@ namespace OPS.Pipeline
             if (model.Metadata is PDSMetadata && data.Metadata is PDSMetadata)
             {
                 logger.Info("Using KnownGeometryFilter");
+
+                // Construct scene graph to feed to KnownGeometryFilter
                 MSLLocations loc = new MSLLocations();
                 SceneNode root = new SceneNode();
                 Dictionary<ImageRef, SceneNode> nodes = new Dictionary<ImageRef, SceneNode>();
@@ -151,8 +153,8 @@ namespace OPS.Pipeline
                 Action<ImageRef> makeNode = (imgRef) =>
                 {
                     var res = new SceneNode(imgRef.FilenameWithoutExtension, root.Transform);
-
                     PDSParser p = new PDSParser(imgRef.Metadata as PDSMetadata);
+                    
                     var quat = p.RoverOriginRotation;
                     var siteLoc = loc.Location(new SiteDrive(p.SiteDrive));
                     Matrix toWorld = Matrix.CreateFromQuaternion(quat) * Matrix.CreateTranslation(siteLoc.Position);
@@ -161,6 +163,7 @@ namespace OPS.Pipeline
                     var chc = res.AddComponent<NodeConvexHull>();
                     chc.hull = ConvexHull.FromImage(imgRef.Image);
 
+                    // Made up covariance values, more or less signifying SD of 0.5m translation and ~1deg rotation (a little more for Z)
                     var uncertainty = res.AddComponent<NodeTransformUncertainty>();
                     uncertainty.Covariance = CreateMatrix.Diagonal(new double[] { 0.25, 0.25, 0.25, 0.0003, 0.0003, 0.0006 });
                     nodes[imgRef] = res;
