@@ -154,22 +154,14 @@ namespace OPS.Geometry
                 return false;
             }
             // Are any of the faces vertices at the same location
-            /*if (Vector3.AlmostEqual(Vertices[f.P0].Position, Vertices[f.P1].Position, 50 * MathE.EPSILON) ||
-                Vector3.AlmostEqual(Vertices[f.P1].Position, Vertices[f.P2].Position, 50 * MathE.EPSILON) ||
-                Vector3.AlmostEqual(Vertices[f.P2].Position, Vertices[f.P0].Position, 50 * MathE.EPSILON))
-            {
-                return false;
-            }*/
-            // Are any of the faces vertices at the same location
             if ((Vertices[f.P0].Position == Vertices[f.P1].Position) ||
                (Vertices[f.P1].Position == Vertices[f.P2].Position) ||
                (Vertices[f.P2].Position == Vertices[f.P0].Position))
             {
                 return false;
             }
-            // I admit that I am confused as to how the below is different from almostEqual
             // Is the face zero-length? 
-            Vector3 v1v0 = Vertices[f.P1].Position - Vertices[f.P0].Position; //when norm fails this is on the order of 10^-6
+            Vector3 v1v0 = Vertices[f.P1].Position - Vertices[f.P0].Position; //when norm fails this is on the order of 10^-6, which is greater than AlmostEqual
             Vector3 v2v0 = Vertices[f.P2].Position - Vertices[f.P0].Position;
             Vector3 norm = Vector3.Cross(v1v0, v2v0);
             if (norm.Length() == 0) //for very-close-together vertices, norm is zero

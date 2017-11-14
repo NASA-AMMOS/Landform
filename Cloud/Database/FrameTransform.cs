@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using System.Threading;
 using Microsoft.Xna.Framework;
 using Amazon.DynamoDBv2.DataModel;
+using Amazon.DynamoDBv2.Model;
 using Amazon.DynamoDBv2;
 
 namespace OPS.Cloud
@@ -96,17 +97,11 @@ namespace OPS.Cloud
             {
                 context.Save<FrameTransformLookup>(new FrameTransformLookup(fromFrame.Name, toFrame.Name));
             }
-            catch (AmazonDynamoDBException e) 
-            {
-                if (e.ErrorCode != "ConditionalCheckFailedException") //the frame already exists
-                {
-                    throw e;
-                }
-            }
+            catch (ConditionalCheckFailedException) { } 
 
             //attempt to upload to the lookup table. Backoff and repeat if high traffic to this from/to pair. 
             //TODO check how often this is happening. May need a workaround. 
-            //We could just use the low-level API and create an add query for the set
+            //  We could just use the low-level API and create an add query for the set
             Random rand = new Random();
             for (int i = 0; i < 4; i++)
             {
@@ -120,9 +115,9 @@ namespace OPS.Cloud
                     context.Save(lookup);
                     break;
                 }
-                catch (AmazonDynamoDBException e)
+                catch (ConditionalCheckFailedException)
                 {
-                    if (e.ErrorCode == "ConditionalCheckFailedException" && i < 3)
+                    if (i < 3)
                     {
                         Thread.Sleep(rand.Next(1, 500));
                     }
