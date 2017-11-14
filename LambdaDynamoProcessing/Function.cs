@@ -21,7 +21,14 @@ using Lambda.LambdaUtil;
 
 namespace Lambda.LambdaDynamoProcessing
 {
-    //This class processes dynamoDB records. 
+    /// <summary>
+    /// Processes DynamoDB stream from ParentTiles table of mesh tiling pipeline. 
+    /// If a stream record implies a job is ready, double-checks ChildTiles table for children and sends job message 
+    /// 
+    /// Concurrency: 
+    ///     At least one message is guaranteed to be sent for each parent tile creation job. 
+    ///     Overcounting of actual child tiles is possible, in which case two job messages could be sent for the same parent tile
+    /// </summary>
     public class Function
     {
         private static readonly JsonSerializer _jsonSerializer = new JsonSerializer();
@@ -66,8 +73,9 @@ namespace Lambda.LambdaDynamoProcessing
                     record.Dynamodb.NewImage.ContainsKey("num_children_present")) &&
                     //and a relevant value has changed...
                     (record.Dynamodb.NewImage["num_children"] != record.Dynamodb.OldImage["num_children"] || //number of desired children changed
-                    (record.Dynamodb.OldImage.ContainsKey("num_children_present") && //number of present children changed
-                    record.Dynamodb.NewImage["num_children_present"] != record.Dynamodb.OldImage["num_children_present"]))
+                    (record.Dynamodb.OldImage.ContainsKey("num_children_present") && 
+                        record.Dynamodb.NewImage["num_children_present"] != record.Dynamodb.OldImage["num_children_present"]) || //number of present children changed
+                    (record.Dynamodb.OldImage.ContainsKey("num_children_present"))) //old image did not contain number of present children
                     )
                 {
                     parentMeshName = record.Dynamodb.NewImage["mesh_name"].S;
@@ -76,19 +84,16 @@ namespace Lambda.LambdaDynamoProcessing
                 }
                 else
                 {
-                    continue; //not ready to process
+                    continue; //this record was not relevant 
                 }
 
-                if (numReality < numDesired) //overcounting is possible but undercounting is not
+                if (numReality < numDesired) //overcounting of numReality is possible but undercounting is not
                 {
                     continue;
                 }
 
                 //Look up all children for this parent tile, because it is possible that the counter overcounted
                 IEnumerable<ChildTile> children = await ChildTile.FindAll(DBContext, parentMeshName);
-
-                //Look up this parent tile to check how many children it should have 
-                //ParentTile parent = await ParentTile.Find(DBContext, parentMeshName);
 
                 //if #children = #total children, send message with extensions of all children in body of message 
                 if (numDesired != 0 && numDesired == children.Count())

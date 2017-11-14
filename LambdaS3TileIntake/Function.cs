@@ -19,7 +19,17 @@ using Lambda.LambdaUtil;
 
 namespace Lambda.LambdaS3TileIntake
 {
-    //This uploads metadata to dynamoDB
+    /// <summary>
+    /// Uploads metadata to DynamoDB for tiles uploaded to S3.
+    /// For each child tile: 
+    ///     Creates a ParentTile if one is not present 
+    ///     Creates a ChildTile
+    ///     Incrememnts the number of children present for the parent tile 
+    ///     
+    /// Concurrency: 
+    ///     It is possible (in the case of Dynamo or Lambda failure) that a single child tile addition will increment the parent tile count by >1
+    ///     This overcounting, if children are uploaded in quick succession, could result in multiple parent creation jobs
+    /// </summary>
     public class Function
     {
         private const string DB_PRIMARY_KEY = "mesh_name";
@@ -70,7 +80,7 @@ namespace Lambda.LambdaS3TileIntake
             }
 
             // If parent does not exist, create parent 
-            ParentTile parent = await ParentTile.FindOrCreate(DBContext, prefix, bucket, TableNames.HARDCODED_4);
+            ParentTile parent = await ParentTile.Create(DBContext, prefix, bucket, TableNames.HARDCODED_4);
 
             // Put this child tile into the db 
             await ChildTile.Create(DBContext, prefix, suffix);

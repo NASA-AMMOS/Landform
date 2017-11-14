@@ -8,6 +8,10 @@ using Amazon.DynamoDBv2;
 
 namespace Lambda.LambdaUtil
 {
+    /// <summary>
+    /// A ChildTile for the mesh tiling pipeline. 
+    /// ChildTiles are not versioned. A Create will always succeed, but will not overwrite existing values 
+    /// </summary>
     [DynamoDBTable("ChildTiles")]
     public class ChildTile
     {
@@ -21,8 +25,6 @@ namespace Lambda.LambdaUtil
         [DynamoDBRangeKey]
         [DynamoDBProperty("child_extension")]
         public string ChildExtension;
-
-        //public string Guid;
 
         //required by aws sdk, should not be used otherwise 
         public ChildTile() { }
@@ -45,7 +47,6 @@ namespace Lambda.LambdaUtil
         public static async Task<ChildTile> Create(DynamoDBContext context, string meshName, string extension)
         {
             ChildTile newTile = new ChildTile(meshName, extension);
-            //newTile.Guid = 
             await context.SaveAsync(newTile, new DynamoDBOperationConfig { IgnoreNullValues = true});
             return newTile;
         }

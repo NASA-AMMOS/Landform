@@ -9,6 +9,10 @@ using Amazon.DynamoDBv2.Model;
 
 namespace Lambda.LambdaUtil
 {
+    /// <summary>
+    /// Parent tile metadata. Stores number of children that have been uploaded (repeat uploads continue to incrememnt counter)
+    /// Not versioned, so "Create" will always succeed but will not overwrite existing fields except NumChildren 
+    /// </summary>
     [DynamoDBTable("ParentTiles")]
     public class ParentTile
     {
@@ -33,9 +37,6 @@ namespace Lambda.LambdaUtil
         /// </summary>
         [DynamoDBProperty("num_children_present")]
         public int? NumChildrenPresent; 
-
-        //[DynamoDBVersion]
-        //public int? VersionNumber;
 
         //required by aws sdk, should not be used otherwise
         public ParentTile() { }
@@ -79,54 +80,21 @@ namespace Lambda.LambdaUtil
             return 0;
         }
 
-        public static async Task<ParentTile> FindOrCreate(DynamoDBContext context, string meshName, string bucket, int numChildren)
-        {
-            ParentTile tile = await CreateIfNotPresent(context, meshName, bucket, numChildren);
-            if (tile != null)
-            {
-                return tile;
-            }
-            else return await Find(context, meshName);
-        }
-
         /// <summary>
-        /// Create a new parent tile entry IFF one does not already exist in the database. 
-        /// If parent tile already exists, return null 
+        /// Create a new parent tile entry. If one already exists, this will succeed but not overwrite any existing values
         /// </summary>
         /// <param name="context"></param>
         /// <param name="meshName"></param>
         /// <param name="bucket"></param>
         /// <param name="numChildren"></param>
         /// <returns></returns>
-        public static async Task<ParentTile> CreateIfNotPresent(DynamoDBContext context, string meshName, string bucket, int numChildren)
+        public static async Task<ParentTile> Create(DynamoDBContext context, string meshName, string bucket, int numChildren)
         {
             //try to create new parent tile without setting numChildren 
             ParentTile newTile = new ParentTile(meshName, bucket);
-            try
-            {
-                await context.SaveAsync(newTile, new DynamoDBOperationConfig() { IgnoreNullValues = true });
-            }
-            catch (AmazonDynamoDBException e)
-            {
-                if (e.ErrorCode == "ConditionalCheckFailedException") return null; //if create fails another worker has already uploaded and updated this overlap
-                else throw e; //unexpected error
-            }
-
-            //If our initial save succeeded, try to edit our parent tile. 
-            //If two lambdas are trying to create simultaneously, only one of these edits will succeed
             newTile.NumChildren = numChildren;
-            try
-            {
-                await context.SaveAsync(newTile, new DynamoDBOperationConfig() { IgnoreNullValues = true});
-            }
-            catch (AmazonDynamoDBException e)
-            {
-                if (e.ErrorCode == "ConditionalCheckFailedException") return null;
-                else throw e;
-            }
-
-            //if save was successful, return ParentTile with correct version number so it can be saved
-            return await context.LoadAsync<ParentTile>(newTile.MeshName, new DynamoDBOperationConfig { ConsistentRead = true });
+            await context.SaveAsync(newTile, new DynamoDBOperationConfig() { IgnoreNullValues = true });
+            return newTile;
         }
         
         //This is a consistent read because DynamoProcessing lambda needs to compare most recent versions of parent and child tables
