@@ -31,7 +31,7 @@ The appspec yaml file may not be saving with the correct encoding in Visual Stud
 + For "Found a tab character" errors: check yaml files in an online checker. 
 + Code deploy not running your powershell hooks? They have to be in the root folder of the deployment (the same level as appspec.yml)
 + Failures of powershell scripts do not cause deployments to fail. This is a bug, there is an open support request to Amazon about it. (Support case id 4564068771)
-+ Infrastructure updates that change Userdata (defined in the Launch Configuration, how workers get config params), all workers will need to be restarted. Cloudformation does not do this for you. 
++ Infrastructure updates that change Userdata (defined in the Launch Configuration, how workers get config params), all workers will need to be replaced. Cloudformation does not do this for you. Replace workers by marking them as Unhealthy from the CLI.
 + Different parts of the pipeline require different versions of Visual Studio tools redistributions. Eg, the mesh tiling workers need only the 2015 tools but the alignment workers need both 2013 and 2015 tools. If you run into mysterious dependency errors, check tools. Tools are distributed to workers in Userdata, as defined in template. 
 
 Running worker code on your own machine: 

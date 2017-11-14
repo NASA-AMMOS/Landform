@@ -2,7 +2,7 @@
 ## Deploy the stack in pipeline.template 
 ## If user specifies an existing stack name, CloudFormation generates and applies a change set 
 ##     Otherwise, a new stack is created. 
-## 
+## If you deploy a new stack, you have to specify parameters. Creating a new stack may be easier from the console. 
 ######################################################
 
 #name of stack 

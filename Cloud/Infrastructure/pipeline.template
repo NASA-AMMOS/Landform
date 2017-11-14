@@ -142,7 +142,8 @@
                     "4dc71c48-73c2-4068-9a85-305aaddf6709"
                 ],
                 "isrelatedto": [
-                    "55436a04-b468-4815-b7aa-10ad54a07e86"
+                    "55436a04-b468-4815-b7aa-10ad54a07e86",
+                    "b03fb65b-ca34-4d05-acca-8205ebacd600"
                 ]
             },
             "cb5be509-28f4-4c0b-8d10-8212ac95b2a0": {
@@ -316,7 +317,8 @@
                     "4dc71c48-73c2-4068-9a85-305aaddf6709",
                     "c435b7b4-7bd7-4290-9352-bdf0f97a5807",
                     "cb5be509-28f4-4c0b-8d10-8212ac95b2a0",
-                    "1146faf0-f0d1-4934-aebc-397130ad206c"
+                    "1146faf0-f0d1-4934-aebc-397130ad206c",
+                    "b03fb65b-ca34-4d05-acca-8205ebacd600"
                 ]
             },
             "9aa11db5-b3f8-4d76-be80-bae35a8fa1ce": {
@@ -528,7 +530,7 @@
         "MetadataTable": {
             "Type": "AWS::DynamoDB::Table",
             "Properties": {
-				"TableName": {
+                "TableName": {
                     "Fn::Join": [
                         "",
                         [
@@ -582,7 +584,7 @@
                         "JOB_QUEUE": {
                             "Ref": "JobQueue"
                         },
-						"TABLE_PREFIX": {
+                        "TABLE_PREFIX": {
                             "Ref": "TablePrefix"
                         }
                     }
@@ -616,7 +618,7 @@
                 "Enabled": true,
                 "EventSourceArn": {
                     "Fn::GetAtt": [
-                        "ChildTiles",
+                        "MetadataTable",
                         "StreamArn"
                     ]
                 },
@@ -906,7 +908,7 @@
                             "Ref": "MetadataTable"
                         }
                     },
-					{
+                    {
                         "Namespace": "aws:elasticbeanstalk:application:environment",
                         "OptionName": "CHILD_TILES_TABLE",
                         "Value": {
@@ -1058,7 +1060,7 @@
             "Type": "AWS::DynamoDB::Table",
             "DependsOn": "MetadataTable",
             "Properties": {
-				"TableName": {
+                "TableName": {
                     "Fn::Join": [
                         "",
                         [
