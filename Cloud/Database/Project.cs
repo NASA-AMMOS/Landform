@@ -47,7 +47,10 @@ namespace OPS.Cloud
         /// <returns></returns>
         public static Project Create(DynamoDBContext context, string name)
         {
-            if (Find(context, name) != null) return null; //project already exists
+            if (Find(context, name) != null)
+            {
+                return null; //project already exists
+            }
             Project project = new Project(name);
             context.Save(project);
             return project;

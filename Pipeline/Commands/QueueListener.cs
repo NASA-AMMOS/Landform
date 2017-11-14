@@ -131,7 +131,7 @@ namespace OPS.Pipeline
                     if (r.Messages.Count > 0) //we have a message
                     {
                         Interlocked.Increment(ref messagesRecieved);
-                        CreateParentTileMsg m = (CreateParentTileMsg)PipelineMessage.FromMessage(r.Messages[0]);
+                        CreateParentTileMessage m = (CreateParentTileMessage)PipelineMessage.FromMessage(r.Messages[0]);
                         Console.WriteLine(".....Message recieved:"
                             +"\r\n        Message ID = " + m.MessageId
                             +"\r\n        URL = " + m.ParentPath);
@@ -167,7 +167,7 @@ namespace OPS.Pipeline
         }
 
 
-        private int processMessage(CreateParentTileMsg m)
+        private int processMessage(CreateParentTileMessage m)
         {
             //ParentPath is currently the path, including bucket, to the s3 resource that the parent WILL be; minus endings 
             string s3url = "s3://" + m.ParentPath;

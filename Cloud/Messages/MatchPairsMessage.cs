@@ -9,7 +9,7 @@ using Amazon.SQS.Model;
 
 namespace OPS.Cloud
 {
-    public class MatchPairsMsg : PipelineMessage
+    public class MatchPairsMessage : PipelineMessage
     {
         public const string TYPE = "MATCH_PAIRS";
 
@@ -21,19 +21,19 @@ namespace OPS.Cloud
 
         public string ProjectName { get; set; }
 
-        protected MatchPairsMsg()
+        protected MatchPairsMessage()
         {
 
         }
 
-        public MatchPairsMsg(string observationName, string observationName2, string projectName)
+        public MatchPairsMessage(string observationName, string observationName2, string projectName)
         {
             this.ObservationName0 = observationName;
             this.ObservationName1 = observationName2;
             this.ProjectName = projectName;
         }
 
-        public MatchPairsMsg(Message m)
+        public MatchPairsMessage(Message m)
         {
             if (m.MessageAttributes[MessageFields.MSG_TYPE_FIELD].StringValue != MessageType)
             {

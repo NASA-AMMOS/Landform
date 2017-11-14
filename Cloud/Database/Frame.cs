@@ -42,7 +42,7 @@ namespace OPS.Cloud
         /// <param name="name"></param>
         protected Frame(Project project, string name = null)
         {
-            if(name == null)
+            if (name == null)
             {
                 name = Guid.NewGuid().ToString();
             }

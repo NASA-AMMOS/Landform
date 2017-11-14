@@ -13,7 +13,7 @@ namespace OPS.Cloud
     //This would require refactoring to use async, as the AWSSDK for Core only supports Async operations 
 
 
-    public class NewObservationMsg : PipelineMessage
+    public class NewObservationMessage : PipelineMessage
     {
 
         public string Url { get; set; }
@@ -21,7 +21,7 @@ namespace OPS.Cloud
         public const string TYPE = "NEW_IMAGE";
         public override string MessageType { get { return TYPE; } protected set {; } }
 
-        protected NewObservationMsg()
+        protected NewObservationMessage()
         {
 
         }
@@ -55,7 +55,7 @@ namespace OPS.Cloud
         /// </summary>
         /// <param name="m"></param>
         /// <returns></returns>
-        public NewObservationMsg(Message m)
+        public NewObservationMessage(Message m)
         {
             if (m.MessageAttributes[MessageFields.MSG_TYPE_FIELD].StringValue != TYPE)
             {

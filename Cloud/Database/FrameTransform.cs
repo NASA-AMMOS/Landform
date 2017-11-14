@@ -5,11 +5,8 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Threading;
 using Microsoft.Xna.Framework;
-using System.ComponentModel.DataAnnotations.Schema;
-using System.Data.Entity.Infrastructure;
 using Amazon.DynamoDBv2.DataModel;
 using Amazon.DynamoDBv2;
-using Amazon.DynamoDBv2.DocumentModel;
 
 namespace OPS.Cloud
 {
@@ -18,8 +15,6 @@ namespace OPS.Cloud
         public const string Prior = "prior";
         public const string Derived = "derived";
     }
-
-
 
     /// <summary>
     /// Represents the rotation and translation between two frames
@@ -101,9 +96,12 @@ namespace OPS.Cloud
             {
                 context.Save<FrameTransformLookup>(new FrameTransformLookup(fromFrame.Name, toFrame.Name));
             }
-            catch (AmazonDynamoDBException e) //probably just that the frame already exists
+            catch (AmazonDynamoDBException e) 
             {
-                if (e.ErrorCode != "ConditionalCheckFailedException") throw e;
+                if (e.ErrorCode != "ConditionalCheckFailedException") //the frame already exists
+                {
+                    throw e;
+                }
             }
 
             //attempt to upload to the lookup table. Backoff and repeat if high traffic to this from/to pair. 
@@ -216,10 +214,18 @@ namespace OPS.Cloud
 
 
         /// <summary>
-        /// Record the ID for a frame transform 
-        /// If a transform is in the database, it will always be in the Lookup table. 
-        /// However, a transform in the lookup table may not always be in the Transform table 
-        /// Should not be used except by FrameTransform class 
+        /// Lookup the IDs of frame transforms between any two frames 
+        /// 
+        /// Table structure: 
+        ///     There could be many transforms mapping between any two frames. Each has a unique GUID. 
+        ///     This table allows lookups of all transforms given two frame names and the project name. 
+        ///     The table keys are the frame names, so lookups either for "all frame transforms from this frame" or "all frame transforms between these two frames" are fast. 
+        ///     The table has an index with the reverse key order, for searches like "all frame transforms to this frame" 
+        /// 
+        /// Data guarantees: 
+        ///     If a transform is in the database, it will always be in the Lookup table. 
+        ///     However, a transform in the lookup table may not always be in the Transform table 
+        ///     Should not be used except by FrameTransform class 
         /// </summary>
         [DynamoDBTable("FrameTransformLookup")]
         protected class FrameTransformLookup

@@ -10,7 +10,10 @@ using Amazon.DynamoDBv2.DataModel;
 
 namespace OPS.Cloud
 {
-    //
+    /// <summary>
+    /// Store the overlap between two observations. 
+    /// ID is constructed from the names of the obervations (in sorted order). Any two observations can have at most one overlap. 
+    /// </summary>
     [DynamoDBTable("Overlaps")]
     public class Overlap
     {
@@ -21,9 +24,9 @@ namespace OPS.Cloud
         {
             get //construct from an OverlapObs. 
             {
-                return Observations.idFromObs;
+                return Observations.IdFromObs;
             }
-            set //construct an OverlapObs from this Id. When setter called by Dynamo
+            set //construct an OverlapObs from this Id. Used by Dynamo
             {
                 this.Observations = new OverlapObs(value);
             }
@@ -48,9 +51,6 @@ namespace OPS.Cloud
         [DynamoDBVersion]
         public int? VersionNumber { get; set; }
 
-        //S3 location of keypoint map 
-        public string keypoints { get; set; }
-
         //Constructor required by DynamoDb but should not be called otherwise
         public Overlap()
         {
@@ -74,7 +74,7 @@ namespace OPS.Cloud
         /// <summary>
         /// Create an overlap between these two observations and save it to the database. 
         /// Returns null if an observation is already in the database. 
-        /// Guaranteed that two workers cannot both create the same observation 
+        /// Guaranteed that two workers cannot both create the same overlap 
         /// </summary>
         /// <param name="context"></param>
         /// <param name="observationName1">Order of observations does not matter</param>
@@ -88,10 +88,9 @@ namespace OPS.Cloud
             {
                 context.Save(newOverlap);
             }
-            catch(AmazonDynamoDBException e)
+            catch(ConditionalCheckFailedException)//if create fails another worker has already uploaded and updated this overlap
             {
-                if (e.ErrorCode == "ConditionalCheckFailedException") return null; //if create fails another worker has already uploaded and updated this overlap
-                else throw e; //unexpected error
+                return null;
             }
             
 
@@ -101,20 +100,19 @@ namespace OPS.Cloud
             {
                 context.Save(newOverlap);
             }
-            catch (AmazonDynamoDBException e)
+            catch (ConditionalCheckFailedException)//Another worker updated this overlap before we could
             {
-                if (e.ErrorCode == "ConditionalCheckFailedException") return null;
-                else throw e;
+                return null;
             }
 
-            //if save was successful, return Overlap with correct version number so it can be saved
+            //if save was successful, return Overlap with most recent version number so it can be saved
             return context.Load<Overlap>(newOverlap.Id, newOverlap.ProjectName, new DynamoDBOperationConfig { ConsistentRead = true});
         }
 
         public static Overlap Find(DynamoDBContext context, string observationName1, string observationName2, string projectName)
         {
             OverlapObs name = new OverlapObs(observationName1, observationName2);
-            return context.Load<Overlap>(name.idFromObs, projectName);
+            return context.Load<Overlap>(name.IdFromObs, projectName);
         }
         
         /// <summary>
@@ -123,15 +121,23 @@ namespace OPS.Cloud
         /// </summary>
         public class OverlapObs
         {
-            public string obs1 { get; private set; }
-            public string obs2 { get; private set; }
+            private const string SEPARATOR = " x ";
 
-            public string idFromObs
+            public string Obs1 { get; private set; }
+            public string Obs2 { get; private set; }
+
+            public string IdFromObs
             {
                 get
                 {
-                    if (obs1.CompareTo(obs2) < 0) return string.Format("{1}{0}{2}", " x ", obs1, obs2);
-                    else return string.Format("{1}{0}{2}", " x ", obs2, obs1);
+                    if (Obs1.CompareTo(Obs2) < 0)
+                    {
+                        return string.Format("{1}{0}{2}", SEPARATOR, Obs1, Obs2);
+                    }
+                    else
+                    {
+                        return string.Format("{1}{0}{2}", SEPARATOR, Obs2, Obs1);
+                    }
                 }
             }
 
@@ -141,29 +147,35 @@ namespace OPS.Cloud
             /// <param name="combinedObs"></param>
             public OverlapObs(string combinedObs)
             {
-                string[] names = combinedObs.Split(new string[] { " x " }, StringSplitOptions.None);
-                if (names.Count() != 2) throw new CloudException("Could not find observation names in Overlap Id");
-                this.obs1 = names[0]; this.obs2 = names[1];
-                validate();
+                string[] names = combinedObs.Split(new string[] { SEPARATOR }, StringSplitOptions.None);
+                if (names.Count() != 2)
+                {
+                    throw new CloudException("Could not find observation names in Overlap Id");
+                }
+                this.Obs1 = names[0];
+                this.Obs2 = names[1];
+                IsValid();
             }
 
             public OverlapObs(string obs1, string obs2)
             {
-                this.obs1 = obs1;
-                this.obs2 = obs2;
-                validate();
+                this.Obs1 = obs1;
+                this.Obs2 = obs2;
+                IsValid();
             }
 
             /// <summary>
             /// Only an Overlap with a valid OverlapObs can be saved to the DB
             /// </summary>
             /// <returns></returns>
-            public void validate()
+            public void IsValid()
             {
-                if (!(this.obs1 != null && this.obs2 != null && //an overlap must contain two images
-                    !this.obs1.Contains(" x ") && !this.obs2.Contains(" x ") && //names cannot contain the separator used to construct the name
-                    this.obs1.CompareTo(this.obs2) != 0)) //an overlap between the same observation is not valid
-                    throw new CloudException("Creating an Overlap with invalid observation names. Two observation names must be present and cannot contain ' x '");
+                if (!(this.Obs1 != null && this.Obs2 != null && //an overlap must contain two images
+                    !this.Obs1.Contains(SEPARATOR) && !this.Obs2.Contains(SEPARATOR) && //names cannot contain the separator used to construct the name
+                    this.Obs1.CompareTo(this.Obs2) != 0)) //an overlap between the same observation is not valid
+                {
+                    throw new CloudException("Creating an Overlap with invalid observation names. Two observation names must be present and cannot contain " + SEPARATOR);
+                }
             }
         }
 

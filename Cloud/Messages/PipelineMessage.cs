@@ -48,14 +48,14 @@ namespace OPS.Cloud
         {
             switch (m.MessageAttributes[MessageFields.MSG_TYPE_FIELD].StringValue)
             {
-                case NewObservationMsg.TYPE:
-                    return new NewObservationMsg(m);
-                case FindOverlapsMsg.TYPE:
-                    return new FindOverlapsMsg(m);
-                case MatchPairsMsg.TYPE:
-                    return new MatchPairsMsg(m);
-                case CreateParentTileMsg.TYPE:
-                    return new CreateParentTileMsg(m);
+                case NewObservationMessage.TYPE:
+                    return new NewObservationMessage(m);
+                case FindOverlapsMessage.TYPE:
+                    return new FindOverlapsMessage(m);
+                case MatchPairsMessage.TYPE:
+                    return new MatchPairsMessage(m);
+                case CreateParentTileMessage.TYPE:
+                    return new CreateParentTileMessage(m);
             }
             throw new CloudException("Unrecognized message type");
         }

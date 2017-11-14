@@ -17,7 +17,7 @@ namespace OPS.Cloud
     /// This message type is used by Pipeline/Commands/QueueListener and LambdaDynamoProcessing 
     /// Message fields & body must be kept in sync with names in LambdaUtil/Names and LambdaDynamoProcessing
     /// </summary>
-    public class CreateParentTileMsg : PipelineMessage
+    public class CreateParentTileMessage : PipelineMessage
     {
         public const string TYPE = "CREATE_PARENT_TILE";
 
@@ -29,12 +29,12 @@ namespace OPS.Cloud
 
         public List<string> ChildExtensions { get; set; }
 
-        protected CreateParentTileMsg()
+        protected CreateParentTileMessage()
         {
 
         }
 
-        public CreateParentTileMsg(Message m)
+        public CreateParentTileMessage(Message m)
         {
             if (m.MessageAttributes[MessageFields.MSG_TYPE_FIELD].StringValue != MessageType)
             {
@@ -45,7 +45,6 @@ namespace OPS.Cloud
             MessageId = m.MessageId;
             receiptHandle = m.ReceiptHandle;
             ChildExtensions = JsonConvert.DeserializeObject<List<string>>(m.Body); //can't use type handling here because converting from .NET core to .NET
-            //ChildExtensions = (List<string>)JsonHelper.FromJson(m.Body);
 
         }
 

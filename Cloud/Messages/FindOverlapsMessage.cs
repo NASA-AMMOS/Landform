@@ -9,7 +9,7 @@ using Amazon.SQS.Model;
 
 namespace OPS.Cloud
 {
-    public class FindOverlapsMsg : PipelineMessage
+    public class FindOverlapsMessage : PipelineMessage
     {
         public const string TYPE = "FIND_OVERLAPS";
 
@@ -17,12 +17,12 @@ namespace OPS.Cloud
 
         public string ObservationName { get; set; }
 
-        protected FindOverlapsMsg()
+        protected FindOverlapsMessage()
         {
 
         }
 
-        public FindOverlapsMsg(Message m)
+        public FindOverlapsMessage(Message m)
         {
             if (m.MessageAttributes[MessageFields.MSG_TYPE_FIELD].StringValue != MessageType)
             {

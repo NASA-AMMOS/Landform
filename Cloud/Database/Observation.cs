@@ -40,7 +40,7 @@ namespace OPS.Cloud
         public int? VersionNumber { get; set; }
 
         /// Add required fields here 
-        private bool validate()
+        private bool IsValid()
         {
             return (Url != null &&
                 FrameName != null &&
@@ -56,7 +56,7 @@ namespace OPS.Cloud
         }
 
         /// <summary>
-        /// Creates a new local observation object.  This object has an invalid id until it has been saved to the database context.
+        /// Creates a new local observation object.  
         /// Observation names must be unique within a project.
         /// ProjectId for this observation will be inferred from the supplied Frame object.
         /// </summary>
@@ -67,7 +67,6 @@ namespace OPS.Cloud
         /// <param name="cameraModel"></param>
         protected Observation(Frame frame, string name, string url, string observationType, string cameraModel, bool useForReconstruction)
         {
-            //TODO: checks for valid (saved) frame and project removed here 
             this.ProjectName = frame.ProjectName;
             this.FrameName = frame.Name;
             this.Name = name;
@@ -97,7 +96,7 @@ namespace OPS.Cloud
                 return null; // A record with this unique name already exists
             }
             Observation obs = new Observation(frame, name, url, observationType, cameraModel, useForReconstruction);
-            if (!obs.validate())
+            if (!obs.IsValid())
             {
                 throw new CloudException("Missing required property in Observation");
             }

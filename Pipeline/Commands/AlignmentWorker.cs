@@ -130,14 +130,14 @@ namespace OPS.Pipeline
                         {
                             switch (m.MessageType)
                             {
-                                case NewObservationMsg.TYPE:
-                                    IngestImage((NewObservationMsg)m);
+                                case NewObservationMessage.TYPE:
+                                    IngestImage((NewObservationMessage)m);
                                     break;
-                                case FindOverlapsMsg.TYPE:
-                                    FindOverlaps((FindOverlapsMsg)m);
+                                case FindOverlapsMessage.TYPE:
+                                    FindOverlaps((FindOverlapsMessage)m);
                                     break;
-                                case MatchPairsMsg.TYPE:
-                                    MatchPairs((MatchPairsMsg)m);
+                                case MatchPairsMessage.TYPE:
+                                    MatchPairs((MatchPairsMessage)m);
                                     break;
                             }
                             Interlocked.Increment(ref messagesSucceeded);
@@ -164,7 +164,7 @@ namespace OPS.Pipeline
         /// </summary>
         /// <param name="m"></param>
         /// <returns></returns>
-        public int IngestImage(NewObservationMsg m)
+        public int IngestImage(NewObservationMessage m)
         {
             //Index metadata, look up or calculate transforms 
             S3Url url = new S3Url(m.Url); 
@@ -231,13 +231,13 @@ namespace OPS.Pipeline
 
             //Start an overlap job in the queue. 
             //Make it invisible for a few seconds so that overlaps don't have to do strongly consistent reads. 
-            FindOverlapsMsg.Send(SQSClient, indexed.obs.Name, config.JobQueue);
+            FindOverlapsMessage.Send(SQSClient, indexed.obs.Name, config.JobQueue);
             m.DeleteMessage(SQSClient, config.JobQueue);
 
             return 0; 
         }
 
-        public int FindOverlaps(FindOverlapsMsg m)
+        public int FindOverlaps(FindOverlapsMessage m)
         {
             //for this image, look up nearby images in Dynamo
             RoverObservation thisobs = RoverObservation.Find(context, MSLProject.PROJECT_NAME, m.ObservationName);
@@ -259,7 +259,7 @@ namespace OPS.Pipeline
                     //write to dynamoDb and, if successful, create a new MatchPairs job
                     if (Overlap.Create(context, thisobs.Name, obs.Name, obs.ProjectName) != null) 
                     {
-                        new MatchPairsMsg(thisobs.Name, obs.Name, obs.ProjectName).Send(SQSClient, config.JobQueue);
+                        new MatchPairsMessage(thisobs.Name, obs.Name, obs.ProjectName).Send(SQSClient, config.JobQueue);
                     }
                 }
 
@@ -271,7 +271,7 @@ namespace OPS.Pipeline
             return 0; 
         }
 
-        public int MatchPairs(MatchPairsMsg m)
+        public int MatchPairs(MatchPairsMessage m)
         {
             //SEE MATCHALLIMAGES 
 

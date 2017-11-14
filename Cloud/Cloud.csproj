@@ -47,20 +47,8 @@
       <HintPath>..\packages\AWSSDK.SQS.3.3.3.1\lib\net45\AWSSDK.SQS.dll</HintPath>
       <Private>True</Private>
     </Reference>
-    <Reference Include="EntityFramework, Version=6.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089, processorArchitecture=MSIL">
-      <HintPath>..\packages\EntityFramework.6.1.3\lib\net45\EntityFramework.dll</HintPath>
-      <Private>True</Private>
-    </Reference>
-    <Reference Include="EntityFramework.SqlServer, Version=6.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089, processorArchitecture=MSIL">
-      <HintPath>..\packages\EntityFramework.6.1.3\lib\net45\EntityFramework.SqlServer.dll</HintPath>
-      <Private>True</Private>
-    </Reference>
     <Reference Include="MySql.Data, Version=6.9.9.0, Culture=neutral, PublicKeyToken=c5687fc88969c44d, processorArchitecture=MSIL">
       <HintPath>..\packages\MySql.Data.6.9.9\lib\net45\MySql.Data.dll</HintPath>
-      <Private>True</Private>
-    </Reference>
-    <Reference Include="MySql.Data.Entity.EF6, Version=6.9.9.0, Culture=neutral, PublicKeyToken=c5687fc88969c44d, processorArchitecture=MSIL">
-      <HintPath>..\packages\MySql.Data.Entity.6.9.9\lib\net45\MySql.Data.Entity.EF6.dll</HintPath>
       <Private>True</Private>
     </Reference>
     <Reference Include="Newtonsoft.Json, Version=10.0.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed, processorArchitecture=MSIL">
@@ -85,11 +73,11 @@
     <Compile Include="Database\Project.cs" />
     <Compile Include="Database\FrameTransform.cs" />
     <Compile Include="Database\RoverObservation.cs" />
-    <Compile Include="Messages\CreateParentTileMsg.cs" />
-    <Compile Include="Messages\MatchPairsMsg.cs" />
+    <Compile Include="Messages\CreateParentTileMessage.cs" />
+    <Compile Include="Messages\MatchPairsMessage.cs" />
     <Compile Include="Messages\PipelineMessage.cs" />
-    <Compile Include="Messages\FindOverlapsMsg.cs" />
-    <Compile Include="Messages\NewObservationMsg.cs" />
+    <Compile Include="Messages\FindOverlapsMessage.cs" />
+    <Compile Include="Messages\NewObservationMessage.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="CloudException.cs" />
     <Compile Include="Storage\S3Url.cs" />
@@ -99,13 +87,13 @@
     <None Include="App.config" />
     <None Include="Infrastructure\align-appspec.yml" />
     <None Include="Infrastructure\mesh-appspec.yml" />
-    <None Include="Infrastructure\deployalignmentlambdas.ps1" />
-    <None Include="Infrastructure\deploylandform.ps1" />
-    <None Include="Infrastructure\deploylambdas.ps1" />
-    <None Include="Infrastructure\deploystack.ps1" />
+    <None Include="Infrastructure\deployAlignmentLambdas.ps1" />
+    <None Include="Infrastructure\deployLandform.ps1" />
+    <None Include="Infrastructure\deployLambdas.ps1" />
+    <None Include="Infrastructure\deployStack.ps1" />
     <None Include="Infrastructure\EC2Scripts\alignmentappstart.ps1" />
     <None Include="Infrastructure\EC2Scripts\appvalidate.ps1" />
-    <None Include="Infrastructure\getworkerconfig.ps1" />
+    <None Include="Infrastructure\getWorkerConfig.ps1" />
     <None Include="Infrastructure\README.md" />
     <None Include="Infrastructure\EC2Scripts\appkill.ps1" />
     <None Include="Infrastructure\EC2Scripts\preinstall.ps1" />

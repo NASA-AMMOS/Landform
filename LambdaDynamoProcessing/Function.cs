@@ -98,7 +98,7 @@ namespace Lambda.LambdaDynamoProcessing
                 //if #children = #total children, send message with extensions of all children in body of message 
                 if (numDesired != 0 && numDesired == children.Count())
                 {
-                    await sendMessage("landlords-dev", parentMeshName, Convert.ToString(numDesired), children);
+                    await SendMessage("landlords-dev", parentMeshName, Convert.ToString(numDesired), children);
                 }
 
             }
@@ -117,7 +117,7 @@ namespace Lambda.LambdaDynamoProcessing
         }
 
         //Add this tile processing request to the queue with this prefix
-        private async Task<string> sendMessage(string bucket, string parentPath, string numChildren, IEnumerable<ChildTile> children)
+        private async Task<string> SendMessage(string bucket, string parentPath, string numChildren, IEnumerable<ChildTile> children)
         {
             //Get json of child extensions for worker
             List<string> extensions = new List<string>();

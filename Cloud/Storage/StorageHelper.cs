@@ -246,8 +246,8 @@ namespace OPS.Cloud
             //This works if there is a default profile (on a user machine) or an IAM role (an EC2 instance)
         }
 
-        //Return credential-specific only if we have credentials. 
-        private AmazonS3Client getClient(RegionEndpoint region)
+        //Use default credentials (or, for EC2 workers, their IAM role) if credentials are not provided 
+        private AmazonS3Client GetClient(RegionEndpoint region)
         {
             if (awsCredentials != null)
             {
@@ -265,7 +265,7 @@ namespace OPS.Cloud
         public RegionEndpoint GetRegion(string bucketName)
         {
             // Use region USWest1 to lookup bucket regions
-            AmazonS3Client client = getClient(RegionEndpoint.USWest1);
+            AmazonS3Client client = GetClient(RegionEndpoint.USWest1);
             GetBucketLocationRequest request = new GetBucketLocationRequest
             {
                 BucketName = bucketName
@@ -285,14 +285,14 @@ namespace OPS.Cloud
         {
             if(this.awsRegion != null )
             {
-                return getClient(awsRegion);
+                return GetClient(awsRegion);
             }
             S3Url location = new S3Url(s3url);
             if (!bucketToRegion.ContainsKey(location.BucketName))
             {
                 bucketToRegion.TryAdd(location.BucketName, GetRegion(location.BucketName));
             }           
-            return getClient(bucketToRegion[location.BucketName]);
+            return GetClient(bucketToRegion[location.BucketName]);
         }
 
         /// <summary>
