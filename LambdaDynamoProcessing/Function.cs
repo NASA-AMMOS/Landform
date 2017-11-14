@@ -45,28 +45,70 @@ namespace Lambda.LambdaDynamoProcessing
             {
                 context.Logger.LogLine($"Event ID: {record.EventID}");
 
-                if (record.EventName == Amazon.DynamoDBv2.OperationType.REMOVE)
+                if (record.EventName == Amazon.DynamoDBv2.OperationType.REMOVE || !record.EventSourceArn.Contains("ParentTiles"))
                 {
-                    return 0; //we don't need to process remove events 
+                    continue; //we don't need to process remove events 
                 }
 
-                string parentMeshName = record.Dynamodb.NewImage["parent_mesh_name"].S;
+                string streamRecordJson = SerializeStreamRecord(record.Dynamodb);
+                context.Logger.LogLine($"DynamoDB Record:");
+                context.Logger.LogLine(streamRecordJson);
 
-                //Look up all children for this parent tile 
+                string parentMeshName;
+                int numDesired;
+                int numReality;
+
+                //We care about modifications where num_children or num_children_present is changed, eg when a user adds metadata, which we DO care about 
+                if (
+                    //basics are correct...
+                    (record.EventSourceArn.Contains("ParentTiles") && 
+                    record.EventName == OperationType.MODIFY &&
+                    record.Dynamodb.NewImage.ContainsKey("num_children_present")) &&
+                    //and a relevant value has changed...
+                    (record.Dynamodb.NewImage["num_children"] != record.Dynamodb.OldImage["num_children"] || //number of desired children changed
+                    (record.Dynamodb.OldImage.ContainsKey("num_children_present") && //number of present children changed
+                    record.Dynamodb.NewImage["num_children_present"] != record.Dynamodb.OldImage["num_children_present"]))
+                    )
+                {
+                    parentMeshName = record.Dynamodb.NewImage["mesh_name"].S;
+                    numReality = Convert.ToInt32(record.Dynamodb.NewImage["num_children_present"].N);
+                    numDesired = Convert.ToInt32(record.Dynamodb.NewImage["num_children"].N);
+                }
+                else
+                {
+                    continue; //not ready to process
+                }
+
+                if (numReality < numDesired) //overcounting is possible but undercounting is not
+                {
+                    continue;
+                }
+
+                //Look up all children for this parent tile, because it is possible that the counter overcounted
                 IEnumerable<ChildTile> children = await ChildTile.FindAll(DBContext, parentMeshName);
 
                 //Look up this parent tile to check how many children it should have 
-                ParentTile parent = await ParentTile.Find(DBContext, parentMeshName);
+                //ParentTile parent = await ParentTile.Find(DBContext, parentMeshName);
 
                 //if #children = #total children, send message with extensions of all children in body of message 
-                if (parent.NumChildren == children.Count())
+                if (numDesired != 0 && numDesired == children.Count())
                 {
-                    await sendMessage(parent.Bucket, parentMeshName, Convert.ToString(parent.NumChildren), children);
+                    await sendMessage("landlords-dev", parentMeshName, Convert.ToString(numDesired), children);
                 }
+
             }
 
             context.Logger.LogLine("Stream processing complete.");
             return 0;
+        }
+
+        private string SerializeStreamRecord(StreamRecord streamRecord)
+        {
+            using (var writer = new StringWriter())
+            {
+                _jsonSerializer.Serialize(writer, streamRecord);
+                return writer.ToString();
+            }
         }
 
         //Add this tile processing request to the queue with this prefix

@@ -22,10 +22,7 @@ namespace Lambda.LambdaUtil
         [DynamoDBProperty("child_extension")]
         public string ChildExtension;
 
-        //TODO currently not versioned, but we could - either a guid or a Dynamo version
-
-        [DynamoDBVersion]
-        public int? VersionNumber;
+        //public string Guid;
 
         //required by aws sdk, should not be used otherwise 
         public ChildTile() { }
@@ -48,6 +45,7 @@ namespace Lambda.LambdaUtil
         public static async Task<ChildTile> Create(DynamoDBContext context, string meshName, string extension)
         {
             ChildTile newTile = new ChildTile(meshName, extension);
+            //newTile.Guid = 
             await context.SaveAsync(newTile, new DynamoDBOperationConfig { IgnoreNullValues = true});
             return newTile;
         }

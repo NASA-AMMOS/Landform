@@ -41,15 +41,6 @@ namespace Lambda.LambdaS3TileIntake
         }
 
         /// <summary>
-        /// Constructs an instance with a preconfigured S3 client. This can be used for testing the outside of the Lambda environment.
-        /// </summary>
-        /// <param name="s3Client"></param>
-        public Function(IAmazonS3 s3Client)
-        {
-            this.S3Client = s3Client;
-        }
-
-        /// <summary>
         /// This method is called for every Lambda invocation. This method takes in an S3 event object and can be used 
         /// to respond to S3 notifications.
         /// </summary>
@@ -78,15 +69,14 @@ namespace Lambda.LambdaS3TileIntake
                 return "I only like object files";
             }
 
-            //in a world where no one supports .net ... 
-            //Using low-level API to get access to ADD operations 
-            // TODO I can't find documentation on concurrent ADD operations. I *assume* it's ok??? 
-
             // If parent does not exist, create parent 
-            await ParentTile.CreateIfNotPresent(DBContext, prefix, bucket, TableNames.HARDCODED_4);
+            ParentTile parent = await ParentTile.FindOrCreate(DBContext, prefix, bucket, TableNames.HARDCODED_4);
 
             // Put this child tile into the db 
             await ChildTile.Create(DBContext, prefix, suffix);
+
+            //Increment number of child tiles 
+            await parent.IncrementChildren(DBClient);
 
             return "success";
         }
