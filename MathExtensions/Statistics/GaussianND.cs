@@ -10,6 +10,9 @@ using Xna = Microsoft.Xna.Framework;
 
 namespace OPS.MathExtensions
 {
+    /// <summary>
+    /// A multivariate normal distribution.
+    /// </summary>
     public class GaussianND
     {
         public readonly Vector<double> Mean;
@@ -80,7 +83,10 @@ namespace OPS.MathExtensions
             N = 3;
         }
 
-        static void Compute(List<Vector<double>> points, List<double> meanWeights, List<double> covarianceWeights, out Vector<double> Mean, out Matrix<double> Covariance)
+        /// <summary>
+        /// Internal helper for calculating means and covariances with different weightings.
+        /// </summary>
+        private static void Compute(List<Vector<double>> points, List<double> meanWeights, List<double> covarianceWeights, out Vector<double> Mean, out Matrix<double> Covariance)
         {
             Mean = null;
             for (int i = 0; i < points.Count; i++)
@@ -155,37 +161,22 @@ namespace OPS.MathExtensions
                 return inverseCovariance;
             }
         }
+
+        /// <summary>
+        /// Return the squared Mahalanobis distance of a point from the distribution.
+        /// </summary>
         public double MahalanobisDistanceSquared(Vector<double> point)
         {
             var meanOffset = point - Mean;
             return meanOffset.DotProduct(InverseCovariance * meanOffset);
         }
+
+        /// <summary>
+        /// Return the Mahalanobis distance of a point from the distribution.
+        /// </summary>
         public double MahalanobisDistance(Vector<double> point)
         {
             return Math.Sqrt(MahalanobisDistanceSquared(point));
-        }
-
-        public static GaussianND operator+(GaussianND lhs, GaussianND rhs)
-        {
-            if (lhs.N != rhs.N) throw new InvalidOperationException("Dimension mismatch");
-            return new GaussianND(lhs.Mean + rhs.Mean, lhs.Covariance + rhs.Covariance);
-        }
-
-        public static GaussianND operator +(GaussianND lhs, Vector<double> rhs)
-        {
-            if (lhs.N != rhs.Count) throw new InvalidOperationException("Dimension mismatch");
-            return new GaussianND(lhs.Mean + rhs, lhs.Covariance);
-        }
-        public static GaussianND operator +(Vector<double> lhs, GaussianND rhs)
-        {
-            if (lhs.Count != rhs.N) throw new InvalidOperationException("Dimension mismatch");
-            return new GaussianND(lhs + rhs.Mean, rhs.Covariance);
-        }
-
-        public static GaussianND operator *(Matrix<double> lhs, GaussianND rhs)
-        {
-            if (lhs.ColumnCount != rhs.N) throw new InvalidOperationException("Dimension mismatch");
-            return new GaussianND(lhs * rhs.Mean, lhs * rhs.Covariance * lhs.Transpose());
         }
     }
 }
