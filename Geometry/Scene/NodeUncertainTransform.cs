@@ -93,7 +93,9 @@ namespace OPS.Geometry
             {
                 // TODO: consider how best to do this. Ideally it would be lazily computed, like NodeTransform,
                 // but it would need to be notified of changes to NodeTransform somehow (without substantially
-                // degrading performance in the common case of no uncertainty).
+                // degrading performance in the common case of no uncertainty). Also note that not all nodes
+                // necessarily have a NodeUncertainTransform component - this makes a recursive implementation
+                // really tricky without just force-adding one to nodes without.
                 UncertainRigidTransform t = UncertainTransform;
                 SceneNode current = Node;
                 while (current.Parent != null)

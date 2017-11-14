@@ -150,6 +150,11 @@ namespace OPS.Pipeline
                 SceneNode root = new SceneNode();
                 Dictionary<ImageRef, SceneNode> nodes = new Dictionary<ImageRef, SceneNode>();
 
+                // Get translation of model node to subtract from both.
+                // Because rotation is applied before translation, a little uncertainty in rotation
+                // on top of a 6000+ meter translation leads to astronomical uncertainty in position.
+                var modelLoc = loc.Location(new SiteDrive(new PDSParser(modelRef.Metadata as PDSMetadata).SiteDrive));
+
                 Action<ImageRef> makeNode = (imgRef) =>
                 {
                     var res = new SceneNode(imgRef.FilenameWithoutExtension, root.Transform);
@@ -157,27 +162,21 @@ namespace OPS.Pipeline
                     
                     var quat = p.RoverOriginRotation;
                     var siteLoc = loc.Location(new SiteDrive(p.SiteDrive));
-                    Matrix toWorld = Matrix.CreateFromQuaternion(quat) * Matrix.CreateTranslation(siteLoc.Position);
+                    Matrix toWorld = Matrix.CreateFromQuaternion(quat) * Matrix.CreateTranslation(siteLoc.Position - modelLoc.Position);
                     res.Transform.Matrix = toWorld;
 
                     var chc = res.AddComponent<NodeConvexHull>();
                     chc.hull = ConvexHull.FromImage(imgRef.Image);
 
-                    // Made up covariance values, more or less signifying SD of 0.5m translation and ~1deg rotation (a little more for Z)
+                    // Made up covariance values, more or less signifying SD of 0.5m translation and 0.5deg rotation (1.0 for Z)
                     var uncertainty = res.AddComponent<NodeUncertainTransform>();
-                    uncertainty.Covariance = CreateMatrix.Diagonal(new double[] { 0.25, 0.25, 0.25, 0.0003, 0.0003, 0.0006 });
+                    double halfDegSqr = Math.Pow(0.5 * Math.PI / 180, 2);
+                    double degSqr = Math.Pow(1.0 * Math.PI / 180, 2);
+                    uncertainty.Covariance = CreateMatrix.Diagonal(new double[] { 0.25, 0.25, 0.25, halfDegSqr, halfDegSqr, degSqr });
                     nodes[imgRef] = res;
                 };
                 makeNode(modelRef);
                 makeNode(dataRef);
-
-                // Subtract translation of model node.
-                // Because rotation is applied before translation, a little uncertainty in rotation
-                // on top of a 6000+ meter translation leads to astronomical uncertainty in position.
-                // Maybe reverse order of operations in UncertainRigidTransform?
-                var t0 = nodes[modelRef].Transform.Translation;
-                nodes[modelRef].Transform.Translation -= t0;
-                nodes[dataRef].Transform.Translation -= t0;
 
                 KnownGeometryFilter kg = new KnownGeometryFilter(imgRef => nodes[imgRef]);
                 matches = kg.Filter(matches);
