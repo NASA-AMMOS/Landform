@@ -168,15 +168,15 @@ namespace OPS.Geometry
 
         // Helper vector <-> matrix functions
 
-        private static Matrix ToMatrix(Vector<double> vec6)
-        {
-            return ToMatrix(new Vector3(vec6[0], vec6[1], vec6[2]), new AxisAngleVector(vec6[3], vec6[4], vec6[5]));
-        }
         private static Matrix ToMatrix(Vector3 translation, AxisAngleVector axisAngle)
         {
             return axisAngle.ToMatrix() * Matrix.CreateTranslation(translation);
         }
-        private static Vector<double> ToVector(Matrix mat)
+        public static Matrix ToMatrix(Vector<double> vec6)
+        {
+            return ToMatrix(new Vector3(vec6[0], vec6[1], vec6[2]), new AxisAngleVector(vec6[3], vec6[4], vec6[5]));
+        }
+        public static Vector<double> ToVector(Matrix mat)
         {
             Vector3 translation, scale;
             Quaternion rotation;

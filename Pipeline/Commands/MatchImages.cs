@@ -149,12 +149,7 @@ namespace OPS.Pipeline
                 MSLLocations loc = new MSLLocations();
                 SceneNode root = new SceneNode();
                 Dictionary<ImageRef, SceneNode> nodes = new Dictionary<ImageRef, SceneNode>();
-
-                // Get translation of model node to subtract from both.
-                // Because rotation is applied before translation, a little uncertainty in rotation
-                // on top of a 6000+ meter translation leads to astronomical uncertainty in position.
-                var modelLoc = loc.Location(new SiteDrive(new PDSParser(modelRef.Metadata as PDSMetadata).SiteDrive));
-
+                
                 Action<ImageRef> makeNode = (imgRef) =>
                 {
                     var res = new SceneNode(imgRef.FilenameWithoutExtension, root.Transform);
@@ -162,7 +157,7 @@ namespace OPS.Pipeline
                     
                     var quat = p.RoverOriginRotation;
                     var siteLoc = loc.Location(new SiteDrive(p.SiteDrive));
-                    Matrix toWorld = Matrix.CreateFromQuaternion(quat) * Matrix.CreateTranslation(siteLoc.Position - modelLoc.Position);
+                    Matrix toWorld = Matrix.CreateFromQuaternion(quat) * Matrix.CreateTranslation(siteLoc.Position);
                     res.Transform.Matrix = toWorld;
 
                     var chc = res.AddComponent<NodeConvexHull>();
