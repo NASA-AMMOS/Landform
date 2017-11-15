@@ -454,7 +454,9 @@
                     }
                 ],
                 "InstanceType": "t2.2xlarge",
-                "IamInstanceProfile": {"Ref": "WorkerInstanceProfile"},
+                "IamInstanceProfile": {
+                    "Ref": "WorkerInstanceProfile"
+                },
                 "UserData": {
                     "Fn::Base64": {
                         "Fn::Join": [
@@ -477,7 +479,7 @@
                                 " -File C:\\temp\\vc_redist.x64.exe;",
                                 "cd C:\\temp;",
                                 ".\\vc_redist.x64.exe -s -a install -eula=accept | Wait-Process;",
-								"#Get and install VS tools 2013 distribution. \r\n",
+                                "#Get and install VS tools 2013 distribution. \r\n",
                                 "Read-S3Object -BucketName ",
                                 {
                                     "Ref": "BucketName"
@@ -1060,13 +1062,19 @@
                             "Sid": "Allow use of the key",
                             "Effect": "Allow",
                             "Principal": {
-                                "AWS": 
-								[{"Fn::Join": [
-									"",
-									["arn:aws:iam::589270964471:role/",
-									{"Ref":"WorkerInstanceProfile"}]
-								]},
-                                "arn:aws:iam::589270964471:user/gpease"
+                                "AWS": [
+                                    {
+                                        "Fn::Join": [
+                                            "",
+                                            [
+                                                "arn:aws:iam::589270964471:role/",
+                                                {
+                                                    "Ref": "WorkerInstanceProfile"
+                                                }
+                                            ]
+                                        ]
+                                    },
+                                    "arn:aws:iam::589270964471:user/gpease"
                                 ]
                             },
                             "Action": [
@@ -1083,11 +1091,17 @@
                             "Effect": "Allow",
                             "Principal": {
                                 "AWS": [
-                                    {"Fn::Join": [
-										"",
-										["arn:aws:iam::589270964471:role/",
-										{"Ref":"WorkerInstanceProfile"}]
-									]},
+                                    {
+                                        "Fn::Join": [
+                                            "",
+                                            [
+                                                "arn:aws:iam::589270964471:role/",
+                                                {
+                                                    "Ref": "WorkerInstanceProfile"
+                                                }
+                                            ]
+                                        ]
+                                    },
                                     "arn:aws:iam::589270964471:user/gpease"
                                 ]
                             },
@@ -1115,13 +1129,17 @@
         "KeyAlias": {
             "Type": "AWS::KMS::Alias",
             "Properties": {
-                "AliasName": {"Fn::Join":[
-				"",
-				["alias/AlignmentKey/",
-				{
-                    "Ref": "AWS::StackName"
-                }]
-				]},
+                "AliasName": {
+                    "Fn::Join": [
+                        "",
+                        [
+                            "alias/AlignmentKey/",
+                            {
+                                "Ref": "AWS::StackName"
+                            }
+                        ]
+                    ]
+                },
                 "TargetKeyId": {
                     "Ref": "Key"
                 }
@@ -1384,7 +1402,7 @@
             "Default": "pipeline_resources/vc_redist.x64.exe",
             "Description": "The S3 path to the executable for C++ resources 2015. Executable originally from https://www.microsoft.com/en-us/search/result.aspx?q=Microsoft+Visual+C%2B%2B+Redistributable"
         },
-		"CppDistResource2013": {
+        "CppDistResource2013": {
             "Type": "String",
             "Default": "pipeline_resources/vcredist_x64_2013.exe",
             "Description": "The S3 path to the executable for C++ resources 2013 (required for Emgu/OpenCV). Executable originally from https://www.microsoft.com/en-us/search/result.aspx?q=Microsoft+Visual+C%2B%2B+Redistributable"
@@ -1413,13 +1431,73 @@
             "Default": "vpc-577e9832",
             "Description": "The VPC the application will launch in. TODO: application should create its own subnets and security groups within this VPC"
         },
-		"WorkerInstanceProfile": {
+        "WorkerInstanceProfile": {
             "Type": "String",
             "Default": "landlords",
             "Description": "The role worker EC2 instances will assume. Must have read/write access to S3, SQS, CloudWatch, DynamoDB."
         }
     },
     "Outputs": {
+        "JobQueue": {
+            "Description": "Output for Console EB env vars.",
+            "Value": {
+                "Ref": "AllignmentJobQueue"
+            }
+        },
+        "Overlaps": {
+            "Description": "Output for Console EB env vars.",
+            "Value": {
+                "Ref": "Overlaps"
+            }
+        },
+        "FrameTransforms": {
+            "Description": "Output for Console EB env vars.",
+            "Value": {
+                "Ref": "FrameTransforms"
+            }
+        },
+        "Projects": {
+            "Description": "Output for Console EB env vars.",
+            "Value": {
+                "Ref": "Projects"
+            }
+        },
+        "Observations": {
+            "Description": "Output for Console EB env vars.",
+            "Value": {
+                "Ref": "Observations"
+            }
+        },
+        "Frames": {
+            "Description": "Output for Console EB env vars.",
+            "Value": {
+                "Ref": "Frames"
+            }
+        },
+        "QueueMonitorLambda": {
+            "Description": "Output for Console EB env vars.",
+            "Value": {
+                "Ref": "QueueMonitorLambda"
+            }
+        },
+        "S3ScanLambda": {
+            "Description": "Output for Console EB env vars.",
+            "Value": {
+                "Ref": "S3Scan"
+            }
+        },
+        "S3ImageIntakeLambda": {
+            "Description": "Output for Console EB env vars.",
+            "Value": {
+                "Ref": "S3ImageIntake"
+            }
+        },
+        "Workers": {
+            "Description": "Output for Console EB env vars.",
+            "Value": {
+                "Ref": "PipelineWorkers"
+            }
+        },
         "ApplicationName": {
             "Description": "The CodeDeploy application for this stack's workers.",
             "Value": {

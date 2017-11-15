@@ -54,8 +54,8 @@ namespace OPS.Pipeline
         private AllignmentConfig config;
         //urls for feature and match uploads. TODO configure from somewhere sensible 
         //perhaps from Dynamo project entry, with the thought that the REST API will eventually configure them? 
-        private string s3FeatureUrl = "s3://landlords-dev/gailin-alignment/features/"; 
-        private string s3MatchesUrl = "s3://landlords-dev/gailin-alignment/matches/";
+        private string s3FeatureUrl = "s3://landlords-dev/rotini/features/"; 
+        private string s3MatchesUrl = "s3://landlords-dev/rotini/matches/";
 
         //AWS clients. All thread safe and reusable 
         IAmazonSQS SQSClient;
@@ -184,6 +184,8 @@ namespace OPS.Pipeline
                     }
                     break;
             }
+
+            
 
             //do keypoint and feature detection 
             //Downloading image. Image.Load() does spooky things with temp files which are mitigated (somewhat) by not using the temp file wrapper

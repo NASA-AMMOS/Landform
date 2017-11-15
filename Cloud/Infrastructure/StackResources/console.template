@@ -1,0 +1,587 @@
+{
+    "AWSTemplateFormatVersion": "2010-09-09",
+    "Metadata": {
+        "AWS::CloudFormation::Designer": {
+            "2989d6a0-b128-45a4-bf5c-db77c543b269": {
+                "size": {
+                    "width": 200,
+                    "height": 140
+                },
+                "position": {
+                    "x": 250,
+                    "y": 270
+                },
+                "z": 0,
+                "embeds": [
+                    "55c1c784-0459-4844-9531-703a6679266b",
+                    "c0e0f2a2-3e85-45f2-a15f-65e1484eb36a"
+                ]
+            },
+            "55c1c784-0459-4844-9531-703a6679266b": {
+                "size": {
+                    "width": 60,
+                    "height": 60
+                },
+                "position": {
+                    "x": 270,
+                    "y": 330
+                },
+                "z": 1,
+                "parent": "2989d6a0-b128-45a4-bf5c-db77c543b269",
+                "embeds": [],
+                "isrelatedto": [
+                    "c8db6e9e-54b9-46f8-89f8-ea1c249cb469",
+                    "699e5555-b382-4cae-8b5e-3bffa2d6ccb2"
+                ]
+            },
+            "c0e0f2a2-3e85-45f2-a15f-65e1484eb36a": {
+                "size": {
+                    "width": 60,
+                    "height": 60
+                },
+                "position": {
+                    "x": 370,
+                    "y": 330
+                },
+                "z": 1,
+                "parent": "2989d6a0-b128-45a4-bf5c-db77c543b269",
+                "embeds": [],
+                "isrelatedto": [
+                    "55c1c784-0459-4844-9531-703a6679266b"
+                ]
+            },
+            "c8db6e9e-54b9-46f8-89f8-ea1c249cb469": {
+                "size": {
+                    "width": 60,
+                    "height": 60
+                },
+                "position": {
+                    "x": 100,
+                    "y": 330
+                },
+                "z": 0,
+                "embeds": []
+            },
+            "699e5555-b382-4cae-8b5e-3bffa2d6ccb2": {
+                "size": {
+                    "width": 60,
+                    "height": 60
+                },
+                "position": {
+                    "x": 550,
+                    "y": 180
+                },
+                "z": 0,
+                "embeds": []
+            },
+            "5c763d7a-759d-4a97-ba9b-e815bcad1703": {
+                "size": {
+                    "width": 60,
+                    "height": 60
+                },
+                "position": {
+                    "x": 580,
+                    "y": 280
+                },
+                "z": 0,
+                "embeds": []
+            }
+        }
+    },
+    "Resources": {
+        "LandformConsole": {
+            "Type": "AWS::ElasticBeanstalk::Application",
+            "Properties": {},
+            "Metadata": {
+                "AWS::CloudFormation::Designer": {
+                    "id": "2989d6a0-b128-45a4-bf5c-db77c543b269"
+                }
+            }
+        },
+        "LandformConsoleConfiguration": {
+            "Type": "AWS::ElasticBeanstalk::ConfigurationTemplate",
+            "Properties": {
+                "ApplicationName": {
+                    "Ref": "LandformConsole"
+                },
+                "SolutionStackName": "64bit Amazon Linux 2017.03 v4.3.0 running Node.js",
+                "OptionSettings": [
+                    {
+                        "Namespace": "aws:elasticbeanstalk:application:environment",
+                        "OptionName": "ALIGN_JOB_QUEUE",
+                        "Value": {
+                            "Fn::GetAtt": [
+                                "Alignment",
+                                "Outputs.JobQueue"
+                            ]
+                        }
+                    },
+                    {
+                        "Namespace": "aws:elasticbeanstalk:application:environment",
+                        "OptionName": "ALIGN_OVERLAPS_TABLE",
+                        "Value": {
+                            "Fn::GetAtt": [
+                                "Alignment",
+                                "Outputs.Overlaps"
+                            ]
+                        }
+                    },
+                    {
+                        "Namespace": "aws:elasticbeanstalk:application:environment",
+                        "OptionName": "ALIGN_FRAME_TRANSFORMS_TABLE",
+                        "Value": {
+                            "Fn::GetAtt": [
+                                "Alignment",
+                                "Outputs.FrameTransforms"
+                            ]
+                        }
+                    },
+                    {
+                        "Namespace": "aws:elasticbeanstalk:application:environment",
+                        "OptionName": "ALIGN_PROJECTS_TABLE",
+                        "Value": {
+                            "Fn::GetAtt": [
+                                "Alignment",
+                                "Outputs.Projects"
+                            ]
+                        }
+                    },
+                    {
+                        "Namespace": "aws:elasticbeanstalk:application:environment",
+                        "OptionName": "ALIGN_OBSERVATIONS_TABLE",
+                        "Value": {
+                            "Fn::GetAtt": [
+                                "Alignment",
+                                "Outputs.Observations"
+                            ]
+                        }
+                    },
+                    {
+                        "Namespace": "aws:elasticbeanstalk:application:environment",
+                        "OptionName": "ALIGN_FRAMES_TABLE",
+                        "Value": {
+                            "Fn::GetAtt": [
+                                "Alignment",
+                                "Outputs.Frames"
+                            ]
+                        }
+                    },
+                    {
+                        "Namespace": "aws:elasticbeanstalk:application:environment",
+                        "OptionName": "ALIGN_QUEUE_MONITOR_LAMBDA",
+                        "Value": {
+                            "Fn::GetAtt": [
+                                "Alignment",
+                                "Outputs.QueueMonitorLambda"
+                            ]
+                        }
+                    },
+                    {
+                        "Namespace": "aws:elasticbeanstalk:application:environment",
+                        "OptionName": "ALIGN_SCAN_S3_LAMBDA",
+                        "Value": {
+                            "Fn::GetAtt": [
+                                "Alignment",
+                                "Outputs.S3ScanLambda"
+                            ]
+                        }
+                    },
+                    {
+                        "Namespace": "aws:elasticbeanstalk:application:environment",
+                        "OptionName": "ALIGN_IMAGE_INTAKE_LAMBDA",
+                        "Value": {
+                            "Fn::GetAtt": [
+                                "Alignment",
+                                "Outputs.S3ImageIntakeLambda"
+                            ]
+                        }
+                    },
+                    {
+                        "Namespace": "aws:elasticbeanstalk:application:environment",
+                        "OptionName": "ALIGN_WORKERS",
+                        "Value": {
+                            "Fn::GetAtt": [
+                                "Alignment",
+                                "Outputs.Workers"
+                            ]
+                        }
+                    },
+                    {
+                        "Namespace": "aws:elasticbeanstalk:application:environment",
+                        "OptionName": "TILING_JOB_QUEUE",
+                        "Value": {
+                            "Fn::GetAtt": [
+                                "Tiling",
+                                "Outputs.JobQueue"
+                            ]
+                        }
+                    },
+                    {
+                        "Namespace": "aws:elasticbeanstalk:application:environment",
+                        "OptionName": "TILING_CHILD_TILES_TABLE",
+                        "Value": {
+                            "Fn::GetAtt": [
+                                "Tiling",
+                                "Outputs.ChildTiles"
+                            ]
+                        }
+                    },
+                    {
+                        "Namespace": "aws:elasticbeanstalk:application:environment",
+                        "OptionName": "TILING_PARENT_TILES_TABLE",
+                        "Value": {
+                            "Fn::GetAtt": [
+                                "Tiling",
+                                "Outputs.MetadataTable"
+                            ]
+                        }
+                    },
+                    {
+                        "Namespace": "aws:elasticbeanstalk:application:environment",
+                        "OptionName": "TILING_TILE_INTAKE_LAMBDA",
+                        "Value": {
+                            "Fn::GetAtt": [
+                                "Tiling",
+                                "Outputs.S3TileIntakeLambda"
+                            ]
+                        }
+                    },
+                    {
+                        "Namespace": "aws:elasticbeanstalk:application:environment",
+                        "OptionName": "TILING_WORKERS",
+                        "Value": {
+                            "Fn::GetAtt": [
+                                "Tiling",
+                                "Outputs.Workers"
+                            ]
+                        }
+                    },
+                    {
+                        "Namespace": "aws:elasticbeanstalk:application:environment",
+                        "OptionName": "TILING_QUEUE_MONITOR_LAMBDA",
+                        "Value": {
+                            "Fn::GetAtt": [
+                                "Tiling",
+                                "Outputs.QueueMonitorLambda"
+                            ]
+                        }
+                    },
+                    {
+                        "Namespace": "aws:elasticbeanstalk:application:environment",
+                        "OptionName": "TILING_PARENT_JOB_CREATION_LAMBDA",
+                        "Value": {
+                            "Fn::GetAtt": [
+                                "Tiling",
+                                "Outputs.ParentJobCreationLambda"
+                            ]
+                        }
+                    },
+                    {
+                        "Namespace": "aws:autoscaling:launchconfiguration",
+                        "OptionName": "EC2KeyName",
+                        "Value": {
+                            "Ref": "UserKeyName"
+                        }
+                    },
+                    {
+                        "Namespace": "aws:autoscaling:launchconfiguration",
+                        "OptionName": "IamInstanceProfile",
+                        "Value": {
+                            "Ref": "FrontendInstanceProfile"
+                        }
+                    },
+                    {
+                        "Namespace": "aws:elasticbeanstalk:environment",
+                        "OptionName": "ServiceRole",
+                        "Value": "aws-elasticbeanstalk-service-role"
+                    },
+                    {
+                        "Namespace": "aws:elb:loadbalancer",
+                        "OptionName": "SecurityGroups",
+                        "Value": {
+                            "Fn::GetAtt": [
+                                "LandformConsoleSecurityGroup",
+                                "GroupId"
+                            ]
+                        }
+                    }
+                ]
+            },
+            "Metadata": {
+                "AWS::CloudFormation::Designer": {
+                    "id": "55c1c784-0459-4844-9531-703a6679266b"
+                }
+            }
+        },
+        "LandformConsoleEnvironment": {
+            "Type": "AWS::ElasticBeanstalk::Environment",
+            "Properties": {
+                "ApplicationName": {
+                    "Ref": "LandformConsole"
+                },
+                "Description": "AWS Elastic Beanstalk Environment to run front end of pipeline",
+                "TemplateName": {
+                    "Ref": "LandformConsoleConfiguration"
+                }
+            },
+            "Metadata": {
+                "AWS::CloudFormation::Designer": {
+                    "id": "c0e0f2a2-3e85-45f2-a15f-65e1484eb36a"
+                }
+            }
+        },
+        "LandformConsoleSecurityGroup": {
+            "Type": "AWS::EC2::SecurityGroup",
+            "Properties": {
+                "GroupDescription": "Allow only limited IP addrs to access LandformConsole application",
+                "VpcId": {
+                    "Ref": "VPC"
+                },
+                "SecurityGroupIngress": [
+                    {
+                        "IpProtocol": "tcp",
+                        "FromPort": "80",
+                        "ToPort": "80",
+                        "CidrIp": "128.149.0.0/16"
+                    },
+                    {
+                        "IpProtocol": "tcp",
+                        "FromPort": "80",
+                        "ToPort": "80",
+                        "CidrIp": "137.78.0.0/16"
+                    },
+                    {
+                        "IpProtocol": "tcp",
+                        "FromPort": "80",
+                        "ToPort": "80",
+                        "CidrIp": "137.79.0.0/16"
+                    }
+                ],
+                "SecurityGroupEgress": [
+                    {
+                        "IpProtocol": "tcp",
+                        "FromPort": "80",
+                        "ToPort": "80",
+                        "CidrIp": "0.0.0.0/0"
+                    }
+                ]
+            },
+            "Metadata": {
+                "AWS::CloudFormation::Designer": {
+                    "id": "c8db6e9e-54b9-46f8-89f8-ea1c249cb469"
+                }
+            }
+        },
+        "Alignment": {
+            "Type": "AWS::CloudFormation::Stack",
+            "Properties": {
+                "TemplateURL": {
+                    "Fn::Join": [
+                        "",
+                        [
+                            "https://s3.amazonaws.com/",
+                            {
+                                "Ref": "BucketName"
+                            },
+                            "/",
+                            {
+                                "Ref": "S3Prefix"
+                            },
+                            "/",
+                            {
+                                "Ref": "AlignmentTemplate"
+                            }
+                        ]
+                    ]
+                },
+                "Parameters": {
+                    "BucketName": {
+                        "Ref": "BucketName"
+                    },
+                    "UserKeyName": {
+                        "Ref": "UserKeyName"
+                    },
+                    "AmiId": {
+                        "Ref": "AmiId"
+                    },
+                    "CppDistResource": {
+                        "Ref": "CppDistResource"
+                    },
+                    "CppDistResource2013": {
+                        "Ref": "CppDistResource2013"
+                    },
+                    "QueueMonitorLambda": {
+                        "Ref": "QueueMonitorLambda"
+                    },
+                    "ImageIntakeLambda": {
+                        "Ref": "ImageIntakeLambda"
+                    },
+                    "ScanS3Lambda": {
+                        "Ref": "ScanS3Lambda"
+                    },
+                    "TablePrefix": {
+                        "Ref": "AlignmentTablePrefix"
+                    },
+                    "VPC": {
+                        "Ref": "VPC"
+                    },
+                    "WorkerInstanceProfile": {
+                        "Ref": "AlignmentWorkerInstanceProfile"
+                    }
+                }
+            },
+            "Metadata": {
+                "AWS::CloudFormation::Designer": {
+                    "id": "699e5555-b382-4cae-8b5e-3bffa2d6ccb2"
+                }
+            }
+        },
+        "Tiling": {
+            "Type": "AWS::CloudFormation::Stack",
+            "Properties": {
+                "TemplateURL": {
+                    "Fn::Join": [
+                        "",
+                        [
+                            "https://s3.amazonaws.com/",
+                            {
+                                "Ref": "BucketName"
+                            },
+                            "/",
+                            {
+                                "Ref": "S3Prefix"
+                            },
+                            "/",
+                            {
+                                "Ref": "TilingTemplate"
+                            }
+                        ]
+                    ]
+                },
+                "Parameters": {
+                    "BucketName": {
+                        "Ref": "BucketName"
+                    },
+                    "UserKeyName": {
+                        "Ref": "UserKeyName"
+                    },
+                    "AmiId": {
+                        "Ref": "AmiId"
+                    },
+                    "CppDistResource": {
+                        "Ref": "CppDistResource"
+                    },
+                    "QueueMonitorLambda": {
+                        "Ref": "QueueMonitorLambda"
+                    },
+                    "S3ResponseLambda": {
+                        "Ref": "S3TileIntakeLambda"
+                    },
+                    "DynamoLambda": {
+                        "Ref": "TileDynamoProcessingLambda"
+                    },
+                    "TablePrefix": {
+                        "Ref": "TilingTablePrefix"
+                    },
+                    "VPC": {
+                        "Ref": "VPC"
+                    },
+                    "WorkerInstanceProfile": {
+                        "Ref": "TilingWorkerInstanceProfile"
+                    },
+                    "FrontendInstanceProfile": {
+                        "Ref": "FrontendInstanceProfile"
+                    }
+                }
+            },
+            "Metadata": {
+                "AWS::CloudFormation::Designer": {
+                    "id": "5c763d7a-759d-4a97-ba9b-e815bcad1703"
+                }
+            }
+        }
+    },
+    "Parameters": {
+        "BucketName": {
+            "Type": "String",
+            "Description": "Enter the bucket for the stack's data"
+        },
+        "UserKeyName": {
+            "Type": "String",
+            "Description": "Name of the key pair used to connect to EC2 instances"
+        },
+        "AlignmentTemplate": {
+            "Type": "String",
+            "Description": "Location of alignment template so that BucketName/S3Folder/AlignmentTemplate is the location of the template."
+        },
+        "TilingTemplate": {
+            "Type": "String",
+            "Description": "Location of alignment template so that BucketName/S3Folder/AlignmentTemplate is the location of the template."
+        },
+        "S3Prefix": {
+            "Type": "String",
+            "Description": "S3 folder for this stack in S3"
+        },
+        "AmiId": {
+            "Type": "String",
+            "Default": "ami-32320452",
+            "Description": "AMI ID. Should be the newest version windows base provided by Amazon. Update whenever a new version is availible."
+        },
+        "CppDistResource": {
+            "Type": "String",
+            "Description": "The S3 path to the executable for C++ resources 2015. Executable originally from https://www.microsoft.com/en-us/search/result.aspx?q=Microsoft+Visual+C%2B%2B+Redistributable"
+        },
+        "CppDistResource2013": {
+            "Type": "String",
+            "Description": "The S3 path to the executable for C++ resources 2013 (required for Emgu/OpenCV). Executable originally from https://www.microsoft.com/en-us/search/result.aspx?q=Microsoft+Visual+C%2B%2B+Redistributable"
+        },
+        "QueueMonitorLambda": {
+            "Type": "String",
+            "Description": "The S3 key to the alignment/tiling lambda that checks queue size and publishes to a custom CloudWatch metric"
+        },
+        "ImageIntakeLambda": {
+            "Type": "String",
+            "Description": "The S3 key to the alignment lambda that sees S3 PUTS and adds them as intake jobs to the job queue"
+        },
+        "ScanS3Lambda": {
+            "Type": "String",
+            "Description": "The S3 key to the alignment lambda that scans an S3 path and adds images to the job queue"
+        },
+        "S3TileIntakeLambda": {
+            "Type": "String",
+            "Description": "The S3 key to the tiling lambda that listens for S3 puts and adds their metadata to dynamo"
+        },
+        "TileDynamoProcessingLambda": {
+            "Type": "String",
+            "Description": "The S3 key to the tiling lambda that waits on a dynamo stream for tile metadata"
+        },
+        "FrontendInstanceProfile": {
+            "Type": "String",
+            "Default": "landlords",
+            "Description": "The role EB EC2 instances will assume. Must have access to all the resources that the front end will monitor."
+        },
+        "AlignmentTablePrefix": {
+            "Type": "String",
+            "Description": "The table name prefix for alignment data. Workers will use this to publish to their tables even if multiple stacks run in the same region."
+        },
+        "TilingTablePrefix": {
+            "Type": "String",
+            "Description": "The table name prefix for tiling data. Workers will use this to publish to their tables even if multiple stacks run in the same region."
+        },
+        "VPC": {
+            "Type": "String",
+            "Default": "vpc-577e9832",
+            "Description": "The VPC the application will launch in. Required for security group creation." 
+        },
+        "AlignmentWorkerInstanceProfile": {
+            "Type": "String",
+            "Default": "landlords",
+            "Description": "The role alignment worker EC2 instances will assume. Must have read/write access to S3, SQS, CloudWatch, DynamoDB."
+        },
+        "TilingWorkerInstanceProfile": {
+            "Type": "String",
+            "Default": "landlords",
+            "Description": "The role tiling worker EC2 instances will assume. Must have read/write access to S3, SQS, CloudWatch, DynamoDB."
+        }
+    }
+}

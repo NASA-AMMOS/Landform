@@ -1,36 +1,55 @@
 ﻿###############################
 ## Deploys current release build of landform to Application/Deployment Group for user-specified stack
-## Assumes a dev stack. S3 upload paths should change for prod
-## (does not build project) 
+##      - Finds aws resources for deployment to this stack (bucket name, s3 prefix, code deploy resources in nested stacks)
+##      - Constructs a release folder (CodeDeploy metadata and most recent Landform release build) 
+##      - Deploys that release folder using CodeDeploy
+## 
+## Add additional worker applications by: adding additional nested stacks and appspec.yaml files, then adding those as needed to this file. 
+## 
 ## Note: If you have RPCed into a worker and started landform yourself, deployment will *fail*. 
 ##       Either terminate that instance or manually kill the Landform you started
+## Note: This could be easily modified to deploy to both mesh and alignment workers, instead of only one at a time
+##
+## UPDATE THIS SCRIPT WHENEVER: 
+## A new nested stack requiring deployment to workers is added 
 ###############################
 
 #name of stack 
 #and
-#applicaiton type. options are mesh (runs queuelisten) | align (runs alignmentworker)
+#applicaiton type. options are mesh (runs queuelisten) | align (runs alignmentworker) 
 param([Parameter(Mandatory=$true)][System.String]$StackName,
-    [Parameter(Mandatory=$true, HelpMessage="What kind of worker app: mesh or align")][ValidateSet("mesh","align")][System.String]$ApplicationType)
+    [Parameter(Mandatory=$true, HelpMessage="What kind of worker app: mesh or align")][ValidateSet("tiling","align")][System.String]$ApplicationType)
 
+# Get nested stack name. ADD NEW STACKS HERE
+if ($ApplicationType -eq "align"){
+    $json = aws cloudformation describe-stack-resources --stack-name $StackName --logical-resource-id Alignment --output json 
+    $WorkerStackName = ($json | ConvertFrom-Json).StackResources.PhysicalResourceId
+}
+if ($ApplicationType -eq "tiling"){
+    $json = aws cloudformation describe-stack-resources --stack-name $StackName --logical-resource-id Tiling --output json 
+    $WorkerStackName = ($json | ConvertFrom-Json).StackResources.PhysicalResourceId
+}
 
-
-#Where to put code deploy resources in S3. Change as needed
-$UploadKey = "pipeline_resources/landform-cd-$StackName.zip"
-$UploadBucket = "landlords-dev"
+# Where to put code deploy resources in S3. Fetches bucket and prefix from stack. 
+$json = aws cloudformation describe-stacks --stack-name $StackName --query 'Stacks[0].Parameters[?ParameterKey==`BucketName`]' --output json 
+$UploadBucket = ($json | ConvertFrom-Json).ParameterValue
+$json = aws cloudformation describe-stacks --stack-name $StackName --query 'Stacks[0].Parameters[?ParameterKey==`S3Prefix`]' --output json 
+$S3Prefix = ($json | ConvertFrom-Json).ParameterValue
+$UploadKey = "$S3Prefix/stack_resources/$ApplicationType-cd.zip"
 $UploadLocation = "s3://$UploadBucket/$UploadKey"
 
 
-#logical ids for deployment infrastructure within stack (as defined in cloud formation template)
-#TODO Currently, alignment.template and pipeline.template use the same logical IDs. If they are combined into a single template, this will need to change
+# logical ids for deployment infrastructure within stack (as defined in cloud formation templates)
+# alignment.template and pipeline.template use the same logical IDs
 $WorkerApplicationResource = "WorkerApplication"
 $WorkerDeploymentGroupResource = "WorkerDeploymentGroup"
 
 
-### Get names for each of our resources 
-$json = aws cloudformation describe-stack-resources --stack-name $StackName --logical-resource-id $WorkerApplicationResource --output json 
+### Get names for our deployment resources 
+$json = aws cloudformation describe-stack-resources --stack-name $WorkerStackName --logical-resource-id $WorkerApplicationResource --output json 
 $WorkerApplicationName = ($json | ConvertFrom-Json).StackResources.PhysicalResourceId
 
-$json = aws cloudformation describe-stack-resources --stack-name $StackName --logical-resource-id $WorkerDeploymentGroupResource --output json 
+$json = aws cloudformation describe-stack-resources --stack-name $WorkerStackName --logical-resource-id $WorkerDeploymentGroupResource --output json 
 $WorkerDeploymentGroupName = ($json | ConvertFrom-Json).StackResources.PhysicalResourceId
 
 
@@ -54,8 +73,8 @@ Copy-Item -Recurse ..\..\..\Landform\bin\Release\* Source
 #copy scripts. 
 Copy-Item -Recurse ..\EC2Scripts\* .
 
-#copy yaml 
-if ($ApplicationType -eq "mesh"){
+#copy yaml. ADD NEW APPLICATION TYPES HERE
+if ($ApplicationType -eq "tiling"){
     Copy-Item ..\mesh-appspec.yml appspec.yml
 }
 if ($ApplicationType -eq "align"){

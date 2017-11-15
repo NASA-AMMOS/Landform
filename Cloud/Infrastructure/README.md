@@ -6,7 +6,9 @@
 
 You need: an AWS account with creation permissions for all stack resources, a pem file for accessing, the AWS CLI installed 
 
-From the CLI or console, create a new stack using pipeline.template. You must specify a username, which will be a tag for your CloudWatch metrics, the name of your key file, and a unique prefix for table names. 
+From the CLI or console, create a new stack using console.template. You must specify a stack name, which will be a tag for your CloudWatch metrics, the name of your key file, and a unique prefix for table names. 
+
+console.template will have two nested stacks, one for tiling and one for alignment. 
 
 Stack creation does not set up any mappings between S3 and the stack. Configure S3 bukets to send notifications to S3 listener lambdas for the prefixes where observations/tiles/whatever will go. 
 

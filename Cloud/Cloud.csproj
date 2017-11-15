@@ -116,9 +116,13 @@
     <Analyzer Include="..\packages\AWSSDK.SQS.3.3.3.1\analyzers\dotnet\cs\AWSSDK.SQS.CodeAnalysis.dll" />
   </ItemGroup>
   <ItemGroup>
-    <Content Include="Infrastructure\alignment.template" />
     <Content Include="Infrastructure\pipeline.template" />
+    <Content Include="Infrastructure\StackResources\alignment.template" />
+    <Content Include="Infrastructure\StackResources\console.template" />
+    <Content Include="Infrastructure\StackResources\vcredist_x64_2013.exe" />
+    <Content Include="Infrastructure\StackResources\vc_redist.x64.exe" />
   </ItemGroup>
+  <ItemGroup />
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
        Other similar extension points exist, see Microsoft.Common.targets.
