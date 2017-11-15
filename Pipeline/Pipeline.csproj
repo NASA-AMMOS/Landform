@@ -134,6 +134,8 @@
     <Compile Include="GdalConfiguration.cs" />
     <Compile Include="Rover\MSLLocations.cs" />
     <Compile Include="Rover\RoverCoordinateSystem.cs" />
+    <Compile Include="Rover\RoverMask.cs" />
+    <Compile Include="Rover\RoverModel.cs" />
     <Compile Include="Rover\RoverReachability.cs" />
     <Compile Include="TextureBake\TextureBaker.cs" />
     <Compile Include="Rover\SiteDrive.cs" />
@@ -166,6 +168,36 @@
     <None Include="app.config" />
     <None Include="OpenTK.dll.config" />
     <None Include="packages.config" />
+    <None Include="Resources\RoverMaskGeometry\Arm01.obj">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="Resources\RoverMaskGeometry\Arm02.obj">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="Resources\RoverMaskGeometry\Arm03.obj">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="Resources\RoverMaskGeometry\Arm04.obj">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="Resources\RoverMaskGeometry\Arm05.obj">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="Resources\RoverMaskGeometry\Body.obj">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="Resources\RoverMaskGeometry\LeftBogie.obj">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="Resources\RoverMaskGeometry\LeftRocker.obj">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="Resources\RoverMaskGeometry\RightBogie.obj">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="Resources\RoverMaskGeometry\RightRocker.obj">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Alignment\Alignment.csproj">
@@ -195,6 +227,10 @@
     <ProjectReference Include="..\MathExtensions\MathExtensions.csproj">
       <Project>{8c7c8a71-0a4b-4d75-9cb2-32803bd8f86f}</Project>
       <Name>MathExtensions</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\RayTrace\RayTrace.csproj">
+      <Project>{0E8C60BB-4A68-480F-895A-2B326AEC002C}</Project>
+      <Name>RayTrace</Name>
     </ProjectReference>
     <ProjectReference Include="..\Util\Util.csproj">
       <Project>{8145aa65-ba61-4e27-81ff-b64217b49929}</Project>
