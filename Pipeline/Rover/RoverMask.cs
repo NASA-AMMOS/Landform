@@ -13,7 +13,7 @@ namespace OPS.Pipeline
     {
         public static RoverModel RoverModel = new RoverModel();
 
-        public static Image Build(ImageRef imageRef, bool includeBody=true)
+        public static Image Build(ImageRef imageRef)
         {
             var metadata = imageRef.Metadata as PDSMetadata;
             if (metadata == null) return null;
