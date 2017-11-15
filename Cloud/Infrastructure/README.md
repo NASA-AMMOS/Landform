@@ -37,7 +37,7 @@ The appspec yaml file may not be saving with the correct encoding in Visual Stud
 + Different parts of the pipeline require different versions of Visual Studio tools redistributions. Eg, the mesh tiling workers need only the 2015 tools but the alignment workers need both 2013 and 2015 tools. If you run into mysterious dependency errors, check tools. Tools are distributed to workers in Userdata, as defined in template. 
 
 Running worker code on your own machine: 
-Workers just run the Landform command. Tiling workers run queuelisten, Alignment workers run alignmentworker. To run on your machine, you need a config file with the resource names specified in the Config type at the top of those files. 
+Workers just run the Landform command. Tiling workers run queuelisten, Alignment workers run alignmentworker. To run on your machine, you need a config file with the resource names specified in the Config type at the top of those files. Find worker version of this file in the Launch Configuration for the workers. 
 
 #### Structural overview: 
 
