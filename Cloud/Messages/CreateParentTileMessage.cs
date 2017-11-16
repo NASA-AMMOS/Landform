@@ -23,6 +23,7 @@ namespace OPS.Cloud
 
         public override string MessageType { get { return TYPE; } protected set { ; } }
 
+        //Path of parent tiles within s3. Format bucket/prefix. Includes full file name, excludes extension. 
         public string ParentPath { get; set; }
 
         public int NumChildren { get; set; }

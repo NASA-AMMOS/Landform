@@ -65,7 +65,7 @@ namespace Lambda.LambdaDynamoProcessing
                 int numDesired;
                 int numReality;
 
-                //We care about modifications where num_children or num_children_present is changed, eg when a user adds metadata, which we DO care about 
+                //We care about modifications where num_children or num_children_present is changed, eg when a user adds metadata or a tile is added. 
                 if (
                     //basics are correct...
                     (record.EventSourceArn.Contains("ParentTiles") && 
@@ -98,7 +98,7 @@ namespace Lambda.LambdaDynamoProcessing
                 //if #children = #total children, send message with extensions of all children in body of message 
                 if (numDesired != 0 && numDesired == children.Count())
                 {
-                    await SendMessage("landlords-dev", parentMeshName, Convert.ToString(numDesired), children);
+                    await SendMessage(parentMeshName, Convert.ToString(numDesired), children);
                 }
 
             }
@@ -117,7 +117,7 @@ namespace Lambda.LambdaDynamoProcessing
         }
 
         //Add this tile processing request to the queue with this prefix
-        private async Task<string> SendMessage(string bucket, string parentPath, string numChildren, IEnumerable<ChildTile> children)
+        private async Task<string> SendMessage(string parentPath, string numChildren, IEnumerable<ChildTile> children)
         {
             //Get json of child extensions for worker
             List<string> extensions = new List<string>();
@@ -136,7 +136,7 @@ namespace Lambda.LambdaDynamoProcessing
                 {
                     {
                     CreateParentTileMsgFields.PARENT_PATH, new MessageAttributeValue
-                    {DataType = "String", StringValue = bucket + "/" + parentPath }
+                    {DataType = "String", StringValue = parentPath }
                     },
                     {
                     CreateParentTileMsgFields.NUM_CHILDREN, new MessageAttributeValue 

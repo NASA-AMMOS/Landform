@@ -18,7 +18,7 @@
 #and
 #applicaiton type. options are mesh (runs queuelisten) | align (runs alignmentworker) 
 param([Parameter(Mandatory=$true)][System.String]$StackName,
-    [Parameter(Mandatory=$true, HelpMessage="What kind of worker app: mesh or align")][ValidateSet("tiling","align")][System.String]$ApplicationType)
+    [Parameter(Mandatory=$true, HelpMessage="What kind of worker app: tiling or align")][ValidateSet("tiling","align")][System.String]$ApplicationType)
 
 # Get nested stack name. ADD NEW STACKS HERE
 if ($ApplicationType -eq "align"){

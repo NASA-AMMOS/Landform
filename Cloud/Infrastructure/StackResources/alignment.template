@@ -393,6 +393,358 @@
                 },
                 "z": 0,
                 "embeds": []
+            },
+            "19644d7e-a6ee-4326-a611-024135717b44": {
+                "size": {
+                    "width": 60,
+                    "height": 60
+                },
+                "position": {
+                    "x": -800,
+                    "y": 10
+                },
+                "z": 0,
+                "embeds": [],
+                "isrelatedto": [
+                    "1da12c0d-e8b7-4fdc-8fff-d8ec0d92d7c7"
+                ]
+            },
+            "1f026cf4-ab4c-4629-8ca7-f92fae8ce722": {
+                "size": {
+                    "width": 60,
+                    "height": 60
+                },
+                "position": {
+                    "x": -800,
+                    "y": -90
+                },
+                "z": 0,
+                "embeds": [],
+                "isassociatedwith": [
+                    "19644d7e-a6ee-4326-a611-024135717b44"
+                ]
+            },
+            "99d0be80-43ec-4d4a-ba04-f6002f37452c": {
+                "size": {
+                    "width": 60,
+                    "height": 60
+                },
+                "position": {
+                    "x": -700,
+                    "y": 10
+                },
+                "z": 0,
+                "embeds": [],
+                "isrelatedto": [
+                    "d366b383-a5da-4080-b47f-1fae203ac792"
+                ]
+            },
+            "7f7fd32c-c1e0-4857-961b-4fbc6a0841d5": {
+                "size": {
+                    "width": 60,
+                    "height": 60
+                },
+                "position": {
+                    "x": -700,
+                    "y": -90
+                },
+                "z": 0,
+                "embeds": [],
+                "isassociatedwith": [
+                    "99d0be80-43ec-4d4a-ba04-f6002f37452c"
+                ]
+            },
+            "cd5a6ad9-bc8f-4a81-9221-ed5f8c74a393": {
+                "size": {
+                    "width": 60,
+                    "height": 60
+                },
+                "position": {
+                    "x": -600,
+                    "y": 10
+                },
+                "z": 0,
+                "embeds": [],
+                "isrelatedto": [
+                    "c84d97ee-a93a-448f-89f4-f0e45ddf0cb8"
+                ]
+            },
+            "598ea545-44ae-40cd-a00f-e80f33a6ba7e": {
+                "size": {
+                    "width": 60,
+                    "height": 60
+                },
+                "position": {
+                    "x": -600,
+                    "y": -90
+                },
+                "z": 0,
+                "embeds": [],
+                "isassociatedwith": [
+                    "cd5a6ad9-bc8f-4a81-9221-ed5f8c74a393"
+                ]
+            },
+            "8195b1b1-923b-4060-9093-0ae1226e4da4": {
+                "size": {
+                    "width": 60,
+                    "height": 60
+                },
+                "position": {
+                    "x": -500,
+                    "y": 10
+                },
+                "z": 0,
+                "embeds": [],
+                "isrelatedto": [
+                    "885610f8-7e41-4593-9185-e7974a022141"
+                ]
+            },
+            "c7cb477a-d975-4f55-9e3c-453596f82da8": {
+                "size": {
+                    "width": 60,
+                    "height": 60
+                },
+                "position": {
+                    "x": -500,
+                    "y": -90
+                },
+                "z": 0,
+                "embeds": [],
+                "isassociatedwith": [
+                    "8195b1b1-923b-4060-9093-0ae1226e4da4"
+                ]
+            },
+            "c620fc54-dddf-4a4e-8024-20cb3c7e8245": {
+                "size": {
+                    "width": 60,
+                    "height": 60
+                },
+                "position": {
+                    "x": -400,
+                    "y": 10
+                },
+                "z": 0,
+                "embeds": [],
+                "isrelatedto": [
+                    "91767755-8ca8-4e72-b3a5-e47e435c3d58"
+                ]
+            },
+            "f1488a64-ebab-4a0c-a931-c456d77a664f": {
+                "size": {
+                    "width": 60,
+                    "height": 60
+                },
+                "position": {
+                    "x": -400,
+                    "y": -90
+                },
+                "z": 0,
+                "embeds": [],
+                "isassociatedwith": [
+                    "c620fc54-dddf-4a4e-8024-20cb3c7e8245"
+                ]
+            },
+            "b4b82cad-b9f0-4aec-a2f3-68eb277efade": {
+                "size": {
+                    "width": 60,
+                    "height": 60
+                },
+                "position": {
+                    "x": -290,
+                    "y": 10
+                },
+                "z": 0,
+                "embeds": [],
+                "isrelatedto": [
+                    "b3257e2e-002f-4f22-92e8-ecfa0db50909"
+                ]
+            },
+            "25e2656c-f68f-455f-8538-1dd9c589c43a": {
+                "size": {
+                    "width": 60,
+                    "height": 60
+                },
+                "position": {
+                    "x": -290,
+                    "y": -90
+                },
+                "z": 0,
+                "embeds": [],
+                "isassociatedwith": [
+                    "b4b82cad-b9f0-4aec-a2f3-68eb277efade"
+                ]
+            },
+            "40ce818e-79d7-4e6f-83de-0bf4216e058f": {
+                "size": {
+                    "width": 60,
+                    "height": 60
+                },
+                "position": {
+                    "x": -800,
+                    "y": 220
+                },
+                "z": 0,
+                "embeds": [],
+                "isrelatedto": [
+                    "1da12c0d-e8b7-4fdc-8fff-d8ec0d92d7c7"
+                ]
+            },
+            "f02342d5-bcb6-454d-b758-80ef0f34f3e4": {
+                "size": {
+                    "width": 60,
+                    "height": 60
+                },
+                "position": {
+                    "x": -800,
+                    "y": 320
+                },
+                "z": 0,
+                "embeds": [],
+                "isassociatedwith": [
+                    "40ce818e-79d7-4e6f-83de-0bf4216e058f"
+                ]
+            },
+            "a6af8963-e610-4c07-b2e7-05f751e10ff9": {
+                "size": {
+                    "width": 60,
+                    "height": 60
+                },
+                "position": {
+                    "x": -700,
+                    "y": 220
+                },
+                "z": 0,
+                "embeds": [],
+                "isrelatedto": [
+                    "d366b383-a5da-4080-b47f-1fae203ac792"
+                ]
+            },
+            "7001c20a-b136-4a87-b6a0-32c7ee72cb08": {
+                "size": {
+                    "width": 60,
+                    "height": 60
+                },
+                "position": {
+                    "x": -700,
+                    "y": 320
+                },
+                "z": 0,
+                "embeds": [],
+                "isassociatedwith": [
+                    "a6af8963-e610-4c07-b2e7-05f751e10ff9"
+                ]
+            },
+            "67588c61-2984-4e26-97c9-ce42e5fcb952": {
+                "size": {
+                    "width": 60,
+                    "height": 60
+                },
+                "position": {
+                    "x": -600,
+                    "y": 220
+                },
+                "z": 0,
+                "embeds": [],
+                "isrelatedto": [
+                    "c84d97ee-a93a-448f-89f4-f0e45ddf0cb8"
+                ]
+            },
+            "187be347-3e0a-4893-b256-15e032a39097": {
+                "size": {
+                    "width": 60,
+                    "height": 60
+                },
+                "position": {
+                    "x": -600,
+                    "y": 320
+                },
+                "z": 0,
+                "embeds": [],
+                "isassociatedwith": [
+                    "67588c61-2984-4e26-97c9-ce42e5fcb952"
+                ]
+            },
+            "637e9567-93f4-4246-b4f5-2529a66407a1": {
+                "size": {
+                    "width": 60,
+                    "height": 60
+                },
+                "position": {
+                    "x": -500,
+                    "y": 220
+                },
+                "z": 0,
+                "embeds": [],
+                "isrelatedto": [
+                    "885610f8-7e41-4593-9185-e7974a022141"
+                ]
+            },
+            "c9236d6a-a00b-4f1b-a2a7-482179b99c72": {
+                "size": {
+                    "width": 60,
+                    "height": 60
+                },
+                "position": {
+                    "x": -500,
+                    "y": 320
+                },
+                "z": 0,
+                "embeds": [],
+                "isassociatedwith": [
+                    "637e9567-93f4-4246-b4f5-2529a66407a1"
+                ]
+            },
+            "05ead8ad-b0de-4173-86c4-2d23ae99ca44": {
+                "size": {
+                    "width": 60,
+                    "height": 60
+                },
+                "position": {
+                    "x": -400,
+                    "y": 220
+                },
+                "z": 0,
+                "embeds": [],
+                "isrelatedto": [
+                    "91767755-8ca8-4e72-b3a5-e47e435c3d58"
+                ]
+            },
+            "cdc67864-2979-4db0-b33a-ac227c9750d9": {
+                "size": {
+                    "width": 60,
+                    "height": 60
+                },
+                "position": {
+                    "x": -400,
+                    "y": 320
+                },
+                "z": 0,
+                "embeds": [],
+                "isassociatedwith": [
+                    "05ead8ad-b0de-4173-86c4-2d23ae99ca44"
+                ]
+            },
+            "dbf51517-f9e1-419b-8acf-027f5e1dd8ba": {
+                "size": {
+                    "width": 60,
+                    "height": 60
+                },
+                "position": {
+                    "x": -290,
+                    "y": 220
+                },
+                "z": 0
+            },
+            "d459da62-5c08-4849-b0d2-29383150cf47": {
+                "size": {
+                    "width": 60,
+                    "height": 60
+                },
+                "position": {
+                    "x": -290,
+                    "y": 320
+                },
+                "z": 0
             }
         }
     },
@@ -1293,6 +1645,618 @@
             "Metadata": {
                 "AWS::CloudFormation::Designer": {
                     "id": "7e4c60d0-b220-4f44-a1ee-79a23eb6005e"
+                }
+            }
+        },
+        "OverlapsWriteTarget": {
+            "Type": "AWS::ApplicationAutoScaling::ScalableTarget",
+            "Properties": {
+                "MaxCapacity": 50,
+                "MinCapacity": 5,
+                "ResourceId": {
+                    "Fn::Join": [
+                        "/",
+                        [
+                            "table",
+                            {
+                                "Ref": "Overlaps"
+                            }
+                        ]
+                    ]
+                },
+                "RoleARN": {
+                    "Ref": "TableAutoscalingRoleArn"
+                },
+                "ScalableDimension": "dynamodb:table:WriteCapacityUnits",
+                "ServiceNamespace": "dynamodb"
+            },
+            "Metadata": {
+                "AWS::CloudFormation::Designer": {
+                    "id": "19644d7e-a6ee-4326-a611-024135717b44"
+                }
+            }
+        },
+        "OverlapsWritePolicy": {
+            "Type": "AWS::ApplicationAutoScaling::ScalingPolicy",
+            "Properties": {
+                "PolicyName": "WriteAutoScalingPolicy",
+                "PolicyType": "TargetTrackingScaling",
+                "ScalingTargetId": {
+                    "Ref": "OverlapsWriteTarget"
+                },
+                "TargetTrackingScalingPolicyConfiguration": {
+                    "TargetValue": 50,
+                    "ScaleInCooldown": 60,
+                    "ScaleOutCooldown": 60,
+                    "PredefinedMetricSpecification": {
+                        "PredefinedMetricType": "DynamoDBWriteCapacityUtilization"
+                    }
+                }
+            },
+            "Metadata": {
+                "AWS::CloudFormation::Designer": {
+                    "id": "1f026cf4-ab4c-4629-8ca7-f92fae8ce722"
+                }
+            }
+        },
+        "FrameTransformsWriteTarget": {
+            "Type": "AWS::ApplicationAutoScaling::ScalableTarget",
+            "Properties": {
+                "MaxCapacity": 50,
+                "MinCapacity": 5,
+                "ResourceId": {
+                    "Fn::Join": [
+                        "/",
+                        [
+                            "table",
+                            {
+                                "Ref": "FrameTransforms"
+                            }
+                        ]
+                    ]
+                },
+                "RoleARN": {
+                    "Ref": "TableAutoscalingRoleArn"
+                },
+                "ScalableDimension": "dynamodb:table:WriteCapacityUnits",
+                "ServiceNamespace": "dynamodb"
+            },
+            "Metadata": {
+                "AWS::CloudFormation::Designer": {
+                    "id": "99d0be80-43ec-4d4a-ba04-f6002f37452c"
+                }
+            }
+        },
+        "FrameTransformsWritePolicy": {
+            "Type": "AWS::ApplicationAutoScaling::ScalingPolicy",
+            "Properties": {
+                "PolicyName": "WriteAutoScalingPolicy",
+                "PolicyType": "TargetTrackingScaling",
+                "ScalingTargetId": {
+                    "Ref": "FrameTransformsWriteTarget"
+                },
+                "TargetTrackingScalingPolicyConfiguration": {
+                    "TargetValue": 50,
+                    "ScaleInCooldown": 60,
+                    "ScaleOutCooldown": 60,
+                    "PredefinedMetricSpecification": {
+                        "PredefinedMetricType": "DynamoDBWriteCapacityUtilization"
+                    }
+                }
+            },
+            "Metadata": {
+                "AWS::CloudFormation::Designer": {
+                    "id": "7f7fd32c-c1e0-4857-961b-4fbc6a0841d5"
+                }
+            }
+        },
+        "FrameTransformLookupWriteTarget": {
+            "Type": "AWS::ApplicationAutoScaling::ScalableTarget",
+            "Properties": {
+                "MaxCapacity": 50,
+                "MinCapacity": 5,
+                "ResourceId": {
+                    "Fn::Join": [
+                        "/",
+                        [
+                            "table",
+                            {
+                                "Ref": "FrameTransformLookup"
+                            }
+                        ]
+                    ]
+                },
+                "RoleARN": {
+                    "Ref": "TableAutoscalingRoleArn"
+                },
+                "ScalableDimension": "dynamodb:table:WriteCapacityUnits",
+                "ServiceNamespace": "dynamodb"
+            },
+            "Metadata": {
+                "AWS::CloudFormation::Designer": {
+                    "id": "cd5a6ad9-bc8f-4a81-9221-ed5f8c74a393"
+                }
+            }
+        },
+        "FrameTransformLookupWritePolicy": {
+            "Type": "AWS::ApplicationAutoScaling::ScalingPolicy",
+            "Properties": {
+                "PolicyName": "WriteAutoScalingPolicy",
+                "PolicyType": "TargetTrackingScaling",
+                "ScalingTargetId": {
+                    "Ref": "FrameTransformLookupWriteTarget"
+                },
+                "TargetTrackingScalingPolicyConfiguration": {
+                    "TargetValue": 50,
+                    "ScaleInCooldown": 60,
+                    "ScaleOutCooldown": 60,
+                    "PredefinedMetricSpecification": {
+                        "PredefinedMetricType": "DynamoDBWriteCapacityUtilization"
+                    }
+                }
+            },
+            "Metadata": {
+                "AWS::CloudFormation::Designer": {
+                    "id": "598ea545-44ae-40cd-a00f-e80f33a6ba7e"
+                }
+            }
+        },
+        "ProjectsWriteTarget": {
+            "Type": "AWS::ApplicationAutoScaling::ScalableTarget",
+            "Properties": {
+                "MaxCapacity": 50,
+                "MinCapacity": 5,
+                "ResourceId": {
+                    "Fn::Join": [
+                        "/",
+                        [
+                            "table",
+                            {
+                                "Ref": "Projects"
+                            }
+                        ]
+                    ]
+                },
+                "RoleARN": {
+                    "Ref": "TableAutoscalingRoleArn"
+                },
+                "ScalableDimension": "dynamodb:table:WriteCapacityUnits",
+                "ServiceNamespace": "dynamodb"
+            },
+            "Metadata": {
+                "AWS::CloudFormation::Designer": {
+                    "id": "8195b1b1-923b-4060-9093-0ae1226e4da4"
+                }
+            }
+        },
+        "ProjectsWritePolicy": {
+            "Type": "AWS::ApplicationAutoScaling::ScalingPolicy",
+            "Properties": {
+                "PolicyName": "WriteAutoScalingPolicy",
+                "PolicyType": "TargetTrackingScaling",
+                "ScalingTargetId": {
+                    "Ref": "ProjectsWriteTarget"
+                },
+                "TargetTrackingScalingPolicyConfiguration": {
+                    "TargetValue": 50,
+                    "ScaleInCooldown": 60,
+                    "ScaleOutCooldown": 60,
+                    "PredefinedMetricSpecification": {
+                        "PredefinedMetricType": "DynamoDBWriteCapacityUtilization"
+                    }
+                }
+            },
+            "Metadata": {
+                "AWS::CloudFormation::Designer": {
+                    "id": "c7cb477a-d975-4f55-9e3c-453596f82da8"
+                }
+            }
+        },
+        "ObservationsWriteTarget": {
+            "Type": "AWS::ApplicationAutoScaling::ScalableTarget",
+            "Properties": {
+                "MaxCapacity": 50,
+                "MinCapacity": 5,
+                "ResourceId": {
+                    "Fn::Join": [
+                        "/",
+                        [
+                            "table",
+                            {
+                                "Ref": "Observations"
+                            }
+                        ]
+                    ]
+                },
+                "RoleARN": {
+                    "Ref": "TableAutoscalingRoleArn"
+                },
+                "ScalableDimension": "dynamodb:table:WriteCapacityUnits",
+                "ServiceNamespace": "dynamodb"
+            },
+            "Metadata": {
+                "AWS::CloudFormation::Designer": {
+                    "id": "c620fc54-dddf-4a4e-8024-20cb3c7e8245"
+                }
+            }
+        },
+        "ObservationsWritePolicy": {
+            "Type": "AWS::ApplicationAutoScaling::ScalingPolicy",
+            "Properties": {
+                "PolicyName": "WriteAutoScalingPolicy",
+                "PolicyType": "TargetTrackingScaling",
+                "ScalingTargetId": {
+                    "Ref": "ObservationsWriteTarget"
+                },
+                "TargetTrackingScalingPolicyConfiguration": {
+                    "TargetValue": 50,
+                    "ScaleInCooldown": 60,
+                    "ScaleOutCooldown": 60,
+                    "PredefinedMetricSpecification": {
+                        "PredefinedMetricType": "DynamoDBWriteCapacityUtilization"
+                    }
+                }
+            },
+            "Metadata": {
+                "AWS::CloudFormation::Designer": {
+                    "id": "f1488a64-ebab-4a0c-a931-c456d77a664f"
+                }
+            }
+        },
+        "FramesWriteTarget": {
+            "Type": "AWS::ApplicationAutoScaling::ScalableTarget",
+            "Properties": {
+                "MaxCapacity": 50,
+                "MinCapacity": 5,
+                "ResourceId": {
+                    "Fn::Join": [
+                        "/",
+                        [
+                            "table",
+                            {
+                                "Ref": "Frames"
+                            }
+                        ]
+                    ]
+                },
+                "RoleARN": {
+                    "Ref": "TableAutoscalingRoleArn"
+                },
+                "ScalableDimension": "dynamodb:table:WriteCapacityUnits",
+                "ServiceNamespace": "dynamodb"
+            },
+            "Metadata": {
+                "AWS::CloudFormation::Designer": {
+                    "id": "b4b82cad-b9f0-4aec-a2f3-68eb277efade"
+                }
+            }
+        },
+        "FramesWritePolicy": {
+            "Type": "AWS::ApplicationAutoScaling::ScalingPolicy",
+            "Properties": {
+                "PolicyName": "WriteAutoScalingPolicy",
+                "PolicyType": "TargetTrackingScaling",
+                "ScalingTargetId": {
+                    "Ref": "FramesWriteTarget"
+                },
+                "TargetTrackingScalingPolicyConfiguration": {
+                    "TargetValue": 50,
+                    "ScaleInCooldown": 60,
+                    "ScaleOutCooldown": 60,
+                    "PredefinedMetricSpecification": {
+                        "PredefinedMetricType": "DynamoDBWriteCapacityUtilization"
+                    }
+                }
+            },
+            "Metadata": {
+                "AWS::CloudFormation::Designer": {
+                    "id": "25e2656c-f68f-455f-8538-1dd9c589c43a"
+                }
+            }
+        },
+        "OverlapsReadTarget": {
+            "Type": "AWS::ApplicationAutoScaling::ScalableTarget",
+            "Properties": {
+                "MaxCapacity": 50,
+                "MinCapacity": 5,
+                "ResourceId": {
+                    "Fn::Join": [
+                        "/",
+                        [
+                            "table",
+                            {
+                                "Ref": "Overlaps"
+                            }
+                        ]
+                    ]
+                },
+                "RoleARN": {
+                    "Ref": "TableAutoscalingRoleArn"
+                },
+                "ScalableDimension": "dynamodb:table:ReadCapacityUnits",
+                "ServiceNamespace": "dynamodb"
+            },
+            "Metadata": {
+                "AWS::CloudFormation::Designer": {
+                    "id": "40ce818e-79d7-4e6f-83de-0bf4216e058f"
+                }
+            }
+        },
+        "OverlapsReadPolicy": {
+            "Type": "AWS::ApplicationAutoScaling::ScalingPolicy",
+            "Properties": {
+                "PolicyName": "ReadAutoScalingPolicy",
+                "PolicyType": "TargetTrackingScaling",
+                "ScalingTargetId": {
+                    "Ref": "OverlapsReadTarget"
+                },
+                "TargetTrackingScalingPolicyConfiguration": {
+                    "TargetValue": 50,
+                    "ScaleInCooldown": 60,
+                    "ScaleOutCooldown": 60,
+                    "PredefinedMetricSpecification": {
+                        "PredefinedMetricType": "DynamoDBReadCapacityUtilization"
+                    }
+                }
+            },
+            "Metadata": {
+                "AWS::CloudFormation::Designer": {
+                    "id": "f02342d5-bcb6-454d-b758-80ef0f34f3e4"
+                }
+            }
+        },
+        "FrameTransformsReadTarget": {
+            "Type": "AWS::ApplicationAutoScaling::ScalableTarget",
+            "Properties": {
+                "MaxCapacity": 50,
+                "MinCapacity": 5,
+                "ResourceId": {
+                    "Fn::Join": [
+                        "/",
+                        [
+                            "table",
+                            {
+                                "Ref": "FrameTransforms"
+                            }
+                        ]
+                    ]
+                },
+                "RoleARN": {
+                    "Ref": "TableAutoscalingRoleArn"
+                },
+                "ScalableDimension": "dynamodb:table:ReadCapacityUnits",
+                "ServiceNamespace": "dynamodb"
+            },
+            "Metadata": {
+                "AWS::CloudFormation::Designer": {
+                    "id": "a6af8963-e610-4c07-b2e7-05f751e10ff9"
+                }
+            }
+        },
+        "FrameTransformsReadPolicy": {
+            "Type": "AWS::ApplicationAutoScaling::ScalingPolicy",
+            "Properties": {
+                "PolicyName": "ReadAutoScalingPolicy",
+                "PolicyType": "TargetTrackingScaling",
+                "ScalingTargetId": {
+                    "Ref": "FrameTransformsReadTarget"
+                },
+                "TargetTrackingScalingPolicyConfiguration": {
+                    "TargetValue": 50,
+                    "ScaleInCooldown": 60,
+                    "ScaleOutCooldown": 60,
+                    "PredefinedMetricSpecification": {
+                        "PredefinedMetricType": "DynamoDBReadCapacityUtilization"
+                    }
+                }
+            },
+            "Metadata": {
+                "AWS::CloudFormation::Designer": {
+                    "id": "7001c20a-b136-4a87-b6a0-32c7ee72cb08"
+                }
+            }
+        },
+        "FrameTransformLookupReadTarget": {
+            "Type": "AWS::ApplicationAutoScaling::ScalableTarget",
+            "Properties": {
+                "MaxCapacity": 50,
+                "MinCapacity": 5,
+                "ResourceId": {
+                    "Fn::Join": [
+                        "/",
+                        [
+                            "table",
+                            {
+                                "Ref": "FrameTransformLookup"
+                            }
+                        ]
+                    ]
+                },
+                "RoleARN": {
+                    "Ref": "TableAutoscalingRoleArn"
+                },
+                "ScalableDimension": "dynamodb:table:ReadCapacityUnits",
+                "ServiceNamespace": "dynamodb"
+            },
+            "Metadata": {
+                "AWS::CloudFormation::Designer": {
+                    "id": "67588c61-2984-4e26-97c9-ce42e5fcb952"
+                }
+            }
+        },
+        "FrameTransformLookupReadPolicy": {
+            "Type": "AWS::ApplicationAutoScaling::ScalingPolicy",
+            "Properties": {
+                "PolicyName": "ReadAutoScalingPolicy",
+                "PolicyType": "TargetTrackingScaling",
+                "ScalingTargetId": {
+                    "Ref": "FrameTransformLookupReadTarget"
+                },
+                "TargetTrackingScalingPolicyConfiguration": {
+                    "TargetValue": 50,
+                    "ScaleInCooldown": 60,
+                    "ScaleOutCooldown": 60,
+                    "PredefinedMetricSpecification": {
+                        "PredefinedMetricType": "DynamoDBReadCapacityUtilization"
+                    }
+                }
+            },
+            "Metadata": {
+                "AWS::CloudFormation::Designer": {
+                    "id": "187be347-3e0a-4893-b256-15e032a39097"
+                }
+            }
+        },
+        "ProjectsReadTarget": {
+            "Type": "AWS::ApplicationAutoScaling::ScalableTarget",
+            "Properties": {
+                "MaxCapacity": 50,
+                "MinCapacity": 5,
+                "ResourceId": {
+                    "Fn::Join": [
+                        "/",
+                        [
+                            "table",
+                            {
+                                "Ref": "Projects"
+                            }
+                        ]
+                    ]
+                },
+                "RoleARN": {
+                    "Ref": "TableAutoscalingRoleArn"
+                },
+                "ScalableDimension": "dynamodb:table:ReadCapacityUnits",
+                "ServiceNamespace": "dynamodb"
+            },
+            "Metadata": {
+                "AWS::CloudFormation::Designer": {
+                    "id": "637e9567-93f4-4246-b4f5-2529a66407a1"
+                }
+            }
+        },
+        "ProjectsReadPolicy": {
+            "Type": "AWS::ApplicationAutoScaling::ScalingPolicy",
+            "Properties": {
+                "PolicyName": "ReadAutoScalingPolicy",
+                "PolicyType": "TargetTrackingScaling",
+                "ScalingTargetId": {
+                    "Ref": "ProjectsReadTarget"
+                },
+                "TargetTrackingScalingPolicyConfiguration": {
+                    "TargetValue": 50,
+                    "ScaleInCooldown": 60,
+                    "ScaleOutCooldown": 60,
+                    "PredefinedMetricSpecification": {
+                        "PredefinedMetricType": "DynamoDBReadCapacityUtilization"
+                    }
+                }
+            },
+            "Metadata": {
+                "AWS::CloudFormation::Designer": {
+                    "id": "c9236d6a-a00b-4f1b-a2a7-482179b99c72"
+                }
+            }
+        },
+        "ObservationsReadTarget": {
+            "Type": "AWS::ApplicationAutoScaling::ScalableTarget",
+            "Properties": {
+                "MaxCapacity": 50,
+                "MinCapacity": 5,
+                "ResourceId": {
+                    "Fn::Join": [
+                        "/",
+                        [
+                            "table",
+                            {
+                                "Ref": "Observations"
+                            }
+                        ]
+                    ]
+                },
+                "RoleARN": {
+                    "Ref": "TableAutoscalingRoleArn"
+                },
+                "ScalableDimension": "dynamodb:table:ReadCapacityUnits",
+                "ServiceNamespace": "dynamodb"
+            },
+            "Metadata": {
+                "AWS::CloudFormation::Designer": {
+                    "id": "05ead8ad-b0de-4173-86c4-2d23ae99ca44"
+                }
+            }
+        },
+        "ObservationsReadPolicy": {
+            "Type": "AWS::ApplicationAutoScaling::ScalingPolicy",
+            "Properties": {
+                "PolicyName": "ReadAutoScalingPolicy",
+                "PolicyType": "TargetTrackingScaling",
+                "ScalingTargetId": {
+                    "Ref": "ObservationsReadTarget"
+                },
+                "TargetTrackingScalingPolicyConfiguration": {
+                    "TargetValue": 50,
+                    "ScaleInCooldown": 60,
+                    "ScaleOutCooldown": 60,
+                    "PredefinedMetricSpecification": {
+                        "PredefinedMetricType": "DynamoDBReadCapacityUtilization"
+                    }
+                }
+            },
+            "Metadata": {
+                "AWS::CloudFormation::Designer": {
+                    "id": "cdc67864-2979-4db0-b33a-ac227c9750d9"
+                }
+            }
+        },
+        "FramesReadTarget": {
+            "Type": "AWS::ApplicationAutoScaling::ScalableTarget",
+            "Properties": {
+                "MaxCapacity": 50,
+                "MinCapacity": 5,
+                "ResourceId": {
+                    "Fn::Join": [
+                        "/",
+                        [
+                            "table",
+                            {
+                                "Ref": "Frames"
+                            }
+                        ]
+                    ]
+                },
+                "RoleARN": {
+                    "Ref": "TableAutoscalingRoleArn"
+                },
+                "ScalableDimension": "dynamodb:table:ReadCapacityUnits",
+                "ServiceNamespace": "dynamodb"
+            },
+            "Metadata": {
+                "AWS::CloudFormation::Designer": {
+                    "id": "dbf51517-f9e1-419b-8acf-027f5e1dd8ba"
+                }
+            }
+        },
+        "FramesReadPolicy": {
+            "Type": "AWS::ApplicationAutoScaling::ScalingPolicy",
+            "Properties": {
+                "PolicyName": "ReadAutoScalingPolicy",
+                "PolicyType": "TargetTrackingScaling",
+                "ScalingTargetId": {
+                    "Ref": "FramesReadTarget"
+                },
+                "TargetTrackingScalingPolicyConfiguration": {
+                    "TargetValue": 50,
+                    "ScaleInCooldown": 60,
+                    "ScaleOutCooldown": 60,
+                    "PredefinedMetricSpecification": {
+                        "PredefinedMetricType": "DynamoDBReadCapacityUtilization"
+                    }
+                }
+            },
+            "Metadata": {
+                "AWS::CloudFormation::Designer": {
+                    "id": "d459da62-5c08-4849-b0d2-29383150cf47"
                 }
             }
         }

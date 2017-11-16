@@ -66,24 +66,25 @@ namespace Lambda.LambdaS3TileIntake
             }
 
             //decide whether we should process parent tile
-            string key = s3Event.Object.Key;
-            //string prefix = Path.GetFileNameWithoutExtension(key).Substring(0, key.Length-1);
-            string prefix = key.Substring(0, key.Length - 5);
-            string suffix = key.Substring(key.Length - 5, 1);
-            string file_ending = key.Substring(key.Length - 4, 4);
+            string path = Path.GetDirectoryName(s3Event.Object.Key);
+            string key = (path.Length > 0)? (path + "/" + Path.GetFileNameWithoutExtension(s3Event.Object.Key)) : (Path.GetFileNameWithoutExtension(s3Event.Object.Key));
+            string prefix = key.Substring(0, key.Length-1); //parent's key
+            string suffix = Convert.ToString(key.Last()); //child's suffix
+            string file_ending = Path.GetExtension(s3Event.Object.Key);
             string bucket = s3Event.Bucket.Name;
             LambdaLogger.Log("Prefix: " + prefix + "\nSuffix: " + suffix + "\nFile ending: " + file_ending + "\nBucket: " + bucket);
 
-            if (file_ending != ".obj")
+            if (!file_ending.Contains("obj"))
             {
                 return "I only like object files";
             }
 
             // If parent does not exist, create parent 
-            ParentTile parent = await ParentTile.Create(DBContext, prefix, bucket, TableNames.HARDCODED_4);
+            string parentName = bucket + "/" + prefix;
+            ParentTile parent = await ParentTile.Create(DBContext, parentName, TableNames.HARDCODED_4);
 
             // Put this child tile into the db 
-            await ChildTile.Create(DBContext, prefix, suffix);
+            await ChildTile.Create(DBContext, parentName, suffix);
 
             //Increment number of child tiles 
             await parent.IncrementChildren(DBClient);

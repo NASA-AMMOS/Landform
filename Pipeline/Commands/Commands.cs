@@ -24,13 +24,11 @@ namespace OPS.Pipeline
                                                              PDSImageConverterOptions,
                                                              ConvertBaselineMeshesOptions,
                                                              TileBaselineMeshOptions,
-                                                             ClientOptions,
                                                              AlignmentWorkerOptions,
                                                              QueueListenerOptions,
                                                              TileBaselineMeshesOptions,
                                                              BenchmarkS3Options>(args)
               .MapResult(
-                (ClientOptions opts) =>  new Client(opts).Run(),
                 (AlignmentWorkerOptions opts) => new AlignmentWorker().Run(),
                 (QueueListenerOptions opts) => new QueueListener().Run(),
                 (ConvertBaselineMeshOptions opts) => new ConvertBaselineMesh(opts).Run(),

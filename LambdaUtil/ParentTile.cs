@@ -11,21 +11,18 @@ namespace Lambda.LambdaUtil
 {
     /// <summary>
     /// Parent tile metadata. Stores number of children that have been uploaded (repeat uploads continue to incrememnt counter)
-    /// Not versioned, so "Create" will always succeed but will not overwrite existing fields except NumChildren 
+    /// Not versioned, so "Create" will always succeed but will not overwrite existing fields except NumChildren, 
+    /// and a save will always succeed even if you are not editing the most recent version in the DB. 
     /// </summary>
     [DynamoDBTable("ParentTiles")]
     public class ParentTile
     {
         /// <summary>
-        /// The key of the parent mesh within S3, without the extension 
+        /// bucket/key of the parent mesh within S3, without the extension 
         /// </summary>
         [DynamoDBHashKey]
         [DynamoDBProperty("mesh_name")]
         public string MeshName;
-
-        //TODO this should be included in the key
-        [DynamoDBProperty("bucket")]
-        public string Bucket;
 
         //How many children are nececary for the construction of this parent tile? 
         //At least one child is always needed. NumChildren = 0 means that NumChildren has not yet been specified 
@@ -41,10 +38,9 @@ namespace Lambda.LambdaUtil
         //required by aws sdk, should not be used otherwise
         public ParentTile() { }
 
-        protected ParentTile(string meshName, string bucket)
+        protected ParentTile(string meshName)
         {
             MeshName = meshName;
-            Bucket = bucket;
         }
 
         /// <summary>
@@ -84,14 +80,13 @@ namespace Lambda.LambdaUtil
         /// Create a new parent tile entry. If one already exists, this will succeed but not overwrite any existing values
         /// </summary>
         /// <param name="context"></param>
-        /// <param name="meshName"></param>
-        /// <param name="bucket"></param>
+        /// <param name="meshName">Bucket and key, minus extension, of parent tile in S3. Format bucket/key </param>
         /// <param name="numChildren"></param>
         /// <returns></returns>
-        public static async Task<ParentTile> Create(DynamoDBContext context, string meshName, string bucket, int numChildren)
+        public static async Task<ParentTile> Create(DynamoDBContext context, string meshName, int numChildren)
         {
             //try to create new parent tile without setting numChildren 
-            ParentTile newTile = new ParentTile(meshName, bucket);
+            ParentTile newTile = new ParentTile(meshName);
             newTile.NumChildren = numChildren;
             await context.SaveAsync(newTile, new DynamoDBOperationConfig() { IgnoreNullValues = true });
             return newTile;

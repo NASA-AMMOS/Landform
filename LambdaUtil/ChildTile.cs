@@ -11,6 +11,7 @@ namespace Lambda.LambdaUtil
     /// <summary>
     /// A ChildTile for the mesh tiling pipeline. 
     /// ChildTiles are not versioned. A Create will always succeed, but will not overwrite existing values 
+    /// and a save will always succeed even if you are not editing the most recent version in the DB. 
     /// </summary>
     [DynamoDBTable("ChildTiles")]
     public class ChildTile
