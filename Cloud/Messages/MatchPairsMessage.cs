@@ -9,6 +9,10 @@ using Amazon.SQS.Model;
 
 namespace OPS.Cloud
 {
+    /// <summary>
+    /// Alignment pipeline message
+    /// Sent by alignment workers when the FindOverlaps task finds two potentially overlapping messages 
+    /// </summary>
     public class MatchPairsMessage : PipelineMessage
     {
         public const string TYPE = "MATCH_PAIRS";

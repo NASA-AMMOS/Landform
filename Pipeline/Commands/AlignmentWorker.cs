@@ -14,6 +14,7 @@ using System.IO;
 using Amazon.SQS;
 using Amazon.SQS.Model;
 using Amazon.DynamoDBv2.DataModel;
+using Amazon.DynamoDBv2.Model;
 using Amazon.DynamoDBv2;
 using OPS.Util;
 using OPS.Alignment;
@@ -160,7 +161,12 @@ namespace OPS.Pipeline
 
 
         /// <summary>
-        /// 
+        /// This task: 
+        ///  - gets image metadata from observation header and uploads it to dynamo
+        ///  - does feature detection and uploads features to S3
+        ///  - updates observation in dynamo with feature URL
+        ///  - starts overlaps message with a 60 second delay to allow time for eventual consistency in dynamo 
+        ///  - deletes message 
         /// </summary>
         /// <param name="m"></param>
         /// <returns></returns>
@@ -178,14 +184,13 @@ namespace OPS.Pipeline
                     throw new CloudException("Could not add observation metadata"); //don't delete message, let another handler try again
                 case (Status.PREEXISTING):
                     if (indexed.obs.FeatureUrl != null) //Features have already been uploaded
-                    {
+                    { //another worker uploaded features but did not delete, so we don't know if a message was sent
+                        new FindOverlapsMessage(indexed.obs.Name).Send(SQSClient, config.JobQueue);
                         m.DeleteMessage(SQSClient, config.JobQueue);
                         return 0;
                     }
                     break;
             }
-
-            
 
             //do keypoint and feature detection 
             //Downloading image. Image.Load() does spooky things with temp files which are mitigated (somewhat) by not using the temp file wrapper
@@ -225,20 +230,29 @@ namespace OPS.Pipeline
             {
                 context.Save(indexed.obs);
             }
-            catch (AmazonDynamoDBException e)
+            catch (ConditionalCheckFailedException)
             {
-                if (e.ErrorCode == "ConditionalCheckFailedException") throw new CloudException("Simultaneous edit attempted, try again");
-                else throw e;
+                return 0; //two workers were working on this task simultaneously. Don't delete message
             }
 
             //Start an overlap job in the queue. 
             //Make it invisible for a few seconds so that overlaps don't have to do strongly consistent reads. 
-            FindOverlapsMessage.Send(SQSClient, indexed.obs.Name, config.JobQueue);
+            new FindOverlapsMessage(indexed.obs.Name).Send(SQSClient, config.JobQueue);
             m.DeleteMessage(SQSClient, config.JobQueue);
 
             return 0; 
         }
 
+        /// <summary>
+        /// This task: 
+        ///  - scans all observations 
+        ///  - checks them for potential overlaps using only their metadata 
+        ///  - starts a matchpairs message for any observations that might overlap 
+        /// On failure (eg, a worker crash), another worker will pick up the task later. 
+        /// Some overlap messages will be repeated, but none will be missed. 
+        /// </summary>
+        /// <param name="m"></param>
+        /// <returns></returns>
         public int FindOverlaps(FindOverlapsMessage m)
         {
             //for this image, look up nearby images in Dynamo
@@ -273,10 +287,19 @@ namespace OPS.Pipeline
             return 0; 
         }
 
+        /// <summary>
+        /// This task: 
+        ///  - Reads metadata from Dynamo and data products from S3 for two images 
+        ///  - Finds a match
+        ///  - Uploads the match to S3
+        ///  - Uploads the match location to the Dynamo entry for this overlap 
+        ///  - Deletes the message
+        /// If a worker crashes while working on this task, the message will return to the queue and another worker will repeat the work.
+        /// </summary>
+        /// <param name="m"></param>
+        /// <returns></returns>
         public int MatchPairs(MatchPairsMessage m)
         {
-            //SEE MATCHALLIMAGES 
-
             //get metadata for both images from Dynamo 
             Observation obs0 = Observation.Find(context, m.ProjectName, m.ObservationName0);
             Observation obs1 = Observation.Find(context, m.ProjectName, m.ObservationName1);
@@ -289,7 +312,6 @@ namespace OPS.Pipeline
                 m.DeleteMessage(SQSClient, config.JobQueue);
                 return 0;
             }
-
             //read feature data and image for both images from S3
             JsonSerializer serializer = new JsonSerializer();
             serializer.TypeNameHandling = TypeNameHandling.Auto;
@@ -318,14 +340,14 @@ namespace OPS.Pipeline
 
                 MoisanStivalFilter filter = new MoisanStivalFilter();
                 matches = filter.Filter(matches);
-                if (matches == null || matches.DataToModel.Length < 8) //next filter breaks idk man
+                if (matches == null || matches.DataToModel.Length < 8) //TODO the next filter breaks if there are too few matches idk man
                 {
                     Console.WriteLine("No matches found after MoisanStivalFilter");
                     m.DeleteMessage(SQSClient, config.JobQueue); //TODO if no matches, might be nice to delete Overlaps entry
                     return;
                 }
                 GTM gtm = new GTM(5);
-                matches = gtm.Filter(matches); //replicate break: 0601ML0025370360301244E01_DRCX x 0604ML0025490030301399D01_DRCX
+                matches = gtm.Filter(matches); //an example pairing to replicate this breaking: 0601ML0025370360301244E01_DRCX x 0604ML0025490030301399D01_DRCX
                 if (matches == null)
                 {
                     Console.WriteLine("No matches found after GTM Filter");
@@ -341,18 +363,13 @@ namespace OPS.Pipeline
                 {
                     context.Save(overlap);
                 }
-                catch (AmazonDynamoDBException e)
+                catch (ConditionalCheckFailedException)
                 {
-                    if (e.ErrorCode == "ConditionalCheckFailedException") return; //another worker updated this overlap
-                    else throw e; //unexpected error
+                    return; //another worker tried to update this overlap. Allow message to return to queue 
                 }
                 //we know we computed the match and uploaded it and its location 
                 m.DeleteMessage(SQSClient, config.JobQueue);
             });
-
-            //compute mapping between keypoints 
-
-            //save mapping to S3, save address of mapping to Dynamo 
             return 0;
         }
     }

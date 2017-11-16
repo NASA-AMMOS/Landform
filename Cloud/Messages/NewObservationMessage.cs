@@ -9,10 +9,10 @@ using Amazon.SQS;
 
 namespace OPS.Cloud
 {
-    //TODO: This class should (maybe?) be cross compiled between Core and Framework as it is used by both Pipeline/Commands and LambdaS3ImageIntake (VS 2017)
-    //This would require refactoring to use async, as the AWSSDK for Core only supports Async operations 
-
-
+    /// <summary>
+    /// Tiling pipeline message. 
+    /// Sent by DynamoProcessing lambda when all children are present for a parent tile. 
+    /// </summary>
     public class NewObservationMessage : PipelineMessage
     {
 
@@ -24,29 +24,6 @@ namespace OPS.Cloud
         protected NewObservationMessage()
         {
 
-        }
-
-        /// <summary>
-        /// Send a new image message for the alignment pipeline
-        /// </summary>
-        /// <param name="client"></param>
-        /// <param name="url">S3 address of the image</param>
-        /// <returns></returns>
-        public static void Send(IAmazonSQS client, String url, string queueUrl)
-        {
-            string MessageId = Send(client, new Dictionary<string, MessageAttributeValue>
-                {
-                    {
-                    MessageFields.MSG_TYPE_FIELD, new MessageAttributeValue
-                    {DataType = "String", StringValue = TYPE }
-                    },
-                    {
-                    MessageFields.FILE_S3_PATH, new MessageAttributeValue
-                    {DataType = "String", StringValue = url } //No data types other than string currently supported
-                    }
-                }, 
-                queueUrl);
-            return;
         }
 
         /// <summary>
@@ -65,5 +42,7 @@ namespace OPS.Cloud
             MessageId = m.MessageId;
             receiptHandle = m.ReceiptHandle;
         }
+
+
     }
 }

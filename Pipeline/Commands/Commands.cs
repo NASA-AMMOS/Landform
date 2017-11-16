@@ -25,12 +25,12 @@ namespace OPS.Pipeline
                                                              ConvertBaselineMeshesOptions,
                                                              TileBaselineMeshOptions,
                                                              AlignmentWorkerOptions,
-                                                             QueueListenerOptions,
+                                                             TilingOptions,
                                                              TileBaselineMeshesOptions,
                                                              BenchmarkS3Options>(args)
               .MapResult(
                 (AlignmentWorkerOptions opts) => new AlignmentWorker().Run(),
-                (QueueListenerOptions opts) => new QueueListener().Run(),
+                (TilingOptions opts) => new TilingWorker().Run(),
                 (ConvertBaselineMeshOptions opts) => new ConvertBaselineMesh(opts).Run(),
                 (ConvertBaselineMeshesOptions opts) => new ConvertBaselineMeshes(opts).Run(),
                 (TileBaselineMeshOptions opts) => new TileBaselineMesh(opts).Run(),

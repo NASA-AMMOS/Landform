@@ -26,8 +26,8 @@ using OPS.Util;
 namespace OPS.Pipeline
 {
 
-    [Verb("queuelisten", HelpText = "Listen for messages on an SQS queue")]
-    public class QueueListenerOptions
+    [Verb("tilingworker", HelpText = "Listen for messages on an SQS queue")]
+    public class TilingOptions
     {
     }
 
@@ -36,7 +36,7 @@ namespace OPS.Pipeline
     /// For dev - set in a file in the user's home directory/.landform/pipelineworker.json
     /// In AWS deployment, this file is created by the autoscale group configuration in UserData, executed whenever a machine starts up. 
     /// </summary>
-    class MeshTilingConfig : Config
+    class TilingConfig : Config
     {
         public string JobQueue { get; set; }
         
@@ -51,9 +51,9 @@ namespace OPS.Pipeline
         }
     }
 
-    public class QueueListener
+    public class TilingWorker
     {
-        private MeshTilingConfig config;
+        private TilingConfig config;
 
         private static IAmazonSQS SQSClient;
         private static IAmazonS3 S3Client;
@@ -71,9 +71,9 @@ namespace OPS.Pipeline
         //timer for monitoring job 
         private System.Timers.Timer metricsTimer; 
 
-        public QueueListener()
+        public TilingWorker()
         {
-            this.config = new MeshTilingConfig();
+            this.config = new TilingConfig();
         }
 
         private void sendMetrics(object source, ElapsedEventArgs e)
