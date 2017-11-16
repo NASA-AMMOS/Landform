@@ -53,10 +53,6 @@ namespace OPS.Pipeline
     public class AlignmentWorker
     {
         private AllignmentConfig config;
-        //urls for feature and match uploads. TODO configure from somewhere sensible 
-        //perhaps from Dynamo project entry, with the thought that the REST API will eventually configure them? 
-        private string s3FeatureUrl = "s3://landlords-dev/rotini/features/"; 
-        private string s3MatchesUrl = "s3://landlords-dev/rotini/matches/";
 
         //AWS clients. All thread safe and reusable 
         IAmazonSQS SQSClient;
@@ -192,6 +188,9 @@ namespace OPS.Pipeline
                     break;
             }
 
+            //read project. If indexing was successful we know project exists. 
+            Project project = Project.Find(context, indexed.obs.ProjectName);
+
             //do keypoint and feature detection 
             //Downloading image. Image.Load() does spooky things with temp files which are mitigated (somewhat) by not using the temp file wrapper
             string root = (@"C:\tmp\in\" + Guid.NewGuid()).Replace('/', '\\');
@@ -204,7 +203,7 @@ namespace OPS.Pipeline
             PCAKeypointProjector projector = new PCAKeypointProjector(gpcafile, false);
             projector.Project(im, features, 1);
 
-            S3Url featureUrl = new S3Url(s3FeatureUrl + Path.ChangeExtension(Path.GetFileName(url.Url), ".json")); //TODO think about this
+            S3Url featureUrl = new S3Url(project.FeatureUrl + Path.ChangeExtension(Path.GetFileName(url.Url), ".json")); 
 
             //save keypoints and features to S3
             TemporaryFile.GetAndDelete(".json", temp =>
@@ -303,6 +302,7 @@ namespace OPS.Pipeline
             //get metadata for both images from Dynamo 
             Observation obs0 = Observation.Find(context, m.ProjectName, m.ObservationName0);
             Observation obs1 = Observation.Find(context, m.ProjectName, m.ObservationName1);
+            Project project = Project.Find(context, obs0.ProjectName);
 
             //get overlap and check that a match has not already been uploaded 
             Overlap overlap = Overlap.Find(context, obs0.Name, obs1.Name, obs0.ProjectName);
@@ -356,7 +356,7 @@ namespace OPS.Pipeline
                 }
                 
                 MatchImage.WriteMatchImage(matches, temp[4]);
-                string url = s3MatchesUrl + overlap.Id + ".jpg";
+                string url = project.MatchUrl + overlap.Id + ".jpg";
                 storage.UploadFile(temp[4], url);
                 overlap.MatchUrl = url;
                 try

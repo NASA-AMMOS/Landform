@@ -40,13 +40,16 @@ namespace OPS.Cloud
         public int? VersionNumber { get; set; }
 
         /// Add required fields here 
-        private bool IsValid()
+        private void IsValid()
         {
-            return (Url != null &&
+            if (!(Url != null &&
                 FrameName != null &&
                 ProjectName != null &&
                 Name != null &&
-                ObservationType != null);
+                ObservationType != null))
+            {
+                throw new CloudException("Missing required property in Observation");
+            }
         }
 
         //This constructor must be public for DynamoDb but should not be used
@@ -74,6 +77,7 @@ namespace OPS.Cloud
             this.ObservationType = observationType;
             this.CameraModel = cameraModel;
             this.UseForReconstruction = useForReconstruction;
+            IsValid();
         }
 
 
@@ -96,10 +100,7 @@ namespace OPS.Cloud
                 return null; // A record with this unique name already exists
             }
             Observation obs = new Observation(frame, name, url, observationType, cameraModel, useForReconstruction);
-            if (!obs.IsValid())
-            {
-                throw new CloudException("Missing required property in Observation");
-            }
+            
             context.Save(obs);
             return obs;
         }

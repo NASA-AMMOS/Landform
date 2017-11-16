@@ -33,8 +33,8 @@ namespace CloudTest
                 new DynamoDBContextConfig { TableNamePrefix = "dev0-"});
 
             //set up project, some frames 
-            Project p = Project.Create(context, project);
-            Project p2 = Project.Create(context, project2);
+            Project p = Project.Create(context, project, "url", "url2");
+            Project p2 = Project.Create(context, project2, "url", "url2");
             Frame f1 = Frame.Create(context, p, frame); 
             Frame f2 = Frame.Create(context, p, frame2);
             Frame f1p2 = Frame.Create(context, p2, frame); //frame in other project
