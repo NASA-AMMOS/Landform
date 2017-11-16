@@ -87,13 +87,11 @@
     <None Include="App.config" />
     <None Include="Infrastructure\align-appspec.yml" />
     <None Include="Infrastructure\mesh-appspec.yml" />
-    <None Include="Infrastructure\deployAlignmentLambdas.ps1" />
     <None Include="Infrastructure\deployLandform.ps1" />
     <None Include="Infrastructure\deployLambdas.ps1" />
     <None Include="Infrastructure\deployStack.ps1" />
     <None Include="Infrastructure\EC2Scripts\alignmentappstart.ps1" />
     <None Include="Infrastructure\EC2Scripts\appvalidate.ps1" />
-    <None Include="Infrastructure\getWorkerConfig.ps1" />
     <None Include="Infrastructure\README.md" />
     <None Include="Infrastructure\EC2Scripts\appkill.ps1" />
     <None Include="Infrastructure\EC2Scripts\preinstall.ps1" />
@@ -116,9 +114,9 @@
     <Analyzer Include="..\packages\AWSSDK.SQS.3.3.3.1\analyzers\dotnet\cs\AWSSDK.SQS.CodeAnalysis.dll" />
   </ItemGroup>
   <ItemGroup>
-    <Content Include="Infrastructure\pipeline.template" />
     <Content Include="Infrastructure\StackResources\alignment.template" />
     <Content Include="Infrastructure\StackResources\console.template" />
+    <Content Include="Infrastructure\StackResources\tiling.template" />
     <Content Include="Infrastructure\StackResources\vcredist_x64_2013.exe" />
     <Content Include="Infrastructure\StackResources\vc_redist.x64.exe" />
   </ItemGroup>
