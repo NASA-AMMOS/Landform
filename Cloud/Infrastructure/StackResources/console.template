@@ -108,6 +108,13 @@
                 "OptionSettings": [
                     {
                         "Namespace": "aws:elasticbeanstalk:application:environment",
+                        "OptionName": "STACK_NAME",
+                        "Value": {
+                            "Ref": "AWS::StackName"
+                        }
+                    },
+					{
+                        "Namespace": "aws:elasticbeanstalk:application:environment",
                         "OptionName": "ALIGN_JOB_QUEUE",
                         "Value": {
                             "Fn::GetAtt": [

@@ -259,23 +259,8 @@
                     "height": 60
                 },
                 "position": {
-                    "x": 270,
-                    "y": -20
-                },
-                "z": 0,
-                "embeds": [],
-                "dependson": [
-                    "cdc79767-a1f3-45ca-a1ff-51f9a73a69bc"
-                ]
-            },
-            "cdc79767-a1f3-45ca-a1ff-51f9a73a69bc": {
-                "size": {
-                    "width": 60,
-                    "height": 60
-                },
-                "position": {
-                    "x": 390,
-                    "y": -20
+                    "x": -400,
+                    "y": 120
                 },
                 "z": 0,
                 "embeds": [],
@@ -289,8 +274,8 @@
                     "height": 60
                 },
                 "position": {
-                    "x": 510,
-                    "y": -20
+                    "x": -290,
+                    "y": 120
                 },
                 "z": 0,
                 "embeds": []
@@ -343,8 +328,8 @@
                     "height": 60
                 },
                 "position": {
-                    "x": 150,
-                    "y": -20
+                    "x": -500,
+                    "y": 120
                 },
                 "z": 0,
                 "embeds": [],
@@ -358,8 +343,8 @@
                     "height": 60
                 },
                 "position": {
-                    "x": 30,
-                    "y": -20
+                    "x": -600,
+                    "y": 120
                 },
                 "z": 0,
                 "embeds": [],
@@ -373,8 +358,8 @@
                     "height": 60
                 },
                 "position": {
-                    "x": -100,
-                    "y": -20
+                    "x": -700,
+                    "y": 120
                 },
                 "z": 0,
                 "embeds": [],
@@ -388,8 +373,8 @@
                     "height": 60
                 },
                 "position": {
-                    "x": -230,
-                    "y": -20
+                    "x": -800,
+                    "y": 120
                 },
                 "z": 0,
                 "embeds": [],
@@ -825,7 +810,7 @@
         },
         "Observations": {
             "Type": "AWS::DynamoDB::Table",
-            "DependsOn": "Sectors",
+            "DependsOn": "Frames",
             "Properties": {
                 "TableName": {
                     "Fn::Join": [
@@ -892,77 +877,6 @@
             "Metadata": {
                 "AWS::CloudFormation::Designer": {
                     "id": "91767755-8ca8-4e72-b3a5-e47e435c3d58"
-                }
-            }
-        },
-        "Sectors": {
-            "Type": "AWS::DynamoDB::Table",
-            "DependsOn": "Frames",
-            "Properties": {
-                "TableName": {
-                    "Fn::Join": [
-                        "",
-                        [
-                            {
-                                "Ref": "TablePrefix"
-                            },
-                            "Sectors"
-                        ]
-                    ]
-                },
-                "AttributeDefinitions": [
-                    {
-                        "AttributeName": "sector_id",
-                        "AttributeType": "S"
-                    },
-                    {
-                        "AttributeName": "x",
-                        "AttributeType": "N"
-                    },
-                    {
-                        "AttributeName": "y",
-                        "AttributeType": "N"
-                    }
-                ],
-                "KeySchema": [
-                    {
-                        "AttributeName": "sector_id",
-                        "KeyType": "HASH"
-                    }
-                ],
-                "ProvisionedThroughput": {
-                    "ReadCapacityUnits": "5",
-                    "WriteCapacityUnits": "5"
-                },
-                "GlobalSecondaryIndexes": [
-                    {
-                        "IndexName": "SectorLookupByLocation",
-                        "KeySchema": [
-                            {
-                                "AttributeName": "x",
-                                "KeyType": "HASH"
-                            },
-                            {
-                                "AttributeName": "y",
-                                "KeyType": "RANGE"
-                            }
-                        ],
-                        "Projection": {
-                            "NonKeyAttributes": [
-                                "sector_id"
-                            ],
-                            "ProjectionType": "INCLUDE"
-                        },
-                        "ProvisionedThroughput": {
-                            "ReadCapacityUnits": "5",
-                            "WriteCapacityUnits": "5"
-                        }
-                    }
-                ]
-            },
-            "Metadata": {
-                "AWS::CloudFormation::Designer": {
-                    "id": "cdc79767-a1f3-45ca-a1ff-51f9a73a69bc"
                 }
             }
         },
@@ -1435,6 +1349,11 @@
             "Type": "String",
             "Default": "landlords",
             "Description": "The role worker EC2 instances will assume. Must have read/write access to S3, SQS, CloudWatch, DynamoDB."
+        },
+        "TableAutoscalingRoleArn": {
+            "Type": "String",
+            "Default": "arn:aws:iam::589270964471:role/AutoscalingServiceRole",
+            "Description": "Role assumed by autoscaling agents for tables."
         }
     },
     "Outputs": {
