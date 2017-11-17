@@ -240,7 +240,7 @@ namespace OPS.Pipeline
 
                     Frame siteDriveFrame = Frame.FindOrCreate(context, project, SiteDriveFrameName(parser));
                     Frame observationFrame = Frame.FindOrCreate(context, project, ObservationFrameName(parser));
-                    Frame rootFrame = Frame.Find(context, project, MSLProject.ROOT_FRAME_NAME);
+                    Frame rootFrame = Frame.Find(context, project.Name, MSLProject.ROOT_FRAME_NAME);
                     Quaternion roverToLocalLevel = parser.RoverOriginRotation;
 
                     //TODO Charley said we'll save multiple transforms per frame/frame pair but right now we specifically don't

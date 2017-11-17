@@ -19,6 +19,8 @@ namespace OPS.Cloud
 
     /// <summary>
     /// Represents the rotation and translation between two frames
+    /// Frame transforms are not versioned, so two workers can edit and save them at the same time. 
+    /// Frame transform lookups are versioned, but this is internal to the class and workers do not need to worry about it
     /// </summary>
     [DynamoDBTable("FrameTransforms")]
     public class FrameTransform
@@ -43,9 +45,6 @@ namespace OPS.Cloud
         public double QY { get; set; }
         public double QZ { get; set; }
         public double QW { get; set; }
-
-        [DynamoDBVersion]
-        public int? VersionNumber { get; set; }
 
         //This constructor must be public for DynamoDb but should not be used
         public FrameTransform()
@@ -76,8 +75,8 @@ namespace OPS.Cloud
 
         /// <summary>
         /// Creates a transform between two frames and saves it to the database
-        /// Returns the transform with a valid id
-        /// Returns null if the transform could not be created
+        /// Saves the lookup for that transform in a lookup entry 
+        /// Returns null if the transform already exists or could not be created
         /// </summary>
         /// <param name="context"></param>
         /// <param name="fromFrame"></param>
@@ -107,8 +106,14 @@ namespace OPS.Cloud
             {
                 //Get the most recent lookup record 
                 FrameTransformLookup lookup = context.Load<FrameTransformLookup>(fromFrame.Name, toFrame.Name, new DynamoDBOperationConfig{ConsistentRead=true});
-                if (lookup.Ids == null) lookup.Ids = new Dictionary<string, HashSet<string>>();
-                if (!lookup.Ids.ContainsKey(fromFrame.ProjectName)) lookup.Ids[fromFrame.ProjectName] = new HashSet<string>();
+                if (lookup.Ids == null)
+                {
+                    lookup.Ids = new Dictionary<string, HashSet<string>>();
+                }
+                if (!lookup.Ids.ContainsKey(fromFrame.ProjectName))
+                {
+                    lookup.Ids[fromFrame.ProjectName] = new HashSet<string>();
+                }
                 lookup.Ids[fromFrame.ProjectName].Add(id);
                 try
                 {

@@ -13,6 +13,8 @@ namespace OPS.Cloud
     /// <summary>
     /// Store the overlap between two observations. 
     /// ID is constructed from the names of the obervations (in sorted order). Any two observations can have at most one overlap. 
+    /// Overlaps are versioned, so only one worker can create them and they can only be edited if you have the newest version
+    /// Overlaps are versioned because a Match is not deterministic. if a task is started based on a match then another MatchPairs worker overwrites that match, that's an inconsistent state.
     /// </summary>
     [DynamoDBTable("Overlaps")]
     public class Overlap
@@ -92,7 +94,6 @@ namespace OPS.Cloud
             {
                 return null;
             }
-            
 
             //set Uploaded=true and save updated Overlap
             newOverlap.Uploaded = true;
@@ -107,6 +108,23 @@ namespace OPS.Cloud
 
             //if save was successful, return Overlap with most recent version number so it can be saved
             return context.Load<Overlap>(newOverlap.Id, newOverlap.ProjectName, new DynamoDBOperationConfig { ConsistentRead = true});
+        }
+
+        /// <summary>
+        /// Save only if most recent version is being edited. If not, return false 
+        /// </summary>
+        /// <param name="context"></param>
+        public bool TrySave(DynamoDBContext context)
+        {
+            try
+            {
+                context.Save(this);
+            }
+            catch (ConditionalCheckFailedException)
+            {
+                return false;
+            }
+            return true;
         }
 
         public static Overlap Find(DynamoDBContext context, string observationName1, string observationName2, string projectName)

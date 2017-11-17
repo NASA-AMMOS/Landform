@@ -46,10 +46,6 @@ namespace CloudTest
                 + context.Scan<Frame>(new ScanCondition("ProjectName",
                 Amazon.DynamoDBv2.DocumentModel.ScanOperator.Equal, project2)).Count()); //check for both project names
 
-            //recreation should give us "null" 
-            Assert.AreEqual(null, Frame.Create(context, p2, fgenerated.Name));
-            //find or create should give us existing frame with non-null version
-            Assert.IsNotNull(Frame.FindOrCreate(context, p2, fgenerated.Name).VersionNumber);
             //delete frame with generated name 
             context.Delete<Frame>(fgenerated);
 

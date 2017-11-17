@@ -10,8 +10,9 @@ namespace OPS.Cloud
 {
     /// <summary>
     /// Represents an image or 3D shape measurement of the environment
-    /// Can be connected to Frames and aligned with other observations through
-    /// FrameTransforms
+    /// Can be connected to Frames and aligned with other observations through FrameTransforms
+    /// Observations are not versioned, because all of the data associated with them is deterministic, so it does not matter if workers re-upload them. 
+    /// Fresh Creates, or Saves with missing values, will not overwrite existing values. 
     /// </summary>
     [DynamoDBTable("Observations")]
     public class Observation
@@ -35,9 +36,6 @@ namespace OPS.Cloud
         public string CameraModel { get; set; }
 
         public bool UseForReconstruction { get; set; }
-
-        [DynamoDBVersion]
-        public int? VersionNumber { get; set; }
 
         /// Add required fields here 
         private void IsValid()
@@ -95,14 +93,18 @@ namespace OPS.Cloud
         /// <returns></returns>
         public static Observation Create(DynamoDBContext context, Frame frame, string name, string url, string observationType, string cameraModel, bool useForReconstruction)
         {
-            if (Find(context, frame.ProjectName, name) != null)
-            {
-                return null; // A record with this unique name already exists
-            }
             Observation obs = new Observation(frame, name, url, observationType, cameraModel, useForReconstruction);
-            
-            context.Save(obs);
+            context.Save(obs, new DynamoDBOperationConfig { IgnoreNullValues = true });
             return obs;
+        }
+
+        /// <summary>
+        /// Save this observation without overwriting any values it may be missing
+        /// </summary>
+        /// <param name=""></param>
+        public void Save(DynamoDBContext context)
+        {
+            context.Save(this, new DynamoDBOperationConfig { IgnoreNullValues = true });
         }
 
         /// <summary>

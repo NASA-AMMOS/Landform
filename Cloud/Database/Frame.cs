@@ -5,13 +5,15 @@ using System.Text;
 using System.Threading.Tasks;
 
 using Amazon.DynamoDBv2.DataModel;
+using Amazon.DynamoDBv2.Model;
 
 namespace OPS.Cloud
 {
 
     /// <summary>
     /// Represents a coordinate frame in the database
-    /// Coordiante frames can have one or more observations associated with them
+    /// Coordiante frames can have one or more observations associated with them. 
+    /// Frames are not versioned
     /// </summary>\
     [DynamoDBTable("Frames")]
     public class Frame
@@ -23,9 +25,6 @@ namespace OPS.Cloud
         [DynamoDBHashKey] //Partition key
         [DynamoDBProperty("frame_name")]
         public string Name { get; set; }
-
-        [DynamoDBVersion]
-        public int? VersionNumber { get; set; }
 
         //This constructor must be public for DynamoDb but should not be used
         public Frame()
@@ -67,13 +66,18 @@ namespace OPS.Cloud
             {
                 name = Guid.NewGuid().ToString();
             }
-            if (Find(context, p, name) != null) 
-            {
-                return null; // A record with this unique name already exists
-            }
             Frame f = new Frame(p, name);
-            context.Save<Frame>(f);
+            context.Save<Frame>(f, new DynamoDBOperationConfig { IgnoreNullValues = true});
             return f;
+        }
+
+        /// <summary>
+        /// Save this observation without overwriting any values it may be missing
+        /// </summary>
+        /// <param name=""></param>
+        public void Save(DynamoDBContext context)
+        {
+            context.Save(this, new DynamoDBOperationConfig { IgnoreNullValues = true });
         }
 
         /// <summary>
@@ -88,7 +92,7 @@ namespace OPS.Cloud
         public static Frame FindOrCreate(DynamoDBContext context, Project p, string name)
         {
             // Try to find this project
-            Frame frame = Find(context, p, name);
+            Frame frame = Find(context, p.Name, name);
             if (frame != null)
             {
                 return frame;
@@ -101,7 +105,7 @@ namespace OPS.Cloud
             }
             // If our create failed someone else may have created one between our find and create calls
             // Look for it again.
-            return Find(context, p, name);
+            return Find(context, p.Name, name);
         }
 
         /// <summary>
@@ -111,9 +115,9 @@ namespace OPS.Cloud
         /// <param name="p">Project with a valid id (has been saved to database context)</param>
         /// <param name="name"></param>
         /// <returns></returns>
-        public static Frame Find(DynamoDBContext context, Project p, string name)
+        public static Frame Find(DynamoDBContext context, string projectName, string name)
         {
-            return context.Load<Frame>(name, p.Name);
+            return context.Load<Frame>(name, projectName);
         }
     }   
 }

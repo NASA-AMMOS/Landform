@@ -105,8 +105,8 @@ namespace OPS.Pipeline
             }
 
             //These jobs are CPU intensive - feature detection and matching, for example, use 100% of cpu for short bursts.
-            //However, there is also time spent waiting on AWS services. Guessing 2 jobs for now.  
-            Parallel.For(0, 2, (int i) =>  
+            //However, there is also time spent waiting on AWS services.
+            Parallel.For(0, 1, (int i) =>  
             {
                 while (true)
                 {
@@ -226,14 +226,7 @@ namespace OPS.Pipeline
             //Use the observation we made or found while indexing metadata
             //TODO this kind of direct interaction with Dynamo should be in the Object Persistence classes
             indexed.obs.FeatureUrl = featureUrl.Url;
-            try 
-            {
-                context.Save(indexed.obs);
-            }
-            catch (ConditionalCheckFailedException)
-            {
-                return 0; //two workers were working on this task simultaneously. Don't delete message
-            }
+            indexed.obs.Save(context);
 
             //Start an overlap job in the queue. 
             //Make it invisible for a few seconds so that overlaps don't have to do strongly consistent reads. 
@@ -261,7 +254,7 @@ namespace OPS.Pipeline
             IEnumerable<RoverObservation> observations = context.Scan<RoverObservation>(new ScanCondition("ProjectName",
                 Amazon.DynamoDBv2.DocumentModel.ScanOperator.Equal, MSLProject.PROJECT_NAME));
 
-            //check all nearby images for overlapping frusta. TODO only check spacially nearby observations
+            //check all nearby images for overlapping frusta. 
             foreach (RoverObservation obs in observations)
             {
                 bool outcome = false;
@@ -322,7 +315,7 @@ namespace OPS.Pipeline
                 IEnumerable<SIFTFeature> features0; 
                 using (JsonReader file = new JsonTextReader(File.OpenText(temp[0])))
                 {
-                    features0 = serializer.Deserialize<IEnumerable<SIFTFeature>>(file); //TODO problem: the FeatureDescriptor in the feature is a PCASIFT descriptor as created by ImageIntake 
+                    features0 = serializer.Deserialize<IEnumerable<SIFTFeature>>(file);  
                 }
                 storage.DownloadFile(obs0.Url, temp[1]);
                 Image im0 = Image.Load(temp[1]);
@@ -360,13 +353,9 @@ namespace OPS.Pipeline
                 string url = project.MatchUrl + overlap.Id + ".jpg";
                 storage.UploadFile(temp[4], url);
                 overlap.MatchUrl = url;
-                try
+                if (!overlap.TrySave(context))
                 {
-                    context.Save(overlap);
-                }
-                catch (ConditionalCheckFailedException)
-                {
-                    return; //another worker tried to update this overlap. Allow message to return to queue 
+                    return; //another worker tried to update this overlap. allow message to return to queue
                 }
                 //we know we computed the match and uploaded it and its location 
                 m.DeleteMessage(SQSClient, config.JobQueue);
