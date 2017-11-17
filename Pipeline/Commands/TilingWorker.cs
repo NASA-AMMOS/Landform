@@ -55,10 +55,10 @@ namespace OPS.Pipeline
     {
         private TilingConfig config;
 
-        private static IAmazonSQS SQSClient;
-        private static IAmazonS3 S3Client;
-        private static IAmazonSimpleNotificationService SNSClient;
-        private static IAmazonCloudWatch CWClient;
+        private IAmazonSQS SQSClient;
+        private IAmazonS3 S3Client;
+        private IAmazonSimpleNotificationService SNSClient;
+        private CloudWatchMetric MetricPublisher;
         
         private readonly string[] EXTENSIONS = new string[3] { ".obj", ".mtl" , ".jpg"}; 
         private const int OBJ = 0; private const int MTL = 1; private const int IMG = 2; //indices of file types in extension array 
@@ -85,21 +85,14 @@ namespace OPS.Pipeline
 
             Console.WriteLine("Recieved " + total + " messages, writing to CloudWatch");
 
-            //publish custom metric
-            var CWResponse = CWClient.PutMetricData(new PutMetricDataRequest
-            {
-                MetricData = new List<MetricDatum> { new MetricDatum
-                {
-                    MetricName = "MessagesRecieved",
-                    Unit = StandardUnit.Count,
-                    Value = total,
-                    Dimensions = new List<Dimension> {
-                        new Dimension {Name = "OwnerName", Value = this.config.PipelineName},  
-                        new Dimension {Name = "Instance", Value = EC2InstanceMetadata.InstanceId != null ? EC2InstanceMetadata.InstanceId : "dev_machine" }
-                    }
-                } },
-                Namespace = "Pipeline"
-            });
+            //publish messages recieved
+            MetricPublisher.Publish(total, this.config.PipelineName, EC2InstanceMetadata.InstanceId != null ? EC2InstanceMetadata.InstanceId : "dev_machine");
+
+            //public failure metric
+            MetricPublisher.Publish(failures, this.config.PipelineName, EC2InstanceMetadata.InstanceId != null ? EC2InstanceMetadata.InstanceId : "dev_machine");
+
+            //public success metric
+            MetricPublisher.Publish(successes, this.config.PipelineName, EC2InstanceMetadata.InstanceId != null ? EC2InstanceMetadata.InstanceId : "dev_machine");
         }
 
         public int Run()
@@ -108,7 +101,7 @@ namespace OPS.Pipeline
             SQSClient = new AmazonSQSClient(Amazon.RegionEndpoint.USWest1); //TODO should pull region from somewhere?
             S3Client = new AmazonS3Client(Amazon.RegionEndpoint.USWest1);
             SNSClient = new AmazonSimpleNotificationServiceClient(Amazon.RegionEndpoint.USWest1);
-            CWClient = new AmazonCloudWatchClient(Amazon.RegionEndpoint.USWest1);
+            MetricPublisher = new CloudWatchMetric(new AmazonCloudWatchClient(Amazon.RegionEndpoint.USWest1));
 
             //start collecting metrics! 
             metricsTimer = new System.Timers.Timer(120000); //publish metrics every 2 minutes
