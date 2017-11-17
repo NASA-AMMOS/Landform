@@ -63,7 +63,7 @@ namespace OPS.Pipeline
         //thread-safe processing helpers
         MetadataIndexer indexer;
         OverlapDetection detector;
-        StorageHelper storage; //TODO seems thread safe, but I'm not 100% sure
+        StorageHelper storage; 
 
         //monitoring counts 
         private int messagesRecieved = 0;
@@ -93,18 +93,20 @@ namespace OPS.Pipeline
         /// <returns></returns>
         public int Run()
         {
-            //Initialize project
-            //Project p = Project.FindOrCreate(Context, MSLProject.PROJECT_NAME); TODO implement
-            //Frame.FindOrCreate(Context, p, MSLProject.ROOT_FRAME_NAME);
-
             //wait on queue for images 
             SQSClient = new AmazonSQSClient(Amazon.RegionEndpoint.USWest1); 
             S3Client = new AmazonS3Client(Amazon.RegionEndpoint.USWest1);
-            
-            //TODO: what's the proper parallel situation here? 
+
+            //check that queue exists 
+            if (!PipelineMessage.QueueExists(SQSClient, config.JobQueue))
+            {
+                Console.WriteLine("Queue does not exist. Quitting landform.");
+                return 1;
+            }
+
             //These jobs are CPU intensive - feature detection and matching, for example, use 100% of cpu for short bursts.
-            //However, overlap detection (as it is currently) is a lot of reading from Dynamo but is NOT cpu intensive, so would benefit from parallization 
-            Parallel.For(0, 1, (int i) =>  
+            //However, there is also time spent waiting on AWS services. Guessing 2 jobs for now.  
+            Parallel.For(0, 2, (int i) =>  
             {
                 while (true)
                 {
@@ -222,7 +224,6 @@ namespace OPS.Pipeline
             //   Image record: S3 locaiton, S3 keypoints location, metadata 
             //   Transforms record: this image's transform 
             //Use the observation we made or found while indexing metadata
-            //TODO could reduce dynamo writes by not writing the observation until here
             //TODO this kind of direct interaction with Dynamo should be in the Object Persistence classes
             indexed.obs.FeatureUrl = featureUrl.Url;
             try 

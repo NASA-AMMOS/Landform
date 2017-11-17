@@ -60,6 +60,28 @@ namespace OPS.Cloud
             throw new CloudException("Unrecognized message type");
         }
 
+        public static bool QueueExists(IAmazonSQS client, string queueUrl)
+        {
+            GetQueueAttributesRequest req = new GetQueueAttributesRequest()
+            {
+                AttributeNames = new List<String> { "QueueArn" },
+                QueueUrl = queueUrl
+            };
+            try
+            {
+                GetQueueAttributesResponse resp = client.GetQueueAttributes(req);
+            }
+            catch(AmazonSQSException e)
+            {
+                if (e.ErrorCode == "AWS.SimpleQueueService.NonExistentQueue")
+                {
+                    return false;
+                }
+                else throw e;
+            }
+            return true;
+        }
+
 
         /// <summary>
         /// Delete this message 

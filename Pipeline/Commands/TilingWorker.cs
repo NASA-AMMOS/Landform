@@ -96,19 +96,25 @@ namespace OPS.Pipeline
         }
 
         public int Run()
-        {
-            //TODO check that the given queue name is valid before we wait around a long time 
-            SQSClient = new AmazonSQSClient(Amazon.RegionEndpoint.USWest1); //TODO should pull region from somewhere?
+        { 
+            SQSClient = new AmazonSQSClient(Amazon.RegionEndpoint.USWest1); 
             S3Client = new AmazonS3Client(Amazon.RegionEndpoint.USWest1);
             SNSClient = new AmazonSimpleNotificationServiceClient(Amazon.RegionEndpoint.USWest1);
             MetricPublisher = new CloudWatchMetric(new AmazonCloudWatchClient(Amazon.RegionEndpoint.USWest1));
+
+            //check that queue exists 
+            if (!PipelineMessage.QueueExists(SQSClient, config.JobQueue))
+            {
+                Console.WriteLine("Queue does not exist. Quitting landform.");
+                return 1; 
+            }
 
             //start collecting metrics! 
             metricsTimer = new System.Timers.Timer(120000); //publish metrics every 2 minutes
             metricsTimer.Elapsed += new ElapsedEventHandler(sendMetrics);
             metricsTimer.Enabled = true;
 
-            Parallel.For(0, 8, (int i) => //Gather a max of 8 messages at once. TODO should be configurable
+            Parallel.For(0, 8, (int i) => //Gather a max of 8 messages at once. 
             {
                 while (true)
                 {
@@ -207,9 +213,6 @@ namespace OPS.Pipeline
             Mesh dst = Mesh.Merge(justmesh);
 
             //Recompute normals 
-            //dst.GenerateVertexNormals();
-            //dst = MeshLab.ComputeNormals(dst);
-            //Ensure normals - FSSR will fail without them
             dst.GenerateVertexNormals();
 
             //Sample to smooth edges between parents 
@@ -227,31 +230,25 @@ namespace OPS.Pipeline
             var img = TextureBaker.BakeTexture(meshes, dst3, width, height);
             //Recompute normals 
             dst3.GenerateVertexNormals();
-            //dst3 = MeshLab.ComputeNormals(dst3);
 
             //after processing, the file should have normals and UVs. 
             if (!(dst3.HasNormals && dst3.HasUVs && dst3.HasFaces))
             {
-                throw new Exception("The generated meshe was missing a required feature (normals, UVs, or faces)");
+                throw new Exception("The generated mesh was missing a required feature (normals, UVs, or faces)");
             }
 
             //Save out to temporary files with the names we'll eventually use - makes MTL file work
             string filename = Path.GetFileName(s3url);
             string tempDir = TemporaryFile.GetTempDirectory();
             string location = (tempDir + "/" + filename).Replace('/', '\\');
-
             img.Save<byte>(location + EXTENSIONS[IMG]);
             dst3.Save(location + EXTENSIONS[OBJ], Path.GetFileName(s3url + EXTENSIONS[IMG]));
             storage.UploadFileSingleThread(location + EXTENSIONS[IMG], s3url + EXTENSIONS[IMG]);
             storage.UploadFileSingleThread(location + EXTENSIONS[OBJ], s3url + EXTENSIONS[OBJ]);
             storage.UploadFileSingleThread(location + EXTENSIONS[MTL], s3url + EXTENSIONS[MTL]);
-            Console.WriteLine(".....Upload finished for Message ID = " + m.MessageId);
-
             TemporaryFile.DeleteTempDirectory(tempDir);
-
-            //message is still in queue until we tell it to delete 
+            
             m.DeleteMessage(SQSClient, config.JobQueue);
-
             return 0; 
         }
     }
