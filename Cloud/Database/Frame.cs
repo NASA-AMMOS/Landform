@@ -53,8 +53,6 @@ namespace OPS.Cloud
         /// <summary>
         /// Creates a frame for the given project with the given name.  If no name is specifed a random GUID will be used.
         /// Saves the frame the the database and returns an object with a valid id.
-        /// Returns null if a frame with the given name already exists for this project. -- TODO not implemented
-        /// TODO optimistic locking to return null
         /// </summary>
         /// <param name="context"></param>
         /// <param name="p">Project with a valid id (has been saved to database context)</param>

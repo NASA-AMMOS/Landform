@@ -126,13 +126,6 @@ namespace OPS.Util
                     File.Delete(tmpFiles[i]);
                 }
             }
-            // Wrapping below...
-            //string[] extensions = new string[count];
-            //for (int i = 0; i<count; i++)
-            //{
-            //    extensions[i] = extension;
-            //}
-            //GetAndDeleteMultiple(extensions, func);
         }
 
         /// <summary>
