@@ -86,13 +86,13 @@ namespace OPS.Pipeline
             Console.WriteLine("Recieved " + total + " messages, writing to CloudWatch");
 
             //publish messages recieved
-            MetricPublisher.Publish(total, this.config.PipelineName, EC2InstanceMetadata.InstanceId != null ? EC2InstanceMetadata.InstanceId : "dev_machine");
+            MetricPublisher.Publish(MetricNames.MESSAGES_RECIEVED, total, this.config.PipelineName, EC2InstanceMetadata.InstanceId != null ? EC2InstanceMetadata.InstanceId : "dev_machine");
 
             //public failure metric
-            MetricPublisher.Publish(failures, this.config.PipelineName, EC2InstanceMetadata.InstanceId != null ? EC2InstanceMetadata.InstanceId : "dev_machine");
+            MetricPublisher.Publish(MetricNames.MESSAGES_FAILED, failures, this.config.PipelineName, EC2InstanceMetadata.InstanceId != null ? EC2InstanceMetadata.InstanceId : "dev_machine");
 
             //public success metric
-            MetricPublisher.Publish(successes, this.config.PipelineName, EC2InstanceMetadata.InstanceId != null ? EC2InstanceMetadata.InstanceId : "dev_machine");
+            MetricPublisher.Publish(MetricNames.MESSAGES_SUCCEEDED, successes, this.config.PipelineName, EC2InstanceMetadata.InstanceId != null ? EC2InstanceMetadata.InstanceId : "dev_machine");
         }
 
         public int Run()
@@ -165,8 +165,7 @@ namespace OPS.Pipeline
             //ParentPath is currently the path, including bucket, to the s3 resource that the parent WILL be; minus endings 
             string s3url = "s3://" + m.ParentPath;
 
-            //run a lil image pipeline 
-
+            //run a lil image pipeline. Modeled off Thomas's main loop. 
             int width = 512;
             int height = 512;
 
@@ -236,22 +235,11 @@ namespace OPS.Pipeline
                 throw new Exception("The generated meshe was missing a required feature (normals, UVs, or faces)");
             }
 
-            //Save out to temporary files on disk then upload those to S3
-            /*
-            TemporaryFile.GetAndDeleteMultiple(EXTENSIONS, tmp =>
-            {
-                img.Save<byte>(tmp[IMG]);
-                dst3.Save(tmp[OBJ], Path.GetFileName(s3url + EXTENSIONS[IMG])); 
-                storage.UploadFileSingleThread(tmp[IMG], s3url + EXTENSIONS[IMG]);
-                storage.UploadFileSingleThread(tmp[OBJ], s3url + EXTENSIONS[OBJ]);
-                Console.WriteLine(".....Upload finished for Message ID = " + m.MessageId);
-                storage.UploadFile(Path.ChangeExtension(tmp[OBJ], EXTENSIONS[MTL]), s3url + EXTENSIONS[MTL]); 
-            });
-            */
-            //Save out to temporary files with the names we'll eventually use 
-            //TODO this is a temporary fix because there is a filename dependency when writing out MTL files. This will break if a worker gets two of the same message at once (which is possible)
+            //Save out to temporary files with the names we'll eventually use - makes MTL file work
             string filename = Path.GetFileName(s3url);
-            string location = (@"C:\tmp\in\" + filename).Replace('/', '\\');
+            string tempDir = TemporaryFile.GetTempDirectory();
+            string location = (tempDir + "/" + filename).Replace('/', '\\');
+
             img.Save<byte>(location + EXTENSIONS[IMG]);
             dst3.Save(location + EXTENSIONS[OBJ], Path.GetFileName(s3url + EXTENSIONS[IMG]));
             storage.UploadFileSingleThread(location + EXTENSIONS[IMG], s3url + EXTENSIONS[IMG]);
@@ -259,18 +247,7 @@ namespace OPS.Pipeline
             storage.UploadFileSingleThread(location + EXTENSIONS[MTL], s3url + EXTENSIONS[MTL]);
             Console.WriteLine(".....Upload finished for Message ID = " + m.MessageId);
 
-            if (File.Exists(location + EXTENSIONS[OBJ]))
-            {
-                File.Delete(location + EXTENSIONS[OBJ]);
-            }
-            if (File.Exists(location + EXTENSIONS[IMG]))
-            {
-                File.Delete(location + EXTENSIONS[IMG]);
-            }
-            if (File.Exists(location + EXTENSIONS[MTL]))
-            {
-                File.Delete(location + EXTENSIONS[MTL]);
-            }
+            TemporaryFile.DeleteTempDirectory(tempDir);
 
             //message is still in queue until we tell it to delete 
             m.DeleteMessage(SQSClient, config.JobQueue);

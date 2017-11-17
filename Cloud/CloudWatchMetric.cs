@@ -10,13 +10,23 @@ using Amazon.CloudWatch;
 namespace OPS.Cloud
 {
     /// <summary>
+    /// Names of custom CloudWatch metrics 
+    /// </summary>
+    public class MetricNames
+    {
+        public const string MESSAGES_RECIEVED = "MessagesRecieved";
+        public const string MESSAGES_FAILED = "MessagesFailed";
+        public const string MESSAGES_SUCCEEDED = "MessagesSucceeded";
+    }
+
+    /// <summary>
     /// Helper class for workers publishing custom cloudwatch metrics
     /// </summary>
     public class CloudWatchMetric
     {
         private IAmazonCloudWatch CWClient;
 
-        //Cloudwatch namespace for this metric 
+        //Cloudwatch namespace 
         private const string Namespace = "Pipeline";
 
         public CloudWatchMetric(IAmazonCloudWatch CWClient)
@@ -31,13 +41,13 @@ namespace OPS.Cloud
         /// <param name="pipelineName"></param>
         /// <param name="instanceId"></param>
         /// <returns></returns>
-        public System.Net.HttpStatusCode Publish(double value, string pipelineName, string instanceId)
+        public System.Net.HttpStatusCode Publish(string metricName, double value, string pipelineName, string instanceId)
         {
             var CWResponse = CWClient.PutMetricData(new PutMetricDataRequest
             {
                 MetricData = new List<MetricDatum> { new MetricDatum
                 {
-                    MetricName = "MessagesRecieved",
+                    MetricName = metricName,
                     Unit = StandardUnit.Count,
                     Value = value,
                     Dimensions = new List<Dimension> {

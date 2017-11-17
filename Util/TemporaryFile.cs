@@ -157,6 +157,28 @@ namespace OPS.Util
             }
         }
 
+        /// <summary>
+        /// Provide a guid temp directory so caller can save specific file names at a unique path 
+        /// </summary>
+        /// <returns></returns>
+        public static string GetTempDirectory()
+        {
+            string tempDir = Guid.NewGuid().ToString();
+            string fullPathToTempDirectory = Path.GetFullPath(tmpDirectory) + tempDir;
+            PathHelper.EnsureExists(Path.GetFullPath(fullPathToTempDirectory));
+            return fullPathToTempDirectory;
+        }
+
+        /// <summary>
+        /// Delete temp directory and all contents 
+        /// </summary>
+        /// <param name="extension"></param>
+        /// <returns></returns>
+        public static void DeleteTempDirectory(string tempDir)
+        {
+            Directory.Delete(tempDir, true);
+        }
+
         private static string GetTempName(string extension)
         {
             string tempFilename = string.Format("{0}.tmp{1}", Guid.NewGuid(), Path.GetExtension(extension));
