@@ -59,30 +59,30 @@ $S3ScanName = ($json | ConvertFrom-Json).StackResources.PhysicalResourceId
 cd ..\..\LambdaParentTileJobCreation 
 dotnet restore 
 dotnet lambda deploy-function $DynamoProcessingName 
-aws s3 cp bin\Release\netcoreapp1.0\LambdaParentTileJobCreation.zip s3://$UploadBucket/$S3Prefix/pipeline_resources/LambdaParentTileJobCreation.zip
+aws s3 cp bin\Release\netcoreapp1.0\LambdaParentTileJobCreation.zip s3://$UploadBucket/$S3Prefix/stack_resources/LambdaParentTileJobCreation.zip
 
 cd ..\LambdaS3TileIntake
 dotnet restore
 dotnet lambda deploy-function $S3PutProcessingName
-aws s3 cp bin\Release\netcoreapp1.0\LambdaS3TileIntake.zip s3://$UploadBucket/$S3Prefix/pipeline_resources/LambdaS3TileIntake.zip
+aws s3 cp bin\Release\netcoreapp1.0\LambdaS3TileIntake.zip s3://$UploadBucket/$S3Prefix/stack_resources/LambdaS3TileIntake.zip
 
 ### Build and upload lambdas to the alignment physical resources we found above 
 
 cd ..\LambdaS3ImageIntake 
 dotnet restore 
 dotnet lambda deploy-function $S3ImageIntakeName 
-aws s3 cp bin\Release\netcoreapp1.0\LambdaS3ImageIntake.zip s3://$UploadBucket/$S3Prefix/pipeline_resources/LambdaS3ImageIntake.zip
+aws s3 cp bin\Release\netcoreapp1.0\LambdaS3ImageIntake.zip s3://$UploadBucket/$S3Prefix/stack_resources/LambdaS3ImageIntake.zip
 
 cd ..\LambdaScanS3
 dotnet restore 
 dotnet lambda deploy-function $S3ScanName 
-aws s3 cp bin\Release\netcoreapp1.0\LambdaScanS3.zip s3://$UploadBucket/$S3Prefix/pipeline_resources/LambdaScanS3.zip
+aws s3 cp bin\Release\netcoreapp1.0\LambdaScanS3.zip s3://$UploadBucket/$S3Prefix/stack_resources/LambdaScanS3.zip
 
 ## Queue size metric lambda is the same for both alignment and tiling 
 cd ..\LambdaQueueSizeMetric
 dotnet restore 
 dotnet lambda deploy-function $TilingQueueSizeMetricName 
 dotnet lambda deploy-function $AlignmentQueueSizeMetricName 
-aws s3 cp bin\Release\netcoreapp1.0\LambdaQueueSizeMetric.zip s3://$UploadBucket/$S3Prefix/pipeline_resources/LambdaQueueSizeMetric.zip
+aws s3 cp bin\Release\netcoreapp1.0\LambdaQueueSizeMetric.zip s3://$UploadBucket/$S3Prefix/stack_resources/LambdaQueueSizeMetric.zip
 
 cd ..
