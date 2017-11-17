@@ -3,7 +3,8 @@
 ## If you use the name of an existing stack, the stack will be updated instead. Only the resources that need to change 
 ##      (based on changes in parameters or changes in any template used by the stack) will change. 
 ## Helpful hint: changing the table prefix will re-create the tables, effectively emptying them. 
-## Helpful hint #2: If you make changes that update the workers' launch configuration, you will have to mark as unhealthy all workers that were started before the update
+## Helpful hint #2: If you make changes that update the workers' launch configuration, you will have to mark as unhealthy all workers that were started before the update 
+## Helpful hint #3: If you make a change that changes a table, it will need to be replaced, so you will have to provide a new table prefix 
 ##
 ## UPDATE THIS SCRIPT WHENEVER...
 ## A lambda function is added
@@ -40,10 +41,10 @@ dotnet restore
 dotnet build
 aws s3 cp bin\Release\netcoreapp1.0\LambdaScanS3.zip s3://$Bucket/$S3Prefix/stack_resources/LambdaScanS3.zip
 
-cd ..\LambdaDynamoProcessing
+cd ..\LambdaParentTileJobCreation
 dotnet restore 
 dotnet build
-aws s3 cp bin\Release\netcoreapp1.0\LambdaDynamoProcessing.zip s3://$Bucket/$S3Prefix/stack_resources/LambdaDynamoProcessing.zip
+aws s3 cp bin\Release\netcoreapp1.0\LambdaParentTileJobCreation.zip s3://$Bucket/$S3Prefix/stack_resources/LambdaParentTileJobCreation.zip
 
 cd ..\LambdaS3TileIntake
 dotnet restore 

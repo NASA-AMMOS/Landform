@@ -19,7 +19,7 @@ using Lambda.LambdaUtil;
 // Assembly attribute to enable the Lambda function's JSON input to be converted into a .NET class.
 [assembly: LambdaSerializer(typeof(Amazon.Lambda.Serialization.Json.JsonSerializer))]
 
-namespace Lambda.LambdaDynamoProcessing
+namespace Lambda.LambdaParentTileJobCreation
 {
     /// <summary>
     /// Processes DynamoDB stream from ParentTiles table of mesh tiling pipeline. 

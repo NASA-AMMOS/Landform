@@ -572,7 +572,7 @@
                 }
             }
         },
-        "MetadataTable": {
+        "ParentTilesTable": {
             "Type": "AWS::DynamoDB::Table",
             "Properties": {
                 "TableName": {
@@ -612,7 +612,7 @@
                 }
             }
         },
-        "MetadataTriggerProcessing": {
+        "ParentJobCreationLambda": {
             "Type": "AWS::Lambda::Function",
             "Properties": {
                 "Code": {
@@ -634,7 +634,7 @@
                         }
                     }
                 },
-                "Handler": "LambdaDynamoProcessing::Lambda.LambdaDynamoProcessing.Function::FunctionHandler",
+                "Handler": "LambdaParentTileJobCreation::Lambda.LambdaParentTileJobCreation.Function::FunctionHandler",
                 "Role": "arn:aws:iam::589270964471:role/lambda-dynamodb",
                 "Runtime": "dotnetcore1.0",
                 "Timeout": 30
@@ -663,13 +663,13 @@
                 "Enabled": true,
                 "EventSourceArn": {
                     "Fn::GetAtt": [
-                        "MetadataTable",
+                        "ParentTilesTable",
                         "StreamArn"
                     ]
                 },
                 "FunctionName": {
                     "Fn::GetAtt": [
-                        "MetadataTriggerProcessing",
+                        "ParentJobCreationLambda",
                         "Arn"
                     ]
                 },
@@ -941,7 +941,7 @@
         },
         "ChildTiles": {
             "Type": "AWS::DynamoDB::Table",
-            "DependsOn": "MetadataTable",
+            "DependsOn": "ParentTilesTable",
             "Properties": {
                 "TableName": {
                     "Fn::Join": [
@@ -1050,7 +1050,7 @@
                         [
                             "table",
                             {
-                                "Ref": "MetadataTable"
+                                "Ref": "ParentTilesTable"
                             }
                         ]
                     ]
@@ -1152,7 +1152,7 @@
                         [
                             "table",
                             {
-                                "Ref": "MetadataTable"
+                                "Ref": "ParentTilesTable"
                             }
                         ]
                     ]
@@ -1259,16 +1259,16 @@
                 "Ref": "JobQueue"
             }
         },
-        "ChildTiles": {
+        "ChildTilesTable": {
             "Description": "Output for Console EB env vars.",
             "Value": {
                 "Ref": "ChildTiles"
             }
         },
-        "MetadataTable": {
+        "ParentTilesTable": {
             "Description": "Output for Console EB env vars.",
             "Value": {
-                "Ref": "MetadataTable"
+                "Ref": "ParentTilesTable"
             }
         },
         "S3TileIntakeLambda": {
@@ -1292,7 +1292,7 @@
         "ParentJobCreationLambda": {
             "Description": "Output for Console EB env vars.",
             "Value": {
-                "Ref": "MetadataTriggerProcessing"
+                "Ref": "ParentJobCreationLambda"
             }
         }
     }

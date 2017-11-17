@@ -229,7 +229,7 @@
                         "Value": {
                             "Fn::GetAtt": [
                                 "Tiling",
-                                "Outputs.ChildTiles"
+                                "Outputs.ChildTilesTable"
                             ]
                         }
                     },
@@ -239,7 +239,7 @@
                         "Value": {
                             "Fn::GetAtt": [
                                 "Tiling",
-                                "Outputs.MetadataTable"
+                                "Outputs.ParentTilesTable"
                             ]
                         }
                     },

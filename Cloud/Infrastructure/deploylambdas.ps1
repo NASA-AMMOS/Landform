@@ -29,7 +29,7 @@ $S3ImageIntakeResource = "S3ImageIntake"
 $QueueSizeMetricResource = "QueueMonitor"
 $S3ScanResource = "S3Scan"
 $S3TileIntakeResource = "S3Watcher"
-$DynamoProcessingResource = "MetadataTriggerProcessing"
+$DynamoProcessingResource = "ParentJobCreationLambda"
 
 ### Get names for each of our tiling resources 
 $json = aws cloudformation describe-stack-resources --stack-name $TilingStackName --logical-resource-id $QueueSizeMetricResource --output json 
@@ -56,10 +56,10 @@ $S3ScanName = ($json | ConvertFrom-Json).StackResources.PhysicalResourceId
 
 ### Build and upload lambdas to the tiling physical resources we found above 
 
-cd ..\..\LambdaDynamoProcessing 
+cd ..\..\LambdaParentTileJobCreation 
 dotnet restore 
 dotnet lambda deploy-function $DynamoProcessingName 
-aws s3 cp bin\Release\netcoreapp1.0\LambdaDynamoProcessing.zip s3://$UploadBucket/$S3Prefix/pipeline_resources/LambdaDynamoProcessing.zip
+aws s3 cp bin\Release\netcoreapp1.0\LambdaParentTileJobCreation.zip s3://$UploadBucket/$S3Prefix/pipeline_resources/LambdaParentTileJobCreation.zip
 
 cd ..\LambdaS3TileIntake
 dotnet restore

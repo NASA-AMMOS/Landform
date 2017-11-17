@@ -9,8 +9,8 @@ ImagingEmgu/obj/
 ImagingEmguTest/bin/
 ImagingEmguTest/obj/
 Cloud/Infrastructure/release/
-LambdaDynamoProcessing/bin/
-LambdaDynamoProcessing/obj/
+LambdaParentTileJobCreation/bin/
+LambdaParentTileJobCreation/obj/
 LambdaQueueSizeMetric/bin/
 LambdaQueueSizeMetric/obj/
 LambdaS3TileIntake/bin/
