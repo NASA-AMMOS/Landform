@@ -196,7 +196,7 @@ namespace OPS.Pipeline
             //do keypoint and feature detection 
             //Downloading image. Image.Load() does spooky things with temp files which are mitigated (somewhat) by not using the temp file wrapper
             string root = (@"C:\tmp\in\" + Guid.NewGuid()).Replace('/', '\\');
-            storage.DownloadFile(url.Url, root + Path.GetExtension(url.Url)); //TODO metadata indexing opens a stream. Is it signifiantly more efficient to download file there?
+            storage.DownloadFile(url.Url, root + Path.GetExtension(url.Url)); 
             Image im = Image.Load(root + Path.GetExtension(url.Url));
 
             //snagged from MatchImages
@@ -224,7 +224,6 @@ namespace OPS.Pipeline
             //   Image record: S3 locaiton, S3 keypoints location, metadata 
             //   Transforms record: this image's transform 
             //Use the observation we made or found while indexing metadata
-            //TODO this kind of direct interaction with Dynamo should be in the Object Persistence classes
             indexed.obs.FeatureUrl = featureUrl.Url;
             indexed.obs.Save(context);
 
@@ -334,14 +333,14 @@ namespace OPS.Pipeline
 
                 MoisanStivalFilter filter = new MoisanStivalFilter();
                 matches = filter.Filter(matches);
-                if (matches == null || matches.DataToModel.Length < 8) //TODO the next filter breaks if there are too few matches idk man
+                if (matches == null || matches.DataToModel.Length < 8) //Filters break with too few matches. Issue #91
                 {
                     Console.WriteLine("No matches found after MoisanStivalFilter");
-                    m.DeleteMessage(SQSClient, config.JobQueue); //TODO if no matches, might be nice to delete Overlaps entry
+                    m.DeleteMessage(SQSClient, config.JobQueue); 
                     return;
                 }
                 GTM gtm = new GTM(5);
-                matches = gtm.Filter(matches); //an example pairing to replicate this breaking: 0601ML0025370360301244E01_DRCX x 0604ML0025490030301399D01_DRCX
+                matches = gtm.Filter(matches); 
                 if (matches == null)
                 {
                     Console.WriteLine("No matches found after GTM Filter");

@@ -1183,10 +1183,6 @@
                     {
                         "AttributeName": "project_name",
                         "AttributeType": "S"
-                    },
-                    {
-                        "AttributeName": "sector_id",
-                        "AttributeType": "S"
                     }
                 ],
                 "KeySchema": [
@@ -1202,29 +1198,7 @@
                 "ProvisionedThroughput": {
                     "ReadCapacityUnits": "50",
                     "WriteCapacityUnits": "5"
-                },
-                "GlobalSecondaryIndexes": [
-                    {
-                        "IndexName": "ImageLookupBySector",
-                        "KeySchema": [
-                            {
-                                "AttributeName": "sector_id",
-                                "KeyType": "HASH"
-                            },
-                            {
-                                "AttributeName": "observation_name",
-                                "KeyType": "RANGE"
-                            }
-                        ],
-                        "Projection": {
-                            "ProjectionType": "KEYS_ONLY"
-                        },
-                        "ProvisionedThroughput": {
-                            "ReadCapacityUnits": "5",
-                            "WriteCapacityUnits": "5"
-                        }
-                    }
-                ]
+                }
             },
             "Metadata": {
                 "AWS::CloudFormation::Designer": {
@@ -1300,7 +1274,7 @@
                 "Role": "arn:aws:iam::589270964471:role/lambda-dynamodb",
                 "Runtime": "dotnetcore1.0",
                 "Timeout": 300,
-                "MemorySize": 256
+                "MemorySize": 1536
             },
             "Metadata": {
                 "AWS::CloudFormation::Designer": {
@@ -1495,7 +1469,7 @@
                 },
                 "GlobalSecondaryIndexes": [
                     {
-                        "IndexName": "SectorLookupByLocation",
+                        "IndexName": "ReverseTransformLookup",
                         "KeySchema": [
                             {
                                 "AttributeName": "to_frame_name",
