@@ -14,7 +14,7 @@ namespace OPS.Alignment
         private static readonly ILog logger = LogManager.GetLogger(typeof(MoisanStivalFilter));
 
         //minimum number of matches this filter can process without crashing 
-        private const int MinMatches = 8; 
+        private const int MIN_MATCHES = 8; 
 
         public int MaxIterations;
         public bool RefineStep;
@@ -26,7 +26,7 @@ namespace OPS.Alignment
 
         public ImagePairCorrespondence Filter(ImagePairCorrespondence matches)
         {
-            if (matches.DataToModel.Length < MinMatches)
+            if (matches.DataToModel.Length < MIN_MATCHES)
             {
                 return matches;
             }
