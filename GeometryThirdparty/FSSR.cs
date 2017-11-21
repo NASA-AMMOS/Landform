@@ -18,6 +18,8 @@ namespace OPS.Geometry
     {
         private static readonly ILog logger = LogManager.GetLogger(typeof(FSSR));
 
+
+
         /// <summary>
         /// Build a mesh from the provided point cloud or mesh with faces
         /// Requires the mesh has normals but not uvs or colors
@@ -53,8 +55,13 @@ namespace OPS.Geometry
                 TemporaryFile.GetAndDelete(".ply", outputFile => {
                     ProgramRunner pr = new ProgramRunner(fssrExe, inputFile + " " + outputFile, captureOutput: true);
                     pr.Run();
+                    if(!File.Exists(outputFile))
+                    {
+                        logger.Error(pr.OutputText);
+                        logger.Error(pr.ErrorText);
+                    }
                     int ouputVertCount = Mesh.Load(outputFile).Vertices.Count;
-                    if (!File.Exists(outputFile) || ouputVertCount == 0)
+                    if (ouputVertCount == 0)
                     {
                         logger.Error(pr.OutputText);
                         logger.Error(pr.ErrorText);

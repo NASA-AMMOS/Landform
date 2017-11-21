@@ -414,7 +414,6 @@ namespace OPS.Geometry
                     }
                 }
             }
-
             // Remove the vertices selected on the edge that are part of the skirt
             RemoveVertices(verticesToRemove);
         }
@@ -424,7 +423,7 @@ namespace OPS.Geometry
         /// </summary>
         /// <param name="axis">Extrudes the skirt in the X, Y, or Z axis</param>
         /// <param name="heightAsPercentOfWidth">Specifies the height of the skirt, where 100% is the width or</param>
-        public void AddSkirt(SkirtAxis axis = SkirtAxis.Y, double heightAsPercentOfWidth = 1)
+        public void AddSkirt(SkirtAxis axis, double heightAsPercentOfWidth = 1)
         {
             // Calculate skirt offset height
             Vector3 size = Bounds().Size();
@@ -676,7 +675,7 @@ namespace OPS.Geometry
                 Mesh m = otherMeshes[i];
                 if(!AttributesSubsetOf(m))
                 {
-                    throw new Exception("Mesh to merge missing one or more attributes required by aggregate mesh");
+                    throw new MeshException("Mesh to merge missing one or more attributes required by aggregate mesh");
                 }
                 int vertexBaseCount = this.Vertices.Count;
                 for (int j = 0; j < m.Vertices.Count; j++)
@@ -895,6 +894,57 @@ namespace OPS.Geometry
         }
 
         /// <summary>
+        /// Assumes mesh with axis-aligned rectangular convex hull when projected onto the plane defined by upAxis.
+        /// Returns the vertex posisitions of the 3 corners.
+        /// </summary>
+        /// <param name="upAxis">"up" axis of mesh (given as vector3 with single non-zero component) </param>
+        /// <returns></returns>
+        public List<Vertex> Corners(Vector3 upAxis)
+        {
+            List<int> axes = new List<int>();
+            for(int i = 0; i < 3; i++)
+            {
+                if(upAxis.ToDoubleArray()[i] == 0)
+                {
+                    axes.Add(i);
+                }
+            }
+            if(axes.Count != 2)
+            {
+                throw new MeshException("Axis must have exactly one non-zero component");
+            }
+
+            int a1 = axes[0];
+            int a2 = axes[1];
+
+            Vertex lowerLeft = Vertices[0];
+            Vertex lowerRight = Vertices[0];
+            Vertex upperLeft = Vertices[0];
+            Vertex upperRight = Vertices[0];
+            foreach (Vertex v in Vertices)
+            {
+                double[] pos = v.Position.ToDoubleArray();
+                if (pos[a1] + pos[a2] < lowerLeft.Position.X + lowerLeft.Position.ToDoubleArray()[a2])
+                {
+                    lowerLeft = v;
+                }
+                if (-1 * pos[a1] + pos[a2] < -1 * lowerRight.Position.ToDoubleArray()[a1] + lowerRight.Position.ToDoubleArray()[a2])
+                {
+                    lowerRight = v;
+                }
+                if (pos[a1] - pos[a2] < upperLeft.Position.ToDoubleArray()[a1] - upperLeft.Position.ToDoubleArray()[a2])
+                {
+                    upperLeft = v;
+                }
+                if (-1 * pos[a1] - pos[a2] < -1 * upperRight.Position.ToDoubleArray()[a1] - upperRight.Position.ToDoubleArray()[a2])
+                {
+                    upperRight = v;
+                }
+            }
+            return new List<Vertex> { lowerLeft, lowerRight, upperLeft, upperRight };
+        }
+
+        /// <summary>
         /// Translate this mesh to be centered on its bounds
         /// </summary>
         public void Center()
@@ -963,15 +1013,15 @@ namespace OPS.Geometry
                     || (B.Position.AlmostEqual(e.A.Position) && A.Position.AlmostEqual(e.B.Position));
             }
         }
+    }
 
-        /// <summary>
-        /// X, Y, or Z axis which the skirt is directed along
-        /// </summary>
-        public enum SkirtAxis
-        {
-            X,
-            Y,
-            Z
-        }
+    /// <summary>
+    /// X, Y, or Z axis which the skirt is directed along
+    /// </summary>
+    public enum SkirtAxis
+    {
+        X,
+        Y,
+        Z
     }
 }

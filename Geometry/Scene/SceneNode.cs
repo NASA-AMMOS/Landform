@@ -145,20 +145,33 @@ namespace OPS.Geometry
                 "Jimmy", "Joseph", "Josef", "Harold", "Franzibald",
                 "Timothy", "Li'l Greg", "Alice", "Bob", "Charlie",
                 "The Big One", "Strungo", "Grumpy", "Happy", "Sleepy",
-                "Dopey", "Bashful", "Sneezy", "Doc", "Doc Brown",
+                "Dopey", "Bashful", "Sneezy", "Doc", "Doc Brown", "Kevin Bacon",
                 "Marty McFly from Back To The Future", "Sparky", "Hugo",
-                "Leonard", "Lynyrd", "Chuck", "Alyssa", "Chuckles",
-                "Patricia", "Strongface", "The Danger", "George",
-                "Flapjack", "Harry", "Ol' Hickory Ham Mike", "Nick",
-                "Yoko", "Mortality Itself", "Penny", "Jack", "Eve"
+                "Leonard", "Lynyrd", "Chuck", "Alyssa", "Chuckles", "Mick",
+                "Patricia", "Strongface", "The Danger", "George", "Donald",
+                "Flapjack", "Harry", "Ol' Hickory Ham Mike", "Nick", "Thom", "Watman",
+                "Yoko", "Mortality Itself", "Penny", "Jack", "Rocky", "Bill", "Ted", "Eve"
             // TODO: expand
         };
+
+        static readonly string[] SillyDescriptors = new string[]
+        {
+            "Desolate", "Yellow", "High", "Gigantic", "Icy", "Dusty", "Dry", "Humid", "Nice", "Hilly", "Rocky", "Orange", "Sunny", "Cloudy", "Dull", "Smoky", "Foggy", "Ancient", "Granite", "Boring", "Exciting", "Huge", "Excellent", "Dramatic"
+        };
+
+        static readonly string[] LessSillyPlaces = new string[]
+        {
+            "Flats", "Plains", "Highlands", "Desert", "Mountain", "Savannah", "Ocean", "Taiga", "Valley", "Tundra", "Mesa", "Canyon", "Ridge", "Cliff Face", "Riverbed", "Gorge", "Rock", "Swamp", "Adventure", "Slope", "Descent", "Erg",
+            "Barchan", "Dunes", "Dreikanter", "Ventifact", "Yardang", "Palsa", "Fjord", "Marsh", "Inselberg", "Gully", "Gulch", "Cuesta", "Hogback", "Hoodoos", "Arroyo", "Yazoo Stream", "Terrace", "Ravine", "Dome", "Crater", "Cryovolcano",
+            "Bornhardt", "Karst Field"
+        };
+
         static Random nameRand = new Random();
         /// <summary>
         /// Create a new node with a random silly name.
         /// </summary>
         public SceneNode()
-            : this(SillyNames[nameRand.Next(SillyNames.Length)])
+            : this(SillyNames[nameRand.Next(SillyNames.Length)] + " and " + SillyNames[nameRand.Next(SillyNames.Length)] + "'s " + SillyDescriptors[nameRand.Next(SillyDescriptors.Length)] + " " + LessSillyPlaces[nameRand.Next(LessSillyPlaces.Length)])
         {
         }
 

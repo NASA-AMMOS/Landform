@@ -226,8 +226,7 @@ namespace OPS.Pipeline
                     }
                 }
             }
-
-            BoundingBox innerBounds = BoundingBoxExtensions.Union(innerNodes.Select(n => n.Bounds).ToList());
+            BoundingBox innerBounds = BoundingBoxExtensions.Union(innerNodes.Select(n => n.Bounds).ToArray());
             // Compute collision tile
             {
                 logger.Info("Creating low poly collision mesh");
@@ -284,7 +283,7 @@ namespace OPS.Pipeline
                 var borderImage =
                     TextureBaker.BakeTexture(outterNodes.Select(n => n.GetComponent<MeshImagePair>()).ToArray(), border,
                         backgroundResolution, backgroundResolution);
-                border.AddSkirt(Mesh.SkirtAxis.Y, 0.25);
+                border.AddSkirt(SkirtAxis.Y, 0.25);
                 SceneNode background = new SceneNode("background");
                 background.AddComponent<MeshImagePair>(new MeshImagePair(border, borderImage));
                 WriteTile(background);
@@ -308,7 +307,7 @@ namespace OPS.Pipeline
                 // TODO: Remove skirts
                 foreach (var mesh in meshes)
                 {
-                    mesh.RemoveSkirt(Mesh.SkirtAxis.Y);
+                    mesh.RemoveSkirt(SkirtAxis.Y);
                 }
                 var m = Mesh.Merge(meshes);
                 m.Clean();
@@ -350,7 +349,7 @@ namespace OPS.Pipeline
                 var img = TextureBaker.BakeTexture(pairs.ToArray(), m, textureWidth, textureHeight);
 
                 // TODO: Add skirts
-                m.AddSkirt(Mesh.SkirtAxis.Y);
+                m.AddSkirt(SkirtAxis.Y);
                 leaf.Bounds = m.Bounds();
                 // TODO: offset leaf
                 leaf.AddComponent(new MeshImagePair(m, img));
@@ -553,7 +552,7 @@ namespace OPS.Pipeline
                     HashSet<SceneNode> nextParents = new HashSet<SceneNode>();
                     foreach (var p in curParents)
                     {
-                        p.Bounds = BoundingBoxExtensions.Union(p.Children.Select(c => c.Bounds).ToList());
+                        p.Bounds = BoundingBoxExtensions.Union(p.Children.Select(c => c.Bounds).ToArray());
                         if (p.Parent != null)
                         {
                             nextParents.Add(p.Parent);

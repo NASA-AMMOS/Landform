@@ -234,7 +234,7 @@ namespace OPS.Geometry
         /// Compute the largest geometric bi-directional difference between two meshes
         /// Works on meshes with faces and point sets
         /// </summary>
-        public static HausdorffDistance BidirectionalHausdorffDistance(Mesh m1, Mesh m2, double maxDist = 0, int numSamples = 250000)
+        public static HausdorffDistanceStats BidirectionalHausdorffDistance(Mesh m1, Mesh m2, double maxDist = 0, int numSamples = 250000)
         {
             string script = @"<!DOCTYPE FilterScript>
 <FilterScript>
@@ -262,11 +262,11 @@ namespace OPS.Geometry
             MeshLabRunner forwardMLR = new MeshLabRunner(new List<Mesh>(new Mesh[] { m1, m2 }), meshlabScript, attributes, ".ply", null);
             forwardMLR.Run();
             
-            var forwardDistance = HausdorffDistance.ParseFromMeshLabOutput(forwardMLR.OutputText);
+            var forwardDistance = HausdorffDistanceStats.ParseFromMeshLabOutput(forwardMLR.OutputText);
             MeshLabRunner backwardMLR = new MeshLabRunner(new List<Mesh>(new Mesh[] { m2, m1 }), meshlabScript, attributes, ".ply", null);
             backwardMLR.Run();
-            var backwardDistance = HausdorffDistance.ParseFromMeshLabOutput(backwardMLR.OutputText);
-            return HausdorffDistance.Largest(forwardDistance, backwardDistance);
+            var backwardDistance = HausdorffDistanceStats.ParseFromMeshLabOutput(backwardMLR.OutputText);
+            return HausdorffDistanceStats.Largest(forwardDistance, backwardDistance);
         }
     }
 }
