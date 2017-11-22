@@ -483,6 +483,13 @@ namespace OPS.Geometry
             return Clip(box).Count() > 0;
         }
 
+        /// <summary>
+        /// Subdivides this triangle along the plane and returns a list of the subsequent triangles
+        /// This is accomplished by clipping the triangle once to get the portion above the plane, and then
+        /// a second time to get the portion below the plane.  These two sets of triangles are unioned and returned.
+        /// </summary>
+        /// <param name="plane"></param>
+        /// <returns></returns>
         public IEnumerable<Triangle> SplitAlongPlane(Plane plane)
         {
             // Clip in first direction
@@ -499,6 +506,12 @@ namespace OPS.Geometry
             }
         }
 
+        /// <summary>
+        /// Cut this triangle to just the portion that is outside the given bounding box.  Return a list of new triangles
+        /// that make up the resulting geometry.
+        /// </summary>
+        /// <param name="box"></param>
+        /// <returns></returns>
         public IEnumerable<Triangle> Cut(BoundingBox box)
         {
             // This triangle does not intersect the box.  Clip nothing by returning the triangle
