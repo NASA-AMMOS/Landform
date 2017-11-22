@@ -48,6 +48,9 @@ namespace OPS.Pipeline
         public string ImageFormat { get; set; }
     }
 
+    /// <summary>
+    /// A converter to go from legacy scenes to the format used by AccessMars
+    /// </summary>
     public class LegacyToWebVR
     {
         private static readonly ILog logger = LogManager.GetLogger(typeof(LegacyToWebVR));
@@ -71,7 +74,7 @@ namespace OPS.Pipeline
             }
         }
 
-        public void RenderOrtho(SceneCaster sc, int imageRes, int demRes, float extent)
+        void RenderOrtho(SceneCaster sc, int imageRes, int demRes, float extent)
         {
             var mat = Matrix.CreateLookAt(new Vector3(0, 100, 0), new Vector3(0, 0, 0), new Vector3(0,0,1));
             Image img = new Image(3, imageRes, imageRes);
@@ -79,7 +82,7 @@ namespace OPS.Pipeline
             Parallel.For(0, img.Height, r => {
                 for (int c = 0; c < img.Width; c++)
                 {
-                    Ray ray = cam.ProjectRay(new Vector2(c + 0.5, r + 0.5));
+                    Ray ray = cam.ProjectRay(new Vector2(c, r));
                     HitData hit = sc.Raycast(ray);
                     if (hit != null)
                     {
@@ -99,7 +102,7 @@ namespace OPS.Pipeline
             {
                 for (int c = 0; c < img.Width; c++)
                 {
-                    Ray ray = cam.ProjectRay(new Vector2(c + 0.5, r + 0.5));
+                    Ray ray = cam.ProjectRay(new Vector2(c, r));
                     HitData hit = sc.Raycast(ray);
                     if (hit != null)
                     {
@@ -153,7 +156,16 @@ namespace OPS.Pipeline
             return faceCounts;
         }
 
-
+        /// <summary>
+        /// Method to non-linearly stretch uvs for the border mesh
+        /// </summary>
+        /// <param name="x"></param>
+        /// <param name="y"></param>
+        /// <param name="u"></param>
+        /// <param name="v"></param>
+        /// <param name="minDist"></param>
+        /// <param name="maxDist"></param>
+        /// <param name="minUvDist"></param>
         void XYtoUV(double x, double y, out double u, out double v, double minDist, double maxDist, double minUvDist)
         {
             double baseDist = minDist;
@@ -185,16 +197,9 @@ namespace OPS.Pipeline
             logger.Info("Loading legacy scene");
             LegacyScene scene = new LegacyScene(options.InputDirectory, options.InputExtent);
 
+            // Rendering orthos is just for fun, it isn't used by Access Mars
             logger.Info("Rendering Orthos");
             MakeOrthos(scene, 4096, 1024, 20);
-
-            //foreach (var leaf in scene.TerrainRoot.Leaves())
-            //{
-            //    var tmp = leaf.GetComponent<MeshImagePair>();
-            //    string filenameRoot = Path.Combine(options.OutpitDirectory, leaf.Name);
-            //    tmp.Image.Save<byte>(filenameRoot + ".jpg");
-            //    tmp.Mesh.Save(filenameRoot + ".obj", filenameRoot + ".jpg");
-            //}
 
             logger.Info("Computing new scene bounds");
             SceneNode root = new SceneNode("");
@@ -265,13 +270,11 @@ namespace OPS.Pipeline
                 border = Mesh.Cut(border, innerBounds);
                 border.Clean();
 
-
                 double maxDist = 0;
                 double minDist = 64;//double.MaxValue;
                 foreach (var v in border.Vertices)
                 {
                     maxDist = Math.Max(maxDist, Math.Max(Math.Abs(v.Position.X), Math.Abs(v.Position.Z)));
-                    //minDist = Math.Min(minDist, Math.Min(Math.Abs(v.Position.X), Math.Abs(v.Position.Z)));
                 }
                 foreach (var vert in border.Vertices)
                 {
@@ -295,16 +298,10 @@ namespace OPS.Pipeline
             IEnumerable<SceneNode> nodesToProcess = options.InnerMostTilesOnly ? innerNodes : root.Leaves();
             Parallel.ForEach(nodesToProcess, leaf =>
             {
-                //if (File.Exists(Path.Combine(options.OutpitDirectory, leaf.Name + ".obj")))
-                //{
-                //    return;
-                //}
-                Console.WriteLine(leaf.Name);
-
+                logger.Info("Processing " +  leaf.Name);
                 var overlaps = FindOverlappingLeaves(leaf, scene.TerrainRoot);
- 
+
                 var meshes = overlaps.Select(x => x.GetComponent<MeshImagePair>().Mesh).ToArray();
-                // TODO: Remove skirts
                 foreach (var mesh in meshes)
                 {
                     mesh.RemoveSkirt(SkirtAxis.Y);
@@ -348,25 +345,20 @@ namespace OPS.Pipeline
                 m = UVAtlas.Atlas(m, textureWidth, textureHeight);
                 var img = TextureBaker.BakeTexture(pairs.ToArray(), m, textureWidth, textureHeight);
 
-                // TODO: Add skirts
                 m.AddSkirt(SkirtAxis.Y);
                 leaf.Bounds = m.Bounds();
-                // TODO: offset leaf
                 leaf.AddComponent(new MeshImagePair(m, img));
                 var ts = WriteTile(leaf);
                 textureSizeData.TryAdd(leaf.Name, ts);
 
             });
             File.WriteAllText(Path.Combine(options.OutpitDirectory, "index.json"), JsonConvert.SerializeObject(textureSizeData));
-            
-            // TODO: bake parent tiles
             return 0;
         }
 
         TextureSize WriteTile(SceneNode tile)
         {
             var pair = tile.GetComponent<MeshImagePair>();
-
             string imgName = null;
             TextureSize ts = new TextureSize();
             string name = Path.Combine(options.OutpitDirectory, tile.Name);
@@ -452,7 +444,6 @@ namespace OPS.Pipeline
             var max = parent.Bounds.Max;
             var center = parent.Bounds.Center();
 
-
             bool topDown = false;
             string[] tileNames;
             if (topDown)
@@ -469,7 +460,6 @@ namespace OPS.Pipeline
                 // |  3 2
                 tileNames = new string[] { "1", "0", "3", "2" };
             }
-
             
             SceneNode n0 = new SceneNode(parent.Name + tileNames[0], parent.Transform);
             n0.Bounds = new BoundingBox(new Vector3(min.X, double.MinValue, min.Z), new Vector3(center.X, double.MaxValue, center.Z));
@@ -489,161 +479,5 @@ namespace OPS.Pipeline
             result[1, 1] = n3;
             return result;
         }
-        
-
-
-        class LegacyScene
-        {
-            public SceneNode SkyRoot { get; private set; }
-            public SceneNode TerrainRoot { get; private set; }
-
-            public LegacyScene(string inputDirectory, double extent)
-            {
-                SkyRoot = new SceneNode("sky");
-                TerrainRoot = new SceneNode("terrain");
-
-                string meshFilePattern = "*.bob";
-                foreach (string filename in Directory.EnumerateFiles(inputDirectory, meshFilePattern))
-                {
-                    Mesh m = Mesh.Load(filename);
-                    Image img = null;
-                    if (File.Exists(MeshFilenameToImageFilename(filename)))
-                    {
-                        img = Image.Load(MeshFilenameToImageFilename(filename));
-                    }
-                    string id = FileToId(filename);
-                    SceneNode root = SkyRoot;
-                    if (!IsSkyTile(filename))
-                    {
-                        Vector3 v = GetUnityOffsetVector(id, extent);
-                        m.Translate(v);
-                        root = TerrainRoot;
-                    }
-                    for (int i = 0; i < m.Vertices.Count; i++)
-                    {
-                        var uv = m.Vertices[i].UV;
-                        m.Vertices[i].UV = new Vector2(uv.X, 1.0 - uv.Y);
-                        m.Vertices[i].Normal = Vector3.Zero; // Zero out normals since sometimes they are invalid
-                    }
-                    m.HasNormals = false; // Turn off normals since sometimes they are invalid
-                    var node = FindOrCreateNode(id, root);
-                    MeshImagePair pair = new MeshImagePair(m, img);
-                    node.AddComponent(pair);
-                }
-                ComputeBounds(SkyRoot);
-                ComputeBounds(TerrainRoot);
-            }
-
-            void ComputeBounds(SceneNode root)
-            {
-                HashSet<SceneNode> curParents = new HashSet<SceneNode>();
-                foreach (var leaf in root.Leaves())
-                {
-                    var pair = leaf.GetComponent<MeshImagePair>();
-                    leaf.Bounds = pair.Mesh.Bounds();
-                    if (leaf.Parent != null)
-                    {
-                        curParents.Add(leaf.Parent);
-                    }
-                }
-
-                while (curParents.Count > 0)
-                {
-                    HashSet<SceneNode> nextParents = new HashSet<SceneNode>();
-                    foreach (var p in curParents)
-                    {
-                        p.Bounds = BoundingBoxExtensions.Union(p.Children.Select(c => c.Bounds).ToArray());
-                        if (p.Parent != null)
-                        {
-                            nextParents.Add(p.Parent);
-                        }
-                    }
-                    curParents = nextParents;
-                }
-            }
-
-            static SceneNode FindOrCreateNode(string id, SceneNode root)
-            {
-                SceneNode curParent = root;
-                SceneNode child = null;
-                for (int i = 1; i <= id.Length; i++)
-                {
-                    string idPrefix = id.Substring(0, i);
-                    child = null;
-                    foreach (var c in curParent.Children)
-                    {
-                        if (c.Name == idPrefix)
-                        {
-                            child = c;
-                            break;
-                        }
-                    }
-                    if (child == null)
-                    {
-                        child = new SceneNode(idPrefix, curParent.Transform);
-                    }
-                    curParent = child;
-                }
-                return child;
-            }
-
-            static string ParentID(string id)
-            {
-                return id.Substring(0, id.Length - 1);
-            }
-
-            static string FileToId(string filename)
-            {
-                return Path.GetFileNameWithoutExtension(filename).Remove(0, 1);
-            }
-
-            static bool IsSkyTile(string filename)
-            {
-                return Path.GetFileName(filename)[0] == 'f';
-            }
-
-            static string MeshFilenameToImageFilename(string meshFilename)
-            {
-                if (IsSkyTile(meshFilename))
-                {
-                    return Path.Combine(Path.GetDirectoryName(meshFilename), "s" + FileToId(meshFilename) + "h.png");
-                }
-                else
-                {
-                    return Path.Combine(Path.GetDirectoryName(meshFilename), "t" + FileToId(meshFilename) + "h.jpg");
-                }
-            }
-
-            public static Vector3 GetUnityOffsetVector(string id, double totalTerrainExtent)
-            {
-                Vector3 offset = Vector3.Zero;
-                double tileSize = totalTerrainExtent;
-                for (int i = 0; i < id.Length; i++)
-                {
-                    char curNum = id[i];
-                    tileSize /= 2;
-
-                    if (curNum == '0' || curNum == '2')
-                    {
-                        offset.X -= tileSize / 2;
-                    }
-                    if (curNum == '1' || curNum == '3')
-                    {
-                        offset.X += tileSize / 2;
-                    }
-                    if (curNum == '0' || curNum == '1')
-                    {
-                        offset.Z += tileSize / 2;
-                    }
-                    if (curNum == '2' || curNum == '3')
-                    {
-                        offset.Z -= tileSize / 2;
-                    }
-                }
-                return offset;
-            }
-        }
-
-      
     }
 }
