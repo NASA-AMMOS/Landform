@@ -34,6 +34,7 @@ namespace OPS.Geometry
                 {
                     logger.Error(pr.OutputText);
                     logger.Error(pr.ErrorText);
+                    throw new MeshSerializerException("Draco decoder output file not found");
                 }
                 m = Mesh.Load(outputMesh);
             });
@@ -65,6 +66,7 @@ namespace OPS.Geometry
                 {
                     logger.Error(pr.OutputText);
                     logger.Error(pr.ErrorText);
+                    throw new MeshSerializerException("Draco encoder output file not found");
                 }
             });
         }
