@@ -131,6 +131,7 @@
     <Compile Include="Commands\MatchImages.cs" />
     <Compile Include="Commands\PDSImageConverter.cs" />
     <Compile Include="Commands\TileBaselineMesh.cs" />
+    <Compile Include="General\LegacyScene.cs" />
     <Compile Include="General\ObservationEnums.cs" />
     <Compile Include="GdalConfiguration.cs" />
     <Compile Include="Rover\MSLLocations.cs" />
