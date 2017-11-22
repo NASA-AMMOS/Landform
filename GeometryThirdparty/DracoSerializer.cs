@@ -9,6 +9,10 @@ using System.Threading.Tasks;
 
 namespace OPS.Geometry
 {
+    /// <summary>
+    /// Class for saving files using the draco compressed mesh format.  Uses the cli draco encoder and decoder compiled from here
+    /// https://github.com/google/draco
+    /// </summary>
     public class DracoSerializer : MeshSerializer
     {
         private static readonly ILog logger = LogManager.GetLogger(typeof(DracoSerializer));
@@ -24,7 +28,7 @@ namespace OPS.Geometry
             string dracoExe = Path.Combine(PathHelper.GetApplicationPath(), "ExternalApps", "draco_decoder.exe");
             TemporaryFile.GetAndDelete(".obj", outputMesh =>
             {
-                ProgramRunner pr = new ProgramRunner(dracoExe, "-i " + filename + " -o " + outputMesh);
+                ProgramRunner pr = new ProgramRunner(dracoExe, string.Format("-i \"{0}\" -o \"{1}\"", filename, outputMesh));
                 pr.Run();
                 if (!File.Exists(outputMesh))
                 {
@@ -55,7 +59,7 @@ namespace OPS.Geometry
 
 
                 m.Save(inputMesh);
-                ProgramRunner pr = new ProgramRunner(dracoExe, "-i " + inputMesh + " -o " + filename + arguments);
+                ProgramRunner pr = new ProgramRunner(dracoExe, string.Format("-i \"{0}\" -o \"{1}\" {2}", inputMesh, filename, arguments));
                 pr.Run();
                 if (!File.Exists(filename))
                 {
