@@ -7,6 +7,9 @@ using Microsoft.Xna.Framework;
 
 namespace OPS.Imaging
 {
+    /// <summary>
+    /// A basic orthographic camera model
+    /// </summary>
     public class OrthographicCameraModel : CameraModel
     {
         private Matrix transform;
@@ -14,6 +17,14 @@ namespace OPS.Imaging
         private Vector2 extent;
         private Matrix invertTransform;
 
+        /// <summary>
+        /// Create a camera at the location and orientation specified by transform
+        /// Use the XY pixel resolution
+        /// verticalExtent is the size in meters along the Y pixel axis of the camera.  The horiziontal extent will be calcualted accordingly
+        /// </summary>
+        /// <param name="transform"></param>
+        /// <param name="resolution"></param>
+        /// <param name="verticleExtent"></param>
         public OrthographicCameraModel(Matrix transform, Vector2 resolution, double verticleExtent)
         {
             this.transform = transform;
@@ -23,6 +34,12 @@ namespace OPS.Imaging
             this.extent = new Vector2(metersPerPixel*resolution.X, verticleExtent);
         }
 
+        /// <summary>
+        /// Similar to the other constructor but allows you to control the extent in both the X and Y pixel directions
+        /// </summary>
+        /// <param name="transform"></param>
+        /// <param name="resolution"></param>
+        /// <param name="extent"></param>
         public OrthographicCameraModel(Matrix transform, Vector2 resolution, Vector2 extent)
         {
             this.transform = transform;
