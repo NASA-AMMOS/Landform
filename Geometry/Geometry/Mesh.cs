@@ -763,6 +763,12 @@ namespace OPS.Geometry
             return result;
         }
 
+        /// <summary>
+        /// Clips a mesh to remove everything within the given bounding box
+        /// </summary>
+        /// <param name="m"></param>
+        /// <param name="box"></param>
+        /// <returns></returns>
         public static Mesh Cut(Mesh m, BoundingBox box)
         {
             Mesh result;

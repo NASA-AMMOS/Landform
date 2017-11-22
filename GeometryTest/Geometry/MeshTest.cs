@@ -620,6 +620,55 @@ namespace GeometryTest
             Assert.IsTrue(clipped.Vertices.Count > 0);
         }
 
+
+        [TestMethod]
+        public void MeshCutTest()
+        {
+            Random r = new Random(17);
+            List<Triangle> tris = new List<Triangle>();
+            for (int i = 0; i < 200; i++)
+            {
+                tris.Add(new Triangle(
+                    new Vertex((r.NextDouble() - 0.5) * 10, (r.NextDouble() - 0.5) * 10, (r.NextDouble() - 0.5) * 10),
+                    new Vertex((r.NextDouble() - 0.5) * 10, (r.NextDouble() - 0.5) * 10, (r.NextDouble() - 0.5) * 10),
+                    new Vertex((r.NextDouble() - 0.5) * 10, (r.NextDouble() - 0.5) * 10, (r.NextDouble() - 0.5) * 10)));
+            }
+            Mesh m = new Mesh(tris);
+            BoundingBox originalBB = m.Bounds();
+            BoundingBox bb = new BoundingBox(new Vector3(-20, -3, -4), new Vector3(20, -1, -2));
+            Mesh cut = Mesh.Cut(m, bb);
+            BoundingBox cutBB = cut.Bounds();
+            Assert.IsTrue(Vector3.AlmostEqual(cutBB.Min, originalBB.Min));
+            Assert.IsTrue(Vector3.AlmostEqual(cutBB.Max, originalBB.Max));
+            foreach (var t in cut.Triangles())
+            {
+                Assert.AreEqual(0, new List<Triangle>(t.Clip(bb)).Count);
+            }
+        }
+
+        [TestMethod]
+        public void MeshCutPointCloudTest()
+        {
+            Random r = new Random(17);
+            Mesh m = new Mesh();
+            for (int i = 0; i < 10000; i++)
+            {
+                m.Vertices.Add(new Vertex((r.NextDouble() - 0.5) * 5, (r.NextDouble() - 0.5) * 5,
+                    (r.NextDouble() - 0.5) * 5));
+            }
+            BoundingBox originalBB = m.Bounds();
+            BoundingBox bb = new BoundingBox(new Vector3(-20, -1, -2), new Vector3(20, -0.5, -1));
+            Mesh cut = Mesh.Cut(m, bb);
+            BoundingBox cutBB = cut.Bounds();
+            Assert.IsTrue(originalBB.FuzzyContains(cutBB));
+            Assert.IsTrue(cut.Vertices.Count > 0);
+            foreach (var v in cut.Vertices)
+            {
+                Assert.IsFalse(bb.Contains(v.Position) == ContainmentType.Contains);
+            }
+        }
+
+
         [TestMethod]
         public void MeshBoundsTest()
         {
