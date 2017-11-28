@@ -132,9 +132,6 @@
     <Compile Include="Commands\CrawlMSL.cs" />
     <Compile Include="Commands\MatchAllImages.cs" />
     <Compile Include="Commands\MatchImages.cs" />
-    <Compile Include="ComputeGraph\ComputationContext.cs" />
-    <Compile Include="ComputeGraph\PersistedComputation.cs" />
-    <Compile Include="ComputeGraph\Computation.cs" />
     <Compile Include="Commands\PDSImageConverter.cs" />
     <Compile Include="Commands\TileBaselineMesh.cs" />
     <Compile Include="General\ObservationEnums.cs" />
