@@ -29,7 +29,7 @@ namespace OPS.MathExtensions
 
             Matrix<double> nX = covariance * (covariance.RowCount + lambda);
 
-            // TODO: try using Cholesky instead, see if more go fast
+            // TODO: try using Cholesky instead, see if more go fast (#96)
             var svd = nX.Svd();
             var U = svd.U;
             var VT = svd.VT;
