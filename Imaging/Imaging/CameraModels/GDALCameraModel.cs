@@ -36,5 +36,13 @@ namespace OPS.Imaging
         {
             return new GDALCameraModel(this);
         }
+
+        public override bool Linear
+        {
+            get
+            {
+                return false;
+            }
+        }
     }
 }

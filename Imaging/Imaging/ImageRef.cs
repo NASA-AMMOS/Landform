@@ -1,6 +1,7 @@
 ﻿using OPS.Imaging;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -41,6 +42,14 @@ namespace OPS.Imaging
             }
         }
 
+        public string FilenameWithoutExtension
+        {
+            get
+            {
+                return Path.GetFileNameWithoutExtension(path);
+            }
+        }
+
         public void Unload()
         {
             image = null;
@@ -62,6 +71,7 @@ namespace OPS.Imaging
         {
             var ir = obj as ImageRef;
             if (ir == null) return false;
+            if (path == null) return ir.Image == image;
             return ir.path == path;
         }
 
