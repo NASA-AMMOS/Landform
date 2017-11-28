@@ -96,6 +96,7 @@ namespace OPS.Geometry
                 // degrading performance in the common case of no uncertainty). Also note that not all nodes
                 // necessarily have a NodeUncertainTransform component - this makes a recursive implementation
                 // really tricky without just force-adding one to nodes without.
+                // Tracked as issue #97
                 UncertainRigidTransform t = UncertainTransform;
                 SceneNode current = Node;
                 while (current.Parent != null)
