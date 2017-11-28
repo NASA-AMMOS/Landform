@@ -266,11 +266,13 @@ namespace OPS.Imaging
         /// </summary>
         /// <param name="targetWidth"></param>
         /// <returns></returns>
-        public Image Resize(int targetWidth, int targetHeight)
+        public Image Resize(int targetWidth, int targetHeight, FilterDelegate filter = null)
         {
+            if (filter == null) filter = QuadraticFilter;
+
             Image horizontalResult = new Image(this.Bands, targetWidth, this.Height);
 
-            List<Weight> weights = getResizeWeights(targetWidth, this.Width, 2, QuadraticFilter);
+            List<Weight> weights = getResizeWeights(targetWidth, this.Width, 2, filter);
 
             for (int band = 0; band < Bands; band++)
             {
@@ -287,7 +289,7 @@ namespace OPS.Imaging
             //resize vertically 
             Image result = new Image(this.Bands, targetWidth, targetHeight);
 
-            weights = getResizeWeights(targetWidth, this.Width, 2, QuadraticFilter);
+            weights = getResizeWeights(targetWidth, this.Width, 2, filter);
 
             for (int band = 0; band < Bands; band++)
             {
@@ -319,7 +321,7 @@ namespace OPS.Imaging
         /// </summary>
         /// <param name="x"></param>
         /// <returns></returns>
-        private delegate double FilterDelegate(double x);
+        public delegate double FilterDelegate(double x);
 
         /// <summary>
         /// Gets weights for resizing in one dimension. 
@@ -346,7 +348,7 @@ namespace OPS.Imaging
                 int startingIndex = weights.Count; //start of weights for this target pixel
 
                 //consider all source pixels for this target pixel 
-                double zero = targetPixel / ratio; //current position in old coordiante system is filter's zero point
+                double zero = targetPixel / ratio; //current position in old coordinate system is filter's zero point
                 int firstpix = enlarging ? (int)(zero - radius) + 1 : (int)((targetPixel - 2) / ratio) + 1; //casting truncates, but we want to round up 
                 int lastpix = enlarging ? (int)(zero + radius) : lastpix = (int)((targetPixel + 2) / ratio);
                 double norm = 0;
@@ -381,7 +383,8 @@ namespace OPS.Imaging
             return weights;
         }
 
-        double QuadraticFilter(double x)
+        #region Filters
+        public double QuadraticFilter(double x)
         {
             x = Math.Abs(x);
             if (x < 0.5) return 0.75 - x * x;
@@ -389,11 +392,13 @@ namespace OPS.Imaging
             return 0.0;
         }
 
-        /// <summary>
-        /// Triangle filter 
-        /// </summary>
-        /// <param name="xval"></param>
-        /// <returns></returns>
+        public double BoxFilter(double x)
+        {
+            x = Math.Abs(x);
+            if (x <= 0.5) return 1;
+            return 0;
+        }
+
         double TriangleFilter(double xval)
         {
             xval = Math.Abs(xval);
@@ -403,6 +408,34 @@ namespace OPS.Imaging
             }
             return 0;
         }
+
+        public static FilterDelegate MakeCubicFilter(double B, double C)
+        {
+            FilterDelegate res = (x) =>
+            {
+                x = Math.Abs(x);
+                double x2 = x * x;
+                double x3 = x2 * x;
+                if (x < 1)
+                {
+                    return ((12 - 9 * B - 6 * C) * x3 + (-18 + 12 * B + 6 * C) * x2 + (6 - 2 * B)) / 6;
+                }
+                else if (x < 2)
+                {
+                    return ((-B - 6 * C) * x3 + (6 * B + 30 * C) * x2 + (-12 * B - 48 * C) * x + (8 * B + 24 * C)) / 6;
+                }
+                else
+                {
+                    return 0;
+                }
+            };
+            return res;
+        }
+        public static readonly FilterDelegate CatmullRomFilter = MakeCubicFilter(0, 0.5);
+        public static readonly FilterDelegate MitchellFilter = MakeCubicFilter(1 / 3.0, 1 / 3.0);
+        public static readonly FilterDelegate BSplineFilter = MakeCubicFilter(1, 0);
+
+        #endregion Filters
 
         /// <summary>
         /// Resize an image to the target width using a simple bicubic function
