@@ -106,26 +106,27 @@ namespace OPS.Geometry
                 simplex.Remove(b);
                 d = Vector3.Cross(Vector3.Cross(ac, a0), ac);
             }
-            
-            // must be inside triangle
-            // is it above or below?
-            if (abc.Dot(a0) > 0)
-            {
-                // above
-                d = abc;
-            }
-            else if (abc.Dot(a0) < 0)
-            {
-                // below, reverse winding order
-                simplex = new List<Vector3> { b, c, a };
-                d = -abc;
-            }
             else
             {
-                // nope, triangle contains origin
-                return true;
+                // must be inside triangle
+                // is it above or below?
+                if (abc.Dot(a0) > 0)
+                {
+                    // above
+                    d = abc;
+                }
+                else if (abc.Dot(a0) < 0)
+                {
+                    // below, reverse winding order
+                    simplex = new List<Vector3> { b, c, a };
+                    d = -abc;
+                }
+                else
+                {
+                    // nope, triangle contains origin
+                    return true;
+                }
             }
-
             return false;
         }
         
