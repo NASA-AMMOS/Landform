@@ -81,7 +81,7 @@ namespace OPS.Geometry
                 return lhs.Mean * rhs;
             }
 
-            return new UncertainRigidTransform(UnscentedTransform.Transform(lhs.Distribution, rhs.Distribution, (lhsVec, rhsVec) =>
+            return new UncertainRigidTransform(MathExtensions.UnscentedTransform.Transform(lhs.Distribution, rhs.Distribution, (Vector<double> lhsVec, Vector<double> rhsVec) =>
             {
                 return ToVector(ToMatrix(lhsVec) * ToMatrix(rhsVec));
             }));
@@ -92,7 +92,7 @@ namespace OPS.Geometry
         /// </summary>
         public static UncertainRigidTransform operator *(UncertainRigidTransform lhs, Matrix rhs)
         {
-            return new UncertainRigidTransform(lhs.Transform(lhsMat =>
+            return new UncertainRigidTransform(lhs.UnscentedTransform(lhsMat =>
             {
                 return ToVector(lhsMat * rhs);
             }));
@@ -103,18 +103,18 @@ namespace OPS.Geometry
         /// </summary>
         public static UncertainRigidTransform operator *(Matrix lhs, UncertainRigidTransform rhs)
         {
-            return new UncertainRigidTransform(rhs.Transform(rhsMat =>
+            return new UncertainRigidTransform(rhs.UnscentedTransform(rhsMat =>
             {
                 return ToVector(lhs * rhsMat);
             }));
         }
 
         /// <summary>
-        /// <see cref="UnscentedTransform"/> for functions taking a matrix.
+        /// <see cref="MathExtensions.UnscentedTransform"/> for functions taking a matrix.
         /// </summary>
-        public GaussianND Transform(Func<Matrix, Vector<double>> func)
+        public GaussianND UnscentedTransform(Func<Matrix, Vector<double>> func)
         {
-            return UnscentedTransform.Transform(Distribution, vec =>
+            return MathExtensions.UnscentedTransform.Transform(Distribution, (Vector<double> vec) =>
             {
                 return func(ToMatrix(vec));
             });
@@ -127,7 +127,7 @@ namespace OPS.Geometry
         /// <returns>Gaussian3D</returns>
         public GaussianND TransformPoint(Vector3 point)
         {
-            return Transform(mat =>
+            return UnscentedTransform(mat =>
             {
                 return Vector3.Transform(point, mat).ToMathNet();
             });
@@ -141,7 +141,7 @@ namespace OPS.Geometry
         /// <returns>Gaussian3D</returns>
         public GaussianND TransformPoint(GaussianND point)
         {
-            return UnscentedTransform.Transform(Distribution, point, (poseVec, pointVec) =>
+            return MathExtensions.UnscentedTransform.Transform(Distribution, point, (Vector<double> poseVec, Vector<double> pointVec) =>
             {
                 return Vector3.Transform(new Vector3(pointVec.ToArray()), ToMatrix(poseVec)).ToMathNet();
             });
@@ -150,9 +150,22 @@ namespace OPS.Geometry
         /// <summary>
         /// Compute the distribution of this transform's inverse.
         /// </summary>
+        [System.Obsolete("Use TimesInverse unless you really mean this.")]
         public UncertainRigidTransform Inverse()
         {
-            return new UncertainRigidTransform(Transform(mat => ToVector(Matrix.Invert(mat))));
+            return new UncertainRigidTransform(UnscentedTransform(mat => ToVector(Matrix.Invert(mat))));
+        }
+
+        /// <summary>
+        /// Compute the distribution of this right-multiplied by the inverse of another transform.
+        /// </summary>
+        public UncertainRigidTransform TimesInverse(UncertainRigidTransform rhs)
+        {
+            var distrib = MathExtensions.UnscentedTransform.Transform(Distribution, rhs.Distribution, (lhsVec, rhsVec) =>
+            {
+                return ToVector(ToMatrix(lhsVec) * Matrix.Invert(ToMatrix(rhsVec)));
+            });
+            return new UncertainRigidTransform(distrib);
         }
 
         /// <summary>

@@ -32,5 +32,20 @@ namespace OPS.Geometry
             t1 = (u0_u0 * u1_w0 - u0_u1 * u0_w0) / (u0_u0 * u1_u0 - u0_u1 * u0_u1);
             return true;
         }
+
+        public static void Transform(ref Ray ray, ref Matrix matrix, out Ray result)
+        {
+            Vector3 newPosition, newDirection;
+            Vector3.Transform(ref ray.Position, ref matrix, out newPosition);
+            Vector3.TransformNormal(ref ray.Direction, ref matrix, out newDirection);
+            result = new Ray(newPosition, newDirection);
+        }
+
+        public static Ray Transform(Ray ray, Matrix matrix)
+        {
+            Ray result;
+            Transform(ref ray, ref matrix, out result);
+            return result;
+        }
     }
 }

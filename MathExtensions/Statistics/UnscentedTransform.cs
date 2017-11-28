@@ -7,6 +7,8 @@ using System.Threading.Tasks;
 
 namespace OPS.MathExtensions
 {
+    // See "The Scaled Unscented Transformation"
+    // https://www.cs.unc.edu/~welch/kalman/media/pdf/ACC02-IEEE1357.PDF
     public class UnscentedTransform
     {
         /// <summary>
