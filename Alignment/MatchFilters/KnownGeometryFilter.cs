@@ -12,17 +12,46 @@ using log4net;
 
 namespace OPS.Alignment
 {
+    /// <summary>
+    /// Filter for pruning feature matches based on a priori known geometry of a scene. 
+    /// Takes as input a scene graph with (optional) uncertainty information on transforms.
+    /// </summary>
     public class KnownGeometryFilter : IMatchFilter
     {
         private static readonly ILog logger = LogManager.GetLogger(typeof(KnownGeometryFilter));
 
         public delegate SceneNode ImageNodeDelegate(ImageRef image);
 
+        /// <summary>
+        /// Construct with a function mapping image references to nodes.
+        /// </summary>
+        /// <param name="imageToNode">Should return the scene node associated with a given image</param>
         public KnownGeometryFilter(ImageNodeDelegate imageToNode)
         {
             ImageToNode = imageToNode;
+            ParallelBackprojectDistance = 1000;
+            BadProjectionRatio = 0.4;
+            MahalanobisThreshold = 4;
+            FixedErrorThreshold = 20;
         }
-        ImageNodeDelegate ImageToNode;
+        private ImageNodeDelegate ImageToNode;
+
+        /// <summary>
+        /// When two camera rays are parallel, try backprojecting from this distance.
+        /// </summary>
+        public double ParallelBackprojectDistance;
+        /// <summary>
+        /// Ratio of bad to good projections to reject an uncertain match.
+        /// </summary>
+        public double BadProjectionRatio;
+        /// <summary>
+        /// Maximum Mahalanobis distance to accept. Conceptually similar to number of standard deviations.
+        /// </summary>
+        public double MahalanobisThreshold;
+        /// <summary>
+        /// Error threshold (in pixels) for matches with no transform uncertainty information.
+        /// </summary>
+        public double FixedErrorThreshold;
 
         internal struct ProjectionResult
         {
@@ -60,7 +89,7 @@ namespace OPS.Alignment
             var ch = dataNode.GetComponent<NodeConvexHull>();
             if (ch != null)
             {
-                dataHullInModel = ch.hull.Transformed(dataToModel);
+                dataHullInModel = ConvexHull.Transformed(ch.hull, dataToModel);
             }
 
             // Cache result of model ray -> data frustum intersection, because model rays
@@ -100,14 +129,14 @@ namespace OPS.Alignment
                 {
                     ProjectionResult res = new ProjectionResult();
 
-                    var mdrm = Ray.Transform(dataRay, mat);
+                    var mdrm = RayExtensions.Transform(dataRay, mat);
                     double modelT, dataT;
                     Vector2 backprojected;
                     double range;
                     if (!RayExtensions.ClosestIntersection(modelRay, mdrm, out modelT, out dataT))
                     {
                         // Rays are parallel or very close to parallel - try backprojecting from ~infinity
-                        dataT = 1000;
+                        dataT = ParallelBackprojectDistance;
                         modelT = 0;
                         res.intersection = false;
                     }
@@ -128,10 +157,12 @@ namespace OPS.Alignment
                     // Compute probability distribution of reprojection error for closest point
                     int badPoints = 0;
                     int totalPoints = 0;
-                    var error = dataToModel.Transform((mat) =>
+                    var error = dataToModel.UnscentedTransform((mat) =>
                     {
                         totalPoints++;
                         var res = Reproject(mat);
+                        // Mark projection as bad if rays are parallel or the point is behind
+                        // either camera
                         if (!res.intersection || res.dataT < -0.01 || res.modelT < -0.01)
                         {
                             badPoints++;
@@ -139,14 +170,14 @@ namespace OPS.Alignment
                         return res.error.ToMathNet();
                     });
                     // If more than 40% of points failed to meaningfully project, skip match
-                    if (badPoints / (double)totalPoints > 0.4)
+                    if (badPoints / (double)totalPoints > BadProjectionRatio)
                     {
                         rejectedInvalid++;
                         continue;
                     }
-                    // If zero error is >4 sigma away from mean, skip match
+                    // If zero error is >n sigma away from mean, skip match
                     double mhDistSqr = error.MahalanobisDistanceSquared(Vector2.Zero.ToMathNet());
-                    if (mhDistSqr > 4*4)
+                    if (mhDistSqr > MahalanobisThreshold * MahalanobisThreshold)
                     {
                         rejectedSigma++;
                         continue;
@@ -156,7 +187,7 @@ namespace OPS.Alignment
                 {
                     // Transform is exact-ish, just make sure it's close
                     var res = Reproject(dataToModel.Mean);
-                    if (res.modelT < -0.01 || res.dataT < -0.01 || res.error.LengthSquared() > 20 * 20)
+                    if (res.modelT < -0.01 || res.dataT < -0.01 || res.error.LengthSquared() > FixedErrorThreshold * FixedErrorThreshold)
                     {
                         rejectedError++;
                         continue;
@@ -169,7 +200,10 @@ namespace OPS.Alignment
 
             logger.Debug(string.Format("Rejected: {0} for hull intersection, {1} for bad projection, {2} for sigma threshold, {3} for error", rejectedHull, rejectedInvalid, rejectedSigma, rejectedError));
 
-            if (goodMatches.Count == 0) return null;
+            if (goodMatches.Count == 0)
+            {
+                return null;
+            }
             matches = new ImagePairCorrespondence(matches.ModelImage, matches.DataImage, matches.ModelFeatures, matches.DataFeatures, goodMatches);
             matches.Compact();
             return matches;
