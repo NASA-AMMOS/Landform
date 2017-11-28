@@ -69,17 +69,7 @@ namespace OPS.Alignment
 
             var dataToWorld = dataNode.GetOrAddComponent<NodeUncertainTransform>().LocalToWorld;
             var modelToWorld = modelNode.GetOrAddComponent<NodeUncertainTransform>().LocalToWorld;
-            // This is used instead of dataToWorld * modelToWorld.Inverse() because they have very
-            // different uncertainty characteristics.
-            UncertainRigidTransform dataToModel = new UncertainRigidTransform(UnscentedTransform.Transform(
-                dataToWorld.Distribution,
-                modelToWorld.Distribution,
-                (dataVec, modelVec) =>
-                {
-                    var d2w = UncertainRigidTransform.ToMatrix(dataVec);
-                    var m2w = UncertainRigidTransform.ToMatrix(modelVec);
-                    return UncertainRigidTransform.ToVector(d2w * Matrix.Invert(m2w));
-                }));
+            UncertainRigidTransform dataToModel = dataToWorld.TimesInverse(modelToWorld);
 
             var modelCam = matches.ModelImage.Image.CameraModel;
             var dataCam = matches.DataImage.Image.CameraModel;
