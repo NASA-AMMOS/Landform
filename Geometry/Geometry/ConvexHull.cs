@@ -61,13 +61,10 @@ namespace OPS.Geometry
 
         public static ConvexHull FromImage(Image img, double nearClip=0.1, double farClip=20)
         {
-            // Get points, either just corners for CAHV or denser for CAHVOR(E)
+            // Get points - just corners for linear models, denser otherwise
             int subdiv = 2;
             var camera = img.CameraModel;
-            if (camera is CAHVOR) // includes CAHVORE
-            {
-                subdiv = 5;
-            }
+            if (!camera.Linear) subdiv = 5;
 
             List<Vector3> pts = new List<Vector3>();
             for (int i = 0; i < subdiv; i++)
@@ -171,9 +168,9 @@ namespace OPS.Geometry
         /// <summary>
         /// Return a copy of this hull transformed by a matrix.
         /// </summary>
-        public ConvexHull Transformed(Matrix mat)
+        public static ConvexHull Transformed(ConvexHull hull, Matrix mat)
         {
-            ConvexHull res = new ConvexHull(this);
+            ConvexHull res = new ConvexHull(hull);
             res.Transform(mat);
             return res;
         }
@@ -182,13 +179,13 @@ namespace OPS.Geometry
         /// <summary>
         /// Return a copy of this hull transformed by an uncertain transform.
         /// </summary>
-        public ConvexHull Transformed(UncertainRigidTransform transform, double sigma=3.0, int numSamples=10)
+        public static ConvexHull Transformed(ConvexHull hull, UncertainRigidTransform transform, double sigma=3.0, int numSamples=10)
         {
             // If input transform is actually just a matrix, fall back to other overload for performance
-            if (!transform.Uncertain) return Transformed(transform.Mean);
+            if (!transform.Uncertain) return Transformed(hull, transform.Mean);
 
             List<double[]> pts = new List<double[]>();
-            foreach (var vtx in Mesh.Vertices)
+            foreach (var vtx in hull.Mesh.Vertices)
             {
                 var pt = vtx.Position;
                 GaussianND transformed = transform.TransformPoint(pt);
