@@ -107,6 +107,7 @@
     <Compile Include="GdalConfiguration.cs" />
     <Compile Include="Rover\PDSParserTest.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="Rover\RoverMaskTest.cs" />
     <Compile Include="Rover\RoverProductIdTest.cs" />
     <Compile Include="Rover\RoverCoordinateSystemTest.cs" />
     <Compile Include="Rover\SiteDriveTest.cs" />
@@ -138,6 +139,10 @@
     <ProjectReference Include="..\Pipeline\Pipeline.csproj">
       <Project>{c45f0cd6-c998-47ec-b67c-ad77196b06a0}</Project>
       <Name>Pipeline</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\RayTrace\RayTrace.csproj">
+      <Project>{0e8c60bb-4a68-480f-895a-2b326aec002c}</Project>
+      <Name>RayTrace</Name>
     </ProjectReference>
     <ProjectReference Include="..\TestData\TestData.csproj">
       <Project>{42298ee4-6937-4b4c-a8b8-89effbc40e80}</Project>
