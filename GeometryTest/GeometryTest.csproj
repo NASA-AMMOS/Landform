@@ -65,6 +65,7 @@
     </Otherwise>
   </Choose>
   <ItemGroup>
+    <Compile Include="Geometry\AxisAngleVectorTest.cs" />
     <Compile Include="Geometry\BarycentricPointTest.cs" />
     <Compile Include="Geometry\BoundingBoxExtensionsTest.cs" />
     <Compile Include="Geometry\SurfacePointSamplerTest.cs" />
