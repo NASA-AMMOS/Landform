@@ -292,7 +292,7 @@ namespace OPS.Imaging
             //resize vertically 
             Image result = new Image(this.Bands, targetWidth, targetHeight);
 
-            weights = getResizeWeights(targetWidth, this.Width, 2, filter);
+            weights = getResizeWeights(targetHeight, this.Height, 2, filter);
 
             for (int band = 0; band < Bands; band++)
             {
