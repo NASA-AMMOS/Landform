@@ -69,6 +69,7 @@
     <Compile Include="Geometry\BarycentricPointTest.cs" />
     <Compile Include="Geometry\BoundingBoxExtensionsTest.cs" />
     <Compile Include="Geometry\GJKIntersectionTest.cs" />
+    <Compile Include="Geometry\RayTest.cs" />
     <Compile Include="Geometry\SurfacePointSamplerTest.cs" />
     <Compile Include="Geometry\FaceTest.cs" />
     <Compile Include="Geometry\MeshOperatorTest.cs" />
