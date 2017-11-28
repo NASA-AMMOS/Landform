@@ -13,30 +13,30 @@ namespace OPS.Geometry
     /// </summary>
     public struct AxisAngleVector
     {
-        public Vector3 axisAngle;
+        public Vector3 AxisAngle;
 
         public AxisAngleVector(Vector3 axisAngle)
         {
-            this.axisAngle = axisAngle;
+            this.AxisAngle = axisAngle;
         }
         public AxisAngleVector(double x, double y, double z)
         {
-            this.axisAngle = new Vector3(x, y, z);
+            this.AxisAngle = new Vector3(x, y, z);
         }
         public AxisAngleVector(Vector3 axis, double angle)
         {
-            this.axisAngle = axis * angle / axis.Length();
+            this.AxisAngle = axis * angle / axis.Length();
         }
         public AxisAngleVector(Quaternion rotation)
         {
             double angle = 2 * Math.Acos(rotation.W);
             if (angle < 1e-7)
             {
-                this.axisAngle = Vector3.Zero;
+                this.AxisAngle = Vector3.Zero;
             }
             else
             {
-                this.axisAngle = Vector3.Normalize(new Vector3(rotation.X, rotation.Y, rotation.Z)) * angle;
+                this.AxisAngle = Vector3.Normalize(new Vector3(rotation.X, rotation.Y, rotation.Z)) * angle;
             }
         }
 
@@ -45,8 +45,8 @@ namespace OPS.Geometry
         {
             get
             {
-                if (axisAngle.LengthSquared() < 1e-7) return Vector3.Zero;
-                return axisAngle / axisAngle.Length();
+                if (AxisAngle.LengthSquared() < 1e-7) return Vector3.Zero;
+                return AxisAngle / AxisAngle.Length();
             }
         }
 
@@ -55,7 +55,7 @@ namespace OPS.Geometry
         {
             get
             {
-                return axisAngle.Length();
+                return AxisAngle.Length();
             }
         }
 
@@ -65,9 +65,9 @@ namespace OPS.Geometry
             {
                 switch (idx)
                 {
-                    case 0: return axisAngle.X;
-                    case 1: return axisAngle.Y;
-                    case 2: return axisAngle.Z;
+                    case 0: return AxisAngle.X;
+                    case 1: return AxisAngle.Y;
+                    case 2: return AxisAngle.Z;
                     default: throw new IndexOutOfRangeException();
                 }
             }
@@ -75,9 +75,9 @@ namespace OPS.Geometry
             {
                 switch (idx)
                 {
-                    case 0: axisAngle.X = value; break;
-                    case 1: axisAngle.Y = value; break;
-                    case 2: axisAngle.Z = value; break;
+                    case 0: AxisAngle.X = value; break;
+                    case 1: AxisAngle.Y = value; break;
+                    case 2: AxisAngle.Z = value; break;
                     default: throw new IndexOutOfRangeException();
                 }
             }
@@ -85,20 +85,20 @@ namespace OPS.Geometry
 
         public double X
         {
-            get { return axisAngle.X; }
-            set { axisAngle.X = value; }
+            get { return AxisAngle.X; }
+            set { AxisAngle.X = value; }
         }
 
         public double Y
         {
-            get { return axisAngle.Y; }
-            set { axisAngle.Y = value; }
+            get { return AxisAngle.Y; }
+            set { AxisAngle.Y = value; }
         }
 
         public double Z
         {
-            get { return axisAngle.Z; }
-            set { axisAngle.Z = value; }
+            get { return AxisAngle.Z; }
+            set { AxisAngle.Z = value; }
         }
 
         public Quaternion ToQuaternion()
@@ -126,7 +126,7 @@ namespace OPS.Geometry
             // \forall a \in\{x,y,z\} :
             // u_{a} = \frac{r_{a}}{\theta}
             var p = point;
-            var r = axisAngle;
+            var r = AxisAngle;
             var u = Axis;
             var theta = Angle;
 
