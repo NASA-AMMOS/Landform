@@ -135,7 +135,7 @@
     <Compile Include="Rover\MSLLocations.cs" />
     <Compile Include="Rover\RoverCoordinateSystem.cs" />
     <Compile Include="Rover\RoverMask.cs" />
-    <Compile Include="Rover\RoverModel.cs" />
+    <Compile Include="Rover\CuriosityRoverModel.cs" />
     <Compile Include="Rover\RoverReachability.cs" />
     <Compile Include="TextureBake\TextureBaker.cs" />
     <Compile Include="Rover\SiteDrive.cs" />
@@ -168,34 +168,34 @@
     <None Include="app.config" />
     <None Include="OpenTK.dll.config" />
     <None Include="packages.config" />
-    <None Include="Resources\RoverMaskGeometry\Arm01.obj">
+    <None Include="Rover\Resources\CuriosityMaskGeometry\Arm01.obj">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
-    <None Include="Resources\RoverMaskGeometry\Arm02.obj">
+    <None Include="Rover\Resources\CuriosityMaskGeometry\Arm02.obj">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
-    <None Include="Resources\RoverMaskGeometry\Arm03.obj">
+    <None Include="Rover\Resources\CuriosityMaskGeometry\Arm03.obj">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
-    <None Include="Resources\RoverMaskGeometry\Arm04.obj">
+    <None Include="Rover\Resources\CuriosityMaskGeometry\Arm04.obj">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
-    <None Include="Resources\RoverMaskGeometry\Arm05.obj">
+    <None Include="Rover\Resources\CuriosityMaskGeometry\Arm05.obj">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
-    <None Include="Resources\RoverMaskGeometry\Body.obj">
+    <None Include="Rover\Resources\CuriosityMaskGeometry\Body.obj">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
-    <None Include="Resources\RoverMaskGeometry\LeftBogie.obj">
+    <None Include="Rover\Resources\CuriosityMaskGeometry\LeftBogie.obj">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
-    <None Include="Resources\RoverMaskGeometry\LeftRocker.obj">
+    <None Include="Rover\Resources\CuriosityMaskGeometry\LeftRocker.obj">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
-    <None Include="Resources\RoverMaskGeometry\RightBogie.obj">
+    <None Include="Rover\Resources\CuriosityMaskGeometry\RightBogie.obj">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
-    <None Include="Resources\RoverMaskGeometry\RightRocker.obj">
+    <None Include="Rover\Resources\CuriosityMaskGeometry\RightRocker.obj">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
   </ItemGroup>
