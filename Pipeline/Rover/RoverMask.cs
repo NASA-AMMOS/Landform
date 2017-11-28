@@ -11,12 +11,15 @@ namespace OPS.Pipeline
 {
     public class RoverMask
     {
-        public static RoverModel RoverModel = new RoverModel();
+        public static CuriosityRoverModel RoverModel = new CuriosityRoverModel();
 
         public static Image Build(ImageRef imageRef)
         {
             var metadata = imageRef.Metadata as PDSMetadata;
-            if (metadata == null) return null;
+            if (metadata == null)
+            {
+                return null;
+            }
 
             PDSParser p = new PDSParser(metadata);
             var posedRover = RoverModel.BuildMesh(p.Articulation, !p.IsHazcam);
