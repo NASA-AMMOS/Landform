@@ -264,11 +264,14 @@ namespace OPS.Imaging
         /// Image resizing based on 
         /// http://entropymine.com/imageworsener/resample/
         /// </summary>
-        /// <param name="targetWidth"></param>
-        /// <returns></returns>
         public Image Resize(int targetWidth, int targetHeight, FilterDelegate filter = null)
         {
-            if (filter == null) filter = QuadraticFilter;
+            if (filter == null)
+            {
+                // Default to Catmull-Rom for downsampling, Mitchell for upsampling
+                if (targetWidth <= Width && targetHeight <= Height) filter = CatmullRomFilter;
+                else filter = MitchellFilter;
+            }
 
             Image horizontalResult = new Image(this.Bands, targetWidth, this.Height);
 
