@@ -587,10 +587,10 @@ namespace OPS.Geometry
         /// <summary>
         /// Return a copy of this mesh with a transformation applied.
         /// </summary>
-        public Mesh Transformed(Matrix m)
+        public static Mesh Transformed(Mesh mesh, Matrix mat)
         {
-            Mesh res = new Mesh(this);
-            res.Transform(m);
+            Mesh res = new Mesh(mesh);
+            res.Transform(mat);
             return res;
         }
 

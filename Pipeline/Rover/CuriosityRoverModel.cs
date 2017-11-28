@@ -51,11 +51,11 @@ namespace OPS.Pipeline
 
         public Mesh BuildMesh(RoverArticulation pose, bool includeBody = true)
         {
-            Mesh leftRocker = LeftRocker.Transformed(Matrix.Invert(FrameToLeftRocker(0)) * FrameToLeftRocker(pose.LeftRockerAngle));
-            Mesh rightRocker = RightRocker.Transformed(Matrix.Invert(FrameToRightRocker(0)) * FrameToRightRocker(pose.RightRockerAngle));
+            Mesh leftRocker = Mesh.Transformed(LeftRocker, Matrix.Invert(FrameToLeftRocker(0)) * FrameToLeftRocker(pose.LeftRockerAngle));
+            Mesh rightRocker = Mesh.Transformed(RightRocker, Matrix.Invert(FrameToRightRocker(0)) * FrameToRightRocker(pose.RightRockerAngle));
 
-            Mesh leftBogie = LeftBogie.Transformed(Matrix.Invert(FrameToLeftBogie(0, 0)) * FrameToLeftBogie(pose.LeftRockerAngle, pose.LeftBogieAngle));
-            Mesh rightBogie = RightBogie.Transformed(Matrix.Invert(FrameToRightBogie(0, 0)) * FrameToRightBogie(pose.RightRockerAngle, pose.RightBogieAngle));
+            Mesh leftBogie = Mesh.Transformed(LeftBogie, Matrix.Invert(FrameToLeftBogie(0, 0)) * FrameToLeftBogie(pose.LeftRockerAngle, pose.LeftBogieAngle));
+            Mesh rightBogie = Mesh.Transformed(RightBogie, Matrix.Invert(FrameToRightBogie(0, 0)) * FrameToRightBogie(pose.RightRockerAngle, pose.RightBogieAngle));
 
             Mesh arm = BuildArm(pose);
 
@@ -75,11 +75,11 @@ namespace OPS.Pipeline
 
         private Mesh BuildArm(RoverArticulation pose)
         {
-            Mesh arm1 = Arm1.Transformed(Matrix.Invert(RVRdARM2(0)) * RVRdARM2(pose.ArmAngle1));
-            Mesh arm2 = Arm2.Transformed(Matrix.Invert(RVRdARM3(0, 0)) * RVRdARM3(pose.ArmAngle1, pose.ArmAngle2));
-            Mesh arm3 = Arm3.Transformed(Matrix.Invert(RVRdARM4(0, 0, 0)) * RVRdARM4(pose.ArmAngle1, pose.ArmAngle2, pose.ArmAngle3));
-            Mesh arm4 = Arm4.Transformed(Matrix.Invert(RVRdARM5(0, 0, 0, 0)) * RVRdARM5(pose.ArmAngle1, pose.ArmAngle2, pose.ArmAngle3, pose.ArmAngle4));
-            Mesh arm5 = Arm5.Transformed(Matrix.Invert(RVRdARM6(0, 0, 0, 0, 0)) * RVRdARM6(pose.ArmAngle1, pose.ArmAngle2, pose.ArmAngle3, pose.ArmAngle4, pose.ArmAngle5));
+            Mesh arm1 = Mesh.Transformed(Arm1, Matrix.Invert(RVRdARM2(0)) * RVRdARM2(pose.ArmAngle1));
+            Mesh arm2 = Mesh.Transformed(Arm2, Matrix.Invert(RVRdARM3(0, 0)) * RVRdARM3(pose.ArmAngle1, pose.ArmAngle2));
+            Mesh arm3 = Mesh.Transformed(Arm3, Matrix.Invert(RVRdARM4(0, 0, 0)) * RVRdARM4(pose.ArmAngle1, pose.ArmAngle2, pose.ArmAngle3));
+            Mesh arm4 = Mesh.Transformed(Arm4, Matrix.Invert(RVRdARM5(0, 0, 0, 0)) * RVRdARM5(pose.ArmAngle1, pose.ArmAngle2, pose.ArmAngle3, pose.ArmAngle4));
+            Mesh arm5 = Mesh.Transformed(Arm5, Matrix.Invert(RVRdARM6(0, 0, 0, 0, 0)) * RVRdARM6(pose.ArmAngle1, pose.ArmAngle2, pose.ArmAngle3, pose.ArmAngle4, pose.ArmAngle5));
 
             return Mesh.Merge(arm1, arm2, arm3, arm4, arm5);
         }
