@@ -56,7 +56,7 @@ namespace OPS.Geometry
                 {
                     arguments += "-point_cloud ";
                 }
-                arguments += string.Format("-qp {0} -qt {1} -qn {2} -qg {3} -cl {4}", positionBits, textureBits,normalBits, genericBits, compressionLevel);
+                arguments += string.Format("-qp {0} -qt {1} -qn {2} -qg {3} -cl {4}", positionBits, textureBits, normalBits, genericBits, compressionLevel);
 
 
                 m.Save(inputMesh);

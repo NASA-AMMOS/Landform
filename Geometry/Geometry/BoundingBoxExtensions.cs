@@ -11,7 +11,7 @@ namespace OPS.Geometry
     public static class BoundingBoxExtensions
     {
         /// <summary>
-        /// Returns the size of the bounding inner (max-min)
+        /// Returns the size of the bounding box (max-min)
         /// </summary>
         /// <param name="box"></param>
         /// <returns></returns>

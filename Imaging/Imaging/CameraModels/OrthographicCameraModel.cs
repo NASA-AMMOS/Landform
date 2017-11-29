@@ -60,8 +60,7 @@ namespace OPS.Imaging
 
         public override void ProjectRay(ref Vector2 pixelPos, out Ray ray)
         {
-            // Minus 1 for half pixel offset
-            Vector2 metersPerPixel = new Vector2(extent.X / resolution.X - 1, extent.Y / resolution.Y - 1);
+            Vector2 metersPerPixel = new Vector2(extent.X / resolution.X, extent.Y / resolution.Y);
             Vector3 origin = invertTransform.Translation;
             // Plus 0.5 for half pixel offset
             origin += invertTransform.Right * metersPerPixel.X * (pixelPos.X + 0.5  - (resolution.X / 2.0));

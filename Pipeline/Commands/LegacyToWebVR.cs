@@ -32,7 +32,7 @@ namespace OPS.Pipeline
         [Option(Required = false, Default = 4096, HelpText = "Total extent of output tiles")]
         public int OutputExtent { get; set; }
 
-        [Option(Required = false, Default = 2048, HelpText = "Maxium tewrxture size for a tile")]
+        [Option(Required = false, Default = 2048, HelpText = "Maxium texture size for a tile")]
         public int MaxTextureSize { get; set; }
 
         [Option(Required = false, Default = 2000, HelpText = "Number of allowed faces per tile")]
@@ -50,6 +50,8 @@ namespace OPS.Pipeline
 
     /// <summary>
     /// A converter to go from legacy scenes to the format used by AccessMars
+    /// A description of the AccessMars tile format can be found here
+    /// https://docs.google.com/presentation/d/1DvWbSiiLj4oMgJjVCbwsccy1GXCIKCKWBGotuPPJbJI/edit#slide=id.p
     /// </summary>
     public class LegacyToWebVR
     {
@@ -271,7 +273,8 @@ namespace OPS.Pipeline
                 border.Clean();
 
                 double maxDist = 0;
-                double minDist = 64;//double.MaxValue;
+                // The distance from the center to the edge of the inner bounding box in the XZ plane.  Should be 64 when run with standard parameters
+                double minDist = innerBounds.Size().X / 2;  
                 foreach (var v in border.Vertices)
                 {
                     maxDist = Math.Max(maxDist, Math.Max(Math.Abs(v.Position.X), Math.Abs(v.Position.Z)));
