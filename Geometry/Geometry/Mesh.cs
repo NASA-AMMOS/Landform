@@ -585,6 +585,16 @@ namespace OPS.Geometry
         }
 
         /// <summary>
+        /// Return a copy of this mesh with a transformation applied.
+        /// </summary>
+        public static Mesh Transformed(Mesh mesh, Matrix mat)
+        {
+            Mesh res = new Mesh(mesh);
+            res.Transform(mat);
+            return res;
+        }
+
+        /// <summary>
         /// Applies an offset to all vertices in the mesh
         /// </summary>
         /// <param name="offset"></param>

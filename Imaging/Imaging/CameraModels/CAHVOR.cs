@@ -13,6 +13,14 @@ namespace OPS.Imaging
 
         public Vector3 O;
         public Vector3 R;
+        
+        public override bool Linear
+        {
+            get
+            {
+                return false;
+            }
+        }
 
         public CAHVOR(Vector3 c, Vector3 a, Vector3 h, Vector3 v, Vector3 o, Vector3 r) : base(c,a,h,v)
         {

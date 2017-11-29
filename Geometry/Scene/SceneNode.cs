@@ -22,7 +22,7 @@ namespace OPS.Geometry
         /// </summary>
         public SceneNode(string name)
         {
-            components = new Dictionary<Type, object>();
+            components = new Dictionary<Type, NodeComponent>();
 
             this.Name = name;
             this.Transform = AddComponent<NodeTransform>();
@@ -59,14 +59,26 @@ namespace OPS.Geometry
         /// <returns></returns>
         public T AddComponent<T>() where T : NodeComponent, new()
         {
-            if (HasComponent<T>())
+            return (T)AddComponent(new T());
+        }
+
+        public NodeComponent AddComponent(NodeComponent component)
+        {
+            if (component.Node != null)
+            {
+                throw new InvalidOperationException("component already attached to a node");
+            }
+
+            Type t = component.GetType();
+            if (components.ContainsKey(t))
             {
                 throw new InvalidOperationException("component already exists");
             }
-            T res = new T();
-            res.Node = this;
-            components[typeof(T)] = res;
-            return res;
+
+            components[t] = component;
+            components[t].Node = this;
+            components[t].Initialize();
+            return components[t];
         }
         
         /// <summary>
@@ -138,7 +150,7 @@ namespace OPS.Geometry
             }
         }
 
-        internal Dictionary<Type, object> components;
+        internal Dictionary<Type, NodeComponent> components;
 
         static readonly string[] SillyNames = new string[]
         {

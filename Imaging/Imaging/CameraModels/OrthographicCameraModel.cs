@@ -17,6 +17,11 @@ namespace OPS.Imaging
         private Vector2 extent;
         private Matrix invertTransform;
 
+        public override bool Linear
+        {
+            get { return true; }
+        }
+
         /// <summary>
         /// Create a camera at the location and orientation specified by transform
         /// Use the XY pixel resolution
