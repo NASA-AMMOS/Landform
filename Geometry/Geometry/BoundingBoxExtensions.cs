@@ -106,7 +106,7 @@ namespace OPS.Geometry
         }
 
         /// <summary>
-        /// Returns true if the this box is totaly inside or equal to the outer box
+        /// Returns true if the inner is totaly inside or equal to the outer
         /// Note that this method is similar to BoundingBox.Contains except that it allows for floating point
         /// error.
         /// </summary>

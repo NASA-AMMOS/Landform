@@ -130,10 +130,12 @@
     <Compile Include="Commands\Commands.cs" />
     <Compile Include="Commands\ConvertBaselineMesh.cs" />
     <Compile Include="Commands\CrawlMSL.cs" />
+    <Compile Include="Commands\LegacyToWebVR.cs" />
     <Compile Include="Commands\MatchAllImages.cs" />
     <Compile Include="Commands\MatchImages.cs" />
     <Compile Include="Commands\PDSImageConverter.cs" />
     <Compile Include="Commands\TileBaselineMesh.cs" />
+    <Compile Include="General\LegacyScene.cs" />
     <Compile Include="General\ObservationEnums.cs" />
     <Compile Include="GdalConfiguration.cs" />
     <Compile Include="Rover\MSLLocations.cs" />
@@ -231,6 +233,10 @@
     <ProjectReference Include="..\MathExtensions\MathExtensions.csproj">
       <Project>{8c7c8a71-0a4b-4d75-9cb2-32803bd8f86f}</Project>
       <Name>MathExtensions</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\RayTrace\RayTrace.csproj">
+      <Project>{0e8c60bb-4a68-480f-895a-2b326aec002c}</Project>
+      <Name>RayTrace</Name>
     </ProjectReference>
     <ProjectReference Include="..\RayTrace\RayTrace.csproj">
       <Project>{0E8C60BB-4A68-480F-895A-2B326AEC002C}</Project>

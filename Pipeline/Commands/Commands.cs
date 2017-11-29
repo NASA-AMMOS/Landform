@@ -26,7 +26,9 @@ namespace OPS.Pipeline
                                                              ConvertBaselineMeshesOptions,
                                                              TileBaselineMeshOptions, 
                                                              TileBaselineMeshesOptions, 
-                                                             BenchmarkS3Options>(args)
+                                                             BenchmarkS3Options,
+                                                             LegacyToWebVROptions
+                                                             >(args)
               .MapResult(
                 (CralwMSLOptions opts) => new CrawlMSL(opts).Run(),
                 (ConvertBaselineMeshOptions opts) => new ConvertBaselineMesh(opts).Run(),
@@ -37,6 +39,7 @@ namespace OPS.Pipeline
                 (MatchImagesOptions opts) => new MatchImages(opts).Run(),
                 (MatchAllImagesOptions opts) => new MatchAllImages(opts).Run(),
                 (PDSImageConverterOptions opts) => new PDSImageConverter(opts).Run(),
+                (LegacyToWebVROptions opts) => new LegacyToWebVR(opts).Run(),
                 errs => 1);
         }
     }

@@ -766,9 +766,50 @@ namespace OPS.Geometry
                     }
                 }
             }
-            Debug.Assert(box.FuzzyContains(result.Bounds()), "Clipped mesh exceeds bounding box");
+            if (!box.FuzzyContains(result.Bounds(), 1E-5))
+            {
+                throw new Exception("Clipped mesh exceeds bounding box");
+            }
             return result;
         }
+
+        /// <summary>
+        /// Clips a mesh to remove everything within the given bounding box
+        /// </summary>
+        /// <param name="m"></param>
+        /// <param name="box"></param>
+        /// <returns></returns>
+        public static Mesh Cut(Mesh m, BoundingBox box)
+        {
+            Mesh result;
+            if (m.Faces.Count > 0)
+            {
+                List<Triangle> resTriangles = new List<Triangle>();
+                foreach (Face f in m.Faces)
+                {
+                    Vertex v0 = m.Vertices[f.P0];
+                    Vertex v1 = m.Vertices[f.P1];
+                    Vertex v2 = m.Vertices[f.P2];
+                    Triangle t = new Triangle(v0, v1, v2);
+                    resTriangles.AddRange(t.Cut(box));
+                }
+                result = new Mesh(resTriangles, m.HasNormals, m.HasUVs, m.HasColors);
+            }
+            else
+            {
+                result = new Mesh(m.HasNormals, m.HasUVs, m.HasColors);
+                // this is a point cloud
+                foreach (var v in m.Vertices)
+                {
+                    if (box.Contains(v.Position) == ContainmentType.Disjoint)
+                    {
+                        result.Vertices.Add(v);
+                    }
+                }
+            }
+            return result;
+        }
+
 
         /// <summary>
         /// Removes specified vertices from this mesh

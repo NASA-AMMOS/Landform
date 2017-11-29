@@ -80,6 +80,23 @@ namespace OPS.Geometry
             components[t].Initialize();
             return components[t];
         }
+        
+        /// <summary>
+        /// Add a component of type T.
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <param name="res">A component object to add</param>
+        /// <returns></returns>
+        public T AddComponent<T>(T res) where T : NodeComponent, new()
+        {
+            if (HasComponent<T>())
+            {
+                throw new InvalidOperationException("component already exists");
+            }
+            res.Node = this;
+            components[typeof(T)] = res;
+            return res;
+        }
 
         /// <summary>
         /// Get the component of type T, adding one if not present.
