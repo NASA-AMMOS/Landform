@@ -13,6 +13,14 @@ namespace OPS.Imaging
 
         public Vector3 O;
         public Vector3 R;
+        
+        public override bool Linear
+        {
+            get
+            {
+                return false;
+            }
+        }
 
         //Default constructor for json deserialization 
         public CAHVOR()

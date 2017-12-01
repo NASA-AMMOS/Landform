@@ -20,6 +20,14 @@ namespace OPS.Imaging
 
         }
 
+        public override bool Linear
+        {
+            get
+            {
+                return true;
+            }
+        }
+
         public CAHV(Vector3 c, Vector3 a, Vector3 h, Vector3 v)
         {
             this.C = c;

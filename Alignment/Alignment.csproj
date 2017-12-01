@@ -55,6 +55,10 @@
       <HintPath>..\packages\MathNet.Numerics.3.19.0\lib\net40\MathNet.Numerics.dll</HintPath>
       <Private>True</Private>
     </Reference>
+    <Reference Include="Newtonsoft.Json, Version=10.0.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed, processorArchitecture=MSIL">
+      <HintPath>..\packages\Newtonsoft.Json.10.0.3\lib\net45\Newtonsoft.Json.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
     <Reference Include="OpenTK, Version=2.0.0.0, Culture=neutral, PublicKeyToken=bad199fe84eb3df4, processorArchitecture=MSIL">
       <HintPath>..\packages\OpenTK.2.0.0\lib\net20\OpenTK.dll</HintPath>
       <Private>True</Private>
@@ -83,6 +87,7 @@
     <Compile Include="FeatureMatching\BruteForceMatcher.cs" />
     <Compile Include="MatchFilters\GTM\GTM.cs" />
     <Compile Include="Interfaces\IDescriptorCalculator.cs" />
+    <Compile Include="MatchFilters\KnownGeometryFilter.cs" />
     <Compile Include="PCASIFT\PCAConstants.cs" />
     <Compile Include="SIFT\ASIFTDetector.cs" />
     <Compile Include="MatchFilters\GTM\GTMGraph.cs" />
@@ -125,6 +130,10 @@
     <ProjectReference Include="..\Imaging\Imaging.csproj">
       <Project>{c3ec3ab5-8dfd-4daa-9833-246f0db6a805}</Project>
       <Name>Imaging</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\MathExtensions\MathExtensions.csproj">
+      <Project>{8c7c8a71-0a4b-4d75-9cb2-32803bd8f86f}</Project>
+      <Name>MathExtensions</Name>
     </ProjectReference>
     <ProjectReference Include="..\Util\Util.csproj">
       <Project>{8145AA65-BA61-4E27-81FF-B64217B49929}</Project>

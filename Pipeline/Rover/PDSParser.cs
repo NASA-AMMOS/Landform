@@ -351,6 +351,18 @@ namespace OPS.Pipeline
             }
         }
 
+
+        public bool IsHazcam
+        {
+            get
+            {
+                return Camera == RoverProductCamera.FrontHazcamLeft
+                    || Camera == RoverProductCamera.FrontHazcamRight
+                    || Camera == RoverProductCamera.RearHazcamLeft
+                    || Camera == RoverProductCamera.RearHazcamRight;
+            }
+        }
+
         public bool IsDownsampled
         {
             get

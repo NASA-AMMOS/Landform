@@ -31,7 +31,7 @@ namespace GeometryTest
                         m.Vertices.Add(new Vertex(1, 0, 0, 0, 0, 1, 0.5, 0, 0, 1, 0, 1));
                         m.Vertices.Add(new Vertex(1, 1, 0, 0, 0, 1, 0.5, 1, 0, 0, 1, 1));
                         m.Vertices.Add(new Vertex(0.5, 1, 0, 0, 0, 1, 0.25, 1, 0, 0, 1, 1));
-                        // zero out any feilds this mesh doesn't have
+                        // zero out any fields this mesh doesn't have
                         for (int i = 0; i < m.Vertices.Count; i++)
                         {
                             m.Vertices[i].Normal = normals ? m.Vertices[i].Normal : Vector3.Zero;

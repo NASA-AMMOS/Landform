@@ -60,6 +60,7 @@
   </Choose>
   <ItemGroup>
     <Compile Include="AssimpSerializerTest.cs" />
+    <Compile Include="DracoSerializerTest.cs" />
     <Compile Include="FSSRTest.cs" />
     <Compile Include="MeshLabTest.cs" />
     <Compile Include="OpenInventorSerializerTest.cs" />

@@ -19,6 +19,7 @@ namespace OPS.Geometry
             new OBJSerializer().Register();
             new PLYSerializer().Register();
             new GLTFSerializer().Register();
+            new BOBSerializer().Register();
         }
 
         /// <summary>

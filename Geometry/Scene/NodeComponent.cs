@@ -15,5 +15,7 @@ namespace OPS.Geometry
         /// The node this component is attached to.
         /// </summary>
         public SceneNode Node;
+
+        public virtual void Initialize() { }
     }
 }
