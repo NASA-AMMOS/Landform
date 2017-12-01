@@ -26,6 +26,9 @@ namespace CloudTest
             url.Url = "s3://mrbucket/is/buckets/of/fun/";
             Assert.AreEqual("mrbucket", url.BucketName);
             Assert.AreEqual("is/buckets/of/fun/", url.Prefix);
+            url.Url = "s3://mrbucket/is/buckets/of/fun/file.gif";
+            Assert.AreEqual("mrbucket", url.BucketName);
+            Assert.AreEqual("is/buckets/of/fun/file.gif", url.Prefix);
         }
     }
 }

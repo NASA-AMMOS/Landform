@@ -5,6 +5,7 @@ using System.Text;
 using System.IO;
 using Microsoft.Xna.Framework;
 using System.Diagnostics;
+using OPS.MathExtensions;
 
 namespace OPS.Geometry
 {
@@ -153,9 +154,17 @@ namespace OPS.Geometry
                 return false;
             }
             // Are any of the faces vertices at the same location
-            if (Vertices[f.P0].Position == Vertices[f.P1].Position ||
-                Vertices[f.P1].Position == Vertices[f.P2].Position ||
-                Vertices[f.P2].Position == Vertices[f.P0].Position)
+            if ((Vertices[f.P0].Position == Vertices[f.P1].Position) ||
+               (Vertices[f.P1].Position == Vertices[f.P2].Position) ||
+               (Vertices[f.P2].Position == Vertices[f.P0].Position))
+            {
+                return false;
+            }
+            // Is the face zero-length? 
+            Vector3 v1v0 = Vertices[f.P1].Position - Vertices[f.P0].Position; //when norm fails this is on the order of 10^-6, which is greater than AlmostEqual
+            Vector3 v2v0 = Vertices[f.P2].Position - Vertices[f.P0].Position;
+            Vector3 norm = Vector3.Cross(v1v0, v2v0);
+            if (norm.Length() == 0) //for very-close-together vertices, norm is zero
             {
                 return false;
             }
@@ -585,6 +594,16 @@ namespace OPS.Geometry
         }
 
         /// <summary>
+        /// Return a copy of this mesh with a transformation applied.
+        /// </summary>
+        public static Mesh Transformed(Mesh mesh, Matrix mat)
+        {
+            Mesh res = new Mesh(mesh);
+            res.Transform(mat);
+            return res;
+        }
+
+        /// <summary>
         /// Applies an offset to all vertices in the mesh
         /// </summary>
         /// <param name="offset"></param>
@@ -756,9 +775,50 @@ namespace OPS.Geometry
                     }
                 }
             }
-            Debug.Assert(box.FuzzyContains(result.Bounds()), "Clipped mesh exceeds bounding box");
+            if (!box.FuzzyContains(result.Bounds(), 1E-5))
+            {
+                throw new Exception("Clipped mesh exceeds bounding box");
+            }
             return result;
         }
+
+        /// <summary>
+        /// Clips a mesh to remove everything within the given bounding box
+        /// </summary>
+        /// <param name="m"></param>
+        /// <param name="box"></param>
+        /// <returns></returns>
+        public static Mesh Cut(Mesh m, BoundingBox box)
+        {
+            Mesh result;
+            if (m.Faces.Count > 0)
+            {
+                List<Triangle> resTriangles = new List<Triangle>();
+                foreach (Face f in m.Faces)
+                {
+                    Vertex v0 = m.Vertices[f.P0];
+                    Vertex v1 = m.Vertices[f.P1];
+                    Vertex v2 = m.Vertices[f.P2];
+                    Triangle t = new Triangle(v0, v1, v2);
+                    resTriangles.AddRange(t.Cut(box));
+                }
+                result = new Mesh(resTriangles, m.HasNormals, m.HasUVs, m.HasColors);
+            }
+            else
+            {
+                result = new Mesh(m.HasNormals, m.HasUVs, m.HasColors);
+                // this is a point cloud
+                foreach (var v in m.Vertices)
+                {
+                    if (box.Contains(v.Position) == ContainmentType.Disjoint)
+                    {
+                        result.Vertices.Add(v);
+                    }
+                }
+            }
+            return result;
+        }
+
 
         /// <summary>
         /// Removes specified vertices from this mesh

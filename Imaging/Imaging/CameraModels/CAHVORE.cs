@@ -50,6 +50,14 @@ namespace OPS.Imaging
             this.linearityMode = that.linearityMode;
         }
 
+        public override bool Linear
+        {
+            get
+            {
+                return false;
+            }
+        }
+
         /// <summary>
         /// Port from Todd's CMOD_CAHVOR_2D_TO_3D
         /// </summary>

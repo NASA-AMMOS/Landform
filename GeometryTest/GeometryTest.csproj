@@ -41,7 +41,7 @@
       <Private>True</Private>
     </Reference>
     <Reference Include="Newtonsoft.Json, Version=10.0.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed, processorArchitecture=MSIL">
-      <HintPath>..\packages\Newtonsoft.Json.10.0.2\lib\net45\Newtonsoft.Json.dll</HintPath>
+      <HintPath>..\packages\Newtonsoft.Json.10.0.3\lib\net45\Newtonsoft.Json.dll</HintPath>
       <Private>True</Private>
     </Reference>
     <Reference Include="RTree, Version=1.0.0.0, Culture=neutral, processorArchitecture=MSIL">
@@ -65,8 +65,11 @@
     </Otherwise>
   </Choose>
   <ItemGroup>
+    <Compile Include="Geometry\AxisAngleVectorTest.cs" />
     <Compile Include="Geometry\BarycentricPointTest.cs" />
     <Compile Include="Geometry\BoundingBoxExtensionsTest.cs" />
+    <Compile Include="Geometry\GJKIntersectionTest.cs" />
+    <Compile Include="Geometry\RayTest.cs" />
     <Compile Include="Geometry\SurfacePointSamplerTest.cs" />
     <Compile Include="Geometry\FaceTest.cs" />
     <Compile Include="Geometry\MeshOperatorTest.cs" />
@@ -74,6 +77,7 @@
     <Compile Include="Geometry\TriangleTest.cs" />
     <Compile Include="Geometry\PlaneExtensionTest.cs" />
     <Compile Include="Geometry\VertexTest.cs" />
+    <Compile Include="Serializers\BOBSerializerTest.cs" />
     <Compile Include="Serializers\GLTFSerializerTest.cs" />
     <Compile Include="Serializers\OBJSerializerTest.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />

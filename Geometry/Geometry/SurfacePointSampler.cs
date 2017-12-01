@@ -37,7 +37,7 @@ namespace OPS.Geometry
         /// This is a metric that approximates how many points to place on a flat surface within a given square unit area, where denser = more points.</param>
         /// <param name="presampleFactor">Factor of how many points to sample randomly before pruning away ones that are too close together</param>
         /// <returns>New mesh containing a point cloud of samples across the surface of the given mesh</returns>
-        public Mesh GenerateSampledMesh(Mesh input, double density, int presampleFactor = 20)
+        public Mesh GenerateSampledMesh(Mesh input, double density, double presampleFactor = 20.0)
         {
             // Perform Poisson-disc sampling on the given mesh with the specified density and presample factor
             Vertex[] sampled = Sample(input, density, presampleFactor);
@@ -63,7 +63,7 @@ namespace OPS.Geometry
         /// This is a metric that approximates how many points to place on a flat surface within a given square unit area, where denser = more points.</param>
         /// <param name="presampleFactor">Factor of how many points to sample randomly before pruning away ones that are too close together</param>
         /// <returns>Vertex array containing a point cloud of samples across the surface of the given mesh</returns>
-        public Vertex[] Sample(Mesh input, double density, int presampleFactor = 20)
+        public Vertex[] Sample(Mesh input, double density, double presampleFactor = 20.0)
         {
             // Make the random generator deterministic upon sampling each model independent of one another
             random = new Random(samplingSeed);

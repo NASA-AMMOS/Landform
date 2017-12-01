@@ -29,6 +29,10 @@ namespace Landform
             log4net.Config.XmlConfigurator.Configure();
             // Register filetype handlers
             new OpenInventorSerializer().Register();
+            new DracoSerializer().Register();
+
+            //Configure gdal
+            GdalConfiguration.ConfigureGdal();
 
             // Parse command line arguments
             int returnCode = Commands.RunFromCommandline(args);

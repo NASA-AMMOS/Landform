@@ -18,17 +18,21 @@ namespace OPS.Pipeline
         {
             /// Commands are defined by the list of types passed into ParseArguments
             /// Each passed in object must have a [Verb] decorator
-            return CommandLine.Parser.Default.ParseArguments<CralwMSLOptions, 
-                                                             ConvertBaselineMeshOptions,
+            return CommandLine.Parser.Default.ParseArguments<ConvertBaselineMeshOptions,
                                                              MatchImagesOptions,
                                                              MatchAllImagesOptions,
                                                              PDSImageConverterOptions,
                                                              ConvertBaselineMeshesOptions,
-                                                             TileBaselineMeshOptions, 
-                                                             TileBaselineMeshesOptions, 
-                                                             BenchmarkS3Options>(args)
+                                                             TileBaselineMeshOptions,
+                                                             AlignmentWorkerOptions,
+                                                             TilingOptions,
+                                                             TileBaselineMeshesOptions,
+                                                             BenchmarkS3Options,
+                                                             LegacyToWebVROptions
+                                                             >(args)
               .MapResult(
-                (CralwMSLOptions opts) => new CrawlMSL(opts).Run(),
+                (AlignmentWorkerOptions opts) => new AlignmentWorker().Run(),
+                (TilingOptions opts) => new TilingWorker().Run(),
                 (ConvertBaselineMeshOptions opts) => new ConvertBaselineMesh(opts).Run(),
                 (ConvertBaselineMeshesOptions opts) => new ConvertBaselineMeshes(opts).Run(),
                 (TileBaselineMeshOptions opts) => new TileBaselineMesh(opts).Run(),
@@ -37,6 +41,7 @@ namespace OPS.Pipeline
                 (MatchImagesOptions opts) => new MatchImages(opts).Run(),
                 (MatchAllImagesOptions opts) => new MatchAllImages(opts).Run(),
                 (PDSImageConverterOptions opts) => new PDSImageConverter(opts).Run(),
+                (LegacyToWebVROptions opts) => new LegacyToWebVR(opts).Run(),
                 errs => 1);
         }
     }

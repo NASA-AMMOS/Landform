@@ -1,38 +1,52 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.ComponentModel.DataAnnotations;
-using System.ComponentModel.DataAnnotations.Schema;
-using System.Data.Entity.Infrastructure;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+
+using Amazon.DynamoDBv2.DataModel;
+using Amazon.DynamoDBv2;
 
 namespace OPS.Cloud
 {
     /// <summary>
     /// A project specifies a container for a 3D reconstruction consiting of mutliple observations
+    /// Projects are not versioned, so Creates and Saves will always succeed but will not overwrite existing values. 
+    /// Projects are not versioned, so FindOrCreate is not implemented (it implies certainty, but these are non-versioned ops)
     /// </summary>
+    [DynamoDBTable("Projects")]
     public class Project
     {
-        public int Id { get; set; }
-        [Required]
-        [Index("IX_ProjectUniqueness", IsUnique = true)]
-        [MaxLength(255)]
+        [DynamoDBHashKey] //Partition key
+        [DynamoDBProperty("project_name")]
         public string Name { get; set; }
-        
+
+        /// <summary>
+        /// Prefix of s3 URL where features should be saved. Format s3://<bucketname>/<prefix>/
+        /// </summary>
+        public string FeatureUrl { get; set; }
+
+        /// <summary>
+        /// Prefix of S3 URL where matches should be saved. Format s3://<bucketname>/<prefix>/
+        /// </summary>
+        public string MatchUrl { get; set; }
+
+        //This constructor must be public for DynamoDb but should not be used
         public Project()
         {
 
         }
 
         /// <summary>
-        /// Creates Project object locally.  The project's Id field will be invalid
-        /// until it is added to the database context and the context is saved.
+        /// Creates Project object locally.  
         /// </summary>
         /// <param name="name">Project names in the database must be unique</param>
-        protected Project(string name)
+        protected Project(string name, string featureUrl, string matchUrl)
         {
-            this.Name = name;
+            Name = name;
+            MatchUrl = matchUrl;
+            FeatureUrl = featureUrl;
+            this.IsValid();
         }
 
         /// <summary>
@@ -42,45 +56,22 @@ namespace OPS.Cloud
         /// <param name="context"></param>
         /// <param name="name">Project names in the database must be unique</param>
         /// <returns></returns>
-        public static Project Create(LandformDbContext context, string name)
+        public static Project Create(DynamoDBContext context, string name, string featureUrl, string matchUrl)
         {
-            try
-            {
-                Project project = context.Projects.Add(new Project(name));
-                context.SaveChanges();
-                return project;
-            }
-            catch (DbUpdateException)
-            {
-                // A record with this unique name already exists
-            }            
-            return null;
+            Project project = new Project(name, featureUrl, matchUrl);
+            context.Save(project, new DynamoDBOperationConfig() { IgnoreNullValues = true });
+            return project;
         }
 
         /// <summary>
-        /// Finds a project matching this name.  If one doesn't exist then it is created and returned.
-        /// Returned project is saved in database and has a valid id.
+        /// Because this is non-versioned, Save will always succeed but will not overwrite any values
+        /// except those specified in this Project. 
         /// </summary>
-        /// <param name="context"></param>
-        /// <param name="name">Project names in the database must be unique</param>
         /// <returns></returns>
-        public static Project FindOrCreate(LandformDbContext context, string name)
+        public void Save(DynamoDBContext context)
         {
-            // Try to find this project
-            Project project = Find(context, name);
-            if (project != null)
-            {
-                return project;
-            }
-            // If it doesn't exist try to create it
-            project = Create(context, name);
-            if(project != null)
-            {
-                return project;
-            }
-            // If our create failed someone else may have created one between our find and create calls
-            // Look for it again.
-            return Find(context, name); 
+            this.IsValid();
+            context.Save(this, new DynamoDBOperationConfig() { IgnoreNullValues = true });
         }
 
         /// <summary>
@@ -90,18 +81,19 @@ namespace OPS.Cloud
         /// <param name="context"></param>
         /// <param name="name">Project names in the database must be unique</param>
         /// <returns></returns>
-        public static Project Find(LandformDbContext context, string name)
+        public static Project Find(DynamoDBContext context, string name)
         {
-            return context.Projects.Where(p => p.Name == name).FirstOrDefault();
+            Project project = context.Load<Project>(name);
+            project.IsValid();
+            return project;
         }
 
-        /// <summary>
-        /// Returns true if Id is valid (this object has been saved to the database)
-        /// </summary>
-        /// <returns></returns>
-        public bool HasValidId()
+        private void IsValid()
         {
-            return Id != 0;           
+            if (!(Name != null && MatchUrl != null && FeatureUrl != null))
+            {
+                throw new CloudException("Project is missing a required field");
+            }
         }
     }
 }

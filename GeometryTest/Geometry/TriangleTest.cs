@@ -45,6 +45,11 @@ namespace GeometryTest
             b.V0.Position.Z = 42;
             Assert.AreEqual(a.V0.Position, new Vector3(10, 1, 2));
             Assert.AreEqual(b.V0.Position, new Vector3(10, 1, 42));
+
+            Triangle c = new Triangle(new Vector3(0, 1, 2), new Vector3(3, 4, 5), new Vector3(6, 7, 8));
+            Assert.AreEqual(v0, c.V0);
+            Assert.AreEqual(v1, c.V1);
+            Assert.AreEqual(v2, c.V2);
         }
 
         [TestMethod]

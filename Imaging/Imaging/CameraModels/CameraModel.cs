@@ -54,6 +54,11 @@ namespace OPS.Imaging
         /// <returns></returns>
         public abstract Vector2 Backproject(Vector3 pos, out double range);
 
+        /// <summary>
+        /// If true, this camera model is purely linear.
+        /// </summary>
+        public abstract bool Linear { get; }
+
         public abstract object Clone();
     }
 }
