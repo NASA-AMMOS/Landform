@@ -11,6 +11,7 @@ namespace OPS.Cloud
     /// </summary>
     public class S3Url
     {
+
         public string BucketName { get; set; }
         public string Prefix { get; set; }
         public string Url

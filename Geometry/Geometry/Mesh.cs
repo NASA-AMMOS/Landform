@@ -5,6 +5,7 @@ using System.Text;
 using System.IO;
 using Microsoft.Xna.Framework;
 using System.Diagnostics;
+using OPS.MathExtensions;
 
 namespace OPS.Geometry
 {
@@ -153,9 +154,17 @@ namespace OPS.Geometry
                 return false;
             }
             // Are any of the faces vertices at the same location
-            if (Vertices[f.P0].Position == Vertices[f.P1].Position ||
-                Vertices[f.P1].Position == Vertices[f.P2].Position ||
-                Vertices[f.P2].Position == Vertices[f.P0].Position)
+            if ((Vertices[f.P0].Position == Vertices[f.P1].Position) ||
+               (Vertices[f.P1].Position == Vertices[f.P2].Position) ||
+               (Vertices[f.P2].Position == Vertices[f.P0].Position))
+            {
+                return false;
+            }
+            // Is the face zero-length? 
+            Vector3 v1v0 = Vertices[f.P1].Position - Vertices[f.P0].Position; //when norm fails this is on the order of 10^-6, which is greater than AlmostEqual
+            Vector3 v2v0 = Vertices[f.P2].Position - Vertices[f.P0].Position;
+            Vector3 norm = Vector3.Cross(v1v0, v2v0);
+            if (norm.Length() == 0) //for very-close-together vertices, norm is zero
             {
                 return false;
             }

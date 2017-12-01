@@ -240,6 +240,22 @@ namespace OPS.Cloud
             }
         }
 
+        public StorageHelper()
+        {
+            //leave all the things null 
+            //This works if there is a default profile (on a user machine) or an IAM role (an EC2 instance)
+        }
+
+        //Use default credentials (or, for EC2 workers, their IAM role) if credentials are not provided 
+        private AmazonS3Client GetClient(RegionEndpoint region)
+        {
+            if (awsCredentials != null)
+            {
+                return new AmazonS3Client(awsCredentials, region);
+            }
+            return new AmazonS3Client(region);
+        }
+
         /// <summary>
         /// Attempts to determine the region for a bucket given a bucket name
         /// Note that s3:GetBucketLocation must be allowed for this to succeed
@@ -249,7 +265,7 @@ namespace OPS.Cloud
         public RegionEndpoint GetRegion(string bucketName)
         {
             // Use region USWest1 to lookup bucket regions
-            AmazonS3Client client = new AmazonS3Client(awsCredentials, RegionEndpoint.USWest1);
+            AmazonS3Client client = GetClient(RegionEndpoint.USWest1);
             GetBucketLocationRequest request = new GetBucketLocationRequest
             {
                 BucketName = bucketName
@@ -269,14 +285,14 @@ namespace OPS.Cloud
         {
             if(this.awsRegion != null )
             {
-                return new AmazonS3Client(this.awsCredentials, this.awsRegion);
+                return GetClient(awsRegion);
             }
             S3Url location = new S3Url(s3url);
             if (!bucketToRegion.ContainsKey(location.BucketName))
             {
                 bucketToRegion.TryAdd(location.BucketName, GetRegion(location.BucketName));
             }           
-            return new AmazonS3Client(this.awsCredentials, bucketToRegion[location.BucketName]);
+            return GetClient(bucketToRegion[location.BucketName]);
         }
 
         /// <summary>
@@ -379,8 +395,46 @@ namespace OPS.Cloud
             using (var client = GetClient(s3url))
             {
                 S3Url location = new S3Url(s3url);
-                TransferUtility tu = new TransferUtility(client);
-                tu.Download(filename, location.BucketName, location.Prefix);
+                using (TransferUtility tu = new TransferUtility(client))
+                {
+                    tu.Download(filename, location.BucketName, location.Prefix);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Upload a file from local disk
+        /// </summary>
+        /// <param name="s3url"></param>
+        /// <param name="filename"></param>
+        public void UploadFile(string filename, string s3url)
+        {
+            using (var client = GetClient(s3url))
+            {
+                S3Url location = new S3Url(s3url);
+                using (TransferUtility tu = new TransferUtility(client))
+                {
+                    tu.Upload(filename, location.BucketName, location.Prefix);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Upload a file from local disk using a single thread
+        /// S3 creates PUT notifications for each chunk of a file uploaded; using 
+        /// a single thread results in only one PUT notification. 
+        /// </summary>
+        /// <param name="s3url"></param>
+        /// <param name="filename"></param>
+        public void UploadFileSingleThread(string filename, string s3url)
+        {
+            using (var client = GetClient(s3url))
+            {
+                S3Url location = new S3Url(s3url);
+                using (TransferUtility tu = new TransferUtility(client, new TransferUtilityConfig { ConcurrentServiceRequests = 1 }))
+                {
+                    tu.Upload(filename, location.BucketName, location.Prefix);
+                }
             }
         }
 

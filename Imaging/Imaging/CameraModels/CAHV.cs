@@ -14,6 +14,12 @@ namespace OPS.Imaging
         public Vector3 H;
         public Vector3 V;
 
+        //Default constructor for JSOn deserialization
+        public CAHV()
+        {
+
+        }
+
         public override bool Linear
         {
             get

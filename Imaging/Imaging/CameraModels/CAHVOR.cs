@@ -22,6 +22,12 @@ namespace OPS.Imaging
             }
         }
 
+        //Default constructor for json deserialization 
+        public CAHVOR()
+        {
+
+        }
+
         public CAHVOR(Vector3 c, Vector3 a, Vector3 h, Vector3 v, Vector3 o, Vector3 r) : base(c,a,h,v)
         {
             this.O = o;

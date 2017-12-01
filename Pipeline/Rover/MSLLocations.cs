@@ -2,6 +2,7 @@
 using Microsoft.Xna.Framework;
 using System;
 using System.Collections.Generic;
+using System.Collections.Concurrent;
 using System.Linq;
 using System.Net;
 using System.Text;
@@ -33,6 +34,7 @@ namespace OPS.Pipeline
 
     /// <summary>
     /// Reads MSL location priors from locations xml.  Locations are relative to an orbital mosaic basemap.
+    /// Once constructed, the object can be shared between multiple threads. 
     /// </summary>
     public class MSLLocations
     {
@@ -40,7 +42,7 @@ namespace OPS.Pipeline
 
         const string DEFAULT_URL = "http://mars.jpl.nasa.gov/msl-raw-images/locations.xml";
 
-        Dictionary<SiteDrive, MSLLocation> locations; 
+        ConcurrentDictionary<SiteDrive, MSLLocation> locations; 
       
         public MSLLocations()
         {
@@ -50,7 +52,7 @@ namespace OPS.Pipeline
         void ParseXML()
         {
             logger.Info("Fetching locations");
-            this.locations = new Dictionary<SiteDrive, MSLLocation>();
+            this.locations = new ConcurrentDictionary<SiteDrive, MSLLocation>();
             WebRequest req = WebRequest.Create("http://mars.jpl.nasa.gov/msl-raw-images/locations.xml");
             WebResponse resp = req.GetResponse();
             XmlDocument doc = new XmlDocument();
@@ -70,7 +72,7 @@ namespace OPS.Pipeline
                 int endSol = int.Parse(location["endSol"].InnerText.Trim());
                 SiteDrive sd = new SiteDrive(site, drive);
                 MSLLocation loc = new MSLLocation(new Vector3(x, y, z), new Vector2(lat, lon), sd, startSol, endSol);
-                locations.Add(sd, loc);
+                if (!locations.TryAdd(sd, loc)) throw new Exception("MSLLocations creation found duplicate item"); 
             }
         }
 

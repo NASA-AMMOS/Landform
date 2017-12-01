@@ -1,32 +1,35 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.ComponentModel.DataAnnotations;
-using System.ComponentModel.DataAnnotations.Schema;
-using System.Data.Entity.Infrastructure;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+
+using Amazon.DynamoDBv2.DataModel;
+using Amazon.DynamoDBv2.Model;
 
 namespace OPS.Cloud
 {
 
     /// <summary>
     /// Represents a coordinate frame in the database
-    /// Coordiante frames can have one or more observations associated with them
-    /// </summary>
+    /// Coordiante frames can have one or more observations associated with them. 
+    /// Frames are not versioned
+    /// </summary>\
+    [DynamoDBTable("Frames")]
     public class Frame
     {
-        public int Id { get; set; }
-        [Required]
-        [Index("IX_FrameUniqueness", 1, IsUnique = true)]
-        public int ProjectId { get; set; }
-        [Index("IX_FrameUniqueness", 2, IsUnique = true)]
-        [MaxLength(255)]
+        [DynamoDBRangeKey]
+        [DynamoDBProperty("project_name")]
+        public string ProjectName { get; set; }
+
+        [DynamoDBHashKey] //Partition key
+        [DynamoDBProperty("frame_name")]
         public string Name { get; set; }
 
+        //This constructor must be public for DynamoDb but should not be used
         public Frame()
         {
-
+            
         }
 
         /// <summary>
@@ -38,41 +41,41 @@ namespace OPS.Cloud
         /// <param name="name"></param>
         protected Frame(Project project, string name = null)
         {
-            if(!project.HasValidId())
-            {
-                throw new CloudException("Cannot create frame with a project that has not been saved to database.");
-            }
-            if(name == null)
+            if (name == null)
             {
                 name = Guid.NewGuid().ToString();
             }
             this.Name = name;
-            this.ProjectId = project.Id;
+            this.ProjectName = project.Name;
         }
 
 
         /// <summary>
         /// Creates a frame for the given project with the given name.  If no name is specifed a random GUID will be used.
         /// Saves the frame the the database and returns an object with a valid id.
-        /// Returns null if a frame with the given name already exists for this project.
         /// </summary>
         /// <param name="context"></param>
         /// <param name="p">Project with a valid id (has been saved to database context)</param>
         /// <param name="name"></param>
         /// <returns></returns>
-        public static Frame Create(LandformDbContext context, Project p, string name = null)
+        public static Frame Create(DynamoDBContext context, Project p, string name = null)
         {
-            try
+            if (name == null)
             {
-                Frame frame = context.Frames.Add(new Frame(p, name));
-                context.SaveChanges();
-                return frame;
+                name = Guid.NewGuid().ToString();
             }
-            catch (DbUpdateException)
-            {
-                // A record with this unique name and project id combination already exists
-            }
-            return null;
+            Frame f = new Frame(p, name);
+            context.Save<Frame>(f, new DynamoDBOperationConfig { IgnoreNullValues = true});
+            return f;
+        }
+
+        /// <summary>
+        /// Save this observation without overwriting any values it may be missing
+        /// </summary>
+        /// <param name=""></param>
+        public void Save(DynamoDBContext context)
+        {
+            context.Save(this, new DynamoDBOperationConfig { IgnoreNullValues = true });
         }
 
         /// <summary>
@@ -84,10 +87,10 @@ namespace OPS.Cloud
         /// <param name="p">Project with a valid id (has been saved to database context)</param>
         /// <param name="name"></param>
         /// <returns></returns>
-        public static Frame FindOrCreate(LandformDbContext context, Project p, string name)
+        public static Frame FindOrCreate(DynamoDBContext context, Project p, string name)
         {
             // Try to find this project
-            Frame frame = Find(context, p, name);
+            Frame frame = Find(context, p.Name, name);
             if (frame != null)
             {
                 return frame;
@@ -100,7 +103,7 @@ namespace OPS.Cloud
             }
             // If our create failed someone else may have created one between our find and create calls
             // Look for it again.
-            return Find(context, p, name);
+            return Find(context, p.Name, name);
         }
 
         /// <summary>
@@ -110,18 +113,9 @@ namespace OPS.Cloud
         /// <param name="p">Project with a valid id (has been saved to database context)</param>
         /// <param name="name"></param>
         /// <returns></returns>
-        public static Frame Find(LandformDbContext context, Project p, string name)
+        public static Frame Find(DynamoDBContext context, string projectName, string name)
         {
-            return context.Frames.Where(f => f.Name == name && f.ProjectId == p.Id).FirstOrDefault();
-        }
-
-        /// <summary>
-        /// Returns true if Id is valid (this object has been saved to the database)
-        /// </summary>
-        /// <returns></returns>
-        public bool HasValidId()
-        {
-            return Id != 0;
+            return context.Load<Frame>(name, projectName);
         }
     }   
 }

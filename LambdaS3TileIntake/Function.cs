@@ -1,0 +1,95 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
+using System.IO;
+
+using Amazon.Lambda.Core;
+using Amazon.Lambda.S3Events;
+using Amazon.S3;
+using Amazon.DynamoDBv2;
+using Amazon.DynamoDBv2.DocumentModel;
+using Amazon.DynamoDBv2.Model;
+using Amazon.DynamoDBv2.DataModel;
+
+using Lambda.LambdaUtil;
+
+// Assembly attribute to enable the Lambda function's JSON input to be converted into a .NET class.
+[assembly: LambdaSerializer(typeof(Amazon.Lambda.Serialization.Json.JsonSerializer))]
+
+namespace Lambda.LambdaS3TileIntake
+{
+    /// <summary>
+    /// Uploads metadata to DynamoDB for tiles uploaded to S3.
+    /// For each child tile: 
+    ///     Creates a ParentTile if one is not present 
+    ///     Creates a ChildTile
+    ///     Incrememnts the number of children present for the parent tile 
+    ///     
+    /// Concurrency: 
+    ///     It is possible (in the case of Dynamo or Lambda failure) that a single child tile addition will increment the parent tile count by >1
+    ///     This overcounting, if children are uploaded in quick succession, could result in multiple parent creation jobs
+    /// </summary>
+    public class Function
+    {
+        private const string DB_PRIMARY_KEY = "mesh_name";
+
+        private IAmazonS3 S3Client { get; set; }
+        private IAmazonDynamoDB DBClient { get; set; }
+        private DynamoDBContext DBContext { get; set; }
+
+        /// <summary>
+        /// Default constructor. This constructor is used by Lambda to construct the instance. When invoked in a Lambda environment
+        /// the AWS credentials will come from the IAM role associated with the function and the AWS region will be set to the
+        /// region the Lambda function is executed in.
+        /// </summary>
+        public Function()
+        {
+            S3Client = new AmazonS3Client();
+            DBClient = new AmazonDynamoDBClient();
+            DBContext = new DynamoDBContext(DBClient, new DynamoDBContextConfig { TableNamePrefix = Environment.GetEnvironmentVariable("TABLE_PREFIX") });
+        }
+
+        /// <summary>
+        /// This method is called for every Lambda invocation. This method takes in an S3 event object and can be used 
+        /// to respond to S3 notifications.
+        /// </summary>
+        /// <param name="evnt"></param>
+        /// <param name="context"></param>
+        /// <returns></returns>
+        public async Task<string> FunctionHandler(S3Event evnt, ILambdaContext context) 
+        {
+            var s3Event = evnt.Records?[0].S3;
+            if (s3Event == null)
+            {
+                return null;
+            }
+
+            //decide whether we should process parent tile
+            string path = Path.GetDirectoryName(s3Event.Object.Key);
+            string key = (path.Length > 0)? (path + "/" + Path.GetFileNameWithoutExtension(s3Event.Object.Key)) : (Path.GetFileNameWithoutExtension(s3Event.Object.Key));
+            string prefix = key.Substring(0, key.Length-1); //parent's key
+            string suffix = Convert.ToString(key.Last()); //child's suffix
+            string file_ending = Path.GetExtension(s3Event.Object.Key);
+            string bucket = s3Event.Bucket.Name;
+            LambdaLogger.Log("Prefix: " + prefix + "\nSuffix: " + suffix + "\nFile ending: " + file_ending + "\nBucket: " + bucket);
+
+            if (!file_ending.Contains("obj"))
+            {
+                return "I only like object files";
+            }
+
+            // If parent does not exist, create parent 
+            string parentName = bucket + "/" + prefix;
+            ParentTile parent = await ParentTile.Create(DBContext, parentName, TableNames.HARDCODED_4);
+
+            // Put this child tile into the db 
+            await ChildTile.Create(DBContext, parentName, suffix);
+
+            //Increment number of child tiles 
+            await parent.IncrementChildren(DBClient);
+
+            return "success";
+        }
+    }
+}

@@ -1,9 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Data.Entity.Infrastructure;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+
+using Amazon.DynamoDBv2.DataModel;
 
 namespace OPS.Cloud
 {
@@ -17,13 +18,18 @@ namespace OPS.Cloud
         public string Version { get; set; }
         public string Sensor { get; set; }
         public string ImageFrameSize { get; set; }
-        
+
+        //width and height are JUST for current sketchy old overlap detection. TODO probably not nececary 
+        public int Width { get; set; }
+        public int Height { get; set; }
+
+        //This constructor must be public for DynamoDb but should not be used
         public RoverObservation()
         {
-
+           
         }
 
-        protected RoverObservation(Frame frame, string name, string url, string observationType, string cameraModel, bool useForReconstruction, int site, int drive, string version, string sensor, string imageFrameSize) :
+        protected RoverObservation(Frame frame, string name, string url, string observationType, string cameraModel, bool useForReconstruction, int site, int drive, string version, string sensor, string imageFrameSize, int width, int height) :
             base(frame, name, url, observationType, cameraModel, useForReconstruction)
         {
             this.Site = site;
@@ -31,6 +37,8 @@ namespace OPS.Cloud
             this.Version = version;
             this.Sensor = sensor;
             this.ImageFrameSize = imageFrameSize;
+            this.Width = width;
+            this.Height = height;
         }
 
         /// <summary>
@@ -44,7 +52,7 @@ namespace OPS.Cloud
         /// <param name="cameraModel"></param>
         /// <param name="useForReconstruction"></param>
         /// <returns></returns>
-        new public static Observation Create(LandformDbContext context, Frame frame, string name, string url, string observationType, string cameraModel, bool useForReconstruction)
+        new public static Observation Create(DynamoDBContext context, Frame frame, string name, string url, string observationType, string cameraModel, bool useForReconstruction)
         {
             throw new NotImplementedException("Call the other version of RoverObservation.Create with rover specific arguments");
         }
@@ -61,19 +69,27 @@ namespace OPS.Cloud
         /// <param name="observationType"></param>
         /// <param name="cameraModel"></param>
         /// <returns></returns>
-        public static RoverObservation Create(LandformDbContext context, Frame frame, string name, string url, string observationType, string cameraModel, bool useForReconstruction, int site, int drive, string version, string sensor, string imageFrameSize)
+        public static RoverObservation Create(DynamoDBContext context, Frame frame, string name, string url, string observationType, string cameraModel, bool useForReconstruction, int site, int drive, string version, string sensor, string imageFrameSize, int width, int height)
         {
-            try
+            if (Observation.Find(context, frame.ProjectName, name) != null)
             {
-                Observation observation = context.Observations.Add(new RoverObservation(frame, name, url, observationType, cameraModel, useForReconstruction, site, drive, version, sensor, imageFrameSize));
-                context.SaveChanges();
-                return (RoverObservation)observation;
+                return null; //An observation with this name and project already exists 
             }
-            catch (DbUpdateException)
-            {
-                // A record with this unique name and project id combination already exists
-            }
-            return null;
+            RoverObservation ro = new RoverObservation(frame, name, url, observationType, cameraModel, useForReconstruction, site, drive, version, sensor, imageFrameSize, width, height);
+            context.Save(ro);
+            return ro;
+        }
+
+        /// <summary>
+        /// Finds an observation based on its name and project
+        /// Return null if observation cannot be found
+        /// </summary>
+        /// <param name="context"></param>
+        /// <param name="imageId"></param>
+        /// <returns></returns>
+        new public static RoverObservation Find(DynamoDBContext context, string projectName, string name)
+        {
+            return context.Load<RoverObservation>(name, projectName);
         }
     }
 }

@@ -31,6 +31,9 @@ namespace Landform
             new OpenInventorSerializer().Register();
             new DracoSerializer().Register();
 
+            //Configure gdal
+            GdalConfiguration.ConfigureGdal();
+
             // Parse command line arguments
             int returnCode = Commands.RunFromCommandline(args);
             return returnCode;

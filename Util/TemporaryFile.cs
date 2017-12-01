@@ -6,6 +6,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System.Threading;
 
 namespace OPS.Util
 {
@@ -15,7 +16,7 @@ namespace OPS.Util
         class TempFileConfig : Config
         {
             [ConfigEnvironmentVariable("LANDFORM_TEMP")]
-            public string LandformTempDir { get; set; }
+            public string LandformTempDir { get ;  set; } 
         }
 
         static string tmpDirectory = "tmp";
@@ -32,6 +33,24 @@ namespace OPS.Util
             {
                 logger.Info("Temporary directory specified by environmental variable");
                 TemporaryDirectory = tmpLocation;
+            }
+        }
+
+        //File name for non-static use
+        public string FilePath { get; private set; }
+
+        //Create a single temporary file 
+        public TemporaryFile(string extension)
+        {
+            FilePath = GetTempName(extension);
+        }
+
+        //Remove the created file 
+        public void Cleanup()
+        {
+            if (File.Exists(FilePath))
+            {
+                File.Delete(FilePath);
             }
         }
 
@@ -107,6 +126,50 @@ namespace OPS.Util
                     File.Delete(tmpFiles[i]);
                 }
             }
+        }
+
+        /// <summary>
+        /// Get multiple temporary files that will be deleted at the end of the delegate function block
+        /// </summary>
+        /// <param name="extensions">The extensions to be used for each file. There will be as many files as extensions</param>
+        /// <param name="func"></param>
+        public static void GetAndDeleteMultiple(string[] extensions, MultipleFilenameDelegate func)
+        {
+            string[] tmpFiles = new string[extensions.Count()];
+            for (int i = 0; i < tmpFiles.Length; i++)
+            {
+                tmpFiles[i] = GetTempName(extensions[i]);
+            }
+            func(tmpFiles);
+            for (int i = 0; i < tmpFiles.Length; i++)
+            {
+                if (File.Exists(tmpFiles[i]))
+                {
+                    File.Delete(tmpFiles[i]);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Provide a guid temp directory so caller can save specific file names at a unique path 
+        /// </summary>
+        /// <returns></returns>
+        public static string GetTempDirectory()
+        {
+            string tempDir = Guid.NewGuid().ToString();
+            string fullPathToTempDirectory = Path.GetFullPath(tmpDirectory) + tempDir;
+            PathHelper.EnsureExists(Path.GetFullPath(fullPathToTempDirectory));
+            return fullPathToTempDirectory;
+        }
+
+        /// <summary>
+        /// Delete temp directory and all contents 
+        /// </summary>
+        /// <param name="extension"></param>
+        /// <returns></returns>
+        public static void DeleteTempDirectory(string tempDir)
+        {
+            Directory.Delete(tempDir, true);
         }
 
         private static string GetTempName(string extension)
