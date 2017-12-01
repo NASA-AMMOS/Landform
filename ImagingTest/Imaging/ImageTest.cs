@@ -204,9 +204,9 @@ namespace ImageTest
         {
             Image img = Image.Load(Path.Combine("TestData", "img", "testPattern.png"));
             Image smaller = img.ResizeSimpleBicubic(64, 64);
-            smaller.Save<byte>("testPatternSmall.png");
+            smaller.Save<byte>("testPatternBicubicSmall.png");
             Image bigger = img.ResizeSimpleBicubic(1200, 1401);
-            bigger.Save<byte>("testPatternBigger.png");
+            bigger.Save<byte>("testPatternBicubicBigger.png");
         }
 
 
@@ -218,11 +218,11 @@ namespace ImageTest
             Image smaller = img.Resize(64, 64);
             Assert.AreEqual(64, smaller.Width);
             Assert.AreEqual(64, smaller.Height);
-            smaller.Save<byte>("testPatternSmall.png");
+            smaller.Save<byte>("testPatternResamplingSmall.png");
             Image bigger = img.Resize(1200, 1401);
             Assert.AreEqual(1200, bigger.Width);
             Assert.AreEqual(1401, bigger.Height);
-            bigger.Save<byte>("testPatternBigger.png");
+            bigger.Save<byte>("testPatternResamplingBigger.png");
         }
 
 

@@ -269,13 +269,20 @@ namespace OPS.Imaging
             if (filter == null)
             {
                 // Default to Catmull-Rom for downsampling, Mitchell for upsampling
-                if (targetWidth <= Width && targetHeight <= Height) filter = CatmullRomFilter;
-                else filter = MitchellFilter;
+                if (targetWidth <= Width && targetHeight <= Height)
+                {
+                    filter = CatmullRomFilter;
+                }
+                else
+                {
+                    filter = MitchellFilter;
+                    
+                }
             }
 
             Image horizontalResult = new Image(this.Bands, targetWidth, this.Height);
 
-            List<Weight> weights = getResizeWeights(targetWidth, this.Width, 2, filter);
+            List<Weight> weights = GetResizeWeights(targetWidth, this.Width, 2, filter);
 
             for (int band = 0; band < Bands; band++)
             {
@@ -292,7 +299,7 @@ namespace OPS.Imaging
             //resize vertically 
             Image result = new Image(this.Bands, targetWidth, targetHeight);
 
-            weights = getResizeWeights(targetHeight, this.Height, 2, filter);
+            weights = GetResizeWeights(targetHeight, this.Height, 2, filter);
 
             for (int band = 0; band < Bands; band++)
             {
@@ -336,7 +343,7 @@ namespace OPS.Imaging
         /// <param name="radius"></param>
         /// <param name="f"></param>
         /// <returns></returns>
-        List<Weight> getResizeWeights(int target, int current, int radius, FilterDelegate f)
+        List<Weight> GetResizeWeights(int target, int current, int radius, FilterDelegate f)
         {
             List<Weight> weights = new List<Weight>();
 
@@ -442,8 +449,7 @@ namespace OPS.Imaging
 
         /// <summary>
         /// Resize an image to the target width using a simple bicubic function
-        /// A better option would be to do something closer to photoshop
-        /// http://entropymine.com/resamplescope/notes/photoshop/
+        /// Considering using Resize() instead
         /// </summary>
         /// <param name="targetWidth"></param>
         /// <param name="targetHeight"></param>
