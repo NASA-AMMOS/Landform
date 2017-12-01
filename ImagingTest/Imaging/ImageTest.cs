@@ -200,7 +200,7 @@ namespace ImageTest
 
         [TestMethod]
         [DeploymentItem("TestData", "TestData")]
-        public void TestImageResize()
+        public void TestImageResizeBicubic()
         {
             Image img = Image.Load(Path.Combine("TestData", "img", "testPattern.png"));
             Image smaller = img.ResizeSimpleBicubic(64, 64);
