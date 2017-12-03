@@ -6,11 +6,11 @@
     <title>$title$</title>
     <authors>Alexander Menzies, Charley Goddard</authors>
     <owners>Alexander Menzies</owners>
-    <projectUrl>https://github.jpl.nasa.gov/OnSight/Pipeline</projectUrl>
+    <projectUrl>https://github.jpl.nasa.gov/OnSight/Landform</projectUrl>
     <requireLicenseAcceptance>false</requireLicenseAcceptance>
     <description>JPL Landform Photogrammetry Pipeline</description>
     <releaseNotes></releaseNotes>
     <copyright>Copyright 2017</copyright>
-    <tags>mesh image pipeline landform</tags>
+    <tags>mesh image geometry pipeline landform photogrammetry camera render</tags>
   </metadata>
 </package>
