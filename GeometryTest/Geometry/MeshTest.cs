@@ -197,10 +197,11 @@ namespace GeometryTest
             m.GenerateVertexNormals();
 
             Assert.IsTrue(m.HasNormals);
-            Assert.IsTrue((Vector3.Forward - m.Vertices[0].Normal).Length() < 1e-8);
-            Assert.IsTrue((Vector3.Forward - m.Vertices[1].Normal).Length() < 1e-8);
-            Assert.IsTrue((Vector3.Forward - m.Vertices[2].Normal).Length() < 1e-8);
-            Assert.IsTrue((Vector3.Forward - m.Vertices[3].Normal).Length() < 1e-8);
+            Vector3 plusZ = new Vector3(0, 0, 1);
+            Assert.IsTrue((plusZ - m.Vertices[0].Normal).Length() < 1e-8);
+            Assert.IsTrue((plusZ - m.Vertices[1].Normal).Length() < 1e-8);
+            Assert.IsTrue((plusZ - m.Vertices[2].Normal).Length() < 1e-8);
+            Assert.IsTrue((plusZ - m.Vertices[3].Normal).Length() < 1e-8);
         }
 
         [TestMethod]
