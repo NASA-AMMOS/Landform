@@ -60,7 +60,7 @@ namespace OPS.Geometry
             UVAtlasNET.UVAtlas.ReturnCode rc = UVAtlasNET.UVAtlas.Atlas(inX, inY, inZ, indices, out outU, out outV, out indices, out outVertexRemap, maxCharts, maxStretch, gutter, width, height, quality, adjacencyEpsilon);
             if (rc != UVAtlasNET.UVAtlas.ReturnCode.SUCCESS)
             {
-                throw new UVAtlasException("Atlas not successfull.  Return code: " + rc);
+                throw new UVAtlasException("Atlas not successful.  Return code: " + rc);
             }
             if (indices.Length % 3 != 0)
             {
