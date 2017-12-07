@@ -29,71 +29,52 @@ namespace OPS.Geometry
         /// <param name="maxStretch"></param>
         /// <param name="gutter"></param>
         /// <returns></returns>
-        public static Mesh Atlas(Mesh mesh, int width, int height, int maxCharts = 0, float maxStretch = 0.25f, float gutter = 4)
+        public static Mesh Atlas(Mesh mesh, int width = 512, int height = 512, int maxCharts = 0, float maxStretch = 0.1666f, float gutter = 2, bool forceHighestQuality = false, float adjacencyEpsilon = 0)
         {
-            List<Triangle> triangleList = mesh.Triangles();
-            int nFaces = triangleList.Count;
-            int nVerts = nFaces * 3;
-
+            // Populate vertex arrays and create output arrays
+            int nVerts = mesh.Vertices.Count;
             float[] inX = new float[nVerts];
             float[] inY = new float[nVerts];
             float[] inZ = new float[nVerts];
-            float[] outU = new float[nVerts];
-            float[] outV = new float[nVerts];
-            float[] outX = new float[nVerts];
-            float[] outY = new float[nVerts];
-            float[] outZ = new float[nVerts];
-            uint[] indices = new uint[nVerts];
 
-            uint i = 0;
-            foreach (Triangle tri in triangleList)
+            for (int i = 0; i < mesh.Vertices.Count; i++)
             {
-                inX[i] = (float)tri.V0.Position.X;
-                inX[i + 1] = (float)tri.V1.Position.X;
-                inX[i + 2] = (float)tri.V2.Position.X;
-                inY[i] = (float)tri.V0.Position.Y;
-                inY[i + 1] = (float)tri.V1.Position.Y;
-                inY[i + 2] = (float)tri.V2.Position.Y;
-                inZ[i] = (float)tri.V0.Position.Z;
-                inZ[i + 1] = (float)tri.V1.Position.Z;
-                inZ[i + 2] = (float)tri.V2.Position.Z;
-                i += 3;
+                var p = mesh.Vertices[i].Position;
+                inX[i] = (float)p.X;
+                inY[i] = (float)p.Y;
+                inZ[i] = (float)p.Z;
             }
+            // Populate indices
+            int[] indices = new int[mesh.Faces.Count * 3];
+            for (int i = 0; i < mesh.Faces.Count; i++)
+            {
+                var f = mesh.Faces[i];
+                indices[i * 3 + 0] = f.P0;
+                indices[i * 3 + 1] = f.P1;
+                indices[i * 3 + 2] = f.P2;
 
-            for (i = 0; i < nVerts; i++)
-            {
-                indices[i] = i;
             }
-            int maxTries = 3;
-            for (int count = 1; count <= maxTries; count++)
+            float[] outU, outV;
+            int[] outVertexRemap;
+            UVAtlasNET.UVAtlas.Quality quality = forceHighestQuality ? UVAtlasNET.UVAtlas.Quality.UVATLAS_GEODESIC_QUALITY : UVAtlasNET.UVAtlas.Quality.UVATLAS_DEFAULT;
+            UVAtlasNET.UVAtlas.Atlas(inX, inY, inZ, indices, out outU, out outV, out indices, out outVertexRemap, maxCharts, maxStretch, gutter, width, height, quality, adjacencyEpsilon);
+            if (indices.Length % 3 != 0)
             {
-                try
-                {
-                    UVAtlasNET.UVAtlas.Atlas(outU, outV, inX, inY, inZ, nFaces, indices, maxCharts, maxStretch, gutter, width, height);
-                    break;
-                }
-                catch (System.AccessViolationException e)
-                {
-                    logger.Warn(string.Format("UVAtlas error.  Retry attempt {0}/{1}", i, maxTries), e);
-                    if (i == maxTries)
-                    {
-                        throw (e);
-                    }
-                }
+                throw new Exception("Atlas output indices not divisible by 3");
             }
-
-            i = 0;
-            foreach (Triangle tri in triangleList)
+            Mesh result = new Mesh(hasUVs: true, hasNormals: mesh.HasNormals, hasColors: mesh.HasColors);
+            for (int i = 0; i < outVertexRemap.Length; i++)
             {
-                tri.V0.UV.U = outU[i];
-                tri.V0.UV.V = outV[i];
-                tri.V1.UV.U = outU[i + 1];
-                tri.V1.UV.V = outV[i + 1];
-                tri.V2.UV.U = outU[i + 2];
-                tri.V2.UV.V = outV[i + 2];
-                i += 3;
+                var vert = new Vertex(mesh.Vertices[outVertexRemap[i]]);
+                vert.UV = new Microsoft.Xna.Framework.Vector2(outU[i], outV[i]);
+                result.Vertices.Add(vert);
             }
-            return new Mesh(triangleList, hasNormals: mesh.HasNormals, hasColors: mesh.HasColors, hasUVs: true);
+            for (int i = 0; i < indices.Length; i += 3)
+            {
+                result.Faces.Add(new Face(indices[i], indices[i + 1], indices[i + 2]));
+            }
+            result.HasNormals = true;
+            return result;
         }
     }
 }
