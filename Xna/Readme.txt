@@ -10,7 +10,7 @@ It is expected that over time we may want to refresh these classes with updated 
 
 Anywhere new methods have been added to the class they are wrapped in a "CustomExtensions" region.
 
-ImageLib.Geometry.Extensions also contains extenion methods for convienence.
+ImageLib.Geometry.Extensions also contains extension methods for convienence.
 
 
 Handy website on quaternion to matrix for right and left handed

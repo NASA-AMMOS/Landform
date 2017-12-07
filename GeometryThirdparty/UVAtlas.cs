@@ -57,10 +57,14 @@ namespace OPS.Geometry
             float[] outU, outV;
             int[] outVertexRemap;
             UVAtlasNET.UVAtlas.Quality quality = forceHighestQuality ? UVAtlasNET.UVAtlas.Quality.UVATLAS_GEODESIC_QUALITY : UVAtlasNET.UVAtlas.Quality.UVATLAS_DEFAULT;
-            UVAtlasNET.UVAtlas.Atlas(inX, inY, inZ, indices, out outU, out outV, out indices, out outVertexRemap, maxCharts, maxStretch, gutter, width, height, quality, adjacencyEpsilon);
+            UVAtlasNET.UVAtlas.ReturnCode rc = UVAtlasNET.UVAtlas.Atlas(inX, inY, inZ, indices, out outU, out outV, out indices, out outVertexRemap, maxCharts, maxStretch, gutter, width, height, quality, adjacencyEpsilon);
+            if (rc != UVAtlasNET.UVAtlas.ReturnCode.SUCCESS)
+            {
+                throw new UVAtlasException("Atlas not successfull.  Return code: " + rc);
+            }
             if (indices.Length % 3 != 0)
             {
-                throw new Exception("Atlas output indices not divisible by 3");
+                throw new UVAtlasException("Atlas output indices not divisible by 3");
             }
             Mesh result = new Mesh(hasUVs: true, hasNormals: mesh.HasNormals, hasColors: mesh.HasColors);
             for (int i = 0; i < outVertexRemap.Length; i++)
