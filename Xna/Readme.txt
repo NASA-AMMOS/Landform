@@ -1,4 +1,4 @@
-﻿This directory contains classes ported from the open source MonoGame project
+﻿This directory contains classes ported from the open source MonoGame project.  However a few select functions have been updated from a newer version of the source.
 Branch: develop, Commit: 186a305b234f58fecea430c730d13b00da84d82c
 https://github.com/mono/MonoGame
 
