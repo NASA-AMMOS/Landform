@@ -41,16 +41,16 @@ namespace MathExtensionsTest
         public void TestLerp()
         {
             Assert.AreEqual(2, MathE.Lerp(1f, 3f, 0.5f));
-            AssertE.AreSimilar(17.4, MathE.Lerp(7f, 20f, 0.8f), 0.000001);
-            AssertE.AreSimilar(9.6, MathE.Lerp(20f, 7f, 0.8f), 0.000001);
-            AssertE.AreSimilar(-1.6, MathE.Lerp(20f, -7f, 0.8f), 0.000001);
-            AssertE.AreSimilar(-16.1, MathE.Lerp(-20f, -7f, 0.3f), 0.000001);
+            AssertE.AreSimilar(17.4, MathE.Lerp(7f, 20f, 0.8f), 0.00001);
+            AssertE.AreSimilar(9.6, MathE.Lerp(20f, 7f, 0.8f), 0.00001);
+            AssertE.AreSimilar(-1.6, MathE.Lerp(20f, -7f, 0.8f), 0.00001);
+            AssertE.AreSimilar(-16.1, MathE.Lerp(-20f, -7f, 0.3f), 0.00001);
 
             Assert.AreEqual(2, MathE.Lerp(1d, 3d, 0.5d));
-            AssertE.AreSimilar(17.4, MathE.Lerp(7d, 20d, 0.8d), 0.000001);
-            AssertE.AreSimilar(9.6, MathE.Lerp(20d, 7d, 0.8d), 0.000001);
-            AssertE.AreSimilar(-1.6, MathE.Lerp(20d, -7d, 0.8d), 0.000001);
-            AssertE.AreSimilar(-16.1, MathE.Lerp(-20d, -7d, 0.3d), 0.000001);
+            AssertE.AreSimilar(17.4, MathE.Lerp(7d, 20d, 0.8d), 0.00001);
+            AssertE.AreSimilar(9.6, MathE.Lerp(20d, 7d, 0.8d), 0.00001);
+            AssertE.AreSimilar(-1.6, MathE.Lerp(20d, -7d, 0.8d), 0.00001);
+            AssertE.AreSimilar(-16.1, MathE.Lerp(-20d, -7d, 0.3d), 0.00001);
         }
 
         [TestMethod]
