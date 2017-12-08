@@ -10,6 +10,8 @@ namespace GeometryThirdpartyTest
     public class UVAtlasTest
     {
         [TestMethod]
+        [DeploymentItem("UVAtlasLib_x32.dll")]
+        [DeploymentItem("UVAtlasLib_x64.dll")]
         public void AtlasTest()
         {
             Triangle t1 = new Triangle(new Vertex(0, 0, 0), new Vertex(0, 1, 0), new Vertex(1, 0, 0));
