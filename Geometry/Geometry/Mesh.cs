@@ -168,6 +168,11 @@ namespace OPS.Geometry
             {
                 return false;
             }
+            Vector3 n;
+            if (!Triangle.ComputeNormal(Vertices[f.P0].Position, Vertices[f.P1].Position, Vertices[f.P2].Position, out n))
+            {
+                return false;
+            }
             return true;
         }
 
