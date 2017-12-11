@@ -10,9 +10,6 @@ using OPS.Util;
 
 namespace GeometryThirdpartyTest
 {
-
-
-
     [TestClass]
     [DeploymentItem("TestData", "TestData")]
     public class MeshLabTest
