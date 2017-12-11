@@ -184,6 +184,32 @@ namespace OPS.Pipeline
             v = 1 - (yp + 1) / 2;
         }
 
+        Mesh ResampleDecimation(Mesh m, int numFaces = 2000, BoundingBox? clippingBounds = null, Vector3? cornerDirection = null)
+        {
+            m.Clean();
+            if (!m.HasNormals)
+            {
+                m = new Mesh(m);
+                m.GenerateVertexNormals();
+            }
+            Mesh pc = new SurfacePointSampler().GenerateSampledMesh(m, numFaces / m.SurfaceArea());
+            pc.HasUVs = false;
+
+            Mesh reconstructed = PoissonReconstruction.PoissonReconstruct(pc); //FSSR.Reconstruct(pc);//
+            if (clippingBounds.HasValue)
+            {
+                reconstructed = Mesh.Clip(reconstructed, clippingBounds.Value);
+            }
+            reconstructed.Clean();
+            List<Vertex> corners = null;
+            if (cornerDirection.HasValue)
+            {
+                corners = reconstructed.Corners(cornerDirection.Value);
+            }
+            Mesh decimated = EdgeCollapse.QuadricEdgeCollapse(reconstructed, numFaces, perimeterPenaltyFactor:20, notTouched: corners);
+            decimated.Clean();
+            return decimated;
+        }
 
         public int Run()
         {
@@ -239,7 +265,7 @@ namespace OPS.Pipeline
                 logger.Info("Creating low poly collision mesh");
                 var meshes = innerNodes.SelectMany(leaf => FindOverlappingLeaves(leaf, scene.TerrainRoot)).Select(node => node.GetComponent<MeshImagePair>().Mesh).ToArray();
                 var m = Mesh.Merge(false, false, false, meshes);
-                m = MeshLab.ResampleDecimation(m, 20000, 2000);
+                m = ResampleDecimation(m, 2000, m.Bounds(), new Vector3(0, 1, 0)); 
                 m.Clean();
                 m = Mesh.Clip(m, innerBounds);
                 m.Clean();
@@ -268,7 +294,7 @@ namespace OPS.Pipeline
                 
 
                 Mesh border = Mesh.Merge(outterNodes.Select(n => n.GetComponent<MeshImagePair>().Mesh).ToArray());
-                border = MeshLab.ResampleDecimation(border, backgroundFaces * 10, backgroundFaces);
+                border = ResampleDecimation(border, backgroundFaces, border.Bounds(), new Vector3(0, 1, 0));//MeshLab.ResampleDecimation(border, backgroundFaces * 10, backgroundFaces);
                 border = Mesh.Cut(border, innerBounds);
                 border.Clean();
 
@@ -299,16 +325,28 @@ namespace OPS.Pipeline
             logger.Info("Creating inner tile meshes");
             ConcurrentDictionary<string, TextureSize> textureSizeData = new ConcurrentDictionary<string, TextureSize>();
             IEnumerable<SceneNode> nodesToProcess = options.InnerMostTilesOnly ? innerNodes : root.Leaves();
+            
+            Parallel.ForEach(nodesToProcess, node =>
+            {
+                var pair = node.GetComponent<MeshImagePair>();
+                if (pair != null && pair.Mesh != null)
+                {
+                    pair.Mesh.RemoveSkirt(SkirtAxis.Y);
+                }
+            });
+
             Parallel.ForEach(nodesToProcess, leaf =>
             {
+                if (File.Exists(Path.Combine(options.OutpitDirectory, leaf.Name) + ".obj"))
+                {
+                    return;
+                }
+
                 logger.Info("Processing " +  leaf.Name);
                 var overlaps = FindOverlappingLeaves(leaf, scene.TerrainRoot);
 
                 var meshes = overlaps.Select(x => x.GetComponent<MeshImagePair>().Mesh).ToArray();
-                foreach (var mesh in meshes)
-                {
-                    mesh.RemoveSkirt(SkirtAxis.Y);
-                }
+
                 var m = Mesh.Merge(meshes);
                 m.Clean();
 
@@ -317,8 +355,11 @@ namespace OPS.Pipeline
                 {
                     targetFaces = nameToFaceCount[leaf.Name];
                 }
-                m = MeshLab.ResampleDecimation(m, numSamples: targetFaces*10, targetFaces: targetFaces);
-                m = Mesh.Clip(m, leaf.Bounds);
+                int faces = Math.Min(m.Faces.Count, targetFaces);
+                m = ResampleDecimation(m, faces, leaf.Bounds, new Vector3(0, 1, 0));
+             
+                //m = MeshLab.ResampleDecimation(m, numSamples: targetFaces*10, targetFaces: targetFaces);
+                //m = Mesh.Clip(m, leaf.Bounds);
                 
                 var pairs = overlaps.Select(x => x.GetComponent<MeshImagePair>());
 
@@ -344,7 +385,8 @@ namespace OPS.Pipeline
 
                 int textureWidth = (int)size;
                 int textureHeight = (int)size;
-
+                int beforeVerts = m.Vertices.Count;
+                int beforeFaces = m.Faces.Count;
                 m = UVAtlas.Atlas(m, textureWidth, textureHeight);
                 var img = TextureBaker.BakeTexture(pairs.ToArray(), m, textureWidth, textureHeight);
 
