@@ -99,7 +99,9 @@
     <Compile Include="Scene\NodeTransform.cs" />
     <Compile Include="Scene\NodeUncertainTransform.cs" />
     <Compile Include="Scene\SceneNode.cs" />
+    <Compile Include="Serializers\B3DMSerializer.cs" />
     <Compile Include="Serializers\BOBSerializer.cs" />
+    <Compile Include="Serializers\GLBSerializer.cs" />
     <Compile Include="Serializers\GLTFStructure.cs" />
     <Compile Include="Serializers\GLTFSerializer.cs" />
     <Compile Include="Serializers\MeshSerializer.cs" />
