@@ -77,7 +77,9 @@
     <Compile Include="Geometry\TriangleTest.cs" />
     <Compile Include="Geometry\PlaneExtensionTest.cs" />
     <Compile Include="Geometry\VertexTest.cs" />
+    <Compile Include="Serializers\B3DMSerializerTest.cs" />
     <Compile Include="Serializers\BOBSerializerTest.cs" />
+    <Compile Include="Serializers\GLBSerializerTest.cs" />
     <Compile Include="Serializers\GLTFSerializerTest.cs" />
     <Compile Include="Serializers\OBJSerializerTest.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
