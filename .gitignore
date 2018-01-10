@@ -9,6 +9,10 @@ ImagingEmgu/obj/
 ImagingEmguTest/bin/
 ImagingEmguTest/obj/
 Cloud/Infrastructure/release/
+CloudMessages/Framework/bin/
+CloudMessages/Framework/obj/
+CloudMessages/DotNetCore/bin/
+CloudMessages/DotNetCore/obj/
 LambdaParentTileJobCreation/bin/
 LambdaParentTileJobCreation/obj/
 LambdaQueueSizeMetric/bin/

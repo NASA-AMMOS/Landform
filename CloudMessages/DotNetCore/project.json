@@ -1,0 +1,19 @@
+{
+    "buildOptions": {
+        "compile": {
+            "include": [ "../*Message.cs", "../CloudException.cs", "../Properties/AssemblyInfo.cs" ]
+        }
+    },
+    "dependencies": {
+        "AWSSDK.SQS": "3.3.3.2",
+        "NETStandard.Library": "2.0.1",
+        "Newtonsoft.Json": "10.0.3"
+    },
+    "frameworks": {
+        "netstandard1.6": {
+            "imports": "dnxcore50"
+        }
+    },
+    "title": "CloudMessages",
+    "version": "1.0.0-*"
+}

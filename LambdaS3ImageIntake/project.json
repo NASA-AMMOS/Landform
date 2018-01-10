@@ -18,7 +18,8 @@
     },
     "AWSSDK.SQS": "3.3.2.9",
     "LambdaUtil": "1.0.0-*",
-    "AWSSDK.DynamoDBv2": "3.3.5"
+    "AWSSDK.DynamoDBv2": "3.3.5",
+    "DotNetCore": "1.0.0-*"
   },
 
   "tools": {

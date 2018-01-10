@@ -120,17 +120,18 @@ namespace OPS.Pipeline
                             + "\r\n        Message ID = " + m.MessageId);
                         try
                         {
-                            switch (m.MessageType)
+                            var t = m.GetType();
+                            if (t == typeof(NewObservationMessage))
                             {
-                                case NewObservationMessage.TYPE:
-                                    IngestImage((NewObservationMessage)m);
-                                    break;
-                                case FindOverlapsMessage.TYPE:
-                                    FindOverlaps((FindOverlapsMessage)m);
-                                    break;
-                                case MatchPairsMessage.TYPE:
-                                    MatchPairs((MatchPairsMessage)m);
-                                    break;
+                                IngestImage((NewObservationMessage)m);
+                            }
+                            else if(t == typeof(FindOverlapsMessage))
+                            {
+                                FindOverlaps((FindOverlapsMessage)m);
+                            }
+                            else if (t == typeof(MatchPairsMessage))
+                            {
+                                MatchPairs((MatchPairsMessage)m);
                             }
                             Interlocked.Increment(ref messagesSucceeded);
                         }

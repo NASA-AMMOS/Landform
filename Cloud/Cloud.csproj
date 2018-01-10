@@ -86,13 +86,7 @@
     <Compile Include="Database\SquareMatrixConverter.cs" />
     <Compile Include="Database\Vector3Converter.cs" />
     <Compile Include="Database\VectorNConverter.cs" />
-    <Compile Include="Messages\CreateParentTileMessage.cs" />
-    <Compile Include="Messages\MatchPairsMessage.cs" />
-    <Compile Include="Messages\PipelineMessage.cs" />
-    <Compile Include="Messages\FindOverlapsMessage.cs" />
-    <Compile Include="Messages\NewObservationMessage.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="CloudException.cs" />
     <Compile Include="Storage\S3Url.cs" />
     <Compile Include="Storage\StorageHelper.cs" />
   </ItemGroup>
@@ -115,6 +109,10 @@
     <ProjectReference Include="..\Geometry\Geometry.csproj">
       <Project>{49A27854-2DB1-4E1C-893A-F60BDF5F3C86}</Project>
       <Name>Geometry</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\CloudMessages\Framework\CloudMessagesFramework.csproj">
+      <Project>{08bf655a-97f2-4027-bcc0-b990cb8588cf}</Project>
+      <Name>CloudMessagesFramework</Name>
     </ProjectReference>
     <ProjectReference Include="..\MathExtensions\MathExtensions.csproj">
       <Project>{8C7C8A71-0A4B-4D75-9CB2-32803BD8F86F}</Project>
