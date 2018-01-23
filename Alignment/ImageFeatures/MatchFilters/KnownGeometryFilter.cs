@@ -79,7 +79,7 @@ namespace OPS.Alignment
             var ch = dataNode.GetComponent<NodeConvexHull>();
             if (ch != null)
             {
-                dataHullInModel = ConvexHull.Transformed(ch.hull, dataToModel);
+                dataHullInModel = ConvexHull.Transformed(ch.Hull, dataToModel);
             }
 
             // Cache result of model ray -> data frustum intersection, because model rays

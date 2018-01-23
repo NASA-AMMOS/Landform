@@ -9,6 +9,7 @@ using Microsoft.Xna.Framework;
 using OPS.Imaging;
 using System.IO;
 using System.Runtime.InteropServices;
+using OPS.Geometry;
 
 namespace OPS.Alignment
 {
@@ -43,10 +44,10 @@ namespace OPS.Alignment
             return res;
         }
 
-        public int AddPrior(int transformIdx, Matrix translationCovariance, Matrix rotationCovariance)
+        public int AddPrior(int transformIdx, UncertainRigidTransform prior)
         {
             int res = TransformPriors.Count;
-            TransformPriors.Add(new TransformPrior((uint)transformIdx, translationCovariance, rotationCovariance));
+            TransformPriors.Add(new TransformPrior((uint)transformIdx, prior));
             return res;
         }
 

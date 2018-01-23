@@ -8,6 +8,7 @@ using Microsoft.Xna.Framework;
 using Amazon.DynamoDBv2.DataModel;
 using Amazon.DynamoDBv2.Model;
 using Amazon.DynamoDBv2;
+using MathNet.Numerics.LinearAlgebra;
 
 namespace OPS.Cloud
 {
@@ -36,15 +37,12 @@ namespace OPS.Cloud
         public string FromFrameName { get; set; }
         public string ToFrameName { get; set; }
         public string TransformSource { get; set; }
-        public double Error { get; set; }
 
-        public double X { get; set; }
-        public double Y { get; set; }
-        public double Z { get; set; }
-        public double QX { get; set; }
-        public double QY { get; set; }
-        public double QZ { get; set; }
-        public double QW { get; set; }
+        [DynamoDBProperty("mean", typeof(VectorNConverter))]
+        public Vector<double> Mean { get; set; }
+        [DynamoDBProperty("covariance", typeof(SquareMatrixConverter))]
+        public Matrix<double> Covariance { get; set; }
+        
 
         //This constructor must be public for DynamoDb but should not be used
         public FrameTransform()
@@ -70,7 +68,6 @@ namespace OPS.Cloud
             this.Translation = translation;
             this.Rotation = rotation;
             this.TransformSource = transformSource;
-            this.Error = error;
         }
 
         /// <summary>
@@ -180,39 +177,7 @@ namespace OPS.Cloud
             return transforms;
         }
 
-
-        [DynamoDBIgnore]
-        public Vector3 Translation
-        {
-            get
-            {
-                return new Vector3(X, Y, Z);
-            }
-            set
-            {
-                this.X = value.X;
-                this.Y = value.Y;
-                this.Z = value.Z;
-            }
-        }
-
-        [DynamoDBIgnore]
-        public Quaternion Rotation
-        {
-            get
-            {
-                return new Quaternion(QX, QY, QZ, QW);
-            }
-            set
-            {
-                this.QX = value.X;
-                this.QY = value.Y;
-                this.QZ = value.Z;
-                this.QW = value.W;
-            }
-        }
-
-
+        
         /// <summary>
         /// Lookup the IDs of frame transforms between any two frames 
         /// 

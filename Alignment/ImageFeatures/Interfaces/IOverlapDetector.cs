@@ -4,10 +4,10 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace OPS.Geometry
+namespace OPS.Alignment
 {
-    public class NodeConvexHull : NodeComponent
+    public interface IOverlapDetector
     {
-        public ConvexHull Hull;
+        void Detect(AlignmentScene scene);
     }
 }

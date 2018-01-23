@@ -58,6 +58,10 @@ namespace OPS.Geometry
             Mesh = new Mesh(other.Mesh);
             Planes = new List<Plane>(other.Planes);
         }
+        public static ConvexHull Union(params ConvexHull[] hulls)
+        {
+            return new ConvexHull(hulls.SelectMany(h => h.Vertices.Select(vtx => vtx.Position)));
+        }
 
         public static ConvexHull FromImage(Image img, double nearClip=0.1, double farClip=20)
         {

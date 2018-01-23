@@ -15,71 +15,134 @@ namespace OPS.Alignment
 {
     public class BundleAdjuster
     {
-        public class ImageData
+        public static void Adjust(AlignmentScene scene)
         {
-            public int CameraModelIdx;
-            public int Transform;
-            public object UserData;
+            var rootToWorld = scene.Root.GetOrAddComponent<NodeUncertainTransform>().UncertainTransform;
+            List<AdjustedNode> toAdjust = scene.Root.GetComponentsInTree<AdjustedNode>().ToList();
+            HashSet<ImageRef> images = new HashSet<ImageRef>();
 
-            internal ImageData(int cameraModel, int transform, object data)
+            BundleAdjusterProblem prob = new BundleAdjusterProblem();
+            Dictionary<Imaging.CameraModel, int> modelToIndex = new Dictionary<Imaging.CameraModel, int>();
+            Dictionary<ImageRef, int> imageToCamera = new Dictionary<ImageRef, int>();
+            Dictionary<ImageRef, HashSet<ImageFeature>> imageToFeatures = new Dictionary<ImageRef, HashSet<ImageFeature>>();
+            Dictionary<int, int> cameraToTransform = new Dictionary<int, int>();
+            Dictionary<ImageFeature, int> featureToPoint = new Dictionary<ImageFeature, int>();
+            Dictionary<int, List<int>> pointToProjection = new Dictionary<int, List<int>>();
+
+            // Create RigidTransform objects for each node to be adjusted
+            foreach (var n in toAdjust)
             {
-                CameraModelIdx = cameraModel;
-                Transform = transform;
-                UserData = data;
+                UncertainRigidTransform nodeToRoot = n.Node.GetOrAddComponent<NodeUncertainTransform>().LocalToWorld.TimesInverse(rootToWorld);
+                int transformIdx = prob.AddTransform(nodeToRoot.Mean);
+                if (nodeToRoot.Uncertain) prob.AddPrior(transformIdx, nodeToRoot);
+
+                foreach (var imgRefRef in n.Node.GetComponentsInTree<ImageReference>())
+                {
+                    var imgRef = imgRefRef.Reference;
+                    var model = imgRef.Image.CameraModel;
+                    int modelIdx = imageToCamera[imgRef] = prob.AddCameraModel((CAHV)model);
+                    cameraToTransform[modelIdx] = transformIdx;
+                    images.Add(imgRef);
+                }
             }
-        }
-        
-        public List<ImageData> Images;
-        public BundleAdjusterProblem Problem;
 
-        public BundleAdjuster()
-        {
-            Images = new List<ImageData>();
-            Problem = new BundleAdjusterProblem();
-        }
+            // Grab clusters of corresponding features as points
+            Dictionary<int, int> dedupeMap = new Dictionary<int, int>();
+            foreach (var corr in scene.Correspondences)
+            {
+                if (!images.Contains(corr.ModelImage) || !images.Contains(corr.DataImage)) continue;
 
-        public int AddImage(int cameraModel, int transform, object data = null)
-        {
-            int res = Images.Count;
-            Images.Add(new ImageData(cameraModel, transform, data));
-            return res;
-        }
+                if (!imageToFeatures.ContainsKey(corr.DataImage))
+                {
+                    imageToFeatures[corr.DataImage] = new HashSet<ImageFeature>();
+                }
+                if (!imageToFeatures.ContainsKey(corr.ModelImage))
+                {
+                    imageToFeatures[corr.ModelImage] = new HashSet<ImageFeature>();
+                }
 
-        public int AddTransform(Matrix transform)
-        {
-            return Problem.AddTransform(transform);
-        }
+                foreach (var pair in corr.DataToModel)
+                {
+                    Func<ImageFeature, int> tryGetId = (feat) =>
+                    {
+                        if (featureToPoint.ContainsKey(feat))
+                        {
+                            var res = featureToPoint[feat];
+                            while (dedupeMap.ContainsKey(res)) res = dedupeMap[res];
+                        }
+                        return -1;
+                    };
 
-        public int AddCorrespondence(int image0, int image1, Vector2 pos0, Vector2 pos1, double d0 = double.NaN, double d1 = double.NaN)
-        {
-            var i0 = Images[image0];
-            var i1 = Images[image1];
+                    var modelFeat = corr.ModelFeatures[pair.Key];
+                    var dataFeat = corr.DataFeatures[pair.Value];
+                    imageToFeatures[corr.ModelImage].Add(modelFeat);
+                    imageToFeatures[corr.DataImage].Add(dataFeat);
 
-            // TODO: add parameter for point guess or do ray closest intersection thing
-            int pointIdx = Problem.AddPoint(Vector3.Zero);
+                    int modelId = tryGetId(modelFeat);
+                    int dataId = tryGetId(dataFeat);
+                   
+                    // 1. both not present yet
+                    if (modelId < 0 && dataId < 0)
+                    {
+                        modelId = dataId = prob.AddPoint(new Vector3(0, 0, 0));
+                    }
+                    // 2. at least one has already been encountered
+                    else
+                    {
+                        //2a. one or both has been encountered already, but only one unique id is present
+                        if (modelId == dataId || modelId < 0 || dataId < 0)
+                        {
+                            int existingId = Math.Max(modelId, dataId);
+                            modelId = existingId;
+                            dataId = existingId;
+                        }
 
-            Problem.AddProjection(
-                i0.CameraModelIdx,
-                i0.Transform,
-                pointIdx,
-                pos0, d0
-                );
-            Problem.AddProjection(
-                i1.CameraModelIdx,
-                i1.Transform,
-                pointIdx,
-                pos1, d1
-                );
-            return pointIdx;
-        }
+                        //2b. both have different ids
+                        else
+                        {
+                            int winner = Math.Min(modelId, dataId);
+                            int loser = Math.Max(modelId, dataId);
+                            dedupeMap[loser] = winner;
+                            modelId = dataId = winner;
+                        }
+                    }
 
-        public int AddPrior(int transformIdx, Matrix translationCovariance, Matrix rotationCovariance)
-        {
-            return Problem.AddPrior(transformIdx, translationCovariance, rotationCovariance);
-        }
+                    featureToPoint[modelFeat] = modelId;
+                    featureToPoint[dataFeat] = dataId;
+                }
+            }
 
-        public void Run()
-        {
+            // Deduplicate points
+            List<ImageFeature> allFeatures = featureToPoint.Keys.ToList();
+            Dictionary<int, int> oldToNewPoint = new Dictionary<int, int>();
+            List<BundleAdjusterStructures.Point> newPoints = new List<Point>();
+            foreach (var feat in allFeatures)
+            {
+                int pointId = featureToPoint[feat];
+                while (dedupeMap.ContainsKey(pointId)) pointId = dedupeMap[pointId];
+                featureToPoint[feat] = pointId;
+                if (!oldToNewPoint.ContainsKey(pointId))
+                {
+                    oldToNewPoint[pointId] = newPoints.Count;
+                    newPoints.Add(new Point());
+                }
+            }
+            prob.Points = newPoints;
+
+            // Add projections
+            foreach (var img in images)
+            {
+                int cameraIdx = imageToCamera[img];
+                int transformIdx = cameraToTransform[cameraIdx];
+                foreach (var feat in imageToFeatures[img])
+                {
+                    int pointIdx = featureToPoint[feat];
+                    int projId = prob.AddProjection(cameraIdx, transformIdx, pointIdx, feat.Location);
+                }
+            }
+
+
+            // Run
             TemporaryFile.GetAndDelete(".bin", (inputFile) =>
             {
                 // Serialize out problem definition
@@ -87,7 +150,7 @@ namespace OPS.Alignment
                 {
                     using (BinaryWriter bw = new BinaryWriter(f))
                     {
-                        Problem.Write(bw);
+                        prob.Write(bw);
                     }
                 }
 
@@ -101,13 +164,16 @@ namespace OPS.Alignment
                         using (var br = new BinaryReader(f))
                         {
                             var res = BundleAdjusterProblem.Read(br);
-                            Problem.Transforms = res.Transforms;
-                            Problem.Points = res.Points;
-                            Problem.CameraModels = res.CameraModels;
+                            prob.Transforms = res.Transforms;
+                            prob.Points = res.Points;
+                            prob.CameraModels = res.CameraModels;
                         }
                     }
                 });
             });
+
+            // TODO: Write back results to scene graph
+            
         }
     }
 }

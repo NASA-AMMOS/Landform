@@ -1,4 +1,5 @@
 ﻿using Microsoft.Xna.Framework;
+using OPS.Geometry;
 using OPS.Imaging;
 using System;
 using System.Collections.Generic;
@@ -66,33 +67,16 @@ namespace OPS.Alignment.BundleAdjusterStructures
     public struct TransformPrior
     {
         public UInt32 transformId;
-        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 3)]
-        public double[] translationMean;
-        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 9)]
-        public double[] translationCovariance;
+        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 6)]
+        public double[] mean;
+        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 6*6)]
+        public double[] covariance;
 
-        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 3)]
-        public double[] rotationMean;
-        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 9)]
-        public double[] rotationCovariance;
-
-        public TransformPrior(uint transformId, Matrix translationMat, Matrix rotationMat)
+        public TransformPrior(uint transformId, UncertainRigidTransform prior)
         {
             this.transformId = transformId;
-            translationMean = (-translationMat.Translation).ToDoubleArray();
-            translationCovariance = new double[]
-            {
-                translationMat[0, 0], translationMat[0, 1], translationMat[0, 2],
-                translationMat[1, 0], translationMat[1, 1], translationMat[1, 2],
-                translationMat[2, 0], translationMat[2, 1], translationMat[2, 2]
-            };
-            rotationMean = (-rotationMat.Translation).ToDoubleArray();
-            rotationCovariance = new double[]
-            {
-                rotationMat[0, 0], rotationMat[0, 1], rotationMat[0, 2],
-                rotationMat[1, 0], rotationMat[1, 1], rotationMat[1, 2],
-                rotationMat[2, 0], rotationMat[2, 1], rotationMat[2, 2]
-            };
+            mean = prior.Distribution.Mean.ToArray();
+            covariance = prior.Distribution.Covariance.ToColumnMajorArray();
         }
     }
 

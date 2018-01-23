@@ -51,6 +51,10 @@
       <HintPath>..\packages\AWSSDK.SQS.3.3.3.1\lib\net45\AWSSDK.SQS.dll</HintPath>
       <Private>True</Private>
     </Reference>
+    <Reference Include="MathNet.Numerics, Version=3.20.1.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\MathNet.Numerics.3.20.1\lib\net40\MathNet.Numerics.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
     <Reference Include="MySql.Data, Version=6.9.9.0, Culture=neutral, PublicKeyToken=c5687fc88969c44d, processorArchitecture=MSIL">
       <HintPath>..\packages\MySql.Data.6.9.9\lib\net45\MySql.Data.dll</HintPath>
       <Private>True</Private>
@@ -78,6 +82,8 @@
     <Compile Include="Database\Project.cs" />
     <Compile Include="Database\FrameTransform.cs" />
     <Compile Include="Database\RoverObservation.cs" />
+    <Compile Include="Database\SquareMatrixConverter.cs" />
+    <Compile Include="Database\Vector3Converter.cs" />
     <Compile Include="Messages\CreateParentTileMessage.cs" />
     <Compile Include="Messages\MatchPairsMessage.cs" />
     <Compile Include="Messages\PipelineMessage.cs" />

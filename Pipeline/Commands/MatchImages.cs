@@ -161,7 +161,7 @@ namespace OPS.Pipeline
                     res.Transform.Matrix = toWorld;
 
                     var chc = res.AddComponent<NodeConvexHull>();
-                    chc.hull = ConvexHull.FromImage(imgRef.Image);
+                    chc.Hull = ConvexHull.FromImage(imgRef.Image);
 
                     // Made up covariance values, more or less signifying SD of 0.5m translation and 0.5deg rotation (1.0 for Z)
                     var uncertainty = res.AddComponent<NodeUncertainTransform>();

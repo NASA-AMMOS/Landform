@@ -1,4 +1,5 @@
-﻿using System;
+﻿using OPS.Imaging;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -6,8 +7,8 @@ using System.Threading.Tasks;
 
 namespace OPS.Geometry
 {
-    public class NodeConvexHull : NodeComponent
+    public class NodeImageReference : NodeComponent
     {
-        public ConvexHull Hull;
+        public ImageRef Reference;
     }
 }
