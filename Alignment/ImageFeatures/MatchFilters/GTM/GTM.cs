@@ -30,11 +30,9 @@ namespace OPS.Alignment
         /// </summary>
         /// <param name="matches">Identified matches in a pair of images.</param>
         /// <returns>Filtered matches.</returns>
-        public ImagePairCorrespondence Filter(ImagePairCorrespondence matches)
+        public ImagePairCorrespondence Filter(ImagePairCorrespondence matches, ImageFeature[] modelFeat, ImageFeature[] dataFeat)
         {
             KeyValuePair<int, int>[] pairs = matches.DataToModel;
-            ImageFeature[] modelFeat = matches.ModelFeatures;
-            ImageFeature[] dataFeat = matches.DataFeatures;
 
             ImageFeature zero = new ImageFeature(new Vector2(0, 0), null);
             ImageFeature[] P = new ImageFeature[pairs.Length];
@@ -46,7 +44,7 @@ namespace OPS.Alignment
                 PPrime[i] = dataFeat[pairs[i].Key];
             }
       
-            GTMFilter filter = new GTMFilter(matches, K);
+            GTMFilter filter = new GTMFilter(matches, modelFeat, dataFeat, K);
 
             return filter.Filter();
         }

@@ -18,7 +18,6 @@ namespace OPS.Alignment
         public static void Adjust(AlignmentScene scene)
         {
             var rootToWorld = scene.Root.GetOrAddComponent<NodeUncertainTransform>().UncertainTransform;
-            List<AdjustedNode> toAdjust = scene.Root.GetComponentsInTree<AdjustedNode>().ToList();
             HashSet<ImageRef> images = new HashSet<ImageRef>();
 
             BundleAdjusterProblem prob = new BundleAdjusterProblem();
@@ -30,6 +29,7 @@ namespace OPS.Alignment
             Dictionary<int, List<int>> pointToProjection = new Dictionary<int, List<int>>();
 
             // Create RigidTransform objects for each node to be adjusted
+            List<AdjustedNode> toAdjust = scene.Root.GetComponentsInTree<AdjustedNode>().ToList();
             foreach (var n in toAdjust)
             {
                 UncertainRigidTransform nodeToRoot = n.Node.GetOrAddComponent<NodeUncertainTransform>().LocalToWorld.TimesInverse(rootToWorld);

@@ -48,7 +48,7 @@ namespace OPS.Cloud
 
         //S3 URL of image match (for now this is what we're saving)
         //Always upload file before writing MatchUrl to keep state consistent 
-        public string MatchUrl { get; set; }
+        public Guid MatchGuid { get; set; }
 
         [DynamoDBVersion]
         public int? VersionNumber { get; set; }

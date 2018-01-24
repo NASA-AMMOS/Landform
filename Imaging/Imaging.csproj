@@ -69,6 +69,7 @@
     <Compile Include="Imaging\CameraModels\CAHVORE.cs" />
     <Compile Include="Imaging\CameraModels\CameraModel.cs" />
     <Compile Include="Imaging\CameraModels\OrthographicCameraModel.cs" />
+    <Compile Include="Imaging\DiskImageRef.cs" />
     <Compile Include="Imaging\GenericImage.cs" />
     <Compile Include="Imaging\CameraModels\GDALCameraModel.cs" />
     <Compile Include="Imaging\Image.cs" />
@@ -83,6 +84,7 @@
     <Compile Include="Imaging\PDSMetadata.cs" />
     <Compile Include="Imaging\SpatialTranslators\ISpatialTranslator.cs" />
     <Compile Include="Imaging\SpatialTranslators\MarsSpatialTranslator.cs" />
+    <Compile Include="Imaging\TransientImageRef.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Serializers\GDALSeralizer.cs" />
     <Compile Include="Serializers\GDALWriteOptions.cs" />

@@ -84,6 +84,7 @@
     <Compile Include="Database\RoverObservation.cs" />
     <Compile Include="Database\SquareMatrixConverter.cs" />
     <Compile Include="Database\Vector3Converter.cs" />
+    <Compile Include="Database\VectorNConverter.cs" />
     <Compile Include="Messages\CreateParentTileMessage.cs" />
     <Compile Include="Messages\MatchPairsMessage.cs" />
     <Compile Include="Messages\PipelineMessage.cs" />

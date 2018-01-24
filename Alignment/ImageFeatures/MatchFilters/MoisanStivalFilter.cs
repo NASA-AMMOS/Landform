@@ -24,7 +24,7 @@ namespace OPS.Alignment
             this.RefineStep = refineStep;
         }
 
-        public ImagePairCorrespondence Filter(ImagePairCorrespondence matches)
+        public ImagePairCorrespondence Filter(ImagePairCorrespondence matches, ImageFeature[] modelFeatures, ImageFeature[] dataFeatures)
         {
             if (matches.DataToModel.Length < MIN_MATCHES)
             {
@@ -33,7 +33,7 @@ namespace OPS.Alignment
 
             ImageFeature[] modelFeat, dataFeat;
             int[] dataToModel;
-            matches.Flatten(out modelFeat, out dataFeat, out dataToModel);
+            matches.Flatten(modelFeatures, dataFeatures, out modelFeat, out dataFeat, out dataToModel);
 
             Vector2[] dataPoints = dataFeat.Select(f => f.Location).ToArray();
             Vector2[] modelPoints = Enumerable.Range(0, dataPoints.Length).Select(idx => modelFeat[dataToModel[idx]].Location).ToArray();
@@ -58,7 +58,6 @@ namespace OPS.Alignment
             logger.Info("Number of residual matches: " + goodMatches.Count);
             return new ImagePairCorrespondence(
                 matches.ModelImage, matches.DataImage,
-                matches.ModelFeatures, matches.DataFeatures,
                 goodMatches);
         }
     }

@@ -27,6 +27,8 @@ namespace OPS.Cloud
 
         public string Url { get; set; }
 
+        public Guid FeaturesGuid { get; set; }
+
         public string FeatureUrl { get; set; }
 
         public string FrameName { get; set; }

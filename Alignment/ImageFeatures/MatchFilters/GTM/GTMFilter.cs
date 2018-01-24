@@ -38,11 +38,9 @@ namespace OPS.Alignment
         /// </summary>
         /// <param name="matches">Identified matches.</param>
         /// <param name="k">The number of nearest neighbors.</param>
-        public GTMFilter(ImagePairCorrespondence matches, int k)
+        public GTMFilter(ImagePairCorrespondence matches, ImageFeature[] modelFeat, ImageFeature[] dataFeat, int k)
         {
             KeyValuePair<int, int>[] pairs = matches.DataToModel;
-            ImageFeature[] modelFeat = matches.ModelFeatures;
-            ImageFeature[] dataFeat = matches.DataFeatures;
 
             ImageFeature zero = new ImageFeature(new Vector2(0, 0), null);
             ImageFeature[] P = new ImageFeature[pairs.Length];
@@ -108,7 +106,7 @@ namespace OPS.Alignment
             KeyValuePair<int, int>[] goodMatches = GTMGraph.ConstructFinalMatches(FeatureMap);
             Trace.WriteLine("Number of residual matches: " + goodMatches.Length + " after " + counter + " iterations of GTM");
             if (goodMatches.Length == 0) return null;
-            return new ImagePairCorrespondence(Matches.ModelImage, Matches.DataImage, Matches.ModelFeatures, Matches.DataFeatures, goodMatches);
+            return new ImagePairCorrespondence(Matches.ModelImage, Matches.DataImage, goodMatches);
         }
 
         /// <summary>

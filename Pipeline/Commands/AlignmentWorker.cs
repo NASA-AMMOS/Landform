@@ -56,9 +56,7 @@ namespace OPS.Pipeline
 
         //AWS clients. All thread safe and reusable 
         IAmazonSQS SQSClient;
-        IAmazonS3 S3Client;
-        IAmazonDynamoDB DDBClient;
-        DynamoDBContext context;
+        DataProductManager ProductManager;
 
         //thread-safe processing helpers
         MetadataIndexer indexer;
@@ -77,14 +75,12 @@ namespace OPS.Pipeline
             this.config = new AllignmentConfig();
 
             //Initialize AWS utils 
-            SQSClient = new AmazonSQSClient(Amazon.RegionEndpoint.USWest1); 
-            S3Client = new AmazonS3Client(Amazon.RegionEndpoint.USWest1);
-            DDBClient = new AmazonDynamoDBClient(Amazon.RegionEndpoint.USWest1);
-            context = new DynamoDBContext(DDBClient, new DynamoDBContextConfig { TableNamePrefix = config.TablePrefix});
+            SQSClient = new AmazonSQSClient(Amazon.RegionEndpoint.USWest1);
+            ProductManager = new DataProductManager(config.TablePrefix);
 
             storage = new StorageHelper();
-            indexer = new MetadataIndexer(context, new StorageHelper());
-            detector = new OverlapDetection(context);
+            indexer = new MetadataIndexer(ProductManager.DynamoDB, new StorageHelper());
+            detector = new OverlapDetection(ProductManager.DynamoDB);
         }
 
         /// <summary>
@@ -95,7 +91,6 @@ namespace OPS.Pipeline
         {
             //wait on queue for images 
             SQSClient = new AmazonSQSClient(Amazon.RegionEndpoint.USWest1); 
-            S3Client = new AmazonS3Client(Amazon.RegionEndpoint.USWest1);
 
             //check that queue exists 
             if (!PipelineMessage.QueueExists(SQSClient, config.JobQueue))
@@ -191,41 +186,30 @@ namespace OPS.Pipeline
             }
 
             //read project. If indexing was successful we know project exists. 
-            Project project = Project.Find(context, indexed.obs.ProjectName);
+            Project project = ProductManager.GetProject(indexed.obs.ProjectName);
 
             //do keypoint and feature detection 
             //Downloading image. Image.Load() does spooky things with temp files which are mitigated (somewhat) by not using the temp file wrapper
-            string root = (@"C:\tmp\in\" + Guid.NewGuid()).Replace('/', '\\');
-            storage.DownloadFile(url.Url, root + Path.GetExtension(url.Url)); 
-            Image im = Image.Load(root + Path.GetExtension(url.Url));
+            ImageRef imgRef = ProductManager.Image(indexed.obs);
 
             //snagged from MatchImages
             string gpcafile = PCAKeypointProjector.DefaultTrainingSpace;
-            List<PCASIFTFeature> features = new PCASIFTDetector().Detect(im, null).Cast<PCASIFTFeature>().ToList();
+            List<PCASIFTFeature> features = new PCASIFTDetector().Detect(imgRef.Image, null).Cast<PCASIFTFeature>().ToList();
             PCAKeypointProjector projector = new PCAKeypointProjector(gpcafile, false);
-            projector.Project(im, features, 1);
+            projector.Project(imgRef.Image, features, 1);
 
-            S3Url featureUrl = new S3Url(project.FeatureUrl + Path.ChangeExtension(Path.GetFileName(url.Url), ".json")); 
-
-            //save keypoints and features to S3
-            TemporaryFile.GetAndDelete(".json", temp =>
-            {
-                using (StreamWriter file = File.CreateText(temp))
-                {
-                    JsonSerializer serializer = new JsonSerializer();
-                    serializer.TypeNameHandling = TypeNameHandling.Auto;
-                    serializer.Serialize(file,features);
-                }
-                storage.UploadFile(temp, featureUrl.Url);
-            });
-
-
+            // Create DetectedFeatures data product and save to S3
+            DetectedFeatures detected = new DetectedFeatures();
+            detected.Features = features.ToArray();
+            detected.ObservationName = indexed.obs.Name;
+            ProductManager.Save(indexed.obs.ProjectName, detected);
+            
             //save to Dynamo: 
-            //   Image record: S3 locaiton, S3 keypoints location, metadata 
+            //   Image record: S3 location, keypoints product GUID, metadata 
             //   Transforms record: this image's transform 
             //Use the observation we made or found while indexing metadata
-            indexed.obs.FeatureUrl = featureUrl.Url;
-            indexed.obs.Save(context);
+            indexed.obs.FeaturesGuid = detected.guid;
+            indexed.obs.Save(ProductManager.DynamoDB);
 
             //Start an overlap job in the queue. 
             //Make it invisible for a few seconds so that overlaps don't have to do strongly consistent reads. 
@@ -248,9 +232,9 @@ namespace OPS.Pipeline
         public int FindOverlaps(FindOverlapsMessage m)
         {
             //for this image, look up nearby images in Dynamo
-            RoverObservation thisobs = RoverObservation.Find(context, MSLProject.PROJECT_NAME, m.ObservationName);
+            RoverObservation thisobs = RoverObservation.Find(ProductManager.DynamoDB, MSLProject.PROJECT_NAME, m.ObservationName);
             //for now, look at all other images in Dynamo for this same project 
-            IEnumerable<RoverObservation> observations = context.Scan<RoverObservation>(new ScanCondition("ProjectName",
+            IEnumerable<RoverObservation> observations = ProductManager.DynamoDB.Scan<RoverObservation>(new ScanCondition("ProjectName",
                 Amazon.DynamoDBv2.DocumentModel.ScanOperator.Equal, MSLProject.PROJECT_NAME));
 
             //check all nearby images for overlapping frusta. 
@@ -265,7 +249,7 @@ namespace OPS.Pipeline
                 if (outcome)
                 {
                     //write to dynamoDb and, if successful, create a new MatchPairs job
-                    if (Overlap.Create(context, thisobs.Name, obs.Name, obs.ProjectName) != null) 
+                    if (Overlap.Create(ProductManager.DynamoDB, thisobs.Name, obs.Name, obs.ProjectName) != null) 
                     {
                         new MatchPairsMessage(thisobs.Name, obs.Name, obs.ProjectName).Send(SQSClient, config.JobQueue);
                     }
@@ -293,18 +277,21 @@ namespace OPS.Pipeline
         public int MatchPairs(MatchPairsMessage m)
         {
             //get metadata for both images from Dynamo 
-            Observation obs0 = Observation.Find(context, m.ProjectName, m.ObservationName0);
-            Observation obs1 = Observation.Find(context, m.ProjectName, m.ObservationName1);
-            Project project = Project.Find(context, obs0.ProjectName);
+            Observation obs0 = Observation.Find(ProductManager.DynamoDB, m.ProjectName, m.ObservationName0);
+            Observation obs1 = Observation.Find(ProductManager.DynamoDB, m.ProjectName, m.ObservationName1);
+            Project project = Project.Find(ProductManager.DynamoDB, obs0.ProjectName);
 
             //get overlap and check that a match has not already been uploaded 
-            Overlap overlap = Overlap.Find(context, obs0.Name, obs1.Name, obs0.ProjectName);
+            Overlap overlap = Overlap.Find(ProductManager.DynamoDB, obs0.Name, obs1.Name, obs0.ProjectName);
             if (overlap == null) throw new CloudException("Could not find overlap between these two observations for match images");
-            if (overlap.MatchUrl != null && overlap.MatchUrl.Length > 0) //someone has already finished this request
+            if (overlap.MatchGuid != null) //someone has already finished this request
             {
                 m.DeleteMessage(SQSClient, config.JobQueue);
                 return 0;
             }
+
+
+
             //read feature data and image for both images from S3
             JsonSerializer serializer = new JsonSerializer();
             serializer.TypeNameHandling = TypeNameHandling.Auto;
@@ -329,7 +316,7 @@ namespace OPS.Pipeline
 
                 //below is from MatchImages.cs
                 BruteForceMatcher matcher = new BruteForceMatcher();
-                ImagePairCorrespondence matches = matcher.Match(new ImageRef(im0), new ImageRef(im1), features0, features1);
+                ImagePairCorrespondence matches = matcher.Match(new TransientImageRef(im0), new TransientImageRef(im1), features0, features1);
 
                 MoisanStivalFilter filter = new MoisanStivalFilter();
                 matches = filter.Filter(matches);

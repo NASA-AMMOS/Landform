@@ -22,14 +22,13 @@ namespace OPS.Cloud
         public string Name { get; set; }
 
         /// <summary>
-        /// Prefix of s3 URL where features should be saved. Format s3://<bucketname>/<prefix>/
+        /// Prefix of s3 URL where derived products should be saved. Format s3://<bucketname>/<prefix>/
         /// </summary>
-        public string FeatureUrl { get; set; }
-
+        public string ProductPath { get; set; }
         /// <summary>
-        /// Prefix of S3 URL where matches should be saved. Format s3://<bucketname>/<prefix>/
+        /// Prefix of s3 URL where input data is stored. Format s3://<bucketname>/<prefix>/
         /// </summary>
-        public string MatchUrl { get; set; }
+        public string InputPath { get; set; }
 
         //This constructor must be public for DynamoDb but should not be used
         public Project()
@@ -41,11 +40,11 @@ namespace OPS.Cloud
         /// Creates Project object locally.  
         /// </summary>
         /// <param name="name">Project names in the database must be unique</param>
-        protected Project(string name, string featureUrl, string matchUrl)
+        protected Project(string name, string productPath, string inputPath)
         {
             Name = name;
-            MatchUrl = matchUrl;
-            FeatureUrl = featureUrl;
+            ProductPath = productPath;
+            InputPath = inputPath;
             this.IsValid();
         }
 
@@ -90,7 +89,7 @@ namespace OPS.Cloud
 
         private void IsValid()
         {
-            if (!(Name != null && MatchUrl != null && FeatureUrl != null))
+            if (!(Name != null && ProductPath != null && InputPath != null))
             {
                 throw new CloudException("Project is missing a required field");
             }

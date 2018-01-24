@@ -18,7 +18,7 @@ namespace OPS.Alignment
         /// </summary>
         /// <param name="matches">Set of matches to filter</param>
         /// <returns>Hopefully better set of matches</returns>
-        ImagePairCorrespondence Filter(ImagePairCorrespondence matches);
+        ImagePairCorrespondence Filter(ImagePairCorrespondence matches, ImageFeature[] modelFeatures, ImageFeature[] dataFeatures);
     }
 
 }

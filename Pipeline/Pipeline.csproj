@@ -155,6 +155,8 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Alignment\OverlapDetection.cs" />
+    <Compile Include="CloudImageRef.cs" />
+    <Compile Include="DataProductManager.cs" />
     <Compile Include="Commands\BenchmarkS3.cs" />
     <Compile Include="Commands\AlignmentWorker.cs" />
     <Compile Include="Commands\TilingWorker.cs" />
@@ -166,9 +168,13 @@
     <Compile Include="Commands\MatchImages.cs" />
     <Compile Include="Commands\PDSImageConverter.cs" />
     <Compile Include="Commands\TileBaselineMesh.cs" />
+    <Compile Include="DataProduct.cs" />
+    <Compile Include="DataProducts\ComputedCorrespondence.cs" />
+    <Compile Include="DataProducts\DetectedFeatures.cs" />
     <Compile Include="General\LegacyScene.cs" />
     <Compile Include="General\ObservationEnums.cs" />
     <Compile Include="GdalConfiguration.cs" />
+    <Compile Include="JsonDataProduct.cs" />
     <Compile Include="Rover\MSLLocations.cs" />
     <Compile Include="Rover\RoverCoordinateSystem.cs" />
     <Compile Include="Rover\RoverMask.cs" />

@@ -60,7 +60,7 @@ namespace OPS.Alignment
             public Vector2 error;
         }
 
-        public ImagePairCorrespondence Filter(ImagePairCorrespondence matches)
+        public ImagePairCorrespondence Filter(ImagePairCorrespondence matches, ImageFeature[] modelFeatures, ImageFeature[] dataFeatures)
         {
             SceneNode modelNode = ImageToNode(matches.ModelImage);
             SceneNode dataNode = ImageToNode(matches.DataImage);
@@ -94,8 +94,8 @@ namespace OPS.Alignment
 
             foreach (var pair in matches.DataToModel)
             {
-                var modelFeature = matches.ModelFeatures[pair.Value];
-                var dataFeature = matches.DataFeatures[pair.Key];
+                var modelFeature = modelFeatures[pair.Value];
+                var dataFeature = dataFeatures[pair.Key];
 
                 var modelRay = modelCam.ProjectRay(modelFeature.Location);
                 var dataRay = dataCam.ProjectRay(dataFeature.Location);
@@ -194,9 +194,7 @@ namespace OPS.Alignment
             {
                 return null;
             }
-            matches = new ImagePairCorrespondence(matches.ModelImage, matches.DataImage, matches.ModelFeatures, matches.DataFeatures, goodMatches);
-            matches.Compact();
-            return matches;
+            return new ImagePairCorrespondence(matches.ModelImage, matches.DataImage, goodMatches);
         }
     }
 }
