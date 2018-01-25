@@ -34,7 +34,7 @@ namespace OPS.Alignment
         /// <param name="dataFeat"></param>
         /// <returns></returns>
         public ImagePairCorrespondence Match(ImageRef model, ImageRef data, 
-            IEnumerable<ImageFeature> modelFeat, IEnumerable<ImageFeature> dataFeat)
+            ImageFeature[] modelFeat, ImageFeature[] dataFeat)
         {
             SIFTFeature[] feat0 = modelFeat.Cast<SIFTFeature>().ToArray();
             SIFTFeature[] feat1 = dataFeat.Cast<SIFTFeature>().ToArray();
@@ -74,9 +74,7 @@ namespace OPS.Alignment
             }
 
             logger.Info(string.Format("Model features: {0}, Data features: {1}, Matches: {2}", feat0.Length, feat1.Length, dataToModel.Count));
-            var res = new ImagePairCorrespondence(model, data, feat0, feat1, dataToModel);
-            res.Compact();
-            return res;
+            return new ImagePairCorrespondence(model, data, dataToModel);
         }
 
 

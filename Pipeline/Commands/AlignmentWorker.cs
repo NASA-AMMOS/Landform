@@ -291,61 +291,42 @@ namespace OPS.Pipeline
             }
 
 
+            ImageRef modelRef = ProductManager.Image(obs0);
+            ImageRef dataRef = ProductManager.Image(obs1);
+            DetectedFeatures modelFeat = ProductManager.Features(obs0);
+            DetectedFeatures dataFeat = ProductManager.Features(obs1);
 
-            //read feature data and image for both images from S3
-            JsonSerializer serializer = new JsonSerializer();
-            serializer.TypeNameHandling = TypeNameHandling.Auto;
-            TemporaryFile.GetAndDeleteMultiple(new string[5]{ ".json", ".img", ".json", ".img", ".jpg"}, (temp) =>
+            //below is from MatchImages.cs
+            BruteForceMatcher matcher = new BruteForceMatcher();
+            ImagePairCorrespondence matches = matcher.Match(modelRef, dataRef, modelFeat.Features, dataFeat.Features);
+
+            MoisanStivalFilter filter = new MoisanStivalFilter();
+            matches = filter.Filter(matches, modelFeat.Features, dataFeat.Features);
+            if (matches == null || matches.DataToModel.Length < 8) //Filters break with too few matches. Issue #91
             {
-                storage.DownloadFile(obs0.FeatureUrl, temp[0]);
-                IEnumerable<SIFTFeature> features0; 
-                using (JsonReader file = new JsonTextReader(File.OpenText(temp[0])))
-                {
-                    features0 = serializer.Deserialize<IEnumerable<SIFTFeature>>(file);  
-                }
-                storage.DownloadFile(obs0.Url, temp[1]);
-                Image im0 = Image.Load(temp[1]);
-                storage.DownloadFile(obs1.FeatureUrl, temp[2]);
-                IEnumerable<SIFTFeature> features1;
-                using (JsonReader file = new JsonTextReader(File.OpenText(temp[2])))
-                {
-                    features1 = serializer.Deserialize<IEnumerable<SIFTFeature>>(file);
-                }
-                storage.DownloadFile(obs1.Url, temp[3]);
-                Image im1 = Image.Load(temp[3]);
-
-                //below is from MatchImages.cs
-                BruteForceMatcher matcher = new BruteForceMatcher();
-                ImagePairCorrespondence matches = matcher.Match(new TransientImageRef(im0), new TransientImageRef(im1), features0, features1);
-
-                MoisanStivalFilter filter = new MoisanStivalFilter();
-                matches = filter.Filter(matches);
-                if (matches == null || matches.DataToModel.Length < 8) //Filters break with too few matches. Issue #91
-                {
-                    Console.WriteLine("No matches found after MoisanStivalFilter");
-                    m.DeleteMessage(SQSClient, config.JobQueue); 
-                    return;
-                }
-                GTM gtm = new GTM(5);
-                matches = gtm.Filter(matches); 
-                if (matches == null)
-                {
-                    Console.WriteLine("No matches found after GTM Filter");
-                    m.DeleteMessage(SQSClient, config.JobQueue);
-                    return;
-                }
-                
-                MatchImage.WriteMatchImage(matches, temp[4]);
-                string url = project.MatchUrl + overlap.Id + ".jpg";
-                storage.UploadFile(temp[4], url);
-                overlap.MatchUrl = url;
-                if (!overlap.TrySave(context))
-                {
-                    return; //another worker tried to update this overlap. allow message to return to queue
-                }
-                //we know we computed the match and uploaded it and its location 
+                Console.WriteLine("No matches found after MoisanStivalFilter");
                 m.DeleteMessage(SQSClient, config.JobQueue);
-            });
+                return 0;
+            }
+            GTM gtm = new GTM(5);
+            matches = gtm.Filter(matches, modelFeat.Features, dataFeat.Features);
+            if (matches == null)
+            {
+                Console.WriteLine("No matches found after GTM Filter");
+                m.DeleteMessage(SQSClient, config.JobQueue);
+                return 0;
+            }
+
+            ComputedCorrespondence corr = new ComputedCorrespondence();
+            corr.Correspondence = matches;
+            ProductManager.Save(overlap.ProjectName, corr);
+            if (!overlap.TrySave(ProductManager.DynamoDB))
+            {
+                return 0; //another worker tried to update this overlap. allow message to return to queue
+            }
+
+            //we know we computed the match and uploaded it and its location 
+            m.DeleteMessage(SQSClient, config.JobQueue);
             return 0;
         }
     }
