@@ -12,6 +12,7 @@ using System.Text;
 using System.Threading.Tasks;
 using Microsoft.Xna.Framework;
 using OPS.Util;
+using MathNet.Numerics.LinearAlgebra;
 
 namespace OPS.Pipeline
 {
@@ -41,7 +42,6 @@ namespace OPS.Pipeline
         public int Run()
         {
             List<ImageRef> images = new List<ImageRef>();
-            Dictionary<int, SceneNode> siteToNode = new Dictionary<int, SceneNode>();
             Dictionary<string, SceneNode> siteDriveToNode = new Dictionary<string, SceneNode>();
             AlignmentScene scene = new AlignmentScene();
 
@@ -70,21 +70,17 @@ namespace OPS.Pipeline
                 PDSParser parsed = new PDSParser(md);
                 // Create nodes
                 {
-                    if (!siteToNode.ContainsKey(parsed.Site))
-                    {
-                        siteToNode[parsed.Site] = new SceneNode("Site " + parsed.Site.ToString(), scene.Root.Transform);
-                        var siteLoc = locations.Location(new SiteDrive(parsed.Site, 0));
-                        if (siteLoc != null)
-                        {
-                            siteToNode[parsed.Site].Transform.LocalToWorld = Matrix.CreateTranslation(siteLoc.Position);
-                        }
-                    }
-                    var siteNode = siteToNode[parsed.Site];
                     if (!siteDriveToNode.ContainsKey(parsed.SiteDrive))
                     {
-                        siteDriveToNode[parsed.SiteDrive] = new SceneNode("Drive " + parsed.Drive.ToString(), siteNode.Transform);
+                        var res = siteDriveToNode[parsed.SiteDrive] = new SceneNode("SD " + parsed.SiteDrive, scene.Root.Transform);
                         var locData = locations.Location(new SiteDrive(parsed.Site, parsed.Drive));
-                        siteDriveToNode[parsed.SiteDrive].Transform.LocalToWorld = Matrix.CreateTranslation(locData.Position);
+                        res.Transform.LocalToWorld = Matrix.CreateTranslation(locData.Position);
+
+                        // Made up covariance values, more or less signifying SD of 0.5m translation and 0.5deg rotation (1.0 for Z)
+                        var uncertainty = res.AddComponent<NodeUncertainTransform>();
+                        double halfDegSqr = Math.Pow(0.5 * Math.PI / 180, 2);
+                        double degSqr = Math.Pow(1.0 * Math.PI / 180, 2);
+                        uncertainty.Covariance = CreateMatrix.Diagonal(new double[] { 0.25, 0.25, 0.25, halfDegSqr, halfDegSqr, degSqr });
                     }
                 }
                 // Add image node
@@ -158,8 +154,6 @@ namespace OPS.Pipeline
                     return;
                 }
 
-                MatchImage.WriteMatchImage(matches, modelFeat, dataFeat, "D:\\match_0_bf.png");
-
                 // KGF
                 {
                     var kgf = new KnownGeometryFilter(new KnownGeometryFilter.ImageNodeDelegate(imgRef => scene.ImageToNode[imgRef]));
@@ -173,7 +167,6 @@ namespace OPS.Pipeline
                         return;
                     }
                 }
-                MatchImage.WriteMatchImage(matches, modelFeat, dataFeat, "D:\\match_1_kgf.png");
 
                 // GTM
                 {
@@ -188,7 +181,6 @@ namespace OPS.Pipeline
                         return;
                     }
                 }
-                MatchImage.WriteMatchImage(matches, modelFeat, dataFeat, "D:\\match_2_gtm.png");
 
                 // Moisan-Stival
                 {
@@ -203,13 +195,14 @@ namespace OPS.Pipeline
                         return;
                     }
                 }
-                MatchImage.WriteMatchImage(matches, modelFeat, dataFeat, "D:\\match_3_ms.png");
 
                 corr[pairName(model, data)] = matches;
                 lock (logger)
                 {
                     logger.DebugFormat("{0} matches for {1}", matches.DataToModel.Length, pairName(model, data));
                 }
+
+                MatchImage.WriteMatchImage(matches, modelFeat, dataFeat, Path.Combine(options.InputPath, "Matches", pairName(model, data)+".png"));
             });
 
             return 0;

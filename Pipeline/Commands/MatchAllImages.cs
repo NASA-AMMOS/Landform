@@ -123,7 +123,7 @@ namespace OPS.Pipeline
                                         + "\\" + matchAlg + "\\").FullName
                                         + Path.GetFileNameWithoutExtension(images[i])
                                         + "_" + Path.GetFileNameWithoutExtension(images[j]);
-                    yield return DetectAndMatch(model, data, eigenspace, outputFile, matchAlg;
+                    yield return DetectAndMatch(model, data, eigenspace, outputFile, matchAlg);
                 }
             }
         }
