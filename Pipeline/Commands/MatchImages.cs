@@ -57,8 +57,6 @@ namespace OPS.Pipeline
 
         public int Run()
         {
-            return 0;
-            /*
             string imageFileA = options.ImageA;
             string imageFileB = options.ImageB;
             string outputFile = options.OutputFile;
@@ -83,12 +81,12 @@ namespace OPS.Pipeline
                 outputFile = imageFileA.Substring(0, imageFileA.Length - 4) + ".jpg";
             }
 
-            ImageRef model = new ImageRef(imageFileA);
-            ImageRef data = new ImageRef(imageFileB);
+            ImageRef model = new DiskImageRef(imageFileA);
+            ImageRef data = new DiskImageRef(imageFileB);
 
             if (SIFTbool != null)
             {
-                SIFT(model.Image, data.Image, outputFile);
+                //SIFT(model.Image, data.Image, outputFile);
                 return 2;
             }
 
@@ -122,17 +120,17 @@ namespace OPS.Pipeline
             logger.Info("Matching images with PCA-SIFT...");
             Stopwatch watch = new Stopwatch();
             watch.Start();
-            List<PCASIFTFeature> featuresA = new PCASIFTDetector().Detect(model, null).Cast<PCASIFTFeature>().ToList();
-            List<PCASIFTFeature> featuresB = new PCASIFTDetector().Detect(data, null).Cast<PCASIFTFeature>().ToList();
+            PCASIFTFeature[] modelFeatures = new PCASIFTDetector().Detect(model, null).Cast<PCASIFTFeature>().ToArray();
+            PCASIFTFeature[] dataFeatures = new PCASIFTDetector().Detect(data, null).Cast<PCASIFTFeature>().ToArray();
             PCAKeypointProjector projector = new PCAKeypointProjector(gpcafile, false);
 
             var taskA = Task.Run(() =>
             {
-                projector.Project(model, featuresA, 1);
+                projector.Project(model, modelFeatures.ToList(), 1);
             });
             var taskB = Task.Run(() =>
             {
-                projector.Project(data, featuresB, 2);
+                projector.Project(data, dataFeatures.ToList(), 2);
             });
 
             taskA.Wait();
@@ -141,7 +139,7 @@ namespace OPS.Pipeline
             if (outputFile == null) { outputFile = options.TrainingFile + ".png"; }
 
             BruteForceMatcher matcher = new BruteForceMatcher();
-            ImagePairCorrespondence matches = matcher.Match(modelRef, dataRef, featuresA, featuresB);
+            ImagePairCorrespondence matches = matcher.Match(modelRef, dataRef, modelFeatures, dataFeatures);
 
             if (model.Metadata is PDSMetadata && data.Metadata is PDSMetadata)
             {
@@ -154,7 +152,7 @@ namespace OPS.Pipeline
                 
                 Action<ImageRef> makeNode = (imgRef) =>
                 {
-                    var res = new SceneNode(imgRef.FilenameWithoutExtension, root.Transform);
+                    var res = new SceneNode(imgRef.DisplayName, root.Transform);
                     PDSParser p = new PDSParser(imgRef.Metadata as PDSMetadata);
                     
                     var quat = p.RoverOriginRotation;
@@ -176,7 +174,7 @@ namespace OPS.Pipeline
                 makeNode(dataRef);
 
                 KnownGeometryFilter kg = new KnownGeometryFilter(imgRef => nodes[imgRef]);
-                matches = kg.Filter(matches);
+                matches = kg.Filter(matches, modelFeatures, dataFeatures);
                 if (matches == null)
                 {
                     logger.Info("No matches found after KnownGeometryFilter");
@@ -190,7 +188,7 @@ namespace OPS.Pipeline
             }
 
             MoisanStivalFilter filter = new MoisanStivalFilter();
-            matches = filter.Filter(matches);
+            matches = filter.Filter(matches, modelFeatures, dataFeatures);
             if (matches == null)
             {
                 logger.Info("No matches found after MoisanStivalFilter");
@@ -198,7 +196,7 @@ namespace OPS.Pipeline
             }
             logger.Info(string.Format("{0} matches after MoisanStivalFilter", matches.DataToModel.Length));
             GTM gtm = new GTM(5);
-            matches = gtm.Filter(matches);
+            matches = gtm.Filter(matches, modelFeatures, dataFeatures);
             if (matches == null)
             {
                 logger.Info("No matches found after GTM Filter");
@@ -207,11 +205,11 @@ namespace OPS.Pipeline
             logger.Info(string.Format("{0} matches after GTM Filter", matches.DataToModel.Length));
 
             watch.Stop();
-            MatchImage.WriteMatchImage(matches, outputFile, watch.ElapsedMilliseconds.ToString());
+            MatchImage.WriteMatchImage(matches, modelFeatures, dataFeatures, outputFile, watch.ElapsedMilliseconds.ToString());
             logger.Info(string.Format("Matched images written to {0}", outputFile));
         }
 
-        public void SIFT(Imaging.Image model, Imaging.Image data, string outputFile)
+        /*public void SIFT(Imaging.Image model, Imaging.Image data, string outputFile)
         {
             if (outputFile == null) { outputFile = options.TrainingFile + ".png"; }
             Image<Gray, byte> imageModel = model.ToEmguGrayscale();
@@ -230,7 +228,7 @@ namespace OPS.Pipeline
 
             MatchImage.WriteMatchImage(matches, outputFile);
             logger.Info(string.Format("Matched images written to {0}", outputFile));
-        }
+        }*/
 
         void Train(string trainingFile, string trainingPath)
         {
@@ -238,7 +236,7 @@ namespace OPS.Pipeline
             logger.Info("Training...");
             PCATrain train = new PCATrain(trainingFile);
             train.Train(trainingPath);
-            logger.Info("Trained.");*/
+            logger.Info("Trained.");
         }
     }
 }
