@@ -79,7 +79,7 @@ namespace OPS.Pipeline
 
         void ProcessImages(string[] images, string eigenspace, bool analyze = false)
         {
-            /*if (analyze)
+            if (analyze)
             {
                 Parallel.ForEach(Enum.GetValues(typeof(MatchAlg)).Cast<MatchAlg>(), matchalg =>
                 {
@@ -89,21 +89,24 @@ namespace OPS.Pipeline
                         foreach (Filter filter in Enum.GetValues(typeof(Filter)))
                         {
                             string outputFile = matches.OutputFile + "_" + filter.ToString() + ".png";
-                            FilterAndSave(matches.Correspondence, filter, outputFile);
+                            FilterAndSave(matches.Correspondence, matches.ModelFeatures, matches.DataFeatures, filter, outputFile);
                         }
                     });
                 });
-            }*/
+            }
         }
 
         class Matches
         {
             public ImagePairCorrespondence Correspondence;
+            public ImageFeature[] ModelFeatures, DataFeatures;
             public string OutputFile;
 
-            public Matches(ImagePairCorrespondence matches, string outputfile)
+            public Matches(ImagePairCorrespondence matches, ImageFeature[] modelFeatures, ImageFeature[] dataFeatures, string outputfile)
             {
                 Correspondence = matches;
+                ModelFeatures = modelFeatures;
+                DataFeatures = dataFeatures;
                 OutputFile = outputfile;
             }
         }
@@ -120,12 +123,12 @@ namespace OPS.Pipeline
                                         + "\\" + matchAlg + "\\").FullName
                                         + Path.GetFileNameWithoutExtension(images[i])
                                         + "_" + Path.GetFileNameWithoutExtension(images[j]);
-                    yield return new Matches(DetectAndMatch(model, data, eigenspace, outputFile, matchAlg), outputFile);
+                    yield return DetectAndMatch(model, data, eigenspace, outputFile, matchAlg;
                 }
             }
         }
 
-        ImagePairCorrespondence DetectAndMatch(Imaging.Image model, Imaging.Image data, string eigenspace, string outputFile, MatchAlg matchAlg)
+        Matches DetectAndMatch(Imaging.Image model, Imaging.Image data, string eigenspace, string outputFile, MatchAlg matchAlg)
         {
             ImagePairCorrespondence matches = null;
             if (matchAlg == MatchAlg.PCASIFT)
@@ -151,17 +154,9 @@ namespace OPS.Pipeline
 
                 BruteForceMatcher matcher = new BruteForceMatcher();
                 matches = matcher.Match(new TransientImageRef(model), new TransientImageRef(data), featuresA.ToArray(), featuresB.ToArray());
+                return new Matches(matches, featuresA.ToArray(), featuresB.ToArray(), outputFile);
             }
-
-            else if (matchAlg == MatchAlg.ASIFT)
-            {
-                logger.Info("Matching with ASIFT...");
-                matches = ASIFT(model, data, outputFile);
-            }
-
-            return matches;
-
-
+            return null;
         }
 
         void FilterAndSave(ImagePairCorrespondence matches, ImageFeature[] feat0, ImageFeature[] feat1, Filter filter, string outputFile)
@@ -202,37 +197,6 @@ namespace OPS.Pipeline
 
             MatchImage.WriteMatchImage(matchesCopy, feat0, feat1, outputFile);
             logger.Info(string.Format("Matched images written to {0}", outputFile));
-        }
-
-        public ImagePairCorrespondence ASIFT(Imaging.Image model, Imaging.Image data, string outputFile)
-        {
-            Image<Gray, byte> imageModel = model.ToEmguGrayscale();
-            Image<Gray, byte> imageData = data.ToEmguGrayscale();
-
-            ASIFTDetector asift = new ASIFTDetector();
-
-            List<SIFTFeature> modelfeat = new List<SIFTFeature>();
-            List<SIFTFeature> datafeat = new List<SIFTFeature>();
-
-            var taskA = Task.Run(() =>
-            {
-                modelfeat = asift.Detect(imageModel, null).Cast<SIFTFeature>().ToList();
-            });
-            var taskB = Task.Run(() =>
-            {
-                datafeat = asift.Detect(imageData, null).Cast<SIFTFeature>().ToList();
-            });
-
-            taskA.Wait();
-            taskB.Wait();
-
-            Matrix<float> descr0 = ToDescriptorMatrix(modelfeat);
-            Matrix<float> descr1 = ToDescriptorMatrix(datafeat);
-            VectorOfKeyPoint kp0 = ToVOKP(modelfeat);
-            VectorOfKeyPoint kp1 = ToVOKP(datafeat);
-
-            BruteForceMatcher matcher = new BruteForceMatcher();
-            return matcher.Match(new TransientImageRef(model), new TransientImageRef(data), modelfeat.ToArray(), datafeat.ToArray());
         }
 
         void Train(string trainingFile, string trainingPath)

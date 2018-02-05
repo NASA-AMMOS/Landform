@@ -36,6 +36,8 @@ namespace OPS.Alignment
         public ImagePairCorrespondence Match(ImageRef model, ImageRef data, 
             ImageFeature[] modelFeat, ImageFeature[] dataFeat)
         {
+            if (modelFeat.Length < 1 || dataFeat.Length < 1) return null;
+
             SIFTFeature[] feat0 = modelFeat.Cast<SIFTFeature>().ToArray();
             SIFTFeature[] feat1 = dataFeat.Cast<SIFTFeature>().ToArray();
             Matches = dataFeat.Select((x, j) => new knnNode[2]).ToArray();

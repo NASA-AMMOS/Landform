@@ -73,6 +73,11 @@ namespace OPS.Pipeline
                     if (!siteToNode.ContainsKey(parsed.Site))
                     {
                         siteToNode[parsed.Site] = new SceneNode("Site " + parsed.Site.ToString(), scene.Root.Transform);
+                        var siteLoc = locations.Location(new SiteDrive(parsed.Site, 0));
+                        if (siteLoc != null)
+                        {
+                            siteToNode[parsed.Site].Transform.LocalToWorld = Matrix.CreateTranslation(siteLoc.Position);
+                        }
                     }
                     var siteNode = siteToNode[parsed.Site];
                     if (!siteDriveToNode.ContainsKey(parsed.SiteDrive))
@@ -87,8 +92,10 @@ namespace OPS.Pipeline
                 imgNode.AddComponent<NodeImageReference>().Reference = imgRef;
                 scene.ImageToNode[imgRef] = imgNode;
                 imgNode.Transform.Rotation = parsed.RoverOriginRotation;
+                imgNode.Transform.Translation = Vector3.Zero;
             }
             logger.Info("Done.");
+            logger.Info("\n"+scene.DebugString());
 
             logger.Info("Detecting features...");
             Dictionary<ImageRef, ImageFeature[]> imageToFeatures = new Dictionary<ImageRef, ImageFeature[]>();
