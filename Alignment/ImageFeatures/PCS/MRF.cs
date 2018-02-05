@@ -23,10 +23,10 @@ namespace OPS.Alignment
             TransformPatches = new Dictionary<int, Matrix<double>>();
         }
 
-        public MRF(ImagePairCorrespondence initialMatches)
+        public MRF(ImagePairCorrespondence initialMatches, IEnumerable<ImageFeature> modelFeat, IEnumerable<ImageFeature> dataFeat)
         {
-            ModelFeatures = (SIFTFeature[])initialMatches.ModelFeatures;
-            DataFeatures = (SIFTFeature[])initialMatches.DataFeatures;
+            ModelFeatures = modelFeat.Cast<SIFTFeature>().ToArray();
+            DataFeatures = dataFeat.Cast<SIFTFeature>().ToArray();
             Features = InitialSeedFeatures(ModelFeatures, DataFeatures);
         }
 

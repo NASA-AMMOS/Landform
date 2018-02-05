@@ -12,5 +12,6 @@ namespace OPS.Imaging
     {
         public abstract Image Image { get; }
         public abstract ImageMetadata Metadata { get; }
+        public abstract string DisplayName { get; }
     }
 }

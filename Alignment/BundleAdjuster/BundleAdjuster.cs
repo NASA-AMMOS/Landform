@@ -36,7 +36,7 @@ namespace OPS.Alignment
                 int transformIdx = prob.AddTransform(nodeToRoot.Mean);
                 if (nodeToRoot.Uncertain) prob.AddPrior(transformIdx, nodeToRoot);
 
-                foreach (var imgRefRef in n.Node.GetComponentsInTree<ImageReference>())
+                foreach (var imgRefRef in n.Node.GetComponentsInTree<NodeImageReference>())
                 {
                     var imgRef = imgRefRef.Reference;
                     var model = imgRef.Image.CameraModel;
@@ -73,7 +73,7 @@ namespace OPS.Alignment
                         return -1;
                     };
 
-                    var modelFeat = corr.ModelFeatures[pair.Key];
+                    /*var modelFeat = corr.ModelFeatures[pair.Key];
                     var dataFeat = corr.DataFeatures[pair.Value];
                     imageToFeatures[corr.ModelImage].Add(modelFeat);
                     imageToFeatures[corr.DataImage].Add(dataFeat);
@@ -108,7 +108,7 @@ namespace OPS.Alignment
                     }
 
                     featureToPoint[modelFeat] = modelId;
-                    featureToPoint[dataFeat] = dataId;
+                    featureToPoint[dataFeat] = dataId;*/
                 }
             }
 

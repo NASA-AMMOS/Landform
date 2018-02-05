@@ -57,6 +57,8 @@ namespace OPS.Pipeline
 
         public int Run()
         {
+            return 0;
+            /*
             string imageFileA = options.ImageA;
             string imageFileB = options.ImageB;
             string outputFile = options.OutputFile;
@@ -236,7 +238,7 @@ namespace OPS.Pipeline
             logger.Info("Training...");
             PCATrain train = new PCATrain(trainingFile);
             train.Train(trainingPath);
-            logger.Info("Trained.");
+            logger.Info("Trained.");*/
         }
     }
 }

@@ -2,6 +2,7 @@
 using OPS.Imaging;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -41,6 +42,14 @@ namespace OPS.Pipeline
             get
             {
                 return Image.Metadata;
+            }
+        }
+
+        public override string DisplayName
+        {
+            get
+            {
+                return Path.GetFileNameWithoutExtension(Observation.Name);
             }
         }
     }

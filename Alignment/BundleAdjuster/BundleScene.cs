@@ -8,7 +8,7 @@ using System.Threading.Tasks;
 
 namespace OPS.Alignment
 {
-    public class ImageReference : NodeComponent
+    public class NodeImageReference : NodeComponent
     {
         public ImageRef Reference;
     }

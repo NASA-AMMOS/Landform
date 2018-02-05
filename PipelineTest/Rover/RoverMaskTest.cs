@@ -23,7 +23,7 @@ namespace PipelineTest
         {
             string filename = Path.Combine("TestData", "img", @"NLB_451557756RASLF0311330NCAM00353M1.IMG");
 
-            ImageRef r = new ImageRef(filename);
+            ImageRef r = new DiskImageRef(filename);
             Image mask = RoverMask.Build(r);
 
             // Check pixel in center of "O" in "CURIOSITY" is masked out

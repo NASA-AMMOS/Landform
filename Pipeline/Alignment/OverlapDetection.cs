@@ -31,6 +31,8 @@ namespace OPS.Pipeline
 
         public bool ProjectiveFrustumOverlap(RoverObservation obs0, RoverObservation obs1)
         {
+            return true;
+            /*
             //snagging these from the header but that's not a good way to do it obv
             //TODO hacky
             int width0 = obs0.Width; int width1= obs1.Width;
@@ -97,7 +99,7 @@ namespace OPS.Pipeline
             {
                 return false;
             }
-            return true;
+            return true;*/
         }
     }
 }

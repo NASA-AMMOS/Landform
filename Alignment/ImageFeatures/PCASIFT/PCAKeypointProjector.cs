@@ -85,6 +85,18 @@ namespace OPS.Alignment
             }
         }
 
+        public PCAKeypointProjector(float[] avgs, float[,] eigs)
+        {
+            this.avgs = avgs;
+            this.eigs = eigs;
+        }
+
+
+        public PCAKeypointProjector Clone()
+        {
+            return new PCAKeypointProjector((float[])avgs.Clone(), (float[,])eigs.Clone());
+        }
+
 		/// <summary>
 		/// Create PCA descriptor for instance of <see cref="T:OPS.Alignment.PCA_Keypoint"/>.
 		/// </summary>

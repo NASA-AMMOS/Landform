@@ -79,7 +79,7 @@ namespace OPS.Pipeline
 
         void ProcessImages(string[] images, string eigenspace, bool analyze = false)
         {
-            if (analyze)
+            /*if (analyze)
             {
                 Parallel.ForEach(Enum.GetValues(typeof(MatchAlg)).Cast<MatchAlg>(), matchalg =>
                 {
@@ -93,7 +93,7 @@ namespace OPS.Pipeline
                         }
                     });
                 });
-            }
+            }*/
         }
 
         class Matches
@@ -150,7 +150,7 @@ namespace OPS.Pipeline
                 taskB.Wait();
 
                 BruteForceMatcher matcher = new BruteForceMatcher();
-                matches = matcher.Match(new ImageRef(model), new ImageRef(data), featuresA, featuresB);
+                matches = matcher.Match(new TransientImageRef(model), new TransientImageRef(data), featuresA.ToArray(), featuresB.ToArray());
             }
 
             else if (matchAlg == MatchAlg.ASIFT)
@@ -164,26 +164,26 @@ namespace OPS.Pipeline
 
         }
 
-        void FilterAndSave(ImagePairCorrespondence matches, Filter filter, string outputFile)
+        void FilterAndSave(ImagePairCorrespondence matches, ImageFeature[] feat0, ImageFeature[] feat1, Filter filter, string outputFile)
         {
             ImagePairCorrespondence matchesCopy = null;
             if (filter == Filter.MoisanStival)
             {
                 logger.Info("Filtering with Moisan Stival...");
                 MoisanStivalFilter MSfilter = new MoisanStivalFilter();
-                matchesCopy = MSfilter.Filter(matches);
+                matchesCopy = MSfilter.Filter(matches, feat0, feat1);
             }
             else if (filter == Filter.GTM)
             {
                 logger.Info("Filtering with GTM...");
                 GTM gtm = new GTM(5);
-                matchesCopy = gtm.Filter(matches);
+                matchesCopy = gtm.Filter(matches, feat0, feat1);
             }
             else if (filter == Filter.MoisanStival_GTM)
             {
                 logger.Info("Filtering with MoisanStival and GTM...");
                 MoisanStivalFilter MSfilter = new MoisanStivalFilter();
-                matchesCopy = MSfilter.Filter(matches);
+                matchesCopy = MSfilter.Filter(matches, feat0, feat1);
 
                 if (matchesCopy == null)
                 {
@@ -192,7 +192,7 @@ namespace OPS.Pipeline
                 }
 
                 GTM gtm = new GTM(5);
-                matchesCopy = gtm.Filter(matchesCopy);
+                matchesCopy = gtm.Filter(matchesCopy, feat0, feat1);
             }
 
             if (matchesCopy == null) {
@@ -200,7 +200,7 @@ namespace OPS.Pipeline
                 return;
             }
 
-            MatchImage.WriteMatchImage(matchesCopy, outputFile);
+            MatchImage.WriteMatchImage(matchesCopy, feat0, feat1, outputFile);
             logger.Info(string.Format("Matched images written to {0}", outputFile));
         }
 
@@ -232,7 +232,7 @@ namespace OPS.Pipeline
             VectorOfKeyPoint kp1 = ToVOKP(datafeat);
 
             BruteForceMatcher matcher = new BruteForceMatcher();
-            return matcher.Match(new ImageRef(model), new ImageRef(data), modelfeat, datafeat);
+            return matcher.Match(new TransientImageRef(model), new TransientImageRef(data), modelfeat.ToArray(), datafeat.ToArray());
         }
 
         void Train(string trainingFile, string trainingPath)

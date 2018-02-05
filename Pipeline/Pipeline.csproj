@@ -156,6 +156,7 @@
   <ItemGroup>
     <Compile Include="Alignment\OverlapDetection.cs" />
     <Compile Include="CloudImageRef.cs" />
+    <Compile Include="Commands\AlignScene.cs" />
     <Compile Include="DataProductManager.cs" />
     <Compile Include="Commands\BenchmarkS3.cs" />
     <Compile Include="Commands\AlignmentWorker.cs" />

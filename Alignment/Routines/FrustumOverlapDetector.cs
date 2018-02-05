@@ -1,4 +1,5 @@
 ﻿using OPS.Geometry;
+using OPS.Imaging;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -59,6 +60,7 @@ namespace OPS.Alignment
             };
             collect(scene.Root);
 
+            HashSet<KeyValuePair<ImageRef, ImageRef>> unique = new HashSet<KeyValuePair<ImageRef, ImageRef>>();
             foreach (var imgRef in scene.ImageToNode.Keys)
             {
                 var node = scene.ImageToNode[imgRef];
@@ -73,9 +75,9 @@ namespace OPS.Alignment
 
                     if (!nodeHull.Intersects(otherHull)) continue;
                     var otherRef = other.GetComponent<NodeImageReference>();
-                    if (otherRef != null)
+                    if (otherRef != null && otherRef.Reference != imgRef)
                     {
-                        scene.Overlaps.Add(new KeyValuePair<Imaging.ImageRef, Imaging.ImageRef>(imgRef, otherRef.Reference));
+                        unique.Add(new KeyValuePair<ImageRef, ImageRef>(imgRef, otherRef.Reference));
                     }
 
                     foreach (var child in other.Children)
@@ -84,6 +86,7 @@ namespace OPS.Alignment
                     }
                 }
             }
+            scene.Overlaps = unique.ToList();
         }
     }
 }

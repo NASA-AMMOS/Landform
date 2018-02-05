@@ -15,18 +15,17 @@ namespace OPS.Alignment
     /// </summary>
     public class MatchImage
     {
-        public static void WriteMatchImage(ImagePairCorrespondence matches, string outFile, string time = null)
+        public static void WriteMatchImage(ImagePairCorrespondence matches, ImageFeature[] modelFeatures, ImageFeature[] dataFeatures, string outFile, string time = null)
         {
             Imaging.Image model = matches.ModelImage.Image;
             Imaging.Image data = matches.DataImage.Image;
             Image<Gray, byte> modelImage = model.ToEmguGrayscale();
             Image<Gray, byte> dataImage = data.ToEmguGrayscale();
-
-            matches.Compact();
+            
             ImageFeature[] feat0;
             ImageFeature[] feat1;
             int[] indices;
-            matches.Flatten(out feat0, out feat1, out indices);
+            matches.Flatten(modelFeatures, dataFeatures, out feat0, out feat1, out indices);
 
             Matrix<float> descr0 = ToDescriptorMatrix(feat0.Cast<SIFTFeature>().ToList());
             Matrix<float> descr1 = ToDescriptorMatrix(feat1.Cast<SIFTFeature>().ToList());

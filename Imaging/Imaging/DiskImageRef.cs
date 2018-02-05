@@ -39,6 +39,14 @@ namespace OPS.Imaging
             }
         }
 
+        public override string DisplayName
+        {
+            get
+            {
+                return System.IO.Path.GetFileNameWithoutExtension(Path);
+            }
+        }
+
         /// <summary>
         /// Unload the image from memory.
         /// </summary>

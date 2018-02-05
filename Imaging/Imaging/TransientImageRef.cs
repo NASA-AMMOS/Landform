@@ -33,6 +33,14 @@ namespace OPS.Imaging
             }
         }
 
+        public override string DisplayName
+        {
+            get
+            {
+                return "Transient-" + GetHashCode().ToString("X");
+            }
+        }
+
         public override bool Equals(object obj)
         {
             if (!(obj is ImageRef)) return false;

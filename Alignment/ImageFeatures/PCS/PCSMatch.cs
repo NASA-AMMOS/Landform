@@ -68,8 +68,7 @@ namespace OPS.Alignment
             }
 
             System.Diagnostics.Debug.WriteLine(string.Format("Model features: {0}, Data features: {1}, Matches: {2}", feat0.Length, feat1.Length, dataToModel.Count));
-            var res = new ImagePairCorrespondence(model, data, feat0, feat1, dataToModel);
-            res.Compact();
+            var res = new ImagePairCorrespondence(model, data, dataToModel);
             return res;
         }
 

@@ -95,6 +95,7 @@ namespace OPS.Geometry
             }
             res.Node = this;
             components[typeof(T)] = res;
+            res.Initialize();
             return res;
         }
 

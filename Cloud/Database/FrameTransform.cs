@@ -65,8 +65,6 @@ namespace OPS.Cloud
             this.ProjectName = fromFrame.ProjectName;
             this.FromFrameName = fromFrame.Name;
             this.ToFrameName = toFrame.Name;
-            this.Translation = translation;
-            this.Rotation = rotation;
             this.TransformSource = transformSource;
         }
 
