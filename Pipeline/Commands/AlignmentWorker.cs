@@ -300,7 +300,7 @@ namespace OPS.Pipeline
             BruteForceMatcher matcher = new BruteForceMatcher();
             ImagePairCorrespondence matches = matcher.Match(modelRef, dataRef, modelFeat.Features, dataFeat.Features);
 
-            MoisanStivalFilter filter = new MoisanStivalFilter();
+            /*MoisanStivalFilter filter = new MoisanStivalFilter();
             matches = filter.Filter(matches, modelFeat.Features, dataFeat.Features);
             if (matches == null || matches.DataToModel.Length < 8) //Filters break with too few matches. Issue #91
             {
@@ -315,7 +315,7 @@ namespace OPS.Pipeline
                 Console.WriteLine("No matches found after GTM Filter");
                 m.DeleteMessage(SQSClient, config.JobQueue);
                 return 0;
-            }
+            }*/
 
             ComputedCorrespondence corr = new ComputedCorrespondence();
             corr.Correspondence = matches;

@@ -60,10 +60,12 @@ namespace OPS.Alignment
             public Vector2 error;
         }
 
-        public ImagePairCorrespondence Filter(ImagePairCorrespondence matches, ImageFeature[] modelFeatures, ImageFeature[] dataFeatures)
+        public ImagePairCorrespondence Filter(MatchingContext context, ImagePairCorrespondence matches)
         {
             SceneNode modelNode = ImageToNode(matches.ModelImage);
             SceneNode dataNode = ImageToNode(matches.DataImage);
+            ImageFeature[] modelFeatures = context.DetectedFeatures[matches.ModelImage];
+            ImageFeature[] dataFeatures = context.DetectedFeatures[matches.DataImage];
 
             if (modelNode == null || dataNode == null) return matches;
 
@@ -150,7 +152,16 @@ namespace OPS.Alignment
                     var error = dataToModel.UnscentedTransform((mat) =>
                     {
                         totalPoints++;
-                        var res = Reproject(mat);
+                        ProjectionResult res;
+                        try
+                        {
+                            res = Reproject(mat);
+                        }
+                        catch (Exception e)
+                        {
+                            badPoints++;
+                            return CreateVector.Dense<double>(2);
+                        }
                         // Mark projection as bad if rays are parallel or the point is behind
                         // either camera
                         if (!res.intersection || res.dataT < -0.01 || res.modelT < -0.01)

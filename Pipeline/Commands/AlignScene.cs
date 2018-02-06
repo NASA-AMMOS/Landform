@@ -44,6 +44,7 @@ namespace OPS.Pipeline
             List<ImageRef> images = new List<ImageRef>();
             Dictionary<string, SceneNode> siteDriveToNode = new Dictionary<string, SceneNode>();
             AlignmentScene scene = new AlignmentScene();
+            MatchingContext context = new MatchingContext();
 
             MSLLocations locations = new MSLLocations();
 
@@ -91,7 +92,7 @@ namespace OPS.Pipeline
                 imgNode.Transform.Translation = Vector3.Zero;
             }
             logger.Info("Done.");
-            logger.Info("\n"+scene.DebugString());
+            logger.Info("\n" + scene.DebugString());
 
             logger.Info("Detecting features...");
             Dictionary<ImageRef, ImageFeature[]> imageToFeatures = new Dictionary<ImageRef, ImageFeature[]>();
@@ -100,6 +101,17 @@ namespace OPS.Pipeline
             PCAKeypointProjector projector = new PCAKeypointProjector(gpcafile, false);
             Parallel.ForEach(images, imgRef =>
             {
+                if (imgRef is DiskImageRef)
+                {
+                    var path = ((DiskImageRef)imgRef).Path + ".feat";
+                    if (File.Exists(path))
+                    {
+                        DetectedFeatures feat = DataProduct.Load<DetectedFeatures>(File.ReadAllBytes(path));
+                        context.DetectedFeatures[imgRef] = feat.Features;
+                        return;
+                    }
+                }
+
                 List<PCASIFTFeature> features = new PCASIFTDetector(numFeatures: 10000).Detect(imgRef.Image, null).Cast<PCASIFTFeature>().ToList();
                 PCAKeypointProjector proj;
                 lock (projector)
@@ -108,9 +120,17 @@ namespace OPS.Pipeline
                 }
                 proj.Project(imgRef.Image, features, 1);
                 var arr = features.ToArray();
-                lock (imageToFeatures)
+                if (imgRef is DiskImageRef)
                 {
-                    imageToFeatures[imgRef] = arr;
+                    var path = ((DiskImageRef)imgRef).Path + ".feat";
+                    DetectedFeatures feat = new DetectedFeatures();
+                    feat.Features = arr;
+                    feat.ObservationName = imgRef.DisplayName;
+                    File.WriteAllBytes(path, feat.Serialize());
+                }
+                lock (context.DetectedFeatures)
+                {
+                    context.DetectedFeatures[imgRef] = arr;
                 }
             });
             logger.Info("Done.");
@@ -121,9 +141,9 @@ namespace OPS.Pipeline
             logger.Info("Done.");
 
             logger.Info("Candidate image pairs:");
-            foreach (var pair in scene.Overlaps)
+            foreach (var pair in scene.Context.Overlaps)
             {
-                logger.InfoFormat("{0} -> {1}", pair.Key.DisplayName, pair.Value.DisplayName);
+                logger.InfoFormat("{0} -> {1}", pair.One.DisplayName, pair.Two.DisplayName);
             }
 
             logger.Info("Finding correspondences...");
@@ -133,15 +153,14 @@ namespace OPS.Pipeline
                 parts.Sort();
                 return parts[0] + "-" + parts[1];
             };
-            Dictionary<string, ImagePairCorrespondence> corr = new Dictionary<string, ImagePairCorrespondence>();
-            Serial.ForEach(scene.Overlaps, pair =>
+            Serial.ForEach(scene.Context.Overlaps, pair =>
             {
-                var model = pair.Key;
-                var data = pair.Value;
-                if (corr.ContainsKey(pairName(model, data))) return;
+                if (scene.Context.Correspondences.ContainsKey(pair)) return;
 
-                var modelFeat = imageToFeatures[model];
-                var dataFeat = imageToFeatures[data];
+                var model = pair.One;
+                var data = pair.Two;
+                var modelFeat = context.DetectedFeatures[model];
+                var dataFeat = context.DetectedFeatures[data];
                 BruteForceMatcher bfm = new BruteForceMatcher();
 
                 var matches = bfm.Match(model, data, modelFeat, dataFeat);
@@ -157,7 +176,7 @@ namespace OPS.Pipeline
                 // KGF
                 {
                     var kgf = new KnownGeometryFilter(new KnownGeometryFilter.ImageNodeDelegate(imgRef => scene.ImageToNode[imgRef]));
-                    matches = kgf.Filter(matches, modelFeat, dataFeat);
+                    matches = kgf.Filter(context, matches);
                     if (matches == null || matches.DataToModel.Length < 8)
                     {
                         lock (logger)
@@ -171,7 +190,7 @@ namespace OPS.Pipeline
                 // GTM
                 {
                     var gtm = new GTM();
-                    matches = gtm.Filter(matches, modelFeat, dataFeat);
+                    matches = gtm.Filter(context, matches);
                     if (matches == null || matches.DataToModel.Length < 8)
                     {
                         lock (logger)
@@ -185,7 +204,7 @@ namespace OPS.Pipeline
                 // Moisan-Stival
                 {
                     var ms = new MoisanStivalFilter();
-                    matches = ms.Filter(matches, modelFeat, dataFeat);
+                    matches = ms.Filter(context, matches);
                     if (matches == null || matches.DataToModel.Length < 8)
                     {
                         lock (logger)
@@ -196,14 +215,21 @@ namespace OPS.Pipeline
                     }
                 }
 
-                corr[pairName(model, data)] = matches;
+                scene.Context.Correspondences[pair] = matches;
+                MatchImage.WriteMatchImage(matches, modelFeat, dataFeat, Path.Combine(options.InputPath, "Matches", pairName(model, data) + ".png"));
                 lock (logger)
                 {
                     logger.DebugFormat("{0} matches for {1}", matches.DataToModel.Length, pairName(model, data));
                 }
-
-                MatchImage.WriteMatchImage(matches, modelFeat, dataFeat, Path.Combine(options.InputPath, "Matches", pairName(model, data)+".png"));
             });
+
+            logger.Info("Bundle adjusting...");
+            foreach (var kvp in siteDriveToNode)
+            {
+                kvp.Value.AddComponent<AdjustedNode>();
+            }
+            //BundleAdjuster.Adjust(scene);
+            logger.Info("Done.");
 
             return 0;
         }

@@ -114,7 +114,7 @@ namespace OPS.Pipeline
 
         void DetectAndMatch(ImageRef modelRef, ImageRef dataRef, string gpcafile, string outputFile)
         {
-            var model = modelRef.Image;
+            /*var model = modelRef.Image;
             var data = dataRef.Image;
 
             logger.Info("Matching images with PCA-SIFT...");
@@ -206,7 +206,7 @@ namespace OPS.Pipeline
 
             watch.Stop();
             MatchImage.WriteMatchImage(matches, modelFeatures, dataFeatures, outputFile, watch.ElapsedMilliseconds.ToString());
-            logger.Info(string.Format("Matched images written to {0}", outputFile));
+            logger.Info(string.Format("Matched images written to {0}", outputFile));*/
         }
 
         /*public void SIFT(Imaging.Image model, Imaging.Image data, string outputFile)

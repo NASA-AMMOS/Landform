@@ -163,7 +163,10 @@ namespace Microsoft.Xna.Framework
         {
             double theta = Math.Acos(W);
             Vector3 axis = new Vector3(X, Y, Z);
-            axis.Normalize();
+            if (axis.LengthSquared() > 1e-8)
+            {
+                axis.Normalize();
+            }
             return axis * theta;
         }
 

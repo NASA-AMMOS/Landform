@@ -24,12 +24,14 @@ namespace OPS.Alignment
             this.RefineStep = refineStep;
         }
 
-        public ImagePairCorrespondence Filter(ImagePairCorrespondence matches, ImageFeature[] modelFeatures, ImageFeature[] dataFeatures)
+        public ImagePairCorrespondence Filter(MatchingContext context, ImagePairCorrespondence matches)
         {
             if (matches.DataToModel.Length < MIN_MATCHES)
             {
                 return matches;
             }
+            ImageFeature[] modelFeatures = context.DetectedFeatures[matches.ModelImage];
+            ImageFeature[] dataFeatures = context.DetectedFeatures[matches.DataImage];
 
             ImageFeature[] modelFeat, dataFeat;
             int[] dataToModel;

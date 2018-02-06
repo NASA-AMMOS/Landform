@@ -60,7 +60,7 @@ namespace OPS.Alignment
             };
             collect(scene.Root);
 
-            HashSet<KeyValuePair<ImageRef, ImageRef>> unique = new HashSet<KeyValuePair<ImageRef, ImageRef>>();
+            HashSet<UnorderedImagePair> unique = new HashSet<UnorderedImagePair>();
             foreach (var imgRef in scene.ImageToNode.Keys)
             {
                 var node = scene.ImageToNode[imgRef];
@@ -77,7 +77,7 @@ namespace OPS.Alignment
                     var otherRef = other.GetComponent<NodeImageReference>();
                     if (otherRef != null && otherRef.Reference != imgRef)
                     {
-                        unique.Add(new KeyValuePair<ImageRef, ImageRef>(imgRef, otherRef.Reference));
+                        unique.Add(new UnorderedImagePair(imgRef, otherRef.Reference));
                     }
 
                     foreach (var child in other.Children)
@@ -86,7 +86,7 @@ namespace OPS.Alignment
                     }
                 }
             }
-            scene.Overlaps = unique.ToList();
+            scene.Context.Overlaps = unique;
         }
     }
 }

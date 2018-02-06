@@ -47,7 +47,7 @@ namespace OPS.Alignment
             }
 
             // Grab clusters of corresponding features as points
-            Dictionary<int, int> dedupeMap = new Dictionary<int, int>();
+            /*Dictionary<int, int> dedupeMap = new Dictionary<int, int>();
             foreach (var corr in scene.Correspondences)
             {
                 if (!images.Contains(corr.ModelImage) || !images.Contains(corr.DataImage)) continue;
@@ -108,7 +108,7 @@ namespace OPS.Alignment
                     }
 
                     featureToPoint[modelFeat] = modelId;
-                    featureToPoint[dataFeat] = dataId;*/
+                    featureToPoint[dataFeat] = dataId;* /
                 }
             }
 
@@ -127,7 +127,7 @@ namespace OPS.Alignment
                     newPoints.Add(new Point());
                 }
             }
-            prob.Points = newPoints;
+            prob.Points = newPoints;*/
 
             // Add projections
             foreach (var img in images)

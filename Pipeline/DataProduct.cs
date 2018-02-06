@@ -20,14 +20,14 @@ namespace OPS.Pipeline
             res.Deserialize(data);
 
             SHA1 sha = SHA1.Create();
-            res.guid = new Guid(sha.ComputeHash(data));
+            res.guid = new Guid(sha.ComputeHash(data).Take(16).ToArray());
             return res;
         }
 
         public void UpdateGuid()
         {
             SHA1 sha = SHA1.Create();
-            guid = new Guid(sha.ComputeHash(Serialize()));
+            guid = new Guid(sha.ComputeHash(Serialize()).Take(16).ToArray());
         }
 
         public Guid guid { get; private set; } = Guid.Empty;

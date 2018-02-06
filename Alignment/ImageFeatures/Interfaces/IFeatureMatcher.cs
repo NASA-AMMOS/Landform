@@ -16,8 +16,6 @@ namespace OPS.Alignment
         /// <param name="data">Data image reference</param>
         /// <param name="modelFeatures">List of features in model image</param>
         /// <param name="dataFeatures">List of features in data image</param>
-        ImagePairCorrespondence Match(ImageRef model, ImageRef data,
-            ImageFeature[] modelFeatures,
-            ImageFeature[] dataFeatures);
+        ImagePairCorrespondence Match(MatchingContext context, UnorderedImagePair pair);
     }
 }

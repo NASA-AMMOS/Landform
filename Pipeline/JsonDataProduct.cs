@@ -12,13 +12,32 @@ namespace OPS.Pipeline
     {
         public override void Deserialize(byte[] data)
         {
-            JsonConvert.PopulateObject(Encoding.UTF8.GetString(data), this);
+            JsonSerializer serializer = new JsonSerializer();
+            serializer.TypeNameHandling = TypeNameHandling.Auto;
+            using (MemoryStream ms = new MemoryStream(data))
+            {
+                using (StreamReader sr = new StreamReader(ms, Encoding.UTF8))
+                {
+                    serializer.Populate(sr, this);
+                }
+            }
         }
 
         public override byte[] Serialize()
         {
-            string data = JsonConvert.SerializeObject(this);
-            return Encoding.UTF8.GetBytes(data);
+            JsonSerializer serializer = new JsonSerializer();
+            serializer.TypeNameHandling = TypeNameHandling.Auto;
+
+            byte[] data;
+            using (MemoryStream ms = new MemoryStream())
+            {
+                using (StreamWriter sw = new StreamWriter(ms, Encoding.UTF8))
+                {
+                    serializer.Serialize(sw, this);
+                }
+                data = ms.ToArray();
+            }
+            return data;
         }
     }
 }

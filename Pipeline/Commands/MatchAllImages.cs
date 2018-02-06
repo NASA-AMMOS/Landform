@@ -161,7 +161,7 @@ namespace OPS.Pipeline
 
         void FilterAndSave(ImagePairCorrespondence matches, ImageFeature[] feat0, ImageFeature[] feat1, Filter filter, string outputFile)
         {
-            ImagePairCorrespondence matchesCopy = null;
+            /*ImagePairCorrespondence matchesCopy = null;
             if (filter == Filter.MoisanStival)
             {
                 logger.Info("Filtering with Moisan Stival...");
@@ -196,7 +196,7 @@ namespace OPS.Pipeline
             }
 
             MatchImage.WriteMatchImage(matchesCopy, feat0, feat1, outputFile);
-            logger.Info(string.Format("Matched images written to {0}", outputFile));
+            logger.Info(string.Format("Matched images written to {0}", outputFile));*/
         }
 
         void Train(string trainingFile, string trainingPath)
