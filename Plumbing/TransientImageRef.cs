@@ -1,10 +1,11 @@
-﻿using System;
+﻿using OPS.Imaging;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace OPS.Imaging
+namespace OPS.Plumbing
 {
     /// <summary>
     /// Reference to a transient image in memory.
@@ -17,22 +18,11 @@ namespace OPS.Imaging
         }
 
         readonly Image image;
-        public override Image Image
+        public override Image Load(PipelineCore pipeline)
         {
-            get
-            {
-                return image;
-            }
+            return image;
         }
-
-        public override ImageMetadata Metadata
-        {
-            get
-            {
-                return image.Metadata;
-            }
-        }
-
+        
         public override string DisplayName
         {
             get
@@ -43,13 +33,13 @@ namespace OPS.Imaging
 
         public override bool Equals(object obj)
         {
-            if (!(obj is ImageRef)) return false;
-            return ((ImageRef)obj).Image == Image;
+            if (!(obj is TransientImageRef)) return false;
+            return ((TransientImageRef)obj).image == image;
         }
 
         public override int GetHashCode()
         {
-            return Image.GetHashCode();
+            return image.GetHashCode();
         }
     }
 }

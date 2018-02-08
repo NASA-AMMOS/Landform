@@ -20,6 +20,7 @@ using OPS.Util;
 using OPS.Alignment;
 using Microsoft.Xna.Framework;
 using Newtonsoft.Json;
+using OPS.Plumbing;
 
 namespace OPS.Pipeline
 {
@@ -89,8 +90,9 @@ namespace OPS.Pipeline
         /// <returns></returns>
         public int Run()
         {
+            return 0;
             //wait on queue for images 
-            SQSClient = new AmazonSQSClient(Amazon.RegionEndpoint.USWest1); 
+            /*SQSClient = new AmazonSQSClient(Amazon.RegionEndpoint.USWest1); 
 
             //check that queue exists 
             if (!PipelineMessage.QueueExists(SQSClient, config.JobQueue))
@@ -149,10 +151,10 @@ namespace OPS.Pipeline
                 }
             });
 
-            return 0; 
+            return 0; */
         }
 
-
+        /*
         /// <summary>
         /// This task: 
         ///  - gets image metadata from observation header and uploads it to dynamo
@@ -315,7 +317,7 @@ namespace OPS.Pipeline
                 Console.WriteLine("No matches found after GTM Filter");
                 m.DeleteMessage(SQSClient, config.JobQueue);
                 return 0;
-            }*/
+            }* /
 
             ComputedCorrespondence corr = new ComputedCorrespondence();
             corr.Correspondence = matches;
@@ -328,6 +330,6 @@ namespace OPS.Pipeline
             //we know we computed the match and uploaded it and its location 
             m.DeleteMessage(SQSClient, config.JobQueue);
             return 0;
-        }
+        }*/
     }
 }

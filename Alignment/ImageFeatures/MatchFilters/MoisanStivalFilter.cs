@@ -6,10 +6,11 @@ using System.Threading.Tasks;
 using OPS.Imaging;
 using Microsoft.Xna.Framework;
 using log4net;
+using OPS.Plumbing;
 
 namespace OPS.Alignment
 {
-    public class MoisanStivalFilter : IMatchFilter
+    public class MoisanStivalFilter : PipelineRoutine, IMatchFilter
     {
         private static readonly ILog logger = LogManager.GetLogger(typeof(MoisanStivalFilter));
 
@@ -18,7 +19,8 @@ namespace OPS.Alignment
 
         public int MaxIterations;
         public bool RefineStep;
-        public MoisanStivalFilter(int maxIterations = 5000, bool refineStep = true)
+        public MoisanStivalFilter(PipelineCore pipeline, int maxIterations = 5000, bool refineStep = true)
+            : base(pipeline)
         {
             this.MaxIterations = maxIterations;
             this.RefineStep = refineStep;
@@ -40,8 +42,8 @@ namespace OPS.Alignment
             Vector2[] dataPoints = dataFeat.Select(f => f.Location).ToArray();
             Vector2[] modelPoints = Enumerable.Range(0, dataPoints.Length).Select(idx => modelFeat[dataToModel[idx]].Location).ToArray();
 
-            var modelMeta = matches.ModelImage.Metadata;
-            var dataMeta = matches.DataImage.Metadata;
+            var modelMeta = GetMetadata(matches.ModelImage);
+            var dataMeta = GetMetadata(matches.DataImage);
 
             MoisanStivalEpipolar mso = new MoisanStivalEpipolar(
                 modelPoints, dataPoints,

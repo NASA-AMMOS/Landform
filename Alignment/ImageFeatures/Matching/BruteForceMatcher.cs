@@ -6,6 +6,7 @@ using System.Text;
 using System.Threading.Tasks;
 using MathNet.Numerics.LinearAlgebra;
 using log4net;
+using OPS.Plumbing;
 
 namespace OPS.Alignment
 {

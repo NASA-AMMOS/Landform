@@ -13,6 +13,7 @@ using System.Threading.Tasks;
 using Microsoft.Xna.Framework;
 using OPS.Util;
 using MathNet.Numerics.LinearAlgebra;
+using OPS.Plumbing;
 
 namespace OPS.Pipeline
 {
@@ -48,6 +49,8 @@ namespace OPS.Pipeline
 
             MSLLocations locations = new MSLLocations();
 
+            PipelineCore pipeline = new PipelineCore();
+
             logger.Info("Building scene...");
             foreach (var fn in Directory.EnumerateFiles(options.InputPath))
             {
@@ -61,7 +64,7 @@ namespace OPS.Pipeline
 
                 logger.InfoFormat("{0}: {1}", imgRef.DisplayName, path);
 
-                var md = imgRef.Image.Metadata as PDSMetadata;
+                var md = imgRef.Load(pipeline).Metadata as PDSMetadata;
                 if (md == null)
                 {
                     continue;
@@ -112,13 +115,13 @@ namespace OPS.Pipeline
                     }
                 }
 
-                List<PCASIFTFeature> features = new PCASIFTDetector(numFeatures: 10000).Detect(imgRef.Image, null).Cast<PCASIFTFeature>().ToList();
+                List<PCASIFTFeature> features = new PCASIFTDetector(numFeatures: 10000).Detect(imgRef.Load(pipeline), null).Cast<PCASIFTFeature>().ToList();
                 PCAKeypointProjector proj;
                 lock (projector)
                 {
                     proj = projector.Clone();
                 }
-                proj.Project(imgRef.Image, features, 1);
+                proj.Project(imgRef.Load(pipeline), features, 1);
                 var arr = features.ToArray();
                 if (imgRef is DiskImageRef)
                 {
@@ -136,7 +139,7 @@ namespace OPS.Pipeline
             logger.Info("Done.");
 
             logger.Info("Detecting overlaps...");
-            FrustumOverlapDetector od = new FrustumOverlapDetector();
+            FrustumOverlapDetector od = new FrustumOverlapDetector(pipeline);
             od.Detect(scene);
             logger.Info("Done.");
 
@@ -175,7 +178,7 @@ namespace OPS.Pipeline
 
                 // KGF
                 {
-                    var kgf = new KnownGeometryFilter(new KnownGeometryFilter.ImageNodeDelegate(imgRef => scene.ImageToNode[imgRef]));
+                    var kgf = new KnownGeometryFilter(pipeline, new KnownGeometryFilter.ImageNodeDelegate(imgRef => scene.ImageToNode[imgRef]));
                     matches = kgf.Filter(context, matches);
                     if (matches == null || matches.DataToModel.Length < 8)
                     {
@@ -203,7 +206,7 @@ namespace OPS.Pipeline
 
                 // Moisan-Stival
                 {
-                    var ms = new MoisanStivalFilter();
+                    var ms = new MoisanStivalFilter(pipeline);
                     matches = ms.Filter(context, matches);
                     if (matches == null || matches.DataToModel.Length < 8)
                     {
@@ -216,7 +219,7 @@ namespace OPS.Pipeline
                 }
 
                 scene.Context.Correspondences[pair] = matches;
-                MatchImage.WriteMatchImage(matches, modelFeat, dataFeat, Path.Combine(options.InputPath, "Matches", pairName(model, data) + ".png"));
+                MatchImage.WriteMatchImage(pipeline, matches, modelFeat, dataFeat, Path.Combine(options.InputPath, "Matches", pairName(model, data) + ".png"));
                 lock (logger)
                 {
                     logger.DebugFormat("{0} matches for {1}", matches.DataToModel.Length, pairName(model, data));

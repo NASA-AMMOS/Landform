@@ -26,6 +26,8 @@ LambdaRDSAccess/obj/
 Pipeline/bin/
 Pipeline/obj/
 Pipeline/Commands/Client.cs
+Plumbing/bin/
+Plumbing/obj/
 packages/
 .vs/
 Xna/bin/

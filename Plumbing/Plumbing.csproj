@@ -4,11 +4,11 @@
   <PropertyGroup>
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
     <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
-    <ProjectGuid>{8145AA65-BA61-4E27-81FF-B64217B49929}</ProjectGuid>
+    <ProjectGuid>{2F63D586-130F-42EB-BA25-76D31BC26283}</ProjectGuid>
     <OutputType>Library</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
-    <RootNamespace>Util</RootNamespace>
-    <AssemblyName>Util</AssemblyName>
+    <RootNamespace>OPS.Plumbing</RootNamespace>
+    <AssemblyName>Plumbing</AssemblyName>
     <TargetFrameworkVersion>v4.6.2</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <TargetFrameworkProfile />
@@ -31,8 +31,16 @@
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="log4net, Version=2.0.8.0, Culture=neutral, PublicKeyToken=669e0ddf0bb1aa2a, processorArchitecture=MSIL">
-      <HintPath>..\packages\log4net.2.0.8\lib\net45-full\log4net.dll</HintPath>
+    <Reference Include="AWSSDK.Core, Version=3.3.0.0, Culture=neutral, PublicKeyToken=885c28607f98e604, processorArchitecture=MSIL">
+      <HintPath>..\packages\AWSSDK.Core.3.3.21.6\lib\net45\AWSSDK.Core.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
+    <Reference Include="AWSSDK.DynamoDBv2, Version=3.3.0.0, Culture=neutral, PublicKeyToken=885c28607f98e604, processorArchitecture=MSIL">
+      <HintPath>..\packages\AWSSDK.DynamoDBv2.3.3.5\lib\net45\AWSSDK.DynamoDBv2.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
+    <Reference Include="AWSSDK.S3, Version=3.3.0.0, Culture=neutral, PublicKeyToken=885c28607f98e604, processorArchitecture=MSIL">
+      <HintPath>..\packages\AWSSDK.S3.3.3.17\lib\net45\AWSSDK.S3.dll</HintPath>
       <Private>True</Private>
     </Reference>
     <Reference Include="Newtonsoft.Json, Version=10.0.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed, processorArchitecture=MSIL">
@@ -49,18 +57,37 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="Config.cs" />
-    <Compile Include="JsonHelper.cs" />
-    <Compile Include="Memoizer.cs" />
-    <Compile Include="PathHelper.cs" />
-    <Compile Include="ProgramRunner.cs" />
+    <Compile Include="CloudImageRef.cs" />
+    <Compile Include="DataProduct.cs" />
+    <Compile Include="DataProductManager.cs" />
+    <Compile Include="DiskImageRef.cs" />
+    <Compile Include="ImageRef.cs" />
+    <Compile Include="JsonDataProduct.cs" />
+    <Compile Include="PipelineCore.cs" />
+    <Compile Include="PipelineRoutine.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="Serial.cs" />
-    <Compile Include="TemporaryFile.cs" />
-    <Compile Include="StringHelper.cs" />
+    <Compile Include="TransientImageRef.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Cloud\Cloud.csproj">
+      <Project>{52A91B3E-1D95-4715-A7AD-2840B2F9C6AC}</Project>
+      <Name>Cloud</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\Imaging\Imaging.csproj">
+      <Project>{C3EC3AB5-8DFD-4DAA-9833-246F0DB6A805}</Project>
+      <Name>Imaging</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\Util\Util.csproj">
+      <Project>{8145AA65-BA61-4E27-81FF-B64217B49929}</Project>
+      <Name>Util</Name>
+    </ProjectReference>
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
+  </ItemGroup>
+  <ItemGroup>
+    <Analyzer Include="..\packages\AWSSDK.DynamoDBv2.3.3.5\analyzers\dotnet\cs\AWSSDK.DynamoDBv2.CodeAnalysis.dll" />
+    <Analyzer Include="..\packages\AWSSDK.S3.3.3.17\analyzers\dotnet\cs\AWSSDK.S3.CodeAnalysis.dll" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 

@@ -9,6 +9,7 @@ using Microsoft.Xna.Framework;
 using OPS.MathExtensions;
 using MathNet.Numerics.LinearAlgebra;
 using log4net;
+using OPS.Plumbing;
 
 namespace OPS.Alignment
 {
@@ -16,7 +17,7 @@ namespace OPS.Alignment
     /// Filter for pruning feature matches based on a priori known geometry of a scene. 
     /// Takes as input a scene graph with (optional) uncertainty information on transforms.
     /// </summary>
-    public class KnownGeometryFilter : IMatchFilter
+    public class KnownGeometryFilter : PipelineRoutine, IMatchFilter
     {
         private static readonly ILog logger = LogManager.GetLogger(typeof(KnownGeometryFilter));
 
@@ -26,7 +27,8 @@ namespace OPS.Alignment
         /// Construct with a function mapping image references to nodes.
         /// </summary>
         /// <param name="imageToNode">Should return the scene node associated with a given image</param>
-        public KnownGeometryFilter(ImageNodeDelegate imageToNode)
+        public KnownGeometryFilter(PipelineCore pipeline, ImageNodeDelegate imageToNode)
+            : base(pipeline)
         {
             ImageToNode = imageToNode;
             ParallelBackprojectDistance = 1000;
@@ -73,8 +75,8 @@ namespace OPS.Alignment
             var modelToWorld = modelNode.GetOrAddComponent<NodeUncertainTransform>().LocalToWorld;
             UncertainRigidTransform dataToModel = dataToWorld.TimesInverse(modelToWorld);
 
-            var modelCam = matches.ModelImage.Image.CameraModel;
-            var dataCam = matches.DataImage.Image.CameraModel;
+            var modelCam = GetImage(matches.ModelImage).CameraModel;
+            var dataCam = GetImage(matches.DataImage).CameraModel;
 
             // if 'data' node has a convex hull, compute it (uncertainty-inflated) in model space
             ConvexHull dataHullInModel = null;

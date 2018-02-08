@@ -17,6 +17,7 @@ using OPS.Geometry;
 using System;
 using Microsoft.Xna.Framework;
 using MathNet.Numerics.LinearAlgebra;
+using OPS.Plumbing;
 
 namespace OPS.Pipeline
 {

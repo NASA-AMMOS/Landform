@@ -7,13 +7,12 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace OPS.Pipeline
+namespace OPS.Plumbing
 {
     public class CloudImageRef : ImageRef
     {
-        public CloudImageRef(DataProductManager manager, Observation observation)
+        public CloudImageRef(Observation observation)
         {
-            Manager = manager;
             Observation = observation;
         }
 
@@ -21,28 +20,16 @@ namespace OPS.Pipeline
         /// The Observation database entry corresponding to this image.
         /// </summary>
         public readonly Observation Observation;
-        public readonly DataProductManager Manager;
 
         Image image;
-        public override Image Image
+        public override Image Load(PipelineCore pipeline)
         {
-            get
+            if (image == null)
             {
-                if (image == null)
-                {
-                    string fn = Manager.DownloadCached(Observation.Url, "images");
-                    image = Image.Load(fn);
-                }
-                return image;
+                string fn = pipeline.DownloadCached(Observation.Url, "images");
+                image = Image.Load(fn);
             }
-        }
-
-        public override ImageMetadata Metadata
-        {
-            get
-            {
-                return Image.Metadata;
-            }
+            return image;
         }
 
         public override string DisplayName
@@ -52,5 +39,6 @@ namespace OPS.Pipeline
                 return Path.GetFileNameWithoutExtension(Observation.Name);
             }
         }
+
     }
 }

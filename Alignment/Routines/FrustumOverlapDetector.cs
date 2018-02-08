@@ -1,5 +1,6 @@
 ﻿using OPS.Geometry;
 using OPS.Imaging;
+using OPS.Plumbing;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -8,8 +9,12 @@ using System.Threading.Tasks;
 
 namespace OPS.Alignment
 {
-    public class FrustumOverlapDetector : IOverlapDetector
+    public class FrustumOverlapDetector : PipelineRoutine, IOverlapDetector
     {
+        public FrustumOverlapDetector(PipelineCore pipeline)
+            : base(pipeline)
+        {
+        }
         public void Detect(AlignmentScene scene)
         {
             // Initialize - make sure ImageToNode is up to date and all nodes have hulls
@@ -34,7 +39,7 @@ namespace OPS.Alignment
                     if (!node.HasComponent<NodeConvexHull>())
                     {
                         var chc = node.AddComponent<NodeConvexHull>();
-                        chc.Hull = ConvexHull.FromImage(imgRef.Image);
+                        chc.Hull = ConvexHull.FromImage(GetImage(imgRef));
                     }
                     return;
                 }

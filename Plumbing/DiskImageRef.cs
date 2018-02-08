@@ -1,10 +1,11 @@
-﻿using System;
+﻿using OPS.Imaging;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace OPS.Imaging
+namespace OPS.Plumbing
 {
     /// <summary>
     /// Reference to an on-disk image by file path.
@@ -18,25 +19,13 @@ namespace OPS.Imaging
         }
 
         internal Image image;
-        public override Image Image
+        public override Image Load(PipelineCore pipeline)
         {
-            get
+            if (image == null)
             {
-                if (image == null)
-                {
-                    image = Image.Load(Path);
-                }
-                return image;
+                image = Image.Load(Path);
             }
-        }
-
-        public override ImageMetadata Metadata
-        {
-            get
-            {
-                // TODO: Possible lazy loading of metadata
-                return Image.Metadata;
-            }
+            return image;
         }
 
         public override string DisplayName

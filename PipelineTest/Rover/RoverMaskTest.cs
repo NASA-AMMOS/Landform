@@ -2,6 +2,7 @@
 using Microsoft.Xna.Framework;
 using OPS.Imaging;
 using OPS.Pipeline;
+using OPS.Plumbing;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -22,9 +23,7 @@ namespace PipelineTest
         public void RoverMaskSanity()
         {
             string filename = Path.Combine("TestData", "img", @"NLB_451557756RASLF0311330NCAM00353M1.IMG");
-
-            ImageRef r = new DiskImageRef(filename);
-            Image mask = RoverMask.Build(r);
+            Image mask = RoverMask.Build(Image.Load(filename));
 
             // Check pixel in center of "O" in "CURIOSITY" is masked out
             Assert.AreEqual(mask[0, 590, 388], 0.0);

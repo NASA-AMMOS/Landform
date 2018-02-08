@@ -6,12 +6,11 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace OPS.Imaging
+namespace OPS.Plumbing
 {
     public abstract class ImageRef
     {
-        public abstract Image Image { get; }
-        public abstract ImageMetadata Metadata { get; }
         public abstract string DisplayName { get; }
+        public abstract Image Load(PipelineCore pipeline);
     }
 }

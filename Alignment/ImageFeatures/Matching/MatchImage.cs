@@ -7,6 +7,7 @@ using Emgu.CV.Features2D;
 using Emgu.CV;
 using System.Drawing;
 using OPS.Imaging.Emgu;
+using OPS.Plumbing;
 
 namespace OPS.Alignment
 {
@@ -15,10 +16,10 @@ namespace OPS.Alignment
     /// </summary>
     public class MatchImage
     {
-        public static void WriteMatchImage(ImagePairCorrespondence matches, ImageFeature[] modelFeatures, ImageFeature[] dataFeatures, string outFile, string time = null)
+        public static void WriteMatchImage(PipelineCore pipeline, ImagePairCorrespondence matches, ImageFeature[] modelFeatures, ImageFeature[] dataFeatures, string outFile, string time = null)
         {
-            Imaging.Image model = matches.ModelImage.Image;
-            Imaging.Image data = matches.DataImage.Image;
+            Imaging.Image model = matches.ModelImage.Load(pipeline);
+            Imaging.Image data = matches.DataImage.Load(pipeline);
             Image<Gray, byte> modelImage = model.ToEmguGrayscale();
             Image<Gray, byte> dataImage = data.ToEmguGrayscale();
             

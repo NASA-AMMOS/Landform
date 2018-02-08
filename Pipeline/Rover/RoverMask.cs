@@ -13,9 +13,9 @@ namespace OPS.Pipeline
     {
         public static CuriosityRoverModel RoverModel = new CuriosityRoverModel();
 
-        public static Image Build(ImageRef imageRef)
+        public static Image Build(Image image)
         {
-            var metadata = imageRef.Metadata as PDSMetadata;
+            var metadata = image.Metadata as PDSMetadata;
             if (metadata == null)
             {
                 return null;

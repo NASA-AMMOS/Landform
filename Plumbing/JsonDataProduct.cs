@@ -6,7 +6,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace OPS.Pipeline
+namespace OPS.Plumbing
 {
     public class JsonDataProduct : DataProduct
     {

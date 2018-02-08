@@ -1,7 +1,6 @@
 ﻿using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.DataModel;
 using Amazon.S3;
-using Amazon.SQS;
 using OPS.Cloud;
 using OPS.Imaging;
 using OPS.Util;
@@ -13,7 +12,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace OPS.Pipeline
+namespace OPS.Plumbing
 {
     public class DataProductManager
     {
@@ -42,21 +41,6 @@ namespace OPS.Pipeline
         public Project GetProject(string name)
         {
             return Project.Find(DynamoDB, name);
-        }
-
-        public ImageRef Image(Observation obs)
-        {
-            return new CloudImageRef(this, obs);
-        }
-
-        public DetectedFeatures Features(Observation obs, bool useCache = true)
-        {
-            return Get<DetectedFeatures>(obs.ProjectName, obs.FeaturesGuid, useCache);
-        }
-
-        public ComputedCorrespondence Correspondence(Overlap overlap, bool useCache = true)
-        {
-            return Get<ComputedCorrespondence>(overlap.ProjectName, overlap.MatchGuid, useCache);
         }
 
         internal string CachePath(string project, Guid guid)
