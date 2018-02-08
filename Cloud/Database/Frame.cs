@@ -26,6 +26,8 @@ namespace OPS.Cloud
         [DynamoDBProperty("frame_name")]
         public string Name { get; set; }
 
+        public string ParentName { get; set; }
+
         //This constructor must be public for DynamoDb but should not be used
         public Frame()
         {
@@ -39,7 +41,7 @@ namespace OPS.Cloud
         /// </summary>
         /// <param name="project">Project with a valid id (has been saved to database context)</param>
         /// <param name="name"></param>
-        protected Frame(Project project, string name = null)
+        protected Frame(Project project, string name = null, Frame parent = null)
         {
             if (name == null)
             {
@@ -47,6 +49,7 @@ namespace OPS.Cloud
             }
             this.Name = name;
             this.ProjectName = project.Name;
+            this.ParentName = (parent != null) ? parent.Name : null;
         }
 
 
@@ -58,13 +61,13 @@ namespace OPS.Cloud
         /// <param name="p">Project with a valid id (has been saved to database context)</param>
         /// <param name="name"></param>
         /// <returns></returns>
-        public static Frame Create(DynamoDBContext context, Project p, string name = null)
+        public static Frame Create(DynamoDBContext context, Project p, string name = null, Frame parent = null)
         {
             if (name == null)
             {
                 name = Guid.NewGuid().ToString();
             }
-            Frame f = new Frame(p, name);
+            Frame f = new Frame(p, name, parent);
             context.Save<Frame>(f, new DynamoDBOperationConfig { IgnoreNullValues = true});
             return f;
         }
@@ -87,7 +90,7 @@ namespace OPS.Cloud
         /// <param name="p">Project with a valid id (has been saved to database context)</param>
         /// <param name="name"></param>
         /// <returns></returns>
-        public static Frame FindOrCreate(DynamoDBContext context, Project p, string name)
+        public static Frame FindOrCreate(DynamoDBContext context, Project p, string name, Frame parent = null)
         {
             // Try to find this project
             Frame frame = Find(context, p.Name, name);
@@ -96,7 +99,7 @@ namespace OPS.Cloud
                 return frame;
             }
             // If it doesn't exist try to create it
-            frame = Create(context, p, name);
+            frame = Create(context, p, name, parent);
             if (frame != null)
             {
                 return frame;

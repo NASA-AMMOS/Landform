@@ -57,15 +57,17 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="CloudImageRef.cs" />
+    <Compile Include="ObservationImageRef.cs" />
     <Compile Include="DataProduct.cs" />
     <Compile Include="DataProductManager.cs" />
     <Compile Include="DiskImageRef.cs" />
+    <Compile Include="ImageDataProduct.cs" />
     <Compile Include="ImageRef.cs" />
     <Compile Include="JsonDataProduct.cs" />
     <Compile Include="PipelineCore.cs" />
     <Compile Include="PipelineRoutine.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="S3ImageRef.cs" />
     <Compile Include="TransientImageRef.cs" />
   </ItemGroup>
   <ItemGroup>

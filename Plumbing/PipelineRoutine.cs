@@ -1,4 +1,5 @@
-﻿using OPS.Imaging;
+﻿using Amazon.DynamoDBv2.DataModel;
+using OPS.Imaging;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -22,6 +23,11 @@ namespace OPS.Plumbing
         public ImageMetadata GetMetadata(ImageRef image)
         {
             return GetImage(image).Metadata;
+        }
+
+        public DynamoDBContext DynamoDB
+        {
+            get { return Pipeline.DynamoDB; }
         }
     }
 }

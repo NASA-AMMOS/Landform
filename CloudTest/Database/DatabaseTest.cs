@@ -48,7 +48,7 @@ namespace CloudTest
 
             //delete frame with generated name 
             context.Delete<Frame>(fgenerated);
-
+            /*
             //Multiple ids for a project in same transform lookup
             FrameTransform ft1 = FrameTransform.Create(context, f1, f2, Vector3.Zero, Quaternion.Identity, TransformSource.Prior, .01);
             Assert.AreEqual(1, FrameTransform.Find(context, f1, f2).Count());
@@ -57,7 +57,7 @@ namespace CloudTest
             //Create frame in other project and make sure it shows up correctly, even if names are the same
             FrameTransform ft1p2 = FrameTransform.Create(context, f1p2, f2p2, Vector3.Zero, Quaternion.Identity, TransformSource.Prior, .01);
             Assert.AreEqual(1, FrameTransform.Find(context, f1p2, f2p2).Count());
-
+            */
 
             //Multiple projects in same transform lookup
 

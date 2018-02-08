@@ -9,9 +9,10 @@ using System.Threading.Tasks;
 
 namespace OPS.Plumbing
 {
-    public class CloudImageRef : ImageRef
+    public class ObservationImageRef : S3ImageRef
     {
-        public CloudImageRef(Observation observation)
+        public ObservationImageRef(Observation observation)
+            : base(observation.Url)
         {
             Observation = observation;
         }
@@ -20,25 +21,13 @@ namespace OPS.Plumbing
         /// The Observation database entry corresponding to this image.
         /// </summary>
         public readonly Observation Observation;
-
-        Image image;
-        public override Image Load(PipelineCore pipeline)
-        {
-            if (image == null)
-            {
-                string fn = pipeline.DownloadCached(Observation.Url, "images");
-                image = Image.Load(fn);
-            }
-            return image;
-        }
-
+        
         public override string DisplayName
         {
             get
             {
-                return Path.GetFileNameWithoutExtension(Observation.Name);
+                return Observation.Name;
             }
         }
-
     }
 }

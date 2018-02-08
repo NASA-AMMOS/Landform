@@ -154,14 +154,16 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="Alignment\OverlapDetection.cs" />
+    <Compile Include="Alignment\DetectFeatures.cs" />
+    <Compile Include="Alignment\DetectOverlaps.cs" />
+    <Compile Include="Alignment\IngestImage.cs" />
+    <Compile Include="Alignment\IngestPDSImage.cs" />
     <Compile Include="Commands\AlignScene.cs" />
     <Compile Include="Commands\BenchmarkS3.cs" />
     <Compile Include="Commands\AlignmentWorker.cs" />
     <Compile Include="Commands\TilingWorker.cs" />
     <Compile Include="Commands\Commands.cs" />
     <Compile Include="Commands\ConvertBaselineMesh.cs" />
-    <Compile Include="Alignment\MetadataIndexer.cs" />
     <Compile Include="Commands\LegacyToWebVR.cs" />
     <Compile Include="Commands\MatchAllImages.cs" />
     <Compile Include="Commands\MatchImages.cs" />

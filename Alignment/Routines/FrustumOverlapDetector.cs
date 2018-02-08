@@ -15,6 +15,7 @@ namespace OPS.Alignment
             : base(pipeline)
         {
         }
+        
         public void Detect(AlignmentScene scene)
         {
             // Initialize - make sure ImageToNode is up to date and all nodes have hulls

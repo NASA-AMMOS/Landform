@@ -84,5 +84,78 @@ namespace OPS.Plumbing
         {
             return imgRef.Load(this);
         }
+
+        /// <summary>
+        /// Get a project by name.
+        /// </summary>
+        /// <param name="name"></param>
+        /// <returns></returns>
+        public Project GetProject(string name)
+        {
+            return Project.Find(DynamoDB, name);
+        }
+
+        /// <summary>
+        /// Fetch a data product given a project name and product GUID.
+        /// </summary>
+        /// <typeparam name="T">Type of data product</typeparam>
+        /// <param name="project">Project name</param>
+        /// <param name="guid">Data product GUID</param>
+        /// <param name="useCache">If true, use on-disk cache</param>
+        public T Get<T>(string project, Guid guid, bool useCache = true) where T : DataProduct, new()
+        {
+            string s3Url = GetProject(project).ProductPath + guid.ToString();
+
+            T res = null;
+            if (useCache)
+            {
+                string cachePath = DownloadCached(s3Url, project, guid.ToString());
+                res = DataProduct.Load<T>(File.ReadAllBytes(cachePath));
+            }
+            else
+            {
+                TemporaryFile.GetAndDelete("", tempFile =>
+                {
+                    Storage.DownloadFile(s3Url, tempFile);
+                    res = DataProduct.Load<T>(File.ReadAllBytes(tempFile));
+                });
+            }
+            return res;
+        }
+
+        /// <summary>
+        /// Save a data product to S3 (and disk cache, if enabled)
+        /// </summary>
+        /// <param name="project">Project name</param>
+        /// <param name="product">DataProduct object</param>
+        /// <param name="useCache">Enable on-disk cache</param>
+        public void Save(string project, DataProduct product, bool useCache = true)
+        {
+            if (product.guid == Guid.Empty)
+            {
+                product.UpdateGuid();
+            }
+
+            Project p = GetProject(project);
+            TemporaryFile.FilenameDelegate writeAndUpload = (filePath) =>
+            {
+                File.WriteAllBytes(filePath, product.Serialize());
+                Storage.UploadFile(filePath, p.ProductPath + product.guid.ToString());
+            };
+
+            if (useCache)
+            {
+                writeAndUpload(CachePath(project, product.guid));
+            }
+            else
+            {
+                TemporaryFile.GetAndDelete("", writeAndUpload);
+            }
+        }
+
+        internal string CachePath(string project, Guid guid)
+        {
+            return Path.Combine(cacheFolder, project, guid.ToString());
+        }
     }
 }
