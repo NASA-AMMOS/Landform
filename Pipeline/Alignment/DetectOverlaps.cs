@@ -43,7 +43,7 @@ namespace OPS.Pipeline
 
                 FrameTransform transform = FrameTransform.Find(Pipeline.DynamoDB, f);
                 NodeUncertainTransform nut = res.AddComponent<NodeUncertainTransform>();
-                nut.UncertainTransform = new UncertainRigidTransform(new MathExtensions.GaussianND(transform.Mean, transform.Covariance));
+                nut.UncertainTransform = transform.Transform;
                 return res;
             });
 

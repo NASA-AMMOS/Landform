@@ -79,6 +79,7 @@
     <Compile Include="Database\Frame.cs" />
     <Compile Include="Database\Observation.cs" />
     <Compile Include="Database\Overlap.cs" />
+    <Compile Include="Database\TransformPrior.cs" />
     <Compile Include="Database\Project.cs" />
     <Compile Include="Database\FrameTransform.cs" />
     <Compile Include="Database\RoverObservation.cs" />

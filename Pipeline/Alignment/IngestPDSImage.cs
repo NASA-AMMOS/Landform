@@ -228,6 +228,8 @@ namespace OPS.Pipeline
                 UncertainRigidTransform transform = new UncertainRigidTransform(Matrix.CreateFromQuaternion(roverToLocalLevel), covariance);
 
                 FrameTransform observationToSiteDrive = FrameTransform.Create(DynamoDB, observationFrame, transform, TransformSource.Prior);
+                TransformPrior o2sdP = TransformPrior.Create(DynamoDB, observationFrame, transform);
+                observationFrame.PriorIds.Add(o2sdP.Id);
             }
             var loc = locations.Location(sd);
             if (loc != null && FrameTransform.Find(DynamoDB, siteDriveFrame) == null)
@@ -239,6 +241,8 @@ namespace OPS.Pipeline
                 UncertainRigidTransform transform = new UncertainRigidTransform(Matrix.CreateFromQuaternion(roverToLocalLevel), covariance);
 
                 FrameTransform siteDriveToRoot = FrameTransform.Create(DynamoDB, siteDriveFrame, transform, TransformSource.Prior);
+                TransformPrior sd2rP = TransformPrior.Create(DynamoDB, siteDriveFrame, transform);
+                siteDriveFrame.PriorIds.Add(sd2rP.Id);
             }
 
             string observationName = ObservationName(parser);

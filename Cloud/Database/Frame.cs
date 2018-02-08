@@ -19,14 +19,18 @@ namespace OPS.Cloud
     public class Frame
     {
         [DynamoDBRangeKey]
-        [DynamoDBProperty("project_name")]
+        [DynamoDBProperty()]
         public string ProjectName { get; set; }
 
         [DynamoDBHashKey] //Partition key
-        [DynamoDBProperty("frame_name")]
+        [DynamoDBProperty()]
         public string Name { get; set; }
 
+        [DynamoDBProperty()]
         public string ParentName { get; set; }
+
+        [DynamoDBProperty()]
+        public List<string> PriorIds { get; set; }
 
         //This constructor must be public for DynamoDb but should not be used
         public Frame()

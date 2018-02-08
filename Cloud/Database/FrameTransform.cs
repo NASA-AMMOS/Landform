@@ -31,15 +31,29 @@ namespace OPS.Cloud
         [DynamoDBProperty("project_name")]
         public string ProjectName { get; set; }
 
+        [DynamoDBHashKey] //Partition key
+        [DynamoDBProperty()]
+        public string FrameName { get; set; }
+
         [DynamoDBProperty("mean", typeof(VectorNConverter))]
         public Vector<double> Mean { get; set; }
         [DynamoDBProperty("covariance", typeof(SquareMatrixConverter))]
         public Matrix<double> Covariance { get; set; }
 
-        [DynamoDBHashKey] //Partition key
-        [DynamoDBProperty()]
-        public string FrameName { get; set; }
-        
+        [DynamoDBIgnore]
+        public UncertainRigidTransform Transform
+        {
+            get
+            {
+                return new UncertainRigidTransform(new MathExtensions.GaussianND(Mean, Covariance));
+            }
+            set
+            {
+                Mean = value.Distribution.Mean;
+                Covariance = value.Distribution.Covariance;
+            }
+        }
+
         //This constructor must be public for DynamoDb but should not be used
         public FrameTransform()
         {
