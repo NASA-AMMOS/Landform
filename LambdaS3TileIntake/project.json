@@ -4,26 +4,19 @@
   },
 
   "dependencies": {
-    "Microsoft.NETCore.App": {
-      "type": "platform",
-      "version": "1.0.0"
-    },
     "Amazon.Lambda.Core": "1.0.0*",
+    "Amazon.Lambda.S3Events": "1.0.2",
     "Amazon.Lambda.Serialization.Json": "1.1.0",
-    "Amazon.Lambda.Tools": {
-        "type": "build",
-        "version": "1.8.0"
-    },
     "AWSSDK.DynamoDBv2": "3.3.6",
-    "Amazon.Lambda.S3Events": "1.0.1",
-    "LambdaUtil": "1.0.0-*"
+    "LambdaUtil": "1.0.0-*",
+    "Microsoft.NETCore.App": "2.0.0"
   },
   "tools": {
-    "Amazon.Lambda.Tools" : "1.8.0"
+    "Amazon.Lambda.Tools": "2.1.0"
   },
 
   "frameworks": {
-    "netcoreapp1.0": {
+    "netcoreapp2.0": {
       "imports": "dnxcore50"
     }
   }

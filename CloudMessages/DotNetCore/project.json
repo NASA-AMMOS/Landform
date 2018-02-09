@@ -6,11 +6,12 @@
     },
     "dependencies": {
         "AWSSDK.SQS": "3.3.3.2",
-        "NETStandard.Library": "1.6.0",
+        "Microsoft.NETCore.App": "2.0.0",
+        "NETStandard.Library": "2.0.0",
         "Newtonsoft.Json": "10.0.3"
     },
     "frameworks": {
-        "netstandard1.6": {
+        "netcoreapp2.0": {
             "imports": "dnxcore50"
         }
     },
