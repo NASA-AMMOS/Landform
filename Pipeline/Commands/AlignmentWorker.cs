@@ -61,7 +61,6 @@ namespace OPS.Pipeline
         //thread-safe processing helpers
         IngestPDSImage ingester;
         DetectOverlaps detector;
-        StorageHelper storage; 
 
         //monitoring counts 
         private int messagesRecieved = 0;
@@ -189,9 +188,14 @@ namespace OPS.Pipeline
             //Downloading image. Image.Load() does spooky things with temp files which are mitigated (somewhat) by not using the temp file wrapper
             ImageRef imgRef = new ObservationImageRef(indexed.Observation);
 
+            // Make rover mask
+            var mask = RoverMask.Build(GetImage(imgRef));
+            var maskProd = new ImageDataProduct(mask, "png", typeof(byte));
+            Pipeline.Save(indexed.Observation.ProjectName, maskProd);
+
             //snagged from MatchImages
             string gpcafile = PCAKeypointProjector.DefaultTrainingSpace;
-            List<PCASIFTFeature> features = new PCASIFTDetector().Detect(GetImage(imgRef), null).Cast<PCASIFTFeature>().ToList();
+            List<PCASIFTFeature> features = new PCASIFTDetector().Detect(GetImage(imgRef), mask).Cast<PCASIFTFeature>().ToList();
             PCAKeypointProjector projector = new PCAKeypointProjector(gpcafile, false);
             projector.Project(GetImage(imgRef), features, 1);
 
@@ -200,11 +204,6 @@ namespace OPS.Pipeline
             detected.Features = features.ToArray();
             detected.ObservationName = indexed.Observation.Name;
             Pipeline.Save(indexed.Observation.ProjectName, detected);
-
-            // And RoverMask
-            var mask = RoverMask.Build(GetImage(imgRef));
-            var maskProd = new ImageDataProduct(mask, "png", typeof(byte));
-            Pipeline.Save(indexed.Observation.ProjectName, maskProd);
 
             //save to Dynamo: 
             //   Image record: S3 location, keypoints product GUID, metadata 
