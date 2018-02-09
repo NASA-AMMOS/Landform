@@ -6,7 +6,7 @@
     },
     "dependencies": {
         "AWSSDK.SQS": "3.3.3.2",
-        "NETStandard.Library": "1.6.1",
+        "NETStandard.Library": "1.6.0",
         "Newtonsoft.Json": "10.0.3"
     },
     "frameworks": {
