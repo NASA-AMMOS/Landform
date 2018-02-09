@@ -17,8 +17,9 @@
     "Amazon.Lambda.Core": "1.0.0"
   },
 
-  "tools": {
-  },
+    "tools": {
+        "Amazon.Lambda.Tools": "2.1.0"
+    },
 
 
   "frameworks": {

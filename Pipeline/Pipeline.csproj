@@ -274,7 +274,7 @@
       <Project>{ae1b74cc-7cbb-4aaf-9be6-68534d61d264}</Project>
       <Name>Alignment</Name>
     </ProjectReference>
-    <ProjectReference Include="..\CloudMessages\Framework\CloudMessagesFramework.csproj">
+    <ProjectReference Include="..\CloudMessages\CloudMessagesFramework\CloudMessagesFramework.csproj">
       <Project>{08bf655a-97f2-4027-bcc0-b990cb8588cf}</Project>
       <Name>CloudMessagesFramework</Name>
     </ProjectReference>
