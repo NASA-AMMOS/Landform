@@ -27,34 +27,29 @@ aws s3 cp --recursive StackResources s3://$Bucket/$S3Prefix/stack_resources
 #build lambdas and upload deployed code to resource folder so they are availible for stack
 Write-Host "...Building and uploading initial lambda code"
 cd ..\..\LambdaS3ImageIntake 
-dotnet restore 
-dotnet build
-dotnet publish 
-aws s3 cp bin\Release\netcoreapp1.0\LambdaS3ImageIntake.zip s3://$Bucket/$S3Prefix/stack_resources/LambdaS3ImageIntake.zip
+dotnet build -c Release
+dotnet lambda package -c Release
+aws s3 cp bin\Release\netcoreapp2.0\LambdaS3ImageIntake.zip s3://$Bucket/$S3Prefix/stack_resources/LambdaS3ImageIntake.zip
 
 cd ..\LambdaQueueSizeMetric
-dotnet restore 
-dotnet build
-dotnet publish
-aws s3 cp bin\Release\netcoreapp1.0\LambdaQueueSizeMetric.zip s3://$Bucket/$S3Prefix/stack_resources/LambdaQueueSizeMetric.zip
+dotnet build -c Release
+dotnet lambda package -c Release
+aws s3 cp bin\Release\netcoreapp2.0\LambdaQueueSizeMetric.zip s3://$Bucket/$S3Prefix/stack_resources/LambdaQueueSizeMetric.zip
 
 cd ..\LambdaScanS3
-dotnet restore 
-dotnet build
-dotnet publish
-aws s3 cp bin\Release\netcoreapp1.0\LambdaScanS3.zip s3://$Bucket/$S3Prefix/stack_resources/LambdaScanS3.zip
+dotnet build -c Release
+dotnet lambda package -c Release
+aws s3 cp bin\Release\netcoreapp2.0\LambdaScanS3.zip s3://$Bucket/$S3Prefix/stack_resources/LambdaScanS3.zip
 
 cd ..\LambdaParentTileJobCreation
-dotnet restore 
-dotnet build
-dotnet publish
-aws s3 cp bin\Release\netcoreapp1.0\LambdaParentTileJobCreation.zip s3://$Bucket/$S3Prefix/stack_resources/LambdaParentTileJobCreation.zip
+dotnet build -c Release
+dotnet lambda package -c Release
+aws s3 cp bin\Release\netcoreapp2.0\LambdaParentTileJobCreation.zip s3://$Bucket/$S3Prefix/stack_resources/LambdaParentTileJobCreation.zip
 
 cd ..\LambdaS3TileIntake
-dotnet restore 
-dotnet build
-dotnet publish
-aws s3 cp bin\Release\netcoreapp1.0\LambdaS3TileIntake.zip s3://$Bucket/$S3Prefix/stack_resources/LambdaS3TileIntake.zip
+dotnet build -c Release
+dotnet lambda package -c Release
+aws s3 cp bin\Release\netcoreapp2.0\LambdaS3TileIntake.zip s3://$Bucket/$S3Prefix/stack_resources/LambdaS3TileIntake.zip
 
 cd ..\Cloud\Infrastructure
 

@@ -1,8 +1,10 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio 14
-VisualStudioVersion = 14.0.25420.1
+# Visual Studio 15
+VisualStudioVersion = 15.0.27004.2009
 MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Lambdas", "Lambdas", "{F0BB8D5E-47BA-4795-8D1C-A8DBC7A9BC73}"
+EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Pipeline", "Pipeline\Pipeline.csproj", "{C45F0CD6-C998-47EC-B67C-AD77196B06A0}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Imaging", "Imaging\Imaging.csproj", "{C3EC3AB5-8DFD-4DAA-9833-246F0DB6A805}"
@@ -54,26 +56,24 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RayTrace", "RayTrace\RayTra
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RayTraceTest", "RayTraceTest\RayTraceTest.csproj", "{DF083C64-D94B-467B-9023-E7F8C21D9F12}"
 EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Lambdas", "Lambdas", "{F0BB8D5E-47BA-4795-8D1C-A8DBC7A9BC73}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "LambdaQueueSizeMetric", "LambdaQueueSizeMetric\LambdaQueueSizeMetric.csproj", "{F4A5530C-5869-4AC7-B8CD-2646FADF4F0A}"
 EndProject
-Project("{8BB2217D-0F2D-49D1-97BC-3654ED321F3B}") = "LambdaQueueSizeMetric", "LambdaQueueSizeMetric\LambdaQueueSizeMetric.xproj", "{F4A5530C-5869-4AC7-B8CD-2646FADF4F0A}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "LambdaUtil", "LambdaUtil\LambdaUtil.csproj", "{1A3B3CCB-C637-4159-87D5-8828CE61B1AD}"
 EndProject
-Project("{8BB2217D-0F2D-49D1-97BC-3654ED321F3B}") = "LambdaUtil", "LambdaUtil\LambdaUtil.xproj", "{1A3B3CCB-C637-4159-87D5-8828CE61B1AD}"
-EndProject
-Project("{8BB2217D-0F2D-49D1-97BC-3654ED321F3B}") = "LambdaS3ImageIntake", "LambdaS3ImageIntake\LambdaS3ImageIntake.xproj", "{FC21BE03-7B7C-490E-AA9A-13546A64AB2A}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "LambdaS3ImageIntake", "LambdaS3ImageIntake\LambdaS3ImageIntake.csproj", "{FC21BE03-7B7C-490E-AA9A-13546A64AB2A}"
 	ProjectSection(ProjectDependencies) = postProject
 		{1A3B3CCB-C637-4159-87D5-8828CE61B1AD} = {1A3B3CCB-C637-4159-87D5-8828CE61B1AD}
 	EndProjectSection
 EndProject
-Project("{8BB2217D-0F2D-49D1-97BC-3654ED321F3B}") = "LambdaScanS3", "LambdaScanS3\LambdaScanS3.xproj", "{11EDABDC-2139-46AE-8110-D0494F18C9B7}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "LambdaScanS3", "LambdaScanS3\LambdaScanS3.csproj", "{11EDABDC-2139-46AE-8110-D0494F18C9B7}"
 EndProject
-Project("{8BB2217D-0F2D-49D1-97BC-3654ED321F3B}") = "LambdaS3TileIntake", "LambdaS3TileIntake\LambdaS3TileIntake.xproj", "{6E683A47-E4B7-40B9-A83D-65BC965C2F21}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "LambdaS3TileIntake", "LambdaS3TileIntake\LambdaS3TileIntake.csproj", "{6E683A47-E4B7-40B9-A83D-65BC965C2F21}"
 EndProject
-Project("{8BB2217D-0F2D-49D1-97BC-3654ED321F3B}") = "LambdaParentTileJobCreation", "LambdaParentTileJobCreation\LambdaParentTileJobCreation.xproj", "{1DFC415B-F100-40DF-B44B-18E392066E15}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "LambdaParentTileJobCreation", "LambdaParentTileJobCreation\LambdaParentTileJobCreation.csproj", "{1DFC415B-F100-40DF-B44B-18E392066E15}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Plumbing", "Plumbing\Plumbing.csproj", "{2F63D586-130F-42EB-BA25-76D31BC26283}"
 EndProject
-Project("{8BB2217D-0F2D-49D1-97BC-3654ED321F3B}") = "CloudMessagesCore", "CloudMessages\CloudMessagesCore\CloudMessagesCore.xproj", "{A6D8068E-7362-4DE5-86E7-67E8841BEE76}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "CloudMessagesCore", "CloudMessages\CloudMessagesCore\CloudMessagesCore.csproj", "{A6D8068E-7362-4DE5-86E7-67E8841BEE76}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CloudMessagesFramework", "CloudMessages\CloudMessagesFramework\CloudMessagesFramework.csproj", "{08BF655A-97F2-4027-BCC0-B990CB8588CF}"
 EndProject
@@ -628,7 +628,8 @@ Global
 		{11EDABDC-2139-46AE-8110-D0494F18C9B7} = {F0BB8D5E-47BA-4795-8D1C-A8DBC7A9BC73}
 		{6E683A47-E4B7-40B9-A83D-65BC965C2F21} = {F0BB8D5E-47BA-4795-8D1C-A8DBC7A9BC73}
 		{1DFC415B-F100-40DF-B44B-18E392066E15} = {F0BB8D5E-47BA-4795-8D1C-A8DBC7A9BC73}
-		{A6D8068E-7362-4DE5-86E7-67E8841BEE76} = {9565639C-3DB1-49FF-BE3F-421D45DEAC3F}
-		{08BF655A-97F2-4027-BCC0-B990CB8588CF} = {9565639C-3DB1-49FF-BE3F-421D45DEAC3F}
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {70ACE594-CE12-4A2B-8B2B-7911672DB294}
 	EndGlobalSection
 EndGlobal
