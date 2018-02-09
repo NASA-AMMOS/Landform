@@ -17,5 +17,9 @@ namespace OPS.Cloud
         {
             Url = url;
         }
+        static NewObservationMessage()
+        {
+            RegisterType(typeof(NewObservationMessage));
+        }
     }
 }

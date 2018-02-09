@@ -25,5 +25,10 @@ namespace OPS.Cloud
             this.ObservationName1 = observationName2;
             this.ProjectName = projectName;
         }
+
+        static MatchPairsMessage()
+        {
+            RegisterType(typeof(MatchPairsMessage));
+        }
     }
 }

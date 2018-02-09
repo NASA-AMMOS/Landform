@@ -23,5 +23,10 @@ namespace OPS.Cloud
         {
             this.ObservationName = observationName;
         }
+
+        static FindOverlapsMessage()
+        {
+            RegisterType(typeof(FindOverlapsMessage));
+        }
     }
 }

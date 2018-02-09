@@ -24,5 +24,10 @@ namespace OPS.Cloud
             ParentPath = parentPath;
             ChildExtensions = childExtensions.ToList();
         }
+
+        static CreateParentTileMessage()
+        {
+            RegisterType(typeof(CreateParentTileMessage));
+        }
     }
 }
