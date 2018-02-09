@@ -87,3 +87,4 @@ PipelineFrontend/!.elasticbeanstalk/*.cfg.yml
 PipelineFrontend/!.elasticbeanstalk/*.global.yml
 
 */project.lock.json
+project.lock.json
