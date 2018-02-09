@@ -15,9 +15,9 @@
       "version": "1.8.0"
     },
     "AWSSDK.S3": "3.3.17",
-    "AWSSDK.SQS": "3.3.2.9",
+    "AWSSDK.SQS": "3.3.3.2",
     "LambdaUtil": "1.0.0-*",
-    "AWSSDK.DynamoDBv2": "3.3.5"
+    "AWSSDK.DynamoDBv2": "3.3.6"
   },
 
   "tools": {

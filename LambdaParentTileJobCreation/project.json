@@ -10,19 +10,14 @@
     },
     "Amazon.Lambda.Core": "1.0.0*",
     "Amazon.Lambda.Serialization.Json": "1.1.0",
-    "Amazon.Lambda.Tools": {
-        "type": "build",
-        "version": "1.8.0"
-    },
-    "AWSSDK.SQS": "3.3.2.9",
-    "AWSSDK.DynamoDBv2": "3.3.4.18",
+    "AWSSDK.SQS": "3.3.3.2",
+    "AWSSDK.DynamoDBv2": "3.3.6",
     "Amazon.Lambda.DynamoDBEvents": "1.0.1",
     "Newtonsoft.Json": "10.0.3",
     "LambdaUtil": "1.0.0-*"
   },
 
   "tools": {
-    "Amazon.Lambda.Tools" : "1.8.0"
   },
 
   "frameworks": {

@@ -14,8 +14,8 @@
         "type": "build",
         "version": "1.8.0"
     },
-    "AWSSDK.SQS": "3.3.2.9",
-    "AWSSDK.CloudWatch": "3.3.4.1"
+    "AWSSDK.SQS": "3.3.3.2",
+    "AWSSDK.CloudWatch": "3.3.5.1"
   },
 
   "tools": {

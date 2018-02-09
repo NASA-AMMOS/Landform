@@ -65,10 +65,10 @@
           "lib/netstandard1.3/AWSSDK.CloudFormation.dll": {}
         }
       },
-      "AWSSDK.CloudWatch/3.3.4.1": {
+      "AWSSDK.CloudWatch/3.3.5.1": {
         "type": "package",
         "dependencies": {
-          "AWSSDK.Core": "[3.3.18, 3.4.0)"
+          "AWSSDK.Core": "[3.3.19, 3.4.0)"
         },
         "compile": {
           "lib/netstandard1.3/AWSSDK.CloudWatch.dll": {}
@@ -77,7 +77,7 @@
           "lib/netstandard1.3/AWSSDK.CloudWatch.dll": {}
         }
       },
-      "AWSSDK.Core/3.3.18": {
+      "AWSSDK.Core/3.3.19": {
         "type": "package",
         "dependencies": {
           "Microsoft.CSharp": "4.0.1",
@@ -129,10 +129,10 @@
           "lib/netstandard1.3/AWSSDK.S3.dll": {}
         }
       },
-      "AWSSDK.SQS/3.3.2.9": {
+      "AWSSDK.SQS/3.3.3.2": {
         "type": "package",
         "dependencies": {
-          "AWSSDK.Core": "[3.3.18, 3.4.0)"
+          "AWSSDK.Core": "[3.3.19, 3.4.0)"
         },
         "compile": {
           "lib/netstandard1.3/AWSSDK.SQS.dll": {}
@@ -2379,12 +2379,12 @@
         "tools/uninstall.ps1"
       ]
     },
-    "AWSSDK.CloudWatch/3.3.4.1": {
-      "sha512": "U4NkGnlOgnHJ7E7LzM9jcLoPf/zK7XWRERcJMPy8zNtz3SJ4PYMQzOuao83TR87AO2l7/wJhgll8HQZFTyOdeQ==",
+    "AWSSDK.CloudWatch/3.3.5.1": {
+      "sha512": "+nWX8mtr4c68pr/aaZeetVgNo3OxYJnGaKk+2LE79/AcdJ/pkihv1ts3EV/tvfvTU6RE6DdgAo6s7B7D4LHKbg==",
       "type": "package",
-      "path": "AWSSDK.CloudWatch/3.3.4.1",
+      "path": "AWSSDK.CloudWatch/3.3.5.1",
       "files": [
-        "AWSSDK.CloudWatch.3.3.4.1.nupkg.sha512",
+        "AWSSDK.CloudWatch.3.3.5.1.nupkg.sha512",
         "AWSSDK.CloudWatch.nuspec",
         "analyzers/dotnet/cs/AWSSDK.CloudWatch.CodeAnalysis.dll",
         "lib/MonoAndroid10/AWSSDK.CloudWatch.XML",
@@ -2406,16 +2406,19 @@
         "lib/portable-net45+win8+wpa81+wp8/AWSSDK.CloudWatch.XML",
         "lib/portable-net45+win8+wpa81+wp8/AWSSDK.CloudWatch.dll",
         "lib/portable-net45+win8+wpa81+wp8/AWSSDK.CloudWatch.pdb",
+        "lib/uap/AWSSDK.CloudWatch.XML",
+        "lib/uap/AWSSDK.CloudWatch.dll",
+        "lib/uap/AWSSDK.CloudWatch.pdb",
         "tools/install.ps1",
         "tools/uninstall.ps1"
       ]
     },
-    "AWSSDK.Core/3.3.18": {
-      "sha512": "15VZyyB+94JPOBz50hRFx7axCZ1iLHyAJqkGMa3khEayMjEMx4LXEScWMazE1WsbWF1EtHtXi4KL7oOYzVd44w==",
+    "AWSSDK.Core/3.3.19": {
+      "sha512": "zmXaVNKtbQ1RfwHawEkKM7nvkSeWjljwiBKtaUpf2Woni/vmYd5l0gY54dNVN7Z9IsCoxwitGcFfJYOtrE/upg==",
       "type": "package",
-      "path": "AWSSDK.Core/3.3.18",
+      "path": "AWSSDK.Core/3.3.19",
       "files": [
-        "AWSSDK.Core.3.3.18.nupkg.sha512",
+        "AWSSDK.Core.3.3.19.nupkg.sha512",
         "AWSSDK.Core.nuspec",
         "lib/MonoAndroid10/AWSSDK.Core.XML",
         "lib/MonoAndroid10/AWSSDK.Core.dll",
@@ -2546,12 +2549,12 @@
         "tools/uninstall.ps1"
       ]
     },
-    "AWSSDK.SQS/3.3.2.9": {
-      "sha512": "T4CMtCdCCeYuRbVQpIUY+i/LYh9BQx+uzXQD3IOAwxUB1/N8nfkyDZJls4OLdE6ydo4yOIAsQRRJHQbQOVLsUg==",
+    "AWSSDK.SQS/3.3.3.2": {
+      "sha512": "D93mnU+mlNlaoxKkjYwFWJHaw7FFFm0tM6SuMxTeu0NdtXHrBrteLF5oa28ePiwR0EayRbss0yT1sEm5XqYvog==",
       "type": "package",
-      "path": "AWSSDK.SQS/3.3.2.9",
+      "path": "AWSSDK.SQS/3.3.3.2",
       "files": [
-        "AWSSDK.SQS.3.3.2.9.nupkg.sha512",
+        "AWSSDK.SQS.3.3.3.2.nupkg.sha512",
         "AWSSDK.SQS.nuspec",
         "analyzers/dotnet/cs/AWSSDK.SQS.CodeAnalysis.dll",
         "lib/MonoAndroid10/AWSSDK.SQS.XML",
@@ -2573,6 +2576,9 @@
         "lib/portable-net45+win8+wpa81+wp8/AWSSDK.SQS.XML",
         "lib/portable-net45+win8+wpa81+wp8/AWSSDK.SQS.dll",
         "lib/portable-net45+win8+wpa81+wp8/AWSSDK.SQS.pdb",
+        "lib/uap/AWSSDK.SQS.XML",
+        "lib/uap/AWSSDK.SQS.dll",
+        "lib/uap/AWSSDK.SQS.pdb",
         "tools/install.ps1",
         "tools/uninstall.ps1"
       ]
@@ -7281,8 +7287,8 @@
   },
   "projectFileDependencyGroups": {
     "": [
-      "AWSSDK.CloudWatch >= 3.3.4.1",
-      "AWSSDK.SQS >= 3.3.2.9",
+      "AWSSDK.CloudWatch >= 3.3.5.1",
+      "AWSSDK.SQS >= 3.3.3.2",
       "Amazon.Lambda.Core >= 1.0.*",
       "Amazon.Lambda.Serialization.Json >= 1.1.0",
       "Amazon.Lambda.Tools >= 1.8.0",

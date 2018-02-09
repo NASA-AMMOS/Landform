@@ -29,26 +29,31 @@ Write-Host "...Building and uploading initial lambda code"
 cd ..\..\LambdaS3ImageIntake 
 dotnet restore 
 dotnet build
+dotnet publish 
 aws s3 cp bin\Release\netcoreapp1.0\LambdaS3ImageIntake.zip s3://$Bucket/$S3Prefix/stack_resources/LambdaS3ImageIntake.zip
 
 cd ..\LambdaQueueSizeMetric
 dotnet restore 
 dotnet build
+dotnet publish
 aws s3 cp bin\Release\netcoreapp1.0\LambdaQueueSizeMetric.zip s3://$Bucket/$S3Prefix/stack_resources/LambdaQueueSizeMetric.zip
 
 cd ..\LambdaScanS3
 dotnet restore 
 dotnet build
+dotnet publish
 aws s3 cp bin\Release\netcoreapp1.0\LambdaScanS3.zip s3://$Bucket/$S3Prefix/stack_resources/LambdaScanS3.zip
 
 cd ..\LambdaParentTileJobCreation
 dotnet restore 
 dotnet build
+dotnet publish
 aws s3 cp bin\Release\netcoreapp1.0\LambdaParentTileJobCreation.zip s3://$Bucket/$S3Prefix/stack_resources/LambdaParentTileJobCreation.zip
 
 cd ..\LambdaS3TileIntake
 dotnet restore 
 dotnet build
+dotnet publish
 aws s3 cp bin\Release\netcoreapp1.0\LambdaS3TileIntake.zip s3://$Bucket/$S3Prefix/stack_resources/LambdaS3TileIntake.zip
 
 cd ..\Cloud\Infrastructure

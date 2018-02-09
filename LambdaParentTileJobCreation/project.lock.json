@@ -47,39 +47,7 @@
           "lib/netstandard1.3/Amazon.Lambda.Serialization.Json.dll": {}
         }
       },
-      "Amazon.Lambda.Tools/1.8.0": {
-        "type": "package",
-        "dependencies": {
-          "AWSSDK.CloudFormation": "3.3.3.9",
-          "AWSSDK.IdentityManagement": "3.3.2.3",
-          "AWSSDK.Lambda": "3.3.2.9",
-          "AWSSDK.S3": "3.3.5.10",
-          "Microsoft.NETCore.App": "1.0.0",
-          "Newtonsoft.Json": "9.0.1",
-          "System.IO.Compression.ZipFile": "4.0.1",
-          "System.Runtime.Loader": "4.0.0",
-          "YamlDotNet.Signed": "4.2.1"
-        },
-        "compile": {
-          "lib/netcoreapp1.0/dotnet-lambda.dll": {}
-        },
-        "runtime": {
-          "lib/netcoreapp1.0/dotnet-lambda.dll": {}
-        }
-      },
-      "AWSSDK.CloudFormation/3.3.3.9": {
-        "type": "package",
-        "dependencies": {
-          "AWSSDK.Core": "[3.3.10.1, 3.4.0)"
-        },
-        "compile": {
-          "lib/netstandard1.3/AWSSDK.CloudFormation.dll": {}
-        },
-        "runtime": {
-          "lib/netstandard1.3/AWSSDK.CloudFormation.dll": {}
-        }
-      },
-      "AWSSDK.Core/3.3.18": {
+      "AWSSDK.Core/3.3.19": {
         "type": "package",
         "dependencies": {
           "Microsoft.CSharp": "4.0.1",
@@ -95,10 +63,10 @@
           "lib/netstandard1.3/AWSSDK.Core.dll": {}
         }
       },
-      "AWSSDK.DynamoDBv2/3.3.4.18": {
+      "AWSSDK.DynamoDBv2/3.3.6": {
         "type": "package",
         "dependencies": {
-          "AWSSDK.Core": "[3.3.18, 3.4.0)"
+          "AWSSDK.Core": "[3.3.19, 3.4.0)"
         },
         "compile": {
           "lib/netstandard1.3/AWSSDK.DynamoDBv2.dll": {}
@@ -107,46 +75,10 @@
           "lib/netstandard1.3/AWSSDK.DynamoDBv2.dll": {}
         }
       },
-      "AWSSDK.IdentityManagement/3.3.2.3": {
+      "AWSSDK.SQS/3.3.3.2": {
         "type": "package",
         "dependencies": {
-          "AWSSDK.Core": "[3.3.10.1, 3.4.0)"
-        },
-        "compile": {
-          "lib/netstandard1.3/AWSSDK.IdentityManagement.dll": {}
-        },
-        "runtime": {
-          "lib/netstandard1.3/AWSSDK.IdentityManagement.dll": {}
-        }
-      },
-      "AWSSDK.Lambda/3.3.2.9": {
-        "type": "package",
-        "dependencies": {
-          "AWSSDK.Core": "[3.3.10.1, 3.4.0)"
-        },
-        "compile": {
-          "lib/netstandard1.3/AWSSDK.Lambda.dll": {}
-        },
-        "runtime": {
-          "lib/netstandard1.3/AWSSDK.Lambda.dll": {}
-        }
-      },
-      "AWSSDK.S3/3.3.5.10": {
-        "type": "package",
-        "dependencies": {
-          "AWSSDK.Core": "[3.3.10.1, 3.4.0)"
-        },
-        "compile": {
-          "lib/netstandard1.3/AWSSDK.S3.dll": {}
-        },
-        "runtime": {
-          "lib/netstandard1.3/AWSSDK.S3.dll": {}
-        }
-      },
-      "AWSSDK.SQS/3.3.2.9": {
-        "type": "package",
-        "dependencies": {
-          "AWSSDK.Core": "[3.3.18, 3.4.0)"
+          "AWSSDK.Core": "[3.3.19, 3.4.0)"
         },
         "compile": {
           "lib/netstandard1.3/AWSSDK.SQS.dll": {}
@@ -161,37 +93,9 @@
           "Microsoft.NETCore.Platforms": "1.0.1"
         },
         "runtimeTargets": {
-          "runtimes/debian-x64/native/libuv.so": {
-            "assetType": "native",
-            "rid": "debian-x64"
-          },
-          "runtimes/fedora-x64/native/libuv.so": {
-            "assetType": "native",
-            "rid": "fedora-x64"
-          },
-          "runtimes/opensuse-x64/native/libuv.so": {
-            "assetType": "native",
-            "rid": "opensuse-x64"
-          },
-          "runtimes/osx/native/libuv.dylib": {
+          "runtimes/osx/native/_._": {
             "assetType": "native",
             "rid": "osx"
-          },
-          "runtimes/rhel-x64/native/libuv.so": {
-            "assetType": "native",
-            "rid": "rhel-x64"
-          },
-          "runtimes/win7-arm/native/libuv.dll": {
-            "assetType": "native",
-            "rid": "win7-arm"
-          },
-          "runtimes/win7-x64/native/libuv.dll": {
-            "assetType": "native",
-            "rid": "win7-x64"
-          },
-          "runtimes/win7-x86/native/libuv.dll": {
-            "assetType": "native",
-            "rid": "win7-x86"
           }
         }
       },
@@ -245,7 +149,7 @@
           "lib/netstandard1.3/_._": {}
         },
         "runtime": {
-          "lib/netstandard1.3/Microsoft.CodeAnalysis.dll": {}
+          "lib/netstandard1.3/_._": {}
         }
       },
       "Microsoft.CodeAnalysis.CSharp/1.3.0": {
@@ -257,7 +161,7 @@
           "lib/netstandard1.3/_._": {}
         },
         "runtime": {
-          "lib/netstandard1.3/Microsoft.CodeAnalysis.CSharp.dll": {}
+          "lib/netstandard1.3/_._": {}
         }
       },
       "Microsoft.CodeAnalysis.VisualBasic/1.3.0": {
@@ -269,7 +173,7 @@
           "lib/netstandard1.3/_._": {}
         },
         "runtime": {
-          "lib/netstandard1.3/Microsoft.CodeAnalysis.VisualBasic.dll": {}
+          "lib/netstandard1.3/_._": {}
         }
       },
       "Microsoft.CSharp/4.3.0": {
@@ -421,7 +325,7 @@
           "ref/netstandard1.1/Microsoft.VisualBasic.dll": {}
         },
         "runtime": {
-          "lib/netstandard1.3/Microsoft.VisualBasic.dll": {}
+          "lib/netstandard1.3/_._": {}
         }
       },
       "Microsoft.Win32.Primitives/4.3.0": {
@@ -451,11 +355,7 @@
           "ref/netstandard1.3/_._": {}
         },
         "runtimeTargets": {
-          "runtimes/unix/lib/netstandard1.3/Microsoft.Win32.Registry.dll": {
-            "assetType": "runtime",
-            "rid": "unix"
-          },
-          "runtimes/win/lib/netstandard1.3/Microsoft.Win32.Registry.dll": {
+          "runtimes/win/lib/netstandard1.3/_._": {
             "assetType": "runtime",
             "rid": "win"
           }
@@ -800,7 +700,7 @@
           "lib/netstandard1.0/System.Collections.Immutable.dll": {}
         },
         "runtime": {
-          "lib/netstandard1.0/System.Collections.Immutable.dll": {}
+          "lib/netstandard1.0/_._": {}
         }
       },
       "System.Collections.NonGeneric/4.3.0": {
@@ -869,7 +769,7 @@
           "ref/netstandard1.4/System.ComponentModel.Annotations.dll": {}
         },
         "runtime": {
-          "lib/netstandard1.4/System.ComponentModel.Annotations.dll": {}
+          "lib/netstandard1.4/_._": {}
         }
       },
       "System.ComponentModel.Primitives/4.3.0": {
@@ -969,11 +869,7 @@
           "ref/netstandard1.3/_._": {}
         },
         "runtimeTargets": {
-          "runtimes/unix/lib/netstandard1.3/System.Diagnostics.FileVersionInfo.dll": {
-            "assetType": "runtime",
-            "rid": "unix"
-          },
-          "runtimes/win/lib/netstandard1.3/System.Diagnostics.FileVersionInfo.dll": {
+          "runtimes/win/lib/netstandard1.3/_._": {
             "assetType": "runtime",
             "rid": "win"
           }
@@ -1008,17 +904,9 @@
           "ref/netstandard1.4/System.Diagnostics.Process.dll": {}
         },
         "runtimeTargets": {
-          "runtimes/linux/lib/netstandard1.4/System.Diagnostics.Process.dll": {
-            "assetType": "runtime",
-            "rid": "linux"
-          },
-          "runtimes/osx/lib/netstandard1.4/System.Diagnostics.Process.dll": {
+          "runtimes/osx/lib/netstandard1.4/_._": {
             "assetType": "runtime",
             "rid": "osx"
-          },
-          "runtimes/win/lib/netstandard1.4/System.Diagnostics.Process.dll": {
-            "assetType": "runtime",
-            "rid": "win"
           }
         }
       },
@@ -1036,7 +924,7 @@
           "ref/netstandard1.3/_._": {}
         },
         "runtime": {
-          "lib/netstandard1.3/System.Diagnostics.StackTrace.dll": {}
+          "lib/netstandard1.3/_._": {}
         }
       },
       "System.Diagnostics.Tools/4.3.0": {
@@ -1251,17 +1139,9 @@
           "ref/netstandard1.3/System.IO.FileSystem.Watcher.dll": {}
         },
         "runtimeTargets": {
-          "runtimes/linux/lib/netstandard1.3/System.IO.FileSystem.Watcher.dll": {
-            "assetType": "runtime",
-            "rid": "linux"
-          },
-          "runtimes/osx/lib/netstandard1.3/System.IO.FileSystem.Watcher.dll": {
+          "runtimes/osx/lib/netstandard1.3/_._": {
             "assetType": "runtime",
             "rid": "osx"
-          },
-          "runtimes/win/lib/netstandard1.3/System.IO.FileSystem.Watcher.dll": {
-            "assetType": "runtime",
-            "rid": "win"
           }
         }
       },
@@ -1286,11 +1166,7 @@
           "ref/netstandard1.3/System.IO.MemoryMappedFiles.dll": {}
         },
         "runtimeTargets": {
-          "runtimes/unix/lib/netstandard1.3/System.IO.MemoryMappedFiles.dll": {
-            "assetType": "runtime",
-            "rid": "unix"
-          },
-          "runtimes/win/lib/netstandard1.3/System.IO.MemoryMappedFiles.dll": {
+          "runtimes/win/lib/netstandard1.3/_._": {
             "assetType": "runtime",
             "rid": "win"
           }
@@ -1311,7 +1187,7 @@
           "ref/netstandard1.3/System.IO.UnmanagedMemoryStream.dll": {}
         },
         "runtime": {
-          "lib/netstandard1.3/System.IO.UnmanagedMemoryStream.dll": {}
+          "lib/netstandard1.3/_._": {}
         }
       },
       "System.Linq/4.3.0": {
@@ -1376,7 +1252,7 @@
           "ref/netstandard1.1/System.Linq.Parallel.dll": {}
         },
         "runtime": {
-          "lib/netstandard1.3/System.Linq.Parallel.dll": {}
+          "lib/netstandard1.3/_._": {}
         }
       },
       "System.Linq.Queryable/4.0.1": {
@@ -1395,7 +1271,7 @@
           "ref/netstandard1.0/System.Linq.Queryable.dll": {}
         },
         "runtime": {
-          "lib/netstandard1.3/System.Linq.Queryable.dll": {}
+          "lib/netstandard1.3/_._": {}
         }
       },
       "System.Net.Http/4.3.0": {
@@ -1464,11 +1340,7 @@
           "ref/netstandard1.3/System.Net.NameResolution.dll": {}
         },
         "runtimeTargets": {
-          "runtimes/unix/lib/netstandard1.3/System.Net.NameResolution.dll": {
-            "assetType": "runtime",
-            "rid": "unix"
-          },
-          "runtimes/win/lib/netstandard1.3/System.Net.NameResolution.dll": {
+          "runtimes/win/lib/netstandard1.3/_._": {
             "assetType": "runtime",
             "rid": "win"
           }
@@ -1553,11 +1425,7 @@
           "ref/netstandard1.3/System.Net.Security.dll": {}
         },
         "runtimeTargets": {
-          "runtimes/unix/lib/netstandard1.6/System.Net.Security.dll": {
-            "assetType": "runtime",
-            "rid": "unix"
-          },
-          "runtimes/win/lib/netstandard1.3/System.Net.Security.dll": {
+          "runtimes/win/lib/netstandard1.3/_._": {
             "assetType": "runtime",
             "rid": "win"
           }
@@ -1604,7 +1472,7 @@
           "ref/netstandard1.0/System.Numerics.Vectors.dll": {}
         },
         "runtime": {
-          "lib/netstandard1.0/System.Numerics.Vectors.dll": {}
+          "lib/netstandard1.0/_._": {}
         }
       },
       "System.ObjectModel/4.3.0": {
@@ -1654,7 +1522,7 @@
           "ref/netstandard1.3/System.Reflection.DispatchProxy.dll": {}
         },
         "runtime": {
-          "lib/netstandard1.3/System.Reflection.DispatchProxy.dll": {}
+          "lib/netstandard1.3/_._": {}
         }
       },
       "System.Reflection.Emit/4.3.0": {
@@ -1737,7 +1605,7 @@
           "lib/netstandard1.1/System.Reflection.Metadata.dll": {}
         },
         "runtime": {
-          "lib/netstandard1.1/System.Reflection.Metadata.dll": {}
+          "lib/netstandard1.1/_._": {}
         }
       },
       "System.Reflection.Primitives/4.3.0": {
@@ -1777,7 +1645,7 @@
           "lib/netstandard1.0/System.Resources.Reader.dll": {}
         },
         "runtime": {
-          "lib/netstandard1.0/System.Resources.Reader.dll": {}
+          "lib/netstandard1.0/_._": {}
         }
       },
       "System.Resources.ResourceManager/4.3.0": {
@@ -1875,10 +1743,10 @@
           "System.Runtime": "4.1.0"
         },
         "compile": {
-          "ref/netstandard1.5/System.Runtime.Loader.dll": {}
+          "ref/netstandard1.5/_._": {}
         },
         "runtime": {
-          "lib/netstandard1.5/System.Runtime.Loader.dll": {}
+          "lib/netstandard1.5/_._": {}
         }
       },
       "System.Runtime.Numerics/4.3.0": {
@@ -1940,7 +1808,7 @@
           "ref/netstandard1.3/_._": {}
         },
         "runtime": {
-          "lib/netstandard1.3/System.Security.Claims.dll": {}
+          "lib/netstandard1.3/_._": {}
         }
       },
       "System.Security.Cryptography.Algorithms/4.3.0": {
@@ -2169,7 +2037,7 @@
           "ref/netstandard1.0/System.Security.Principal.dll": {}
         },
         "runtime": {
-          "lib/netstandard1.0/System.Security.Principal.dll": {}
+          "lib/netstandard1.0/_._": {}
         }
       },
       "System.Security.Principal.Windows/4.0.0": {
@@ -2194,11 +2062,7 @@
           "ref/netstandard1.3/_._": {}
         },
         "runtimeTargets": {
-          "runtimes/unix/lib/netstandard1.3/System.Security.Principal.Windows.dll": {
-            "assetType": "runtime",
-            "rid": "unix"
-          },
-          "runtimes/win/lib/netstandard1.3/System.Security.Principal.Windows.dll": {
+          "runtimes/win/lib/netstandard1.3/_._": {
             "assetType": "runtime",
             "rid": "win"
           }
@@ -2235,11 +2099,7 @@
           "ref/netstandard1.3/_._": {}
         },
         "runtimeTargets": {
-          "runtimes/unix/lib/netstandard1.3/System.Text.Encoding.CodePages.dll": {
-            "assetType": "runtime",
-            "rid": "unix"
-          },
-          "runtimes/win/lib/netstandard1.3/System.Text.Encoding.CodePages.dll": {
+          "runtimes/win/lib/netstandard1.3/_._": {
             "assetType": "runtime",
             "rid": "win"
           }
@@ -2299,11 +2159,7 @@
           "ref/netstandard1.3/_._": {}
         },
         "runtimeTargets": {
-          "runtimes/unix/lib/netstandard1.3/System.Threading.Overlapped.dll": {
-            "assetType": "runtime",
-            "rid": "unix"
-          },
-          "runtimes/win/lib/netstandard1.3/System.Threading.Overlapped.dll": {
+          "runtimes/win/lib/netstandard1.3/_._": {
             "assetType": "runtime",
             "rid": "win"
           }
@@ -2339,7 +2195,7 @@
           "lib/netstandard1.1/System.Threading.Tasks.Dataflow.dll": {}
         },
         "runtime": {
-          "lib/netstandard1.1/System.Threading.Tasks.Dataflow.dll": {}
+          "lib/netstandard1.1/_._": {}
         }
       },
       "System.Threading.Tasks.Extensions/4.3.0": {
@@ -2372,7 +2228,7 @@
           "ref/netstandard1.1/System.Threading.Tasks.Parallel.dll": {}
         },
         "runtime": {
-          "lib/netstandard1.3/System.Threading.Tasks.Parallel.dll": {}
+          "lib/netstandard1.3/_._": {}
         }
       },
       "System.Threading.Thread/4.0.0": {
@@ -2397,7 +2253,7 @@
           "ref/netstandard1.3/System.Threading.ThreadPool.dll": {}
         },
         "runtime": {
-          "lib/netstandard1.3/System.Threading.ThreadPool.dll": {}
+          "lib/netstandard1.3/_._": {}
         }
       },
       "System.Threading.Timer/4.3.0": {
@@ -2498,7 +2354,7 @@
           "ref/netstandard1.3/_._": {}
         },
         "runtime": {
-          "lib/netstandard1.3/System.Xml.XPath.dll": {}
+          "lib/netstandard1.3/_._": {}
         }
       },
       "System.Xml.XPath.XDocument/4.0.1": {
@@ -2518,24 +2374,25 @@
           "ref/netstandard1.3/_._": {}
         },
         "runtime": {
-          "lib/netstandard1.3/System.Xml.XPath.XDocument.dll": {}
+          "lib/netstandard1.3/_._": {}
         }
       },
-      "YamlDotNet.Signed/4.2.1": {
-        "type": "package",
-        "compile": {
-          "lib/netstandard1.3/YamlDotNet.dll": {}
-        },
-        "runtime": {
-          "lib/netstandard1.3/YamlDotNet.dll": {}
+      "DotNetCore/1.0.0": {
+        "type": "project",
+        "framework": ".NETStandard,Version=v1.6",
+        "dependencies": {
+          "AWSSDK.SQS": "3.3.3.2",
+          "NETStandard.Library": "1.6.1",
+          "Newtonsoft.Json": "10.0.3"
         }
       },
       "LambdaUtil/1.0.0": {
         "type": "project",
         "framework": ".NETStandard,Version=v1.6",
         "dependencies": {
-          "AWSSDK.DynamoDBv2": "3.3.4.18",
-          "NETStandard.Library": "1.6.0"
+          "AWSSDK.DynamoDBv2": "3.3.6",
+          "DotNetCore": "1.0.0",
+          "NETStandard.Library": "1.6.1"
         },
         "compile": {
           "netstandard1.6/LambdaUtil.dll": {}
@@ -2590,55 +2447,12 @@
         "lib/netstandard1.3/Amazon.Lambda.Serialization.Json.xml"
       ]
     },
-    "Amazon.Lambda.Tools/1.8.0": {
-      "sha512": "0do4MYosbZ9ukSvBNoPTXLH0SG05LvCsMNa4xZWYqxFCzMy1vvlsgCYOmsuAFKa4fHZySKw8s5JoHw9M340Gsg==",
+    "AWSSDK.Core/3.3.19": {
+      "sha512": "zmXaVNKtbQ1RfwHawEkKM7nvkSeWjljwiBKtaUpf2Woni/vmYd5l0gY54dNVN7Z9IsCoxwitGcFfJYOtrE/upg==",
       "type": "package",
-      "path": "Amazon.Lambda.Tools/1.8.0",
+      "path": "AWSSDK.Core/3.3.19",
       "files": [
-        "Amazon.Lambda.Tools.1.8.0.nupkg.sha512",
-        "Amazon.Lambda.Tools.nuspec",
-        "lib/netcoreapp1.0/dotnet-lambda.dll",
-        "lib/netcoreapp1.0/dotnet-lambda.runtimeconfig.json",
-        "lib/netcoreapp1.0/dotnet-lambda.xml"
-      ]
-    },
-    "AWSSDK.CloudFormation/3.3.3.9": {
-      "sha512": "tPdKQYPZ+Ty2ESIYp061rXB9xggpsxmeCELzo0D6HW17AMYoPujGmiV3Z4X6EUnZFy45l9D7GpSsEBKXj89IbQ==",
-      "type": "package",
-      "path": "AWSSDK.CloudFormation/3.3.3.9",
-      "files": [
-        "AWSSDK.CloudFormation.3.3.3.9.nupkg.sha512",
-        "AWSSDK.CloudFormation.nuspec",
-        "analyzers/dotnet/cs/AWSSDK.CloudFormation.CodeAnalysis.dll",
-        "lib/MonoAndroid10/AWSSDK.CloudFormation.XML",
-        "lib/MonoAndroid10/AWSSDK.CloudFormation.dll",
-        "lib/MonoTouch10/AWSSDK.CloudFormation.XML",
-        "lib/MonoTouch10/AWSSDK.CloudFormation.dll",
-        "lib/MonoTouch10/AWSSDK.CloudFormation.pdb",
-        "lib/Xamarin.iOS10/AWSSDK.CloudFormation.XML",
-        "lib/Xamarin.iOS10/AWSSDK.CloudFormation.dll",
-        "lib/net35/AWSSDK.CloudFormation.XML",
-        "lib/net35/AWSSDK.CloudFormation.dll",
-        "lib/net35/AWSSDK.CloudFormation.pdb",
-        "lib/net45/AWSSDK.CloudFormation.XML",
-        "lib/net45/AWSSDK.CloudFormation.dll",
-        "lib/net45/AWSSDK.CloudFormation.pdb",
-        "lib/netstandard1.3/AWSSDK.CloudFormation.dll",
-        "lib/netstandard1.3/AWSSDK.CloudFormation.pdb",
-        "lib/netstandard1.3/AWSSDK.CloudFormation.xml",
-        "lib/portable-net45+win8+wpa81+wp8/AWSSDK.CloudFormation.XML",
-        "lib/portable-net45+win8+wpa81+wp8/AWSSDK.CloudFormation.dll",
-        "lib/portable-net45+win8+wpa81+wp8/AWSSDK.CloudFormation.pdb",
-        "tools/install.ps1",
-        "tools/uninstall.ps1"
-      ]
-    },
-    "AWSSDK.Core/3.3.18": {
-      "sha512": "15VZyyB+94JPOBz50hRFx7axCZ1iLHyAJqkGMa3khEayMjEMx4LXEScWMazE1WsbWF1EtHtXi4KL7oOYzVd44w==",
-      "type": "package",
-      "path": "AWSSDK.Core/3.3.18",
-      "files": [
-        "AWSSDK.Core.3.3.18.nupkg.sha512",
+        "AWSSDK.Core.3.3.19.nupkg.sha512",
         "AWSSDK.Core.nuspec",
         "lib/MonoAndroid10/AWSSDK.Core.XML",
         "lib/MonoAndroid10/AWSSDK.Core.dll",
@@ -2676,12 +2490,12 @@
         "tools/account-management.ps1"
       ]
     },
-    "AWSSDK.DynamoDBv2/3.3.4.18": {
-      "sha512": "5aJQJou34QHgrvM/gOb3VAMSZ+D8FxYj6bMdZlaWBYlmz3zl6UooOY/EP855sHjpi9x3/VHXFY3tiEnkrPGv2Q==",
+    "AWSSDK.DynamoDBv2/3.3.6": {
+      "sha512": "kmhClxbwDd4qptDa1+X3X/KRdeuP6X6NpkCxspZIbEDVxyaKshwaj58NKYd0pRJmKPCb+yZ2WGaFfGgl38PL/A==",
       "type": "package",
-      "path": "AWSSDK.DynamoDBv2/3.3.4.18",
+      "path": "AWSSDK.DynamoDBv2/3.3.6",
       "files": [
-        "AWSSDK.DynamoDBv2.3.3.4.18.nupkg.sha512",
+        "AWSSDK.DynamoDBv2.3.3.6.nupkg.sha512",
         "AWSSDK.DynamoDBv2.nuspec",
         "analyzers/dotnet/cs/AWSSDK.DynamoDBv2.CodeAnalysis.dll",
         "lib/MonoAndroid10/AWSSDK.DynamoDBv2.XML",
@@ -2703,109 +2517,19 @@
         "lib/portable-net45+win8+wpa81+wp8/AWSSDK.DynamoDBv2.XML",
         "lib/portable-net45+win8+wpa81+wp8/AWSSDK.DynamoDBv2.dll",
         "lib/portable-net45+win8+wpa81+wp8/AWSSDK.DynamoDBv2.pdb",
+        "lib/uap/AWSSDK.DynamoDBv2.XML",
+        "lib/uap/AWSSDK.DynamoDBv2.dll",
+        "lib/uap/AWSSDK.DynamoDBv2.pdb",
         "tools/install.ps1",
         "tools/uninstall.ps1"
       ]
     },
-    "AWSSDK.IdentityManagement/3.3.2.3": {
-      "sha512": "fTPNQLSZjuEwK6jrTHD/WC4OtzzjXDRgY8s1a4TH/mSnNZ+3AXMcbYVnOIpXBltbFvHhA4eImLoyYp08V/jaeA==",
+    "AWSSDK.SQS/3.3.3.2": {
+      "sha512": "D93mnU+mlNlaoxKkjYwFWJHaw7FFFm0tM6SuMxTeu0NdtXHrBrteLF5oa28ePiwR0EayRbss0yT1sEm5XqYvog==",
       "type": "package",
-      "path": "AWSSDK.IdentityManagement/3.3.2.3",
+      "path": "AWSSDK.SQS/3.3.3.2",
       "files": [
-        "AWSSDK.IdentityManagement.3.3.2.3.nupkg.sha512",
-        "AWSSDK.IdentityManagement.nuspec",
-        "analyzers/dotnet/cs/AWSSDK.IdentityManagement.CodeAnalysis.dll",
-        "lib/MonoAndroid10/AWSSDK.IdentityManagement.XML",
-        "lib/MonoAndroid10/AWSSDK.IdentityManagement.dll",
-        "lib/MonoTouch10/AWSSDK.IdentityManagement.XML",
-        "lib/MonoTouch10/AWSSDK.IdentityManagement.dll",
-        "lib/MonoTouch10/AWSSDK.IdentityManagement.pdb",
-        "lib/Xamarin.iOS10/AWSSDK.IdentityManagement.XML",
-        "lib/Xamarin.iOS10/AWSSDK.IdentityManagement.dll",
-        "lib/net35/AWSSDK.IdentityManagement.XML",
-        "lib/net35/AWSSDK.IdentityManagement.dll",
-        "lib/net35/AWSSDK.IdentityManagement.pdb",
-        "lib/net45/AWSSDK.IdentityManagement.XML",
-        "lib/net45/AWSSDK.IdentityManagement.dll",
-        "lib/net45/AWSSDK.IdentityManagement.pdb",
-        "lib/netstandard1.3/AWSSDK.IdentityManagement.dll",
-        "lib/netstandard1.3/AWSSDK.IdentityManagement.pdb",
-        "lib/netstandard1.3/AWSSDK.IdentityManagement.xml",
-        "lib/portable-net45+win8+wpa81+wp8/AWSSDK.IdentityManagement.XML",
-        "lib/portable-net45+win8+wpa81+wp8/AWSSDK.IdentityManagement.dll",
-        "lib/portable-net45+win8+wpa81+wp8/AWSSDK.IdentityManagement.pdb",
-        "tools/install.ps1",
-        "tools/uninstall.ps1"
-      ]
-    },
-    "AWSSDK.Lambda/3.3.2.9": {
-      "sha512": "jD0Opr1xwhPh7PmqoUWn/76J/jFmL1SJD387RIktzNg0eY89n2wBaTdHN76/LCAXpzvbVKozvtcD5dp6+Sy6Zw==",
-      "type": "package",
-      "path": "AWSSDK.Lambda/3.3.2.9",
-      "files": [
-        "AWSSDK.Lambda.3.3.2.9.nupkg.sha512",
-        "AWSSDK.Lambda.nuspec",
-        "analyzers/dotnet/cs/AWSSDK.Lambda.CodeAnalysis.dll",
-        "lib/MonoAndroid10/AWSSDK.Lambda.XML",
-        "lib/MonoAndroid10/AWSSDK.Lambda.dll",
-        "lib/MonoTouch10/AWSSDK.Lambda.XML",
-        "lib/MonoTouch10/AWSSDK.Lambda.dll",
-        "lib/MonoTouch10/AWSSDK.Lambda.pdb",
-        "lib/Xamarin.iOS10/AWSSDK.Lambda.XML",
-        "lib/Xamarin.iOS10/AWSSDK.Lambda.dll",
-        "lib/net35/AWSSDK.Lambda.XML",
-        "lib/net35/AWSSDK.Lambda.dll",
-        "lib/net35/AWSSDK.Lambda.pdb",
-        "lib/net45/AWSSDK.Lambda.XML",
-        "lib/net45/AWSSDK.Lambda.dll",
-        "lib/net45/AWSSDK.Lambda.pdb",
-        "lib/netstandard1.3/AWSSDK.Lambda.dll",
-        "lib/netstandard1.3/AWSSDK.Lambda.pdb",
-        "lib/netstandard1.3/AWSSDK.Lambda.xml",
-        "lib/portable-net45+win8+wpa81+wp8/AWSSDK.Lambda.XML",
-        "lib/portable-net45+win8+wpa81+wp8/AWSSDK.Lambda.dll",
-        "lib/portable-net45+win8+wpa81+wp8/AWSSDK.Lambda.pdb",
-        "tools/install.ps1",
-        "tools/uninstall.ps1"
-      ]
-    },
-    "AWSSDK.S3/3.3.5.10": {
-      "sha512": "RTJdrmOjD8eob+0envRxDAPUrzE+L5p/N07tyjU6pwSJEEhmWJ8vGfznBhHOHTGRXOzQjJmbjC/lAoJWI/Twsw==",
-      "type": "package",
-      "path": "AWSSDK.S3/3.3.5.10",
-      "files": [
-        "AWSSDK.S3.3.3.5.10.nupkg.sha512",
-        "AWSSDK.S3.nuspec",
-        "analyzers/dotnet/cs/AWSSDK.S3.CodeAnalysis.dll",
-        "lib/MonoAndroid10/AWSSDK.S3.XML",
-        "lib/MonoAndroid10/AWSSDK.S3.dll",
-        "lib/MonoTouch10/AWSSDK.S3.XML",
-        "lib/MonoTouch10/AWSSDK.S3.dll",
-        "lib/MonoTouch10/AWSSDK.S3.pdb",
-        "lib/Xamarin.iOS10/AWSSDK.S3.XML",
-        "lib/Xamarin.iOS10/AWSSDK.S3.dll",
-        "lib/net35/AWSSDK.S3.XML",
-        "lib/net35/AWSSDK.S3.dll",
-        "lib/net35/AWSSDK.S3.pdb",
-        "lib/net45/AWSSDK.S3.XML",
-        "lib/net45/AWSSDK.S3.dll",
-        "lib/net45/AWSSDK.S3.pdb",
-        "lib/netstandard1.3/AWSSDK.S3.dll",
-        "lib/netstandard1.3/AWSSDK.S3.pdb",
-        "lib/netstandard1.3/AWSSDK.S3.xml",
-        "lib/portable-net45+win8+wpa81+wp8/AWSSDK.S3.XML",
-        "lib/portable-net45+win8+wpa81+wp8/AWSSDK.S3.dll",
-        "lib/portable-net45+win8+wpa81+wp8/AWSSDK.S3.pdb",
-        "tools/install.ps1",
-        "tools/uninstall.ps1"
-      ]
-    },
-    "AWSSDK.SQS/3.3.2.9": {
-      "sha512": "T4CMtCdCCeYuRbVQpIUY+i/LYh9BQx+uzXQD3IOAwxUB1/N8nfkyDZJls4OLdE6ydo4yOIAsQRRJHQbQOVLsUg==",
-      "type": "package",
-      "path": "AWSSDK.SQS/3.3.2.9",
-      "files": [
-        "AWSSDK.SQS.3.3.2.9.nupkg.sha512",
+        "AWSSDK.SQS.3.3.3.2.nupkg.sha512",
         "AWSSDK.SQS.nuspec",
         "analyzers/dotnet/cs/AWSSDK.SQS.CodeAnalysis.dll",
         "lib/MonoAndroid10/AWSSDK.SQS.XML",
@@ -2827,6 +2551,9 @@
         "lib/portable-net45+win8+wpa81+wp8/AWSSDK.SQS.XML",
         "lib/portable-net45+win8+wpa81+wp8/AWSSDK.SQS.dll",
         "lib/portable-net45+win8+wpa81+wp8/AWSSDK.SQS.pdb",
+        "lib/uap/AWSSDK.SQS.XML",
+        "lib/uap/AWSSDK.SQS.dll",
+        "lib/uap/AWSSDK.SQS.pdb",
         "tools/install.ps1",
         "tools/uninstall.ps1"
       ]
@@ -7901,20 +7628,9 @@
         "ref/xamarinwatchos10/_._"
       ]
     },
-    "YamlDotNet.Signed/4.2.1": {
-      "sha512": "1vE+3OtCIvHPt//3GD8ZYpZtZ6xYt9hJCMrdmJzg9gMNbKxasvZyKgGVGB5HVBuzLT9dqZDkDaEbnYVfio+ONg==",
-      "type": "package",
-      "path": "YamlDotNet.Signed/4.2.1",
-      "files": [
-        "YamlDotNet.Signed.4.2.1.nupkg.sha512",
-        "YamlDotNet.Signed.nuspec",
-        "lib/net35/YamlDotNet.dll",
-        "lib/net35/YamlDotNet.xml",
-        "lib/netstandard1.3/YamlDotNet.dll",
-        "lib/netstandard1.3/YamlDotNet.xml",
-        "lib/portable-net45+netcore45+wpa81+wp8+MonoAndroid1+MonoTouch1/YamlDotNet.dll",
-        "lib/portable-net45+netcore45+wpa81+wp8+MonoAndroid1+MonoTouch1/YamlDotNet.xml"
-      ]
+    "DotNetCore/1.0.0": {
+      "type": "project",
+      "path": "../CloudMessages/DotNetCore/project.json"
     },
     "LambdaUtil/1.0.0": {
       "type": "project",
@@ -7924,45 +7640,17 @@
   },
   "projectFileDependencyGroups": {
     "": [
-      "AWSSDK.DynamoDBv2 >= 3.3.4.18",
-      "AWSSDK.SQS >= 3.3.2.9",
+      "AWSSDK.DynamoDBv2 >= 3.3.6",
+      "AWSSDK.SQS >= 3.3.3.2",
       "Amazon.Lambda.Core >= 1.0.*",
       "Amazon.Lambda.DynamoDBEvents >= 1.0.1",
       "Amazon.Lambda.Serialization.Json >= 1.1.0",
-      "Amazon.Lambda.Tools >= 1.8.0",
       "LambdaUtil >= 1.0.0-*",
       "Microsoft.NETCore.App >= 1.0.0",
       "Newtonsoft.Json >= 10.0.3"
     ],
     ".NETCoreApp,Version=v1.0": []
   },
-  "tools": {
-    ".NETCoreApp,Version=v1.0": {
-      "Amazon.Lambda.Tools/1.8.0": {
-        "type": "package",
-        "dependencies": {
-          "AWSSDK.CloudFormation": "3.3.3.9",
-          "AWSSDK.IdentityManagement": "3.3.2.3",
-          "AWSSDK.Lambda": "3.3.2.9",
-          "AWSSDK.S3": "3.3.5.10",
-          "Microsoft.NETCore.App": "1.0.0",
-          "Newtonsoft.Json": "9.0.1",
-          "System.IO.Compression.ZipFile": "4.0.1",
-          "System.Runtime.Loader": "4.0.0",
-          "YamlDotNet.Signed": "4.2.1"
-        },
-        "compile": {
-          "lib/netcoreapp1.0/dotnet-lambda.dll": {}
-        },
-        "runtime": {
-          "lib/netcoreapp1.0/dotnet-lambda.dll": {}
-        }
-      }
-    }
-  },
-  "projectFileToolGroups": {
-    ".NETCoreApp,Version=v1.0": [
-      "Amazon.Lambda.Tools >= 1.8.0"
-    ]
-  }
+  "tools": {},
+  "projectFileToolGroups": {}
 }
