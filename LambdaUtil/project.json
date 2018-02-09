@@ -3,7 +3,6 @@
 
     "dependencies": {
         "AWSSDK.DynamoDBv2": "3.3.6",
-        "DotNetCore": "1.0.0-*",
         "NETStandard.Library": "1.6.1"
     },
 
