@@ -96,10 +96,11 @@ namespace OPS.Pipeline
                 Console.WriteLine("Queue does not exist. Quitting landform.");
                 return 1;
             }
+            Console.WriteLine("Listening to " + config.JobQueue);
 
             //These jobs are CPU intensive - feature detection and matching, for example, use 100% of cpu for short bursts.
             //However, there is also time spent waiting on AWS services.
-            Parallel.For(0, 1, (int i) =>  
+            Serial.For(0, 1, (int i) =>  
             {
                 while (true)
                 {
@@ -118,8 +119,8 @@ namespace OPS.Pipeline
                         PipelineMessage m = PipelineMessage.FromMessage(r.Messages[0]);
                         Console.WriteLine(".....Message recieved:"
                             + "\r\n        Message ID = " + m.MessageId);
-                        try
-                        {
+                        /*try
+                        {*/
                             var t = m.GetType();
                             if (t == typeof(NewObservationMessage))
                             {
@@ -134,7 +135,7 @@ namespace OPS.Pipeline
                                 MatchPairs((MatchPairsMessage)m);
                             }
                             Interlocked.Increment(ref messagesSucceeded);
-                        }
+                        /*}
                         catch (Exception e)  
                         {
                             Interlocked.Increment(ref messagesFailed);
@@ -143,7 +144,7 @@ namespace OPS.Pipeline
                                 + "\r\n Inner exception is: " + e.InnerException
                                 + "\r\n Stack trace is: " + e.StackTrace;
                             Console.WriteLine(msg);
-                        }
+                        }*/
                     }
                 }
             });
@@ -191,7 +192,7 @@ namespace OPS.Pipeline
 
             // Make rover mask
             var mask = RoverMask.Build(GetImage(imgRef));
-            var maskProd = new ImageDataProduct(mask, "png", typeof(byte));
+            var maskProd = new ImageDataProduct(mask, ".png", typeof(byte));
             Pipeline.Save(indexed.Observation.ProjectName, maskProd);
 
             //snagged from MatchImages
@@ -309,8 +310,12 @@ namespace OPS.Pipeline
                 return 0;
             }
 
-            ComputedCorrespondence corr = new ComputedCorrespondence();
-            corr.Correspondence = matches;
+            ComputedCorrespondence corr = new ComputedCorrespondence
+            {
+                Correspondence = matches,
+                ModelFeaturesGuid = modelFeat.guid,
+                DataFeaturesGuid = dataFeat.guid
+            };
             Pipeline.Save(overlap.ProjectName, corr);
             if (!overlap.TrySave(Pipeline.DynamoDB))
             {

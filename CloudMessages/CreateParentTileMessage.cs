@@ -18,16 +18,11 @@ namespace OPS.Cloud
         [Body]
         public List<string> ChildExtensions { get; set; }
 
-        protected CreateParentTileMessage() { }
-        protected CreateParentTileMessage(string parentPath, IEnumerable<string> childExtensions)
+        public CreateParentTileMessage() { }
+        public CreateParentTileMessage(string parentPath, IEnumerable<string> childExtensions)
         {
             ParentPath = parentPath;
             ChildExtensions = childExtensions.ToList();
-        }
-
-        static CreateParentTileMessage()
-        {
-            RegisterType(typeof(CreateParentTileMessage));
         }
     }
 }

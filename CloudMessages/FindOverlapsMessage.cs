@@ -18,15 +18,10 @@ namespace OPS.Cloud
         [Field("ObservationName")]
         public string ObservationName { get; set; }
 
-        protected FindOverlapsMessage() { }
+        public FindOverlapsMessage() { }
         public FindOverlapsMessage(string observationName)
         {
             this.ObservationName = observationName;
-        }
-
-        static FindOverlapsMessage()
-        {
-            RegisterType(typeof(FindOverlapsMessage));
         }
     }
 }

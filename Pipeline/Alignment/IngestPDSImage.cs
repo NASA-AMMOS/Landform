@@ -238,7 +238,7 @@ namespace OPS.Pipeline
                 double halfDegSqr = Math.Pow(0.5 * Math.PI / 180, 2);
                 double degSqr = Math.Pow(1.0 * Math.PI / 180, 2);
                 var covariance = CreateMatrix.Diagonal<double>(new double[] { 0.25, 0.25, 0.25, halfDegSqr, halfDegSqr, degSqr });
-                UncertainRigidTransform transform = new UncertainRigidTransform(Matrix.CreateFromQuaternion(roverToLocalLevel), covariance);
+                UncertainRigidTransform transform = new UncertainRigidTransform(Matrix.CreateTranslation(loc.Position), covariance);
 
                 FrameTransform siteDriveToRoot = FrameTransform.Create(DynamoDB, siteDriveFrame, transform, TransformSource.Prior);
                 TransformPrior sd2rP = TransformPrior.Create(DynamoDB, siteDriveFrame, transform);

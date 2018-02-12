@@ -18,11 +18,11 @@ namespace OPS.Cloud
     public class Observation
     {
         [DynamoDBRangeKey]
-        [DynamoDBProperty("project_name")]
+        [DynamoDBProperty()]
         public string ProjectName { get; set; }
 
         [DynamoDBHashKey] //Partition key
-        [DynamoDBProperty("observation_name")]
+        [DynamoDBProperty()]
         public string Name { get; set; }
 
         public string Url { get; set; }

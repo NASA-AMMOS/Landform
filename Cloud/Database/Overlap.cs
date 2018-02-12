@@ -21,7 +21,7 @@ namespace OPS.Cloud
     {
         //Primary key for dynamoDb. Sorted combination of the two observation names. Cannot be edited directly
         [DynamoDBHashKey]
-        [DynamoDBProperty("id")]
+        [DynamoDBProperty()]
         public string Id
         {
             get //construct from an OverlapObs. 
@@ -36,7 +36,7 @@ namespace OPS.Cloud
 
         //sort key for dynamoDb in case two projects share observation names 
         [DynamoDBRangeKey]
-        [DynamoDBProperty("project_name")]
+        [DynamoDBProperty()]
         public string ProjectName;
 
         //the observations in this overlap

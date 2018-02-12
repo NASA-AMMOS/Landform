@@ -23,7 +23,7 @@ namespace OPS.Cloud
         public string ProjectName { get; set; }
 
         [DynamoDBHashKey] //Partition key
-        [DynamoDBProperty()]
+        [DynamoDBProperty("FrameName")]
         public string Name { get; set; }
 
         [DynamoDBProperty()]
@@ -35,7 +35,7 @@ namespace OPS.Cloud
         //This constructor must be public for DynamoDb but should not be used
         public Frame()
         {
-            
+            PriorIds = new List<string>();
         }
 
         /// <summary>
@@ -54,6 +54,7 @@ namespace OPS.Cloud
             this.Name = name;
             this.ProjectName = project.Name;
             this.ParentName = (parent != null) ? parent.Name : null;
+            this.PriorIds = new List<string>();
         }
 
 

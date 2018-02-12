@@ -18,7 +18,7 @@ namespace OPS.Cloud
     public class Project
     {
         [DynamoDBHashKey] //Partition key
-        [DynamoDBProperty("project_name")]
+        [DynamoDBProperty()]
         public string Name { get; set; }
 
         /// <summary>

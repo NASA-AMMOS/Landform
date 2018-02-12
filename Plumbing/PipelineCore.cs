@@ -45,7 +45,7 @@ namespace OPS.Plumbing
         {
             if (Directory.Exists(cacheFolder))
             {
-                Directory.Delete(cacheFolder);
+                Directory.Delete(cacheFolder, true);
             }
         }
 
@@ -139,6 +139,11 @@ namespace OPS.Plumbing
             Project p = GetProject(project);
             TemporaryFile.FilenameDelegate writeAndUpload = (filePath) =>
             {
+                string dir = Path.GetDirectoryName(filePath);
+                if (!Directory.Exists(dir))
+                {
+                    Directory.CreateDirectory(dir);
+                }
                 File.WriteAllBytes(filePath, product.Serialize());
                 Storage.UploadFile(filePath, p.ProductPath + product.guid.ToString());
             };

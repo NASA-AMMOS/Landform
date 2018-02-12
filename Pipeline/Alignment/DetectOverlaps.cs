@@ -39,7 +39,9 @@ namespace OPS.Pipeline
                 {
                     rootFrame = f;
                 }
-                SceneNode res = new SceneNode(f.Name, frameToNode[f.ParentName].Transform);
+                NodeTransform parent = null;
+                if (f.ParentName != null) parent = frameToNode[f.ParentName].Transform;
+                SceneNode res = new SceneNode(f.Name, parent);
 
                 FrameTransform transform = FrameTransform.Find(Pipeline.DynamoDB, f);
                 NodeUncertainTransform nut = res.AddComponent<NodeUncertainTransform>();

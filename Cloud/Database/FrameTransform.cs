@@ -28,16 +28,16 @@ namespace OPS.Cloud
     public class FrameTransform
     {
         [DynamoDBRangeKey]
-        [DynamoDBProperty("project_name")]
+        [DynamoDBProperty()]
         public string ProjectName { get; set; }
 
         [DynamoDBHashKey] //Partition key
         [DynamoDBProperty()]
         public string FrameName { get; set; }
 
-        [DynamoDBProperty("mean", typeof(VectorNConverter))]
+        [DynamoDBProperty("Mean", typeof(VectorNConverter))]
         public Vector<double> Mean { get; set; }
-        [DynamoDBProperty("covariance", typeof(SquareMatrixConverter))]
+        [DynamoDBProperty("Covariance", typeof(SquareMatrixConverter))]
         public Matrix<double> Covariance { get; set; }
 
         [DynamoDBIgnore]

@@ -19,7 +19,7 @@ param([Parameter(Mandatory=$true)][System.String]$StackName,
     [Parameter(Mandatory=$true, HelpMessage="Prefix for dynamo tables for alignment stack.")][System.String]$AlignmentTablePrefix,
     [Parameter(Mandatory=$true, HelpMessage="Prefix for dynamo tables for tiling stack.")][System.String]$TilingTablePrefix,
     [Parameter(Mandatory=$false, HelpMessage="Name of the IAM role to be assumed by workers. If different workers (frontend vs alignment vs mesh tiling) should have different roles, just change this script to provide them. Not required, default=landlords")][System.String]$WorkerRole="landlords",
-    [Parameter(Mandatory=$false, HelpMessage="AMI to use. Should be default Amazon-provided windows AMI, default=ami-19a6ba5c")][System.String]$AMIId="ami-19a6ba5c")
+    [Parameter(Mandatory=$false, HelpMessage="AMI to use. Should be default Amazon-provided windows AMI, default=ami-30fefd50")][System.String]$AMIId="ami-30fefd50")
 
 #upload resources to a resource folder within the user-specified S3 prefix 
 aws s3 cp --recursive StackResources s3://$Bucket/$S3Prefix/stack_resources

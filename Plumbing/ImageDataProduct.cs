@@ -24,7 +24,7 @@ namespace OPS.Plumbing
         public Image Image;
         public override void Deserialize(byte[] data)
         {
-            TemporaryFile.GetAndDelete("tif", (fn) =>
+            TemporaryFile.GetAndDelete(Extension, (fn) =>
             {
                 File.WriteAllBytes(fn, data);
                 Image = Image.Load(fn);
@@ -34,7 +34,7 @@ namespace OPS.Plumbing
         public override byte[] Serialize()
         {
             byte[] res = null;
-            TemporaryFile.GetAndDelete("tif", (fn) =>
+            TemporaryFile.GetAndDelete(Extension, (fn) =>
             {
                 if (StorageType == typeof(byte))
                 {
@@ -44,7 +44,7 @@ namespace OPS.Plumbing
                 {
                     Image.Save<short>(fn);
                 }
-                if (StorageType == typeof(sbyte))
+                else if (StorageType == typeof(sbyte))
                 {
                     Image.Save<sbyte>(fn);
                 }

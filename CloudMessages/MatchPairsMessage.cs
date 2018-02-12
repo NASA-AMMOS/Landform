@@ -18,17 +18,12 @@ namespace OPS.Cloud
         [Field("ProjectName")]
         public string ProjectName { get; set; }
 
-        protected MatchPairsMessage() { }
+        public MatchPairsMessage() { }
         public MatchPairsMessage(string observationName, string observationName2, string projectName)
         {
             this.ObservationName0 = observationName;
             this.ObservationName1 = observationName2;
             this.ProjectName = projectName;
-        }
-
-        static MatchPairsMessage()
-        {
-            RegisterType(typeof(MatchPairsMessage));
         }
     }
 }

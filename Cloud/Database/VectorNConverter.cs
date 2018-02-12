@@ -1,14 +1,7 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-using Amazon.DynamoDBv2.DataModel;
+﻿using Amazon.DynamoDBv2.DataModel;
 using Amazon.DynamoDBv2.DocumentModel;
-using Amazon.DynamoDBv2.Model;
-using MathNet.Numerics.LinearAlgebra.Double;
 using MathNet.Numerics.LinearAlgebra;
+using Newtonsoft.Json;
 
 namespace OPS.Cloud
 {
@@ -16,24 +9,13 @@ namespace OPS.Cloud
     {
         public object FromEntry(DynamoDBEntry entry)
         {
-            PrimitiveList l = entry as PrimitiveList;
-
-            if (l == null || l.Type != DynamoDBEntryType.Numeric)
-            {
-                throw new InvalidCastException("Not a numeric vector");
-            }
-            return new DenseVector(l.Entries.Select(e => e.AsDouble()).ToArray());
+            return CreateVector.DenseOfArray(JsonConvert.DeserializeObject<double[]>(entry.AsString()));
         }
 
         public DynamoDBEntry ToEntry(object value)
         {
             Vector<double> v = (Vector<double>)value;
-            var res = new PrimitiveList(DynamoDBEntryType.Numeric);
-            foreach (var x in v.ToArray())
-            {
-                res.Add(x);
-            }
-            return res;
+            return JsonConvert.SerializeObject(v.ToArray());
         }
     }
 }

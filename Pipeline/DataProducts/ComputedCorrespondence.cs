@@ -11,8 +11,8 @@ namespace OPS.Pipeline
 {
     public class ComputedCorrespondence : JsonDataProduct
     {
-        public string ModelObservationName;
-        public string DataObservationName;
+        public Guid ModelFeaturesGuid;
+        public Guid DataFeaturesGuid;
         public ImagePairCorrespondence Correspondence;
     }
 }

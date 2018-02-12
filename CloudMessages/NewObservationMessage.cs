@@ -12,14 +12,10 @@ namespace OPS.Cloud
         [Field("FileS3Path")]
         public string Url { get; set; }
 
-        protected NewObservationMessage() { }
+        public NewObservationMessage() { }
         public NewObservationMessage(string url)
         {
             Url = url;
-        }
-        static NewObservationMessage()
-        {
-            RegisterType(typeof(NewObservationMessage));
         }
     }
 }

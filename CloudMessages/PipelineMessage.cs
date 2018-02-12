@@ -15,6 +15,14 @@ namespace OPS.Cloud
 
         protected string receiptHandle;
 
+        static PipelineMessage()
+        {
+            RegisterType(typeof(NewObservationMessage));
+            RegisterType(typeof(MatchPairsMessage));
+            RegisterType(typeof(FindOverlapsMessage));
+            RegisterType(typeof(CreateParentTileMessage));
+        }
+
         /// <summary>
         /// Return a message object of the appropriate type for this SQS message
         /// </summary>
@@ -33,7 +41,7 @@ namespace OPS.Cloud
             PipelineMessage res = (PipelineMessage)typeData.Construct();
             foreach (var field in typeData.Fields)
             {
-                var value = field.Parse(m.Attributes[field.Name]);
+                var value = field.Parse(m.MessageAttributes[field.Name].StringValue);
                 field.PropertyInfo.SetValue(res, value);
             }
 
@@ -149,7 +157,11 @@ namespace OPS.Cloud
             public object Parse(string value)
             {
                 var destType = PropertyInfo.PropertyType;
-                if (destType == typeof(int))
+                if (destType == typeof(string))
+                {
+                    return value;
+                }
+                else if (destType == typeof(int))
                 {
                     return Convert.ToInt32(value);
                 }
