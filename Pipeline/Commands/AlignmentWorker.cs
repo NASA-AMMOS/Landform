@@ -272,7 +272,7 @@ namespace OPS.Pipeline
             //get overlap and check that a match has not already been uploaded 
             Overlap overlap = Overlap.Find(Pipeline.DynamoDB, obs0.Name, obs1.Name, obs0.ProjectName);
             if (overlap == null) throw new CloudException("Could not find overlap between these two observations for match images");
-            if (overlap.MatchGuid != null) //someone has already finished this request
+            if (overlap.MatchGuid != null && overlap.MatchGuid != Guid.Empty) //someone has already finished this request
             {
                 m.DeleteMessage(SQSClient, config.JobQueue);
                 return 0;
@@ -287,6 +287,12 @@ namespace OPS.Pipeline
             //below is from MatchImages.cs
             BruteForceMatcher matcher = new BruteForceMatcher();
             ImagePairCorrespondence matches = matcher.Match(modelRef, dataRef, modelFeat.Features, dataFeat.Features);
+            if (matches == null)
+            {
+                Console.WriteLine("No matches found (at all)");
+                m.DeleteMessage(SQSClient, config.JobQueue);
+                return 0;
+            }
 
             MatchingContext ctx = new MatchingContext();
             ctx.DetectedFeatures[modelRef] = modelFeat.Features;
@@ -317,6 +323,7 @@ namespace OPS.Pipeline
                 DataFeaturesGuid = dataFeat.guid
             };
             Pipeline.Save(overlap.ProjectName, corr);
+            overlap.MatchGuid = corr.guid;
             if (!overlap.TrySave(Pipeline.DynamoDB))
             {
                 return 0; //another worker tried to update this overlap. allow message to return to queue

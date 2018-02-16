@@ -76,20 +76,7 @@ namespace OPS.Cloud
             this.Mean = transform.Distribution.Mean;
             this.Covariance = transform.Distribution.Covariance;
         }
-
-        /// <summary>
-        /// Creates a transform between two frames and saves it to the database
-        /// Saves the lookup for that transform in a lookup entry 
-        /// Returns null if the transform already exists or could not be created
-        /// </summary>
-        /// <param name="context"></param>
-        /// <param name="fromFrame"></param>
-        /// <param name="toFrame"></param>
-        /// <param name="translation"></param>
-        /// <param name="rotation"></param>
-        /// <param name="transformSource"></param>
-        /// <param name="error"></param>
-        /// <returns></returns>
+        
         public static FrameTransform Create(DynamoDBContext context, Frame frame, UncertainRigidTransform transform, string transformSource)
         {
             //Now that the id has been saved to the lookup table, we are free to add the transform itself 

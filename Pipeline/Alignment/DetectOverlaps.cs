@@ -35,10 +35,6 @@ namespace OPS.Pipeline
             frameToNode = new Memoizer<string, SceneNode>((fn) =>
             {
                 Frame f = Frame.Find(Pipeline.DynamoDB, project, fn);
-                if (fn == rootFrame.ParentName)
-                {
-                    rootFrame = f;
-                }
                 NodeTransform parent = null;
                 if (f.ParentName != null) parent = frameToNode[f.ParentName].Transform;
                 SceneNode res = new SceneNode(f.Name, parent);
@@ -49,8 +45,6 @@ namespace OPS.Pipeline
                 return res;
             });
 
-            scene.Root = frameToNode[rootFrame.Name];
-
             Dictionary<ImageRef, Observation> refToObservation = new Dictionary<ImageRef, Observation>();
             foreach (var obs in toConsider)
             {
@@ -59,6 +53,13 @@ namespace OPS.Pipeline
                 node.AddComponent<NodeImageReference>().Reference = imgRef;
                 refToObservation[imgRef] = obs;
             }
+
+            // Find real root
+            while (rootFrame.ParentName != null && frameToNode.ContainsKey(rootFrame.ParentName))
+            {
+                rootFrame = Frame.Find(DynamoDB, project, rootFrame.ParentName);
+            }
+            scene.Root = frameToNode[rootFrame.Name];
 
             // Step 2: do the thing
             FrustumOverlapDetector fod = new FrustumOverlapDetector(Pipeline);

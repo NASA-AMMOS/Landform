@@ -10,7 +10,7 @@ using System.Threading.Tasks;
 
 namespace OPS.Alignment.BundleAdjusterStructures
 {
-    [StructLayout(LayoutKind.Sequential, Pack = 0)]
+    [StructLayout(LayoutKind.Sequential, Pack = 1)]
     public struct ProblemDefinition
     {
         public static readonly UInt64 MAGIC_NUMBER = 0x42756E646C653121;
@@ -24,13 +24,23 @@ namespace OPS.Alignment.BundleAdjusterStructures
         public UInt32 NumPriors;
     }
 
-    [StructLayout(LayoutKind.Sequential, Pack = 0)]
+    [StructLayout(LayoutKind.Sequential, Pack = 1)]
     public struct RigidTransform
     {
+        public byte _fixed;
         public double tx, ty, tz;
         public double rx, ry, rz;
 
-        public RigidTransform(Matrix mat)
+        public bool Fixed
+        {
+            get { return _fixed != 0; }
+            set
+            {
+                _fixed = value ? (byte)1 : (byte)0;
+            }
+        }
+
+        public RigidTransform(Matrix mat, bool _fixed=false)
         {
             Vector3 t, s;
             Quaternion r;
@@ -38,10 +48,11 @@ namespace OPS.Alignment.BundleAdjusterStructures
             tx = t.X;
             ty = t.Y;
             tz = t.Z;
-            Vector3 rVec = r.ToRodriguesVector();
+            Vector3 rVec = new AxisAngleVector(r).AxisAngle;
             rx = rVec.X;
             ry = rVec.Y;
             rz = rVec.Z;
+            this._fixed = _fixed ? (byte)1 : (byte)0;
         }
 
         public Vector3 Translation
@@ -58,12 +69,25 @@ namespace OPS.Alignment.BundleAdjusterStructures
             {
                 Vector3 rv = RodriguesVector;
                 double theta = rv.Length();
-                return Quaternion.CreateFromAxisAngle(rv / theta, theta);
+                Vector3 axis = rv;
+                if (theta > 1e-8)
+                {
+                    axis /= theta;
+                }
+                return Quaternion.CreateFromAxisAngle(axis, theta);
+            }
+        }
+
+        public Matrix Matrix
+        {
+            get
+            {
+                return Matrix.CreateFromQuaternion(Rotation) * Matrix.CreateTranslation(Translation);
             }
         }
     }
 
-    [StructLayout(LayoutKind.Sequential, Pack = 0)]
+    [StructLayout(LayoutKind.Sequential, Pack = 1)]
     public struct TransformPrior
     {
         public UInt32 transformId;
@@ -88,7 +112,7 @@ namespace OPS.Alignment.BundleAdjusterStructures
         PHOTOMETRIC = 4
     }
 
-    [StructLayout(LayoutKind.Sequential, Pack = 0)]
+    [StructLayout(LayoutKind.Sequential, Pack = 1)]
     public struct CameraModel
     {
         public CameraModelType Type;
@@ -172,7 +196,7 @@ namespace OPS.Alignment.BundleAdjusterStructures
         }
     }
 
-    [StructLayout(LayoutKind.Sequential, Pack = 0)]
+    [StructLayout(LayoutKind.Sequential, Pack = 1)]
     public struct Point
     {
         public double X, Y, Z, W;
@@ -194,18 +218,30 @@ namespace OPS.Alignment.BundleAdjusterStructures
         }
     }
 
-    [StructLayout(LayoutKind.Sequential, Pack = 0)]
+    [StructLayout(LayoutKind.Sequential, Pack = 1)]
     public struct Projection
     {
         public UInt32 CameraModelIdx;
-        public UInt32 TransformIdx;
+        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 8)]
+        public UInt32[] TransformIndices;
         public UInt32 PointIdx;
         public double X, Y, D;
 
-        public Projection(int cameraModelIdx, int transformIdx, int pointIdx, double x, double y, double d)
+        public Projection(int cameraModelIdx, int pointIdx, int[] transformIndices, double x, double y, double d)
         {
             CameraModelIdx = (uint)cameraModelIdx;
-            TransformIdx = (uint)transformIdx;
+
+            TransformIndices = new UInt32[8];
+            int i;
+            for (i = 0; i < transformIndices.Length; i++)
+            {
+                TransformIndices[i] = (UInt32)transformIndices[i];
+            }
+            for (; i < TransformIndices.Length; i++)
+            {
+                TransformIndices[i] = 0xFFFFFFFFU;
+            }
+
             PointIdx = (uint)pointIdx;
             X = x;
             Y = y;

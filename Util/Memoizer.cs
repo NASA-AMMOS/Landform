@@ -28,5 +28,10 @@ namespace OPS.Util
             Function = function;
             Computed = new Dictionary<InT, OutT>();
         }
+
+        public bool ContainsKey(InT key)
+        {
+            return Computed.ContainsKey(key);
+        }
     }
 }

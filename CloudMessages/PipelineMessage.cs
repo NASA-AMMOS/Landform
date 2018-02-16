@@ -21,6 +21,7 @@ namespace OPS.Cloud
             RegisterType(typeof(MatchPairsMessage));
             RegisterType(typeof(FindOverlapsMessage));
             RegisterType(typeof(CreateParentTileMessage));
+            RegisterType(typeof(BundleAdjustMessage));
         }
 
         /// <summary>

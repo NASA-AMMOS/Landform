@@ -45,7 +45,6 @@ namespace OPS.Pipeline
             List<ImageRef> images = new List<ImageRef>();
             Dictionary<string, SceneNode> siteDriveToNode = new Dictionary<string, SceneNode>();
             AlignmentScene scene = new AlignmentScene();
-            MatchingContext context = new MatchingContext();
 
             MSLLocations locations = new MSLLocations();
 
@@ -110,7 +109,7 @@ namespace OPS.Pipeline
                     if (File.Exists(path))
                     {
                         DetectedFeatures feat = DataProduct.Load<DetectedFeatures>(File.ReadAllBytes(path));
-                        context.DetectedFeatures[imgRef] = feat.Features;
+                        scene.Context.DetectedFeatures[imgRef] = feat.Features;
                         return;
                     }
                 }
@@ -131,9 +130,9 @@ namespace OPS.Pipeline
                     feat.ObservationName = imgRef.DisplayName;
                     File.WriteAllBytes(path, feat.Serialize());
                 }
-                lock (context.DetectedFeatures)
+                lock (scene.Context.DetectedFeatures)
                 {
-                    context.DetectedFeatures[imgRef] = arr;
+                    scene.Context.DetectedFeatures[imgRef] = arr;
                 }
             });
             logger.Info("Done.");
@@ -162,8 +161,8 @@ namespace OPS.Pipeline
 
                 var model = pair.One;
                 var data = pair.Two;
-                var modelFeat = context.DetectedFeatures[model];
-                var dataFeat = context.DetectedFeatures[data];
+                var modelFeat = scene.Context.DetectedFeatures[model];
+                var dataFeat = scene.Context.DetectedFeatures[data];
                 BruteForceMatcher bfm = new BruteForceMatcher();
 
                 var matches = bfm.Match(model, data, modelFeat, dataFeat);
@@ -179,7 +178,7 @@ namespace OPS.Pipeline
                 // KGF
                 {
                     var kgf = new KnownGeometryFilter(pipeline, new KnownGeometryFilter.ImageNodeDelegate(imgRef => scene.ImageToNode[imgRef]));
-                    matches = kgf.Filter(context, matches);
+                    matches = kgf.Filter(scene.Context, matches);
                     if (matches == null || matches.DataToModel.Length < 8)
                     {
                         lock (logger)
@@ -193,7 +192,7 @@ namespace OPS.Pipeline
                 // GTM
                 {
                     var gtm = new GTM();
-                    matches = gtm.Filter(context, matches);
+                    matches = gtm.Filter(scene.Context, matches);
                     if (matches == null || matches.DataToModel.Length < 8)
                     {
                         lock (logger)
@@ -207,7 +206,7 @@ namespace OPS.Pipeline
                 // Moisan-Stival
                 {
                     var ms = new MoisanStivalFilter(pipeline);
-                    matches = ms.Filter(context, matches);
+                    matches = ms.Filter(scene.Context, matches);
                     if (matches == null || matches.DataToModel.Length < 8)
                     {
                         lock (logger)
@@ -231,7 +230,8 @@ namespace OPS.Pipeline
             {
                 kvp.Value.AddComponent<AdjustedNode>();
             }
-            //BundleAdjuster.Adjust(scene);
+            BundleAdjuster ba = new BundleAdjuster(pipeline);
+            ba.Adjust(scene);
             logger.Info("Done.");
 
             return 0;

@@ -30,10 +30,10 @@ namespace OPS.Alignment
             TransformPriors = new List<TransformPrior>();
         }
         
-        public int AddTransform(Matrix m)
+        public int AddTransform(Matrix m, bool _fixed=false)
         {
             int res = Transforms.Count;
-            Transforms.Add(new RigidTransform(m));
+            Transforms.Add(new RigidTransform(m, _fixed));
             return res;
         }
 
@@ -62,10 +62,10 @@ namespace OPS.Alignment
             return AddPoint(new Vector4(worldPos, 1));
         }
 
-        public int AddProjection(int cameraModelIdx, int transformIdx, int pointIdx, Vector2 pos, double d = double.NaN)
+        public int AddProjection(int cameraModelIdx, int[] transformIndices, int pointIdx, Vector2 pos, double d = double.NaN)
         {
             int res = Projections.Count;
-            Projections.Add(new Projection(cameraModelIdx, transformIdx, pointIdx, pos.X, pos.Y, d));
+            Projections.Add(new Projection(cameraModelIdx, pointIdx, transformIndices, pos.X, pos.Y, d));
             return res;
         }
 

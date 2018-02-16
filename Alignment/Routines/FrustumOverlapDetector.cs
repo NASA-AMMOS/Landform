@@ -3,6 +3,7 @@ using OPS.Imaging;
 using OPS.Plumbing;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -19,6 +20,7 @@ namespace OPS.Alignment
         public void Detect(AlignmentScene scene)
         {
             // Initialize - make sure ImageToNode is up to date and all nodes have hulls
+            Dictionary<SceneNode, ConvexHull> worldHull = new Dictionary<SceneNode, ConvexHull>();
             Action<SceneNode> collect = null;
             collect = (node) =>
             {
@@ -56,9 +58,11 @@ namespace OPS.Alignment
                     List<ConvexHull> childHulls = new List<ConvexHull>();
                     foreach (var child in node.Children)
                     {
-                        if (child.HasComponent<NodeConvexHull>())
+                        var hull = child.GetComponent<NodeConvexHull>();
+                        if (hull != null)
                         {
-                            childHulls.Add(child.GetComponent<NodeConvexHull>().Hull);
+                            var ut = child.GetOrAddComponent<NodeUncertainTransform>();
+                            childHulls.Add(ConvexHull.Transformed(hull.Hull, ut.UncertainTransform));
                         }
                     }
                     chc.Hull = ConvexHull.Union(childHulls.ToArray());
@@ -78,8 +82,13 @@ namespace OPS.Alignment
                 {
                     var other = toConsider.Dequeue();
                     var otherHull = other.GetComponent<NodeConvexHull>().Hull;
+                    
+                    var nodeToWorld = node.GetOrAddComponent<NodeUncertainTransform>().LocalToWorld;
+                    var otherToWorld = other.GetOrAddComponent<NodeUncertainTransform>().LocalToWorld;
+                    var nodeToOther = nodeToWorld.TimesInverse(otherToWorld);
+                    var thisInOther = ConvexHull.Transformed(nodeHull, nodeToOther);
 
-                    if (!nodeHull.Intersects(otherHull)) continue;
+                    if (!thisInOther.Intersects(otherHull)) continue;
                     var otherRef = other.GetComponent<NodeImageReference>();
                     if (otherRef != null && otherRef.Reference != imgRef)
                     {
