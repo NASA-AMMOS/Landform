@@ -12,7 +12,7 @@ namespace OPS.Pipeline
 {
     /// <summary>
     /// Class for generating an atlas for a baseline mesh using its camera model
-    /// Backprojects each vertex in the mesh to the camera model
+    /// Projects each vertex in the mesh to the camera model
     /// Only works when texturing the mesh with the image that was used to generate it
     /// </summary>
     public class BaselineAtlaser : IMeshAtlaser
@@ -23,9 +23,9 @@ namespace OPS.Pipeline
         /// <summary>
         /// </summary>
         /// <param name="meshToCameraModelFrame">A matrix that maps the coordinate frame the mesh is in into the camera model frame.  
-        /// Every vertex in the mesh will have this matrix applied before being backprojected into the camera model.  Typically this will
+        /// Every vertex in the mesh will have this matrix applied before being projected into the camera model.  Typically this will
         /// be a localLevelToRover or siteToRover matrix because camera models are usually in rover frame.</param>
-        /// <param name="image">Image to use to atlas the mesh.  Must contain a camera model to backproject, typically in rover frame.</param>
+        /// <param name="image">Image to use to atlas the mesh.  Must contain a camera model to project, typically in rover frame.</param>
         public BaselineAtlaser(Matrix meshToCameraModelFrame, Image image)
         {
             this.meshToCameraModelFrame = meshToCameraModelFrame;
@@ -49,9 +49,9 @@ namespace OPS.Pipeline
                 // Transform the mesh frame vertex into camera frame
                 Vector3 meshFramePoint = v.Position;
                 Vector3 cameraFramePoint = Vector3.Transform(meshFramePoint, meshToCameraModelFrame);
-                // Backproject
+                // Project point
                 double range;
-                Vector2 pixel = this.image.CameraModel.Backproject(cameraFramePoint, out range);
+                Vector2 pixel = this.image.CameraModel.Project3DTo2D(cameraFramePoint, out range);
                 // Remove this vertex if it is outside the field of view of the camera
                 if (pixel.X < 0 || pixel.X > (this.image.Width - 1) || pixel.Y < 0 || pixel.Y > (this.image.Height - 1))
                 {
