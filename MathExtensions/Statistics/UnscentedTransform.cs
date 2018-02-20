@@ -30,11 +30,20 @@ namespace OPS.MathExtensions
             Matrix<double> nX = covariance * (covariance.RowCount + lambda);
 
             // TODO: try using Cholesky instead, see if more go fast (#96)
-            var svd = nX.Svd();
-            var U = svd.U;
-            var VT = svd.VT;
-            var sqrtS = svd.S.PointwiseSqrt();
-            var sqrtNX = U * CreateMatrix.Diagonal(sqrtS.ToArray()) * VT;
+            Matrix<double> sqrtNX;
+            try
+            {
+                sqrtNX = nX.Cholesky().Factor;
+            }
+            catch (ArgumentException)
+            {
+                // Cholesky() thinks nX is not positive definite
+                var svd = nX.Svd();
+                var U = svd.U;
+                var VT = svd.VT;
+                var sqrtS = svd.S.PointwiseSqrt();
+                sqrtNX = U * CreateMatrix.Diagonal(sqrtS.ToArray()) * VT;
+            }
 
             for (int i = 0; i < sqrtNX.ColumnCount; i++)
             {
