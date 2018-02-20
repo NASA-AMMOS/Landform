@@ -190,6 +190,7 @@ namespace OPS.Pipeline
                 }
 
                 // GTM
+                try
                 {
                     var gtm = new GTM();
                     matches = gtm.Filter(scene.Context, matches);
@@ -201,6 +202,11 @@ namespace OPS.Pipeline
                         }
                         return;
                     }
+                }
+                catch (Exception ex)
+                {
+                    logger.Error("GTM failed", ex);
+                    return;
                 }
 
                 // Moisan-Stival

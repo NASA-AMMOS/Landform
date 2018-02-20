@@ -47,8 +47,7 @@ namespace OPS.Alignment
             public override int GetHashCode()
             {
                 var hashCode = 227977205;
-                hashCode = hashCode * -1521134295 + base.GetHashCode();
-                hashCode = hashCode * -1521134295 + EqualityComparer<ImageRef>.Default.GetHashCode(Image);
+                hashCode = hashCode * -1521134295 + Image.GetHashCode();
                 hashCode = hashCode * -1521134295 + Index.GetHashCode();
                 return hashCode;
             }
@@ -78,6 +77,7 @@ namespace OPS.Alignment
             Matrix worldToRoot = scene.Root.Transform.WorldToLocal;
             Memoizer<CAHV, int> cameraModels = new Memoizer<CAHV, int>(problem.AddCameraModel);
             Dictionary<ImageRef, int> imageToCamera = new Dictionary<ImageRef, int>();
+            Dictionary<int, SceneNode> transformToNode = new Dictionary<int, SceneNode>();
             Memoizer<SceneNode, int> nodeToTransform = new Memoizer<SceneNode, int>(node =>
             {
                 bool _fixed = !node.HasComponent<AdjustedNode>();
@@ -87,6 +87,7 @@ namespace OPS.Alignment
                     var nut = node.GetComponent<NodeUncertainTransform>();
                     problem.AddPrior(idx, nut.UncertainTransform);
                 }
+                transformToNode[idx] = node;
                 return idx;
             });
             Dictionary<ImageRef, List<int>> imageTransformLists = new Dictionary<ImageRef, List<int>>();
@@ -226,29 +227,12 @@ namespace OPS.Alignment
 
                     Vector3 pointPos = problem.Points[track.pointIdx].Position;
                     problem.AddProjection(imageToCamera[img], imageTransformLists[img].ToArray(), track.pointIdx, feat.Location);
-
-                    // try residual
-                    Vector3 relative = pointPos;
-                    Matrix toWorld = Matrix.Identity;
-                    var transforms = imageTransformLists[img];
-                    for (int t = transforms.Count - 1; t >= 0; t--)
-                     {
-                        var trans = problem.Transforms[transforms[t]];
-                        var invMat = Matrix.Invert(trans.Matrix);
-
-                        Vector3 comparison = Vector3.Transform(relative - trans.Translation, Quaternion.Inverse(trans.Rotation));
-                        relative = Vector3.Transform(relative, invMat);
-
-                    }
-                    //relative = Vector3.Transform(pointPos, Matrix.Invert(toWorld));
-
-                    double d;
-                    Vector2 imgPos = GetImage(img).CameraModel.Backproject(relative, out d);
                 }
             }
 
             Console.WriteLine("here");
 
+            BundleAdjusterProblem result = null;
             TemporaryFile.GetAndDelete(".bin", inputFile =>
             {
                 using (FileStream fs = new FileStream(inputFile, FileMode.Create))
@@ -262,8 +246,26 @@ namespace OPS.Alignment
                 {
                     ProgramRunner pr = new ProgramRunner("CeresBundler.exe", "\"" + inputFile + "\" \"" + outputFile + "\"", createNoWindow: false, useShellExecute: false);
                     pr.Run();
+
+                    using (FileStream fs = new FileStream(outputFile, FileMode.Open))
+                    {
+                        using (BinaryReader br = new BinaryReader(fs))
+                        {
+                            result = BundleAdjusterProblem.Read(br);
+                        }
+                    }
                 });
             });
+
+            Console.WriteLine("Got result");
+            for (int i = 0; i < result.Transforms.Count; i++)
+            {
+                var transform = result.Transforms[i];
+                if (transform.Fixed) continue;
+
+                var node = transformToNode[i];
+                node.Transform.Matrix = transform.Matrix;
+            }
 
         }
     }
