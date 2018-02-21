@@ -86,12 +86,9 @@ namespace OPS.Alignment
             Func<SceneNode, SceneNode, bool> overlaps = (node, other) =>
             {
                 var nodeHull = node.GetComponent<NodeConvexHull>().Hull;
-
                 var otherHull = other.GetComponent<NodeConvexHull>().Hull;
 
-                var nodeToWorld = node.GetOrAddComponent<NodeUncertainTransform>().LocalToWorld;
-                var otherToWorld = other.GetOrAddComponent<NodeUncertainTransform>().LocalToWorld;
-                var nodeToOther = nodeToWorld.TimesInverse(otherToWorld);
+                var nodeToOther = node.GetOrAddComponent<NodeUncertainTransform>().To(other);
                 var thisInOther = ConvexHull.Transformed(nodeHull, nodeToOther);
                 return thisInOther.Intersects(otherHull);
             };
@@ -116,6 +113,12 @@ namespace OPS.Alignment
                 while (toConsider.Count > 0)
                 {
                     var other = toConsider.Dequeue();
+
+                    if (false && other == node.Parent)
+                    {
+                        // HACK - don't align within SD
+                        continue;
+                    }
                     if (nodeOverlaps.ContainsKey(node) && nodeOverlaps[node].Contains(other))
                     {
                         // already been done

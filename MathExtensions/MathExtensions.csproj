@@ -50,7 +50,10 @@
     <Compile Include="MathNetXna.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="RunningAverage.cs" />
+    <Compile Include="Statistics\NamedGaussian.cs" />
+    <Compile Include="Statistics\ThunkContext.cs" />
     <Compile Include="Statistics\UnscentedTransform.cs" />
+    <Compile Include="Statistics\VectorThunk.cs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Xna\Xna.csproj">

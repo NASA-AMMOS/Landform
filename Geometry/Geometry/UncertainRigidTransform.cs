@@ -112,12 +112,12 @@ namespace OPS.Geometry
         /// <summary>
         /// <see cref="MathExtensions.UnscentedTransform"/> for functions taking a matrix.
         /// </summary>
-        public GaussianND UnscentedTransform(Func<Matrix, Vector<double>> func)
+        public GaussianND UnscentedTransform(Func<Matrix, Vector<double>> func, double k = 3.0, double a = 0.5)
         {
             return MathExtensions.UnscentedTransform.Transform(Distribution, (Vector<double> vec) =>
             {
                 return func(ToMatrix(vec));
-            });
+            }, k, a);
         }
 
         /// <summary>

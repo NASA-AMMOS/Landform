@@ -83,6 +83,65 @@ namespace OPS.MathExtensions
             return new GaussianND(sigmaPoints, meanWeights, covarianceWeights);
         }
 
+
+        public static GaussianND Transform(ThunkContext context, VectorThunk thunk)
+        {
+            List<Guid> constants = new List<Guid>();
+            List<GaussianND> variables = new List<GaussianND>();
+            List<Guid> variableGuids = new List<Guid>();
+            Dictionary<Guid, KeyValuePair<int, int>> variableIndices = new Dictionary<Guid, KeyValuePair<int, int>>();
+
+            int dimension = 0;
+            foreach (var x in context.RandomVariables)
+            {
+                if (x.Value.Covariance.IsZero())
+                {
+                    constants.Add(x.Key);
+                    context.Constants[x.Key] = x.Value.Mean;
+                }
+                else
+                {
+                    int startIdx = dimension;
+                    int sz = x.Value.N;
+
+                    variableGuids.Add(x.Key);
+                    variables.Add(x.Value);
+                    variableIndices[x.Key] = new KeyValuePair<int, int>(startIdx, sz);
+                    dimension += sz;
+                }
+            }
+
+            Matrix<double> cov = CreateMatrix.Sparse<double>(dimension, dimension);
+            Vector<double> mean = CreateVector.Dense<double>(dimension);
+            for (int i = 0; i < variables.Count; i++)
+            {
+                var distrib = variables[i];
+                var indices = variableIndices[variableGuids[i]];
+                int startIdx = indices.Key;
+                int sz = indices.Value;
+                cov.SetSubMatrix(startIdx, startIdx, distrib.Covariance);
+                mean.SetSubVector(startIdx, sz, distrib.Mean);
+            }
+
+            GaussianND uberDistrib = new GaussianND(mean, cov);
+            return Transform(uberDistrib, (vec) => {
+                ThunkContext newContext = new ThunkContext();
+                foreach (Guid c in constants)
+                {
+                    newContext.Constants[c] = context.Constants[c];
+                }
+                for (int i = 0; i < variables.Count; i++)
+                {
+                    var guid = variableGuids[i];
+                    var indices = variableIndices[guid];
+                    int startIdx = indices.Key;
+                    int sz = indices.Value;
+                    newContext.Constants[guid] = vec.SubVector(startIdx, sz);
+                }
+                return thunk.Evaluate(newContext);
+            });
+        }
+
         /// <summary>
         /// Approximate the distribution of <paramref name="func"/>(<paramref name="x"/>, <paramref name="y"/>) with the unscented transform.
         /// </summary>

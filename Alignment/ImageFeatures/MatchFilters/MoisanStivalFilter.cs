@@ -7,6 +7,7 @@ using OPS.Imaging;
 using Microsoft.Xna.Framework;
 using log4net;
 using OPS.Plumbing;
+using OPS.Geometry;
 
 namespace OPS.Alignment
 {
@@ -26,6 +27,7 @@ namespace OPS.Alignment
             this.RefineStep = refineStep;
         }
 
+        public EpipolarTransform LastEpipolarTransform;
         public ImagePairCorrespondence Filter(MatchingContext context, ImagePairCorrespondence matches)
         {
             if (matches.DataToModel.Length < MIN_MATCHES)
@@ -39,8 +41,8 @@ namespace OPS.Alignment
             int[] dataToModel;
             matches.Flatten(modelFeatures, dataFeatures, out modelFeat, out dataFeat, out dataToModel);
 
-            Vector2[] dataPoints = dataFeat.Select(f => f.Location).ToArray();
-            Vector2[] modelPoints = Enumerable.Range(0, dataPoints.Length).Select(idx => modelFeat[dataToModel[idx]].Location).ToArray();
+            Vector2[] dataPoints = matches.DataToModel.Select(pair => dataFeatures[pair.Key].Location).ToArray();
+            Vector2[] modelPoints = matches.DataToModel.Select(pair => modelFeatures[pair.Value].Location).ToArray();
 
             var modelMeta = GetMetadata(matches.ModelImage);
             var dataMeta = GetMetadata(matches.DataImage);
@@ -53,6 +55,7 @@ namespace OPS.Alignment
 
             mso.Run(MaxIterations, RefineStep);
             if (!mso.Meaningful) return null;
+            LastEpipolarTransform = mso.EpipolarTransform;
 
             List<KeyValuePair<int, int>> goodMatches = new List<KeyValuePair<int, int>>();
             foreach (int idx in mso.ComputeInliers())

@@ -10,6 +10,7 @@ using OPS.MathExtensions;
 using MathNet.Numerics.LinearAlgebra;
 using log4net;
 using OPS.Plumbing;
+using OPS.Imaging.Emgu;
 
 namespace OPS.Alignment
 {
@@ -35,6 +36,7 @@ namespace OPS.Alignment
             BadProjectionRatio = 0.4;
             MahalanobisThreshold = 4;
             FixedErrorThreshold = 20;
+            MajorAxisThreshold = 40;
         }
         private ImageNodeDelegate ImageToNode;
 
@@ -54,6 +56,10 @@ namespace OPS.Alignment
         /// Error threshold (in pixels) for matches with no transform uncertainty information.
         /// </summary>
         public double FixedErrorThreshold;
+        /// <summary>
+        /// Maximum uncertainty
+        /// </summary>
+        public double MajorAxisThreshold;
 
         internal struct ProjectionResult
         {
@@ -73,10 +79,13 @@ namespace OPS.Alignment
 
             var dataToWorld = dataNode.GetOrAddComponent<NodeUncertainTransform>().LocalToWorld;
             var modelToWorld = modelNode.GetOrAddComponent<NodeUncertainTransform>().LocalToWorld;
-            UncertainRigidTransform dataToModel = dataToWorld.TimesInverse(modelToWorld);
+            var dataToModelOld = dataToWorld.TimesInverse(modelToWorld);
+            UncertainRigidTransform dataToModel = dataNode.GetOrAddComponent<NodeUncertainTransform>().To(modelNode);
 
-            var modelCam = GetImage(matches.ModelImage).CameraModel;
-            var dataCam = GetImage(matches.DataImage).CameraModel;
+            var modelImg = GetImage(matches.ModelImage);
+            var dataImg = GetImage(matches.DataImage);
+            var modelCam = modelImg.CameraModel;
+            var dataCam = dataImg.CameraModel;
 
             // if 'data' node has a convex hull, compute it (uncertainty-inflated) in model space
             ConvexHull dataHullInModel = null;
@@ -90,6 +99,15 @@ namespace OPS.Alignment
             // can be repeated
             Dictionary<int, bool> modelRayIntersects = new Dictionary<int, bool>();
             List<KeyValuePair<int, int>> goodMatches = new List<KeyValuePair<int, int>>();
+
+            /*var result = new Emgu.CV.Image<Emgu.CV.Structure.Bgr, byte>(
+                modelImg.Width + dataImg.Width,
+                Math.Max(modelImg.Height, dataImg.Height));
+            result.ROI = new System.Drawing.Rectangle(0, 0, modelImg.Width, modelImg.Height);
+            modelImg.ToEmgu<Emgu.CV.Structure.Bgr>().CopyTo(result);
+            result.ROI = new System.Drawing.Rectangle(modelImg.Width, 0, dataImg.Width, dataImg.Height);
+            dataImg.ToEmgu<Emgu.CV.Structure.Bgr>().CopyTo(result);
+            result.ROI = new System.Drawing.Rectangle(0, 0, modelImg.Width + dataImg.Width, Math.Max(modelImg.Height, dataImg.Height));*/
 
             int rejectedHull = 0;
             int rejectedSigma = 0;
@@ -125,7 +143,6 @@ namespace OPS.Alignment
 
                     var mdrm = RayExtensions.Transform(dataRay, mat);
                     double modelT, dataT;
-                    Vector2 backprojected;
                     double range;
                     if (!RayExtensions.ClosestIntersection(modelRay, mdrm, out modelT, out dataT))
                     {
@@ -139,8 +156,21 @@ namespace OPS.Alignment
                         res.intersection = true;
                     }
                     Vector3 dataPt = mdrm.Position + mdrm.Direction * dataT;
-                    backprojected = modelCam.Backproject(dataPt, out range);
-                    res.error = backprojected - modelFeature.Location;
+                    Vector3 modelPt = modelRay.Position + modelRay.Direction * modelT;
+
+                    Vector2 modelInData = dataCam.Backproject(Vector3.Transform(modelPt, Matrix.Invert(mat)), out range);
+                    Vector2 dataInModel = modelCam.Backproject(dataPt, out range);
+                    Vector2 midErr = modelInData - dataFeature.Location;
+                    Vector2 dimErr = dataInModel - modelFeature.Location;
+
+                    if (midErr.LengthSquared() < dimErr.LengthSquared())
+                    {
+                        res.error = midErr;
+                    }
+                    else
+                    {
+                        res.error = dimErr;
+                    }
                     res.modelT = modelT;
                     res.dataT = dataT;
                     return res;
@@ -153,6 +183,7 @@ namespace OPS.Alignment
                     int totalPoints = 0;
                     var error = dataToModel.UnscentedTransform((mat) =>
                     {
+                        if (badPoints > 3) return CreateVector.Dense<double>(2);
                         totalPoints++;
                         ProjectionResult res;
                         try
@@ -172,8 +203,8 @@ namespace OPS.Alignment
                         }
                         return res.error.ToMathNet();
                     });
-                    // If more than 40% of points failed to meaningfully project, skip match
-                    if (badPoints / (double)totalPoints > BadProjectionRatio)
+                    // If any points failed to meaningfully project, skip match
+                    if (badPoints > 3)
                     {
                         rejectedInvalid++;
                         continue;
@@ -185,14 +216,30 @@ namespace OPS.Alignment
                         rejectedSigma++;
                         continue;
                     }
+
+                    var eig = error.Covariance.Evd(Symmetricity.Symmetric);
+                    double majorAxis = Math.Sqrt(Math.Max(eig.EigenValues[0].Real, eig.EigenValues[1].Real));
+                    if (majorAxis > MajorAxisThreshold)
+                    {
+                        rejectedError++;
+                        continue;
+                    }
                 }
                 else
                 {
                     // Transform is exact-ish, just make sure it's close
-                    var res = Reproject(dataToModel.Mean);
-                    if (res.modelT < -0.01 || res.dataT < -0.01 || res.error.LengthSquared() > FixedErrorThreshold * FixedErrorThreshold)
+                    try
                     {
-                        rejectedError++;
+                        var res = Reproject(dataToModel.Mean);
+                        if (res.modelT < -0.01 || res.dataT < -0.01 || res.error.LengthSquared() > FixedErrorThreshold * FixedErrorThreshold)
+                        {
+                            rejectedError++;
+                            continue;
+                        }
+                    }
+                    catch (Exception)
+                    {
+                        rejectedInvalid++;
                         continue;
                     }
                 }

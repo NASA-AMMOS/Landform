@@ -116,6 +116,7 @@ namespace OPS.Alignment
             Dictionary<Guid, Track> tracks = new Dictionary<Guid, Track>();
             Action<Guid, Guid> mergeTracks = (one, two) =>
             {
+                if (one == two) return;
                 List<FeatureIndex> keys = featureToTrack.Keys.ToList();
                 foreach (var feat in keys)
                 {
@@ -267,6 +268,15 @@ namespace OPS.Alignment
                 node.Transform.Matrix = transform.Matrix;
             }
 
+            Mesh pc = new Mesh(capacity: result.Points.Count);
+            foreach (var pt in result.Points)
+            {
+                if (Math.Abs(pt.W) > 1e-8)
+                {
+                    pc.Vertices.Add(new Vertex(pt.X / pt.W, pt.Y / pt.W, pt.Z / pt.W));
+                }
+            }
+            pc.Save("d:\\bundle.ply");
         }
     }
 }

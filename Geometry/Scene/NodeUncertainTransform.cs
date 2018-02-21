@@ -41,7 +41,7 @@ namespace OPS.Geometry
             {
                 // Changing covariance only doesn't effect mean values, so NodeTransform.Matrix
                 // is still valid
-                _transform = new UncertainRigidTransform(new GaussianND(UncertainTransform.Distribution.Mean, value));
+                _transform = new UncertainRigidTransform(new NamedGaussian(Node.Guid, UncertainTransform.Distribution.Mean, value));
             }
         }
 
@@ -66,7 +66,7 @@ namespace OPS.Geometry
             }
             set
             {
-                UncertainTransform = new UncertainRigidTransform(value, Covariance);
+                UncertainTransform = new UncertainRigidTransform(new NamedGaussian(Node.Guid, UncertainRigidTransform.ToVector(value), Covariance));
             }
         }
 
@@ -75,13 +75,70 @@ namespace OPS.Geometry
             if (_transform == null)
             {
                 // Initialize with perfect certainty (zero covariance matrix)
-                UncertainTransform = new UncertainRigidTransform(Node.Transform.Matrix, CreateMatrix.Dense<double>(6, 6));
+                UncertainTransform = new UncertainRigidTransform(new NamedGaussian(Node.Guid, UncertainRigidTransform.ToVector(Node.Transform.Matrix), CreateMatrix.Dense<double>(6, 6)));
             }
             else
             {
                 // we were constructed with a transform - overwrite what's in NodeTransform
                 Node.Transform.Matrix = UncertainTransform.Mean;
             }
+        }
+
+        public UncertainRigidTransform To(SceneNode other)
+        {
+            HashSet<SceneNode> myAncestors = new HashSet<SceneNode>();
+            {
+                SceneNode current = Node;
+                while (current.Parent != null)
+                {
+                    current = current.Parent;
+                    myAncestors.Add(current);
+                }
+            }
+
+            ThunkContext context = new ThunkContext();
+
+            List<Guid> toParent = new List<Guid>();
+            List<Guid> toOther = new List<Guid>();
+
+            SceneNode commonAncestor = other;
+            {
+                while (commonAncestor != null && !myAncestors.Contains(commonAncestor))
+                {
+                    toOther.Add(commonAncestor.Guid);
+                    context.AddVariable(commonAncestor.Guid, commonAncestor.GetOrAddComponent<NodeUncertainTransform>().UncertainTransform.Distribution);
+                    commonAncestor = commonAncestor.Parent;
+                }
+                if (commonAncestor == null)
+                {
+                    throw new InvalidOperationException("From() to disjoint node");
+                }
+                toOther.Reverse();
+
+                SceneNode current = Node;
+                while (current != commonAncestor)
+                {
+                    toParent.Add(current.Guid);
+                    context.AddVariable(current.Guid, current.GetOrAddComponent<NodeUncertainTransform>().UncertainTransform.Distribution);
+                    current = current.Parent;
+                }
+            }
+
+            var thunk = new VectorThunk(context.RandomVariables.Keys, (ctx) =>
+            {
+                Matrix res = Matrix.Identity;
+                foreach (var id in toParent)
+                {
+                    res = res * UncertainRigidTransform.ToMatrix(ctx.Get(id));
+                }
+                foreach (var id in toOther)
+                {
+                    res = res * Matrix.Invert(UncertainRigidTransform.ToMatrix(ctx.Get(id)));
+                }
+                return UncertainRigidTransform.ToVector(res);
+            });
+
+            return new UncertainRigidTransform(UnscentedTransform.Transform(context, thunk));
         }
 
         /// <summary>
