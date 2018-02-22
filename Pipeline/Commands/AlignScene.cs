@@ -14,10 +14,6 @@ using Microsoft.Xna.Framework;
 using OPS.Util;
 using MathNet.Numerics.LinearAlgebra;
 using OPS.Plumbing;
-using Emgu.CV.Structure;
-using Emgu.CV;
-using System.Drawing;
-using OPS.Imaging.Emgu;
 
 namespace OPS.Pipeline
 {
@@ -86,7 +82,9 @@ namespace OPS.Pipeline
                         // Made up covariance values, more or less signifying SD of 0.5m translation and 0.5deg rotation (1.0 for Z)
                         var uncertainty = res.AddComponent<NodeUncertainTransform>();
                         double fifthDegSqr = Math.Pow(0.2 * Math.PI / 180, 2);
-                        uncertainty.Covariance = CreateMatrix.Diagonal(new double[] { 0.01, 0.01, 0.01, fifthDegSqr, fifthDegSqr, fifthDegSqr });
+                        double tenCM = 0.1;
+                        double posCov = tenCM * tenCM;
+                        uncertainty.Covariance = CreateMatrix.Diagonal(new double[] { posCov, posCov, posCov, fifthDegSqr, fifthDegSqr, fifthDegSqr });
                     }
                 }
                 // Add image node
@@ -95,8 +93,10 @@ namespace OPS.Pipeline
                 imgNode.Transform.Translation = Vector3.Zero;
                 {
                     var uncertainty = imgNode.AddComponent<NodeUncertainTransform>();
-                    double tenthDegSqr = Math.Pow(0.1 * Math.PI / 180, 2);
-                    uncertainty.Covariance = CreateMatrix.Diagonal(new double[] { 0.0001, 0.0001, 0.0001, tenthDegSqr, tenthDegSqr, tenthDegSqr });
+                    double fifthDegSqr = Math.Pow(0.2 * Math.PI / 180, 2);
+                    double fiveMM = 0.005;
+                    double posCov = fiveMM * fiveMM;
+                    uncertainty.Covariance = CreateMatrix.Diagonal(new double[] { posCov, posCov, posCov, fifthDegSqr, fifthDegSqr, fifthDegSqr });
                 }
                 imgNode.AddComponent<NodeImageReference>().Reference = imgRef;
                 scene.ImageToNode[imgRef] = imgNode;
@@ -111,7 +111,7 @@ namespace OPS.Pipeline
             PCAKeypointProjector projector = new PCAKeypointProjector(gpcafile, false);
             ASIFTDetector detector = new ASIFTDetector();
 
-            bool asift = false;
+            bool asift = true;
 
             Parallel.ForEach(images, imgRef =>
             {
@@ -133,7 +133,7 @@ namespace OPS.Pipeline
                 {
                     lock (detector)
                     {
-                        features = detector.Detect(img, mask).ToArray();
+                        features = detector.Detect(img, mask).OrderByDescending(feat => ((SIFTFeature)feat).Response).Take(10000).ToArray();
                     }
                 }
                 else
@@ -218,7 +218,7 @@ namespace OPS.Pipeline
                 }
 
                 // GTM
-                if (false)
+                if (true)
                 {
                     try
                     {
@@ -240,8 +240,8 @@ namespace OPS.Pipeline
                     }
                 }
 
-                EpipolarTransform epi = null;
                 // Moisan-Stival
+                if (true)
                 {
                     var ms = new MoisanStivalFilter(pipeline);
                     matches = ms.Filter(scene.Context, matches);
@@ -253,56 +253,10 @@ namespace OPS.Pipeline
                         }
                         return;
                     }
-                    epi = ms.LastEpipolarTransform;
                 }
 
                 scene.Context.Correspondences[pair] = matches;
-
-                int nonZero = matches.DataToModel.Length;
-                int i;
-
-                Image<Hsv, byte> hsvColors = new Image<Hsv, byte>(1, nonZero);
-                for (i = 0; i < nonZero; i++)
-                {
-                    hsvColors[i, 0] = new Hsv(i * 180.0 / (nonZero - 1), 2550, 255);
-                }
-                Image<Bgr, byte> bgrColors = hsvColors.Convert<Bgr, byte>();
-
-                var modelImage = pipeline.Load(model);
-                var dataImage = pipeline.Load(data);
-                Image<Bgr, byte> result = new Image<Bgr, byte>(modelImage.Width + dataImage.Width, Math.Max(modelImage.Height, dataImage.Height));
-                result.ROI = new Rectangle(0, 0, modelImage.Width, modelImage.Height);
-                modelImage.ToEmgu<Bgr>().CopyTo(result);
-                result.ROI = new Rectangle(modelImage.Width, 0, dataImage.Width, dataImage.Height);
-                dataImage.ToEmgu<Bgr>().CopyTo(result);
-                result.ROI = new Rectangle(0, 0, modelImage.Width + dataImage.Width, Math.Max(modelImage.Height, dataImage.Height));
-
-                var epiM2D = epi;
-                var epiD2M = epi.Inverse();
-
-                int pointNum = 0;
-                foreach (var match in matches.DataToModel)
-                {
-                    ImageFeature modelPoint = modelFeat[match.Value],
-                           dataPoint = dataFeat[match.Key];
-
-                    Vector3 dataEpiLine = epiM2D.EpipolarLine(modelPoint.Location),
-                            modelEpiLine = epiD2M.EpipolarLine(dataPoint.Location);
-
-                    Vector2 modelEpilineStart = EpiLinePoint(modelEpiLine, 0);
-                    Vector2 modelEpilineEnd = EpiLinePoint(modelEpiLine, modelImage.Width);
-                    Vector2 dataEpilineStart = EpiLinePoint(dataEpiLine, 0) + new Vector2(modelImage.Width, 0);
-                    Vector2 dataEpilineEnd = EpiLinePoint(dataEpiLine, dataImage.Width) + new Vector2(modelImage.Width, 0);
-
-                    result.Draw(new LineSegment2DF(Vector2Point(modelEpilineStart), Vector2Point(modelEpilineEnd)), new Bgr(0, 255, 0), 1);
-                    result.Draw(new LineSegment2DF(Vector2Point(dataEpilineStart), Vector2Point(dataEpilineEnd)), new Bgr(0, 255, 0), 1);
-
-                    result.Draw(new CircleF(Vector2Point(modelPoint.Location), 5.0f), bgrColors[pointNum, 0], 2);
-                    result.Draw(new CircleF(Vector2Point(dataPoint.Location + new Vector2(modelImage.Width, 0)), 5.0f), bgrColors[pointNum, 0], 2);
-                    pointNum++;
-                }
-
-                result.Save(Path.Combine(options.InputPath, "Matches", pairName(model, data) + ".png"));
+                MatchImage.WriteMatchImage(pipeline, matches, modelFeat, dataFeat, Path.Combine(options.InputPath, "Matches", pairName(model, data) + ".png"));
                 lock (logger)
                 {
                     logger.DebugFormat("{0} matches for {1}", matches.DataToModel.Length, pairName(model, data));
@@ -319,27 +273,6 @@ namespace OPS.Pipeline
             logger.Info("Done.");
 
             return 0;
-        }
-
-        static PointF Vector2Point(Vector2 pt)
-        {
-            return new PointF((float)pt.X, (float)pt.Y);
-        }
-        static Vector2 EpiLinePoint(Vector3 epiLine, double t)
-        {
-            double x, y;
-            // Special case vertical lines
-            if (Math.Abs(epiLine.Y) < 1e-8)
-            {
-                x = -epiLine.Z / epiLine.X;
-                y = t;
-            }
-            else
-            {
-                x = t;
-                y = -(epiLine.X * t + epiLine.Z) / epiLine.Y;
-            }
-            return new Vector2(x, y);
         }
     }
 

@@ -36,7 +36,7 @@ namespace OPS.Alignment
             BadProjectionRatio = 0.4;
             MahalanobisThreshold = 4;
             FixedErrorThreshold = 20;
-            MajorAxisThreshold = 40;
+            MajorAxisThreshold = 100;
         }
         private ImageNodeDelegate ImageToNode;
 
@@ -197,7 +197,7 @@ namespace OPS.Alignment
                         }
                         // Mark projection as bad if rays are parallel or the point is behind
                         // either camera
-                        if (!res.intersection || res.dataT < -0.01 || res.modelT < -0.01)
+                        if (res.dataT < -0.01 || res.modelT < -0.01)
                         {
                             badPoints++;
                         }
