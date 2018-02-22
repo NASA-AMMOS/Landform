@@ -1,4 +1,5 @@
-﻿using OPS.Geometry;
+﻿using Microsoft.Xna.Framework;
+using OPS.Geometry;
 using OPS.Imaging;
 using OPS.Plumbing;
 using System;
@@ -15,4 +16,10 @@ namespace OPS.Alignment
     }
 
     public class AdjustedNode : NodeComponent { }
+
+    public class CameraRay : NodeComponent
+    {
+        public Vector3 Center;
+        public Vector3 Direction;
+    }
 }

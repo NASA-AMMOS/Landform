@@ -1,8 +1,11 @@
-﻿using OPS.Geometry;
+﻿using Microsoft.Xna.Framework;
+using Newtonsoft.Json;
+using OPS.Geometry;
 using OPS.Imaging;
 using OPS.Plumbing;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -42,6 +45,52 @@ namespace OPS.Alignment
             };
             collect(Root, 0);
             return sb.ToString();
+        }
+
+        class JsonNode
+        {
+            public string Name;
+            public string Guid;
+            public Vector3 Translation;
+            public Quaternion Rotation;
+
+            public List<JsonNode> Children;
+            public JsonRay Ray;
+        }
+        class JsonRay
+        {
+            public Vector3 Center;
+            public Vector3 Direction;
+        }
+        public void Save(string path)
+        {
+            Func<SceneNode, JsonNode> serialize = null;
+            serialize = (node) =>
+            {
+                var res = new JsonNode();
+                res.Name = node.Name;
+                res.Guid = node.Guid.ToString();
+                res.Translation = node.Transform.Translation;
+                res.Rotation = node.Transform.Rotation;
+
+                res.Children = new List<JsonNode>();
+                if (node.HasComponent<CameraRay>())
+                {
+                    var rayC = node.GetComponent<CameraRay>();
+                    res.Ray = new JsonRay();
+                    res.Ray.Center = rayC.Center;
+                    res.Ray.Direction = rayC.Direction;
+                }
+
+                foreach (var child in node.Children)
+                {
+                    res.Children.Add(serialize(child));
+                }
+
+                return res;
+            };
+            JsonNode jsonStructure = serialize(Root);
+            File.WriteAllText(path, JsonConvert.SerializeObject(jsonStructure));
         }
     }
 }

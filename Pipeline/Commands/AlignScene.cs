@@ -98,6 +98,10 @@ namespace OPS.Pipeline
                     double posCov = fiveMM * fiveMM;
                     uncertainty.Covariance = CreateMatrix.Diagonal(new double[] { posCov, posCov, posCov, fifthDegSqr, fifthDegSqr, fifthDegSqr });
                 }
+                var rayC = imgNode.AddComponent<CameraRay>();
+                var ray = md.CameraModel.ProjectRay(new Vector2(md.Width / 2, md.Height / 2));
+                rayC.Center = ray.Position;
+                rayC.Direction = ray.Direction;
                 imgNode.AddComponent<NodeImageReference>().Reference = imgRef;
                 scene.ImageToNode[imgRef] = imgNode;
             }
@@ -263,6 +267,7 @@ namespace OPS.Pipeline
                 }
             });
 
+            scene.Save(options.OutputPath + ".pre.json");
             logger.Info("Bundle adjusting...");
             foreach (var kvp in siteDriveToNode)
             {
@@ -272,6 +277,7 @@ namespace OPS.Pipeline
             ba.Adjust(scene);
             logger.Info("Done.");
 
+            scene.Save(options.OutputPath);
             return 0;
         }
     }
