@@ -24,6 +24,11 @@ namespace OPS.Alignment
                 Two = data;
             }
         }
+        public UnorderedImagePair()
+        {
+            One = null;
+            Two = null;
+        }
 
         public override int GetHashCode()
         {

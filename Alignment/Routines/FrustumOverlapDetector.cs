@@ -17,25 +17,13 @@ namespace OPS.Alignment
             : base(pipeline)
         {
         }
-        
-        public void Detect(AlignmentScene scene)
+
+        public void MakeHulls(AlignmentScene scene)
         {
-            // Initialize - make sure ImageToNode is up to date and all nodes have hulls
             Dictionary<SceneNode, ConvexHull> worldHull = new Dictionary<SceneNode, ConvexHull>();
-            Dictionary<SceneNode, HashSet<SceneNode>> ancestors = new Dictionary<SceneNode, HashSet<SceneNode>>();
             Action<SceneNode> collect = null;
             collect = (node) =>
             {
-                ancestors[node] = new HashSet<SceneNode>();
-                if (node.Parent != null)
-                {
-                    ancestors[node].Add(node.Parent);
-                    foreach (var a in ancestors[node.Parent])
-                    {
-                        ancestors[node].Add(a);
-                    }
-                }
-
                 // Node has an image
                 if (node.HasComponent<NodeImageReference>())
                 {
@@ -81,7 +69,35 @@ namespace OPS.Alignment
                 }
             };
             collect(scene.Root);
+        }
+        
+        public void Detect(AlignmentScene scene)
+        {
+            // Initialize - make sure ImageToNode is up to date and all nodes have hulls
+            MakeHulls(scene);
 
+            // get ancestry information
+            Dictionary<SceneNode, HashSet<SceneNode>> ancestors = new Dictionary<SceneNode, HashSet<SceneNode>>();
+            Action<SceneNode> collect = null;
+            collect = (node) =>
+            {
+                ancestors[node] = new HashSet<SceneNode>();
+                if (node.Parent != null)
+                {
+                    ancestors[node].Add(node.Parent);
+                    foreach (var a in ancestors[node.Parent])
+                    {
+                        ancestors[node].Add(a);
+                    }
+                }
+
+                foreach (var child in node.Children)
+                {
+                    collect(child);
+                }
+
+            };
+            collect(scene.Root);
 
             Func<SceneNode, SceneNode, bool> overlaps = (node, other) =>
             {
@@ -114,7 +130,7 @@ namespace OPS.Alignment
                 {
                     var other = toConsider.Dequeue();
 
-                    if (false && other == node.Parent)
+                    if (true && other == node.Parent)
                     {
                         // HACK - don't align within SD
                         continue;

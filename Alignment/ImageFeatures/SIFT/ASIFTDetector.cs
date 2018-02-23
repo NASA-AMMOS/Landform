@@ -165,6 +165,8 @@ namespace OPS.Alignment
                 }
             }
 
+            // TODO: run full res on good ones
+
             // formula for generating tilt/phi values from ASIFT paper
             int tiltIdx, phiIdx;
             for (tiltIdx = 1; tiltIdx < 6; tiltIdx++)

@@ -22,4 +22,8 @@ namespace OPS.Alignment
         public Vector3 Center;
         public Vector3 Direction;
     }
+    public class PointCloudReference : NodeComponent
+    {
+        public string Path;
+    }
 }

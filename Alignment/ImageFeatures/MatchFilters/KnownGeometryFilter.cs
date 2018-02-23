@@ -100,15 +100,6 @@ namespace OPS.Alignment
             Dictionary<int, bool> modelRayIntersects = new Dictionary<int, bool>();
             List<KeyValuePair<int, int>> goodMatches = new List<KeyValuePair<int, int>>();
 
-            /*var result = new Emgu.CV.Image<Emgu.CV.Structure.Bgr, byte>(
-                modelImg.Width + dataImg.Width,
-                Math.Max(modelImg.Height, dataImg.Height));
-            result.ROI = new System.Drawing.Rectangle(0, 0, modelImg.Width, modelImg.Height);
-            modelImg.ToEmgu<Emgu.CV.Structure.Bgr>().CopyTo(result);
-            result.ROI = new System.Drawing.Rectangle(modelImg.Width, 0, dataImg.Width, dataImg.Height);
-            dataImg.ToEmgu<Emgu.CV.Structure.Bgr>().CopyTo(result);
-            result.ROI = new System.Drawing.Rectangle(0, 0, modelImg.Width + dataImg.Width, Math.Max(modelImg.Height, dataImg.Height));*/
-
             int rejectedHull = 0;
             int rejectedSigma = 0;
             int rejectedInvalid = 0;

@@ -56,6 +56,7 @@ namespace OPS.Alignment
 
             public List<JsonNode> Children;
             public JsonRay Ray;
+            public string PointCloud;
         }
         class JsonRay
         {
@@ -81,7 +82,10 @@ namespace OPS.Alignment
                     res.Ray.Center = rayC.Center;
                     res.Ray.Direction = rayC.Direction;
                 }
-
+                if (node.HasComponent<PointCloudReference>())
+                {
+                    res.PointCloud = node.GetComponent<PointCloudReference>().Path;
+                }
                 foreach (var child in node.Children)
                 {
                     res.Children.Add(serialize(child));

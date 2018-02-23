@@ -65,5 +65,6 @@ namespace OPS.Alignment
             this.DataImage = data;
             this.DataToModel = dataToModel.ToArray();
         }
+        public ImagePairCorrespondence() { }
     }
 }
