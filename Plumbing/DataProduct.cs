@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Newtonsoft.Json;
+using System;
 using System.Linq;
 using System.Security.Cryptography;
 
@@ -25,6 +26,7 @@ namespace OPS.Plumbing
             guid = new Guid(sha.ComputeHash(Serialize()).Take(16).ToArray());
         }
 
+        [JsonIgnore]
         public Guid guid { get; private set; } = Guid.Empty;
     }
 }

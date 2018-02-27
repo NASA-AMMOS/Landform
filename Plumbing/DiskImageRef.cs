@@ -13,9 +13,11 @@ namespace OPS.Plumbing
     public class DiskImageRef : ImageRef
     {
         public readonly string Path;
+        internal readonly int PathHashCode;
         public DiskImageRef(string path)
         {
             Path = path;
+            PathHashCode = Path.GetHashCode();
         }
 
         internal Image image;
@@ -59,7 +61,7 @@ namespace OPS.Plumbing
 
         public override int GetHashCode()
         {
-            return Path.GetHashCode();
+            return PathHashCode;
         }
     }
 }

@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -9,7 +10,7 @@ namespace OPS.Util
     public class Memoizer<InT, OutT>
     {
         public readonly Func<InT, OutT> Function;
-        public Dictionary<InT, OutT> Computed;
+        public ConcurrentDictionary<InT, OutT> Computed;
 
         public OutT this[InT arg]
         {
@@ -26,7 +27,7 @@ namespace OPS.Util
         public Memoizer(Func<InT, OutT> function)
         {
             Function = function;
-            Computed = new Dictionary<InT, OutT>();
+            Computed = new ConcurrentDictionary<InT, OutT>();
         }
 
         public bool ContainsKey(InT key)

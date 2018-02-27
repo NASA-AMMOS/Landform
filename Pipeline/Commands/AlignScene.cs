@@ -16,6 +16,7 @@ using MathNet.Numerics.LinearAlgebra;
 using OPS.Plumbing;
 using System.Collections.Concurrent;
 using Newtonsoft.Json;
+using Emgu.CV.Util;
 
 namespace OPS.Pipeline
 {
@@ -111,6 +112,8 @@ namespace OPS.Pipeline
                 }
                 string path = Path.Combine(options.InputPath, fn);
 
+                if (Path.GetFileNameWithoutExtension(fn).StartsWith("ML_")) return;
+
                 var imgRef = new DiskImageRef(path);
 
                 logger.InfoFormat("{0}: {1}", imgRef.DisplayName, path);
@@ -121,7 +124,17 @@ namespace OPS.Pipeline
                 {
                     return;
                 }
-                PDSParser parsed = new PDSParser(md);
+                PDSParser parsed;
+                try
+                {
+                    parsed = new PDSParser(md);
+                    var junk = parsed.Articulation;
+                }
+                catch (Exception ex)
+                {
+                    logger.Error("Failed to parse metadata", ex);
+                    return;
+                }
                 if (parsed.ProductId.ProductType != RoverProductType.Image)
                 {
                     return;
@@ -133,7 +146,7 @@ namespace OPS.Pipeline
 
 
                 Image mask;
-                var maskPath = Path.Combine(Path.GetDirectoryName(fn), Path.GetFileNameWithoutExtension(fn) + ".mask.png");
+                var maskPath = Path.Combine(options.OutputPath, Path.GetFileNameWithoutExtension(fn) + ".mask.png");
                 if (File.Exists(maskPath))
                 {
                     mask = Image.Load(maskPath);
@@ -248,18 +261,15 @@ namespace OPS.Pipeline
             scene.Context.DetectedFeatures = new Dictionary<ImageRef, ImageFeature[]>();
             Parallel.ForEach(images, imgRef =>
             {
-                if (imgRef is DiskImageRef)
+                var featurePath = Path.Combine(options.OutputPath, Path.GetFileName(((DiskImageRef)imgRef).Path) + ".feat");
+                if (File.Exists(featurePath))
                 {
-                    var path = ((DiskImageRef)imgRef).Path + ".feat";
-                    if (File.Exists(path))
+                    DetectedFeatures defeats = DataProduct.Load<DetectedFeatures>(File.ReadAllBytes(featurePath));
+                    lock (scene.Context.DetectedFeatures)
                     {
-                        DetectedFeatures feat = DataProduct.Load<DetectedFeatures>(File.ReadAllBytes(path));
-                        lock (scene.Context.DetectedFeatures)
-                        {
-                            scene.Context.DetectedFeatures[imgRef] = feat.Features;
-                        }
-                        return;
+                        scene.Context.DetectedFeatures[imgRef] = defeats.Features;
                     }
+                    return;
                 }
 
                 ImageFeature[] features;
@@ -269,8 +279,18 @@ namespace OPS.Pipeline
                 {
                     lock (detector)
                     {
-                        features = detector.Detect(img, mask).OrderByDescending(feat => ((SIFTFeature)feat).Response).Take(10000).ToArray();
+                        try
+                        {
+
+                            features = detector.Detect(img, mask).ToArray();
+                        }
+                        catch (CvException ex)
+                        {
+                            logger.Error("failed to detect for " + imgRef.DisplayName, ex);
+                            return;
+                        }
                     }
+                    features = features.OrderByDescending(feat => ((SIFTFeature)feat).Response).Take(10000).ToArray();
                 }
                 else
                 {
@@ -283,16 +303,14 @@ namespace OPS.Pipeline
                     proj.Project(imgRef.Load(pipeline), feats, 1);
                     features = feats.ToArray();
                 }
-                
-                if (imgRef is DiskImageRef)
+
                 {
-                    var path = ((DiskImageRef)imgRef).Path + ".feat";
                     DetectedFeatures feat = new DetectedFeatures
                     {
                         Features = features,
                         ObservationName = imgRef.DisplayName
                     };
-                    File.WriteAllBytes(path, feat.Serialize());
+                    File.WriteAllBytes(featurePath, feat.Serialize());
                 }
                 lock (scene.Context.DetectedFeatures)
                 {
@@ -302,7 +320,7 @@ namespace OPS.Pipeline
             logger.Info("Done.");
 
             logger.Info("Detecting overlaps...");
-            string overlapPath = Path.Combine(options.InputPath, "overlaps.json");
+            string overlapPath = Path.Combine(options.OutputPath, "overlaps.json");
             FrustumOverlapDetector od = new FrustumOverlapDetector(pipeline);
             if (File.Exists(overlapPath))
             {
@@ -334,18 +352,18 @@ namespace OPS.Pipeline
                 if (scene.Context.Correspondences.ContainsKey(pair)) return;
 
                 var matchName = Path.GetFileNameWithoutExtension(((DiskImageRef)pair.One).Path) + "_x_" + Path.GetFileNameWithoutExtension(((DiskImageRef)pair.Two).Path);
-                var matchPath = Path.Combine(options.InputPath, "matches", "json", matchName + ".json");
-                var matchImagePath = Path.Combine(options.InputPath, "Matches", pairName(pair.One, pair.Two) + ".png");
+                var matchPath = Path.Combine(options.OutputPath, "matches", "json", matchName + ".json");
+                var matchImagePath = Path.Combine(options.OutputPath, "matches", pairName(pair.One, pair.Two) + ".png");
                 if (File.Exists(matchPath))
                 {
                     string jsonText = File.ReadAllText(matchPath);
-                    ImagePairCorrespondence match = null;
-                    if (jsonText != "null")
+                    if (jsonText == "null")
                     {
-                        match = FromJson<ImagePairCorrespondence>(jsonText);
+                        return;
                     }
-                    if (match != null && File.Exists(matchImagePath))
+                    else if (File.Exists(matchImagePath))
                     {
+                        ImagePairCorrespondence match = FromJson<ImagePairCorrespondence>(jsonText);
                         scene.Context.Correspondences[pair] = match;
                         return;
                     }
@@ -436,11 +454,15 @@ namespace OPS.Pipeline
             {
                 kvp.Value.AddComponent<AdjustedNode>();
             }
+            foreach (var kvp in scene.ImageToNode)
+            {
+                kvp.Value.AddComponent<AdjustedNode>();
+            }
             BundleAdjuster ba = new BundleAdjuster(pipeline);
             ba.Adjust(scene);
             logger.Info("Done.");
 
-            scene.Save(options.OutputPath);
+            scene.Save(Path.Combine(options.OutputPath, "scene.json"));
             return 0;
         }
     }

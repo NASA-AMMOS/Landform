@@ -130,11 +130,12 @@ namespace OPS.Alignment
                 {
                     var other = toConsider.Dequeue();
 
-                    if (true && other == node.Parent)
+                    if (false && other == node.Parent)
                     {
                         // HACK - don't align within SD
                         continue;
                     }
+
                     if (nodeOverlaps.ContainsKey(node) && nodeOverlaps[node].Contains(other))
                     {
                         // already been done

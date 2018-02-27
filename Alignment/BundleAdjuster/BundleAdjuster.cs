@@ -21,7 +21,7 @@ namespace OPS.Alignment
         }
 
 
-        struct FeatureIndex
+        class FeatureIndex
         {
             public ImageRef Image;
             public int Index;
@@ -56,6 +56,7 @@ namespace OPS.Alignment
         {
             public HashSet<FeatureIndex> projections;
             public int pointIdx;
+            public double error;
 
             public Track()
             {
@@ -114,112 +115,146 @@ namespace OPS.Alignment
             // collect tracks
             Dictionary<FeatureIndex, Guid> featureToTrack = new Dictionary<FeatureIndex, Guid>();
             Dictionary<Guid, Track> tracks = new Dictionary<Guid, Track>();
+
+            Func<Track, IEnumerable<FeatureIndex>, bool, double> computeMinErr = (track, extraProjs, set) =>
+            {
+                List<Ray> rays = new List<Ray>(track.projections.Count);
+
+                Matrix M = Matrix.Identity * 0;
+                M[3, 3] = 1;
+                Vector4 b = new Vector4(0, 0, 0, 1);
+
+                IEnumerable<FeatureIndex> allProjections =
+                (extraProjs != null) ? track.projections.Concat(extraProjs) : track.projections;
+
+                foreach (var projection in allProjections)
+                {
+                    var feat = scene.Context.DetectedFeatures[projection.Image][projection.Index];
+
+                    var cameraSpace = GetImage(projection.Image).CameraModel.ProjectRay(feat.Location);
+                    var cameraToWorld = scene.ImageToNode[projection.Image].Transform.LocalToWorld * worldToRoot;
+                    var r = new Ray(Vector3.Transform(cameraSpace.Position, cameraToWorld), Vector3.TransformNormal(cameraSpace.Direction, cameraToWorld));
+
+                    Matrix nnt = Matrix.Identity * 0;
+                    for (int i = 0; i < 3; i++)
+                    {
+                        for (int j = 0; j < 3; j++)
+                        {
+                            nnt[i, j] = r.Direction[i] * r.Direction[j];
+                            if (i == j) nnt[i, j] -= 1;
+                        }
+                    }
+
+                    M += nnt;
+                    b += Vector4.Transform(new Vector4(r.Position, 0), nnt);
+                }
+
+
+                Matrix inv = Matrix.Invert(M);
+                Vector4 x = Vector4.Transform(b, inv);
+                if (!double.IsNaN(x.X))
+                {
+                    Vector3 pose = new Vector3(x.X, x.Y, x.Z);
+                    double error = 0;
+                    foreach (var proj in track.projections)
+                    {
+                        var feat = scene.Context.DetectedFeatures[proj.Image][proj.Index];
+                        var cmod = problem.CameraModels[imageToCamera[proj.Image]];
+
+                        var worldToCamera = Matrix.Invert(scene.ImageToNode[proj.Image].Transform.LocalToWorld * worldToRoot);
+                        var cameraPt = Vector3.Transform(pose, worldToCamera);
+                        var projected = cmod.Model.Backproject(cameraPt, out double range);
+                        error += (projected - feat.Location).LengthSquared();
+                    }
+
+                    if (set)
+                    {
+                        problem.Points[track.pointIdx] = new Point(x.X, x.Y, x.Z, 1);
+                        track.error = error;
+                    }
+                    return error;
+                }
+                else
+                {
+                    if (set)
+                    {
+                        track.error = double.PositiveInfinity;
+                    }
+                    return double.PositiveInfinity;
+                }
+            };
             Action<Guid, Guid> mergeTracks = (one, two) =>
             {
                 if (one == two) return;
-                List<FeatureIndex> keys = featureToTrack.Keys.ToList();
-                foreach (var feat in keys)
+                foreach (var proj in tracks[two].projections)
                 {
-                    if (featureToTrack[feat] == two)
-                    {
-                        featureToTrack[feat] = one;
-                    }
+                    featureToTrack[proj] = one;
+                    tracks[one].projections.Add(proj);
                 }
                 tracks.Remove(two);
             };
+
             foreach (var corr in scene.Context.Correspondences)
             {
                 var model = corr.Value.ModelImage;
                 var data = corr.Value.DataImage;
+                var modelModel = problem.CameraModels[imageToCamera[model]];
+                var dataModel = problem.CameraModels[imageToCamera[data]];
+                var modelToWorld = scene.ImageToNode[model].Transform.LocalToWorld * worldToRoot;
+                var dataToWorld = scene.ImageToNode[data].Transform.LocalToWorld * worldToRoot;
 
                 foreach (var pair in corr.Value.DataToModel)
                 {
                     FeatureIndex dataFeat = new FeatureIndex(data, pair.Key);
                     FeatureIndex modelFeat = new FeatureIndex(model, pair.Value);
 
+                    // Make sure both features have a (potentially single-projection) track
                     if (!featureToTrack.ContainsKey(dataFeat))
                     {
-                        if (!featureToTrack.ContainsKey(modelFeat))
-                        {
-                            var trackId = Guid.NewGuid();
-                            featureToTrack[dataFeat] = trackId;
-                            featureToTrack[modelFeat] = trackId;
-                            tracks[trackId] = new Track();
-                        }
-                        else
-                        {
-                            featureToTrack[dataFeat] = featureToTrack[modelFeat];
-                        }
+                        var trackId = Guid.NewGuid();
+                        featureToTrack[dataFeat] = trackId;
+
+                        var track = tracks[trackId] = new Track();
+                        var feat = scene.Context.DetectedFeatures[data][dataFeat.Index];
+                        track.pointIdx = problem.AddPoint(dataModel.Model.ProjectPoint(feat.Location, 100));
+                        track.error = 0;
+                        track.projections.Add(dataFeat);
+                    }
+                    if (!featureToTrack.ContainsKey(modelFeat))
+                    {
+                        var trackId = Guid.NewGuid();
+                        featureToTrack[modelFeat] = trackId;
+
+                        var track = tracks[trackId] = new Track();
+                        var feat = scene.Context.DetectedFeatures[model][modelFeat.Index];
+                        track.pointIdx = problem.AddPoint(modelModel.Model.ProjectPoint(feat.Location, 100));
+                        track.error = 0;
+                        track.projections.Add(modelFeat);
+                    }
+
+                    // Try merging the tracks
+                    double oldErr = tracks[featureToTrack[modelFeat]].error + tracks[featureToTrack[dataFeat]].error;
+                    Point oldPoint = problem.Points[tracks[featureToTrack[modelFeat]].pointIdx];
+                    if (oldErr < 20) oldErr = 20;
+                    double newErr = computeMinErr(tracks[featureToTrack[modelFeat]], tracks[featureToTrack[dataFeat]].projections, true);
+
+                    if (newErr < oldErr * 1.5)
+                    {
+                        mergeTracks(featureToTrack[modelFeat], featureToTrack[dataFeat]);
                     }
                     else
                     {
-                        if (!featureToTrack.ContainsKey(modelFeat))
-                        {
-                            featureToTrack[modelFeat] = featureToTrack[dataFeat];
-                        }
-                        else
-                        {
-                            mergeTracks(featureToTrack[modelFeat], featureToTrack[dataFeat]);
-                        }
+                        problem.Points[tracks[featureToTrack[modelFeat]].pointIdx] = oldPoint;
                     }
                 }
             }
 
             // assign projections to tracks
-            foreach (var pair in featureToTrack)
-            {
-                var track = tracks[pair.Value];
-                track.projections.Add(pair.Key);
-            }
             foreach (var track in tracks.Values)
             {
-                Vector3 initialPose;
+                if (track.projections.Count < 2) continue;
 
-                // triangulate initial guess
-                {
-                    List<Ray> rays = new List<Ray>(track.projections.Count);
-
-                    Matrix M = Matrix.Identity * 0;
-                    M[3, 3] = 1;
-                    Vector4 b = new Vector4(0, 0, 0, 1);
-
-                    foreach (var projection in track.projections)
-                    {
-                        var feat = scene.Context.DetectedFeatures[projection.Image][projection.Index];
-
-                        var cameraSpace = GetImage(projection.Image).CameraModel.ProjectRay(feat.Location);
-                        var cameraToWorld = scene.ImageToNode[projection.Image].Transform.LocalToWorld * worldToRoot;
-                        var r = new Ray(Vector3.Transform(cameraSpace.Position, cameraToWorld), Vector3.TransformNormal(cameraSpace.Direction, cameraToWorld));
-
-                        Matrix nnt = Matrix.Identity * 0;
-                        for (int i = 0; i < 3; i++)
-                        {
-                            for (int j = 0; j < 3; j++)
-                            {
-                                nnt[i, j] = r.Direction[i] * r.Direction[j];
-                                if (i == j) nnt[i, j] -= 1;
-                            }
-                        }
-
-                        M += nnt;
-                        b += Vector4.Transform(new Vector4(r.Position, 0), nnt);
-                    }
-
-
-                    Matrix inv = Matrix.Invert(M);
-                    Vector4 x = Vector4.Transform(b, inv);
-                    if (!double.IsNaN(x.X))
-                    {
-                        initialPose = new Vector3(x.X, x.Y, x.Z);
-                    }
-                    else
-                    {
-                        initialPose = Vector3.Zero;
-                    }
-                }
-
-                track.pointIdx = problem.AddPoint(initialPose);
-
+                computeMinErr(track, null, true);
                 // add projections to problem
                 foreach (var projection in track.projections)
                 {
