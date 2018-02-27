@@ -97,8 +97,8 @@ namespace OPS.Alignment
                 var modelFeature = matches.ModelFeatures[pair.Value];
                 var dataFeature = matches.DataFeatures[pair.Key];
 
-                var modelRay = modelCam.Backproject2DToRay(modelFeature.Location);
-                var dataRay = dataCam.Backproject2DToRay(dataFeature.Location);
+                var modelRay = modelCam.Unproject(modelFeature.Location);
+                var dataRay = dataCam.Unproject(dataFeature.Location);
 
                 // if we have a convex hull, check if model ray intersects it at all
                 if (dataHullInModel != null)
@@ -135,7 +135,7 @@ namespace OPS.Alignment
                         res.intersection = true;
                     }
                     Vector3 dataPt = mdrm.Position + mdrm.Direction * dataT;
-                    projected = modelCam.Project3DTo2D(dataPt, out range);
+                    projected = modelCam.Project(dataPt, out range);
                     res.error = projected - modelFeature.Location;
                     res.modelT = modelT;
                     res.dataT = dataT;

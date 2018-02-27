@@ -46,7 +46,7 @@ namespace OPS.Imaging
         /// <param name="pixelPos"></param>
         /// <param name="range"></param>
         /// <returns></returns>
-        public override void Backproject2DToRay(ref Vector2 pixelPos, out Ray ray)
+        public override void Unproject(ref Vector2 pixelPos, out Ray ray)
         {
             Vector3 pos3;
             Vector3 uvec3;
@@ -150,7 +150,7 @@ namespace OPS.Imaging
         /// </summary>
         /// <param name="pos"></param>
         /// <returns></returns>
-        public override Vector2 Project3DTo2D(Vector3 pos, out double range)
+        public override Vector2 Project(Vector3 pos, out double range)
         {
             Vector2 pos2 = new Vector2();
             double alpha;

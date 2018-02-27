@@ -22,12 +22,12 @@ namespace OPS.Imaging
         {
         }             
 
-        public override Vector2 Project3DTo2D(Vector3 pos, out double range)
+        public override Vector2 Project(Vector3 pos, out double range)
         {
             throw new NotImplementedException();
         }
 
-        public override void Backproject2DToRay(ref Vector2 pixelPos, out Ray ray)
+        public override void Unproject(ref Vector2 pixelPos, out Ray ray)
         {
             throw new NotImplementedException();
         }

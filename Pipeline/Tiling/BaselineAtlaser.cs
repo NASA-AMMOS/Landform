@@ -51,7 +51,7 @@ namespace OPS.Pipeline
                 Vector3 cameraFramePoint = Vector3.Transform(meshFramePoint, meshToCameraModelFrame);
                 // Project point
                 double range;
-                Vector2 pixel = this.image.CameraModel.Project3DTo2D(cameraFramePoint, out range);
+                Vector2 pixel = this.image.CameraModel.Project(cameraFramePoint, out range);
                 // Remove this vertex if it is outside the field of view of the camera
                 if (pixel.X < 0 || pixel.X > (this.image.Width - 1) || pixel.Y < 0 || pixel.Y > (this.image.Height - 1))
                 {

@@ -53,7 +53,7 @@ namespace OPS.Imaging
             this.extent = extent;
         }
 
-        public override Vector2 Project3DTo2D(Vector3 pos, out double range)
+        public override Vector2 Project(Vector3 pos, out double range)
         {
             throw new NotImplementedException();
         }
@@ -63,7 +63,7 @@ namespace OPS.Imaging
             throw new NotImplementedException();
         }
 
-        public override void Backproject2DToRay(ref Vector2 pixelPos, out Ray ray)
+        public override void Unproject(ref Vector2 pixelPos, out Ray ray)
         {
             Vector2 metersPerPixel = new Vector2(extent.X / resolution.X, extent.Y / resolution.Y);
             Vector3 origin = invertTransform.Translation;

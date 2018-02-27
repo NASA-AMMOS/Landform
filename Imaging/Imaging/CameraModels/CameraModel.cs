@@ -21,7 +21,7 @@ namespace OPS.Imaging
         /// <param name="pixelPos"></param>
         /// <param name="ray"></param>
         /// <returns></returns>
-        public abstract void Backproject2DToRay(ref Vector2 pixelPos, out Ray ray);
+        public abstract void Unproject(ref Vector2 pixelPos, out Ray ray);
 
         /// <summary>
         /// Convience method returns a ray coming out of a camera at a particular
@@ -29,30 +29,30 @@ namespace OPS.Imaging
         /// </summary>
         /// <param name="pixelPos"></param>
         /// <returns></returns>
-        public Ray Backproject2DToRay(Vector2 pixelPos)
+        public Ray Unproject(Vector2 pixelPos)
         {
             Ray r = new Ray();
-            Backproject2DToRay(ref pixelPos, out r);
+            Unproject(ref pixelPos, out r);
             return r;
         }
 
         /// <summary>
-        /// Return a 3D position projected from the given pixel
+        /// Return a 3D position unprojected from the given pixel
         /// </summary>
         /// <param name="pixelPos"></param>
         /// <returns></returns>
-        public virtual Vector3 Backproject2DTo3D(Vector2 pixelPos, double range)
+        public virtual Vector3 Unproject(Vector2 pixelPos, double range)
         {
-            Ray r = Backproject2DToRay(pixelPos);
+            Ray r = Unproject(pixelPos);
             return r.Position + r.Direction * range;
         }
 
         /// <summary>
-        /// Project a 3d position to a pixel location in an image
+        /// Project a 3D position to a pixel location in an image
         /// </summary>
         /// <param name="pos"></param>
         /// <returns></returns>
-        public abstract Vector2 Project3DTo2D(Vector3 pos, out double range);
+        public abstract Vector2 Project(Vector3 pos, out double range);
 
         /// <summary>
         /// If true, this camera model is purely linear.
