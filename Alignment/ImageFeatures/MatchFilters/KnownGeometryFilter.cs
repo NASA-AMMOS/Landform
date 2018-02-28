@@ -65,7 +65,7 @@ namespace OPS.Alignment
         {
             public bool intersection;
             public double modelT, dataT;
-            public Vector2 error;
+            public double epipolarError;
         }
 
         public ImagePairCorrespondence Filter(MatchingContext context, ImagePairCorrespondence matches)
@@ -146,45 +146,47 @@ namespace OPS.Alignment
                     {
                         res.intersection = true;
                     }
-                    Vector3 dataPt = mdrm.Position + mdrm.Direction * dataT;
-                    Vector3 modelPt = modelRay.Position + modelRay.Direction * modelT;
-
-                    Vector2 modelInData = dataCam.Backproject(Vector3.Transform(modelPt, Matrix.Invert(mat)), out range);
-                    Vector2 dataInModel = modelCam.Backproject(dataPt, out range);
-                    Vector2 midErr = modelInData - dataFeature.Location;
-                    Vector2 dimErr = dataInModel - modelFeature.Location;
-
-                    if (midErr.LengthSquared() < dimErr.LengthSquared())
-                    {
-                        res.error = midErr;
-                    }
-                    else
-                    {
-                        res.error = dimErr;
-                    }
                     res.modelT = modelT;
                     res.dataT = dataT;
+
+                    // Find epipolar line in model image corresponding to data point
+                    Vector3 dataPt = mdrm.Position + mdrm.Direction * dataT;
+                    Vector2 dataInModel = modelCam.Backproject(dataPt, out range);
+                    Vector2 pointTwo = modelCam.Backproject(dataPt + mdrm.Direction * 0.01, out range);
+
+                    Vector2 epiDir = Vector2.Normalize(pointTwo - dataInModel);
+                    Vector2 epiPerp = new Vector2(epiDir.Y, -epiDir.X);
+                    double epiZero = dataInModel.Dot(epiPerp);
+                    // e(t) = dataInModel + t*epiDir
+                    //      = epiPerp * epiZero + (t + k)*epiDir
+                    // -> e(t) . epiPerp = epiZero + 0
+
+                    res.epipolarError = modelFeature.Location.Dot(epiPerp) - epiZero;
                     return res;
                 };
 
                 if (dataToModel.Uncertain)
                 {
-                    // Compute probability distribution of reprojection error for closest point
+                    // Compute probability distribution of epipolar error
                     int badPoints = 0;
                     int totalPoints = 0;
                     var error = dataToModel.UnscentedTransform((mat) =>
                     {
-                        if (badPoints > 3) return CreateVector.Dense<double>(2);
+                        if (badPoints > 3)
+                        {
+                            return CreateVector.DenseOfArray(new[] { MajorAxisThreshold });
+                        }
+
                         totalPoints++;
                         ProjectionResult res;
                         try
                         {
                             res = Reproject(mat);
                         }
-                        catch (Exception e)
+                        catch (Exception)
                         {
                             badPoints++;
-                            return CreateVector.Dense<double>(2);
+                            return CreateVector.DenseOfArray(new[] { MajorAxisThreshold });
                         }
                         // Mark projection as bad if rays are parallel or the point is behind
                         // either camera
@@ -192,7 +194,7 @@ namespace OPS.Alignment
                         {
                             badPoints++;
                         }
-                        return res.error.ToMathNet();
+                        return CreateVector.DenseOfArray(new[] { res.epipolarError });
                     });
                     // If any points failed to meaningfully project, skip match
                     if (badPoints > 3)
@@ -201,15 +203,16 @@ namespace OPS.Alignment
                         continue;
                     }
                     // If zero error is >n sigma away from mean, skip match
-                    double mhDistSqr = error.MahalanobisDistanceSquared(Vector2.Zero.ToMathNet());
+                    double mhDistSqr = error.MahalanobisDistanceSquared(CreateVector.DenseOfArray(new[] { 0.0 }));
                     if (mhDistSqr > MahalanobisThreshold * MahalanobisThreshold)
                     {
                         rejectedSigma++;
                         continue;
                     }
 
-                    var eig = error.Covariance.Evd(Symmetricity.Symmetric);
-                    double majorAxis = Math.Sqrt(Math.Max(eig.EigenValues[0].Real, eig.EigenValues[1].Real));
+                    //var eig = error.Covariance.Evd(Symmetricity.Symmetric);
+                    //Math.Sqrt(Math.Max(eig.EigenValues[0].Real, eig.EigenValues[1].Real));
+                    double majorAxis = Math.Sqrt(error.Covariance[0, 0]);
                     if (majorAxis > MajorAxisThreshold)
                     {
                         rejectedError++;
@@ -222,7 +225,7 @@ namespace OPS.Alignment
                     try
                     {
                         var res = Reproject(dataToModel.Mean);
-                        if (res.modelT < -0.01 || res.dataT < -0.01 || res.error.LengthSquared() > FixedErrorThreshold * FixedErrorThreshold)
+                        if (res.modelT < -0.01 || res.dataT < -0.01 || Math.Abs(res.epipolarError) > FixedErrorThreshold)
                         {
                             rejectedError++;
                             continue;
