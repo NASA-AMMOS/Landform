@@ -16,17 +16,17 @@ namespace OPS.Plumbing
             res.Deserialize(data);
 
             SHA1 sha = SHA1.Create();
-            res.guid = new Guid(sha.ComputeHash(data).Take(16).ToArray());
+            res.Guid = new Guid(sha.ComputeHash(data).Take(16).ToArray());
             return res;
         }
 
         public void UpdateGuid()
         {
             SHA1 sha = SHA1.Create();
-            guid = new Guid(sha.ComputeHash(Serialize()).Take(16).ToArray());
+            Guid = new Guid(sha.ComputeHash(Serialize()).Take(16).ToArray());
         }
 
         [JsonIgnore]
-        public Guid guid { get; private set; } = Guid.Empty;
+        public Guid Guid { get; private set; } = Guid.Empty;
     }
 }

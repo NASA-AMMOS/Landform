@@ -57,18 +57,18 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Interfaces\IProductStorage.cs" />
     <Compile Include="ObservationImageRef.cs" />
     <Compile Include="DataProduct.cs" />
-    <Compile Include="DataProductManager.cs" />
-    <Compile Include="DiskImageRef.cs" />
+    <Compile Include="ImageRef\DiskImageRef.cs" />
     <Compile Include="ImageDataProduct.cs" />
-    <Compile Include="ImageRef.cs" />
+    <Compile Include="ImageRef\ImageRef.cs" />
     <Compile Include="JsonDataProduct.cs" />
     <Compile Include="PipelineCore.cs" />
     <Compile Include="PipelineRoutine.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="S3ImageRef.cs" />
-    <Compile Include="TransientImageRef.cs" />
+    <Compile Include="ImageRef\S3ImageRef.cs" />
+    <Compile Include="ImageRef\TransientImageRef.cs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Cloud\Cloud.csproj">

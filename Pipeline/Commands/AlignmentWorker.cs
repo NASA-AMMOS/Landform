@@ -211,8 +211,8 @@ namespace OPS.Pipeline
             //   Image record: S3 location, keypoints product GUID, metadata 
             //   Transforms record: this image's transform 
             //Use the observation we made or found while indexing metadata
-            indexed.Observation.FeaturesGuid = detected.guid;
-            indexed.Observation.MaskGuid = maskProd.guid;
+            indexed.Observation.FeaturesGuid = detected.Guid;
+            indexed.Observation.MaskGuid = maskProd.Guid;
             indexed.Observation.Save(Pipeline.DynamoDB);
 
             //Start an overlap job in the queue. 
@@ -319,11 +319,11 @@ namespace OPS.Pipeline
             ComputedCorrespondence corr = new ComputedCorrespondence
             {
                 Correspondence = matches,
-                ModelFeaturesGuid = modelFeat.guid,
-                DataFeaturesGuid = dataFeat.guid
+                ModelFeaturesGuid = modelFeat.Guid,
+                DataFeaturesGuid = dataFeat.Guid
             };
             Pipeline.Save(overlap.ProjectName, corr);
-            overlap.MatchGuid = corr.guid;
+            overlap.MatchGuid = corr.Guid;
             if (!overlap.TrySave(Pipeline.DynamoDB))
             {
                 return 0; //another worker tried to update this overlap. allow message to return to queue

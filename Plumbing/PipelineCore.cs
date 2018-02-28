@@ -131,7 +131,7 @@ namespace OPS.Plumbing
         /// <param name="useCache">Enable on-disk cache</param>
         public void Save(string project, DataProduct product, bool useCache = true)
         {
-            if (product.guid == Guid.Empty)
+            if (product.Guid == Guid.Empty)
             {
                 product.UpdateGuid();
             }
@@ -145,12 +145,12 @@ namespace OPS.Plumbing
                     Directory.CreateDirectory(dir);
                 }
                 File.WriteAllBytes(filePath, product.Serialize());
-                Storage.UploadFile(filePath, p.ProductPath + product.guid.ToString());
+                Storage.UploadFile(filePath, p.ProductPath + product.Guid.ToString());
             };
 
             if (useCache)
             {
-                writeAndUpload(CachePath(project, product.guid));
+                writeAndUpload(CachePath(project, product.Guid));
             }
             else
             {
