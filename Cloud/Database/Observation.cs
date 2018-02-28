@@ -122,5 +122,13 @@ namespace OPS.Cloud
         {
             return context.Load<Observation>(name, projectName);
         }
+
+        public static IEnumerable<Observation> Find(DynamoDBContext context, Frame frame)
+        {
+            return context.Scan<Observation>(
+                new ScanCondition("ProjectName", Amazon.DynamoDBv2.DocumentModel.ScanOperator.Equal, frame.ProjectName),
+                new ScanCondition("FrameName", Amazon.DynamoDBv2.DocumentModel.ScanOperator.Equal, frame.Name)
+                );
+        }
     }
 }

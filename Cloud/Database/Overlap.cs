@@ -132,7 +132,14 @@ namespace OPS.Cloud
             OverlapObs name = new OverlapObs(observationName1, observationName2);
             return context.Load<Overlap>(name.IdFromObs, projectName);
         }
-        
+
+        public static IEnumerable<Overlap> Find(DynamoDBContext context, Observation observation)
+        {
+            return context.Scan<Overlap>(
+                new ScanCondition("ProjectName", Amazon.DynamoDBv2.DocumentModel.ScanOperator.Equal, observation.ProjectName),
+                new ScanCondition("Id", Amazon.DynamoDBv2.DocumentModel.ScanOperator.Contains, observation.Name));
+        }
+
         /// <summary>
         /// Helper class to validate an Overlap and convert from the observation names of the 
         /// overlapping observations to the DynamoDB ID for the overlap

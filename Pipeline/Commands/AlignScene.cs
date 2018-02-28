@@ -379,7 +379,7 @@ namespace OPS.Pipeline
                 BruteForceMatcher bfm = new BruteForceMatcher();
 
                 var matches = bfm.Match(model, data, modelFeat, dataFeat);
-                if (matches == null || matches.DataToModel.Length < 8)
+                if (matches == null || matches.DataToModel.Length < 20)
                 {
                     lock (logger)
                     {
@@ -392,7 +392,7 @@ namespace OPS.Pipeline
                 {
                     var kgf = new KnownGeometryFilter(pipeline, new KnownGeometryFilter.ImageNodeDelegate(imgRef => scene.ImageToNode[imgRef]));
                     matches = kgf.Filter(scene.Context, matches);
-                    if (matches == null || matches.DataToModel.Length < 8)
+                    if (matches == null || matches.DataToModel.Length < 20)
                     {
                         lock (logger)
                         {
@@ -409,7 +409,7 @@ namespace OPS.Pipeline
                     {
                         var gtm = new GTM();
                         matches = gtm.Filter(scene.Context, matches);
-                        if (matches == null || matches.DataToModel.Length < 8)
+                        if (matches == null || matches.DataToModel.Length < 20)
                         {
                             lock (logger)
                             {
@@ -430,7 +430,7 @@ namespace OPS.Pipeline
                 {
                     var ms = new MoisanStivalFilter(pipeline);
                     matches = ms.Filter(scene.Context, matches);
-                    if (matches == null || matches.DataToModel.Length < 8)
+                    if (matches == null || matches.DataToModel.Length < 20)
                     {
                         lock (logger)
                         {
@@ -454,10 +454,10 @@ namespace OPS.Pipeline
             {
                 kvp.Value.AddComponent<AdjustedNode>();
             }
-            foreach (var kvp in scene.ImageToNode)
+            /*foreach (var kvp in scene.ImageToNode)
             {
                 kvp.Value.AddComponent<AdjustedNode>();
-            }
+            }*/
             BundleAdjuster ba = new BundleAdjuster(pipeline);
             ba.Adjust(scene);
             logger.Info("Done.");

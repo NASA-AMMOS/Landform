@@ -55,8 +55,9 @@ namespace OPS.Alignment
         class Track
         {
             public HashSet<FeatureIndex> projections;
-            public int pointIdx;
+            public Vector3 position;
             public double error;
+            public int pointIdx;
 
             public Track()
             {
@@ -169,7 +170,7 @@ namespace OPS.Alignment
 
                     if (set)
                     {
-                        problem.Points[track.pointIdx] = new Point(x.X, x.Y, x.Z, 1);
+                        track.position = pose;
                         track.error = error;
                     }
                     return error;
@@ -216,7 +217,7 @@ namespace OPS.Alignment
 
                         var track = tracks[trackId] = new Track();
                         var feat = scene.Context.DetectedFeatures[data][dataFeat.Index];
-                        track.pointIdx = problem.AddPoint(dataModel.Model.ProjectPoint(feat.Location, 100));
+                        track.position = Vector3.Transform(dataModel.Model.ProjectPoint(feat.Location, 100), dataToWorld);
                         track.error = 0;
                         track.projections.Add(dataFeat);
                     }
@@ -227,14 +228,14 @@ namespace OPS.Alignment
 
                         var track = tracks[trackId] = new Track();
                         var feat = scene.Context.DetectedFeatures[model][modelFeat.Index];
-                        track.pointIdx = problem.AddPoint(modelModel.Model.ProjectPoint(feat.Location, 100));
+                        track.position = Vector3.Transform(modelModel.Model.ProjectPoint(feat.Location, 100), modelToWorld);
                         track.error = 0;
                         track.projections.Add(modelFeat);
                     }
 
                     // Try merging the tracks
                     double oldErr = tracks[featureToTrack[modelFeat]].error + tracks[featureToTrack[dataFeat]].error;
-                    Point oldPoint = problem.Points[tracks[featureToTrack[modelFeat]].pointIdx];
+                    Vector3 oldPos = tracks[featureToTrack[modelFeat]].position;
                     if (oldErr < 20) oldErr = 20;
                     double newErr = computeMinErr(tracks[featureToTrack[modelFeat]], tracks[featureToTrack[dataFeat]].projections, true);
 
@@ -244,7 +245,7 @@ namespace OPS.Alignment
                     }
                     else
                     {
-                        problem.Points[tracks[featureToTrack[modelFeat]].pointIdx] = oldPoint;
+                        tracks[featureToTrack[modelFeat]].position = oldPos;
                     }
                 }
             }
@@ -254,14 +255,17 @@ namespace OPS.Alignment
             {
                 if (track.projections.Count < 2) continue;
 
+                if (track.pointIdx < 0)
+                {
+                    track.pointIdx = problem.AddPoint(track.position);
+                }
+
                 computeMinErr(track, null, true);
                 // add projections to problem
                 foreach (var projection in track.projections)
                 {
                     var img = projection.Image;
                     var feat = scene.Context.DetectedFeatures[img][projection.Index];
-
-                    Vector3 pointPos = problem.Points[track.pointIdx].Position;
                     problem.AddProjection(imageToCamera[img], imageTransformLists[img].ToArray(), track.pointIdx, feat.Location);
                 }
             }

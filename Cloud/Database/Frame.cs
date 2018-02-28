@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 
 using Amazon.DynamoDBv2.DataModel;
 using Amazon.DynamoDBv2.Model;
+using Amazon.DynamoDBv2.DocumentModel;
 
 namespace OPS.Cloud
 {
@@ -36,6 +37,19 @@ namespace OPS.Cloud
         public Frame()
         {
             PriorIds = new List<string>();
+        }
+
+        public IEnumerable<Frame> GetChildren(DynamoDBContext context)
+        {
+            return context.Scan<Frame>(
+                new ScanCondition("ProjectName", ScanOperator.Equal, ProjectName),
+                new ScanCondition("ParentName", ScanOperator.Equal, Name));
+        }
+
+        public Frame GetParent(DynamoDBContext context)
+        {
+            if (ParentName == null) return null;
+            return Find(context, ProjectName, ParentName);
         }
 
         /// <summary>

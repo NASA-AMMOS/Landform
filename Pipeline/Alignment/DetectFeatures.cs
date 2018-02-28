@@ -66,10 +66,12 @@ namespace OPS.Pipeline
             {
                 throw new NotImplementedException();
             }
-            
-            DetectedFeatures detected = new DetectedFeatures();
-            detected.Features = features;
-            detected.ObservationName = obs.Name;
+
+            DetectedFeatures detected = new DetectedFeatures
+            {
+                Features = features,
+                ObservationName = obs.Name
+            };
             return detected;
         }
     }
