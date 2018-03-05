@@ -54,14 +54,16 @@ namespace OPS.Alignment
         }
         class Track
         {
-            public HashSet<FeatureIndex> projections;
+            public HashSet<FeatureIndex> features;
+            public HashSet<int> projections;
             public Vector3 position;
             public double error;
             public int pointIdx;
 
             public Track()
             {
-                projections = new HashSet<FeatureIndex>();
+                features = new HashSet<FeatureIndex>();
+                projections = new HashSet<int>();
                 pointIdx = -1;
             }
         }
@@ -115,18 +117,19 @@ namespace OPS.Alignment
 
             // collect tracks
             Dictionary<FeatureIndex, Guid> featureToTrack = new Dictionary<FeatureIndex, Guid>();
+            Dictionary<FeatureIndex, int> featureIndexToProjection = new Dictionary<FeatureIndex, int>();
             Dictionary<Guid, Track> tracks = new Dictionary<Guid, Track>();
 
             Func<Track, IEnumerable<FeatureIndex>, bool, double> computeMinErr = (track, extraProjs, set) =>
             {
-                List<Ray> rays = new List<Ray>(track.projections.Count);
+                List<Ray> rays = new List<Ray>(track.features.Count);
 
                 Matrix M = Matrix.Identity * 0;
                 M[3, 3] = 1;
                 Vector4 b = new Vector4(0, 0, 0, 1);
 
                 IEnumerable<FeatureIndex> allProjections =
-                (extraProjs != null) ? track.projections.Concat(extraProjs) : track.projections;
+                (extraProjs != null) ? track.features.Concat(extraProjs) : track.features;
 
                 foreach (var projection in allProjections)
                 {
@@ -157,7 +160,7 @@ namespace OPS.Alignment
                 {
                     Vector3 pose = new Vector3(x.X, x.Y, x.Z);
                     double error = 0;
-                    foreach (var proj in track.projections)
+                    foreach (var proj in track.features)
                     {
                         var feat = scene.Context.DetectedFeatures[proj.Image][proj.Index];
                         var cmod = problem.CameraModels[imageToCamera[proj.Image]];
@@ -187,10 +190,10 @@ namespace OPS.Alignment
             Action<Guid, Guid> mergeTracks = (one, two) =>
             {
                 if (one == two) return;
-                foreach (var proj in tracks[two].projections)
+                foreach (var proj in tracks[two].features)
                 {
                     featureToTrack[proj] = one;
-                    tracks[one].projections.Add(proj);
+                    tracks[one].features.Add(proj);
                 }
                 tracks.Remove(two);
             };
@@ -219,7 +222,7 @@ namespace OPS.Alignment
                         var feat = scene.Context.DetectedFeatures[data][dataFeat.Index];
                         track.position = Vector3.Transform(dataModel.Model.ProjectPoint(feat.Location, 100), dataToWorld);
                         track.error = 0;
-                        track.projections.Add(dataFeat);
+                        track.features.Add(dataFeat);
                     }
                     if (!featureToTrack.ContainsKey(modelFeat))
                     {
@@ -230,14 +233,14 @@ namespace OPS.Alignment
                         var feat = scene.Context.DetectedFeatures[model][modelFeat.Index];
                         track.position = Vector3.Transform(modelModel.Model.ProjectPoint(feat.Location, 100), modelToWorld);
                         track.error = 0;
-                        track.projections.Add(modelFeat);
+                        track.features.Add(modelFeat);
                     }
 
                     // Try merging the tracks
                     double oldErr = tracks[featureToTrack[modelFeat]].error + tracks[featureToTrack[dataFeat]].error;
                     Vector3 oldPos = tracks[featureToTrack[modelFeat]].position;
                     if (oldErr < 20) oldErr = 20;
-                    double newErr = computeMinErr(tracks[featureToTrack[modelFeat]], tracks[featureToTrack[dataFeat]].projections, true);
+                    double newErr = computeMinErr(tracks[featureToTrack[modelFeat]], tracks[featureToTrack[dataFeat]].features, true);
 
                     if (newErr < oldErr * 1.5)
                     {
@@ -253,7 +256,7 @@ namespace OPS.Alignment
             // assign projections to tracks
             foreach (var track in tracks.Values)
             {
-                if (track.projections.Count < 2) continue;
+                if (track.features.Count < 2) continue;
 
                 if (track.pointIdx < 0)
                 {
@@ -262,60 +265,122 @@ namespace OPS.Alignment
 
                 computeMinErr(track, null, true);
                 // add projections to problem
-                foreach (var projection in track.projections)
+                foreach (var projection in track.features)
                 {
                     var img = projection.Image;
                     var feat = scene.Context.DetectedFeatures[img][projection.Index];
-                    problem.AddProjection(imageToCamera[img], imageTransformLists[img].ToArray(), track.pointIdx, feat.Location);
+                    track.projections.Add(problem.AddProjection(imageToCamera[img], imageTransformLists[img].ToArray(), track.pointIdx, feat.Location));
                 }
             }
 
             Console.WriteLine("here");
 
-            BundleAdjusterProblem result = null;
-            TemporaryFile.GetAndDelete(".bin", inputFile =>
-            {
-                using (FileStream fs = new FileStream(inputFile, FileMode.Create))
-                {
-                    using (BinaryWriter bw = new BinaryWriter(fs))
-                    {
-                        problem.Write(bw);
-                    }
-                }
-                TemporaryFile.GetAndDelete(".bin", (outputFile) =>
-                {
-                    ProgramRunner pr = new ProgramRunner("CeresBundler.exe", "\"" + inputFile + "\" \"" + outputFile + "\"", createNoWindow: false, useShellExecute: false);
-                    pr.Run();
+            HashSet<int> badPoints = new HashSet<int>();
 
-                    using (FileStream fs = new FileStream(outputFile, FileMode.Open))
+            for (int iter = 0; iter < 2; iter++)
+            {
+                BundleAdjusterProblem result = null;
+                TemporaryFile.GetAndDelete(".bin", inputFile =>
+                {
+                    using (FileStream fs = new FileStream(inputFile, FileMode.Create))
                     {
-                        using (BinaryReader br = new BinaryReader(fs))
+                        using (BinaryWriter bw = new BinaryWriter(fs))
                         {
-                            result = BundleAdjusterProblem.Read(br);
+                            problem.Write(bw);
                         }
                     }
+                    TemporaryFile.GetAndDelete(".bin", (outputFile) =>
+                    {
+                        ProgramRunner pr = new ProgramRunner("CeresBundler.exe", "\"" + inputFile + "\" \"" + outputFile + "\"", createNoWindow: false, useShellExecute: false);
+                        pr.Run();
+
+                        using (FileStream fs = new FileStream(outputFile, FileMode.Open))
+                        {
+                            using (BinaryReader br = new BinaryReader(fs))
+                            {
+                                result = BundleAdjusterProblem.Read(br);
+                            }
+                        }
+                    });
                 });
-            });
 
-            Console.WriteLine("Got result");
-            for (int i = 0; i < result.Transforms.Count; i++)
-            {
-                var transform = result.Transforms[i];
-                if (transform.Fixed) continue;
-
-                var node = transformToNode[i];
-                node.Transform.Matrix = transform.Matrix;
-            }
-
-            Mesh pc = new Mesh(capacity: result.Points.Count);
-            foreach (var pt in result.Points)
-            {
-                if (Math.Abs(pt.W) > 1e-8)
+                Console.WriteLine("Got result");
+                for (int i = 0; i < result.Transforms.Count; i++)
                 {
-                    pc.Vertices.Add(new Vertex(pt.X / pt.W, pt.Y / pt.W, pt.Z / pt.W));
+                    var transform = result.Transforms[i];
+                    if (transform.Fixed) continue;
+                    problem.Transforms[i] = transform;
+
+                    var node = transformToNode[i];
+                    node.Transform.Matrix = transform.Matrix;
+                }
+
+                Mesh pc = new Mesh(capacity: result.Points.Count);
+                for (int i = 0; i < result.Points.Count; i++)
+                {
+                    var pt = result.Points[i];
+                    problem.Points[i] = pt;
+                    if (!badPoints.Contains(i) && Math.Abs(pt.W) > 1e-8)
+                    {
+                        pc.Vertices.Add(new Vertex(pt.X / pt.W, pt.Y / pt.W, pt.Z / pt.W));
+                    }
+                }
+                pc.Save("d:\\bundle-"+iter.ToString()+".ply");
+
+                List<double> trackErrors = new List<double>(tracks.Count);
+                foreach (var track in tracks.Values)
+                {
+                    track.error = 0;
+                    foreach (var projIdx in track.projections)
+                    {
+                        track.error += problem.EvaluateError(problem.Projections[projIdx]);
+                    }
+                    trackErrors.Add(track.error);
+                }
+                double errAvg = trackErrors.Sum() / trackErrors.Count;
+                double errStd = Math.Sqrt(trackErrors.Sum(err => (err - errAvg) * (err - errAvg)) / trackErrors.Count);
+                List<Guid> badTracks = new List<Guid>();
+                SortedSet<int> badProjections = new SortedSet<int>();
+                foreach (var trackId in tracks.Keys)
+                {
+                    var track = tracks[trackId];
+                    if (track.error > errStd * 2)
+                    {
+                        badTracks.Add(trackId);
+                        badPoints.Add(track.pointIdx);
+                        foreach (var projIdx in track.projections)
+                        {
+                            badProjections.Add(projIdx);
+                        }
+                    }
+                }
+                Dictionary<int, int> projOldToNew = new Dictionary<int, int>();
+                int newNumProjections = 0;
+                for (int i = 0; i < problem.Projections.Count; i++)
+                {
+                    if (badProjections.Contains(i)) continue;
+                    projOldToNew[i] = newNumProjections;
+                    newNumProjections++;
+                }
+                foreach (var projIdx in badProjections.Reverse())
+                {
+                    problem.Projections.RemoveAt(projIdx);
+                }
+                foreach (var track in tracks.Values)
+                {
+                    HashSet<int> newProjs = new HashSet<int>();
+                    foreach (var projIdx in track.projections)
+                    {
+                        if (!projOldToNew.ContainsKey(projIdx))
+                        {
+                            continue;
+                        }
+                        newProjs.Add(projOldToNew[projIdx]);
+                    }
+                    track.projections = newProjs;
                 }
             }
-            pc.Save("d:\\bundle.ply");
+
         }
     }
 }

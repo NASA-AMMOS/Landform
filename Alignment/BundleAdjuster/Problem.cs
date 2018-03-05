@@ -37,6 +37,25 @@ namespace OPS.Alignment
             return res;
         }
 
+        public double EvaluateError(Projection p)
+        {
+            var cmod = CameraModels[(int)p.CameraModelIdx].Model;
+            var worldPt = Points[(int)p.PointIdx].Position;
+
+            var cameraPt = worldPt;
+            for (int i = 7; i >= 0; i--)
+            {
+                if (p.TransformIndices[i] == 0xFFFFFFFFU)
+                {
+                    continue;
+                }
+                cameraPt = Vector3.Transform(cameraPt, Matrix.Invert(Transforms[(int)p.TransformIndices[i]].Matrix));
+            }
+            
+            var projected = cmod.Backproject(cameraPt, out double range);
+            return (projected - new Vector2(p.X, p.Y)).LengthSquared();
+        }
+
         public int AddCameraModel(CAHV c)
         {
             int res = CameraModels.Count;

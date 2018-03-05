@@ -454,10 +454,10 @@ namespace OPS.Pipeline
             {
                 kvp.Value.AddComponent<AdjustedNode>();
             }
-            /*foreach (var kvp in scene.ImageToNode)
+            foreach (var kvp in scene.ImageToNode)
             {
                 kvp.Value.AddComponent<AdjustedNode>();
-            }*/
+            }
             BundleAdjuster ba = new BundleAdjuster(pipeline);
             ba.Adjust(scene);
             logger.Info("Done.");
