@@ -178,6 +178,7 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Alignment\BuildSceneGraph.cs" />
     <Compile Include="Alignment\DetectFeatures.cs" />
     <Compile Include="Alignment\DetectOverlaps.cs" />
     <Compile Include="Alignment\IngestImage.cs" />
