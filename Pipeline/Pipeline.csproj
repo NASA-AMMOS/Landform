@@ -190,8 +190,6 @@
     <Compile Include="Commands\Commands.cs" />
     <Compile Include="Commands\ConvertBaselineMesh.cs" />
     <Compile Include="Commands\LegacyToWebVR.cs" />
-    <Compile Include="Commands\MatchAllImages.cs" />
-    <Compile Include="Commands\MatchImages.cs" />
     <Compile Include="Commands\PDSImageConverter.cs" />
     <Compile Include="Commands\TileBaselineMesh.cs" />
     <Compile Include="DataProducts\ComputedCorrespondence.cs" />
