@@ -30,10 +30,10 @@ namespace OPS.Alignment
         /// </summary>
         /// <param name="matches">Identified matches in a pair of images.</param>
         /// <returns>Filtered matches.</returns>
-        public ImagePairCorrespondence Filter(MatchingContext context, ImagePairCorrespondence matches)
+        public ImagePairCorrespondence Filter(AlignmentScene scene, ImagePairCorrespondence matches)
         {
-            ImageFeature[] modelFeat = context.DetectedFeatures[matches.ModelImage];
-            ImageFeature[] dataFeat = context.DetectedFeatures[matches.DataImage];
+            ImageFeature[] modelFeat = scene.Context.DetectedFeatures[matches.ModelImage];
+            ImageFeature[] dataFeat = scene.Context.DetectedFeatures[matches.DataImage];
             KeyValuePair<int, int>[] pairs = matches.DataToModel;
 
             ImageFeature zero = new ImageFeature(new Vector2(0, 0), null);

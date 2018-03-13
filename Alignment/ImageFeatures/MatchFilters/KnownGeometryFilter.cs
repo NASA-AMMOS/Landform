@@ -68,12 +68,12 @@ namespace OPS.Alignment
             public double epipolarError;
         }
 
-        public ImagePairCorrespondence Filter(MatchingContext context, ImagePairCorrespondence matches)
+        public ImagePairCorrespondence Filter(AlignmentScene scene, ImagePairCorrespondence matches)
         {
             SceneNode modelNode = ImageToNode(matches.ModelImage);
             SceneNode dataNode = ImageToNode(matches.DataImage);
-            ImageFeature[] modelFeatures = context.DetectedFeatures[matches.ModelImage];
-            ImageFeature[] dataFeatures = context.DetectedFeatures[matches.DataImage];
+            ImageFeature[] modelFeatures = scene.Context.DetectedFeatures[matches.ModelImage];
+            ImageFeature[] dataFeatures = scene.Context.DetectedFeatures[matches.DataImage];
 
             if (modelNode == null || dataNode == null) return matches;
 

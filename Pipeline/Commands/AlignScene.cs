@@ -290,7 +290,7 @@ namespace OPS.Pipeline
                             return;
                         }
                     }
-                    features = features.OrderByDescending(feat => ((SIFTFeature)feat).Response).Take(10000).ToArray();
+                    features = features.ToArray(); //.OrderByDescending(feat => ((SIFTFeature)feat).Response).Take(10000)
                 }
                 else
                 {
@@ -388,10 +388,12 @@ namespace OPS.Pipeline
                     return;
                 }
 
+
                 // KGF
+                if (true)
                 {
                     var kgf = new KnownGeometryFilter(pipeline, new KnownGeometryFilter.ImageNodeDelegate(imgRef => scene.ImageToNode[imgRef]));
-                    matches = kgf.Filter(scene.Context, matches);
+                    matches = kgf.Filter(scene, matches);
                     if (matches == null || matches.DataToModel.Length < 20)
                     {
                         lock (logger)
@@ -408,7 +410,7 @@ namespace OPS.Pipeline
                     try
                     {
                         var gtm = new GTM();
-                        matches = gtm.Filter(scene.Context, matches);
+                        matches = gtm.Filter(scene, matches);
                         if (matches == null || matches.DataToModel.Length < 20)
                         {
                             lock (logger)
@@ -429,7 +431,7 @@ namespace OPS.Pipeline
                 if (true)
                 {
                     var ms = new MoisanStivalFilter(pipeline);
-                    matches = ms.Filter(scene.Context, matches);
+                    matches = ms.Filter(scene, matches);
                     if (matches == null || matches.DataToModel.Length < 20)
                     {
                         lock (logger)

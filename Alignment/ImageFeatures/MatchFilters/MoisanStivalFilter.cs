@@ -30,14 +30,14 @@ namespace OPS.Alignment
         }
 
         public EpipolarTransform LastEpipolarTransform;
-        public ImagePairCorrespondence Filter(MatchingContext context, ImagePairCorrespondence matches)
+        public ImagePairCorrespondence Filter(AlignmentScene scene, ImagePairCorrespondence matches)
         {
             if (matches.DataToModel.Length < MIN_MATCHES)
             {
                 return matches;
             }
-            ImageFeature[] modelFeatures = context.DetectedFeatures[matches.ModelImage];
-            ImageFeature[] dataFeatures = context.DetectedFeatures[matches.DataImage];
+            ImageFeature[] modelFeatures = scene.Context.DetectedFeatures[matches.ModelImage];
+            ImageFeature[] dataFeatures = scene.Context.DetectedFeatures[matches.DataImage];
 
             ImageFeature[] modelFeat, dataFeat;
             int[] dataToModel;

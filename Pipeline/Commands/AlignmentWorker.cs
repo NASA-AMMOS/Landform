@@ -299,8 +299,11 @@ namespace OPS.Pipeline
             ctx.DetectedFeatures[dataRef] = dataFeat.Features;
             ctx.Correspondences[new UnorderedImagePair(modelRef, dataRef)] = matches;
 
+            AlignmentScene scene = new AlignmentScene();
+            scene.Context = ctx;
+
             MoisanStivalFilter filter = new MoisanStivalFilter(Pipeline);
-            matches = filter.Filter(ctx, matches);
+            matches = filter.Filter(scene, matches);
             if (matches == null || matches.DataToModel.Length < 8) //Filters break with too few matches. Issue #91
             {
                 Console.WriteLine("No matches found after MoisanStivalFilter");
@@ -308,7 +311,7 @@ namespace OPS.Pipeline
                 return 0;
             }
             GTM gtm = new GTM(5);
-            matches = gtm.Filter(ctx, matches);
+            matches = gtm.Filter(scene, matches);
             if (matches == null)
             {
                 Console.WriteLine("No matches found after GTM Filter");
