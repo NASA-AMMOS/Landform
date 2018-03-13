@@ -155,7 +155,12 @@ namespace OPS.Pipeline
 
             return 0;
         }
-        
+
+        private void BundleAdjust(BundleAdjustMessage m)
+        {
+            throw new NotImplementedException();
+        }
+
         /// <summary>
         /// This task: 
         ///  - gets image metadata from observation header and uploads it to dynamo
