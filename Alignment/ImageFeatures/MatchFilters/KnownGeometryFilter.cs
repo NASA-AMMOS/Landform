@@ -138,7 +138,8 @@ namespace OPS.Alignment
                     int totalPoints = 0;
                     var error = dataToModel.UnscentedTransform(d2m =>
                     {
-                        if (badPoints > 3)
+                        // If we already know the match will be rejected bail out early
+                        if (badPoints >= totalPoints * BadProjectionRatio)
                         {
                             return CreateVector.DenseOfArray(new[] { MajorAxisThreshold });
                         }
@@ -161,8 +162,8 @@ namespace OPS.Alignment
                         }
                         return CreateVector.DenseOfArray(new[] { epi.SignedDistance(modelFeature.Location) });
                     });
-                    // If any points failed to meaningfully project, skip match
-                    if (badPoints > 3)
+                    // If too many points failed to meaningfully project, skip match
+                    if (badPoints >= totalPoints * BadProjectionRatio)
                     {
                         rejectedInvalid++;
                         continue;
