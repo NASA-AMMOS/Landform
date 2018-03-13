@@ -84,11 +84,13 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Components\AdjustedNode.cs" />
+    <Compile Include="Components\NodeImageReference.cs" />
     <Compile Include="ImageFeatures\Interfaces\IOverlapDetector.cs" />
     <Compile Include="ImageFeatures\Matching\BruteForceMatcher.cs" />
     <Compile Include="ImageFeatures\MatchFilters\GTM\GTM.cs" />
     <Compile Include="BundleAdjuster\BundleAdjuster.cs" />
-    <Compile Include="BundleAdjuster\BundleScene.cs" />
+    <Compile Include="Components\BundleSceneComponents.cs" />
     <Compile Include="BundleAdjuster\Problem.cs" />
     <Compile Include="BundleAdjuster\Structures.cs" />
     <Compile Include="ImageFeatures\Interfaces\IDescriptorCalculator.cs" />
