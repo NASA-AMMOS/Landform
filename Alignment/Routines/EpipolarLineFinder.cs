@@ -9,6 +9,9 @@ using System.Threading.Tasks;
 
 namespace OPS.Alignment
 {
+    /// <summary>
+    /// Class for finding epipolar lines in (potentially) non-linear images.
+    /// </summary>
     public class EpipolarLineFinder : PipelineRoutine
     {
         public EpipolarLineFinder(PipelineCore pipeline) : base(pipeline)
@@ -22,6 +25,11 @@ namespace OPS.Alignment
         public struct Result
         {
             public bool Success;
+
+            public bool HadIntersection;
+            public double ModelT;
+            public double DataT;
+
             public Vector2 Direction;
             public Vector2 PerpendicularDirection
             {
@@ -61,6 +69,7 @@ namespace OPS.Alignment
             Result res = new Result
             {
                 Success = false,
+                HadIntersection = false,
                 Direction = Vector2.Zero,
                 PerpendicularDistance = double.NaN
             };
@@ -82,7 +91,9 @@ namespace OPS.Alignment
                     && dataT >= 0
                     && modelT >= 0)
                 {
+                    res.HadIntersection = true;
                     candidates.Add(dataT);
+                    res.ModelT = modelT;
                 }
             }
 
@@ -113,6 +124,7 @@ namespace OPS.Alignment
                     res.Direction = Vector2.Normalize(pos1 - pos0);
                     res.PerpendicularDistance = pos0.Dot(res.PerpendicularDirection);
                     res.Success = true;
+                    res.DataT = depth;
                     return res;
                 }
                 catch (Exception) { }

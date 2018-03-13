@@ -105,6 +105,9 @@ namespace OPS.Alignment
             int rejectedInvalid = 0;
             int rejectedError = 0;
 
+            var epiFinder = new EpipolarLineFinder(Pipeline);
+            epiFinder.ParallelBackprojectDistance = ParallelBackprojectDistance;
+
             foreach (var pair in matches.DataToModel)
             {
                 var modelFeature = modelFeatures[pair.Value];
@@ -128,49 +131,12 @@ namespace OPS.Alignment
                     }
                 }
 
-                Func<Matrix, ProjectionResult> Reproject = (mat) =>
-                {
-                    ProjectionResult res = new ProjectionResult();
-
-                    var mdrm = RayExtensions.Transform(dataRay, mat);
-                    double modelT, dataT;
-                    double range;
-                    if (!RayExtensions.ClosestIntersection(modelRay, mdrm, out modelT, out dataT))
-                    {
-                        // Rays are parallel or very close to parallel - try backprojecting from ~infinity
-                        dataT = ParallelBackprojectDistance;
-                        modelT = 0;
-                        res.intersection = false;
-                    }
-                    else
-                    {
-                        res.intersection = true;
-                    }
-                    res.modelT = modelT;
-                    res.dataT = dataT;
-
-                    // Find epipolar line in model image corresponding to data point
-                    Vector3 dataPt = mdrm.Position + mdrm.Direction * dataT;
-                    Vector2 dataInModel = modelCam.Backproject(dataPt, out range);
-                    Vector2 pointTwo = modelCam.Backproject(dataPt + mdrm.Direction * 0.01, out range);
-
-                    Vector2 epiDir = Vector2.Normalize(pointTwo - dataInModel);
-                    Vector2 epiPerp = new Vector2(epiDir.Y, -epiDir.X);
-                    double epiZero = dataInModel.Dot(epiPerp);
-                    // e(t) = dataInModel + t*epiDir
-                    //      = epiPerp * epiZero + (t + k)*epiDir
-                    // -> e(t) . epiPerp = epiZero + 0
-
-                    res.epipolarError = modelFeature.Location.Dot(epiPerp) - epiZero;
-                    return res;
-                };
-
                 if (dataToModel.Uncertain)
                 {
                     // Compute probability distribution of epipolar error
                     int badPoints = 0;
                     int totalPoints = 0;
-                    var error = dataToModel.UnscentedTransform((mat) =>
+                    var error = dataToModel.UnscentedTransform(d2m =>
                     {
                         if (badPoints > 3)
                         {
@@ -178,23 +144,22 @@ namespace OPS.Alignment
                         }
 
                         totalPoints++;
-                        ProjectionResult res;
-                        try
-                        {
-                            res = Reproject(mat);
-                        }
-                        catch (Exception)
+                        // Find epipolar line in model image corresponding to data point
+                        var epi = epiFinder.Find(matches.ModelImage, matches.DataImage, d2m, dataFeature, modelFeature);
+
+                        if (!epi.Success)
                         {
                             badPoints++;
                             return CreateVector.DenseOfArray(new[] { MajorAxisThreshold });
                         }
+
                         // Mark projection as bad if rays are parallel or the point is behind
-                        // either camera
-                        if (res.dataT < -0.01 || res.modelT < -0.01)
+                        // either camera, but still use computed error
+                        if (epi.DataT < -0.01 || epi.ModelT < -0.01)
                         {
                             badPoints++;
                         }
-                        return CreateVector.DenseOfArray(new[] { res.epipolarError });
+                        return CreateVector.DenseOfArray(new[] { epi.SignedDistance(modelFeature.Location) });
                     });
                     // If any points failed to meaningfully project, skip match
                     if (badPoints > 3)
@@ -209,9 +174,7 @@ namespace OPS.Alignment
                         rejectedSigma++;
                         continue;
                     }
-
-                    //var eig = error.Covariance.Evd(Symmetricity.Symmetric);
-                    //Math.Sqrt(Math.Max(eig.EigenValues[0].Real, eig.EigenValues[1].Real));
+                    
                     double majorAxis = Math.Sqrt(error.Covariance[0, 0]);
                     if (majorAxis > MajorAxisThreshold)
                     {
@@ -224,8 +187,15 @@ namespace OPS.Alignment
                     // Transform is exact-ish, just make sure it's close
                     try
                     {
-                        var res = Reproject(dataToModel.Mean);
-                        if (res.modelT < -0.01 || res.dataT < -0.01 || Math.Abs(res.epipolarError) > FixedErrorThreshold)
+                        var epi = epiFinder.Find(matches.ModelImage, matches.DataImage, dataToModel.Mean, dataFeature, modelFeature);
+                        if (!epi.Success)
+                        {
+                            rejectedInvalid++;
+                            continue;
+                        }
+                        if (epi.ModelT < -0.01
+                            || epi.DataT < -0.01
+                            || Math.Abs(epi.SignedDistance(modelFeature.Location)) > FixedErrorThreshold)
                         {
                             rejectedError++;
                             continue;
