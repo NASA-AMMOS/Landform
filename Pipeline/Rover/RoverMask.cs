@@ -37,7 +37,7 @@ namespace OPS.Pipeline
                 {
                     for (int j = 0; j < res.Height; j++)
                     {
-                        var ray = cmod.ProjectRay(new Vector2(i, j));
+                    	var ray = cmod.Unproject(new Vector2(i, j));
                         res[0, j, i] = sc.Occludes(ray) ? 0 : 1;
                     }
                 }

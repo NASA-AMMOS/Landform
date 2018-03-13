@@ -73,7 +73,6 @@
     <Compile Include="Imaging\CameraModels\CAHVORE.cs" />
     <Compile Include="Imaging\CameraModels\CameraModel.cs" />
     <Compile Include="Imaging\CameraModels\OrthographicCameraModel.cs" />
-    <Compile Include="Imaging\CameraModels\PhotometricModel.cs" />
     <Compile Include="Imaging\GenericImage.cs" />
     <Compile Include="Imaging\CameraModels\GDALCameraModel.cs" />
     <Compile Include="Imaging\Image.cs" />

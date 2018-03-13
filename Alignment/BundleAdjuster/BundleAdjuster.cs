@@ -135,7 +135,7 @@ namespace OPS.Alignment
                 {
                     var feat = scene.Context.DetectedFeatures[projection.Image][projection.Index];
 
-                    var cameraSpace = GetImage(projection.Image).CameraModel.ProjectRay(feat.Location);
+                    var cameraSpace = GetImage(projection.Image).CameraModel.Unproject(feat.Location);
                     var cameraToWorld = scene.ImageToNode[projection.Image].Transform.LocalToWorld * worldToRoot;
                     var r = new Ray(Vector3.Transform(cameraSpace.Position, cameraToWorld), Vector3.TransformNormal(cameraSpace.Direction, cameraToWorld));
 
@@ -167,7 +167,7 @@ namespace OPS.Alignment
 
                         var worldToCamera = Matrix.Invert(scene.ImageToNode[proj.Image].Transform.LocalToWorld * worldToRoot);
                         var cameraPt = Vector3.Transform(pose, worldToCamera);
-                        var projected = cmod.Model.Backproject(cameraPt, out double range);
+                        var projected = cmod.Model.Project(cameraPt, out double range);
                         error += (projected - feat.Location).LengthSquared();
                     }
 
@@ -220,7 +220,7 @@ namespace OPS.Alignment
 
                         var track = tracks[trackId] = new Track();
                         var feat = scene.Context.DetectedFeatures[data][dataFeat.Index];
-                        track.position = Vector3.Transform(dataModel.Model.ProjectPoint(feat.Location, 100), dataToWorld);
+                        track.position = Vector3.Transform(dataModel.Model.Unproject(feat.Location, 100), dataToWorld);
                         track.error = 0;
                         track.features.Add(dataFeat);
                     }
@@ -231,7 +231,7 @@ namespace OPS.Alignment
 
                         var track = tracks[trackId] = new Track();
                         var feat = scene.Context.DetectedFeatures[model][modelFeat.Index];
-                        track.position = Vector3.Transform(modelModel.Model.ProjectPoint(feat.Location, 100), modelToWorld);
+                        track.position = Vector3.Transform(modelModel.Model.Unproject(feat.Location, 100), modelToWorld);
                         track.error = 0;
                         track.features.Add(modelFeat);
                     }

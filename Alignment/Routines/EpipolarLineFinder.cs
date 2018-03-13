@@ -16,7 +16,7 @@ namespace OPS.Alignment
     {
         public EpipolarLineFinder(PipelineCore pipeline) : base(pipeline)
         {
-            ParallelBackprojectDistance = 100;
+            ParallelProjectionDistance = 100;
             MinGuessDepth = 0.1;
             MaxGuessDepth = 100;
             NumDepthGuesses = 10;
@@ -47,7 +47,7 @@ namespace OPS.Alignment
         /// <summary>
         /// When two camera rays are parallel, try backprojecting from this distance.
         /// </summary>
-        public double ParallelBackprojectDistance;
+        public double ParallelProjectionDistance;
 
         public double MinGuessDepth;
 
@@ -77,7 +77,7 @@ namespace OPS.Alignment
             var modelCmod = GetImage(model).CameraModel;
             var dataCmod = GetImage(data).CameraModel;
 
-            var dataRay = dataCmod.ProjectRay(dataFeat.Location);
+            var dataRay = dataCmod.Unproject(dataFeat.Location);
             var dataRayInModel = RayExtensions.Transform(dataRay, dataToModel);
 
             // Step one: find a point along the data feature ray that projects into the model image.
@@ -86,7 +86,7 @@ namespace OPS.Alignment
             // If we have a corresponding data feature, seed with ray closest intersection
             if (modelFeat != null)
             {
-                var modelRay = modelCmod.ProjectRay(modelFeat.Location);
+                var modelRay = modelCmod.Unproject(modelFeat.Location);
                 if (RayExtensions.ClosestIntersection(dataRayInModel, modelRay, out double modelT, out double dataT)
                     && dataT >= 0
                     && modelT >= 0)
@@ -112,10 +112,10 @@ namespace OPS.Alignment
                 var depth = candidates[i];
                 try
                 {
-                    Vector2 pos0 = modelCmod.Backproject(
+                    Vector2 pos0 = modelCmod.Project(
                         dataRayInModel.Position + dataRayInModel.Direction * depth,
                         out double dataT0);
-                    Vector2 pos1 = modelCmod.Backproject(
+                    Vector2 pos1 = modelCmod.Project(
                         dataRayInModel.Position + dataRayInModel.Direction * (depth + 0.001),
                         out double dataT1);
 

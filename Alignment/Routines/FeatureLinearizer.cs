@@ -43,8 +43,8 @@ namespace OPS.Alignment
             Vector2 newMax = new Vector2(double.NegativeInfinity, double.NegativeInfinity);
             for (int i = 0; i < features.Length; i++)
             {
-                Vector3 pt = cmod.ProjectPoint(features[i].Location, AssumedDepth);
-                Vector2 linearized = linear.Backproject(pt, out double range);
+                Vector3 pt = cmod.Unproject(features[i].Location, AssumedDepth);
+                Vector2 linearized = linear.Project(pt, out double range);
                 res[i] = new ImageFeature(linearized, features[i].Descriptor);
 
                 if (linearized.X < newMin.X) newMin.X = linearized.X;

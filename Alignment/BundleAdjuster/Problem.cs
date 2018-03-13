@@ -52,7 +52,7 @@ namespace OPS.Alignment
                 cameraPt = Vector3.Transform(cameraPt, Matrix.Invert(Transforms[(int)p.TransformIndices[i]].Matrix));
             }
             
-            var projected = cmod.Backproject(cameraPt, out double range);
+            var projected = cmod.Project(cameraPt, out double range);
             return (projected - new Vector2(p.X, p.Y)).LengthSquared();
         }
 

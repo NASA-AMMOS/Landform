@@ -30,7 +30,7 @@ namespace ImagingTest
             {
                 for (double y = 0; y < 1024; y += 3.3)
                 {
-                    Ray ray = cahvor.ProjectRay(new Vector2(x,y));
+                    Ray ray = cahvor.Unproject(new Vector2(x,y));
                     oldcahvor.Project_2d_to_3d(new double[] { x, y }, pos3, uvec3);
                     Assert.AreEqual(pos3[0], ray.Position.X);
                     Assert.AreEqual(pos3[1], ray.Position.Y);
@@ -43,7 +43,7 @@ namespace ImagingTest
                     {
                         Vector3 point = ray.Position + ray.Direction*r;
                         double range;
-                        Vector2 pixelPos = cahvor.Backproject(point, out range);
+                        Vector2 pixelPos = cahvor.Project(point, out range);
                         
                         double oldRange;
                         double[] oldPixelPos = new double[2];
@@ -57,7 +57,7 @@ namespace ImagingTest
                         // This assert disabled because oldRange believed to be incorrect
                         //Assert.AreEqual(oldRange, range);
 
-                        Vector3 pointOther = cahvor.ProjectPoint(new Vector2(x, y), r);
+                        Vector3 pointOther = cahvor.Unproject(new Vector2(x, y), r);
                         Assert.AreEqual(point, pointOther);
                         Assert.AreEqual(r, range, 0.0001);
                     }

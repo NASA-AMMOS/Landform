@@ -55,7 +55,7 @@ namespace OPS.Pipeline
                     float d = depth[0, j, i];
                     if (float.IsNaN(d) || float.IsInfinity(d) || d < 0.001) continue;
 
-                    Vector3 pt = depth.CameraModel.ProjectPoint(new Vector2(i, j), d);//, parser.RoverOriginRotation);
+                    Vector3 pt = depth.CameraModel.Unproject(new Vector2(i, j), d);
                     if (double.IsNaN(pt.X) || double.IsInfinity(pt.X)) continue;
                     float[] col = color.GetBandValues(j, i);
                     if (col.Length == 1)
@@ -219,7 +219,7 @@ namespace OPS.Pipeline
                     if (File.Exists(depthPath))
                     {
                         var rayC = imgNode.AddComponent<CameraRay>();
-                        var ray = md.CameraModel.ProjectRay(new Vector2(md.Width / 2.0, md.Height / 2.0));
+                        var ray = md.CameraModel.Unproject(new Vector2(md.Width / 2.0, md.Height / 2.0));
                         rayC.Center = ray.Position;
                         rayC.Direction = ray.Direction;
 

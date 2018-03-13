@@ -32,7 +32,7 @@ namespace OPS.Alignment
             : base(pipeline)
         {
             ImageToNode = imageToNode;
-            ParallelBackprojectDistance = 1000;
+            ParallelProjectionDistance = 1000;
             BadProjectionRatio = 0.4;
             MahalanobisThreshold = 4;
             FixedErrorThreshold = 20;
@@ -41,9 +41,9 @@ namespace OPS.Alignment
         private ImageNodeDelegate ImageToNode;
 
         /// <summary>
-        /// When two camera rays are parallel, try backprojecting from this distance.
+        /// When two camera rays are parallel, try projecting from this distance.
         /// </summary>
-        public double ParallelBackprojectDistance;
+        public double ParallelProjectionDistance;
         /// <summary>
         /// Ratio of bad to good projections to reject an uncertain match.
         /// </summary>
@@ -106,15 +106,15 @@ namespace OPS.Alignment
             int rejectedError = 0;
 
             var epiFinder = new EpipolarLineFinder(Pipeline);
-            epiFinder.ParallelBackprojectDistance = ParallelBackprojectDistance;
+            epiFinder.ParallelProjectionDistance = ParallelProjectionDistance;
 
             foreach (var pair in matches.DataToModel)
             {
                 var modelFeature = modelFeatures[pair.Value];
                 var dataFeature = dataFeatures[pair.Key];
 
-                var modelRay = modelCam.ProjectRay(modelFeature.Location);
-                var dataRay = dataCam.ProjectRay(dataFeature.Location);
+                var modelRay = modelCam.Unproject(modelFeature.Location);
+                var dataRay = dataCam.Unproject(dataFeature.Location);
 
                 // if we have a convex hull, check if model ray intersects it at all
                 if (dataHullInModel != null)

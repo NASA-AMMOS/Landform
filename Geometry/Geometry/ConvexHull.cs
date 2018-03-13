@@ -80,7 +80,7 @@ namespace OPS.Geometry
                     for (int k = 0; k < subdiv; k++)
                     {
                         double z = (farClip - nearClip) * (k / (subdiv - 1.0)) + nearClip;
-                        pts.Add(camera.ProjectPoint(new Vector2(x, y), z));
+                        pts.Add(camera.Unproject(new Vector2(x, y), z));
                     }
                 }
             }

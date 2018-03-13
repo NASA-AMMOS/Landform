@@ -75,7 +75,7 @@ namespace OPS.Alignment
             for (int i = 0; i < dataFeatures.Length; i++)
             {
                 var dataFeat = dataFeatures[i];
-                var dataRay = data.CameraModel.ProjectRay(dataFeat.Location);
+                var dataRay = data.CameraModel.Unproject(dataFeat.Location);
 
                 if (!modelHullInData.Intersects(dataRay)) continue;
                 
