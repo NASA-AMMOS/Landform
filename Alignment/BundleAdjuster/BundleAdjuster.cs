@@ -315,18 +315,6 @@ namespace OPS.Alignment
                     node.Transform.Matrix = transform.Matrix;
                 }
 
-                Mesh pc = new Mesh(capacity: result.Points.Count);
-                for (int i = 0; i < result.Points.Count; i++)
-                {
-                    var pt = result.Points[i];
-                    problem.Points[i] = pt;
-                    if (!badPoints.Contains(i) && Math.Abs(pt.W) > 1e-8)
-                    {
-                        pc.Vertices.Add(new Vertex(pt.X / pt.W, pt.Y / pt.W, pt.Z / pt.W));
-                    }
-                }
-                pc.Save("d:\\bundle-"+iter.ToString()+".ply");
-
                 List<double> trackErrors = new List<double>(tracks.Count);
                 foreach (var track in tracks.Values)
                 {
