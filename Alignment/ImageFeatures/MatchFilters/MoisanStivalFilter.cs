@@ -48,10 +48,6 @@ namespace OPS.Alignment
                 dataFeatures = lin.Linearize(dataImg.CameraModel, dataFeatures);
             }
 
-            ImageFeature[] modelFeat, dataFeat;
-            int[] dataToModel;
-            matches.Flatten(modelFeatures, dataFeatures, out modelFeat, out dataFeat, out dataToModel);
-
             Vector2[] dataPoints = matches.DataToModel.Select(pair => dataFeatures[pair.Key].Location).ToArray();
             Vector2[] modelPoints = matches.DataToModel.Select(pair => modelFeatures[pair.Value].Location).ToArray();
             
