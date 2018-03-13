@@ -30,6 +30,8 @@ Pipeline/obj/
 Pipeline/Commands/Client.cs
 Plumbing/bin/
 Plumbing/obj/
+PairViewer/bin/
+PairViewer/obj/
 packages/
 .vs/
 Xna/bin/
@@ -65,6 +67,7 @@ UtilTest/bin/
 UtilTest/obj/
 Cloud/bin/
 Cloud/obj/
+Cloud/docs/*.xml
 *.user
 CloudTest/bin/
 CloudTest/obj/
@@ -85,3 +88,5 @@ PipelineFrontend/!.elasticbeanstalk/*.cfg.yml
 PipelineFrontend/!.elasticbeanstalk/*.global.yml
 
 project.lock.json
+*.vspx
+*.diagsession
