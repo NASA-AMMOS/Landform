@@ -33,7 +33,7 @@ namespace OPS.Alignment
         {
             ImageToNode = imageToNode;
             ParallelProjectionDistance = 1000;
-            BadProjectionRatio = 0.4;
+            MaxBadProjections = 3;
             MahalanobisThreshold = 4;
             FixedErrorThreshold = 20;
             MajorAxisThreshold = 100;
@@ -45,9 +45,9 @@ namespace OPS.Alignment
         /// </summary>
         public double ParallelProjectionDistance;
         /// <summary>
-        /// Ratio of bad to good projections to reject an uncertain match.
+        /// Number of bad projections to reject an uncertain match.
         /// </summary>
-        public double BadProjectionRatio;
+        public int MaxBadProjections;
         /// <summary>
         /// Maximum Mahalanobis distance to accept. Conceptually similar to number of standard deviations.
         /// </summary>
@@ -139,7 +139,7 @@ namespace OPS.Alignment
                     var error = dataToModel.UnscentedTransform(d2m =>
                     {
                         // If we already know the match will be rejected bail out early
-                        if (badPoints >= totalPoints * BadProjectionRatio)
+                        if (badPoints >= MaxBadProjections)
                         {
                             return CreateVector.DenseOfArray(new[] { MajorAxisThreshold });
                         }
@@ -163,7 +163,7 @@ namespace OPS.Alignment
                         return CreateVector.DenseOfArray(new[] { epi.SignedDistance(modelFeature.Location) });
                     });
                     // If too many points failed to meaningfully project, skip match
-                    if (badPoints >= totalPoints * BadProjectionRatio)
+                    if (badPoints >= MaxBadProjections)
                     {
                         rejectedInvalid++;
                         continue;

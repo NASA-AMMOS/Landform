@@ -167,8 +167,19 @@ namespace OPS.Alignment
 
                         var worldToCamera = Matrix.Invert(scene.ImageToNode[proj.Image].Transform.LocalToWorld * worldToRoot);
                         var cameraPt = Vector3.Transform(pose, worldToCamera);
-                        var projected = cmod.Model.Project(cameraPt, out double range);
-                        error += (projected - feat.Location).LengthSquared();
+                        try
+                        {
+                            var projected = cmod.Model.Project(cameraPt, out double range);
+                            error += (projected - feat.Location).LengthSquared();
+                        }
+                        catch (DivideByZeroException)
+                        {
+                            if (set)
+                            {
+                                track.error = double.PositiveInfinity;
+                            }
+                            return double.PositiveInfinity;
+                        }
                     }
 
                     if (set)
@@ -314,7 +325,9 @@ namespace OPS.Alignment
                     var node = transformToNode[i];
                     node.Transform.Matrix = transform.Matrix;
                 }
+                problem.Points = result.Points;
 
+                // Trim bad points
                 List<double> trackErrors = new List<double>(tracks.Count);
                 foreach (var track in tracks.Values)
                 {

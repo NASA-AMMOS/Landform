@@ -290,7 +290,7 @@ namespace OPS.Pipeline
                             return;
                         }
                     }
-                    features = features.ToArray(); //.OrderByDescending(feat => ((SIFTFeature)feat).Response).Take(10000)
+                    features = features.OrderByDescending(feat => ((SIFTFeature)feat).Response).Take(10000).ToArray();
                 }
                 else
                 {
