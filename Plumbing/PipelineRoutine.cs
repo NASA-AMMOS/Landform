@@ -25,6 +25,17 @@ namespace OPS.Plumbing
             return GetImage(image).Metadata;
         }
 
+        public T Get<T>(string project, Guid guid, bool useCache = true) where T : DataProduct, new()
+        {
+            return Pipeline.Get<T>(project, guid, useCache);
+        }
+
+
+        public void Save(string project, DataProduct product, bool useCache = true)
+        {
+            Pipeline.Save(project, product, useCache);
+        }
+
         public DynamoDBContext DynamoDB
         {
             get { return Pipeline.DynamoDB; }

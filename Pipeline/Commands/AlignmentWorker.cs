@@ -119,8 +119,8 @@ namespace OPS.Pipeline
                         PipelineMessage m = PipelineMessage.FromMessage(r.Messages[0]);
                         Console.WriteLine(".....Message recieved:"
                             + "\r\n        Message ID = " + m.MessageId);
-                        /*try
-                        {*/
+                        try
+                        {
                             var t = m.GetType();
                             if (t == typeof(NewObservationMessage))
                             {
@@ -134,8 +134,12 @@ namespace OPS.Pipeline
                             {
                                 MatchPairs((MatchPairsMessage)m);
                             }
+                            else if (t == typeof(BundleAdjustMessage))
+                            {
+                                BundleAdjust((BundleAdjustMessage)m);
+                            }
                             Interlocked.Increment(ref messagesSucceeded);
-                        /*}
+                        }
                         catch (Exception e)  
                         {
                             Interlocked.Increment(ref messagesFailed);
@@ -144,7 +148,7 @@ namespace OPS.Pipeline
                                 + "\r\n Inner exception is: " + e.InnerException
                                 + "\r\n Stack trace is: " + e.StackTrace;
                             Console.WriteLine(msg);
-                        }*/
+                        }
                     }
                 }
             });
@@ -193,7 +197,7 @@ namespace OPS.Pipeline
             // Make rover mask
             var mask = RoverMask.Build(GetImage(imgRef));
             var maskProd = new ImageDataProduct(mask, ".png", typeof(byte));
-            Pipeline.Save(indexed.Observation.ProjectName, maskProd);
+            Save(indexed.Observation.ProjectName, maskProd);
 
             //snagged from MatchImages
             string gpcafile = PCAKeypointProjector.DefaultTrainingSpace;
@@ -205,7 +209,7 @@ namespace OPS.Pipeline
             DetectedFeatures detected = new DetectedFeatures();
             detected.Features = features.ToArray();
             detected.ObservationName = indexed.Observation.Name;
-            Pipeline.Save(indexed.Observation.ProjectName, detected);
+            Save(indexed.Observation.ProjectName, detected);
 
             //save to Dynamo: 
             //   Image record: S3 location, keypoints product GUID, metadata 
@@ -281,8 +285,8 @@ namespace OPS.Pipeline
 
             ImageRef modelRef = new ObservationImageRef(obs0);
             ImageRef dataRef = new ObservationImageRef(obs1);
-            DetectedFeatures modelFeat = Pipeline.Get<DetectedFeatures>(project.Name, obs0.FeaturesGuid);
-            DetectedFeatures dataFeat = Pipeline.Get<DetectedFeatures>(project.Name, obs1.FeaturesGuid);
+            DetectedFeatures modelFeat = Get<DetectedFeatures>(project.Name, obs0.FeaturesGuid);
+            DetectedFeatures dataFeat = Get<DetectedFeatures>(project.Name, obs1.FeaturesGuid);
 
             //below is from MatchImages.cs
             BruteForceMatcher matcher = new BruteForceMatcher();
@@ -325,7 +329,7 @@ namespace OPS.Pipeline
                 ModelFeaturesGuid = modelFeat.Guid,
                 DataFeaturesGuid = dataFeat.Guid
             };
-            Pipeline.Save(overlap.ProjectName, corr);
+            Save(overlap.ProjectName, corr);
             overlap.MatchGuid = corr.Guid;
             if (!overlap.TrySave(Pipeline.DynamoDB))
             {

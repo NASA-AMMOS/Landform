@@ -87,7 +87,7 @@ namespace OPS.Pipeline
             Action<Observation, SceneNode> addObservation = (obs, node) =>
             {
                 if (obs.FeaturesGuid == null || obs.FeaturesGuid == Guid.Empty) return;
-                var feat = Pipeline.Get<DetectedFeatures>(obs.ProjectName, obs.FeaturesGuid);
+                var feat = Get<DetectedFeatures>(obs.ProjectName, obs.FeaturesGuid);
                 var imgRef = new ObservationImageRef(obs);
 
                 scene.Context.DetectedFeatures[imgRef] = feat.Features;
@@ -149,7 +149,7 @@ namespace OPS.Pipeline
                 foreach (var overlap in Overlap.Find(DynamoDB, obs))
                 {
                     var o1 = overlap.Observations.Obs1;
-                    var o2 = overlap.Observations.Obs1;
+                    var o2 = overlap.Observations.Obs2;
                     // Skip any overlaps that involve an observation we didn't ingest
                     if (!observationNames.Contains(o1) || !observationNames.Contains(o2))
                     {
@@ -163,7 +163,7 @@ namespace OPS.Pipeline
 
                     if (overlap.MatchGuid != null && overlap.MatchGuid != Guid.Empty)
                     {
-                        var match = Pipeline.Get<ComputedCorrespondence>(overlap.ProjectName, overlap.MatchGuid);
+                        var match = Get<ComputedCorrespondence>(overlap.ProjectName, overlap.MatchGuid);
                         if (match != null)
                         {
                             scene.Context.Correspondences[pair] = match.Correspondence;
