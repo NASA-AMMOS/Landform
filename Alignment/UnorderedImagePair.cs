@@ -8,9 +8,20 @@ using System.Threading.Tasks;
 
 namespace OPS.Alignment
 {
+    /// <summary>
+    /// An unordered pair of <see cref="ImageRef"/>s.
+    /// </summary>
     public class UnorderedImagePair
     {
         public ImageRef One, Two;
+
+        /// <summary>
+        /// Construct from two <see cref="ImageRef"/>s.
+        /// 
+        /// Note that <code>new UnorderedImagePair(x, y) == new UnorderedImagePair(y, x)</code>.
+        /// </summary>
+        /// <param name="model"></param>
+        /// <param name="data"></param>
         public UnorderedImagePair(ImageRef model, ImageRef data)
         {
             if (data.DisplayName.CompareTo(model.DisplayName) < 0)
