@@ -148,8 +148,8 @@ namespace OPS.Pipeline
             {
                 foreach (var overlap in Overlap.Find(DynamoDB, obs))
                 {
-                    var o1 = overlap.Observations.Obs1;
-                    var o2 = overlap.Observations.Obs2;
+                    var o1 = overlap.ObservationNameOne;
+                    var o2 = overlap.ObservationNameTwo;
                     // Skip any overlaps that involve an observation we didn't ingest
                     if (!observationNames.Contains(o1) || !observationNames.Contains(o2))
                     {
