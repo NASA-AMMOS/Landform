@@ -39,7 +39,7 @@ namespace OPS.Cloud
     public class Overlap
     {
         [DynamoDBRangeKey]
-        [DynamoDBGlobalSecondaryIndexRangeKey("OverlapObservationOneIndex", "OverlapObservationTwoIndex")]
+        [DynamoDBGlobalSecondaryIndexRangeKey("OverlapObservationNameOneIndex", "OverlapObservationNameTwoIndex")]
         [DynamoDBProperty]
         public string ProjectName;
 
@@ -47,11 +47,11 @@ namespace OPS.Cloud
         [DynamoDBProperty]
         public string CombinedName;
 
-        [DynamoDBGlobalSecondaryIndexHashKey("OverlapObservationOneIndex")]
+        [DynamoDBGlobalSecondaryIndexHashKey("OverlapObservationNameOneIndex")]
         [DynamoDBProperty]
         public string ObservationNameOne;
 
-        [DynamoDBGlobalSecondaryIndexHashKey("OverlapObservationTwoIndex")]
+        [DynamoDBGlobalSecondaryIndexHashKey("OverlapObservationNameTwoIndex")]
         [DynamoDBProperty]
         public string ObservationNameTwo;
 
@@ -164,7 +164,7 @@ namespace OPS.Cloud
                 filt.AddCondition("ProjectName", QueryOperator.Equal, observation.ProjectName);
                 var entries = context.FromQuery<Overlap>(new QueryOperationConfig()
                 {
-                    IndexName = prop + "Index",
+                    IndexName = "Overlap" + prop + "Index",
                     Filter = filt
                 });
                 foreach (var o in entries)
