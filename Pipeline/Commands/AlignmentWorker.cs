@@ -1,25 +1,14 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using OPS.Cloud;
-using OPS.Imaging;
 using CommandLine;
 using System.Threading;
-using System.Collections.Concurrent;
-using Amazon.S3;
-using Amazon.S3.Model;
-using System.IO;
 using Amazon.SQS;
 using Amazon.SQS.Model;
 using Amazon.DynamoDBv2.DataModel;
-using Amazon.DynamoDBv2.Model;
-using Amazon.DynamoDBv2;
 using OPS.Util;
 using OPS.Alignment;
-using Microsoft.Xna.Framework;
-using Newtonsoft.Json;
 using OPS.Plumbing;
 
 namespace OPS.Pipeline

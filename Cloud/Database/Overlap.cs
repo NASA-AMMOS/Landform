@@ -1,12 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 using Amazon.DynamoDBv2.Model;
-using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.DataModel;
+using Amazon.DynamoDBv2.DocumentModel;
 
 namespace OPS.Cloud
 {
@@ -156,15 +153,16 @@ namespace OPS.Cloud
             return context.Load<Overlap>(name.CombinedName, projectName);
         }
 
+        /// <summary>
+        /// Find all overlaps featuring an observation
+        /// </summary>
         public static IEnumerable<Overlap> Find(DynamoDBContext context, Observation observation)
         {
             foreach (var prop in new[] { "ObservationOneName", "ObservationTwoName" })
             {
-                var filt = new Amazon.DynamoDBv2.DocumentModel.QueryFilter(
-                        prop, Amazon.DynamoDBv2.DocumentModel.QueryOperator.Equal, observation.Name
-                        );
-                filt.AddCondition("ProjectName", Amazon.DynamoDBv2.DocumentModel.QueryOperator.Equal, observation.ProjectName);
-                var entries = context.FromQuery<Overlap>(new Amazon.DynamoDBv2.DocumentModel.QueryOperationConfig()
+                var filt = new QueryFilter(prop, QueryOperator.Equal, observation.Name);
+                filt.AddCondition("ProjectName", QueryOperator.Equal, observation.ProjectName);
+                var entries = context.FromQuery<Overlap>(new QueryOperationConfig()
                 {
                     IndexName = prop + "Index",
                     Filter = filt
