@@ -99,6 +99,22 @@ namespace OPS.Geometry
         }
 
         /// <summary>
+        /// Removes a compontnet of type T
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <returns>Returns the removed component if this node has one, null otherwise</returns>
+        public T RemoveComponent<T>() where T : NodeComponent
+        { 
+            if (HasComponent<T>())
+            {
+                T res = (T)components[typeof(T)];
+                components.Remove(typeof(T));
+                return res;
+            }
+            return null;
+        }
+
+        /// <summary>
         /// Get the component of type T, adding one if not present.
         /// </summary>
         /// <typeparam name="T">Type of component.</typeparam>
