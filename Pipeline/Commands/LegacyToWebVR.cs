@@ -24,7 +24,7 @@ namespace OPS.Pipeline
         public string InputDirectory { get; set; }
 
         [Value(1, Required = true, HelpText = "Directory to write new tiles to")]
-        public string OutpitDirectory { get; set; }
+        public string OutputDirectory { get; set; }
 
         [Option(Required = false, Default = 4096, HelpText = "Total extent of legacy tiles")]
         public int InputExtent { get; set; }
@@ -95,7 +95,7 @@ namespace OPS.Pipeline
                     }
                 }
             });
-            img.Save<byte>(Path.Combine(options.OutpitDirectory, "orthoImage.tif"));
+            img.Save<byte>(Path.Combine(options.OutputDirectory, "orthoImage.tif"));
 
             img = new Image(1, demRes, demRes);
             cam = new OrthographicCameraModel(mat, new Vector2(img.Width, img.Height), 40);
@@ -122,7 +122,7 @@ namespace OPS.Pipeline
                     img[0, r, c] = maxDist - v;
                 }
             });
-            img.Save<byte>(Path.Combine(options.OutpitDirectory, "orthoDEM.tif"));
+            img.Save<byte>(Path.Combine(options.OutputDirectory, "orthoDEM.tif"));
         }
 
         void MakeOrthos(LegacyScene scene, int imageRes, int demRes, float extent)
@@ -184,18 +184,21 @@ namespace OPS.Pipeline
             v = 1 - (yp + 1) / 2;
         }
 
-        Mesh ResampleDecimation(Mesh m, int numFaces = 2000, BoundingBox? clippingBounds = null, Vector3? cornerDirection = null)
+        public static Mesh ResampleDecimation(Mesh m, int numFaces = 2000, BoundingBox? clippingBounds = null, Vector3? cornerDirection = null)
         {
             m.Clean();
-            if (!m.HasNormals)
+            if (!m.HasNormals || m.ContainsZeroLengthNormals())
             {
                 m = new Mesh(m);
                 m.GenerateVertexNormals();
             }
+            m.NormalizeNormals();
             Mesh pc = new SurfacePointSampler().GenerateSampledMesh(m, numFaces / m.SurfaceArea());
             pc.HasUVs = false;
-
+            // TODO: Why do we need to normalize here, issue with GenerateSampledMesh?
+            pc.NormalizeNormals();
             Mesh reconstructed = PoissonReconstruction.PoissonReconstruct(pc); //FSSR.Reconstruct(pc);//
+            
             if (clippingBounds.HasValue)
             {
                 reconstructed = Mesh.Clip(reconstructed, clippingBounds.Value);
@@ -208,7 +211,37 @@ namespace OPS.Pipeline
             }
             Mesh decimated = EdgeCollapse.QuadricEdgeCollapse(reconstructed, numFaces, perimeterPenaltyFactor:20, notTouched: corners);
             decimated.Clean();
+            decimated.GenerateVertexNormals();
             return decimated;
+        }
+
+        public static int ComputeParentTileResolution(IEnumerable<MeshImagePair> pairs, BoundingBox cropBounds, int maxTextureSize = int.MaxValue)
+        {
+
+            // Read all overlapping meshes, crop each to the extent of the leaf tile
+            // and calculate the area the triangles occupy in units of pixels.  Sum all
+            // the areas and round up to nearest power of two to decide size of the new tile
+            double totalPixels = 0;
+            foreach (var p in pairs)
+            {
+                var triangles = Mesh.Clip(p.Mesh, cropBounds).Triangles();
+                foreach (var t in triangles)
+                {
+                    Vector3 a = new Vector3(p.Image.UVToPixel(t.V0.UV), 0);
+                    Vector3 b = new Vector3(p.Image.UVToPixel(t.V1.UV), 0);
+                    Vector3 c = new Vector3(p.Image.UVToPixel(t.V2.UV), 0);
+                    var pixelTri = new Triangle(a, b, c);
+                    if (double.IsNaN(pixelTri.Area()))
+                    {
+                        throw new Exception("Triangle area not a number");
+                    }
+                    totalPixels += pixelTri.Area();
+                }
+            }
+            double size = Math.Sqrt(totalPixels);
+            size = MathE.CeilPowerOf2(size);
+            size = Math.Min(size, maxTextureSize);
+            return (int)size;
         }
 
         public int Run()
@@ -220,7 +253,7 @@ namespace OPS.Pipeline
                 logger.Info("Reading facecount file");
                 nameToFaceCount = ReadFacesPerTileFile(options.FaceCountFile);
             }
-            PathHelper.EnsureExists(options.OutpitDirectory);
+            PathHelper.EnsureExists(options.OutputDirectory);
 
             logger.Info("Loading legacy scene");
             LegacyScene scene = new LegacyScene(options.InputDirectory, options.InputExtent);
@@ -337,7 +370,7 @@ namespace OPS.Pipeline
 
             Parallel.ForEach(nodesToProcess, leaf =>
             {
-                if (File.Exists(Path.Combine(options.OutpitDirectory, leaf.Name) + ".obj"))
+                if (File.Exists(Path.Combine(options.OutputDirectory, leaf.Name) + ".obj"))
                 {
                     return;
                 }
@@ -363,28 +396,9 @@ namespace OPS.Pipeline
                 
                 var pairs = overlaps.Select(x => x.GetComponent<MeshImagePair>());
 
-                // Read all overlapping meshes, crop each to the extent of the leaf tile
-                // and calculate the area the triangles occupy in units of pixels.  Sum all
-                // the areas and round up to nearest power of two to decide size of the new tile
-                double totalPixels = 0;
-                foreach (var p in pairs)
-                {
-                    var triangles = Mesh.Clip(p.Mesh, leaf.Bounds).Triangles();
-                    foreach (var t in triangles)
-                    {
-                        Vector3 a = new Vector3(p.Image.UVToPixel(t.V0.UV), 0);
-                        Vector3 b = new Vector3(p.Image.UVToPixel(t.V1.UV), 0);
-                        Vector3 c = new Vector3(p.Image.UVToPixel(t.V2.UV), 0);
-                        var pixelTri = new Triangle(a, b, c);
-                        totalPixels += pixelTri.Area();
-                    }
-                }
-                double size = Math.Sqrt(totalPixels);
-                size = MathE.CeilPowerOf2(size);
-                size = Math.Min(size, options.MaxTextureSize);
-
-                int textureWidth = (int)size;
-                int textureHeight = (int)size;
+                int size = ComputeParentTileResolution(pairs, leaf.Bounds, options.MaxTextureSize);
+                int textureWidth = size;
+                int textureHeight = size;
                 int beforeVerts = m.Vertices.Count;
                 int beforeFaces = m.Faces.Count;
                 m = UVAtlas.Atlas(m, textureWidth, textureHeight);
@@ -397,7 +411,7 @@ namespace OPS.Pipeline
                 textureSizeData.TryAdd(leaf.Name, ts);
 
             });
-            File.WriteAllText(Path.Combine(options.OutpitDirectory, "index.json"), JsonConvert.SerializeObject(textureSizeData));
+            File.WriteAllText(Path.Combine(options.OutputDirectory, "index.json"), JsonConvert.SerializeObject(textureSizeData));
             return 0;
         }
 
@@ -406,7 +420,7 @@ namespace OPS.Pipeline
             var pair = tile.GetComponent<MeshImagePair>();
             string imgName = null;
             TextureSize ts = new TextureSize();
-            string name = Path.Combine(options.OutpitDirectory, tile.Name);
+            string name = Path.Combine(options.OutputDirectory, tile.Name);
             if (pair.Image != null)
             {
                 Image img = (Image) pair.Image.Clone();
