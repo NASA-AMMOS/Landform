@@ -28,7 +28,8 @@ namespace OPS.Pipeline
                                                              TilingOptions,
                                                              TileBaselineMeshesOptions,
                                                              BenchmarkS3Options,
-                                                             LegacyToWebVROptions
+                                                             LegacyToWebVROptions,
+                                                             LegacyToTile3DOptions
                                                              >(args)
               .MapResult(
                 (AlignmentWorkerOptions opts) => new AlignmentWorker().Run(),
@@ -42,6 +43,7 @@ namespace OPS.Pipeline
                 (MatchAllImagesOptions opts) => new MatchAllImages(opts).Run(),
                 (PDSImageConverterOptions opts) => new PDSImageConverter(opts).Run(),
                 (LegacyToWebVROptions opts) => new LegacyToWebVR(opts).Run(),
+                (LegacyToTile3DOptions opts) => new LegacyToTile3D(opts).Run(),
                 errs => 1);
         }
     }
