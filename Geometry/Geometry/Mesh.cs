@@ -129,6 +129,16 @@ namespace OPS.Geometry
             }
 
             // Normalize each vertex normal
+            NormalizeNormals();
+            // The mesh should now be set as having normals
+            HasNormals = true;
+        }
+
+        /// <summary>
+        /// Normalize all normals
+        /// </summary>
+        public void NormalizeNormals()
+        {
             foreach (Vertex vertex in Vertices)
             {
                 if (vertex.Normal.Length() > MathHelper.Epsilon)
@@ -136,9 +146,6 @@ namespace OPS.Geometry
                     vertex.Normal.Normalize();
                 }
             }
-
-            // The mesh should now be set as having normals
-            HasNormals = true;
         }
 
         /// <summary>
@@ -185,6 +192,22 @@ namespace OPS.Geometry
             foreach(var f in Faces)
             {
                 if(!FaceIsValid(f))
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
+        
+        /// <summary>
+        /// Returns true if any normals are zero
+        /// </summary>
+        /// <returns></returns>
+        public bool ContainsZeroLengthNormals()
+        {
+            foreach (var v in Vertices)
+            {
+                if (v.Normal.Length() < 1e-5)
                 {
                     return true;
                 }
@@ -579,6 +602,10 @@ namespace OPS.Geometry
                 RemoveInvalidFaces();
                 RemoveUnreferencedVertices();
                 RemoveDuplicateFaces();
+            }
+            if (HasNormals)
+            {
+                NormalizeNormals();
             }
         }
 

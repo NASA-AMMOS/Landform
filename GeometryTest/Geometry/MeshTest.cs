@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using OPS.Geometry;
 using Microsoft.Xna.Framework;
+using OPS.Test;
 
 namespace GeometryTest
 {
@@ -202,6 +203,39 @@ namespace GeometryTest
             Assert.IsTrue((plusZ - m.Vertices[1].Normal).Length() < 1e-8);
             Assert.IsTrue((plusZ - m.Vertices[2].Normal).Length() < 1e-8);
             Assert.IsTrue((plusZ - m.Vertices[3].Normal).Length() < 1e-8);
+        }
+
+        [TestMethod]
+        public void MeshNormalizeNormalsTest()
+        {
+            Mesh m = new Mesh();
+            m.Vertices.Add(new Vertex(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0));
+            m.Vertices.Add(new Vertex(1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0));
+            m.Vertices.Add(new Vertex(0, 1, 0, 0.3, 4, 2, 0, 0, 0, 0, 0, 0));
+            m.Vertices.Add(new Vertex(0, 0, 0, 1, 2, 3, 0, 0, 0, 0, 0, 0));
+            m.NormalizeNormals();
+            AssertE.AreSimilar(0, m.Vertices[0].Normal.Length());
+            AssertE.AreSimilar(1, m.Vertices[1].Normal.Length());
+            var v = new Vector3(0.3, 4, 2);
+            v.Normalize();      
+            Assert.AreEqual(v, m.Vertices[2].Normal);
+            AssertE.AreSimilar(1, m.Vertices[2].Normal.Length());
+            AssertE.AreSimilar(1, m.Vertices[3].Normal.Length());
+        }
+
+        [TestMethod]
+        public void HasInvalidNormalsTest()
+        {
+            Mesh m = new Mesh();
+            m.Vertices.Add(new Vertex(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0));
+            m.Vertices.Add(new Vertex(1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0));
+            m.Vertices.Add(new Vertex(0, 1, 0, 0.3, 4, 2, 0, 0, 0, 0, 0, 0));
+            m.Vertices.Add(new Vertex(0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0));
+            Assert.IsTrue(m.ContainsZeroLengthNormals());
+            m.Vertices[2].Normal.Normalize();
+            Assert.IsTrue(m.ContainsZeroLengthNormals());
+            m.Vertices[0].Normal = new Vector3(0.1, 2, 3);
+            Assert.IsFalse(m.ContainsZeroLengthNormals());
         }
 
         [TestMethod]
