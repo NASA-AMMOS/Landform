@@ -5,6 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 using OPS.Geometry;
 using OPS.Util;
+using Microsoft.Xna.Framework;
 
 namespace OPS.Pipeline
 {
@@ -13,7 +14,6 @@ namespace OPS.Pipeline
     /// </summary>
     public class Tile3DBuilder
     {
-        const string TEXTURE_EXTENSION = "png";  // Should be depricated when we move to glTF
         public delegate string NodeToRelativeUrl(SceneNode node);
 
         public Tile3D.Tileset Tileset { get; private set; }
@@ -33,7 +33,7 @@ namespace OPS.Pipeline
         /// Build the tileset
         /// </summary>
         /// <param name="nodeToUrl">Method that returns the asset url to use for a given node</param>
-        public void BuildTileset(NodeToRelativeUrl nodeToUrl)
+        public void BuildTileset(NodeToRelativeUrl nodeToUrl, bool useCesiumHackTransform = false)
         {
             foreach(SceneNode curNode in Root.DepthFirstTraverse())
             {
@@ -44,13 +44,53 @@ namespace OPS.Pipeline
                     // Should only be null for root node
                     if(curNode.Transform.Parent != null)
                     {
-                        nodesToTiles[curNode.Transform.Parent.Node].children.Add(tile);
+                        nodesToTiles[curNode.Transform.Parent.Node].Children.Add(tile);
                     }
                 }
             }
             this.Tileset = new Tile3D.Tileset();
-            this.Tileset.root = nodesToTiles[Root];
-            this.Tileset.geometricError = 0;
+            this.Tileset.Root = nodesToTiles[Root];
+            this.Tileset.GeometricError = this.Root.Bounds.MaxDimension();
+
+            if (useCesiumHackTransform)
+            {
+                // Put together a hack matrix for viewing in cesium
+                Matrix m = new Matrix(96.86356343768793, 24.848542777253734, 0, 0,
+                 -15.986465724980844, 62.317780594908875, 76.5566922962899, 0,
+                 19.02322243409411, -74.15554020821229, 64.3356267137516, 0,
+                 1215107.7612304366, -4736682.902037748, 4081926.095098698, 1);
+                Vector3 scale;
+                Quaternion q;
+                Vector3 trans;
+                m.Decompose(out scale, out q, out trans);
+                scale = new Vector3(1, 1, 1);
+                Matrix rot = Matrix.CreateRotationX(MathHelper.ToRadians(90)) * Matrix.CreateFromQuaternion(q);
+                m = Matrix.CreateScale(scale) * rot * Matrix.CreateTranslation(trans);
+                m.Decompose(out scale, out q, out trans);
+                this.Tileset.Root.Transform = MatrixToList(m);
+            } else
+            {
+                this.Tileset.Root.Transform = MatrixToList(Matrix.Identity);
+            }
+        }
+
+        List<double> MatrixToList(Matrix m)
+        {            
+            return new double[]
+            {
+                m.M11, m.M12,m.M13,m.M14,
+                m.M21, m.M22,m.M23,m.M24,
+                m.M31, m.M32,m.M33,m.M34,
+                m.M41, m.M42,m.M43,m.M44
+            }.ToList();
+        }
+
+        Matrix ListToMatrix(List<double> list)
+        {
+           return new Matrix(list[0], list[1], list[2], list[3],
+                             list[4], list[5], list[6], list[7],
+                             list[8], list[9], list[10], list[11],
+                             list[12], list[13], list[14], list[15]);
         }
 
         /// <summary>
@@ -62,12 +102,29 @@ namespace OPS.Pipeline
             Parallel.ForEach(Root.DepthFirstTraverse(), curNode =>
             {
                 var tile = nodesToTiles[curNode];
-                tile.geometricError = CalculateGeometricError(curNode);
-                if (curNode == this.Root)
-                {
-                    this.Tileset.geometricError = tile.geometricError;
-                }
+                tile.GeometricError = CalculateGeometricError(curNode);
             });
+        }
+
+        /// <summary>
+        /// Converts an AABB to a 3D Tiles Box bound array
+        /// </summary>
+        /// <param name="b"></param>
+        /// <returns></returns>
+        List<double> BoundsToBox(BoundingBox b)
+        {
+            // "description" : "An array of 12 numbers that define an oriented bounding box.  
+            // The first three elements define the x, y, and z values for the center of the box.  
+            // The next three elements (with indices 3, 4, and 5) define the x axis direction and half-length.  
+            // The next three elements (indices 6, 7, and 8) define the y axis direction and half-length.  
+            // The last three elements (indices 9, 10, and 11) define the z axis direction and half-length.",
+            Vector3 halfExtent = b.Extent()/2;
+            Vector3 center = b.Center();
+            Vector3 xaxis = new Vector3(halfExtent.X, 0, 0);
+            Vector3 yaxis = new Vector3(0, halfExtent.Y, 0);
+            Vector3 zaxis = new Vector3(0, 0, halfExtent.Z);
+            var box = new double[] { center.X, center.Y, center.Z, xaxis.X, xaxis.Y, xaxis.Z, yaxis.X, yaxis.Y, yaxis.Z, zaxis.X, zaxis.Y, zaxis.Z };
+            return new List<double>(box);
         }
 
         /// <summary>
@@ -78,13 +135,13 @@ namespace OPS.Pipeline
         /// <returns></returns>
         Tile3D.Tile SceneNodeToTile(SceneNode node, NodeToRelativeUrl nodeToUrl)
         {
-            Tile3D.Tile tile = new Tile3D.Tile(node.Bounds);
-            tile.refine = Tile3D.RefineMode.replace;
+            Tile3D.Tile tile = new Tile3D.Tile();
+            tile.BoundingVolume.Box = BoundsToBox(node.Bounds);
+            tile.Refine = Tile3D.TileRefine.REPLACE;
             if(node.GetComponent<MeshImagePair>() != null)
             {
-                tile.content = new Tile3D.Content();
-                tile.content.url = nodeToUrl(node);
-                tile.content.textureExension = TEXTURE_EXTENSION;
+                tile.Content = new Tile3D.TileContent();
+                tile.Content.Url = nodeToUrl(node);
             }
             return tile;
         }
@@ -159,7 +216,7 @@ namespace OPS.Pipeline
             {
                 return merged.Bounds().MaxDimension();
             }
-            return MeshLab.BidirectionalHausdorffDistance(parent, merged).Max;
+            return HausdorffDistance.Calculate(parent, merged, 0.001);
         }
     }
 }
