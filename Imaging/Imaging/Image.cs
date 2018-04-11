@@ -45,9 +45,14 @@ namespace OPS.Imaging
         /// <returns></returns>
         public static Image Load(string filename)
         {
-            if(filename.ToUpper().EndsWith(".IMG"))
+            string ext = filename.ToUpper();
+            if (ext.EndsWith(".IMG"))
             {
                 return new PDSSeralizer().Read(filename, ImageConverters.PDSBitMaskValueRangeToNormalizedImage);
+            }
+            else if (ext.EndsWith(".DDS"))
+            {
+                return new DDSSeralizer().Read(filename, ImageConverters.ValueRangeToNormalizedImage);
             }
             return new GDALSeralizer().Read(filename, ImageConverters.ValueRangeToNormalizedImage);
         }

@@ -23,6 +23,9 @@ namespace ImagingTest.Serializers
         {
             Image pattern = Image.Load(Path.Combine("TestData", "img", "testPattern.png"));
             pattern.Save<byte>("ddsTest.dds");
+
+            Image roundTrip = Image.Load("ddsTest.dds");
+            roundTrip.Save<byte>("ddsTest_RoundTrip.png");
         }
 
         [TestMethod]
@@ -42,6 +45,9 @@ namespace ImagingTest.Serializers
                 }
             }
             alpha.Save<byte>("ddsTestAlpha.dds");
+
+            Image roundTrip = Image.Load("ddsTestAlpha.dds");
+            roundTrip.Save<byte>("ddsTestAlpha_RoundTrip.png");
         }
 
         [TestMethod]
@@ -57,6 +63,10 @@ namespace ImagingTest.Serializers
                 }
             }
             singleBand.Save<byte>("ddsTestSingleBand.dds");
+
+
+            Image roundTrip = Image.Load("ddsTestSingleBand.dds");
+            roundTrip.Save<byte>("ddsTestSingleBand_RoundTrip.png");
         }
 
     }

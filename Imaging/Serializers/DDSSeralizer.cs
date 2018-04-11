@@ -21,19 +21,17 @@ namespace OPS.Imaging
     {
         public Image Read(string filename, IImageConverter converter, float[] fillValue = null)
         {
-            DDSContainer c = new DDSContainer();
-            // TODO: loop to find largest
-            var x = c.MipChains[0];
-            MipData y = x[0];
-            Surface s = new Surface(y.Data);
             Image img = null;
-            TemporaryFile.GetAndDelete("png", f =>
+            using (Surface surf = Surface.LoadFromFile(filename))
             {
-                s.SaveToFile(ImageFormat.PNG, f);
-                GDALSeralizer ser = new GDALSeralizer();
-                img = ser.Read(f, converter, fillValue);
+                TemporaryFile.GetAndDelete(".tif", f =>
+                {
+                    surf.SaveToFile(ImageFormat.TIFF, f);
+                    GDALSeralizer ser = new GDALSeralizer();
+                    img = ser.Read(f, converter, fillValue);
 
-            });
+                });
+            }
             return img;
         }
 
@@ -49,24 +47,34 @@ namespace OPS.Imaging
                 throw new Exception("Unsuported type for DDS conversion");
             }
             GDALSeralizer ser = new GDALSeralizer();
-            TemporaryFile.GetAndDelete(".png", f =>
+            TemporaryFile.GetAndDelete(".tif", f =>
             {
                 // This will also handle whatever conversion is necessary so we don't need to call converter.Convert
                 ser.Write<T>(f, image, converter, fillValue);
-                Surface surf = Surface.LoadFromFile(f);
-                surf.FlipVertically();
-                Compressor comp = new Compressor();
-                if (image.Bands == 4) {
-                    comp.Compression.Format = CompressionFormat.DXT5;   // With alpha
-                } else
+                using (Surface surf = Surface.LoadFromFile(f))
                 {
-                    comp.Compression.Format = CompressionFormat.DXT1;   // Without alpha
-                }
-                comp.Input.GenerateMipmaps = true;
-                comp.Input.SetData(surf); 
-                if (!comp.Process(filename))
-                {
-                    throw new Exception("Error compressing DDS");
+                    surf.FlipVertically();
+                    using (Compressor comp = new Compressor())
+                    {
+                        if (image.Bands == 4)
+                        {
+                            comp.Compression.Format = CompressionFormat.DXT5;   // With alpha
+                        }
+                        else
+                        {
+                            comp.Compression.Format = CompressionFormat.DXT1;   // Without alpha
+                        }
+                        comp.Input.GenerateMipmaps = true;
+                        comp.Input.SetData(surf);
+                        using (Stream outstream = new FileStream(filename, FileMode.Create, FileAccess.Write))
+                        {
+
+                            if (!comp.Process(outstream))
+                            {
+                                throw new Exception("Error compressing DDS");
+                            }
+                        }
+                    }
                 }
             });
         }
