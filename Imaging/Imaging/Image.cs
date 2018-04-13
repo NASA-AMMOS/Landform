@@ -50,7 +50,7 @@ namespace OPS.Imaging
             {
                 return new PDSSeralizer().Read(filename, ImageConverters.PDSBitMaskValueRangeToNormalizedImage);
             }
-            else if (ext.EndsWith(".DDS"))
+            else if (ext.EndsWith(".DDS") || ext.EndsWith(".CRN"))
             {
                 return new DDSSeralizer().Read(filename, ImageConverters.ValueRangeToNormalizedImage);
             }
@@ -80,7 +80,7 @@ namespace OPS.Imaging
                 new PDSSeralizer().Write<T>(filename, this, ImageConverters.NormalizedImageToValueRange);
                 return;
             }
-            if(ext.EndsWith(".DDS"))
+            if(ext.EndsWith(".DDS") || ext.EndsWith(".CRN"))
             {
                 new DDSSeralizer().Write<T>(filename, this, ImageConverters.NormalizedImageToValueRange);
                 return;

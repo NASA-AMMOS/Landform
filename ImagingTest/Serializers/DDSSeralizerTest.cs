@@ -81,5 +81,15 @@ namespace ImagingTest.Serializers
             Image roundTrip = Image.Load("ddsTestSingleBandAplha.dds");
             roundTrip.Save<byte>("ddsTestSingleBandAlpha_RoundTrip.png");
         }
+
+        [TestMethod]
+        public void DDSSeralizerCRNWrite()
+        {
+            Image pattern = Image.Load(Path.Combine("TestData", "img", "testPattern.png"));
+            pattern.Save<byte>("crnTest.crn");
+
+            Image roundTrip = Image.Load("crnTest.crn");
+            roundTrip.Save<byte>("crnTest_RoundTrip.png");
+        }
     }
 }
