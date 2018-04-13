@@ -4,10 +4,8 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using TeximpNet;
-using TeximpNet.DDS;
-using TeximpNet.Compression;
 using OPS.Util;
+using log4net;
 
 namespace OPS.Imaging
 {
@@ -16,22 +14,28 @@ namespace OPS.Imaging
     /// Crunch https://github.com/BinomialLLC/crunch
     /// TeximpNet https://bitbucket.org/Starnick/teximpnet
     /// Managed Squish https://www.nuget.org/packages/ManagedSquish/
+    /// DirectXTexNet https://www.nuget.org/packages/DirectXTexNet/1.0.0-rc2
+    /// Texconv https://github.com/Microsoft/DirectXTex/wiki/Texconv
     /// </summary>
     public class DDSSeralizer : IImageSeralizer
     {
+        private static readonly ILog logger = LogManager.GetLogger(typeof(DDSSeralizer));
+
         public Image Read(string filename, IImageConverter converter, float[] fillValue = null)
         {
             Image img = null;
-            using (Surface surf = Surface.LoadFromFile(filename))
+            TemporaryFile.GetAndDelete(".png", f =>
             {
-                TemporaryFile.GetAndDelete(".tif", f =>
+                ProgramRunner pr = RunCruch(string.Format("-file \"{0}\" -out \"{1}\"", filename, f));
+                if (!File.Exists(filename))
                 {
-                    surf.SaveToFile(ImageFormat.TIFF, f);
-                    GDALSeralizer ser = new GDALSeralizer();
-                    img = ser.Read(f, converter, fillValue);
-
-                });
-            }
+                    logger.Error(pr.OutputText);
+                    logger.Error(pr.ErrorText);
+                    throw new Exception("Crunch failed to read DDS");
+                }
+                GDALSeralizer ser = new GDALSeralizer();
+                img = ser.Read(f, converter, fillValue);
+            });
             return img;
         }
 
@@ -46,37 +50,50 @@ namespace OPS.Imaging
             {
                 throw new Exception("Unsuported type for DDS conversion");
             }
-            GDALSeralizer ser = new GDALSeralizer();
-            TemporaryFile.GetAndDelete(".tif", f =>
+            string fileFormat = Path.GetExtension(filename).ToLower().Replace(".", "");
+            if(fileFormat != "dds" && fileFormat != "crn")
             {
-                // This will also handle whatever conversion is necessary so we don't need to call converter.Convert
-                ser.Write<T>(f, image, converter, fillValue);
-                using (Surface surf = Surface.LoadFromFile(f))
+                throw new Exception("Unsupported DDS export extension");
+            }
+            string encoding = null;
+            if(image.Bands == 1 || image.Bands == 3)
+            {
+                encoding = "dxt1";      // no alpha
+            }
+            else if(image.Bands ==2 || image.Bands == 4)
+            {
+                encoding = "dxt5";      // with alpha
+            }
+            else
+            {
+                throw new Exception("Unsuported number of bands for DDS conversion");
+            }
+            
+            TemporaryFile.GetAndDelete(".png", inImage =>
+            {
+                GDALSeralizer ser = new GDALSeralizer();
+                ser.Write<T>(inImage, image, converter, fillValue);
+                ProgramRunner pr = RunCruch(string.Format("-file \"{0}\" -fileformat {1} -{2} -out {3}", inImage, fileFormat, encoding, filename));
+                if (!File.Exists(filename))
                 {
-                    surf.FlipVertically();
-                    using (Compressor comp = new Compressor())
-                    {
-                        if (image.Bands == 4)
-                        {
-                            comp.Compression.Format = CompressionFormat.DXT5;   // With alpha
-                        }
-                        else
-                        {
-                            comp.Compression.Format = CompressionFormat.DXT1;   // Without alpha
-                        }
-                        comp.Input.GenerateMipmaps = true;
-                        comp.Input.SetData(surf);
-                        using (Stream outstream = new FileStream(filename, FileMode.Create, FileAccess.Write))
-                        {
-
-                            if (!comp.Process(outstream))
-                            {
-                                throw new Exception("Error compressing DDS");
-                            }
-                        }
-                    }
-                }
+                    logger.Error(pr.OutputText);
+                    logger.Error(pr.ErrorText);
+                    throw new Exception("Crunch DDS output file not found");
+                }               
             });
+        }
+
+        ProgramRunner RunCruch(string parameters)
+        {
+            string crunchExeName = "crunch.exe";     // 32 bit version
+            if (IntPtr.Size == 8)
+            {
+                crunchExeName = "crunch_x64.exe";
+            }
+            string crunchExe = Path.Combine(PathHelper.GetApplicationPath(), "ExternalApps", crunchExeName);
+            ProgramRunner pr = new ProgramRunner(crunchExe, parameters);
+            pr.Run();
+            return pr;
         }
     }
 }

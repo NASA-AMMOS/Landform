@@ -11,10 +11,7 @@ namespace ImagingTest.Serializers
 {
     [TestClass]
     [DeploymentItem("gdal", "gdal")]
-    [DeploymentItem("FreeImage32.dll")]
-    [DeploymentItem("FreeImage64.dll")]
-    [DeploymentItem("nvtt32.dll")]
-    [DeploymentItem("nvtt64.dll")]
+    [DeploymentItem("ExternalApps", "ExternalApps")]
     [DeploymentItem("TestData", "TestData")]
     public class DDSSeralizerTest
     {
@@ -45,7 +42,6 @@ namespace ImagingTest.Serializers
                 }
             }
             alpha.Save<byte>("ddsTestAlpha.dds");
-
             Image roundTrip = Image.Load("ddsTestAlpha.dds");
             roundTrip.Save<byte>("ddsTestAlpha_RoundTrip.png");
         }
@@ -63,11 +59,27 @@ namespace ImagingTest.Serializers
                 }
             }
             singleBand.Save<byte>("ddsTestSingleBand.dds");
-
-
             Image roundTrip = Image.Load("ddsTestSingleBand.dds");
             roundTrip.Save<byte>("ddsTestSingleBand_RoundTrip.png");
         }
 
+
+        [TestMethod]
+        public void DDSSeralizerWriteSingleBandAlpha()
+        {
+            Image pattern = Image.Load(Path.Combine("TestData", "img", "testPattern.png"));
+            Image singleBandAlpha = new Image(2, pattern.Width, pattern.Height);
+            for (int r = 0; r < pattern.Height; r++)
+            {
+                for (int c = 0; c < pattern.Width; c++)
+                {
+                    singleBandAlpha[0, r, c] = pattern[0, r, c];
+                    singleBandAlpha[1, r, c] = 0.5f;
+                }
+            }
+            singleBandAlpha.Save<byte>("ddsTestSingleBandAplha.dds");
+            Image roundTrip = Image.Load("ddsTestSingleBandAplha.dds");
+            roundTrip.Save<byte>("ddsTestSingleBandAlpha_RoundTrip.png");
+        }
     }
 }
