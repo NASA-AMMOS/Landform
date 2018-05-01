@@ -38,14 +38,20 @@ namespace OPS.Imaging
         /// <param name="that"></param>
         public Image(Image that) : base(that) { }
 
+
+        static bool IsPDS(string filename)
+        {
+            return filename.ToUpper().EndsWith(".IMG") || filename.ToUpper().EndsWith(".VIC");
+        }
+
         /// <summary>
-        /// Load an image using gdal and normalize values based on type value range
+        /// Load an image using default serializer and converter
         /// </summary>
         /// <param name="filename"></param>
         /// <returns></returns>
         public static Image Load(string filename)
-        {
-            if(filename.ToUpper().EndsWith(".IMG"))
+        {             
+            if(IsPDS(filename))
             {
                 return new PDSSeralizer().Read(filename, ImageConverters.PDSBitMaskValueRangeToNormalizedImage);
             }
@@ -53,7 +59,21 @@ namespace OPS.Imaging
         }
 
         /// <summary>
-        /// Loads a new image from a file
+        /// Load an image using with the given converter
+        /// </summary>
+        /// <param name="filename"></param>
+        /// <returns></returns>
+        public static Image Load(string filename, IImageConverter converter)
+        {
+            if (IsPDS(filename))
+            {
+                return new PDSSeralizer().Read(filename, converter);
+            }
+            return new GDALSeralizer().Read(filename, converter);
+        }
+
+        /// <summary>
+        /// Loads a new image with the given serializer and converter
         /// </summary>
         /// <param name="filename"></param>
         /// <param name="serializer"></param>
@@ -75,6 +95,22 @@ namespace OPS.Imaging
                 return;
             }
             new GDALSeralizer().Write<T>(filename, this, ImageConverters.NormalizedImageToValueRange);
+        }
+
+        /// <summary>
+        /// Saves image to disk
+        /// </summary>
+        /// <param name="filename"></param>
+        /// <param name="serializer"></param>
+        /// <param name="converter"></param>
+        public void Save<T>(string filename, IImageConverter converter)
+        {
+            if (filename.ToUpper().EndsWith(".IMG"))
+            {
+                new PDSSeralizer().Write<T>(filename, this, converter);
+                return;
+            }
+            new GDALSeralizer().Write<T>(filename, this, converter);
         }
 
         /// <summary>

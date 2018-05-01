@@ -52,12 +52,32 @@ namespace OPS.Imaging
                             for (int i = 0; i < img.Width * img.Height; i++)
                             {
                                 ushort v = br.ReadUInt16();
-                                v = ReverseBytes16(v);
+                                if (metadata.BigEndian)
+                                {
+                                    v = ReverseBytes16(v);
+                                }
                                 img.Data[b][i] = v;
                             }
                         }
                         CreateMaskFromFillValues(img, fillValue);
                         return converter.Convert<ushort>(img);
+                    }
+                    else if(metadata.SampleType == typeof(short))
+                    {
+                        for (int b = 0; b < img.Bands; b++)
+                        {
+                            for (int i = 0; i < img.Width * img.Height; i++)
+                            {
+                                short v = br.ReadInt16();
+                                if (metadata.BigEndian)
+                                {
+                                    v = ReverseBytes16(v);
+                                }
+                                img.Data[b][i] = v;
+                            }
+                        }
+                        CreateMaskFromFillValues(img, fillValue);
+                        return converter.Convert<short>(img);
                     }
                     else if (metadata.SampleType == typeof(float))
                     {
@@ -65,7 +85,12 @@ namespace OPS.Imaging
                         {
                             for (int i = 0; i < img.Width * img.Height; i++)
                             {
-                                img.Data[b][i] = BitConverter.ToSingle(BitConverter.GetBytes(ReverseBytes32(br.ReadUInt32())), 0);
+                                UInt32 v = br.ReadUInt32();
+                                if(metadata.BigEndian)
+                                {
+                                    v = ReverseBytes32(v);
+                                }
+                                img.Data[b][i] = BitConverter.ToSingle(BitConverter.GetBytes(v), 0);
                             }
                         }
                         CreateMaskFromFillValues(img, fillValue);
@@ -207,6 +232,11 @@ END
         public static ushort ReverseBytes16(ushort value)
         {
             return (ushort)((value & 0xFFU) << 8 | (value & 0xFF00U) >> 8);
+        }
+
+        public static short ReverseBytes16(short value)
+        {
+            return (short)((value & 0xFFU) << 8 | (value & 0xFF00U) >> 8);
         }
     }
 }
