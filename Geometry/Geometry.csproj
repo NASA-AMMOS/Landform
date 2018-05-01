@@ -109,6 +109,7 @@
     <Compile Include="Serializers\PLYReader.cs" />
     <Compile Include="Serializers\PLYSerializer.cs" />
     <Compile Include="Serializers\PLYWriter.cs" />
+    <Compile Include="Serializers\STLSerializer.cs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Imaging\Imaging.csproj">
