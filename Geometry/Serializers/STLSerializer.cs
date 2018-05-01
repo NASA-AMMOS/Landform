@@ -136,8 +136,7 @@ namespace OPS.Geometry
                 {
                     byte[] header = System.Text.Encoding.UTF8.GetBytes("STL created by Landform");
                     bw.Write(header);
-                    header = new byte[80-header.Length];
-                    bw.Write(header);
+                    bw.Write(new byte[80 - header.Length]);
                     bw.Write(triangles.Count);
                     foreach(var t in triangles)
                     {
