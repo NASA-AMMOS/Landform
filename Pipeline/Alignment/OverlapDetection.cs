@@ -68,14 +68,14 @@ namespace OPS.Pipeline
             
 
             Vector3[] cornerPoints = new Vector3[] {
-                Vector3.Transform(model1.ProjectPoint(new Vector2(0, 0), 0.01), oneToZero),
-                Vector3.Transform(model1.ProjectPoint(new Vector2(width1, 0), 0.01), oneToZero),
-                Vector3.Transform(model1.ProjectPoint(new Vector2(width1, height1), 0.01), oneToZero),
-                Vector3.Transform(model1.ProjectPoint(new Vector2(0, height1), 0.01), oneToZero),
-                Vector3.Transform(model1.ProjectPoint(new Vector2(0, 0), 40.0), oneToZero),
-                Vector3.Transform(model1.ProjectPoint(new Vector2(width1, 0), 40.0), oneToZero),
-                Vector3.Transform(model1.ProjectPoint(new Vector2(width1, height1), 40.0), oneToZero),
-                Vector3.Transform(model1.ProjectPoint(new Vector2(0, height1), 40.0), oneToZero)
+                Vector3.Transform(model1.Unproject(new Vector2(0, 0), 0.01), oneToZero),
+                Vector3.Transform(model1.Unproject(new Vector2(width1, 0), 0.01), oneToZero),
+                Vector3.Transform(model1.Unproject(new Vector2(width1, height1), 0.01), oneToZero),
+                Vector3.Transform(model1.Unproject(new Vector2(0, height1), 0.01), oneToZero),
+                Vector3.Transform(model1.Unproject(new Vector2(0, 0), 40.0), oneToZero),
+                Vector3.Transform(model1.Unproject(new Vector2(width1, 0), 40.0), oneToZero),
+                Vector3.Transform(model1.Unproject(new Vector2(width1, height1), 40.0), oneToZero),
+                Vector3.Transform(model1.Unproject(new Vector2(0, height1), 40.0), oneToZero)
             };
 
             double maxZ = double.NegativeInfinity;
@@ -84,7 +84,7 @@ namespace OPS.Pipeline
             foreach (Vector3 pt in cornerPoints)
             {
                 double z;
-                Vector2 projected = model0.Backproject(pt, out z);
+                Vector2 projected = model0.Project(pt, out z);
                 if (z > maxZ) maxZ = z;
                 if (projected.X < minPt.X) minPt.X = projected.X;
                 if (projected.Y < minPt.Y) minPt.Y = projected.Y;

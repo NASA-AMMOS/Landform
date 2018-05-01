@@ -10,9 +10,6 @@ using OPS.Util;
 
 namespace GeometryThirdpartyTest
 {
-
-
-
     [TestClass]
     [DeploymentItem("TestData", "TestData")]
     public class MeshLabTest
@@ -64,6 +61,16 @@ namespace GeometryThirdpartyTest
                 Assert.IsTrue(r.HasNormals);
                 Assert.IsFalse(r.HasUVs);
                 Assert.IsFalse(r.HasColors);
+                Assert.AreEqual(m.Vertices.Count, r.Vertices.Count);
+                Assert.AreEqual(0, r.Faces.Count);
+            }
+            {
+                Mesh m = TestMeshCreator.CreateMesh(false, false, true);
+                m.Faces.Clear();
+                Mesh r = MeshLab.ComputeNormals(m);
+                Assert.IsTrue(r.HasNormals);
+                Assert.IsFalse(r.HasUVs);
+                Assert.IsTrue(r.HasColors);
                 Assert.AreEqual(m.Vertices.Count, r.Vertices.Count);
                 Assert.AreEqual(0, r.Faces.Count);
             }

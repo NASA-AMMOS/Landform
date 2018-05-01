@@ -1,7 +1,7 @@
 # Landform
-Landform is the next generation photogrammetry and terrain reconstruction pipeline.  It is based on the [OnSight Terrain Pipeline]( https://github.jpl.nasa.gov/onsight/terraintools) but has been re-written from the ground up for performance, scalability, and adaptability.  In addition to the pipeline itself, Landform also consists of several general purpose libraries designed to make mesh and image processing easy and fun.  Operations that are implemented purely in C# can run under Linux using the mono C# runtime, but many components utilize third party libraries with native windows dependencies.  
+Landform is the next generation photogrammetry and terrain reconstruction pipeline.  It is based on the [OnSight Terrain Pipeline]( https://github.jpl.nasa.gov/onsight/terraintools) but has been re-written from the ground up for performance, scalability, and adaptability.  In addition to the pipeline itself, Landform also consists of several general-purpose libraries designed to make mesh and image processing easy and fun.  Operations that are implemented purely in C# can run under Linux using the Mono C# runtime, but many components utilize third party libraries with native Windows dependencies.  
 
-The front end web console for landform can be found in the [Landform Console](https://github.jpl.nasa.gov/OnSight/LandformConsole) reposiotry.
+The front end web console for Landform can be found in the [Landform Console](https://github.jpl.nasa.gov/OnSight/LandformConsole) repository.
 
 # Environment Variables
 | Name |  Description | Default |
@@ -37,6 +37,6 @@ For worker instances, the above files are set by the userdata section of the EC2
 | AWSSDK.S3 | S3 accesss | nuget | [AWSSDK - Amazon Simple Storage Service 3.3.5.10](https://www.nuget.org/packages/AWSSDK.S3/) |
 | Newtonsoft | Json parser | nuget | [Json.NET 10.0.1](https://www.nuget.org/packages/Newtonsoft.Json/) |
 | RTree | Datastructure for spatial queries | nuget | [RTree - Spatial Index 1.0.2.1](https://www.nuget.org/packages/RTree/) |
-| Neumerics | Numeric computation library | nuget | [Math.NET Numerics 3.20.0](https://www.nuget.org/packages/MathNet.Numerics/) |
+| Numerics | Numeric computation library | nuget | [Math.NET Numerics 3.20.0](https://www.nuget.org/packages/MathNet.Numerics/) |
 | OptimizedPriorityQueue | Data structure | nuget | [OptimizedPriorityQueue 4.1.1](https://www.nuget.org/packages/OptimizedPriorityQueue/) |
 
