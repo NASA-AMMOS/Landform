@@ -17,11 +17,12 @@ namespace OPS.Imaging
     /// DirectXTexNet https://www.nuget.org/packages/DirectXTexNet/1.0.0-rc2
     /// Texconv https://github.com/Microsoft/DirectXTex/wiki/Texconv
     /// </summary>
-    public class DDSSeralizer : IImageSeralizer
+    public class DDSSeralizer : ImageSerializer
     {
         private static readonly ILog logger = LogManager.GetLogger(typeof(DDSSeralizer));
 
-        public Image Read(string filename, IImageConverter converter, float[] fillValue = null)
+
+        public override Image Read(string filename, IImageConverter converter, float[] fillValue = null)
         {
             Image img = null;
             TemporaryFile.GetAndDelete(".png", f =>
@@ -39,9 +40,8 @@ namespace OPS.Imaging
             return img;
         }
 
-        public void Write<T>(string filename, Image image, IImageConverter converter, float[] fillValue = null)
-        {
-            
+        public override void Write<T>(string filename, Image image, IImageConverter converter, float[] fillValue = null)
+        {            
             if (File.Exists(filename))
             {
                 File.Delete(filename);
@@ -94,6 +94,21 @@ namespace OPS.Imaging
             ProgramRunner pr = new ProgramRunner(crunchExe, parameters);
             pr.Run();
             return pr;
+        }
+
+        public override IImageConverter DefaultReadConverter()
+        {
+            return ImageConverters.ValueRangeToNormalizedImage;
+        }
+
+        public override IImageConverter DefaultWriteConverter()
+        {
+            return ImageConverters.NormalizedImageToValueRange;
+        }
+
+        public override string[] GetExtensions()
+        {
+            return new string[] { ".dds", ".crn" };
         }
     }
 }
