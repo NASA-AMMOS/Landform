@@ -42,6 +42,8 @@ namespace OPS.Imaging
                 extensionToGdalDriver.Add(".jpg", new Tuple<string, bool>("JPEG", true));
                 extensionToGdalDriver.Add(".bmp", new Tuple<string, bool>("BMP", true));
                 extensionToGdalDriver.Add(".png", new Tuple<string, bool>("PNG", true));
+                extensionToGdalDriver.Add(".jp2", new Tuple<string, bool>("JP2OpenJPEG", true));
+                extensionToGdalDriver.Add(".j2k", new Tuple<string, bool>("JP2OpenJPEG", true));
                 // Native to gdal type conversion
                 systemTypeToGdalType = new Dictionary<Type, DataType>();
                 systemTypeToGdalType.Add(typeof(byte), DataType.GDT_Byte);
