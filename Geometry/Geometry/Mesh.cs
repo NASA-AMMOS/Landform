@@ -149,6 +149,19 @@ namespace OPS.Geometry
         }
 
         /// <summary>
+        /// Remove vertex normals from this mesh
+        /// set all vertex normals to zero and set meshes HasNormals flag to false
+        /// </summary>
+        public void ClearNormals()
+        {
+            this.HasNormals = false;
+            foreach(var v in this.Vertices)
+            {
+                v.Normal = Vector3.Zero;
+            }
+        }
+
+        /// <summary>
         /// Checks if the face contains any vertices located at the same point in space which would render it invalid
         /// </summary>
         /// <param name="f"></param>

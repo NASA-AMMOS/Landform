@@ -29,7 +29,7 @@ namespace OPS.Alignment
         public KnownGeometryFilter(ImageNodeDelegate imageToNode)
         {
             ImageToNode = imageToNode;
-            ParallelBackprojectDistance = 1000;
+            ParallelProjectionDistance = 1000;
             BadProjectionRatio = 0.4;
             MahalanobisThreshold = 4;
             FixedErrorThreshold = 20;
@@ -37,9 +37,9 @@ namespace OPS.Alignment
         private ImageNodeDelegate ImageToNode;
 
         /// <summary>
-        /// When two camera rays are parallel, try backprojecting from this distance.
+        /// When two camera rays are parallel, try projecting from this distance.
         /// </summary>
-        public double ParallelBackprojectDistance;
+        public double ParallelProjectionDistance;
         /// <summary>
         /// Ratio of bad to good projections to reject an uncertain match.
         /// </summary>
@@ -97,8 +97,8 @@ namespace OPS.Alignment
                 var modelFeature = matches.ModelFeatures[pair.Value];
                 var dataFeature = matches.DataFeatures[pair.Key];
 
-                var modelRay = modelCam.ProjectRay(modelFeature.Location);
-                var dataRay = dataCam.ProjectRay(dataFeature.Location);
+                var modelRay = modelCam.Unproject(modelFeature.Location);
+                var dataRay = dataCam.Unproject(dataFeature.Location);
 
                 // if we have a convex hull, check if model ray intersects it at all
                 if (dataHullInModel != null)
@@ -121,12 +121,12 @@ namespace OPS.Alignment
 
                     var mdrm = RayExtensions.Transform(dataRay, mat);
                     double modelT, dataT;
-                    Vector2 backprojected;
+                    Vector2 projected;
                     double range;
                     if (!RayExtensions.ClosestIntersection(modelRay, mdrm, out modelT, out dataT))
                     {
-                        // Rays are parallel or very close to parallel - try backprojecting from ~infinity
-                        dataT = ParallelBackprojectDistance;
+                        // Rays are parallel or very close to parallel - try projecting from ~infinity
+                        dataT = ParallelProjectionDistance;
                         modelT = 0;
                         res.intersection = false;
                     }
@@ -135,8 +135,8 @@ namespace OPS.Alignment
                         res.intersection = true;
                     }
                     Vector3 dataPt = mdrm.Position + mdrm.Direction * dataT;
-                    backprojected = modelCam.Backproject(dataPt, out range);
-                    res.error = backprojected - modelFeature.Location;
+                    projected = modelCam.Project(dataPt, out range);
+                    res.error = projected - modelFeature.Location;
                     res.modelT = modelT;
                     res.dataT = dataT;
                     return res;
