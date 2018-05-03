@@ -191,7 +191,6 @@ namespace OPS.Imaging
         /// </param>
         public override void Write<T>(string filename, Image image, IImageConverter converter, float[] fillValue = null)
         {
-
             if (File.Exists(filename))
             {
                 File.Delete(filename);
