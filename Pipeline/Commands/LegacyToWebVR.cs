@@ -84,7 +84,7 @@ namespace OPS.Pipeline
             Parallel.For(0, img.Height, r => {
                 for (int c = 0; c < img.Width; c++)
                 {
-                    Ray ray = cam.ProjectRay(new Vector2(c, r));
+                    Ray ray = cam.Unproject(new Vector2(c, r));
                     HitData hit = sc.Raycast(ray);
                     if (hit != null)
                     {
@@ -104,7 +104,7 @@ namespace OPS.Pipeline
             {
                 for (int c = 0; c < img.Width; c++)
                 {
-                    Ray ray = cam.ProjectRay(new Vector2(c, r));
+                    Ray ray = cam.Unproject(new Vector2(c, r));
                     HitData hit = sc.Raycast(ray);
                     if (hit != null)
                     {

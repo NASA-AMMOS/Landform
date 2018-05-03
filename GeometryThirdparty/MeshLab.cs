@@ -32,8 +32,9 @@ namespace OPS.Geometry
 
         /// <summary>
         /// Return a copy of the input mesh with computed vertex normals
-        /// Retains uvs and colors
-        /// Works on both meshes with faces and point sets
+        /// Works on both meshes with faces and point clouds (without uvs)
+        /// Retains uvs and colors when working with meshes that have faces
+        /// Retains colors but looses uvs when working with point clouds
         /// </summary>
         /// <param name="m"></param>
         /// <returns></returns>
@@ -45,6 +46,18 @@ namespace OPS.Geometry
   <Param enum_val1=""By Angle"" enum_val3=""As defined by N. Max"" value=""0"" description=""Weighting Mode:"" type=""RichEnum"" enum_cardinality=""4"" enum_val2=""By Area"" name=""weightMode"" enum_val0=""None (avg)"" tooltip=""""/>
  </filter>
 </FilterScript>";
+            if (!m.HasFaces)
+            {
+                script = @"<!DOCTYPE FilterScript>
+<FilterScript>
+ <filter name=""Compute normals for point sets"">
+  <Param name=""K"" type=""RichInt"" description=""Neighbour num"" tooltip=""The number of neighbors used to estimate normals."" value=""10""/>
+  <Param name=""smoothIter"" type=""RichInt"" description=""Smooth Iteration"" tooltip=""The number of smoothing iteration done on the p used to estimate and propagate normals."" value=""0""/>
+  <Param name=""flipFlag"" type=""RichBool"" description=""Flip normals w.r.t. viewpoint"" tooltip=""If the 'viewpoint' (i.e. scanner position) is known, it can be used to disambiguate normals orientation, so that all the normals will be oriented in the same direction."" value=""false""/>
+  <Param name=""viewPos"" type=""RichPoint3f"" description=""Viewpoint Pos."" tooltip=""The viewpoint position can be set by hand (i.e. getting the current viewpoint) or it can be retrieved from mesh camera, if the viewpoint position is stored there."" x=""0"" y=""0"" z=""0""/>
+ </filter>
+</FilterScript>";
+            }
             MeshLabOutputAttributes attributes = new MeshLabOutputAttributes(normals: true, uvs: m.HasUVs, colors: m.HasColors);
             MeshLabRunner mlr = new MeshLabRunner(m, script, attributes, ".obj", ".obj");
             Mesh result = mlr.Run();
