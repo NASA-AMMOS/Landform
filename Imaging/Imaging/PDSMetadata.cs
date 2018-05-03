@@ -150,7 +150,7 @@ namespace OPS.Imaging
             this.DataOffset = (carrot - 1) * this.RecordBytes;
             try
             {
-                this.CameraModel = new PDSCameraModeParser(this).Parse();
+                this.CameraModel = new PDSCameraModelParser(this).Parse();
             }
             catch (PDSMetadataNullValueException)
             {
@@ -209,7 +209,7 @@ namespace OPS.Imaging
             }
             try
             {
-                this.CameraModel = new PDSCameraModeParser(this).Parse();
+                this.CameraModel = new PDSCameraModelParser(this).Parse();
             }
             catch (PDSMetadataNullValueException)
             {
