@@ -10,7 +10,7 @@ namespace OPS.Imaging
     /// <summary>
     /// Reads PDSImages.  
     /// </summary>
-    public class PDSSeralizer : IImageSeralizer
+    public class PDSSeralizer : ImageSerializer
     {
 
         /// <summary>
@@ -24,7 +24,7 @@ namespace OPS.Imaging
         /// done before pixel values are converted.
         /// </param>
         /// <returns></returns>
-        public Image Read(string filename, IImageConverter converter, float[] fillValue = null)
+        public override Image Read(string filename, IImageConverter converter, float[] fillValue = null)
         {
             PDSMetadata metadata = new PDSMetadata(filename);
             Image img = new Image(metadata.Bands, metadata.Width, metadata.Height);
@@ -147,7 +147,7 @@ namespace OPS.Imaging
         /// <param name="image"></param>
         /// <param name="converter"></param>
         /// <param name="fillValue"></param>
-        public void Write<T>(string filename, Image image, IImageConverter converter, float[] fillValue = null)
+        public override void Write<T>(string filename, Image image, IImageConverter converter, float[] fillValue = null)
         {
             string template = @"
 RECORD_BYTES                      = {0}
@@ -237,6 +237,21 @@ END
         public static short ReverseBytes16(short value)
         {
             return (short)((value & 0xFFU) << 8 | (value & 0xFF00U) >> 8);
+        }
+
+        public override string[] GetExtensions()
+        {
+            return new string[] { ".img", ".vic" };
+        }
+
+        public override IImageConverter DefaultReadConverter()
+        {
+            return ImageConverters.PDSBitMaskValueRangeToNormalizedImage;
+        }
+
+        public override IImageConverter DefaultWriteConverter()
+        {
+            return ImageConverters.NormalizedImageToValueRange;
         }
     }
 }
