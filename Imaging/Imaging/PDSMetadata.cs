@@ -16,46 +16,97 @@ namespace OPS.Imaging
         public PDSMetadataNullValueException(string message, Exception inner) : base(message, inner) { }
     }
 
+    public class VICMetadataException : Exception
+    {
+        public VICMetadataException() { }
+        public VICMetadataException(string message) : base(message) { }
+        public VICMetadataException(string message, Exception inner) : base(message, inner) { }
+    }
+
+
     public class PDSMetadata : ImageMetadata
     {
+
+        static Dictionary<string, Type> TypeLookup;
+        static Dictionary<string, int> BitDepthLookup;
+        static Dictionary<string, uint> BitMaskLookup;
+
+        static PDSMetadata()
+        {
+            TypeLookup = new Dictionary<string, Type>();
+            TypeLookup.Add("BYTE", typeof(byte));
+            TypeLookup.Add("HALF", typeof(ushort));
+            TypeLookup.Add("FULL", typeof(int));
+            TypeLookup.Add("REAL", typeof(float));
+            TypeLookup.Add("DOUB", typeof(double));
+
+            BitDepthLookup = new Dictionary<string, int>();
+            BitDepthLookup.Add("BYTE", sizeof(byte));
+            BitDepthLookup.Add("HALF", sizeof(ushort));
+            BitDepthLookup.Add("FULL", sizeof(int));
+            BitDepthLookup.Add("REAL", sizeof(float));
+            BitDepthLookup.Add("DOUB", sizeof(double));
+
+            BitMaskLookup = new Dictionary<string, uint>();
+            BitMaskLookup.Add("BYTE", byte.MaxValue);
+            BitMaskLookup.Add("HALF", (uint)ushort.MaxValue);
+            BitMaskLookup.Add("FULL", int.MaxValue);
+            BitMaskLookup.Add("REAL", 0);
+            BitMaskLookup.Add("DOUB", 0);
+
+        }
+
         // Essential Metadata
         public long RecordBytes;
-        public int Carrot;
         public Type SampleType;
         public int BitDepth;
+        // Start location of image data
+        public long DataOffset;
         public uint BitMask;
+        public bool BigEndian = true;
+
         // Optional Metadata
         public CameraModel CameraModel;
 
-        /// <summary>
-        /// Start location of image data
-        /// </summary>
-        public long DataOffset
-        {
-            get { return (this.Carrot - 1) * this.RecordBytes; }
-        }
-
-        protected Dictionary<string, Dictionary<string, string>> rawHeader;
+        Dictionary<string, Dictionary<string, string>> rawHeader;
         const string NULL_GROUP = "";
 
-
-        public PDSMetadata(Stream stream)
+        public PDSMetadata(Stream stream, bool loadAsVIC = false)
         {
-            Init(stream);
+            if (loadAsVIC)
+            {
+                InitVIC(stream);
+            }
+            else
+            {
+                InitPDS(stream);
+            }
         }
 
         public PDSMetadata(string filename)
-        {            
+        {
             using (FileStream fs = File.OpenRead(filename))
             {
-                Init(fs);
-            }           
+                string ext = Path.GetExtension(filename).ToUpper();
+                if (ext == ".IMG")
+                {
+                    InitPDS(fs);
+                }
+                else if (ext == ".VIC")
+                {
+                    InitVIC(fs);
+                }
+                else
+                {
+                    throw new ImageSerializationException("Unexpected file extension");
+                }                
+            }
         }
-        
+
         public PDSMetadata(PDSMetadata that)
         {
             this.rawHeader = new Dictionary<string, Dictionary<string, string>>();
-            foreach(var group in that.Groups())
+            foreach (var group in that.Groups())
             {
                 this.rawHeader.Add(group, new Dictionary<string, string>());
                 foreach (var key in that.Keys(group))
@@ -68,8 +119,9 @@ namespace OPS.Imaging
             this.Bands = that.Bands;
             this.BitDepth = that.BitDepth;
             this.BitMask = that.BitMask;
+            this.BigEndian = that.BigEndian;
             this.RecordBytes = that.RecordBytes;
-            this.Carrot = that.Carrot;
+            this.DataOffset = that.DataOffset;
             this.SampleType = that.SampleType;
             if (that.CameraModel != null)
             {
@@ -77,9 +129,9 @@ namespace OPS.Imaging
             }
         }
 
-        private void Init(Stream stream)
+        void InitPDS(Stream stream)
         {
-            this.rawHeader = ReadHeader(stream);
+            this.rawHeader = ReadPDSHeader(stream);
             this.Width = ReadAsInt("IMAGE", "LINE_SAMPLES");
             this.Height = ReadAsInt("IMAGE", "LINES");
             // If a number of band's isn't specified, assume this is a single band image
@@ -94,10 +146,11 @@ namespace OPS.Imaging
             this.BitDepth = ReadAsInt("IMAGE", "SAMPLE_BITS");
             
             this.RecordBytes = ReadAsLong("RECORD_BYTES");
-            this.Carrot = (int)ReadAsInt("^IMAGE");
+            int carrot = (int)ReadAsInt("^IMAGE");
+            this.DataOffset = (carrot - 1) * this.RecordBytes;
             try
             {
-                this.CameraModel = new PDSCameraModeParser(this).Parse();
+                this.CameraModel = new PDSCameraModelParser(this).Parse();
             }
             catch (PDSMetadataNullValueException)
             {
@@ -122,9 +175,47 @@ namespace OPS.Imaging
             // If a bit mask is specified, use it to override the per-type default masks assigned above
             if (HasKey("IMAGE", "SAMPLE_BIT_MASK"))
             {
-                string[] tokens = ParseString(this["IMAGE", "SAMPLE_BIT_MASK"]).Split('#');
-                this.BitMask = Convert.ToUInt32(tokens[1], int.Parse(tokens[0]));
+                this.BitMask = ReadAsBitMask("IMAGE", "SAMPLE_BIT_MASK");
             }
+        }
+
+        void InitVIC(Stream stream)
+        {
+            this.rawHeader = ReadVICHeader(stream);
+            this.Bands = ReadAsInt("NB");
+            this.Height = ReadAsInt("NL");
+            this.Width = ReadAsInt("NS");
+            this.RecordBytes = ReadAsInt("RECSIZE");
+            this.DataOffset = ReadAsInt("LBLSIZE");
+
+            if (ReadAsString("ORG") != "BSQ")
+            {
+                throw new VICMetadataException("Only Band Sequential VIC files are supported");
+            }
+            if (ReadAsInt("NBB") != 0 || ReadAsInt("NLB") != 0)
+            {
+                throw new VICMetadataException("Binary record headers not supported");
+            }
+            if(ReadAsString("INTFMT") == "LOW")
+            {
+                this.BigEndian = false;
+            }
+            this.BitDepth = BitDepthLookup[ReadAsString("FORMAT")];
+            this.SampleType = TypeLookup[ReadAsString("FORMAT")];
+            this.BitMask = BitMaskLookup[ReadAsString("FORMAT")];
+            if (HasKey("IMAGE_DATA", "SAMPLE_BIT_MASK"))
+            {
+                this.BitMask = ReadAsBitMask("IMAGE_DATA", "SAMPLE_BIT_MASK");
+            }
+            try
+            {
+                this.CameraModel = new PDSCameraModelParser(this).Parse();
+            }
+            catch (PDSMetadataNullValueException)
+            {
+                this.CameraModel = null;
+            }
+
         }
 
         public override object Clone()
@@ -139,7 +230,7 @@ namespace OPS.Imaging
 
         public bool HasKey(string group, string key)
         {
-            if(!rawHeader.ContainsKey(group))
+            if (!rawHeader.ContainsKey(group))
             {
                 return false;
             }
@@ -155,7 +246,7 @@ namespace OPS.Imaging
         /// 
         /// </summary>
         /// <returns></returns>
-        public Dictionary<string,Dictionary<string,string>>.KeyCollection Groups()
+        public Dictionary<string, Dictionary<string, string>>.KeyCollection Groups()
         {
             return this.rawHeader.Keys;
         }
@@ -172,7 +263,7 @@ namespace OPS.Imaging
         public string this[string key]
         {
             get
-            { 
+            {
                 return this[NULL_GROUP, key];
             }
         }
@@ -186,7 +277,7 @@ namespace OPS.Imaging
         {
             get
             {
-                if(!HasKey(group, key))
+                if (!HasKey(group, key))
                 {
                     return null;
                 }
@@ -274,10 +365,25 @@ namespace OPS.Imaging
             return DateTime.Parse(this[group, key]);
         }
 
+        public uint ReadAsBitMask(string key)
+        {
+            return ReadAsBitMask(NULL_GROUP, key);
+        }
+
+        public uint ReadAsBitMask(string group, string key)
+        {
+            string[] tokens = ParseString(this[group, key]).Split('#');
+            return Convert.ToUInt32(tokens[1], int.Parse(tokens[0]));
+        }
+
         string ParseString(string s)
         {
             s = s.Trim();
             if (s.StartsWith("\"") && s.EndsWith("\""))
+            {
+                s = s.Substring(1, s.Length - 2).Trim();
+            }
+            if (s.StartsWith("\'") && s.EndsWith("\'"))
             {
                 s = s.Substring(1, s.Length - 2).Trim();
             }
@@ -293,10 +399,10 @@ namespace OPS.Imaging
             }
             return s.Split(',').Select(x => ParseString(x)).ToArray();
         }
-                
+
         void CheckForNull(string s)
         {
-            if(s.Equals("NULL") || s.Equals("null"))
+            if (s.Equals("NULL") || s.Equals("null"))
             {
                 throw new PDSMetadataNullValueException();
             }
@@ -347,7 +453,7 @@ namespace OPS.Imaging
         }
 
         string StripUnits(string s)
-        {      
+        {
             int start = s.IndexOf("<");
             if (start >= 0)
             {
@@ -356,7 +462,7 @@ namespace OPS.Imaging
             return s;
         }
 
-        Dictionary<string, Dictionary<string, string>> ReadHeader(Stream stream)
+        Dictionary<string, Dictionary<string, string>> ReadPDSHeader(Stream stream)
         {
             var header = new Dictionary<string, Dictionary<string,string>>();
             using (StreamReader file = new StreamReader(stream))
@@ -416,6 +522,65 @@ namespace OPS.Imaging
                     {
                         header[curGroup].Add(key, value);
                     }
+                }
+            }
+            return header;
+        }
+
+        private Dictionary<string, Dictionary<string, string>> ReadVICHeader(Stream stream)
+        {
+            Dictionary<string, Dictionary<string, string>> header = new Dictionary<string, Dictionary<string, string>>();
+            StreamReader sr = new StreamReader(stream);
+            char[] buffer = new char[1000];
+            sr.Read(buffer, 0, 1000);
+            string sizeLabelText = new string(buffer);
+            string[] tokens = sizeLabelText.Split(' ');
+
+            var parts = tokens[0].Split('=');
+            string name = parts[0].Trim();
+            string value = parts[1];
+            if (name != "LBLSIZE")
+            {
+                throw new VICMetadataException("LBLSIZE not found");
+            }
+            int headerLength = int.Parse(value);
+            stream.Position = 0;
+            sr = new StreamReader(stream);
+            buffer = new char[headerLength];
+            sr.Read(buffer, 0, headerLength);
+            string headerText = new string(buffer); //allText.Substring(0, headerLength);
+
+            header.Add(NULL_GROUP, new Dictionary<string, string>());
+
+            tokens = headerText.Split(' ');
+            string group = NULL_GROUP;
+            foreach (var tok in tokens)
+            {
+                // Note it is totally possible to have a valid VIC file with spaces around the = sign, we don't handle it here
+                // because we expect its rare and complicates parsing.  
+                if (tok.Contains("="))
+                {
+                    int splitIndex = tok.IndexOf('=');
+                    if (splitIndex == 0)
+                    {
+                        throw new VICMetadataException("Unexpected '=' sign.  Reader does not currently support spaces between '=' and name/value");
+                    }
+                    name = tok.Substring(0, splitIndex).Trim();
+                    value = tok.Substring(splitIndex + 1, tok.Length - splitIndex - 1).Trim();
+                    if (name.ToUpper() == "PROPERTY")
+                    {
+                        group = ParseString(value);
+                        if (!header.ContainsKey(value))
+                        {
+                            header.Add(group, new Dictionary<string, string>());
+                        }
+                        continue;
+                    }
+                    if (name.ToUpper() == "TASK")
+                    {
+                        break;
+                    }
+                    header[group].Add(name, value);
                 }
             }
             return header;

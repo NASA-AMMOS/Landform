@@ -40,12 +40,12 @@ namespace OPS.Imaging
         public Image(Image that) : base(that) { }
 
         /// <summary>
-        /// Load an image using gdal and normalize values based on type value range
+        /// Load an image using default serializer and converter
         /// </summary>
         /// <param name="filename"></param>
         /// <returns></returns>
         public static Image Load(string filename)
-        {
+        {             
             string ext = Path.GetExtension(filename);
             ImageSerializer s = ImageSerializers.GetSerializer(ext);
             if (s == null)
@@ -56,7 +56,23 @@ namespace OPS.Imaging
         }
 
         /// <summary>
-        /// Loads a new image from a file
+        /// Load an image using with the given converter
+        /// </summary>
+        /// <param name="filename"></param>
+        /// <returns></returns>
+        public static Image Load(string filename, IImageConverter converter)
+        {
+            string ext = Path.GetExtension(filename);
+            ImageSerializer s = ImageSerializers.GetSerializer(ext);
+            if (s == null)
+            {
+                throw new ImageSerializationException("Image format not supported");
+            }
+            return s.Read(filename, converter);
+        }
+
+        /// <summary>
+        /// Loads a new image with the given serializer and converter
         /// </summary>
         /// <param name="filename"></param>
         /// <param name="serializer"></param>
@@ -79,6 +95,23 @@ namespace OPS.Imaging
                 throw new ImageSerializationException("Image format not supported");
             }
             s.Write<T>(filename, this);
+        }
+
+        /// <summary>
+        /// Saves image to disk with the provided converter
+        /// </summary>
+        /// <param name="filename"></param>
+        /// <param name="serializer"></param>
+        /// <param name="converter"></param>
+        public void Save<T>(string filename, IImageConverter converter)
+        {
+            string ext = Path.GetExtension(filename);
+            ImageSerializer s = ImageSerializers.GetSerializer(ext);
+            if (s == null)
+            {
+                throw new ImageSerializationException("Image format not supported");
+            }
+            s.Write<T>(filename, this, converter);
         }
 
         /// <summary>

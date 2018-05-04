@@ -16,7 +16,6 @@ namespace ImagingTest.Serializers
             {
                 string filename = Path.Combine("TestData", "img", "ML0_451292526RCX_S0311094MCAM02555M1.IMG");
                 var m = new PDSMetadata(filename);
-                Assert.AreEqual(20, m.Carrot);
                 Assert.AreEqual(26752, m.DataOffset);
                 Assert.AreEqual(m.Width, 1408);
                 Assert.AreEqual(m.Height, 1200);
@@ -86,7 +85,6 @@ namespace ImagingTest.Serializers
             {
                 string filename = Path.Combine("TestData", "img", "NLB_451649560RNGLF0311330NCAM12813M1.IMG");
                 var m = new PDSMetadata(filename);
-                Assert.AreEqual(14, m.Carrot);
                 Assert.AreEqual(m.Width, 1024);
                 Assert.AreEqual(m.Height, 1024);
                 Assert.AreEqual(m.Bands, 1);
@@ -143,7 +141,6 @@ namespace ImagingTest.Serializers
             string filename = Path.Combine("TestData", "img", "ML0_451292526RCX_S0311094MCAM02555M1.IMG");
             var orig = new PDSMetadata(filename);
             var m = new PDSMetadata(orig);
-            Assert.AreEqual(20, m.Carrot);
             Assert.AreEqual(m.Width, 1408);
             Assert.AreEqual(m.Height, 1200);
             Assert.AreEqual(m.Bands, 3);
@@ -168,7 +165,6 @@ namespace ImagingTest.Serializers
             Assert.IsTrue(Vector3.AlmostEqual(mc_6, cm.R));
 
             // Change all the things in the copy
-            m.Carrot = 1;
             m.Width = 2;
             m.Height = 3;
             m.Bands = 4;
@@ -182,7 +178,6 @@ namespace ImagingTest.Serializers
             cm.R = new Vector3(1, 2, 3);
 
             // Confirm nothing changed in the original
-            Assert.AreEqual(20, orig.Carrot);
             Assert.AreEqual(orig.Width, 1408);
             Assert.AreEqual(orig.Height, 1200);
             Assert.AreEqual(orig.Bands, 3);
