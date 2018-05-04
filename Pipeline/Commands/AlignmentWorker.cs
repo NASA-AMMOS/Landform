@@ -319,7 +319,7 @@ namespace OPS.Pipeline
                 m.DeleteMessage(SQSClient, config.JobQueue);
                 return 0;
             }
-            GTM gtm = new GTM(5);
+            GTMFilter gtm = new GTMFilter(5);
             matches = gtm.Filter(scene, matches);
             if (matches == null)
             {

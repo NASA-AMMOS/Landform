@@ -5,6 +5,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using OPS.MathExtensions;
+using System.Collections;
 
 namespace OPS.Alignment
 {
@@ -14,15 +15,17 @@ namespace OPS.Alignment
     class GTMNode
     {
         public readonly int Index;
+        public readonly int FeatureIndex;
         public readonly ImageFeature Feature;
         public HashSet<GTMNode> Neighbors;              // Nodes that are my neighbors
         public HashSet<GTMNode> NeighborOf;             // Nodes that I am a neighbor of
         public LinkedList<GTMNode> BackupNeighors;      // Sorted list of nearest neighbors
         
-        public GTMNode(int index, ImageFeature feature)
+        public GTMNode(int index, ImageFeature feature, int featureIndex)
         {
-            this.Index = index;
-            this.Feature = feature;
+            Index = index;
+            Feature = feature;
+            FeatureIndex = featureIndex;
             Neighbors = new HashSet<GTMNode>();
             NeighborOf = new HashSet<GTMNode>();
             BackupNeighors = new LinkedList<GTMNode>();
@@ -286,6 +289,15 @@ namespace OPS.Alignment
         }
 
         /// <summary>
+        /// Return feature indices from this graph ordered by node index
+        /// </summary>
+        /// <returns></returns>
+        public IEnumerable<int> OrderedFeatureIndices()
+        {
+            return this.graphNodes.Values.OrderBy(n => n.Index).Select(n => n.FeatureIndex);
+        }
+
+        /// <summary>
         /// Return number of nodes in this graph
         /// </summary>
         public int Count
@@ -336,7 +348,7 @@ namespace OPS.Alignment
         }
     }
 
-    public class GTMNuevo : IMatchFilter
+    public class GTMFilter : IMatchFilter
     {
         GTMGraphNice dataGraph;
         GTMGraphNice modelGraph;
@@ -346,7 +358,7 @@ namespace OPS.Alignment
         /// Create a GTM filter
         /// </summary>
         /// <param name="k">Paper says to use 5</param>
-        public GTMNuevo(int k = 5)
+        public GTMFilter(int k = 5)
         {
             this.K = k;
         }
@@ -356,11 +368,11 @@ namespace OPS.Alignment
         /// </summary>
         /// <param name="matches"></param>
         /// <returns></returns>
-        public ImagePairCorrespondence Filter(ImagePairCorrespondence matches)
+        public ImagePairCorrespondence Filter(AlignmentScene scene, ImagePairCorrespondence matches)
         {
             // Construct graph
-            ImageFeature[] modelFeat = matches.ModelFeatures;
-            ImageFeature[] dataFeat = matches.DataFeatures;
+            ImageFeature[] modelFeat = scene.Context.DetectedFeatures[matches.ModelImage];
+            ImageFeature[] dataFeat = scene.Context.DetectedFeatures[matches.DataImage];
 
             // Create data and model verts and add to graphs           
             List<GTMNode> modelNodes = new List<GTMNode>();
@@ -368,8 +380,8 @@ namespace OPS.Alignment
             for(int i=0; i < matches.DataToModel.Length; i++)
             {
                 var pair = matches.DataToModel[i];
-                modelNodes.Add(new GTMNode(i, modelFeat[pair.Value]));
-                dataNodes.Add(new GTMNode(i, dataFeat[pair.Key]));
+                modelNodes.Add(new GTMNode(i, modelFeat[pair.Value], pair.Value));
+                dataNodes.Add(new GTMNode(i, dataFeat[pair.Key], pair.Key));
             }
             modelGraph = new GTMGraphNice(modelNodes, this.K);
             dataGraph = new GTMGraphNice(dataNodes, this.K);
@@ -387,13 +399,12 @@ namespace OPS.Alignment
             {
                 throw new Exception("Unexpected difference in graph sizes");
             }
-            // Both graphs are the same size and we return the features ordered by index so we just need a one-to-one dataToModel array
-            List<int> dataToModel = new List<int>();
-            for (int i = 0; i < modelGraph.Count; i++)
-            {
-                dataToModel.Add(i);
-            }
-            return new ImagePairCorrespondence(matches.ModelImage, matches.DataImage, modelGraph.OrderedFeatures(), dataGraph.OrderedFeatures(), dataToModel);
+            // Both graphs are the same size and we return the features ordered by index
+            var dataToModel = Enumerable.Zip(
+                dataGraph.OrderedFeatureIndices(),
+                modelGraph.OrderedFeatureIndices(),
+                (dataIdx, modelIdx) => new KeyValuePair<int,int>(dataIdx, modelIdx));
+            return new ImagePairCorrespondence(matches.ModelImage, matches.DataImage, dataToModel);
         }
     }
 }
