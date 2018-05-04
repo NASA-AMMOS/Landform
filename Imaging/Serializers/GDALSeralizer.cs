@@ -13,7 +13,7 @@ namespace OPS.Imaging
     /// <summary>
     /// Reads all image types supported by GDAL
     /// </summary>
-    public class GDALSeralizer : IImageSeralizer
+    public class GDALSeralizer : ImageSerializer
     {
 
         public GDALWriteOptions WriteOptions
@@ -22,13 +22,37 @@ namespace OPS.Imaging
         }
 
         static object gdalLockObj = new object();
-                
+        static Dictionary<string, Tuple<string, bool>> extensionToGdalDriver;
+        static Dictionary<Type, DataType> systemTypeToGdalType;
+
         static GDALSeralizer()
         {
             lock(gdalLockObj)
             {
                 GdalConfiguration.ConfigureGdal();
                 GdalConfiguration.ConfigureOgr();
+                // Specify mapping from extension to gdal driver type
+                // and whether or not the file needs to be written using
+                // CreateCopy from memory.
+                // Lost more file types available if built with gdal
+                // http://www.gdal.org/formats_list.html
+                extensionToGdalDriver = new Dictionary<string, Tuple<string, bool>>();
+                extensionToGdalDriver.Add(".tif", new Tuple<string, bool>("GTIFF", false));
+                extensionToGdalDriver.Add(".tiff", new Tuple<string, bool>("GTIFF", false));
+                extensionToGdalDriver.Add(".jpg", new Tuple<string, bool>("JPEG", true));
+                extensionToGdalDriver.Add(".bmp", new Tuple<string, bool>("BMP", true));
+                extensionToGdalDriver.Add(".png", new Tuple<string, bool>("PNG", true));
+                extensionToGdalDriver.Add(".jp2", new Tuple<string, bool>("JP2OpenJPEG", true));
+                extensionToGdalDriver.Add(".j2k", new Tuple<string, bool>("JP2OpenJPEG", true));
+                // Native to gdal type conversion
+                systemTypeToGdalType = new Dictionary<Type, DataType>();
+                systemTypeToGdalType.Add(typeof(byte), DataType.GDT_Byte);
+                systemTypeToGdalType.Add(typeof(float), DataType.GDT_Float32);
+                systemTypeToGdalType.Add(typeof(double), DataType.GDT_Float64);
+                systemTypeToGdalType.Add(typeof(short), DataType.GDT_Int16);
+                systemTypeToGdalType.Add(typeof(int), DataType.GDT_Int32);
+                systemTypeToGdalType.Add(typeof(ushort), DataType.GDT_UInt16);
+                systemTypeToGdalType.Add(typeof(uint), DataType.GDT_UInt32);
             }
         }
 
@@ -52,7 +76,7 @@ namespace OPS.Imaging
         /// represent the pre-converted values as they are stored in the image.
         /// </param>
         /// <returns></returns>
-        public Image Read(string filename, IImageConverter converter, float[] fillValue = null)
+        public override Image Read(string filename, IImageConverter converter, float[] fillValue = null)
         {            
             lock (gdalLockObj)
             {
@@ -165,31 +189,8 @@ namespace OPS.Imaging
         /// If specified (and if the image defines a mask) these values will be written anywhere that the image mask is true.
         /// These values are written out as is and are not modified by the converter.
         /// </param>
-        public void Write<T>(string filename, Image image, IImageConverter converter, float[] fillValue = null)
+        public override void Write<T>(string filename, Image image, IImageConverter converter, float[] fillValue = null)
         {
-            // Specify mapping from extension to gdal driver type
-            // and whether or not the file needs to be written using
-            // CreateCopy from memory.
-            // Lost more file types available if built with gdal
-            // http://www.gdal.org/formats_list.html
-            Dictionary<string, Tuple<string, bool>> extensionToGdalDriver = new Dictionary<string, Tuple<string, bool>>();
-            extensionToGdalDriver.Add(".tif", new Tuple<string, bool>("GTIFF", false));
-            extensionToGdalDriver.Add(".tiff", new Tuple<string, bool>("GTIFF", false));
-            extensionToGdalDriver.Add(".jpg", new Tuple<string, bool>("JPEG", true));
-            extensionToGdalDriver.Add(".bmp", new Tuple<string, bool>("BMP", true));
-            extensionToGdalDriver.Add(".png", new Tuple<string, bool>("PNG", true));
-            extensionToGdalDriver.Add(".jp2", new Tuple<string, bool>("JP2OpenJPEG", true));
-
-            // Native to gdal type conversion
-            Dictionary<Type, DataType> systemTypeToGdalType = new Dictionary<Type, DataType>();
-            systemTypeToGdalType.Add(typeof(byte), DataType.GDT_Byte);
-            systemTypeToGdalType.Add(typeof(float), DataType.GDT_Float32);
-            systemTypeToGdalType.Add(typeof(double), DataType.GDT_Float64);
-            systemTypeToGdalType.Add(typeof(short), DataType.GDT_Int16);
-            systemTypeToGdalType.Add(typeof(int), DataType.GDT_Int32);
-            systemTypeToGdalType.Add(typeof(ushort), DataType.GDT_UInt16);
-            systemTypeToGdalType.Add(typeof(uint), DataType.GDT_UInt32);
-
             if (File.Exists(filename))
             {
                 File.Delete(filename);
@@ -301,6 +302,22 @@ namespace OPS.Imaging
                 }
 
             }
+        }
+
+
+        public override string[] GetExtensions()
+        {
+            return extensionToGdalDriver.Keys.ToArray();
+        }
+
+        public override IImageConverter DefaultReadConverter()
+        {
+            return ImageConverters.ValueRangeToNormalizedImage;
+        }
+
+        public override IImageConverter DefaultWriteConverter()
+        {
+            return ImageConverters.NormalizedImageToValueRange;
         }
     }
 }
