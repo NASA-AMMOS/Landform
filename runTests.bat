@@ -1,4 +1,4 @@
-set mstest="C:\Program Files (x86)\Microsoft Visual Studio 14.0\Common7\IDE\CommonExtensions\Microsoft\TestWindow\vstest.console.exe"
+set mstest="C:\Program Files (x86)\Microsoft Visual Studio\2017\Community\Common7\IDE\CommonExtensions\Microsoft\TestWindow\vstest.console.exe"
 %mstest% /Parallel^
  AlignmentTest\bin\Release\AlignmentTest.dll^
  CloudTest\bin\Release\CloudTest.dll^

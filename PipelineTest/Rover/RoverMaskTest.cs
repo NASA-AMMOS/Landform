@@ -16,6 +16,7 @@ namespace PipelineTest
     public class RoverMaskTest
     {
         [TestMethod]
+        [DeploymentItem("gdal", "gdal")]
         [DeploymentItem("TestData", "TestData")]
         [DeploymentItem("Rover\\Resources", "Rover\\Resources")]
         [DeploymentItem("x86", "x86")]
