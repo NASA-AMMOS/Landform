@@ -9,7 +9,7 @@ namespace OPS.Geometry
     /// <summary>
     /// Stores a mapping of supported mesh extensions to serializers
     /// </summary>
-    class MeshSerializers
+    static class MeshSerializers
     {
         static Dictionary<string, MeshSerializer> serializers;
 

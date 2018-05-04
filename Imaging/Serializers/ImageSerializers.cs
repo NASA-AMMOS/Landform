@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace OPS.Imaging
 {
-    public class ImageSerializers
+    static class ImageSerializers
     {
         static Dictionary<string, ImageSerializer> serializers;
 
