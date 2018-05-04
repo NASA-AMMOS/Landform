@@ -179,11 +179,14 @@ namespace OPS.Geometry
         /// <summary>
         /// Inverse of LocalToWorld.
         /// </summary>
+        [System.Obsolete("Use To() instead.")]
         public UncertainRigidTransform WorldToLocal
         {
             get
             {
+#pragma warning disable CS0618 // Type or member is obsolete
                 return LocalToWorld.Inverse();
+#pragma warning restore CS0618 // Type or member is obsolete
             }
         }
     }
