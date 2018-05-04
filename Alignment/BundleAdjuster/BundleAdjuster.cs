@@ -284,8 +284,6 @@ namespace OPS.Alignment
                 }
             }
 
-            Console.WriteLine("here");
-
             HashSet<int> badPoints = new HashSet<int>();
 
             for (int iter = 0; iter < 2; iter++)
