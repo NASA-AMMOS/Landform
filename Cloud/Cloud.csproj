@@ -81,6 +81,7 @@
   <ItemGroup>
     <Compile Include="CloudWatchMetric.cs" />
     <Compile Include="Credentials.cs" />
+    <Compile Include="Database\DynamoDBMetadata.cs" />
     <Compile Include="Database\Frame.cs" />
     <Compile Include="Database\Observation.cs" />
     <Compile Include="Database\Overlap.cs" />

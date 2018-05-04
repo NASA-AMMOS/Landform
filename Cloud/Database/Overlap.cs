@@ -36,24 +36,22 @@ namespace OPS.Cloud
     /// Overlaps are versioned because a Match is not deterministic. if a task is started based on a match then another MatchPairs worker overwrites that match, that's an inconsistent state.
     /// </summary>
     [DynamoDBTable("Overlaps")]
+    [DynamoDBReadCapacity(5, 50)]
+    [DynamoDBWriteCapacity(5, 50)]
     public class Overlap
     {
         [DynamoDBRangeKey]
         [DynamoDBGlobalSecondaryIndexRangeKey("OverlapObservationNameOneIndex", "OverlapObservationNameTwoIndex")]
-        [DynamoDBProperty]
-        public string ProjectName;
+        public string ProjectName { get; set; }
 
         [DynamoDBHashKey]
-        [DynamoDBProperty]
-        public string CombinedName;
+        public string CombinedName { get; set; }
 
         [DynamoDBGlobalSecondaryIndexHashKey("OverlapObservationNameOneIndex")]
-        [DynamoDBProperty]
-        public string ObservationNameOne;
+        public string ObservationNameOne { get; set; }
 
         [DynamoDBGlobalSecondaryIndexHashKey("OverlapObservationNameTwoIndex")]
-        [DynamoDBProperty]
-        public string ObservationNameTwo;
+        public string ObservationNameTwo { get; set; }
 
         public enum StatusType
         {
@@ -61,12 +59,10 @@ namespace OPS.Cloud
             Matched,
             Rejected
         }
-        [DynamoDBProperty]
-        public StatusType Status;
+        public StatusType Status { get; set; }
 
         //This is set during creation to verify that only one worker can successfully create a single overlap item in Dynamo
         public bool Uploaded { get; set; }
-        [DynamoDBProperty]
         public Guid MatchGuid { get; set; }
 
         [DynamoDBVersion]
