@@ -29,6 +29,14 @@ namespace OPS.Util
             }
         }
 
+        public static void ForEach<T>(IEnumerable<T> list, ParallelOptions options, Action<T> action)
+        {
+            foreach (T item in list)
+            {
+                action(item);
+            }
+        }
+
         public static void For(int startInclusive, int endExclusive, Action<int> action)
         {            
             for(int i = startInclusive; i < endExclusive; i++ )
