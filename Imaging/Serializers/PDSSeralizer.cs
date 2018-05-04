@@ -165,7 +165,7 @@ END
 ";
             string type = null;
             int bits = 0;
-            if(typeof(T) == typeof(byte))
+            if (typeof(T) == typeof(byte))
             {
                 type = "MSB_UNSIGNED_INTEGER";
                 bits = 8;
@@ -175,22 +175,42 @@ END
                 type = "MSB_UNSIGNED_INTEGER";
                 bits = 16;
             }
+            else if (typeof(T) == typeof(float))
+            {
+                type = "IEEE_REAL";
+                bits = 32;
+            }
             else
             {
                 throw new ImageSerializationException("Unsuppprted type");
             }
             int headerSize = 2048;
             string header = string.Format(template, headerSize, image.Height, image.Width, type, bits, image.Bands);
-            if(header.Length > headerSize)
+            if (header.Length > headerSize)
             {
                 throw new ImageSerializationException("Header larger than expected");
             }
             StringBuilder sb = new StringBuilder(header);
-            while(sb.Length < headerSize)
+            while (sb.Length < headerSize)
             {
                 sb.Append(" ");
             }
             header = sb.ToString();
+            WriteRaw<T>(filename, header, image, converter, true, fillValue);
+        }
+
+        /// <summary>
+        /// Write a file using the provided label string as the header
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <param name="filename"></param>
+        /// <param name="label"></param>
+        /// <param name="image"></param>
+        /// <param name="converter"></param>
+        /// <param name="bigEndian"></param>
+        /// <param name="fillValue"></param>
+        public static void WriteRaw<T>(string filename, string label, Image image, IImageConverter converter, bool bigEndian, float[] fillValue = null)
+        {
             Image convertedImage = converter.Convert<T>(image);
             if (fillValue != null && convertedImage.HasMask)
             {
@@ -198,31 +218,57 @@ END
             }
             using (FileStream fs = new FileStream(filename, FileMode.Create, FileAccess.Write))
             {
-                byte[] headerBytes = Encoding.ASCII.GetBytes(header);
+                byte[] headerBytes = Encoding.ASCII.GetBytes(label);
                 fs.Write(headerBytes, 0, headerBytes.Length);
 
                 for (int b = 0; b < convertedImage.Bands; b++)
                 {
-                    for(int r = 0; r< convertedImage.Height; r++)
+                    for (int r = 0; r < convertedImage.Height; r++)
                     {
-                        for (int c = 0; c< convertedImage.Width; c++)
+                        for (int c = 0; c < convertedImage.Width; c++)
                         {
                             if (typeof(T) == typeof(byte))
                             {
                                 fs.WriteByte((byte)convertedImage[b, r, c]);
-                                
+
                             }
                             else if (typeof(T) == typeof(ushort))
                             {
-                                byte[] output = BitConverter.GetBytes(ReverseBytes16((ushort)convertedImage[b, r, c]));
+                                ushort value = (ushort)convertedImage[b, r, c];
+                                if (bigEndian)
+                                {
+                                    value = ReverseBytes16(value);
+                                }
+                                byte[] output = BitConverter.GetBytes(value);
                                 fs.Write(output, 0, output.Length);
-                            }   
+                            }
+                            else if (typeof(T) == typeof(float))
+                            {
+                                UInt32 value = BitConverter.ToUInt32(BitConverter.GetBytes(convertedImage[b, r, c]), 0);
+                                if (bigEndian)
+                                {
+                                    value = ReverseBytes32(value);
+                                }
+                                byte[] output = BitConverter.GetBytes(value);
+                                fs.Write(output, 0, output.Length);
+                            }
                         }
                     }
-                }                
+                }
             }
         }
-        
+
+        /// <summary>
+        /// Read the label of a file as a string
+        /// </summary>
+        /// <param name="filename"></param>
+        /// <returns></returns>
+        public static string ReadLabel(string filename)
+        {
+            var metadata = new PDSMetadata(filename);
+            return File.ReadAllText(filename).Substring(0, (int)metadata.DataOffset);
+        }
+
         public static uint ReverseBytes32(uint value)
         {
             return (value & 0x000000FFU) << 24 | (value & 0x0000FF00U) << 8 |
