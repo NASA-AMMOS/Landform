@@ -10,7 +10,7 @@ using log4net;
 
 namespace OPS.Geometry
 {
-    class PoissonReconstruction
+    public class PoissonReconstruction
     {
         private static readonly ILog logger = LogManager.GetLogger(typeof(FSSR));
 
