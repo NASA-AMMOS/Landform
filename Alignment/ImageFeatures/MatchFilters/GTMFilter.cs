@@ -399,11 +399,12 @@ namespace OPS.Alignment
             {
                 throw new Exception("Unexpected difference in graph sizes");
             }
-            // Both graphs are the same size and we return the features ordered by index
+            // Both graphs are the same size and have a one-to-one correspondence when ordered by index
             var dataToModel = Enumerable.Zip(
                 dataGraph.OrderedFeatureIndices(),
                 modelGraph.OrderedFeatureIndices(),
-                (dataIdx, modelIdx) => new KeyValuePair<int,int>(dataIdx, modelIdx));
+                (dataIdx, modelIdx) => new KeyValuePair<int,int>(dataIdx, modelIdx)
+            );
             return new ImagePairCorrespondence(matches.ModelImage, matches.DataImage, dataToModel);
         }
     }
