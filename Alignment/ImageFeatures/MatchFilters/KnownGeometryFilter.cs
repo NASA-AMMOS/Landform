@@ -61,13 +61,6 @@ namespace OPS.Alignment
         /// </summary>
         public double MajorAxisThreshold;
 
-        internal struct ProjectionResult
-        {
-            public bool intersection;
-            public double modelT, dataT;
-            public double epipolarError;
-        }
-
         public ImagePairCorrespondence Filter(AlignmentScene scene, ImagePairCorrespondence matches)
         {
             SceneNode modelNode = ImageToNode(matches.ModelImage);
