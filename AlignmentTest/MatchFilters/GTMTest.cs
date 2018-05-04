@@ -13,7 +13,6 @@ namespace AlignmentTest.MatchFilters
         [TestMethod]
         public void TestGraphEqualFull()
         {
-            GTM gtm = new GTM(2);
             int[][] At = new int[6][];
             int[][] Atp = new int[6][];
             At[0] = new int[] { 4, 2, 3, 5, 6, -2 };
@@ -36,7 +35,6 @@ namespace AlignmentTest.MatchFilters
         [TestMethod]
         public void TestGraphNotEqual()
         {
-            GTM gtm = new GTM(2);
             int[][] At = new int[6][];
             int[][] Atp = new int[6][];
             At[0] = new int[] { 4, 2, 3, 5, 6, -2 };

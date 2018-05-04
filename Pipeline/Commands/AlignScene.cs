@@ -409,7 +409,7 @@ namespace OPS.Pipeline
                 {
                     try
                     {
-                        var gtm = new GTM();
+                        var gtm = new GTMFilter();
                         matches = gtm.Filter(scene, matches);
                         if (matches == null || matches.DataToModel.Length < 20)
                         {
