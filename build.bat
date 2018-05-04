@@ -1,5 +1,6 @@
 
 rmdir /S /Q out
+nuget restore
 msbuild /t:Clean,Build /p:Configuration=Release
 if %errorlevel% neq 0 exit /b %errorlevel%
 call runTests.bat
