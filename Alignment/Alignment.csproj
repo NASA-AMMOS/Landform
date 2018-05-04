@@ -107,9 +107,6 @@
     <Compile Include="ImageFeatures\PCASIFT\PCASIFTFeature.cs" />
     <Compile Include="ImageFeatures\PCASIFT\PCASIFTIO.cs" />
     <Compile Include="ImageFeatures\PCASIFT\PCASIFTUtil.cs" />
-    <Compile Include="ImageFeatures\PCS\KDNode.cs" />
-    <Compile Include="ImageFeatures\PCS\MRF.cs" />
-    <Compile Include="ImageFeatures\PCS\PCSFeature.cs" />
     <Compile Include="ImageFeatures\Interfaces\IFeatureDetector.cs" />
     <Compile Include="ImageFeatures\SIFT\SIFTDescriptor.cs" />
     <Compile Include="ImageFeatures\MatchFilters\MoisanStivalFilter.cs" />
