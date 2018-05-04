@@ -8,6 +8,6 @@ namespace OPS.Geometry
 {
     public class NodeConvexHull : NodeComponent
     {
-        public ConvexHull hull;
+        public ConvexHull Hull;
     }
 }

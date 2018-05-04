@@ -20,6 +20,7 @@ using OPS.Util;
 using OPS.Alignment;
 using Microsoft.Xna.Framework;
 using Newtonsoft.Json;
+using OPS.Plumbing;
 
 namespace OPS.Pipeline
 {
@@ -50,41 +51,34 @@ namespace OPS.Pipeline
         }
     }
 
-    public class AlignmentWorker
+    public class AlignmentWorker : PipelineRoutine
     {
         private AllignmentConfig config;
 
         //AWS clients. All thread safe and reusable 
         IAmazonSQS SQSClient;
-        IAmazonS3 S3Client;
-        IAmazonDynamoDB DDBClient;
-        DynamoDBContext context;
 
         //thread-safe processing helpers
-        MetadataIndexer indexer;
-        OverlapDetection detector;
-        StorageHelper storage; 
+        IngestPDSImage ingester;
+        DetectOverlaps detector;
 
         //monitoring counts 
         private int messagesRecieved = 0;
         private int messagesSucceeded = 0;
         private int messagesFailed = 0;
-
+        
         //Constructor creates clients and reads config file 
         public AlignmentWorker()
+            :  base(null)
         {
             //Initialize our utils
             this.config = new AllignmentConfig();
+            Pipeline = new PipelineCore(dynamoPrefix: config.TablePrefix);
 
             //Initialize AWS utils 
-            SQSClient = new AmazonSQSClient(Amazon.RegionEndpoint.USWest1); 
-            S3Client = new AmazonS3Client(Amazon.RegionEndpoint.USWest1);
-            DDBClient = new AmazonDynamoDBClient(Amazon.RegionEndpoint.USWest1);
-            context = new DynamoDBContext(DDBClient, new DynamoDBContextConfig { TableNamePrefix = config.TablePrefix});
-
-            storage = new StorageHelper();
-            indexer = new MetadataIndexer(context, new StorageHelper());
-            detector = new OverlapDetection(context);
+            SQSClient = new AmazonSQSClient(Amazon.RegionEndpoint.USWest1);
+            ingester = new IngestPDSImage(Pipeline);
+            detector = new DetectOverlaps(Pipeline);
         }
 
         /// <summary>
@@ -95,7 +89,6 @@ namespace OPS.Pipeline
         {
             //wait on queue for images 
             SQSClient = new AmazonSQSClient(Amazon.RegionEndpoint.USWest1); 
-            S3Client = new AmazonS3Client(Amazon.RegionEndpoint.USWest1);
 
             //check that queue exists 
             if (!PipelineMessage.QueueExists(SQSClient, config.JobQueue))
@@ -103,10 +96,11 @@ namespace OPS.Pipeline
                 Console.WriteLine("Queue does not exist. Quitting landform.");
                 return 1;
             }
+            Console.WriteLine("Listening to " + config.JobQueue);
 
             //These jobs are CPU intensive - feature detection and matching, for example, use 100% of cpu for short bursts.
             //However, there is also time spent waiting on AWS services.
-            Parallel.For(0, 1, (int i) =>  
+            Serial.For(0, 1, (int i) =>  
             {
                 while (true)
                 {
@@ -127,17 +121,22 @@ namespace OPS.Pipeline
                             + "\r\n        Message ID = " + m.MessageId);
                         try
                         {
-                            switch (m.MessageType)
+                            var t = m.GetType();
+                            if (t == typeof(NewObservationMessage))
                             {
-                                case NewObservationMessage.TYPE:
-                                    IngestImage((NewObservationMessage)m);
-                                    break;
-                                case FindOverlapsMessage.TYPE:
-                                    FindOverlaps((FindOverlapsMessage)m);
-                                    break;
-                                case MatchPairsMessage.TYPE:
-                                    MatchPairs((MatchPairsMessage)m);
-                                    break;
+                                IngestImage((NewObservationMessage)m);
+                            }
+                            else if(t == typeof(FindOverlapsMessage))
+                            {
+                                FindOverlaps((FindOverlapsMessage)m);
+                            }
+                            else if (t == typeof(MatchPairsMessage))
+                            {
+                                MatchPairs((MatchPairsMessage)m);
+                            }
+                            else if (t == typeof(BundleAdjustMessage))
+                            {
+                                BundleAdjust((BundleAdjustMessage)m);
                             }
                             Interlocked.Increment(ref messagesSucceeded);
                         }
@@ -154,9 +153,13 @@ namespace OPS.Pipeline
                 }
             });
 
-            return 0; 
+            return 0;
         }
 
+        private void BundleAdjust(BundleAdjustMessage m)
+        {
+            throw new NotImplementedException();
+        }
 
         /// <summary>
         /// This task: 
@@ -171,19 +174,18 @@ namespace OPS.Pipeline
         public int IngestImage(NewObservationMessage m)
         {
             //Index metadata, look up or calculate transforms 
-            S3Url url = new S3Url(m.Url); 
-            MetadataIndexerStatus indexed = indexer.IndexMetadata(url.Url);
-            switch (indexed.status)
+            var indexed = ingester.Ingest(new S3ImageRef(m.Url));
+            switch (indexed.Status)
             {
-                case (Status.SKIPPED):
+                case (OPS.Pipeline.IngestImage.Status.Skipped):
                     m.DeleteMessage(SQSClient, config.JobQueue);
                     return 0;
-                case (Status.FAILEDTOADD):
+                case (OPS.Pipeline.IngestImage.Status.Failed):
                     throw new CloudException("Could not add observation metadata"); //don't delete message, let another handler try again
-                case (Status.PREEXISTING):
-                    if (indexed.obs.FeatureUrl != null) //Features have already been uploaded
+                case (OPS.Pipeline.IngestImage.Status.Duplicate):
+                    if (indexed.Observation.FeatureUrl != null) //Features have already been uploaded
                     { //another worker uploaded features but did not delete, so we don't know if a message was sent
-                        new FindOverlapsMessage(indexed.obs.Name).Send(SQSClient, config.JobQueue);
+                        new FindOverlapsMessage(indexed.Observation.Name).Send(SQSClient, config.JobQueue);
                         m.DeleteMessage(SQSClient, config.JobQueue);
                         return 0;
                     }
@@ -191,45 +193,40 @@ namespace OPS.Pipeline
             }
 
             //read project. If indexing was successful we know project exists. 
-            Project project = Project.Find(context, indexed.obs.ProjectName);
+            Project project = Pipeline.GetProject(indexed.Observation.ProjectName);
 
             //do keypoint and feature detection 
             //Downloading image. Image.Load() does spooky things with temp files which are mitigated (somewhat) by not using the temp file wrapper
-            string root = (@"C:\tmp\in\" + Guid.NewGuid()).Replace('/', '\\');
-            storage.DownloadFile(url.Url, root + Path.GetExtension(url.Url)); 
-            Image im = Image.Load(root + Path.GetExtension(url.Url));
+            ImageRef imgRef = new ObservationImageRef(indexed.Observation);
+
+            // Make rover mask
+            var mask = RoverMask.Build(GetImage(imgRef));
+            var maskProd = new ImageDataProduct(mask, ".png", typeof(byte));
+            Save(indexed.Observation.ProjectName, maskProd);
 
             //snagged from MatchImages
             string gpcafile = PCAKeypointProjector.DefaultTrainingSpace;
-            List<PCASIFTFeature> features = new PCASIFTDetector().Detect(im, null).Cast<PCASIFTFeature>().ToList();
+            List<PCASIFTFeature> features = new PCASIFTDetector().Detect(GetImage(imgRef), mask).Cast<PCASIFTFeature>().ToList();
             PCAKeypointProjector projector = new PCAKeypointProjector(gpcafile, false);
-            projector.Project(im, features, 1);
+            projector.Project(GetImage(imgRef), features, 1);
 
-            S3Url featureUrl = new S3Url(project.FeatureUrl + Path.ChangeExtension(Path.GetFileName(url.Url), ".json")); 
-
-            //save keypoints and features to S3
-            TemporaryFile.GetAndDelete(".json", temp =>
-            {
-                using (StreamWriter file = File.CreateText(temp))
-                {
-                    JsonSerializer serializer = new JsonSerializer();
-                    serializer.TypeNameHandling = TypeNameHandling.Auto;
-                    serializer.Serialize(file,features);
-                }
-                storage.UploadFile(temp, featureUrl.Url);
-            });
-
+            // Create DetectedFeatures data product and save to S3
+            DetectedFeatures detected = new DetectedFeatures();
+            detected.Features = features.ToArray();
+            detected.ObservationName = indexed.Observation.Name;
+            Save(indexed.Observation.ProjectName, detected);
 
             //save to Dynamo: 
-            //   Image record: S3 locaiton, S3 keypoints location, metadata 
+            //   Image record: S3 location, keypoints product GUID, metadata 
             //   Transforms record: this image's transform 
             //Use the observation we made or found while indexing metadata
-            indexed.obs.FeatureUrl = featureUrl.Url;
-            indexed.obs.Save(context);
+            indexed.Observation.FeaturesGuid = detected.Guid;
+            indexed.Observation.MaskGuid = maskProd.Guid;
+            indexed.Observation.Save(Pipeline.DynamoDB);
 
             //Start an overlap job in the queue. 
             //Make it invisible for a few seconds so that overlaps don't have to do strongly consistent reads. 
-            new FindOverlapsMessage(indexed.obs.Name).Send(SQSClient, config.JobQueue);
+            new FindOverlapsMessage(indexed.Observation.Name).Send(SQSClient, config.JobQueue);
             m.DeleteMessage(SQSClient, config.JobQueue);
 
             return 0; 
@@ -248,31 +245,15 @@ namespace OPS.Pipeline
         public int FindOverlaps(FindOverlapsMessage m)
         {
             //for this image, look up nearby images in Dynamo
-            RoverObservation thisobs = RoverObservation.Find(context, MSLProject.PROJECT_NAME, m.ObservationName);
+            RoverObservation thisobs = RoverObservation.Find(Pipeline.DynamoDB, MSLProject.PROJECT_NAME, m.ObservationName);
             //for now, look at all other images in Dynamo for this same project 
-            IEnumerable<RoverObservation> observations = context.Scan<RoverObservation>(new ScanCondition("ProjectName",
+            IEnumerable<RoverObservation> observations = Pipeline.DynamoDB.Scan<RoverObservation>(new ScanCondition("ProjectName",
                 Amazon.DynamoDBv2.DocumentModel.ScanOperator.Equal, MSLProject.PROJECT_NAME));
 
-            //check all nearby images for overlapping frusta. 
-            foreach (RoverObservation obs in observations)
+            foreach(var overlap in detector.Run(observations.Cast<Observation>().ToList()))
             {
-                bool outcome = false;
-                if (thisobs.Name != obs.Name)
-                {
-                    outcome = detector.ProjectiveFrustumOverlap(thisobs, obs);
-                }
-                Console.WriteLine("Overlap: " + outcome);
-                if (outcome)
-                {
-                    //write to dynamoDb and, if successful, create a new MatchPairs job
-                    if (Overlap.Create(context, thisobs.Name, obs.Name, obs.ProjectName) != null) 
-                    {
-                        new MatchPairsMessage(thisobs.Name, obs.Name, obs.ProjectName).Send(SQSClient, config.JobQueue);
-                    }
-                }
-
+                new MatchPairsMessage(overlap.Observations.Obs1, overlap.Observations.Obs2, overlap.ProjectName).Send(SQSClient, config.JobQueue);
             }
-
             //delete message 
             m.DeleteMessage(SQSClient, config.JobQueue);
 
@@ -293,72 +274,75 @@ namespace OPS.Pipeline
         public int MatchPairs(MatchPairsMessage m)
         {
             //get metadata for both images from Dynamo 
-            Observation obs0 = Observation.Find(context, m.ProjectName, m.ObservationName0);
-            Observation obs1 = Observation.Find(context, m.ProjectName, m.ObservationName1);
-            Project project = Project.Find(context, obs0.ProjectName);
+            Observation obs0 = Observation.Find(Pipeline.DynamoDB, m.ProjectName, m.ObservationName0);
+            Observation obs1 = Observation.Find(Pipeline.DynamoDB, m.ProjectName, m.ObservationName1);
+            Project project = Project.Find(Pipeline.DynamoDB, obs0.ProjectName);
 
             //get overlap and check that a match has not already been uploaded 
-            Overlap overlap = Overlap.Find(context, obs0.Name, obs1.Name, obs0.ProjectName);
+            Overlap overlap = Overlap.Find(Pipeline.DynamoDB, obs0.Name, obs1.Name, obs0.ProjectName);
             if (overlap == null) throw new CloudException("Could not find overlap between these two observations for match images");
-            if (overlap.MatchUrl != null && overlap.MatchUrl.Length > 0) //someone has already finished this request
+            if (overlap.MatchGuid != null && overlap.MatchGuid != Guid.Empty) //someone has already finished this request
             {
                 m.DeleteMessage(SQSClient, config.JobQueue);
                 return 0;
             }
-            //read feature data and image for both images from S3
-            JsonSerializer serializer = new JsonSerializer();
-            serializer.TypeNameHandling = TypeNameHandling.Auto;
-            TemporaryFile.GetAndDeleteMultiple(new string[5]{ ".json", ".img", ".json", ".img", ".jpg"}, (temp) =>
+
+
+            ImageRef modelRef = new ObservationImageRef(obs0);
+            ImageRef dataRef = new ObservationImageRef(obs1);
+            DetectedFeatures modelFeat = Get<DetectedFeatures>(project.Name, obs0.FeaturesGuid);
+            DetectedFeatures dataFeat = Get<DetectedFeatures>(project.Name, obs1.FeaturesGuid);
+
+            //below is from MatchImages.cs
+            BruteForceMatcher matcher = new BruteForceMatcher();
+            ImagePairCorrespondence matches = matcher.Match(modelRef, dataRef, modelFeat.Features, dataFeat.Features);
+            if (matches == null)
             {
-                storage.DownloadFile(obs0.FeatureUrl, temp[0]);
-                IEnumerable<SIFTFeature> features0; 
-                using (JsonReader file = new JsonTextReader(File.OpenText(temp[0])))
-                {
-                    features0 = serializer.Deserialize<IEnumerable<SIFTFeature>>(file);  
-                }
-                storage.DownloadFile(obs0.Url, temp[1]);
-                Image im0 = Image.Load(temp[1]);
-                storage.DownloadFile(obs1.FeatureUrl, temp[2]);
-                IEnumerable<SIFTFeature> features1;
-                using (JsonReader file = new JsonTextReader(File.OpenText(temp[2])))
-                {
-                    features1 = serializer.Deserialize<IEnumerable<SIFTFeature>>(file);
-                }
-                storage.DownloadFile(obs1.Url, temp[3]);
-                Image im1 = Image.Load(temp[3]);
-
-                //below is from MatchImages.cs
-                BruteForceMatcher matcher = new BruteForceMatcher();
-                ImagePairCorrespondence matches = matcher.Match(new ImageRef(im0), new ImageRef(im1), features0, features1);
-
-                MoisanStivalFilter filter = new MoisanStivalFilter();
-                matches = filter.Filter(matches);
-                if (matches == null || matches.DataToModel.Length < 8) //Filters break with too few matches. Issue #91
-                {
-                    Console.WriteLine("No matches found after MoisanStivalFilter");
-                    m.DeleteMessage(SQSClient, config.JobQueue); 
-                    return;
-                }
-                GTM gtm = new GTM(5);
-                matches = gtm.Filter(matches); 
-                if (matches == null)
-                {
-                    Console.WriteLine("No matches found after GTM Filter");
-                    m.DeleteMessage(SQSClient, config.JobQueue);
-                    return;
-                }
-                
-                MatchImage.WriteMatchImage(matches, temp[4]);
-                string url = project.MatchUrl + overlap.Id + ".jpg";
-                storage.UploadFile(temp[4], url);
-                overlap.MatchUrl = url;
-                if (!overlap.TrySave(context))
-                {
-                    return; //another worker tried to update this overlap. allow message to return to queue
-                }
-                //we know we computed the match and uploaded it and its location 
+                Console.WriteLine("No matches found (at all)");
                 m.DeleteMessage(SQSClient, config.JobQueue);
-            });
+                return 0;
+            }
+
+            MatchingContext ctx = new MatchingContext();
+            ctx.DetectedFeatures[modelRef] = modelFeat.Features;
+            ctx.DetectedFeatures[dataRef] = dataFeat.Features;
+            ctx.Correspondences[new UnorderedImagePair(modelRef, dataRef)] = matches;
+
+            AlignmentScene scene = new AlignmentScene();
+            scene.Context = ctx;
+
+            MoisanStivalFilter filter = new MoisanStivalFilter(Pipeline);
+            matches = filter.Filter(scene, matches);
+            if (matches == null || matches.DataToModel.Length < 8) //Filters break with too few matches. Issue #91
+            {
+                Console.WriteLine("No matches found after MoisanStivalFilter");
+                m.DeleteMessage(SQSClient, config.JobQueue);
+                return 0;
+            }
+            GTM gtm = new GTM(5);
+            matches = gtm.Filter(scene, matches);
+            if (matches == null)
+            {
+                Console.WriteLine("No matches found after GTM Filter");
+                m.DeleteMessage(SQSClient, config.JobQueue);
+                return 0;
+            }
+
+            ComputedCorrespondence corr = new ComputedCorrespondence
+            {
+                Correspondence = matches,
+                ModelFeaturesGuid = modelFeat.Guid,
+                DataFeaturesGuid = dataFeat.Guid
+            };
+            Save(overlap.ProjectName, corr);
+            overlap.MatchGuid = corr.Guid;
+            if (!overlap.TrySave(Pipeline.DynamoDB))
+            {
+                return 0; //another worker tried to update this overlap. allow message to return to queue
+            }
+
+            //we know we computed the match and uploaded it and its location 
+            m.DeleteMessage(SQSClient, config.JobQueue);
             return 0;
         }
     }

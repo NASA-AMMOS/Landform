@@ -9,6 +9,8 @@ ImagingEmgu/obj/
 ImagingEmguTest/bin/
 ImagingEmguTest/obj/
 Cloud/Infrastructure/release/
+CloudMessages/*/bin/
+CloudMessages/*/obj/
 LambdaParentTileJobCreation/bin/
 LambdaParentTileJobCreation/obj/
 LambdaQueueSizeMetric/bin/
@@ -26,6 +28,10 @@ LambdaRDSAccess/obj/
 Pipeline/bin/
 Pipeline/obj/
 Pipeline/Commands/Client.cs
+Plumbing/bin/
+Plumbing/obj/
+PairViewer/bin/
+PairViewer/obj/
 packages/
 .vs/
 Xna/bin/
@@ -61,6 +67,7 @@ UtilTest/bin/
 UtilTest/obj/
 Cloud/bin/
 Cloud/obj/
+Cloud/docs/*.xml
 *.user
 CloudTest/bin/
 CloudTest/obj/
@@ -79,3 +86,7 @@ PipelineFrontend/.vs/
 PipelineFrontend/.elasticbeanstalk/*
 PipelineFrontend/!.elasticbeanstalk/*.cfg.yml
 PipelineFrontend/!.elasticbeanstalk/*.global.yml
+
+project.lock.json
+*.vspx
+*.diagsession

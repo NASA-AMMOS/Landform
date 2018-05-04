@@ -18,14 +18,18 @@ namespace OPS.Cloud
     public class Observation
     {
         [DynamoDBRangeKey]
-        [DynamoDBProperty("project_name")]
+        [DynamoDBProperty()]
         public string ProjectName { get; set; }
 
         [DynamoDBHashKey] //Partition key
-        [DynamoDBProperty("observation_name")]
+        [DynamoDBProperty()]
         public string Name { get; set; }
 
         public string Url { get; set; }
+
+        public Guid FeaturesGuid { get; set; }
+
+        public Guid MaskGuid { get; set; }
 
         public string FeatureUrl { get; set; }
 
@@ -117,6 +121,14 @@ namespace OPS.Cloud
         public static Observation Find(DynamoDBContext context, string projectName, string name)
         {
             return context.Load<Observation>(name, projectName);
+        }
+
+        public static IEnumerable<Observation> Find(DynamoDBContext context, Frame frame)
+        {
+            return context.Scan<Observation>(
+                new ScanCondition("ProjectName", Amazon.DynamoDBv2.DocumentModel.ScanOperator.Equal, frame.ProjectName),
+                new ScanCondition("FrameName", Amazon.DynamoDBv2.DocumentModel.ScanOperator.Equal, frame.Name)
+                );
         }
     }
 }

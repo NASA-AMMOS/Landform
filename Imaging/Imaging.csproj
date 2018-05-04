@@ -35,8 +35,8 @@
     <Prefer32Bit>false</Prefer32Bit>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="ColorMine, Version=1.1.3.0, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\packages\ColorMine.1.1.3.0\lib\ColorMine.dll</HintPath>
+    <Reference Include="ColorMine, Version=1.2.0.0, Culture=neutral, PublicKeyToken=7a2c4d30138edc39, processorArchitecture=MSIL">
+      <HintPath>..\packages\ColorMine.1.2.0\lib\net45\ColorMine.dll</HintPath>
       <Private>True</Private>
     </Reference>
     <Reference Include="gdalconst_csharp, Version=1.0.5387.28601, Culture=neutral, PublicKeyToken=db5a52b08dc5b321, processorArchitecture=MSIL">
@@ -45,6 +45,10 @@
     </Reference>
     <Reference Include="gdal_csharp, Version=1.0.5387.28601, Culture=neutral, PublicKeyToken=db5a52b08dc5b321, processorArchitecture=MSIL">
       <HintPath>..\packages\GDAL.1.11.1\lib\net40\gdal_csharp.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
+    <Reference Include="log4net, Version=2.0.8.0, Culture=neutral, PublicKeyToken=669e0ddf0bb1aa2a, processorArchitecture=MSIL">
+      <HintPath>..\packages\log4net.2.0.8\lib\net45-full\log4net.dll</HintPath>
       <Private>True</Private>
     </Reference>
     <Reference Include="ogr_csharp, Version=1.0.5387.28600, Culture=neutral, PublicKeyToken=db5a52b08dc5b321, processorArchitecture=MSIL">
@@ -57,6 +61,10 @@
     </Reference>
     <Reference Include="System" />
     <Reference Include="System.Core" />
+    <Reference Include="System.Drawing" />
+    <Reference Include="System.IO.Compression.FileSystem" />
+    <Reference Include="System.Numerics" />
+    <Reference Include="System.Runtime.Serialization" />
     <Reference Include="System.Xml.Linq" />
     <Reference Include="System.Data.DataSetExtensions" />
     <Reference Include="System.Data" />
@@ -76,7 +84,6 @@
     <Compile Include="Imaging\ImageException.cs" />
     <Compile Include="Imaging\ImageMetadata.cs" />
     <Compile Include="Imaging\ImageStatistics.cs" />
-    <Compile Include="Imaging\ImageRef.cs" />
     <Compile Include="Imaging\Operations\Blur.cs" />
     <Compile Include="Imaging\Operations\Inpainter.cs" />
     <Compile Include="Imaging\PDSCameraModelParser.cs" />
@@ -84,12 +91,14 @@
     <Compile Include="Imaging\SpatialTranslators\ISpatialTranslator.cs" />
     <Compile Include="Imaging\SpatialTranslators\MarsSpatialTranslator.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="Serializers\DDSSeralizer.cs" />
     <Compile Include="Serializers\GDALSeralizer.cs" />
     <Compile Include="Serializers\GDALWriteOptions.cs" />
     <Compile Include="Serializers\IImageConverter.cs" />
-    <Compile Include="Serializers\IImageSeralizer.cs" />
+    <Compile Include="Serializers\ImageSeralizer.cs" />
     <Compile Include="Serializers\ImageConverters.cs" />
     <Compile Include="Serializers\ImageSerializationException.cs" />
+    <Compile Include="Serializers\ImageSerializers.cs" />
     <Compile Include="Serializers\PDSSeralizer.cs" />
   </ItemGroup>
   <ItemGroup>
@@ -100,12 +109,22 @@
       <Project>{8c7c8a71-0a4b-4d75-9cb2-32803bd8f86f}</Project>
       <Name>MathExtensions</Name>
     </ProjectReference>
+    <ProjectReference Include="..\Util\Util.csproj">
+      <Project>{8145aa65-ba61-4e27-81ff-b64217b49929}</Project>
+      <Name>Util</Name>
+    </ProjectReference>
     <ProjectReference Include="..\Xna\Xna.csproj">
       <Project>{46759719-42d9-473b-a8ad-0848a33bdac6}</Project>
       <Name>Xna</Name>
     </ProjectReference>
   </ItemGroup>
   <ItemGroup>
+    <Content Include="ExternalApps\crunch.exe">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="ExternalApps\crunch_x64.exe">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
     <Content Include="GdalConfiguration.vb" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />

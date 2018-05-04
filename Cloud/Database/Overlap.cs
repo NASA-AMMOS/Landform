@@ -21,7 +21,7 @@ namespace OPS.Cloud
     {
         //Primary key for dynamoDb. Sorted combination of the two observation names. Cannot be edited directly
         [DynamoDBHashKey]
-        [DynamoDBProperty("id")]
+        [DynamoDBProperty()]
         public string Id
         {
             get //construct from an OverlapObs. 
@@ -36,7 +36,7 @@ namespace OPS.Cloud
 
         //sort key for dynamoDb in case two projects share observation names 
         [DynamoDBRangeKey]
-        [DynamoDBProperty("project_name")]
+        [DynamoDBProperty()]
         public string ProjectName;
 
         //the observations in this overlap
@@ -48,7 +48,7 @@ namespace OPS.Cloud
 
         //S3 URL of image match (for now this is what we're saving)
         //Always upload file before writing MatchUrl to keep state consistent 
-        public string MatchUrl { get; set; }
+        public Guid MatchGuid { get; set; }
 
         [DynamoDBVersion]
         public int? VersionNumber { get; set; }
@@ -132,7 +132,14 @@ namespace OPS.Cloud
             OverlapObs name = new OverlapObs(observationName1, observationName2);
             return context.Load<Overlap>(name.IdFromObs, projectName);
         }
-        
+
+        public static IEnumerable<Overlap> Find(DynamoDBContext context, Observation observation)
+        {
+            return context.Scan<Overlap>(
+                new ScanCondition("ProjectName", Amazon.DynamoDBv2.DocumentModel.ScanOperator.Equal, observation.ProjectName),
+                new ScanCondition("Id", Amazon.DynamoDBv2.DocumentModel.ScanOperator.Contains, observation.Name));
+        }
+
         /// <summary>
         /// Helper class to validate an Overlap and convert from the observation names of the 
         /// overlapping observations to the DynamoDB ID for the overlap

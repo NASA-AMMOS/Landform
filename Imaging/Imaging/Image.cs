@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text;
 using OPS.Imaging;
 using OPS.MathExtensions;
+using System.IO;
 
 namespace OPS.Imaging
 {
@@ -39,26 +40,44 @@ namespace OPS.Imaging
         public Image(Image that) : base(that) { }
 
         /// <summary>
-        /// Load an image using gdal and normalize values based on type value range
+        /// Load an image using default serializer and converter
         /// </summary>
         /// <param name="filename"></param>
         /// <returns></returns>
         public static Image Load(string filename)
-        {
-            if(filename.ToUpper().EndsWith(".IMG"))
+        {             
+            string ext = Path.GetExtension(filename);
+            ImageSerializer s = ImageSerializers.GetSerializer(ext);
+            if (s == null)
             {
-                return new PDSSeralizer().Read(filename, ImageConverters.PDSBitMaskValueRangeToNormalizedImage);
+                throw new ImageSerializationException("Image format not supported");
             }
-            return new GDALSeralizer().Read(filename, ImageConverters.ValueRangeToNormalizedImage);
+            return s.Read(filename);
         }
 
         /// <summary>
-        /// Loads a new image from a file
+        /// Load an image using with the given converter
+        /// </summary>
+        /// <param name="filename"></param>
+        /// <returns></returns>
+        public static Image Load(string filename, IImageConverter converter)
+        {
+            string ext = Path.GetExtension(filename);
+            ImageSerializer s = ImageSerializers.GetSerializer(ext);
+            if (s == null)
+            {
+                throw new ImageSerializationException("Image format not supported");
+            }
+            return s.Read(filename, converter);
+        }
+
+        /// <summary>
+        /// Loads a new image with the given serializer and converter
         /// </summary>
         /// <param name="filename"></param>
         /// <param name="serializer"></param>
         /// <param name="converter"></param>
-        public static Image Load(string filename, IImageSeralizer serializer, IImageConverter converter)
+        public static Image Load(string filename, ImageSerializer serializer, IImageConverter converter)
         {
             return serializer.Read(filename, converter);
         }
@@ -69,12 +88,30 @@ namespace OPS.Imaging
         /// <param name="filename"></param>
         public void Save<T>(string filename)
         {
-            if (filename.ToUpper().EndsWith(".IMG"))
+            string ext = Path.GetExtension(filename);
+            ImageSerializer s = ImageSerializers.GetSerializer(ext);
+            if (s == null)
             {
-                new PDSSeralizer().Write<T>(filename, this, ImageConverters.NormalizedImageToValueRange);
-                return;
+                throw new ImageSerializationException("Image format not supported");
             }
-            new GDALSeralizer().Write<T>(filename, this, ImageConverters.NormalizedImageToValueRange);
+            s.Write<T>(filename, this);
+        }
+
+        /// <summary>
+        /// Saves image to disk with the provided converter
+        /// </summary>
+        /// <param name="filename"></param>
+        /// <param name="serializer"></param>
+        /// <param name="converter"></param>
+        public void Save<T>(string filename, IImageConverter converter)
+        {
+            string ext = Path.GetExtension(filename);
+            ImageSerializer s = ImageSerializers.GetSerializer(ext);
+            if (s == null)
+            {
+                throw new ImageSerializationException("Image format not supported");
+            }
+            s.Write<T>(filename, this, converter);
         }
 
         /// <summary>
@@ -83,7 +120,7 @@ namespace OPS.Imaging
         /// <param name="filename"></param>
         /// <param name="serializer"></param>
         /// <param name="converter"></param>
-        public void Save<T>(string filename, IImageSeralizer serializer, IImageConverter converter)
+        public void Save<T>(string filename, ImageSerializer serializer, IImageConverter converter)
         {
             serializer.Write<T>(filename, this, converter);
         }

@@ -159,6 +159,16 @@ namespace Microsoft.Xna.Framework
 
         }
 
+        public Vector3 ToRodriguesVector()
+        {
+            double theta = Math.Acos(W);
+            Vector3 axis = new Vector3(X, Y, Z);
+            if (axis.LengthSquared() > 1e-8)
+            {
+                axis.Normalize();
+            }
+            return axis * theta;
+        }
 
         public static void CreateFromAxisAngle(ref Vector3 axis, double angle, out Quaternion result)
         {

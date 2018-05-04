@@ -14,18 +14,19 @@ namespace OPS.Imaging.Emgu
         public static Image<TColor, byte> ToEmgu<TColor>(this Image img) where TColor : struct, IColor
         {
             Image<TColor, byte> res = new Image<TColor, byte>(img.Width, img.Height);
-            if (res.NumberOfChannels != img.Bands)
+            if (img.Bands != 1 && res.NumberOfChannels != img.Bands)
             {
                 throw new Exception("Wrong number of channels in result type");
             }
 
-            for (int band = 0; band < img.Bands; band++)
+            for (int band = 0; band < res.NumberOfChannels; band++)
             {
+                int srcBand = (img.Bands > 1) ? band : 0;
                 for (int row = 0; row < img.Height; row++)
                 {
                     for (int col = 0; col < img.Width; col++)
                     {
-                        res.Data[row, col, band] = (byte)(img[band, row, col] * 255);
+                        res.Data[row, col, band] = (byte)(img[srcBand, row, col] * 255);
                     }
                 }
             }
