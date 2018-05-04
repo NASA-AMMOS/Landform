@@ -11,6 +11,7 @@ namespace OPS.Geometry
     {
         public string Name;
         public readonly NodeTransform Transform;
+        public readonly Guid Guid;
 
         /// <summary>
         /// Bounding box of this node
@@ -26,6 +27,7 @@ namespace OPS.Geometry
 
             this.Name = name;
             this.Transform = AddComponent<NodeTransform>();
+            this.Guid = Guid.NewGuid();
         }
 
         /// <summary>
@@ -95,6 +97,7 @@ namespace OPS.Geometry
             }
             res.Node = this;
             components[typeof(T)] = res;
+            res.Initialize();
             return res;
         }
 

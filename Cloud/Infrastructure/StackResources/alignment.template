@@ -2,28 +2,6 @@
     "AWSTemplateFormatVersion": "2010-09-09",
     "Metadata": {
         "AWS::CloudFormation::Designer": {
-            "d103da43-464b-4fda-b9fd-7931e60cb8bd": {
-                "size": {
-                    "width": 60,
-                    "height": 60
-                },
-                "position": {
-                    "x": 80,
-                    "y": -10
-                },
-                "z": 0
-            },
-            "f0ebaeb9-c31d-408b-a58d-a8d52e34d5aa": {
-                "size": {
-                    "width": 60,
-                    "height": 60
-                },
-                "position": {
-                    "x": 280,
-                    "y": -10
-                },
-                "z": 0
-            },
             "1d9efd92-90cb-487b-a533-7e13e2542fda": {
                 "size": {
                     "width": 60,
@@ -37,11 +15,6 @@
                 "embeds": [],
                 "isassociatedwith": [
                     "7e4c60d0-b220-4f44-a1ee-79a23eb6005e"
-                ],
-                "isrelatedto": [
-                    "235d25bb-6d38-4e9f-8b5d-f17950a3950e",
-                    "c96fe7b3-e305-4d7f-bdfe-19dd35f8fc86",
-                    "0ef36a29-8b27-4502-b2ed-380c53c0f6fd"
                 ]
             },
             "a8aff6a3-43c1-4d59-848e-903e1bc9592d": {
@@ -59,21 +32,6 @@
                     "1d9efd92-90cb-487b-a533-7e13e2542fda"
                 ]
             },
-            "1dcbfd85-e62c-4308-bfd3-9a63edf38b33": {
-                "size": {
-                    "width": 60,
-                    "height": 60
-                },
-                "position": {
-                    "x": 450,
-                    "y": 30
-                },
-                "z": 1,
-                "embeds": [],
-                "isrelatedto": [
-                    "55436a04-b468-4815-b7aa-10ad54a07e86"
-                ]
-            },
             "cb5be509-28f4-4c0b-8d10-8212ac95b2a0": {
                 "size": {
                     "width": 60,
@@ -84,11 +42,7 @@
                     "y": 130
                 },
                 "z": 1,
-                "embeds": [],
-                "isrelatedto": [
-                    "235d25bb-6d38-4e9f-8b5d-f17950a3950e",
-                    "c96fe7b3-e305-4d7f-bdfe-19dd35f8fc86"
-                ]
+                "embeds": []
             },
             "154b7855-ca5a-4c12-a131-8bbfb0418f58": {
                 "size": {
@@ -100,10 +54,7 @@
                     "y": 250
                 },
                 "z": 1,
-                "embeds": [],
-                "isrelatedto": [
-                    "cb5be509-28f4-4c0b-8d10-8212ac95b2a0"
-                ]
+                "embeds": []
             },
             "33568c8f-1bfe-43ad-815e-d661f0542267": {
                 "size": {
@@ -118,9 +69,6 @@
                 "embeds": [],
                 "isassociatedwith": [
                     "cb5be509-28f4-4c0b-8d10-8212ac95b2a0"
-                ],
-                "isrelatedto": [
-                    "154b7855-ca5a-4c12-a131-8bbfb0418f58"
                 ]
             },
             "4a4319be-be3d-47b9-a5ee-7ae736296593": {
@@ -148,10 +96,7 @@
                     "y": 500
                 },
                 "z": 0,
-                "embeds": [],
-                "isrelatedto": [
-                    "4a4319be-be3d-47b9-a5ee-7ae736296593"
-                ]
+                "embeds": []
             },
             "08a5916b-701f-4ce8-86bf-cff286999852": {
                 "size": {
@@ -178,10 +123,7 @@
                     "y": 400
                 },
                 "z": 0,
-                "embeds": [],
-                "isrelatedto": [
-                    "08a5916b-701f-4ce8-86bf-cff286999852"
-                ]
+                "embeds": []
             },
             "5b6c9112-2239-4dd9-8248-bd9bd9b8ecd6": {
                 "size": {
@@ -233,10 +175,7 @@
                     "y": 370
                 },
                 "z": 0,
-                "embeds": [],
-                "isrelatedto": [
-                    "c96fe7b3-e305-4d7f-bdfe-19dd35f8fc86"
-                ]
+                "embeds": []
             },
             "f904f64a-572c-4fd6-b4e6-70112aba8039": {
                 "size": {
@@ -264,6 +203,9 @@
                 },
                 "z": 0,
                 "embeds": [],
+                "isassociatedwith": [
+                    "91767755-8ca8-4e72-b3a5-e47e435c3d58"
+                ],
                 "dependson": [
                     "b3257e2e-002f-4f22-92e8-ecfa0db50909"
                 ]
@@ -278,7 +220,10 @@
                     "y": 120
                 },
                 "z": 0,
-                "embeds": []
+                "embeds": [],
+                "isassociatedwith": [
+                    "b3257e2e-002f-4f22-92e8-ecfa0db50909"
+                ]
             },
             "5b04d9fa-b967-49e9-b2aa-e1ef3d8f3274": {
                 "size": {
@@ -290,10 +235,7 @@
                     "y": 370
                 },
                 "z": 0,
-                "embeds": [],
-                "isrelatedto": [
-                    "c96fe7b3-e305-4d7f-bdfe-19dd35f8fc86"
-                ]
+                "embeds": []
             },
             "53008f2a-153c-484e-baad-561716ec4c22": {
                 "size": {
@@ -318,7 +260,7 @@
                 },
                 "z": 0,
                 "embeds": [],
-                "references": [
+                "isassociatedwith": [
                     "53008f2a-153c-484e-baad-561716ec4c22"
                 ]
             },
@@ -333,6 +275,9 @@
                 },
                 "z": 0,
                 "embeds": [],
+                "isassociatedwith": [
+                    "885610f8-7e41-4593-9185-e7974a022141"
+                ],
                 "dependson": [
                     "91767755-8ca8-4e72-b3a5-e47e435c3d58"
                 ]
@@ -348,6 +293,9 @@
                 },
                 "z": 0,
                 "embeds": [],
+                "isassociatedwith": [
+                    "c84d97ee-a93a-448f-89f4-f0e45ddf0cb8"
+                ],
                 "dependson": [
                     "885610f8-7e41-4593-9185-e7974a022141"
                 ]
@@ -363,6 +311,9 @@
                 },
                 "z": 0,
                 "embeds": [],
+                "isassociatedwith": [
+                    "d366b383-a5da-4080-b47f-1fae203ac792"
+                ],
                 "dependson": [
                     "c84d97ee-a93a-448f-89f4-f0e45ddf0cb8"
                 ]
@@ -378,8 +329,12 @@
                 },
                 "z": 0,
                 "embeds": [],
+                "isassociatedwith": [
+                    "1da12c0d-e8b7-4fdc-8fff-d8ec0d92d7c7"
+                ],
                 "dependson": [
-                    "d366b383-a5da-4080-b47f-1fae203ac792"
+                    "d366b383-a5da-4080-b47f-1fae203ac792",
+                    "c84d97ee-a93a-448f-89f4-f0e45ddf0cb8"
                 ]
             },
             "7e4c60d0-b220-4f44-a1ee-79a23eb6005e": {
@@ -404,10 +359,7 @@
                     "y": 10
                 },
                 "z": 0,
-                "embeds": [],
-                "isrelatedto": [
-                    "1da12c0d-e8b7-4fdc-8fff-d8ec0d92d7c7"
-                ]
+                "embeds": []
             },
             "1f026cf4-ab4c-4629-8ca7-f92fae8ce722": {
                 "size": {
@@ -434,10 +386,7 @@
                     "y": 10
                 },
                 "z": 0,
-                "embeds": [],
-                "isrelatedto": [
-                    "d366b383-a5da-4080-b47f-1fae203ac792"
-                ]
+                "embeds": []
             },
             "7f7fd32c-c1e0-4857-961b-4fbc6a0841d5": {
                 "size": {
@@ -464,10 +413,7 @@
                     "y": 10
                 },
                 "z": 0,
-                "embeds": [],
-                "isrelatedto": [
-                    "c84d97ee-a93a-448f-89f4-f0e45ddf0cb8"
-                ]
+                "embeds": []
             },
             "598ea545-44ae-40cd-a00f-e80f33a6ba7e": {
                 "size": {
@@ -494,10 +440,7 @@
                     "y": 10
                 },
                 "z": 0,
-                "embeds": [],
-                "isrelatedto": [
-                    "885610f8-7e41-4593-9185-e7974a022141"
-                ]
+                "embeds": []
             },
             "c7cb477a-d975-4f55-9e3c-453596f82da8": {
                 "size": {
@@ -524,10 +467,7 @@
                     "y": 10
                 },
                 "z": 0,
-                "embeds": [],
-                "isrelatedto": [
-                    "91767755-8ca8-4e72-b3a5-e47e435c3d58"
-                ]
+                "embeds": []
             },
             "f1488a64-ebab-4a0c-a931-c456d77a664f": {
                 "size": {
@@ -554,10 +494,7 @@
                     "y": 10
                 },
                 "z": 0,
-                "embeds": [],
-                "isrelatedto": [
-                    "b3257e2e-002f-4f22-92e8-ecfa0db50909"
-                ]
+                "embeds": []
             },
             "25e2656c-f68f-455f-8538-1dd9c589c43a": {
                 "size": {
@@ -584,10 +521,7 @@
                     "y": 220
                 },
                 "z": 0,
-                "embeds": [],
-                "isrelatedto": [
-                    "1da12c0d-e8b7-4fdc-8fff-d8ec0d92d7c7"
-                ]
+                "embeds": []
             },
             "f02342d5-bcb6-454d-b758-80ef0f34f3e4": {
                 "size": {
@@ -614,10 +548,7 @@
                     "y": 220
                 },
                 "z": 0,
-                "embeds": [],
-                "isrelatedto": [
-                    "d366b383-a5da-4080-b47f-1fae203ac792"
-                ]
+                "embeds": []
             },
             "7001c20a-b136-4a87-b6a0-32c7ee72cb08": {
                 "size": {
@@ -644,10 +575,7 @@
                     "y": 220
                 },
                 "z": 0,
-                "embeds": [],
-                "isrelatedto": [
-                    "c84d97ee-a93a-448f-89f4-f0e45ddf0cb8"
-                ]
+                "embeds": []
             },
             "187be347-3e0a-4893-b256-15e032a39097": {
                 "size": {
@@ -674,10 +602,7 @@
                     "y": 220
                 },
                 "z": 0,
-                "embeds": [],
-                "isrelatedto": [
-                    "885610f8-7e41-4593-9185-e7974a022141"
-                ]
+                "embeds": []
             },
             "c9236d6a-a00b-4f1b-a2a7-482179b99c72": {
                 "size": {
@@ -704,10 +629,7 @@
                     "y": 220
                 },
                 "z": 0,
-                "embeds": [],
-                "isrelatedto": [
-                    "91767755-8ca8-4e72-b3a5-e47e435c3d58"
-                ]
+                "embeds": []
             },
             "cdc67864-2979-4db0-b33a-ac227c9750d9": {
                 "size": {
@@ -733,7 +655,8 @@
                     "x": -290,
                     "y": 220
                 },
-                "z": 0
+                "z": 0,
+                "embeds": []
             },
             "d459da62-5c08-4849-b0d2-29383150cf47": {
                 "size": {
@@ -744,7 +667,11 @@
                     "x": -290,
                     "y": 320
                 },
-                "z": 0
+                "z": 0,
+                "embeds": [],
+                "isassociatedwith": [
+                    "dbf51517-f9e1-419b-8acf-027f5e1dd8ba"
+                ]
             }
         }
     },
@@ -901,7 +828,7 @@
                 },
                 "Handler": "LambdaQueueSizeMetric::Lambda.LambdaQueueSizeMetric.Function::FunctionHandler",
                 "Role": "arn:aws:iam::589270964471:role/lambda-dynamodb",
-                "Runtime": "dotnetcore1.0",
+                "Runtime": "dotnetcore2.0",
                 "Timeout": 30
             },
             "Metadata": {
@@ -1133,7 +1060,7 @@
                 },
                 "Handler": "LambdaS3ImageIntake::Lambda.LambdaS3ImageIntake.Function::FunctionHandler",
                 "Role": "arn:aws:iam::589270964471:role/lambda-dynamodb",
-                "Runtime": "dotnetcore1.0",
+                "Runtime": "dotnetcore2.0",
                 "Timeout": 30
             },
             "Metadata": {
@@ -1177,21 +1104,21 @@
                 },
                 "AttributeDefinitions": [
                     {
-                        "AttributeName": "observation_name",
+                        "AttributeName": "Name",
                         "AttributeType": "S"
                     },
                     {
-                        "AttributeName": "project_name",
+                        "AttributeName": "ProjectName",
                         "AttributeType": "S"
                     }
                 ],
                 "KeySchema": [
                     {
-                        "AttributeName": "observation_name",
+                        "AttributeName": "Name",
                         "KeyType": "HASH"
                     },
                     {
-                        "AttributeName": "project_name",
+                        "AttributeName": "ProjectName",
                         "KeyType": "RANGE"
                     }
                 ],
@@ -1222,21 +1149,21 @@
                 },
                 "AttributeDefinitions": [
                     {
-                        "AttributeName": "frame_name",
+                        "AttributeName": "FrameName",
                         "AttributeType": "S"
                     },
                     {
-                        "AttributeName": "project_name",
+                        "AttributeName": "ProjectName",
                         "AttributeType": "S"
                     }
                 ],
                 "KeySchema": [
                     {
-                        "AttributeName": "frame_name",
+                        "AttributeName": "FrameName",
                         "KeyType": "HASH"
                     },
                     {
-                        "AttributeName": "project_name",
+                        "AttributeName": "ProjectName",
                         "KeyType": "RANGE"
                     }
                 ],
@@ -1272,7 +1199,7 @@
                 },
                 "Handler": "LambdaScanS3::Lambda.LambdaScanS3.Function::FunctionHandler",
                 "Role": "arn:aws:iam::589270964471:role/lambda-dynamodb",
-                "Runtime": "dotnetcore1.0",
+                "Runtime": "dotnetcore2.0",
                 "Timeout": 300,
                 "MemorySize": 1536
             },
@@ -1407,13 +1334,13 @@
                 },
                 "AttributeDefinitions": [
                     {
-                        "AttributeName": "project_name",
+                        "AttributeName": "Name",
                         "AttributeType": "S"
                     }
                 ],
                 "KeySchema": [
                     {
-                        "AttributeName": "project_name",
+                        "AttributeName": "Name",
                         "KeyType": "HASH"
                     }
                 ],
@@ -1428,77 +1355,9 @@
                 }
             }
         },
-        "FrameTransformLookup": {
-            "Type": "AWS::DynamoDB::Table",
-            "DependsOn": "Projects",
-            "Properties": {
-                "TableName": {
-                    "Fn::Join": [
-                        "",
-                        [
-                            {
-                                "Ref": "TablePrefix"
-                            },
-                            "FrameTransformLookup"
-                        ]
-                    ]
-                },
-                "AttributeDefinitions": [
-                    {
-                        "AttributeName": "from_frame_name",
-                        "AttributeType": "S"
-                    },
-                    {
-                        "AttributeName": "to_frame_name",
-                        "AttributeType": "S"
-                    }
-                ],
-                "KeySchema": [
-                    {
-                        "AttributeName": "from_frame_name",
-                        "KeyType": "HASH"
-                    },
-                    {
-                        "AttributeName": "to_frame_name",
-                        "KeyType": "RANGE"
-                    }
-                ],
-                "ProvisionedThroughput": {
-                    "ReadCapacityUnits": "50",
-                    "WriteCapacityUnits": "5"
-                },
-                "GlobalSecondaryIndexes": [
-                    {
-                        "IndexName": "ReverseTransformLookup",
-                        "KeySchema": [
-                            {
-                                "AttributeName": "to_frame_name",
-                                "KeyType": "HASH"
-                            },
-                            {
-                                "AttributeName": "from_frame_name",
-                                "KeyType": "RANGE"
-                            }
-                        ],
-                        "Projection": {
-                            "ProjectionType": "ALL"
-                        },
-                        "ProvisionedThroughput": {
-                            "ReadCapacityUnits": "5",
-                            "WriteCapacityUnits": "5"
-                        }
-                    }
-                ]
-            },
-            "Metadata": {
-                "AWS::CloudFormation::Designer": {
-                    "id": "c84d97ee-a93a-448f-89f4-f0e45ddf0cb8"
-                }
-            }
-        },
         "FrameTransforms": {
             "Type": "AWS::DynamoDB::Table",
-            "DependsOn": "FrameTransformLookup",
+            "DependsOn": "Projects",
             "Properties": {
                 "TableName": {
                     "Fn::Join": [
@@ -1513,27 +1372,73 @@
                 },
                 "AttributeDefinitions": [
                     {
-                        "AttributeName": "id",
+                        "AttributeName": "ProjectName",
                         "AttributeType": "S"
                     },
                     {
-                        "AttributeName": "project_name",
+                        "AttributeName": "FrameName",
                         "AttributeType": "S"
                     }
                 ],
                 "KeySchema": [
                     {
-                        "AttributeName": "id",
+                        "AttributeName": "FrameName",
                         "KeyType": "HASH"
                     },
                     {
-                        "AttributeName": "project_name",
+                        "AttributeName": "ProjectName",
                         "KeyType": "RANGE"
                     }
                 ],
                 "ProvisionedThroughput": {
                     "ReadCapacityUnits": "50",
                     "WriteCapacityUnits": "10"
+                }
+            },
+            "Metadata": {
+                "AWS::CloudFormation::Designer": {
+                    "id": "c84d97ee-a93a-448f-89f4-f0e45ddf0cb8"
+                }
+            }
+        },
+        "FrameTransformPriors": {
+            "Type": "AWS::DynamoDB::Table",
+            "DependsOn": "FrameTransforms",
+            "Properties": {
+                "TableName": {
+                    "Fn::Join": [
+                        "",
+                        [
+                            {
+                                "Ref": "TablePrefix"
+                            },
+                            "FrameTransformPriors"
+                        ]
+                    ]
+                },
+                "AttributeDefinitions": [
+                    {
+                        "AttributeName": "ProjectName",
+                        "AttributeType": "S"
+                    },
+                    {
+                        "AttributeName": "Id",
+                        "AttributeType": "S"
+                    }
+                ],
+                "KeySchema": [
+                    {
+                        "AttributeName": "Id",
+                        "KeyType": "HASH"
+                    },
+                    {
+                        "AttributeName": "ProjectName",
+                        "KeyType": "RANGE"
+                    }
+                ],
+                "ProvisionedThroughput": {
+                    "ReadCapacityUnits": "50",
+                    "WriteCapacityUnits": "5"
                 }
             },
             "Metadata": {
@@ -1559,21 +1464,21 @@
                 },
                 "AttributeDefinitions": [
                     {
-                        "AttributeName": "id",
+                        "AttributeName": "Id",
                         "AttributeType": "S"
                     },
                     {
-                        "AttributeName": "project_name",
+                        "AttributeName": "ProjectName",
                         "AttributeType": "S"
                     }
                 ],
                 "KeySchema": [
                     {
-                        "AttributeName": "id",
+                        "AttributeName": "Id",
                         "KeyType": "HASH"
                     },
                     {
-                        "AttributeName": "project_name",
+                        "AttributeName": "ProjectName",
                         "KeyType": "RANGE"
                     }
                 ],
@@ -1724,7 +1629,7 @@
                 }
             }
         },
-        "FrameTransformLookupWriteTarget": {
+        "FrameTransformPriorsWriteTarget": {
             "Type": "AWS::ApplicationAutoScaling::ScalableTarget",
             "Properties": {
                 "MaxCapacity": 50,
@@ -1735,7 +1640,7 @@
                         [
                             "table",
                             {
-                                "Ref": "FrameTransformLookup"
+                                "Ref": "FrameTransformPriors"
                             }
                         ]
                     ]
@@ -1752,13 +1657,13 @@
                 }
             }
         },
-        "FrameTransformLookupWritePolicy": {
+        "FrameTransformPriorsWritePolicy": {
             "Type": "AWS::ApplicationAutoScaling::ScalingPolicy",
             "Properties": {
                 "PolicyName": "WriteAutoScalingPolicy",
                 "PolicyType": "TargetTrackingScaling",
                 "ScalingTargetId": {
-                    "Ref": "FrameTransformLookupWriteTarget"
+                    "Ref": "FrameTransformPriorsWriteTarget"
                 },
                 "TargetTrackingScalingPolicyConfiguration": {
                     "TargetValue": 50,
@@ -2030,7 +1935,7 @@
                 }
             }
         },
-        "FrameTransformLookupReadTarget": {
+        "FrameTransformPriorsReadTarget": {
             "Type": "AWS::ApplicationAutoScaling::ScalableTarget",
             "Properties": {
                 "MaxCapacity": 50,
@@ -2041,7 +1946,7 @@
                         [
                             "table",
                             {
-                                "Ref": "FrameTransformLookup"
+                                "Ref": "FrameTransformPriors"
                             }
                         ]
                     ]
@@ -2058,13 +1963,13 @@
                 }
             }
         },
-        "FrameTransformLookupReadPolicy": {
+        "FrameTransformPriorsReadPolicy": {
             "Type": "AWS::ApplicationAutoScaling::ScalingPolicy",
             "Properties": {
                 "PolicyName": "ReadAutoScalingPolicy",
                 "PolicyType": "TargetTrackingScaling",
                 "ScalingTargetId": {
-                    "Ref": "FrameTransformLookupReadTarget"
+                    "Ref": "FrameTransformPriorsReadTarget"
                 },
                 "TargetTrackingScalingPolicyConfiguration": {
                     "TargetValue": 50,

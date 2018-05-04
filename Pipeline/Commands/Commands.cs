@@ -19,8 +19,6 @@ namespace OPS.Pipeline
             /// Commands are defined by the list of types passed into ParseArguments
             /// Each passed in object must have a [Verb] decorator
             return CommandLine.Parser.Default.ParseArguments<ConvertBaselineMeshOptions,
-                                                             MatchImagesOptions,
-                                                             MatchAllImagesOptions,
                                                              PDSImageConverterOptions,
                                                              ConvertBaselineMeshesOptions,
                                                              TileBaselineMeshOptions,
@@ -28,7 +26,8 @@ namespace OPS.Pipeline
                                                              TilingOptions,
                                                              TileBaselineMeshesOptions,
                                                              BenchmarkS3Options,
-                                                             LegacyToWebVROptions
+                                                             LegacyToWebVROptions,
+                                                             AlignSceneOptions
                                                              >(args)
               .MapResult(
                 (AlignmentWorkerOptions opts) => new AlignmentWorker().Run(),
@@ -38,10 +37,9 @@ namespace OPS.Pipeline
                 (TileBaselineMeshOptions opts) => new TileBaselineMesh(opts).Run(),
                 (TileBaselineMeshesOptions opts) => new TileBaselineMeshes(opts).Run(),
                 (BenchmarkS3Options opts) => new BenchmarkS3(opts).Run(),
-                (MatchImagesOptions opts) => new MatchImages(opts).Run(),
-                (MatchAllImagesOptions opts) => new MatchAllImages(opts).Run(),
                 (PDSImageConverterOptions opts) => new PDSImageConverter(opts).Run(),
                 (LegacyToWebVROptions opts) => new LegacyToWebVR(opts).Run(),
+                (AlignSceneOptions opts) => new AlignScene(opts).Run(),
                 errs => 1);
         }
     }

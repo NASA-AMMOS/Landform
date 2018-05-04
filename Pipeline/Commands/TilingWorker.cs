@@ -176,8 +176,9 @@ namespace OPS.Pipeline
             int height = 512;
 
             //Download files 
-            MeshImagePair[] meshes = new MeshImagePair[m.NumChildren];
-            Mesh[] justmesh = new Mesh[m.NumChildren];
+            int numChildren = m.ChildExtensions.Count;
+            MeshImagePair[] meshes = new MeshImagePair[numChildren];
+            Mesh[] justmesh = new Mesh[numChildren];
             StorageHelper storage = new StorageHelper();
             int newFaceCount = 0;
             int index = 0; 
@@ -207,7 +208,7 @@ namespace OPS.Pipeline
                 index += 1;
                 
             }
-            newFaceCount = Convert.ToInt32(newFaceCount / Convert.ToDouble(m.NumChildren));
+            newFaceCount = Convert.ToInt32(newFaceCount / Convert.ToDouble(numChildren));
 
             //Merge the meshes 
             Mesh dst = Mesh.Merge(justmesh);

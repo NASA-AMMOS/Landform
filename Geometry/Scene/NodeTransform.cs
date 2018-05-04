@@ -115,9 +115,9 @@ namespace OPS.Geometry
                 matrix = value;
                 matrix.Decompose(out scale, out rotation, out translation);
                 matrixDirty = false;
+                localToWorldDirty = true;
             }
         }
-
 
         Matrix localToWorld;
         bool _localToWorldDirty;

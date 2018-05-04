@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 
 using Amazon.DynamoDBv2.DataModel;
 using Amazon.DynamoDBv2.Model;
+using Amazon.DynamoDBv2.DocumentModel;
 
 namespace OPS.Cloud
 {
@@ -19,17 +20,36 @@ namespace OPS.Cloud
     public class Frame
     {
         [DynamoDBRangeKey]
-        [DynamoDBProperty("project_name")]
+        [DynamoDBProperty()]
         public string ProjectName { get; set; }
 
         [DynamoDBHashKey] //Partition key
-        [DynamoDBProperty("frame_name")]
+        [DynamoDBProperty("FrameName")]
         public string Name { get; set; }
+
+        [DynamoDBProperty()]
+        public string ParentName { get; set; }
+
+        [DynamoDBProperty()]
+        public List<string> PriorIds { get; set; }
 
         //This constructor must be public for DynamoDb but should not be used
         public Frame()
         {
-            
+            PriorIds = new List<string>();
+        }
+
+        public IEnumerable<Frame> GetChildren(DynamoDBContext context)
+        {
+            return context.Scan<Frame>(
+                new ScanCondition("ProjectName", ScanOperator.Equal, ProjectName),
+                new ScanCondition("ParentName", ScanOperator.Equal, Name));
+        }
+
+        public Frame GetParent(DynamoDBContext context)
+        {
+            if (ParentName == null) return null;
+            return Find(context, ProjectName, ParentName);
         }
 
         /// <summary>
@@ -39,7 +59,7 @@ namespace OPS.Cloud
         /// </summary>
         /// <param name="project">Project with a valid id (has been saved to database context)</param>
         /// <param name="name"></param>
-        protected Frame(Project project, string name = null)
+        protected Frame(Project project, string name = null, Frame parent = null)
         {
             if (name == null)
             {
@@ -47,6 +67,8 @@ namespace OPS.Cloud
             }
             this.Name = name;
             this.ProjectName = project.Name;
+            this.ParentName = (parent != null) ? parent.Name : null;
+            this.PriorIds = new List<string>();
         }
 
 
@@ -58,13 +80,13 @@ namespace OPS.Cloud
         /// <param name="p">Project with a valid id (has been saved to database context)</param>
         /// <param name="name"></param>
         /// <returns></returns>
-        public static Frame Create(DynamoDBContext context, Project p, string name = null)
+        public static Frame Create(DynamoDBContext context, Project p, string name = null, Frame parent = null)
         {
             if (name == null)
             {
                 name = Guid.NewGuid().ToString();
             }
-            Frame f = new Frame(p, name);
+            Frame f = new Frame(p, name, parent);
             context.Save<Frame>(f, new DynamoDBOperationConfig { IgnoreNullValues = true});
             return f;
         }
@@ -87,7 +109,7 @@ namespace OPS.Cloud
         /// <param name="p">Project with a valid id (has been saved to database context)</param>
         /// <param name="name"></param>
         /// <returns></returns>
-        public static Frame FindOrCreate(DynamoDBContext context, Project p, string name)
+        public static Frame FindOrCreate(DynamoDBContext context, Project p, string name, Frame parent = null)
         {
             // Try to find this project
             Frame frame = Find(context, p.Name, name);
@@ -96,7 +118,7 @@ namespace OPS.Cloud
                 return frame;
             }
             // If it doesn't exist try to create it
-            frame = Create(context, p, name);
+            frame = Create(context, p, name, parent);
             if (frame != null)
             {
                 return frame;

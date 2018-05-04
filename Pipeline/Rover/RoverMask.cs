@@ -13,9 +13,9 @@ namespace OPS.Pipeline
     {
         public static CuriosityRoverModel RoverModel = new CuriosityRoverModel();
 
-        public static Image Build(ImageRef imageRef)
+        public static Image Build(Image image)
         {
-            var metadata = imageRef.Metadata as PDSMetadata;
+            var metadata = image.Metadata as PDSMetadata;
             if (metadata == null)
             {
                 return null;
@@ -31,12 +31,15 @@ namespace OPS.Pipeline
             var cmod = metadata.CameraModel;
 
             Image res = new Image(1, metadata.Width, metadata.Height);
-            for (int i = 0; i < res.Width; i++)
+            lock (RoverModel)
             {
-                for (int j = 0; j < res.Height; j++)
+                for (int i = 0; i < res.Width; i++)
                 {
-                    var ray = cmod.Unproject(new Vector2(i, j));
-                    res[0, j, i] = sc.Occludes(ray) ? 0 : 1;
+                    for (int j = 0; j < res.Height; j++)
+                    {
+                    	var ray = cmod.Unproject(new Vector2(i, j));
+                        res[0, j, i] = sc.Occludes(ray) ? 0 : 1;
+                    }
                 }
             }
 

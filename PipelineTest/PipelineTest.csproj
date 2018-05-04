@@ -140,6 +140,10 @@
       <Project>{c45f0cd6-c998-47ec-b67c-ad77196b06a0}</Project>
       <Name>Pipeline</Name>
     </ProjectReference>
+    <ProjectReference Include="..\Plumbing\Plumbing.csproj">
+      <Project>{2F63D586-130F-42EB-BA25-76D31BC26283}</Project>
+      <Name>Plumbing</Name>
+    </ProjectReference>
     <ProjectReference Include="..\RayTrace\RayTrace.csproj">
       <Project>{0e8c60bb-4a68-480f-895a-2b326aec002c}</Project>
       <Name>RayTrace</Name>

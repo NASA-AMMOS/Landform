@@ -15,4 +15,4 @@ if ($pshome -like "*syswow64*") {
 
 #start the app
 cd C:\Users\Administrator\Landform\Source
-Start-Process Landform.exe alignmentworker  -WindowStyle Hidden
+Start-Process C:\Users\Administrator\Landform\Source\Landform.exe alignmentworker -RedirectStandardOutput C:\Users\Administrator\Landform\stdout.txt -RedirectStandardError C:\Users\Administrator\Landform\stderr.txt

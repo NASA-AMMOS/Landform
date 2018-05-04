@@ -11,6 +11,7 @@ using Amazon.S3;
 using Amazon.S3.Util;
 using Amazon.SQS;
 using Amazon.SQS.Model;
+using OPS.Cloud;
 
 // Assembly attribute to enable the Lambda function's JSON input to be converted into a .NET class.
 [assembly: LambdaSerializer(typeof(Amazon.Lambda.Serialization.Json.JsonSerializer))]
@@ -50,33 +51,12 @@ namespace Lambda.LambdaS3ImageIntake
             }
 
             //send a message. We'll just assume that any kind of product is ok, though we could check file endings or metadata if desired 
-            SendMessageRequest request = new SendMessageRequest
-            {
-                DelaySeconds = (int)TimeSpan.FromSeconds(5).TotalSeconds,
-                MessageAttributes = new Dictionary<string, MessageAttributeValue>
-                {
-                    {
-                    NewObservationMsgFields.MSG_TYPE_FIELD, new MessageAttributeValue
-                    {DataType = "String", StringValue = PipelineMessageTypes.NEW_OBSERVATION_MESSAGE }
-                    },
-                    {
-                    NewObservationMsgFields.FILE_S3_PATH, new MessageAttributeValue
-                    {DataType = "String", StringValue = "s3://" + s3Event.Bucket.Name + "/" + s3Event.Object.Key } //No data types other than string currently supported
-                    }
-                },
-                MessageBody = "{}",
-                QueueUrl = Environment.GetEnvironmentVariable("JOB_QUEUE")
-            };
-            SendMessageResponse response = await SQSClient.SendMessageAsync(request);
-            LambdaLogger.Log("Sent message with MessageID " + response.MessageId);
+            string url = "s3://" + s3Event.Bucket.Name + "/" + s3Event.Object.Key;
+            var msg = new NewObservationMessage(url);
+            msg.Send(SQSClient, Environment.GetEnvironmentVariable("JOB_QUEUE"));
+            LambdaLogger.Log("Sent message with MessageID " + msg.MessageId);
 
-            if (response.HttpStatusCode != System.Net.HttpStatusCode.OK)
-            {
-                //Something is wrong with the connection. Quit, another lambda will try again 
-                throw new Exception("Problem sending message to SQS queue");
-            }
-
-            return response.MessageId;
+            return msg.MessageId;
         }
     }
 }
