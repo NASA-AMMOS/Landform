@@ -142,7 +142,6 @@ namespace OPS.Alignment
                     distances[nodes[k].Index, nodes[j].Index] = dist;
                 }
             }
-            //Median = MathExtensions.Median.MedianOfMedians(values, values.Count / 2);  // This gives wrong answere
             values.Sort();
             Median = values[values.Count / 2];
         }
