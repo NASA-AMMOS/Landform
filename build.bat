@@ -1,8 +1,9 @@
 
 rmdir /S /Q out
+nuget restore
 msbuild /t:Clean,Build /p:Configuration=Release
 if %errorlevel% neq 0 exit /b %errorlevel%
-runTests.bat
+call runTests.bat
 if %errorlevel% neq 0 exit /b %errorlevel%
 nuget pack Pipeline\Pipeline.csproj -IncludeReferencedProjects -properties Configuration=Release
 if %errorlevel% neq 0 exit /b %errorlevel%

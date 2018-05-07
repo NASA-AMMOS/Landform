@@ -42,38 +42,31 @@
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="AWSSDK.CloudWatch, Version=3.3.0.0, Culture=neutral, PublicKeyToken=885c28607f98e604, processorArchitecture=MSIL">
-      <HintPath>..\packages\AWSSDK.CloudWatch.3.3.5.1\lib\net45\AWSSDK.CloudWatch.dll</HintPath>
-      <Private>True</Private>
+      <HintPath>..\packages\AWSSDK.CloudWatch.3.3.6.2\lib\net45\AWSSDK.CloudWatch.dll</HintPath>
     </Reference>
     <Reference Include="AWSSDK.Core, Version=3.3.0.0, Culture=neutral, PublicKeyToken=885c28607f98e604, processorArchitecture=MSIL">
-      <HintPath>..\packages\AWSSDK.Core.3.3.21.14\lib\net45\AWSSDK.Core.dll</HintPath>
+      <HintPath>..\packages\AWSSDK.Core.3.3.22.3\lib\net45\AWSSDK.Core.dll</HintPath>
     </Reference>
     <Reference Include="AWSSDK.DynamoDBv2, Version=3.3.0.0, Culture=neutral, PublicKeyToken=885c28607f98e604, processorArchitecture=MSIL">
-      <HintPath>..\packages\AWSSDK.DynamoDBv2.3.3.6\lib\net45\AWSSDK.DynamoDBv2.dll</HintPath>
-      <Private>True</Private>
+      <HintPath>..\packages\AWSSDK.DynamoDBv2.3.3.8\lib\net45\AWSSDK.DynamoDBv2.dll</HintPath>
     </Reference>
     <Reference Include="AWSSDK.EC2, Version=3.3.0.0, Culture=neutral, PublicKeyToken=885c28607f98e604, processorArchitecture=MSIL">
-      <HintPath>..\packages\AWSSDK.EC2.3.3.46\lib\net45\AWSSDK.EC2.dll</HintPath>
+      <HintPath>..\packages\AWSSDK.EC2.3.3.49\lib\net45\AWSSDK.EC2.dll</HintPath>
     </Reference>
     <Reference Include="AWSSDK.S3, Version=3.3.0.0, Culture=neutral, PublicKeyToken=885c28607f98e604, processorArchitecture=MSIL">
-      <HintPath>..\packages\AWSSDK.S3.3.3.17\lib\net45\AWSSDK.S3.dll</HintPath>
-      <Private>True</Private>
+      <HintPath>..\packages\AWSSDK.S3.3.3.18.2\lib\net45\AWSSDK.S3.dll</HintPath>
     </Reference>
     <Reference Include="AWSSDK.SimpleNotificationService, Version=3.3.0.0, Culture=neutral, PublicKeyToken=885c28607f98e604, processorArchitecture=MSIL">
-      <HintPath>..\packages\AWSSDK.SimpleNotificationService.3.3.0.24\lib\net45\AWSSDK.SimpleNotificationService.dll</HintPath>
-      <Private>True</Private>
+      <HintPath>..\packages\AWSSDK.SimpleNotificationService.3.3.0.29\lib\net45\AWSSDK.SimpleNotificationService.dll</HintPath>
     </Reference>
     <Reference Include="AWSSDK.SimpleSystemsManagement, Version=3.3.0.0, Culture=neutral, PublicKeyToken=885c28607f98e604, processorArchitecture=MSIL">
-      <HintPath>..\packages\AWSSDK.SimpleSystemsManagement.3.3.16\lib\net45\AWSSDK.SimpleSystemsManagement.dll</HintPath>
-      <Private>True</Private>
+      <HintPath>..\packages\AWSSDK.SimpleSystemsManagement.3.3.21\lib\net45\AWSSDK.SimpleSystemsManagement.dll</HintPath>
     </Reference>
     <Reference Include="AWSSDK.SQS, Version=3.3.0.0, Culture=neutral, PublicKeyToken=885c28607f98e604, processorArchitecture=MSIL">
-      <HintPath>..\packages\AWSSDK.SQS.3.3.3.2\lib\net45\AWSSDK.SQS.dll</HintPath>
-      <Private>True</Private>
+      <HintPath>..\packages\AWSSDK.SQS.3.3.3.7\lib\net45\AWSSDK.SQS.dll</HintPath>
     </Reference>
     <Reference Include="AWSSDK.StepFunctions, Version=3.3.0.0, Culture=neutral, PublicKeyToken=885c28607f98e604, processorArchitecture=MSIL">
-      <HintPath>..\packages\AWSSDK.StepFunctions.3.3.2\lib\net45\AWSSDK.StepFunctions.dll</HintPath>
-      <Private>True</Private>
+      <HintPath>..\packages\AWSSDK.StepFunctions.3.3.2.5\lib\net45\AWSSDK.StepFunctions.dll</HintPath>
     </Reference>
     <Reference Include="ColorMine, Version=1.2.0.0, Culture=neutral, PublicKeyToken=7a2c4d30138edc39, processorArchitecture=MSIL">
       <HintPath>..\packages\ColorMine.1.2.0\lib\net45\ColorMine.dll</HintPath>
@@ -111,33 +104,30 @@
       <HintPath>..\packages\MathNet.Numerics.4.4.0\lib\net461\MathNet.Numerics.dll</HintPath>
     </Reference>
     <Reference Include="Newtonsoft.Json, Version=11.0.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed, processorArchitecture=MSIL">
-      <HintPath>..\packages\Newtonsoft.Json.11.0.1\lib\net45\Newtonsoft.Json.dll</HintPath>
+      <HintPath>..\packages\Newtonsoft.Json.11.0.2\lib\net45\Newtonsoft.Json.dll</HintPath>
     </Reference>
     <Reference Include="ogr_csharp, Version=1.0.5387.28600, Culture=neutral, PublicKeyToken=db5a52b08dc5b321, processorArchitecture=MSIL">
       <HintPath>..\packages\GDAL.1.11.1\lib\net40\ogr_csharp.dll</HintPath>
       <Private>True</Private>
     </Reference>
-    <Reference Include="OpenTK, Version=2.0.0.0, Culture=neutral, PublicKeyToken=bad199fe84eb3df4, processorArchitecture=MSIL">
-      <HintPath>..\packages\OpenTK.2.0.0\lib\net20\OpenTK.dll</HintPath>
-      <Private>True</Private>
+    <Reference Include="OpenTK, Version=3.0.0.0, Culture=neutral, PublicKeyToken=bad199fe84eb3df4, processorArchitecture=MSIL">
+      <HintPath>..\packages\OpenTK.3.0.0\lib\net20\OpenTK.dll</HintPath>
     </Reference>
-    <Reference Include="OpenTK.GLControl, Version=1.1.0.0, Culture=neutral, PublicKeyToken=bad199fe84eb3df4, processorArchitecture=MSIL">
-      <HintPath>..\packages\OpenTK.GLControl.1.1.2349.61993\lib\NET40\OpenTK.GLControl.dll</HintPath>
-      <Private>True</Private>
+    <Reference Include="OpenTK.GLControl, Version=3.0.0.0, Culture=neutral, PublicKeyToken=bad199fe84eb3df4, processorArchitecture=MSIL">
+      <HintPath>..\packages\OpenTK.GLControl.3.0.0\lib\net20\OpenTK.GLControl.dll</HintPath>
     </Reference>
     <Reference Include="osr_csharp, Version=1.0.5387.28600, Culture=neutral, PublicKeyToken=db5a52b08dc5b321, processorArchitecture=MSIL">
       <HintPath>..\packages\GDAL.1.11.1\lib\net40\osr_csharp.dll</HintPath>
       <Private>True</Private>
     </Reference>
-    <Reference Include="RTree, Version=1.0.0.0, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\packages\RTree.1.0.2.1\lib\RTree.dll</HintPath>
-      <Private>True</Private>
+    <Reference Include="RTree, Version=1.1.0.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\RTree.1.1.0\lib\netstandard2.0\RTree.dll</HintPath>
     </Reference>
     <Reference Include="System" />
     <Reference Include="System.ComponentModel.Composition" />
     <Reference Include="System.ComponentModel.DataAnnotations" />
-    <Reference Include="System.Console, Version=4.0.1.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL">
-      <HintPath>..\packages\System.Console.4.3.0\lib\net46\System.Console.dll</HintPath>
+    <Reference Include="System.Console">
+      <HintPath>..\packages\System.Console.4.3.1\lib\net46\System.Console.dll</HintPath>
       <Private>True</Private>
     </Reference>
     <Reference Include="System.Core" />
@@ -327,15 +317,8 @@
     <WCFMetadata Include="Service References\" />
   </ItemGroup>
   <ItemGroup>
-    <Analyzer Include="..\packages\AWSSDK.CloudWatch.3.3.5.1\analyzers\dotnet\cs\AWSSDK.CloudWatch.CodeAnalysis.dll" />
-    <Analyzer Include="..\packages\AWSSDK.DynamoDBv2.3.3.6\analyzers\dotnet\cs\AWSSDK.DynamoDBv2.CodeAnalysis.dll" />
-    <Analyzer Include="..\packages\AWSSDK.S3.3.3.17\analyzers\dotnet\cs\AWSSDK.S3.CodeAnalysis.dll" />
-    <Analyzer Include="..\packages\AWSSDK.SimpleNotificationService.3.3.0.24\analyzers\dotnet\cs\AWSSDK.SimpleNotificationService.CodeAnalysis.dll" />
-    <Analyzer Include="..\packages\AWSSDK.SimpleSystemsManagement.3.3.16\analyzers\dotnet\cs\AWSSDK.SimpleSystemsManagement.CodeAnalysis.dll" />
-    <Analyzer Include="..\packages\AWSSDK.SQS.3.3.3.2\analyzers\dotnet\cs\AWSSDK.SQS.CodeAnalysis.dll" />
-    <Analyzer Include="..\packages\AWSSDK.StepFunctions.3.3.2\analyzers\dotnet\cs\AWSSDK.StepFunctions.CodeAnalysis.dll" />
+    <Analyzer Include="..\packages\AWSSDK.EC2.3.3.49\analyzers\dotnet\cs\AWSSDK.EC2.CodeAnalysis.dll" />
   </ItemGroup>
-  <ItemGroup />
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <Target Name="EnsureNuGetPackageBuildImports" BeforeTargets="PrepareForBuild">
     <PropertyGroup>

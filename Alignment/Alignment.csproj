@@ -58,13 +58,11 @@
       <HintPath>..\packages\Newtonsoft.Json.10.0.3\lib\net45\Newtonsoft.Json.dll</HintPath>
       <Private>True</Private>
     </Reference>
-    <Reference Include="OpenTK, Version=2.0.0.0, Culture=neutral, PublicKeyToken=bad199fe84eb3df4, processorArchitecture=MSIL">
-      <HintPath>..\packages\OpenTK.2.0.0\lib\net20\OpenTK.dll</HintPath>
-      <Private>True</Private>
+    <Reference Include="OpenTK, Version=3.0.0.0, Culture=neutral, PublicKeyToken=bad199fe84eb3df4, processorArchitecture=MSIL">
+      <HintPath>..\packages\OpenTK.3.0.0\lib\net20\OpenTK.dll</HintPath>
     </Reference>
-    <Reference Include="OpenTK.GLControl, Version=1.1.0.0, Culture=neutral, PublicKeyToken=bad199fe84eb3df4, processorArchitecture=MSIL">
-      <HintPath>..\packages\OpenTK.GLControl.1.1.2349.61993\lib\NET40\OpenTK.GLControl.dll</HintPath>
-      <Private>True</Private>
+    <Reference Include="OpenTK.GLControl, Version=3.0.0.0, Culture=neutral, PublicKeyToken=bad199fe84eb3df4, processorArchitecture=MSIL">
+      <HintPath>..\packages\OpenTK.GLControl.3.0.0\lib\net20\OpenTK.GLControl.dll</HintPath>
     </Reference>
     <Reference Include="System" />
     <Reference Include="System.Core" />
@@ -86,9 +84,9 @@
   <ItemGroup>
     <Compile Include="Components\AdjustedNode.cs" />
     <Compile Include="Components\NodeImageReference.cs" />
+    <Compile Include="ImageFeatures\MatchFilters\GTMFilter.cs" />
     <Compile Include="ImageFeatures\Interfaces\IOverlapDetector.cs" />
     <Compile Include="ImageFeatures\Matching\BruteForceMatcher.cs" />
-    <Compile Include="ImageFeatures\MatchFilters\GTM\GTM.cs" />
     <Compile Include="BundleAdjuster\BundleAdjuster.cs" />
     <Compile Include="Components\BundleSceneComponents.cs" />
     <Compile Include="BundleAdjuster\Problem.cs" />
@@ -102,16 +100,11 @@
     <Compile Include="ImageFeatures\Matching\MatchImage.cs" />
     <Compile Include="ImageFeatures\PCASIFT\PCAConstants.cs" />
     <Compile Include="ImageFeatures\SIFT\ASIFTDetector.cs" />
-    <Compile Include="ImageFeatures\MatchFilters\GTM\GTMGraph.cs" />
-    <Compile Include="ImageFeatures\MatchFilters\GTM\GTMFilter.cs" />
     <Compile Include="ImageFeatures\PCASIFT\PCASIFTDescriptor.cs" />
     <Compile Include="ImageFeatures\PCASIFT\PCASIFTDetector.cs" />
     <Compile Include="ImageFeatures\PCASIFT\PCASIFTFeature.cs" />
     <Compile Include="ImageFeatures\PCASIFT\PCASIFTIO.cs" />
     <Compile Include="ImageFeatures\PCASIFT\PCASIFTUtil.cs" />
-    <Compile Include="ImageFeatures\PCS\KDNode.cs" />
-    <Compile Include="ImageFeatures\PCS\MRF.cs" />
-    <Compile Include="ImageFeatures\PCS\PCSFeature.cs" />
     <Compile Include="ImageFeatures\Interfaces\IFeatureDetector.cs" />
     <Compile Include="ImageFeatures\SIFT\SIFTDescriptor.cs" />
     <Compile Include="ImageFeatures\MatchFilters\MoisanStivalFilter.cs" />
@@ -142,6 +135,10 @@
     <ProjectReference Include="..\Imaging\Imaging.csproj">
       <Project>{c3ec3ab5-8dfd-4daa-9833-246f0db6a805}</Project>
       <Name>Imaging</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\MathExtensions\MathExtensions.csproj">
+      <Project>{8c7c8a71-0a4b-4d75-9cb2-32803bd8f86f}</Project>
+      <Name>MathExtensions</Name>
     </ProjectReference>
     <ProjectReference Include="..\Plumbing\Plumbing.csproj">
       <Project>{2f63d586-130f-42eb-ba25-76d31bc26283}</Project>
