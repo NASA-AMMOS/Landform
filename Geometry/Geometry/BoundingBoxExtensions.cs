@@ -106,6 +106,21 @@ namespace OPS.Geometry
         }
 
         /// <summary>
+        /// Keeps the same center but enlarges or shrinks the extents by ratio
+        /// </summary>
+        /// <param name="box"></param>
+        /// <param name="precent"></param>
+        public static BoundingBox Scale(BoundingBox box, double ratio)
+        {
+            var center = box.Center();
+            var size = box.Size();
+            size *= ratio;
+            box.Min = center - (size / 2);
+            box.Max = center + (size / 2);
+            return box;
+        }
+
+        /// <summary>
         /// Returns true if the inner is totaly inside or equal to the outer
         /// Note that this method is similar to BoundingBox.Contains except that it allows for floating point
         /// error.
