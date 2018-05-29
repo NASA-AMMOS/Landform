@@ -89,14 +89,19 @@ namespace OPS.Pipeline
                 }
             };
         }
-        
-        IEnumerable<KeyValuePair<string, JObject>> CreateResourcesForTable(Type type)
+
+        JObject CreateResourcesForTable(Type type)
         {
+            JObject res = new JObject();
+
             var ta = type.GetCustomAttribute<DynamoDBTableAttribute>();
             if (ta == null)
             {
-                yield break;
+                return res;
             }
+
+            res["Resources"] = new JObject();
+            res["Outputs"] = new JObject();
 
             string rangeKey = null;
             string hashKey = null;
@@ -251,17 +256,24 @@ namespace OPS.Pipeline
                 tableDef["Properties"]["GlobalSecondaryIndexes"] = secIndices;
             }
 
-            yield return new KeyValuePair<string, JObject>(ta.TableName, tableDef);
+            res["Resources"][ta.TableName] = tableDef;
+            res["Outputs"][ta.TableName] = new JObject
+            {
+                { "Description", "Table " + ta.TableName },
+                { "Value", new JObject { { "Ref", ta.TableName } } }
+            };
 
             // if dynamic capacity is desired, create scaling targets and policies
             foreach (var kvp in CreateScalingStuff(ta.TableName, readCapacity, "Read"))
             {
-                yield return kvp;
+                res["Resources"][kvp.Key] = kvp.Value;
             }
             foreach (var kvp in CreateScalingStuff(ta.TableName, writeCapacity, "Write"))
             {
-                yield return kvp;
+                res["Resources"][kvp.Key] = kvp.Value;
             }
+
+            return res;
         }
 
         private static IEnumerable<KeyValuePair<string, JObject>> CreateScalingStuff(string tableName, DynamoDBCapacityAttribute capacity, string name)
@@ -340,10 +352,7 @@ namespace OPS.Pipeline
                 typeof(Project), typeof(Observation), typeof(Frame), typeof(FrameTransform), typeof(TransformPrior), typeof(Overlap)
             })
             {
-                foreach (var resource in CreateResourcesForTable(dbt))
-                {
-                    dbTemplate["Resources"][resource.Key] = resource.Value;
-                }
+                dbTemplate.Merge(CreateResourcesForTable(dbt), new JsonMergeSettings { MergeArrayHandling = MergeArrayHandling.Union });
             }
 
             Console.WriteLine(dbTemplate.ToString());
