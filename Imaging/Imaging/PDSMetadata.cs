@@ -24,7 +24,7 @@ namespace OPS.Imaging
     }
 
 
-    public class PDSMetadata : ImageMetadata
+    public class PDSMetadata : RawMetadata
     {
 
         static Dictionary<string, Type> TypeLookup;
@@ -68,10 +68,7 @@ namespace OPS.Imaging
         // Optional Metadata
         public CameraModel CameraModel;
 
-        Dictionary<string, Dictionary<string, string>> rawHeader;
-        const string NULL_GROUP = "";
-
-        public PDSMetadata(Stream stream, bool loadAsVIC = false)
+        public PDSMetadata(Stream stream, bool loadAsVIC = false) : base()
         {
             if (loadAsVIC)
             {
@@ -83,7 +80,7 @@ namespace OPS.Imaging
             }
         }
 
-        public PDSMetadata(string filename)
+        public PDSMetadata(string filename) : base()
         {
             using (FileStream fs = File.OpenRead(filename))
             {
@@ -103,20 +100,8 @@ namespace OPS.Imaging
             }
         }
 
-        public PDSMetadata(PDSMetadata that)
+        public PDSMetadata(PDSMetadata that) : base(that)
         {
-            this.rawHeader = new Dictionary<string, Dictionary<string, string>>();
-            foreach (var group in that.Groups())
-            {
-                this.rawHeader.Add(group, new Dictionary<string, string>());
-                foreach (var key in that.Keys(group))
-                {
-                    this.rawHeader[group].Add(key, that.rawHeader[group][key]);
-                }
-            }
-            this.Width = that.Width;
-            this.Height = that.Height;
-            this.Bands = that.Bands;
             this.BitDepth = that.BitDepth;
             this.BitMask = that.BitMask;
             this.BigEndian = that.BigEndian;
@@ -127,6 +112,11 @@ namespace OPS.Imaging
             {
                 this.CameraModel = (CameraModel)that.CameraModel.Clone();
             }
+        }
+
+        public override object Clone()
+        {
+            return new PDSMetadata(this);
         }
 
         void InitPDS(Stream stream)
@@ -217,251 +207,7 @@ namespace OPS.Imaging
             }
 
         }
-
-        public override object Clone()
-        {
-            return new PDSMetadata(this);
-        }
-
-        public bool HasGroup(string group)
-        {
-            return rawHeader.ContainsKey(group);
-        }
-
-        public bool HasKey(string group, string key)
-        {
-            if (!rawHeader.ContainsKey(group))
-            {
-                return false;
-            }
-            return rawHeader[group].ContainsKey(key);
-        }
-
-        public bool HasKey(string key)
-        {
-            return HasKey(NULL_GROUP, key);
-        }
-
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <returns></returns>
-        public Dictionary<string, Dictionary<string, string>>.KeyCollection Groups()
-        {
-            return this.rawHeader.Keys;
-        }
-
-        public Dictionary<string, string>.KeyCollection Keys(string group = NULL_GROUP)
-        {
-            return this.rawHeader[group].Keys;
-        }
-
-        /// <summary>
-        /// </summary>
-        /// <param name="key"></param>
-        /// <returns></returns>
-        public string this[string key]
-        {
-            get
-            {
-                return this[NULL_GROUP, key];
-            }
-        }
-
-        /// <summary>
-        /// </summary>
-        /// <param name="group"></param>
-        /// <param name="key"></param>
-        /// <returns></returns>
-        public string this[string group, string key]
-        {
-            get
-            {
-                if (!HasKey(group, key))
-                {
-                    return null;
-                }
-                return rawHeader[group][key];
-            }
-        }
-
-        public string ReadAsString(string key)
-        {
-            return ReadAsString(NULL_GROUP, key);
-        }
-
-        public string ReadAsString(string group, string key)
-        {
-            return ParseString(this[group, key]);
-        }
-
-        public string[] ReadAsStringArray(string key)
-        {
-            return ReadAsStringArray(NULL_GROUP, key);
-        }
-
-        public string[] ReadAsStringArray(string group, string key)
-        {
-            return ParseStringArray(this[group, key]);
-        }
-
-        public double ReadAsDouble(string key)
-        {
-            return ReadAsDouble(NULL_GROUP, key);
-        }
-
-        public double ReadAsDouble(string group, string key)
-        {
-            return ParseDouble(this[group, key]);
-        }
-
-        public double[] ReadAsDoubleArray(string key)
-        {
-            return ReadAsDoubleArray(NULL_GROUP, key);
-        }
-
-        public double[] ReadAsDoubleArray(string group, string key)
-        {
-            return ParseDoubleArray(this[group, key]);
-        }
-
-        public int ReadAsInt(string key)
-        {
-            return ReadAsInt(NULL_GROUP, key);
-        }
-
-        public int ReadAsInt(string group, string key)
-        {
-            return ParseInt(this[group, key]);
-        }
-
-        public long ReadAsLong(string key)
-        {
-            return ReadAsLong(NULL_GROUP, key);
-        }
-
-        public long ReadAsLong(string group, string key)
-        {
-            return ParseLong(this[group, key]);
-        }
-
-        public int[] ReadAsIntArray(string key)
-        {
-            return ReadAsIntArray(NULL_GROUP, key);
-        }
-
-        public int[] ReadAsIntArray(string group, string key)
-        {
-            return ParseIntArray(this[group, key]);
-        }
-
-        public DateTime ReadAsDateTime(string key)
-        {
-            return ReadAsDateTime(NULL_GROUP, key);
-        }
-
-        public DateTime ReadAsDateTime(string group, string key)
-        {
-            return DateTime.Parse(this[group, key]);
-        }
-
-        public uint ReadAsBitMask(string key)
-        {
-            return ReadAsBitMask(NULL_GROUP, key);
-        }
-
-        public uint ReadAsBitMask(string group, string key)
-        {
-            string[] tokens = ParseString(this[group, key]).Split('#');
-            return Convert.ToUInt32(tokens[1], int.Parse(tokens[0]));
-        }
-
-        string ParseString(string s)
-        {
-            s = s.Trim();
-            if (s.StartsWith("\"") && s.EndsWith("\""))
-            {
-                s = s.Substring(1, s.Length - 2).Trim();
-            }
-            if (s.StartsWith("\'") && s.EndsWith("\'"))
-            {
-                s = s.Substring(1, s.Length - 2).Trim();
-            }
-            return s;
-        }
-
-        string[] ParseStringArray(string s)
-        {
-            s = s.Trim();
-            if (s.StartsWith("(") && s.EndsWith(")"))
-            {
-                s = s.Substring(1, s.Length - 2).Trim();
-            }
-            return s.Split(',').Select(x => ParseString(x)).ToArray();
-        }
-
-        void CheckForNull(string s)
-        {
-            if (s.Equals("NULL") || s.Equals("null"))
-            {
-                throw new PDSMetadataNullValueException();
-            }
-        }
-
-        int ParseInt(string s)
-        {
-            s = s.Trim();
-            s = StripUnits(ParseString(s));
-            CheckForNull(s);
-            return int.Parse(s);
-        }
-
-        int[] ParseIntArray(string s)
-        {
-            s = s.Trim();
-            if (s.StartsWith("(") && s.EndsWith(")"))
-            {
-                s = s.Substring(1, s.Length - 2).Trim();
-            }
-            return s.Split(',').Select(x => ParseInt(x)).ToArray();
-        }
-
-        double ParseDouble(string s)
-        {
-            s = s.Trim();
-            s = StripUnits(ParseString(s));
-            CheckForNull(s);
-            return double.Parse(s);
-        }
-
-        double[] ParseDoubleArray(string s)
-        {
-            s = s.Trim();
-            if (s.StartsWith("(") && s.EndsWith(")"))
-            {
-                s = s.Substring(1, s.Length - 2).Trim();
-            }
-            return s.Split(',').Select(x => ParseDouble(x)).ToArray();
-        }
-
-        long ParseLong(string s)
-        {
-            s = s.Trim();
-            s = StripUnits(ParseString(s));
-            CheckForNull(s);
-            return long.Parse(s);
-        }
-
-        string StripUnits(string s)
-        {
-            int start = s.IndexOf("<");
-            if (start >= 0)
-            {
-                return s.Substring(0, start - 1);
-            }
-            return s;
-        }
-
+                
         Dictionary<string, Dictionary<string, string>> ReadPDSHeader(Stream stream)
         {
             var header = new Dictionary<string, Dictionary<string,string>>();
