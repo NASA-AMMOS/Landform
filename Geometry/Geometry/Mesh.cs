@@ -162,6 +162,33 @@ namespace OPS.Geometry
         }
 
         /// <summary>
+        /// Remove uvs from this mesh
+        /// set all vertex uvs to zero and set meshes HasUVs flag to false
+        /// </summary>
+        public void ClearUVs()
+        {
+            this.HasUVs = false;
+            foreach (var v in this.Vertices)
+            {
+                v.UV = Vector2.Zero;
+            }
+        }
+
+        /// <summary>
+        /// Remove colors from this mesh
+        /// set all vertex colors to zero and set meshes HasColors flag to false
+        /// </summary>
+        public void ClearColors()
+        {
+            this.HasColors = false;
+            foreach (var v in this.Vertices)
+            {
+                v.Color = Vector4.Zero;
+            }
+        }
+
+
+        /// <summary>
         /// Checks if the face contains any vertices located at the same point in space which would render it invalid
         /// </summary>
         /// <param name="f"></param>
@@ -954,6 +981,31 @@ namespace OPS.Geometry
                 b.Max = Vector3.Max(b.Max, new Vector3(v.UV, 0));
             }
             return b;
+        }
+
+        /// <summary>
+        /// Compute Hausdorff difference between this mesh and 1 or more other meshes
+        /// </summary>
+        /// <param name="other"></param>
+        /// <returns></returns>
+        public double HausdorffDistance(double maxErrorEpsilon, params Mesh[] other)
+        {
+            Mesh merged = Mesh.Merge(this.HasNormals, this.HasUVs, this.HasColors, other);
+            if (!this.Bounds().Intersects(merged.Bounds()))
+            {
+                return merged.Bounds().MaxDimension();
+            }
+            return OPS.Geometry.HausdorffDistance.Calculate(this, merged, maxErrorEpsilon);
+        }
+
+        /// <summary>
+        ///  Compute Hausdorff difference between this mesh and 1 or more other meshes using default maxErrorEpsilon
+        /// </summary>
+        /// <param name="other"></param>
+        /// <returns></returns>
+        public double HausdorffDistance(params Mesh[] other)
+        {
+            return HausdorffDistance(0.001, other);
         }
 
         /// <summary>
