@@ -200,9 +200,9 @@ namespace OPS.Pipeline
            
             logger.Info("Creating tileset");
             Tile3DBuilder builder = new Tile3DBuilder(tiler.Root);
-            builder.BuildTileset(NodeToUrl);
             logger.Info("Calculating geometric error between tiles");
             builder.CalculateGeometricError();
+            builder.BuildTileset(NodeToUrl);
             string s = JsonConvert.SerializeObject(builder.Tileset, Formatting.Indented);
             File.WriteAllText(Path.Combine(options.OutputDir, "tileset.json"), s);
 

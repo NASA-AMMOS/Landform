@@ -58,7 +58,7 @@ namespace OPS.Pipeline
         {            
             // Create root
             SceneNode root = new SceneNode();
-            root.Bounds = totalBounds;
+            root.GetOrAddComponent<NodeBounds>().Bounds = totalBounds;
             // Breadth first tree traversal
             Queue<SceneNode> tilesToProcess = new Queue<SceneNode>();
             tilesToProcess.Enqueue(root);            
@@ -66,14 +66,14 @@ namespace OPS.Pipeline
             {
                 // Should we split the current node?
                 SceneNode curNode = tilesToProcess.Dequeue();
-                if (this.splitCriteria.ShouldSplit(meshOperator, curNode.Bounds))
+                if (this.splitCriteria.ShouldSplit(meshOperator, curNode.GetOrAddComponent<NodeBounds>().Bounds))
                 {                    
                     // If so split it and create new nodes for all of its children
-                    foreach (BoundingBox bounds in tilingScheme.Split(meshOperator, curNode.Bounds))
+                    foreach (BoundingBox bounds in tilingScheme.Split(meshOperator, curNode.GetOrAddComponent<NodeBounds>().Bounds))
                     {
                         SceneNode child = new SceneNode();
                         child.Transform.SetParent(curNode.Transform);
-                        child.Bounds = bounds;
+                        child.GetOrAddComponent<NodeBounds>().Bounds = bounds;
                         tilesToProcess.Enqueue(child);
                     }
                 }

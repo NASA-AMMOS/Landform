@@ -66,7 +66,7 @@ namespace OPS.Pipeline
             foreach (var leaf in root.Leaves())
             {
                 var pair = leaf.GetComponent<MeshImagePair>();
-                leaf.Bounds = pair.Mesh.Bounds();
+                leaf.GetOrAddComponent<NodeBounds>().Bounds = pair.Mesh.Bounds();
                 if (leaf.Parent != null)
                 {
                     curParents.Add(leaf.Parent);
@@ -78,7 +78,7 @@ namespace OPS.Pipeline
                 HashSet<SceneNode> nextParents = new HashSet<SceneNode>();
                 foreach (var p in curParents)
                 {
-                    p.Bounds = BoundingBoxExtensions.Union(p.Children.Select(c => c.Bounds).ToArray());
+                    p.GetOrAddComponent<NodeBounds>().Bounds = BoundingBoxExtensions.Union(p.Children.Select(c => c.GetOrAddComponent<NodeBounds>().Bounds).ToArray());
                     if (p.Parent != null)
                     {
                         nextParents.Add(p.Parent);

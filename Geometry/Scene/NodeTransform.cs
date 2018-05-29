@@ -255,5 +255,17 @@ namespace OPS.Geometry
                 }
             }
         }
+
+        public int Depth()
+        {
+            int i = 0;
+            NodeTransform parent = this.parent;
+            while(parent != null)
+            {
+                i++;
+                parent = parent.parent;
+            }
+            return i;
+        }
     }
 }

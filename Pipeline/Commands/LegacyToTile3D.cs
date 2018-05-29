@@ -29,13 +29,13 @@ namespace OPS.Pipeline
         [Option(Required = false, Default = 4096, HelpText = "Total extent of legacy tiles")]
         public int InputExtent { get; set; }
 
-        [Option(Required = false, Default = 2048, HelpText = "Maxium texture size for a tile")]
+        [Option(Required = false, Default = 256, HelpText = "Maxium texture size for a tile")]
         public int MaxTextureSize { get; set; }
 
         [Option(Required = false, Default = 2000, HelpText = "Number of allowed faces per tile")]
-        public int FacesPerTile { get; set; }
+        public int MaxFacesPerTile { get; set; }
 
-        [Option(Required = false, Default = "jpg", HelpText = "Export format for textures (examples: jpg or png")]
+        [Option(Required = false, Default = "jpg", HelpText = "Export format for textures (examples: jpg or png (dds or crn)")]
         public string ImageFormat { get; set; }
     }
 
@@ -44,6 +44,22 @@ namespace OPS.Pipeline
     /// </summary>
     public class LegacyToTile3D
     {
+
+        class GeometricErrorPlaceholder : NodeComponent
+        {
+            double Error;
+
+            public GeometricErrorPlaceholder()
+            {
+
+            }
+
+            public GeometricErrorPlaceholder(double error)
+            {
+                this.Error = error;
+            }
+
+        }
 
         private static readonly ILog logger = LogManager.GetLogger(typeof(LegacyToTile3D));
 
@@ -65,32 +81,158 @@ namespace OPS.Pipeline
             logger.Info("Removing skirts and non-leaf data.");
             Parallel.ForEach(terrainRoot.DepthFirstTraverse(), node =>
             {
+                node.RemoveComponent<NodeBounds>();
+                if (!node.IsLeaf)
+                {
+                    node.RemoveComponent<MeshImagePair>();                    
+                }
+                else
+                {
+                    var pair = node.GetComponent<MeshImagePair>();
+                    pair.Mesh.Clean();
+                    pair.Mesh.RemoveSkirt(SkirtAxis.Y);
+                    if (!pair.Mesh.HasNormals)
+                    {                        
+                        pair.Mesh.GenerateVertexNormals();
+                    }
+                }
+            });
+            logger.Info("Subdivide large leaves");
+            bool anyOversized = true;
+            while (anyOversized)
+            {
+                anyOversized = false;
+                Parallel.ForEach(terrainRoot.Leaves().ToList(), node =>
+                {
+                    var mip = node.GetComponent<MeshImagePair>();
+                    if (mip.Image.Width > options.MaxTextureSize || mip.Image.Height > options.MaxTextureSize || mip.Mesh.Faces.Count > options.MaxFacesPerTile)
+                    {
+                        logger.Info("Subdividing:" + node.Name);
+                        anyOversized = true;
+                        var meshCopy = new Mesh(mip.Mesh);
+                        meshCopy.ClearUVs();
+                        meshCopy.ClearNormals();
+                        meshCopy.Clean();
+                        MeshOperator mo = new MeshOperator(meshCopy);
+                        var tilingScheme = new QuadTreeTilingScheme(QuadTreeTilingScheme.SplitDirection.Y);
+                        var boxes = tilingScheme.Split(mo, mo.Bounds);
+                        int i = 0;
+                        foreach (var box in boxes)
+                        {
+                            var m = mo.Clip(box);
+                            m = UVAtlas.Atlas(m);
+                            var img = TextureBaker.BakeTexture(new MeshImagePair[] { mip }, m, mip.Image.Width / 2, mip.Image.Height / 2);
+                            var child = new SceneNode(node.Name + i);
+                            child.AddComponent(new MeshImagePair(m, img));
+                            child.Transform.Parent = node.Transform;
+                            i++;
+                        }
+                        node.RemoveComponent<MeshImagePair>();
+                        node.RemoveComponent<NodeBounds>();
+                        //// Estimate geometric error based on texture spatial resolution change
+                        //// Geometric error should be negilgable between this node and its parent so we use the rough pixel size of the smaller texture
+                        //var ext = mo.Bounds.Extent();                       
+                        //double sizePerPixel = new Vector2(ext.X, ext.Z).Length() / new Vector2(mip.Image.Width/2, mip.Image.Height/2).Length();
+                        //node.AddComponent(new NodeGeometricError(sizePerPixel));
+                    }
+                });
+            }
+            logger.Info("Write leaves");
+            Parallel.ForEach(terrainRoot.Leaves(), node =>
+            {                
+                GenerateNormalsAndSkirt(node.GetComponent<MeshImagePair>().Mesh);
+                // Important, bounds include skirts
+                node.AddComponent(new NodeBounds(node.GetComponent<MeshImagePair>().Mesh.Bounds()));
+                node.AddComponent(new NodeGeometricError(0));
+                SaveNode(node);
+            });
+
+            var depthGroups = terrainRoot.DepthFirstTraverse().Where(n => !n.IsLeaf).GroupBy(n => n.Transform.Depth()).OrderBy(g => -g.Key);
+
+            logger.Info("Generate bounds");
+            foreach (var group in depthGroups)
+            {
+                Parallel.ForEach(group, node =>
+                {
+                    var childBounds = node.Children.Select(c => c.GetComponent<NodeBounds>().Bounds).ToArray();
+                    var bounds = BoundingBoxExtensions.Union(childBounds);
+                    node.AddComponent(new NodeBounds(bounds));
+                });
+            }
+            //Serial.ForEach(terrainRoot.DepthFirstTraverse(), node =>
+            //{
+            //    if(!node.IsLeaf)
+            //    {
+            //        if(node.HasComponent<NodeBounds>() || node.HasComponent<MeshImagePair>())
+            //        {
+            //            int foo = 4;
+            //        }
+            //    }
+            //});
+            // Generate a list of nodes that are parents of leaves.  
+            // var curNodess = terrainRoot.DepthFirstTraverse().OrderBy(n => -n.Transform.Depth()).Where(n => !n.IsLeaf);
+
+            //ConcurrentQueue<SceneNode> nodesToProcess = new ConcurrentQueue<SceneNode>(terrainRoot.Leaves().Select(n => n.Parent));
+            //while (nodesToProcess.Count != 0)
+            //{
+            // Hashset will remove duplicates - each child adds its parent so it can occure multiple times
+            //    var curNodess = new HashSet<SceneNode>(nodesToProcess).ToList();
+            //    nodesToProcess = new ConcurrentQueue<SceneNode>();
+            logger.Info("Generate parents");
+            foreach (var group in depthGroups)
+            {
+                Parallel.ForEach(group, node =>
+                {
+                    // Check to see all children have meshes, otherwise defere processing
+                    bool canMakeMesh = node.Children.All(n => n.HasComponent<MeshImagePair>());
+                    if (!canMakeMesh)
+                    {
+                        //nodesToProcess.Enqueue(node);
+                        return;
+                    }
+                    BuildParent(terrainRoot, node);
+                    SaveNode(node);
+                    //if(node.Parent != null)
+                    //{
+                    //nodesToProcess.Enqueue(node.Parent);
+                    //}
+                });
+            }
+            // }
+            /*
+
+
+            logger.Info("Removing skirts and non-leaf data.");
+            Parallel.ForEach(terrainRoot.DepthFirstTraverse(), node =>
+            {
                 if (node.IsLeaf)
                 {
                     var pair = node.GetComponent<MeshImagePair>();
 
-                    string cacheMeshName = Path.Combine(options.OutputDirectory, node.Name + ".ply");
-                    if (File.Exists(cacheMeshName))
-                    {
-                        pair.Mesh = Mesh.Load(cacheMeshName);
-                        pair.Mesh.RemoveSkirt(SkirtAxis.Y);
-                    }
-                    else
-                    {
+                    //string cacheMeshName = Path.Combine(options.OutputDirectory, node.Name + ".ply");
+                    //if (File.Exists(cacheMeshName))
+                    //{
+                    //    pair.Mesh = Mesh.Load(cacheMeshName);
+                    //    pair.Mesh.RemoveSkirt(SkirtAxis.Y);
+                    //}
+                    //else
+                    //{
                         pair.Mesh.RemoveSkirt(SkirtAxis.Y);
                         if (!pair.Mesh.HasNormals)
                         {
                             pair.Mesh.Clean();
                             pair.Mesh.GenerateVertexNormals();
                         }
-                        SaveNode(node);
-                    }
+                        //SaveNode(node);
+                    //}
                 }
                 else if (node.HasComponent<MeshImagePair>())
                 {
                     node.RemoveComponent<MeshImagePair>();
                 }
             });
+
+
             logger.Info("Process nodes");
             // Generate a list of nodes that are parents of leaves.  Hashset will remove duplicates
             var nodesToProcess = new HashSet<SceneNode>(terrainRoot.Leaves().Select(n => n.Parent));
@@ -134,7 +276,7 @@ namespace OPS.Pipeline
                     var originalBounds = m.Bounds();
                     m.NormalizeNormals();
                     int targetFaces = m.Faces.Count() / 3;  // could do 4 but lets try 3 for some extra around the edges
-                    targetFaces = Math.Min(targetFaces, options.FacesPerTile);
+                    targetFaces = Math.Min(targetFaces, options.MaxFacesPerTile);
                     m = LegacyToWebVR.ResampleDecimation(m, targetFaces, clippingBounds: m.Bounds(), cornerDirection: Vector3.Up);
                     m.Clean();
                     // We want a 2x reduction in both size dimensions (4x reduction in area)
@@ -143,35 +285,152 @@ namespace OPS.Pipeline
                     m = UVAtlas.Atlas(m, size, size);
                     var img = TextureBaker.BakeTexture(pairs.ToArray(), m, size, size);
                     // We need to combine bounds here because decimated bounds may be smaller than the child bounds
-                    node.Bounds = BoundingBox.CreateMerged(m.Bounds(), originalBounds);// m.Bounds();
+                    node.GetOrAddComponent<NodeBounds>().Bounds = BoundingBox.CreateMerged(m.Bounds(), originalBounds);// m.Bounds();
                     node.AddComponent(new MeshImagePair(m, img));
                     SaveNode(node);
                     nextNodesToProcess.Enqueue(node.Parent);
                 });
                 nodesToProcess = new HashSet<SceneNode>(nextNodesToProcess);;
             }
+            */
+
+            //FixError(terrainRoot);
+
+
             Tile3DBuilder builder = new Tile3DBuilder(terrainRoot);
+            //logger.Info("Calculating geometric error between tiles");
+            //builder.CalculateGeometricError();
             builder.BuildTileset(NodeToUrl, false);
-            logger.Info("Calculating geometric error between tiles");
-            builder.CalculateGeometricError();
-            string s = JsonConvert.SerializeObject(builder.Tileset, Formatting.Indented);
+            string s = JsonConvert.SerializeObject(builder.Tileset, Formatting.None);
             File.WriteAllText(Path.Combine(options.OutputDirectory, "tileset.json"), s);
             return 0;
+        }
+
+        //public void FixError(SceneNode root)
+        //{
+        //    var depthGroups = root.DepthFirstTraverse().Where(n => !n.IsLeaf).GroupBy(n => n.Transform.Depth()).OrderBy(g => g.Key);
+
+        //    logger.Info("Generate bounds");
+        //    foreach (var group in depthGroups)
+        //    {
+        //        foreach(var node in group)
+        //        {
+        //            if(node.HasComponent<GeometricErrorPlaceholder>())
+        //            {
+        //                int foo = 0;
+        //                node.RemoveComponent<GeometricErrorPlaceholder>();
+        //                node.GetComponent<NodeGeometricError>().Error = node.Parent.GetComponent<NodeGeometricError>().Error / 4;
+        //            }
+        //        }
+        //    }
+        //}
+
+        public List<SceneNode> FindSceneNodes(SceneNode root, int minDepth, BoundingBox box)
+        {
+            List<SceneNode> result = new List<SceneNode>();
+            Stack<SceneNode> stack = new Stack<SceneNode>();
+            stack.Push(root);
+            while (stack.Count > 0)
+            {
+                SceneNode node = stack.Pop();
+                if (node == null)
+                {
+                    continue;
+                }
+                BoundingBox nodeBounds = node.GetComponent<NodeBounds>().Bounds;
+                if (!nodeBounds.Intersects(box))
+                {
+                    continue;
+                }
+                if (node.IsLeaf || node.Transform.Depth() >= minDepth)
+                {
+                    result.Add(node);
+                    continue;
+                }
+                else
+                {
+                    foreach (var child in node.Transform.Children.Select(t => t.Node))
+                    {
+                        stack.Push(child);
+                    }
+                }
+            }
+            return result;
+        }
+
+        public void BuildParent(SceneNode root, SceneNode parent)
+        {
+            logger.Info("Creating parent data:" + parent.Name);
+            int childDepth = parent.Children.First().Transform.Depth();
+            BoundingBox searchBounds = parent.GetComponent<NodeBounds>().Bounds;
+            searchBounds = BoundingBoxExtensions.Scale(searchBounds, 1.6);
+            var childNodes = FindSceneNodes(root, childDepth, searchBounds);
+            var pairs = childNodes.Select(n => n.GetComponent<MeshImagePair>());
+            var childMeshesWithoutSkirts = pairs.Select(p =>
+            {
+                var tmp = new Mesh(p.Mesh);
+                tmp.RemoveSkirt(SkirtAxis.Y);
+                return tmp;
+            }).ToArray();
+
+            Mesh combinedFull = Mesh.Merge(childMeshesWithoutSkirts);
+            combinedFull = Mesh.Clip(combinedFull, searchBounds);
+            combinedFull.NormalizeNormals();
+            // TODO: handle the fact that we are reconstucting a larger area so we should inflate the number of faces cleverly
+            int targetFaces = combinedFull.Faces.Count() / 3;  // could do 4 but lets try 3 for some extra around the edges
+            targetFaces = Math.Min(targetFaces, options.MaxFacesPerTile);
+            // Minimum bounds is a tight fitting bounding box around the child meshes with skirts
+            BoundingBox minimumBounds = parent.GetComponent<NodeBounds>().Bounds;
+            Mesh combinedDecimated = LegacyToWebVR.ResampleDecimation(combinedFull, targetFaces, clippingBounds:minimumBounds, cornerDirection: Vector3.Up);
+            combinedDecimated.Clean();
+            if (!parent.HasComponent<NodeGeometricError>())
+            {
+                Mesh fullClipped = Mesh.Clip(combinedFull, minimumBounds);
+                double geometricError = combinedDecimated.HausdorffDistance(fullClipped);
+                parent.AddComponent(new NodeGeometricError(geometricError));
+            }
+            // We want a 2x reduction in both size dimensions (4x reduction in area)
+            int size = LegacyToWebVR.ComputeParentTileResolution(pairs, combinedDecimated.Bounds()) / 2;
+            size = Math.Min(size, options.MaxTextureSize);
+            combinedDecimated = UVAtlas.Atlas(combinedDecimated, size, size);
+            var img = TextureBaker.BakeTexture(pairs.ToArray(), combinedDecimated, size, size);
+            GenerateNormalsAndSkirt(combinedDecimated);
+            // We need to combine bounds here because decimated bounds may be smaller than the child bounds
+            var bounds = BoundingBox.CreateMerged(combinedDecimated.Bounds(), minimumBounds);
+            parent.GetComponent<NodeBounds>().Bounds = bounds;
+            // Add new mesh and image to parent
+            parent.AddComponent(new MeshImagePair(combinedDecimated, img));
+            // Estimate the size of a pixel for this texture.  If this is greater than the geometric error use it instead
+            {
+                var ext = minimumBounds.Extent();
+                double sizePerPixel = new Vector2(ext.X, ext.Z).Length() / new Vector2(size / 2, size / 2).Length();
+                var nge = parent.GetComponent<NodeGeometricError>();
+                nge.Error = Math.Max(nge.Error, sizePerPixel);
+                // Also ensure geo error is at least as large as children
+                foreach(var child in parent.Children)
+                {
+                    var error = child.GetComponent<NodeGeometricError>().Error;
+                    nge.Error = Math.Max(error, nge.Error);
+                }
+            }
+        }
+
+        void GenerateNormalsAndSkirt(Mesh mesh)
+        {
+            mesh.GenerateVertexNormals();
+            mesh.AddSkirt(SkirtAxis.Y);
         }
 
         void SaveNode(SceneNode node)
         {
             var pair = node.GetComponent<MeshImagePair>();
-            Mesh m = new Mesh(pair.Mesh);
-            m.GenerateVertexNormals();
-            m.AddSkirt(SkirtAxis.Y);
+            Mesh m = pair.Mesh;
             TemporaryFile.GetAndDelete("." + options.ImageFormat, f =>
             {
                 pair.Image.Save<byte>(f);
                 m.Save(Path.Combine(options.OutputDirectory, NodeToUrl(node)), f);
                 m.Save(Path.Combine(options.OutputDirectory, node.Name + ".glb"), f);
             });
-
             string imgName = Path.Combine(options.OutputDirectory, node.Name + "." + options.ImageFormat);
             pair.Image.Save<byte>(imgName);
             m.Save(Path.Combine(options.OutputDirectory, node.Name + ".ply"), imgName);

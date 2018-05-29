@@ -93,8 +93,10 @@
     <Compile Include="Geometry\Vertex.cs" />
     <Compile Include="Geometry\QuadricEdgeCollapse\VertexNode.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="Scene\NodeBounds.cs" />
     <Compile Include="Scene\NodeConvexHull.cs" />
     <Compile Include="Scene\NodeComponent.cs" />
+    <Compile Include="Scene\NodeGeometricError.cs" />
     <Compile Include="Scene\NodeTransform.cs" />
     <Compile Include="Scene\NodeUncertainTransform.cs" />
     <Compile Include="Scene\SceneNode.cs" />

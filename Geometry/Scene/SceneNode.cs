@@ -14,11 +14,6 @@ namespace OPS.Geometry
         public readonly Guid Guid;
 
         /// <summary>
-        /// Bounding box of this node
-        /// </summary>
-        public BoundingBox Bounds;
-
-        /// <summary>
         /// Create a new node with a given name.
         /// </summary>
         public SceneNode(string name)

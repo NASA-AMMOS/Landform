@@ -265,7 +265,7 @@ namespace OPS.Pipeline
             logger.Info("Computing new scene bounds");
             SceneNode root = new SceneNode("");
             double initExtent = options.OutputExtent / 2.0;
-            root.Bounds = new BoundingBox(new Vector3(-initExtent, double.MinValue, -initExtent), new Vector3(initExtent, double.MaxValue, initExtent));
+            root.GetOrAddComponent<NodeBounds>().Bounds = new BoundingBox(new Vector3(-initExtent, double.MinValue, -initExtent), new Vector3(initExtent, double.MaxValue, initExtent));
 
             SceneNode[,] innerFour = Split(root);
             SceneNode[,] sixteen = null;
@@ -292,7 +292,7 @@ namespace OPS.Pipeline
                     }
                 }
             }
-            BoundingBox innerBounds = BoundingBoxExtensions.Union(innerNodes.Select(n => n.Bounds).ToArray());
+            BoundingBox innerBounds = BoundingBoxExtensions.Union(innerNodes.Select(n => n.GetOrAddComponent<NodeBounds>().Bounds).ToArray());
             // Compute collision tile
             {
                 logger.Info("Creating low poly collision mesh");
@@ -389,14 +389,14 @@ namespace OPS.Pipeline
                     targetFaces = nameToFaceCount[leaf.Name];
                 }
                 int faces = Math.Min(m.Faces.Count, targetFaces);
-                m = ResampleDecimation(m, faces, leaf.Bounds, new Vector3(0, 1, 0));
+                m = ResampleDecimation(m, faces, leaf.GetOrAddComponent<NodeBounds>().Bounds, new Vector3(0, 1, 0));
              
                 //m = MeshLab.ResampleDecimation(m, numSamples: targetFaces*10, targetFaces: targetFaces);
                 //m = Mesh.Clip(m, leaf.Bounds);
                 
                 var pairs = overlaps.Select(x => x.GetComponent<MeshImagePair>());
 
-                int size = ComputeParentTileResolution(pairs, leaf.Bounds, options.MaxTextureSize);
+                int size = ComputeParentTileResolution(pairs, leaf.GetOrAddComponent<NodeBounds>().Bounds, options.MaxTextureSize);
                 int textureWidth = size;
                 int textureHeight = size;
                 int beforeVerts = m.Vertices.Count;
@@ -405,7 +405,7 @@ namespace OPS.Pipeline
                 var img = TextureBaker.BakeTexture(pairs.ToArray(), m, textureWidth, textureHeight);
 
                 m.AddSkirt(SkirtAxis.Y);
-                leaf.Bounds = m.Bounds();
+                leaf.GetOrAddComponent<NodeBounds>().Bounds = m.Bounds();
                 leaf.AddComponent(new MeshImagePair(m, img));
                 var ts = WriteTile(leaf);
                 textureSizeData.TryAdd(leaf.Name, ts);
@@ -462,7 +462,7 @@ namespace OPS.Pipeline
             while (searchList.Count > 0)
             {
                 SceneNode curNode = searchList.Dequeue();
-                if (!curNode.Bounds.Intersects(target.Bounds))
+                if (!curNode.GetOrAddComponent<NodeBounds>().Bounds.Intersects(target.GetOrAddComponent<NodeBounds>().Bounds))
                 {
                     continue;
                 }
@@ -499,9 +499,9 @@ namespace OPS.Pipeline
 
         SceneNode[,] Split(SceneNode parent)
         {
-            var min = parent.Bounds.Min;
-            var max = parent.Bounds.Max;
-            var center = parent.Bounds.Center();
+            var min = parent.GetOrAddComponent<NodeBounds>().Bounds.Min;
+            var max = parent.GetOrAddComponent<NodeBounds>().Bounds.Max;
+            var center = parent.GetOrAddComponent<NodeBounds>().Bounds.Center();
 
             bool topDown = false;
             string[] tileNames;
@@ -521,16 +521,16 @@ namespace OPS.Pipeline
             }
             
             SceneNode n0 = new SceneNode(parent.Name + tileNames[0], parent.Transform);
-            n0.Bounds = new BoundingBox(new Vector3(min.X, double.MinValue, min.Z), new Vector3(center.X, double.MaxValue, center.Z));
+            n0.GetOrAddComponent<NodeBounds>().Bounds = new BoundingBox(new Vector3(min.X, double.MinValue, min.Z), new Vector3(center.X, double.MaxValue, center.Z));
 
             SceneNode n1 = new SceneNode(parent.Name + tileNames[1], parent.Transform);
-            n1.Bounds = new BoundingBox(new Vector3(center.X, double.MinValue, min.Z), new Vector3(max.X, double.MaxValue, center.Z));
+            n1.GetOrAddComponent<NodeBounds>().Bounds = new BoundingBox(new Vector3(center.X, double.MinValue, min.Z), new Vector3(max.X, double.MaxValue, center.Z));
 
             SceneNode n2 = new SceneNode(parent.Name + tileNames[2], parent.Transform);
-            n2.Bounds = new BoundingBox(new Vector3(min.X, double.MinValue, center.Z), new Vector3(center.X, double.MaxValue, max.Z));
+            n2.GetOrAddComponent<NodeBounds>().Bounds = new BoundingBox(new Vector3(min.X, double.MinValue, center.Z), new Vector3(center.X, double.MaxValue, max.Z));
 
             SceneNode n3 = new SceneNode(parent.Name + tileNames[3], parent.Transform);
-            n3.Bounds = new BoundingBox(new Vector3(center.X, double.MinValue, center.Z), new Vector3(max.X, double.MaxValue, max.Z));
+            n3.GetOrAddComponent<NodeBounds>().Bounds = new BoundingBox(new Vector3(center.X, double.MinValue, center.Z), new Vector3(max.X, double.MaxValue, max.Z));
             SceneNode[,] result = new SceneNode[2, 2];
             result[0, 0] = n0;
             result[1, 0] = n1;

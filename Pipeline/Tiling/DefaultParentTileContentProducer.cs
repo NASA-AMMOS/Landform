@@ -50,9 +50,9 @@ namespace OPS.Pipeline
             // Resample, Remesh, and decimate
             Mesh decimatedMesh = FSSR.ResampleDeimation(parentMesh, parentTileResamplePoints, parentTileFaceLimit);
             // Recompute bounds
-            curNode.Bounds = tilingScheme.ExpandBounds(curNode.Bounds, decimatedMesh.Bounds());
+            curNode.GetOrAddComponent<NodeBounds>().Bounds = tilingScheme.ExpandBounds(curNode.GetOrAddComponent<NodeBounds>().Bounds, decimatedMesh.Bounds());
             // Clip the mesh to the new bounds
-            Mesh clippedMesh = Mesh.Clip(decimatedMesh, curNode.Bounds);
+            Mesh clippedMesh = Mesh.Clip(decimatedMesh, curNode.GetOrAddComponent<NodeBounds>().Bounds);
             // Atlaas and generate image
             if (atlaser != null)
             {

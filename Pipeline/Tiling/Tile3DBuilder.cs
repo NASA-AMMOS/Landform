@@ -50,7 +50,7 @@ namespace OPS.Pipeline
             }
             this.Tileset = new Tile3D.Tileset();
             this.Tileset.Root = nodesToTiles[Root];
-            this.Tileset.GeometricError = this.Root.Bounds.MaxDimension();
+            this.Tileset.GeometricError = this.Root.GetOrAddComponent<NodeBounds>().Bounds.MaxDimension();
 
             if (useCesiumHackTransform)
             {
@@ -101,8 +101,10 @@ namespace OPS.Pipeline
         {
             Parallel.ForEach(Root.DepthFirstTraverse(), curNode =>
             {
-                var tile = nodesToTiles[curNode];
-                tile.GeometricError = CalculateGeometricError(curNode);
+                if (!curNode.HasComponent<NodeGeometricError>())
+                {
+                    curNode.AddComponent<NodeGeometricError>(new NodeGeometricError(CalculateGeometricError(curNode)));
+                }
             });
         }
 
@@ -136,12 +138,16 @@ namespace OPS.Pipeline
         Tile3D.Tile SceneNodeToTile(SceneNode node, NodeToRelativeUrl nodeToUrl)
         {
             Tile3D.Tile tile = new Tile3D.Tile();
-            tile.BoundingVolume.Box = BoundsToBox(node.Bounds);
+            tile.BoundingVolume.Box = BoundsToBox(node.GetOrAddComponent<NodeBounds>().Bounds);
             tile.Refine = Tile3D.TileRefine.REPLACE;
             if(node.GetComponent<MeshImagePair>() != null)
             {
                 tile.Content = new Tile3D.TileContent();
                 tile.Content.Url = nodeToUrl(node);
+            }
+            if(node.HasComponent<NodeGeometricError>())
+            {
+                tile.GeometricError = node.GetComponent<NodeGeometricError>().Error;
             }
             return tile;
         }
@@ -199,24 +205,7 @@ namespace OPS.Pipeline
             {
                 return 0;
             }
-            // return distance
-            return Distance(parentMesh, childrenMeshes.ToArray());
-        }
-
-        /// <summary>
-        /// Compute difference between parent mesh and a list of children
-        /// </summary>
-        /// <param name="parent"></param>
-        /// <param name="children"></param>
-        /// <returns></returns>
-        double Distance(Mesh parent, params Mesh[] children)
-        {
-            Mesh merged = Mesh.Merge(parent.HasNormals, parent.HasUVs, parent.HasColors, children);
-            if(!parent.Bounds().Intersects(merged.Bounds()))
-            {
-                return merged.Bounds().MaxDimension();
-            }
-            return HausdorffDistance.Calculate(parent, merged, 0.001);
+            return parentMesh.HausdorffDistance(childrenMeshes.ToArray());
         }
     }
 }
