@@ -23,7 +23,7 @@ namespace OPS.Imaging
             var f =  new nom.tam.fits.Fits(filename);
             var hdu = (ImageHDU)f.GetHDU(0);
             var kernel = hdu.Kernel;
-            var cursor = hdu.Header.GetCursor();
+            
             if (kernel.GetType() != typeof(System.Array[]))
             {
                 throw new ImageSerializationException("Unsupported FITS kernel type");

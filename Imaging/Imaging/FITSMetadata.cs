@@ -19,13 +19,13 @@ namespace OPS.Imaging
         {
             var f = new nom.tam.fits.Fits(filename);
             var hdu = (ImageHDU)f.GetHDU(0);
-            var cursor = hdu.Header.GetCursor();
+            //var cursor = hdu.Header.GetCursor();
             this.rawHeader.Add(NULL_GROUP, new Dictionary<string, string>());
             var nullGroup = this.rawHeader[NULL_GROUP];
             // Read header
-            while (cursor.MoveNext())
+            foreach(var current in hdu.Header)
             {
-                var cur = (HeaderCard)((DictionaryEntry) cursor.Current).Value;
+                var cur = (HeaderCard)((DictionaryEntry) current).Value;
                 if (cur.Key != "COMMENT" && cur.Key != "END")
                 {
                     nullGroup.Add(cur.Key, cur.Value);
