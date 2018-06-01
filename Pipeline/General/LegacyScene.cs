@@ -23,7 +23,7 @@ namespace OPS.Pipeline
         /// </summary>
         /// <param name="inputDirectory"></param>
         /// <param name="extent"></param>
-        public LegacyScene(string inputDirectory, double extent = 4096)
+        public LegacyScene(string inputDirectory, double extent = 4096, bool onlyIncludeSkyTilesWithTexture = true)
         {
             SkyRoot = new SceneNode("sky");
             TerrainRoot = new SceneNode("terrain");
@@ -32,10 +32,22 @@ namespace OPS.Pipeline
             foreach (string filename in Directory.EnumerateFiles(inputDirectory, meshFilePattern))
             {
                 Mesh m = Mesh.Load(filename);
+                // Note that bob files traditionally store data in the Unity coordinate frame
+                // but with the X flipped (left handed).  We conver them back into right handed here.
+                for(int i = 0; i < m.Vertices.Count; i++)
+                {
+                    m.Vertices[i].Position.X *= -1;
+                }
+                // We also need to reverse winding when switching handedness
+                m.ReverseWinding();
                 Image img = null;
                 if (File.Exists(MeshFilenameToImageFilename(filename)))
                 {
                     img = Image.Load(MeshFilenameToImageFilename(filename));
+                }
+                if(IsSkyTile(filename) && onlyIncludeSkyTilesWithTexture && img == null)
+                {
+                    continue;
                 }
                 string id = FileToId(filename);
                 SceneNode root = SkyRoot;
@@ -151,11 +163,11 @@ namespace OPS.Pipeline
 
                 if (curNum == '0' || curNum == '2')
                 {
-                    offset.X -= tileSize / 2;
+                    offset.X += tileSize / 2;
                 }
                 if (curNum == '1' || curNum == '3')
                 {
-                    offset.X += tileSize / 2;
+                    offset.X -= tileSize / 2;
                 }
                 if (curNum == '0' || curNum == '1')
                 {

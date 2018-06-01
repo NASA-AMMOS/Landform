@@ -77,6 +77,34 @@ namespace OPS.Pipeline
             logger.Info("Loading legacy scene");
             LegacyScene scene = new LegacyScene(options.InputDirectory, options.InputExtent);
 
+
+            logger.Info("Building sky dataset.");            
+            Parallel.ForEach(scene.SkyRoot.DepthFirstTraverse(), node =>
+            {
+                if (node.Name.ToLower() != "sky")
+                {
+                    node.Name = "s" + node.Name;
+                }
+                if (node.IsLeaf)
+                {
+                    var m = node.GetComponent<MeshImagePair>().Mesh;
+                    // Create normals that point toward the origin
+                    m.HasNormals = true;
+                    for(int i = 0; i < m.Vertices.Count; i++)
+                    {
+                        m.Vertices[i].Normal = -Vector3.Normalize(m.Vertices[i].Position);
+                    }
+                    SaveNode(node, "png");
+                }
+                node.AddComponent(new NodeGeometricError(node.GetComponent<NodeBounds>().Bounds.MaxDimension()));
+            });
+
+            Tile3DBuilder skyBuilder = new Tile3DBuilder(scene.SkyRoot);
+            skyBuilder.BuildTileset(NodeToUrl, false);
+            string jsonDataSky = JsonConvert.SerializeObject(skyBuilder.Tileset, Formatting.None);
+            File.WriteAllText(Path.Combine(options.OutputDirectory, "tilesetSky.json"), jsonDataSky);
+
+
             var terrainRoot = scene.TerrainRoot;
             logger.Info("Removing skirts and non-leaf data.");
             Parallel.ForEach(terrainRoot.DepthFirstTraverse(), node =>
@@ -144,7 +172,7 @@ namespace OPS.Pipeline
                 // Important, bounds include skirts
                 node.AddComponent(new NodeBounds(node.GetComponent<MeshImagePair>().Mesh.Bounds()));
                 node.AddComponent(new NodeGeometricError(0));
-                SaveNode(node);
+                SaveNode(node, options.ImageFormat);
             });
 
             var depthGroups = terrainRoot.DepthFirstTraverse().Where(n => !n.IsLeaf).GroupBy(n => n.Transform.Depth()).OrderBy(g => -g.Key);
@@ -191,7 +219,7 @@ namespace OPS.Pipeline
                         return;
                     }
                     BuildParent(terrainRoot, node);
-                    SaveNode(node);
+                    SaveNode(node, options.ImageFormat);
                     //if(node.Parent != null)
                     //{
                     //nodesToProcess.Enqueue(node.Parent);
@@ -301,8 +329,8 @@ namespace OPS.Pipeline
             //logger.Info("Calculating geometric error between tiles");
             //builder.CalculateGeometricError();
             builder.BuildTileset(NodeToUrl, false);
-            string s = JsonConvert.SerializeObject(builder.Tileset, Formatting.None);
-            File.WriteAllText(Path.Combine(options.OutputDirectory, "tileset.json"), s);
+            string jsonData = JsonConvert.SerializeObject(builder.Tileset, Formatting.None);
+            File.WriteAllText(Path.Combine(options.OutputDirectory, "tileset.json"), jsonData);
             return 0;
         }
 
@@ -421,18 +449,29 @@ namespace OPS.Pipeline
             mesh.AddSkirt(SkirtAxis.Y);
         }
 
-        void SaveNode(SceneNode node)
+        void SaveNode(SceneNode node, string imageFormat)
         {
             var pair = node.GetComponent<MeshImagePair>();
             Mesh m = pair.Mesh;
-            TemporaryFile.GetAndDelete("." + options.ImageFormat, f =>
+            TemporaryFile.GetAndDelete("." + imageFormat, f =>
             {
-                pair.Image.Save<byte>(f);
+                if (pair.Image != null)
+                {
+                    pair.Image.Save<byte>(f);
+                }
+                else
+                {
+                    f = null;
+                }
                 m.Save(Path.Combine(options.OutputDirectory, NodeToUrl(node)), f);
                 m.Save(Path.Combine(options.OutputDirectory, node.Name + ".glb"), f);
             });
-            string imgName = Path.Combine(options.OutputDirectory, node.Name + "." + options.ImageFormat);
-            pair.Image.Save<byte>(imgName);
+            string imgName = null;
+            if (pair.Image != null)
+            {
+                imgName = Path.Combine(options.OutputDirectory, node.Name + "." + imageFormat);
+                pair.Image.Save<byte>(imgName);
+            }
             m.Save(Path.Combine(options.OutputDirectory, node.Name + ".ply"), imgName);
         }
 
