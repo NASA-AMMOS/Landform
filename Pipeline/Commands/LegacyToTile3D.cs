@@ -157,11 +157,6 @@ namespace OPS.Pipeline
                         }
                         node.RemoveComponent<MeshImagePair>();
                         node.RemoveComponent<NodeBounds>();
-                        //// Estimate geometric error based on texture spatial resolution change
-                        //// Geometric error should be negilgable between this node and its parent so we use the rough pixel size of the smaller texture
-                        //var ext = mo.Bounds.Extent();                       
-                        //double sizePerPixel = new Vector2(ext.X, ext.Z).Length() / new Vector2(mip.Image.Width/2, mip.Image.Height/2).Length();
-                        //node.AddComponent(new NodeGeometricError(sizePerPixel));
                     }
                 });
             }
@@ -187,25 +182,7 @@ namespace OPS.Pipeline
                     node.AddComponent(new NodeBounds(bounds));
                 });
             }
-            //Serial.ForEach(terrainRoot.DepthFirstTraverse(), node =>
-            //{
-            //    if(!node.IsLeaf)
-            //    {
-            //        if(node.HasComponent<NodeBounds>() || node.HasComponent<MeshImagePair>())
-            //        {
-            //            int foo = 4;
-            //        }
-            //    }
-            //});
-            // Generate a list of nodes that are parents of leaves.  
-            // var curNodess = terrainRoot.DepthFirstTraverse().OrderBy(n => -n.Transform.Depth()).Where(n => !n.IsLeaf);
-
-            //ConcurrentQueue<SceneNode> nodesToProcess = new ConcurrentQueue<SceneNode>(terrainRoot.Leaves().Select(n => n.Parent));
-            //while (nodesToProcess.Count != 0)
-            //{
-            // Hashset will remove duplicates - each child adds its parent so it can occure multiple times
-            //    var curNodess = new HashSet<SceneNode>(nodesToProcess).ToList();
-            //    nodesToProcess = new ConcurrentQueue<SceneNode>();
+            
             logger.Info("Generate parents");
             foreach (var group in depthGroups)
             {
@@ -215,143 +192,19 @@ namespace OPS.Pipeline
                     bool canMakeMesh = node.Children.All(n => n.HasComponent<MeshImagePair>());
                     if (!canMakeMesh)
                     {
-                        //nodesToProcess.Enqueue(node);
                         return;
                     }
                     BuildParent(terrainRoot, node);
                     SaveNode(node, options.ImageFormat);
-                    //if(node.Parent != null)
-                    //{
-                    //nodesToProcess.Enqueue(node.Parent);
-                    //}
                 });
             }
-            // }
-            /*
-
-
-            logger.Info("Removing skirts and non-leaf data.");
-            Parallel.ForEach(terrainRoot.DepthFirstTraverse(), node =>
-            {
-                if (node.IsLeaf)
-                {
-                    var pair = node.GetComponent<MeshImagePair>();
-
-                    //string cacheMeshName = Path.Combine(options.OutputDirectory, node.Name + ".ply");
-                    //if (File.Exists(cacheMeshName))
-                    //{
-                    //    pair.Mesh = Mesh.Load(cacheMeshName);
-                    //    pair.Mesh.RemoveSkirt(SkirtAxis.Y);
-                    //}
-                    //else
-                    //{
-                        pair.Mesh.RemoveSkirt(SkirtAxis.Y);
-                        if (!pair.Mesh.HasNormals)
-                        {
-                            pair.Mesh.Clean();
-                            pair.Mesh.GenerateVertexNormals();
-                        }
-                        //SaveNode(node);
-                    //}
-                }
-                else if (node.HasComponent<MeshImagePair>())
-                {
-                    node.RemoveComponent<MeshImagePair>();
-                }
-            });
-
-
-            logger.Info("Process nodes");
-            // Generate a list of nodes that are parents of leaves.  Hashset will remove duplicates
-            var nodesToProcess = new HashSet<SceneNode>(terrainRoot.Leaves().Select(n => n.Parent));
-            while (nodesToProcess.Count != 0)
-            {
-                ConcurrentQueue<SceneNode> nextNodesToProcess = new ConcurrentQueue<SceneNode>();
-                Parallel.ForEach(nodesToProcess, node =>
-                {
-                    if (node == null)
-                    {
-                        return;
-                    }
-                    // Skip this node if it already has a mesh image pair 
-                    // This shouldn't usually happen unless someone deleted some stuff from the cache
-                    if (node.HasComponent<MeshImagePair>())
-                    {
-                        nextNodesToProcess.Enqueue(node.Parent);
-                        return;
-                    }
-                    // try load from cache
-                    string cacheMeshName = Path.Combine(options.OutputDirectory, node.Name + ".ply");
-                    if (File.Exists(cacheMeshName))
-                    {
-                        Mesh mesh = Mesh.Load(cacheMeshName);
-                        mesh.RemoveSkirt(SkirtAxis.Y);
-                        Image image = Image.Load(cacheMeshName.Replace("ply", options.ImageFormat));
-                        node.AddComponent<MeshImagePair>(new MeshImagePair(mesh, image));
-                        nextNodesToProcess.Enqueue(node.Parent);
-                        return;
-                    }
-                    // Check to see all children have meshes, otherwise defere processing
-                    bool canMakeMesh = node.Children.All(n => n.HasComponent<MeshImagePair>());
-                    if (!canMakeMesh)
-                    {
-                        nextNodesToProcess.Enqueue(node);
-                        return;
-                    }
-                    logger.Info("Creating parent data:" + node.Name);
-                    var pairs = node.Children.Select(n => n.GetComponent<MeshImagePair>());
-                    Mesh m = Mesh.Merge(pairs.Select(p => p.Mesh).ToArray());
-                    var originalBounds = m.Bounds();
-                    m.NormalizeNormals();
-                    int targetFaces = m.Faces.Count() / 3;  // could do 4 but lets try 3 for some extra around the edges
-                    targetFaces = Math.Min(targetFaces, options.MaxFacesPerTile);
-                    m = LegacyToWebVR.ResampleDecimation(m, targetFaces, clippingBounds: m.Bounds(), cornerDirection: Vector3.Up);
-                    m.Clean();
-                    // We want a 2x reduction in both size dimensions (4x reduction in area)
-                    int size = LegacyToWebVR.ComputeParentTileResolution(pairs, m.Bounds()) / 2;
-                    size = Math.Min(size, options.MaxTextureSize);
-                    m = UVAtlas.Atlas(m, size, size);
-                    var img = TextureBaker.BakeTexture(pairs.ToArray(), m, size, size);
-                    // We need to combine bounds here because decimated bounds may be smaller than the child bounds
-                    node.GetOrAddComponent<NodeBounds>().Bounds = BoundingBox.CreateMerged(m.Bounds(), originalBounds);// m.Bounds();
-                    node.AddComponent(new MeshImagePair(m, img));
-                    SaveNode(node);
-                    nextNodesToProcess.Enqueue(node.Parent);
-                });
-                nodesToProcess = new HashSet<SceneNode>(nextNodesToProcess);;
-            }
-            */
-
-            //FixError(terrainRoot);
-
 
             Tile3DBuilder builder = new Tile3DBuilder(terrainRoot);
-            //logger.Info("Calculating geometric error between tiles");
-            //builder.CalculateGeometricError();
             builder.BuildTileset(NodeToUrl, false);
             string jsonData = JsonConvert.SerializeObject(builder.Tileset, Formatting.None);
             File.WriteAllText(Path.Combine(options.OutputDirectory, "tileset.json"), jsonData);
             return 0;
         }
-
-        //public void FixError(SceneNode root)
-        //{
-        //    var depthGroups = root.DepthFirstTraverse().Where(n => !n.IsLeaf).GroupBy(n => n.Transform.Depth()).OrderBy(g => g.Key);
-
-        //    logger.Info("Generate bounds");
-        //    foreach (var group in depthGroups)
-        //    {
-        //        foreach(var node in group)
-        //        {
-        //            if(node.HasComponent<GeometricErrorPlaceholder>())
-        //            {
-        //                int foo = 0;
-        //                node.RemoveComponent<GeometricErrorPlaceholder>();
-        //                node.GetComponent<NodeGeometricError>().Error = node.Parent.GetComponent<NodeGeometricError>().Error / 4;
-        //            }
-        //        }
-        //    }
-        //}
 
         public List<SceneNode> FindSceneNodes(SceneNode root, int minDepth, BoundingBox box)
         {
