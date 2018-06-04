@@ -9,13 +9,6 @@ using System.Text.RegularExpressions;
 
 namespace OPS.Imaging
 {
-    public class PDSMetadataNullValueException : Exception
-    {
-        public PDSMetadataNullValueException() { }
-        public PDSMetadataNullValueException(string message) : base(message) { }
-        public PDSMetadataNullValueException(string message, Exception inner) : base(message, inner) { }
-    }
-
     public class VICMetadataException : Exception
     {
         public VICMetadataException() { }
@@ -142,7 +135,7 @@ namespace OPS.Imaging
             {
                 this.CameraModel = new PDSCameraModelParser(this).Parse();
             }
-            catch (PDSMetadataNullValueException)
+            catch (RawMetadataNullValueException)
             {
                 this.CameraModel = null;
             }
@@ -201,7 +194,7 @@ namespace OPS.Imaging
             {
                 this.CameraModel = new PDSCameraModelParser(this).Parse();
             }
-            catch (PDSMetadataNullValueException)
+            catch (RawMetadataNullValueException)
             {
                 this.CameraModel = null;
             }

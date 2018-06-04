@@ -6,6 +6,14 @@ using System.Threading.Tasks;
 
 namespace OPS.Imaging
 {
+
+    public class RawMetadataNullValueException : Exception
+    {
+        public RawMetadataNullValueException() { }
+        public RawMetadataNullValueException(string message) : base(message) { }
+        public RawMetadataNullValueException(string message, Exception inner) : base(message, inner) { }
+    }
+
     /// <summary>
     /// Represents metadata in the form of key value string pairs and provides methods
     /// to convert the string values into various types when reading.
@@ -219,7 +227,7 @@ namespace OPS.Imaging
         {
             if (s.Equals("NULL") || s.Equals("null"))
             {
-                throw new PDSMetadataNullValueException();
+                throw new RawMetadataNullValueException();
             }
         }
 
