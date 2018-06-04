@@ -40,9 +40,9 @@ namespace OPS.Pipeline
             for (int i = lods.Count - 1; i >= 0; i--)
             {
                 MeshOperator curOperator = lods[i];
-                if (curOperator.CountFaces(curNode.Bounds) <= this.faceLimit)
+                if (curOperator.CountFaces(curNode.GetOrAddComponent<NodeBounds>().Bounds) <= this.faceLimit)
                 {
-                    m = curOperator.Clip(curNode.Bounds);
+                    m = curOperator.Clip(curNode.GetOrAddComponent<NodeBounds>().Bounds);
                     break;
                 }
             }

@@ -129,6 +129,16 @@ namespace OPS.Geometry
             }
 
             // Normalize each vertex normal
+            NormalizeNormals();
+            // The mesh should now be set as having normals
+            HasNormals = true;
+        }
+
+        /// <summary>
+        /// Normalize all normals
+        /// </summary>
+        public void NormalizeNormals()
+        {
             foreach (Vertex vertex in Vertices)
             {
                 if (vertex.Normal.Length() > MathHelper.Epsilon)
@@ -136,9 +146,6 @@ namespace OPS.Geometry
                     vertex.Normal.Normalize();
                 }
             }
-
-            // The mesh should now be set as having normals
-            HasNormals = true;
         }
 
         /// <summary>
@@ -153,6 +160,33 @@ namespace OPS.Geometry
                 v.Normal = Vector3.Zero;
             }
         }
+
+        /// <summary>
+        /// Remove uvs from this mesh
+        /// set all vertex uvs to zero and set meshes HasUVs flag to false
+        /// </summary>
+        public void ClearUVs()
+        {
+            this.HasUVs = false;
+            foreach (var v in this.Vertices)
+            {
+                v.UV = Vector2.Zero;
+            }
+        }
+
+        /// <summary>
+        /// Remove colors from this mesh
+        /// set all vertex colors to zero and set meshes HasColors flag to false
+        /// </summary>
+        public void ClearColors()
+        {
+            this.HasColors = false;
+            foreach (var v in this.Vertices)
+            {
+                v.Color = Vector4.Zero;
+            }
+        }
+
 
         /// <summary>
         /// Checks if the face contains any vertices located at the same point in space which would render it invalid
@@ -191,6 +225,22 @@ namespace OPS.Geometry
             foreach(var f in Faces)
             {
                 if(!FaceIsValid(f))
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
+        
+        /// <summary>
+        /// Returns true if any normals are zero
+        /// </summary>
+        /// <returns></returns>
+        public bool ContainsZeroLengthNormals()
+        {
+            foreach (var v in Vertices)
+            {
+                if (v.Normal.Length() < 1e-5)
                 {
                     return true;
                 }
@@ -586,6 +636,10 @@ namespace OPS.Geometry
                 RemoveUnreferencedVertices();
                 RemoveDuplicateFaces();
             }
+            if (HasNormals)
+            {
+                NormalizeNormals();
+            }
         }
 
         /// <summary>
@@ -927,6 +981,31 @@ namespace OPS.Geometry
                 b.Max = Vector3.Max(b.Max, new Vector3(v.UV, 0));
             }
             return b;
+        }
+
+        /// <summary>
+        /// Compute Hausdorff difference between this mesh and 1 or more other meshes
+        /// </summary>
+        /// <param name="other"></param>
+        /// <returns></returns>
+        public double HausdorffDistance(double maxErrorEpsilon, params Mesh[] other)
+        {
+            Mesh merged = Mesh.Merge(this.HasNormals, this.HasUVs, this.HasColors, other);
+            if (!this.Bounds().Intersects(merged.Bounds()))
+            {
+                return merged.Bounds().MaxDimension();
+            }
+            return OPS.Geometry.HausdorffDistance.Calculate(this, merged, maxErrorEpsilon);
+        }
+
+        /// <summary>
+        ///  Compute Hausdorff difference between this mesh and 1 or more other meshes using default maxErrorEpsilon
+        /// </summary>
+        /// <param name="other"></param>
+        /// <returns></returns>
+        public double HausdorffDistance(params Mesh[] other)
+        {
+            return HausdorffDistance(0.001, other);
         }
 
         /// <summary>

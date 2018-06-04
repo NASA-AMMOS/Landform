@@ -24,7 +24,7 @@ namespace OPS.Pipeline
         public string InputDirectory { get; set; }
 
         [Value(1, Required = true, HelpText = "Directory to write new tiles to")]
-        public string OutpitDirectory { get; set; }
+        public string OutputDirectory { get; set; }
 
         [Option(Required = false, Default = 4096, HelpText = "Total extent of legacy tiles")]
         public int InputExtent { get; set; }
@@ -95,7 +95,7 @@ namespace OPS.Pipeline
                     }
                 }
             });
-            img.Save<byte>(Path.Combine(options.OutpitDirectory, "orthoImage.tif"));
+            img.Save<byte>(Path.Combine(options.OutputDirectory, "orthoImage.tif"));
 
             img = new Image(1, demRes, demRes);
             cam = new OrthographicCameraModel(mat, new Vector2(img.Width, img.Height), 40);
@@ -122,7 +122,7 @@ namespace OPS.Pipeline
                     img[0, r, c] = maxDist - v;
                 }
             });
-            img.Save<byte>(Path.Combine(options.OutpitDirectory, "orthoDEM.tif"));
+            img.Save<byte>(Path.Combine(options.OutputDirectory, "orthoDEM.tif"));
         }
 
         void MakeOrthos(LegacyScene scene, int imageRes, int demRes, float extent)
@@ -184,18 +184,21 @@ namespace OPS.Pipeline
             v = 1 - (yp + 1) / 2;
         }
 
-        Mesh ResampleDecimation(Mesh m, int numFaces = 2000, BoundingBox? clippingBounds = null, Vector3? cornerDirection = null)
+        public static Mesh ResampleDecimation(Mesh m, int numFaces = 2000, BoundingBox? clippingBounds = null, Vector3? cornerDirection = null)
         {
             m.Clean();
-            if (!m.HasNormals)
+            if (!m.HasNormals || m.ContainsZeroLengthNormals())
             {
                 m = new Mesh(m);
                 m.GenerateVertexNormals();
             }
+            m.NormalizeNormals();
             Mesh pc = new SurfacePointSampler().GenerateSampledMesh(m, numFaces / m.SurfaceArea());
             pc.HasUVs = false;
-
+            // TODO: Why do we need to normalize here, issue with GenerateSampledMesh?
+            pc.NormalizeNormals();
             Mesh reconstructed = PoissonReconstruction.PoissonReconstruct(pc); //FSSR.Reconstruct(pc);//
+            
             if (clippingBounds.HasValue)
             {
                 reconstructed = Mesh.Clip(reconstructed, clippingBounds.Value);
@@ -208,7 +211,37 @@ namespace OPS.Pipeline
             }
             Mesh decimated = EdgeCollapse.QuadricEdgeCollapse(reconstructed, numFaces, perimeterPenaltyFactor:20, notTouched: corners);
             decimated.Clean();
+            decimated.GenerateVertexNormals();
             return decimated;
+        }
+
+        public static int ComputeParentTileResolution(IEnumerable<MeshImagePair> pairs, BoundingBox cropBounds, int maxTextureSize = int.MaxValue)
+        {
+
+            // Read all overlapping meshes, crop each to the extent of the leaf tile
+            // and calculate the area the triangles occupy in units of pixels.  Sum all
+            // the areas and round up to nearest power of two to decide size of the new tile
+            double totalPixels = 0;
+            foreach (var p in pairs)
+            {
+                var triangles = Mesh.Clip(p.Mesh, cropBounds).Triangles();
+                foreach (var t in triangles)
+                {
+                    Vector3 a = new Vector3(p.Image.UVToPixel(t.V0.UV), 0);
+                    Vector3 b = new Vector3(p.Image.UVToPixel(t.V1.UV), 0);
+                    Vector3 c = new Vector3(p.Image.UVToPixel(t.V2.UV), 0);
+                    var pixelTri = new Triangle(a, b, c);
+                    if (double.IsNaN(pixelTri.Area()))
+                    {
+                        throw new Exception("Triangle area not a number");
+                    }
+                    totalPixels += pixelTri.Area();
+                }
+            }
+            double size = Math.Sqrt(totalPixels);
+            size = MathE.CeilPowerOf2(size);
+            size = Math.Min(size, maxTextureSize);
+            return (int)size;
         }
 
         public int Run()
@@ -220,7 +253,7 @@ namespace OPS.Pipeline
                 logger.Info("Reading facecount file");
                 nameToFaceCount = ReadFacesPerTileFile(options.FaceCountFile);
             }
-            PathHelper.EnsureExists(options.OutpitDirectory);
+            PathHelper.EnsureExists(options.OutputDirectory);
 
             logger.Info("Loading legacy scene");
             LegacyScene scene = new LegacyScene(options.InputDirectory, options.InputExtent);
@@ -232,7 +265,7 @@ namespace OPS.Pipeline
             logger.Info("Computing new scene bounds");
             SceneNode root = new SceneNode("");
             double initExtent = options.OutputExtent / 2.0;
-            root.Bounds = new BoundingBox(new Vector3(-initExtent, double.MinValue, -initExtent), new Vector3(initExtent, double.MaxValue, initExtent));
+            root.GetOrAddComponent<NodeBounds>().Bounds = new BoundingBox(new Vector3(-initExtent, double.MinValue, -initExtent), new Vector3(initExtent, double.MaxValue, initExtent));
 
             SceneNode[,] innerFour = Split(root);
             SceneNode[,] sixteen = null;
@@ -259,7 +292,7 @@ namespace OPS.Pipeline
                     }
                 }
             }
-            BoundingBox innerBounds = BoundingBoxExtensions.Union(innerNodes.Select(n => n.Bounds).ToArray());
+            BoundingBox innerBounds = BoundingBoxExtensions.Union(innerNodes.Select(n => n.GetOrAddComponent<NodeBounds>().Bounds).ToArray());
             // Compute collision tile
             {
                 logger.Info("Creating low poly collision mesh");
@@ -337,7 +370,7 @@ namespace OPS.Pipeline
 
             Parallel.ForEach(nodesToProcess, leaf =>
             {
-                if (File.Exists(Path.Combine(options.OutpitDirectory, leaf.Name) + ".obj"))
+                if (File.Exists(Path.Combine(options.OutputDirectory, leaf.Name) + ".obj"))
                 {
                     return;
                 }
@@ -356,48 +389,29 @@ namespace OPS.Pipeline
                     targetFaces = nameToFaceCount[leaf.Name];
                 }
                 int faces = Math.Min(m.Faces.Count, targetFaces);
-                m = ResampleDecimation(m, faces, leaf.Bounds, new Vector3(0, 1, 0));
+                m = ResampleDecimation(m, faces, leaf.GetOrAddComponent<NodeBounds>().Bounds, new Vector3(0, 1, 0));
              
                 //m = MeshLab.ResampleDecimation(m, numSamples: targetFaces*10, targetFaces: targetFaces);
                 //m = Mesh.Clip(m, leaf.Bounds);
                 
                 var pairs = overlaps.Select(x => x.GetComponent<MeshImagePair>());
 
-                // Read all overlapping meshes, crop each to the extent of the leaf tile
-                // and calculate the area the triangles occupy in units of pixels.  Sum all
-                // the areas and round up to nearest power of two to decide size of the new tile
-                double totalPixels = 0;
-                foreach (var p in pairs)
-                {
-                    var triangles = Mesh.Clip(p.Mesh, leaf.Bounds).Triangles();
-                    foreach (var t in triangles)
-                    {
-                        Vector3 a = new Vector3(p.Image.UVToPixel(t.V0.UV), 0);
-                        Vector3 b = new Vector3(p.Image.UVToPixel(t.V1.UV), 0);
-                        Vector3 c = new Vector3(p.Image.UVToPixel(t.V2.UV), 0);
-                        var pixelTri = new Triangle(a, b, c);
-                        totalPixels += pixelTri.Area();
-                    }
-                }
-                double size = Math.Sqrt(totalPixels);
-                size = MathE.CeilPowerOf2(size);
-                size = Math.Min(size, options.MaxTextureSize);
-
-                int textureWidth = (int)size;
-                int textureHeight = (int)size;
+                int size = ComputeParentTileResolution(pairs, leaf.GetOrAddComponent<NodeBounds>().Bounds, options.MaxTextureSize);
+                int textureWidth = size;
+                int textureHeight = size;
                 int beforeVerts = m.Vertices.Count;
                 int beforeFaces = m.Faces.Count;
                 m = UVAtlas.Atlas(m, textureWidth, textureHeight);
                 var img = TextureBaker.BakeTexture(pairs.ToArray(), m, textureWidth, textureHeight);
 
                 m.AddSkirt(SkirtAxis.Y);
-                leaf.Bounds = m.Bounds();
+                leaf.GetOrAddComponent<NodeBounds>().Bounds = m.Bounds();
                 leaf.AddComponent(new MeshImagePair(m, img));
                 var ts = WriteTile(leaf);
                 textureSizeData.TryAdd(leaf.Name, ts);
 
             });
-            File.WriteAllText(Path.Combine(options.OutpitDirectory, "index.json"), JsonConvert.SerializeObject(textureSizeData));
+            File.WriteAllText(Path.Combine(options.OutputDirectory, "index.json"), JsonConvert.SerializeObject(textureSizeData));
             return 0;
         }
 
@@ -406,7 +420,7 @@ namespace OPS.Pipeline
             var pair = tile.GetComponent<MeshImagePair>();
             string imgName = null;
             TextureSize ts = new TextureSize();
-            string name = Path.Combine(options.OutpitDirectory, tile.Name);
+            string name = Path.Combine(options.OutputDirectory, tile.Name);
             if (pair.Image != null)
             {
                 Image img = (Image) pair.Image.Clone();
@@ -448,7 +462,7 @@ namespace OPS.Pipeline
             while (searchList.Count > 0)
             {
                 SceneNode curNode = searchList.Dequeue();
-                if (!curNode.Bounds.Intersects(target.Bounds))
+                if (!curNode.GetOrAddComponent<NodeBounds>().Bounds.Intersects(target.GetOrAddComponent<NodeBounds>().Bounds))
                 {
                     continue;
                 }
@@ -485,9 +499,9 @@ namespace OPS.Pipeline
 
         SceneNode[,] Split(SceneNode parent)
         {
-            var min = parent.Bounds.Min;
-            var max = parent.Bounds.Max;
-            var center = parent.Bounds.Center();
+            var min = parent.GetOrAddComponent<NodeBounds>().Bounds.Min;
+            var max = parent.GetOrAddComponent<NodeBounds>().Bounds.Max;
+            var center = parent.GetOrAddComponent<NodeBounds>().Bounds.Center();
 
             bool topDown = false;
             string[] tileNames;
@@ -507,16 +521,16 @@ namespace OPS.Pipeline
             }
             
             SceneNode n0 = new SceneNode(parent.Name + tileNames[0], parent.Transform);
-            n0.Bounds = new BoundingBox(new Vector3(min.X, double.MinValue, min.Z), new Vector3(center.X, double.MaxValue, center.Z));
+            n0.GetOrAddComponent<NodeBounds>().Bounds = new BoundingBox(new Vector3(min.X, double.MinValue, min.Z), new Vector3(center.X, double.MaxValue, center.Z));
 
             SceneNode n1 = new SceneNode(parent.Name + tileNames[1], parent.Transform);
-            n1.Bounds = new BoundingBox(new Vector3(center.X, double.MinValue, min.Z), new Vector3(max.X, double.MaxValue, center.Z));
+            n1.GetOrAddComponent<NodeBounds>().Bounds = new BoundingBox(new Vector3(center.X, double.MinValue, min.Z), new Vector3(max.X, double.MaxValue, center.Z));
 
             SceneNode n2 = new SceneNode(parent.Name + tileNames[2], parent.Transform);
-            n2.Bounds = new BoundingBox(new Vector3(min.X, double.MinValue, center.Z), new Vector3(center.X, double.MaxValue, max.Z));
+            n2.GetOrAddComponent<NodeBounds>().Bounds = new BoundingBox(new Vector3(min.X, double.MinValue, center.Z), new Vector3(center.X, double.MaxValue, max.Z));
 
             SceneNode n3 = new SceneNode(parent.Name + tileNames[3], parent.Transform);
-            n3.Bounds = new BoundingBox(new Vector3(center.X, double.MinValue, center.Z), new Vector3(max.X, double.MaxValue, max.Z));
+            n3.GetOrAddComponent<NodeBounds>().Bounds = new BoundingBox(new Vector3(center.X, double.MinValue, center.Z), new Vector3(max.X, double.MaxValue, max.Z));
             SceneNode[,] result = new SceneNode[2, 2];
             result[0, 0] = n0;
             result[1, 0] = n1;

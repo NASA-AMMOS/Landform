@@ -225,6 +225,23 @@ namespace ImageTest
             bigger.Save<byte>("testPatternResamplingBigger.png");
         }
 
+        [TestMethod]
+        [DeploymentItem("TestData", "TestData")]
+        public void TestImageFlipVertically()
+        {
+            Image img = Image.Load(Path.Combine("TestData", "img", "testPattern.png"));
+            Image flipped = new Image(img);
+            flipped.FlipVertical();
+            for(int c = 0; c< img.Width; c++)
+            {
+                Assert.AreEqual(img[0, 50, c], flipped[0, img.Height - 1 - 50, c]);
+                Assert.AreEqual(img[1, 50, c], flipped[1, img.Height - 1 - 50, c]);
+                Assert.AreEqual(img[2, 50, c], flipped[2, img.Height - 1 - 50, c]);
+            }
+            flipped.Save<byte>("flipped.png");
+        }
+
+
 
         [TestMethod]
         [DeploymentItem("TestData", "TestData")]

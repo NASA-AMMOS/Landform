@@ -6,6 +6,7 @@ using Microsoft.Xna.Framework;
 using OPS.Geometry;
 using System.Linq;
 using OPS.MathExtensions;
+using OPS.Test;
 
 namespace GeometryTest
 {
@@ -61,11 +62,26 @@ namespace GeometryTest
             Assert.AreEqual(new Vector3(10, 1, 2), b.Max);
         }
 
+        public double AreaUnstable(Triangle t)
+        {
+            double a = (t.V0.Position - t.V1.Position).Length();
+            double b = (t.V1.Position - t.V2.Position).Length();
+            double c = (t.V2.Position - t.V0.Position).Length();
+            double s = (a + b + c) / 2;
+            double v = s * (s - a) * (s - b) * (s - c);
+            if (v < 0)
+            {
+                v = 0;
+            }
+            return Math.Sqrt(v);
+        }
+
         [TestMethod]
         public void TriangleAreaTest()
         {
             Triangle zeroCornerSimpleXY = new Triangle(new Vertex(0, 0, 0), new Vertex(10, 0, 0), new Vertex(5, 5, 0));
             Assert.AreEqual(25, zeroCornerSimpleXY.Area(), 1e-8);
+            AssertE.AreSimilar(AreaUnstable(zeroCornerSimpleXY), zeroCornerSimpleXY.Area());
 
             Triangle zeroCornerSimpleYZ = new Triangle(new Vertex(0, 0, 0), new Vertex(0, 10, 0), new Vertex(0, 5, 5));
             Assert.AreEqual(25, zeroCornerSimpleYZ.Area(), 1e-8);
@@ -87,6 +103,8 @@ namespace GeometryTest
 
             Triangle allAxisComplex = new Triangle(new Vertex(-1, -1, 0), new Vertex(1, 1, 0), new Vertex(-1, 1, 2));
             Assert.AreEqual(3.4641016151377557, allAxisComplex.Area(), 1e-8);
+            AssertE.AreSimilar(AreaUnstable(allAxisComplex), allAxisComplex.Area());
+
         }
 
         [TestMethod]

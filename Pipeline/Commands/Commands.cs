@@ -27,6 +27,7 @@ namespace OPS.Pipeline
                                                              TileBaselineMeshesOptions,
                                                              BenchmarkS3Options,
                                                              LegacyToWebVROptions,
+                                                             LegacyToTile3DOptions,
                                                              AlignSceneOptions,
                                                              CreateCloudTemplatesOptions
                                                              >(args)
@@ -40,6 +41,7 @@ namespace OPS.Pipeline
                 (BenchmarkS3Options opts) => new BenchmarkS3(opts).Run(),
                 (PDSImageConverterOptions opts) => new PDSImageConverter(opts).Run(),
                 (LegacyToWebVROptions opts) => new LegacyToWebVR(opts).Run(),
+                (LegacyToTile3DOptions opts) => new LegacyToTile3D(opts).Run(),
                 (AlignSceneOptions opts) => new AlignScene(opts).Run(),
                 (CreateCloudTemplatesOptions opts) => new CreateCloudTemplates(opts).Run(),
                 errs => 1);

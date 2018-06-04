@@ -124,6 +124,26 @@ namespace OPS.Imaging
         {
             serializer.Write<T>(filename, this, converter);
         }
+
+        /// <summary>
+        /// Reflects an image vertically
+        /// </summary>
+        public void FlipVertical()
+        {
+            int swapRow = this.Height - 1;
+            for (int r = 0; r < swapRow; r++, swapRow--)
+            {
+                for (int b = 0; b < this.Bands; b++)
+                {
+                    for (int c = 0; c < this.Width; c++)
+                    {
+                        float curV = this[b, r, c];
+                        this[b, r, c] = this[b, swapRow, c];
+                        this[b, swapRow, c] = curV;
+                    }
+                }
+            }
+        }
         
         /// <summary>
         /// Linearly scale values in this band

@@ -109,16 +109,50 @@ namespace OPS.Geometry
         }
 
         /// <summary>
-        /// Returns the area of the triangle
+        /// Returns the area of the triangle or 0 if the triangle is not well formed 
+        /// See this reference for numerically stable triangle area calculation
+        /// https://people.eecs.berkeley.edu/~wkahan/Triangle.pdf
         /// </summary>
         /// <returns></returns>
         public double Area()
         {
+            // Compute the length of all 3 sides of the triangle
             double a = (this.V0.Position - this.V1.Position).Length();
             double b = (this.V1.Position - this.V2.Position).Length();
             double c = (this.V2.Position - this.V0.Position).Length();
-            double s = (a + b + c) / 2;
-            return Math.Sqrt(s * (s - a) * (s - b) * (s - c));
+            // Sort such that a >= b >= c
+            if (a < b)
+            {
+                Swap(ref a, ref b);
+            }
+            if (b < c)
+            {
+                Swap(ref b, ref c);
+            }
+            if (a < b)
+            {
+                Swap(ref a, ref b);
+            }
+            if (c - (a - b) < 0)
+            {
+                // Not a real triangle
+                return 0;
+            }
+            double v = ((a + (b + c)) * (c - (a - b)) * (c + (a - b)) * (a + (b - c)));
+            v = Math.Sqrt(v) / 4;
+            return v;
+        }
+
+        /// <summary>
+        /// Helper method swaps two doubles
+        /// </summary>
+        /// <param name="x"></param>
+        /// <param name="y"></param>
+        void Swap(ref double x, ref double y)
+        {
+            double tmp = x;
+            x = y;
+            y = tmp;
         }
 
         /// <summary>

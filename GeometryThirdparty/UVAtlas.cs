@@ -78,6 +78,7 @@ namespace OPS.Geometry
                 result.Faces.Add(new Face(indices[i], indices[i + 1], indices[i + 2]));
             }
             result.HasNormals = true;
+            result.Clean();
             return result;
         }
     }

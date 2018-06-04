@@ -14,11 +14,6 @@ namespace OPS.Geometry
         public readonly Guid Guid;
 
         /// <summary>
-        /// Bounding box of this node
-        /// </summary>
-        public BoundingBox Bounds;
-
-        /// <summary>
         /// Create a new node with a given name.
         /// </summary>
         public SceneNode(string name)
@@ -99,6 +94,22 @@ namespace OPS.Geometry
             components[typeof(T)] = res;
             res.Initialize();
             return res;
+        }
+
+        /// <summary>
+        /// Removes a compontnet of type T
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <returns>Returns the removed component if this node has one, null otherwise</returns>
+        public T RemoveComponent<T>() where T : NodeComponent
+        { 
+            if (HasComponent<T>())
+            {
+                T res = (T)components[typeof(T)];
+                components.Remove(typeof(T));
+                return res;
+            }
+            return null;
         }
 
         /// <summary>

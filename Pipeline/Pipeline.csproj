@@ -176,6 +176,7 @@
     <Compile Include="Commands\AlignScene.cs" />
     <Compile Include="Commands\BenchmarkS3.cs" />
     <Compile Include="Commands\AlignmentWorker.cs" />
+    <Compile Include="Commands\LegacyToTile3D.cs" />
     <Compile Include="Commands\CreateCloudTemplates.cs" />
     <Compile Include="Commands\TilingWorker.cs" />
     <Compile Include="Commands\Commands.cs" />
@@ -216,9 +217,9 @@
     <Compile Include="Rover\RoverProductEnum.cs" />
     <Compile Include="Tiling\PrecomputedLODParentTileContentProducer.cs" />
     <Compile Include="Tiling\QuadTreeTilingScheme.cs" />
-    <Compile Include="Tiling\Tile3D.cs" />
     <Compile Include="Tiling\ITilingScheme.cs" />
     <Compile Include="Tiling\Tile3DBuilder.cs" />
+    <Compile Include="Tiling\TilesetSchema.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="app.config" />

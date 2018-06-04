@@ -31,7 +31,7 @@ namespace OPS.Pipeline
         /// <param name="meshOperator">Operator to use when generating mesh</param>
         public void ProduceContent(SceneNode curNode, MeshOperator meshOperator)
         {
-            Mesh mesh = meshOperator.Clip(curNode.Bounds);
+            Mesh mesh = meshOperator.Clip(curNode.GetOrAddComponent<NodeBounds>().Bounds);
             Image image = null;
             if (imageProducer != null)
             {
