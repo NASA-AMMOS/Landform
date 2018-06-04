@@ -39,6 +39,9 @@
       <HintPath>..\packages\ColorMine.1.2.0\lib\net45\ColorMine.dll</HintPath>
       <Private>True</Private>
     </Reference>
+    <Reference Include="CSharpFITS_v1.1, Version=1.1.0.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\CSharpFITS.1.1\lib\Net20\CSharpFITS_v1.1.dll</HintPath>
+    </Reference>
     <Reference Include="gdalconst_csharp, Version=1.0.5387.28601, Culture=neutral, PublicKeyToken=db5a52b08dc5b321, processorArchitecture=MSIL">
       <HintPath>..\packages\GDAL.1.11.1\lib\net40\gdalconst_csharp.dll</HintPath>
       <Private>True</Private>
@@ -80,6 +83,7 @@
     <Compile Include="Imaging\CameraModels\CAHVORE.cs" />
     <Compile Include="Imaging\CameraModels\CameraModel.cs" />
     <Compile Include="Imaging\CameraModels\OrthographicCameraModel.cs" />
+    <Compile Include="Imaging\FITSMetadata.cs" />
     <Compile Include="Imaging\GenericImage.cs" />
     <Compile Include="Imaging\CameraModels\GDALCameraModel.cs" />
     <Compile Include="Imaging\Image.cs" />
@@ -91,10 +95,12 @@
     <Compile Include="Imaging\Operations\Inpainter.cs" />
     <Compile Include="Imaging\PDSCameraModelParser.cs" />
     <Compile Include="Imaging\PDSMetadata.cs" />
+    <Compile Include="Imaging\RawMetadata.cs" />
     <Compile Include="Imaging\SpatialTranslators\ISpatialTranslator.cs" />
     <Compile Include="Imaging\SpatialTranslators\MarsSpatialTranslator.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="Serializers\DDSSeralizer.cs" />
+    <Compile Include="Serializers\DDSSerializer.cs" />
+    <Compile Include="Serializers\FITSSerializer.cs" />
     <Compile Include="Serializers\GDALSeralizer.cs" />
     <Compile Include="Serializers\GDALWriteOptions.cs" />
     <Compile Include="Serializers\IImageConverter.cs" />

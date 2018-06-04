@@ -55,6 +55,9 @@
     <None Include="TestData\img\FLB_509619692RAS_T0530000FHAZ00323M_.IMG">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+    <None Include="TestData\img\horsehead.fit">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
     <None Include="TestData\img\ML0_451292526RCX_S0311094MCAM02555M1.IMG">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
