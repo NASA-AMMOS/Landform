@@ -17,9 +17,9 @@ namespace OPS.Imaging
     /// DirectXTexNet https://www.nuget.org/packages/DirectXTexNet/1.0.0-rc2
     /// Texconv https://github.com/Microsoft/DirectXTex/wiki/Texconv
     /// </summary>
-    public class DDSSeralizer : ImageSerializer
+    public class DDSSerializer : ImageSerializer
     {
-        private static readonly ILog logger = LogManager.GetLogger(typeof(DDSSeralizer));
+        private static readonly ILog logger = LogManager.GetLogger(typeof(DDSSerializer));
 
 
         public override Image Read(string filename, IImageConverter converter, float[] fillValue = null)

@@ -1,15 +1,34 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 using Amazon.DynamoDBv2.Model;
-using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.DataModel;
+using Amazon.DynamoDBv2.DocumentModel;
 
 namespace OPS.Cloud
 {
+    class OverlapName
+    {
+        public string ObservationNameOne;
+        public string ObservationNameTwo;
+        public string CombinedName;
+
+        public OverlapName(string obs1, string obs2)
+        {
+            if (obs1.CompareTo(obs2) <= 0)
+            {
+                ObservationNameOne = obs1;
+                ObservationNameTwo = obs2;
+            }
+            else
+            {
+                ObservationNameOne = obs2;
+                ObservationNameTwo = obs1;
+            }
+            CombinedName = obs1 + "~X~" + obs2;
+        }
+    }
+
     /// <summary>
     /// Store the overlap between two observations. 
     /// ID is constructed from the names of the obervations (in sorted order). Any two observations can have at most one overlap. 
@@ -17,47 +36,40 @@ namespace OPS.Cloud
     /// Overlaps are versioned because a Match is not deterministic. if a task is started based on a match then another MatchPairs worker overwrites that match, that's an inconsistent state.
     /// </summary>
     [DynamoDBTable("Overlaps")]
+    [DynamoDBReadCapacity(5, 50)]
+    [DynamoDBWriteCapacity(5, 50)]
     public class Overlap
     {
-        //Primary key for dynamoDb. Sorted combination of the two observation names. Cannot be edited directly
-        [DynamoDBHashKey]
-        [DynamoDBProperty()]
-        public string Id
-        {
-            get //construct from an OverlapObs. 
-            {
-                return Observations.IdFromObs;
-            }
-            set //construct an OverlapObs from this Id. Used by Dynamo
-            {
-                this.Observations = new OverlapObs(value);
-            }
-        }
-
-        //sort key for dynamoDb in case two projects share observation names 
         [DynamoDBRangeKey]
-        [DynamoDBProperty()]
-        public string ProjectName;
+        [DynamoDBGlobalSecondaryIndexRangeKey("OverlapObservationNameOneIndex", "OverlapObservationNameTwoIndex")]
+        public string ProjectName { get; set; }
 
-        //the observations in this overlap
-        [DynamoDBIgnore]
-        public OverlapObs Observations;
+        [DynamoDBHashKey]
+        public string CombinedName { get; set; }
+
+        [DynamoDBGlobalSecondaryIndexHashKey("OverlapObservationNameOneIndex")]
+        public string ObservationNameOne { get; set; }
+
+        [DynamoDBGlobalSecondaryIndexHashKey("OverlapObservationNameTwoIndex")]
+        public string ObservationNameTwo { get; set; }
+
+        public enum StatusType
+        {
+            Proposed = 0,
+            Matched,
+            Rejected
+        }
+        public StatusType Status { get; set; }
 
         //This is set during creation to verify that only one worker can successfully create a single overlap item in Dynamo
         public bool Uploaded { get; set; }
-
-        //S3 URL of image match (for now this is what we're saving)
-        //Always upload file before writing MatchUrl to keep state consistent 
         public Guid MatchGuid { get; set; }
 
         [DynamoDBVersion]
         public int? VersionNumber { get; set; }
 
         //Constructor required by DynamoDb but should not be called otherwise
-        public Overlap()
-        {
-
-        }
+        public Overlap() { }
 
         /// <summary>
         /// Constructor for a new overlap
@@ -67,8 +79,12 @@ namespace OPS.Cloud
         /// <param name="projectName"></param>
         protected Overlap(string obs1, string obs2, string projectName)
         {
-            this.Observations = new OverlapObs(obs1, obs2);
-            this.ProjectName = projectName;
+            var name = new OverlapName(obs1, obs2);
+            ObservationNameOne = name.ObservationNameOne;
+            ObservationNameTwo = name.ObservationNameTwo;
+            CombinedName = name.CombinedName;
+            ProjectName = projectName;
+            Status = StatusType.Proposed;
         }
 
         //Public interface for Overlap 
@@ -82,10 +98,10 @@ namespace OPS.Cloud
         /// <param name="observationName1">Order of observations does not matter</param>
         /// <param name="observationName2"></param>
         /// <returns></returns>
-        public static Overlap Create(DynamoDBContext context, string observationName1, string observationName2, string projectName)
+        public static Overlap Create(DynamoDBContext context, Observation observation1, Observation observation2)
         {
             //create an overlap without setting Uploaded
-            Overlap newOverlap = new Overlap(observationName1, observationName2, projectName);
+            Overlap newOverlap = new Overlap(observation1.Name, observation2.Name, observation1.ProjectName);
             try
             {
                 context.Save(newOverlap);
@@ -107,7 +123,7 @@ namespace OPS.Cloud
             }
 
             //if save was successful, return Overlap with most recent version number so it can be saved
-            return context.Load<Overlap>(newOverlap.Id, newOverlap.ProjectName, new DynamoDBOperationConfig { ConsistentRead = true});
+            return context.Load<Overlap>(newOverlap.CombinedName, newOverlap.ProjectName, new DynamoDBOperationConfig { ConsistentRead = true});
         }
 
         /// <summary>
@@ -129,80 +145,29 @@ namespace OPS.Cloud
 
         public static Overlap Find(DynamoDBContext context, string observationName1, string observationName2, string projectName)
         {
-            OverlapObs name = new OverlapObs(observationName1, observationName2);
-            return context.Load<Overlap>(name.IdFromObs, projectName);
-        }
-
-        public static IEnumerable<Overlap> Find(DynamoDBContext context, Observation observation)
-        {
-            return context.Scan<Overlap>(
-                new ScanCondition("ProjectName", Amazon.DynamoDBv2.DocumentModel.ScanOperator.Equal, observation.ProjectName),
-                new ScanCondition("Id", Amazon.DynamoDBv2.DocumentModel.ScanOperator.Contains, observation.Name));
+            var name = new OverlapName(observationName1, observationName2);
+            return context.Load<Overlap>(name.CombinedName, projectName);
         }
 
         /// <summary>
-        /// Helper class to validate an Overlap and convert from the observation names of the 
-        /// overlapping observations to the DynamoDB ID for the overlap
+        /// Find all overlaps featuring an observation
         /// </summary>
-        public class OverlapObs
+        public static IEnumerable<Overlap> Find(DynamoDBContext context, Observation observation)
         {
-            private const string SEPARATOR = " x ";
-
-            public string Obs1 { get; private set; }
-            public string Obs2 { get; private set; }
-
-            public string IdFromObs
+            foreach (var prop in new[] { "ObservationOneName", "ObservationTwoName" })
             {
-                get
+                var filt = new QueryFilter(prop, QueryOperator.Equal, observation.Name);
+                filt.AddCondition("ProjectName", QueryOperator.Equal, observation.ProjectName);
+                var entries = context.FromQuery<Overlap>(new QueryOperationConfig()
                 {
-                    if (Obs1.CompareTo(Obs2) < 0)
-                    {
-                        return string.Format("{1}{0}{2}", SEPARATOR, Obs1, Obs2);
-                    }
-                    else
-                    {
-                        return string.Format("{1}{0}{2}", SEPARATOR, Obs2, Obs1);
-                    }
-                }
-            }
-
-            /// <summary>
-            /// Construct from an id
-            /// </summary>
-            /// <param name="combinedObs"></param>
-            public OverlapObs(string combinedObs)
-            {
-                string[] names = combinedObs.Split(new string[] { SEPARATOR }, StringSplitOptions.None);
-                if (names.Count() != 2)
+                    IndexName = "Overlap" + prop + "Index",
+                    Filter = filt
+                });
+                foreach (var o in entries)
                 {
-                    throw new CloudException("Could not find observation names in Overlap Id");
-                }
-                this.Obs1 = names[0];
-                this.Obs2 = names[1];
-                IsValid();
-            }
-
-            public OverlapObs(string obs1, string obs2)
-            {
-                this.Obs1 = obs1;
-                this.Obs2 = obs2;
-                IsValid();
-            }
-
-            /// <summary>
-            /// Only an Overlap with a valid OverlapObs can be saved to the DB
-            /// </summary>
-            /// <returns></returns>
-            public void IsValid()
-            {
-                if (!(this.Obs1 != null && this.Obs2 != null && //an overlap must contain two images
-                    !this.Obs1.Contains(SEPARATOR) && !this.Obs2.Contains(SEPARATOR) && //names cannot contain the separator used to construct the name
-                    this.Obs1.CompareTo(this.Obs2) != 0)) //an overlap between the same observation is not valid
-                {
-                    throw new CloudException("Creating an Overlap with invalid observation names. Two observation names must be present and cannot contain " + SEPARATOR);
+                    yield return o;
                 }
             }
         }
-
     }
 }

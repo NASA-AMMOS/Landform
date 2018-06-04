@@ -28,7 +28,8 @@ namespace OPS.Pipeline
                                                              BenchmarkS3Options,
                                                              LegacyToWebVROptions,
                                                              LegacyToTile3DOptions,
-                                                             AlignSceneOptions
+                                                             AlignSceneOptions,
+                                                             CreateCloudTemplatesOptions
                                                              >(args)
               .MapResult(
                 (AlignmentWorkerOptions opts) => new AlignmentWorker().Run(),
@@ -42,6 +43,7 @@ namespace OPS.Pipeline
                 (LegacyToWebVROptions opts) => new LegacyToWebVR(opts).Run(),
                 (LegacyToTile3DOptions opts) => new LegacyToTile3D(opts).Run(),
                 (AlignSceneOptions opts) => new AlignScene(opts).Run(),
+                (CreateCloudTemplatesOptions opts) => new CreateCloudTemplates(opts).Run(),
                 errs => 1);
         }
     }

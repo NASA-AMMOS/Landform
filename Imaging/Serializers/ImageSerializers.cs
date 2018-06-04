@@ -14,8 +14,9 @@ namespace OPS.Imaging
         {
             serializers = new Dictionary<string, ImageSerializer>();
             new PDSSeralizer().Register();
-            new DDSSeralizer().Register();
+            new DDSSerializer().Register();
             new GDALSeralizer().Register();
+            new FITSSerializer().Register();
         }
 
         /// <summary>

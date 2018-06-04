@@ -13,10 +13,12 @@ namespace OPS.Cloud
 
     /// <summary>
     /// Represents a coordinate frame in the database
-    /// Coordiante frames can have one or more observations associated with them. 
+    /// Coordinate frames can have one or more observations associated with them. 
     /// Frames are not versioned
     /// </summary>\
     [DynamoDBTable("Frames")]
+    [DynamoDBReadCapacity(5, 50)]
+    [DynamoDBWriteCapacity(5, 50)]
     public class Frame
     {
         [DynamoDBRangeKey]
