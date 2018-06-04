@@ -25,6 +25,8 @@ namespace OPS.Cloud
     /// Frame transform lookups are versioned, but this is internal to the class and workers do not need to worry about it
     /// </summary>
     [DynamoDBTable("FrameTransforms")]
+    [DynamoDBReadCapacity(5, 50)]
+    [DynamoDBWriteCapacity(5, 50)]
     public class FrameTransform
     {
         [DynamoDBRangeKey]

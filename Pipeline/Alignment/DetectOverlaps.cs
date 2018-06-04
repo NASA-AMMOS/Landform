@@ -69,7 +69,7 @@ namespace OPS.Pipeline
             {
                 var one = refToObservation[overlap.One];
                 var two = refToObservation[overlap.Two];
-                var steve = Overlap.Create(Pipeline.DynamoDB, one.Name, two.Name, one.ProjectName);
+                var steve = Overlap.Create(Pipeline.DynamoDB, one, two);
                 if (steve != null) yield return steve;
             }
         }

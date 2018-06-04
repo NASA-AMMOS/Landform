@@ -15,6 +15,8 @@ namespace OPS.Cloud
     /// Projects are not versioned, so FindOrCreate is not implemented (it implies certainty, but these are non-versioned ops)
     /// </summary>
     [DynamoDBTable("Projects")]
+    [DynamoDBReadCapacity(5, 50)]
+    [DynamoDBWriteCapacity(5, 50)]
     public class Project
     {
         [DynamoDBHashKey] //Partition key

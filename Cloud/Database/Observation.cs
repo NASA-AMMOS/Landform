@@ -15,14 +15,14 @@ namespace OPS.Cloud
     /// Fresh Creates, or Saves with missing values, will not overwrite existing values. 
     /// </summary>
     [DynamoDBTable("Observations")]
+    [DynamoDBReadCapacity(5, 50)]
+    [DynamoDBWriteCapacity(5, 50)]
     public class Observation
     {
         [DynamoDBRangeKey]
-        [DynamoDBProperty()]
         public string ProjectName { get; set; }
 
-        [DynamoDBHashKey] //Partition key
-        [DynamoDBProperty()]
+        [DynamoDBHashKey]
         public string Name { get; set; }
 
         public string Url { get; set; }

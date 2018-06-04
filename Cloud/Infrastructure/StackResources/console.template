@@ -4,14 +4,14 @@
         "AWS::CloudFormation::Designer": {
             "2989d6a0-b128-45a4-bf5c-db77c543b269": {
                 "size": {
-                    "width": 200,
-                    "height": 140
+                    "width": 210,
+                    "height": 150
                 },
                 "position": {
-                    "x": 250,
+                    "x": 240,
                     "y": 270
                 },
-                "z": 0,
+                "z": 1,
                 "embeds": [
                     "55c1c784-0459-4844-9531-703a6679266b",
                     "c0e0f2a2-3e85-45f2-a15f-65e1484eb36a"
@@ -26,12 +26,11 @@
                     "x": 270,
                     "y": 330
                 },
-                "z": 1,
+                "z": 2,
                 "parent": "2989d6a0-b128-45a4-bf5c-db77c543b269",
                 "embeds": [],
-                "isrelatedto": [
-                    "c8db6e9e-54b9-46f8-89f8-ea1c249cb469",
-                    "699e5555-b382-4cae-8b5e-3bffa2d6ccb2"
+                "iscontainedinside": [
+                    "2989d6a0-b128-45a4-bf5c-db77c543b269"
                 ]
             },
             "c0e0f2a2-3e85-45f2-a15f-65e1484eb36a": {
@@ -40,14 +39,17 @@
                     "height": 60
                 },
                 "position": {
-                    "x": 370,
+                    "x": 360,
                     "y": 330
                 },
-                "z": 1,
+                "z": 2,
                 "parent": "2989d6a0-b128-45a4-bf5c-db77c543b269",
                 "embeds": [],
-                "isrelatedto": [
+                "isassociatedwith": [
                     "55c1c784-0459-4844-9531-703a6679266b"
+                ],
+                "iscontainedinside": [
+                    "2989d6a0-b128-45a4-bf5c-db77c543b269"
                 ]
             },
             "c8db6e9e-54b9-46f8-89f8-ea1c249cb469": {
@@ -56,10 +58,10 @@
                     "height": 60
                 },
                 "position": {
-                    "x": 100,
+                    "x": 90,
                     "y": 330
                 },
-                "z": 0,
+                "z": 1,
                 "embeds": []
             },
             "699e5555-b382-4cae-8b5e-3bffa2d6ccb2": {
@@ -68,10 +70,10 @@
                     "height": 60
                 },
                 "position": {
-                    "x": 550,
+                    "x": 540,
                     "y": 180
                 },
-                "z": 0,
+                "z": 1,
                 "embeds": []
             },
             "5c763d7a-759d-4a97-ba9b-e815bcad1703": {
@@ -80,10 +82,22 @@
                     "height": 60
                 },
                 "position": {
-                    "x": 580,
-                    "y": 280
+                    "x": 570,
+                    "y": 270
                 },
-                "z": 0,
+                "z": 1,
+                "embeds": []
+            },
+            "eccd1fcb-8be3-4009-8d1e-0eeff1c5213a": {
+                "size": {
+                    "width": 60,
+                    "height": 60
+                },
+                "position": {
+                    "x": 520,
+                    "y": 90
+                },
+                "z": 1,
                 "embeds": []
             }
         }
@@ -113,7 +127,7 @@
                             "Ref": "AWS::StackName"
                         }
                     },
-					{
+                    {
                         "Namespace": "aws:elasticbeanstalk:application:environment",
                         "OptionName": "ALIGN_JOB_QUEUE",
                         "Value": {
@@ -128,7 +142,7 @@
                         "OptionName": "ALIGN_OVERLAPS_TABLE",
                         "Value": {
                             "Fn::GetAtt": [
-                                "Alignment",
+                                "AlignmentDatabase",
                                 "Outputs.Overlaps"
                             ]
                         }
@@ -138,7 +152,7 @@
                         "OptionName": "ALIGN_FRAME_TRANSFORMS_TABLE",
                         "Value": {
                             "Fn::GetAtt": [
-                                "Alignment",
+                                "AlignmentDatabase",
                                 "Outputs.FrameTransforms"
                             ]
                         }
@@ -148,7 +162,7 @@
                         "OptionName": "ALIGN_PROJECTS_TABLE",
                         "Value": {
                             "Fn::GetAtt": [
-                                "Alignment",
+                                "AlignmentDatabase",
                                 "Outputs.Projects"
                             ]
                         }
@@ -158,7 +172,7 @@
                         "OptionName": "ALIGN_OBSERVATIONS_TABLE",
                         "Value": {
                             "Fn::GetAtt": [
-                                "Alignment",
+                                "AlignmentDatabase",
                                 "Outputs.Observations"
                             ]
                         }
@@ -168,7 +182,7 @@
                         "OptionName": "ALIGN_FRAMES_TABLE",
                         "Value": {
                             "Fn::GetAtt": [
-                                "Alignment",
+                                "AlignmentDatabase",
                                 "Outputs.Frames"
                             ]
                         }
@@ -379,6 +393,40 @@
                 }
             }
         },
+        "AlignmentDatabase": {
+            "Type": "AWS::CloudFormation::Stack",
+            "Properties": {
+                "TemplateURL": {
+                    "Fn::Join": [
+                        "",
+                        [
+                            "https://s3.amazonaws.com/",
+                            {
+                                "Ref": "BucketName"
+                            },
+                            "/",
+                            {
+                                "Ref": "S3Prefix"
+                            },
+                            "/",
+                            {
+                                "Ref": "AlignmentTablesTemplate"
+                            }
+                        ]
+                    ]
+                },
+                "Parameters": {
+                    "TablePrefix": {
+                        "Ref": "AlignmentTablePrefix"
+                    }
+                }
+            },
+            "Metadata": {
+                "AWS::CloudFormation::Designer": {
+                    "id": "eccd1fcb-8be3-4009-8d1e-0eeff1c5213a"
+                }
+            }
+        },
         "Alignment": {
             "Type": "AWS::CloudFormation::Stack",
             "Properties": {
@@ -517,13 +565,17 @@
             "Type": "String",
             "Description": "Name of the key pair used to connect to EC2 instances"
         },
+        "AlignmentTablesTemplate": {
+            "Type": "String",
+            "Description": "Location of database template so that BucketName/S3Folder/AlignmentTablesTemplate is the location of the template."
+        },
         "AlignmentTemplate": {
             "Type": "String",
             "Description": "Location of alignment template so that BucketName/S3Folder/AlignmentTemplate is the location of the template."
         },
         "TilingTemplate": {
             "Type": "String",
-            "Description": "Location of alignment template so that BucketName/S3Folder/AlignmentTemplate is the location of the template."
+            "Description": "Location of alignment template so that BucketName/S3Folder/TilingTemplate is the location of the template."
         },
         "S3Prefix": {
             "Type": "String",
@@ -578,7 +630,7 @@
         "VPC": {
             "Type": "String",
             "Default": "vpc-577e9832",
-            "Description": "The VPC the application will launch in. Required for security group creation." 
+            "Description": "The VPC the application will launch in. Required for security group creation."
         },
         "AlignmentWorkerInstanceProfile": {
             "Type": "String",
