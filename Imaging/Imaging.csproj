@@ -82,6 +82,7 @@
     <Compile Include="Imaging\CameraModels\CAHVOR.cs" />
     <Compile Include="Imaging\CameraModels\CAHVORE.cs" />
     <Compile Include="Imaging\CameraModels\CameraModel.cs" />
+    <Compile Include="Imaging\CameraModels\HayabusaCameraModel.cs" />
     <Compile Include="Imaging\CameraModels\OrthographicCameraModel.cs" />
     <Compile Include="Imaging\FITSMetadata.cs" />
     <Compile Include="Imaging\GenericImage.cs" />

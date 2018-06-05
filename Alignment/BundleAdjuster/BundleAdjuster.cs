@@ -79,7 +79,7 @@ namespace OPS.Alignment
             List<AdjustedNode> toAdjust = scene.Root.GetComponentsInTree<AdjustedNode>().ToList();
 
             Matrix worldToRoot = scene.Root.Transform.WorldToLocal;
-            Memoizer<CAHV, int> cameraModels = new Memoizer<CAHV, int>(problem.AddCameraModel);
+            Memoizer<Imaging.CameraModel, int> cameraModels = new Memoizer<Imaging.CameraModel, int>(problem.AddCameraModel);
             Dictionary<ImageRef, int> imageToCamera = new Dictionary<ImageRef, int>();
             Dictionary<int, SceneNode> transformToNode = new Dictionary<int, SceneNode>();
             Memoizer<SceneNode, int> nodeToTransform = new Memoizer<SceneNode, int>(node =>
@@ -100,7 +100,7 @@ namespace OPS.Alignment
             foreach (var imgRefC in scene.Root.GetComponentsInTree<NodeImageReference>())
             {
                 var cmod = GetImage(imgRefC.Reference).CameraModel;
-                int cameraIdx = cameraModels[(CAHV)cmod];
+                int cameraIdx = cameraModels[(Imaging.CameraModel)cmod];
                 imageToCamera[imgRefC.Reference] = cameraIdx;
 
                 // build list of transforms to apply to get to root
@@ -253,7 +253,7 @@ namespace OPS.Alignment
                     if (oldErr < 20) oldErr = 20;
                     double newErr = computeMinErr(tracks[featureToTrack[modelFeat]], tracks[featureToTrack[dataFeat]].features, true);
 
-                    if (newErr < oldErr * 1.5)
+                    if (true || newErr < oldErr * 1.5)
                     {
                         mergeTracks(featureToTrack[modelFeat], featureToTrack[dataFeat]);
                     }
@@ -269,12 +269,14 @@ namespace OPS.Alignment
             {
                 if (track.features.Count < 2) continue;
 
+                //track.position = Vector3.Zero;
+                computeMinErr(track, null, true);
+
                 if (track.pointIdx < 0)
                 {
                     track.pointIdx = problem.AddPoint(track.position);
                 }
 
-                computeMinErr(track, null, true);
                 // add projections to problem
                 foreach (var projection in track.features)
                 {
@@ -324,6 +326,15 @@ namespace OPS.Alignment
                     node.Transform.Matrix = transform.Matrix;
                 }
                 problem.Points = result.Points;
+
+                {
+                    Mesh m = new Mesh(capacity: result.Points.Count);
+                    for (int i = 0; i < result.Points.Count; i++)
+                    {
+                        m.Vertices.Add(new Vertex(result.Points[i].Position));
+                    }
+                    m.Save("D:\\bundlecloud.ply");
+                }
 
                 // Trim bad points
                 List<double> trackErrors = new List<double>(tracks.Count);

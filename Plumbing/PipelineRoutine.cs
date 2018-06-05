@@ -18,7 +18,7 @@ namespace OPS.Plumbing
 
         public Image GetImage(ImageRef image)
         {
-            return image.Load(Pipeline);
+            return Pipeline.Load(image);
         }
         public ImageMetadata GetMetadata(ImageRef image)
         {

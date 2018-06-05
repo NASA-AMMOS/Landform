@@ -17,6 +17,7 @@ namespace OPS.Alignment
     public class MoisanStivalEpipolar
     {
         public Vector2[] ModelPoints, DataPoints;
+        public Vector2[] OrigModelPoints, OrigDataPoints;
         public Vector2 ModelSize, DataSize;
 
         List<int> bestPoints;
@@ -26,7 +27,6 @@ namespace OPS.Alignment
 
         double overallMinEps, overallMinAlpha;
         int[] overallMinPoints;
-        bool[] overallMinPointsGood;
         Matrix<float> overallMinF;
 
         float[] log_cn, log_c7;
@@ -46,6 +46,8 @@ namespace OPS.Alignment
         {
             this.ModelPoints = modelPoints;
             this.DataPoints = dataPoints;
+            OrigModelPoints = (Vector2[])ModelPoints.Clone();
+            OrigDataPoints = (Vector2[])DataPoints.Clone();
             this.ModelSize = modelSize;
             this.DataSize = dataSize;
 
@@ -154,42 +156,139 @@ namespace OPS.Alignment
             }
         }
 
+        static Matrix ToXna(Matrix<float> mat)
+        {
+            Matrix res = new Matrix();
+            for (int i = 0; i < 3; i++)
+            {
+                for (int j = 0; j < 3; j++)
+                {
+                    res[i, j] = mat[j, i]; // transpose because OpenCV convention is column vectors, XNA is row vectors
+                }
+            }
+            if (mat.Cols > 3)
+            {
+                res.Translation = new Vector3(mat[0, 3], mat[1, 3], mat[2, 3]);
+            }
+            res[3, 3] = 1;
+            return res;
+        }
+
+        static Matrix<float> FromXna(Vector2 pos)
+        {
+            return new Matrix<float>(new[] { (float)pos.X, (float)pos.Y, 1 });
+        }
+        static Matrix<float> FromXna(Vector3 pos)
+        {
+            return new Matrix<float>(new[] { (float)pos.X, (float)pos.Y, (float)pos.Z, 1 });
+        }
+
         /// <summary>
         /// Return the indices of all valid correspondences given the current solution.
         /// </summary>
         /// <returns>Indices into (model|data)Points</returns>
         public IEnumerable<int> ComputeInliers()
         {
-            overallMinPointsGood = new bool[overallMinPoints.Length];
-            Matrix<float> F = overallMinF;
-            Matrix<float> FT = overallMinF.Transpose();
-            Matrix<float> W = new Matrix<float>(3, 1);
-            Matrix<float> U = new Matrix<float>(3, 3);
-            Matrix<float> V = new Matrix<float>(3, 3);
-            CvInvoke.SVDecomp(F, W, U, V, Emgu.CV.CvEnum.SvdFlag.Default);
-            Matrix<float> VT = V.Transpose();
-
             Matrix<float> bestRotation = null;
+            bool[] bestPointsKept = null;
             Vector3 bestTranslation = Vector3.Zero;
             int bestPositiveCount = 0;
 
-            foreach (var transform in PossibleTransforms(W, U, VT))
+            Matrix<float> A = new Matrix<float>(4, 4);
+            /*Matrix<float> eigVal = new Matrix<float>(4, 1);
+            Matrix<float> eigVec = new Matrix<float>(4, 4);*/
+            Matrix<float> U = new Matrix<float>(4, 4);
+            Matrix<float> W = new Matrix<float>(4, 1);
+            Matrix<float> V = new Matrix<float>(4, 4);
+
+            var projectedPoints = new[] { ModelPoints, DataPoints };
+
+            Matrix<float> modelProj = new Matrix<float>(3, 4);
+            modelProj[0, 0] = modelProj[1, 1] = 1;// 120.71f / 1000;
+            //modelProj[2, 0] = 512;
+            //modelProj[2, 1] = 512;
+            //modelProj *= (1024 / DataSize.X);
+            modelProj[2, 2] = 1;
+
+            int transformIdx = 0;
+            foreach (var modelToData in PossibleTransforms(overallMinF))
             {
-                int positiveCount = overallMinPoints.Count(idx => PositiveDepth(transform.Key, transform.Value, ModelPoints[idx], DataPoints[idx]));
+                var R = modelToData.RemoveCols(3, 4).RemoveRows(3, 4);
+                var T = modelToData.GetCol(3).RemoveRows(3, 4);
+                var T_x = new Matrix<float>(3, 3);
+                T_x[0, 1] = -T[2, 0];
+                T_x[0, 2] = T[1, 0];
+                T_x[1, 0] = T[2, 0];
+                T_x[1, 2] = -T[0, 0];
+                T_x[2, 0] = -T[1, 0];
+                T_x[2, 1] = T[0, 0];
+
+                var E = R * T_x;
+                bool[] pointsKept = new bool[overallMinPoints.Length];
+                /*
+                var projectionMatrices = new[] { modelProj, modelProj * modelToData };
+
+                Mesh cloud = new Mesh(capacity: overallMinPoints.Length);
+                int positiveCount = 0;
+                for (int i = 0; i < overallMinPoints.Length; i++)
+                {
+                    A.SetZero();
+                    // compute 3d pose of point given transform
+                    for (int j = 0; j < 2; j++)
+                    {
+                        var ptXna = projectedPoints[j][overallMinPoints[i]];
+                        var pt = new Matrix<float>(new[] { (float)ptXna.X, (float)ptXna.Y, 1 });
+                        var proj = projectionMatrices[j];
+                        var row0 = pt[0, 0] * proj.GetRow(2) - proj.GetRow(0);
+                        var row1 = pt[1, 0] * proj.GetRow(2) - proj.GetRow(1);
+                        for (int k = 0; k < 4; k++)
+                        {
+                            A[j * 2 + 0, k] = row0[0, k];
+                            A[j * 2 + 1, k] = row1[0, k];
+                        }
+                    }
+                    //CvInvoke.Eigen(A, eigVal, eigVec);
+                    // var homogenous = eigVec.GetCol(3);
+
+                    CvInvoke.SVDecomp(A, W, U, V, Emgu.CV.CvEnum.SvdFlag.FullUV);
+
+                    var homogenous = V.GetRow(3).Transpose();// eigVec.GetCol(3);
+                    var projModel = projectionMatrices[0] * homogenous;
+                    var projData = projectionMatrices[1] * homogenous;
+
+                    var keep = pointsKept[i] = (projModel[2,0] >= 0) && (projData[2, 0] >= 0);
+
+                    var pos = new Vector3(homogenous[0, 0] / homogenous[3, 0], homogenous[1, 0] / homogenous[3, 0], homogenous[2, 0] / homogenous[3, 0]);
+
+                    if (keep) { positiveCount++; cloud.Vertices.Add(new Vertex(pos)); }
+                }
+                
+                cloud.Save(string.Format("D:\\twoview-{0}-{1}.ply", transformIdx++, positiveCount));
+                */
+                int positiveCount = 0;
+                for (int i = 0; i < overallMinPoints.Length; i++)
+                {
+                    if (PositiveDepth(
+                        modelToData.RemoveCols(3,4).RemoveRows(3,4),
+                        new Vector3(modelToData[0, 3], modelToData[1, 3], modelToData[2, 3]),
+                        ModelPoints[overallMinPoints[i]], DataPoints[overallMinPoints[i]]))
+                    {
+                        pointsKept[i] = true;
+                        positiveCount++;
+                    }
+                }
+
                 if (positiveCount > bestPositiveCount)
                 {
                     bestPositiveCount = positiveCount;
-                    bestRotation = transform.Key;
-                    bestTranslation = transform.Value;
+                    bestPointsKept = pointsKept;
+                    BestTransform = ToXna(modelToData);
                 }
             }
 
-            foreach (int idx in overallMinPoints)
+            for (int i = 0; i < overallMinPoints.Length; i++)
             {
-                if (PositiveDepth(bestRotation, bestTranslation, ModelPoints[idx], DataPoints[idx]))
-                {
-                    yield return idx;
-                }
+                if (bestPointsKept[i]) yield return overallMinPoints[i];
             }
         }
 
@@ -204,24 +303,32 @@ namespace OPS.Alignment
             }
         }
 
+        private FundamentalMatrix MakeEpipolarTransform(Matrix<float> F)
+        {
+            // note that this transposes the matrix to conform to XNA
+            // row vector convention
+            return FundamentalMatrix.Scaled(new Matrix(
+                    F[0, 0], F[1, 0], F[2, 0], 0,
+                    F[0, 1], F[1, 1], F[2, 1], 0,
+                    F[0, 2], F[1, 2], F[2, 2], 0,
+                    0, 0, 0, 0
+                ),
+                ModelSize,
+                DataSize);
+        }
+
         /// <summary>
         /// The computed epipolar transformation from model to data.
         /// </summary>
-        public EpipolarTransform EpipolarTransform
+        public FundamentalMatrix EpipolarTransform
         {
             get
             {
-                return new ScaledEpipolarTransform(
-                    new Matrix(
-                        overallMinF[0, 0], overallMinF[1, 0], overallMinF[2, 0], 0,
-                        overallMinF[0, 1], overallMinF[1, 1], overallMinF[2, 1], 0,
-                        overallMinF[0, 2], overallMinF[1, 2], overallMinF[2, 2], 0,
-                        0, 0, 0, 0
-                    ),
-                    ModelSize,
-                    DataSize);
+                return MakeEpipolarTransform(overallMinF);
             }
         }
+
+        public Matrix BestTransform;
 
         /// <summary>
         /// Compute the epipolar error for a point match given a fundamental matrix.
@@ -323,30 +430,46 @@ namespace OPS.Alignment
 
         // end public facing
 
-        IEnumerable<KeyValuePair<Matrix<float>, Vector3>> PossibleTransforms(Matrix<float> Wigma, Matrix<float> U, Matrix<float> VT)
+        IEnumerable<Matrix<float>> PossibleTransforms(Matrix<float> F)
         {
-            Matrix<float> W = new Matrix<float>(3, 3);
-            W[0, 1] = -1;
-            W[1, 0] = 1;
-            W[2, 2] = 1;
-            Vector3 translation = new Vector3(U[2, 0], U[2, 1], U[2, 2]);
+            Matrix<float> Wigma = new Matrix<float>(3, 1);
+            Matrix<float> U = new Matrix<float>(3, 3);
+            Matrix<float> V = new Matrix<float>(3, 3);
+            CvInvoke.SVDecomp(F, Wigma, U, V, Emgu.CV.CvEnum.SvdFlag.Default);
+            Matrix<float> VT = V.Transpose();
 
-            yield return new KeyValuePair<Matrix<float>, Vector3>(
-                U * W * VT,
-                translation
-                );
-            yield return new KeyValuePair<Matrix<float>, Vector3>(
-                U * W * VT,
-                -translation
-                );
-            yield return new KeyValuePair<Matrix<float>, Vector3>(
-                U * W.Transpose() * VT,
-                translation
-                );
-            yield return new KeyValuePair<Matrix<float>, Vector3>(
-                U * W.Transpose() * VT,
-                -translation
-                );
+            if (U.Det < 0) U *= -1;
+            if (VT.Det < 0) VT *= -1;
+
+            Matrix<float> W = new Matrix<float>(3, 3);
+            W[0, 1] = 1;
+            W[1, 0] = -1;
+            W[2, 2] = 1;
+            var tC = U.GetCol(2);
+            Vector3 translation = new Vector3(tC[0, 0], tC[1, 0], tC[2, 0]);
+
+            var R1 = U * W * VT;
+            var R2 = U * W.Transpose() * VT;
+
+            Func<Matrix<float>, Vector3, Matrix<float>> combine = (R, t) =>
+            {
+                Matrix<float> res = new Matrix<float>(4, 4);
+                res.SetIdentity();
+                for (int i = 0; i < 3; i++)
+                {
+                    for (int j = 0; j < 3; j++)
+                    {
+                        res[i, j] = R[i, j];
+                    }
+                    res[i, 3] = (float)t[i];
+                }
+                return res;
+            };
+            
+            yield return combine(R1, translation);
+            yield return combine(R2, translation);
+            yield return combine(R1, -translation);
+            yield return combine(R2, -translation);
         }
 
         bool PositiveDepth(Matrix<float> rotation, Vector3 translation, Vector2 modelPos, Vector2 dataPos)

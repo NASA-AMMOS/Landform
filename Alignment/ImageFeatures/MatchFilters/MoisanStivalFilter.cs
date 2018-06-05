@@ -29,7 +29,8 @@ namespace OPS.Alignment
             this.VirtualLinearCoordinates = virtualLinearCoordinates;
         }
 
-        public EpipolarTransform LastEpipolarTransform;
+        public FundamentalMatrix LastEpipolarTransform;
+        public Matrix LastBestTransform;
         public ImagePairCorrespondence Filter(AlignmentScene scene, ImagePairCorrespondence matches)
         {
             if (matches.DataToModel.Length < MIN_MATCHES)
@@ -41,7 +42,7 @@ namespace OPS.Alignment
             ImageFeature[] modelFeatures = scene.Context.DetectedFeatures[matches.ModelImage];
             ImageFeature[] dataFeatures = scene.Context.DetectedFeatures[matches.DataImage];
 
-            if (VirtualLinearCoordinates)
+            if (VirtualLinearCoordinates && modelImg.CameraModel != null && dataImg.CameraModel != null)
             {
                 FeatureLinearizer lin = new FeatureLinearizer();
                 modelFeatures = lin.Linearize(modelImg.CameraModel, modelFeatures);
@@ -66,10 +67,15 @@ namespace OPS.Alignment
             {
                 goodMatches.Add(matches.DataToModel[idx]);
             }
+
+            Vector2[] dataPointsAfter = goodMatches.Select(pair => dataFeatures[pair.Key].Location).ToArray();
+            Vector2[] modelPointsAfter = goodMatches.Select(pair => modelFeatures[pair.Value].Location).ToArray();
+
+            LastBestTransform = mso.BestTransform;
             logger.Info("Number of residual matches: " + goodMatches.Count);
             return new ImagePairCorrespondence(
                 matches.ModelImage, matches.DataImage,
-                goodMatches);
+                goodMatches, mso.EpipolarTransform);
         }
     }
 }

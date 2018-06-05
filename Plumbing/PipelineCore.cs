@@ -80,10 +80,24 @@ namespace OPS.Plumbing
         /// <summary>
         /// Convenience function to allow pipeline.Load(x) instead of x.Load(pipeline).
         /// </summary>
-        public Image Load(ImageRef imgRef)
+        public Image Load(ImageRef imgRef, bool memoryCache)
         {
+            if (memoryCache)
+            {
+                if (!imageCache.ContainsKey(imgRef))
+                {
+                    imageCache[imgRef] = imgRef.Load(this);
+                }
+                return imageCache[imgRef];
+            }
+
             return imgRef.Load(this);
         }
+        public Image Load(ImageRef imgRef)
+        {
+            return Load(imgRef, true);
+        }
+        private Dictionary<ImageRef, Image> imageCache = new Dictionary<ImageRef, Image>();
 
         /// <summary>
         /// Get a project by name.

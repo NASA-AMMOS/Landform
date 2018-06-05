@@ -56,7 +56,7 @@ namespace OPS.Alignment
             return (projected - new Vector2(p.X, p.Y)).LengthSquared();
         }
 
-        public int AddCameraModel(CAHV c)
+        public int AddCameraModel(Imaging.CameraModel c)
         {
             int res = CameraModels.Count;
             CameraModels.Add(new BundleAdjusterStructures.CameraModel(c));

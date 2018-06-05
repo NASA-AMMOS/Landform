@@ -38,7 +38,7 @@ namespace OPS.Alignment
             {
                 matchVector.Push(new VectorOfDMatch(new MDMatch[]
                 {
-                        new MDMatch() { TrainIdx = indices[i], QueryIdx = i }
+                    new MDMatch() { TrainIdx = indices[i], QueryIdx = i }
                 }));
             }
             Matrix<byte> mask = new Matrix<byte>(feat1.Length, 1);
