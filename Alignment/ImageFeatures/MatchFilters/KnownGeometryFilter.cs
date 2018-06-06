@@ -65,8 +65,8 @@ namespace OPS.Alignment
         {
             SceneNode modelNode = ImageToNode(matches.ModelImage);
             SceneNode dataNode = ImageToNode(matches.DataImage);
-            ImageFeature[] modelFeatures = scene.Context.DetectedFeatures[matches.ModelImage];
-            ImageFeature[] dataFeatures = scene.Context.DetectedFeatures[matches.DataImage];
+            ImageFeature[] modelFeatures = scene.DetectedFeatures[matches.ModelImage];
+            ImageFeature[] dataFeatures = scene.DetectedFeatures[matches.DataImage];
 
             if (modelNode == null || dataNode == null) return matches;
 

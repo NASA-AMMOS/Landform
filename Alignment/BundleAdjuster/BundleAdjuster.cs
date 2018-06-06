@@ -133,7 +133,7 @@ namespace OPS.Alignment
 
                 foreach (var projection in allProjections)
                 {
-                    var feat = scene.Context.DetectedFeatures[projection.Image][projection.Index];
+                    var feat = scene.DetectedFeatures[projection.Image][projection.Index];
 
                     var cameraSpace = GetImage(projection.Image).CameraModel.Unproject(feat.Location);
                     var cameraToWorld = scene.ImageToNode[projection.Image].Transform.LocalToWorld * worldToRoot;
@@ -162,7 +162,7 @@ namespace OPS.Alignment
                     double error = 0;
                     foreach (var proj in track.features)
                     {
-                        var feat = scene.Context.DetectedFeatures[proj.Image][proj.Index];
+                        var feat = scene.DetectedFeatures[proj.Image][proj.Index];
                         var cmod = problem.CameraModels[imageToCamera[proj.Image]];
 
                         var worldToCamera = Matrix.Invert(scene.ImageToNode[proj.Image].Transform.LocalToWorld * worldToRoot);
@@ -209,7 +209,7 @@ namespace OPS.Alignment
                 tracks.Remove(two);
             };
 
-            foreach (var corr in scene.Context.Correspondences)
+            foreach (var corr in scene.Correspondences)
             {
                 var model = corr.Value.ModelImage;
                 var data = corr.Value.DataImage;
@@ -230,7 +230,7 @@ namespace OPS.Alignment
                         featureToTrack[dataFeat] = trackId;
 
                         var track = tracks[trackId] = new Track();
-                        var feat = scene.Context.DetectedFeatures[data][dataFeat.Index];
+                        var feat = scene.DetectedFeatures[data][dataFeat.Index];
                         track.position = Vector3.Transform(dataModel.Model.Unproject(feat.Location, 100), dataToWorld);
                         track.error = 0;
                         track.features.Add(dataFeat);
@@ -241,7 +241,7 @@ namespace OPS.Alignment
                         featureToTrack[modelFeat] = trackId;
 
                         var track = tracks[trackId] = new Track();
-                        var feat = scene.Context.DetectedFeatures[model][modelFeat.Index];
+                        var feat = scene.DetectedFeatures[model][modelFeat.Index];
                         track.position = Vector3.Transform(modelModel.Model.Unproject(feat.Location, 100), modelToWorld);
                         track.error = 0;
                         track.features.Add(modelFeat);
@@ -281,7 +281,7 @@ namespace OPS.Alignment
                 foreach (var projection in track.features)
                 {
                     var img = projection.Image;
-                    var feat = scene.Context.DetectedFeatures[img][projection.Index];
+                    var feat = scene.DetectedFeatures[img][projection.Index];
                     track.projections.Add(problem.AddProjection(imageToCamera[img], imageTransformLists[img].ToArray(), track.pointIdx, feat.Location));
                 }
             }

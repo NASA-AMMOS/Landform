@@ -258,16 +258,16 @@ namespace OPS.Pipeline
 
             bool asift = true;
 
-            scene.Context.DetectedFeatures = new Dictionary<ImageRef, ImageFeature[]>();
+            scene.DetectedFeatures = new Dictionary<ImageRef, ImageFeature[]>();
             Parallel.ForEach(images, imgRef =>
             {
                 var featurePath = Path.Combine(options.OutputPath, Path.GetFileName(((DiskImageRef)imgRef).Path) + ".feat");
                 if (File.Exists(featurePath))
                 {
                     DetectedFeatures defeats = DataProduct.Load<DetectedFeatures>(File.ReadAllBytes(featurePath));
-                    lock (scene.Context.DetectedFeatures)
+                    lock (scene.DetectedFeatures)
                     {
-                        scene.Context.DetectedFeatures[imgRef] = defeats.Features;
+                        scene.DetectedFeatures[imgRef] = defeats.Features;
                     }
                     return;
                 }
@@ -312,9 +312,9 @@ namespace OPS.Pipeline
                     };
                     File.WriteAllBytes(featurePath, feat.Serialize());
                 }
-                lock (scene.Context.DetectedFeatures)
+                lock (scene.DetectedFeatures)
                 {
-                    scene.Context.DetectedFeatures[imgRef] = features;
+                    scene.DetectedFeatures[imgRef] = features;
                 }
             });
             logger.Info("Done.");
@@ -324,24 +324,24 @@ namespace OPS.Pipeline
             FrustumOverlapDetector od = new FrustumOverlapDetector(pipeline);
             if (File.Exists(overlapPath))
             {
-                scene.Context.Overlaps = new HashSet<UnorderedImagePair>(FromJson<List<UnorderedImagePair>>(File.ReadAllText(overlapPath)));
+                scene.Overlaps = new HashSet<UnorderedImagePair>(FromJson<List<UnorderedImagePair>>(File.ReadAllText(overlapPath)));
                 od.MakeHulls(scene);
             }
             else
             {
                 od.Detect(scene);
-                File.WriteAllText(overlapPath, ToJson(scene.Context.Overlaps.ToList()));
+                File.WriteAllText(overlapPath, ToJson(scene.Overlaps.ToList()));
             }
             logger.Info("Done.");
 
             logger.Debug("Candidate image pairs:");
-            foreach (var pair in scene.Context.Overlaps)
+            foreach (var pair in scene.Overlaps)
             {
                 logger.DebugFormat("{0} -> {1}", pair.One.DisplayName, pair.Two.DisplayName);
             }
 
             logger.Info("Finding correspondences...");
-            Serial.ForEach(scene.Context.Overlaps, pair =>
+            Serial.ForEach(scene.Overlaps, pair =>
             {
                 DoCorrespondence(pair, scene, pipeline);
             });
@@ -372,7 +372,7 @@ namespace OPS.Pipeline
                 return parts[0] + "-" + parts[1];
             };
 
-            if (scene.Context.Correspondences.ContainsKey(pair)) return;
+            if (scene.Correspondences.ContainsKey(pair)) return;
 
             var matchName = Path.GetFileNameWithoutExtension(((DiskImageRef)pair.One).Path) + "_x_" + Path.GetFileNameWithoutExtension(((DiskImageRef)pair.Two).Path);
             var matchPath = Path.Combine(options.OutputPath, "matches", "json", matchName + ".json");
@@ -387,7 +387,7 @@ namespace OPS.Pipeline
                 else if (File.Exists(matchImagePath))
                 {
                     ImagePairCorrespondence match = FromJson<ImagePairCorrespondence>(jsonText);
-                    scene.Context.Correspondences[pair] = match;
+                    scene.Correspondences[pair] = match;
                     return;
                 }
             }
@@ -397,8 +397,8 @@ namespace OPS.Pipeline
 
             var model = pair.One;
             var data = pair.Two;
-            var modelFeat = scene.Context.DetectedFeatures[model];
-            var dataFeat = scene.Context.DetectedFeatures[data];
+            var modelFeat = scene.DetectedFeatures[model];
+            var dataFeat = scene.DetectedFeatures[data];
             BruteForceMatcher bfm = new BruteForceMatcher();
 
             var matches = bfm.Match(model, data, modelFeat, dataFeat);
@@ -465,7 +465,7 @@ namespace OPS.Pipeline
                 }
             }
 
-            scene.Context.Correspondences[pair] = matches;
+            scene.Correspondences[pair] = matches;
             File.WriteAllText(matchPath, ToJson(matches));
             MatchImage.WriteMatchImage(pipeline, matches, modelFeat, dataFeat, matchImagePath);
             lock (logger)

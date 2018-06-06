@@ -370,8 +370,8 @@ namespace OPS.Alignment
         public ImagePairCorrespondence Filter(AlignmentScene scene, ImagePairCorrespondence matches)
         {
             // Construct graph
-            ImageFeature[] modelFeat = scene.Context.DetectedFeatures[matches.ModelImage];
-            ImageFeature[] dataFeat = scene.Context.DetectedFeatures[matches.DataImage];
+            ImageFeature[] modelFeat = scene.DetectedFeatures[matches.ModelImage];
+            ImageFeature[] dataFeat = scene.DetectedFeatures[matches.DataImage];
 
             // Create data and model verts and add to graphs           
             List<GTMNode> modelNodes = new List<GTMNode>();
@@ -404,7 +404,7 @@ namespace OPS.Alignment
                 modelGraph.OrderedFeatureIndices(),
                 (dataIdx, modelIdx) => new KeyValuePair<int,int>(dataIdx, modelIdx)
             );
-            return new ImagePairCorrespondence(matches.ModelImage, matches.DataImage, dataToModel);
+            return new ImagePairCorrespondence(matches.ModelImage, matches.DataImage, dataToModel, matches.FundamentalMatrix);
         }
     }
 }

@@ -62,7 +62,14 @@ namespace OPS.Pipeline
 
                 ImageFeature[] features;
                 var img = pipeline.Load(imgRef);
-                OPS.Imaging.Image mask = null;// masks[imgRef];
+                OPS.Imaging.Image mask = new Image(1, img.Width, img.Height);
+                for (int x = 0; x < img.Width; x++)
+                {
+                    for (int y = 0; y < img.Height; y++)
+                    {
+                        mask[0, y, x] = (img[0, y, x] > 20 / 256.0) ? 1 : 0;
+                    }
+                }
                 lock (detector)
                 {
                     try
@@ -87,7 +94,6 @@ namespace OPS.Pipeline
             });
 
             AlignmentScene scene = new AlignmentScene();
-            scene.Context = new MatchingContext();
             Parallel.ForEach(files, f =>
             {
                 var imgRef = new DiskImageRef(f);
@@ -96,9 +102,9 @@ namespace OPS.Pipeline
                 img.CameraModel = new HayabusaCameraModel(120.71 / 1000, 0, img.Width / 1024.0);
 
                 var data = feats[imgRef].Features;
-                lock (scene.Context.DetectedFeatures)
+                lock (scene.DetectedFeatures)
                 {
-                    scene.Context.DetectedFeatures[imgRef] = data;
+                    scene.DetectedFeatures[imgRef] = data;
                 }
             });
 
@@ -185,7 +191,7 @@ namespace OPS.Pipeline
                 return parts[0] + "-" + parts[1];
             };
 
-            if (scene.Context.Correspondences.ContainsKey(pair)) return null;
+            if (scene.Correspondences.ContainsKey(pair)) return null;
 
             var matchName = Path.GetFileNameWithoutExtension(((DiskImageRef)pair.One).Path) + "_x_" + Path.GetFileNameWithoutExtension(((DiskImageRef)pair.Two).Path);
             var matchPath = Path.Combine(options.OutputPath, "matches", "json", matchName + ".json");
@@ -200,7 +206,7 @@ namespace OPS.Pipeline
                 else if (File.Exists(matchImagePath))
                 {
                     ImagePairCorrespondence match = FromJson<ImagePairCorrespondence>(jsonText);
-                    scene.Context.Correspondences[pair] = match;
+                    scene.Correspondences[pair] = match;
                     return null;
                 }
             }
@@ -217,8 +223,8 @@ namespace OPS.Pipeline
 
             var model = pair.One;
             var data = pair.Two;
-            var modelFeat = scene.Context.DetectedFeatures[model];
-            var dataFeat = scene.Context.DetectedFeatures[data];
+            var modelFeat = scene.DetectedFeatures[model];
+            var dataFeat = scene.DetectedFeatures[data];
             BruteForceMatcher bfm = new BruteForceMatcher();
 
             var matches = bfm.Match(model, data, modelFeat, dataFeat);
@@ -230,15 +236,21 @@ namespace OPS.Pipeline
 
             foreach (var filt in filters)
             {
+                var initial = matches.DataToModel.Length;
                 matches = filt.Filter(scene, matches);
+                var left = (matches != null) ? matches.DataToModel.Length : 0;
+                logger.DebugFormat("{0}: {1} -> {2}", filt.GetType().Name, initial, matches);
                 if (matches == null || matches.DataToModel.Length < MIN_MATCHES)
                 {
                     logger.Debug("No matches for " + pairName(model, data));
                     return null;
                 }
             }
+
+            var bestTransform = EpipolarTransformDecomposition.ExtractTransform(scene, matches);
+
             
-            scene.Context.Correspondences[pair] = matches;
+            scene.Correspondences[pair] = matches;
             File.WriteAllText(matchPath, ToJson(matches));
             MatchImage.WriteMatchImage(pipeline, matches, modelFeat, dataFeat, matchImagePath);
 

@@ -258,13 +258,10 @@ namespace OPS.Pipeline
                 return false;
             }
 
-            MatchingContext ctx = new MatchingContext();
-            ctx.DetectedFeatures[modelRef] = modelFeat.Features;
-            ctx.DetectedFeatures[dataRef] = dataFeat.Features;
-            ctx.Correspondences[new UnorderedImagePair(modelRef, dataRef)] = matches;
-
             AlignmentScene scene = new AlignmentScene();
-            scene.Context = ctx;
+            scene.DetectedFeatures[modelRef] = modelFeat.Features;
+            scene.DetectedFeatures[dataRef] = dataFeat.Features;
+            scene.Correspondences[new UnorderedImagePair(modelRef, dataRef)] = matches;
 
             MoisanStivalFilter filter = new MoisanStivalFilter(Pipeline);
             matches = filter.Filter(scene, matches);

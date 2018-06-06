@@ -65,7 +65,7 @@ namespace OPS.Pipeline
             FrustumOverlapDetector fod = new FrustumOverlapDetector(Pipeline);
             fod.Detect(scene);
 
-            foreach (var overlap in scene.Context.Overlaps)
+            foreach (var overlap in scene.Overlaps)
             {
                 var one = refToObservation[overlap.One];
                 var two = refToObservation[overlap.Two];

@@ -12,7 +12,10 @@ namespace OPS.Alignment
 {
     public class EpipolarTransformDecomposition
     {
-        public static IEnumerable<Matrix> PossibleTransforms(FundamentalMatrix f)
+        /// <summary>
+        /// Enumerate all possible rigid transforms corresponding to a fundamental matrix.
+        /// </summary>
+        public static IEnumerable<Matrix<double>> PossibleTransforms(FundamentalMatrix f)
         {
             var F = f.matrix.ToMathNet(dimension: 3).Transpose();
             var svd = F.Svd(computeVectors: true);
@@ -31,13 +34,29 @@ namespace OPS.Alignment
             if (R1.Determinant() < 0) R1 = -R1;
             if (R2.Determinant() < 0) R2 = -R2;
 
-            yield return R1.Transpose().ToXna() * Matrix.CreateTranslation(translation);
-            yield return R2.Transpose().ToXna() * Matrix.CreateTranslation(translation);
-            yield return R1.Transpose().ToXna() * Matrix.CreateTranslation(-translation);
-            yield return R2.Transpose().ToXna() * Matrix.CreateTranslation(-translation);
+            Func<Matrix<double>, Vector<double>, Matrix<double>> combine = (rot, t) =>
+            {
+                var res = CreateMatrix.Dense<double>(4, 4);
+                res.SetSubMatrix(0, 3, 0, 3, rot);
+                res.SetColumn(3, 0, 3, t);
+                return res;
+            };
+
+            yield return combine(R1, tC);
+            yield return combine(R1, -tC);
+            yield return combine(R2, tC);
+            yield return combine(R2, -tC);
         }
 
-        public static Matrix ExtractTransform(FundamentalMatrix f, Vector2[] modelPoints, Vector2[] dataPoints)
+        /// <summary>
+        /// Compute the "best" rigid transform corresponding to a fundamental matrix, where best
+        /// means resulting in the most 3D points being in front of both cameras
+        /// </summary>
+        /// <param name="f">Fundamental matrix</param>
+        /// <param name="modelPoints">Points in model image</param>
+        /// <param name="dataPoints">Points in data image</param>
+        /// <returns>Matrix from model frame to data frame</returns>
+        public static Matrix ExtractTransform(FundamentalMatrix f, Vector2[] modelPoints, Vector2[] dataPoints, out bool[] mask)
         {
             if (modelPoints.Length != dataPoints.Length)
             {
@@ -46,12 +65,14 @@ namespace OPS.Alignment
             Matrix bestTransform = new Matrix();
             int bestPositiveDepth = -1;
 
+            mask = null;
             foreach (var mat in PossibleTransforms(f))
             {
-                var mM = mat.ToMathNet();
-                var r1 = mM.Row(0).SubVector(0, 3);
-                var r3 = mM.Row(2).SubVector(0, 3);
-                var t = mat.Translation.ToMathNet();
+                var r1 = mat.Row(0).SubVector(0, 3);
+                var r3 = mat.Row(2).SubVector(0, 3);
+                var t = mat.Column(3).SubVector(0, 3);
+
+                bool[] thisMask = new bool[modelPoints.Length];
 
                 int positiveDepth = 0;
                 for (int i = 0; i < modelPoints.Length; i++)
@@ -60,13 +81,22 @@ namespace OPS.Alignment
                     var pd = dataPoints[i];
 
                     double z = (r1 - pd.X * r3).DotProduct(t) /(r1 - pd.X * r3).DotProduct(CreateVector.DenseOfArray(new[] { pm.X, pm.Y, 1 }));
-                    if (z >= 0) positiveDepth++;
+                    if (z >= 0)
+                    {
+                        positiveDepth++;
+                        thisMask[i] = true;
+                    }
+                    else
+                    {
+                        thisMask[i] = false;
+                    }
                 }
 
                 if (positiveDepth > bestPositiveDepth)
                 {
                     bestPositiveDepth = positiveDepth;
-                    bestTransform = mat;
+                    bestTransform = mat.Transpose().ToXna();
+                    mask = thisMask;
                 }
             }
 
@@ -80,9 +110,9 @@ namespace OPS.Alignment
                 throw new Exception("Match must have computed fundamental matrix");
             }
 
-            var modelPoints = match.DataToModel.Select(d2m => scene.Context.DetectedFeatures[match.ModelImage][d2m.Value].Location).ToArray();
-            var dataFeatures = match.DataToModel.Select(d2m => scene.Context.DetectedFeatures[match.DataImage][d2m.Key].Location).ToArray();
-            return ExtractTransform(match.FundamentalMatrix, modelPoints, dataFeatures);
+            var modelPoints = match.DataToModel.Select(d2m => scene.DetectedFeatures[match.ModelImage][d2m.Value].Location).ToArray();
+            var dataFeatures = match.DataToModel.Select(d2m => scene.DetectedFeatures[match.DataImage][d2m.Key].Location).ToArray();
+            return ExtractTransform(match.FundamentalMatrix, modelPoints, dataFeatures, out bool[] ignoredMask);
         }
     }
 }
