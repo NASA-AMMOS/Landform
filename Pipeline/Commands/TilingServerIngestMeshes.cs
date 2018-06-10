@@ -1,0 +1,256 @@
+﻿using CommandLine;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using Microsoft.Xna.Framework;
+using OPS.Geometry;
+using OPS.Pipeline;
+using OPS.Imaging;
+using System.IO;
+using log4net;
+using Newtonsoft.Json;
+
+namespace OPS
+{
+
+
+    [Verb("tilingserveringestmeshes", HelpText = "Ingests a set of meshes to be tiled")]
+    public class TilingServerIngestMeshesOptions
+    {
+        [Value(0, Required = true, HelpText = "Output directory", Default = null)]
+        public string OutputDirectory { get; set; }
+
+        [Value(1, Required = true, HelpText = "Filename of mesh")]
+        public string InputMesh { get; set; }
+
+        [Value(2, Required = false, HelpText = "Filename of texture", Default =null)]
+        public string InputTexture { get; set; }
+
+        [Option(Required = false, Default = 2000, HelpText = "Target maximum faces per tile")]
+        public int TargetFacesPerTile { get; set; }
+
+        [Option(Required = false, Default = 256, HelpText = "Maximum image resolution per tile")]
+        public int MaxResolutionPerTile { get; set; }
+
+        [Option(Required = false, Default = SchemeOption.OCT, HelpText = "Tiling scheme")]
+        public SchemeOption TilingScheme { get; set; }
+
+        [Option(Required = false, Default = null, HelpText = "Axis to use as up in quad tree tiling")]
+        public SkirtAxis? SkirtAxis { get; set; }
+        
+        [Option(Required = false, Default = "b3dm", HelpText = "Mesh Extension")]
+        public string MeshExtension { get; set; }
+
+        [Option(Required = false, Default = "jpg", HelpText = "Image Extension")]
+        public string ImageExtension { get; set; }
+
+        // TODO:  Add uv atlas option
+    }
+
+    public enum SchemeOption
+    {
+        QUAD,
+        OCT
+    }
+
+    public class TilingServerIngestMeshes
+    {
+        private static readonly ILog logger = LogManager.GetLogger(typeof(TilingServerIngestMeshes));
+
+
+        TilingServerIngestMeshesOptions options;
+
+        bool SkirtsEnabled { get { return options.SkirtAxis.HasValue;/*options.TilingScheme == SchemeOption.QUAD;*/ } }
+
+        class TilingInput
+        {
+            public BoundingBox TotalBounds;
+            public List<TilingInputDataset> Datasets;
+
+            public TilingInput()
+            {
+                this.Datasets = new List<TilingInputDataset>();
+            }
+
+            public void AddDataset(TilingInputDataset dataset)
+            {
+                if (this.Datasets.Count == 0)
+                {
+                    TotalBounds = dataset.MeshOperator.Bounds;
+                }
+                TotalBounds = BoundingBoxExtensions.Union(TotalBounds, dataset.MeshOperator.Bounds);
+                this.Datasets.Add(dataset);
+            }
+
+            public IEnumerable<BoundingBox> FilterEmptyBounds(IEnumerable<BoundingBox> boxes)
+            {
+                List<BoundingBox> results = new List<BoundingBox>();
+                foreach(var b in boxes)
+                {
+                    // TODO: add spatial lookup to support large numbers of input meshes
+                    foreach(var dataset in Datasets)
+                    {
+                        if(!dataset.MeshOperator.Empty(b))
+                        {
+                            results.Add(b);
+                            break;
+                        }
+                    }
+                }
+                return results;
+            }
+
+            public bool ShouldSplit(ITileSplitCriteria splitCriteria, BoundingBox box)
+            {
+                foreach (var dataset in Datasets)
+                {
+                    // TODO: add spatial lookup to support large numbers of input meshes
+                    if (splitCriteria.ShouldSplit(dataset.MeshOperator, box))
+                    {
+                        return true;
+                    }
+                }
+                return false;
+            }
+
+            public Mesh Clip(BoundingBox box)
+            {
+                var meshes = this.Datasets.Where(d => !d.MeshOperator.Empty(box)).Select(d => d.MeshOperator.Clip(box)).ToArray();
+                return Mesh.Merge(meshes);
+            }
+        }
+
+        class TilingInputDataset
+        {
+            public Mesh Mesh;
+            public Image Image;
+            public MeshOperator MeshOperator;
+
+            public TilingInputDataset(string meshFilename, string imageFilename)
+            {
+                this.Mesh = Mesh.Load(meshFilename);
+                if(!this.Mesh.HasNormals)
+                {
+                    this.Mesh.GenerateVertexNormals();
+                }
+                this.MeshOperator = new MeshOperator(this.Mesh);
+                if (imageFilename != null)
+                {
+                    this.Image = Image.Load(imageFilename);
+                }
+            }
+        }
+
+        public TilingServerIngestMeshes(TilingServerIngestMeshesOptions opts)
+        {
+            this.options = opts;
+        }
+
+        public int Run()
+        {
+
+            logger.Info("Loading Input");
+            TilingInput input = new TilingInput();
+            input.AddDataset(new TilingInputDataset(options.InputMesh, options.InputTexture));
+            ITilingScheme scheme;
+            if (options.TilingScheme == SchemeOption.OCT)
+            {
+                scheme = new OctreeTilingScheme();
+            }
+            else
+            {
+                scheme = new QuadTreeTilingScheme(options.SkirtAxis.Value);
+            }
+            // TODO: Add image size criteria
+            ITileSplitCriteria splitCriteria = new FaceLimitSplitCriteria(options.TargetFacesPerTile);
+            logger.Info("Computing tree bounds");
+            SceneNode root = BuildBoundsTree(input, scheme, splitCriteria);
+            logger.Info("Process leaf nodes");
+            ProcessLeafNodes(input, root);
+            logger.Info("Generate parents");
+            BuildParents(root);
+            logger.Info("Generate tileset");
+            Tile3DBuilder builder = new Tile3DBuilder(root);
+            builder.BuildTileset(NodeToUrl, false);
+            string jsonData = JsonConvert.SerializeObject(builder.Tileset, Formatting.None);
+            File.WriteAllText(Path.Combine(options.OutputDirectory, "tileset.json"), jsonData);
+            return 0;
+        }
+
+        string NodeToUrl(SceneNode node)
+        {
+            return node.Name + ".b3dm";
+        }
+
+        SceneNode BuildBoundsTree(TilingInput input, ITilingScheme tilingScheme, ITileSplitCriteria splitCriteria)
+        {
+            SceneNode root = new SceneNode("");
+            root.AddComponent(new NodeBounds(input.TotalBounds));
+            Queue<SceneNode> queue = new Queue<SceneNode>();
+            queue.Enqueue(root);
+            while(queue.Count > 0 )
+            {
+                SceneNode cur = queue.Dequeue();
+                var curBounds = cur.GetComponent<NodeBounds>().Bounds;
+                if (!input.ShouldSplit(splitCriteria, curBounds))
+                {
+                    continue;
+                }
+                var childBounds = tilingScheme.Split(null, curBounds);
+                childBounds = input.FilterEmptyBounds(childBounds);
+                int counter = 0;
+                foreach(var childBound in childBounds)
+                {
+                    SceneNode child = new SceneNode(cur.Name + counter, cur.Transform);
+                    child.AddComponent(new NodeBounds(childBound));
+                    queue.Enqueue(child);
+                    counter++;
+                }                
+            }
+            root.Name = "root";
+            return root;
+        }
+
+        void ProcessLeafNodes(TilingInput input, SceneNode root)
+        {
+            Parallel.ForEach(root.Leaves(), node =>
+            {
+                logger.Info("Leaf: " + node.Name);
+                Mesh m = input.Clip(node.GetComponent<NodeBounds>().Bounds);
+                // TODO: UV and create image
+                if (SkirtsEnabled)
+                {
+                    m.AddSkirt(options.SkirtAxis.Value);
+                    node.GetComponent<NodeBounds>().Bounds = m.Bounds();
+                }
+                node.AddComponent(new MeshImagePair(m, null));
+                node.AddComponent(new NodeGeometricError(0));
+                node.SaveMesh(options.OutputDirectory, meshExtension:  options.MeshExtension, imageExtension: options.ImageExtension );
+            });
+        }
+
+        void BuildParents(SceneNode root)
+        {
+            foreach (var group in root.GetReverseDepthGroups())
+            {
+                Parallel.ForEach(group, node =>
+                {
+                    // Check to see all children have meshes, otherwise defere processing
+                    if (!node.AllChildrenHaveMeshes())
+                    {
+                        return;
+                    }
+                    logger.Info("Parent: " + node.Name);
+                    //if (node.Name == "4")
+                    //{
+                    //     int foo = 3;
+                    //}
+                    node.BuildGeometryFromChildren(root, options.TargetFacesPerTile, options.MaxResolutionPerTile, options.SkirtAxis);
+                    node.SaveMesh(options.OutputDirectory, meshExtension: options.MeshExtension, imageExtension: options.ImageExtension);
+                });
+            }
+        }
+    }
+}

@@ -142,7 +142,7 @@ namespace OPS.Pipeline
                         meshCopy.ClearNormals();
                         meshCopy.Clean();
                         MeshOperator mo = new MeshOperator(meshCopy);
-                        var tilingScheme = new QuadTreeTilingScheme(QuadTreeTilingScheme.SplitDirection.Y);
+                        var tilingScheme = new QuadTreeTilingScheme(SkirtAxis.Y);
                         var boxes = tilingScheme.Split(mo, mo.Bounds);
                         int i = 0;
                         foreach (var box in boxes)
@@ -172,6 +172,7 @@ namespace OPS.Pipeline
 
             var depthGroups = terrainRoot.DepthFirstTraverse().Where(n => !n.IsLeaf).GroupBy(n => n.Transform.Depth()).OrderBy(g => -g.Key);
 
+            // TODO: this should be removable in the future with the new BuildGeometryFromChildren method
             logger.Info("Generate bounds");
             foreach (var group in depthGroups)
             {
@@ -206,6 +207,7 @@ namespace OPS.Pipeline
             return 0;
         }
 
+        // TODO: replace with version in SceneNodeTilingExtensions
         public List<SceneNode> FindSceneNodes(SceneNode root, int minDepth, BoundingBox box)
         {
             List<SceneNode> result = new List<SceneNode>();
@@ -239,6 +241,7 @@ namespace OPS.Pipeline
             return result;
         }
 
+        // TODO replace with version in SceneNodeTilingExtensions
         public void BuildParent(SceneNode root, SceneNode parent)
         {
             logger.Info("Creating parent data:" + parent.Name);
@@ -262,7 +265,7 @@ namespace OPS.Pipeline
             targetFaces = Math.Min(targetFaces, options.MaxFacesPerTile);
             // Minimum bounds is a tight fitting bounding box around the child meshes with skirts
             BoundingBox minimumBounds = parent.GetComponent<NodeBounds>().Bounds;
-            Mesh combinedDecimated = LegacyToWebVR.ResampleDecimation(combinedFull, targetFaces, clippingBounds:minimumBounds, cornerDirection: Vector3.Up);
+            Mesh combinedDecimated = combinedFull.ResampleDecimation(targetFaces, clippingBounds:minimumBounds, cornerDirection: Vector3.Up);
             combinedDecimated.Clean();
             if (!parent.HasComponent<NodeGeometricError>())
             {
@@ -302,6 +305,7 @@ namespace OPS.Pipeline
             mesh.AddSkirt(SkirtAxis.Y);
         }
 
+        // TODO: replace with version in SceneNodeTilingExtensions
         void SaveNode(SceneNode node, string imageFormat)
         {
             var pair = node.GetComponent<MeshImagePair>();

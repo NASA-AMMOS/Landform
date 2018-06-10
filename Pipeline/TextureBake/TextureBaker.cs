@@ -11,11 +11,59 @@ using RTree;
 using log4net;
 using System.Threading;
 using static OPS.Geometry.Triangle;
+using OPS.MathExtensions;
 
 namespace OPS.Pipeline
 {
     public static class TextureBaker
     {
+        /// <summary>
+        /// Returns the total texture area in pixels covered by this mesh
+        /// </summary>
+        /// <param name="mesh"></param>
+        /// <param name="image"></param>
+        /// <returns></returns>
+        public static double ComputePixelArea(Mesh mesh, Image image)
+        {
+            if(image == null || !mesh.HasUVs)
+            {
+                return 0;
+            }
+            double totalPixels = 0;
+            var triangles = mesh.Triangles();
+            foreach (var t in triangles)
+            {
+                Vector3 a = new Vector3(image.UVToPixel(t.V0.UV), 0);
+                Vector3 b = new Vector3(image.UVToPixel(t.V1.UV), 0);
+                Vector3 c = new Vector3(image.UVToPixel(t.V2.UV), 0);
+                var pixelTri = new Triangle(a, b, c);
+                if (double.IsNaN(pixelTri.Area()))
+                {
+                    throw new Exception("Triangle area not a number");
+                }
+                totalPixels += pixelTri.Area();
+            }
+            return totalPixels;
+        }
+
+        /// <summary>
+        /// Given an area measured in pixels squared, return the dimension (width/height) of the smallest square image
+        /// large enough to contain that area
+        /// </summary>
+        /// <param name="areaInPixels"></param>
+        /// <returns></returns>
+        public static int PixelAreaToSquareDimension(double areaInPixels)
+        {
+            if(areaInPixels == 0)
+            {
+                return 0;
+            }
+            double size = Math.Sqrt(areaInPixels);
+            size = MathE.CeilPowerOf2(size);
+            size = Math.Min(size, areaInPixels);
+            return (int)size;
+        }
+
         public static Image BakeTexture(MeshImagePair[] source, Mesh dest, int destWidth, int destHeight, int padWidth = -1)
         {
             // r tree for efficient uv to xyz conversion

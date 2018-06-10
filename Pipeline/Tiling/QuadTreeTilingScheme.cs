@@ -10,23 +10,14 @@ namespace OPS.Pipeline
 {
     public class QuadTreeTilingScheme : ITilingScheme
     {
-        /// <summary>
-        /// Which axis are we splitting along
-        /// </summary>
-        public enum SplitDirection
-        {
-            X,
-            Y,
-            Z
-        }
 
-        public SplitDirection Direction { get; private set;  }
+        public SkirtAxis Direction { get; private set;  }
 
         /// <summary>
         /// Split direction defines the axis that will not be subdivided
         /// </summary>
         /// <param name="direction"></param>
-        public QuadTreeTilingScheme(SplitDirection direction)
+        public QuadTreeTilingScheme(SkirtAxis direction)
         {
             this.Direction = direction;
         }
@@ -40,7 +31,7 @@ namespace OPS.Pipeline
         public IEnumerable<BoundingBox> Split(MeshOperator meshOperator, BoundingBox box)
         {
             List<BoundingBox> boxes = new List<BoundingBox>();
-            if (Direction == SplitDirection.Z)
+            if (Direction == SkirtAxis.Z)
             {
 
                 // Split in the XY dimension to produce 4 boxes
@@ -52,7 +43,7 @@ namespace OPS.Pipeline
                 boxes.Add(new BoundingBox(new Vector3(box.Min.X, mid.Y, box.Min.Z), new Vector3(mid.X, box.Max.Y, box.Max.Z)));
                 boxes.Add(new BoundingBox(new Vector3(mid.X, mid.Y, box.Min.Z), new Vector3(box.Max.X, box.Max.Y, box.Max.Z)));               
             }
-            else if(Direction == SplitDirection.Y)
+            else if(Direction == SkirtAxis.Y)
             {
                 // Split in the XZ dimension to produce 4 boxes
                 // C D
@@ -83,13 +74,13 @@ namespace OPS.Pipeline
         public BoundingBox ExpandBounds(BoundingBox currentBounds, BoundingBox desiredBounds)
         {
             // Allow expansion in the z direction
-            if (Direction == SplitDirection.Z)
+            if (Direction == SkirtAxis.Z)
             {
                 currentBounds.Min.Z = Math.Min(currentBounds.Min.Z, desiredBounds.Min.Z);
                 currentBounds.Max.Z = Math.Max(currentBounds.Max.Z, desiredBounds.Max.Z);
                 return currentBounds;
             }
-            else if (Direction == SplitDirection.Y)
+            else if (Direction == SkirtAxis.Y)
             {
                 currentBounds.Min.Y = Math.Min(currentBounds.Min.Y, desiredBounds.Min.Y);
                 currentBounds.Max.Y = Math.Max(currentBounds.Max.Y, desiredBounds.Max.Y);

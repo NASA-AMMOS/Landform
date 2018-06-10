@@ -184,37 +184,7 @@ namespace OPS.Pipeline
             v = 1 - (yp + 1) / 2;
         }
 
-        public static Mesh ResampleDecimation(Mesh m, int numFaces = 2000, BoundingBox? clippingBounds = null, Vector3? cornerDirection = null)
-        {
-            m.Clean();
-            if (!m.HasNormals || m.ContainsZeroLengthNormals())
-            {
-                m = new Mesh(m);
-                m.GenerateVertexNormals();
-            }
-            m.NormalizeNormals();
-            Mesh pc = new SurfacePointSampler().GenerateSampledMesh(m, numFaces / m.SurfaceArea());
-            pc.HasUVs = false;
-            // TODO: Why do we need to normalize here, issue with GenerateSampledMesh?
-            pc.NormalizeNormals();
-            Mesh reconstructed = PoissonReconstruction.PoissonReconstruct(pc); //FSSR.Reconstruct(pc);//
-            
-            if (clippingBounds.HasValue)
-            {
-                reconstructed = Mesh.Clip(reconstructed, clippingBounds.Value);
-            }
-            reconstructed.Clean();
-            List<Vertex> corners = null;
-            if (cornerDirection.HasValue)
-            {
-                corners = reconstructed.Corners(cornerDirection.Value);
-            }
-            Mesh decimated = EdgeCollapse.QuadricEdgeCollapse(reconstructed, numFaces, perimeterPenaltyFactor:20, notTouched: corners);
-            decimated.Clean();
-            decimated.GenerateVertexNormals();
-            return decimated;
-        }
-
+        // TODO: Yse SceneNodeTilingExtensions version instead
         public static int ComputeParentTileResolution(IEnumerable<MeshImagePair> pairs, BoundingBox cropBounds, int maxTextureSize = int.MaxValue)
         {
 
@@ -298,7 +268,7 @@ namespace OPS.Pipeline
                 logger.Info("Creating low poly collision mesh");
                 var meshes = innerNodes.SelectMany(leaf => FindOverlappingLeaves(leaf, scene.TerrainRoot)).Select(node => node.GetComponent<MeshImagePair>().Mesh).ToArray();
                 var m = Mesh.Merge(false, false, false, meshes);
-                m = ResampleDecimation(m, 2000, m.Bounds(), new Vector3(0, 1, 0)); 
+                m = m.ResampleDecimation(2000, m.Bounds(), new Vector3(0, 1, 0)); 
                 m.Clean();
                 m = Mesh.Clip(m, innerBounds);
                 m.Clean();
@@ -327,7 +297,7 @@ namespace OPS.Pipeline
                 
 
                 Mesh border = Mesh.Merge(outterNodes.Select(n => n.GetComponent<MeshImagePair>().Mesh).ToArray());
-                border = ResampleDecimation(border, backgroundFaces, border.Bounds(), new Vector3(0, 1, 0));//MeshLab.ResampleDecimation(border, backgroundFaces * 10, backgroundFaces);
+                border = border.ResampleDecimation(backgroundFaces, border.Bounds(), new Vector3(0, 1, 0));//MeshLab.ResampleDecimation(border, backgroundFaces * 10, backgroundFaces);
                 border = Mesh.Cut(border, innerBounds);
                 border.Clean();
 
@@ -389,7 +359,7 @@ namespace OPS.Pipeline
                     targetFaces = nameToFaceCount[leaf.Name];
                 }
                 int faces = Math.Min(m.Faces.Count, targetFaces);
-                m = ResampleDecimation(m, faces, leaf.GetOrAddComponent<NodeBounds>().Bounds, new Vector3(0, 1, 0));
+                m = m.ResampleDecimation(faces, leaf.GetOrAddComponent<NodeBounds>().Bounds, new Vector3(0, 1, 0));
              
                 //m = MeshLab.ResampleDecimation(m, numSamples: targetFaces*10, targetFaces: targetFaces);
                 //m = Mesh.Clip(m, leaf.Bounds);
