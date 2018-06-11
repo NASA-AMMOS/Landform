@@ -32,12 +32,12 @@ namespace OPS.Geometry
                 corners = reconstructed.Corners(cornerDirection.Value);
             }
             Mesh decimated = EdgeCollapse.QuadricEdgeCollapse(reconstructed, targetNumberOfFaces, perimeterPenaltyFactor: 20, notTouched: corners);
+            decimated.Clean();
+            decimated.GenerateVertexNormals();
             if (clippingBounds.HasValue)
             {
                 decimated = Mesh.Clip(decimated, clippingBounds.Value);
             }
-            decimated.Clean();
-            decimated.GenerateVertexNormals();
             return decimated;
         }
     }
