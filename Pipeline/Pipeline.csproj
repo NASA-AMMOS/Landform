@@ -200,6 +200,7 @@
     <Compile Include="TextureBake\TexturedTriangle.cs" />
     <Compile Include="Tiling\BaselineAtlaser.cs" />
     <Compile Include="Tiling\BaselineImageProducer.cs" />
+    <Compile Include="Tiling\BinaryTreeTilingScheme.cs" />
     <Compile Include="Tiling\DefaultLeafTileContentProducer.cs" />
     <Compile Include="Tiling\DefaultParentTileContentProducer.cs" />
     <Compile Include="Tiling\FaceLimitSplitCriteria.cs" />

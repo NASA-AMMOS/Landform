@@ -122,7 +122,8 @@ namespace OPS.Pipeline
             combinedFull = Mesh.Clip(combinedFull, searchBounds);
             combinedFull.NormalizeNormals();
             // TODO: handle the fact that we are reconstucting a larger area so we should inflate the number of faces cleverly
-            int targetFaces = combinedFull.Faces.Count() / 3;  // could do 4 but lets try 3 for some extra around the edges
+            // TODO: Don't use 3 that only works for quad trees, this should be based off number of children
+            int targetFaces = combinedFull.Faces.Count() / node.ChildCount/*3*/;  // could do 4 but lets try 3 for some extra around the edges
             targetFaces = Math.Min(targetFaces, maxFaceCountTarget);
             // Minimum bounds is a tight fitting bounding box around the child meshes with skirts
             BoundingBox minimumBounds = node.GetComponent<NodeBounds>().Bounds;

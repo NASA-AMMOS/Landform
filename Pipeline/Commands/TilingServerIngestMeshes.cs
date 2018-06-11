@@ -34,7 +34,7 @@ namespace OPS
         [Option(Required = false, Default = 256, HelpText = "Maximum image resolution per tile")]
         public int MaxResolutionPerTile { get; set; }
 
-        [Option(Required = false, Default = SchemeOption.OCT, HelpText = "Tiling scheme")]
+        [Option(Required = false, Default = SchemeOption.BIN, HelpText = "Tiling scheme")]
         public SchemeOption TilingScheme { get; set; }
 
         [Option(Required = false, Default = null, HelpText = "Axis to use as up in quad tree tiling")]
@@ -52,7 +52,8 @@ namespace OPS
     public enum SchemeOption
     {
         QUAD,
-        OCT
+        OCT,
+        BIN
     }
 
     public class TilingServerIngestMeshes
@@ -150,12 +151,16 @@ namespace OPS
 
         public int Run()
         {
-
+            OPS.Util.PathHelper.EnsureExists(options.OutputDirectory);
             logger.Info("Loading Input");
             TilingInput input = new TilingInput();
             input.AddDataset(new TilingInputDataset(options.InputMesh, options.InputTexture));
             ITilingScheme scheme;
-            if (options.TilingScheme == SchemeOption.OCT)
+            if (options.TilingScheme == SchemeOption.BIN)
+            {
+                scheme = new BinaryTreeTilingScheme();
+            }
+            else if (options.TilingScheme == SchemeOption.OCT)
             {
                 scheme = new OctreeTilingScheme();
             }
@@ -228,6 +233,7 @@ namespace OPS
                 node.AddComponent(new MeshImagePair(m, null));
                 node.AddComponent(new NodeGeometricError(0));
                 node.SaveMesh(options.OutputDirectory, meshExtension:  options.MeshExtension, imageExtension: options.ImageExtension );
+                logger.Info(m.Faces.Count);
             });
         }
 
@@ -249,6 +255,7 @@ namespace OPS
                     //}
                     node.BuildGeometryFromChildren(root, options.TargetFacesPerTile, options.MaxResolutionPerTile, options.SkirtAxis);
                     node.SaveMesh(options.OutputDirectory, meshExtension: options.MeshExtension, imageExtension: options.ImageExtension);
+                    logger.Info(node.GetComponent<MeshImagePair>().Mesh.Faces.Count);
                 });
             }
         }
