@@ -73,7 +73,7 @@ namespace PairViewer
         public PairViewerForm()
         {
             InitializeComponent();
-            Pipeline = new PipelineCore(false, false);
+            Pipeline = new PipelineCore(false, false, s3Url: "");
 
             Locations = new MSLLocations();
             Scene = new AlignmentScene();

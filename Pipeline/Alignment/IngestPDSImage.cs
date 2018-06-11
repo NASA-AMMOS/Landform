@@ -182,10 +182,9 @@ namespace OPS.Pipeline
             {
                 throw new InvalidOperationException("hey now, let's not get *too* weird");
             }
-
-            S3ImageRef imgS3 = (S3ImageRef)imgRef;
+            
             // Parse the filename to quickly rule out data products we know we don't care about.
-            if (!CheckFilename(Path.GetFileName(imgS3.Url)))
+            if (!CheckFilename(imgRef.Url))
             {
                 return new Result(Status.Skipped, null);
             }
@@ -250,7 +249,7 @@ namespace OPS.Pipeline
             if (observation == null)
             {
                 string cameraModel = JsonHelper.ToJson(metadata.CameraModel);
-                observation = RoverObservation.Create(DynamoDB, observationFrame, observationName, imgS3.Url, productTypeToObservationType[parser.DerivedImageType].ToString(), cameraModel, UseForReconstruction(parser, metadata), parser.Site, parser.Drive, parser.ProductId.Version, parser.Camera.ToString(), parser.ImageSizeType.ToString(), metadata.Width, metadata.Height);
+                observation = RoverObservation.Create(DynamoDB, observationFrame, observationName, imgRef.Url, productTypeToObservationType[parser.DerivedImageType].ToString(), cameraModel, UseForReconstruction(parser, metadata), parser.Site, parser.Drive, parser.ProductId.Version, parser.Camera.ToString(), parser.ImageSizeType.ToString(), metadata.Width, metadata.Height);
                 if (observation != null) {
                     return new Result(Status.Added, observation);
                 }

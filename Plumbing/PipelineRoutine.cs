@@ -38,7 +38,7 @@ namespace OPS.Plumbing
 
         public DynamoDBContext DynamoDB
         {
-            get { return Pipeline.DynamoDB; }
+            get { return Pipeline.DynamoContext; }
         }
     }
 }

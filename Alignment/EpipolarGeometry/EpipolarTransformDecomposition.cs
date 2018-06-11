@@ -13,9 +13,9 @@ namespace OPS.Alignment
     public class EpipolarTransformDecomposition
     {
         /// <summary>
-        /// Enumerate all possible rigid transforms corresponding to a fundamental matrix.
+        /// Enumerate all possible rigid transforms corresponding to an essential matrix.
         /// </summary>
-        public static IEnumerable<Matrix<double>> PossibleTransforms(FundamentalMatrix f)
+        public static IEnumerable<Matrix<double>> PossibleTransforms(EpipolarMatrix f)
         {
             var F = f.matrix.ToMathNet(dimension: 3).Transpose();
             var svd = F.Svd(computeVectors: true);
@@ -27,6 +27,7 @@ namespace OPS.Alignment
 
             var tC = svd.U.Column(2);
             var translation = tC.ToXna();
+            var honk = svd.W;
 
             var R1 = svd.U * W * svd.VT;
             var R2 = svd.U * W.Transpose() * svd.VT;
@@ -49,14 +50,14 @@ namespace OPS.Alignment
         }
 
         /// <summary>
-        /// Compute the "best" rigid transform corresponding to a fundamental matrix, where best
+        /// Compute the "best" rigid transform corresponding to an essential matrix, where best
         /// means resulting in the most 3D points being in front of both cameras
         /// </summary>
-        /// <param name="f">Fundamental matrix</param>
+        /// <param name="e">Essential matrix</param>
         /// <param name="modelPoints">Points in model image</param>
         /// <param name="dataPoints">Points in data image</param>
         /// <returns>Matrix from model frame to data frame</returns>
-        public static Matrix ExtractTransform(FundamentalMatrix f, Vector2[] modelPoints, Vector2[] dataPoints, out bool[] mask)
+        public static Matrix ExtractTransform(EpipolarMatrix e, Vector2[] modelPoints, Vector2[] dataPoints, out bool[] mask)
         {
             if (modelPoints.Length != dataPoints.Length)
             {
@@ -66,22 +67,34 @@ namespace OPS.Alignment
             int bestPositiveDepth = -1;
 
             mask = null;
-            foreach (var mat in PossibleTransforms(f))
+            foreach (var mat in PossibleTransforms(e))
             {
-                var r1 = mat.Row(0).SubVector(0, 3);
-                var r3 = mat.Row(2).SubVector(0, 3);
-                var t = mat.Column(3).SubVector(0, 3);
-
                 bool[] thisMask = new bool[modelPoints.Length];
 
+                Matrix<double> A = CreateMatrix.Dense<double>(4, 4);
+
+                var pointPos = new[] { modelPoints, dataPoints };
+                var projMats = new[] { CreateMatrix.DenseIdentity<double>(4).SubMatrix(0, 3, 0, 4), mat.SubMatrix(0, 3, 0, 4) };
                 int positiveDepth = 0;
                 for (int i = 0; i < modelPoints.Length; i++)
                 {
-                    var pm = modelPoints[i];
-                    var pd = dataPoints[i];
+                    for (int j = 0; j < 2; j++)
+                    {
+                        var pt = pointPos[j][i];
+                        var proj = projMats[j];
+                        A.SetRow(j * 2 + 0, pt.X * (proj.Row(2) - proj.Row(0)));
+                        A.SetRow(j * 2 + 1, pt.Y * (proj.Row(2) - proj.Row(1)));
+                    }
 
-                    double z = (r1 - pd.X * r3).DotProduct(t) /(r1 - pd.X * r3).DotProduct(CreateVector.DenseOfArray(new[] { pm.X, pm.Y, 1 }));
-                    if (z >= 0)
+                    var aSvd = A.Svd();
+                    var dingus = aSvd.S;
+                    var homogenous = aSvd.VT.Column(3);
+                    homogenous /= homogenous[3];
+                    var projModel = projMats[0] * homogenous;
+                    var projData = projMats[1] * homogenous;
+
+                    bool keep = (projModel[2] >= 0 && projData[2] >= 0);
+                    if (keep)
                     {
                         positiveDepth++;
                         thisMask[i] = true;
@@ -90,6 +103,16 @@ namespace OPS.Alignment
                     {
                         thisMask[i] = false;
                     }
+                    /*
+                    var r1 = mat.Row(0).SubVector(0, 3);
+                    var r3 = mat.Row(2).SubVector(0, 3);
+                    var t = mat.Column(3).SubVector(0, 3);
+
+                    var pm = modelPoints[i];
+                    var pd = dataPoints[i];
+
+                    double z = (r1 - pd.X * r3).DotProduct(t) /(r1 - pd.X * r3).DotProduct(CreateVector.DenseOfArray(new[] { pm.X, pm.Y, 1 }));
+                    */
                 }
 
                 if (positiveDepth > bestPositiveDepth)
@@ -103,16 +126,16 @@ namespace OPS.Alignment
             return bestTransform;
         }
 
-        public static Matrix ExtractTransform(AlignmentScene scene, ImagePairCorrespondence match)
+        public static Matrix ExtractTransform(AlignmentScene scene, ImagePairCorrespondence match, EpipolarMatrix e)
         {
             if (match.FundamentalMatrix == null)
             {
-                throw new Exception("Match must have computed fundamental matrix");
+                throw new Exception("Match must have computed essential matrix");
             }
 
             var modelPoints = match.DataToModel.Select(d2m => scene.DetectedFeatures[match.ModelImage][d2m.Value].Location).ToArray();
             var dataFeatures = match.DataToModel.Select(d2m => scene.DetectedFeatures[match.DataImage][d2m.Key].Location).ToArray();
-            return ExtractTransform(match.FundamentalMatrix, modelPoints, dataFeatures, out bool[] ignoredMask);
+            return ExtractTransform(e, modelPoints, dataFeatures, out bool[] ignoredMask);
         }
     }
 }

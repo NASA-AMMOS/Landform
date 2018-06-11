@@ -192,7 +192,7 @@ namespace OPS.Alignment
             var modelBestPoints = overallMinPoints.Select(idx => ModelPoints[idx]).ToArray();
             var dataBestPoints = overallMinPoints.Select(idx => DataPoints[idx]).ToArray();
 
-            var bestTransform = EpipolarTransformDecomposition.ExtractTransform(MakeEpipolarTransform(overallMinF, false), modelBestPoints, dataBestPoints, out bool[] mask);
+            BestTransform = EpipolarTransformDecomposition.ExtractTransform(MakeEpipolarTransform(overallMinF, false), modelBestPoints, dataBestPoints, out bool[] mask);
             for (int i = 0; i < overallMinPoints.Length; i++)
             {
                 if (mask[i]) yield return overallMinPoints[i];
@@ -210,7 +210,7 @@ namespace OPS.Alignment
             }
         }
 
-        private FundamentalMatrix MakeEpipolarTransform(Matrix<float> F, bool scale)
+        private EpipolarMatrix MakeEpipolarTransform(Matrix<float> F, bool scale)
         {
             // note that this transposes the matrix to conform to XNA
             // row vector convention
@@ -221,18 +221,18 @@ namespace OPS.Alignment
                     0, 0, 0, 0
                 );
             if (scale) {
-                return FundamentalMatrix.Scaled(mat, ModelSize, DataSize);
+                return EpipolarMatrix.Scaled(mat, ModelSize, DataSize);
             }
             else
             {
-                return new FundamentalMatrix(mat);
+                return new EpipolarMatrix(mat);
             }
         }
 
         /// <summary>
-        /// The computed epipolar transformation from model to data.
+        /// The computed epipolar transformation from model to data, in pixel coordinates.
         /// </summary>
-        public FundamentalMatrix FundamentalMatrix
+        public EpipolarMatrix FundamentalMatrix
         {
             get
             {

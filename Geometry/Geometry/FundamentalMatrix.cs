@@ -12,7 +12,7 @@ namespace OPS.Geometry
     /// <summary>
     /// An epipolar transformation from a model image to a data image.
     /// </summary>
-    public class FundamentalMatrix
+    public class EpipolarMatrix
     {
         public readonly Matrix matrix;
 
@@ -31,12 +31,12 @@ namespace OPS.Geometry
         /// Return the inverse transform, from data to model.
         /// </summary>
         /// <returns></returns>
-        public virtual FundamentalMatrix Inverse()
+        public virtual EpipolarMatrix Inverse()
         {
-            return new FundamentalMatrix(Matrix.Transpose(matrix));
+            return new EpipolarMatrix(Matrix.Transpose(matrix));
         }
 
-        public FundamentalMatrix(Matrix matrix)
+        public EpipolarMatrix(Matrix matrix)
         {
             for (int i = 0; i < 4; i++)
             {
@@ -49,7 +49,7 @@ namespace OPS.Geometry
         /// <summary>
         /// Construct an epipolar transform in image coordinates from one in Moisan-Stival normalized coordinates.
         /// </summary>
-        public static FundamentalMatrix Scaled(Matrix matrix, Vector2 modelSize, Vector2 dataSize)
+        public static EpipolarMatrix Scaled(Matrix matrix, Vector2 modelSize, Vector2 dataSize)
         {
             var modelNorm = 1 / Math.Sqrt(modelSize.X * modelSize.Y);
             var dataNorm = 1 / Math.Sqrt(dataSize.X * dataSize.Y);
@@ -66,7 +66,7 @@ namespace OPS.Geometry
             dataToNorm[1, 2] = -dataSize.Y * dataNorm / 2;
             dataToNorm[2, 2] = 1;
             dataToNorm[3, 3] = 1;
-            return new FundamentalMatrix(Matrix.Transpose(dataToNorm) * matrix * modelToNorm);
+            return new EpipolarMatrix(Matrix.Transpose(dataToNorm) * matrix * modelToNorm);
         }
     }
 }

@@ -16,11 +16,21 @@ namespace OPS.Plumbing
 {
     public class PipelineCore
     {
-        public PipelineCore(bool enableS3 = true, bool enableDynamo = true, string dynamoPrefix="")
+        public PipelineCore(bool enableS3 = true, bool enableDynamo = true, string dynamoPrefix = "", string s3Url = "", string dynamoUrl = "")
         {
             if (enableS3)
             {
-                s3Client = new AmazonS3Client(Amazon.RegionEndpoint.USWest1);
+                var opts = new AmazonS3Config();
+                if (s3Url == "")
+                {
+                    opts.RegionEndpoint = Amazon.RegionEndpoint.USWest1;
+                }
+                else
+                {
+                    opts.ServiceURL = s3Url;
+                    opts.ForcePathStyle = true;
+                }
+                s3Client = new AmazonS3Client(opts);
             }
             else
             {
@@ -29,7 +39,16 @@ namespace OPS.Plumbing
 
             if (enableDynamo)
             {
-                ddbClient = new AmazonDynamoDBClient(Amazon.RegionEndpoint.USWest1);
+                AmazonDynamoDBConfig config = new AmazonDynamoDBConfig();
+                if (dynamoUrl == "")
+                {
+                    config.RegionEndpoint = Amazon.RegionEndpoint.USWest1;
+                }
+                else
+                {
+                    config.ServiceURL = dynamoUrl;
+                }
+                ddbClient = new AmazonDynamoDBClient(config);
                 context = new DynamoDBContext(ddbClient, new DynamoDBContextConfig { TableNamePrefix = dynamoPrefix });
             }
             else
@@ -55,7 +74,8 @@ namespace OPS.Plumbing
         StorageHelper storage;
         string cacheFolder;
 
-        public DynamoDBContext DynamoDB { get { return context; } }
+        public IAmazonDynamoDB DynamoDB { get { return ddbClient; } }
+        public DynamoDBContext DynamoContext { get { return context; } }
         public StorageHelper Storage { get { return storage; } }
 
         /// <summary>
@@ -106,7 +126,7 @@ namespace OPS.Plumbing
         /// <returns></returns>
         public Project GetProject(string name)
         {
-            return Project.Find(DynamoDB, name);
+            return Project.Find(DynamoContext, name);
         }
 
         /// <summary>
@@ -116,7 +136,7 @@ namespace OPS.Plumbing
         /// <param name="project">Project name</param>
         /// <param name="guid">Data product GUID</param>
         /// <param name="useCache">If true, use on-disk cache</param>
-        public T Get<T>(string project, Guid guid, bool useCache = true) where T : DataProduct, new()
+        public virtual T Get<T>(string project, Guid guid, bool useCache = true) where T : DataProduct, new()
         {
             string s3Url = GetProject(project).ProductPath + guid.ToString();
 
@@ -143,7 +163,7 @@ namespace OPS.Plumbing
         /// <param name="project">Project name</param>
         /// <param name="product">DataProduct object</param>
         /// <param name="useCache">Enable on-disk cache</param>
-        public void Save(string project, DataProduct product, bool useCache = true)
+        public virtual void Save(string project, DataProduct product, bool useCache = true)
         {
             if (product.Guid == Guid.Empty)
             {

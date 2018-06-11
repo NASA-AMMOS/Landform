@@ -99,7 +99,7 @@ namespace OPS.Pipeline
                 var imgRef = new DiskImageRef(f);
                 var img = pipeline.Load(imgRef);
                 // haha trust me
-                img.CameraModel = new HayabusaCameraModel(120.71 / 1000, 0, img.Width / 1024.0);
+                img.CameraModel = new HayabusaCameraModel(120.71 / 1000, 0, img.Width / 1024.0); // -2.8e-5
 
                 var data = feats[imgRef].Features;
                 lock (scene.DetectedFeatures)
@@ -138,28 +138,96 @@ namespace OPS.Pipeline
                 return new UncertainRigidTransform(GaussianND.IndependentJoint(posDistrib, rotDistrib));
             });
 
-            for (int i = 1; i < files.Length; i++)
+            for (int i = 0; i < files.Length; i++)
             {
-                var current = new DiskImageRef(files[i - 1]);
-                var next = new DiskImageRef(files[i]);
+                var imgRef = new DiskImageRef(files[i]);
+                var imgNode = new SceneNode(imgRef.DisplayName, scene.Root.Transform);
+                imgNode.AddComponent<NodeImageReference>().Reference = imgRef;
+                imgNode.GetOrAddComponent<NodeUncertainTransform>().UncertainTransform = priors[imgRef];
+                scene.ImageToNode[imgRef] = imgNode;
+            }
 
-                var f0 = feats[current];
-                var f1 = feats[next];
+            Func<ImageRef, Matrix> intrinsicMat = (imgRef) =>
+            {
+                var img = pipeline.Load(imgRef);
+                Matrix res = new Matrix();
+                res[0, 0] = res[1, 1] = ((120.71 / 1000) * (1024.0 / img.Width));
+                res[2, 0] = img.Width / 2;
+                res[2, 1] = img.Height / 2;
+                res[2, 2] = 1;
+                res[3, 3] = 1;
+                return res;
+            };
 
-                var match = DoCorrespondence(new UnorderedImagePair(current, next), scene, pipeline);
-                if (match == null) continue;
-
-                if (match.FundamentalMatrix != null)
+            int K = 3;
+            for (int i = 0; i < files.Length; i++)
+            {
+                var model = new DiskImageRef(files[i]);
+                for (int j = i - K; j < i + K; j++)
                 {
-                    logger.Info("Computed fundamental matrix");
-                    var transform = EpipolarTransformDecomposition.ExtractTransform(scene, match);
-                    logger.Info("Estimated transform: " + transform.ToString());
+                    if (j < 0 || j >= files.Length) continue;
+                    var data = new DiskImageRef(files[j]);
+
+                    var f0 = feats[model];
+                    var f1 = feats[data];
+
+                    var match = DoCorrespondence(new UnorderedImagePair(model, data), scene, pipeline);
+                    if (match == null) continue;
+
+                    var pd = match.DataToModel.Select(d2m => feats[match.DataImage].Features[d2m.Key].Location).ToArray();
+                    var pm = match.DataToModel.Select(d2m => feats[match.ModelImage].Features[d2m.Value].Location).ToArray();
+
+                    if (match.BestTransformEstimate != null)
+                    {
+                        /*var F = match.FundamentalMatrix.matrix.ToMathNet(dimension: 3).Transpose();
+                        var Km = intrinsicMat(model).ToMathNet(dimension: 3).Transpose();
+                        var Kd = intrinsicMat(data).ToMathNet(dimension: 3).Transpose();
+                        var e = Kd.Transpose() * F * Km;
+                        //var ep = intrinsicMat(model) * match.FundamentalMatrix.matrix * Matrix.Transpose(intrinsicMat(data));
+                        var E = new EpipolarMatrix(e.Transpose().ToXna());
+                        var transform = EpipolarTransformDecomposition.ExtractTransform(scene, match, match.FundamentalMatrix);
+                        logger.Info("Estimated transform: " + transform.ToString());
+
+                        var justRot = transform.ToMathNet(dimension: 3).ToXna();
+                        var reE = Matrix.Transpose(Matrix.Transpose(justRot) * CrossProductMatrix(transform.Translation));*/
+
+                        var transform = match.BestTransformEstimate.Value;
+
+                        var fakeScene = new AlignmentScene();
+                        fakeScene.DetectedFeatures[model] = scene.DetectedFeatures[model];
+                        fakeScene.DetectedFeatures[data] = scene.DetectedFeatures[data];
+                        var mN = new SceneNode("model", fakeScene.Root.Transform);
+                        mN.AddComponent<NodeImageReference>().Reference = model;
+                        mN.Transform.Matrix = transform;
+                        mN.Transform.Translation *= (priors[model].Mean.Translation - priors[data].Mean.Translation).Length() / transform.Translation.Length();
+                        fakeScene.ImageToNode[model] = mN;
+                        var dN = new SceneNode("data", fakeScene.Root.Transform);
+                        dN.AddComponent<NodeImageReference>().Reference = data;
+                        fakeScene.ImageToNode[data] = dN;
+                        fakeScene.Correspondences[new UnorderedImagePair(model, data)] = match;
+
+                        new BundleAdjuster(pipeline).Adjust(fakeScene);
+                    }
+
                 }
             }
 
+
             return 0;
         }
-
+        
+        static Matrix CrossProductMatrix(Vector3 vec)
+        {
+            var res = new Matrix();
+            res[0, 1] = -vec.Z;
+            res[0, 2] = vec.Y;
+            res[1, 0] = vec.Z;
+            res[1, 2] = -vec.X;
+            res[2, 0] = -vec.Y;
+            res[2, 1] = vec.X;
+            res[3, 3] = 1;
+            return res;
+        }
 
         static string ToJson(object obj)
         {
@@ -215,9 +283,13 @@ namespace OPS.Pipeline
             File.WriteAllText(matchPath, "null");
 
             var filters = new List<IMatchFilter>();
-            if (scene.ImageToNode.ContainsKey(pair.One) && scene.ImageToNode.ContainsKey(pair.Two))
+            if (false && scene.ImageToNode.ContainsKey(pair.One) && scene.ImageToNode.ContainsKey(pair.Two))
             {
-                filters.Add(new KnownGeometryFilter(pipeline, new KnownGeometryFilter.ImageNodeDelegate(imgRef => scene.ImageToNode[imgRef])));
+                var kgf = new KnownGeometryFilter(pipeline, new KnownGeometryFilter.ImageNodeDelegate(imgRef => scene.ImageToNode[imgRef]))
+                {
+                    MajorAxisThreshold = 10000
+                };
+                filters.Add(kgf);
             }
             filters.AddRange(new IMatchFilter[] { new GTMFilter(), new MoisanStivalFilter(pipeline) });
 
@@ -239,7 +311,7 @@ namespace OPS.Pipeline
                 var initial = matches.DataToModel.Length;
                 matches = filt.Filter(scene, matches);
                 var left = (matches != null) ? matches.DataToModel.Length : 0;
-                logger.DebugFormat("{0}: {1} -> {2}", filt.GetType().Name, initial, matches);
+                logger.DebugFormat("{0}: {1} -> {2}", filt.GetType().Name, initial, left);
                 if (matches == null || matches.DataToModel.Length < MIN_MATCHES)
                 {
                     logger.Debug("No matches for " + pairName(model, data));
@@ -247,7 +319,7 @@ namespace OPS.Pipeline
                 }
             }
 
-            var bestTransform = EpipolarTransformDecomposition.ExtractTransform(scene, matches);
+            //var bestTransform = EpipolarTransformDecomposition.ExtractTransform(scene, matches, matches.FundamentalMatrix);
 
             
             scene.Correspondences[pair] = matches;

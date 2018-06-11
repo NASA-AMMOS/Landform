@@ -29,7 +29,7 @@ namespace OPS.Alignment
             this.VirtualLinearCoordinates = virtualLinearCoordinates;
         }
 
-        public FundamentalMatrix LastEpipolarTransform;
+        public EpipolarMatrix LastEpipolarTransform;
         public Matrix LastBestTransform;
         public ImagePairCorrespondence Filter(AlignmentScene scene, ImagePairCorrespondence matches)
         {
@@ -75,7 +75,7 @@ namespace OPS.Alignment
             logger.Info("Number of residual matches: " + goodMatches.Count);
             return new ImagePairCorrespondence(
                 matches.ModelImage, matches.DataImage,
-                goodMatches, mso.FundamentalMatrix);
+                goodMatches, mso.FundamentalMatrix, mso.BestTransform);
         }
     }
 }

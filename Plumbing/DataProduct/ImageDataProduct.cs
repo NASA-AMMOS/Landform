@@ -14,6 +14,7 @@ namespace OPS.Plumbing
         public string Extension { get; set; }
         public Type StorageType { get; set; }
 
+        public ImageDataProduct() { }
         public ImageDataProduct(Image image, string extension, Type storageType)
         {
             Image = image;

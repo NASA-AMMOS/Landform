@@ -177,6 +177,7 @@
     <Compile Include="Commands\BenchmarkS3.cs" />
     <Compile Include="Commands\AlignmentWorker.cs" />
     <Compile Include="Commands\LegacyToTile3D.cs" />
+    <Compile Include="Commands\HayabusaPipeline.cs" />
     <Compile Include="Commands\IncrementalAlign.cs" />
     <Compile Include="Commands\CreateCloudTemplates.cs" />
     <Compile Include="Commands\TilingWorker.cs" />
@@ -198,6 +199,9 @@
     <Compile Include="TextureBake\TextureBaker.cs" />
     <Compile Include="Rover\SiteDrive.cs" />
     <Compile Include="TextureBake\TexturedTriangle.cs" />
+    <Compile Include="TextureProject\MeshUVPositionConverter.cs" />
+    <Compile Include="TextureProject\TextureProject.cs" />
+    <Compile Include="TextureProject\UVPositionConverter.cs" />
     <Compile Include="Tiling\BaselineAtlaser.cs" />
     <Compile Include="Tiling\BaselineImageProducer.cs" />
     <Compile Include="Tiling\DefaultLeafTileContentProducer.cs" />

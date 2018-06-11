@@ -29,8 +29,9 @@ namespace OPS.Pipeline
                                                              LegacyToWebVROptions,
                                                              LegacyToTile3DOptions,
                                                              AlignSceneOptions,
-                                                             IncrementalAlignOptions
-                                                             CreateCloudTemplatesOptions
+                                                             IncrementalAlignOptions,
+                                                             CreateCloudTemplatesOptions,
+                                                             HayabusaPipelineOptions
                                                              >(args)
               .MapResult(
                 (AlignmentWorkerOptions opts) => new AlignmentWorker().Run(),
@@ -46,6 +47,7 @@ namespace OPS.Pipeline
                 (AlignSceneOptions opts) => new AlignScene(opts).Run(),
                 (CreateCloudTemplatesOptions opts) => new CreateCloudTemplates(opts).Run(),
                 (IncrementalAlignOptions opts) => new IncrementalAlign(opts).Run(),
+                (HayabusaPipelineOptions opts) => new HayabusaPipeline(opts).Run(),
                 errs => 1);
         }
     }
