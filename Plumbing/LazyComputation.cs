@@ -25,10 +25,8 @@ namespace OPS.Plumbing
             {
                 return Get<ResT>(project, guid);
             }
-
-            var res = Compute(argument);
-            Save(project, res);
-            return res;
+            
+            return Compute(argument);
         }
     }
 }

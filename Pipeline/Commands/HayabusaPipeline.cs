@@ -100,6 +100,22 @@ namespace OPS.Pipeline
                 Features.Get(obs.ProjectName, obs);
             }
 
+            for (int i = 0; i < observations.Count - 1; i++)
+            {
+                var pair = new UnorderedImagePair(new ObservationImageRef(observations[i]), new ObservationImageRef(observations[i + 1]));
+                Overlap overlap = Overlap.Find(DynamoContext, observations[i].Name, observations[i + 1].Name, project.Name);
+                if (overlap == null)
+                {
+                    overlap = Overlap.Create(DynamoContext, observations[i], observations[i + 1]);
+                    logger.InfoFormat("Created overlap {0}", overlap.CombinedName);
+                    overlap.Status = Overlap.StatusType.Proposed;
+                    if (!overlap.TrySave(DynamoContext))
+                    {
+                        throw new Exception("i don't want to deal with this");
+                    }
+                }
+            }
+
             return 0;
         }
 
@@ -230,7 +246,11 @@ namespace OPS.Pipeline
                 q.Enqueue(new KeyValuePair<int, int>(x - 1, y));
                 q.Enqueue(new KeyValuePair<int, int>(x, y - 1));
             }
-            return new ImageDataProduct(mask, ".png", typeof(byte));
+            var res = new ImageDataProduct(mask, ".png", typeof(byte));
+            Save(obs.ProjectName, res);
+            obs.MaskGuid = res.Guid;
+            obs.Save(DynamoContext);
+            return res;
         }
 
         public DetectedFeatures ComputeImageFeatures(Observation obs)
@@ -252,11 +272,15 @@ namespace OPS.Pipeline
                 }
             }
             features = features.OrderByDescending(f => ((SIFTFeature)f).Response).Take(10000).ToArray();
-            return new DetectedFeatures
+            var res = new DetectedFeatures
             {
                 Features = features,
                 ObservationName = obs.Name
             };
+            Save(obs.ProjectName, res);
+            obs.FeaturesGuid = res.Guid;
+            obs.Save(DynamoContext);
+            return res;
         }
 
         /*public ComputedCorrespondence Match(Overlap overlap)
