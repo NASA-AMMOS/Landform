@@ -85,7 +85,10 @@ namespace OPS.Cloud
         public static Project Find(DynamoDBContext context, string name)
         {
             Project project = context.Load<Project>(name);
-            project.IsValid();
+            if (project != null)
+            {
+                project.IsValid();
+            }
             return project;
         }
 

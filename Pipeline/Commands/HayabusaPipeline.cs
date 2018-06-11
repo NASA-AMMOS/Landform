@@ -1,4 +1,5 @@
-﻿using CommandLine;
+﻿using Amazon.DynamoDBv2.Model;
+using CommandLine;
 using Emgu.CV.Util;
 using log4net;
 using OPS.Alignment;
@@ -20,10 +21,16 @@ namespace OPS.Pipeline
         [Value(0, Required = true, HelpText = "Folder containing input images")]
         public string InputPath { get; set; }
 
-        [Value(1, Required = false, HelpText = "URL to use for Dynamo DB", Default = "http://localhost:8000")]
+        [Value(1, Required = false, HelpText = "S3 bucket to use", Default = "hayabusa-landform")]
+        public string S3Bucket { get; set; }
+
+        [Value(2, Required = false, HelpText = "Prefix to use for Dynamo DB tables", Default = "")]
+        public string DynamoDBPrefix { get; set; }
+
+        [Value(3, Required = false, HelpText = "URL to use for Dynamo DB", Default = "http://localhost:8000")]
         public string DynamoDBServiceUrl { get; set; }
         
-        [Value(2, Required = false, HelpText = "URL to use for S3", Default = "http://localhost:4568")]
+        [Value(4, Required = false, HelpText = "URL to use for S3", Default = "http://localhost:4568")]
         public string S3ServiceUrl { get; set; }
     }
 
@@ -59,7 +66,7 @@ namespace OPS.Pipeline
 
         public HayabusaPipelineOptions Options;
         public HayabusaPipeline(HayabusaPipelineOptions opt)
-            : base(true, true, "", opt.S3ServiceUrl, opt.DynamoDBServiceUrl)
+            : base(true, true, opt.DynamoDBPrefix, opt.S3ServiceUrl, opt.DynamoDBServiceUrl)
         {
             Options = opt;
             Masks = new LazyComputation<Observation, ImageDataProduct>(this, (o) => o.MaskGuid, ComputeMask);
@@ -68,43 +75,106 @@ namespace OPS.Pipeline
 
         public int Run()
         {
+            EnsureTablesExist();
+            try
+            {
+                S3Client.EnsureBucketExists(Options.S3Bucket);
+            }
+            catch (Amazon.S3.AmazonS3Exception)
+            {
+                // s3rver errors on EnsureBucketExists if bucket exists.
+                // move along, nothing to see
+            }
+
             // make sure hayabusa project exists
             var project = Project.Find(DynamoContext, ProjectName);
             if (project == null)
             {
-                project = Project.Create(DynamoContext, ProjectName, "hayabusa/products", "hayabusa/images");
+                project = Project.Create(DynamoContext, ProjectName, "s3://" + Options.S3Bucket + "/hayabusa/products/", "s3://" + Options.S3Bucket + "/hayabusa/images/");
                 project.Save(DynamoContext);
             }
+
+            var observations = IngestDiskImages(project);
+            foreach (var obs in observations)
+            {
+                Features.Get(obs.ProjectName, obs);
+            }
+
+            return 0;
+        }
+
+        private List<Observation> IngestDiskImages(Project project)
+        {
+            List<Observation> obs = new List<Observation>();
 
             var ingester = new HayabusaIngester(this);
             foreach (var fn in Directory.EnumerateFiles(Options.InputPath))
             {
                 var diskRef = new DiskImageRef(Path.Combine(Options.InputPath, fn));
-                bool found = false;
-                foreach (var s3File in Storage.SearchObjects(project.InputPath, diskRef.DisplayName))
+                var s3Url = new S3Url(project.InputPath + Path.GetFileName(diskRef.Path));
+
+                bool exists = true;
+                try
                 {
-                    if (Path.GetFileNameWithoutExtension(s3File) == diskRef.DisplayName)
+                    S3Client.GetObjectMetadata(s3Url.BucketName, s3Url.Prefix);
+                }
+                catch (Amazon.S3.AmazonS3Exception ex)
+                {
+                    if (ex.ErrorCode != "NotFound")
                     {
-                        found = true;
-                        break;
+                        throw;
                     }
+                    exists = false;
                 }
 
-                if (found)
+                if (!exists)
                 {
-                    logger.DebugFormat("Already uploaded {0}", diskRef.DisplayName);
+                    logger.InfoFormat("Uploading {0} to {1}", diskRef.DisplayName, s3Url.Url);
+                    var resp = S3Client.PutObject(new Amazon.S3.Model.PutObjectRequest
+                    {
+                        BucketName = s3Url.BucketName,
+                        Key = s3Url.Prefix,
+                        FilePath = diskRef.Path,
+                        ContentType = "application/octet-stream"
+                    });
                 }
                 else
                 {
-                    var s3Url = new S3Url(Options.InputPath + "/" + Path.GetFileName(diskRef.Path)).ToString();
-                    logger.InfoFormat("Uploading {0} to {1}", diskRef.DisplayName, s3Url);
-                    Storage.UploadFile(diskRef.Path, s3Url);
+                    logger.DebugFormat("Already uploaded {0}", diskRef.DisplayName);
+                }
 
-                    var res = ingester.Ingest(new S3ImageRef(s3Url));
-                    logger.InfoFormat("{0}: {1}", diskRef.DisplayName, res.ToString());
+                var res = ingester.Ingest(new S3ImageRef(s3Url.Url));
+                logger.InfoFormat("{0}: {1}", diskRef.DisplayName, res.Status.ToString());
+                if (res.Observation != null)
+                {
+                    obs.Add(res.Observation);
                 }
             }
-            return 0;
+
+            return obs;
+        }
+
+        private void EnsureTablesExist()
+        {
+            // make sure tables exist
+            foreach (var t in new Type[] { typeof(Project), typeof(Observation), typeof(Overlap), typeof(Frame), typeof(FrameTransform), typeof(TransformPrior) })
+            {
+                var tn = Options.DynamoDBPrefix + CreateCloudTemplates.TableName(t);
+
+                try
+                {
+                    DynamoDB.DescribeTable(new DescribeTableRequest(tn));
+                }
+                catch (ResourceNotFoundException)
+                {
+                    // Table already exists
+                    logger.InfoFormat("Table {0}: creating", tn);
+                    DynamoDB.CreateTable(CreateCloudTemplates.CreateTable(t, Options.DynamoDBPrefix));
+                    continue;
+                }
+
+                logger.InfoFormat("Table {0}: exists", tn);
+            }
         }
 
         private Image Load(Observation obs)
@@ -160,7 +230,7 @@ namespace OPS.Pipeline
                 q.Enqueue(new KeyValuePair<int, int>(x - 1, y));
                 q.Enqueue(new KeyValuePair<int, int>(x, y - 1));
             }
-            return new ImageDataProduct(img, "png", typeof(byte));
+            return new ImageDataProduct(mask, ".png", typeof(byte));
         }
 
         public DetectedFeatures ComputeImageFeatures(Observation obs)

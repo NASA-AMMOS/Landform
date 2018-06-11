@@ -29,8 +29,11 @@ namespace OPS.Plumbing
                 {
                     opts.ServiceURL = s3Url;
                     opts.ForcePathStyle = true;
+                    opts.SignatureVersion = "2";
                 }
                 s3Client = new AmazonS3Client(opts);
+
+                storage = new StorageHelper(null, "us-west-1", s3Url != "" ? opts : null);
             }
             else
             {
@@ -57,7 +60,6 @@ namespace OPS.Plumbing
                 context = null;
             }
 
-            storage = new StorageHelper();
             cacheFolder = TemporaryFile.GetTempDirectory();
         }
         ~PipelineCore()
@@ -68,14 +70,15 @@ namespace OPS.Plumbing
             }
         }
 
-        IAmazonS3 s3Client;
-        IAmazonDynamoDB ddbClient;
+        AmazonS3Client s3Client;
+        AmazonDynamoDBClient ddbClient;
         DynamoDBContext context;
         StorageHelper storage;
         string cacheFolder;
 
         public IAmazonDynamoDB DynamoDB { get { return ddbClient; } }
         public DynamoDBContext DynamoContext { get { return context; } }
+        public IAmazonS3 S3Client { get { return s3Client; } }
         public StorageHelper Storage { get { return storage; } }
 
         /// <summary>
