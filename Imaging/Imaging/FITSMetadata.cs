@@ -37,8 +37,8 @@ namespace OPS.Imaging
                 throw new ImageSerializationException("Unsupported  NAXIS in FITS file");
             }
             this.Bands = 1; // Right now we only support reading files with a single band
-            this.Width = ReadAsInt("NAXIS1");
-            this.Height = ReadAsInt("NAXIS2");
+            this.Height = ReadAsInt("NAXIS1");
+            this.Width = ReadAsInt("NAXIS2");
 
         }
 

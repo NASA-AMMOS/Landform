@@ -29,16 +29,16 @@ namespace OPS.Imaging
                 throw new ImageSerializationException("Unsupported FITS kernel type");
             }
             System.Array[] k = (System.Array[])kernel;
-            Image img = new Image(1, GetWidth(k), k.Length);
+            Image img = new Image(1, k.Length, GetHeight(k));
             img.Metadata = metadata;
             for (int row = 0; row < img.Height; row++)
             {
                 for (int col = 0; col < img.Width; col++)
                 {
-                    int inverseRow = k.Length - row - 1;
-                    img[0, row, col] = GetValue(k, inverseRow, col);
+                    int inverseRow = img.Height - row - 1;
+                    img[0, inverseRow, col] = GetValue(k, row, col);
                 }
-            }
+            }            
             if (GetImageType(k) == typeof(byte))
             {
                 return converter.Convert<byte>(img);
@@ -70,11 +70,11 @@ namespace OPS.Imaging
         {
             if (GetImageType(kernel) == typeof(byte))
             {
-                return ((byte[])kernel[row])[col];
+                return ((byte[])kernel[col])[row];
             }
             else if (GetImageType(kernel) == typeof(short))
             {
-                return ((short[])kernel[row])[col];
+                return ((short[])kernel[col])[row];
             }
             else
             {
@@ -82,7 +82,7 @@ namespace OPS.Imaging
             }
         }
 
-        int GetWidth(System.Array[] kernel)
+        int GetHeight(System.Array[] kernel)
         {
             if (GetImageType(kernel) == typeof(byte))
             {
