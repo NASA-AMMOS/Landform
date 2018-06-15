@@ -197,7 +197,10 @@ namespace OPS.Pipeline
         {
             var img = Load(new ObservationImageRef(obs));
             // haha trust me
-            img.CameraModel = new HayabusaCameraModel(120.71 / 1000, 0, img.Width / 1024.0); // -2.8e-5
+            var focalMM = 120.71;
+            var pixelSizeMM = 0.012;
+            var focalPix = focalMM / pixelSizeMM;
+            img.CameraModel = new HayabusaCameraModel(focalPix, 0, img.Width / 1024.0); // -2.8e-5
             return img;
         }
 
