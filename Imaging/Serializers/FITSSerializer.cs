@@ -29,14 +29,13 @@ namespace OPS.Imaging
                 throw new ImageSerializationException("Unsupported FITS kernel type");
             }
             System.Array[] k = (System.Array[])kernel;
-            Image img = new Image(1, k.Length, GetHeight(k));
+            Image img = new Image(1, GetWidth(k), GetHeight(k));
             img.Metadata = metadata;
             for (int row = 0; row < img.Height; row++)
             {
                 for (int col = 0; col < img.Width; col++)
                 {
-                    int inverseRow = img.Height - row - 1;
-                    img[0, inverseRow, col] = GetValue(k, row, col);
+                    img[0, row, col] = GetValue(k, row, col);
                 }
             }            
             if (GetImageType(k) == typeof(byte))
@@ -70,11 +69,11 @@ namespace OPS.Imaging
         {
             if (GetImageType(kernel) == typeof(byte))
             {
-                return ((byte[])kernel[col])[row];
+                return ((byte[])kernel[row])[col];
             }
             else if (GetImageType(kernel) == typeof(short))
             {
-                return ((short[])kernel[col])[row];
+                return ((short[])kernel[row])[col];
             }
             else
             {
@@ -82,7 +81,7 @@ namespace OPS.Imaging
             }
         }
 
-        int GetHeight(System.Array[] kernel)
+        int GetWidth(System.Array[] kernel)
         {
             if (GetImageType(kernel) == typeof(byte))
             {
@@ -98,6 +97,10 @@ namespace OPS.Imaging
             {
                 throw new ImageSerializationException("Unsupported FITs image type");
             }
+        }
+        int GetHeight(System.Array[] kernel)
+        {
+            return kernel.Length;
         }
 
         public override void Write<T>(string filename, Image image, IImageConverter converter, float[] fillValue = null)
