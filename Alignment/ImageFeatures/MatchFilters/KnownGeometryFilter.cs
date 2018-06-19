@@ -210,9 +210,9 @@ namespace OPS.Alignment
 
             if (goodMatches.Count == 0)
             {
-                return null;
+                return ImagePairCorrespondence.Empty;
             }
-            return new ImagePairCorrespondence(matches.ModelImage, matches.DataImage, goodMatches);
+            return new ImagePairCorrespondence(matches.ModelImage, matches.DataImage, goodMatches, matches.FundamentalMatrix, matches.BestTransformEstimate);
         }
     }
 }

@@ -186,7 +186,7 @@ namespace OPS.Pipeline
 
             // Make rover mask
             var mask = RoverMask.Build(GetImage(imgRef));
-            var maskProd = new ImageDataProduct(mask, ".png", typeof(byte));
+            var maskProd = new PngDataProduct(mask);
             Save(indexed.Observation.ProjectName, maskProd);
             indexed.Observation.MaskGuid = maskProd.Guid;
 

@@ -5,6 +5,7 @@ using OPS.Cloud;
 using OPS.Imaging;
 using OPS.Util;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -120,7 +121,7 @@ namespace OPS.Plumbing
         {
             return Load(imgRef, true);
         }
-        private Dictionary<ImageRef, Image> imageCache = new Dictionary<ImageRef, Image>();
+        private ConcurrentDictionary<ImageRef, Image> imageCache = new ConcurrentDictionary<ImageRef, Image>();
 
         /// <summary>
         /// Get a project by name.

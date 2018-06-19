@@ -18,7 +18,12 @@ namespace OPS.Alignment
         public KeyValuePair<int,int>[] DataToModel;
         public EpipolarMatrix FundamentalMatrix;
         public Matrix? BestTransformEstimate;
-        
+
+        public int Count
+        {
+            get { return DataToModel.Length; }
+        }
+
         /// <summary>
         /// Output a set of arrays with data features duplicated as necessary
         /// to have exactly one data feature entry per correspondence.
@@ -53,6 +58,8 @@ namespace OPS.Alignment
             df = resDataFeatures.ToArray();
             d2m = resDataToModel.ToArray();
         }
+
+        public static ImagePairCorrespondence Empty = new ImagePairCorrespondence(null, null, new KeyValuePair<int, int>[] { });
 
         public ImagePairCorrespondence(ImageRef model, ImageRef data, IEnumerable<int> dataToModel, EpipolarMatrix fundamentalMat = null, Matrix? estimate = null)
         {

@@ -17,29 +17,28 @@ namespace OPS.Imaging
 
         public FITSMetadata(string filename) : base()
         {
-            var f = new nom.tam.fits.Fits(filename);
+            var f = new nom.tam.fits.Fits(filename, System.IO.FileAccess.Read);
             var hdu = (ImageHDU)f.GetHDU(0);
             //var cursor = hdu.Header.GetCursor();
             this.rawHeader.Add(NULL_GROUP, new Dictionary<string, string>());
             var nullGroup = this.rawHeader[NULL_GROUP];
             // Read header
-            foreach(var current in hdu.Header)
+            foreach (var current in hdu.Header)
             {
-                var cur = (HeaderCard)((DictionaryEntry) current).Value;
+                var cur = (HeaderCard)((DictionaryEntry)current).Value;
                 if (cur.Key != "COMMENT" && cur.Key != "END")
                 {
                     nullGroup.Add(cur.Key, cur.Value);
                 }
             }
 
-            if(ReadAsInt("NAXIS") != 2)
+            if (ReadAsInt("NAXIS") != 2)
             {
                 throw new ImageSerializationException("Unsupported  NAXIS in FITS file");
             }
             this.Bands = 1; // Right now we only support reading files with a single band
             this.Height = ReadAsInt("NAXIS1");
             this.Width = ReadAsInt("NAXIS2");
-
         }
 
     }

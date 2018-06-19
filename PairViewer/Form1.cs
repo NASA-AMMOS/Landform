@@ -15,6 +15,7 @@ using Microsoft.Xna.Framework;
 using MathNet.Numerics.LinearAlgebra;
 using System.IO;
 using OPS.Plumbing;
+using Newtonsoft.Json;
 
 namespace PairViewer
 {
@@ -70,12 +71,21 @@ namespace PairViewer
             }
         }
 
+        struct PriorInfo
+        {
+            public string sclk;
+            public double et;
+            public double[][] pose;
+        }
+        Dictionary<string, PriorInfo> hayabusaPriors;
+
         public PairViewerForm()
         {
             InitializeComponent();
             Pipeline = new PipelineCore(false, false, s3Url: "");
 
             Locations = new MSLLocations();
+            hayabusaPriors = JsonConvert.DeserializeObject<Dictionary<string, PriorInfo>>(File.ReadAllText("D:\\imagestomatch\\hayabusa\\HAY-A-SPICE-6-V1.0\\newpriors.json"));
             Scene = new AlignmentScene();
             ModelView = new ImageView(ModelPictureBox);
             DataView = new ImageView(DataPictureBox);
@@ -90,45 +100,87 @@ namespace PairViewer
         private void LoadInto(ImageView view)
         {
             var dialog = new OpenFileDialog();
-            dialog.Filter = "pds images (*.img)|*.img|All files (*.*)|*.*";
+            dialog.Filter = "All supported (*.img, *.fits)|*.img;*.fit|)pds images (*.img)|*.img|FITS images (*.fit)|*.fit|All files (*.*)|*.*";
             if (dialog.ShowDialog() == DialogResult.OK)
             {
                 var imgRef = new DiskImageRef(dialog.FileName);
-                var res = OPS.Imaging.Image.Load(dialog.FileName);
-
-                var md = res.Metadata as PDSMetadata;
-                PDSParser parsed = new PDSParser(md);
-                
-                // Create nodes
+                var res = Pipeline.Load(imgRef);
+                string stem = Path.GetFileNameWithoutExtension(dialog.FileName);
+                if (res.Metadata is PDSMetadata)
                 {
-                    if (!siteDriveToNode.ContainsKey(parsed.SiteDrive))
-                    {
-                        var sdNode = siteDriveToNode[parsed.SiteDrive] = new SceneNode("SD " + parsed.SiteDrive, Scene.Root.Transform);
-                        var locData = Locations.Location(new SiteDrive(parsed.Site, parsed.Drive));
-                        sdNode.Transform.LocalToWorld = Matrix.CreateTranslation(locData.Position);
 
-                        // Made up covariance values, more or less signifying SD of 0.5m translation and 0.5deg rotation (1.0 for Z)
-                        var uncertainty = sdNode.AddComponent<NodeUncertainTransform>();
+                    var md = res.Metadata as PDSMetadata;
+                    PDSParser parsed = new PDSParser(md);
+
+                    // Create nodes
+                    {
+                        if (!siteDriveToNode.ContainsKey(parsed.SiteDrive))
+                        {
+                            var sdNode = siteDriveToNode[parsed.SiteDrive] = new SceneNode("SD " + parsed.SiteDrive, Scene.Root.Transform);
+                            var locData = Locations.Location(new SiteDrive(parsed.Site, parsed.Drive));
+                            sdNode.Transform.LocalToWorld = Matrix.CreateTranslation(locData.Position);
+
+                            // Made up covariance values, more or less signifying SD of 0.5m translation and 0.5deg rotation (1.0 for Z)
+                            var uncertainty = sdNode.AddComponent<NodeUncertainTransform>();
+                            double fifthDegSqr = Math.Pow(0.2 * Math.PI / 180, 2);
+                            double tenCM = 0.1;
+                            double posCov = tenCM * tenCM;
+                            uncertainty.Covariance = CreateMatrix.Diagonal(new double[] { posCov, posCov, posCov, fifthDegSqr, fifthDegSqr, fifthDegSqr });
+                        }
+                    }
+                    // Add image node
+                    var imgNode = new SceneNode(stem, siteDriveToNode[parsed.SiteDrive].Transform);
+                    imgNode.Transform.Rotation = parsed.RoverOriginRotation;
+                    imgNode.Transform.Translation = Vector3.Zero;
+                    {
+                        var uncertainty = imgNode.AddComponent<NodeUncertainTransform>();
                         double fifthDegSqr = Math.Pow(0.2 * Math.PI / 180, 2);
-                        double tenCM = 0.1;
-                        double posCov = tenCM * tenCM;
+                        double fiveMM = 0.005;
+                        double posCov = fiveMM * fiveMM;
                         uncertainty.Covariance = CreateMatrix.Diagonal(new double[] { posCov, posCov, posCov, fifthDegSqr, fifthDegSqr, fifthDegSqr });
                     }
-                }
-                // Add image node
-                var imgNode = new SceneNode(Path.GetFileNameWithoutExtension(dialog.FileName), siteDriveToNode[parsed.SiteDrive].Transform);
-                imgNode.Transform.Rotation = parsed.RoverOriginRotation;
-                imgNode.Transform.Translation = Vector3.Zero;
-                {
-                    var uncertainty = imgNode.AddComponent<NodeUncertainTransform>();
-                    double fifthDegSqr = Math.Pow(0.2 * Math.PI / 180, 2);
-                    double fiveMM = 0.005;
-                    double posCov = fiveMM * fiveMM;
-                    uncertainty.Covariance = CreateMatrix.Diagonal(new double[] { posCov, posCov, posCov, fifthDegSqr, fifthDegSqr, fifthDegSqr });
-                }
 
-                imgNode.AddComponent<NodeImageReference>().Reference = imgRef;
-                Scene.ImageToNode[imgRef] = imgNode;
+                    imgNode.AddComponent<NodeImageReference>().Reference = imgRef;
+                    Scene.ImageToNode[imgRef] = imgNode;
+                }
+                else if (hayabusaPriors.ContainsKey(stem))
+                {
+                    var focalMM = 120.8;
+                    var pixelSizeMM = 0.012;
+                    var focalPix = focalMM / pixelSizeMM;
+                    res.CameraModel = new HayabusaCameraModel(focalPix, 0, res.Width / 1024.0); // -2.8e-5
+                    var prior = hayabusaPriors[stem];
+                    if (!siteDriveToNode.ContainsKey(stem))
+                    {
+                        var imgNode = siteDriveToNode[stem] = new SceneNode(stem, Scene.Root.Transform);
+                        
+                        Microsoft.Xna.Framework.Matrix m = new Microsoft.Xna.Framework.Matrix();
+                        for (int i = 0; i < 4; i++)
+                        {
+                            for (int j = 0; j < 4; j++)
+                            {
+                                m[j, i] = prior.pose[i][j];
+                            }
+                        }
+                        m.Translation *= 1000; // km -> m
+                        //m = Matrix.CreateRotationZ(180 * Math.PI / 180) * m;
+#if DEBUG
+                        var pos = Vector3.Transform(Vector3.Zero, m);
+                        var plusZ = Vector3.TransformNormal(Vector3.UnitZ, m);
+                        var toCenter = Vector3.Normalize(Vector3.Zero - pos);
+                        System.Diagnostics.Debug.Assert(plusZ.Dot(toCenter) > 0);
+#endif//DEBUG
+
+                        double tenthDegSqr = Math.Pow(0.1 * Math.PI / 180, 2);
+                        double halfMeter = 0.5;
+                        double posCov = halfMeter * halfMeter;
+                        var cov = CreateMatrix.Diagonal(new double[] { posCov, posCov, posCov, tenthDegSqr, tenthDegSqr, tenthDegSqr });
+
+                        imgNode.AddComponent<NodeUncertainTransform>().UncertainTransform = new UncertainRigidTransform(m, cov);
+                        imgNode.AddComponent<NodeImageReference>().Reference = imgRef;
+                        Scene.ImageToNode[imgRef] = imgNode;
+                    }
+                }
 
                 view.Image = res;
                 view.ImageRef = imgRef;

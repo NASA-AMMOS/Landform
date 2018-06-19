@@ -59,7 +59,7 @@ namespace OPS.Alignment
                 );
 
             mso.Run(MaxIterations, RefineStep);
-            if (!mso.Meaningful) return null;
+            if (!mso.Meaningful) return ImagePairCorrespondence.Empty;
             LastEpipolarTransform = mso.FundamentalMatrix;
 
             List<KeyValuePair<int, int>> goodMatches = new List<KeyValuePair<int, int>>();

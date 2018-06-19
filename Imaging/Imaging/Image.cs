@@ -210,6 +210,32 @@ namespace OPS.Imaging
             return new Image(this);
         }
 
+        public void ApplyMinMaxStretch()
+        {
+            ImageStatistics stats = new ImageStatistics(this);
+            for (int b = 0; b < this.Bands; b++)
+            {
+                float minNonZero = float.PositiveInfinity;
+                float max = float.NegativeInfinity;
+                foreach (var value in Data[b])
+                {
+                    if (value > 0 && value < minNonZero)
+                    {
+                        minNonZero = value;
+                    }
+                    if (value > max)
+                    {
+                        max = value;
+                    }
+                }
+                // Scaling values is invalid if min and max are the same
+                if (minNonZero != max && !float.IsInfinity(minNonZero))
+                {
+                    ScaleValues(b, minNonZero, max, 0, 1);
+                }
+            }
+        }
+
         /// <summary>
         /// Stretch the color channles of an image based the standard deviation of its values
         /// The resulting image will have its values normalzied between 0 and 1

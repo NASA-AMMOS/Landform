@@ -300,7 +300,7 @@ namespace OPS.Pipeline
             BruteForceMatcher bfm = new BruteForceMatcher();
 
             var matches = bfm.Match(model, data, modelFeat, dataFeat);
-            if (matches == null || matches.DataToModel.Length < MIN_MATCHES)
+            if (matches == null || matches.Count < MIN_MATCHES)
             {
                 logger.Debug("No matches for " + pairName(model, data));
                 return null;
@@ -308,11 +308,11 @@ namespace OPS.Pipeline
 
             foreach (var filt in filters)
             {
-                var initial = matches.DataToModel.Length;
+                var initial = matches.Count;
                 matches = filt.Filter(scene, matches);
-                var left = (matches != null) ? matches.DataToModel.Length : 0;
+                var left = (matches != null) ? matches.Count : 0;
                 logger.DebugFormat("{0}: {1} -> {2}", filt.GetType().Name, initial, left);
-                if (matches == null || matches.DataToModel.Length < MIN_MATCHES)
+                if (matches == null || matches.Count < MIN_MATCHES)
                 {
                     logger.Debug("No matches for " + pairName(model, data));
                     return null;
@@ -326,7 +326,7 @@ namespace OPS.Pipeline
             File.WriteAllText(matchPath, ToJson(matches));
             MatchImage.WriteMatchImage(pipeline, matches, modelFeat, dataFeat, matchImagePath);
 
-            logger.DebugFormat("{0} matches for {1}", matches.DataToModel.Length, pairName(model, data));
+            logger.DebugFormat("{0} matches for {1}", matches.Count, pairName(model, data));
 
             return matches;
         }

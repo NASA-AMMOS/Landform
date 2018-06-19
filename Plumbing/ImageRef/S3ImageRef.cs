@@ -38,5 +38,15 @@ namespace OPS.Plumbing
                 return Path.GetFileNameWithoutExtension(Url);
             }
         }
+
+        public override int GetHashCode()
+        {
+            return Url.GetHashCode();
+        }
+        public override bool Equals(object obj)
+        {
+            if (obj == null || !(obj is S3ImageRef)) return false;
+            return ((S3ImageRef)obj).Url == Url;
+        }
     }
 }

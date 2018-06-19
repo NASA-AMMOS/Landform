@@ -20,10 +20,11 @@ namespace OPS.Imaging
         public override Image Read(string filename, IImageConverter converter, float[] fillValue = null)
         {
             FITSMetadata metadata = new FITSMetadata(filename);
-            var f =  new nom.tam.fits.Fits(filename);
+            var f = new nom.tam.fits.Fits(filename, System.IO.FileAccess.Read);
+
             var hdu = (ImageHDU)f.GetHDU(0);
             var kernel = hdu.Kernel;
-            
+
             if (kernel.GetType() != typeof(System.Array[]))
             {
                 throw new ImageSerializationException("Unsupported FITS kernel type");
@@ -37,7 +38,7 @@ namespace OPS.Imaging
                 {
                     img[0, row, col] = GetValue(k, row, col);
                 }
-            }            
+            }
             if (GetImageType(k) == typeof(byte))
             {
                 return converter.Convert<byte>(img);

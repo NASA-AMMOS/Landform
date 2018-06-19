@@ -404,7 +404,7 @@ namespace OPS.Alignment
                 modelGraph.OrderedFeatureIndices(),
                 (dataIdx, modelIdx) => new KeyValuePair<int,int>(dataIdx, modelIdx)
             );
-            return new ImagePairCorrespondence(matches.ModelImage, matches.DataImage, dataToModel, matches.FundamentalMatrix);
+            return new ImagePairCorrespondence(matches.ModelImage, matches.DataImage, dataToModel, matches.FundamentalMatrix, matches.BestTransformEstimate);
         }
     }
 }
