@@ -581,7 +581,6 @@ namespace OPS.Geometry
                         Vector3 offset = averageNormal * -1 * height;
 
                         Vertex vSkirt = new Vertex(vNode.Vert.Position + offset, vNode.Vert.Normal, vNode.Vert.Color, vNode.Vert.UV);
-                        vSkirt.IsSkirtVertex = true;
 
                         bool shouldAddSkirtVertex = true;
 
@@ -681,7 +680,6 @@ namespace OPS.Geometry
                     if (!edgeToSkirtPoints.ContainsKey(edge.A))
                     {
                         Vertex newVertex = new Vertex(edge.A.Position + offset, edge.A.Normal, edge.A.Color, edge.A.UV);
-                        newVertex.IsSkirtVertex = true;
                         Vertices.Add(newVertex);
                         edgeToSkirtPoints.Add(edge.A, newVertex);
                     }
@@ -695,7 +693,6 @@ namespace OPS.Geometry
                     if (!edgeToSkirtPoints.ContainsKey(edge.B))
                     {
                         Vertex newVertex = new Vertex(edge.B.Position + offset, edge.B.Normal, edge.B.Color, edge.B.UV);
-                        newVertex.IsSkirtVertex = true;
                         Vertices.Add(newVertex);
                         edgeToSkirtPoints.Add(edge.B, newVertex);
                     }
