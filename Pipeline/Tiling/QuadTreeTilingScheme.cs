@@ -58,6 +58,10 @@ namespace OPS.Pipeline
             {
                 throw new NotImplementedException();
             }
+            if(meshOperator == null)
+            {
+                return boxes;
+            }
             // Filter empty quadrants. 
             return boxes.Where(b => !meshOperator.Empty(b)).ToList();
         }

@@ -16,8 +16,8 @@ namespace OPS
 {
 
 
-    [Verb("tilingserveringestmeshes", HelpText = "Ingests a set of meshes to be tiled")]
-    public class TilingServerIngestMeshesOptions
+    [Verb("tilelocalmesh", HelpText = "Generates a 3D tileset locally from a mesh")]
+    public class TileLocalMeshOptions
     {
         [Value(0, Required = true, HelpText = "Output directory", Default = null)]
         public string OutputDirectory { get; set; }
@@ -37,8 +37,8 @@ namespace OPS
         [Option(Required = false, Default = SchemeOption.BIN, HelpText = "Tiling scheme")]
         public SchemeOption TilingScheme { get; set; }
 
-        [Option(Required = false, Default = null, HelpText = "Axis to use as up in quad tree tiling")]
-        public SkirtAxis? SkirtAxis { get; set; }
+        [Option(Required = false, Default = SkirtAxis.None, HelpText = "Axis to use as up in quad tree tiling")]
+        public SkirtAxis SkirtAxis { get; set; }
         
         [Option(Required = false, Default = "b3dm", HelpText = "Mesh Extension")]
         public string MeshExtension { get; set; }
@@ -56,20 +56,20 @@ namespace OPS
         BIN
     }
 
-    public class TilingServerIngestMeshes
+    public class TileLocalMesh
     {
-        private static readonly ILog logger = LogManager.GetLogger(typeof(TilingServerIngestMeshes));
+        private static readonly ILog logger = LogManager.GetLogger(typeof(TileLocalMesh));
 
 
-        TilingServerIngestMeshesOptions options;
+        TileLocalMeshOptions options;
 
-        bool SkirtsEnabled { get { return options.SkirtAxis.HasValue;/*options.TilingScheme == SchemeOption.QUAD;*/ } }
+        bool SkirtsEnabled { get { return options.SkirtAxis != SkirtAxis.None; } }
 
         class TilingInput
         {
             public BoundingBox TotalBounds;
             public List<TilingInputDataset> Datasets;
-
+            public TextureBaker TextureBaker;
             public TilingInput()
             {
                 this.Datasets = new List<TilingInputDataset>();
@@ -83,6 +83,15 @@ namespace OPS
                 }
                 TotalBounds = BoundingBoxExtensions.Union(TotalBounds, dataset.MeshOperator.Bounds);
                 this.Datasets.Add(dataset);
+            }
+
+            public void InitTextureBaker()
+            {
+                var datasets = this.Datasets.Where(d => d.Image != null).Select(d => new MeshImagePair(d.Mesh, d.Image)).ToArray();
+                if (datasets.Length > 0)
+                {
+                    TextureBaker = new TextureBaker(datasets);
+                }
             }
 
             public IEnumerable<BoundingBox> FilterEmptyBounds(IEnumerable<BoundingBox> boxes)
@@ -121,6 +130,14 @@ namespace OPS
                 var meshes = this.Datasets.Where(d => !d.MeshOperator.Empty(box)).Select(d => d.MeshOperator.Clip(box)).ToArray();
                 return Mesh.Merge(meshes);
             }
+
+            public MeshImagePair BakeTexture(Mesh mesh, int size)
+            {
+                var box = mesh.Bounds();
+                mesh = UVAtlas.Atlas(mesh, size, size);
+                var img = TextureBaker.Bake(mesh, size, size);
+                return new MeshImagePair(mesh, img);
+            }
         }
 
         class TilingInputDataset
@@ -131,12 +148,14 @@ namespace OPS
 
             public TilingInputDataset(string meshFilename, string imageFilename)
             {
+                logger.Info(meshFilename);
                 this.Mesh = Mesh.Load(meshFilename);
                 if(!this.Mesh.HasNormals)
                 {
                     this.Mesh.GenerateVertexNormals();
                 }
-                this.MeshOperator = new MeshOperator(this.Mesh);
+                this.MeshOperator = new MeshOperator(this.Mesh, buildUVFaceTree: false, buildVertexTree: !this.Mesh.HasFaces);
+                logger.Info(imageFilename);
                 if (imageFilename != null)
                 {
                     this.Image = Image.Load(imageFilename);
@@ -144,7 +163,7 @@ namespace OPS
             }
         }
 
-        public TilingServerIngestMeshes(TilingServerIngestMeshesOptions opts)
+        public TileLocalMesh(TileLocalMeshOptions opts)
         {
             this.options = opts;
         }
@@ -155,6 +174,8 @@ namespace OPS
             logger.Info("Loading Input");
             TilingInput input = new TilingInput();
             input.AddDataset(new TilingInputDataset(options.InputMesh, options.InputTexture));
+            logger.Info("Init Texture Baker");
+            input.InitTextureBaker();
             ITilingScheme scheme;
             if (options.TilingScheme == SchemeOption.BIN)
             {
@@ -166,7 +187,7 @@ namespace OPS
             }
             else
             {
-                scheme = new QuadTreeTilingScheme(options.SkirtAxis.Value);
+                scheme = new QuadTreeTilingScheme(options.SkirtAxis);
             }
             // TODO: Add image size criteria
             ITileSplitCriteria splitCriteria = new FaceLimitSplitCriteria(options.TargetFacesPerTile);
@@ -220,43 +241,53 @@ namespace OPS
 
         void ProcessLeafNodes(TilingInput input, SceneNode root)
         {
-            Parallel.ForEach(root.Leaves(), node =>
+            var totalLeafCount = root.Leaves().Count();
+            Parallel.ForEach(root.Leaves(), (node, pls, index) =>
             {
-                logger.Info("Leaf: " + node.Name);
+                logger.Info(string.Format("Leaf: {0} ({1}/{2})", node.Name, index, totalLeafCount));
                 Mesh m = input.Clip(node.GetComponent<NodeBounds>().Bounds);
-                // TODO: UV and create image
+                Image img = null;
+                if(options.InputTexture != null)
+                {
+                    // TODO: compute correct resolution
+                    var pair = input.BakeTexture(m, options.MaxResolutionPerTile);
+                    if(pair.Image != null)
+                    {
+                        img = pair.Image;
+                        m = pair.Mesh;
+                    }
+                }
                 if (SkirtsEnabled)
                 {
-                    m.AddSkirt(options.SkirtAxis.Value);
+                    m.AddSkirt(options.SkirtAxis);
                     node.GetComponent<NodeBounds>().Bounds = m.Bounds();
                 }
-                node.AddComponent(new MeshImagePair(m, null));
+                node.AddComponent(new MeshImagePair(m, img));
                 node.AddComponent(new NodeGeometricError(0));
-                node.SaveMesh(options.OutputDirectory, meshExtension:  options.MeshExtension, imageExtension: options.ImageExtension );
-                logger.Info(m.Faces.Count);
+                node.SaveMesh(options.OutputDirectory, meshExtension:  options.MeshExtension, imageExtension: options.ImageExtension);
             });
         }
 
         void BuildParents(SceneNode root)
         {
+            var totalLeafCount = root.Leaves().Count();
+            var totalParentCount = root.DepthFirstTraverse().Count() - totalLeafCount;
+            int groupCountOffset = 0;
             foreach (var group in root.GetReverseDepthGroups())
             {
-                Parallel.ForEach(group, node =>
+                Parallel.ForEach(group, (node, pls, index) =>
                 {
                     // Check to see all children have meshes, otherwise defere processing
                     if (!node.AllChildrenHaveMeshes())
                     {
                         return;
                     }
-                    logger.Info("Parent: " + node.Name);
-                    //if (node.Name == "4")
-                    //{
-                    //     int foo = 3;
-                    //}
+                    logger.Info(string.Format("Parent: {0} ({1}/{2})", node.Name, index + groupCountOffset, totalParentCount));
                     node.BuildGeometryFromChildren(root, options.TargetFacesPerTile, options.MaxResolutionPerTile, options.SkirtAxis);
                     node.SaveMesh(options.OutputDirectory, meshExtension: options.MeshExtension, imageExtension: options.ImageExtension);
                     logger.Info(node.GetComponent<MeshImagePair>().Mesh.Faces.Count);
                 });
+                groupCountOffset += group.Count();
             }
         }
     }
