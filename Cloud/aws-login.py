@@ -22,7 +22,11 @@
 #
 # 6) try some stuff, e.g.
 #
-#    aws --profile saml ec2 describe-instances
+#    aws ec2 describe-instances
+#    aws s3 ls
+#
+#    if output_profile is not 'default' then you will need to add a --profile option, e.g.
+#
 #    aws --profile saml s3 ls
 
 import sys
@@ -52,17 +56,20 @@ else:
 ##########################################################################
 # Variables
 
-# region: The default AWS region that this script will connect
-# to for all API calls
-region = 'us-west-2'
+# awsconfigfile: The file where this script will update with the new credentials
+awsconfigfile = '/.aws/credentials'
+
+# region: The AWS region that this script will connect to for all API calls
+# this is also written to the output config file
+region = 'us-west-1'
+
+# output profile: the section to modify in the AWS config file
+#output_profile = 'saml'
+output_profile = 'default'
 
 # output format: The AWS CLI output format that will be configured in the
-# saml profile (affects subsequent CLI calls)
-outputformat = 'json'
-
-# awsconfigfile: The file where this script will store the temp
-# credentials under the saml profile
-awsconfigfile = '/.aws/credentials'
+# output profile (affects subsequent CLI calls)
+output_format = 'json'
 
 # SSL certificate verification: Whether or not strict certificate
 # verification is done, False should only be used for dev/test
@@ -190,7 +197,7 @@ for saml2attribute in root.iter('{urn:oasis:names:tc:SAML:2.0:assertion}Attribut
 # them if needed
 for awsrole in awsroles:
     chunks = awsrole.split(',')
-    if'saml-provider' in chunks[0]:
+    if 'saml-provider' in chunks[0]:
         newawsrole = chunks[1] + ',' + chunks[0]
         index = awsroles.index(awsrole)
         awsroles.insert(index, newawsrole)
@@ -228,22 +235,26 @@ token = conn.assume_role_with_saml(role_arn, principal_arn, assertion)
 home = expanduser('~')
 filename = home + awsconfigfile
 
-# Read in the existing config file
+# Update the config file
 config = ConfigParser.RawConfigParser()
 config.read(filename)
 
-# Put the credentials into a saml specific section instead of clobbering
-# the default credentials
-if not config.has_section('saml'):
-    config.add_section('saml')
+# make the default section name be 'default' not 'DEFAULT'
+ConfigParser.DEFAULTSECT = 'default'
 
-config.set('saml', 'output', outputformat)
-config.set('saml', 'region', region)
-config.set('saml', 'aws_access_key_id', token.credentials.access_key)
-config.set('saml', 'aws_secret_access_key', token.credentials.secret_key)
-config.set('saml', 'aws_session_token', token.credentials.session_token)
+# ConfigParser doesn't allow us to create the default section
+# but if output_profile is not default we do need to make sure it's created
+if output_profile.lower() == ConfigParser.DEFAULTSECT.lower():
+    output_profile = ConfigParser.DEFAULTSECT
+elif not config.has_section(output_profile):
+    config.add_section(output_profile)
 
-# Write the updated config file
+config.set(output_profile, 'output', output_format)
+config.set(output_profile, 'region', region)
+config.set(output_profile, 'aws_access_key_id', token.credentials.access_key)
+config.set(output_profile, 'aws_secret_access_key', token.credentials.secret_key)
+config.set(output_profile, 'aws_session_token', token.credentials.session_token)
+
 dirname = os.path.dirname(filename)
 if not os.path.exists(dirname):
     os.makedirs(dirname)
@@ -252,10 +263,12 @@ with open(filename, 'w+') as configfile:
 
 # Give the user some basic info as to what has just happened
 print('\n\n----------------------------------------------------------------')
-print('Your new access key pair has been stored in the AWS configuration file {0} under the saml profile.'.format(filename))
+print('Your new access key pair has been stored in the AWS configuration file {0} under the "{1}" profile.'
+      .format(filename, output_profile))
 print('Note that it will expire at {0}.'.format(token.credentials.expiration))
 print('After this time, you may safely rerun this script to refresh your access key pair.')
-print('To use this credential, call the AWS CLI with the --profile option (e.g. aws --profile saml ec2 describe-instances).')
+print('To use this credential, call the AWS CLI like this: "aws{0} ec2 describe-instances"'
+      .format(' --profile ' + output_profile if output_profile != ConfigParser.DEFAULTSECT else ''))
 print('----------------------------------------------------------------\n\n')
 
 # Use the AWS STS token to list all of the S3 buckets
