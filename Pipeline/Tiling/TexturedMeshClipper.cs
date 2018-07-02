@@ -29,9 +29,31 @@ namespace OPS.Pipeline
                 this.triangles = new HashSet<Triangle>();
             }
 
-            public void Add(Triangle t)
+            public void Add(Triangle t, Image img, int borderSize)
             {
                 var uvBounds = t.UVBounds();
+                uvBounds = img.UVToPixel(uvBounds);
+                uvBounds.Min.X -= borderSize;
+                if(uvBounds.Min.X < 0)
+                {
+                    uvBounds.Min.X = 0;
+                }
+                uvBounds.Min.Y -= borderSize;
+                if (uvBounds.Min.Y < 0)
+                {
+                    uvBounds.Min.Y = 0;
+                }
+                uvBounds.Max.X += borderSize;
+                if (uvBounds.Max.X >= img.Width)
+                {
+                    uvBounds.Max.X = img.Width - 1;
+                }
+                uvBounds.Max.Y += borderSize;
+                if (uvBounds.Max.Y >= img.Height)
+                {
+                    uvBounds.Max.Y = img.Height - 1;
+                }
+                uvBounds = img.PixelToUv(uvBounds);
                 if (this.triangles.Count == 0)
                 {
                     this.uvBounds = uvBounds;
@@ -75,15 +97,11 @@ namespace OPS.Pipeline
             }
         }
 
-        List<TexturePatch> ComputePatches(Mesh mesh)
+        List<TexturePatch> ComputePatches(Mesh mesh, Image img, int borderSize)
         {
             MeshOperator op = new MeshOperator(mesh);
             var triangles = op.Triangles;
             List<TexturePatch> patches = new List<TexturePatch>();
-
-            HashSet<Triangle> test = new HashSet<Triangle>();
-            test.Add(triangles[0]);
-            var r = test.Contains(triangles[0]);
 
             for (int i = 0; i < triangles.Count; i++)
             {
@@ -108,7 +126,7 @@ namespace OPS.Pipeline
                         {
                             continue;
                         }
-                        patch.Add(t);
+                        patch.Add(t, img, borderSize);
                         var intersects = op.UVIntersects(t.UVBounds());
                         foreach (var inter in intersects)
                         {
@@ -130,7 +148,7 @@ namespace OPS.Pipeline
         /// <param name="inputPair"></param>
         /// <param name="clipBounds"></param>
         /// <returns></returns>
-        public MeshImagePair ClipMesh(MeshImagePair inputPair, BoundingBox clipBounds, bool allowRotation = false)
+        public MeshImagePair ClipMesh(MeshImagePair inputPair, BoundingBox clipBounds, int borderSize = 5, bool allowRotation = false)
         {
             if (allowRotation == true)
             {
@@ -141,7 +159,7 @@ namespace OPS.Pipeline
             MeshOperator meshOperator = new MeshOperator(inputPair.Mesh);
             var clippedMesh = meshOperator.Clip(clipBounds);
             clippedMesh.Clean();
-            List<TexturePatch> patches = ComputePatches(clippedMesh);
+            List<TexturePatch> patches = ComputePatches(clippedMesh, img, borderSize);
 
 
             int clippedArea = 0;
