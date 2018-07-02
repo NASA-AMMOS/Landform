@@ -184,7 +184,7 @@ namespace OPS.Pipeline
             v = 1 - (yp + 1) / 2;
         }
 
-        // TODO: Yse SceneNodeTilingExtensions version instead
+        // TODO: See SceneNodeTilingExtensions version instead
         public static int ComputeParentTileResolution(IEnumerable<MeshImagePair> pairs, BoundingBox cropBounds, int maxTextureSize = int.MaxValue)
         {
 
