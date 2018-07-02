@@ -7,22 +7,120 @@ using System.Threading.Tasks;
 using Sharp3DBinPacking;
 using OPS.Geometry;
 using OPS.Imaging;
+using log4net;
+using System.Windows;
 
 namespace OPS.Pipeline
 {
     public class TexturedMeshClipper
     {
+
+        static ILog logger = LogManager.GetLogger(typeof(TexturedMeshClipper));
+
+
         public class TexturePatch
         {
-            public BoundingBox box;
-            public List<Triangle> triangles;
+            public HashSet<Triangle> triangles;
+            public Image patchImage;
+            BoundingBox uvBounds;
 
-            public TexturePatch(BoundingBox box, List<Triangle> triangles)
+            public TexturePatch()
             {
-                this.box = box;
-                this.triangles = triangles;
+                this.triangles = new HashSet<Triangle>();
             }
 
+            public void Add(Triangle t)
+            {
+                var uvBounds = t.UVBounds();
+                if (this.triangles.Count == 0)
+                {
+                    this.uvBounds = uvBounds;
+                }
+                this.uvBounds = BoundingBox.CreateMerged(this.uvBounds, uvBounds);
+                this.triangles.Add(t);
+            }
+
+            public bool Contains(Triangle t)
+            {
+                return triangles.Contains(t);
+            }
+
+            public Vector2 MinPixel(Image img)
+            {
+                var b = img.UVToPixel(uvBounds);
+                return new Vector2((int)b.Min.X, (int)b.Min.Y);
+            }
+
+            public Vector2 MaxPixel(Image img)
+            {
+                var b = img.UVToPixel(uvBounds);
+                return new Vector2((int)b.Max.X, (int)b.Max.Y);
+            }
+
+            public void ClipImage(Image img)
+            {
+                var min = MinPixel(img);
+                var max = MaxPixel(img);
+                this.patchImage = new Image(img.Bands, (int)max.X - (int)min.X, (int)max.Y - (int)min.Y);
+                for (int b = 0; b < patchImage.Bands; b++)
+                {
+                    for (int r = 0; r < patchImage.Height; r++)
+                    {
+                        for (int c = 0; c < patchImage.Width; c++)
+                        {
+                            patchImage[b, r, c] = img[b, r + (int)min.Y, c + (int)min.X];
+                        }
+                    }
+                }
+            }
+        }
+
+        List<TexturePatch> ComputePatches(Mesh mesh)
+        {
+            MeshOperator op = new MeshOperator(mesh);
+            var triangles = op.Triangles;
+            List<TexturePatch> patches = new List<TexturePatch>();
+
+            HashSet<Triangle> test = new HashSet<Triangle>();
+            test.Add(triangles[0]);
+            var r = test.Contains(triangles[0]);
+
+            for (int i = 0; i < triangles.Count; i++)
+            {
+                bool skip = false;
+                foreach (var patch in patches)
+                {
+                    if (patch.Contains(triangles[i]))
+                    {
+                        skip = true;
+                        break;
+                    }
+                }
+                if (!skip)
+                {
+                    TexturePatch patch = new TexturePatch();
+                    Queue<Triangle> trianglesToProcess = new Queue<Triangle>();
+                    trianglesToProcess.Enqueue(triangles[i]);
+                    while (trianglesToProcess.Count > 0)
+                    {
+                        var t = trianglesToProcess.Dequeue();
+                        if (patch.Contains(t))
+                        {
+                            continue;
+                        }
+                        patch.Add(t);
+                        var intersects = op.UVIntersects(t.UVBounds());
+                        foreach (var inter in intersects)
+                        {
+
+                            trianglesToProcess.Enqueue(inter);
+                        }
+                    }
+                    patches.Add(patch);
+                }
+
+            }
+            return patches;
         }
 
         /// <summary>
@@ -32,116 +130,112 @@ namespace OPS.Pipeline
         /// <param name="inputPair"></param>
         /// <param name="clipBounds"></param>
         /// <returns></returns>
-        public MeshImagePair ClipMesh(MeshImagePair inputPair, BoundingBox clipBounds)
+        public MeshImagePair ClipMesh(MeshImagePair inputPair, BoundingBox clipBounds, bool allowRotation = false)
         {
-            var result = new MeshImagePair();
+            if (allowRotation == true)
+            {
+                logger.Warn("Clip Mesh rotation is potentially unstable and may result in half pixel texture offsets");
+            }
+
             Image img = inputPair.Image;
             MeshOperator meshOperator = new MeshOperator(inputPair.Mesh);
-            result.Mesh = meshOperator.Clip(clipBounds);
-            List<TexturePatch> unionBoxes = new List<TexturePatch>();
-            foreach (var t in result.Mesh.Triangles())
-            {
-                TexturePatch uvbox = new TexturePatch(t.UVBounds(), new List<Triangle> { t });
-                for (int i = 0; i < unionBoxes.Count; i++)
-                {
-                    if (uvbox.box.Intersects(unionBoxes[i].box))
-                    {
-                        uvbox.box = BoundingBoxExtensions.Union(uvbox.box, unionBoxes[i].box);
-                        uvbox.triangles.AddRange(unionBoxes[i].triangles);
-                        unionBoxes.RemoveAt(i--);
-                    }
-                }
-                unionBoxes.Add(uvbox);
-            }
+            var clippedMesh = meshOperator.Clip(clipBounds);
+            clippedMesh.Clean();
+            List<TexturePatch> patches = ComputePatches(clippedMesh);
+
 
             int clippedArea = 0;
-            for (int b = 0; b < unionBoxes.Count; b++)
+            int maxWidth = 0, maxHeight = 0;
+            for (int b = 0; b < patches.Count; b++)
             {
-                unionBoxes[b].box = img.UVToPixel(unionBoxes[b].box);
-                clippedArea += (int)(BoundingBoxExtensions.Size(unionBoxes[b].box).X * BoundingBoxExtensions.Size(unionBoxes[b].box).Y);
-                //for (int i = 0; i < img.Bands; i++)
-                //{
-                //    for (int j = (int)boxes[b].Min.Y; j < boxes[b].Max.Y; j++)
-                //    {
-                //        for (int k = (int)boxes[b].Min.X; k < boxes[b].Max.X; k++)
-                //        {
-                //            img[i, j, k] = 1;
-                //        }
-                //    }
-                //}
+                patches[b].ClipImage(img);
+                clippedArea += patches[b].patchImage.Width * patches[b].patchImage.Height;
+                maxWidth = Math.Max(maxWidth, patches[b].patchImage.Width);
+                maxHeight = Math.Max(maxHeight, patches[b].patchImage.Height);
             }
 
-            var binWidth = MathExtensions.MathE.CeilPowerOf2(Math.Sqrt(clippedArea));
-            var binHeight = binWidth;
-            var binDepth = 0.5m;
+            var binWidth = MathExtensions.MathE.CeilPowerOf2(maxWidth);
+            var binHeight = MathExtensions.MathE.CeilPowerOf2(maxHeight);
+            var binDepth = 1;
 
-            Cuboid[] cuboids = new Cuboid[unionBoxes.Count];
-            for (int i = 0; i < unionBoxes.Count; i++)
+            Cuboid[] cuboids = new Cuboid[patches.Count];
+            for (int i = 0; i < patches.Count; i++)
             {
-                cuboids[i] = new Cuboid((int)(unionBoxes[i].box.Max.X - unionBoxes[i].box.Min.X), (int)(unionBoxes[i].box.Max.Y - unionBoxes[i].box.Min.Y), 0.5m);
+                cuboids[i] = new Cuboid(patches[i].patchImage.Width, patches[i].patchImage.Height, 1, 0, patches[i]);
             }
-            var parameter = new BinPackParameter(binWidth, binHeight, binDepth, cuboids);
-
-            // Create a bin packer instance
-            // The default bin packer will test all algorithms and try to find the best result
-            // BinPackerVerifyOption is used to avoid bugs, it will check whether the result is correct
-            var binPacker = BinPacker.GetDefault(BinPackerVerifyOption.BestOnly);
-
-            // The result contains bins which contains packed cuboids whith their coordinates
-            var packed = binPacker.Pack(parameter);
-            Image packedImg = new Image(img.Bands, binWidth, binHeight);
-            foreach (var bins in packed.BestResult)
+            BinPackResult packed = null;
+            var numBins = 0;
+            while (numBins != 1)
             {
-                for (int patch = 0; patch < bins.Count; patch++)
+                var parameter = new BinPackParameter(binWidth, binHeight, binDepth, 0, allowRotation, cuboids);
+
+                // Create a bin packer instance
+                // The default bin packer will test all algorithms and try to find the best result
+                // BinPackerVerifyOption is used to avoid bugs, it will check whether the result is correct
+                var binPacker = BinPacker.GetDefault(BinPackerVerifyOption.BestOnly);
+                packed = binPacker.Pack(parameter);
+                numBins = packed.BestResult.Count;
+                if (numBins != 1)
                 {
-                    for (int boxNum = 0; boxNum < unionBoxes.Count; boxNum++)
+                    if (binWidth <= binHeight)
                     {
-                        if ((int)BoundingBoxExtensions.Size(unionBoxes[boxNum].box).X == bins[patch].Width && (int)BoundingBoxExtensions.Size(unionBoxes[boxNum].box).Y == bins[patch].Height)
-                        {
-                            foreach (var t in unionBoxes[boxNum].triangles)
-                            {
-                                Vector2 offset = new Vector2((double)bins[patch].X - unionBoxes[boxNum].box.Min.X, (double)bins[patch].Y - unionBoxes[boxNum].box.Min.Y);
-                                t.V0.UV = packedImg.PixelToUV(img.UVToPixel(t.V0.UV) + offset);
-                                t.V1.UV = packedImg.PixelToUV(img.UVToPixel(t.V1.UV) + offset);
-                                t.V2.UV = packedImg.PixelToUV(img.UVToPixel(t.V2.UV) + offset);
-                            }
-                            for (int i = 0; i < bins[patch].Height; i++)
-                                {
-                                    for (int j = 0; j < bins[patch].Width; j++)
-                                    {
-                                        packedImg.SetBandValues(i + (int)bins[patch].Y, j + (int)bins[patch].X, img.GetBandValues((int)unionBoxes[boxNum].box.Min.Y + i, (int)unionBoxes[boxNum].box.Min.X + j));
-                                    }
-                                }
-                            unionBoxes.RemoveAt(boxNum);
-                            break;
-                        }
-                        else if ((int)BoundingBoxExtensions.Size(unionBoxes[boxNum].box).X == bins[patch].Height && (int)BoundingBoxExtensions.Size(unionBoxes[boxNum].box).Y == bins[patch].Width)
-                        {
-                            foreach (var t in unionBoxes[boxNum].triangles)
-                            {
-                                Vector2 offset = new Vector2((double)bins[patch].X - unionBoxes[boxNum].box.Min.X, (double)bins[patch].Y - unionBoxes[boxNum].box.Min.Y);
+                        binWidth *= 2;
+                    }
+                    else
+                    {
+                        binHeight *= 2;
+                    }
+                }
+            }
 
-                            }
-                            for (int i = 0; i < bins[patch].Height; i++)
-                            {
-                                for (int j = 0; j < bins[patch].Width; j++)
-                                {
-                                    packedImg.SetBandValues(i + (int)bins[patch].Y, j + (int)bins[patch].X, img.GetBandValues((int)unionBoxes[boxNum].box.Max.Y - j, (int)unionBoxes[boxNum].box.Min.X + i));
-                                }
-                            }
-                            unionBoxes.RemoveAt(boxNum);
-                            break;
+            Image packedImg = new Image(img.Bands, binWidth, binHeight);
+            var cubes = packed.BestResult.First();
+            foreach (var cube in cubes)
+            {
+                var patch = (TexturePatch)cube.Tag;
+                bool rotate = false;
+                if (patch.patchImage.Width != cube.Width || patch.patchImage.Height != cube.Height)
+                {
+                    rotate = true;
+                    patch.patchImage = patch.patchImage.Rotate90();
+                }
+                for (int b = 0; b < patch.patchImage.Bands; b++)
+                {
+                    for (int r = 0; r < patch.patchImage.Height; r++)
+                    {
+                        for (int c = 0; c < patch.patchImage.Width; c++)
+                        {
+                            packedImg[b, r + (int)cube.Y, c + (int)cube.X] = patch.patchImage[b, r, c];
                         }
                     }
                 }
-                Console.WriteLine("Bin:");
-                foreach (var cuboid in bins)
+                foreach (var t in patch.triangles)
                 {
-                    Console.WriteLine(cuboid);
+                    foreach (var v in t.Vertices())
+                    {
+                        Vector2 orignPixel = img.UVToPixel(v.UV);
+                        Vector2 patchPixel = orignPixel - patch.MinPixel(img);
+                        Vector2 destPixel = patchPixel;
+                        if (rotate)
+                        {
+                            destPixel = new Vector2((int)(patch.patchImage.Width - patchPixel.Y - 1), (int)patchPixel.X);
+                        }
+                        destPixel += new Vector2((int)cube.X, (int)cube.Y);
+                        Vector2 destUV = packedImg.PixelToUV(destPixel);
+                        v.UV = destUV;
+                    }
                 }
+
+            }
+            List<Triangle> resultTriangles = new List<Triangle>();
+            foreach (var p in patches)
+            {
+                resultTriangles.AddRange(p.triangles);
             }
 
+            var result = new MeshImagePair();
             result.Image = packedImg;
+            result.Mesh = new Mesh(resultTriangles, hasNormals: inputPair.Mesh.HasNormals, hasUVs: inputPair.Mesh.HasUVs, hasColors: inputPair.Mesh.HasColors);
             return result;
         }
 
