@@ -47,27 +47,33 @@ namespace OPS.Geometry
         /// Create a mesh operator and compute accelerated structures
         /// </summary>
         /// <param name="mesh"></param>
-        public MeshOperator(Mesh mesh)
+        public MeshOperator(Mesh mesh, bool buildFaceTree = true, bool buildVertexTree = true, bool buildUVFaceTree = true)
         {
-            faceTree = new RTree<Triangle>(10, 5);
-            vertexTree = new RTree<Vertex>(10, 5);
-            uvFaceTree = new RTree<Triangle>(10, 5);
-
             hasUVs = mesh.HasUVs;
             hasNormals = mesh.HasNormals;
             hasColors = mesh.HasColors;
             this.Triangles = mesh.Triangles();
-            foreach(var t in Triangles)
+
+            if (buildFaceTree)
             {
-                faceTree.Add(t.Bounds().ToRectangle(), t);
+                faceTree = new RTree<Triangle>(10, 5);               
+            	foreach(var t in Triangles)
+                {
+                    faceTree.Add(t.Bounds().ToRectangle(), t);
+                }
             }
-            foreach(var v in mesh.Vertices)
+            if (buildVertexTree)
             {
-                vertexTree.Add(v.Bounds().ToRectangle(), v);
+                vertexTree = new RTree<Vertex>(10, 5);
+                foreach (var v in mesh.Vertices)
+                {
+                    vertexTree.Add(v.Bounds().ToRectangle(), v);
+                }
             }
-            if(hasUVs)
+            if(hasUVs && buildUVFaceTree)
             {
                 foreach(var t in Triangles)
+
                 {
                     uvFaceTree.Add(t.UVBounds().ToRectangle(), t);
                 }
@@ -86,6 +92,10 @@ namespace OPS.Geometry
             Mesh result = null;
             if (this.hasFaces)
             {
+                if (faceTree == null)
+                {
+                    throw new Exception("MeshOperator must have a face tree in order to clip meshes");
+                }
                 List<Triangle> startingTriangles = faceTree.Intersects(box.ToRectangle());
                 List<Triangle> resTriangles = new List<Triangle>();
                 foreach (Triangle t in startingTriangles)
@@ -96,6 +106,10 @@ namespace OPS.Geometry
             }
             else
             {
+                if (vertexTree == null)
+                {
+                    throw new Exception("MeshOperator must have a vertex tree in order to clip meshes");
+                }
                 result = new Mesh(hasNormals, hasUVs, hasColors);
                 result.Vertices.AddRange(vertexTree.Intersects(box.ToRectangle()));                
             }
@@ -112,7 +126,11 @@ namespace OPS.Geometry
         /// <param name="box"></param>
         /// <returns></returns>
         public int CountFaces(BoundingBox box)
-        {            
+        {
+            if (faceTree == null)
+            {
+                throw new Exception("MeshOperator must have a face tree in order to count faces");
+            }
             return faceTree.Intersects(box.ToRectangle()).Count;
         }
 
@@ -123,6 +141,10 @@ namespace OPS.Geometry
         /// <returns></returns>
         public int CountVertices(BoundingBox box)
         {
+            if (vertexTree == null)
+            {
+                throw new Exception("MeshOperator must have a vertex tree in order to count vertices");
+            }
             return vertexTree.Intersects(box.ToRectangle()).Count;
         }
 
@@ -135,19 +157,33 @@ namespace OPS.Geometry
         /// <returns></returns>
         public bool Empty(BoundingBox box)
         {
-            if(CountVertices(box) > 0)
+            if (!hasFaces || vertexTree != null)
             {
-                return false;
-            }
-            // Get a list of faces whose bounds intersect the box
-            List<Triangle> faces = faceTree.Intersects(box.ToRectangle());
-            // Try to clip each face to the box
-            foreach (Triangle t in faces)
-            {
-                // If clip ever returns a triangle it means there is at least one triangle in the box and we can exit
-                foreach(Triangle clippedT in t.Clip(box))
+                if(vertexTree == null )
+                {
+                    throw new Exception("MeshOperator must have a vertex tree in order to check for empty bounding box");
+                }
+                if (CountVertices(box) > 0)
                 {
                     return false;
+                }
+            }
+            if (hasFaces)
+            {
+                if (faceTree == null)
+                {
+                    throw new Exception("MeshOperator must have a face tree in order to check for empty bounding box");
+                }
+                // Get a list of faces whose bounds intersect the box
+                List<Triangle> faces = faceTree.Intersects(box.ToRectangle());
+                // Try to clip each face to the box
+                foreach (Triangle t in faces)
+                {
+                    // If clip ever returns a triangle it means there is at least one triangle in the box and we can exit
+                    foreach (Triangle clippedT in t.Clip(box))
+                    {
+                        return false;
+                    }
                 }
             }
             return true;
@@ -160,6 +196,10 @@ namespace OPS.Geometry
         /// <returns></returns>
         public BarycentricPoint UVToBarycentric(Vector2 uv)
         {
+            if (uvFaceTree == null)
+            {
+                throw new Exception("MeshOperator must have a uv face tree to convert UV to barycentric");
+            }
             // convert the 2d point to bounding box
             BoundingBox box = new BoundingBox(
                 new Vector3(uv, 0), 

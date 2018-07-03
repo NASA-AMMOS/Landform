@@ -63,7 +63,8 @@ namespace OPS.Pipeline
                     m.Vertices[i].UV = new Vector2(uv.X, 1.0 - uv.Y);
                     m.Vertices[i].Normal = Vector3.Zero; // Zero out normals since sometimes they are invalid
                 }
-                m.HasNormals = false; // Turn off normals since sometimes they are invalid
+                m.ClearNormals();// Turn off normals since sometimes they are invalid
+                m.Clean();
                 var node = FindOrCreateNode(id, root);
                 MeshImagePair pair = new MeshImagePair(m, img);
                 node.AddComponent(pair);

@@ -29,7 +29,8 @@ namespace OPS.Alignment
             this.VirtualLinearCoordinates = virtualLinearCoordinates;
         }
 
-        public EpipolarTransform LastEpipolarTransform;
+        public EpipolarMatrix LastEpipolarTransform;
+        public Matrix LastBestTransform;
         public ImagePairCorrespondence Filter(AlignmentScene scene, ImagePairCorrespondence matches)
         {
             if (matches.DataToModel.Length < MIN_MATCHES)
@@ -38,10 +39,10 @@ namespace OPS.Alignment
             }
             var modelImg = GetImage(matches.ModelImage);
             var dataImg = GetImage(matches.DataImage);
-            ImageFeature[] modelFeatures = scene.Context.DetectedFeatures[matches.ModelImage];
-            ImageFeature[] dataFeatures = scene.Context.DetectedFeatures[matches.DataImage];
+            ImageFeature[] modelFeatures = scene.DetectedFeatures[matches.ModelImage];
+            ImageFeature[] dataFeatures = scene.DetectedFeatures[matches.DataImage];
 
-            if (VirtualLinearCoordinates)
+            if (VirtualLinearCoordinates && modelImg.CameraModel != null && dataImg.CameraModel != null)
             {
                 FeatureLinearizer lin = new FeatureLinearizer();
                 modelFeatures = lin.Linearize(modelImg.CameraModel, modelFeatures);
@@ -58,18 +59,23 @@ namespace OPS.Alignment
                 );
 
             mso.Run(MaxIterations, RefineStep);
-            if (!mso.Meaningful) return null;
-            LastEpipolarTransform = mso.EpipolarTransform;
+            if (!mso.Meaningful) return ImagePairCorrespondence.Empty;
+            LastEpipolarTransform = mso.FundamentalMatrix;
 
             List<KeyValuePair<int, int>> goodMatches = new List<KeyValuePair<int, int>>();
             foreach (int idx in mso.ComputeInliers())
             {
                 goodMatches.Add(matches.DataToModel[idx]);
             }
+
+            Vector2[] dataPointsAfter = goodMatches.Select(pair => dataFeatures[pair.Key].Location).ToArray();
+            Vector2[] modelPointsAfter = goodMatches.Select(pair => modelFeatures[pair.Value].Location).ToArray();
+
+            LastBestTransform = mso.BestTransform;
             logger.Info("Number of residual matches: " + goodMatches.Count);
             return new ImagePairCorrespondence(
                 matches.ModelImage, matches.DataImage,
-                goodMatches);
+                goodMatches, mso.FundamentalMatrix, mso.BestTransform);
         }
     }
 }

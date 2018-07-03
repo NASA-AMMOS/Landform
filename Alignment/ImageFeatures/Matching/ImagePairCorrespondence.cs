@@ -1,8 +1,10 @@
-﻿using OPS.Imaging;
+﻿using OPS.Geometry;
+using OPS.Imaging;
 using OPS.Plumbing;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Microsoft.Xna.Framework;
 
 namespace OPS.Alignment
 {
@@ -14,7 +16,14 @@ namespace OPS.Alignment
     {
         public ImageRef ModelImage, DataImage;
         public KeyValuePair<int,int>[] DataToModel;
-        
+        public EpipolarMatrix FundamentalMatrix;
+        public Matrix? BestTransformEstimate;
+
+        public int Count
+        {
+            get { return DataToModel.Length; }
+        }
+
         /// <summary>
         /// Output a set of arrays with data features duplicated as necessary
         /// to have exactly one data feature entry per correspondence.
@@ -50,20 +59,26 @@ namespace OPS.Alignment
             d2m = resDataToModel.ToArray();
         }
 
-        public ImagePairCorrespondence(ImageRef model, ImageRef data, IEnumerable<int> dataToModel)
+        public static ImagePairCorrespondence Empty = new ImagePairCorrespondence(null, null, new KeyValuePair<int, int>[] { });
+
+        public ImagePairCorrespondence(ImageRef model, ImageRef data, IEnumerable<int> dataToModel, EpipolarMatrix fundamentalMat = null, Matrix? estimate = null)
         {
             this.ModelImage = model;
             this.DataImage = data;
             int[] d2m = dataToModel.ToArray();
             this.DataToModel = Enumerable.Range(0, d2m.Length).Zip(d2m,
                 (di, mi) => new KeyValuePair<int, int>(di, mi)).ToArray();
+            this.FundamentalMatrix = fundamentalMat;
+            this.BestTransformEstimate = estimate;
         }
         public ImagePairCorrespondence(ImageRef model, ImageRef data,
-            IEnumerable<KeyValuePair<int, int>> dataToModel)
+            IEnumerable<KeyValuePair<int, int>> dataToModel, EpipolarMatrix fundamentalMat = null, Matrix? estimate = null)
         {
             this.ModelImage = model;
             this.DataImage = data;
             this.DataToModel = dataToModel.ToArray();
+            this.FundamentalMatrix = fundamentalMat;
+            this.BestTransformEstimate = estimate;
         }
         public ImagePairCorrespondence() { }
     }

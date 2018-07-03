@@ -57,9 +57,9 @@ namespace OPS.Cloud
         /// <param name="context"></param>
         /// <param name="name">Project names in the database must be unique</param>
         /// <returns></returns>
-        public static Project Create(DynamoDBContext context, string name, string featureUrl, string matchUrl)
+        public static Project Create(DynamoDBContext context, string name, string productPath, string inputPath)
         {
-            Project project = new Project(name, featureUrl, matchUrl);
+            Project project = new Project(name, productPath, inputPath);
             context.Save(project, new DynamoDBOperationConfig() { IgnoreNullValues = true });
             return project;
         }
@@ -85,7 +85,10 @@ namespace OPS.Cloud
         public static Project Find(DynamoDBContext context, string name)
         {
             Project project = context.Load<Project>(name);
-            project.IsValid();
+            if (project != null)
+            {
+                project.IsValid();
+            }
             return project;
         }
 
