@@ -38,7 +38,7 @@ namespace OPS.Alignment
         /// <param name="minCandidates">Minimum number of candidates in hamming distance KNN</param>
         /// <param name="maxCandidates">Maximum number of candidates in hamming distance KNN</param>
         /// <param name="maxRatio">Maximum distance ratio between best and second best match to accept match</param>
-        public CascadeHashingMatcher(int descriptorSize = 128, int primaryHashBits = 128, int secondaryHashBits = 8, int bucketCount = 6, int minCandidates = 6, int maxCandidates = 10, double maxRatio = 0.8)
+        public CascadeHashingMatcher(int descriptorSize = 128, int primaryHashBits = 128, int secondaryHashBits = 8, int bucketCount = 6, int minCandidates = 6, int maxCandidates = 10, double maxRatio = 0.9)
         {
             DescriptorSize = descriptorSize;
             PrimaryHashBits = primaryHashBits;
@@ -107,6 +107,11 @@ namespace OPS.Alignment
 
             // Put model features in buckets
             Dictionary<HashCode, List<int>>[] buckets = new Dictionary<HashCode, List<int>>[BucketCount];
+            for (int i = 0; i < BucketCount; i++)
+            {
+                buckets[i] = new Dictionary<HashCode, List<int>>();
+            }
+
             for (int i = 0; i < modelFeat.Length; i++)
             {
                 var dh = modelHashes[i];
@@ -238,7 +243,7 @@ namespace OPS.Alignment
         {
             return CreateVector.DenseOfArray(descriptor.Select(b => (float)b).ToArray()) - mean;
         }
-        
+
         private Vector<float> GetMeanCentered(ImageFeature feat, Vector<float> mean)
         {
             return GetMeanCentered(((FeatureDescriptor<byte>)feat.Descriptor).Data, mean);
@@ -334,7 +339,7 @@ namespace OPS.Alignment
                 return res;
             }
         }
-        
+
         private class LocalitySensitiveHash
         {
             public readonly Matrix<float> Projection;
@@ -349,7 +354,7 @@ namespace OPS.Alignment
                     }
                 }
             }
-            
+
             /// <summary>
             /// Project a mean-centered vector into a binary hash code.
             /// </summary>
@@ -383,7 +388,7 @@ namespace OPS.Alignment
                 return Math.Sqrt(-2 * Math.Log(u1)) * Math.Cos(2 * Math.PI * u2);
             }
         }
-        
+
         /// <summary>
         /// Internal KNN matcher for doing KNN with arbitrary distance metrics
         /// </summary>
