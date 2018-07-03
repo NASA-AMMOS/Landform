@@ -33,7 +33,7 @@ namespace OPS.Alignment
 
         public ImagePairCorrespondence Match(AlignmentScene scene, UnorderedImagePair pair)
         {
-            bool oneIsModel = (scene.Context.DetectedFeatures[pair.One].Length > scene.Context.DetectedFeatures[pair.Two].Length);
+            bool oneIsModel = (scene.DetectedFeatures[pair.One].Length > scene.DetectedFeatures[pair.Two].Length);
             ImageRef modelRef, dataRef;
             if (oneIsModel)
             {
@@ -49,8 +49,8 @@ namespace OPS.Alignment
             Image model = GetImage(modelRef);
             Image data = GetImage(dataRef);
 
-            ImageFeature[] modelFeatures = scene.Context.DetectedFeatures[modelRef];
-            ImageFeature[] dataFeatures = scene.Context.DetectedFeatures[dataRef];
+            ImageFeature[] modelFeatures = scene.DetectedFeatures[modelRef];
+            ImageFeature[] dataFeatures = scene.DetectedFeatures[dataRef];
 
             var dataNode = scene.ImageToNode[dataRef];
             var modelNode = scene.ImageToNode[modelRef];

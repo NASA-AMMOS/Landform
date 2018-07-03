@@ -65,8 +65,8 @@ namespace OPS.Alignment
         {
             SceneNode modelNode = ImageToNode(matches.ModelImage);
             SceneNode dataNode = ImageToNode(matches.DataImage);
-            ImageFeature[] modelFeatures = scene.Context.DetectedFeatures[matches.ModelImage];
-            ImageFeature[] dataFeatures = scene.Context.DetectedFeatures[matches.DataImage];
+            ImageFeature[] modelFeatures = scene.DetectedFeatures[matches.ModelImage];
+            ImageFeature[] dataFeatures = scene.DetectedFeatures[matches.DataImage];
 
             if (modelNode == null || dataNode == null) return matches;
 
@@ -210,9 +210,9 @@ namespace OPS.Alignment
 
             if (goodMatches.Count == 0)
             {
-                return null;
+                return ImagePairCorrespondence.Empty;
             }
-            return new ImagePairCorrespondence(matches.ModelImage, matches.DataImage, goodMatches);
+            return new ImagePairCorrespondence(matches.ModelImage, matches.DataImage, goodMatches, matches.FundamentalMatrix, matches.BestTransformEstimate);
         }
     }
 }

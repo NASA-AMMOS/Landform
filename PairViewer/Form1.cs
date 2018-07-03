@@ -15,6 +15,7 @@ using Microsoft.Xna.Framework;
 using MathNet.Numerics.LinearAlgebra;
 using System.IO;
 using OPS.Plumbing;
+using Newtonsoft.Json;
 
 namespace PairViewer
 {
@@ -73,7 +74,7 @@ namespace PairViewer
         public PairViewerForm()
         {
             InitializeComponent();
-            Pipeline = new PipelineCore(false, false);
+            Pipeline = new PipelineCore(false, false, s3Url: "");
 
             Locations = new MSLLocations();
             Scene = new AlignmentScene();
@@ -90,45 +91,48 @@ namespace PairViewer
         private void LoadInto(ImageView view)
         {
             var dialog = new OpenFileDialog();
-            dialog.Filter = "pds images (*.img)|*.img|All files (*.*)|*.*";
+            dialog.Filter = "All supported (*.img, *.fits)|*.img;*.fit|)pds images (*.img)|*.img|FITS images (*.fit)|*.fit|All files (*.*)|*.*";
             if (dialog.ShowDialog() == DialogResult.OK)
             {
                 var imgRef = new DiskImageRef(dialog.FileName);
-                var res = OPS.Imaging.Image.Load(dialog.FileName);
-
-                var md = res.Metadata as PDSMetadata;
-                PDSParser parsed = new PDSParser(md);
-                
-                // Create nodes
+                var res = Pipeline.Load(imgRef);
+                string stem = Path.GetFileNameWithoutExtension(dialog.FileName);
+                if (res.Metadata is PDSMetadata)
                 {
-                    if (!siteDriveToNode.ContainsKey(parsed.SiteDrive))
-                    {
-                        var sdNode = siteDriveToNode[parsed.SiteDrive] = new SceneNode("SD " + parsed.SiteDrive, Scene.Root.Transform);
-                        var locData = Locations.Location(new SiteDrive(parsed.Site, parsed.Drive));
-                        sdNode.Transform.LocalToWorld = Matrix.CreateTranslation(locData.Position);
+                    var md = res.Metadata as PDSMetadata;
+                    PDSParser parsed = new PDSParser(md);
 
-                        // Made up covariance values, more or less signifying SD of 0.5m translation and 0.5deg rotation (1.0 for Z)
-                        var uncertainty = sdNode.AddComponent<NodeUncertainTransform>();
+                    // Create nodes
+                    {
+                        if (!siteDriveToNode.ContainsKey(parsed.SiteDrive))
+                        {
+                            var sdNode = siteDriveToNode[parsed.SiteDrive] = new SceneNode("SD " + parsed.SiteDrive, Scene.Root.Transform);
+                            var locData = Locations.Location(new SiteDrive(parsed.Site, parsed.Drive));
+                            sdNode.Transform.LocalToWorld = Matrix.CreateTranslation(locData.Position);
+
+                            // Made up covariance values, more or less signifying SD of 0.5m translation and 0.5deg rotation (1.0 for Z)
+                            var uncertainty = sdNode.AddComponent<NodeUncertainTransform>();
+                            double fifthDegSqr = Math.Pow(0.2 * Math.PI / 180, 2);
+                            double tenCM = 0.1;
+                            double posCov = tenCM * tenCM;
+                            uncertainty.Covariance = CreateMatrix.Diagonal(new double[] { posCov, posCov, posCov, fifthDegSqr, fifthDegSqr, fifthDegSqr });
+                        }
+                    }
+                    // Add image node
+                    var imgNode = new SceneNode(stem, siteDriveToNode[parsed.SiteDrive].Transform);
+                    imgNode.Transform.Rotation = parsed.RoverOriginRotation;
+                    imgNode.Transform.Translation = Vector3.Zero;
+                    {
+                        var uncertainty = imgNode.AddComponent<NodeUncertainTransform>();
                         double fifthDegSqr = Math.Pow(0.2 * Math.PI / 180, 2);
-                        double tenCM = 0.1;
-                        double posCov = tenCM * tenCM;
+                        double fiveMM = 0.005;
+                        double posCov = fiveMM * fiveMM;
                         uncertainty.Covariance = CreateMatrix.Diagonal(new double[] { posCov, posCov, posCov, fifthDegSqr, fifthDegSqr, fifthDegSqr });
                     }
-                }
-                // Add image node
-                var imgNode = new SceneNode(Path.GetFileNameWithoutExtension(dialog.FileName), siteDriveToNode[parsed.SiteDrive].Transform);
-                imgNode.Transform.Rotation = parsed.RoverOriginRotation;
-                imgNode.Transform.Translation = Vector3.Zero;
-                {
-                    var uncertainty = imgNode.AddComponent<NodeUncertainTransform>();
-                    double fifthDegSqr = Math.Pow(0.2 * Math.PI / 180, 2);
-                    double fiveMM = 0.005;
-                    double posCov = fiveMM * fiveMM;
-                    uncertainty.Covariance = CreateMatrix.Diagonal(new double[] { posCov, posCov, posCov, fifthDegSqr, fifthDegSqr, fifthDegSqr });
-                }
 
-                imgNode.AddComponent<NodeImageReference>().Reference = imgRef;
-                Scene.ImageToNode[imgRef] = imgNode;
+                    imgNode.AddComponent<NodeImageReference>().Reference = imgRef;
+                    Scene.ImageToNode[imgRef] = imgNode;
+                }
 
                 view.Image = res;
                 view.ImageRef = imgRef;

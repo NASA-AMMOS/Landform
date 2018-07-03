@@ -276,7 +276,7 @@ namespace OPS.Pipeline
                 
 
                 Mesh border = Mesh.Merge(outterNodes.Select(n => n.GetComponent<MeshImagePair>().Mesh).ToArray());
-                border = border.ResampleDecimation(backgroundFaces, border.Bounds(), new Vector3(0, 1, 0));//MeshLab.ResampleDecimation(border, backgroundFaces * 10, backgroundFaces);
+                border = border.ResampleDecimation(backgroundFaces, border.Bounds(), new Vector3(0, 1, 0));
                 border = Mesh.Cut(border, innerBounds);
                 border.Clean();
 

@@ -5,6 +5,7 @@ using OPS.Cloud;
 using OPS.Imaging;
 using OPS.Util;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -16,11 +17,28 @@ namespace OPS.Plumbing
 {
     public class PipelineCore
     {
-        public PipelineCore(bool enableS3 = true, bool enableDynamo = true, string dynamoPrefix="")
+        public PipelineCore(bool enableS3 = true, bool enableDynamo = true, string dynamoPrefix = "", string s3Url = "", string dynamoUrl = "")
         {
             if (enableS3)
             {
-                s3Client = new AmazonS3Client(Amazon.RegionEndpoint.USWest1);
+                var opts = new AmazonS3Config();
+                if (s3Url == "")
+                {
+                    opts.RegionEndpoint = Amazon.RegionEndpoint.USWest1;
+                }
+                else
+                {
+                    opts.ServiceURL = s3Url;
+                    opts.ForcePathStyle = true;
+                    opts.SignatureVersion = "2";
+                }
+                s3Client = new AmazonS3Client(opts);
+
+                // TODO: StorageHelper will not work with a local deployment
+                // until changes to StorageHelper are made. I did not include my
+                // hacky workaround because the changes in Thomas' branch should
+                // be a cleaner way to deal with it.
+                storage = new StorageHelper(null, "us-west-1");
             }
             else
             {
@@ -29,7 +47,16 @@ namespace OPS.Plumbing
 
             if (enableDynamo)
             {
-                ddbClient = new AmazonDynamoDBClient(Amazon.RegionEndpoint.USWest1);
+                AmazonDynamoDBConfig config = new AmazonDynamoDBConfig();
+                if (dynamoUrl == "")
+                {
+                    config.RegionEndpoint = Amazon.RegionEndpoint.USWest1;
+                }
+                else
+                {
+                    config.ServiceURL = dynamoUrl;
+                }
+                ddbClient = new AmazonDynamoDBClient(config);
                 context = new DynamoDBContext(ddbClient, new DynamoDBContextConfig { TableNamePrefix = dynamoPrefix });
             }
             else
@@ -38,7 +65,6 @@ namespace OPS.Plumbing
                 context = null;
             }
 
-            storage = new StorageHelper();
             cacheFolder = TemporaryFile.GetTempDirectory();
         }
         ~PipelineCore()
@@ -49,13 +75,15 @@ namespace OPS.Plumbing
             }
         }
 
-        IAmazonS3 s3Client;
-        IAmazonDynamoDB ddbClient;
+        AmazonS3Client s3Client;
+        AmazonDynamoDBClient ddbClient;
         DynamoDBContext context;
         StorageHelper storage;
         string cacheFolder;
 
-        public DynamoDBContext DynamoDB { get { return context; } }
+        public IAmazonDynamoDB DynamoDB { get { return ddbClient; } }
+        public DynamoDBContext DynamoContext { get { return context; } }
+        public IAmazonS3 S3Client { get { return s3Client; } }
         public StorageHelper Storage { get { return storage; } }
 
         /// <summary>
@@ -80,10 +108,24 @@ namespace OPS.Plumbing
         /// <summary>
         /// Convenience function to allow pipeline.Load(x) instead of x.Load(pipeline).
         /// </summary>
-        public Image Load(ImageRef imgRef)
+        public Image Load(ImageRef imgRef, bool memoryCache)
         {
+            if (memoryCache)
+            {
+                if (!imageCache.ContainsKey(imgRef))
+                {
+                    imageCache[imgRef] = imgRef.Load(this);
+                }
+                return imageCache[imgRef];
+            }
+
             return imgRef.Load(this);
         }
+        public Image Load(ImageRef imgRef)
+        {
+            return Load(imgRef, true);
+        }
+        private LRUCache<ImageRef, Image> imageCache = new LRUCache<ImageRef, Image>(100);
 
         /// <summary>
         /// Get a project by name.
@@ -92,7 +134,7 @@ namespace OPS.Plumbing
         /// <returns></returns>
         public Project GetProject(string name)
         {
-            return Project.Find(DynamoDB, name);
+            return Project.Find(DynamoContext, name);
         }
 
         /// <summary>
@@ -102,7 +144,7 @@ namespace OPS.Plumbing
         /// <param name="project">Project name</param>
         /// <param name="guid">Data product GUID</param>
         /// <param name="useCache">If true, use on-disk cache</param>
-        public T Get<T>(string project, Guid guid, bool useCache = true) where T : DataProduct, new()
+        public virtual T Get<T>(string project, Guid guid, bool useCache = true) where T : DataProduct, new()
         {
             string s3Url = GetProject(project).ProductPath + guid.ToString();
 
@@ -129,7 +171,7 @@ namespace OPS.Plumbing
         /// <param name="project">Project name</param>
         /// <param name="product">DataProduct object</param>
         /// <param name="useCache">Enable on-disk cache</param>
-        public void Save(string project, DataProduct product, bool useCache = true)
+        public virtual void Save(string project, DataProduct product, bool useCache = true)
         {
             if (product.Guid == Guid.Empty)
             {

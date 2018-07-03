@@ -26,7 +26,6 @@ namespace OPS.Alignment
 
         double overallMinEps, overallMinAlpha;
         int[] overallMinPoints;
-        bool[] overallMinPointsGood;
         Matrix<float> overallMinF;
 
         float[] log_cn, log_c7;
@@ -160,36 +159,13 @@ namespace OPS.Alignment
         /// <returns>Indices into (model|data)Points</returns>
         public IEnumerable<int> ComputeInliers()
         {
-            overallMinPointsGood = new bool[overallMinPoints.Length];
-            Matrix<float> F = overallMinF;
-            Matrix<float> FT = overallMinF.Transpose();
-            Matrix<float> W = new Matrix<float>(3, 1);
-            Matrix<float> U = new Matrix<float>(3, 3);
-            Matrix<float> V = new Matrix<float>(3, 3);
-            CvInvoke.SVDecomp(F, W, U, V, Emgu.CV.CvEnum.SvdFlag.Default);
-            Matrix<float> VT = V.Transpose();
+            var modelBestPoints = overallMinPoints.Select(idx => ModelPoints[idx]).ToArray();
+            var dataBestPoints = overallMinPoints.Select(idx => DataPoints[idx]).ToArray();
 
-            Matrix<float> bestRotation = null;
-            Vector3 bestTranslation = Vector3.Zero;
-            int bestPositiveCount = 0;
-
-            foreach (var transform in PossibleTransforms(W, U, VT))
+            BestTransform = EpipolarTransformDecomposition.ExtractTransform(MakeEpipolarTransform(overallMinF, false), modelBestPoints, dataBestPoints, out bool[] mask);
+            for (int i = 0; i < overallMinPoints.Length; i++)
             {
-                int positiveCount = overallMinPoints.Count(idx => PositiveDepth(transform.Key, transform.Value, ModelPoints[idx], DataPoints[idx]));
-                if (positiveCount > bestPositiveCount)
-                {
-                    bestPositiveCount = positiveCount;
-                    bestRotation = transform.Key;
-                    bestTranslation = transform.Value;
-                }
-            }
-
-            foreach (int idx in overallMinPoints)
-            {
-                if (PositiveDepth(bestRotation, bestTranslation, ModelPoints[idx], DataPoints[idx]))
-                {
-                    yield return idx;
-                }
+                if (mask[i]) yield return overallMinPoints[i];
             }
         }
 
@@ -204,24 +180,37 @@ namespace OPS.Alignment
             }
         }
 
+        private EpipolarMatrix MakeEpipolarTransform(Matrix<float> F, bool scale)
+        {
+            // note that this transposes the matrix to conform to XNA
+            // row vector convention
+            var mat = new Matrix(
+                    F[0, 0], F[1, 0], F[2, 0], 0,
+                    F[0, 1], F[1, 1], F[2, 1], 0,
+                    F[0, 2], F[1, 2], F[2, 2], 0,
+                    0, 0, 0, 0
+                );
+            if (scale) {
+                return EpipolarMatrix.Scaled(mat, ModelSize, DataSize);
+            }
+            else
+            {
+                return new EpipolarMatrix(mat);
+            }
+        }
+
         /// <summary>
-        /// The computed epipolar transformation from model to data.
+        /// The computed epipolar transformation from model to data, in pixel coordinates.
         /// </summary>
-        public EpipolarTransform EpipolarTransform
+        public EpipolarMatrix FundamentalMatrix
         {
             get
             {
-                return new ScaledEpipolarTransform(
-                    new Matrix(
-                        overallMinF[0, 0], overallMinF[1, 0], overallMinF[2, 0], 0,
-                        overallMinF[0, 1], overallMinF[1, 1], overallMinF[2, 1], 0,
-                        overallMinF[0, 2], overallMinF[1, 2], overallMinF[2, 2], 0,
-                        0, 0, 0, 0
-                    ),
-                    ModelSize,
-                    DataSize);
+                return MakeEpipolarTransform(overallMinF, true);
             }
         }
+
+        public Matrix BestTransform;
 
         /// <summary>
         /// Compute the epipolar error for a point match given a fundamental matrix.
@@ -322,42 +311,7 @@ namespace OPS.Alignment
         }
 
         // end public facing
-
-        IEnumerable<KeyValuePair<Matrix<float>, Vector3>> PossibleTransforms(Matrix<float> Wigma, Matrix<float> U, Matrix<float> VT)
-        {
-            Matrix<float> W = new Matrix<float>(3, 3);
-            W[0, 1] = -1;
-            W[1, 0] = 1;
-            W[2, 2] = 1;
-            Vector3 translation = new Vector3(U[2, 0], U[2, 1], U[2, 2]);
-
-            yield return new KeyValuePair<Matrix<float>, Vector3>(
-                U * W * VT,
-                translation
-                );
-            yield return new KeyValuePair<Matrix<float>, Vector3>(
-                U * W * VT,
-                -translation
-                );
-            yield return new KeyValuePair<Matrix<float>, Vector3>(
-                U * W.Transpose() * VT,
-                translation
-                );
-            yield return new KeyValuePair<Matrix<float>, Vector3>(
-                U * W.Transpose() * VT,
-                -translation
-                );
-        }
-
-        bool PositiveDepth(Matrix<float> rotation, Vector3 translation, Vector2 modelPos, Vector2 dataPos)
-        {
-            Vector3 r1 = new Vector3(rotation[0, 0], rotation[0, 1], rotation[0, 2]),
-                    r3 = new Vector3(rotation[2, 0], rotation[2, 1], rotation[2, 2]);
-            double z = Vector3.Dot((r1 - dataPos.X * r3), translation) / Vector3.Dot((r1 - dataPos.X * r3), new Vector3(modelPos, 1));
-            if (z < 0) return false;
-            return true;
-        }
-
+        
         static Vector3 Transform(Vector3 p0, Matrix<float> F)
         {
             // HACK: For some reason Emgu is stomping all over the stack

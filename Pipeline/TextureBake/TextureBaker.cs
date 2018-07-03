@@ -67,7 +67,7 @@ namespace OPS.Pipeline
         Octree triOctTree;
         int destBands;
 
-        public TextureBaker(MeshImagePair[] source)
+        public TextureBaker(MeshImagePair[] source, int maxDepth = 8)
         {
             if (source.Count() == 0)
             {
@@ -86,7 +86,7 @@ namespace OPS.Pipeline
             }
             BoundingBox finalBox = BoundingBoxExtensions.Union(boxes.ToArray());
             // construct oct tree on source meshes
-            this.triOctTree = new Octree(finalBox, maxDepth: 11);
+            this.triOctTree = new Octree(finalBox, maxDepth: maxDepth);
             for (int i = 0; i < source.Count(); i++)
             {                
                 List<OctreeNodeContents> insertList = new List<OctreeNodeContents>();

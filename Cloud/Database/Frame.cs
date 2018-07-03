@@ -35,6 +35,11 @@ namespace OPS.Cloud
         [DynamoDBProperty()]
         public List<string> PriorIds { get; set; }
 
+        public bool IsLocated(DynamoDBContext context)
+        {
+            return FrameTransform.Find(context, this) != null;
+        }
+
         //This constructor must be public for DynamoDb but should not be used
         public Frame()
         {
