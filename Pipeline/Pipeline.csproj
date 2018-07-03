@@ -179,6 +179,9 @@
     <Compile Include="Commands\LegacyToTile3D.cs" />
     <Compile Include="Commands\CreateCloudTemplates.cs" />
     <Compile Include="Commands\TileLocalMesh.cs" />
+    <Compile Include="Commands\TileServer\ChunkInputDataset.cs" />
+    <Compile Include="Commands\TileServer\PretendTilingServerDatabase.cs" />
+    <Compile Include="Commands\TileServer\TilingServerWorkflow.cs" />
     <Compile Include="Commands\TilingWorker.cs" />
     <Compile Include="Commands\Commands.cs" />
     <Compile Include="Commands\ConvertBaselineMesh.cs" />
