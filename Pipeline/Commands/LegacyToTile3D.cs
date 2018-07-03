@@ -210,7 +210,6 @@ namespace OPS.Pipeline
         void SaveNode(SceneNode node, string imageFormat)
         {
             node.SaveMesh(options.OutputDirectory, "b3dm", imageFormat);
-            //node.SaveMesh(options.OutputDirectory, "ply", imageFormat);
         }
 
         string NodeToUrl(SceneNode node)
