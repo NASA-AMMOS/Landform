@@ -65,10 +65,8 @@ namespace OPS.Pipeline
                 }
                 if(splitCriteria.ShouldSplit(op, bounds))
                 {
-                    logger.Info("split " + op.CountFaces(bounds));
                     foreach(var childBounds in tilingScheme.Split(op, bounds))
                     {
-                        logger.Info("\t" + op.CountFaces( childBounds));
                         boundsToProcess.Enqueue(childBounds);
                     }
                 }
