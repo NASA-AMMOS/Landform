@@ -27,6 +27,8 @@ namespace OPS.Geometry
         RTree<Triangle> faceTree;
         RTree<Vertex> vertexTree;
         RTree<Triangle> uvFaceTree;
+        public List<Triangle> Triangles { get; private set; }
+
 
         bool hasUVs;
         bool hasNormals;
@@ -50,12 +52,12 @@ namespace OPS.Geometry
             hasUVs = mesh.HasUVs;
             hasNormals = mesh.HasNormals;
             hasColors = mesh.HasColors;
-            List<Triangle> triangles = mesh.Triangles();
-
+            this.Triangles = mesh.Triangles();
+            
             if (buildFaceTree)
             {
                 faceTree = new RTree<Triangle>(10, 5);               
-                foreach (var t in triangles)
+                foreach(var t in Triangles)
                 {
                     faceTree.Add(t.Bounds().ToRectangle(), t);
                 }
@@ -71,8 +73,7 @@ namespace OPS.Geometry
             if(hasUVs && buildUVFaceTree)
             {
                 uvFaceTree = new RTree<Triangle>(10, 5);
-
-                foreach (var t in triangles)
+                foreach(var t in Triangles)
                 {
                     uvFaceTree.Add(t.UVBounds().ToRectangle(), t);
                 }
@@ -217,6 +218,11 @@ namespace OPS.Geometry
                     return b;
             }
             return null;
+        }
+
+        public List<Triangle> UVIntersects(BoundingBox box)
+        {
+            return uvFaceTree.Intersects(box.ToRectangle());
         }
     }
 
