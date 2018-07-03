@@ -41,11 +41,20 @@ namespace OPS.Pipeline
         }
     }
 
+    public class NodeRecord
+    {
+        public string Id;
+        public string[] ChildIds;
+        public BoundingBox Bounds;
+    } 
+
     public class PretendTilingServerDatabase
     {
 
         public List<TilingInputRecord> InputTable = new List<TilingInputRecord>();
         public List<TilingChunkRecord> ChunkTable = new List<TilingChunkRecord>();
+        public List<NodeRecord> NodeTable = new List<NodeRecord>();
+
 
         static PretendTilingServerDatabase instance;
 
@@ -85,6 +94,7 @@ namespace OPS.Pipeline
         {
             InputTable.Clear();
             ChunkTable.Clear();
+            NodeTable.Clear();
         }
 
 
