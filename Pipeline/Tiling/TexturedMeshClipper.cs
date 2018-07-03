@@ -141,6 +141,16 @@ namespace OPS.Pipeline
             return patches;
         }
 
+
+        public MeshImagePair ClipMesh(MeshImagePair inputPair, BoundingBox clipBounds, int borderSize = 5, bool allowRotation = false)
+        {
+            MeshOperator meshOperator = new MeshOperator(inputPair.Mesh);
+            Image img = inputPair.Image;
+            var clippedMesh = meshOperator.Clip(clipBounds);
+            clippedMesh.Clean();
+            return ClipTexture(clippedMesh, img, borderSize, allowRotation);
+        }
+
         /// <summary>
         /// Given a mesh and image, returns a mesh clipped to the clipping bounds and an image containing texture data for that portion of the mesh
         /// The returned image may be repacked to fit in a smaller texture
@@ -148,19 +158,13 @@ namespace OPS.Pipeline
         /// <param name="inputPair"></param>
         /// <param name="clipBounds"></param>
         /// <returns></returns>
-        public MeshImagePair ClipMesh(MeshImagePair inputPair, BoundingBox clipBounds, int borderSize = 5, bool allowRotation = false)
+        public MeshImagePair ClipTexture(Mesh clippedMesh, Image img, int borderSize = 5, bool allowRotation = false)
         {
             if (allowRotation == true)
             {
                 logger.Warn("Clip Mesh rotation is potentially unstable and may result in half pixel texture offsets");
             }
-
-            Image img = inputPair.Image;
-            MeshOperator meshOperator = new MeshOperator(inputPair.Mesh);
-            var clippedMesh = meshOperator.Clip(clipBounds);
-            clippedMesh.Clean();
             List<TexturePatch> patches = ComputePatches(clippedMesh, img, borderSize);
-
 
             int clippedArea = 0;
             int maxWidth = 0, maxHeight = 0;
@@ -253,7 +257,7 @@ namespace OPS.Pipeline
 
             var result = new MeshImagePair();
             result.Image = packedImg;
-            result.Mesh = new Mesh(resultTriangles, hasNormals: inputPair.Mesh.HasNormals, hasUVs: inputPair.Mesh.HasUVs, hasColors: inputPair.Mesh.HasColors);
+            result.Mesh = new Mesh(resultTriangles, hasNormals: clippedMesh.HasNormals, hasUVs: clippedMesh.HasUVs, hasColors: clippedMesh.HasColors);
             return result;
         }
 
