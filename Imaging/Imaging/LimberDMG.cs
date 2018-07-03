@@ -15,10 +15,25 @@ namespace OPS.Imaging
     {
         private static readonly ILog logger = LogManager.GetLogger(typeof(LimberDMG));
 
+        /// <summary>
+        /// Acceptable error in solving the linear system.
+        /// 
+        /// Lower will give better quality results, at the expense of computation time.
+        /// </summary>
         private double residualEpsilon;
+        /// <summary>
+        /// Number of iterations of Gauss-Seidel relaxation to perform between multigrid iterations.
+        /// 
+        /// Higher may produce better quality results, at the expense of computation time.
+        /// </summary>
         private int numRelaxationSteps;
+        /// <summary>
+        /// Weighting applied to original pixel values.
+        /// 
+        /// Higher values will cause sharper transitions between images but better conform to the inputs.
+        /// </summary>
         private double lambda;
-        PoissonProblem2D.EdgeBehavior edgeMode;
+        private PoissonProblem2D.EdgeBehavior edgeMode;
 
         public LimberDMG(double residualEpsilon = 1e-3, int numRelaxationSteps = 15, double lambda = 0.003, PoissonProblem2D.EdgeBehavior edgeMode = PoissonProblem2D.EdgeBehavior.Clamp)
         {
