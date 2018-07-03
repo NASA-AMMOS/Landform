@@ -119,40 +119,40 @@ namespace OPS.Alignment.BundleAdjusterStructures
         [MarshalAs(UnmanagedType.ByValArray, SizeConst = 3 * 7 + 1)]
         public double[] Parameters;
 
-        public CameraModel(CAHV c)
+        public CameraModel(Imaging.CameraModel c)
         {
-            Vector3 C = Vector3.Zero,
-                    A = Vector3.Zero,
-                    H = Vector3.Zero,
-                    V = Vector3.Zero,
-                    O = Vector3.Zero,
-                    R = Vector3.Zero,
-                    E = Vector3.Zero;
-            double linearity = 1;
-            Type = CameraModelType.CAHV;
-
             if (c is CAHV)
             {
-                C = ((CAHVOR)c).C;
-                A = ((CAHVOR)c).A;
-                H = ((CAHVOR)c).H;
-                V = ((CAHVOR)c).V;
-            }
-            if (c is CAHVOR)
-            {
-                O = ((CAHVOR)c).O;
-                R = ((CAHVOR)c).R;
-                Type = CameraModelType.CAHVOR;
-            }
-            if (c is CAHVORE)
-            {
-                E = ((CAHVORE)c).E;
-                linearity = ((CAHVORE)c).linearityMode.Linearity;
-                Type = CameraModelType.CAHVORE;
-            }
-            
-            Parameters = new double[]
-            {
+                Vector3 C = Vector3.Zero,
+                        A = Vector3.Zero,
+                        H = Vector3.Zero,
+                        V = Vector3.Zero,
+                        O = Vector3.Zero,
+                        R = Vector3.Zero,
+                        E = Vector3.Zero;
+                double linearity = 1;
+                Type = CameraModelType.CAHV;
+                
+                C = ((CAHV)c).C;
+                A = ((CAHV)c).A;
+                H = ((CAHV)c).H;
+                V = ((CAHV)c).V;
+
+                if (c is CAHVOR)
+                {
+                    O = ((CAHVOR)c).O;
+                    R = ((CAHVOR)c).R;
+                    Type = CameraModelType.CAHVOR;
+                }
+                if (c is CAHVORE)
+                {
+                    E = ((CAHVORE)c).E;
+                    linearity = ((CAHVORE)c).linearityMode.Linearity;
+                    Type = CameraModelType.CAHVORE;
+                }
+
+                Parameters = new double[]
+                {
                 C.X, C.Y, C.Z,
                 A.X, A.Y, A.Z,
                 H.X, H.Y, H.Z,
@@ -161,10 +161,15 @@ namespace OPS.Alignment.BundleAdjusterStructures
                 R.X, R.Y, R.Z,
                 E.X, E.Y, E.Z,
                 linearity
-            };
+                };
+            }
+            else
+            {
+                throw new ArgumentException("invalid camera model type");
+            }
         }
 
-        public CAHV Model
+        public Imaging.CameraModel Model
         {
             get
             {

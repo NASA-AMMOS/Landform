@@ -4,8 +4,10 @@ using System.Linq;
 using System.Collections.Generic;
 using Newtonsoft.Json.Linq;
 using Amazon.DynamoDBv2.DataModel;
+using Amazon.DynamoDBv2.Model;
 using System.Reflection;
 using OPS.Cloud;
+using Amazon.DynamoDBv2;
 
 namespace OPS.Pipeline
 {
@@ -88,6 +90,147 @@ namespace OPS.Pipeline
                     }
                 }
             };
+        }
+
+        public static string TableName(Type type)
+        {
+            var ta = type.GetCustomAttribute<DynamoDBTableAttribute>();
+            if (ta == null)
+            {
+                throw new ArgumentException("Not a table");
+            }
+            return ta.TableName;
+        }
+
+        public static CreateTableRequest CreateTable(Type type, string prefix="")
+        {
+            var ta = type.GetCustomAttribute<DynamoDBTableAttribute>();
+            if (ta == null)
+            {
+                throw new ArgumentException("Not a table");
+            }
+
+            string rangeKey = null;
+            string hashKey = null;
+            Dictionary<string, AttributeDefinition> allProps = new Dictionary<string, AttributeDefinition>();
+            Dictionary<string, SecondaryGlobalIndex> secondaryIndices = new Dictionary<string, SecondaryGlobalIndex>();
+
+            var properties = new JArray();
+            foreach (var field in type.GetProperties(BindingFlags.Public | BindingFlags.Instance))
+            {
+                // get name of corresponding DynamoDB field
+                var fieldName = field.Name;
+                {
+                    foreach (var pa in field.GetCustomAttributes<DynamoDBPropertyAttribute>())
+                    {
+                        if (pa != null && pa.AttributeName != null)
+                        {
+                            fieldName = pa.AttributeName;
+                            break;
+                        }
+                    }
+                }
+
+                // get field properties
+                bool isNum = field.GetType() == typeof(int) || field.GetType() == typeof(float) || field.GetType() == typeof(double);
+                allProps[fieldName] = new AttributeDefinition(fieldName, isNum ? ScalarAttributeType.N : ScalarAttributeType.S); 
+
+                // get hash and range key, if defined
+                // DynamoDBGlobalSecondaryIndex[Hash,Range]KeyAttribute are subclasses of DynamoDB[Hash,Range]KeyAttribute, make sure not to use those
+                if (field.GetCustomAttributes<DynamoDBHashKeyAttribute>().Where(a => a.GetType() == typeof(DynamoDBHashKeyAttribute)).Any())
+                {
+                    hashKey = fieldName;
+                }
+                if (field.GetCustomAttributes<DynamoDBRangeKeyAttribute>().Where(a => a.GetType() == typeof(DynamoDBRangeKeyAttribute)).Any())
+                {
+                    rangeKey = fieldName;
+                }
+
+                // create any secondary indices and connect them to hash and range keys
+                Func<string, SecondaryGlobalIndex> getIndex = (indexName) =>
+                {
+                    if (!secondaryIndices.ContainsKey(indexName))
+                    {
+                        secondaryIndices[indexName] = new SecondaryGlobalIndex(indexName);
+                    }
+                    return secondaryIndices[indexName];
+                };
+                var sihka = field.GetCustomAttribute<DynamoDBGlobalSecondaryIndexHashKeyAttribute>();
+                if (sihka != null)
+                {
+                    foreach (var indexName in sihka.IndexNames)
+                    {
+                        getIndex(indexName).HashKey = fieldName;
+                    }
+                }
+                var sirka = field.GetCustomAttribute<DynamoDBGlobalSecondaryIndexRangeKeyAttribute>();
+                if (sirka != null)
+                {
+                    foreach (var indexName in sirka.IndexNames)
+                    {
+                        getIndex(indexName).RangeKey = fieldName;
+                    }
+                }
+            }
+
+            // determine capacity
+            var readCapacity = type.GetCustomAttribute<DynamoDBReadCapacityAttribute>();
+            var writeCapacity = type.GetCustomAttribute<DynamoDBWriteCapacityAttribute>();
+            Func<DynamoDBCapacityAttribute, int, int> capacityToDefine = (cap, defaultValue) =>
+            {
+                if (cap == null)
+                {
+                    return defaultValue;
+                }
+                return cap.Fixed ? cap.FixedCapacity : cap.MinCapacity;
+            };
+
+            var createRequest = new CreateTableRequest(
+                prefix + ta.TableName,
+                new List<KeySchemaElement>(),
+                new List<AttributeDefinition>(),
+                new ProvisionedThroughput(capacityToDefine(readCapacity, 50), capacityToDefine(writeCapacity, 5)));
+
+            // must define *only* attributes used in hash or range keys
+            HashSet<string> definedAttrs = new HashSet<string>();
+            if (hashKey != null)
+            {
+                definedAttrs.Add(hashKey);
+                createRequest.KeySchema.Add(new KeySchemaElement(hashKey, KeyType.HASH));
+            }
+            if (rangeKey != null)
+            {
+                definedAttrs.Add(rangeKey);
+                createRequest.KeySchema.Add(new KeySchemaElement(rangeKey, KeyType.RANGE));
+            }
+            foreach (var secondaryIndex in secondaryIndices.Values)
+            {
+                var ks = new List<KeySchemaElement>();
+                if (secondaryIndex.HashKey != null)
+                {
+                    ks.Add(new KeySchemaElement(secondaryIndex.HashKey, KeyType.HASH));
+                    definedAttrs.Add(secondaryIndex.HashKey);
+                }
+                if (secondaryIndex.RangeKey != null)
+                {
+                    ks.Add(new KeySchemaElement(secondaryIndex.RangeKey, KeyType.RANGE));
+                    definedAttrs.Add(secondaryIndex.RangeKey);
+                }
+
+                createRequest.GlobalSecondaryIndexes.Add(new GlobalSecondaryIndex()
+                {
+                    IndexName = secondaryIndex.Name,
+                    KeySchema = ks,
+                    ProvisionedThroughput = new ProvisionedThroughput(50, 5),
+                    Projection = new Projection() {  ProjectionType = ProjectionType.ALL }
+                });
+            }
+            foreach (var attrName in definedAttrs)
+            {
+                createRequest.AttributeDefinitions.Add(allProps[attrName]);
+            }
+
+            return createRequest;
         }
 
         JObject CreateResourcesForTable(Type type)

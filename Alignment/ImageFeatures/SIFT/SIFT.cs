@@ -60,10 +60,10 @@ namespace OPS.Alignment
             float[,] descData = descriptors.Data;
             for (int i = 0; i < features.Count; i++)
             {
-                float[] data = new float[128];
+                byte[] data = new byte[128];
                 for (int j = 0; j < 128; j++)
                 {
-                    data[j] = descData[i, j];
+                    data[j] = (byte)descData[i, j];
                 }
                 features[i].Descriptor = new SIFTDescriptor(data);
             }
