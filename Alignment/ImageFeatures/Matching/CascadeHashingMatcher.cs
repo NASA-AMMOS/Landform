@@ -25,8 +25,8 @@ namespace OPS.Alignment
         public readonly int MaximumKnnCandidates;
         public readonly double MaximumDistanceRatio;
 
-        private readonly Matrix<float>[] projectionMatrices;
-        private readonly Matrix<float> hammingProjectionMatrix;
+        private readonly LocalitySensitiveHash primaryHash;
+        private LocalitySensitiveHash[] secondaryHashes;
 
         /// <summary>
         /// Construct an instance with the given parameters.
@@ -51,12 +51,46 @@ namespace OPS.Alignment
             Random r = new Random();
 
             // Create projection matrices
-            projectionMatrices = new Matrix<float>[BucketCount];
+            secondaryHashes = new LocalitySensitiveHash[BucketCount];
             for (int i = 0; i < BucketCount; i++)
             {
-                projectionMatrices[i] = MakeProjection(DescriptorSize, SecondaryHashBits, r);
+                secondaryHashes[i] = new LocalitySensitiveHash(DescriptorSize, SecondaryHashBits, r);
             }
-            hammingProjectionMatrix = MakeProjection(DescriptorSize, PrimaryHashBits, r);
+            primaryHash = new LocalitySensitiveHash(DescriptorSize, PrimaryHashBits, r);
+        }
+
+        /// <summary>
+        /// Set of hash codes computed for a feature descriptor
+        /// </summary>
+        struct DescriptorHashes
+        {
+            public HashCode PrimaryHash;
+            public HashCode[] SecondaryHashes;
+        }
+
+        /// <summary>
+        /// Compute all hashes for an image's features
+        /// </summary>
+        private DescriptorHashes[] ComputeHashes(AlignmentScene scene, ImageRef imgRef, Vector<float> featureMean)
+        {
+            var features = scene.DetectedFeatures[imgRef];
+            DescriptorHashes[] res = new DescriptorHashes[features.Length];
+            Parallel.For(0, features.Length, i =>
+            {
+                var mc = GetMeanCentered(features[i], featureMean);
+                var primary = primaryHash.Project(mc);
+                var secondary = new HashCode[BucketCount];
+                for (int j = 0; j < BucketCount; j++)
+                {
+                    secondary[j] = secondaryHashes[j].Project(mc);
+                }
+                res[i] = new DescriptorHashes()
+                {
+                    PrimaryHash = primary,
+                    SecondaryHashes = secondary
+                };
+            });
+            return res;
         }
 
         public ImagePairCorrespondence Match(AlignmentScene scene, UnorderedImagePair pair)
@@ -67,76 +101,65 @@ namespace OPS.Alignment
             var dataFeat = scene.DetectedFeatures[data];
             var meanDescriptor = FeatureMean(scene, pair);
 
-            HashCode[] modelHashes = new HashCode[modelFeat.Length];
-            Dictionary<HashCode, List<int>>[] modelSecondaryHashes = new Dictionary<HashCode, List<int>>[BucketCount];
-            for (int hash = 0; hash < BucketCount; hash++)
-            {
-                var hashtable = modelSecondaryHashes[hash] = new Dictionary<HashCode, List<int>>();
-            }
+            // Compute hashes
+            DescriptorHashes[] modelHashes = ComputeHashes(scene, model, meanDescriptor);
+            DescriptorHashes[] dataHashes = ComputeHashes(scene, data, meanDescriptor);
 
-            // Hash all model features
-            Parallel.For(0, modelFeat.Length, i =>
-            {
-                var mc = GetMeanCentered(((FeatureDescriptor<byte>)modelFeat[i].Descriptor).Data, meanDescriptor);
-                modelHashes[i] = Project(mc, hammingProjectionMatrix);
-            });
-
+            // Put model features in buckets
+            Dictionary<HashCode, List<int>>[] buckets = new Dictionary<HashCode, List<int>>[BucketCount];
             for (int i = 0; i < modelFeat.Length; i++)
             {
-                var mc = GetMeanCentered(((FeatureDescriptor<byte>)modelFeat[i].Descriptor).Data, meanDescriptor);
-                Parallel.For(0, BucketCount, hash =>
+                var dh = modelHashes[i];
+                for (int j = 0; j < BucketCount; j++)
                 {
-                    // note we only read this reference and do not mutate the modelSecondaryHashes array
-                    // itself - so locking should not be needed
-                    // hashtable is being accessed exclusively by this thread
-                    var hashtable = modelSecondaryHashes[hash];
-
-                    // projectionMatrices is also only read from
-                    var hc = Project(mc, projectionMatrices[hash]);
-                    if (!hashtable.ContainsKey(hc))
+                    var bucket = buckets[j];
+                    var hash = dh.SecondaryHashes[j];
+                    if (!bucket.ContainsKey(hash))
                     {
-                        hashtable[hc] = new List<int>();
+                        bucket[hash] = new List<int>();
                     }
-                    hashtable[hc].Add(i);
-                });
+                    bucket[hash].Add(i);
+                }
             }
 
             int[] d2m = new int[dataFeat.Length];
             Parallel.For(0, dataFeat.Length, i =>
             {
                 d2m[i] = -1;
-                var mc = GetMeanCentered(((FeatureDescriptor<byte>)dataFeat[i].Descriptor).Data, meanDescriptor);
 
-                // Collect list of candidate features in model image
-                HashSet<int> candidateMatches = new HashSet<int>();
-                for (int hash = 0; hash < BucketCount; hash++)
+                var dh = dataHashes[i];
+
+                // Collect list of candidate features in model image from secondary hash collisions
+                List<int> candidateIndices;
                 {
-                    var hashtable = modelSecondaryHashes[hash];
-
-                    var hc = Project(mc, projectionMatrices[hash]);
-                    if (hashtable.ContainsKey(hc))
+                    HashSet<int> candidateMatches = new HashSet<int>();
+                    for (int hashIdx = 0; hashIdx < BucketCount; hashIdx++)
                     {
-                        foreach (var c in hashtable[hc])
+                        var bucket = buckets[hashIdx];
+                        var hash = dh.SecondaryHashes[hashIdx];
+                        if (bucket.ContainsKey(hash))
                         {
-                            candidateMatches.Add(c);
+                            foreach (var c in bucket[hash])
+                            {
+                                candidateMatches.Add(c);
+                            }
                         }
                     }
+                    candidateIndices = new List<int>(candidateMatches);
                 }
 
-                List<int> candidateIndices = new List<int>(candidateMatches);
-                var myHash = Project(mc, hammingProjectionMatrix);
-                // Get KNN in hamming space
+                // Get KNN in hamming space with primary hash
                 KNNMatcher<HashCode>.Node[] knnHamming;
                 {
                     KNNMatcher<HashCode> matcher = new KNNMatcher<HashCode>((c0, c1) => c0.HammingDistance(c1));
-                    knnHamming = matcher.Find(myHash, candidateIndices.Select(idx => modelHashes[idx]).ToArray(), MaximumKnnCandidates).ToArray();
+                    knnHamming = matcher.Find(dh.PrimaryHash, candidateIndices.Select(idx => modelHashes[idx].PrimaryHash).ToArray(), MaximumKnnCandidates).ToArray();
                 }
                 if (knnHamming.Length < MinimumKnnCandidates)
                 {
                     return;
                 }
 
-                // Finally, get 2NN in euclidean space out of hamming knn
+                // Finally, get 2NN in euclidean space
                 KNNMatcher<ImageFeature>.Node[] nearest;
                 {
                     KNNMatcher<ImageFeature> matcher = new KNNMatcher<ImageFeature>((f0, f1) =>
@@ -167,6 +190,8 @@ namespace OPS.Alignment
                     d2m[i] = featureIndex;
                 }
             });
+
+            // Convert flat array to list of feature pairs
             List<KeyValuePair<int, int>> goodD2m = new List<KeyValuePair<int, int>>();
             for (int i = 0; i < d2m.Length; i++)
             {
@@ -180,7 +205,9 @@ namespace OPS.Alignment
             return new ImagePairCorrespondence(model, data, goodD2m);
         }
 
-
+        /// <summary>
+        /// Compute the mean descriptor value between both images in a pair.
+        /// </summary>
         private Vector<float> FeatureMean(AlignmentScene scene, UnorderedImagePair pair)
         {
             Vector<float> res = CreateVector.Dense(DescriptorSize, 0.0f);
@@ -211,60 +238,15 @@ namespace OPS.Alignment
         {
             return CreateVector.DenseOfArray(descriptor.Select(b => (float)b).ToArray()) - mean;
         }
-
-        /// <summary>
-        /// Project a mean-centered descriptor into a binary hash code.
-        /// </summary>
-        /// <param name="meanCentered">Mean-centered descriptor vector</param>
-        /// <param name="mat">Hash projection matrix</param>
-        /// <returns></returns>
-        private HashCode Project(Vector<float> meanCentered, Matrix<float> mat)
-        {
-            var p = mat * meanCentered;
-            HashCode res = new HashCode(p.Count);
-            for (int i = 0; i < p.Count; i++)
-            {
-                int byteIdx = i / 8;
-                int bitIdx = i % 8;
-                if (p[i] > 0)
-                {
-                    res.Data[byteIdx] |= (byte)(1 << bitIdx);
-                }
-            }
-            return res;
-        }
-
-        /// <summary>
-        /// Sample a random number from the standard normal distribution.
-        /// </summary>
-        /// <param name="r">Random number generator</param>
-        private static double NormalRandom(Random r)
-        {
-            var u1 = r.NextDouble();
-            var u2 = r.NextDouble();
-            return Math.Sqrt(-2 * Math.Log(u1)) * Math.Cos(2 * Math.PI * u2);
-        }
-
-        /// <summary>
-        /// Make a projection matrix for a random locality-sensitive hash.
-        /// </summary>
-        /// <param name="fromDimension">Dimension of input vectors</param>
-        /// <param name="toDimension">Dimension of hamming space</param>
-        /// <param name="r">Random number generator</param>
-        /// <returns>Matrix of size (to x from)</returns>
-        private static Matrix<float> MakeProjection(int fromDimension, int toDimension, Random r)
-        {
-            var res = CreateMatrix.Dense<float>(toDimension, fromDimension);
-            for (int i = 0; i < toDimension; i++)
-            {
-                for (int j = 0; j < fromDimension; j++)
-                {
-                    res[i, j] = (float)NormalRandom(r);
-                }
-            }
-            return res;
-        }
         
+        private Vector<float> GetMeanCentered(ImageFeature feat, Vector<float> mean)
+        {
+            return GetMeanCentered(((FeatureDescriptor<byte>)feat.Descriptor).Data, mean);
+        }
+
+        /// <summary>
+        /// Result of applying a locality sensitive hash.
+        /// </summary>
         private struct HashCode
         {
             public readonly byte[] Data;
@@ -350,6 +332,55 @@ namespace OPS.Alignment
                     res += ByteBitCount[xor[i]];
                 }
                 return res;
+            }
+        }
+        
+        private class LocalitySensitiveHash
+        {
+            public readonly Matrix<float> Projection;
+            public LocalitySensitiveHash(int inputSize, int outputBits, Random r)
+            {
+                Projection = CreateMatrix.Dense(outputBits, inputSize, 0.0f);
+                for (int i = 0; i < outputBits; i++)
+                {
+                    for (int j = 0; j < inputSize; j++)
+                    {
+                        Projection[i, j] = (float)NormalRandom(r);
+                    }
+                }
+            }
+            
+            /// <summary>
+            /// Project a mean-centered vector into a binary hash code.
+            /// </summary>
+            /// <param name="meanCentered">Mean-centered vector</param>
+            /// <param name="mat">Hash projection matrix</param>
+            /// <returns></returns>
+            public HashCode Project(Vector<float> meanCentered)
+            {
+                var p = Projection * meanCentered;
+                HashCode res = new HashCode(p.Count);
+                for (int i = 0; i < p.Count; i++)
+                {
+                    int byteIdx = i / 8;
+                    int bitIdx = i % 8;
+                    if (p[i] > 0)
+                    {
+                        res.Data[byteIdx] |= (byte)(1 << bitIdx);
+                    }
+                }
+                return res;
+            }
+
+            /// <summary>
+            /// Sample a random number from the standard normal distribution.
+            /// </summary>
+            /// <param name="r">Random number generator</param>
+            private static double NormalRandom(Random r)
+            {
+                var u1 = r.NextDouble();
+                var u2 = r.NextDouble();
+                return Math.Sqrt(-2 * Math.Log(u1)) * Math.Cos(2 * Math.PI * u2);
             }
         }
         
