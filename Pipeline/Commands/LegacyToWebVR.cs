@@ -184,36 +184,6 @@ namespace OPS.Pipeline
             v = 1 - (yp + 1) / 2;
         }
 
-        // TODO: See SceneNodeTilingExtensions version instead
-        public static int ComputeParentTileResolution(IEnumerable<MeshImagePair> pairs, BoundingBox cropBounds, int maxTextureSize = int.MaxValue)
-        {
-
-            // Read all overlapping meshes, crop each to the extent of the leaf tile
-            // and calculate the area the triangles occupy in units of pixels.  Sum all
-            // the areas and round up to nearest power of two to decide size of the new tile
-            double totalPixels = 0;
-            foreach (var p in pairs)
-            {
-                var triangles = Mesh.Clip(p.Mesh, cropBounds).Triangles();
-                foreach (var t in triangles)
-                {
-                    Vector3 a = new Vector3(p.Image.UVToPixel(t.V0.UV), 0);
-                    Vector3 b = new Vector3(p.Image.UVToPixel(t.V1.UV), 0);
-                    Vector3 c = new Vector3(p.Image.UVToPixel(t.V2.UV), 0);
-                    var pixelTri = new Triangle(a, b, c);
-                    if (double.IsNaN(pixelTri.Area()))
-                    {
-                        throw new Exception("Triangle area not a number");
-                    }
-                    totalPixels += pixelTri.Area();
-                }
-            }
-            double size = Math.Sqrt(totalPixels);
-            size = MathE.CeilPowerOf2(size);
-            size = Math.Min(size, maxTextureSize);
-            return (int)size;
-        }
-
         public int Run()
         {
 
@@ -227,6 +197,15 @@ namespace OPS.Pipeline
 
             logger.Info("Loading legacy scene");
             LegacyScene scene = new LegacyScene(options.InputDirectory, options.InputExtent);
+            logger.Info("Removing skirts");
+            Parallel.ForEach(scene.TerrainRoot.Leaves(), node =>
+            {
+                var pair = node.GetComponent<MeshImagePair>();
+                if (pair != null && pair.Mesh != null)
+                {
+                    pair.Mesh.RemoveSkirt(SkirtAxis.Y);
+                }
+            });
 
             // Rendering orthos is just for fun, it isn't used by Access Mars
             logger.Info("Rendering Orthos");
@@ -273,7 +252,7 @@ namespace OPS.Pipeline
                 m = Mesh.Clip(m, innerBounds);
                 m.Clean();
                 SceneNode n = new SceneNode("simple");
-                n.AddComponent<MeshImagePair>(new MeshImagePair(m));
+                n.AddComponent(new MeshImagePair(m));
                 WriteTile(n);
             }
 
@@ -328,15 +307,7 @@ namespace OPS.Pipeline
             logger.Info("Creating inner tile meshes");
             ConcurrentDictionary<string, TextureSize> textureSizeData = new ConcurrentDictionary<string, TextureSize>();
             IEnumerable<SceneNode> nodesToProcess = options.InnerMostTilesOnly ? innerNodes : root.Leaves();
-            
-            Parallel.ForEach(nodesToProcess, node =>
-            {
-                var pair = node.GetComponent<MeshImagePair>();
-                if (pair != null && pair.Mesh != null)
-                {
-                    pair.Mesh.RemoveSkirt(SkirtAxis.Y);
-                }
-            });
+                        
 
             Parallel.ForEach(nodesToProcess, leaf =>
             {
@@ -365,8 +336,8 @@ namespace OPS.Pipeline
                 //m = Mesh.Clip(m, leaf.Bounds);
                 
                 var pairs = overlaps.Select(x => x.GetComponent<MeshImagePair>());
-
-                int size = ComputeParentTileResolution(pairs, leaf.GetOrAddComponent<NodeBounds>().Bounds, options.MaxTextureSize);
+               
+                int size = SceneNodeTilingExtensions.ComputeParentTileResolution(pairs, leaf.GetOrAddComponent<NodeBounds>().Bounds, options.MaxTextureSize);
                 int textureWidth = size;
                 int textureHeight = size;
                 int beforeVerts = m.Vertices.Count;

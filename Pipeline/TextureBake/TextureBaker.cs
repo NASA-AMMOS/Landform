@@ -101,7 +101,7 @@ namespace OPS.Pipeline
         public Image Bake(Mesh dest, int destWidth, int destHeight, int padWidth = -1)
         {
             // r tree for efficient uv to xyz conversion
-            var destOperator = new MeshOperator(dest);
+            var destOperator = new MeshOperator(dest, buildFaceTree: false, buildVertexTree: false);
             // the new texture
             var destImage = new Image(destBands, destWidth, destHeight);
             
