@@ -57,6 +57,7 @@ namespace OPS.Geometry.GLTF
             // Specify the first and only scene id
             scene = 0;
 
+            int accessorCount = 0;
             List<byte> bytes = new List<byte>();
             GLTFPrimitive primitive = new GLTFPrimitive();
             // Vertices
@@ -64,7 +65,7 @@ namespace OPS.Geometry.GLTF
                 var bounds = m.Bounds();
                 GLTFAccessor accessor = new GLTFAccessor()
                 {
-                    bufferView = 0,
+                    bufferView = accessorCount++,
                     byteOffset = 0,
                     componentType = GLTFAccessor.FLOAT_COMPONENT,
                     count = m.Vertices.Count,
@@ -101,7 +102,7 @@ namespace OPS.Geometry.GLTF
                 var bounds = m.NormalBounds();
                 GLTFAccessor accessor = new GLTFAccessor()
                 {
-                    bufferView = 1,
+                    bufferView = accessorCount++,
                     byteOffset = 0,
                     componentType = GLTFAccessor.FLOAT_COMPONENT,
                     count = m.Vertices.Count,
@@ -137,7 +138,7 @@ namespace OPS.Geometry.GLTF
             {
                 GLTFAccessor accessor = new GLTFAccessor()
                 {
-                    bufferView = 2,
+                    bufferView = accessorCount++,
                     byteOffset = 0,
                     componentType = GLTFAccessor.FLOAT_COMPONENT,
                     count = m.Vertices.Count,
@@ -181,7 +182,7 @@ namespace OPS.Geometry.GLTF
             {
                 GLTFAccessor accessor = new GLTFAccessor()
                 {
-                    bufferView = 3,
+                    bufferView = accessorCount++,
                     byteOffset = 0,
                     componentType = GLTFAccessor.USHORT_COMPONENT,
                     count = m.Faces.Count * 3,

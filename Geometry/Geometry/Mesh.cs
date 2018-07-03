@@ -1135,8 +1135,10 @@ namespace OPS.Geometry
     /// </summary>
     public enum SkirtAxis
     {
+        None,
         X,
         Y,
         Z
+        
     }
 }

@@ -11,23 +11,73 @@ using RTree;
 using log4net;
 using System.Threading;
 using static OPS.Geometry.Triangle;
+using OPS.MathExtensions;
 
 namespace OPS.Pipeline
 {
-    public static class TextureBaker
+    public class TextureBaker
     {
-        public static Image BakeTexture(MeshImagePair[] source, Mesh dest, int destWidth, int destHeight, int padWidth = -1)
+        /// <summary>
+        /// Returns the total texture area in pixels covered by this mesh
+        /// </summary>
+        /// <param name="mesh"></param>
+        /// <param name="image"></param>
+        /// <returns></returns>
+        public static double ComputePixelArea(Mesh mesh, Image image)
         {
-            // r tree for efficient uv to xyz conversion
-            var destOperator = new MeshOperator(dest);
+            if(image == null || !mesh.HasUVs)
+            {
+                return 0;
+            }
+            double totalPixels = 0;
+            var triangles = mesh.Triangles();
+            foreach (var t in triangles)
+            {
+                Vector3 a = new Vector3(image.UVToPixel(t.V0.UV), 0);
+                Vector3 b = new Vector3(image.UVToPixel(t.V1.UV), 0);
+                Vector3 c = new Vector3(image.UVToPixel(t.V2.UV), 0);
+                var pixelTri = new Triangle(a, b, c);
+                if (double.IsNaN(pixelTri.Area()))
+                {
+                    throw new Exception("Triangle area not a number");
+                }
+                totalPixels += pixelTri.Area();
+            }
+            return totalPixels;
+        }
 
-            int numSources = source.Count();
-            if (numSources == 0)
-                return null;
+        /// <summary>
+        /// Given an area measured in pixels squared, return the dimension (width/height) of the smallest square image
+        /// large enough to contain that area
+        /// </summary>
+        /// <param name="areaInPixels"></param>
+        /// <returns></returns>
+        public static int PixelAreaToSquareDimension(double areaInPixels)
+        {
+            if(areaInPixels == 0)
+            {
+                return 0;
+            }
+            double size = Math.Sqrt(areaInPixels);
+            size = MathE.CeilPowerOf2(size);
+            size = Math.Min(size, areaInPixels);
+            return (int)size;
+        }
 
-            // the new texture
-            var destImage = new Image(source[0].Image.Bands, destWidth, destHeight);
+        Octree triOctTree;
+        int destBands;
 
+        public TextureBaker(MeshImagePair[] source, int maxDepth = 8)
+        {
+            if (source.Count() == 0)
+            {
+                throw new Exception("Texture Baker source list cannot be empty");
+            }
+            destBands = source[0].Image.Bands;
+            if(source.Any(s => s.Image.Bands != destBands))
+            {
+                throw new Exception("Texture Baker requires all source images have identical number of bands");
+            }
             // Get union bounding box of source meshes
             List<BoundingBox> boxes = new List<BoundingBox>();
             foreach (MeshImagePair pair in source)
@@ -35,28 +85,33 @@ namespace OPS.Pipeline
                 boxes.Add(pair.Mesh.Bounds());
             }
             BoundingBox finalBox = BoundingBoxExtensions.Union(boxes.ToArray());
-
             // construct oct tree on source meshes
-            Octree triOctTree = new Octree(finalBox);
-            for(int i = 0; i < numSources; i++)
-            {
+            this.triOctTree = new Octree(finalBox, maxDepth: octreeDepth);
+            for (int i = 0; i < source.Count(); i++)
+            {                
                 List<OctreeNodeContents> insertList = new List<OctreeNodeContents>();
-                foreach(Triangle tri in source[i].Mesh.Triangles())
+                foreach (Triangle tri in source[i].Mesh.Triangles())
                 {
                     insertList.Add(new TexturedTriangle(tri, source[i].Image));
                 }
                 triOctTree.InsertList(insertList);
             }
+        }
 
-            OctreeNode start = triOctTree.Root;
+        public Image Bake(Mesh dest, int destWidth, int destHeight, int padWidth = -1)
+        {
+            // r tree for efficient uv to xyz conversion
+            var destOperator = new MeshOperator(dest, buildFaceTree: false, buildVertexTree: false);
+            // the new texture
+            var destImage = new Image(destBands, destWidth, destHeight);
+            
+            OctreeNode start = this.triOctTree.Root;
             OctreeNode end;
-
             destImage.CreateMask(true);
-
             // compute nearest neighbor for each dest pixel
             for (int r = 0; r < destImage.Height; r++)
             {
-                for(int c = 0; c < destImage.Width; c++)
+                for (int c = 0; c < destImage.Width; c++)
                 {
                     // get the xyz coordinate in the new mesh
                     Vector2 uvDest = destImage.PixelToUV(new Vector2(c, r));
@@ -76,23 +131,28 @@ namespace OPS.Pipeline
                     {
                         Image image = txtTri.texture;
                         Vector2 pixel = image.UVToPixel(closest.UV);
-            
+
                         float row = (float)pixel.Y;
                         float col = (float)pixel.X;
                         var bands = new float[image.Data.Count()];
                         for (int b = 0; b < bands.Count(); b++)
                         {
                             bands[b] = image.BicubicSample(b, row, col);
-                        }                       
+                        }
                         destImage.SetBandValues(r, c, bands);
                         destImage.SetMaskValue(r, c, false);
                     }
                 }
             }
-
             // in paint
             destImage.Inpaint(padWidth);
             return destImage;
+        }
+
+
+        public static Image BakeTexture(MeshImagePair[] source, Mesh dest, int destWidth, int destHeight, int padWidth = -1)
+        {
+            return new TextureBaker(source).Bake(dest, destWidth, destHeight, padWidth);
         } 
     }
 }
