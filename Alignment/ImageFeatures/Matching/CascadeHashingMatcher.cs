@@ -6,7 +6,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace OPS.Alignment.ImageFeatures.Matching
+namespace OPS.Alignment
 {
     /// <summary>
     /// Matcher for SIFT keypoints using cascade hashing.
@@ -63,11 +63,11 @@ namespace OPS.Alignment.ImageFeatures.Matching
         {
             var model = pair.One;
             var data = pair.Two;
-            var modelFeat = scene.Context.DetectedFeatures[model];
-            var dataFeat = scene.Context.DetectedFeatures[data];
+            var modelFeat = scene.DetectedFeatures[model];
+            var dataFeat = scene.DetectedFeatures[data];
             var meanDescriptor = FeatureMean(scene, pair);
 
-            List<HashCode> modelHashes = new List<HashCode>();
+            HashCode[] modelHashes = new HashCode[modelFeat.Length];
             Dictionary<HashCode, List<int>>[] modelSecondaryHashes = new Dictionary<HashCode, List<int>>[BucketCount];
             for (int hash = 0; hash < BucketCount; hash++)
             {
@@ -75,27 +75,36 @@ namespace OPS.Alignment.ImageFeatures.Matching
             }
 
             // Hash all model features
-            for (int i = 0; i < modelFeat.Length; i++)
+            Parallel.For(0, modelFeat.Length, i =>
             {
                 var mc = GetMeanCentered(((FeatureDescriptor<byte>)modelFeat[i].Descriptor).Data, meanDescriptor);
                 modelHashes[i] = Project(mc, hammingProjectionMatrix);
+            });
 
-                for (int hash = 0; hash < BucketCount; hash++)
+            for (int i = 0; i < modelFeat.Length; i++)
+            {
+                var mc = GetMeanCentered(((FeatureDescriptor<byte>)modelFeat[i].Descriptor).Data, meanDescriptor);
+                Parallel.For(0, BucketCount, hash =>
                 {
+                    // note we only read this reference and do not mutate the modelSecondaryHashes array
+                    // itself - so locking should not be needed
+                    // hashtable is being accessed exclusively by this thread
                     var hashtable = modelSecondaryHashes[hash];
-                    var hc = Project(mc, projectionMatrices[hash]);
 
+                    // projectionMatrices is also only read from
+                    var hc = Project(mc, projectionMatrices[hash]);
                     if (!hashtable.ContainsKey(hc))
                     {
                         hashtable[hc] = new List<int>();
                     }
                     hashtable[hc].Add(i);
-                }
+                });
             }
-
-            List<KeyValuePair<int, int>> d2m = new List<KeyValuePair<int, int>>();
-            for (int i = 0; i < dataFeat.Length; i++)
+            
+            int[] d2m = new int[dataFeat.Length];
+            Parallel.For(0, dataFeat.Length, i =>
             {
+                d2m[i] = -1;
                 var mc = GetMeanCentered(((FeatureDescriptor<byte>)dataFeat[i].Descriptor).Data, meanDescriptor);
 
                 // Collect list of candidate features in model image
@@ -114,16 +123,17 @@ namespace OPS.Alignment.ImageFeatures.Matching
                     }
                 }
 
+                List<int> candidateIndices = new List<int>(candidateMatches);
                 var myHash = Project(mc, hammingProjectionMatrix);
                 // Get KNN in hamming space
                 KNNMatcher<HashCode>.Node[] knnHamming;
                 {
                     KNNMatcher<HashCode> matcher = new KNNMatcher<HashCode>((c0, c1) => c0.HammingDistance(c1));
-                    knnHamming = matcher.Find(myHash, modelHashes, MaximumKnnCandidates).ToArray();
+                    knnHamming = matcher.Find(myHash, candidateIndices.Select(idx => modelHashes[idx]).ToArray(), MaximumKnnCandidates).ToArray();
                 }
                 if (knnHamming.Length < MinimumKnnCandidates)
                 {
-                    continue;
+                    return;
                 }
 
                 // Finally, get 2NN in euclidean space out of results
@@ -134,27 +144,40 @@ namespace OPS.Alignment.ImageFeatures.Matching
                         double res = 0;
                         var d0 = ((FeatureDescriptor<byte>)f0.Descriptor).Data;
                         var d1 = ((FeatureDescriptor<byte>)f1.Descriptor).Data;
-                        for (int k = 0; k > d0.Length; k++)
+                        for (int k = 0; k < d0.Length; k++)
                         {
                             var dist = d1[k] - d0[k];
                             res += dist * dist;
                         }
                         return res;
                     });
-                    nearest = matcher.Find(dataFeat[i], knnHamming.Select(n => modelFeat[n.Index]).ToArray(), 2).ToArray();
+                    nearest = matcher.Find(dataFeat[i], knnHamming.Select(n => modelFeat[candidateIndices[n.Index]]).ToArray(), 2).ToArray();
                 }
                 if (nearest.Length < 2)
                 {
+                    return;
+                }
+
+                if (nearest[0].Distance < nearest[1].Distance * MaximumDistanceRatio * MaximumDistanceRatio)
+                {
+                    // what a tangled web we weave
+                    int indexInKnnHamming = nearest[0].Index;
+                    int indexInCandidateIndices = knnHamming[indexInKnnHamming].Index;
+                    int featureIndex = candidateIndices[indexInCandidateIndices];
+                    d2m[i] = featureIndex;
+                }
+            });
+            List<KeyValuePair<int, int>> goodD2m = new List<KeyValuePair<int, int>>();
+            for (int i = 0; i < d2m.Length; i++)
+            {
+                if (d2m[i] < 0)
+                {
                     continue;
                 }
-
-                if (nearest[0].Distance < nearest[0].Distance * MaximumDistanceRatio*MaximumDistanceRatio)
-                {
-                    d2m.Add(new KeyValuePair<int, int>(i, knnHamming[nearest[0].Index].Index));
-                }
+                goodD2m.Add(new KeyValuePair<int, int>(i, d2m[i]));
             }
 
-            return new ImagePairCorrespondence(model, data, d2m);
+            return new ImagePairCorrespondence(model, data, goodD2m);
         }
 
 
@@ -164,7 +187,7 @@ namespace OPS.Alignment.ImageFeatures.Matching
             int count = 0;
             foreach (var imgRef in new[] { pair.One, pair.Two })
             {
-                var feats = scene.Context.DetectedFeatures[imgRef];
+                var feats = scene.DetectedFeatures[imgRef];
                 foreach (var feat in feats)
                 {
 #if DEBUG
@@ -186,7 +209,7 @@ namespace OPS.Alignment.ImageFeatures.Matching
 
         private Vector<float> GetMeanCentered(byte[] descriptor, Vector<float> mean)
         {
-            return CreateVector.DenseOfArray(descriptor.Cast<float>().ToArray()) - mean;
+            return CreateVector.DenseOfArray(descriptor.Select(b => (float)b).ToArray()) - mean;
         }
 
         private HashCode Project(Vector<float> meanCentered, Matrix<float> mat)
@@ -245,7 +268,7 @@ namespace OPS.Alignment.ImageFeatures.Matching
             {
                 if (data == null)
                 {
-                    data = new byte[bitCount];
+                    data = new byte[(int)Math.Ceiling(bitCount / 8.0)];
                 }
                 Data = data;
                 BitCount = bitCount;
@@ -271,6 +294,25 @@ namespace OPS.Alignment.ImageFeatures.Matching
                 }
             }
 
+            static int[] ByteBitCount;
+            static HashCode()
+            {
+                ByteBitCount = new int[256];
+                for (int i = 0; i < 256; i++)
+                {
+                    byte b = (byte)i;
+                    int cnt = 0;
+                    for (int j = 0; j < 8; j++)
+                    {
+                        if ((b & (1 << j)) != 0)
+                        {
+                            cnt++;
+                        }
+                    }
+                    ByteBitCount[i] = cnt;
+                }
+            }
+
             public int HammingDistance(HashCode code)
             {
                 if (code.BitCount != BitCount)
@@ -285,14 +327,9 @@ namespace OPS.Alignment.ImageFeatures.Matching
                     xor[i] = (byte)(Data[i] ^ code.Data[i]);
                 }
 
-                for (int i = 0; i < BitCount; i++)
+                for (int i = 0; i < Data.Length; i++)
                 {
-                    int byteIdx = i / 8;
-                    int bitIdx = i % 8;
-                    if ((xor[byteIdx] & (1 << bitIdx)) != 0)
-                    {
-                        res++;
-                    }
+                    res += ByteBitCount[xor[i]];
                 }
                 return res;
             }

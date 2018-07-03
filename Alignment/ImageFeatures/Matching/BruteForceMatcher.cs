@@ -87,8 +87,8 @@ namespace OPS.Alignment
             knnNode[][] knnModel = new knnNode[modelFeat.Length][].Select(x => new knnNode[K]).ToArray();
             knnNode[][] knnData = new knnNode[dataFeat.Length][].Select(x => new knnNode[K]).ToArray();
 
-            FeatureDescriptor<float>[] modelDescr = modelFeat.Select(m => (FeatureDescriptor<float>)m.Descriptor).ToArray();
-            FeatureDescriptor<float>[] dataDescr = dataFeat.Select(m => (FeatureDescriptor<float>)m.Descriptor).ToArray();
+            FeatureDescriptor<byte>[] modelDescr = modelFeat.Select(m => (FeatureDescriptor<byte>)m.Descriptor).ToArray();
+            FeatureDescriptor<byte>[] dataDescr = dataFeat.Select(m => (FeatureDescriptor<byte>)m.Descriptor).ToArray();
 
             int descriptorLength = modelDescr[0].Length;
 
