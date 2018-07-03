@@ -95,6 +95,7 @@
     <Compile Include="BundleAdjuster\Structures.cs" />
     <Compile Include="ImageFeatures\Interfaces\IDescriptorCalculator.cs" />
     <Compile Include="ImageFeatures\MatchFilters\KnownGeometryFilter.cs" />
+    <Compile Include="ImageFeatures\Matching\CascadeHashingMatcher.cs" />
     <Compile Include="ImageFeatures\Matching\FeatureDescriptor.cs" />
     <Compile Include="ImageFeatures\Matching\ImageFeature.cs" />
     <Compile Include="ImageFeatures\Matching\ImagePairCorrespondence.cs" />
