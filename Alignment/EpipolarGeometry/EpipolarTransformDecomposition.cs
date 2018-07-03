@@ -103,16 +103,6 @@ namespace OPS.Alignment
                     {
                         thisMask[i] = false;
                     }
-                    /*
-                    var r1 = mat.Row(0).SubVector(0, 3);
-                    var r3 = mat.Row(2).SubVector(0, 3);
-                    var t = mat.Column(3).SubVector(0, 3);
-
-                    var pm = modelPoints[i];
-                    var pd = dataPoints[i];
-
-                    double z = (r1 - pd.X * r3).DotProduct(t) /(r1 - pd.X * r3).DotProduct(CreateVector.DenseOfArray(new[] { pm.X, pm.Y, 1 }));
-                    */
                 }
 
                 if (positiveDepth > bestPositiveDepth)

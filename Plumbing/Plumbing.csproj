@@ -60,7 +60,7 @@
     <Compile Include="ImageRef\ObservationImageRef.cs" />
     <Compile Include="DataProduct\DataProduct.cs" />
     <Compile Include="ImageRef\DiskImageRef.cs" />
-    <Compile Include="DataProduct\ImageDataProduct.cs" />
+    <Compile Include="DataProduct\PngDataProduct.cs" />
     <Compile Include="ImageRef\ImageRef.cs" />
     <Compile Include="DataProduct\JsonDataProduct.cs" />
     <Compile Include="LazyComputation.cs" />

@@ -34,7 +34,11 @@ namespace OPS.Plumbing
                 }
                 s3Client = new AmazonS3Client(opts);
 
-                storage = new StorageHelper(null, "us-west-1", s3Url != "" ? opts : null);
+                // TODO: StorageHelper will not work with a local deployment
+                // until changes to StorageHelper are made. I did not include my
+                // hacky workaround because the changes in Thomas' branch should
+                // be a cleaner way to deal with it.
+                storage = new StorageHelper(null, "us-west-1");
             }
             else
             {

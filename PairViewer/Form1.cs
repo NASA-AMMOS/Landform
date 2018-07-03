@@ -71,21 +71,12 @@ namespace PairViewer
             }
         }
 
-        struct PriorInfo
-        {
-            public string sclk;
-            public double et;
-            public double[][] pose;
-        }
-        Dictionary<string, PriorInfo> hayabusaPriors;
-
         public PairViewerForm()
         {
             InitializeComponent();
             Pipeline = new PipelineCore(false, false, s3Url: "");
 
             Locations = new MSLLocations();
-            hayabusaPriors = JsonConvert.DeserializeObject<Dictionary<string, PriorInfo>>(File.ReadAllText("D:\\imagestomatch\\hayabusa\\HAY-A-SPICE-6-V1.0\\newpriors.json"));
             Scene = new AlignmentScene();
             ModelView = new ImageView(ModelPictureBox);
             DataView = new ImageView(DataPictureBox);

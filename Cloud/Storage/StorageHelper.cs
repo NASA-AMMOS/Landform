@@ -232,17 +232,13 @@ namespace OPS.Cloud
         /// </summary>
         /// <param name="awsProfileName"></param>
         /// <param name="govCloud"></param>
-        public StorageHelper(string awsProfileName, string endpointName = null, AmazonS3Config fixedConfig = null)
+        public StorageHelper(string awsProfileName, string endpointName = null)
         {
-            if (awsProfileName != null)
-            {
-                awsCredentials = Credentials.Get(awsProfileName);
-            }
-            if(endpointName != null)
+            awsCredentials = Credentials.Get(awsProfileName);
+            if (endpointName != null)
             {
                 awsRegion = RegionEndpoint.GetBySystemName(endpointName);
             }
-            this.fixedConfig = fixedConfig;
         }
 
         public StorageHelper()
@@ -254,11 +250,7 @@ namespace OPS.Cloud
         //Use default credentials (or, for EC2 workers, their IAM role) if credentials are not provided 
         private AmazonS3Client GetClient(RegionEndpoint region)
         {
-            if (fixedConfig != null)
-            {
-                return new AmazonS3Client(fixedConfig);
-            }
-            else if (awsCredentials != null)
+            if (awsCredentials != null)
             {
                 return new AmazonS3Client(awsCredentials, region);
             }
@@ -292,7 +284,7 @@ namespace OPS.Cloud
         /// <returns></returns>
         private AmazonS3Client GetClient(string s3url)
         {
-            if(this.awsRegion != null)
+            if (this.awsRegion != null)
             {
                 return GetClient(awsRegion);
             }
