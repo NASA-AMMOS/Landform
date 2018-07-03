@@ -194,6 +194,7 @@
     <Compile Include="Rover\RoverMask.cs" />
     <Compile Include="Rover\CuriosityRoverModel.cs" />
     <Compile Include="Rover\RoverReachability.cs" />
+    <Compile Include="Rover\SolDateTime.cs" />
     <Compile Include="TextureBake\TextureBaker.cs" />
     <Compile Include="Rover\SiteDrive.cs" />
     <Compile Include="TextureBake\TexturedTriangle.cs" />
