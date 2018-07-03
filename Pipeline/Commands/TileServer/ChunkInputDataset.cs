@@ -72,16 +72,31 @@ namespace OPS.Pipeline
                 }
                 else
                 {
-                    var record = new TilingChunkRecord(Guid.NewGuid().ToString() + ".ply", image == null ? null : Guid.NewGuid().ToString() + ".tif", bounds);
+                    string guid = Guid.NewGuid().ToString();
+                    string meshChunkFile = Path.Combine(options.OutputDir, guid + ".ply");
+                    string imageChunkFile = null;
+                    if (image != null)
+                    {
+                        imageChunkFile = Path.Combine(options.OutputDir, guid + ".tif");
+                    }
+                    var record = new TilingChunkRecord(meshChunkFile, imageChunkFile, bounds);
                     chunkRecords.Add(record);
                 }
             }
+            TexturedMeshClipper texturedClipper = new TexturedMeshClipper();
+
             // Cut out each chunk and save it
             Parallel.ForEach(chunkRecords, new ParallelOptions() { MaxDegreeOfParallelism = Environment.ProcessorCount } , record =>
             {
-                Mesh clippedMesh = op.Clip(record.Bounds);
-                clippedMesh.Save(Path.Combine(options.OutputDir, record.MeshFilename));
-            
+                Mesh clippedMesh = op.Clip(record.Bounds);                
+                if(image != null)
+                {
+                    var tmp = texturedClipper.ClipTexture(clippedMesh, image);
+                    clippedMesh = tmp.Mesh;
+                    // TODO: This should match the bit depth of the original input image - or maybe it doesnt matter if final tiles are byte
+                    tmp.Image.Save<byte>(record.ImageFilename);
+                }
+                clippedMesh.Save(record.MeshFilename, record.ImageFilename);
             });
             // Write chunks to "database"
             PretendTilingServerDatabase.Instance.ChunkTable.AddRange(chunkRecords);
