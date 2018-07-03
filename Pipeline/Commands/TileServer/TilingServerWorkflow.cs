@@ -40,6 +40,7 @@ namespace OPS.Pipeline
         public int Run()
         {
             logger.Info("Using pretend database: " + PretendTilingServerDatabase.DatabaseFilename);
+            Directory.Delete(options.OutputDirectory);
             var database = PretendTilingServerDatabase.Instance;
             database.Clear();
             database.InputTable.Add(new TilingInputRecord(options.InputMesh, options.InputTexture));

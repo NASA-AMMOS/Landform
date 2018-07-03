@@ -9,6 +9,7 @@ using OPS.Util;
 using OPS.Imaging;
 using OPS.Geometry;
 using System.IO;
+using log4net;
 
 namespace OPS.Pipeline
 {
@@ -32,6 +33,9 @@ namespace OPS.Pipeline
 
     public class ChunkInputDataset
     {
+        static ILog logger = LogManager.GetLogger(typeof(ChunkInputDataset));
+
+
         ChunkInputDatasetOptions options;
         public ChunkInputDataset(ChunkInputDatasetOptions options)
         {
@@ -55,10 +59,16 @@ namespace OPS.Pipeline
             while(boundsToProcess.Count != 0 )
             {
                 BoundingBox bounds = boundsToProcess.Dequeue();
+                if(op.Empty(bounds))
+                {
+                    continue;
+                }
                 if(splitCriteria.ShouldSplit(op, bounds))
                 {
+                    logger.Info("split " + op.CountFaces(bounds));
                     foreach(var childBounds in tilingScheme.Split(op, bounds))
                     {
+                        logger.Info("\t" + op.CountFaces( childBounds));
                         boundsToProcess.Enqueue(childBounds);
                     }
                 }
