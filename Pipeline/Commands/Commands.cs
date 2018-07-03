@@ -31,7 +31,7 @@ namespace OPS.Pipeline
                                                              AlignSceneOptions,
                                                              CreateCloudTemplatesOptions,
                                                              TileLocalMeshOptions,
-                                                             ChunkInputDatasetOptions,
+                                                             TilingServerChunkInputOptions,
                                                              TilingServerWorkflowOptions
                                                              >(args)
               .MapResult(
@@ -48,7 +48,7 @@ namespace OPS.Pipeline
                 (AlignSceneOptions opts) => new AlignScene(opts).Run(),
                 (CreateCloudTemplatesOptions opts) => new CreateCloudTemplates(opts).Run(),
                 (TileLocalMeshOptions opts) => new TileLocalMesh(opts).Run(),
-                (ChunkInputDatasetOptions opts) => new ChunkInputDataset(opts).Run(),
+                (TilingServerChunkInputOptions opts) => new TilingServerChunkInput(opts).Run(),
                 (TilingServerWorkflowOptions opts) => new TilingServerWorkflow(opts).Run(),
                 errs => 1);
         }

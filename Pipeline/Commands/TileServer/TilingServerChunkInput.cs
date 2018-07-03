@@ -15,8 +15,8 @@ namespace OPS.Pipeline
 {
 
 
-    [Verb("chunkinputmesh", HelpText = "Subdivides an input mesh into managable sized peices")]
-    public class ChunkInputDatasetOptions
+    [Verb("tilingserverchunkinput", HelpText = "Subdivides an input mesh into managable sized peices")]
+    public class TilingServerChunkInputOptions
     {
         [Value(0, Required = true, HelpText = "Output directory")]
         public string OutputDir { get; set; }
@@ -31,13 +31,13 @@ namespace OPS.Pipeline
         public int FacesPerChunk { get; set; }
     }
 
-    public class ChunkInputDataset
+    public class TilingServerChunkInput
     {
-        static ILog logger = LogManager.GetLogger(typeof(ChunkInputDataset));
+        static ILog logger = LogManager.GetLogger(typeof(TilingServerChunkInput));
 
 
-        ChunkInputDatasetOptions options;
-        public ChunkInputDataset(ChunkInputDatasetOptions options)
+        TilingServerChunkInputOptions options;
+        public TilingServerChunkInput(TilingServerChunkInputOptions options)
         {
             this.options = options;
         }

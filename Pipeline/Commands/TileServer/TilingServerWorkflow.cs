@@ -49,10 +49,10 @@ namespace OPS.Pipeline
             PathHelper.EnsureExists(options.OutputDirectory);
 
             // Create a ChunkInput job for each input
-            Queue<ChunkInputDatasetOptions> chunkJobs = new Queue<ChunkInputDatasetOptions>();
+            Queue<TilingServerChunkInputOptions> chunkJobs = new Queue<TilingServerChunkInputOptions>();
             foreach(var input in database.InputTable)
             {
-                var job = new ChunkInputDatasetOptions();
+                var job = new TilingServerChunkInputOptions();
                 job.OutputDir = options.OutputDirectory;
                 job.MeshFileapth = input.MeshFilename;
                 job.ImageFileapth = input.ImageFilename;
@@ -63,7 +63,7 @@ namespace OPS.Pipeline
             // Simulate cloud workers running chunk jobs
             foreach(var job in chunkJobs)
             {
-                var chunker = new ChunkInputDataset(job);
+                var chunker = new TilingServerChunkInput(job);
                 chunker.Run();
             }
             database.Save();
