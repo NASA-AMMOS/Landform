@@ -18,7 +18,7 @@ namespace OPS.Pipeline
         static ILog logger = LogManager.GetLogger(typeof(TexturedMeshClipper));
 
 
-        public class TexturePatch
+        private class TexturePatch
         {
             public HashSet<Triangle> triangles;
             public Image patchImage;
@@ -144,6 +144,7 @@ namespace OPS.Pipeline
         /// <summary>
         /// Given a mesh and image, returns a mesh clipped to the clipping bounds and an image containing texture data for that portion of the mesh
         /// The returned image may be repacked to fit in a smaller texture
+        /// If rotation is allowed in packing, small pixel texture offsets may be introduced 
         /// </summary>
         /// <param name="inputPair"></param>
         /// <param name="clipBounds"></param>
@@ -186,10 +187,6 @@ namespace OPS.Pipeline
             while (numBins != 1)
             {
                 var parameter = new BinPackParameter(binWidth, binHeight, binDepth, 0, allowRotation, cuboids);
-
-                // Create a bin packer instance
-                // The default bin packer will test all algorithms and try to find the best result
-                // BinPackerVerifyOption is used to avoid bugs, it will check whether the result is correct
                 var binPacker = BinPacker.GetDefault(BinPackerVerifyOption.BestOnly);
                 packed = binPacker.Pack(parameter);
                 numBins = packed.BestResult.Count;
