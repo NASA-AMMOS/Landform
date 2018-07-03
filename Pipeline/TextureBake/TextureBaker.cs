@@ -86,7 +86,7 @@ namespace OPS.Pipeline
             }
             BoundingBox finalBox = BoundingBoxExtensions.Union(boxes.ToArray());
             // construct oct tree on source meshes
-            this.triOctTree = new Octree(finalBox, maxDepth: octreeDepth);
+            this.triOctTree = new Octree(finalBox, maxDepth: maxDepth);
             for (int i = 0; i < source.Count(); i++)
             {                
                 List<OctreeNodeContents> insertList = new List<OctreeNodeContents>();
