@@ -160,7 +160,7 @@ namespace OPS.Alignment
                     }
                 }
             }
-            scene.Context.Overlaps = unique;
+            scene.Overlaps = unique;
         }
     }
 }

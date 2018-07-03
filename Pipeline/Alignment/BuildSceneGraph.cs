@@ -90,7 +90,7 @@ namespace OPS.Pipeline
                 var feat = Get<DetectedFeatures>(obs.ProjectName, obs.FeaturesGuid);
                 var imgRef = new ObservationImageRef(obs);
 
-                scene.Context.DetectedFeatures[imgRef] = feat.Features;
+                scene.DetectedFeatures[imgRef] = feat.Features;
                 scene.ImageToNode[imgRef] = node;
                 node.AddComponent<NodeImageReference>().Reference = imgRef;
             };
@@ -159,14 +159,14 @@ namespace OPS.Pipeline
                     var imgOne = new ObservationImageRef(Observation.Find(DynamoDB, overlap.ProjectName, o1));
                     var imgTwo = new ObservationImageRef(Observation.Find(DynamoDB, overlap.ProjectName, o2));
                     var pair = new UnorderedImagePair(imgOne, imgTwo);
-                    scene.Context.Overlaps.Add(pair);
+                    scene.Overlaps.Add(pair);
 
                     if (overlap.MatchGuid != null && overlap.MatchGuid != Guid.Empty)
                     {
                         var match = Get<ComputedCorrespondence>(overlap.ProjectName, overlap.MatchGuid);
                         if (match != null)
                         {
-                            scene.Context.Correspondences[pair] = match.Correspondence;
+                            scene.Correspondences[pair] = match.Correspondence;
                         }
                     }
                 }

@@ -234,7 +234,7 @@ namespace OPS.Cloud
         public StorageHelper(string awsProfileName, string endpointName = null)
         {
             awsCredentials = Credentials.Get(awsProfileName);
-            if(endpointName != null)
+            if (endpointName != null)
             {
                 awsRegion = RegionEndpoint.GetBySystemName(endpointName);
             }
@@ -283,7 +283,7 @@ namespace OPS.Cloud
         /// <returns></returns>
         private AmazonS3Client GetClient(string s3url)
         {
-            if(this.awsRegion != null )
+            if (this.awsRegion != null)
             {
                 return GetClient(awsRegion);
             }

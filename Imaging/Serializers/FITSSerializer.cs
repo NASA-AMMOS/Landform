@@ -20,16 +20,17 @@ namespace OPS.Imaging
         public override Image Read(string filename, IImageConverter converter, float[] fillValue = null)
         {
             FITSMetadata metadata = new FITSMetadata(filename);
-            var f =  new nom.tam.fits.Fits(filename);
+            var f = new nom.tam.fits.Fits(filename, System.IO.FileAccess.Read);
+
             var hdu = (ImageHDU)f.GetHDU(0);
             var kernel = hdu.Kernel;
-            
+
             if (kernel.GetType() != typeof(System.Array[]))
             {
                 throw new ImageSerializationException("Unsupported FITS kernel type");
             }
             System.Array[] k = (System.Array[])kernel;
-            Image img = new Image(1, GetWidth(k), k.Length);
+            Image img = new Image(1, GetWidth(k), GetHeight(k));
             img.Metadata = metadata;
             for (int row = 0; row < img.Height; row++)
             {
@@ -98,6 +99,10 @@ namespace OPS.Imaging
             {
                 throw new ImageSerializationException("Unsupported FITs image type");
             }
+        }
+        int GetHeight(System.Array[] kernel)
+        {
+            return kernel.Length;
         }
 
         public override void Write<T>(string filename, Image image, IImageConverter converter, float[] fillValue = null)

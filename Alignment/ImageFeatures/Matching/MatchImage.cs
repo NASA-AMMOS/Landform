@@ -16,7 +16,7 @@ namespace OPS.Alignment
     /// </summary>
     public class MatchImage
     {
-        public static void WriteMatchImage(PipelineCore pipeline, ImagePairCorrespondence matches, ImageFeature[] modelFeatures, ImageFeature[] dataFeatures, string outFile, string time = null)
+        public static Imaging.Image Create(PipelineCore pipeline, ImagePairCorrespondence matches, ImageFeature[] modelFeatures, ImageFeature[] dataFeatures, string time = null)
         {
             Imaging.Image model = matches.ModelImage.Load(pipeline);
             Imaging.Image data = matches.DataImage.Load(pipeline);
@@ -38,7 +38,7 @@ namespace OPS.Alignment
             {
                 matchVector.Push(new VectorOfDMatch(new MDMatch[]
                 {
-                        new MDMatch() { TrainIdx = indices[i], QueryIdx = i }
+                    new MDMatch() { TrainIdx = indices[i], QueryIdx = i }
                 }));
             }
             Matrix<byte> mask = new Matrix<byte>(feat1.Length, 1);
@@ -46,7 +46,13 @@ namespace OPS.Alignment
             int nonZero = feat1.Length;
 
             Image<Bgr, byte> result = CreateMatchImage(kp0, kp1, modelImage, dataImage, matchVector, mask, nonZero, time);
-            result.Save(outFile);
+            return result.ToOPSImage();
+        }
+
+        public static void WriteMatchImage(PipelineCore pipeline, ImagePairCorrespondence matches, ImageFeature[] modelFeatures, ImageFeature[] dataFeatures, string outFile, string time = null)
+        {
+            var img = Create(pipeline, matches, modelFeatures, dataFeatures, time);
+            img.Save<byte>(outFile);
         }
 
         static VectorOfKeyPoint ToVOKP(List<SIFTFeature> kps)
@@ -70,7 +76,7 @@ namespace OPS.Alignment
             int i, j;
             for (i = 0; i < features.Count; i++)
             {
-                var d = ((FeatureDescriptor<float>)features[i].Descriptor).Data;
+                var d = ((FeatureDescriptor<byte>)features[i].Descriptor).Data;
                 for (j = 0; j < d.Length; j++)
                 {
                     data[i, j] = d[j];

@@ -56,7 +56,7 @@ namespace OPS.Alignment
             return (projected - new Vector2(p.X, p.Y)).LengthSquared();
         }
 
-        public int AddCameraModel(CAHV c)
+        public int AddCameraModel(Imaging.CameraModel c)
         {
             int res = CameraModels.Count;
             CameraModels.Add(new BundleAdjusterStructures.CameraModel(c));
@@ -112,13 +112,15 @@ namespace OPS.Alignment
         
         public void Write(BinaryWriter bw)
         {
-            ProblemDefinition def = new ProblemDefinition();
-            def.Magic = ProblemDefinition.MAGIC_NUMBER;
-            def.NumTransforms = (uint)Transforms.Count;
-            def.NumCameraModels = (uint)CameraModels.Count;
-            def.NumPoints = (uint)Points.Count;
-            def.NumProjections = (uint)Projections.Count;
-            def.NumPriors = (uint)TransformPriors.Count;
+            ProblemDefinition def = new ProblemDefinition
+            {
+                Magic = ProblemDefinition.MAGIC_NUMBER,
+                NumTransforms = (uint)Transforms.Count,
+                NumCameraModels = (uint)CameraModels.Count,
+                NumPoints = (uint)Points.Count,
+                NumProjections = (uint)Projections.Count,
+                NumPriors = (uint)TransformPriors.Count
+            };
 
             WriteStruct(bw, def);
             foreach (var t in Transforms)

@@ -20,6 +20,8 @@ namespace OPS.Alignment
         public HashSet<GTMNode> Neighbors;              // Nodes that are my neighbors
         public HashSet<GTMNode> NeighborOf;             // Nodes that I am a neighbor of
         public LinkedList<GTMNode> BackupNeighors;      // Sorted list of nearest neighbors
+
+        public HashSet<GTMNode> AllEdges;
         
         public GTMNode(int index, ImageFeature feature, int featureIndex)
         {
@@ -29,6 +31,7 @@ namespace OPS.Alignment
             Neighbors = new HashSet<GTMNode>();
             NeighborOf = new HashSet<GTMNode>();
             BackupNeighors = new LinkedList<GTMNode>();
+            AllEdges = new HashSet<GTMNode>();
         }
 
         /// <summary>
@@ -41,15 +44,19 @@ namespace OPS.Alignment
         {
             for (int i = 0; i < sortedNearestNeighbors.Count; i++)
             {
+                GTMNode neighbor = sortedNearestNeighbors[i];
                 // If this is one of the closest k nodes
                 if (i < k)
                 {
-                    Neighbors.Add(sortedNearestNeighbors[i]);        // Add other node as my neighbor 
-                    sortedNearestNeighbors[i].NeighborOf.Add(this);  // Add myself to the list of nodes that refernce the other node as its neighbor
+                    Neighbors.Add(neighbor);        // Add other node as my neighbor 
+                    neighbor.NeighborOf.Add(this);  // Add myself to the list of nodes that refernce the other node as its neighbor
+
+                    AllEdges.Add(neighbor);
+                    neighbor.AllEdges.Add(this);
                 }
                 else
                 {
-                    BackupNeighors.AddLast(sortedNearestNeighbors[i]);
+                    BackupNeighors.AddLast(neighbor);
                 }
             }
         }
@@ -65,6 +72,7 @@ namespace OPS.Alignment
             foreach(GTMNode n in this.Neighbors)
             {
                 n.NeighborOf.Remove(this);
+                n.AllEdges.Remove(this);
             }
             // Remove me from the neighbors list of things I am a neighbor to
             foreach (GTMNode n in this.NeighborOf)
@@ -84,6 +92,7 @@ namespace OPS.Alignment
         {
             // Remove node from my list of neighbors
             this.Neighbors.Remove(nodeToRemove);
+            this.AllEdges.Remove(nodeToRemove);
             // Replace removed node with the next closest neighbor in my neighbor list that is still in the graph
             while (this.BackupNeighors.Count > 0)
             {
@@ -94,22 +103,13 @@ namespace OPS.Alignment
                 {
                     // Add as my neighbor
                     this.Neighbors.Add(replacement);
+                    this.AllEdges.Add(replacement);
                     // Register myself as a neighbor to the replacement node
                     replacement.NeighborOf.Add(this);
+                    replacement.AllEdges.Add(this);
                     break;
                 }
             }
-        }
-        
-        /// <summary>
-        /// Returns all nodes that this node is connected too (i.e. its neighbors and everone it is a neighbor to)
-        /// </summary>
-        /// <returns></returns>
-        public IEnumerable<GTMNode> AllEdges()
-        {
-            var r = new HashSet<GTMNode>(Neighbors);
-            r.UnionWith(NeighborOf);
-            return r;
         }
 
         // Override for speed
@@ -213,11 +213,11 @@ namespace OPS.Alignment
             foreach(GTMNode myNode in this.graphNodes.Values)
             {
                 GTMNode otherNode = other.graphNodes[myNode.Index]; 
-                var a = myNode.AllEdges().Select(n => n.Index);
-                var b = otherNode.AllEdges().Select(n => n.Index);
+                var a = myNode.AllEdges.Select(n => n.Index);
+                var b = otherNode.AllEdges.Select(n => n.Index);
                 // Compute xor of the sets
-                var differences = a.Except(b).Union(b.Except(a));
-                int count = differences.Count();
+                var differences = a.Except(b).Union(b.Except(a)).ToArray();
+                int count = differences.Length;
                 if(count > maxcount)
                 {
                     maxcount = count;
@@ -241,7 +241,7 @@ namespace OPS.Alignment
             // (ii) remove outlier from O
             graphNodes.Remove(index);
             // (i) remove all occurence of outlier from I 
-            // (iii) remove outlire from the first k columns of O and reconect it updating the respective entries
+            // (iii) remove outlier from the first k columns of O and reconnect it updating the respective entries
             nodeToRemove.Remove(this.graphNodes);
         }
 
@@ -259,8 +259,8 @@ namespace OPS.Alignment
             }
             foreach(int index in this.graphNodes.Keys)
             {
-                HashSet<int> a = new HashSet<int>(this.graphNodes[index].AllEdges().Select(n => n.Index));
-                HashSet<int> b = new HashSet<int>(other.graphNodes[index].AllEdges().Select(n => n.Index));
+                HashSet<int> a = new HashSet<int>(this.graphNodes[index].AllEdges.Select(n => n.Index));
+                HashSet<int> b = new HashSet<int>(other.graphNodes[index].AllEdges.Select(n => n.Index));
                 if (!a.SetEquals(b))
                 {
                     return false;
@@ -275,7 +275,7 @@ namespace OPS.Alignment
         public void RemoveDisconnected()
         {
             // Remove all nodes that don't have neighbors or aren't referenced as a neighbor
-            this.graphNodes = graphNodes.Where(pair => pair.Value.AllEdges().Count() != 0).ToDictionary(pair => pair.Key, pair => pair.Value);
+            this.graphNodes = graphNodes.Where(pair => pair.Value.AllEdges.Count() != 0).ToDictionary(pair => pair.Key, pair => pair.Value);
         }
 
         /// <summary>
@@ -370,8 +370,8 @@ namespace OPS.Alignment
         public ImagePairCorrespondence Filter(AlignmentScene scene, ImagePairCorrespondence matches)
         {
             // Construct graph
-            ImageFeature[] modelFeat = scene.Context.DetectedFeatures[matches.ModelImage];
-            ImageFeature[] dataFeat = scene.Context.DetectedFeatures[matches.DataImage];
+            ImageFeature[] modelFeat = scene.DetectedFeatures[matches.ModelImage];
+            ImageFeature[] dataFeat = scene.DetectedFeatures[matches.DataImage];
 
             // Create data and model verts and add to graphs           
             List<GTMNode> modelNodes = new List<GTMNode>();
@@ -404,7 +404,7 @@ namespace OPS.Alignment
                 modelGraph.OrderedFeatureIndices(),
                 (dataIdx, modelIdx) => new KeyValuePair<int,int>(dataIdx, modelIdx)
             );
-            return new ImagePairCorrespondence(matches.ModelImage, matches.DataImage, dataToModel);
+            return new ImagePairCorrespondence(matches.ModelImage, matches.DataImage, dataToModel, matches.FundamentalMatrix, matches.BestTransformEstimate);
         }
     }
 }
