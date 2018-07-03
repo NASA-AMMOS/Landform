@@ -341,7 +341,7 @@ namespace OPS.Pipeline
             }
 
             logger.Info("Finding correspondences...");
-            Serial.ForEach(scene.Overlaps, pair =>
+            Parallel.ForEach(scene.Overlaps, pair =>
             {
                 DoCorrespondence(pair, scene, pipeline);
             });

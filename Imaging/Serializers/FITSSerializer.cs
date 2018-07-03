@@ -36,7 +36,8 @@ namespace OPS.Imaging
             {
                 for (int col = 0; col < img.Width; col++)
                 {
-                    img[0, row, col] = GetValue(k, row, col);
+                    int inverseRow = k.Length - row - 1;
+                    img[0, row, col] = GetValue(k, inverseRow, col);
                 }
             }
             if (GetImageType(k) == typeof(byte))

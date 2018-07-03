@@ -221,7 +221,6 @@ namespace OPS.Cloud
         AWSCredentials awsCredentials;
         Amazon.RegionEndpoint awsRegion;
         ConcurrentDictionary<string, Amazon.RegionEndpoint> bucketToRegion = new ConcurrentDictionary<string, RegionEndpoint>();
-        AmazonS3Config fixedConfig;
 
         /// <summary>
         /// Use the given profile name to create a storage helper
