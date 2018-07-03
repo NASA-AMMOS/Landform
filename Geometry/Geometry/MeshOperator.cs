@@ -47,24 +47,23 @@ namespace OPS.Geometry
         /// Create a mesh operator and compute accelerated structures
         /// </summary>
         /// <param name="mesh"></param>
-        public MeshOperator(Mesh mesh, bool buildFaceTree = true, bool buildVertexTree = true, bool buildUVFaceTree = true)
+        public MeshOperator(Mesh mesh, bool buildFaceTree = true, bool buildVertexTree = true, bool buildUVFaceTree = true, int maxEntries = 10, int minEntries = 5)
         {
             hasUVs = mesh.HasUVs;
             hasNormals = mesh.HasNormals;
             hasColors = mesh.HasColors;
             this.Triangles = mesh.Triangles();
-            
             if (buildFaceTree)
             {
-                faceTree = new RTree<Triangle>(10, 5);               
-                foreach(var t in Triangles)
+                faceTree = new RTree<Triangle>(maxEntries, minEntries);               
+            	foreach(var t in Triangles)
                 {
                     faceTree.Add(t.Bounds().ToRectangle(), t);
                 }
             }
             if (buildVertexTree)
             {
-                vertexTree = new RTree<Vertex>(10, 5);
+                vertexTree = new RTree<Vertex>(maxEntries, minEntries);
                 foreach (var v in mesh.Vertices)
                 {
                     vertexTree.Add(v.Bounds().ToRectangle(), v);
@@ -72,8 +71,8 @@ namespace OPS.Geometry
             }
             if(hasUVs && buildUVFaceTree)
             {
-                uvFaceTree = new RTree<Triangle>(10, 5);
-                foreach(var t in Triangles)
+                uvFaceTree = new RTree<Triangle>(maxEntries, minEntries);
+                foreach (var t in Triangles)
                 {
                     uvFaceTree.Add(t.UVBounds().ToRectangle(), t);
                 }
