@@ -1,0 +1,48 @@
+﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
+using OPS.Geometry;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using OPS.Imaging;
+using System.IO;
+using OPS.Pipeline;
+using Microsoft.Xna.Framework;
+
+namespace PipelineTest.Tiling
+{
+    [TestClass]
+    [DeploymentItem("TestData", "TestData")]
+    [DeploymentItem("gdal", "gdal")]
+    [DeploymentItem("x86", "x86")]
+    [DeploymentItem("x64", "x64")]
+    public class TexturedMeshClipperTest
+    {
+        static Mesh LoadMesh()
+        {
+            return Mesh.Load(Path.Combine("TestData", "mesh", "raptor.obj"));
+        }
+
+        static Image LoadImage()
+        {
+            return Image.Load(Path.Combine("TestData", "mesh", "raptor.jpg"));
+        }
+
+        [TestMethod]
+        public void TexturedMeshClipTest()
+        {
+            Mesh mesh = LoadMesh();
+            mesh.Clean();
+            Image img = LoadImage();
+            MeshImagePair pair = new MeshImagePair(mesh, img);
+            BoundingBox box = new BoundingBox(new Vector3(0), new Vector3(70));
+            TexturedMeshClipper clipper = new TexturedMeshClipper();
+            MeshImagePair clippedPair = clipper.ClipMesh(pair, box);
+            Assert.IsTrue(clippedPair.Mesh.HasFaces);
+            Assert.IsTrue(clippedPair.Image.Width > 0 && clippedPair.Image.Height > 0);
+            Assert.IsTrue(clippedPair.Image.Width <= pair.Image.Width && clippedPair.Image.Height <= pair.Image.Height);
+            clippedPair.Image.Save<byte>("clippedTexture.png");
+        }
+    } 
+}
