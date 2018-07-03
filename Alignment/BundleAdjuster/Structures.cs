@@ -109,8 +109,7 @@ namespace OPS.Alignment.BundleAdjusterStructures
         CAHV = 1,
         CAHVOR = 2,
         CAHVORE = 3,
-        PHOTOMETRIC = 4,
-        HAYABUSA = 5
+        PHOTOMETRIC = 4
     }
 
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
@@ -164,23 +163,6 @@ namespace OPS.Alignment.BundleAdjusterStructures
                 linearity
                 };
             }
-            else if (c is HayabusaCameraModel)
-            {
-                Type = CameraModelType.HAYABUSA;
-                Parameters = new double[]
-                {
-                    ((HayabusaCameraModel)c).FocalLength,
-                    ((HayabusaCameraModel)c).K,
-                    0,
-                    0, 0, 0,
-                    0, 0, 0,
-                    0, 0, 0,
-                    0, 0, 0,
-                    0, 0, 0,
-                    0, 0, 0,
-                    0
-                };
-            }
             else
             {
                 throw new ArgumentException("invalid camera model type");
@@ -191,11 +173,6 @@ namespace OPS.Alignment.BundleAdjusterStructures
         {
             get
             {
-                if (Type == CameraModelType.HAYABUSA)
-                {
-                    return new HayabusaCameraModel(Parameters[0], Parameters[1], 1);
-                }
-
                 if (Type == CameraModelType.PHOTOMETRIC)
                 {
                     throw new NotImplementedException("photometric camera model");
