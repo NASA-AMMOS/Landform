@@ -327,15 +327,6 @@ namespace OPS.Alignment
                 }
                 problem.Points = result.Points;
 
-                {
-                    Mesh m = new Mesh(capacity: result.Points.Count);
-                    for (int i = 0; i < result.Points.Count; i++)
-                    {
-                        m.Vertices.Add(new Vertex(result.Points[i].Position));
-                    }
-                    m.Save("D:\\bundlecloud.ply");
-                }
-
                 // Trim bad points
                 List<double> trackErrors = new List<double>(tracks.Count);
                 foreach (var track in tracks.Values)
