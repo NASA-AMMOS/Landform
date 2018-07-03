@@ -7,13 +7,17 @@ using System.Threading.Tasks;
 
 namespace OPS.Imaging
 {
+    /// <summary>
+    /// Poisson solver for image stitching
+    /// Contains classes PoissonProblem2D and ImageStitchingProblem
+    /// </summary>
     public class LimberDMG
     {
         private static readonly ILog logger = LogManager.GetLogger(typeof(LimberDMG));
 
-        public double residualEpsilon;
-        public int numRelaxationSteps;
-        public double lambda;
+        private double residualEpsilon;
+        private int numRelaxationSteps;
+        private double lambda;
         PoissonProblem2D.EdgeBehavior edgeMode;
 
         public LimberDMG(double residualEpsilon = 1e-3, int numRelaxationSteps = 15, double lambda = 0.003, PoissonProblem2D.EdgeBehavior edgeMode = PoissonProblem2D.EdgeBehavior.Clamp)
@@ -40,12 +44,12 @@ namespace OPS.Imaging
         /// </summary>
         public class PoissonProblem2D
         {
-            public int width, height;
-            public double[] U;
-            public double[] divG;
-            public byte[] flags;
-            public double lambda;
-            public EdgeBehavior edgeBehavior;
+            public int Width, Height;
+            public byte[] Flags;
+            protected double[] U;
+            protected double[] divG;
+            protected double lambda;
+            protected EdgeBehavior edgeBehavior;
             internal PixelNeighborFunction getNeighbors;
 
             double[] k;
@@ -60,11 +64,11 @@ namespace OPS.Imaging
 
             public PoissonProblem2D(int width, int height, double[] U, double[] divG, byte[] flags, double lambda, EdgeBehavior edgeBehavior)
             {
-                this.width = width;
-                this.height = height;
+                this.Width = width;
+                this.Height = height;
                 this.U = U;
                 this.divG = divG;
-                this.flags = flags;
+                this.Flags = flags;
                 this.lambda = lambda;
                 this.edgeBehavior = edgeBehavior;
 
@@ -97,111 +101,111 @@ namespace OPS.Imaging
 
             IEnumerable<int> PixelNeighborsClamp(int pixelIdx)
             {
-                int u = pixelIdx % width,
-                    v = pixelIdx / width;
+                int u = pixelIdx % Width,
+                    v = pixelIdx / Width;
 
-                if (u > 0 && (flags[pixelIdx - 1] & (byte)Flags.NO_DATA) == 0)
+                if (u > 0 && (Flags[pixelIdx - 1] & (byte)LimberDMG.Flags.NO_DATA) == 0)
                 {
                     yield return pixelIdx - 1;
                 }
-                if (u < width - 1 && (flags[pixelIdx + 1] & (byte)Flags.NO_DATA) == 0)
+                if (u < Width - 1 && (Flags[pixelIdx + 1] & (byte)LimberDMG.Flags.NO_DATA) == 0)
                 {
                     yield return pixelIdx + 1;
                 }
-                if (v > 0 && (flags[pixelIdx - width] & (byte)Flags.NO_DATA) == 0)
+                if (v > 0 && (Flags[pixelIdx - Width] & (byte)LimberDMG.Flags.NO_DATA) == 0)
                 {
-                    yield return pixelIdx - width;
+                    yield return pixelIdx - Width;
                 }
-                if (v < height - 1 && (flags[pixelIdx + width] & (byte)Flags.NO_DATA) == 0)
+                if (v < Height - 1 && (Flags[pixelIdx + Width] & (byte)LimberDMG.Flags.NO_DATA) == 0)
                 {
-                    yield return pixelIdx + width;
+                    yield return pixelIdx + Width;
                 }
             }
 
             IEnumerable<int> PixelNeighborsCylinder(int pixelIdx)
             {
-                int u = pixelIdx % width,
-                    v = pixelIdx / width;
+                int u = pixelIdx % Width,
+                    v = pixelIdx / Width;
 
                 // Horizontal neighbors
-                int h1 = v * width + ((u + 1) % width);
-                if ((flags[h1] & (byte)Flags.NO_DATA) == 0) yield return h1;
-                int h0 = v * width + ((u + width - 1) % width);
-                if ((flags[h0] & (byte)Flags.NO_DATA) == 0) yield return h0;
+                int h1 = v * Width + ((u + 1) % Width);
+                if ((Flags[h1] & (byte)LimberDMG.Flags.NO_DATA) == 0) yield return h1;
+                int h0 = v * Width + ((u + Width - 1) % Width);
+                if ((Flags[h0] & (byte)LimberDMG.Flags.NO_DATA) == 0) yield return h0;
 
-                if (v > 0 && (flags[pixelIdx - width] & (byte)Flags.NO_DATA) == 0)
+                if (v > 0 && (Flags[pixelIdx - Width] & (byte)LimberDMG.Flags.NO_DATA) == 0)
                 {
-                    yield return pixelIdx - width;
+                    yield return pixelIdx - Width;
                 }
-                if (v < height - 1 && (flags[pixelIdx + width] & (byte)Flags.NO_DATA) == 0)
+                if (v < Height - 1 && (Flags[pixelIdx + Width] & (byte)LimberDMG.Flags.NO_DATA) == 0)
                 {
-                    yield return pixelIdx + width;
+                    yield return pixelIdx + Width;
                 }
             }
 
             IEnumerable<int> PixelNeighborsSphere(int pixelIdx)
             {
-                int u = pixelIdx % width,
-                    v = pixelIdx / width;
+                int u = pixelIdx % Width,
+                    v = pixelIdx / Width;
 
                 // Horizontal neighbors
-                int h1 = v * width + ((u + 1) % width);
-                if ((flags[h1] & (byte)Flags.NO_DATA) == 0) yield return h1;
-                int h0 = v * width + ((u + width - 1) % width);
-                if ((flags[h0] & (byte)Flags.NO_DATA) == 0) yield return h0;
+                int h1 = v * Width + ((u + 1) % Width);
+                if ((Flags[h1] & (byte)LimberDMG.Flags.NO_DATA) == 0) yield return h1;
+                int h0 = v * Width + ((u + Width - 1) % Width);
+                if ((Flags[h0] & (byte)LimberDMG.Flags.NO_DATA) == 0) yield return h0;
 
                 // Wrap to mirror side of image on vertical edges
-                if ((v == 0 || v == height - 1) && (flags[v * width + (width - 1 - u)] & (byte)Flags.NO_DATA) == 0)
+                if ((v == 0 || v == Height - 1) && (Flags[v * Width + (Width - 1 - u)] & (byte)LimberDMG.Flags.NO_DATA) == 0)
                 {
-                    yield return v * width + (width - 1 - u);
+                    yield return v * Width + (Width - 1 - u);
                 }
 
-                if (v > 0 && (flags[pixelIdx - width] & (byte)Flags.NO_DATA) == 0)
+                if (v > 0 && (Flags[pixelIdx - Width] & (byte)LimberDMG.Flags.NO_DATA) == 0)
                 {
-                    yield return pixelIdx - width;
+                    yield return pixelIdx - Width;
                 }
-                if (v < height - 1 && (flags[pixelIdx + width] & (byte)Flags.NO_DATA) == 0)
+                if (v < Height - 1 && (Flags[pixelIdx + Width] & (byte)LimberDMG.Flags.NO_DATA) == 0)
                 {
-                    yield return pixelIdx + width;
+                    yield return pixelIdx + Width;
                 }
             }
 
             IEnumerable<int> PixelNeighborsTorus(int pixelIdx)
             {
-                int u = pixelIdx % width,
-                    v = pixelIdx / width;
+                int u = pixelIdx % Width,
+                    v = pixelIdx / Width;
 
                 // Horizontal neighbors
-                int h1 = v * width + ((u + 1) % width);
-                if ((flags[h1] & (byte)Flags.NO_DATA) == 0) yield return h1;
-                int h0 = v * width + ((u + width - 1) % width);
-                if ((flags[h0] & (byte)Flags.NO_DATA) == 0) yield return h0;
+                int h1 = v * Width + ((u + 1) % Width);
+                if ((Flags[h1] & (byte)LimberDMG.Flags.NO_DATA) == 0) yield return h1;
+                int h0 = v * Width + ((u + Width - 1) % Width);
+                if ((Flags[h0] & (byte)LimberDMG.Flags.NO_DATA) == 0) yield return h0;
 
                 // Vertical neighbors
-                int v1 = ((v + 1) % height) * width + u;
-                if ((flags[v1] & (byte)Flags.NO_DATA) == 0) yield return v1;
-                int v0 = ((v + height - 1) % height) * width + u;
-                if ((flags[v0] & (byte)Flags.NO_DATA) == 0) yield return v0;
+                int v1 = ((v + 1) % Height) * Width + u;
+                if ((Flags[v1] & (byte)LimberDMG.Flags.NO_DATA) == 0) yield return v1;
+                int v0 = ((v + Height - 1) % Height) * Width + u;
+                if ((Flags[v0] & (byte)LimberDMG.Flags.NO_DATA) == 0) yield return v0;
             }
             #endregion
 
             internal void ComputeK()
             {
-                if (k == null || k.Length != width * height)
+                if (k == null || k.Length != Width * Height)
                 {
-                    k = new double[width * height];
+                    k = new double[Width * Height];
                 }
 
                 int i;
-                for (i = 0; i < width * height; i++)
+                for (i = 0; i < Width * Height; i++)
                 {
-                    if ((flags[i] & (byte)Flags.NO_DATA) != 0)
+                    if ((Flags[i] & (byte)LimberDMG.Flags.NO_DATA) != 0)
                     {
                         k[i] = 0;
                         continue;
                     }
                     double scale = lambda;
-                    if ((flags[i] & (byte)Flags.GRADIENT_ONLY) != 0) scale = 0;
+                    if ((Flags[i] & (byte)LimberDMG.Flags.GRADIENT_ONLY) != 0) scale = 0;
 
                     k[i] = scale * U[i] - divG[i];
                 }
@@ -215,10 +219,10 @@ namespace OPS.Imaging
             /// <returns>$\nabla^2f$</returns>
             public double Laplacian(double[] x, int i)
             {
-                if ((flags[i] & (byte)Flags.NO_DATA) != 0) return 0;
+                if ((Flags[i] & (byte)LimberDMG.Flags.NO_DATA) != 0) return 0;
 
-                int u = i % width,
-                    v = i / width;
+                int u = i % Width,
+                    v = i / Width;
 
                 double delGrad = 0;
 
@@ -237,16 +241,16 @@ namespace OPS.Imaging
             /// <param name="b">Output vector</param>
             public void MatrixMultiply(double[] x, double[] b, bool useAffine = false, double affineScale = 1.0)
             {
-                Parallel.For(0, width * height, (i) =>
+                Parallel.For(0, Width * Height, (i) =>
                 {
-                    if ((flags[i] & (byte)Flags.NO_DATA) != 0)
+                    if ((Flags[i] & (byte)LimberDMG.Flags.NO_DATA) != 0)
                     {
                         b[i] = 0;
                         return;
                     }
                     double lhs = lambda * x[i];
-                    if ((flags[i] & (byte)Flags.GRADIENT_ONLY) != 0) lhs = 0;
-                    else if (useAffine && (flags[i] & (byte)Flags.HOLD_CONSTANT) != 0) lhs = lambda * affineScale * U[i];
+                    if ((Flags[i] & (byte)LimberDMG.Flags.GRADIENT_ONLY) != 0) lhs = 0;
+                    else if (useAffine && (Flags[i] & (byte)LimberDMG.Flags.HOLD_CONSTANT) != 0) lhs = lambda * affineScale * U[i];
 
                     b[i] = lhs - Laplacian(x, i);
                 });
@@ -262,14 +266,14 @@ namespace OPS.Imaging
             {
                 if (b == null)
                 {
-                    b = new double[width * height];
+                    b = new double[Width * Height];
                 }
                 MatrixMultiply(x, b);
 
                 int i;
-                for (i = 0; i < width * height; i++)
+                for (i = 0; i < Width * Height; i++)
                 {
-                    if ((flags[i] & (byte)Flags.NO_DATA) != 0)
+                    if ((Flags[i] & (byte)LimberDMG.Flags.NO_DATA) != 0)
                     {
                         r[i] = 0;
                         continue;
@@ -286,15 +290,15 @@ namespace OPS.Imaging
             /// <param name="residualEpsilon">Acceptable error for early bailout</param>
             public void OptimizeConjugateGradient(double[] x, int maxIters = 20, double residualEpsilon = 1e-6)
             {
-                double[] R = new double[width * height];
-                double[] P = new double[width * height];
-                double[] AP = new double[width * height];
+                double[] R = new double[Width * Height];
+                double[] P = new double[Width * Height];
+                double[] AP = new double[Width * Height];
                 double sqrError = 0.0;
 
                 // Calculate initial R, P, sqrError
                 CalculateResidual(x, R);
                 int i;
-                for (i = 0; i < width * height; i++)
+                for (i = 0; i < Width * Height; i++)
                 {
                     sqrError += R[i] * R[i];
                     P[i] = R[i];
@@ -311,9 +315,9 @@ namespace OPS.Imaging
 
                     // Calculate alpha
                     double invAlpha = 0.0;
-                    for (i = 0; i < width * height; i++)
+                    for (i = 0; i < Width * Height; i++)
                     {
-                        if ((flags[i] & (byte)Flags.HOLD_CONSTANT) != 0)
+                        if ((Flags[i] & (byte)LimberDMG.Flags.HOLD_CONSTANT) != 0)
                         {
                             P[i] = 0;
                             AP[i] = 0;
@@ -323,7 +327,7 @@ namespace OPS.Imaging
                     double alpha = sqrError / invAlpha;
 
                     double newSqrError = 0.0;
-                    for (i = 0; i < width * height; i++)
+                    for (i = 0; i < Width * Height; i++)
                     {
                         x[i] += alpha * P[i];
                         R[i] -= alpha * AP[i];
@@ -334,7 +338,7 @@ namespace OPS.Imaging
                         break;
                     }
 
-                    for (i = 0; i < width * height; i++)
+                    for (i = 0; i < Width * Height; i++)
                     {
                         P[i] = R[i] + newSqrError / sqrError * P[i];
                     }
@@ -344,13 +348,13 @@ namespace OPS.Imaging
 
             double ComputeGaussSeidelValue(double[] x, int i, ref double sqrDelta)
             {
-                if ((flags[i] & (byte)(Flags.HOLD_CONSTANT | Flags.NO_DATA)) != 0)
+                if ((Flags[i] & (byte)(LimberDMG.Flags.HOLD_CONSTANT | LimberDMG.Flags.NO_DATA)) != 0)
                 {
                     return x[i];
                 }
 
-                int u = i % width,
-                    v = i / width;
+                int u = i % Width,
+                    v = i / Width;
 
                 double partial = 0;
 
@@ -362,7 +366,7 @@ namespace OPS.Imaging
                 }
 
                 double scale = lambda;
-                if ((flags[i] & (byte)Flags.GRADIENT_ONLY) != 0) scale = 0;
+                if ((Flags[i] & (byte)LimberDMG.Flags.GRADIENT_ONLY) != 0) scale = 0;
 
                 if (numNeighbors > 0)
                 {
@@ -398,22 +402,22 @@ namespace OPS.Imaging
                     // Gauss-Seidel updates can be performed in parallel within each set.
 
                     // Red
-                    Parallel.For(0, height, (v) =>
+                    Parallel.For(0, Height, (v) =>
                     {
                         int u;
-                        for (u = v % 2; u < width; u += 2)
+                        for (u = v % 2; u < Width; u += 2)
                         {
-                            int idx = v * width + u;
+                            int idx = v * Width + u;
                             x[idx] = ComputeGaussSeidelValue(x, idx, ref sqrDelta);
                         }
                     });
                     // Black
-                    Parallel.For(0, height, (v) =>
+                    Parallel.For(0, Height, (v) =>
                     {
                         int u;
-                        for (u = (v + 1) % 2; u < width; u += 2)
+                        for (u = (v + 1) % 2; u < Width; u += 2)
                         {
-                            int idx = v * width + u;
+                            int idx = v * Width + u;
                             x[idx] = ComputeGaussSeidelValue(x, idx, ref sqrDelta);
                         }
                     });
@@ -429,6 +433,16 @@ namespace OPS.Imaging
         class ImageStitchingProblem : PoissonProblem2D
         {
             int[] indices;
+            /// <summary>
+            /// 
+            /// </summary>
+            /// <param name="width">width of image represented by composite, indices, and flags</param>
+            /// <param name="height">height of image represented by composite, indices, and flags</param>
+            /// <param name="composite">pixel data values of a composite image in a particular band</param>
+            /// <param name="indices">pixel data values of a mask in a particular band</param>
+            /// <param name="flags">pixel data values of flags in a particular band</param>
+            /// <param name="lambda"></param>
+            /// <param name="edgeBehavior"></param>
             public ImageStitchingProblem(int width, int height, double[] composite, int[] indices, byte[] flags, double lambda, EdgeBehavior edgeBehavior)
                 : base(width, height, composite, null, flags, lambda, edgeBehavior)
             {
@@ -439,23 +453,23 @@ namespace OPS.Imaging
 
             double[] CalculateTargetLaplacian(int[] indices)
             {
-                double[] divGrad = new double[width * height];
+                double[] divGrad = new double[Width * Height];
                 int i;
-                for (i = 0; i < width * height; i++)
+                for (i = 0; i < Width * Height; i++)
                 {
                     if (indices[i] == 0 || indices[i] == 0xffff)
                     {
                         indices[i] = 0;
-                        flags[i] = (byte)(Flags.NO_DATA | Flags.HOLD_CONSTANT);
+                        Flags[i] = (byte)(LimberDMG.Flags.NO_DATA | LimberDMG.Flags.HOLD_CONSTANT);
                     }
-                    if ((flags[i] & (byte)Flags.NO_DATA) != 0)
+                    if ((Flags[i] & (byte)LimberDMG.Flags.NO_DATA) != 0)
                     {
                         divGrad[i] = 0;
                         continue;
                     }
 
-                    int u = i % width,
-                        v = i / width;
+                    int u = i % Width,
+                        v = i / Width;
 
                     foreach (int neighborIdx in getNeighbors(i))
                     {
@@ -468,8 +482,8 @@ namespace OPS.Imaging
 
             public ImageStitchingProblem Downsample(int scaleDivisor, double[] x, out double[] mX)
             {
-                int mWidth = width / scaleDivisor,
-                    mHeight = height / scaleDivisor;
+                int mWidth = Width / scaleDivisor,
+                    mHeight = Height / scaleDivisor;
                 mX = new double[mWidth * mHeight];
                 double[] mU = new double[mWidth * mHeight];
                 byte[] mFlags = new byte[mWidth * mHeight];
@@ -482,7 +496,7 @@ namespace OPS.Imaging
                     {
                         mFlags[j * mWidth + i] = 0;
                         Dictionary<int, int> indexCount = new Dictionary<int, int>();
-                        byte flag = (byte)(Flags.NO_DATA | Flags.HOLD_CONSTANT);
+                        byte flag = (byte)(LimberDMG.Flags.NO_DATA | LimberDMG.Flags.HOLD_CONSTANT);
                         int maxIndex = 0, maxIndexCt = 0;
                         int divisor = 0;
                         int u, v;
@@ -490,14 +504,14 @@ namespace OPS.Imaging
                         {
                             for (u = 0; u < scaleDivisor; u++)
                             {
-                                int idx = (scaleDivisor * j + v) * width + (scaleDivisor * i + u);
-                                if ((flags[idx] & (byte)Flags.NO_DATA) != 0) continue;
+                                int idx = (scaleDivisor * j + v) * Width + (scaleDivisor * i + u);
+                                if ((Flags[idx] & (byte)LimberDMG.Flags.NO_DATA) != 0) continue;
 
-                                flag &= 255 ^ (byte)Flags.NO_DATA;
+                                flag &= 255 ^ (byte)LimberDMG.Flags.NO_DATA;
 
-                                if ((flags[idx] & (byte)Flags.HOLD_CONSTANT) == 0)
+                                if ((Flags[idx] & (byte)LimberDMG.Flags.HOLD_CONSTANT) == 0)
                                 {
-                                    flag &= 255 ^ (byte)Flags.HOLD_CONSTANT;
+                                    flag &= 255 ^ (byte)LimberDMG.Flags.HOLD_CONSTANT;
                                 }
 
                                 mX[j * mWidth + i] += x[idx];
@@ -557,21 +571,21 @@ namespace OPS.Imaging
             }
 
             // Propagate difference to original scale
-            for (i = 0; i < p.width *p.height; i++)
+            for (i = 0; i < p.Width *p.Height; i++)
             {
-                if ((p.flags[i] & (byte)(Flags.HOLD_CONSTANT | Flags.NO_DATA)) != 0) continue;
-                int u = i % p.width,
-                    v = i / p.width;
+                if ((p.Flags[i] & (byte)(Flags.HOLD_CONSTANT | Flags.NO_DATA)) != 0) continue;
+                int u = i % p.Width,
+                    v = i / p.Width;
 
                 double up = (u % scale) / (double)scale,
                        vp = (v % scale) / (double)scale;
                 int upi = (int)Math.Floor(u / (double)scale),
                     vpi = (int)Math.Floor(v / (double)scale);
 
-                int i00 = vpi * coarser.width + upi,
-                    i10 = vpi * coarser.width + Math.Min(coarser.width - 1, upi + 1),
-                    i01 = Math.Min(coarser.height - 1, vpi + 1) * coarser.width + upi,
-                    i11 = Math.Min(coarser.height - 1, vpi + 1) * coarser.width + Math.Min(coarser.width - 1, upi + 1);
+                int i00 = vpi * coarser.Width + upi,
+                    i10 = vpi * coarser.Width + Math.Min(coarser.Width - 1, upi + 1),
+                    i01 = Math.Min(coarser.Height - 1, vpi + 1) * coarser.Width + upi,
+                    i11 = Math.Min(coarser.Height - 1, vpi + 1) * coarser.Width + Math.Min(coarser.Width - 1, upi + 1);
 
                 double dx = (mX[i00] - mX0[i00]) * (1 - up) * (1 - vp) +
                             (mX[i10] - mX0[i10]) * up * (1 - vp) +
@@ -595,7 +609,6 @@ namespace OPS.Imaging
 
             for (int N = 0; N < 5; N++)
             {
-                logger.InfoFormat("Band {0}: Beginning multigrid iteration {1}", bandNum, N);
                 // Multigrid for low-frequency correction
                 for (i = 8; i > 0; i--)
                 {
@@ -607,73 +620,80 @@ namespace OPS.Imaging
             return x;
         }
 
-        public Image StitchImage(Image compositePath, Image indexPath, Image flagsPath, string outputPath)
+        /// <summary>
+        /// Given a composite image, a mask, and flags, output a stitched image with smoothed seams between composited images
+        /// </summary>
+        /// <param name="composite">original mosaic of images</param>
+        /// <param name="index">mask assigning same color ID to pixels coming from the same source</param>
+        /// <param name="flags">describes the desired function to apply at each pixel</param>
+        /// <param name="outputPath"></param>
+        /// <returns></returns>
+        public Image StitchImage(Image composite, Image index, Image flags, string outputPath)
         {
-            int originalWidth = compositePath.Width,
-                originalHeight = compositePath.Height;
+            int originalWidth = composite.Width,
+                originalHeight = composite.Height;
 
             // Some sanity checks
             {
-                if (indexPath.Width != compositePath.Width || indexPath.Height != compositePath.Height)
+                if (index.Width != composite.Width || index.Height != composite.Height)
                 {
                     throw new ArgumentException("Sizes of composite and index images don't match");
                 }
-                if (indexPath.Bands != 1 && indexPath.Bands != compositePath.Bands)
+                if (index.Bands != 1 && index.Bands != composite.Bands)
                 {
-                    throw new ArgumentException(string.Format("Expected either 1 or {0} index bands, got {1}", compositePath.Bands, indexPath.Bands));
+                    throw new ArgumentException(string.Format("Expected either 1 or {0} index bands, got {1}", composite.Bands, index.Bands));
                 }
 
-                if (flagsPath != null)
+                if (flags != null)
                 {
-                    if (flagsPath.Width != compositePath.Width || flagsPath.Height != compositePath.Height)
+                    if (flags.Width != composite.Width || flags.Height != composite.Height)
                     {
                         throw new ArgumentException("Sizes of composite and flag images don't match");
                     }
-                    if (flagsPath.Bands != 1 && flagsPath.Bands != compositePath.Bands)
+                    if (flags.Bands != 1 && flags.Bands != composite.Bands)
                     {
-                        throw new ArgumentException(string.Format("Expected either 1 or {0} flag bands, got {1}", compositePath.Bands, indexPath.Bands));
+                        throw new ArgumentException(string.Format("Expected either 1 or {0} flag bands, got {1}", composite.Bands, index.Bands));
                     }
                 }
             }
 
             //change image dimensions to powers of 2
-            if ((compositePath.Width & (compositePath.Width - 1)) != 0 || (compositePath.Height & (compositePath.Height - 1)) != 0)
+            if ((composite.Width & (composite.Width - 1)) != 0 || (composite.Height & (composite.Height - 1)) != 0)
             {
-                Image composite = new Image(compositePath.Bands, (int)Math.Pow(2, Math.Ceiling(Math.Log(compositePath.Width, 2))), (int)Math.Pow(2, Math.Ceiling(Math.Log(compositePath.Height, 2))));
-                Image index = new Image(indexPath.Bands, (int)Math.Pow(2, Math.Ceiling(Math.Log(compositePath.Width, 2))), (int)Math.Pow(2, Math.Ceiling(Math.Log(compositePath.Height, 2))));
-                Image flags = new Image(flagsPath.Bands, (int)Math.Pow(2, Math.Ceiling(Math.Log(compositePath.Width, 2))), (int)Math.Pow(2, Math.Ceiling(Math.Log(compositePath.Height, 2))));
-                float[] noDataBandValues = new float[flags.Bands];
-                for (int i = 0; i < flags.Bands; i++)
+                int width = MathExtensions.MathE.CeilPowerOf2(composite.Width);
+                int height = MathExtensions.MathE.CeilPowerOf2(composite.Height);
+                Image comp = new Image(composite.Bands, width, height);
+                Image ind = new Image(index.Bands, width, height);
+                Image flag = new Image(flags.Bands, width, height);
+                for (int r = 0; r < comp.Height; r++)
                 {
-                    noDataBandValues[i] = (float)Flags.NO_DATA;
-                }
-                for (int i = 0; i < composite.Height; i++)
-                {
-                    for (int j = 0; j < composite.Width; j++)
+                    for (int c = 0; c < comp.Width; c++)
                     {
-                        if (i < originalHeight && j < originalWidth)
+                        if (r < originalHeight && c < originalWidth)
                         {
-                            composite.SetBandValues(i, j, compositePath.GetBandValues(i, j));
-                            index.SetBandValues(i, j, indexPath.GetBandValues(i, j));
-                            flags.SetBandValues(i, j, flagsPath.GetBandValues(i, j));
+                            comp.SetBandValues(r, c, composite.GetBandValues(r, c));
+                            ind.SetBandValues(r, c, index.GetBandValues(r, c));
+                            flag.SetBandValues(r, c, flags.GetBandValues(r, c));
                         }
                         else
                         {
-                            flags.SetBandValues(i, j, noDataBandValues);
+                            for (int b = 0; b < flag.Bands; b++)
+                            {
+                                flag[b,r,c] = (float)Flags.NO_DATA;
+                            }
                         }
                     }
                 }
-                compositePath = composite;
-                indexPath = index;
-                flagsPath = flags;
+                composite = comp;
+                index = ind;
+                flags = flag;
             }       
 
-            Image blendedImage = new Image(compositePath.Bands, compositePath.Width, compositePath.Height);
+            Image blendedImage = new Image(composite.Bands, composite.Width, composite.Height);
 
-            Parallel.For(0, compositePath.Bands, (i) =>
+            Parallel.For(0, composite.Bands, (i) =>
             {
-                logger.DebugFormat("Band {0}: Blending", i);
-                var blendedBand = StitchBand(GetBandDouble(compositePath, i), GetBandInt(indexPath, indexPath.Bands == 1 ? 0 : i), GetBandByte(flagsPath, flagsPath.Bands == 1 ? 0 : i), compositePath.Width, compositePath.Height, i);
+                var blendedBand = StitchBand(GetBandDouble(composite, i), GetBandInt(index, index.Bands == 1 ? 0 : i), GetBandByte(flags, flags.Bands == 1 ? 0 : i), composite.Width, composite.Height, i);
                 WriteBand(blendedImage, i, blendedBand);
             });
             
