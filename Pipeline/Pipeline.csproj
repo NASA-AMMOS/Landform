@@ -182,8 +182,10 @@
     <Compile Include="Commands\LegacyToTile3D.cs" />
     <Compile Include="Commands\CreateCloudTemplates.cs" />
     <Compile Include="Commands\TileLocalMesh.cs" />
+    <Compile Include="Commands\TileServer\TilingServerBuildLeafTiles.cs" />
     <Compile Include="Commands\TileServer\TilingServerChunkInput.cs" />
     <Compile Include="Commands\TileServer\PretendTilingServerDatabase.cs" />
+    <Compile Include="Commands\TileServer\TilingServerCommands.cs" />
     <Compile Include="Commands\TileServer\TilingServerDefineStructure.cs" />
     <Compile Include="Commands\TileServer\TilingServerWorkflow.cs" />
     <Compile Include="Commands\TilingWorker.cs" />

@@ -49,6 +49,7 @@ namespace OPS.Pipeline
             logger.Info("Load Image");
             Image image = options.ImageFileapth == null ? null : Image.Load(options.ImageFileapth);
 
+            // TODO: alter chunking algorithm to guarantee that for every leaf tile there is a chunk that completly surrounds it
             ITileSplitCriteria splitCriteria = new FaceLimitSplitCriteria(options.FacesPerChunk);
             ITilingScheme tilingScheme = new BinaryTreeTilingScheme();
 
@@ -95,7 +96,7 @@ namespace OPS.Pipeline
             Parallel.ForEach(chunkRecords, new ParallelOptions() { MaxDegreeOfParallelism = Environment.ProcessorCount } , (record,pls, i) =>
             {
                 logger.Info("Creating chunk: " + i + "/" + chunkRecords.Count);
-                Mesh clippedMesh = op.Clip(record.Bounds);
+                Mesh clippedMesh = op.Clip(record.Bounds, true);
                 clippedMesh.Clean();
                 if(image != null)
                 {

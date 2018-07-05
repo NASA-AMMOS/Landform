@@ -213,7 +213,7 @@ namespace OPS.Geometry
         /// Breadth first traversal of all leaf transforms
         /// </summary>
         /// <returns></returns>
-        public IEnumerable<NodeTransform> Leafs()
+        public IEnumerable<NodeTransform> Leaves()
         {
             Stack<NodeTransform> stack = new Stack<NodeTransform>();
             stack.Push(this);

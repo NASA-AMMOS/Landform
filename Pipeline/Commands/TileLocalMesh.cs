@@ -129,7 +129,9 @@ namespace OPS
             public Mesh Clip(BoundingBox box)
             {
                 var meshes = this.Datasets.Where(d => !d.MeshOperator.Empty(box)).Select(d => d.MeshOperator.Clip(box)).ToArray();
-                return Mesh.Merge(meshes);
+                var merged =  Mesh.Merge(meshes);
+                merged.Clean();
+                return merged;
             }
 
             public MeshImagePair BakeTexture(Mesh mesh, int size)

@@ -80,13 +80,13 @@ namespace OPS.Geometry
             this.hasFaces = mesh.Faces.Count > 0;
             this.Bounds = mesh.Bounds();
         }
-        
+
         /// <summary>
         /// Return a new mesh clipped to the given bounding box
         /// </summary>
         /// <param name="box"></param>
         /// <returns></returns>
-        public Mesh Clip(BoundingBox box)
+        public Mesh Clip(BoundingBox box, bool ragged = false)
         {
             Mesh result = null;
             if (this.hasFaces)
@@ -99,7 +99,14 @@ namespace OPS.Geometry
                 List<Triangle> resTriangles = new List<Triangle>();
                 foreach (Triangle t in startingTriangles)
                 {
-                    resTriangles.AddRange(t.Clip(box));
+                    if (ragged)
+                    {
+                        resTriangles.Add(t);
+                    }
+                    else
+                    {
+                        resTriangles.AddRange(t.Clip(box));
+                    }
                 }
                 result = new Mesh(resTriangles, hasNormals, hasUVs, hasColors);
             }

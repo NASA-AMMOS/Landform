@@ -45,8 +45,11 @@ namespace OPS.Pipeline
     public class NodeRecord
     {
         public string Id;
+        public string ParentId;
         public string[] ChildIds;
         public BoundingBox Bounds;
+        public string MeshFilename;
+        public string ImageFilename;
     } 
 
     public class PretendTilingServerDatabase

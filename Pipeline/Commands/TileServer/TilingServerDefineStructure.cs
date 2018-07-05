@@ -30,6 +30,7 @@ namespace OPS.Pipeline
 
     public class TilingServerDefineStructure
     {
+        static ILog logger = LogManager.GetLogger(typeof(TilingServerDefineStructure));
 
         TilingServerDefineStructureOptions options;
         public TilingServerDefineStructure(TilingServerDefineStructureOptions options)
@@ -67,12 +68,12 @@ namespace OPS.Pipeline
                 {
                     Id = node.Name,
                     ChildIds = node.Children.Select(c => c.Name).ToArray(),
-                    Bounds = node.GetComponent<NodeBounds>().Bounds
+                    Bounds = node.GetComponent<NodeBounds>().Bounds,
+                    ParentId = (node.Parent == null) ? null : node.Parent.Name
                 };
                 PretendTilingServerDatabase.Instance.NodeTable.Add(r);
             }
             return 0;
         }
-
     }
 }
