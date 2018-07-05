@@ -184,6 +184,7 @@
     <Compile Include="Commands\TileLocalMesh.cs" />
     <Compile Include="Commands\TileServer\TilingServerChunkInput.cs" />
     <Compile Include="Commands\TileServer\PretendTilingServerDatabase.cs" />
+    <Compile Include="Commands\TileServer\TilingServerDefineStructure.cs" />
     <Compile Include="Commands\TileServer\TilingServerWorkflow.cs" />
     <Compile Include="Commands\TilingWorker.cs" />
     <Compile Include="Commands\Commands.cs" />

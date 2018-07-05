@@ -65,7 +65,7 @@ namespace OPS
 
         bool SkirtsEnabled { get { return options.SkirtAxis != SkirtAxis.None; } }
 
-        class TilingInput
+        public class TilingInput
         {
             public BoundingBox TotalBounds;
             public List<TilingInputDataset> Datasets;
@@ -116,6 +116,7 @@ namespace OPS
             {
                 foreach (var dataset in Datasets)
                 {
+                    // TODO: support texture based splitting
                     // TODO: add spatial lookup to support large numbers of input meshes
                     if (splitCriteria.ShouldSplit(dataset.MeshOperator, box))
                     {
@@ -140,7 +141,7 @@ namespace OPS
             }
         }
 
-        class TilingInputDataset
+        public class TilingInputDataset
         {
             public Mesh Mesh;
             public Image Image;
@@ -210,7 +211,7 @@ namespace OPS
             return node.Name + ".b3dm";
         }
 
-        SceneNode BuildBoundsTree(TilingInput input, ITilingScheme tilingScheme, ITileSplitCriteria splitCriteria)
+        public static SceneNode BuildBoundsTree(TilingInput input, ITilingScheme tilingScheme, ITileSplitCriteria splitCriteria)
         {
             SceneNode root = new SceneNode("");
             root.AddComponent(new NodeBounds(input.TotalBounds));

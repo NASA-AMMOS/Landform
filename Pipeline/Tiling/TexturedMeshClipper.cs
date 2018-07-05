@@ -99,7 +99,7 @@ namespace OPS.Pipeline
 
         List<TexturePatch> ComputePatches(Mesh mesh, Image img, int borderSize)
         {
-            MeshOperator op = new MeshOperator(mesh);
+            MeshOperator op = new MeshOperator(mesh, buildFaceTree: false, buildVertexTree: false);
             var triangles = op.Triangles;
             List<TexturePatch> patches = new List<TexturePatch>();
 

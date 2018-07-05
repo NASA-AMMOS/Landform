@@ -32,7 +32,8 @@ namespace OPS.Pipeline
                                                              CreateCloudTemplatesOptions,
                                                              TileLocalMeshOptions,
                                                              TilingServerChunkInputOptions,
-                                                             TilingServerWorkflowOptions
+                                                             TilingServerWorkflowOptions,
+                                                             TilingServerDefineStructureOptions
                                                              >(args)
               .MapResult(
                 (AlignmentWorkerOptions opts) => new AlignmentWorker().Run(),
@@ -50,6 +51,7 @@ namespace OPS.Pipeline
                 (TileLocalMeshOptions opts) => new TileLocalMesh(opts).Run(),
                 (TilingServerChunkInputOptions opts) => new TilingServerChunkInput(opts).Run(),
                 (TilingServerWorkflowOptions opts) => new TilingServerWorkflow(opts).Run(),
+                (TilingServerDefineStructureOptions opts) => new TilingServerDefineStructure(opts).Run(),
                 errs => 1);
         }
     }

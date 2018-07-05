@@ -44,16 +44,21 @@ namespace OPS.Pipeline
 
         public int Run()
         {
+            logger.Info("Load Mesh");
             Mesh mesh = Mesh.Load(options.MeshFileapth);
+            logger.Info("Load Image");
             Image image = options.ImageFileapth == null ? null : Image.Load(options.ImageFileapth);
 
             ITileSplitCriteria splitCriteria = new FaceLimitSplitCriteria(options.FacesPerChunk);
             ITilingScheme tilingScheme = new BinaryTreeTilingScheme();
+
+            // TODO: This could be faster by just creating a triangle list and partitioning later on
+            logger.Info("Build Mesh Operator");
             MeshOperator op = new MeshOperator(mesh, buildFaceTree: true, buildVertexTree: false, buildUVFaceTree: false);
-            
+
+            logger.Info("Determine Chunk Bounds");
             Queue<BoundingBox> boundsToProcess = new Queue<BoundingBox>();
             boundsToProcess.Enqueue(op.Bounds);
-
             // Subdivide and define bounds of chunks
             List<TilingChunkRecord> chunkRecords = new List<TilingChunkRecord>();
             while(boundsToProcess.Count != 0 )
@@ -85,10 +90,13 @@ namespace OPS.Pipeline
             }
             TexturedMeshClipper texturedClipper = new TexturedMeshClipper();
 
+            logger.Info("Create Chunks");
             // Cut out each chunk and save it
-            Parallel.ForEach(chunkRecords, new ParallelOptions() { MaxDegreeOfParallelism = Environment.ProcessorCount } , record =>
+            Parallel.ForEach(chunkRecords, new ParallelOptions() { MaxDegreeOfParallelism = Environment.ProcessorCount } , (record,pls, i) =>
             {
-                Mesh clippedMesh = op.Clip(record.Bounds);                
+                logger.Info("Creating chunk: " + i + "/" + chunkRecords.Count);
+                Mesh clippedMesh = op.Clip(record.Bounds);
+                clippedMesh.Clean();
                 if(image != null)
                 {
                     var tmp = texturedClipper.ClipTexture(clippedMesh, image);
@@ -99,7 +107,10 @@ namespace OPS.Pipeline
                 clippedMesh.Save(record.MeshFilename, record.ImageFilename);
             });
             // Write chunks to "database"
-            PretendTilingServerDatabase.Instance.ChunkTable.AddRange(chunkRecords);
+            foreach (var r in chunkRecords)
+            {
+                PretendTilingServerDatabase.Instance.ChunkTable.Add(r);
+            }
             return 0;
         }
     }

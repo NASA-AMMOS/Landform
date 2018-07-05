@@ -1,6 +1,7 @@
 ﻿using Microsoft.Xna.Framework;
 using System;
 using System.Collections.Generic;
+using System.Collections.Concurrent;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -50,10 +51,11 @@ namespace OPS.Pipeline
 
     public class PretendTilingServerDatabase
     {
+        object lockObject = new object();
 
-        public List<TilingInputRecord> InputTable = new List<TilingInputRecord>();
-        public List<TilingChunkRecord> ChunkTable = new List<TilingChunkRecord>();
-        public List<NodeRecord> NodeTable = new List<NodeRecord>();
+        public ConcurrentBag<TilingInputRecord> InputTable = new ConcurrentBag<TilingInputRecord>();
+        public ConcurrentBag<TilingChunkRecord> ChunkTable = new ConcurrentBag<TilingChunkRecord>();
+        public ConcurrentBag<NodeRecord> NodeTable = new ConcurrentBag<NodeRecord>();
 
 
         static PretendTilingServerDatabase instance;
@@ -87,21 +89,20 @@ namespace OPS.Pipeline
 
         public void Save()
         {
-            File.WriteAllText(DatabaseFilename, JsonHelper.ToJson(this, true));
+            lock (lockObject)
+            {
+                File.WriteAllText(DatabaseFilename, JsonHelper.ToJson(this, true));
+            }
         }
 
         public void Clear()
         {
-            InputTable.Clear();
-            ChunkTable.Clear();
-            NodeTable.Clear();
+            lock (lockObject)
+            {
+                InputTable = new ConcurrentBag<TilingInputRecord>();
+                ChunkTable = new ConcurrentBag<TilingChunkRecord>();
+                NodeTable = new ConcurrentBag<NodeRecord>();
+            }
         }
-
-
-
-
-
-
-
     }
 }
