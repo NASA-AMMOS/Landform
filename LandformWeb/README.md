@@ -1,5 +1,5 @@
 # Landform web console
-This repo seeks to replace LandformConsole the web interface to controlling the Landform mesh processing cluster.  
+LandformWeb is a node based server and browser based client for controlling the Landform cluster including but not limited to functionality of the Geometry Tiling Server.
 
 ### Current Deployment
 Landlord pub account in the N California region
