@@ -82,6 +82,7 @@
     <Compile Include="Serializers\OBJSerializerTest.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Serializers\PLYSerializerTest.cs" />
+    <Compile Include="Serializers\PNTSSerializerTest.cs" />
     <Compile Include="Serializers\STLSerializerTest.cs" />
   </ItemGroup>
   <ItemGroup>

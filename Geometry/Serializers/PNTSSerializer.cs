@@ -25,18 +25,18 @@ namespace OPS.Geometry
                 byte[] magic = br.ReadBytes(4);
                 if (Encoding.ASCII.GetString(magic) != "pnts")
                 {
-                    throw new Exception("not pnts");
+                    throw new Exception("Pnts magic field mismatch");
                 }
                 UInt32 version = br.ReadUInt32();
                 if (version != VERSION_NUM)
                 {
-                    throw new Exception("wrong version");
+                    throw new Exception("Pnts version mismatch");
                 }
-                br.ReadUInt32();
+                br.ReadUInt32();    //total byte length
                 UInt32 featureTableJsonByteLength = br.ReadUInt32();
                 UInt32 featureTableBinaryByteLength = br.ReadUInt32();
-                br.ReadUInt32();
-                br.ReadUInt32();
+                br.ReadUInt32();    //batch table JSON byte length
+                br.ReadUInt32();    //batch table binary byte length
                 var jsonString = Encoding.ASCII.GetString(br.ReadBytes((int)featureTableJsonByteLength));
                 FeatureTable featureTableJson = JsonConvert.DeserializeObject<FeatureTable>(jsonString);
                 byte[] binary = br.ReadBytes((int)featureTableBinaryByteLength);
@@ -71,7 +71,7 @@ namespace OPS.Geometry
                         byte r = binary[i];
                         byte g = binary[i + 1];
                         byte b = binary[i + 2];
-                        vertices[cnt++].Color = new Vector4(r, g, b, 1) / byte.MaxValue;
+                        vertices[cnt++].Color = new Vector4(r, g, b, 255) / byte.MaxValue;
 
                     }
                 }
@@ -119,7 +119,7 @@ namespace OPS.Geometry
             }
         }
 
-        public override void Save(Mesh m, string filename, string imageFilename)
+        public override void Save(Mesh m, string filename, string imageFilename = null)
         {
 
             string featureTableJsonString = JsonConvert.SerializeObject(new FeatureTable(m.Vertices.Count, m.HasNormals, m.HasColors), Formatting.Indented);
@@ -189,7 +189,7 @@ namespace OPS.Geometry
                     {
                         br.Write(n);
                     }
-                    foreach (float c in colorBinary)
+                    foreach (byte c in colorBinary)
                     {
                         br.Write(c);
                     }
