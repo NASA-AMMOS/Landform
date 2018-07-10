@@ -154,7 +154,8 @@ namespace OPS.Cloud
         /// </summary>
         public static IEnumerable<Overlap> Find(DynamoDBContext context, Observation observation)
         {
-            foreach (var prop in new[] { "ObservationOneName", "ObservationTwoName" })
+            //TODO: previously "ObservationOneName"
+            foreach (var prop in new[] { "ObservationNameOne", "ObservationNameTwo" })
             {
                 var filt = new QueryFilter(prop, QueryOperator.Equal, observation.Name);
                 filt.AddCondition("ProjectName", QueryOperator.Equal, observation.ProjectName);

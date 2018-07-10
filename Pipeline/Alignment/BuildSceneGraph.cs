@@ -103,9 +103,10 @@ namespace OPS.Pipeline
                 var res = new SceneNode(frame.Name, parent?.Transform);
                 var ut = options.GetTransform(frame, parent);
                 if (ut == null) return null;
-                res.GetOrAddComponent<NodeUncertainTransform>().UncertainTransform = ut;
+
 
                 // Add any observations to the node
+                System.Threading.Thread.Sleep(100); // Lower throughput
                 var obs = Observation.Find(DynamoDB, frame).Where(o => options.IncludeObservation(o, res)).ToArray();
                 observations.AddRange(obs);
                 foreach (var o in obs)
@@ -115,6 +116,7 @@ namespace OPS.Pipeline
 
                 if (obs.Length == 1)
                 {
+                    res.GetOrAddComponent<NodeUncertainTransform>().UncertainTransform = ut;
                     addObservation(obs[0], res);
                 }
                 else if (obs.Length > 1)
@@ -123,6 +125,7 @@ namespace OPS.Pipeline
                     {
                         var obsNode = new SceneNode(o.Name, res.Transform);
                         obsNode.Transform.Matrix = Matrix.Identity;
+                        obsNode.GetOrAddComponent<NodeUncertainTransform>().UncertainTransform = ut;
                         addObservation(o, obsNode);
                     }
                 }

@@ -31,7 +31,9 @@ namespace OPS.Pipeline
                                                              AlignSceneOptions,
                                                              IncrementalAlignOptions,
                                                              CreateCloudTemplatesOptions,
-                                                             HayabusaPipelineOptions
+                                                             HayabusaPipelineOptions,
+                                                             CuriosityAlignOptions,
+                                                             BuildFromAlignmentOptions
                                                              >(args)
               .MapResult(
                 (AlignmentWorkerOptions opts) => new AlignmentWorker().Run(),
@@ -48,6 +50,8 @@ namespace OPS.Pipeline
                 (CreateCloudTemplatesOptions opts) => new CreateCloudTemplates(opts).Run(),
                 (IncrementalAlignOptions opts) => new IncrementalAlign(opts).Run(),
                 (HayabusaPipelineOptions opts) => new HayabusaPipeline(opts).Run(),
+                (CuriosityAlignOptions opts) => new CuriosityAlign(opts).Run(),
+                (BuildFromAlignmentOptions opts) => new BuildFromAlignment(opts).Run(),
                 errs => 1);
         }
     }

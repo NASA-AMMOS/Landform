@@ -67,8 +67,10 @@ namespace OPS.Imaging
             g = H - g;                              // sub3(h, g, g);
             rr = Vector3.Cross(f, g);               // cross3(f, g, rr);
             magi = rr.Length();
-            if (magi < EPSILON)
-                throw new DivideByZeroException();  // Don't know if this is possible but might as well be sure
+            if (magi <= EPSILON)
+            {
+                throw new DivideByZeroException();
+            }
             magi = 1.0 / rr.Length();               // magi = 1.0 / mag3(rr);
             rr = magi * rr;                         // scale3(magi, rr, rr);
 

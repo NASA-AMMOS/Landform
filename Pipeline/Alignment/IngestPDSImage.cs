@@ -18,7 +18,6 @@ namespace OPS.Pipeline
 
     public class MSLProject
     {
-        public const string PROJECT_NAME = "MSL";
         public const string ROOT_FRAME_NAME = "root";
 
         //constants for cutoffs
@@ -29,17 +28,21 @@ namespace OPS.Pipeline
 
     public class IngestPDSImage : IngestImage
     {
+        public readonly string project_name;
         MSLLocations locations;
-        public IngestPDSImage(PipelineCore pipeline) : base(pipeline)
+
+        public IngestPDSImage(PipelineCore output_pipeline, string project_name = "MSL") : base(output_pipeline)
         {
             locations = new MSLLocations();
+            this.project_name = project_name;
         }
 
         /// <summary>
         /// Check if we should even bother reading the header, based on the filename.
         /// </summary>
-        bool CheckFilename(string filename)
+        public static bool CheckFilename(string filename)
         {
+            
             RoverProductId id = RoverProductId.ParseFromString(filename);
             if (id == null)
             {
@@ -113,10 +116,17 @@ namespace OPS.Pipeline
                     return false;
                 }
                 // Skip mastcam taken with color filters
-                if (parser.FilterNumber != 0)
+                try
+                {
+                    if (parser.FilterNumber != 0)
+                    {
+                        return false;
+                    }
+                } catch
                 {
                     return false;
                 }
+
                 // Skip mastcam with short focal distances (probably closeup of rover part with terrain out of focus in background)
                 if (parser.MaximumFocusDistance < MSLProject.MIN_MASTCAM_FOCUS_CUTOFF)
                 {
@@ -182,9 +192,9 @@ namespace OPS.Pipeline
             {
                 throw new InvalidOperationException("hey now, let's not get *too* weird");
             }
-            
+
             // Parse the filename to quickly rule out data products we know we don't care about.
-            if (!CheckFilename(imgRef.Url))
+            if (!CheckFilename(imgRef.DisplayName))
             {
                 return new Result(Status.Skipped, null);
             }
@@ -203,10 +213,18 @@ namespace OPS.Pipeline
                 return new Result(Status.Skipped, null);
             }
 
+            try
+            {
+                metadata.CameraModel.Unproject(new Vector2(0,0));
+            } catch
+            {
+                return new Result(Status.Skipped, null);
+            }
+
             bool useForReconstruction = UseForReconstruction(parser, metadata);
 
             // Create database entries
-            Project project = Project.Find(DynamoDB, MSLProject.PROJECT_NAME);
+            Project project = Project.Find(DynamoDB, project_name);
             if (project == null)
             {
                 throw new CloudException("Project does not exist");
@@ -249,7 +267,8 @@ namespace OPS.Pipeline
             if (observation == null)
             {
                 string cameraModel = JsonHelper.ToJson(metadata.CameraModel);
-                observation = RoverObservation.Create(DynamoDB, observationFrame, observationName, imgRef.Url, productTypeToObservationType[parser.DerivedImageType].ToString(), cameraModel, UseForReconstruction(parser, metadata), parser.Site, parser.Drive, parser.ProductId.Version, parser.Camera.ToString(), parser.ImageSizeType.ToString(), metadata.Width, metadata.Height);
+                string url = imgRef.Url;
+                observation = RoverObservation.Create(DynamoDB, observationFrame, observationName, url, productTypeToObservationType[parser.DerivedImageType].ToString(), cameraModel, UseForReconstruction(parser, metadata), parser.Site, parser.Drive, parser.ProductId.Version, parser.Camera.ToString(), parser.ImageSizeType.ToString(), metadata.Width, metadata.Height);
                 if (observation != null) {
                     return new Result(Status.Added, observation);
                 }

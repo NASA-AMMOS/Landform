@@ -71,6 +71,8 @@ namespace OPS.Pipeline
                 var two = refToObservation[overlap.Two];
                 var steve = Overlap.Create(Pipeline.DynamoContext, one, two);
                 if (steve != null) yield return steve;
+                //lower throughput
+                System.Threading.Thread.Sleep(100);
             }
         }
     }

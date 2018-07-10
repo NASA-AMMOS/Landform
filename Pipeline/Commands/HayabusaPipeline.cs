@@ -54,6 +54,7 @@ namespace OPS.Pipeline
             priors = JsonConvert.DeserializeObject<Dictionary<string, PriorInfo>>(File.ReadAllText("D:\\imagestomatch\\hayabusa\\HAY-A-SPICE-6-V1.0\\newpriors.json"));
         }
 
+        //TODO: This used to take an S3ImageRef, undefined for other ImageRef types
         public override Result Ingest(S3ImageRef imgRef)
         {
             var name = imgRef.DisplayName;
