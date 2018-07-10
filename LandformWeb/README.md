@@ -53,9 +53,9 @@ https://landform.hi.jpl.nasa.gov/
     1. IAM instance profile: landlords
 1. Modify network
     1. Visibility: Public (this may need to be false if creating inside a vpc)
-    1. Load balancer subnets: us-west-1c	subnet-148d7971	172.31.16.0/20
+    	. Load balancer subnets: us-west-1c	subnet-148d7971	172.31.16.0/20
     1. Instance settings Public IP Address: check
-    1. Instance subnets: us-west-1c	subnet-148d7971	172.31.16.0/20
+    	. Instance subnets: us-west-1c	subnet-148d7971	172.31.16.0/20
     1. Instance security groups: leave it alone, default creates a security group that can only talk to the load balancer which is what we want.
 1. Create Environment!
 1. Restrict to JPL only IPs
@@ -86,3 +86,45 @@ https://landform.hi.jpl.nasa.gov/
 1. Edit name tag to be landform.hi.jpl.nasa.gov
 1. Go to elastic beanstalk Load Balancing configuration
 1. Select the SSL certificate ID.  These may appear as *.jpl.nasa.gov, in which case you need to use debug console to inspect the drop down and compare the ARN with what is listed in the AWS certificate manager.  Then count how many items down in the option list it is and select that one.  Not kidding.  This is how it works.
+
+# Test Procedures
+
+### Authentication
+
+SSO Test Procedures
+
+1. Note this will only work on https://landform.hi.jpl.nasa.gov because that is the domain SSO is configured to use.
+2. Click `API Token` and confirm the response is `Not Authenticated`
+3. Click `Login (SSO)` 
+4. Enter JPL credentials
+5. Click `API Toke` and confirm the response is a web token - copy the token ID for later
+6. Click `Logout`
+7. Click `API Token` and confirm the response is `Not Authenticated`
+
+LDAP Test Procedure
+
+1. Note that this will not work on https://landform.hi.jpl.nasa.gov because it is running on a cloud instance and does not currently have access to JPLs internal network / LDAP server. However, it will work when the server is run locally or on a JPL host machine.
+2. If your JPL user is not in the landform LDAP group contact Alex Menzies to be added
+3. Click `Login (LDAP)` 
+4. Enter JPL credentials
+5. Click `API Token` and confirm the response is a web token - copy the token ID for later
+6. Click `Logout`
+7. Click `API Token` and confirm the response is `Not Authenticated`
+
+REST API Test Procedure
+
+1. Login and get an API token
+
+2. Create a project
+   `curl -d '{"name":"test-project-name"}' -H "Content-Type: application/json" -H "x-landform-token: API_TOKEN" -X POST https://landform.hi.jpl.nasa.gov/api/project`
+
+3. List projects
+   `curl -H "Content-Type: application/json" -H "x-landform-token: API_TOKEN" -X GET https://landform.hi.jpl.nasa.gov/api/project`
+
+4. Get data about a project
+   `curl -H "Content-Type: application/json" -H "x-landform-token: API_TOKEN" -X GET https://landform.hi.jpl.nasa.gov/api/project/test-project-name`
+
+5. Delete a project
+   `curl -H "Content-Type: application/json" -H "x-landform-token: API_TOKEN" -X DELETE https://landform.hi.jpl.nasa.gov/api/project/test-project-name`
+
+   

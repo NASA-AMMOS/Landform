@@ -48,6 +48,13 @@ const Documentation = () => (
     <br />
     <h1>API Documentation</h1>
     All API methods require an API key {"'x-landform-token'"} to be set in the header or a {"'landform-token'"} cookie set in the browser session
+    <br />
+    <br />
+    Example Curl Command Syntax:
+    <br />
+    curl -d {'\'{"name": "test-project-name"}\''} -H  "Content-Type: application/json" -H  "x-landform-token: YOUR_API_TOKEN" -X POST http://YOUR_HOSTNAME/api/project
+    
+
     <h2>Projects</h2>
     <b>Create a project</b><br />
     POST /api/project<br />
