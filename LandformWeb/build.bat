@@ -1,7 +1,6 @@
-del landformweb.zip
 CALL npm install
 if %errorlevel% neq 0 exit /b %errorlevel%
 CALL npm run build
 if %errorlevel% neq 0 exit /b %errorlevel%
-zip -r landformweb.zip . -x node_modules/* -x client/node_modules*
+CALL npm run bundle
 if %errorlevel% neq 0 exit /b %errorlevel%

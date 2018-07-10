@@ -9,7 +9,8 @@
     "server": "node server.js",
     "client": "node start-client.js",
     "build": "node build-client.js",
-    "test": "test"
+    "test": "test",
+    "bundle": "git archive -v -o landformweb.zip --format=zip HEAD && zip -r landformweb.zip client/build"
   },
   "keywords": [
     "landform"
