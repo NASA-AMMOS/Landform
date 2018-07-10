@@ -4,11 +4,13 @@
   "description": "",
   "main": "server.js",
   "scripts": {
+    "postinstall": "cd client && npm install",
     "start": "concurrently \"npm run server\" \"npm run client\"",
     "server": "node server.js",
     "client": "node start-client.js",
     "build": "node build-client.js",
-    "test": "test"
+    "test": "test",
+    "bundle": "git archive -o landformweb.zip --format=zip HEAD && node bundle-client.js"
   },
   "keywords": [
     "landform"
@@ -32,6 +34,7 @@
     "xml2js": "^0.4.19"
   },
   "devDependencies": {
+    "@jpl/adm-zip": "^0.4.12",
     "concurrently": "^3.5.1",
     "eslint": "^4.14.0",
     "eslint-config-airbnb": "^16.1.0",

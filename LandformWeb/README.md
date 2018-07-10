@@ -25,7 +25,6 @@ https://landform.hi.jpl.nasa.gov/
 # To Deploy
 1. If this is a fresh checkout, run `npm install` in both the `root` and `client` directories.  Then cd back up to `root`
 1. `deploy.bat landlord_profile_name`
-1. If on windows you may need zip.exe in your path http://stahlworks.com/dev/index.php?tool=zipunzip
 
 # Beanstalk setup
 1. North California
