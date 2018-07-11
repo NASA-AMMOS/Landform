@@ -115,10 +115,10 @@ namespace OPS.Alignment
                     int i;
                     for (i = 0; i < keypoints.Length; i++)
                     {
-                        float[] desc = new float[128];
+                        byte[] desc = new byte[128];
                         for (int j = 0; j < 128; j++)
                         {
-                            desc[j] = descriptors[i, j];
+                            desc[j] = (byte)descriptors[i, j];
                         }
                         yield return new SIFTFeature(
                             new Vector2(keypoints[i].Point.X, keypoints[i].Point.Y),

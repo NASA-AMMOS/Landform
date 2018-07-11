@@ -159,7 +159,7 @@ namespace OPS.Plumbing
         {
             return Load(imgRef, false);
         }
-        private ConcurrentDictionary<ImageRef, Image> imageCache = new ConcurrentDictionary<ImageRef, Image>();
+        private LRUCache<ImageRef, Image> imageCache = new LRUCache<ImageRef, Image>(100);
 
         /// <summary>
         /// Get a project by name.

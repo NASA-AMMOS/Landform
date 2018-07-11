@@ -341,7 +341,7 @@ namespace OPS.Pipeline
             }
 
             logger.Info("Finding correspondences...");
-            Serial.ForEach(scene.Overlaps, pair =>
+            Parallel.ForEach(scene.Overlaps, pair =>
             {
                 DoCorrespondence(pair, scene, pipeline);
             });
@@ -395,13 +395,14 @@ namespace OPS.Pipeline
             // prepopulate with null so we can bail without worry
             File.WriteAllText(matchPath, "null");
 
-            var model = pair.One;
-            var data = pair.Two;
+            IFeatureMatcher matcher = new BruteForceMatcher();
+            var matches = matcher.Match(scene, pair);
+
+            var model = matches.ModelImage;
+            var data = matches.DataImage;
             var modelFeat = scene.DetectedFeatures[model];
             var dataFeat = scene.DetectedFeatures[data];
-            BruteForceMatcher bfm = new BruteForceMatcher();
 
-            var matches = bfm.Match(model, data, modelFeat, dataFeat);
             if (matches == null || matches.DataToModel.Length < 20)
             {
                 lock (logger)

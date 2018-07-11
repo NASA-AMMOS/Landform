@@ -29,10 +29,6 @@ namespace OPS.Alignment
                 var cc = (CAHV)c;
                 linear = new CAHV(cc.C, cc.A, cc.H, cc.V);
             }
-            else if (c is HayabusaCameraModel)
-            {
-                linear = new HayabusaCameraModel(((HayabusaCameraModel)c).FocalLength, 0, ((HayabusaCameraModel)c).Scale);
-            }
             else
             {
                 throw new ArgumentException("invalid camera model type");

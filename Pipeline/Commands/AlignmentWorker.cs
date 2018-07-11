@@ -248,19 +248,22 @@ namespace OPS.Pipeline
             DetectedFeatures modelFeat = Get<DetectedFeatures>(project.Name, obs0.FeaturesGuid);
             DetectedFeatures dataFeat = Get<DetectedFeatures>(project.Name, obs1.FeaturesGuid);
 
-            //below is from MatchImages.cs
-            BruteForceMatcher matcher = new BruteForceMatcher();
-            ImagePairCorrespondence matches = matcher.Match(modelRef, dataRef, modelFeat.Features, dataFeat.Features);
+
+
+            AlignmentScene scene = new AlignmentScene();
+            scene.DetectedFeatures[modelRef] = modelFeat.Features;
+            scene.DetectedFeatures[dataRef] = dataFeat.Features;
+
+            var pair = new UnorderedImagePair(modelRef, dataRef);
+            IFeatureMatcher matcher = new BruteForceMatcher();
+            var matches = matcher.Match(scene, pair);
+            
             if (matches == null)
             {
                 Console.WriteLine("No matches found (at all)");
                 return false;
             }
-
-            AlignmentScene scene = new AlignmentScene();
-            scene.DetectedFeatures[modelRef] = modelFeat.Features;
-            scene.DetectedFeatures[dataRef] = dataFeat.Features;
-            scene.Correspondences[new UnorderedImagePair(modelRef, dataRef)] = matches;
+            scene.Correspondences[pair] = matches;
 
             MoisanStivalFilter filter = new MoisanStivalFilter(Pipeline);
             matches = filter.Filter(scene, matches);

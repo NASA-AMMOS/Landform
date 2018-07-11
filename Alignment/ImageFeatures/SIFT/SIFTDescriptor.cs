@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace OPS.Alignment
 {
-    public class SIFTDescriptor : FeatureDescriptor<float>
+    public class SIFTDescriptor : FeatureDescriptor<byte>
     {
         public override int Length
         {
@@ -15,7 +15,7 @@ namespace OPS.Alignment
                 return 128;
             }
         }
-        public SIFTDescriptor(float[] data)
+        public SIFTDescriptor(byte[] data)
         {
             if (data.Length != Length)
             {

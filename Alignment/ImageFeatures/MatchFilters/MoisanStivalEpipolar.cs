@@ -17,7 +17,6 @@ namespace OPS.Alignment
     public class MoisanStivalEpipolar
     {
         public Vector2[] ModelPoints, DataPoints;
-        public Vector2[] OrigModelPoints, OrigDataPoints;
         public Vector2 ModelSize, DataSize;
 
         List<int> bestPoints;
@@ -46,8 +45,6 @@ namespace OPS.Alignment
         {
             this.ModelPoints = modelPoints;
             this.DataPoints = dataPoints;
-            OrigModelPoints = (Vector2[])ModelPoints.Clone();
-            OrigDataPoints = (Vector2[])DataPoints.Clone();
             this.ModelSize = modelSize;
             this.DataSize = dataSize;
 
@@ -154,33 +151,6 @@ namespace OPS.Alignment
                     i = Math.Max(i, maxIters * 9 / 10);
                 }
             }
-        }
-
-        static Matrix ToXna(Matrix<float> mat)
-        {
-            Matrix res = new Matrix();
-            for (int i = 0; i < 3; i++)
-            {
-                for (int j = 0; j < 3; j++)
-                {
-                    res[i, j] = mat[j, i]; // transpose because OpenCV convention is column vectors, XNA is row vectors
-                }
-            }
-            if (mat.Cols > 3)
-            {
-                res.Translation = new Vector3(mat[0, 3], mat[1, 3], mat[2, 3]);
-            }
-            res[3, 3] = 1;
-            return res;
-        }
-
-        static Matrix<float> FromXna(Vector2 pos)
-        {
-            return new Matrix<float>(new[] { (float)pos.X, (float)pos.Y, 1 });
-        }
-        static Matrix<float> FromXna(Vector3 pos)
-        {
-            return new Matrix<float>(new[] { (float)pos.X, (float)pos.Y, (float)pos.Z, 1 });
         }
 
         /// <summary>

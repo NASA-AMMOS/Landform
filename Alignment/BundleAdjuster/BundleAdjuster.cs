@@ -253,7 +253,7 @@ namespace OPS.Alignment
                     if (oldErr < 20) oldErr = 20;
                     double newErr = computeMinErr(tracks[featureToTrack[modelFeat]], tracks[featureToTrack[dataFeat]].features, true);
 
-                    if (true || newErr < oldErr * 1.5)
+                    if (newErr < oldErr * 1.5)
                     {
                         mergeTracks(featureToTrack[modelFeat], featureToTrack[dataFeat]);
                     }
@@ -268,8 +268,7 @@ namespace OPS.Alignment
             foreach (var track in tracks.Values)
             {
                 if (track.features.Count < 2) continue;
-
-                //track.position = Vector3.Zero;
+                
                 computeMinErr(track, null, true);
 
                 if (track.pointIdx < 0)

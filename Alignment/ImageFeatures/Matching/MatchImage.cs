@@ -76,7 +76,7 @@ namespace OPS.Alignment
             int i, j;
             for (i = 0; i < features.Count; i++)
             {
-                var d = ((FeatureDescriptor<float>)features[i].Descriptor).Data;
+                var d = ((FeatureDescriptor<byte>)features[i].Descriptor).Data;
                 for (j = 0; j < d.Length; j++)
                 {
                     data[i, j] = d[j];

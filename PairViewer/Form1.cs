@@ -71,21 +71,12 @@ namespace PairViewer
             }
         }
 
-        struct PriorInfo
-        {
-            public string sclk;
-            public double et;
-            public double[][] pose;
-        }
-        Dictionary<string, PriorInfo> hayabusaPriors;
-
         public PairViewerForm()
         {
             InitializeComponent();
             Pipeline = new PipelineCore(false, false, s3Url: "");
 
             Locations = new MSLLocations();
-            hayabusaPriors = JsonConvert.DeserializeObject<Dictionary<string, PriorInfo>>(File.ReadAllText("D:\\imagestomatch\\hayabusa\\HAY-A-SPICE-6-V1.0\\newpriors.json"));
             Scene = new AlignmentScene();
             ModelView = new ImageView(ModelPictureBox);
             DataView = new ImageView(DataPictureBox);
@@ -108,7 +99,6 @@ namespace PairViewer
                 string stem = Path.GetFileNameWithoutExtension(dialog.FileName);
                 if (res.Metadata is PDSMetadata)
                 {
-
                     var md = res.Metadata as PDSMetadata;
                     PDSParser parsed = new PDSParser(md);
 
@@ -142,44 +132,6 @@ namespace PairViewer
 
                     imgNode.AddComponent<NodeImageReference>().Reference = imgRef;
                     Scene.ImageToNode[imgRef] = imgNode;
-                }
-                else if (hayabusaPriors.ContainsKey(stem))
-                {
-                    var focalMM = 120.8;
-                    var pixelSizeMM = 0.012;
-                    var focalPix = focalMM / pixelSizeMM;
-                    res.CameraModel = new HayabusaCameraModel(focalPix, 0, res.Width / 1024.0); // -2.8e-5
-                    var prior = hayabusaPriors[stem];
-                    if (!siteDriveToNode.ContainsKey(stem))
-                    {
-                        var imgNode = siteDriveToNode[stem] = new SceneNode(stem, Scene.Root.Transform);
-                        
-                        Microsoft.Xna.Framework.Matrix m = new Microsoft.Xna.Framework.Matrix();
-                        for (int i = 0; i < 4; i++)
-                        {
-                            for (int j = 0; j < 4; j++)
-                            {
-                                m[j, i] = prior.pose[i][j];
-                            }
-                        }
-                        m.Translation *= 1000; // km -> m
-                        //m = Matrix.CreateRotationZ(180 * Math.PI / 180) * m;
-#if DEBUG
-                        var pos = Vector3.Transform(Vector3.Zero, m);
-                        var plusZ = Vector3.TransformNormal(Vector3.UnitZ, m);
-                        var toCenter = Vector3.Normalize(Vector3.Zero - pos);
-                        System.Diagnostics.Debug.Assert(plusZ.Dot(toCenter) > 0);
-#endif//DEBUG
-
-                        double tenthDegSqr = Math.Pow(0.1 * Math.PI / 180, 2);
-                        double halfMeter = 0.5;
-                        double posCov = halfMeter * halfMeter;
-                        var cov = CreateMatrix.Diagonal(new double[] { posCov, posCov, posCov, tenthDegSqr, tenthDegSqr, tenthDegSqr });
-
-                        imgNode.AddComponent<NodeUncertainTransform>().UncertainTransform = new UncertainRigidTransform(m, cov);
-                        imgNode.AddComponent<NodeImageReference>().Reference = imgRef;
-                        Scene.ImageToNode[imgRef] = imgNode;
-                    }
                 }
 
                 view.Image = res;

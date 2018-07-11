@@ -142,7 +142,7 @@ namespace OPS.Pipeline
                         meshCopy.ClearNormals();
                         meshCopy.Clean();
                         MeshOperator mo = new MeshOperator(meshCopy);
-                        var tilingScheme = new QuadTreeTilingScheme(QuadTreeTilingScheme.SplitDirection.Y);
+                        var tilingScheme = new QuadTreeTilingScheme(SkirtAxis.Y);
                         var boxes = tilingScheme.Split(mo, mo.Bounds);
                         int i = 0;
                         foreach (var box in boxes)
@@ -163,7 +163,9 @@ namespace OPS.Pipeline
             logger.Info("Write leaves");
             Parallel.ForEach(terrainRoot.Leaves(), node =>
             {                
-                GenerateNormalsAndSkirt(node.GetComponent<MeshImagePair>().Mesh);
+                var mesh = node.GetComponent<MeshImagePair>().Mesh;
+                mesh.GenerateVertexNormals();
+                mesh.AddSkirt(SkirtAxis.Y);
                 // Important, bounds include skirts
                 node.AddComponent(new NodeBounds(node.GetComponent<MeshImagePair>().Mesh.Bounds()));
                 node.AddComponent(new NodeGeometricError(0));
@@ -171,7 +173,6 @@ namespace OPS.Pipeline
             });
 
             var depthGroups = terrainRoot.DepthFirstTraverse().Where(n => !n.IsLeaf).GroupBy(n => n.Transform.Depth()).OrderBy(g => -g.Key);
-
             logger.Info("Generate bounds");
             foreach (var group in depthGroups)
             {
@@ -188,17 +189,17 @@ namespace OPS.Pipeline
             {
                 Parallel.ForEach(group, node =>
                 {
+                    logger.Info("Creating parent data:" + node.Name);
                     // Check to see all children have meshes, otherwise defere processing
                     bool canMakeMesh = node.Children.All(n => n.HasComponent<MeshImagePair>());
                     if (!canMakeMesh)
                     {
                         return;
                     }
-                    BuildParent(terrainRoot, node);
+                    node.BuildGeometryFromChildren(terrainRoot, options.MaxFacesPerTile, options.MaxTextureSize, SkirtAxis.Y);
                     SaveNode(node, options.ImageFormat);
                 });
             }
-
             Tile3DBuilder builder = new Tile3DBuilder(terrainRoot);
             builder.BuildTileset(NodeToUrl, false);
             string jsonData = JsonConvert.SerializeObject(builder.Tileset, Formatting.None);
@@ -206,126 +207,9 @@ namespace OPS.Pipeline
             return 0;
         }
 
-        public List<SceneNode> FindSceneNodes(SceneNode root, int minDepth, BoundingBox box)
-        {
-            List<SceneNode> result = new List<SceneNode>();
-            Stack<SceneNode> stack = new Stack<SceneNode>();
-            stack.Push(root);
-            while (stack.Count > 0)
-            {
-                SceneNode node = stack.Pop();
-                if (node == null)
-                {
-                    continue;
-                }
-                BoundingBox nodeBounds = node.GetComponent<NodeBounds>().Bounds;
-                if (!nodeBounds.Intersects(box))
-                {
-                    continue;
-                }
-                if (node.IsLeaf || node.Transform.Depth() >= minDepth)
-                {
-                    result.Add(node);
-                    continue;
-                }
-                else
-                {
-                    foreach (var child in node.Transform.Children.Select(t => t.Node))
-                    {
-                        stack.Push(child);
-                    }
-                }
-            }
-            return result;
-        }
-
-        public void BuildParent(SceneNode root, SceneNode parent)
-        {
-            logger.Info("Creating parent data:" + parent.Name);
-            int childDepth = parent.Children.First().Transform.Depth();
-            BoundingBox searchBounds = parent.GetComponent<NodeBounds>().Bounds;
-            searchBounds = BoundingBoxExtensions.Scale(searchBounds, 1.6);
-            var childNodes = FindSceneNodes(root, childDepth, searchBounds);
-            var pairs = childNodes.Select(n => n.GetComponent<MeshImagePair>());
-            var childMeshesWithoutSkirts = pairs.Select(p =>
-            {
-                var tmp = new Mesh(p.Mesh);
-                tmp.RemoveSkirt(SkirtAxis.Y);
-                return tmp;
-            }).ToArray();
-
-            Mesh combinedFull = Mesh.Merge(childMeshesWithoutSkirts);
-            combinedFull = Mesh.Clip(combinedFull, searchBounds);
-            combinedFull.NormalizeNormals();
-            // TODO: handle the fact that we are reconstucting a larger area so we should inflate the number of faces cleverly
-            int targetFaces = combinedFull.Faces.Count() / 3;  // could do 4 but lets try 3 for some extra around the edges
-            targetFaces = Math.Min(targetFaces, options.MaxFacesPerTile);
-            // Minimum bounds is a tight fitting bounding box around the child meshes with skirts
-            BoundingBox minimumBounds = parent.GetComponent<NodeBounds>().Bounds;
-            Mesh combinedDecimated = LegacyToWebVR.ResampleDecimation(combinedFull, targetFaces, clippingBounds:minimumBounds, cornerDirection: Vector3.Up);
-            combinedDecimated.Clean();
-            if (!parent.HasComponent<NodeGeometricError>())
-            {
-                Mesh fullClipped = Mesh.Clip(combinedFull, minimumBounds);
-                double geometricError = combinedDecimated.HausdorffDistance(fullClipped);
-                parent.AddComponent(new NodeGeometricError(geometricError));
-            }
-            // We want a 2x reduction in both size dimensions (4x reduction in area)
-            int size = LegacyToWebVR.ComputeParentTileResolution(pairs, combinedDecimated.Bounds()) / 2;
-            size = Math.Min(size, options.MaxTextureSize);
-            combinedDecimated = UVAtlas.Atlas(combinedDecimated, size, size);
-            var img = TextureBaker.BakeTexture(pairs.ToArray(), combinedDecimated, size, size);
-            GenerateNormalsAndSkirt(combinedDecimated);
-            // We need to combine bounds here because decimated bounds may be smaller than the child bounds
-            var bounds = BoundingBox.CreateMerged(combinedDecimated.Bounds(), minimumBounds);
-            parent.GetComponent<NodeBounds>().Bounds = bounds;
-            // Add new mesh and image to parent
-            parent.AddComponent(new MeshImagePair(combinedDecimated, img));
-            // Estimate the size of a pixel for this texture.  If this is greater than the geometric error use it instead
-            {
-                var ext = minimumBounds.Extent();
-                double sizePerPixel = new Vector2(ext.X, ext.Z).Length() / new Vector2(size / 2, size / 2).Length();
-                var nge = parent.GetComponent<NodeGeometricError>();
-                nge.Error = Math.Max(nge.Error, sizePerPixel);
-                // Also ensure geo error is at least as large as children
-                foreach(var child in parent.Children)
-                {
-                    var error = child.GetComponent<NodeGeometricError>().Error;
-                    nge.Error = Math.Max(error, nge.Error);
-                }
-            }
-        }
-
-        void GenerateNormalsAndSkirt(Mesh mesh)
-        {
-            mesh.GenerateVertexNormals();
-            mesh.AddSkirt(SkirtAxis.Y);
-        }
-
         void SaveNode(SceneNode node, string imageFormat)
         {
-            var pair = node.GetComponent<MeshImagePair>();
-            Mesh m = pair.Mesh;
-            TemporaryFile.GetAndDelete("." + imageFormat, f =>
-            {
-                if (pair.Image != null)
-                {
-                    pair.Image.Save<byte>(f);
-                }
-                else
-                {
-                    f = null;
-                }
-                m.Save(Path.Combine(options.OutputDirectory, NodeToUrl(node)), f);
-                m.Save(Path.Combine(options.OutputDirectory, node.Name + ".glb"), f);
-            });
-            string imgName = null;
-            if (pair.Image != null)
-            {
-                imgName = Path.Combine(options.OutputDirectory, node.Name + "." + imageFormat);
-                pair.Image.Save<byte>(imgName);
-            }
-            m.Save(Path.Combine(options.OutputDirectory, node.Name + ".ply"), imgName);
+            node.SaveMesh(options.OutputDirectory, "b3dm", imageFormat);
         }
 
         string NodeToUrl(SceneNode node)
