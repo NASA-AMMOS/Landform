@@ -36,7 +36,7 @@ namespace OPS.Plumbing
                 }
                 s3Client = new AmazonS3Client(opts);
 
-                defaultStorage = new StorageHelper(profile, "us-west-1", s3Url != "" ? opts : null);
+                defaultStorage = new StorageHelper(profile, "us-west-1");
             }
             else
             {

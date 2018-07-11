@@ -29,10 +29,8 @@ namespace OPS.Pipeline
                                                              LegacyToWebVROptions,
                                                              LegacyToTile3DOptions,
                                                              AlignSceneOptions,
-                                                             IncrementalAlignOptions,
                                                              CreateCloudTemplatesOptions,
-                                                             TileLocalMeshOptions
-                                                             HayabusaPipelineOptions,
+                                                             TileLocalMeshOptions,                                                             
                                                              CuriosityAlignOptions,
                                                              BuildFromAlignmentOptions
                                                              >(args)
@@ -50,8 +48,6 @@ namespace OPS.Pipeline
                 (AlignSceneOptions opts) => new AlignScene(opts).Run(),
                 (CreateCloudTemplatesOptions opts) => new CreateCloudTemplates(opts).Run(),
                 (TileLocalMeshOptions opts) => new TileLocalMesh(opts).Run(),
-                (IncrementalAlignOptions opts) => new IncrementalAlign(opts).Run(),
-                (HayabusaPipelineOptions opts) => new HayabusaPipeline(opts).Run(),
                 (CuriosityAlignOptions opts) => new CuriosityAlign(opts).Run(),
                 (BuildFromAlignmentOptions opts) => new BuildFromAlignment(opts).Run(),
                 errs => 1);
