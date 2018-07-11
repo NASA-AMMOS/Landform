@@ -299,8 +299,8 @@ namespace OPS.Pipeline
             this.Load(model);
             this.Load(data);
 
-            BruteForceMatcher bfm = new BruteForceMatcher();
-            var matches = bfm.Match(model, data, scene.DetectedFeatures[model], scene.DetectedFeatures[data]);
+            IFeatureMatcher bfm = new CascadeHashingMatcher();
+            var matches = bfm.Match(scene, pair);
             if (matches.Count < MIN_MATCHES)
             {
                 logger.Info("No matches for " + overlap.CombinedName);
