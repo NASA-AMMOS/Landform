@@ -81,6 +81,7 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="ImageFeatures\Matching\CascadeHashingMatcher.cs" />
     <Compile Include="Components\AdjustedNode.cs" />
     <Compile Include="Components\NodeImageReference.cs" />
     <Compile Include="EpipolarGeometry\EpipolarTransformDecomposition.cs" />
