@@ -133,13 +133,7 @@ namespace OPS.Pipeline
                 {
                     Parallel.ForEach(Storage(folder).SearchObjects(folder, "*.IMG", false), url =>
                     {
-                        if (!url.Contains("472071027") &&
-                               !url.Contains("471806967") &&
-                               !url.Contains("473413702") &&
-                               !url.Contains("473841214"))
-                        {
-                            return;
-                        }
+
                         S3ImageRef s3ref = new S3ImageRef(url);
                         try
                         {
