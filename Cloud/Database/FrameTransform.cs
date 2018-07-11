@@ -87,7 +87,27 @@ namespace OPS.Cloud
 
             return ft;
         }
-        
+
+
+        public static FrameTransform FindOrCreate(DynamoDBContext context, Frame frame, UncertainRigidTransform transform, string transformSource)
+        {
+            // Try to find this project
+            FrameTransform frameTransform = Find(context, frame);
+            if (frameTransform != null)
+            {
+                return frameTransform;
+            }
+            // If it doesn't exist try to create it
+            frameTransform = Create(context, frame, transform, transformSource);
+            if (frameTransform != null)
+            {
+                return frameTransform;
+            }
+            // If our create failed someone else may have created one between our find and create calls
+            // Look for it again.
+            return Find(context, frame);
+        }
+
         public static FrameTransform Find(DynamoDBContext context, Frame frame)
         {
             return context.Load<FrameTransform>(frame.Name, frame.ProjectName);

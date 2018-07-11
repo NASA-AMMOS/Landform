@@ -15,12 +15,15 @@ namespace OPS.Pipeline
     {
         public DetectOverlaps(PipelineCore pipeline) : base(pipeline)
         {
+
         }
 
         public IEnumerable<Overlap> Run(List<Observation> toConsider)
         {
-            if (toConsider.Count < 1) yield break;
-
+            if (toConsider.Count < 1)
+            {
+                yield break;
+            }
             // Step 1: construct minimal scene graph containing observations
             AlignmentScene scene = new AlignmentScene();
             string project;
@@ -71,7 +74,8 @@ namespace OPS.Pipeline
                 var two = refToObservation[overlap.Two];
                 var steve = Overlap.Create(Pipeline.DynamoContext, one, two);
                 if (steve != null) yield return steve;
-                //lower throughput
+                // lower throughput
+                // TODO: other options?
                 System.Threading.Thread.Sleep(100);
             }
         }

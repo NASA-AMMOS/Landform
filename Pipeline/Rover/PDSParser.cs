@@ -234,6 +234,9 @@ namespace OPS.Pipeline
             }
         }
 
+        /// <summary>
+        /// Rover to local level
+        /// </summary>
         public Quaternion RoverOriginRotation
         {
             get

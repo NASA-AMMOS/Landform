@@ -149,6 +149,13 @@ namespace OPS.Cloud
             return context.Load<Overlap>(name.CombinedName, projectName);
         }
 
+        public static IEnumerable<Overlap> Find(DynamoDBContext context, string projectName)
+        {
+            return context.Scan<Overlap>(
+                new ScanCondition("ProjectName", Amazon.DynamoDBv2.DocumentModel.ScanOperator.Equal, projectName)
+                );
+        }
+
         /// <summary>
         /// Find all overlaps featuring an observation
         /// </summary>

@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-
 using Amazon.DynamoDBv2.DataModel;
 
 namespace OPS.Cloud
@@ -121,6 +120,13 @@ namespace OPS.Cloud
         public static Observation Find(DynamoDBContext context, string projectName, string name)
         {
             return context.Load<Observation>(name, projectName);
+        }
+
+        public static IEnumerable<Observation> Find(DynamoDBContext context, string projectName)
+        {
+            return context.Scan<Observation>(
+                new ScanCondition("ProjectName", Amazon.DynamoDBv2.DocumentModel.ScanOperator.Equal, projectName)
+                );
         }
 
         public static IEnumerable<Observation> Find(DynamoDBContext context, Frame frame)

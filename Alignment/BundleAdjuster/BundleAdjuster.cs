@@ -68,7 +68,7 @@ namespace OPS.Alignment
             }
         }
 
-        public void Adjust(AlignmentScene scene)
+        public void Adjust(AlignmentScene scene, string debugOutputDirectory = null)
         {
             // scene.Root is the world coordinate system
             // AdjustedNodes are present on all frames to adjust
@@ -302,7 +302,8 @@ namespace OPS.Alignment
                     }
                     TemporaryFile.GetAndDelete(".bin", (outputFile) =>
                     {
-                        ProgramRunner pr = new ProgramRunner("CeresBundler.exe", "\"" + inputFile + "\" \"" + outputFile + "\"", createNoWindow: false, useShellExecute: false);
+                        string exePath = Path.Combine("ExternalApps", "CeresBundler.exe");
+                        ProgramRunner pr = new ProgramRunner(exePath, "\"" + inputFile + "\" \"" + outputFile + "\"", createNoWindow: false, useShellExecute: false);
                         pr.Run();
 
                         using (FileStream fs = new FileStream(outputFile, FileMode.Open))
@@ -327,13 +328,15 @@ namespace OPS.Alignment
                 }
                 problem.Points = result.Points;
 
+                if(debugOutputDirectory != null)
                 {
                     Mesh m = new Mesh(capacity: result.Points.Count);
                     for (int i = 0; i < result.Points.Count; i++)
                     {
                         m.Vertices.Add(new Vertex(result.Points[i].Position));
                     }
-                    m.Save("D:\\bundlecloud.ply");
+                    PathHelper.EnsureExists(debugOutputDirectory);
+                    m.Save(Path.Combine(debugOutputDirectory, "undlecloud.ply"));
                 }
 
                 // Trim bad points

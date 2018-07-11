@@ -19,6 +19,7 @@ using Amazon.DynamoDBv2.Model;
 using System.IO;
 using System.Security.Cryptography;
 using Microsoft.Xna.Framework;
+using Newtonsoft.Json;
 
 namespace OPS.Pipeline
 {
@@ -37,6 +38,18 @@ namespace OPS.Pipeline
 
         [Value(3, Required = true, HelpText = "Prefix for database")]
         public string DynamoDBPrefix { get; set; }
+
+        [Value(4, Required = true, HelpText = "Landform AWS profile")]
+        public string LandformProfile { get; set; }
+
+        [Value(5, Required = true, HelpText = "MSLICE AWS profile")]
+        public string MSliceProfile { get; set; }
+
+        [Option(HelpText = "Skip ingestion step", Default =false)]
+        public bool SkipIngest { get; set; }
+
+        [Option(HelpText = "Optional directory to save debug output files to", Default=null)]
+        public string DebugOutputFolder { get; set; }
     }
 
 
@@ -51,96 +64,116 @@ namespace OPS.Pipeline
         const int MIN_MATCHES = 20;
         public static ASIFTDetector detector = new ASIFTDetector(maxSimulatedDimension: 1024);
 
+
         public CuriosityAlign( CuriosityAlignOptions options) : base(dynamoPrefix: options.DynamoDBPrefix)
         {
-            //input = new PipelineCore(dynamoPrefix: options.DynamoDBPrefix, profile: "mslice");
-            //this = new PipelineCore(dynamoPrefix: options.DynamoDBPrefix, profile: "landlords");
-            this.AddProfile("s3://landlords-dev/", "landlords");
-            this.AddProfile("s3://red-product/", "mslice");
+            this.AddProfile("s3://landlords-dev/", options.LandformProfile);
+            this.AddProfile("s3://red-product/", options.MSliceProfile);
             this.options = options;
+        }
+
+        public List<string> GetDirectoriesToCrawl()
+        {
+            string opgsPattern = "s3://red-product/proj/msl/redops/ods/surface/sol/{0}/opgs/rdr/";
+            string msssPattern = "s3://red-product/ods/surface/sol/{0}/soas/rdr/";
+
+            List<string> directoriesToCheck = new List<string>();
+            for (int sol = options.StartSol; sol <= options.EndSol; sol++)
+            {
+                foreach (string pattern in new string[] { opgsPattern, msssPattern })
+                {
+
+                    string dir = string.Format(pattern, sol.ToString().PadLeft(5, '0'));
+                    foreach (string folder in Storage(dir).SearchFolders(dir))
+                    {
+                        directoriesToCheck.Add(folder);
+                    }
+                }
+            }
+            return directoriesToCheck;
         }
 
         public int Run()
         {
-
+            string bucket = "landlords-dev";
             // Read existing alignment if there is one, if not create new project
             EnsureTablesExist();
             WaitForTables();
             try
             {
-                this.S3Client.EnsureBucketExists("landlords-dev");
+                this.S3Client.EnsureBucketExists(bucket);
             }
             catch (Amazon.S3.AmazonS3Exception)
             {
                 // s3rver errors on EnsureBucketExists if bucket exists.
                 // move along, nothing to see
             }
-            Project project;
-
-            project = Project.Find(this.DynamoContext, options.ProjectName);
+            Project project = Project.Find(this.DynamoContext, options.ProjectName);
             if (project == null)
             {
-                project = Project.Create(this.DynamoContext, options.ProjectName, "s3://landlords-dev/curiosity-align/products/", "s3://landlords-dev/curiosity-align/images/");
+                project = Project.Create(this.DynamoContext, options.ProjectName, "s3://"+ bucket +"/curiosity-align/products/", "s3://"+ bucket+"/curiosity-align/images/");
                 project.Save(this.DynamoContext);
             }
 
-            Frame rootFrame = Frame.Create(this.DynamoContext, project, "root");
-            FrameTransform.Create(this.DynamoContext, rootFrame, new UncertainRigidTransform(Matrix.CreateScale(new Vector3(1,1,1)), CreateMatrix.Diagonal<double>(new double[] { 0.0, 0.0, 0.0, 0, 0, 0 })), TransformSource.Prior);
-            if(rootFrame == null)
+            Frame rootFrame = Frame.FindOrCreate(this.DynamoContext, project, MSLProject.ROOT_FRAME_NAME);
+            if (rootFrame == null)
             {
                 throw new Exception("Root Frame not found");
             }
+            FrameTransform.FindOrCreate(this.DynamoContext, rootFrame, new UncertainRigidTransform(Matrix.CreateScale(new Vector3(1,1,1)), CreateMatrix.Diagonal<double>(new double[] { 0.0, 0.0, 0.0, 0, 0, 0 })), TransformSource.Prior);
 
-            //int limit = 20;
-            //int i = 0;
             
             // Crawl MSL S3 bucket and look for files that aren't in our project            
             IngestPDSImage ingester = new IngestPDSImage(this, options.ProjectName);
-            List<Observation> obs = new List<Observation>();
-            string opgsPattern = "s3://red-product/proj/msl/redops/ods/surface/sol/{0}/opgs/rdr";
-            string msssPattern = "s3://red-product/ods/surface/sol/{0}/soas/rdr";
-
+            //List<Observation> obs = new List<Observation>();
             
-            Parallel.For(options.StartSol, options.EndSol + 1, sol =>
-               
+            if (!options.SkipIngest)
             {
-                //i = 0;
-                foreach (string pattern in new string[] { opgsPattern, msssPattern })
+                Parallel.ForEach(GetDirectoriesToCrawl(), folder =>
                 {
-                    //if (i > limit) { break; }
-                    string dir = string.Format(pattern, sol.ToString().PadLeft(5, '0'));
-                    foreach (var url in Storage(dir).SearchObjects(dir, "*.IMG", true))
+                    Parallel.ForEach(Storage(folder).SearchObjects(folder, "*.IMG", false), url =>
                     {
-                        //if(i > limit) { break; }
-                        //Ingest!!
+                        if (!url.Contains("472071027") &&
+                               !url.Contains("471806967") &&
+                               !url.Contains("473413702") &&
+                               !url.Contains("473841214"))
+                        {
+                            return;
+                        }
                         S3ImageRef s3ref = new S3ImageRef(url);
                         try
                         {
                             Result res = ingester.Ingest(s3ref);
                             if (res != null && res.Observation != null)
                             {
-                                obs.Add(res.Observation);
-                            //      i++;
-
+                                logger.Info("Ingested: " + url);
                             }
-                        } catch(RawMetadataNullValueException) {
-                            //logger.Logger.Log("");                              
+
                         }
-                    }
-                }
-            });
-            
+                        catch (RawMetadataNullValueException)
+                        {
+
+                        }
+                    });
+                });
+            }
+
 
             // Look up image priors for new images
             // Download new images from S3
-            DetectOverlaps detector = new DetectOverlaps(this);
-            List<Overlap> overlaps = detector.Run(obs).ToList();
+            logger.Info("Detect overlaps");
+            DetectOverlaps detector = new DetectOverlaps(this);         
+            detector.Run(GetObservationsToMatch(project.Name)).ToList();                
+
+
+            List<Overlap> overlaps = Overlap.Find(DynamoContext, project.Name).ToList();
 
             Matches = new LazyComputation<Overlap, ComputedCorrespondence>(this, (o) => o.MatchGuid, ComputeCorrespondence);
             Masks = new LazyComputation<Observation, PngDataProduct>(this, (o) => o.MaskGuid, ComputeMask);
             Features = new LazyComputation<Observation, DetectedFeatures>(this, (o) => o.FeaturesGuid, ComputeImageFeatures);
 
             // Generate feature discriptors and stuff, store in database
+            logger.Info("Generate matches");
             foreach (Overlap ol in overlaps)
             {
                 Matches.Get(ol.ProjectName, ol);
@@ -150,13 +183,13 @@ namespace OPS.Pipeline
             var bsg = new BuildSceneGraph(this);
             var bsg_options = new BuildSceneGraph.Options();
             bsg_options.GetTransform = bsg.StandardFrameTransform;
-            Frame frame = Frame.Find(this.DynamoContext, project.Name, "root");
+            Frame frame = Frame.Find(this.DynamoContext, project.Name, MSLProject.ROOT_FRAME_NAME);
             AlignmentScene scene = bsg.Build(frame, bsg_options);
             foreach (var node in scene.ImageToNode.Values)
             {
                 node.AddComponent<AdjustedNode>();
             }
-            new BundleAdjuster(this).Adjust(scene);
+            new BundleAdjuster(this).Adjust(scene, options.DebugOutputFolder);
             foreach (var pair in scene.ImageToNode)
             {
                 var imgRef = pair.Key;
@@ -171,6 +204,32 @@ namespace OPS.Pipeline
             project.Save(this.DynamoContext);
 
             return 0;
+        }
+
+        public List<Observation> GetObservationsToMatch(string projectName)
+        {
+            List<Observation> results = new List<Observation>();
+
+            // Group observations by frame
+            var obsGroups = RoverObservation.Find(DynamoContext, projectName).GroupBy(ob => ob.FrameName);
+            foreach (var group in obsGroups)
+            {
+                // For each frame filter out only image observations to use in reconstruction
+                var imageObs = group.Where(ob => ob.ObservationType == ObservationType.Image.ToString() && ob.UseForReconstruction);
+                // Sort first by linearization and second by version.  We want nonlinear images with the highest version to come first
+                imageObs = imageObs.OrderBy(ob =>
+                {
+                    CameraModel model = (CameraModel)JsonHelper.FromJson(ob.CameraModel);
+
+                    return (model.Linear ? 0 : 100000) + ob.Version;
+                }).Reverse();
+                if (imageObs.Count() > 0)
+                {
+                    // Add the highest version image to our list.  If a nonlinear version exists it will be used, if not we will fall back to linearized
+                    results.Add(imageObs.First());
+                }
+            }
+            return results;
         }
 
         public ComputedCorrespondence ComputeCorrespondence(Overlap overlap)
@@ -273,7 +332,11 @@ namespace OPS.Pipeline
             }
 
             var matchImage = MatchImage.Create(this, matches, scene.DetectedFeatures[model], scene.DetectedFeatures[data]);
-            matchImage.Save<byte>("D:\\matches\\" + overlap.CombinedName + ".png");
+            if(options.DebugOutputFolder != null)
+            {
+                PathHelper.EnsureExists(options.DebugOutputFolder);
+                matchImage.Save<byte>(Path.Combine(options.DebugOutputFolder, overlap.CombinedName + ".png"));
+            }
 
             var res = new ComputedCorrespondence
             {
@@ -335,7 +398,8 @@ namespace OPS.Pipeline
             try
             {
                 var img = this.Load(new ObservationImageRef(obs));
-                return new PngDataProduct(RoverMask.Build(img));
+                var mask = new PngDataProduct(RoverMask.Build(img));
+                return mask;
             } catch
             {
                 obs.UseForReconstruction = false;

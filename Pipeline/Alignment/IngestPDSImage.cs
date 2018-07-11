@@ -213,10 +213,12 @@ namespace OPS.Pipeline
                 return new Result(Status.Skipped, null);
             }
 
+            // Filter images with invalid camera models
             try
             {
-                metadata.CameraModel.Unproject(new Vector2(0,0));
-            } catch
+                metadata.CameraModel.Unproject(new Vector2(0, 0));
+            }
+            catch
             {
                 return new Result(Status.Skipped, null);
             }
@@ -229,26 +231,31 @@ namespace OPS.Pipeline
             {
                 throw new CloudException("Project does not exist");
             }
-            SiteDrive sd = new SiteDrive(parser.Site, parser.Drive);
 
+            // Create frames for this observation if necessary
             Frame rootFrame = Frame.Find(DynamoDB, project.Name, MSLProject.ROOT_FRAME_NAME);
             Frame siteDriveFrame = Frame.FindOrCreate(DynamoDB, project, SiteDriveFrameName(parser), rootFrame);
             Frame observationFrame = Frame.FindOrCreate(DynamoDB, project, ObservationFrameName(parser), siteDriveFrame);
-            Quaternion roverToLocalLevel = parser.RoverOriginRotation;
-            
+
             if (FrameTransform.Find(DynamoDB, observationFrame) == null)
             {
                 // TODO: examine values here
                 double quarterDegSqr = Math.Pow(0.25 * Math.PI / 180, 2);
                 double halfDegSqr = Math.Pow(0.5 * Math.PI / 180, 2);
                 var covariance = CreateMatrix.Diagonal<double>(new double[] { 0.01, 0.01, 0.01, quarterDegSqr, quarterDegSqr, halfDegSqr });
-                UncertainRigidTransform transform = new UncertainRigidTransform(Matrix.CreateFromQuaternion(roverToLocalLevel), covariance);
 
-                FrameTransform observationToSiteDrive = FrameTransform.Create(DynamoDB, observationFrame, transform, TransformSource.Prior);
-                TransformPrior o2sdP = TransformPrior.Create(DynamoDB, observationFrame, transform);
+                // Create a transform that goes from observation frame (aka rover) to site drive frame (aka local level)
+                Quaternion roverToLocalLevel = parser.RoverOriginRotation;
+                UncertainRigidTransform observationToSiteDriveTransform = new UncertainRigidTransform(Matrix.CreateFromQuaternion(roverToLocalLevel), covariance);
+                FrameTransform observationToSiteDrive = FrameTransform.Create(DynamoDB, observationFrame, observationToSiteDriveTransform, TransformSource.Prior);
+
+                TransformPrior o2sdP = TransformPrior.Create(DynamoDB, observationFrame, observationToSiteDriveTransform);
                 observationFrame.PriorIds.Add(o2sdP.Id);
+                observationFrame.Save(DynamoDB);
             }
-            var loc = locations.Location(sd);
+            // Create a transform that goes from site drive frame to root frame
+
+            var loc = locations.Location(new SiteDrive(parser.SiteDrive));
             if (loc != null && FrameTransform.Find(DynamoDB, siteDriveFrame) == null)
             {
                 // TODO: examine values here
@@ -256,10 +263,10 @@ namespace OPS.Pipeline
                 double degSqr = Math.Pow(1.0 * Math.PI / 180, 2);
                 var covariance = CreateMatrix.Diagonal<double>(new double[] { 0.25, 0.25, 0.25, halfDegSqr, halfDegSqr, degSqr });
                 UncertainRigidTransform transform = new UncertainRigidTransform(Matrix.CreateTranslation(loc.Position), covariance);
-
                 FrameTransform siteDriveToRoot = FrameTransform.Create(DynamoDB, siteDriveFrame, transform, TransformSource.Prior);
                 TransformPrior sd2rP = TransformPrior.Create(DynamoDB, siteDriveFrame, transform);
                 siteDriveFrame.PriorIds.Add(sd2rP.Id);
+                siteDriveFrame.Save(DynamoDB);
             }
 
             string observationName = ObservationName(parser);
