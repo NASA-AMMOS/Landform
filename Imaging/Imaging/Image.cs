@@ -377,7 +377,7 @@ namespace OPS.Imaging
         /// Rotate an image 90 degrees clockwise
         /// </summary>
         /// <returns></returns>
-        public Image Rotate90()
+        public Image Rotate90Clockwise()
         {
             Image result = new Image(this.Bands, this.Height, this.Width);
             for(int r = 0; r < this.Height; r++)
