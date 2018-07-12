@@ -29,7 +29,10 @@ namespace OPS.Pipeline
                                                              LegacyToWebVROptions,
                                                              LegacyToTile3DOptions,
                                                              AlignSceneOptions,
-                                                             CreateCloudTemplatesOptions
+                                                             CreateCloudTemplatesOptions,
+                                                             TileLocalMeshOptions,                                                             
+                                                             CuriosityAlignOptions,
+                                                             BuildFromAlignmentOptions
                                                              >(args)
               .MapResult(
                 (AlignmentWorkerOptions opts) => new AlignmentWorker().Run(),
@@ -44,6 +47,9 @@ namespace OPS.Pipeline
                 (LegacyToTile3DOptions opts) => new LegacyToTile3D(opts).Run(),
                 (AlignSceneOptions opts) => new AlignScene(opts).Run(),
                 (CreateCloudTemplatesOptions opts) => new CreateCloudTemplates(opts).Run(),
+                (TileLocalMeshOptions opts) => new TileLocalMesh(opts).Run(),
+                (CuriosityAlignOptions opts) => new CuriosityAlign(opts).Run(),
+                (BuildFromAlignmentOptions opts) => new BuildFromAlignment(opts).Run(),
                 errs => 1);
         }
     }

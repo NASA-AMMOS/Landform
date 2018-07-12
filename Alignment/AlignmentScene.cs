@@ -17,13 +17,17 @@ namespace OPS.Alignment
         public SceneNode Root;
 
         public Dictionary<ImageRef, SceneNode> ImageToNode;
-        public MatchingContext Context;
-        
+        public Dictionary<ImageRef, ImageFeature[]> DetectedFeatures;
+        public Dictionary<UnorderedImagePair, ImagePairCorrespondence> Correspondences;
+        public HashSet<UnorderedImagePair> Overlaps;
+
         public AlignmentScene()
         {
             Root = new SceneNode();
             ImageToNode = new Dictionary<ImageRef, SceneNode>();
-            Context = new MatchingContext();
+            DetectedFeatures = new Dictionary<ImageRef, ImageFeature[]>();
+            Correspondences = new Dictionary<UnorderedImagePair, ImagePairCorrespondence>();
+            Overlaps = new HashSet<UnorderedImagePair>();
         }
 
         public string DebugString()

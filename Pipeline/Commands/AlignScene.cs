@@ -258,16 +258,16 @@ namespace OPS.Pipeline
 
             bool asift = true;
 
-            scene.Context.DetectedFeatures = new Dictionary<ImageRef, ImageFeature[]>();
+            scene.DetectedFeatures = new Dictionary<ImageRef, ImageFeature[]>();
             Parallel.ForEach(images, imgRef =>
             {
                 var featurePath = Path.Combine(options.OutputPath, Path.GetFileName(((DiskImageRef)imgRef).Path) + ".feat");
                 if (File.Exists(featurePath))
                 {
                     DetectedFeatures defeats = DataProduct.Load<DetectedFeatures>(File.ReadAllBytes(featurePath));
-                    lock (scene.Context.DetectedFeatures)
+                    lock (scene.DetectedFeatures)
                     {
-                        scene.Context.DetectedFeatures[imgRef] = defeats.Features;
+                        scene.DetectedFeatures[imgRef] = defeats.Features;
                     }
                     return;
                 }
@@ -312,9 +312,9 @@ namespace OPS.Pipeline
                     };
                     File.WriteAllBytes(featurePath, feat.Serialize());
                 }
-                lock (scene.Context.DetectedFeatures)
+                lock (scene.DetectedFeatures)
                 {
-                    scene.Context.DetectedFeatures[imgRef] = features;
+                    scene.DetectedFeatures[imgRef] = features;
                 }
             });
             logger.Info("Done.");
@@ -324,131 +324,26 @@ namespace OPS.Pipeline
             FrustumOverlapDetector od = new FrustumOverlapDetector(pipeline);
             if (File.Exists(overlapPath))
             {
-                scene.Context.Overlaps = new HashSet<UnorderedImagePair>(FromJson<List<UnorderedImagePair>>(File.ReadAllText(overlapPath)));
+                scene.Overlaps = new HashSet<UnorderedImagePair>(FromJson<List<UnorderedImagePair>>(File.ReadAllText(overlapPath)));
                 od.MakeHulls(scene);
             }
             else
             {
                 od.Detect(scene);
-                File.WriteAllText(overlapPath, ToJson(scene.Context.Overlaps.ToList()));
+                File.WriteAllText(overlapPath, ToJson(scene.Overlaps.ToList()));
             }
             logger.Info("Done.");
 
             logger.Debug("Candidate image pairs:");
-            foreach (var pair in scene.Context.Overlaps)
+            foreach (var pair in scene.Overlaps)
             {
                 logger.DebugFormat("{0} -> {1}", pair.One.DisplayName, pair.Two.DisplayName);
             }
 
             logger.Info("Finding correspondences...");
-            Func<ImageRef, ImageRef, string> pairName = (img0, img1) =>
+            Parallel.ForEach(scene.Overlaps, pair =>
             {
-                List<string> parts = new List<string> { img0.DisplayName, img1.DisplayName };
-                parts.Sort();
-                return parts[0] + "-" + parts[1];
-            };
-            Serial.ForEach(scene.Context.Overlaps, pair =>
-            {
-                if (scene.Context.Correspondences.ContainsKey(pair)) return;
-
-                var matchName = Path.GetFileNameWithoutExtension(((DiskImageRef)pair.One).Path) + "_x_" + Path.GetFileNameWithoutExtension(((DiskImageRef)pair.Two).Path);
-                var matchPath = Path.Combine(options.OutputPath, "matches", "json", matchName + ".json");
-                var matchImagePath = Path.Combine(options.OutputPath, "matches", pairName(pair.One, pair.Two) + ".png");
-                if (File.Exists(matchPath))
-                {
-                    string jsonText = File.ReadAllText(matchPath);
-                    if (jsonText == "null")
-                    {
-                        return;
-                    }
-                    else if (File.Exists(matchImagePath))
-                    {
-                        ImagePairCorrespondence match = FromJson<ImagePairCorrespondence>(jsonText);
-                        scene.Context.Correspondences[pair] = match;
-                        return;
-                    }
-                }
-
-                // prepopulate with null so we can bail without worry
-                File.WriteAllText(matchPath, "null");
-
-                var model = pair.One;
-                var data = pair.Two;
-                var modelFeat = scene.Context.DetectedFeatures[model];
-                var dataFeat = scene.Context.DetectedFeatures[data];
-                BruteForceMatcher bfm = new BruteForceMatcher();
-
-                var matches = bfm.Match(model, data, modelFeat, dataFeat);
-                if (matches == null || matches.DataToModel.Length < 20)
-                {
-                    lock (logger)
-                    {
-                        logger.Debug("No matches for " + pairName(model, data));
-                    }
-                    return;
-                }
-
-
-                // KGF
-                if (true)
-                {
-                    var kgf = new KnownGeometryFilter(pipeline, new KnownGeometryFilter.ImageNodeDelegate(imgRef => scene.ImageToNode[imgRef]));
-                    matches = kgf.Filter(scene, matches);
-                    if (matches == null || matches.DataToModel.Length < 20)
-                    {
-                        lock (logger)
-                        {
-                            logger.Debug("No matches for " + pairName(model, data));
-                        }
-                        return;
-                    }
-                }
-
-                // GTM
-                if (true)
-                {
-                    try
-                    {
-                        var gtm = new GTMFilter();
-                        matches = gtm.Filter(scene, matches);
-                        if (matches == null || matches.DataToModel.Length < 20)
-                        {
-                            lock (logger)
-                            {
-                                logger.Debug("No matches for " + pairName(model, data));
-                            }
-                            return;
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        logger.Error("GTM failed", ex);
-                        return;
-                    }
-                }
-
-                // Moisan-Stival
-                if (true)
-                {
-                    var ms = new MoisanStivalFilter(pipeline);
-                    matches = ms.Filter(scene, matches);
-                    if (matches == null || matches.DataToModel.Length < 20)
-                    {
-                        lock (logger)
-                        {
-                            logger.Debug("No matches for " + pairName(model, data));
-                        }
-                        return;
-                    }
-                }
-
-                scene.Context.Correspondences[pair] = matches;
-                File.WriteAllText(matchPath, ToJson(matches));
-                MatchImage.WriteMatchImage(pipeline, matches, modelFeat, dataFeat, matchImagePath);
-                lock (logger)
-                {
-                    logger.DebugFormat("{0} matches for {1}", matches.DataToModel.Length, pairName(model, data));
-                }
+                DoCorrespondence(pair, scene, pipeline);
             });
 
             logger.Info("Bundle adjusting...");
@@ -466,6 +361,118 @@ namespace OPS.Pipeline
 
             scene.Save(Path.Combine(options.OutputPath, "scene.json"));
             return 0;
+        }
+
+        private void DoCorrespondence(UnorderedImagePair pair, AlignmentScene scene, PipelineCore pipeline)
+        {
+            Func<ImageRef, ImageRef, string> pairName = (img0, img1) =>
+            {
+                List<string> parts = new List<string> { img0.DisplayName, img1.DisplayName };
+                parts.Sort();
+                return parts[0] + "-" + parts[1];
+            };
+
+            if (scene.Correspondences.ContainsKey(pair)) return;
+
+            var matchName = Path.GetFileNameWithoutExtension(((DiskImageRef)pair.One).Path) + "_x_" + Path.GetFileNameWithoutExtension(((DiskImageRef)pair.Two).Path);
+            var matchPath = Path.Combine(options.OutputPath, "matches", "json", matchName + ".json");
+            var matchImagePath = Path.Combine(options.OutputPath, "matches", pairName(pair.One, pair.Two) + ".png");
+            if (File.Exists(matchPath))
+            {
+                string jsonText = File.ReadAllText(matchPath);
+                if (jsonText == "null")
+                {
+                    return;
+                }
+                else if (File.Exists(matchImagePath))
+                {
+                    ImagePairCorrespondence match = FromJson<ImagePairCorrespondence>(jsonText);
+                    scene.Correspondences[pair] = match;
+                    return;
+                }
+            }
+
+            // prepopulate with null so we can bail without worry
+            File.WriteAllText(matchPath, "null");
+
+            IFeatureMatcher matcher = new BruteForceMatcher();
+            var matches = matcher.Match(scene, pair);
+
+            var model = matches.ModelImage;
+            var data = matches.DataImage;
+            var modelFeat = scene.DetectedFeatures[model];
+            var dataFeat = scene.DetectedFeatures[data];
+
+            if (matches == null || matches.DataToModel.Length < 20)
+            {
+                lock (logger)
+                {
+                    logger.Debug("No matches for " + pairName(model, data));
+                }
+                return;
+            }
+
+
+            // KGF
+            if (true)
+            {
+                var kgf = new KnownGeometryFilter(pipeline, new KnownGeometryFilter.ImageNodeDelegate(imgRef => scene.ImageToNode[imgRef]));
+                matches = kgf.Filter(scene, matches);
+                if (matches == null || matches.DataToModel.Length < 20)
+                {
+                    lock (logger)
+                    {
+                        logger.Debug("No matches for " + pairName(model, data));
+                    }
+                    return;
+                }
+            }
+
+            // GTM
+            if (true)
+            {
+                try
+                {
+                    var gtm = new GTMFilter();
+                    matches = gtm.Filter(scene, matches);
+                    if (matches == null || matches.DataToModel.Length < 20)
+                    {
+                        lock (logger)
+                        {
+                            logger.Debug("No matches for " + pairName(model, data));
+                        }
+                        return;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    logger.Error("GTM failed", ex);
+                    return;
+                }
+            }
+
+            // Moisan-Stival
+            if (true)
+            {
+                var ms = new MoisanStivalFilter(pipeline);
+                matches = ms.Filter(scene, matches);
+                if (matches == null || matches.DataToModel.Length < 20)
+                {
+                    lock (logger)
+                    {
+                        logger.Debug("No matches for " + pairName(model, data));
+                    }
+                    return;
+                }
+            }
+
+            scene.Correspondences[pair] = matches;
+            File.WriteAllText(matchPath, ToJson(matches));
+            MatchImage.WriteMatchImage(pipeline, matches, modelFeat, dataFeat, matchImagePath);
+            lock (logger)
+            {
+                logger.DebugFormat("{0} matches for {1}", matches.DataToModel.Length, pairName(model, data));
+            }
         }
     }
 

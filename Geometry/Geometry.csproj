@@ -81,7 +81,7 @@
     <Compile Include="Geometry\OctreeNode.cs" />
     <Compile Include="Geometry\Octree.cs" />
     <Compile Include="Geometry\Face.cs" />
-    <Compile Include="Geometry\EpipolarTransform.cs" />
+    <Compile Include="Geometry\EpipolarMatrix.cs" />
     <Compile Include="Geometry\GJKIntersection.cs" />
     <Compile Include="Geometry\Mesh.cs" />
     <Compile Include="Geometry\MeshOperator.cs" />

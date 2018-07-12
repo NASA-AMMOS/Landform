@@ -18,7 +18,6 @@ namespace OPS.Pipeline
 
     public class MSLProject
     {
-        public const string PROJECT_NAME = "MSL";
         public const string ROOT_FRAME_NAME = "root";
 
         //constants for cutoffs
@@ -29,17 +28,21 @@ namespace OPS.Pipeline
 
     public class IngestPDSImage : IngestImage
     {
+        public readonly string project_name;
         MSLLocations locations;
-        public IngestPDSImage(PipelineCore pipeline) : base(pipeline)
+
+        public IngestPDSImage(PipelineCore output_pipeline, string project_name = "MSL") : base(output_pipeline)
         {
             locations = new MSLLocations();
+            this.project_name = project_name;
         }
 
         /// <summary>
         /// Check if we should even bother reading the header, based on the filename.
         /// </summary>
-        bool CheckFilename(string filename)
+        public static bool CheckFilename(string filename)
         {
+            
             RoverProductId id = RoverProductId.ParseFromString(filename);
             if (id == null)
             {
@@ -66,6 +69,11 @@ namespace OPS.Pipeline
                 // Check that this is a DCX file
                 MSSSProductId msssId = (MSSSProductId)id;
                 if (!msssId.RadiometricallyCalibrated || !msssId.ColorCorrected || !msssId.Decompressed)
+                {
+                    return false;
+                }
+                // Filter for color or black and white jpegs that are not thumbnails
+                if(msssId.MSSSProductType == MSSSProductType.Unknown)
                 {
                     return false;
                 }
@@ -113,10 +121,17 @@ namespace OPS.Pipeline
                     return false;
                 }
                 // Skip mastcam taken with color filters
-                if (parser.FilterNumber != 0)
+                try
+                {
+                    if (parser.FilterNumber != 0)
+                    {
+                        return false;
+                    }
+                } catch
                 {
                     return false;
                 }
+
                 // Skip mastcam with short focal distances (probably closeup of rover part with terrain out of focus in background)
                 if (parser.MaximumFocusDistance < MSLProject.MIN_MASTCAM_FOCUS_CUTOFF)
                 {
@@ -183,16 +198,19 @@ namespace OPS.Pipeline
                 throw new InvalidOperationException("hey now, let's not get *too* weird");
             }
 
-            S3ImageRef imgS3 = (S3ImageRef)imgRef;
             // Parse the filename to quickly rule out data products we know we don't care about.
-            if (!CheckFilename(Path.GetFileName(imgS3.Url)))
+            if (!CheckFilename(imgRef.DisplayName))
             {
                 return new Result(Status.Skipped, null);
             }
 
             // Fetch image and check metadata
-            Image img = GetImage(imgRef);
-            PDSMetadata metadata = img.Metadata as PDSMetadata;
+            PDSMetadata metadata = null;
+            this.Pipeline.Storage(imgRef.Url).GetStorageStream(imgRef.Url, stream =>
+            {
+                metadata = new PDSMetadata(stream);
+            });
+
             if (metadata == null)
             {
                 return new Result(Status.Failed, null);
@@ -204,34 +222,49 @@ namespace OPS.Pipeline
                 return new Result(Status.Skipped, null);
             }
 
+            // Filter images with invalid camera models
+            try
+            {
+                metadata.CameraModel.Unproject(new Vector2(0, 0));
+            }
+            catch
+            {
+                return new Result(Status.Skipped, null);
+            }
+
             bool useForReconstruction = UseForReconstruction(parser, metadata);
 
             // Create database entries
-            Project project = Project.Find(DynamoDB, MSLProject.PROJECT_NAME);
+            Project project = Project.Find(DynamoDB, project_name);
             if (project == null)
             {
                 throw new CloudException("Project does not exist");
             }
-            SiteDrive sd = new SiteDrive(parser.Site, parser.Drive);
 
+            // Create frames for this observation if necessary
             Frame rootFrame = Frame.Find(DynamoDB, project.Name, MSLProject.ROOT_FRAME_NAME);
             Frame siteDriveFrame = Frame.FindOrCreate(DynamoDB, project, SiteDriveFrameName(parser), rootFrame);
             Frame observationFrame = Frame.FindOrCreate(DynamoDB, project, ObservationFrameName(parser), siteDriveFrame);
-            Quaternion roverToLocalLevel = parser.RoverOriginRotation;
-            
+
             if (FrameTransform.Find(DynamoDB, observationFrame) == null)
             {
                 // TODO: examine values here
                 double quarterDegSqr = Math.Pow(0.25 * Math.PI / 180, 2);
                 double halfDegSqr = Math.Pow(0.5 * Math.PI / 180, 2);
                 var covariance = CreateMatrix.Diagonal<double>(new double[] { 0.01, 0.01, 0.01, quarterDegSqr, quarterDegSqr, halfDegSqr });
-                UncertainRigidTransform transform = new UncertainRigidTransform(Matrix.CreateFromQuaternion(roverToLocalLevel), covariance);
 
-                FrameTransform observationToSiteDrive = FrameTransform.Create(DynamoDB, observationFrame, transform, TransformSource.Prior);
-                TransformPrior o2sdP = TransformPrior.Create(DynamoDB, observationFrame, transform);
+                // Create a transform that goes from observation frame (aka rover) to site drive frame (aka local level)
+                Quaternion roverToLocalLevel = parser.RoverOriginRotation;
+                UncertainRigidTransform observationToSiteDriveTransform = new UncertainRigidTransform(Matrix.CreateFromQuaternion(roverToLocalLevel), covariance);
+                FrameTransform observationToSiteDrive = FrameTransform.Create(DynamoDB, observationFrame, observationToSiteDriveTransform, TransformSource.Prior);
+
+                TransformPrior o2sdP = TransformPrior.Create(DynamoDB, observationFrame, observationToSiteDriveTransform);
                 observationFrame.PriorIds.Add(o2sdP.Id);
+                observationFrame.Save(DynamoDB);
             }
-            var loc = locations.Location(sd);
+            // Create a transform that goes from site drive frame to root frame
+
+            var loc = locations.Location(new SiteDrive(parser.SiteDrive));
             if (loc != null && FrameTransform.Find(DynamoDB, siteDriveFrame) == null)
             {
                 // TODO: examine values here
@@ -239,10 +272,10 @@ namespace OPS.Pipeline
                 double degSqr = Math.Pow(1.0 * Math.PI / 180, 2);
                 var covariance = CreateMatrix.Diagonal<double>(new double[] { 0.25, 0.25, 0.25, halfDegSqr, halfDegSqr, degSqr });
                 UncertainRigidTransform transform = new UncertainRigidTransform(Matrix.CreateTranslation(loc.Position), covariance);
-
                 FrameTransform siteDriveToRoot = FrameTransform.Create(DynamoDB, siteDriveFrame, transform, TransformSource.Prior);
                 TransformPrior sd2rP = TransformPrior.Create(DynamoDB, siteDriveFrame, transform);
                 siteDriveFrame.PriorIds.Add(sd2rP.Id);
+                siteDriveFrame.Save(DynamoDB);
             }
 
             string observationName = ObservationName(parser);
@@ -250,7 +283,8 @@ namespace OPS.Pipeline
             if (observation == null)
             {
                 string cameraModel = JsonHelper.ToJson(metadata.CameraModel);
-                observation = RoverObservation.Create(DynamoDB, observationFrame, observationName, imgS3.Url, productTypeToObservationType[parser.DerivedImageType].ToString(), cameraModel, UseForReconstruction(parser, metadata), parser.Site, parser.Drive, parser.ProductId.Version, parser.Camera.ToString(), parser.ImageSizeType.ToString(), metadata.Width, metadata.Height);
+                string url = imgRef.Url;
+                observation = RoverObservation.Create(DynamoDB, observationFrame, observationName, url, productTypeToObservationType[parser.DerivedImageType].ToString(), cameraModel, UseForReconstruction(parser, metadata), parser.Site, parser.Drive, parser.ProductId.Version, parser.Camera.ToString(), parser.ImageSizeType.ToString(), metadata.Width, metadata.Height);
                 if (observation != null) {
                     return new Result(Status.Added, observation);
                 }

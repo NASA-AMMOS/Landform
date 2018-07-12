@@ -90,7 +90,7 @@ namespace OPS.Pipeline
                 var feat = Get<DetectedFeatures>(obs.ProjectName, obs.FeaturesGuid);
                 var imgRef = new ObservationImageRef(obs);
 
-                scene.Context.DetectedFeatures[imgRef] = feat.Features;
+                scene.DetectedFeatures[imgRef] = feat.Features;
                 scene.ImageToNode[imgRef] = node;
                 node.AddComponent<NodeImageReference>().Reference = imgRef;
             };
@@ -103,9 +103,10 @@ namespace OPS.Pipeline
                 var res = new SceneNode(frame.Name, parent?.Transform);
                 var ut = options.GetTransform(frame, parent);
                 if (ut == null) return null;
-                res.GetOrAddComponent<NodeUncertainTransform>().UncertainTransform = ut;
+
 
                 // Add any observations to the node
+                System.Threading.Thread.Sleep(100); // Lower throughput
                 var obs = Observation.Find(DynamoDB, frame).Where(o => options.IncludeObservation(o, res)).ToArray();
                 observations.AddRange(obs);
                 foreach (var o in obs)
@@ -115,6 +116,7 @@ namespace OPS.Pipeline
 
                 if (obs.Length == 1)
                 {
+                    res.GetOrAddComponent<NodeUncertainTransform>().UncertainTransform = ut;
                     addObservation(obs[0], res);
                 }
                 else if (obs.Length > 1)
@@ -123,6 +125,7 @@ namespace OPS.Pipeline
                     {
                         var obsNode = new SceneNode(o.Name, res.Transform);
                         obsNode.Transform.Matrix = Matrix.Identity;
+                        obsNode.GetOrAddComponent<NodeUncertainTransform>().UncertainTransform = ut;
                         addObservation(o, obsNode);
                     }
                 }
@@ -159,14 +162,14 @@ namespace OPS.Pipeline
                     var imgOne = new ObservationImageRef(Observation.Find(DynamoDB, overlap.ProjectName, o1));
                     var imgTwo = new ObservationImageRef(Observation.Find(DynamoDB, overlap.ProjectName, o2));
                     var pair = new UnorderedImagePair(imgOne, imgTwo);
-                    scene.Context.Overlaps.Add(pair);
+                    scene.Overlaps.Add(pair);
 
                     if (overlap.MatchGuid != null && overlap.MatchGuid != Guid.Empty)
                     {
                         var match = Get<ComputedCorrespondence>(overlap.ProjectName, overlap.MatchGuid);
                         if (match != null)
                         {
-                            scene.Context.Correspondences[pair] = match.Correspondence;
+                            scene.Correspondences[pair] = match.Correspondence;
                         }
                     }
                 }

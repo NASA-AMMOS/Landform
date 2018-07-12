@@ -15,12 +15,15 @@ namespace OPS.Pipeline
     {
         public DetectOverlaps(PipelineCore pipeline) : base(pipeline)
         {
+
         }
 
         public IEnumerable<Overlap> Run(List<Observation> toConsider)
         {
-            if (toConsider.Count < 1) yield break;
-
+            if (toConsider.Count < 1)
+            {
+                yield break;
+            }
             // Step 1: construct minimal scene graph containing observations
             AlignmentScene scene = new AlignmentScene();
             string project;
@@ -28,18 +31,18 @@ namespace OPS.Pipeline
             {
                 var first = toConsider.First();
                 project = first.ProjectName;
-                rootFrame = Frame.Find(Pipeline.DynamoDB, project, first.FrameName);
+                rootFrame = Frame.Find(Pipeline.DynamoContext, project, first.FrameName);
             }
 
             Memoizer<string, SceneNode> frameToNode = null;
             frameToNode = new Memoizer<string, SceneNode>((fn) =>
             {
-                Frame f = Frame.Find(Pipeline.DynamoDB, project, fn);
+                Frame f = Frame.Find(Pipeline.DynamoContext, project, fn);
                 NodeTransform parent = null;
                 if (f.ParentName != null) parent = frameToNode[f.ParentName].Transform;
                 SceneNode res = new SceneNode(f.Name, parent);
 
-                FrameTransform transform = FrameTransform.Find(Pipeline.DynamoDB, f);
+                FrameTransform transform = FrameTransform.Find(Pipeline.DynamoContext, f);
                 NodeUncertainTransform nut = res.AddComponent<NodeUncertainTransform>();
                 nut.UncertainTransform = transform.Transform;
                 return res;
@@ -65,12 +68,15 @@ namespace OPS.Pipeline
             FrustumOverlapDetector fod = new FrustumOverlapDetector(Pipeline);
             fod.Detect(scene);
 
-            foreach (var overlap in scene.Context.Overlaps)
+            foreach (var overlap in scene.Overlaps)
             {
                 var one = refToObservation[overlap.One];
                 var two = refToObservation[overlap.Two];
-                var steve = Overlap.Create(Pipeline.DynamoDB, one, two);
+                var steve = Overlap.Create(Pipeline.DynamoContext, one, two);
                 if (steve != null) yield return steve;
+                // lower throughput
+                // TODO: other options?
+                System.Threading.Thread.Sleep(100);
             }
         }
     }

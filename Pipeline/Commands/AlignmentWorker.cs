@@ -186,7 +186,7 @@ namespace OPS.Pipeline
 
             // Make rover mask
             var mask = RoverMask.Build(GetImage(imgRef));
-            var maskProd = new ImageDataProduct(mask, ".png", typeof(byte));
+            var maskProd = new PngDataProduct(mask);
             Save(indexed.Observation.ProjectName, maskProd);
             indexed.Observation.MaskGuid = maskProd.Guid;
 
@@ -203,9 +203,8 @@ namespace OPS.Pipeline
             };
             Save(indexed.Observation.ProjectName, detected);
             indexed.Observation.FeaturesGuid = detected.Guid;
-            
-            // Save Observation record
-            indexed.Observation.Save(Pipeline.DynamoDB);
+            indexed.Observation.MaskGuid = maskProd.Guid;
+            indexed.Observation.Save(Pipeline.DynamoContext);
             
             // TODO:
             // send ObservationAdded message
@@ -227,10 +226,10 @@ namespace OPS.Pipeline
         public int FindOverlaps(FindOverlapsMessage m)
         {
             //for this image, look up nearby images in Dynamo
-            RoverObservation thisobs = RoverObservation.Find(Pipeline.DynamoDB, MSLProject.PROJECT_NAME, m.ObservationName);
+            RoverObservation thisobs = RoverObservation.Find(Pipeline.DynamoContext, "MSL", m.ObservationName);
             //for now, look at all other images in Dynamo for this same project 
-            IEnumerable<RoverObservation> observations = Pipeline.DynamoDB.Scan<RoverObservation>(new ScanCondition("ProjectName",
-                Amazon.DynamoDBv2.DocumentModel.ScanOperator.Equal, MSLProject.PROJECT_NAME));
+            IEnumerable<RoverObservation> observations = Pipeline.DynamoContext.Scan<RoverObservation>(new ScanCondition("ProjectName",
+                Amazon.DynamoDBv2.DocumentModel.ScanOperator.Equal, "MSL"));
 
             foreach(var overlap in detector.Run(observations.Cast<Observation>().ToList()))
             {
@@ -249,22 +248,22 @@ namespace OPS.Pipeline
             DetectedFeatures modelFeat = Get<DetectedFeatures>(project.Name, obs0.FeaturesGuid);
             DetectedFeatures dataFeat = Get<DetectedFeatures>(project.Name, obs1.FeaturesGuid);
 
-            //below is from MatchImages.cs
-            BruteForceMatcher matcher = new BruteForceMatcher();
-            ImagePairCorrespondence matches = matcher.Match(modelRef, dataRef, modelFeat.Features, dataFeat.Features);
+
+
+            AlignmentScene scene = new AlignmentScene();
+            scene.DetectedFeatures[modelRef] = modelFeat.Features;
+            scene.DetectedFeatures[dataRef] = dataFeat.Features;
+
+            var pair = new UnorderedImagePair(modelRef, dataRef);
+            IFeatureMatcher matcher = new BruteForceMatcher();
+            var matches = matcher.Match(scene, pair);
+            
             if (matches == null)
             {
                 Console.WriteLine("No matches found (at all)");
                 return false;
             }
-
-            MatchingContext ctx = new MatchingContext();
-            ctx.DetectedFeatures[modelRef] = modelFeat.Features;
-            ctx.DetectedFeatures[dataRef] = dataFeat.Features;
-            ctx.Correspondences[new UnorderedImagePair(modelRef, dataRef)] = matches;
-
-            AlignmentScene scene = new AlignmentScene();
-            scene.Context = ctx;
+            scene.Correspondences[pair] = matches;
 
             MoisanStivalFilter filter = new MoisanStivalFilter(Pipeline);
             matches = filter.Filter(scene, matches);
@@ -305,10 +304,10 @@ namespace OPS.Pipeline
         /// <returns></returns>
         public int MatchPairs(MatchPairsMessage m)
         {
-            Observation obs0 = Observation.Find(Pipeline.DynamoDB, m.ProjectName, m.ObservationName0);
-            Observation obs1 = Observation.Find(Pipeline.DynamoDB, m.ProjectName, m.ObservationName1);
-            Project project = Project.Find(Pipeline.DynamoDB, m.ProjectName);
-            Overlap overlap = Overlap.Find(Pipeline.DynamoDB, obs0.Name, obs1.Name, m.ProjectName);
+            Observation obs0 = Observation.Find(Pipeline.DynamoContext, m.ProjectName, m.ObservationName0);
+            Observation obs1 = Observation.Find(Pipeline.DynamoContext, m.ProjectName, m.ObservationName1);
+            Project project = Project.Find(Pipeline.DynamoContext, m.ProjectName);
+            Overlap overlap = Overlap.Find(Pipeline.DynamoContext, obs0.Name, obs1.Name, m.ProjectName);
             
             if (overlap.Status != Overlap.StatusType.Proposed) //someone has already processed this overlap
             {
@@ -319,7 +318,6 @@ namespace OPS.Pipeline
             var res = DoMatch(overlap, obs0, obs1, project, m);
             overlap.Status = res ? Overlap.StatusType.Matched : Overlap.StatusType.Rejected;
             overlap.Status = Overlap.StatusType.Matched;
-            if (!overlap.TrySave(Pipeline.DynamoDB))
             {
                 return 0; //another worker tried to update this overlap. allow message to return to queue
             }

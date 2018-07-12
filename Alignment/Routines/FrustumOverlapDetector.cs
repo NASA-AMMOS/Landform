@@ -42,7 +42,8 @@ namespace OPS.Alignment
                     if (!node.HasComponent<NodeConvexHull>())
                     {
                         var chc = node.AddComponent<NodeConvexHull>();
-                        chc.Hull = ConvexHull.FromImage(GetImage(imgRef));
+                        var img = GetImage(imgRef);
+                        chc.Hull = ConvexHull.FromImage(img);
                     }
                     return;
                 }
@@ -160,7 +161,7 @@ namespace OPS.Alignment
                     }
                 }
             }
-            scene.Context.Overlaps = unique;
+            scene.Overlaps = unique;
         }
     }
 }

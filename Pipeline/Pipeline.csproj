@@ -176,8 +176,11 @@
     <Compile Include="Commands\AlignScene.cs" />
     <Compile Include="Commands\BenchmarkS3.cs" />
     <Compile Include="Commands\AlignmentWorker.cs" />
+    <Compile Include="Commands\BuildFromAlignment.cs" />
+    <Compile Include="Commands\CuriosityAlign.cs" />
     <Compile Include="Commands\LegacyToTile3D.cs" />
     <Compile Include="Commands\CreateCloudTemplates.cs" />
+    <Compile Include="Commands\TileLocalMesh.cs" />
     <Compile Include="Commands\TilingWorker.cs" />
     <Compile Include="Commands\Commands.cs" />
     <Compile Include="Commands\ConvertBaselineMesh.cs" />
@@ -195,11 +198,13 @@
     <Compile Include="Rover\RoverMask.cs" />
     <Compile Include="Rover\CuriosityRoverModel.cs" />
     <Compile Include="Rover\RoverReachability.cs" />
+    <Compile Include="Rover\SolDateTime.cs" />
     <Compile Include="TextureBake\TextureBaker.cs" />
     <Compile Include="Rover\SiteDrive.cs" />
     <Compile Include="TextureBake\TexturedTriangle.cs" />
     <Compile Include="Tiling\BaselineAtlaser.cs" />
     <Compile Include="Tiling\BaselineImageProducer.cs" />
+    <Compile Include="Tiling\BinaryTreeTilingScheme.cs" />
     <Compile Include="Tiling\DefaultLeafTileContentProducer.cs" />
     <Compile Include="Tiling\DefaultParentTileContentProducer.cs" />
     <Compile Include="Tiling\FaceLimitSplitCriteria.cs" />
@@ -217,9 +222,11 @@
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Rover\RoverArticulation.cs" />
     <Compile Include="Rover\RoverProductEnum.cs" />
+    <Compile Include="Tiling\OctreeTilingScheme.cs" />
     <Compile Include="Tiling\PrecomputedLODParentTileContentProducer.cs" />
     <Compile Include="Tiling\QuadTreeTilingScheme.cs" />
     <Compile Include="Tiling\ITilingScheme.cs" />
+    <Compile Include="Tiling\SceneNodeTilingExtensions.cs" />
     <Compile Include="Tiling\Tile3DBuilder.cs" />
     <Compile Include="Tiling\TilesetSchema.cs" />
   </ItemGroup>

@@ -91,6 +91,7 @@
     <Compile Include="Imaging\ImageException.cs" />
     <Compile Include="Imaging\ImageMetadata.cs" />
     <Compile Include="Imaging\ImageStatistics.cs" />
+    <Compile Include="Imaging\LimberDMG.cs" />
     <Compile Include="Imaging\Operations\Blur.cs" />
     <Compile Include="Imaging\Operations\Inpainter.cs" />
     <Compile Include="Imaging\PDSCameraModelParser.cs" />

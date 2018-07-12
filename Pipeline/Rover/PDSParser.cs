@@ -220,8 +220,20 @@ namespace OPS.Pipeline
         public int FilterNumber
         {
             get
-            {    
-                 return metadata.ReadAsInt("IMAGE_REQUEST_PARMS", "FILTER_NUMBER");
+            {
+                if (metadata.HasKey("IMAGE_REQUEST_PARMS", "FILTER_NUMBER"))
+                {
+                    return metadata.ReadAsInt("IMAGE_REQUEST_PARMS", "FILTER_NUMBER");
+                }
+                if(metadata.HasKey("OBSERVATION_REQUEST_PARMS", "FILTER_NUMBER"))
+                {
+                    return metadata.ReadAsInt("OBSERVATION_REQUEST_PARMS", "FILTER_NUMBER");
+                }
+                if (metadata.HasKey("INSTRUMENT_STATE_PARMS", "FILTER_NUMBER"))
+                {
+                    return metadata.ReadAsInt("INSTRUMENT_STATE_PARMS", "FILTER_NUMBER");
+                }
+                return metadata.ReadAsInt("MINI_HEADER", "FILTER_NUMBER");
             }
         }
 
@@ -234,6 +246,9 @@ namespace OPS.Pipeline
             }
         }
 
+        /// <summary>
+        /// Rover to local level
+        /// </summary>
         public Quaternion RoverOriginRotation
         {
             get
@@ -336,7 +351,7 @@ namespace OPS.Pipeline
         {
             get
             {
-                return Camera == RoverProductCamera.MastcamLeft || Camera == RoverProductCamera.MastcamLeft;
+                return Camera == RoverProductCamera.MastcamLeft || Camera == RoverProductCamera.MastcamRight;
             }
         }
 
