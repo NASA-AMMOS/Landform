@@ -72,6 +72,11 @@ namespace OPS.Pipeline
                 {
                     return false;
                 }
+                // Filter for color or black and white jpegs that are not thumbnails
+                if(msssId.MSSSProductType == MSSSProductType.Unknown)
+                {
+                    return false;
+                }
             }
             return true;
         }
@@ -200,8 +205,12 @@ namespace OPS.Pipeline
             }
 
             // Fetch image and check metadata
-            Image img = GetImage(imgRef);
-            PDSMetadata metadata = img.Metadata as PDSMetadata;
+            PDSMetadata metadata = null;
+            this.Pipeline.Storage(imgRef.Url).GetStorageStream(imgRef.Url, stream =>
+            {
+                metadata = new PDSMetadata(stream);
+            });
+
             if (metadata == null)
             {
                 return new Result(Status.Failed, null);
