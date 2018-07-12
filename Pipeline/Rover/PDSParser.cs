@@ -217,7 +217,7 @@ namespace OPS.Pipeline
         }
 
         // Mastcam only
-        public int FilterNumber
+        public int? FilterNumber
         {
             get
             {
@@ -233,18 +233,27 @@ namespace OPS.Pipeline
                 {
                     return metadata.ReadAsInt("INSTRUMENT_STATE_PARMS", "FILTER_NUMBER");
                 }
-                return metadata.ReadAsInt("MINI_HEADER", "FILTER_NUMBER");
+                if (metadata.HasKey("MINI_HEADER", "FILTER_NUMBER"))
+                {
+                    return metadata.ReadAsInt("MINI_HEADER", "FILTER_NUMBER");
+                }
+                return null;
             }
         }
 
         // Mastcam only
-        public double MaximumFocusDistance
+        public double? MaximumFocusDistance
         {
             get
             {
-                return metadata.ReadAsDouble("DERIVED_IMAGE_PARMS", "MSL:MAXIMUM_FOCUS_DISTANCE");
+                if (metadata.HasKey("DERIVED_IMAGE_PARMS", "MSL:MAXIMUM_FOCUS_DISTANCE"))
+                {
+                    return metadata.ReadAsDouble("DERIVED_IMAGE_PARMS", "MSL:MAXIMUM_FOCUS_DISTANCE");
+                }
+                return null;
             }
         }
+
 
         /// <summary>
         /// Rover to local level

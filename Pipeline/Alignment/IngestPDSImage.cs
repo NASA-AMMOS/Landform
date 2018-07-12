@@ -24,6 +24,106 @@ namespace OPS.Pipeline
         public const int MIN_NAV_HAZ_EXPOSURE = 80;
         public const int MIN_MASTCAM_FOCUS_CUTOFF = 3;
         public const int MAX_MASTCAM_WIDTH = 1344;
+
+
+        public static ImagePointPair FindBestPair(IEnumerable<RoverObservation> frameObservations)
+        {
+            var list = frameObservations.Where(ob => ob.UseForReconstruction).ToList();
+
+            list.Sort(RoverObservationComparison);
+            var imageList = list.Where(ob => ob.ObservationType == ObservationType.Image.ToString()).ToList();
+            var pointList = list.Where(ob => ob.ObservationType == ObservationType.Points.ToString()).ToList();
+            if (pointList.Count > 0)
+            {
+                foreach (var imageObs in imageList)
+                {
+                    bool linear = IsLinear(imageObs);
+                    foreach (var pointObs in pointList)
+                    {
+                        if (linear == IsLinear(pointObs) && imageObs.Width == pointObs.Width && imageObs.Height == pointObs.Height)
+                        {
+                            return new ImagePointPair(imageObs, pointObs);
+                        }
+                    }
+                }
+            }
+            // If we didn't find any range products to match our image products than just return the first image
+            if (imageList.Count > 0)
+            {
+                return new ImagePointPair(imageList.First(), null);
+            }
+            return null;
+        }
+
+        public static IEnumerable<ImagePointPair> FindBestPairs(IEnumerable<RoverObservation> observations)
+        {
+            List<ImagePointPair> results = new List<ImagePointPair>();
+            // Filter any that should not be used for observation
+            observations = observations.Where(ob => ob.UseForReconstruction);
+            var frameGroups = observations.GroupBy(ob => ob.FrameName);
+            foreach (var frameGroup in frameGroups)
+            {
+                var r = FindBestPair(frameGroup);
+                if (r != null)
+                {
+                    results.Add(r);
+                }
+            }
+            return results;
+        }
+        
+        public class ImagePointPair
+        {
+            public Observation Image;
+            public Observation Point;
+
+            public ImagePointPair() { }
+
+            public ImagePointPair(Observation img, Observation pnt)
+            {
+                Image = img;
+                Point = pnt;
+            }
+        }
+
+        /// <summary>
+        /// Return -1 if a < b
+        /// return 1 if  a > b
+        /// return 0 if equal
+        /// </summary>
+        /// <param name="a"></param>
+        /// <param name="b"></param>
+        /// <returns></returns>
+        static int RoverObservationComparison(RoverObservation a, RoverObservation b)
+        {
+            // sort first by producer
+            if (a.Producer == RoverProductProducer.MSSS.ToString() && b.Producer == RoverProductProducer.OPGS.ToString())
+            {
+                return -1;
+            }
+            if (a.Producer == RoverProductProducer.OPGS.ToString() && b.Producer == RoverProductProducer.MSSS.ToString())
+            {
+                return 1;
+            }
+            // sort second by linear-ness
+            var linearA = IsLinear(a);
+            var linearB = IsLinear(b);
+            if (!linearA && linearB)
+            {
+                return -1;
+            }
+            if (linearA && !linearB)
+            {
+                return 1;
+            }
+            // sort by version
+            return int.Parse(b.Version) - int.Parse(a.Version);
+        }
+        
+        static bool IsLinear(RoverObservation observation)
+        {
+            return ((CameraModel)JsonHelper.FromJson(observation.CameraModel)).Linear;
+        }
     }
 
     public class IngestPDSImage : IngestImage
@@ -105,25 +205,17 @@ namespace OPS.Pipeline
             {
                 return false;
             }
-            // Low exposure hazcams
-            if (parser.DerivedImageType == RoverProductType.Image)
+            // Only use single and 3 band images
+            if (metadata.Bands != 3 && metadata.Bands != 1)
             {
-                if (parser.ExposureDuration != 0 && parser.ExposureDuration < MSLProject.MIN_NAV_HAZ_EXPOSURE)
-                {
-                    return false;
-                }
+                return false;
             }
             if (parser.IsMastcam)
             {
-                // Skip single band mastcams
-                if (metadata.Bands != 3)
-                {
-                    return false;
-                }
                 // Skip mastcam taken with color filters
                 try
                 {
-                    if (parser.FilterNumber != 0)
+                    if (!parser.FilterNumber.HasValue || parser.FilterNumber != 0)
                     {
                         return false;
                     }
@@ -133,14 +225,7 @@ namespace OPS.Pipeline
                 }
 
                 // Skip mastcam with short focal distances (probably closeup of rover part with terrain out of focus in background)
-                if (parser.MaximumFocusDistance < MSLProject.MIN_MASTCAM_FOCUS_CUTOFF)
-                {
-                    return false;
-                }
-                // Assume that if the mastcam is big enough to cause vignetting on the ccd that this has been special processed
-                // We do mask the vignetted parts so this check may not be strictly neccessary and may reduce our available images
-                // unneccessarily in some cases
-                if (metadata.Width > MSLProject.MAX_MASTCAM_WIDTH)
+                if (parser.MaximumFocusDistance.HasValue && parser.MaximumFocusDistance < MSLProject.MIN_MASTCAM_FOCUS_CUTOFF)
                 {
                     return false;
                 }
@@ -284,7 +369,7 @@ namespace OPS.Pipeline
             {
                 string cameraModel = JsonHelper.ToJson(metadata.CameraModel);
                 string url = imgRef.Url;
-                observation = RoverObservation.Create(DynamoDB, observationFrame, observationName, url, productTypeToObservationType[parser.DerivedImageType].ToString(), cameraModel, UseForReconstruction(parser, metadata), parser.Site, parser.Drive, parser.ProductId.Version, parser.Camera.ToString(), parser.ImageSizeType.ToString(), metadata.Width, metadata.Height);
+                observation = RoverObservation.Create(DynamoDB, observationFrame, observationName, url, productTypeToObservationType[parser.DerivedImageType].ToString(), cameraModel, UseForReconstruction(parser, metadata), parser.Site, parser.Drive, parser.ProductId.Version, parser.Camera.ToString(), parser.ImageSizeType.ToString(), parser.ProducingInstitution.ToString(), metadata.Width, metadata.Height);
                 if (observation != null) {
                     return new Result(Status.Added, observation);
                 }

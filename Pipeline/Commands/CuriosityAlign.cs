@@ -144,9 +144,11 @@ namespace OPS.Pipeline
                             }
 
                         }
-                        catch (RawMetadataNullValueException)
+                        catch(Exception e)
                         {
-
+                            logger.Error("Error ingesting: " + url);
+                            logger.Error(e.Message);
+                            logger.Error(e.StackTrace);    
                         }
                     });
                 });
@@ -156,10 +158,10 @@ namespace OPS.Pipeline
             // Look up image priors for new images
             // Download new images from S3
             logger.Info("Detect overlaps");
-            DetectOverlaps detector = new DetectOverlaps(this);         
-            detector.Run(GetObservationsToMatch(project.Name)).ToList();                
-
-
+            DetectOverlaps detector = new DetectOverlaps(this);
+            var bestImages = MSLProject.FindBestPairs(RoverObservation.Find(DynamoContext, project.Name)).Select(p => p.Image).ToList();
+            detector.Run(bestImages).ToList();                
+            
             List<Overlap> overlaps = Overlap.Find(DynamoContext, project.Name).ToList();
 
             Matches = new LazyComputation<Overlap, ComputedCorrespondence>(this, (o) => o.MatchGuid, ComputeCorrespondence);
@@ -198,32 +200,6 @@ namespace OPS.Pipeline
             project.Save(this.DynamoContext);
 
             return 0;
-        }
-
-        public List<Observation> GetObservationsToMatch(string projectName)
-        {
-            List<Observation> results = new List<Observation>();
-
-            // Group observations by frame
-            var obsGroups = RoverObservation.Find(DynamoContext, projectName).GroupBy(ob => ob.FrameName);
-            foreach (var group in obsGroups)
-            {
-                // For each frame filter out only image observations to use in reconstruction
-                var imageObs = group.Where(ob => ob.ObservationType == ObservationType.Image.ToString() && ob.UseForReconstruction);
-                // Sort first by linearization and second by version.  We want nonlinear images with the highest version to come first
-                imageObs = imageObs.OrderBy(ob =>
-                {
-                    CameraModel model = (CameraModel)JsonHelper.FromJson(ob.CameraModel);
-
-                    return (model.Linear ? 0 : 100000) + ob.Version;
-                }).Reverse();
-                if (imageObs.Count() > 0)
-                {
-                    // Add the highest version image to our list.  If a nonlinear version exists it will be used, if not we will fall back to linearized
-                    results.Add(imageObs.First());
-                }
-            }
-            return results;
         }
 
         public ComputedCorrespondence ComputeCorrespondence(Overlap overlap)
