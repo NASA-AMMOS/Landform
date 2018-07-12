@@ -127,7 +127,8 @@ namespace OPS.Pipeline
             IngestPDSImage ingester = new IngestPDSImage(this, options.ProjectName);
             //List<Observation> obs = new List<Observation>();
             
-            if (!options.SkipIngest)
+            //TODO: Uncomment
+            /*if (!options.SkipIngest)
             {
                 Parallel.ForEach(GetDirectoriesToCrawl(), folder =>
                 {
@@ -157,7 +158,7 @@ namespace OPS.Pipeline
             // Download new images from S3
             logger.Info("Detect overlaps");
             DetectOverlaps detector = new DetectOverlaps(this);         
-            detector.Run(GetObservationsToMatch(project.Name)).ToList();                
+            detector.Run(GetObservationsToMatch(project.Name)).ToList();  */              
 
 
             List<Overlap> overlaps = Overlap.Find(DynamoContext, project.Name).ToList();
@@ -426,23 +427,23 @@ namespace OPS.Pipeline
 
         private void WaitForTables()
         {
-            bool shouldWait = true;
-            while (shouldWait)
+            foreach (var t in new Type[] { typeof(Project), typeof(Observation), typeof(Overlap), typeof(Frame), typeof(FrameTransform), typeof(TransformPrior) })
             {
-                shouldWait = false;
-                System.Threading.Thread.Sleep(100);
-                foreach (var t in new Type[] { typeof(Project), typeof(Observation), typeof(Overlap), typeof(Frame), typeof(FrameTransform), typeof(TransformPrior) })
+                var tn = options.DynamoDBPrefix + CreateCloudTemplates.TableName(t);
+                string tableStatus = "";
+                while (tableStatus != "ACTIVE")
                 {
-                    var tn = options.DynamoDBPrefix + CreateCloudTemplates.TableName(t);
-
+                    logger.Info("Waiting for table: " + CreateCloudTemplates.TableName(t));
                     try
                     {
-                        this.DynamoDB.DescribeTable(new DescribeTableRequest(tn));
+                        var tableResponse = this.DynamoDB.DescribeTable(new DescribeTableRequest(tn));
+                        tableStatus = tableResponse.Table.TableStatus;
                     }
                     catch (ResourceNotFoundException)
                     {
-                        shouldWait = true;
+                        //Wait for table
                     }
+                    System.Threading.Thread.Sleep(3000);
                 }
             }
         }

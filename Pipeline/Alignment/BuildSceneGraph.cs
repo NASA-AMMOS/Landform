@@ -106,7 +106,7 @@ namespace OPS.Pipeline
 
 
                 // Add any observations to the node
-                System.Threading.Thread.Sleep(100); // Lower throughput
+                //System.Threading.Thread.Sleep(100); // Lower throughput
                 var obs = Observation.Find(DynamoDB, frame).Where(o => options.IncludeObservation(o, res)).ToArray();
                 observations.AddRange(obs);
                 foreach (var o in obs)

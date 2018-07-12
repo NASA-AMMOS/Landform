@@ -15,6 +15,7 @@ using System.IO;
 using Amazon.DynamoDBv2.DataModel;
 using OPS.MathExtensions;
 using System.Collections.Concurrent;
+using OPS.Util;
 
 namespace OPS.Pipeline
 {
@@ -106,28 +107,66 @@ namespace OPS.Pipeline
             return transform;
         }
 
-        Mesh BuildPointCloud(Observation obs, UncertainRigidTransform observationToRoot, int stepSize = 1)
+        Mesh BuildPointCloud(Observation obs, UncertainRigidTransform observationToRoot, Observation imgObs = null, int stepSize = 1)
         {
             S3ImageRef s3ref = new S3ImageRef(obs.Url);
             
             Image img = this.Load(s3ref, true);
+            Image mask = RoverMask.Build(img);
+            Image colorImg = null;
+            if (imgObs != null)
+            {
+                colorImg = Load(new S3ImageRef(imgObs.Url));
+            }
+
             Mesh result = new Mesh();
             for (int r = 0; r < img.Height; r += stepSize)
             {
                 for (int c = 0; c < img.Width; c += stepSize)
                 {
-                    double range = img[0, r, c];
-                    if (range > MathE.EPSILON && range < 64)
+                    if (mask[0, r, c] != 0)
                     {
-                        var observationPoint = img.CameraModel.Unproject(new Vector2(c, r), range);
-                        var dist = observationToRoot.TransformPoint(observationPoint);
-                        var rootPoint = dist.XnaMean;
-                        result.Vertices.Add(new Vertex(rootPoint));
+                        double range = img[0, r, c];
+                        if (range > MathE.EPSILON && range < 64)
+                        {
+                            var observationPoint = img.CameraModel.Unproject(new Vector2(c, r), range);
+                            var dist = observationToRoot.TransformPoint(observationPoint);
+                            var rootPoint = dist.XnaMean;
+                            var res = new Vertex(rootPoint);
+                            if(colorImg != null)
+                            {
+                                //TODO: Determine bands based on image type
+                                res.Color = new Vector4(colorImg[0, r, c], colorImg[0, r, c], colorImg[0, r, c], 1);
+                            }
+                            result.Vertices.Add(new Vertex(rootPoint));
+                        }
                     }
                 }
             }
             return result;
         }
+
+        //TODO: Use common function to get range and image product from a frame
+        Observation GetImageFromRange(Observation rangeObs)
+        {
+            var imgObs = RoverObservation.Find(DynamoContext, rangeObs.ProjectName).Where(ro => ro.FrameName == rangeObs.FrameName);
+            imgObs = imgObs.Where(ob => ob.ObservationType == ObservationType.Image.ToString() && ob.UseForReconstruction);
+            // Sort first by linearization and second by version.  We want nonlinear images with the highest version to come first
+            imgObs = imgObs.OrderBy(ob =>
+            {
+                CameraModel model = (CameraModel)JsonHelper.FromJson(ob.CameraModel);
+
+                return (model.Linear ? 0 : 100000) + ob.Version;
+            }).Reverse();
+            if (imgObs.Count() > 0)
+            {
+                // Add the highest version image to our list.  If a nonlinear version exists it will be used, if not we will fall back to linearized
+                return imgObs.First();
+            }
+            return null;
+        }
+
+
 
         public int Run()
         {
@@ -135,20 +174,23 @@ namespace OPS.Pipeline
 
             FrameCache cache = new FrameCache(DynamoContext, options.ProjectName);
 
-            Parallel.ForEach(pointObs, obs =>
+            Parallel.ForEach(pointObs, rngObs =>
             {
-                if (!obs.UseForReconstruction)
+                if (!rngObs.UseForReconstruction)
                 {
-                    logger.Info("Skipping observation: " + obs.Name);
+                    logger.Info("Skipping observation: " + rngObs.Name);
                     return;
                 }
-                logger.Info("Processing observation: " + obs.Name);
-                var transform = ObservationToRoot(obs, cache);
-                var frame = cache.GetFrame(obs.FrameName);
+                logger.Info("Processing observation: " + rngObs.Name);
+                var transform = ObservationToRoot(rngObs, cache);
+                var frame = cache.GetFrame(rngObs.FrameName);
                 var otherObservations = Observation.Find(DynamoContext, frame);
 
-                var m = BuildPointCloud(obs, transform);
-                m.Save(Path.Combine(options.OutputDirectory, obs.Name + ".ply"));
+                var imgObs = GetImageFromRange(rngObs);
+
+                var m = BuildPointCloud(rngObs, transform, imgObs);
+                m.HasColors = true;
+                m.Save(Path.Combine(options.OutputDirectory, rngObs.Name + ".ply"));
             });
 
             return 0;

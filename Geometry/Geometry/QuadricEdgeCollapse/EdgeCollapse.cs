@@ -381,6 +381,10 @@ namespace OPS.Geometry
                 && (!checkFlip || CheckNormalChanges(e) > flipThreshold))
             {
                 double cost = e.QEM(e.VNew);
+                if(queue.Count == queue.MaxSize)
+                {
+                    queue.Resize(2 * queue.MaxSize);
+                }
                 queue.Enqueue(new EdgeCollapseQueueNode(e), (float)cost);
             }
         }
