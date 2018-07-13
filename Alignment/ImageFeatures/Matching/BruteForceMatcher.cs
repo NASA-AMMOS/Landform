@@ -15,9 +15,8 @@ namespace OPS.Alignment
     /// Given two images and a list of features in each and 
     /// returns a set of matches between them using nearest descriptor distance (L2Norm)
     /// </summary>
-    public class BruteForceMatcher
+    public class BruteForceMatcher : IFeatureMatcher
     {
-        knnNode[][] Matches;
         private static readonly ILog logger = LogManager.GetLogger(typeof(BruteForceMatcher));
         const int K = 2;
 
@@ -26,14 +25,14 @@ namespace OPS.Alignment
             
         }
 
+        public ImagePairCorrespondence Match(AlignmentScene scene, UnorderedImagePair pair)
+        {
+            return Match(pair.One, pair.Two, scene.DetectedFeatures[pair.One], scene.DetectedFeatures[pair.Two]);
+        }
+
         /// <summary>
         /// Compute correspondences between two images
         /// </summary>
-        /// <param name="model"></param>
-        /// <param name="data"></param>
-        /// <param name="modelFeat"></param>
-        /// <param name="dataFeat"></param>
-        /// <returns></returns>
         public ImagePairCorrespondence Match(ImageRef model, ImageRef data, 
             ImageFeature[] modelFeat, ImageFeature[] dataFeat)
         {
@@ -41,9 +40,10 @@ namespace OPS.Alignment
 
             SIFTFeature[] feat0 = modelFeat.Cast<SIFTFeature>().ToArray();
             SIFTFeature[] feat1 = dataFeat.Cast<SIFTFeature>().ToArray();
-            Matches = dataFeat.Select((x, j) => new knnNode[2]).ToArray();
+
+            knnNode[][] Matches = dataFeat.Select((x, j) => new knnNode[2]).ToArray();
             // Match descriptors
-            KnnMatch(feat0, feat1);
+            KnnMatch(feat0, feat1, Matches);
             
             Matrix<float> mask = Matrix<float>.Build.Dense(Matches.Length, 1);
 
@@ -52,11 +52,9 @@ namespace OPS.Alignment
             {
                 if (Matches[idx][0] == null)
                 {
-                    //mask[idx, 0] = 0;     // Unsure if this is needed.  
-                    continue;
+                    mask[idx, 0] = 0;
                 }
-
-                if (Matches[idx][0].Value > Matches[idx][1].Value * 0.8)
+                else if (Matches[idx][0].Value > Matches[idx][1].Value * 0.8)
                 {
                     mask[idx, 0] = 0;
                 }
@@ -81,7 +79,7 @@ namespace OPS.Alignment
         }
 
 
-        private void KnnMatch(SIFTFeature[] modelFeat, SIFTFeature[] dataFeat)
+        private void KnnMatch(SIFTFeature[] modelFeat, SIFTFeature[] dataFeat, knnNode[][] Matches)
         {
             double[][] dist = new double[modelFeat.Length][].Select(x => new double[dataFeat.Length]).ToArray();
             knnNode[][] knnModel = new knnNode[modelFeat.Length][].Select(x => new knnNode[K]).ToArray();
