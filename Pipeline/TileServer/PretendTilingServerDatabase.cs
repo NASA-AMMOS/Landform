@@ -8,7 +8,7 @@ using System.Threading.Tasks;
 using System.IO;
 using OPS.Util;
 
-namespace OPS.Pipeline
+namespace OPS.Pipeline.TileServer
 {
 
     public class TilingInputRecord

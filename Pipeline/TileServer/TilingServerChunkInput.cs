@@ -11,7 +11,7 @@ using OPS.Geometry;
 using System.IO;
 using log4net;
 
-namespace OPS.Pipeline
+namespace OPS.Pipeline.TileServer
 {
 
 

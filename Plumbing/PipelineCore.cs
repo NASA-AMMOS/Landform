@@ -17,7 +17,7 @@ namespace OPS.Plumbing
 {
     public class PipelineCore
     {
-        public PipelineCore(bool enableS3 = true, bool enableDynamo = true, string dynamoPrefix = "", string s3Url = "", string dynamoUrl = "")
+        public PipelineCore(bool enableS3 = true, bool enableDynamo = true, string dynamoPrefix = "", string s3Url = "", string dynamoUrl = "", string profile = "default")
         {
             if (enableS3)
             {
@@ -38,7 +38,7 @@ namespace OPS.Plumbing
                 // until changes to StorageHelper are made. I did not include my
                 // hacky workaround because the changes in Thomas' branch should
                 // be a cleaner way to deal with it.
-                storage = new StorageHelper(null, "us-west-1");
+                storage = new StorageHelper(profile, "us-west-1");
             }
             else
             {

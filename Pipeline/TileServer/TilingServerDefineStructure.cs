@@ -7,8 +7,9 @@ using OPS.Geometry;
 using OPS.Imaging;
 using log4net;
 using CommandLine;
+using OPS.Pipeline.TileServer;
 
-namespace OPS.Pipeline
+namespace OPS.Pipeline.TileServer
 {
 
     [Verb("tilingserverdefinestructure", HelpText = "")]
@@ -20,11 +21,11 @@ namespace OPS.Pipeline
         [Option(Required = false, Default = 256, HelpText = "Maximum image resolution per tile")]
         public int MaxResolutionPerTile { get; set; }
 
-        [Option(Required = false, Default = SchemeOption.BIN, HelpText = "Tiling scheme")]
-        public SchemeOption TilingScheme { get; set; }
+        [Option(Required = false, Default = TilingScheme.Oct, HelpText = "Tiling scheme")]
+        public TilingScheme TilingScheme { get; set; }
 
-        [Option(Required = false, Default = SkirtAxis.None, HelpText = "Axis to use as up in quad tree tiling")]
-        public SkirtAxis SplitAxis { get; set; }
+        [Option(Required = false, Default = SkirtMode.None, HelpText = "Axis to use as up in quad tree tiling")]
+        public SkirtMode SplitAxis { get; set; }
 
     }
 
@@ -47,11 +48,11 @@ namespace OPS.Pipeline
                 tilingInput.AddDataset(new TileLocalMesh.TilingInputDataset(input.MeshFilename, input.ImageFilename));
             }
             ITilingScheme scheme;
-            if (options.TilingScheme == SchemeOption.BIN)
+            if (options.TilingScheme == TilingScheme.Oct)
             {
                 scheme = new BinaryTreeTilingScheme();
             }
-            else if (options.TilingScheme == SchemeOption.OCT)
+            else if (options.TilingScheme == TilingScheme.Bin)
             {
                 scheme = new OctreeTilingScheme();
             }

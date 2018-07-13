@@ -203,7 +203,7 @@ namespace OPS.Pipeline
                 var pair = node.GetComponent<MeshImagePair>();
                 if (pair != null && pair.Mesh != null)
                 {
-                    pair.Mesh.RemoveSkirt(SkirtAxis.Y);
+                    pair.Mesh.RemoveSkirt(SkirtMode.Y);
                 }
             });
 
@@ -297,7 +297,7 @@ namespace OPS.Pipeline
                 var borderImage =
                     TextureBaker.BakeTexture(outterNodes.Select(n => n.GetComponent<MeshImagePair>()).ToArray(), border,
                         backgroundResolution, backgroundResolution);
-                border.AddSkirt(SkirtAxis.Y, 0.25);
+                border.AddSkirt(SkirtMode.Y, 0.25);
                 SceneNode background = new SceneNode("background");
                 background.AddComponent<MeshImagePair>(new MeshImagePair(border, borderImage));
                 WriteTile(background);
@@ -345,7 +345,7 @@ namespace OPS.Pipeline
                 m = UVAtlas.Atlas(m, textureWidth, textureHeight);
                 var img = TextureBaker.BakeTexture(pairs.ToArray(), m, textureWidth, textureHeight);
 
-                m.AddSkirt(SkirtAxis.Y);
+                m.AddSkirt(SkirtMode.Y);
                 leaf.GetOrAddComponent<NodeBounds>().Bounds = m.Bounds();
                 leaf.AddComponent(new MeshImagePair(m, img));
                 var ts = WriteTile(leaf);

@@ -11,6 +11,7 @@ using OPS.Imaging;
 using System.IO;
 using log4net;
 using Newtonsoft.Json;
+using OPS.Pipeline.TileServer;
 
 namespace OPS
 {
@@ -34,11 +35,11 @@ namespace OPS
         [Option(Required = false, Default = 256, HelpText = "Maximum image resolution per tile")]
         public int MaxResolutionPerTile { get; set; }
 
-        [Option(Required = false, Default = SchemeOption.BIN, HelpText = "Tiling scheme")]
-        public SchemeOption TilingScheme { get; set; }
+        [Option(Required = false, Default = TilingScheme.Oct, HelpText = "Tiling scheme")]
+        public TilingScheme TilingScheme { get; set; }
 
-        [Option(Required = false, Default = SkirtAxis.None, HelpText = "Axis to use as up in quad tree tiling")]
-        public SkirtAxis SkirtAxis { get; set; }
+        [Option(Required = false, Default = SkirtMode.None, HelpText = "Axis to use as up in quad tree tiling")]
+        public SkirtMode SkirtAxis { get; set; }
         
         [Option(Required = false, Default = "b3dm", HelpText = "Mesh Extension")]
         public string MeshExtension { get; set; }
@@ -49,12 +50,7 @@ namespace OPS
         // TODO:  Add uv atlas option
     }
 
-    public enum SchemeOption
-    {
-        QUAD,
-        OCT,
-        BIN
-    }
+
 
     public class TileLocalMesh
     {
@@ -63,7 +59,7 @@ namespace OPS
 
         TileLocalMeshOptions options;
 
-        bool SkirtsEnabled { get { return options.SkirtAxis != SkirtAxis.None; } }
+        bool SkirtsEnabled { get { return options.SkirtAxis != SkirtMode.None; } }
 
         public class TilingInput
         {
@@ -180,11 +176,11 @@ namespace OPS
             logger.Info("Init Texture Baker");
             input.InitTextureBaker();
             ITilingScheme scheme;
-            if (options.TilingScheme == SchemeOption.BIN)
+            if (options.TilingScheme == TilingScheme.Oct)
             {
                 scheme = new BinaryTreeTilingScheme();
             }
-            else if (options.TilingScheme == SchemeOption.OCT)
+            else if (options.TilingScheme == TilingScheme.Bin)
             {
                 scheme = new OctreeTilingScheme();
             }

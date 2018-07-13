@@ -118,7 +118,7 @@ namespace OPS.Pipeline
                 {
                     var pair = node.GetComponent<MeshImagePair>();
                     pair.Mesh.Clean();
-                    pair.Mesh.RemoveSkirt(SkirtAxis.Y);
+                    pair.Mesh.RemoveSkirt(SkirtMode.Y);
                     if (!pair.Mesh.HasNormals)
                     {                        
                         pair.Mesh.GenerateVertexNormals();
@@ -142,7 +142,7 @@ namespace OPS.Pipeline
                         meshCopy.ClearNormals();
                         meshCopy.Clean();
                         MeshOperator mo = new MeshOperator(meshCopy);
-                        var tilingScheme = new QuadTreeTilingScheme(SkirtAxis.Y);
+                        var tilingScheme = new QuadTreeTilingScheme(SkirtMode.Y);
                         var boxes = tilingScheme.Split(mo, mo.Bounds);
                         int i = 0;
                         foreach (var box in boxes)
@@ -165,7 +165,7 @@ namespace OPS.Pipeline
             {                
                 var mesh = node.GetComponent<MeshImagePair>().Mesh;
                 mesh.GenerateVertexNormals();
-                mesh.AddSkirt(SkirtAxis.Y);
+                mesh.AddSkirt(SkirtMode.Y);
                 // Important, bounds include skirts
                 node.AddComponent(new NodeBounds(node.GetComponent<MeshImagePair>().Mesh.Bounds()));
                 node.AddComponent(new NodeGeometricError(0));
@@ -196,7 +196,7 @@ namespace OPS.Pipeline
                     {
                         return;
                     }
-                    node.BuildGeometryFromChildren(terrainRoot, options.MaxFacesPerTile, options.MaxTextureSize, SkirtAxis.Y);
+                    node.BuildGeometryFromChildren(terrainRoot, options.MaxFacesPerTile, options.MaxTextureSize, SkirtMode.Y);
                     SaveNode(node, options.ImageFormat);
                 });
             }

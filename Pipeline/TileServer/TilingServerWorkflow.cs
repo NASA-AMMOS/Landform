@@ -10,7 +10,7 @@ using OPS.Geometry;
 using OPS.Imaging;
 using log4net;
 
-namespace OPS.Pipeline
+namespace OPS.Pipeline.TileServer
 {
 
     [Verb("tilingserverworkflow", HelpText = "Runs a simulated tiling server workflow locally")]
@@ -65,8 +65,8 @@ namespace OPS.Pipeline
                 {
                     TargetFacesPerTile = 2000,
                     MaxResolutionPerTile = 256,
-                    TilingScheme = SchemeOption.BIN,
-                    SplitAxis = SkirtAxis.None
+                    TilingScheme = TilingScheme.Oct,
+                    SplitAxis = SkirtMode.None
                 };
                 new TilingServerDefineStructure(structureJob).Run();
                 database.Save();

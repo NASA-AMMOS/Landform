@@ -10,6 +10,7 @@ using OPS.Cloud;
 using OPS.Pipeline;
 using log4net;
 using OPS.Util;
+using OPS.Pipeline.TileServer;
 
 namespace TilingServer
 {
@@ -30,7 +31,7 @@ namespace TilingServer
             GdalConfiguration.ConfigureGdal();
 
             // Parse command line arguments
-            int returnCode = TilingServerCommands.RunFromCommandline(args);
+            int returnCode = TileServerCommands.RunFromCommandline(args);
             return returnCode;
         }
     }

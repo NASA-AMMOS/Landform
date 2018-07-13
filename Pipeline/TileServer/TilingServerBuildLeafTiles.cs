@@ -13,7 +13,7 @@ using System.IO;
 using RTree;
 using Microsoft.Xna.Framework;
 
-namespace OPS.Pipeline
+namespace OPS.Pipeline.TileServer
 {
 
     [Verb("tilingserverbuildleaftiles", HelpText = "Runs a simulated tiling server workflow locally")]

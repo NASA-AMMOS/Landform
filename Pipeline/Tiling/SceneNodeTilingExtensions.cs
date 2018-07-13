@@ -101,7 +101,7 @@ namespace OPS.Pipeline
         /// <param name="maxTextureSize"></param>
         /// <param name="skirtAxis"></param>
         /// <param name="childBoundSearchRatio"></param>
-        public static void BuildGeometryFromChildren(this SceneNode node, SceneNode root, int maxFaceCountTarget, int maxTextureSize, SkirtAxis? skirtAxis, double childBoundSearchRatio = 1.1)
+        public static void BuildGeometryFromChildren(this SceneNode node, SceneNode root, int maxFaceCountTarget, int maxTextureSize, SkirtMode? skirtAxis, double childBoundSearchRatio = 1.1)
         {
             int childDepth = node.Children.First().Transform.Depth();
             BoundingBox searchBounds = node.ChildBounds();
@@ -130,15 +130,15 @@ namespace OPS.Pipeline
             Vector3? cornerDirection = null;
             if (skirtAxis.HasValue)
             {
-                if (skirtAxis.Value == SkirtAxis.X)
+                if (skirtAxis.Value == SkirtMode.X)
                 {
                     cornerDirection = Vector3.UnitX;
                 }
-                else if (skirtAxis.Value == SkirtAxis.Y)
+                else if (skirtAxis.Value == SkirtMode.Y)
                 {
                     cornerDirection = Vector3.UnitY;
                 }
-                else if (skirtAxis.Value == SkirtAxis.Z)
+                else if (skirtAxis.Value == SkirtMode.Z)
                 {
                     cornerDirection = Vector3.UnitY;
                 }
