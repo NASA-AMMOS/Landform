@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Collections.Concurrent;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -10,6 +11,7 @@ using CommandLine;
 using OPS.Util;
 using System.IO;
 using RTree;
+using Microsoft.Xna.Framework;
 
 namespace OPS.Pipeline
 {
@@ -34,6 +36,20 @@ namespace OPS.Pipeline
             this.options = options;
         }
 
+
+        class LeafContext
+        {
+            public List<TilingChunkRecord> Chunks = new List<TilingChunkRecord>();
+            public NodeRecord Node;
+
+            public LeafContext(NodeRecord node)
+            {
+                this.Node = node;
+            }
+
+            
+        }
+
         public int Run()
         {
             PathHelper.EnsureExists(Path.Combine(options.OutputDirectory));
@@ -50,42 +66,50 @@ namespace OPS.Pipeline
                 ids.Add(i);
             }
             HashSet<TilingChunkRecord> requiredChunks = new HashSet<TilingChunkRecord>();
-            foreach(var leaf in database.NodeTable)
+            List<LeafContext> contexts = database.NodeTable.Where(leaf => ids.Contains(leaf.Id)).Select(leaf => new LeafContext(leaf)).ToList();
+
+            foreach(var leafContext in contexts)
             {
-                if (ids.Contains(leaf.Id))
+                var chunks = chunkTree.Intersects(leafContext.Node.Bounds.ToRectangle());
+                var inputGroups = chunks.GroupBy(c => c.InputRecordId);
+                foreach (var inputGroup in inputGroups)
                 {
-                    var chunks = chunkTree.Intersects(leaf.Bounds.ToRectangle());
-                    foreach (var c in chunks)
+                    foreach (var c in inputGroup)
                     {
-                        if (!requiredChunks.Contains(c))
+                        // If leaf is entirely contained within chunk
+                        if (c.Bounds.FuzzyContains(leafContext.Node.Bounds))
                         {
-                            requiredChunks.Add(c);
+                            // Record that we need to load this chunk     
+                            if (!requiredChunks.Contains(c))
+                            {
+                                requiredChunks.Add(c);
+                            }
+                            // Add this chunk to our input and break because we only want one chunk per input
+                            leafContext.Chunks.Add(c);
+                            break;
                         }
                     }
-                }                
+                }
             }
-
-            
-            // We should clip the chunk from each dataset independently and then pack their textures together instead of using bake texture
             logger.Info("Chunks required: " + requiredChunks.Count);
-            var tilingInput = new TileLocalMesh.TilingInput();
-            foreach(var c in requiredChunks)
+            ConcurrentDictionary<TilingChunkRecord, TileLocalMesh.TilingInputDataset> chunkLookup = new ConcurrentDictionary<TilingChunkRecord, TileLocalMesh.TilingInputDataset>();
+            Parallel.ForEach(requiredChunks, c =>
             {
                 var dataset = new TileLocalMesh.TilingInputDataset(c.MeshFilename, c.ImageFilename);
-                tilingInput.AddDataset(dataset);
-            }
-            tilingInput.InitTextureBaker();
-            Parallel.ForEach(database.NodeTable, leaf =>
+                chunkLookup.TryAdd(c, dataset);
+            });
+            
+            // We should clip the chunk from each dataset independently and then pack their textures together instead of using bake texture
+            Serial.ForEach(contexts, leafContext =>
             {
-                if (options.TileIds.Contains(leaf.Id))
-                {
-                    logger.Info("Building Leaf " + leaf.Id);
-                    var clipped = tilingInput.Clip(leaf.Bounds);
-                    var pair = tilingInput.BakeTexture(clipped, 256);
-                    SceneNode node = new SceneNode(leaf.Id);
-                    node.AddComponent(pair);
-                    node.SaveMesh(options.OutputDirectory, "ply", "tif");
-                }
+                logger.Info("Building Leaf " + leafContext.Node.Id);
+                var clipped = chunkLookup[leafContext.Chunks.First()].MeshOperator.Clip(leafContext.Node.Bounds);
+                var pair = new MeshImagePair(clipped);
+                //var pair = tilingInput.BakeTexture(clipped, 256);
+                SceneNode node = new SceneNode(leafContext.Node.Id);
+                node.AddComponent(pair);
+                node.SaveMesh(options.OutputDirectory, "ply", "tif");
+                
             });
             return 0;
         }

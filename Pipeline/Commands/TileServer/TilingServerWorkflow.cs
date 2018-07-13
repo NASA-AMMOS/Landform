@@ -82,13 +82,11 @@ namespace OPS.Pipeline
                     var job = new TilingServerChunkInputOptions()
                     {
                         OutputDir = options.OutputDirectory,
-                        MeshFileapth = input.MeshFilename,
-                        ImageFileapth = input.ImageFilename,
+                        InputId = input.Id,
                         FacesPerChunk = 250000
                     };
                     chunkJobs.Enqueue(job);
                 }
-
                 // Simulate cloud workers running chunk jobs
                 foreach (var job in chunkJobs)
                 {

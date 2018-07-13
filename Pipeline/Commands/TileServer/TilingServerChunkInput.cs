@@ -21,11 +21,8 @@ namespace OPS.Pipeline
         [Value(0, Required = true, HelpText = "Output directory")]
         public string OutputDir { get; set; }
 
-        [Value(1, Required = true, HelpText = "Filename of mesh")]
-        public string MeshFileapth { get; set; }
-
-        [Value(2, Required = false, HelpText = "Filename of image")]
-        public string ImageFileapth { get; set; }
+        [Value(1, Required = true, HelpText = "Input dataset database id")]
+        public int InputId { get; set; }
 
         [Option(HelpText = "Target number of faces per chunk ", Default = 250000)]
         public int FacesPerChunk { get; set; }
@@ -42,76 +39,91 @@ namespace OPS.Pipeline
             this.options = options;
         }
 
+
+        class ChunkData
+        {
+            public SceneNode Node;
+            public List<Triangle> Triangles = new List<Triangle>();
+
+            public ChunkData() { }
+            public ChunkData(SceneNode node, List<Triangle> triangles)
+            {
+                this.Node = node;
+                this.Triangles = triangles;
+            }
+
+            public ChunkData(SceneNode node)
+            {
+                this.Node = node;
+            }
+        }
+
         public int Run()
         {
+            var database = PretendTilingServerDatabase.Instance;
+            var input = database.InputTable.Where(r => r.Id == options.InputId).First();
             logger.Info("Load Mesh");
-            Mesh mesh = Mesh.Load(options.MeshFileapth);
+            Mesh mesh = Mesh.Load(input.MeshFilename);
             logger.Info("Load Image");
-            Image image = options.ImageFileapth == null ? null : Image.Load(options.ImageFileapth);
-
-            // TODO: alter chunking algorithm to guarantee that for every leaf tile there is a chunk that completly surrounds it
-            ITileSplitCriteria splitCriteria = new FaceLimitSplitCriteria(options.FacesPerChunk);
-            ITilingScheme tilingScheme = new BinaryTreeTilingScheme();
-
-            // TODO: This could be faster by just creating a triangle list and partitioning later on
-            logger.Info("Build Mesh Operator");
-            MeshOperator op = new MeshOperator(mesh, buildFaceTree: true, buildVertexTree: false, buildUVFaceTree: false);
+            Image image = input.ImageFilename == null ? null : Image.Load(input.ImageFilename);
 
             logger.Info("Determine Chunk Bounds");
-            Queue<BoundingBox> boundsToProcess = new Queue<BoundingBox>();
-            boundsToProcess.Enqueue(op.Bounds);
-            // Subdivide and define bounds of chunks
-            List<TilingChunkRecord> chunkRecords = new List<TilingChunkRecord>();
-            while(boundsToProcess.Count != 0 )
+            // TODO: find a better centralized home for this method
+            SceneNode root = TilingServerWorkflow.BuildTreeFromNodeRecords();
+            Queue<ChunkData> processing = new Queue<ChunkData>();
+            processing.Enqueue(new ChunkData(root, mesh.Triangles()));
+
+            // TODO: would MeshOperator be faster than the iteration we are doing here?
+            // MeshOperator op = new MeshOperator(mesh, buildFaceTree: true, buildVertexTree: false, buildUVFaceTree: false);
+            // Mesh clippedMesh = op.Clip(record.Bounds, true);
+            List<ChunkData> finalChunks = new List<ChunkData>();
+            while(processing.Count != 0)
             {
-                BoundingBox bounds = boundsToProcess.Dequeue();
-                if(op.Empty(bounds))
+                var cur = processing.Dequeue();
+                if(cur.Triangles.Count <= options.FacesPerChunk || cur.Node.IsLeaf)
                 {
+                    finalChunks.Add(cur);
                     continue;
                 }
-                if(splitCriteria.ShouldSplit(op, bounds))
+                // Split
+                foreach (var c in cur.Node.Children)
                 {
-                    foreach(var childBounds in tilingScheme.Split(op, bounds))
+                    var childData = new ChunkData(c);
+                    var bounds = c.GetComponent<NodeBounds>().Bounds;
+                    bounds = BoundingBoxExtensions.Scale(bounds, 1.1f);
+                    foreach (var t in cur.Triangles)
                     {
-                        boundsToProcess.Enqueue(childBounds);
+                        if(t.Intersects(bounds))
+                        {
+                            childData.Triangles.Add(t);
+                        }
                     }
+                    processing.Enqueue(childData);
                 }
-                else
-                {
-                    string guid = Guid.NewGuid().ToString();
-                    string meshChunkFile = Path.Combine(options.OutputDir, guid + ".ply");
-                    string imageChunkFile = null;
-                    if (image != null)
-                    {
-                        imageChunkFile = Path.Combine(options.OutputDir, guid + ".tif");
-                    }
-                    var record = new TilingChunkRecord(meshChunkFile, imageChunkFile, bounds);
-                    chunkRecords.Add(record);
-                }
+                cur.Triangles = null;
             }
-            TexturedMeshClipper texturedClipper = new TexturedMeshClipper();
-
             logger.Info("Create Chunks");
-            // Cut out each chunk and save it
-            Parallel.ForEach(chunkRecords, new ParallelOptions() { MaxDegreeOfParallelism = Environment.ProcessorCount } , (record,pls, i) =>
+            TexturedMeshClipper texturedClipper = new TexturedMeshClipper();
+            Parallel.ForEach(finalChunks, new ParallelOptions() { MaxDegreeOfParallelism = Environment.ProcessorCount }, (chunk, pls, i) =>
             {
-                logger.Info("Creating chunk: " + i + "/" + chunkRecords.Count);
-                Mesh clippedMesh = op.Clip(record.Bounds, true);
-                clippedMesh.Clean();
-                if(image != null)
+                logger.Info("Creating chunk: " + i + "/" + finalChunks.Count);
+                string guid = Guid.NewGuid().ToString();
+                var record = new TilingChunkRecord();
+                record.InputRecordId = options.InputId;
+                record.MeshFilename = Path.Combine(options.OutputDir, guid + ".ply");
+                Mesh m = new Mesh(chunk.Triangles, mesh.HasNormals, mesh.HasUVs, mesh.HasColors);
+                record.Bounds = m.Bounds();
+                if (image != null)
                 {
-                    var tmp = texturedClipper.ClipTexture(clippedMesh, image);
-                    clippedMesh = tmp.Mesh;
+                    var tmp = texturedClipper.ClipTexture(m, image);
+                    m = tmp.Mesh;
+                    record.ImageFilename = Path.Combine(options.OutputDir, guid + ".tif");
                     // TODO: This should match the bit depth of the original input image - or maybe it doesnt matter if final tiles are byte
                     tmp.Image.Save<byte>(record.ImageFilename);
                 }
-                clippedMesh.Save(record.MeshFilename, record.ImageFilename);
-            });
-            // Write chunks to "database"
-            foreach (var r in chunkRecords)
-            {
-                PretendTilingServerDatabase.Instance.ChunkTable.Add(r);
-            }
+                m.Save(record.MeshFilename, record.ImageFilename);
+                PretendTilingServerDatabase.Instance.ChunkTable.Add(record);
+            });        
             return 0;
         }
     }

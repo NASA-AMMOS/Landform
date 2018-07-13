@@ -13,6 +13,10 @@ namespace OPS.Pipeline
 
     public class TilingInputRecord
     {
+
+        static int idCounter;
+
+        public int Id;
         public string MeshFilename;
         public string ImageFilename;
 
@@ -22,6 +26,7 @@ namespace OPS.Pipeline
         {
             this.MeshFilename = mesh;
             this.ImageFilename = image;
+            this.Id = idCounter++;
         }
     }
 
@@ -30,6 +35,7 @@ namespace OPS.Pipeline
         public string MeshFilename;
         public string ImageFilename;
         public BoundingBox Bounds;
+        public int InputRecordId;
 
 
         public TilingChunkRecord() { }
