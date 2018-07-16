@@ -8,8 +8,7 @@ using System.Threading.Tasks;
 
 namespace OPS.Pipeline.TileServer
 {
-
-
+    
     [DynamoDBTable("TilingInput")]
     [DynamoDBReadCapacity(5, 50)]
     [DynamoDBWriteCapacity(5, 50)]
@@ -28,6 +27,10 @@ namespace OPS.Pipeline.TileServer
 
         public string TileId { get; set; }
 
+        public bool Chunked { get; set; }
+
+        public List<string> ChunkIds { get; set; }
+
         public TilingInput()
         {
 
@@ -44,9 +47,9 @@ namespace OPS.Pipeline.TileServer
             MeshUrl = meshUrl;
             ImageUrl = imageUrl;
             TileId = id;
+            Chunked = TileId != null;
             this.IsValid();
         }
-
 
         public static TilingInput Create(DynamoDBContext context, string name, TilingProject project, string meshUrl, string imageUrl, string id)
         {
@@ -55,15 +58,13 @@ namespace OPS.Pipeline.TileServer
             return input;
         }
 
-
-
         public static TilingInput Find(DynamoDBContext context, TilingProject project, string name)
         {
             return context.Load<TilingInput>(name, project.Name);
         }
 
 
-        public static IEnumerable<TilingInput> Find(DynamoDBContext context, Project project)
+        public static IEnumerable<TilingInput> Find(DynamoDBContext context, TilingProject project)
         {
             return context.Scan<TilingInput>(
                 new ScanCondition("ProjectName", Amazon.DynamoDBv2.DocumentModel.ScanOperator.Equal, project.Name)

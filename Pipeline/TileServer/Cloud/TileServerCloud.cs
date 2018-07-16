@@ -15,9 +15,11 @@ namespace OPS.Pipeline.TileServer
 
         public const string DataUrlBase = "s3://landlords-dev/tileserver/data";
         public const string WWWUrlBase = "s3://landlords-dev/tileserver/www";
+        public const string ChunkUrlBase = "s3://landlords-dev/tileserver/chunk";
 
 
-        Type[] tableTypes = new Type[] { typeof(TilingProject), typeof(TilingInput) };
+
+        Type[] tableTypes = new Type[] { typeof(TilingProject), typeof(TilingInput), typeof(TilingNode), typeof(TilingInputChunk) };
 
         string dynamoDBPrefix;
         PipelineCore pipeline;

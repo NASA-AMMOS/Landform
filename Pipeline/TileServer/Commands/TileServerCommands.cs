@@ -19,11 +19,15 @@ namespace OPS.Pipeline.TileServer
             /// Commands are defined by the list of types passed into ParseArguments
             /// Each passed in object must have a [Verb] decorator
             return CommandLine.Parser.Default.ParseArguments<CreateProjectOptions,
-                                                             UploadInputOptions
+                                                             UploadInputOptions,
+                                                             RunProjectOptions,
+                                                             StartWorkerOptions
                                                              >(args)
               .MapResult(
                 (CreateProjectOptions opts) => new CreateProject(opts).Run(),
                 (UploadInputOptions opts) => new UploadInput(opts).Run(),
+                (RunProjectOptions opts) => new RunProject(opts).Run(),
+                (StartWorkerOptions opts) => new StartWorker(opts).Run(),
                 errs => 1);
         }
     }

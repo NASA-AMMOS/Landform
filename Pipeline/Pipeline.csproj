@@ -182,11 +182,18 @@
     <Compile Include="Commands\LegacyToTile3D.cs" />
     <Compile Include="Commands\CreateCloudTemplates.cs" />
     <Compile Include="Commands\TileLocalMesh.cs" />
+    <Compile Include="TileServer\Cloud\TilingNode.cs" />
     <Compile Include="TileServer\Commands\CreateProject.cs" />
+    <Compile Include="TileServer\Commands\RunProject.cs" />
+    <Compile Include="TileServer\Commands\StartWorker.cs" />
     <Compile Include="TileServer\Commands\UploadInput.cs" />
-    <Compile Include="TileServer\Database\TileServeCloud.cs" />
-    <Compile Include="TileServer\Database\TilingInput.cs" />
-    <Compile Include="TileServer\Database\TilingProject.cs" />
+    <Compile Include="TileServer\Cloud\TileServerCloud.cs" />
+    <Compile Include="TileServer\Cloud\TilingInput.cs" />
+    <Compile Include="TileServer\Cloud\TilingProject.cs" />
+    <Compile Include="TileServer\Cloud\TilingQueue.cs" />
+    <Compile Include="TileServer\Operations\ChunkInput.cs" />
+    <Compile Include="TileServer\Operations\DefineTiles.cs" />
+    <Compile Include="TileServer\Cloud\TilingInputChunk.cs" />
     <Compile Include="TileServer\TilingScheme.cs" />
     <Compile Include="TileServer\TilingServerBuildLeafTiles.cs" />
     <Compile Include="TileServer\TilingServerChunkInput.cs" />
@@ -341,6 +348,7 @@
   <ItemGroup>
     <Analyzer Include="..\packages\AWSSDK.EC2.3.3.49\analyzers\dotnet\cs\AWSSDK.EC2.CodeAnalysis.dll" />
   </ItemGroup>
+  <ItemGroup />
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <Target Name="EnsureNuGetPackageBuildImports" BeforeTargets="PrepareForBuild">
     <PropertyGroup>

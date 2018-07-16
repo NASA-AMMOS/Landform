@@ -20,12 +20,18 @@ namespace OPS.Pipeline.TileServer
         [Value(1, Required = true, HelpText = "Project Name")]
         public string ProjectName { get; set; }
         
-        [Option(HelpText = "TilingScheme", Default = TilingScheme.Oct)]
+        [Option(HelpText = "TilingScheme", Default = TilingScheme.Bin)]
         public TilingScheme TilingScheme { get; set; }
 
         [Option(HelpText = "TilingScheme", Default = SkirtMode.None)]
         public SkirtMode SkirtMode { get; set; }
-        
+
+        [Option(Required = false, Default = 2000, HelpText = "Target maximum faces per tile")]
+        public int FacesPerTile { get; set; }
+
+        [Option(Required = false, Default = 256, HelpText = "Maximum image resolution per tile")]
+        public int TileResolution { get; set; }
+
         [Option(HelpText = "AWS profile to use", Default = "default")]
         public string Profile { get; set; }
     }
@@ -51,7 +57,7 @@ namespace OPS.Pipeline.TileServer
             else
             {
                 logger.Info("Creating project: " + options.ProjectName);
-                TilingProject.Create(this.DynamoContext, options.ProjectName, options.TilingScheme, options.SkirtMode);
+                TilingProject.Create(this.DynamoContext, options.ProjectName, options.TilingScheme, options.SkirtMode, options.FacesPerTile, options.TileResolution);
             }
             return 0;
         }

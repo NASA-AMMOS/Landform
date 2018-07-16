@@ -149,16 +149,23 @@ namespace OPS
             {
                 logger.Info(meshFilename);
                 this.Mesh = Mesh.Load(meshFilename);
-                if(!this.Mesh.HasNormals)
-                {
-                    this.Mesh.GenerateVertexNormals();
-                }
-                this.MeshOperator = new MeshOperator(this.Mesh, buildUVFaceTree: false, buildVertexTree: !this.Mesh.HasFaces);
+                
                 logger.Info(imageFilename);
                 if (imageFilename != null)
                 {
                     this.Image = Image.Load(imageFilename);
                 }
+            }
+
+            public TilingInputDataset(Mesh mesh, Image img)
+            {
+                this.Mesh = mesh;
+                if (!this.Mesh.HasNormals)
+                {
+                    this.Mesh.GenerateVertexNormals();
+                }
+                this.MeshOperator = new MeshOperator(this.Mesh, buildUVFaceTree: false, buildVertexTree: !this.Mesh.HasFaces);
+                this.Image = img;
             }
         }
 

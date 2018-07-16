@@ -47,7 +47,6 @@ namespace OPS.Pipeline.TileServer
         public int Run()
         {
             new TileServerCloud(options.DynamoDBPrefix, this).EnsureTablesExist();
-
             var project = TilingProject.Find(this.DynamoContext, options.ProjectName);
             if (project == null)
             {
