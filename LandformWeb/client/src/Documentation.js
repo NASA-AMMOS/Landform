@@ -20,7 +20,7 @@ const Documentation = () => (
     <br />
     <b>Login LDAP</b><br />
     POST /auth/ldap<br />
-    Body {'{"username": "yourUsername", "password": "yourPassword"'}<br />
+    Body {'{"username": "yourUsername", "password": "yourPassword"}'}<br />
     Logs into the interactive console using LDAP credentials if the server
     running inside the firewall. This is especially useful when debugging since
     SSO is difficult to simulate.  Instead, use Postman to post your credentials to your development
@@ -57,7 +57,7 @@ const Documentation = () => (
     <h2>Projects</h2>
     <b>Create a project</b><br />
     POST /api/project<br />
-    Body {'{"name": "projectName"'}<br />
+    Body {'{"name": "projectName"}'}<br />
     Returns project object
     <br />
     <br />
