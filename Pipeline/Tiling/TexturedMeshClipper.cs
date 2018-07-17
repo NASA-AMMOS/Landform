@@ -216,7 +216,7 @@ namespace OPS.Pipeline
                 if (patch.patchImage.Width != cube.Width || patch.patchImage.Height != cube.Height)
                 {
                     rotate = true;
-                    patch.patchImage = patch.patchImage.Rotate90();
+                    patch.patchImage = patch.patchImage.Rotate90Clockwise();
                 }
                 for (int b = 0; b < patch.patchImage.Bands; b++)
                 {

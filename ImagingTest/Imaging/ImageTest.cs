@@ -311,7 +311,7 @@ namespace ImageTest
             img[0, 1, 1] = 3;
             img[0, 2, 0] = 4;
             img[0, 2, 1] = 5;
-            Image rotatedImg = img.Rotate90();
+            Image rotatedImg = img.Rotate90Clockwise();
             Assert.AreEqual(img.Width, rotatedImg.Height);
             Assert.AreEqual(img.Height, rotatedImg.Width);
             Assert.AreEqual(img[0, 0, 0], rotatedImg[0, 0, 2]);
