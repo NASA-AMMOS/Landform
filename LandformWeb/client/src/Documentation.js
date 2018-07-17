@@ -1,4 +1,3 @@
-/* eslint-disable react/jsx-filename-extension */
 import React from 'react';
 
 const Documentation = () => (
@@ -52,9 +51,9 @@ const Documentation = () => (
     <br />
     Example Curl Command Syntax:
     <br />
-    curl -d {'\'{"name": "test-project-name"}\''} -H  "Content-Type: application/json" -H  "x-landform-token: YOUR_API_TOKEN" -X POST http://YOUR_HOSTNAME/api/project
-    
-
+    <pre>
+      {'curl -d \'{"name": "test-project-name"}\' -H "Content-Type: application/json" -H "x-landform-token: YOUR_API_TOKEN" -X POST http://YOUR_HOSTNAME/api/project'}
+    </pre>
     <h2>Projects</h2>
     <b>Create a project</b><br />
     POST /api/project<br />

@@ -1,6 +1,5 @@
-/* eslint-disable react/jsx-filename-extension */
 import React from 'react';
-import { Switch, Route, Link } from 'react-router-dom'
+import { Route, Link } from 'react-router-dom';
 import './App.css';
 import LdapLogin from './LdapLogin';
 import Documentation from './Documentation';
@@ -12,14 +11,14 @@ const App = () => (
     </header>
     <p className="App-intro">
       <a href="/auth/sso">Login (SSO)</a><br />
-      <Link to='/ldapLogin'>Login (LDAP)</Link> <br />
+      <Link to="/ldapLogin">Login (LDAP)</Link> <br />
       <a href="/auth/logout">Logout</a><br />
       <a href="/auth/apiToken">API token</a><br />
-      <Link to='/documentation'>Documentation</Link>     
+      <Link to="/documentation">Documentation</Link>
     </p>
     <div className="App-body">
-      <Route path='/ldapLogin' component={LdapLogin} />
-      <Route path='/documentation' component={Documentation} />
+      <Route path="/ldapLogin" component={LdapLogin} />
+      <Route path="/documentation" component={Documentation} />
     </div>
   </div>
 );
