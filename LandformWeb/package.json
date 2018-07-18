@@ -5,7 +5,7 @@
   "main": "server.js",
   "scripts": {
     "postinstall": "cd client && npm install",
-    "start": "concurrently \"npm run server\" \"npm run client\"",
+    "start": "concurrently --kill-others \"npm run server\" \"npm run client\"",
     "server": "node server.js",
     "client": "node start-client.js",
     "build": "node build-client.js",
