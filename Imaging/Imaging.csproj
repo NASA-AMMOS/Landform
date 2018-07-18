@@ -109,6 +109,7 @@
     <Compile Include="Serializers\ImageSerializationException.cs" />
     <Compile Include="Serializers\ImageSerializers.cs" />
     <Compile Include="Serializers\PDSSeralizer.cs" />
+    <Compile Include="SparseImage.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
