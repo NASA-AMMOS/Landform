@@ -1,0 +1,85 @@
+﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
+using OPS.Imaging;
+using OPS.Test;
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace ImagingTest
+{
+    [TestClass]
+    [DeploymentItem("TestData", "TestData")]
+    [DeploymentItem("gdal", "gdal")]
+    [DeploymentItem("x86", "x86")]
+    [DeploymentItem("x64", "x64")]
+    public class SparseImageTest
+    {
+        [TestMethod]
+        public void TestSparseImageConstructorFromImage()
+        {
+            Image img = new Image(1, 2, 3);
+            img[0, 0, 0] = 43f / 255;
+            SparseImage spImg = new SparseImage(img, 1);
+            Assert.AreEqual(spImg[0, 0, 0], 43f / 255);
+            Assert.AreEqual(spImg.Bands, 1);
+            Assert.AreEqual(spImg.Width, 2);
+            Assert.AreEqual(spImg.Height, 3);
+            Assert.AreEqual(spImg.Metadata.Bands, 1);
+            Assert.AreEqual(spImg.Metadata.Width, 2);
+            Assert.AreEqual(spImg.Metadata.Height, 3);
+        }
+
+        [TestMethod]
+        public void TestSparseImageConstructorFromUrl()
+        {
+            Image img = new Image(1, 2, 3);
+            img[0, 0, 0] = 43f / 255;
+            SparseImage spImg = new SparseImage(img, 1);
+            spImg.Save<byte>("sparseImage", ".png");
+            SparseImage spImg2 = new SparseImage(spImg.Bands, spImg.Width, spImg.Height, "sparseImage", ".png", 1);
+            Assert.AreEqual(spImg2.Bands, 1);
+            Assert.AreEqual(spImg2.Width, 2);
+            Assert.AreEqual(spImg2.Height, 3);
+            Assert.AreEqual(spImg2.Metadata.Bands, 1);
+            Assert.AreEqual(spImg2.Metadata.Width, 2);
+            Assert.AreEqual(spImg2.Metadata.Height, 3);
+        }
+
+        [TestMethod]
+        public void TestSave()
+        {
+            Image img = new Image(1, 2, 3);
+            img[0, 0, 0] = 43f / 255;
+            img[0, 0, 1] = 241f / 255;
+            img[0, 1, 0] = 7f / 255;
+            img[0, 1, 1] = 123f / 255;
+            SparseImage spImg = new SparseImage(img, 1);
+            spImg.Save<byte>("sparseImage", ".png");
+            Image img2 = Image.Load("sparseImage_0_0_.png");
+            Assert.AreEqual(img2[0, 0, 0], 43f / 255);
+            Assert.AreEqual(img2[0, 0, 1], 241f / 255);
+            Assert.AreEqual(img2[0, 1, 0], 7f / 255);
+            Assert.AreEqual(img2[0, 1, 1], 123f / 255);
+        }
+
+        [TestMethod]
+        public void TestDataAccess()
+        {
+            Image img = new Image(1, 2, 3);
+            img[0, 0, 0] = 43f / 255;
+            img[0, 0, 1] = 241f / 255;
+            img[0, 1, 0] = 7f / 255;
+            img[0, 1, 1] = 123f / 255;
+            SparseImage spImg = new SparseImage(img, 1);
+            spImg.Save<byte>("sparseImage", ".png");
+            SparseImage spImg2 = new SparseImage(spImg.Bands, spImg.Width, spImg.Height, "sparseImage", ".png", 1);
+            Assert.AreEqual(spImg2[0, 0, 0], 43f / 255);
+            Assert.AreEqual(spImg2[0, 0, 1], 241f / 255);
+            Assert.AreEqual(spImg2[0, 1, 0], 7f / 255);
+            Assert.AreEqual(spImg2[0, 1, 1], 123f / 255);
+        }
+    }
+}
