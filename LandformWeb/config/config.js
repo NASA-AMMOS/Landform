@@ -12,7 +12,7 @@ const development = {
     tokenSecret: process.env.TOKEN_SECRET || 'dogfishwaffelsandwitchwithbutter-43t-kdfvk',
     sessionCookieSecret: process.env.SESSION_SECRET || 'iancnewowahasliuyfhenwlvncxhzuwyeoifjs',
     sessionCookieSecure: false,
-    sessionTimeout: 86400, // in seconds,
+    sessionTimeout: 1000 * 60 * 60 * 24, //24h
   },
   ldap: {
     url: 'ldaps://ldap.jpl.nasa.gov',
