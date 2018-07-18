@@ -1,5 +1,6 @@
 const express = require('express');
 const session = require('express-session');
+const MemoryStore = require('memorystore')(session);
 const bodyParser = require('body-parser');
 const cookieParser = require('cookie-parser');
 const cors = require('cors');
@@ -21,6 +22,7 @@ app.use(bodyParser.urlencoded({
 // and https://docs.aws.amazon.com/elasticbeanstalk/latest/dg/nodejs-platform-proxy.html
 app.set('trust proxy', 1); // trust first proxy
 app.use(session({
+  store: new MemoryStore({ checkPeriod: config.app.sessionTimeout }), //override default store to avoid memory leaks
   resave: false,
   saveUninitialized: true,
   secret: config.app.sessionCookieSecret,
