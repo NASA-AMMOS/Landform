@@ -60,7 +60,7 @@
 
     "no-inner-declarations": ["off"],
     "space-before-function-paren": ["error", "never"],
-    "max-len": ["error", 200],
+    "max-len": ["off"],
     "linebreak-style": ["off"],
     "func-names": ["off"],
     "no-console": ["off"],
