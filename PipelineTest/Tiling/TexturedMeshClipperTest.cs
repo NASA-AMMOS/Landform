@@ -38,7 +38,8 @@ namespace PipelineTest.Tiling
             MeshImagePair pair = new MeshImagePair(mesh, img);
             BoundingBox box = new BoundingBox(new Vector3(0), new Vector3(70));
             TexturedMeshClipper clipper = new TexturedMeshClipper();
-            MeshImagePair clippedPair = clipper.ClipMesh(pair, box);
+            clipper.AddMeshImagePair(pair);
+            MeshImagePair clippedPair = clipper.Clip(box);
             Assert.IsTrue(clippedPair.Mesh.HasFaces);
             Assert.IsTrue(clippedPair.Image.Width > 0 && clippedPair.Image.Height > 0);
             Assert.IsTrue(clippedPair.Image.Width <= pair.Image.Width && clippedPair.Image.Height <= pair.Image.Height);
