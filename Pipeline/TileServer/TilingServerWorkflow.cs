@@ -72,31 +72,7 @@ namespace OPS.Pipeline.TileServer
                 database.Save();
             }
 
-            if (database.ChunkTable.Count == 0)
-            {
-                logger.Info("Creating input chunks");
-                // Create a ChunkInput job for each input
-                Queue<TilingServerChunkInputOptions> chunkJobs = new Queue<TilingServerChunkInputOptions>();
-                foreach (var input in database.InputTable)
-                {
-                    var job = new TilingServerChunkInputOptions()
-                    {
-                        OutputDir = options.OutputDirectory,
-                        InputId = input.Id,
-                        FacesPerChunk = 250000
-                    };
-                    chunkJobs.Enqueue(job);
-                }
-                // Simulate cloud workers running chunk jobs
-                foreach (var job in chunkJobs)
-                {
-                    var chunker = new TilingServerChunkInput(job);
-                    chunker.Run();
-                }
-                database.Save();
-            }
-
-
+            
 
             // Create leaf jobs
             string tileOutputDir = Path.Combine(options.OutputDirectory, "tiles");

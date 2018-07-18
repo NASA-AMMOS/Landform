@@ -10,6 +10,7 @@ using System.Threading.Tasks;
 using OPS.Imaging;
 using OPS.Util;
 using Microsoft.Xna.Framework;
+using System.Collections.Concurrent; 
 
 namespace OPS.Pipeline.TileServer
 {
@@ -29,7 +30,7 @@ namespace OPS.Pipeline.TileServer
     public class ChunkInput
     {
 
-        static ILog logger = LogManager.GetLogger(typeof(DefineTiles));
+        static ILog logger = LogManager.GetLogger(typeof(ChunkInput));
 
         const int FacesPerChunk = 250000;
         PipelineCore pipeline;
@@ -83,29 +84,62 @@ namespace OPS.Pipeline.TileServer
             }
             logger.Info("Building acceleration structures");
             MeshOperator op = new MeshOperator(mesh, buildFaceTree: true, buildVertexTree: false, buildUVFaceTree: false);
+            // TODO: migrate toward using sparse image so we don't need to know tile definitions
+            logger.Info("Reading tile definitions");
             SceneNode root = TilingNode.BuildTreeFromDatabase(pipeline.DynamoContext, project);
 
             List<ChunkData> chunks = new List<ChunkData>();
             DefineChunks(root, op, new FaceLimitSplitCriteria(FacesPerChunk), chunks);
 
+            TexturedMeshClipper clipper = new TexturedMeshClipper();
+            clipper.AddMeshImagePair(op, image);
 
-            Serial.ForEach(chunks, chunkData =>
+            ConcurrentBag<string> chunkIds = new ConcurrentBag<string>();
+            Parallel.ForEach(chunks, (chunkData, pls, i) =>
             {
+                Mesh m = null;
+                string meshExt = ".ply";
+                string imageExt = ".png";
+                string id = Guid.NewGuid().ToString();
+                string filenameBase = Path.Combine(TemporaryFile.TemporaryDirectory, id);
+                string meshFilename = filenameBase + meshExt;
+                string imageFilename = null;
+
+                string meshUrl = new Uri(Path.Combine(TileServerCloud.ChunkUrlBase, id + meshExt)).ToString();
+                string imageUrl = null;
                 if(image == null)
                 {
-                    Mesh m = op.Clip(chunkData.Bounds);
-
-                } else
-                {
-                    var clipper = new TexturedMeshClipper();
-
+                    m = op.Clip(chunkData.Bounds);
+                    m.Clean();
                 }
+                else
+                {
+                    var pair = clipper.Clip(chunkData.Bounds);
+                    m = pair.Mesh;
+                    imageFilename = filenameBase + imageExt;
+                    // TODO: retain originial detail here
+                    pair.Image.Save<byte>(imageFilename);
+                    imageUrl = new Uri(Path.Combine(TileServerCloud.ChunkUrlBase, id + imageExt)).ToString();
+                    pipeline.Storage.UploadFile(imageFilename, imageUrl);
+                }
+                m.Save(meshFilename, Path.GetFileName(imageFilename));
+                pipeline.Storage.UploadFile(meshFilename, meshUrl);
+                TilingInputChunk record = TilingInputChunk.Create(pipeline.DynamoContext, id, project, meshUrl, imageUrl, m.Bounds());
+                chunkIds.Add(id);
+                if (File.Exists(meshFilename))
+                {
+                    File.Delete(meshFilename);
+                }
+                if (File.Exists(imageFilename))
+                {
+                    File.Delete(imageFilename);
+                }
+                logger.Info(string.Format("Chunk: {0}/{1}", chunkIds.Count(), chunks.Count));
             });
-            //Mesh clippedMesh = op.Clip(record.Bounds, true);
-
-
+            input.ChunkIds = chunkIds.ToList();
             input.Chunked = true;
             input.Save(pipeline.DynamoContext);
+            logger.Info("Done");
         }
 
         void DefineChunks(SceneNode node, MeshOperator op, ITileSplitCriteria splitCrieria, List<ChunkData> chunks)

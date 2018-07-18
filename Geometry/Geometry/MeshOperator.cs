@@ -30,10 +30,10 @@ namespace OPS.Geometry
         public List<Triangle> Triangles { get; private set; }
 
 
-        bool hasUVs;
-        bool hasNormals;
-        bool hasColors;
-        bool hasFaces;
+        public bool HasUVs { get; private set; }
+        public bool HasNormals { get; private set; }
+        public bool HasColors { get; private set; }
+        public bool HasFaces { get; private set; }
 
         /// <summary>
         /// Return the bounds of the mesh.  Bounds are cached so this method is fast.
@@ -49,9 +49,9 @@ namespace OPS.Geometry
         /// <param name="mesh"></param>
         public MeshOperator(Mesh mesh, bool buildFaceTree = true, bool buildVertexTree = true, bool buildUVFaceTree = true, int maxEntries = 10, int minEntries = 5)
         {
-            hasUVs = mesh.HasUVs;
-            hasNormals = mesh.HasNormals;
-            hasColors = mesh.HasColors;
+            HasUVs = mesh.HasUVs;
+            HasNormals = mesh.HasNormals;
+            HasColors = mesh.HasColors;
             this.Triangles = mesh.Triangles();
             if (buildFaceTree)
             {
@@ -69,7 +69,7 @@ namespace OPS.Geometry
                     vertexTree.Add(v.Bounds().ToRectangle(), v);
                 }
             }
-            if(hasUVs && buildUVFaceTree)
+            if(HasUVs && buildUVFaceTree)
             {
                 uvFaceTree = new RTree<Triangle>(maxEntries, minEntries);
                 foreach (var t in Triangles)
@@ -77,7 +77,7 @@ namespace OPS.Geometry
                     uvFaceTree.Add(t.UVBounds().ToRectangle(), t);
                 }
             }
-            this.hasFaces = mesh.Faces.Count > 0;
+            this.HasFaces = mesh.Faces.Count > 0;
             this.Bounds = mesh.Bounds();
         }
 
@@ -89,7 +89,7 @@ namespace OPS.Geometry
         public Mesh Clip(BoundingBox box, bool ragged = false)
         {
             Mesh result = null;
-            if (this.hasFaces)
+            if (this.HasFaces)
             {
                 if (faceTree == null)
                 {
@@ -108,7 +108,7 @@ namespace OPS.Geometry
                         resTriangles.AddRange(t.Clip(box));
                     }
                 }
-                result = new Mesh(resTriangles, hasNormals, hasUVs, hasColors);
+                result = new Mesh(resTriangles, HasNormals, HasUVs, HasColors);
             }
             else
             {
@@ -116,7 +116,7 @@ namespace OPS.Geometry
                 {
                     throw new Exception("MeshOperator must have a vertex tree in order to clip meshes");
                 }
-                result = new Mesh(hasNormals, hasUVs, hasColors);
+                result = new Mesh(HasNormals, HasUVs, HasColors);
                 result.Vertices.AddRange(vertexTree.Intersects(box.ToRectangle()));                
             }
             if (!box.FuzzyContains(result.Bounds(), 1E-5))
@@ -163,7 +163,7 @@ namespace OPS.Geometry
         /// <returns></returns>
         public bool Empty(BoundingBox box)
         {
-            if (!hasFaces || vertexTree != null)
+            if (!HasFaces || vertexTree != null)
             {
                 if(vertexTree == null )
                 {
@@ -174,7 +174,7 @@ namespace OPS.Geometry
                     return false;
                 }
             }
-            if (hasFaces)
+            if (HasFaces)
             {
                 if (faceTree == null)
                 {

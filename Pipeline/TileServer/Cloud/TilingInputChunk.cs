@@ -25,6 +25,11 @@ namespace OPS.Pipeline.TileServer
 
         public string Bounds { get; set; }
 
+        public TilingInputChunk()
+        {
+
+        }
+
         /// <summary>
         /// Creates Project object locally.  
         /// </summary>
@@ -34,12 +39,11 @@ namespace OPS.Pipeline.TileServer
             Id = id;
             MeshUrl = meshUrl;
             ImageUrl = imageUrl;
-
             Bounds = JsonHelper.ToJson(bounds);
         }
 
 
-        public static TilingInputChunk Create(DynamoDBContext context, string id, TilingProject project, string meshUrl, string imageUrl, string parentId, List<string> childIds, BoundingBox bounds)
+        public static TilingInputChunk Create(DynamoDBContext context, string id, TilingProject project, string meshUrl, string imageUrl, BoundingBox bounds)
         {
             TilingInputChunk chunk = new TilingInputChunk(id, meshUrl, imageUrl, bounds);
             context.Save(chunk, new DynamoDBOperationConfig() { IgnoreNullValues = true });

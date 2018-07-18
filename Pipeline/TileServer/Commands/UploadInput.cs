@@ -70,14 +70,14 @@ namespace OPS.Pipeline.TileServer
                 logger.Error("An input with that name already exists");
                 return 0;
             }
-            string projectFolder = Path.Combine(TileServerCloud.DataUrlBase, options.ProjectName);
-            string meshUrl = new Uri(Path.Combine(projectFolder, Path.GetFileName(options.MeshFilepath))).ToString(); // Use a guid instead?
+            string inputFolder = Path.Combine(TileServerCloud.InputUrlBase, options.ProjectName);
+            string meshUrl = new Uri(Path.Combine(inputFolder, Path.GetFileName(options.MeshFilepath))).ToString(); // Use a guid instead?
             logger.Info("Uploading: " + options.MeshFilepath);
             Storage.UploadFile(options.MeshFilepath, meshUrl);
             string imageUrl = null;
             if (options.ImageFilepath != null)
             {
-                imageUrl = new Uri(Path.Combine(projectFolder, Path.GetFileName(options.ImageFilepath))).ToString();
+                imageUrl = new Uri(Path.Combine(inputFolder, Path.GetFileName(options.ImageFilepath))).ToString();
                 logger.Info("Uploading: " + options.ImageFilepath);
                 Storage.UploadFile(options.ImageFilepath, imageUrl);
             }

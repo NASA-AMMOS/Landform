@@ -13,7 +13,7 @@ namespace OPS.Pipeline.TileServer
     class TileServerCloud
     {
 
-        public const string DataUrlBase = "s3://landlords-dev/tileserver/data";
+        public const string InputUrlBase = "s3://landlords-dev/tileserver/data";
         public const string WWWUrlBase = "s3://landlords-dev/tileserver/www";
         public const string ChunkUrlBase = "s3://landlords-dev/tileserver/chunk";
 
