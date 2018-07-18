@@ -374,6 +374,23 @@ namespace OPS.Imaging
         }
 
         /// <summary>
+        /// Rotate an image 90 degrees clockwise
+        /// </summary>
+        /// <returns></returns>
+        public Image Rotate90Clockwise()
+        {
+            Image result = new Image(this.Bands, this.Height, this.Width);
+            for(int r = 0; r < this.Height; r++)
+            {
+                for(int c = 0; c < this.Width; c++)
+                {
+                    result.SetBandValues(c, this.Height - 1 - r, this.GetBandValues(r, c));
+                }
+            }
+            return result;
+        }
+
+        /// <summary>
         /// Helper class containing data for each mapping between input and output pixels
         /// </summary>
         private class Weight

@@ -27,6 +27,8 @@ namespace OPS.Geometry
         RTree<Triangle> faceTree;
         RTree<Vertex> vertexTree;
         RTree<Triangle> uvFaceTree;
+        public List<Triangle> Triangles { get; private set; }
+
 
         bool hasUVs;
         bool hasNormals;
@@ -45,24 +47,24 @@ namespace OPS.Geometry
         /// Create a mesh operator and compute accelerated structures
         /// </summary>
         /// <param name="mesh"></param>
-        public MeshOperator(Mesh mesh, bool buildFaceTree = true, bool buildVertexTree = true, bool buildUVFaceTree = true)
+        public MeshOperator(Mesh mesh, bool buildFaceTree = true, bool buildVertexTree = true, bool buildUVFaceTree = true, int maxEntries = 10, int minEntries = 5)
         {
             hasUVs = mesh.HasUVs;
             hasNormals = mesh.HasNormals;
             hasColors = mesh.HasColors;
-            List<Triangle> triangles = mesh.Triangles();
+            this.Triangles = mesh.Triangles();
 
             if (buildFaceTree)
             {
-                faceTree = new RTree<Triangle>(10, 5);               
-                foreach (var t in triangles)
+                faceTree = new RTree<Triangle>(maxEntries, minEntries);               
+            	foreach(var t in Triangles)
                 {
                     faceTree.Add(t.Bounds().ToRectangle(), t);
                 }
             }
             if (buildVertexTree)
             {
-                vertexTree = new RTree<Vertex>(10, 5);
+                vertexTree = new RTree<Vertex>(maxEntries, minEntries);
                 foreach (var v in mesh.Vertices)
                 {
                     vertexTree.Add(v.Bounds().ToRectangle(), v);
@@ -70,9 +72,8 @@ namespace OPS.Geometry
             }
             if(hasUVs && buildUVFaceTree)
             {
-                uvFaceTree = new RTree<Triangle>(10, 5);
-
-                foreach (var t in triangles)
+                uvFaceTree = new RTree<Triangle>(maxEntries, minEntries);
+                foreach (var t in Triangles)
                 {
                     uvFaceTree.Add(t.UVBounds().ToRectangle(), t);
                 }
@@ -217,6 +218,11 @@ namespace OPS.Geometry
                     return b;
             }
             return null;
+        }
+
+        public List<Triangle> UVIntersects(BoundingBox box)
+        {
+            return uvFaceTree.Intersects(box.ToRectangle());
         }
     }
 

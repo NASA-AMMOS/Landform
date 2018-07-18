@@ -123,6 +123,9 @@
     <Reference Include="RTree, Version=1.1.0.0, Culture=neutral, processorArchitecture=MSIL">
       <HintPath>..\packages\RTree.1.1.0\lib\netstandard2.0\RTree.dll</HintPath>
     </Reference>
+    <Reference Include="Sharp3DBinPacking, Version=1.0.0.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\Sharp3DBinPacking.1.2.0\lib\net45\Sharp3DBinPacking.dll</HintPath>
+    </Reference>
     <Reference Include="System" />
     <Reference Include="System.ComponentModel.Composition" />
     <Reference Include="System.ComponentModel.DataAnnotations" />
@@ -222,6 +225,7 @@
     <Compile Include="Tiling\PrecomputedLODParentTileContentProducer.cs" />
     <Compile Include="Tiling\QuadTreeTilingScheme.cs" />
     <Compile Include="Tiling\ITilingScheme.cs" />
+    <Compile Include="Tiling\TexturedMeshClipper.cs" />
     <Compile Include="Tiling\SceneNodeTilingExtensions.cs" />
     <Compile Include="Tiling\Tile3DBuilder.cs" />
     <Compile Include="Tiling\TilesetSchema.cs" />
