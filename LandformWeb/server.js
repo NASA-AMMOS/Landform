@@ -45,6 +45,4 @@ require('./config/routes')(app, config, passport);
 require('./config/api')(app);
 
 
-app.listen(config.app.port, () => {
-  console.log(`Express server listening on port ${config.app.port}`);
-});
+app.listen(config.app.port, () => { console.log(`${config.app.name} server listening on port ${config.app.port}`); });

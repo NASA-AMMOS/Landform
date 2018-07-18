@@ -7,7 +7,7 @@ const guid = require('guid');
 
 const development = {
   app: {
-    name: 'Landform Console',
+    name: 'Landform',
     port: process.env.PORT || 8081,
     tokenSecret: process.env.TOKEN_SECRET || 'dogfishwaffelsandwitchwithbutter-43t-kdfvk',
     sessionCookieSecret: process.env.SESSION_SECRET || 'iancnewowahasliuyfhenwlvncxhzuwyeoifjs',
