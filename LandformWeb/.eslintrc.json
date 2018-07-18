@@ -16,6 +16,10 @@
 
     "react/jsx-tag-spacing": ["error", {"beforeSelfClosing": "allow"}],
 
+    "react/prop-types": ["off"],
+    "react/jsx-first-prop-new-line": ["off"],
+    "react/jsx-max-props-per-line": ["off"],
+
     "jsx-a11y/anchor-is-valid": [
       "error",
       {
@@ -35,7 +39,8 @@
         //"MemberExpression": "first",
         "FunctionDeclaration": { "parameters": "off" },
         "FunctionExpression": { "parameters": "off" },
-        "CallExpression": { "arguments": "off" }
+        "CallExpression": { "arguments": "off" },
+        "ignoredNodes": [ "JSXElement", "JSXElement *" ]
       }
     ],
 
