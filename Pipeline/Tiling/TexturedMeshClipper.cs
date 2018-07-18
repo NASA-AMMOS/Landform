@@ -1,26 +1,41 @@
 ﻿using Microsoft.Xna.Framework;
+using OPS.Geometry;
+using OPS.Imaging;
+using Sharp3DBinPacking;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using Sharp3DBinPacking;
-using OPS.Geometry;
-using OPS.Imaging;
 using log4net;
-using System.Windows;
+
 
 namespace OPS.Pipeline
 {
     public class TexturedMeshClipper
     {
-
         static ILog logger = LogManager.GetLogger(typeof(TexturedMeshClipper));
 
+        List<MeshImagePair> pairs;
+        
+        public TexturedMeshClipper()
+        {
+            pairs = new List<MeshImagePair>();
+        }
+
+        /// <summary>
+        /// Adds MeshImagePair pair to list of MeshImagePairs to be clipped
+        /// </summary>
+        /// <param name="pair"></param>
+        public void AddMeshImagePair(MeshImagePair pair)
+        {
+            pairs.Add(pair);
+        }
 
         private class TexturePatch
         {
             public HashSet<Triangle> triangles;
+            public Image originalImage;
             public Image patchImage;
             BoundingBox uvBounds;
 
@@ -29,31 +44,15 @@ namespace OPS.Pipeline
                 this.triangles = new HashSet<Triangle>();
             }
 
-            public void Add(Triangle t, Image img, int borderSize)
+            public void Add(Triangle t, int borderSize)
             {
                 var uvBounds = t.UVBounds();
-                uvBounds = img.UVToPixel(uvBounds);
-                uvBounds.Min.X -= borderSize;
-                if(uvBounds.Min.X < 0)
-                {
-                    uvBounds.Min.X = 0;
-                }
-                uvBounds.Min.Y -= borderSize;
-                if (uvBounds.Min.Y < 0)
-                {
-                    uvBounds.Min.Y = 0;
-                }
-                uvBounds.Max.X += borderSize;
-                if (uvBounds.Max.X >= img.Width)
-                {
-                    uvBounds.Max.X = img.Width - 1;
-                }
-                uvBounds.Max.Y += borderSize;
-                if (uvBounds.Max.Y >= img.Height)
-                {
-                    uvBounds.Max.Y = img.Height - 1;
-                }
-                uvBounds = img.PixelToUv(uvBounds);
+                uvBounds = originalImage.UVToPixel(uvBounds);
+                uvBounds.Min.X = Math.Max(uvBounds.Min.X - borderSize, 0);
+                uvBounds.Min.Y = Math.Max(uvBounds.Min.Y - borderSize, 0);
+                uvBounds.Max.X = Math.Min(uvBounds.Max.X + borderSize, originalImage.Width - 1);
+                uvBounds.Max.Y = Math.Min(uvBounds.Max.Y + borderSize, originalImage.Height - 1);
+                uvBounds = originalImage.PixelToUv(uvBounds);
                 if (this.triangles.Count == 0)
                 {
                     this.uvBounds = uvBounds;
@@ -67,30 +66,30 @@ namespace OPS.Pipeline
                 return triangles.Contains(t);
             }
 
-            public Vector2 MinPixel(Image img)
+            public Vector2 MinPixel()
             {
-                var b = img.UVToPixel(uvBounds);
+                var b = originalImage.UVToPixel(uvBounds);
                 return new Vector2((int)b.Min.X, (int)b.Min.Y);
             }
 
-            public Vector2 MaxPixel(Image img)
+            public Vector2 MaxPixel()
             {
-                var b = img.UVToPixel(uvBounds);
+                var b = originalImage.UVToPixel(uvBounds);
                 return new Vector2((int)b.Max.X, (int)b.Max.Y);
             }
 
-            public void ClipImage(Image img)
+            public void ClipImage()
             {
-                var min = MinPixel(img);
-                var max = MaxPixel(img);
-                this.patchImage = new Image(img.Bands, (int)max.X - (int)min.X, (int)max.Y - (int)min.Y);
+                var min = MinPixel();
+                var max = MaxPixel();
+                this.patchImage = new Image(originalImage.Bands, (int)max.X - (int)min.X, (int)max.Y - (int)min.Y);
                 for (int b = 0; b < patchImage.Bands; b++)
                 {
                     for (int r = 0; r < patchImage.Height; r++)
                     {
                         for (int c = 0; c < patchImage.Width; c++)
                         {
-                            patchImage[b, r, c] = img[b, r + (int)min.Y, c + (int)min.X];
+                            patchImage[b, r, c] = originalImage[b, r + (int)min.Y, c + (int)min.X];
                         }
                     }
                 }
@@ -117,6 +116,7 @@ namespace OPS.Pipeline
                 if (!skip)
                 {
                     TexturePatch patch = new TexturePatch();
+                    patch.originalImage = img;
                     Queue<Triangle> trianglesToProcess = new Queue<Triangle>();
                     trianglesToProcess.Enqueue(triangles[i]);
                     while (trianglesToProcess.Count > 0)
@@ -126,11 +126,10 @@ namespace OPS.Pipeline
                         {
                             continue;
                         }
-                        patch.Add(t, img, borderSize);
+                        patch.Add(t, borderSize);
                         var intersects = op.UVIntersects(t.UVBounds());
                         foreach (var inter in intersects)
                         {
-
                             trianglesToProcess.Enqueue(inter);
                         }
                     }
@@ -141,38 +140,35 @@ namespace OPS.Pipeline
             return patches;
         }
 
-
-        public MeshImagePair ClipMesh(MeshImagePair inputPair, BoundingBox clipBounds, int borderSize = 5, bool allowRotation = false)
-        {
-            MeshOperator meshOperator = new MeshOperator(inputPair.Mesh);
-            Image img = inputPair.Image;
-            var clippedMesh = meshOperator.Clip(clipBounds);
-            clippedMesh.Clean();
-            return ClipTexture(clippedMesh, img, borderSize, allowRotation);
-        }
-
         /// <summary>
-        /// Given a mesh and image, returns a mesh clipped to the clipping bounds and an image containing texture data for that portion of the mesh
-        /// The returned image may be repacked to fit in a smaller texture
-        /// If rotation is allowed in packing, small pixel texture offsets may be introduced 
+        /// Clips every mesh in the list of MeshImagePairs to specified bounding box. Creates new texture of patches from original images for each portion of clipped mesh packed into single image.
+        /// Each patch has border of borderSize pixels. Returns new single MeshImagePair with clipped mesh and packed image.
+        /// If rotation is allowed in packing, small pixel texture may be introduced.
         /// </summary>
-        /// <param name="inputPair"></param>
-        /// <param name="clipBounds"></param>
+        /// <param name="box"></param>
+        /// <param name="borderSize"></param>
+        /// <param name="allowRotation"></param>
         /// <returns></returns>
-        public MeshImagePair ClipTexture(Mesh clippedMesh, Image img, int borderSize = 5, bool allowRotation = false)
+        public MeshImagePair Clip(BoundingBox box, int borderSize = 5, bool allowRotation = false)
         {
-            if (allowRotation == true)
+            if (allowRotation)
             {
                 logger.Warn("Clip Mesh rotation is potentially unstable and may result in half pixel texture offsets");
             }
-            List<TexturePatch> patches = ComputePatches(clippedMesh, img, borderSize);
+            List<TexturePatch> patches = new List<TexturePatch>();
+            
+            foreach (MeshImagePair pair in pairs)
+            {
+                MeshOperator op = new MeshOperator(pair.Mesh);
+                Mesh clippedMesh = op.Clip(box);
+                clippedMesh.Clean();
+                patches.AddRange(ComputePatches(clippedMesh, pair.Image, borderSize));
+            }
 
-            int clippedArea = 0;
             int maxWidth = 0, maxHeight = 0;
             for (int b = 0; b < patches.Count; b++)
             {
-                patches[b].ClipImage(img);
-                clippedArea += patches[b].patchImage.Width * patches[b].patchImage.Height;
+                patches[b].ClipImage();
                 maxWidth = Math.Max(maxWidth, patches[b].patchImage.Width);
                 maxHeight = Math.Max(maxHeight, patches[b].patchImage.Height);
             }
@@ -207,7 +203,7 @@ namespace OPS.Pipeline
                 }
             }
 
-            Image packedImg = new Image(img.Bands, binWidth, binHeight);
+            Image packedImg = new Image(pairs[0].Image.Bands, binWidth, binHeight);
             var cubes = packed.BestResult.First();
             foreach (var cube in cubes)
             {
@@ -232,8 +228,8 @@ namespace OPS.Pipeline
                 {
                     foreach (var v in t.Vertices())
                     {
-                        Vector2 orignPixel = img.UVToPixel(v.UV);
-                        Vector2 patchPixel = orignPixel - patch.MinPixel(img);
+                        Vector2 orignPixel = patch.originalImage.UVToPixel(v.UV);
+                        Vector2 patchPixel = orignPixel - patch.MinPixel();
                         Vector2 destPixel = patchPixel;
                         if (rotate)
                         {
@@ -251,12 +247,10 @@ namespace OPS.Pipeline
             {
                 resultTriangles.AddRange(p.triangles);
             }
-
-            var result = new MeshImagePair();
+            MeshImagePair result = new MeshImagePair();
             result.Image = packedImg;
-            result.Mesh = new Mesh(resultTriangles, hasNormals: clippedMesh.HasNormals, hasUVs: clippedMesh.HasUVs, hasColors: clippedMesh.HasColors);
+            result.Mesh = new Mesh(resultTriangles, hasNormals: pairs[0].Mesh.HasNormals, hasUVs: pairs[0].Mesh.HasUVs, hasColors: pairs[0].Mesh.HasColors);
             return result;
         }
-
     }
 }
