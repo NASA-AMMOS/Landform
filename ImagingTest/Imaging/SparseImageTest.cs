@@ -60,9 +60,12 @@ namespace ImagingTest
             spImg.Save<byte>("sparseImage", ".png");
             Image img2 = Image.Load("sparseImage_0_0_.png");
             Assert.AreEqual(img2[0, 0, 0], 43f / 255);
-            Assert.AreEqual(img2[0, 0, 1], 241f / 255);
-            Assert.AreEqual(img2[0, 1, 0], 7f / 255);
-            Assert.AreEqual(img2[0, 1, 1], 123f / 255);
+            img2 = Image.Load("sparseImage_0_1_.png");
+            Assert.AreEqual(img2[0, 0, 0], 241f / 255);
+            img2 = Image.Load("sparseImage_1_0_.png");
+            Assert.AreEqual(img2[0, 0, 0], 7f / 255);
+            img2 = Image.Load("sparseImage_1_1_.png");
+            Assert.AreEqual(img2[0, 0, 0], 123f / 255);
         }
 
         [TestMethod]
