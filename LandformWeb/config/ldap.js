@@ -41,7 +41,7 @@ module.exports = (config, passport) => {
 
   function setupLDAPAuth() {
     // TODO: Check an LDAP group to determine access to the current project being viewed.
-    passport.use(new LdapStrategy({ server: config.ldap }, async (user, done) => {
+    passport.use(new LdapStrategy({ server: config.ldap }, async(user, done) => {
       const results = await readFromLDAP();
       if (results.indexOf(user.uid) >= 0) {
         done(null, user);

@@ -1,4 +1,3 @@
-/* eslint-disable react/jsx-filename-extension */
 import React from 'react';
 
 const Documentation = () => (
@@ -21,7 +20,7 @@ const Documentation = () => (
     <br />
     <b>Login LDAP</b><br />
     POST /auth/ldap<br />
-    Body {'{"username": "yourUsername", "password": "yourPassword"'}<br />
+    Body {'{"username": "yourUsername", "password": "yourPassword"}'}<br />
     Logs into the interactive console using LDAP credentials if the server
     running inside the firewall. This is especially useful when debugging since
     SSO is difficult to simulate.  Instead, use Postman to post your credentials to your development
@@ -52,13 +51,13 @@ const Documentation = () => (
     <br />
     Example Curl Command Syntax:
     <br />
-    curl -d {'\'{"name": "test-project-name"}\''} -H  "Content-Type: application/json" -H  "x-landform-token: YOUR_API_TOKEN" -X POST http://YOUR_HOSTNAME/api/project
-    
-
+    <pre>
+      {'curl -d \'{"name": "test-project-name"}\' -H "Content-Type: application/json" -H "x-landform-token: YOUR_API_TOKEN" -X POST http://YOUR_HOSTNAME/api/project'}
+    </pre>
     <h2>Projects</h2>
     <b>Create a project</b><br />
     POST /api/project<br />
-    Body {'{"name": "projectName"'}<br />
+    Body {'{"name": "projectName"}'}<br />
     Returns project object
     <br />
     <br />
