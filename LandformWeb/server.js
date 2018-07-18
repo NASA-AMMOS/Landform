@@ -16,11 +16,10 @@ app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({
   extended: true,
 }));
-// Since we run this server on elastic beanstalk we need
-// to trust the first proxy in order to use cookie.secure
+// Since we run this server on elastic beanstalk we need to trust the first proxy in order to use cookie.secure
 // See https://github.com/expressjs/session#cookie-options
 // and https://docs.aws.amazon.com/elasticbeanstalk/latest/dg/nodejs-platform-proxy.html
-app.set('trust proxy', 1); // trust first proxy
+if (app.get('env') === 'production') app.set('trust proxy', 1);
 app.use(session({
   store: new MemoryStore({ checkPeriod: config.app.sessionTimeout }), //override default store to avoid memory leaks
   resave: false,
