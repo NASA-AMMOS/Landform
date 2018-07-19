@@ -8,6 +8,9 @@ const path = require('path');
 
 const config = require('./config');
 const authRouter = require('./auth');
+const token = require('./token');
+const projectRouter = require('./project');
+const pipleineRouter = require('./pipeline');
 
 const app = express();
 
@@ -37,7 +40,12 @@ app.use(session({
 //serve auth routes - login, logout, get token
 app.use('/auth', authRouter);
 
-require('./api')(app);
+//serve REST API routes
+const apiRouter = express.Router();
+apiRouter.use(token.apiTokenCheck);
+apiRouter.use('/project', projectRouter);
+apiRouter.use('/pipeline', pipleineRouter);
+app.use('/api', apiRouter);
 
 //serve webpacked client but in production only
 //for dev the client is served by a separate server on localhost:3000 which does hot module reloading
