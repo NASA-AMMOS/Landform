@@ -13,6 +13,9 @@ namespace OPS.Pipeline
 {
     public static class SceneNodeTilingExtensions
     {
+
+        public const double DEFAULT_SEARCH_RATIO = 1.1f;
+
         public static void SaveMesh(this SceneNode node, string directory, string meshExtension = "ply", string imageExtension = "jpg")
         {
             meshExtension = "." + meshExtension;
@@ -92,6 +95,22 @@ namespace OPS.Pipeline
             return node.Children.All(n => n.HasComponent<MeshImagePair>());
         }
 
+        public static List<SceneNode> FindNodesRequiredForParent(this SceneNode node, SceneNode root, double childBoundSearchRatio = DEFAULT_SEARCH_RATIO)
+        {
+            BoundingBox tmp;
+            return FindNodesRequiredForParent(node, root, out tmp, childBoundSearchRatio);
+        }
+
+        public static List<SceneNode> FindNodesRequiredForParent(this SceneNode node, SceneNode root, out BoundingBox searchBounds, double childBoundSearchRatio = DEFAULT_SEARCH_RATIO)
+        {
+            int childDepth = node.Children.First().Transform.Depth();
+            searchBounds = node.ChildBounds();
+            searchBounds = BoundingBoxExtensions.Scale(searchBounds, childBoundSearchRatio);
+            var childNodes = root.FindOverlapingNodes(childDepth, searchBounds);
+            return childNodes;
+
+        }
+
         /// <summary>
         /// Assumes all nodes below this node have been processed
         /// </summary>
@@ -101,18 +120,17 @@ namespace OPS.Pipeline
         /// <param name="maxTextureSize"></param>
         /// <param name="skirtAxis"></param>
         /// <param name="childBoundSearchRatio"></param>
-        public static void BuildGeometryFromChildren(this SceneNode node, SceneNode root, int maxFaceCountTarget, int maxTextureSize, SkirtMode? skirtAxis, double childBoundSearchRatio = 1.1)
+        public static void BuildGeometryFromChildren(this SceneNode node, SceneNode root, int maxFaceCountTarget, int maxTextureSize, SkirtMode? skirtAxis, double childBoundSearchRatio = DEFAULT_SEARCH_RATIO)
         {
-            int childDepth = node.Children.First().Transform.Depth();
-            BoundingBox searchBounds = node.ChildBounds();
-            searchBounds = BoundingBoxExtensions.Scale(searchBounds, childBoundSearchRatio);
-            var childNodes = root.FindOverlapingNodes(childDepth, searchBounds);
+            BoundingBox searchBounds;
+            var childNodes = FindNodesRequiredForParent(node, root, out searchBounds, childBoundSearchRatio);
             var pairs = childNodes.Select(n => n.GetComponent<MeshImagePair>());
             var childMeshesWithoutSkirts = pairs.Select(p =>
             {
                 var tmp = new Mesh(p.Mesh);
                 if (skirtAxis.HasValue)
                 {
+                    // TODO remove skirt stuff
                     tmp.RemoveSkirt(skirtAxis.Value);
                 }
                 return tmp;
@@ -167,6 +185,7 @@ namespace OPS.Pipeline
             combinedDecimated.GenerateVertexNormals();
             if (skirtAxis.HasValue)
             {
+                // TODO remove skirt stuff - maintian unskrited meshes in the tree and only skirt them when saving
                 combinedDecimated.AddSkirt(skirtAxis.Value);
             }
             // We need to combine bounds here because decimated bounds may be smaller than the child bounds

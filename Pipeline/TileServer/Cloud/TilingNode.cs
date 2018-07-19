@@ -8,6 +8,9 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using OPS.Imaging;
+using System.IO;
+using OPS.Plumbing;
 
 namespace OPS.Pipeline.TileServer
 {
@@ -28,6 +31,7 @@ namespace OPS.Pipeline.TileServer
         public string ParentId { get; set; }
         public List<string> ChildIds { get; set; }
         public string Bounds { get; set; }
+        public double? GeometricError { get; set; }
 
         public TilingNode()
         {
@@ -56,7 +60,7 @@ namespace OPS.Pipeline.TileServer
             context.Save(node, new DynamoDBOperationConfig() { IgnoreNullValues = true });
             return node;
         }
-        
+
 
         public static TilingNode Find(DynamoDBContext context, TilingProject project, string id)
         {
@@ -76,11 +80,51 @@ namespace OPS.Pipeline.TileServer
             context.Save(this, new DynamoDBOperationConfig() { IgnoreNullValues = true });
         }
 
+        public bool IsLeaf()
+        {
+            return ChildIds == null || ChildIds.Count == 0;
+        }
+
         public BoundingBox GetBounds()
         {
             return (BoundingBox)JsonHelper.FromJson(this.Bounds);
         }
 
+        public SceneNode GetSceneNode()
+        {
+            SceneNode node = new SceneNode(this.Id);
+            node.AddComponent(new NodeBounds(this.GetBounds()));
+            if(this.GeometricError.HasValue)
+            {
+                node.AddComponent(new NodeGeometricError(this.GeometricError.Value));
+            }
+            return node;
+        }
+
+        public bool LoadMeshImagePair(SceneNode node, PipelineCore pipeline)
+        {
+            if (this.MeshUrl != null)
+            {
+                Mesh m = null;
+                TemporaryFile.GetAndDelete(Path.GetExtension(this.MeshUrl), f =>
+                {
+                    pipeline.Storage.DownloadFile(this.MeshUrl, f);
+                    m = Mesh.Load(f);
+                });
+                Image img = null;
+                if (this.ImageUrl != null)
+                {
+                    TemporaryFile.GetAndDelete(Path.GetExtension(this.ImageUrl), f =>
+                    {
+                        pipeline.Storage.DownloadFile(this.ImageUrl, f);
+                        img = Image.Load(f);
+                    });
+                }
+                node.AddComponent(new MeshImagePair(m, img));
+                return true;
+            }
+            return false;
+        }
 
         public static SceneNode BuildTreeFromDatabase(DynamoDBContext context, TilingProject project)
         {
@@ -89,9 +133,7 @@ namespace OPS.Pipeline.TileServer
             // Create all nodes
             foreach (var n in nodes)
             {
-                SceneNode node = new SceneNode(n.Id);
-                node.AddComponent(new NodeBounds(n.GetBounds()));
-                idToNode.Add(node.Name, node);
+                idToNode.Add(n.Id, n.GetSceneNode());
             }
             // Connect parents and children
             SceneNode root = null;

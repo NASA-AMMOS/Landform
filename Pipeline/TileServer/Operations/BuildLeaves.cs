@@ -113,7 +113,7 @@ namespace OPS.Pipeline.TileServer
             Parallel.ForEach(leaves, leaf =>
             {
                 string meshExt = ".ply";
-                string imageExt = ".png";
+                string imageExt = ".tif";
                 string id = Guid.NewGuid().ToString();
                 string filenameBase = Path.Combine(TemporaryFile.TemporaryDirectory, id);
                 string meshFilename = filenameBase + meshExt;
@@ -134,6 +134,7 @@ namespace OPS.Pipeline.TileServer
                 pipeline.Storage.UploadFile(meshFilename, meshUrl);
                 leaf.MeshUrl = meshUrl;
                 leaf.ImageUrl = imageUrl;
+                leaf.GeometricError = 0;
                 leaf.Save(pipeline.DynamoContext);
                 // TODO: write and save gltf file (apply skirts if needed)
                 if (File.Exists(meshFilename))

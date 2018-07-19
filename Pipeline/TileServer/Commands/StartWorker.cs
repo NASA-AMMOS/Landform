@@ -61,6 +61,10 @@ namespace OPS.Pipeline.TileServer
                         {
                             new BuildLeaves((BuildLeavesMessage)m, this).Process();
                         }
+                        else if (m.GetType() == typeof(BuildParentsMessage))
+                        {
+                            new BuildParents((BuildParentsMessage)m, this).Process();
+                        }
                         else
                         {
                             logger.Info("Unknown message type");                            
@@ -70,6 +74,7 @@ namespace OPS.Pipeline.TileServer
                     catch (Exception e)
                     {
                         logger.Error(e.Message);
+                        logger.Error(e.StackTrace);
                     }
 
                     // TODO: end process that updates timeout

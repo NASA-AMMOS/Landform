@@ -8,6 +8,8 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using OPS.Pipeline;
+using Microsoft.Xna.Framework;
 
 namespace OPS.Pipeline.TileServer
 {
@@ -41,11 +43,7 @@ namespace OPS.Pipeline.TileServer
             DefineTiles(queue);
             ChunkInputs(queue);
             BuildLeaves(queue);
-
-
-            
-
-
+            BuildParents(queue);
             return 0;
         }
 
@@ -81,6 +79,31 @@ namespace OPS.Pipeline.TileServer
             {
                 var leafJob = new BuildLeavesMessage(project.Name, group.Select(n => n.Name).ToList());
                 queue.Enqueue(leafJob);
+            }
+            WaitForLeaves();
+        }
+
+        void BuildParents(TilingQueue queue, int nodesPerJob = 32)
+        {
+            logger.Info("Build Parents");
+            var project = TilingProject.Find(this.DynamoContext, options.ProjectName);
+            SceneNode root = TilingNode.BuildTreeFromDatabase(this.DynamoContext, project);            
+            foreach (var depthGroup in root.GetReverseDepthGroups())
+            {
+                int i = 0;
+                var nodes = depthGroup.ToList();
+                while(i < nodes.Count())
+                {
+                    Dictionary<string, List<string>> ids = new Dictionary<string, List<string>>();
+                    int end = i + nodesPerJob;
+                    for (; i < end && i < depthGroup.Count(); i++)
+                    {
+                        var requiredNodes = nodes[i].FindNodesRequiredForParent(root).Select(n => n.Name);
+                        ids.Add(nodes[i].Name, requiredNodes.ToList());
+                    }
+                    var parentJob  = new BuildParentsMessage(project.Name, ids);
+                    queue.Enqueue(parentJob);
+                }
             }
         }
 
@@ -148,6 +171,24 @@ namespace OPS.Pipeline.TileServer
                 {
                     break;
                 }                
+            }
+        }
+
+        void WaitForLeaves()
+        {
+            while (true)
+            {
+                var p = TilingProject.Find(this.DynamoContext, options.ProjectName);
+                var nodes = TilingNode.Find(this.DynamoContext, p);
+                bool allMeshed = nodes.All(n => !n.IsLeaf() || n.MeshUrl != null);
+                if (!allMeshed)
+                {
+                    Thread.Sleep(10000);
+                }
+                else
+                {
+                    break;
+                }
             }
         }
     }
