@@ -12,7 +12,8 @@ const development = {
     tokenLifespan: 60 * 60 * 24 * 10, //10 days in seconds
     sessionCookieSecret: process.env.SESSION_SECRET || 'iancnewowahasliuyfhenwlvncxhzuwyeoifjs',
     sessionCookieSecure: false,
-    sessionTimeout: 1000 * 60 * 60 * 24, //24h
+    sessionTimeout: 1000 * 60 * 60 * 24, //24h in ms
+    ldapGroup: 'landform',
   },
   ldap: {
     url: 'ldaps://ldap.jpl.nasa.gov',

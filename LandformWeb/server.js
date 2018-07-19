@@ -4,10 +4,10 @@ const MemoryStore = require('memorystore')(session);
 const bodyParser = require('body-parser');
 const cookieParser = require('cookie-parser');
 const cors = require('cors');
-const passport = require('passport');
 const path = require('path');
 
 const config = require('./config');
+const authRouter = require('./auth');
 
 const app = express();
 
@@ -34,12 +34,9 @@ app.use(session({
   },
 }));
 
-app.use(passport.initialize());
-app.use(passport.session());
+//serve auth routes - login, logout, get token
+app.use('/auth', authRouter);
 
-require('./sso')(passport, config);
-require('./ldap')(config, passport);
-require('./auth')(app, config, passport);
 require('./api')(app);
 
 //serve webpacked client but in production only

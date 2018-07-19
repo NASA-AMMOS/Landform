@@ -13,7 +13,7 @@ const App = () => (
       <a href="/auth/sso">Login (SSO)</a><br/>
       <Link to="/ldapLogin">Login (LDAP)</Link> <br/>
       <a href="/auth/logout">Logout</a><br/>
-      <a href="/auth/apiToken">API token</a><br/>
+      <a href="/auth/token">API token</a><br/>
       <Link to="/documentation">Documentation</Link>
     </div>
     <div className="App-body">
