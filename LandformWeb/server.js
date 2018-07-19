@@ -39,7 +39,7 @@ app.use(passport.session());
 
 require('./sso')(passport, config);
 require('./ldap')(config, passport);
-require('./routes')(app, config, passport);
+require('./auth')(app, config, passport);
 require('./api')(app);
 
 //serve webpacked client but in production only
