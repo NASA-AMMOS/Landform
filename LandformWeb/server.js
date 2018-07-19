@@ -7,7 +7,7 @@ const cors = require('cors');
 const passport = require('passport');
 const path = require('path');
 
-const config = require('./config/config');
+const config = require('./config');
 
 const app = express();
 
@@ -37,10 +37,10 @@ app.use(session({
 app.use(passport.initialize());
 app.use(passport.session());
 
-require('./config/sso')(passport, config);
-require('./config/ldap')(config, passport);
-require('./config/routes')(app, config, passport);
-require('./config/api')(app);
+require('./sso')(passport, config);
+require('./ldap')(config, passport);
+require('./routes')(app, config, passport);
+require('./api')(app);
 
 //serve webpacked client but in production only
 //for dev the client is served by a separate server on localhost:3000 which does hot module reloading
