@@ -7,6 +7,9 @@ const development = {
     name: 'Landform',
     port: process.env.PORT || 8081,
     tokenSecret: process.env.TOKEN_SECRET || 'dogfishwaffelsandwitchwithbutter-43t-kdfvk',
+    tokenHeader: 'x-landform-token',
+    tokenCookie: 'landform-token',
+    tokenLifespan: 60 * 60 * 24 * 10, //10 days in seconds
     sessionCookieSecret: process.env.SESSION_SECRET || 'iancnewowahasliuyfhenwlvncxhzuwyeoifjs',
     sessionCookieSecure: false,
     sessionTimeout: 1000 * 60 * 60 * 24, //24h
