@@ -42,6 +42,6 @@ require('./api')(app);
 //serve webpacked client but in production only
 //for dev the client is served by a separate server on localhost:3000 which does hot module reloading
 //that dev server proxies certain routes back to this server as configured in client/package.json
-if (app.get('env') === 'production') app.use('/', express.static(path.join(__dirname, 'client/build')));
+if (app.get('env') === 'production') app.use('/', express.static(path.join(__dirname, 'client', 'build')));
 
 app.listen(config.app.port, () => { console.log(`${config.app.name} server listening on port ${config.app.port}`); });
