@@ -53,9 +53,13 @@ namespace OPS.Pipeline.TileServer
                         {
                             new DefineTiles((DefineTilesMessage)m, this).Process();
                         }
-                        if (m.GetType() == typeof(ChunkInputMessage))
+                        else if (m.GetType() == typeof(ChunkInputMessage))
                         {
                             new ChunkInput((ChunkInputMessage)m, this).Process();
+                        }
+                        else if (m.GetType() == typeof(BuildLeavesMessage))
+                        {
+                            new BuildLeaves((BuildLeavesMessage)m, this).Process();
                         }
                         else
                         {

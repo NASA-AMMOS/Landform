@@ -16,6 +16,7 @@ namespace OPS.Pipeline.TileServer
         public const string InputUrlBase = "s3://landlords-dev/tileserver/data";
         public const string WWWUrlBase = "s3://landlords-dev/tileserver/www";
         public const string ChunkUrlBase = "s3://landlords-dev/tileserver/chunk";
+        public const string TileUrlBase = "s3://landlords-dev/tileserver/tiles";
 
 
 

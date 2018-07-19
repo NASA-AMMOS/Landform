@@ -99,7 +99,7 @@ namespace OPS.Pipeline.TileServer
             {
                 Mesh m = null;
                 string meshExt = ".ply";
-                string imageExt = ".png";
+                string imageExt = ".tif";
                 string id = Guid.NewGuid().ToString();
                 string filenameBase = Path.Combine(TemporaryFile.TemporaryDirectory, id);
                 string meshFilename = filenameBase + meshExt;

@@ -76,7 +76,7 @@ namespace OPS.Pipeline.TileServer
             context.Save(this, new DynamoDBOperationConfig() { IgnoreNullValues = true });
         }
 
-        BoundingBox GetBounds()
+        public BoundingBox GetBounds()
         {
             return (BoundingBox)JsonHelper.FromJson(this.Bounds);
         }

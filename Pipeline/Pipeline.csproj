@@ -191,16 +191,12 @@
     <Compile Include="TileServer\Cloud\TilingInput.cs" />
     <Compile Include="TileServer\Cloud\TilingProject.cs" />
     <Compile Include="TileServer\Cloud\TilingQueue.cs" />
+    <Compile Include="TileServer\Operations\BuildLeaves.cs" />
     <Compile Include="TileServer\Operations\ChunkInput.cs" />
     <Compile Include="TileServer\Operations\DefineTiles.cs" />
     <Compile Include="TileServer\Cloud\TilingInputChunk.cs" />
     <Compile Include="TileServer\TilingScheme.cs" />
-    <Compile Include="TileServer\TilingServerBuildLeafTiles.cs" />
-    <Compile Include="TileServer\TilingServerChunkInput.cs" />
-    <Compile Include="TileServer\PretendTilingServerDatabase.cs" />
     <Compile Include="TileServer\Commands\TileServerCommands.cs" />
-    <Compile Include="TileServer\TilingServerDefineStructure.cs" />
-    <Compile Include="TileServer\TilingServerWorkflow.cs" />
     <Compile Include="Commands\TilingWorker.cs" />
     <Compile Include="Commands\Commands.cs" />
     <Compile Include="Commands\ConvertBaselineMesh.cs" />

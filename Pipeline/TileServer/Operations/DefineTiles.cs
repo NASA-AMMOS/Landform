@@ -94,7 +94,8 @@ namespace OPS.Pipeline.TileServer
                 {
                     throw new Exception("Unknonw tiling scheme");
                 }
-                // TODO: Add image size criteria
+                // TODO: Add image size criteria, count up total area of texture space used by mesh uvs and multiply by factor to account for unsued atlas space as an estimate
+                // This won't be prefect so leaf tile generator will still need to be able to split leaves to create more children if needed
                 ITileSplitCriteria splitCriteria = new FaceLimitSplitCriteria(project.FacesPerTile);
 
                 logger.Info("Computing tile tree");
