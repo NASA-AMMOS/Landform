@@ -1,12 +1,15 @@
 {
   "extends": "airbnb",
+
   "env": {
     "node": true,
     "browser": true,
     "es6": true,
     "jest": true
   },
+
   "plugins": ["@jpl/eslint-plugin-compact-brace-style"],
+
   "rules": {
 
     //allow JSX anywhere, not just in .jsx files
@@ -47,21 +50,11 @@
     "brace-style": ["off"],
     "@jpl/compact-brace-style/brace-style": ["error", "1tbs", { "allowSingleLine": true, "allowClausePerLine": true }],
 
-    "arrow-body-style": [
-      "error",
-      "as-needed",
-      { "requireReturnForObjectLiteral": true }
-    ],
+    "arrow-body-style": [ "error", "as-needed", { "requireReturnForObjectLiteral": true } ],
     
-    "key-spacing": [
-      "error",
-      { "beforeColon": false, "afterColon": true, "mode": "minimum" }
-    ],
+    "key-spacing": [ "error", { "beforeColon": false, "afterColon": true, "mode": "minimum" } ],
     
-    "object-curly-newline": [
-      "error",
-      { "multiline": true, "consistent": true }
-    ],
+    "object-curly-newline": [ "error", { "multiline": true, "consistent": true } ],
 
     "no-inner-declarations": ["off"],
     "space-before-function-paren": ["error", "never"],
