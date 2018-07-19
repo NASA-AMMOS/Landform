@@ -9,7 +9,7 @@ This repo consists of a backend api server and a frontend react app in `/client`
 1. `npm start` will start both the backend api server on port 8081 and the frontend react dev server on port 3000 (the frontend server will proxy backend routes to the backend server)
 1. You can also run the api server and client servers independently with `npm run server` and `npm run client`.  This is convenient when doing backend dev so that you can independently reestart the backend server.
 1. Typically you should not need to restart the frontend server for frontend dev because it uses hot module reloading.  However, if you modify the backend server you will need to restart it.  Note: CTRL-C may not work correctly to kill the backend server if you started it from a cygwin prompt; consider using a Git bash prompt or Windows `cmd` instead.
-1. Go to http://localhost:3000 and follow the instructions to login and generate an API token.
+1. Go to http://localhost:3000 and follow the instructions to login and generate an API token.  Note that SSO login will only work when deployed to the production server URL given above, and LDAP login will only work when the server is within the JPL firewall (i.e. not deployed to AWS for production).
 1. To re-deploy the production server: `deploy.bat aws_profile_name`
 
 ## Beanstalk Setup
@@ -81,12 +81,12 @@ This repo consists of a backend api server and a frontend react app in `/client`
 ### SSO Test Procedure
 
 1. Note this will only work on https://landform.hi.jpl.nasa.gov because that is the domain SSO is configured to use.
-2. Click `API Token` and confirm the response is `Not Authenticated`.
+2. Click `API Token` and confirm the response is `not authenticated`.
 3. Click `Login (SSO)`.
 4. Enter JPL credentials.
 5. Click `API Token` and confirm the response is a web token - copy the token ID for later.
 6. Click `Logout`.
-7. Click `API Token` and confirm the response is `Not Authenticated`.
+7. Click `API Token` and confirm the response is `not authenticated`.
 
 ### LDAP Test Procedure
 
@@ -96,7 +96,7 @@ This repo consists of a backend api server and a frontend react app in `/client`
 4. Enter JPL credentials
 5. Click `API Token` and confirm the response is a web token - copy the token ID for later
 6. Click `Logout`
-7. Click `API Token` and confirm the response is `Not Authenticated`
+7. Click `API Token` and confirm the response is `not authenticated`
 
 ## REST API Test Procedures
 
