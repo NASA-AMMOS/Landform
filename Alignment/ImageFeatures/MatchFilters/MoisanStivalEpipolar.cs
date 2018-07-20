@@ -281,7 +281,14 @@ namespace OPS.Alignment
                 m2_cv[i, 1] = (float)DataPoints[indices[i]].Y;
             }
             Mat _F = new Mat();
-            CvInvoke.FindFundamentalMat(m1_cv, m2_cv, _F, Emgu.CV.CvEnum.FmType.SevenPoint);
+            try
+            {
+                CvInvoke.FindFundamentalMat(m1_cv, m2_cv, _F, Emgu.CV.CvEnum.FmType.SevenPoint);
+            } catch(Exception e)
+            {
+                //TODO: log exception
+                yield break;
+            }
             int numMatrices = _F.Rows / 3;
             if (numMatrices < 1) yield break;
 

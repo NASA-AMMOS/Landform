@@ -98,16 +98,17 @@ namespace OPS.Pipeline
             List<Observation> observations = new List<Observation>();
             HashSet<string> observationNames = new HashSet<string>();
             Func<Frame, SceneNode, SceneNode> spawn = null;
+
+            FrameCache frameCache = new FrameCache(Pipeline.DynamoContext, root.ProjectName);
+
             spawn = (frame, parent) =>
             {
                 var res = new SceneNode(frame.Name, parent?.Transform);
                 var ut = options.GetTransform(frame, parent);
                 if (ut == null) return null;
 
-
                 // Add any observations to the node
-                //System.Threading.Thread.Sleep(100); // Lower throughput
-                var obs = Observation.Find(DynamoDB, frame).Where(o => options.IncludeObservation(o, res)).ToArray();
+                var obs = ThroughputManager.Run(() => Observation.Find(DynamoDB, frame)).Where(o => options.IncludeObservation(o, res)).ToArray();
                 observations.AddRange(obs);
                 foreach (var o in obs)
                 {
@@ -131,7 +132,7 @@ namespace OPS.Pipeline
                 }
                 
                 // Add child frames
-                foreach (var childFrame in frame.GetChildren(DynamoDB))
+                foreach (var childFrame in ThroughputManager.Run(() => frame.GetChildren(DynamoDB)))
                 {
                     if (!options.IncludeFrame(childFrame, res))
                     {

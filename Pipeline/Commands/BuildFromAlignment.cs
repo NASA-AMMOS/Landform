@@ -56,34 +56,7 @@ namespace OPS.Pipeline
 
 
 
-        class FrameCache
-        {
-            ConcurrentDictionary<string, Frame> frames = new ConcurrentDictionary<string, Frame>();
-
-            DynamoDBContext dynamoContext;
-            string projectName;
-
-            public FrameCache(DynamoDBContext dynamoContext, string projectName)
-            {
-                this.dynamoContext = dynamoContext;
-                this.projectName = projectName;
-            }
-
-            public Frame GetFrame(string name)
-            {
-                if(!frames.ContainsKey(name))
-                {
-                    var frame = Frame.Find(dynamoContext, projectName, name);
-                    if (frame == null)
-                    {
-                        logger.Warn("No frame found for observation: " + name);
-                        return null;
-                    }
-                    frames.TryAdd(name, frame);
-                }
-                return frames[name];
-            }
-        }
+        
 
         UncertainRigidTransform ObservationToRoot(Observation obs, FrameCache frameCache)
         {
@@ -112,7 +85,19 @@ namespace OPS.Pipeline
             S3ImageRef s3ref = new S3ImageRef(obs.Url);
             
             Image img = this.Load(s3ref, true);
-            Image mask = RoverMask.Build(img);
+            Image mask = null;
+            try
+            {
+                mask = RoverMask.Build(img);
+            }
+            catch
+            {
+            }
+            if(mask == null)
+            {
+                //TODO: change after no articulation observations are filtered
+  //              return new Mesh();
+            }
             Image colorImg = null;
             if (imgObs != null)
             {
@@ -124,7 +109,8 @@ namespace OPS.Pipeline
             {
                 for (int c = 0; c < img.Width; c += stepSize)
                 {
-                    if (mask[0, r, c] != 0)
+                    //TODO: should not have null mask
+                    if (mask == null || mask[0, r, c] != 0)
                     {
                         double range = img[0, r, c];
                         if (range > MathE.EPSILON && range < 64)
@@ -133,11 +119,19 @@ namespace OPS.Pipeline
                             var dist = observationToRoot.TransformPoint(observationPoint);
                             var rootPoint = dist.XnaMean;
                             var res = new Vertex(rootPoint);
-                            if(colorImg != null)
+                            if (colorImg != null)
                             {
-                                //TODO: Determine bands based on image type
-                                res.Color = new Vector4(colorImg[0, r, c], colorImg[0, r, c], colorImg[0, r, c], 1);
+                                //TODO: ensure image resolution matches range resolution
+                                if (img.Bands == 3)
+                                {
+                                    res.Color = new Vector4(colorImg[0, r, c], colorImg[1, r, c], colorImg[2, r, c], 1);
+                                }
+                                else
+                                {
+                                    res.Color = new Vector4(colorImg[0, r, c], colorImg[0, r, c], colorImg[0, r, c], 1);
+                                }
                             }
+
                             result.Vertices.Add(new Vertex(rootPoint));
                         }
                     }
@@ -146,35 +140,13 @@ namespace OPS.Pipeline
             return result;
         }
 
-        //TODO: Use common function to get range and image product from a frame
-        Observation GetImageFromRange(Observation rangeObs)
-        {
-            var imgObs = RoverObservation.Find(DynamoContext, rangeObs.ProjectName).Where(ro => ro.FrameName == rangeObs.FrameName);
-            imgObs = imgObs.Where(ob => ob.ObservationType == ObservationType.Image.ToString() && ob.UseForReconstruction);
-            // Sort first by linearization and second by version.  We want nonlinear images with the highest version to come first
-            imgObs = imgObs.OrderBy(ob =>
-            {
-                CameraModel model = (CameraModel)JsonHelper.FromJson(ob.CameraModel);
-
-                return (model.Linear ? 0 : 100000) + ob.Version;
-            }).Reverse();
-            if (imgObs.Count() > 0)
-            {
-                // Add the highest version image to our list.  If a nonlinear version exists it will be used, if not we will fall back to linearized
-                return imgObs.First();
-            }
-            return null;
-        }
-
-
-
         public int Run()
         {
             var pointObs = Observation.FindByType(DynamoContext, options.ProjectName, "Points").ToArray();
 
             FrameCache cache = new FrameCache(DynamoContext, options.ProjectName);
 
-            Parallel.ForEach(pointObs, rngObs =>
+            Serial.ForEach(pointObs, rngObs =>
             {
                 if (!rngObs.UseForReconstruction)
                 {
@@ -184,9 +156,16 @@ namespace OPS.Pipeline
                 logger.Info("Processing observation: " + rngObs.Name);
                 var transform = ObservationToRoot(rngObs, cache);
                 var frame = cache.GetFrame(rngObs.FrameName);
-                var otherObservations = Observation.Find(DynamoContext, frame);
+                //TODO: filter results to products that were candidates for curiosity align
+                //Products marked useforreconstruction = false could have been flagged before (during ingest) OR after (failing to compute features) selection in curiosity align
+                //For now this allows all images to avoid no options for a frame
 
-                var imgObs = GetImageFromRange(rngObs);
+                var obsPair =  MSLProject.FindBestPair(RoverObservation.Find(DynamoContext, frame).Where(ob => ob.UseForReconstruction).ToList());
+                Observation imgObs = null;
+                if(obsPair != null)
+                {
+                    imgObs = obsPair.Image;
+                }
 
                 var m = BuildPointCloud(rngObs, transform, imgObs);
                 m.HasColors = true;

@@ -18,10 +18,7 @@ namespace OPS.Cloud
         public string Version { get; set; }
         public string Sensor { get; set; }
         public string ImageFrameSize { get; set; }
-
-        //width and height are JUST for current sketchy old overlap detection. TODO probably not nececary 
-        public int Width { get; set; }
-        public int Height { get; set; }
+        public string Producer { get; set; }
 
         //This constructor must be public for DynamoDb but should not be used
         public RoverObservation()
@@ -29,16 +26,15 @@ namespace OPS.Cloud
            
         }
 
-        protected RoverObservation(Frame frame, string name, string url, string observationType, string cameraModel, bool useForReconstruction, int site, int drive, string version, string sensor, string imageFrameSize, int width, int height) :
-            base(frame, name, url, observationType, cameraModel, useForReconstruction)
+        protected RoverObservation(Frame frame, string name, string url, string observationType, string cameraModel, bool useForReconstruction, int site, int drive, string version, string sensor, string imageFrameSize, string producer, int width, int height) :
+            base(frame, name, url, observationType, cameraModel, useForReconstruction, width, height)
         {
             this.Site = site;
             this.Drive = drive;
             this.Version = version;
             this.Sensor = sensor;
             this.ImageFrameSize = imageFrameSize;
-            this.Width = width;
-            this.Height = height;
+            this.Producer = producer;
         }
 
         /// <summary>
@@ -52,7 +48,7 @@ namespace OPS.Cloud
         /// <param name="cameraModel"></param>
         /// <param name="useForReconstruction"></param>
         /// <returns></returns>
-        new public static Observation Create(DynamoDBContext context, Frame frame, string name, string url, string observationType, string cameraModel, bool useForReconstruction)
+        public static Observation Create(DynamoDBContext context, Frame frame, string name, string url, string observationType, string cameraModel, bool useForReconstruction)
         {
             throw new NotImplementedException("Call the other version of RoverObservation.Create with rover specific arguments");
         }
@@ -69,13 +65,13 @@ namespace OPS.Cloud
         /// <param name="observationType"></param>
         /// <param name="cameraModel"></param>
         /// <returns></returns>
-        public static RoverObservation Create(DynamoDBContext context, Frame frame, string name, string url, string observationType, string cameraModel, bool useForReconstruction, int site, int drive, string version, string sensor, string imageFrameSize, int width, int height)
+        public static RoverObservation Create(DynamoDBContext context, Frame frame, string name, string url, string observationType, string cameraModel, bool useForReconstruction, int site, int drive, string version, string sensor, string imageFrameSize, string producer, int width, int height)
         {
             if (Observation.Find(context, frame.ProjectName, name) != null)
             {
                 return null; //An observation with this name and project already exists 
             }
-            RoverObservation ro = new RoverObservation(frame, name, url, observationType, cameraModel, useForReconstruction, site, drive, version, sensor, imageFrameSize, width, height);
+            RoverObservation ro = new RoverObservation(frame, name, url, observationType, cameraModel, useForReconstruction, site, drive, version, sensor, imageFrameSize, producer, width, height);
             context.Save(ro);
             return ro;
         }
@@ -96,6 +92,14 @@ namespace OPS.Cloud
         {
             return context.Scan<RoverObservation>(
                 new ScanCondition("ProjectName", Amazon.DynamoDBv2.DocumentModel.ScanOperator.Equal, projectName)
+                );
+        }
+
+        new public static IEnumerable<RoverObservation> Find(DynamoDBContext context, Frame frame)
+        {
+            return context.Scan<RoverObservation>(
+                new ScanCondition("ProjectName", Amazon.DynamoDBv2.DocumentModel.ScanOperator.Equal, frame.ProjectName),
+                new ScanCondition("FrameName", Amazon.DynamoDBv2.DocumentModel.ScanOperator.Equal, frame.Name)
                 );
         }
     }

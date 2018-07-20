@@ -1,4 +1,5 @@
-﻿using OPS.Alignment;
+﻿using log4net;
+using OPS.Alignment;
 using OPS.Cloud;
 using OPS.Geometry;
 using OPS.Plumbing;
@@ -18,8 +19,9 @@ namespace OPS.Pipeline
 
         }
 
-        public IEnumerable<Overlap> Run(List<Observation> toConsider)
+        public IEnumerable<Overlap> Run(List<Observation> toConsider, ILog logger = null)
         {
+            //toConsider.Sort((a, b) => a.Name.CompareTo(b.Name));
             if (toConsider.Count < 1)
             {
                 yield break;
@@ -68,15 +70,29 @@ namespace OPS.Pipeline
             FrustumOverlapDetector fod = new FrustumOverlapDetector(Pipeline);
             fod.Detect(scene);
 
+            /*var overlaps = new List<Tuple<Observation, Observation>>();
             foreach (var overlap in scene.Overlaps)
             {
                 var one = refToObservation[overlap.One];
                 var two = refToObservation[overlap.Two];
-                var steve = Overlap.Create(Pipeline.DynamoContext, one, two);
-                if (steve != null) yield return steve;
+                overlaps.Add(Tuple.Create(one, two));
                 // lower throughput
                 // TODO: other options?
-                System.Threading.Thread.Sleep(100);
+                //System.Threading.Thread.Sleep(100);
+            }
+            Overlap.CreateMultiple(DynamoDB, overlaps);*/
+
+            logger.Info("Found overlaps: " + scene.Overlaps.Count);
+
+            foreach(var overlap in scene.Overlaps)
+            {
+                var one = refToObservation[overlap.One];
+                var two = refToObservation[overlap.Two];
+                var steve = ThroughputManager.Run(() => Overlap.Create(Pipeline.DynamoContext, one, two));
+                if(steve != null)
+                {
+                    yield return steve;
+                }
             }
         }
     }

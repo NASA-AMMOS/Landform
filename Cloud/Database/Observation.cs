@@ -40,6 +40,10 @@ namespace OPS.Cloud
 
         public bool UseForReconstruction { get; set; }
 
+        public int Width;
+
+        public int Height;
+
         /// Add required fields here 
         private void IsValid()
         {
@@ -69,7 +73,7 @@ namespace OPS.Cloud
         /// <param name="url"></param>
         /// <param name="observationType"></param>
         /// <param name="cameraModel"></param>
-        protected Observation(Frame frame, string name, string url, string observationType, string cameraModel, bool useForReconstruction)
+        protected Observation(Frame frame, string name, string url, string observationType, string cameraModel, bool useForReconstruction, int width, int height)
         {
             this.ProjectName = frame.ProjectName;
             this.FrameName = frame.Name;
@@ -78,6 +82,8 @@ namespace OPS.Cloud
             this.ObservationType = observationType;
             this.CameraModel = cameraModel;
             this.UseForReconstruction = useForReconstruction;
+            this.Width = width;
+            this.Height = height;
             IsValid();
         }
 
@@ -94,9 +100,9 @@ namespace OPS.Cloud
         /// <param name="observationType"></param>
         /// <param name="cameraModel"></param>
         /// <returns></returns>
-        public static Observation Create(DynamoDBContext context, Frame frame, string name, string url, string observationType, string cameraModel, bool useForReconstruction)
+        public static Observation Create(DynamoDBContext context, Frame frame, string name, string url, string observationType, string cameraModel, bool useForReconstruction, int width, int height)
         {
-            Observation obs = new Observation(frame, name, url, observationType, cameraModel, useForReconstruction);
+            Observation obs = new Observation(frame, name, url, observationType, cameraModel, useForReconstruction, width, height);
             context.Save(obs, new DynamoDBOperationConfig { IgnoreNullValues = true });
             return obs;
         }

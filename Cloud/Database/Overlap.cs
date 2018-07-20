@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using Amazon.DynamoDBv2.Model;
 using Amazon.DynamoDBv2.DataModel;
 using Amazon.DynamoDBv2.DocumentModel;
+using System.Linq;
 
 namespace OPS.Cloud
 {
@@ -125,6 +126,22 @@ namespace OPS.Cloud
             //if save was successful, return Overlap with most recent version number so it can be saved
             return context.Load<Overlap>(newOverlap.CombinedName, newOverlap.ProjectName, new DynamoDBOperationConfig { ConsistentRead = true});
         }
+
+        //TODO: batch create
+        /*public static void CreateMultiple(DynamoDBContext context, string table, List<Tuple<Observation,Observation>> observationPairs)
+        {
+            List<WriteRequest> overlapRequests = observationPairs.Select(pair => new WriteRequest(new PutRequest(new Overlap(pair.Item1.Name, pair.Item2.Name, pair.Item1.ProjectName)))).ToList();
+            var config = new DynamoDBOperationConfig();
+            config.SkipVersionCheck = true;
+            for (int i = 0; i < observationPairs.Count; i += 25)
+            {                
+                BatchWriteItemRequest request = new BatchWriteItemRequest();
+                request.RequestItems = new Dictionary<string, List<WriteRequest>>
+                {
+                    table, overlapRequests.GetRange(i, Math.Min(i+25, overlapRequests.Count))
+                };
+            }
+        }*/
 
         /// <summary>
         /// Save only if most recent version is being edited. If not, return false 

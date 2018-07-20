@@ -1275,6 +1275,7 @@ namespace OPS.Geometry
         X,
         Y,
         Z,
-        NORMAL
+        NORMAL,
+        None
     }
 }
