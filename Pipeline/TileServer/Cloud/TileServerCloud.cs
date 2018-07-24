@@ -33,6 +33,16 @@ namespace OPS.Pipeline.TileServer
             this.pipeline = pipelineCore;
         }
 
+        public static TilingQueue WorkerQueue(string prefix, string profile)
+        {
+            return new TilingQueue(prefix, profile);
+        }
+
+        public static TilingQueue CompletionQueue(string prefix, string profile, TilingProject project)
+        {
+            return new TilingQueue(prefix + "_completion_" + project.Name, profile);
+        }
+
         public void EnsureTablesExist()
         {
             // make sure tables exist
@@ -59,23 +69,29 @@ namespace OPS.Pipeline.TileServer
 
         private void WaitForTables()
         {
-            bool shouldWait = true;
-            while (shouldWait)
+            foreach (var t in tableTypes)
             {
-                shouldWait = false;
-                System.Threading.Thread.Sleep(100);
-                foreach (var t in tableTypes)
+                var tn = dynamoDBPrefix + CreateCloudTemplates.TableName(t);
+                string tableStatus = "";
+                bool firstTime = true;
+                while (tableStatus != "ACTIVE")
                 {
-                    var tn = dynamoDBPrefix + CreateCloudTemplates.TableName(t);
-
+                    logger.Info("Waiting for table: " + CreateCloudTemplates.TableName(t));
                     try
                     {
-                        pipeline.DynamoDB.DescribeTable(new DescribeTableRequest(tn));
+                        var tableResponse = this.pipeline.DynamoDB.DescribeTable(new DescribeTableRequest(tn));
+                        tableStatus = tableResponse.Table.TableStatus;
                     }
                     catch (ResourceNotFoundException)
                     {
-                        shouldWait = true;
+                        //Wait for table
+                        
                     }
+                    if (!firstTime)
+                    {
+                        System.Threading.Thread.Sleep(3000);
+                    }
+                    firstTime = false;
                 }
             }
         }

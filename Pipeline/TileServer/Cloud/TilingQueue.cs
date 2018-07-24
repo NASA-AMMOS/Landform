@@ -125,6 +125,20 @@ namespace OPS.Pipeline.TileServer
             }
         }
 
+        void Delete()
+        {
+            try
+            {
+                AmazonSQSClient client = GetClient();
+                var request = new DeleteQueueRequest(this.queueUrl);
+                var response = client.DeleteQueue(request);
+            }
+            catch (Exception e)
+            {
+                logger.Error(e.Message);
+            }
+        }
+
         void EnsureExists()
         {
             try

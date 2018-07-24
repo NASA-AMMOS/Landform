@@ -9,6 +9,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using OPS.Imaging;
+using Newtonsoft.Json;
 
 namespace OPS.Pipeline.TileServer
 {
@@ -25,10 +26,11 @@ namespace OPS.Pipeline.TileServer
     {
         static ILog logger = LogManager.GetLogger(typeof(DefineTiles));
 
-        PipelineCore pipeline;
+        StartWorker pipeline;
         DefineTilesMessage message;
+        string prefix;
 
-        public DefineTiles(DefineTilesMessage message, PipelineCore pipeline)
+        public DefineTiles(DefineTilesMessage message, StartWorker pipeline)
         {
             this.pipeline = pipeline;
             this.message = message;
@@ -41,6 +43,7 @@ namespace OPS.Pipeline.TileServer
             if(project.TilesDefined)
             {
                 logger.Info("Tiles have already been defined for this project");
+                pipeline.CompeltionQueue(project).Enqueue(this.message);
                 return;
             }
             if(project.GetTilingScheme() == TilingScheme.UserDefined)
@@ -62,6 +65,8 @@ namespace OPS.Pipeline.TileServer
                     {
                         pipeline.Storage.DownloadFile(input.MeshUrl, f);
                         mesh = Mesh.Load(f);
+                        mesh.RemoveInvalidFaces();
+                        mesh.Clean();
                     });
                     Image image = null;
                     if (input.ImageUrl != null)
@@ -100,6 +105,7 @@ namespace OPS.Pipeline.TileServer
 
                 logger.Info("Computing tile tree");
                 SceneNode root = TileLocalMesh.BuildBoundsTree(tilingInput, scheme, splitCriteria);
+
                 logger.Info("Saving tile tree");
                 foreach (var node in root.DepthFirstTraverse())
                 {
@@ -109,6 +115,7 @@ namespace OPS.Pipeline.TileServer
                 }
                 project.TilesDefined = true;
                 project.Save(pipeline.DynamoContext);
+                pipeline.CompeltionQueue(project).Enqueue(this.message);
             }
         }
 

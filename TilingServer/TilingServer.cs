@@ -11,7 +11,7 @@ using OPS.Pipeline;
 using log4net;
 using OPS.Util;
 using OPS.Pipeline.TileServer;
-
+using OPS.Imaging;
 namespace TilingServer
 {
     class TilingServer

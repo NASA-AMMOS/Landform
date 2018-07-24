@@ -15,6 +15,16 @@ using System.Collections.Concurrent;
 namespace OPS.Pipeline.TileServer
 {
 
+    public class TileCompletedMessage : TilingQueueMessage
+    {
+        public string TileId;
+
+        public TileCompletedMessage(string projectName, string id) : base(projectName)
+        {
+            this.TileId = id;
+        }
+    }
+
     public class BuildLeavesMessage : TilingQueueMessage
     {
         public List<string> TileIds { get; set; }
@@ -32,10 +42,10 @@ namespace OPS.Pipeline.TileServer
 
         static ILog logger = LogManager.GetLogger(typeof(BuildLeaves));
 
-        PipelineCore pipeline;
+        StartWorker pipeline;
         BuildLeavesMessage message;
 
-        public BuildLeaves(BuildLeavesMessage message, PipelineCore pipeline)
+        public BuildLeaves(BuildLeavesMessage message, StartWorker pipeline)
         {
             this.pipeline = pipeline;
             this.message = message;
@@ -50,15 +60,24 @@ namespace OPS.Pipeline.TileServer
 
         public void Process()
         {
-            logger.Info("Processing message");
             var project = TilingProject.Find(pipeline.DynamoContext, this.message.ProjectName);
             var inputs = TilingInput.Find(pipeline.DynamoContext, project).ToList();
 
-            logger.Info("Get leaves");
             HashSet<string> ids = new HashSet<string>(this.message.TileIds);
-            var leaves = TilingNode.Find(pipeline.DynamoContext, project).ToList().Where(n => ids.Contains(n.Id) && n.MeshUrl == null).ToList();
+            var leaves = TilingNode.Find(pipeline.DynamoContext, project).ToList().Where(n => ids.Contains(n.Id)).ToList();
 
-            logger.Info("Find overlapping chunks");
+            // Send completion messages for leaves that are already done
+            foreach (var n in leaves)
+            {
+                if (n.MeshUrl != null)
+                {
+                    logger.Info(n.Id + " skipping");
+                    pipeline.CompeltionQueue(project).Enqueue(new TileCompletedMessage(project.Name, n.Id));
+                }
+            }
+            leaves = leaves.Where(n => n.MeshUrl == null).ToList();
+
+            //logger.Info("Find overlapping chunks");
             List<InputChunkGroup> inputGroups = new List<InputChunkGroup>();
             foreach (var input in inputs)
             {
@@ -77,7 +96,7 @@ namespace OPS.Pipeline.TileServer
                     inputGroups.Add(group);
                 }
             }
-            logger.Info("Downloading chunks: " + inputGroups.SelectMany(g=>g.Chunks).Count());
+            //logger.Info("Downloading chunks: " + inputGroups.SelectMany(g=>g.Chunks).Count());
 
             // TODO: replace bakeclipper with textured mesh clipper
             var bakeClipper = new TileLocalMesh.TilingInput();
@@ -107,50 +126,18 @@ namespace OPS.Pipeline.TileServer
                 }
             }
             bakeClipper.InitTextureBaker();
-            logger.Info("Make leaves");
+            //logger.Info("Make leaves");
 
             ConcurrentBag<TilingNode> processed = new ConcurrentBag<TilingNode>();
-            Parallel.ForEach(leaves, leaf =>
-            {
-                string meshExt = ".ply";
-                string imageExt = ".tif";
-                string id = Guid.NewGuid().ToString();
-                string filenameBase = Path.Combine(TemporaryFile.TemporaryDirectory, id);
-                string meshFilename = filenameBase + meshExt;
-                string imageFilename = filenameBase + imageExt;
-
-                string meshUrl = new Uri(Path.Combine(TileServerCloud.TileUrlBase, id + meshExt)).ToString();
-                string imageUrl = new Uri(Path.Combine(TileServerCloud.TileUrlBase, id + imageExt)).ToString();
-
+            Serial.ForEach(leaves, leaf =>
+            {              
                 var m = bakeClipper.Clip(leaf.GetBounds());
                 var pair = bakeClipper.BakeTexture(m, project.TileResolution);
-                m = pair.Mesh;
-
-                // TODO: retain originial detail here
-                pair.Image.Save<byte>(imageFilename);
-                pipeline.Storage.UploadFile(imageFilename, imageUrl);
-
-                m.Save(meshFilename, Path.GetFileName(imageFilename));
-                pipeline.Storage.UploadFile(meshFilename, meshUrl);
-                leaf.MeshUrl = meshUrl;
-                leaf.ImageUrl = imageUrl;
-                leaf.GeometricError = 0;
-                leaf.Save(pipeline.DynamoContext);
-                // TODO: write and save gltf file (apply skirts if needed)
-                if (File.Exists(meshFilename))
-                {
-                    File.Delete(meshFilename);
-                }
-                if (File.Exists(imageFilename))
-                {
-                    File.Delete(imageFilename);
-                }
+                leaf.SaveMesh(pair, pipeline, 0);
                 processed.Add(leaf);
-                logger.Info(string.Format("Tile: {0}/{1}", processed.Count(), leaves.Count));
+                pipeline.CompeltionQueue(project).Enqueue(new TileCompletedMessage(project.Name, leaf.Id));
+                logger.Info(string.Format(leaf.Id + " generating from {0} chunks ({1}/{2})", inputGroups.SelectMany(g => g.Chunks).Count(), processed.Count(), leaves.Count));
             });
-
-            logger.Info("Done");
-        }
-     
+        }     
     }
 }

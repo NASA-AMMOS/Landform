@@ -25,26 +25,53 @@ namespace OPS.Pipeline.TileServer
 
     public class StartWorker : PipelineCore
     {
-        static ILog logger = LogManager.GetLogger(typeof(RunProject));
+        static ILog logger = LogManager.GetLogger(typeof(StartWorker));
 
         StartWorkerOptions options;
+
+
+        public TilingQueue WorkerQueue
+        {
+            get {  return TileServerCloud.WorkerQueue(options.DynamoDBPrefix, options.Profile); }
+        }
+
+        public TilingQueue CompeltionQueue(TilingProject project)
+        {
+            return TileServerCloud.CompletionQueue(options.DynamoDBPrefix, options.Profile, project);            
+        }
+
+
+
         public StartWorker(StartWorkerOptions options) : base(dynamoPrefix: options.DynamoDBPrefix, profile: options.Profile)
         {
             this.options = options;
         }
 
         public int Run()
-        {
-            var queue = new TilingQueue(options.DynamoDBPrefix, options.Profile);
+        {            
             new TileServerCloud(options.DynamoDBPrefix, this).EnsureTablesExist();
 
+            Task[] tasks = new Task[Environment.ProcessorCount];
+            for(int i = 0; i < tasks.Length; i++)
+            {
+                tasks[i] = Task.Run(() => RunWorker());
+            }
+            for (int i = 0; i < tasks.Length; i++)
+            {
+                tasks[i].Wait();
+            }
+            return 0;
+        }
+
+        public void RunWorker()
+        {
+            logger.Info("Worker starting");
+            var queue = WorkerQueue;
             while (true)
             {
-                logger.Info("Looking for message");
                 var m = queue.Deque();
-                if(m != null)
+                if (m != null)
                 {
-                    logger.Info("Message found");
                     // TODO: start a process that updates timeout ever n seconds
                     try
                     {
@@ -67,7 +94,7 @@ namespace OPS.Pipeline.TileServer
                         }
                         else
                         {
-                            logger.Info("Unknown message type");                            
+                            logger.Info("Unknown message type");
                         }
 
                     }
@@ -81,8 +108,6 @@ namespace OPS.Pipeline.TileServer
                     queue.Delete(m);
                 }
             }
-
-            return 0;
         }
     }
 }

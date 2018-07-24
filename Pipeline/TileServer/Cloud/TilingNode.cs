@@ -90,6 +90,52 @@ namespace OPS.Pipeline.TileServer
             return (BoundingBox)JsonHelper.FromJson(this.Bounds);
         }
 
+
+        public void SaveMesh(MeshImagePair pair, PipelineCore pipeline, double geometricError)
+        {
+            TemporaryFile.GetAndDelete(".ply", tmpMesh =>
+            {
+                TemporaryFile.GetAndDelete(".tif", tmpImage =>
+                {
+                    TemporaryFile.GetAndDelete(pair.Mesh.HasFaces ? ".b3dm" : ".pnts", tmp3DTileMesh =>
+                    {
+                        TemporaryFile.GetAndDelete(".jpg", tmp3DTileImage =>
+                        {
+
+                            string imageUrl = null;
+                            if (pair.Image != null)
+                            {
+                                // TODO: retain originial detail here
+                                pair.Image.Save<byte>(tmpImage);
+                                pair.Image.Save<byte>(tmp3DTileImage);
+                                imageUrl = new Uri(Path.Combine(Path.Combine(TileServerCloud.TileUrlBase, this.ProjectName), this.Id + Path.GetExtension(tmpImage))).ToString();
+                                pipeline.Storage.UploadFile(tmpImage, imageUrl);
+                                this.ImageUrl = imageUrl;
+                            }
+                            else
+                            {
+                                tmp3DTileImage = tmpImage = null;
+                            }
+                            string meshUrl = new Uri(Path.Combine(Path.Combine(TileServerCloud.TileUrlBase, this.ProjectName), this.Id + Path.GetExtension(tmpMesh))).ToString();
+                            pair.Mesh.Save(tmpMesh, Path.GetFileName(imageUrl));
+                            pipeline.Storage.UploadFile(tmpMesh, meshUrl);
+                            this.MeshUrl = meshUrl;
+
+                            string tileUrl = new Uri(Path.Combine(Path.Combine(TileServerCloud.WWWUrlBase, this.ProjectName), this.Id + Path.GetExtension(tmp3DTileMesh))).ToString();
+                            pair.Mesh.Save(tmp3DTileMesh, tmp3DTileImage);
+                            pipeline.Storage.UploadFile(tmp3DTileMesh, tileUrl);
+
+                            this.GeometricError = geometricError;
+                            this.Save(pipeline.DynamoContext);
+
+                        });
+                    });
+                });
+
+            });
+        }
+
+
         public SceneNode GetSceneNode()
         {
             SceneNode node = new SceneNode(this.Id);

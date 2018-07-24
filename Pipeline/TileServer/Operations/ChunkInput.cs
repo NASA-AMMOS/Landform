@@ -33,10 +33,10 @@ namespace OPS.Pipeline.TileServer
         static ILog logger = LogManager.GetLogger(typeof(ChunkInput));
 
         const int FacesPerChunk = 250000;
-        PipelineCore pipeline;
+        StartWorker pipeline;
         ChunkInputMessage message;
 
-        public ChunkInput(ChunkInputMessage message, PipelineCore pipeline)
+        public ChunkInput(ChunkInputMessage message, StartWorker pipeline)
         {
             this.pipeline = pipeline;
             this.message = message;
@@ -62,6 +62,7 @@ namespace OPS.Pipeline.TileServer
             if (input.Chunked)
             {
                 logger.Info("Input has already been chunked");
+                pipeline.CompeltionQueue(project).Enqueue(this.message);
                 return;
             }
 
@@ -71,6 +72,8 @@ namespace OPS.Pipeline.TileServer
             {
                 pipeline.Storage.DownloadFile(input.MeshUrl, f);
                 mesh = Mesh.Load(f);
+                mesh.RemoveInvalidFaces();
+                mesh.Clean();
             });
             Image image = null;
             if (input.ImageUrl != null)
@@ -83,7 +86,7 @@ namespace OPS.Pipeline.TileServer
                 });
             }
             logger.Info("Building acceleration structures");
-            MeshOperator op = new MeshOperator(mesh, buildFaceTree: true, buildVertexTree: false, buildUVFaceTree: false);
+            MeshOperator op = new MeshOperator(mesh, buildFaceTree: true, buildVertexTree: true, buildUVFaceTree: false);
             // TODO: migrate toward using sparse image so we don't need to know tile definitions
             logger.Info("Reading tile definitions");
             SceneNode root = TilingNode.BuildTreeFromDatabase(pipeline.DynamoContext, project);
@@ -95,7 +98,7 @@ namespace OPS.Pipeline.TileServer
             clipper.AddMeshImagePair(op, image);
 
             ConcurrentBag<string> chunkIds = new ConcurrentBag<string>();
-            Parallel.ForEach(chunks, (chunkData, pls, i) =>
+            Serial.ForEach(chunks, (chunkData, pls, i) =>
             {
                 Mesh m = null;
                 string meshExt = ".ply";
@@ -139,6 +142,7 @@ namespace OPS.Pipeline.TileServer
             input.ChunkIds = chunkIds.ToList();
             input.Chunked = true;
             input.Save(pipeline.DynamoContext);
+            pipeline.CompeltionQueue(project).Enqueue(this.message);
             logger.Info("Done");
         }
 

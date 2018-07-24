@@ -204,8 +204,8 @@ namespace OPS.Pipeline
                 maxHeight = Math.Max(maxHeight, patches[b].patchImage.Height);
             }
 
-            var binWidth = MathExtensions.MathE.CeilPowerOf2(maxWidth);
-            var binHeight = MathExtensions.MathE.CeilPowerOf2(maxHeight);
+            var binWidth = Math.Max( MathExtensions.MathE.CeilPowerOf2(maxWidth), 1);
+            var binHeight =Math.Max( MathExtensions.MathE.CeilPowerOf2(maxHeight), 1);
             var binDepth = 1;
 
             Cuboid[] cuboids = new Cuboid[patches.Count];

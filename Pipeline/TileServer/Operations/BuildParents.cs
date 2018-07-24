@@ -17,14 +17,16 @@ namespace OPS.Pipeline.TileServer
 
     public class BuildParentsMessage : TilingQueueMessage
     {
-        public Dictionary<string, List<string>> TileIds { get; set; }
+        public string TileId;
+        public List<string> ChildIds { get; set; }
 
 
         public BuildParentsMessage() { }
 
-        public BuildParentsMessage(string projectName, Dictionary<string, List<string>> tileIds) : base(projectName)
+        public BuildParentsMessage(string projectName,string parentId, List<string> childIds) : base(projectName)
         {
-            this.TileIds = tileIds;
+            this.TileId = parentId;
+            this.ChildIds = childIds;
         }
     }
 
@@ -33,10 +35,10 @@ namespace OPS.Pipeline.TileServer
 
         static ILog logger = LogManager.GetLogger(typeof(BuildParents));
 
-        PipelineCore pipeline;
+        StartWorker pipeline;
         BuildParentsMessage message;
 
-        public BuildParents(BuildParentsMessage message, PipelineCore pipeline)
+        public BuildParents(BuildParentsMessage message, StartWorker pipeline)
         {
             this.pipeline = pipeline;
             this.message = message;
@@ -45,88 +47,54 @@ namespace OPS.Pipeline.TileServer
 
         public void Process()
         {
-            logger.Info("Processing message");
             var project = TilingProject.Find(pipeline.DynamoContext, this.message.ProjectName);
-            // TODO filter tileId keys to only those tiles that don't have mesh urls
-            HashSet<string> childIds = new HashSet<string>(message.TileIds.Values.SelectMany(id => id));
-            ConcurrentDictionary<string, SceneNode> idToNode = new ConcurrentDictionary<string, SceneNode>();
-            logger.Info("Downloading child tile data");
-            Parallel.ForEach(childIds, id =>
+            TilingNode parent = TilingNode.Find(pipeline.DynamoContext, project, this.message.TileId);
+            if (parent.MeshUrl != null)
             {
-                var n  = TilingNode.Find(pipeline.DynamoContext, project, id);
+                logger.Info(parent.Id + " skipping");
+                pipeline.CompeltionQueue(project).Enqueue(new TileCompletedMessage(project.Name, parent.Id));
+                return;
+            }
+            ConcurrentDictionary<string, SceneNode> idToNode = new ConcurrentDictionary<string, SceneNode>();
+            Parallel.ForEach(this.message.ChildIds, cid =>
+            {
+                var n = TilingNode.Find(pipeline.DynamoContext, project, cid);
                 SceneNode node = n.GetSceneNode();
                 if (n.LoadMeshImagePair(node, pipeline))
                 {
-                    idToNode.TryAdd(id, node);
+                    idToNode.TryAdd(cid, node);
                 }
-                logger.Info(idToNode.Count + " / " + childIds.Count);
             });
 
-            Parallel.ForEach(message.TileIds.Keys, parentId =>
+            SceneNode parentSceneNode = parent.GetSceneNode();
+            foreach (var childId in message.ChildIds)
             {
-                TilingNode parent = TilingNode.Find(pipeline.DynamoContext, project, parentId);
-                if(parent.MeshUrl != null)
+                if (!idToNode.ContainsKey(childId))
                 {
-                    logger.Info("Skipping parent - already generated " + parent.MeshUrl);
+                    // TODO: we need to create a new job with these ids or re-enque this job
+                    logger.Info(parent.Id + ": Missing input data");
+                    return;
                 }
-                SceneNode parentSceneNode = parent.GetSceneNode();
-                foreach(var childId in message.TileIds[parentId])
+                var tmpNode = new SceneNode();
+                tmpNode.AddComponent(idToNode[childId].GetComponent<NodeBounds>());
+                tmpNode.AddComponent(idToNode[childId].GetComponent<MeshImagePair>());
+                // HACK HAC TODO REMOVE
+                if (!tmpNode.HasComponent<NodeGeometricError>())
                 {
-                    if(!idToNode.ContainsKey(childId))
-                    {
-                        // TODO: we need to create a new job with these ids or re-enque this job
-                        logger.Info("Missing child id input for " + parentId);
-                        return;
-                    }
-                    var tmpNode = new SceneNode();
-                    tmpNode.AddComponent(idToNode[childId].GetComponent<NodeBounds>());
-                    tmpNode.AddComponent(idToNode[childId].GetComponent<MeshImagePair>());
-                    // HACK HAC TODO REMOVE
-                    if(!tmpNode.HasComponent<NodeGeometricError>())
-                    {
-                        tmpNode.AddComponent(new NodeGeometricError(0));
-                    }
-
-                    tmpNode.Transform.SetParent(parentSceneNode.Transform);
-                }
-                logger.Info("Generating " + parentId);
-
-                parentSceneNode.BuildGeometryFromChildren(parentSceneNode, project.FacesPerTile, project.TileResolution, project.GetSkirtMode());
-
-                string meshExt = ".ply";
-                string imageExt = ".tif";
-                string id = Guid.NewGuid().ToString();
-                string filenameBase = Path.Combine(TemporaryFile.TemporaryDirectory, id);
-                string meshFilename = filenameBase + meshExt;
-                string imageFilename = filenameBase + imageExt;
-                string meshUrl = new Uri(Path.Combine(TileServerCloud.TileUrlBase, id + meshExt)).ToString();
-                string imageUrl = new Uri(Path.Combine(TileServerCloud.TileUrlBase, id + imageExt)).ToString();
-
-                // TODO handle case where there are no images
-                // TODO: retain originial detail here
-                var pair = parentSceneNode.GetComponent<MeshImagePair>();
-                pair.Image.Save<byte>(imageFilename);
-                pipeline.Storage.UploadFile(imageFilename, imageUrl);
-
-                pair.Mesh.Save(meshFilename, Path.GetFileName(imageFilename));
-                pipeline.Storage.UploadFile(meshFilename, meshUrl);
-                parent.MeshUrl = meshUrl;
-                parent.ImageUrl = imageUrl;
-                parent.GeometricError = parentSceneNode.GetComponent<NodeGeometricError>().Error;
-                parent.Save(pipeline.DynamoContext);
-                //// TODO: write and save gltf file (apply skirts if needed)
-                if (File.Exists(meshFilename))
-                {
-                    File.Delete(meshFilename);
-                }
-                if (File.Exists(imageFilename))
-                {
-                    File.Delete(imageFilename);
+                    tmpNode.AddComponent(new NodeGeometricError(0));
                 }
 
-            });
+                tmpNode.Transform.SetParent(parentSceneNode.Transform);
+            }
+            logger.Info(parent.Id + " generating form " + this.message.ChildIds.Count + " tiles");
 
+            parentSceneNode.BuildGeometryFromChildren(parentSceneNode, project.FacesPerTile, project.TileResolution, project.GetSkirtMode());
+
+            // TODO handle case where there are no images
+            // TODO: retain originial detail here
+            var pair = parentSceneNode.GetComponent<MeshImagePair>();
+            parent.SaveMesh(pair, pipeline, parentSceneNode.GetComponent<NodeGeometricError>().Error);
+            pipeline.CompeltionQueue(project).Enqueue(new TileCompletedMessage(project.Name, parent.Id));
         }
-
     }
 }
