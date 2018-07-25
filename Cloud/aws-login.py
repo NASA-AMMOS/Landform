@@ -1,4 +1,4 @@
-#!python
+#!/usr/bin/env python
 
 # this script is compatible with python 2 and 3
 
@@ -147,8 +147,7 @@ for inputtag in formsoup.find_all(re.compile('(FORM|form)')):
         idpauthformsubmiturl = parsedurl.scheme + '://' + parsedurl.netloc + action
 
 # Performs the submission of the IdP login form with the above post data
-response = session.post(
-    idpauthformsubmiturl, data=payload, verify=sslverification)
+response = session.post(idpauthformsubmiturl, data=payload, verify=sslverification)
 
 # Debug the response if needed
 #print(response.text)
@@ -170,9 +169,7 @@ assertion = ''
 # Look for the SAMLResponse attribute of the input tag (determined by
 # analyzing the debug print lines above)
 for inputtag in soup.find_all('input'):
-    print(inputtag.get('name'))
     if(inputtag.get('name') == 'SAMLResponse'):
-        print(inputtag.get('value'))
         assertion = inputtag.get('value')
 
 # Better error handling is required for production use.
@@ -239,14 +236,7 @@ filename = home + awsconfigfile
 config = ConfigParser.RawConfigParser()
 config.read(filename)
 
-# make the default section name be 'default' not 'DEFAULT'
-ConfigParser.DEFAULTSECT = 'default'
-
-# ConfigParser doesn't allow us to create the default section
-# but if output_profile is not default we do need to make sure it's created
-if output_profile.lower() == ConfigParser.DEFAULTSECT.lower():
-    output_profile = ConfigParser.DEFAULTSECT
-elif not config.has_section(output_profile):
+if not config.has_section(output_profile) and not output_profile == ConfigParser.DEFAULTSECT:
     config.add_section(output_profile)
 
 config.set(output_profile, 'output', output_format)
