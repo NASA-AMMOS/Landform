@@ -11,7 +11,6 @@ using OPS.Pipeline;
 using log4net;
 using OPS.Util;
 using OPS.Pipeline.TileServer;
-using OPS.Imaging;
 namespace TilingServer
 {
     class TilingServer
@@ -23,12 +22,6 @@ namespace TilingServer
             Config.ApplicationConfigFolder = ".landform";
             // Enable logging
             log4net.Config.XmlConfigurator.Configure();
-            // Register filetype handlers
-            new OpenInventorSerializer().Register();
-            new DracoSerializer().Register();
-
-            //Configure gdal
-            GdalConfiguration.ConfigureGdal();
 
             // Parse command line arguments
             int returnCode = TileServerCommands.RunFromCommandline(args);

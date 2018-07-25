@@ -72,7 +72,7 @@ namespace OPS.Pipeline.TileServer
                 if (n.MeshUrl != null)
                 {
                     logger.Info(n.Id + " skipping");
-                    pipeline.CompeltionQueue(project).Enqueue(new TileCompletedMessage(project.Name, n.Id));
+                    pipeline.CompeltionQueue.Enqueue(new TileCompletedMessage(project.Name, n.Id));
                 }
             }
             leaves = leaves.Where(n => n.MeshUrl == null).ToList();
@@ -135,7 +135,7 @@ namespace OPS.Pipeline.TileServer
                 var pair = bakeClipper.BakeTexture(m, project.TileResolution);
                 leaf.SaveMesh(pair, pipeline, 0);
                 processed.Add(leaf);
-                pipeline.CompeltionQueue(project).Enqueue(new TileCompletedMessage(project.Name, leaf.Id));
+                pipeline.CompeltionQueue.Enqueue(new TileCompletedMessage(project.Name, leaf.Id));
                 logger.Info(string.Format(leaf.Id + " generating from {0} chunks ({1}/{2})", inputGroups.SelectMany(g => g.Chunks).Count(), processed.Count(), leaves.Count));
             });
         }     

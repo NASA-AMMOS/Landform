@@ -1,5 +1,6 @@
 ﻿using CommandLine;
 using log4net;
+using OPS.Geometry;
 using OPS.Plumbing;
 using System;
 using System.Collections.Generic;
@@ -16,11 +17,11 @@ namespace OPS.Pipeline.TileServer
         [Value(0, Required = true, HelpText = "Dynamo DB prefix")]
         public string DynamoDBPrefix { get; set; }
 
-        [Value(1, Required = true, HelpText = "Project Name")]
-        public string ProjectName { get; set; }
-
         [Option(HelpText = "AWS profile to use", Default = "default")]
         public string Profile { get; set; }
+        
+        [Option(HelpText = "Also start the master server as part of this process - useful for debugging", Default = false)]
+        public bool StartMaster { get; set; }
     }
 
     public class StartWorker : PipelineCore
@@ -32,15 +33,14 @@ namespace OPS.Pipeline.TileServer
 
         public TilingQueue WorkerQueue
         {
-            get {  return TileServerCloud.WorkerQueue(options.DynamoDBPrefix, options.Profile); }
+            get { return new TileServerCloud(options.DynamoDBPrefix, this).WorkerQueue; }
         }
 
-        public TilingQueue CompeltionQueue(TilingProject project)
+        public TilingQueue CompeltionQueue
         {
-            return TileServerCloud.CompletionQueue(options.DynamoDBPrefix, options.Profile, project);            
+            get { return new TileServerCloud(options.DynamoDBPrefix, this).CompletionQueue; }            
         }
-
-
+        
 
         public StartWorker(StartWorkerOptions options) : base(dynamoPrefix: options.DynamoDBPrefix, profile: options.Profile)
         {
@@ -48,7 +48,28 @@ namespace OPS.Pipeline.TileServer
         }
 
         public int Run()
-        {            
+        {
+            // Register filetype handlers
+            new OpenInventorSerializer().Register();
+            new DracoSerializer().Register();
+            //Configure gdal
+            GdalConfiguration.ConfigureGdal();
+
+            Task masterTask = null;
+            if(options.StartMaster)
+            {
+                masterTask = new Task(() =>
+                {
+                    StartMasterOptions opts = new StartMasterOptions()
+                    {
+                        DynamoDBPrefix= options.DynamoDBPrefix,
+                        Profile= options.Profile
+                    };
+                    new StartMaster(opts).Run();
+                });
+                masterTask.Start();
+            }
+
             new TileServerCloud(options.DynamoDBPrefix, this).EnsureTablesExist();
 
             Task[] tasks = new Task[Environment.ProcessorCount];
@@ -59,6 +80,10 @@ namespace OPS.Pipeline.TileServer
             for (int i = 0; i < tasks.Length; i++)
             {
                 tasks[i].Wait();
+            }
+            if(masterTask != null)
+            {
+                masterTask.Wait();
             }
             return 0;
         }

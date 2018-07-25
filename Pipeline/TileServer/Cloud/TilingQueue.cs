@@ -39,7 +39,7 @@ namespace OPS.Pipeline.TileServer
         {
             get
             {
-                return this.prefix + "TilingServerQueue";
+                return "TilingServerQueue" + this.prefix;
             }
         }
 

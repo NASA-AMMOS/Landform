@@ -185,6 +185,7 @@
     <Compile Include="TileServer\Cloud\TilingNode.cs" />
     <Compile Include="TileServer\Commands\CreateProject.cs" />
     <Compile Include="TileServer\Commands\RunProject.cs" />
+    <Compile Include="TileServer\Commands\StartMaster.cs" />
     <Compile Include="TileServer\Commands\StartWorker.cs" />
     <Compile Include="TileServer\Commands\UploadInput.cs" />
     <Compile Include="TileServer\Cloud\TileServerCloud.cs" />

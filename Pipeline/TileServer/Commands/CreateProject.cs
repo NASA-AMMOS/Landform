@@ -49,7 +49,10 @@ namespace OPS.Pipeline.TileServer
 
         public int Run()
         {
-            new TileServerCloud(options.DynamoDBPrefix, this).EnsureTablesExist();
+            var cloud = new TileServerCloud(options.DynamoDBPrefix, this);
+            cloud.EnsureTablesExist();
+            var tmp = cloud.CompletionQueue;
+            tmp = cloud.WorkerQueue;
             if (TilingProject.Find(this.DynamoContext, options.ProjectName) != null)
             {
                 logger.Info("A project by that name already exists");

@@ -21,13 +21,15 @@ namespace OPS.Pipeline.TileServer
             return CommandLine.Parser.Default.ParseArguments<CreateProjectOptions,
                                                              UploadInputOptions,
                                                              RunProjectOptions,
-                                                             StartWorkerOptions
+                                                             StartWorkerOptions,
+                                                             StartMasterOptions
                                                              >(args)
               .MapResult(
                 (CreateProjectOptions opts) => new CreateProject(opts).Run(),
                 (UploadInputOptions opts) => new UploadInput(opts).Run(),
                 (RunProjectOptions opts) => new RunProject(opts).Run(),
                 (StartWorkerOptions opts) => new StartWorker(opts).Run(),
+                (StartMasterOptions opts) => new StartMaster(opts).Run(),
                 errs => 1);
         }
     }

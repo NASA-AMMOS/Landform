@@ -33,14 +33,14 @@ namespace OPS.Pipeline.TileServer
             this.pipeline = pipelineCore;
         }
 
-        public static TilingQueue WorkerQueue(string prefix, string profile)
+        public TilingQueue WorkerQueue
         {
-            return new TilingQueue(prefix, profile);
+            get { return new TilingQueue(this.dynamoDBPrefix, pipeline.Profile); }
         }
 
-        public static TilingQueue CompletionQueue(string prefix, string profile, TilingProject project)
+        public TilingQueue CompletionQueue
         {
-            return new TilingQueue(prefix + "_completion_" + project.Name, profile);
+            get { return new TilingQueue(this.dynamoDBPrefix + "_completion", pipeline.Profile); }
         }
 
         public void EnsureTablesExist()

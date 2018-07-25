@@ -64,7 +64,7 @@ namespace OPS.Plumbing
                 ddbClient = null;
                 context = null;
             }
-
+            this.Profile = profile;
             cacheFolder = TemporaryFile.GetTempDirectory();
         }
         ~PipelineCore()
@@ -80,7 +80,8 @@ namespace OPS.Plumbing
         DynamoDBContext context;
         StorageHelper storage;
         string cacheFolder;
-
+        
+        public string Profile { get; private set; }
         public IAmazonDynamoDB DynamoDB { get { return ddbClient; } }
         public DynamoDBContext DynamoContext { get { return context; } }
         public IAmazonS3 S3Client { get { return s3Client; } }

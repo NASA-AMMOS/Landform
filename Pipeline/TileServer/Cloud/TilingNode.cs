@@ -30,6 +30,8 @@ namespace OPS.Pipeline.TileServer
         public string ImageUrl { get; set; }
         public string ParentId { get; set; }
         public List<string> ChildIds { get; set; }
+        public List<string> DependsOn { get; set; }
+        public List<string> DependedOnBy { get; set; }
         public string Bounds { get; set; }
         public double? GeometricError { get; set; }
 
@@ -42,7 +44,7 @@ namespace OPS.Pipeline.TileServer
         /// Creates Project object locally.  
         /// </summary>
         /// <param name="name">Project names in the database must be unique</param>
-        protected TilingNode(string id, TilingProject project, string meshUrl, string imageUrl, string parentId, List<string> childIds, BoundingBox bounds)
+        protected TilingNode(string id, TilingProject project, string meshUrl, string imageUrl, string parentId, List<string> childIds, List<string> dependsOn, List<String> dependedOnBy, BoundingBox bounds)
         {
             Id = id;
             ProjectName = project.Name;
@@ -50,13 +52,15 @@ namespace OPS.Pipeline.TileServer
             ImageUrl = imageUrl;
             ParentId = parentId;
             ChildIds = childIds;
+            DependsOn = dependsOn;
+            DependedOnBy = dependedOnBy;
             Bounds = JsonHelper.ToJson(bounds);
         }
 
 
-        public static TilingNode Create(DynamoDBContext context, string id, TilingProject project, string meshUrl, string imageUrl, string parentId, List<string> childIds, BoundingBox bounds)
+        public static TilingNode Create(DynamoDBContext context, string id, TilingProject project, string meshUrl, string imageUrl, string parentId, List<string> childIds, List<string> dependsOn, List<String> dependedOnBy, BoundingBox bounds)
         {
-            TilingNode node = new TilingNode(id, project, meshUrl, imageUrl, parentId, childIds, bounds);
+            TilingNode node = new TilingNode(id, project, meshUrl, imageUrl, parentId, childIds, dependsOn, dependedOnBy, bounds);
             context.Save(node, new DynamoDBOperationConfig() { IgnoreNullValues = true });
             return node;
         }

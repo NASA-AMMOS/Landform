@@ -62,7 +62,7 @@ namespace OPS.Pipeline.TileServer
             if (input.Chunked)
             {
                 logger.Info("Input has already been chunked");
-                pipeline.CompeltionQueue(project).Enqueue(this.message);
+                pipeline.CompeltionQueue.Enqueue(this.message);
                 return;
             }
 
@@ -142,7 +142,7 @@ namespace OPS.Pipeline.TileServer
             input.ChunkIds = chunkIds.ToList();
             input.Chunked = true;
             input.Save(pipeline.DynamoContext);
-            pipeline.CompeltionQueue(project).Enqueue(this.message);
+            pipeline.CompeltionQueue.Enqueue(this.message);
             logger.Info("Done");
         }
 

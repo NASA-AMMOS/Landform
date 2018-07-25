@@ -18,15 +18,12 @@ namespace OPS.Pipeline.TileServer
     public class BuildParentsMessage : TilingQueueMessage
     {
         public string TileId;
-        public List<string> ChildIds { get; set; }
-
 
         public BuildParentsMessage() { }
 
-        public BuildParentsMessage(string projectName,string parentId, List<string> childIds) : base(projectName)
+        public BuildParentsMessage(string projectName,string parentId) : base(projectName)
         {
             this.TileId = parentId;
-            this.ChildIds = childIds;
         }
     }
 
@@ -52,11 +49,11 @@ namespace OPS.Pipeline.TileServer
             if (parent.MeshUrl != null)
             {
                 logger.Info(parent.Id + " skipping");
-                pipeline.CompeltionQueue(project).Enqueue(new TileCompletedMessage(project.Name, parent.Id));
+                pipeline.CompeltionQueue.Enqueue(new TileCompletedMessage(project.Name, parent.Id));
                 return;
             }
             ConcurrentDictionary<string, SceneNode> idToNode = new ConcurrentDictionary<string, SceneNode>();
-            Parallel.ForEach(this.message.ChildIds, cid =>
+            Parallel.ForEach(parent.DependsOn, cid =>
             {
                 var n = TilingNode.Find(pipeline.DynamoContext, project, cid);
                 SceneNode node = n.GetSceneNode();
@@ -67,7 +64,7 @@ namespace OPS.Pipeline.TileServer
             });
 
             SceneNode parentSceneNode = parent.GetSceneNode();
-            foreach (var childId in message.ChildIds)
+            foreach (var childId in parent.DependsOn)
             {
                 if (!idToNode.ContainsKey(childId))
                 {
@@ -86,7 +83,7 @@ namespace OPS.Pipeline.TileServer
 
                 tmpNode.Transform.SetParent(parentSceneNode.Transform);
             }
-            logger.Info(parent.Id + " generating form " + this.message.ChildIds.Count + " tiles");
+            logger.Info(parent.Id + " generating form " + parent.DependsOn.Count + " tiles");
 
             parentSceneNode.BuildGeometryFromChildren(parentSceneNode, project.FacesPerTile, project.TileResolution, project.GetSkirtMode());
 
@@ -94,7 +91,7 @@ namespace OPS.Pipeline.TileServer
             // TODO: retain originial detail here
             var pair = parentSceneNode.GetComponent<MeshImagePair>();
             parent.SaveMesh(pair, pipeline, parentSceneNode.GetComponent<NodeGeometricError>().Error);
-            pipeline.CompeltionQueue(project).Enqueue(new TileCompletedMessage(project.Name, parent.Id));
+            pipeline.CompeltionQueue.Enqueue(new TileCompletedMessage(project.Name, parent.Id));
         }
     }
 }
