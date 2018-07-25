@@ -52,6 +52,7 @@ namespace OPS.Pipeline
             this.AddProfile("s3://landlords-dev/", options.LandformProfile);
             this.AddProfile("s3://red-product/", options.MSliceProfile);
             this.options = options;
+            PathHelper.EnsureExists(options.OutputDirectory);
         }
 
 
@@ -104,6 +105,7 @@ namespace OPS.Pipeline
                 colorImg = Load(new S3ImageRef(imgObs.Url));
             }
 
+            var obsToRoot = observationToRoot.Mean;
             Mesh result = new Mesh();
             for (int r = 0; r < img.Height; r += stepSize)
             {
@@ -116,8 +118,8 @@ namespace OPS.Pipeline
                         if (range > MathE.EPSILON && range < 64)
                         {
                             var observationPoint = img.CameraModel.Unproject(new Vector2(c, r), range);
-                            var dist = observationToRoot.TransformPoint(observationPoint);
-                            var rootPoint = dist.XnaMean;
+                            //var dist = observationToRoot.TransformPoint(observationPoint);
+                            var rootPoint = Vector3.Transform(observationPoint, obsToRoot); //observationPoint dist.XnaMean;
                             var res = new Vertex(rootPoint);
                             if (colorImg != null)
                             {
@@ -131,8 +133,7 @@ namespace OPS.Pipeline
                                     res.Color = new Vector4(colorImg[0, r, c], colorImg[0, r, c], colorImg[0, r, c], 1);
                                 }
                             }
-
-                            result.Vertices.Add(new Vertex(rootPoint));
+                            result.Vertices.Add(res);
                         }
                     }
                 }
@@ -140,13 +141,33 @@ namespace OPS.Pipeline
             return result;
         }
 
+
+        class TransformRecord
+        {
+            public double[] transform;
+            public int[] rmc;
+            public string product;
+
+            public TransformRecord(Matrix m, int[] rmc, string product)
+            {
+ 
+                transform = new double[] { m.M11, m.M21, m.M31, m.M41,
+                                           m.M12, m.M22, m.M32, m.M42,
+                                           m.M13, m.M23, m.M33, m.M43,
+                                           m.M14, m.M24, m.M34, m.M44};
+                this.rmc = rmc;
+                this.product = product;
+            }
+        } 
+
         public int Run()
         {
             var pointObs = Observation.FindByType(DynamoContext, options.ProjectName, "Points").ToArray();
 
             FrameCache cache = new FrameCache(DynamoContext, options.ProjectName);
 
-            Serial.ForEach(pointObs, rngObs =>
+            ConcurrentBag<TransformRecord> records = new ConcurrentBag<TransformRecord>();
+            Parallel.ForEach(pointObs, new ParallelOptions() { MaxDegreeOfParallelism= Environment.ProcessorCount }, rngObs =>
             {
                 if (!rngObs.UseForReconstruction)
                 {
@@ -160,6 +181,16 @@ namespace OPS.Pipeline
                 //Products marked useforreconstruction = false could have been flagged before (during ingest) OR after (failing to compute features) selection in curiosity align
                 //For now this allows all images to avoid no options for a frame
 
+                int[] rmc = null;
+                {
+                    
+                    Image img = this.Load(new S3ImageRef(rngObs.Url), true);
+                    var parser = new PDSParser((PDSMetadata)img.Metadata);
+                    rmc = parser.MotionCounter;
+                }
+
+
+                records.Add(new TransformRecord(transform.Mean, rmc, rngObs.Name));
                 var obsPair =  MSLProject.FindBestPair(RoverObservation.Find(DynamoContext, frame).Where(ob => ob.UseForReconstruction).ToList());
                 Observation imgObs = null;
                 if(obsPair != null)
@@ -169,8 +200,12 @@ namespace OPS.Pipeline
 
                 var m = BuildPointCloud(rngObs, transform, imgObs);
                 m.HasColors = true;
-                m.Save(Path.Combine(options.OutputDirectory, rngObs.Name + ".ply"));
+                if (m.Vertices.Count > 0)
+                {
+                    m.Save(Path.Combine(options.OutputDirectory, rngObs.Name + ".ply"));
+                }
             });
+            File.WriteAllText(Path.Combine(options.OutputDirectory, "transforms.json"), JsonHelper.ToJson(records, true));
 
             return 0;
         }
