@@ -1,3 +1,5 @@
+const path = require('path');
+
 // JPL Dev SSO SAML endpoints and certs can be found here
 // Metadata including SAML cert: https://ssodev2.jpl.nasa.gov/oamfed/idp/metadata
 // SSO Service: https://ssodev2.jpl.nasa.gov/oamfed/idp/samlv20
@@ -14,6 +16,10 @@ const development = {
     sessionCookieSecure: false,
     sessionTimeout: 1000 * 60 * 60 * 24, //24h in ms
     ldapGroup: 'landform',
+    verboseLogging: true,
+    uploadDir: process.env.UPLOAD_DIR || path.join(process.cwd(), 'uploads'),
+    dbPrefix: process.env.DB_PREFIX || 'devtiles',
+    awsProfile: process.env.AWS_PROFILE || 'default',
   },
   ldap: {
     url: 'ldaps://ldap.jpl.nasa.gov',

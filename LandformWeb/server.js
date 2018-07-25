@@ -10,6 +10,7 @@ const config = require('./config');
 const authRouter = require('./auth');
 const token = require('./token');
 const projectRouter = require('./project');
+const taskRouter = require('./task');
 
 const app = express();
 
@@ -43,6 +44,7 @@ app.use('/auth', authRouter);
 const apiRouter = express.Router();
 apiRouter.use(token.apiTokenCheck);
 apiRouter.use('/project', projectRouter);
+apiRouter.use('/task', taskRouter);
 app.use('/api', apiRouter);
 
 //serve webpacked client but in production only
