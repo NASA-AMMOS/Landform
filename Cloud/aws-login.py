@@ -263,9 +263,9 @@ print('----------------------------------------------------------------\n\n')
 
 # Use the AWS STS token to list all of the S3 buckets
 s3conn = boto.s3.connect_to_region(region,
-                     aws_access_key_id=token.credentials.access_key,
-                     aws_secret_access_key=token.credentials.secret_key,
-                     security_token=token.credentials.session_token)
+                                   aws_access_key_id=token.credentials.access_key,
+                                   aws_secret_access_key=token.credentials.secret_key,
+                                   security_token=token.credentials.session_token)
 
 buckets = s3conn.get_all_buckets()
 
