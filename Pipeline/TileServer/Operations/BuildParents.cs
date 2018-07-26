@@ -53,13 +53,13 @@ namespace OPS.Pipeline.TileServer
                 return;
             }
             ConcurrentDictionary<string, SceneNode> idToNode = new ConcurrentDictionary<string, SceneNode>();
-            Parallel.ForEach(parent.DependsOn, cid =>
+            var dependsOnTilingNodes = parent.DependsOn.Select(cid => TilingNode.Find(pipeline.DynamoContext, project, cid));
+            Serial.ForEach(dependsOnTilingNodes, n =>
             {
-                var n = TilingNode.Find(pipeline.DynamoContext, project, cid);
                 SceneNode node = n.GetSceneNode();
                 if (n.LoadMeshImagePair(node, pipeline))
                 {
-                    idToNode.TryAdd(cid, node);
+                    idToNode.TryAdd(n.Id, node);
                 }
             });
 

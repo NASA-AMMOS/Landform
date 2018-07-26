@@ -60,7 +60,8 @@ namespace OPS.Pipeline.TileServer
                     {
                         if(DateTime.UtcNow - recentlyProcessed[s] < new TimeSpan(0, 5, 0))
                         {
-                            logger.Info("Skipping identical message recieved within 5 minutes");
+                            logger.Info("Skipping identical message");
+                            completionQueue.Delete(m);
                             continue;
                         }
                         else
@@ -73,11 +74,14 @@ namespace OPS.Pipeline.TileServer
                         // process
                         TilingProject project = TilingProject.Find(this.DynamoContext, m.ProjectName);
                         if (m.GetType() == typeof(DefineTilesMessage))
-                        {                           
+                        {
+                            logger.Info("DefineTiles project:" + m.ProjectName);
                             ChunkInputs(workerQueue, project);
                         }
                         else if (m.GetType() == typeof(ChunkInputMessage))
-                        {                            
+                        {
+                            logger.Info("ChunkInput project:" + m.ProjectName + " input:" + ((ChunkInputMessage)m).InputName);
+
                             var inputs = TilingInput.Find(this.DynamoContext, project);
                             bool allChunked = inputs.All(i => i.Chunked);
                             if (allChunked)
@@ -87,21 +91,14 @@ namespace OPS.Pipeline.TileServer
                         }
                         else if (m.GetType() == typeof(TileCompletedMessage))
                         {
+
                             var id = ((TileCompletedMessage)m).TileId;
+                            logger.Info("TileCompleted project:" + m.ProjectName + " tile:" + id);
                             var node = TilingNode.Find(this.DynamoContext, project, id);
-                            if (node.ParentId == null)
-                            {
-                                break;
-                            }
                             // For each node that depends on this one
                             foreach (var pid in node.DependedOnBy)
                             {
                                 var pnode = TilingNode.Find(this.DynamoContext, project, pid);
-                                //if (/*pnode.MeshUrl != null || */dependencies.RequestedTiles.Contains(pid))
-                                //{
-                                //    // Don't enque a parent more than once
-                                //    continue;
-                                //}
                                 // Check to see if all of it's dependencies have been completed
                                 bool allDependenciesDone = true;
                                 foreach (var d in pnode.DependsOn)
@@ -115,7 +112,7 @@ namespace OPS.Pipeline.TileServer
                                 }
                                 if (allDependenciesDone)
                                 {
-                                    logger.Info("Enquing parent job");
+                                    logger.Info("EnquingParent " + project.Name + " tile:" + pid);
                                     var parentJob = new BuildParentsMessage(project.Name, pid);
                                     workerQueue.Enqueue(parentJob);
                                 }
@@ -135,14 +132,11 @@ namespace OPS.Pipeline.TileServer
                     completionQueue.Delete(m);
                 }
             }
-
-
             return 0;
         }
 
         void ChunkInputs(TilingQueue queue, TilingProject project)
         {
-            logger.Info("Chunk inputs");
             var inputs = TilingInput.Find(this.DynamoContext, project);
             foreach (var input in inputs)
             {

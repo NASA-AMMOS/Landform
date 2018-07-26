@@ -15,7 +15,7 @@ using OPS.Plumbing;
 namespace OPS.Pipeline.TileServer
 {
     [DynamoDBTable("TilingNode")]
-    [DynamoDBReadCapacity(5, 50)]
+    [DynamoDBReadCapacity(30, 50)]
     [DynamoDBWriteCapacity(5, 50)]
     public class TilingNode
     {
