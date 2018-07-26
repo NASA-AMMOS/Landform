@@ -2,6 +2,7 @@ const express = require('express');
 
 const { routeError, abortRoute, sendJson, parseBool, parseArgs } = require('../routeUtil');
 const { getTask } = require('../taskUtil');
+const masterTask = require('../masterTask');
 
 const router = express.Router();
 
@@ -32,5 +33,7 @@ router.get('/:id/log', (req, res) => {
     }
   } catch (e) { abortRoute(res, 'error getting task log', e); }
 });
+
+router.get('/master/id', (req, res) => sendJson(res, masterTask.info.id));
 
 module.exports = router;
