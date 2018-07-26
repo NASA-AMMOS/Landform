@@ -10,8 +10,8 @@ const config = require('./config');
 const logger = require('./logger');
 const authRouter = require('./auth');
 const token = require('./token');
-const projectRouter = require('./project');
-const taskRouter = require('./task');
+const projectRouter = require('./api/project');
+const taskRouter = require('./api/task');
 
 const app = express();
 
@@ -41,7 +41,7 @@ app.use(session({
 //serve auth routes - login, logout, get token
 app.use('/auth', authRouter);
 
-//serve REST API routes
+//serve API routes
 const apiRouter = express.Router();
 apiRouter.use(token.apiTokenCheck);
 apiRouter.use('/project', projectRouter);

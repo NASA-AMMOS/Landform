@@ -1,0 +1,155 @@
+const spawn = require('child_process').spawn;
+const path = require('path');
+const byline = require('byline');
+
+const config = require('./config');
+const logger = require('./logger');
+const { parseArgs, sendText, sendJson } = require('./routeUtil');
+
+let nextTask = 0;
+const tasks = {};
+
+function getTask(id) { return tasks[id]; }
+
+//spawn a subprocess
+//the optional arg fmt is a function taking (cmd, args) and returning a human-readable name for the task
+//otherwise name = cmd
+//returns task object
+function launchTask(cmd, args, fmt) {
+
+  const name = fmt ? fmt(cmd, args) : cmd;
+  const id = nextTask++;
+  const task = tasks[id] = {
+    cmd, args,
+    process: null,
+    promise: null,
+    info: { id, name, running: true, success: false, exitCode: null, error: null, started: Date.now(), ended: null },
+    log: [],
+    listeners: [],
+    liveStreams: 2,
+  };
+
+  //forward spew from task to registered listeners
+  //also logs it at debug level
+  //line = null tells listeners task is finished
+  function log(line) {
+    const done = line === null;
+    //only really done when the process is dead and its output streams are all ended
+    if (done && (task.liveStreams > 0 || task.process)) return;
+    if (!done) logger.debug(line);
+    task.listeners.forEach(l => l(line)); //forward on line = null to listeners if done
+    if (done) task.listeners = [];
+  }
+
+  //at least one of code, signal, or err will be non-null
+  //if code is non-null then the subprocess exited on its own with this code
+  //if signal is non-null then the subprocess was terminated due to a signal with this name
+  //if err is non-null then the process could not be spawned due to this Error
+  function end(resolve, reject, code, signal, err) {
+    if (!task.process) return; //already ended
+    task.process = null;
+    task.info.running = false;
+    task.info.ended = Date.now();
+    task.info.success = !code && !signal && !err;
+    task.info.exitCode = code || signal || err.message;
+    if (!task.info.success) task.info.error = `failed with error ${task.info.exitCode}`;
+    const msg = `${name} ended at ${task.info.ended}${!task.info.success ? ', ' + task.info.error : ''}`;
+    logger.verbose(msg);
+    log(null);
+    if (!task.info.success) reject(err || new Error(msg)); else resolve();
+  }
+
+  task.process = spawn(path.join(config.app.binDir, `${cmd}.exe`), args);
+
+  task.promise = new Promise((resolve, reject) => {
+    //might get both or either 'error' and/or 'exit' events
+    task.process.on('error', (err) => end(resolve, reject, null, null, err));
+    task.process.on('exit', (code, signal) => end(resolve, reject, code, signal, null));
+  });
+
+  [task.process.stdout, task.process.stderr].forEach(stream => {
+    byline(stream).on('data', line => log(line)).on('end', () => { task.liveStreams--; log(null); });
+  });
+
+  logger.verbose(`${name} started at ${task.info.started}`);
+
+  return task;
+}
+
+//avoid memory leak, reap completed tasks
+setInterval(() => {
+  const tooOld = Date.now() - config.app.reapOldTasks * 1000;
+  const dead = [];
+  Object.values(tasks).forEach(task => {
+    if (!task.info.running && task.info.ended < tooOld) dead.push(task.info.id);
+  });
+  dead.forEach(id => { delete tasks[id]; });
+}, 60 * 1000);
+
+//generic handler for API calls that run a task
+//
+//optional function cleanup will be run when the task completes (success or fail)
+//
+//if the request includes a query or body param async=true then the HTTP request will be ended now with the task.info
+//otherwise the HTTP request will end when the task ends
+//
+//if no text=true or live=true param then the request will end when the task ends and return a json task.info object
+//with success=true|false and errror=string in the case of failure
+//
+//if text=true then the request will return the log spew of the task
+//
+//if live=true then the request will return as plaintext
+//1) the current json task.info
+//2) the the log spew of the task as it is produced
+//3) the final json task.info
+//
+//in all the non-async cases an Error will be thrown if the task errors
+async function runTask(req, res, task, cleanup) {
+
+  if (cleanup) task.promise.then(cleanup, cleanup);
+
+  const { text, live, async } = parseArgs(req, {
+    text: { type: 'bool', default: false },
+    live: { type: 'bool', default: false },
+    async: { type: 'bool', default: false },
+  });
+
+  if (async) {
+
+    //just swallow exceptions here to prevent unhandled promise rejection warnings
+    //they will also be recorded in task.info for potential later async retrieval
+    task.promise.catch(() => {});
+
+    if (text) sendText(res, JSON.stringify(task.info)); else sendJson(res, task.info);
+
+  } else if (live) {
+
+    res.contentType('text/plain');
+
+    res.write(JSON.stringify(task.info));
+
+    if (task.info.running) {
+      res.listeners.push(msg => {
+        if (msg !== null) { res.write('\n'); res.write(msg); }
+        else sendText(res, JSON.stringify(task.info));
+      });
+    }
+
+    res.write('\n');
+    res.write(task.log.join('\n'));
+
+    if (!task.info.running) sendText(res, JSON.stringify(task.info));
+
+  } else if (text) {
+
+    await task.promise;
+    sendText(res, task.log.join('\n'));
+
+  } else {
+
+    await task.promise;
+    sendJson(res, task.info);
+  }
+}
+
+module.exports = { getTask, launchTask, runTask };

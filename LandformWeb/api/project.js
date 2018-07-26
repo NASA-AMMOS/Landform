@@ -2,31 +2,16 @@ const express = require('express');
 const fs = require('fs-extra');
 const multer = require('multer');
 
-const config = require('./config');
-const { sendJson, sendSuccess, routeError, abortRoute, parseArgs, launchTask } = require('./util');
+const config = require('../config');
+const { routeError, abortRoute, parseArgs } = require('../routeUtil');
+const { launchTask, runTask } = require('../taskUtil');
 
-//spawn TilingServer verb in a subprocess
+//spawn TilingServer verb
 //DynamoDB prefix and AWS profile name will be added to the command args
-//optional function cleanup will be run when the task completes (success or fail)
-//if the request includes a query or body param async=true then the HTTP request will be ended now with the task info
-//otherwise the HTTP request will end when the task ends with a JSON object
-//the returned object will always include success: true|false
-//on error the object will also include error: message
-async function runTask(req, res, verb, args, cleanup) {
-
+async function runTilingServer(req, res, verb, args, cleanup) {
   const task = launchTask('TilingServer', [verb, config.app.dbPrefix, ...args, '--Profile', config.app.awsProfile],
                           (c, a) => `${c} ${a[0]} ${a[2]}`); //task name is "TilingServer <verb> <project>"
-
-  if (cleanup) task.promise.finally(cleanup);
-
-  if (parseArgs(req, { async: { type: 'bool', default: false } }).async) {
-    //async task errors are handled elsewhere
-    task.promise.catch(() => {}); //just swallow exception here to prevent unhandled promise rejection warning
-    sendJson(res, task.info);
-  } else {
-    await task.promise; //will throw on task error, triggering abortRoute()
-    sendSuccess(res);
-  }
+  await runTask(req, res, task, cleanup);
 }
 
 const router = express.Router();
@@ -41,9 +26,9 @@ async function createProject(req, res) {
       TileResolution: { type: 'int', required: false },
     }, { commandLine: true });
 
-    await runTask(req, res, 'createproject', [req.params.name, ...args]);
+    await runTilingServer(req, res, 'createproject', [req.params.name, ...args]);
 
-  } catch (e) { abortRoute(res, 'failed to create project', e); }
+  } catch (e) { abortRoute(res, 'error creating project', e); }
 }
 router.post('/:name', createProject);
 router.put('/:name', createProject);
@@ -60,20 +45,28 @@ async function uploadInput(req, res) {
 
     const args = parseArgs(req, { TileId: { type: 'string', required: false } }, { commandLine: true });
 
-    await runTask(req, res, 'uploadinput', [req.params.name, ...paths, ...args],
+    await runTilingServer(req, res, 'uploadinput', [req.params.name, ...paths, ...args],
                   () => paths.forEach(f => fs.remove(f)));
 
-  } catch (e) { abortRoute(res, 'failed to process upload', e); }
+  } catch (e) { abortRoute(res, 'error processing upload', e); }
 }
 const multerConfig = { dest: config.app.uploadDir };
 const multerFields = [{ name: 'mesh', maxCount: 1 }, { name: 'texture', maxCount: 1 }];
-router.post('/:name', multer(multerConfig).fields(multerFields), uploadInput);
+router.post('/:name/upload', multer(multerConfig).fields(multerFields), uploadInput);
 
 async function runProject(req, res) {
-  try { await runTask(req, res, 'runproject', [req.params.name]); }
-  catch (e) { abortRoute(res, 'failed to run project', e); }
+  try { await runTilingServer(req, res, 'runproject', [req.params.name]); }
+  catch (e) { abortRoute(res, 'error running project', e); }
 }
-router.get('/:name', runProject);
-router.post('/:name', runProject);
+router.get('/:name/run', runProject);
+router.post('/:name/run', runProject);
+
+//TODO
+//get project
+//list projects
+//trash/untrash project
+//rename project
+//trash input
+//download ouptput
 
 module.exports = router;
