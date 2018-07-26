@@ -7,6 +7,7 @@ const cors = require('cors');
 const path = require('path');
 
 const config = require('./config');
+const logger = require('./logger');
 const authRouter = require('./auth');
 const token = require('./token');
 const projectRouter = require('./project');
@@ -52,4 +53,4 @@ app.use('/api', apiRouter);
 //that dev server proxies certain routes back to this server as configured in client/package.json
 if (app.get('env') === 'production') app.use('/', express.static(path.join(__dirname, 'client', 'build')));
 
-app.listen(config.app.port, () => { console.log(`${config.app.name} server listening on port ${config.app.port}`); });
+app.listen(config.app.port, () => { logger.info(`${config.app.name} server listening on port ${config.app.port}`); });

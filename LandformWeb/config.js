@@ -17,7 +17,9 @@ const development = {
     sessionTimeout: 1000 * 60 * 60 * 24, //24h in ms
     ldapGroup: 'landform',
     verboseLogging: true,
-    uploadDir: process.env.UPLOAD_DIR || path.join(process.cwd(), 'uploads'),
+    logLevel: process.env.LOG_LEVEL || 'silly', //error, warn, info, verbose, debug, silly
+    uploadDir: process.env.UPLOAD_DIR || path.join(process.cwd(), 'upload'),
+    logDir: process.env.LOG_DIR || path.join(process.cwd(), 'log'),
     dbPrefix: process.env.DB_PREFIX || 'devtiles',
     awsProfile: process.env.AWS_PROFILE || 'default',
   },
@@ -43,5 +45,6 @@ const development = {
 // override select values for production
 const production = JSON.parse(JSON.stringify(development)); //deep copy
 production.app.sessionCookieSecure = true;
+production.app.logLevel = process.env.LOG_LEVEL || 'verbose';
 
 module.exports = { development, production }[process.env.NODE_ENV || 'development'];
