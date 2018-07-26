@@ -16,10 +16,6 @@ namespace OPS.Imaging
         private string baseUrl;
         private string extension;
         private int chunkSize;
-        private Loader LoadImage;
-        private Saver SaveImage;
-        public delegate Image Loader(string url);
-        public delegate void Saver(Image img, string url);
 
         /// <summary>
         /// Contructs a SparseImage with baseUrl and extension of chunk images to load and populate the SparseImage array as needed.
@@ -32,7 +28,7 @@ namespace OPS.Imaging
         /// <param name="chunkSize">Width and height of chunks</param>
         /// <param name="loader">Function to load chunks (default Image.Load)</param>
         /// <param name="saver">Function to save chunks (default Image.Save)</param>
-        public SparseImage(int bands, int width, int height, string baseUrl, string extension, int chunkSize = 256, Loader loader = null, Saver saver = null) : base(0, 0, 0)
+        public SparseImage(int bands, int width, int height, string baseUrl, string extension, int chunkSize = 256) : base(0, 0, 0)
         {
             this.Metadata = new ImageMetadata(bands, width, height);
             this.Bands = bands;
@@ -41,23 +37,6 @@ namespace OPS.Imaging
             this.baseUrl = baseUrl;
             this.extension = extension;
             this.chunkSize = chunkSize;
-            if (loader != null)
-            {
-                this.LoadImage = loader;
-            }
-            else
-            {
-                this.LoadImage = Load;
-            }
-            if (saver != null)
-            {
-                this.SaveImage = saver;
-            }
-            else
-            {
-                this.SaveImage = Save<byte>;
-            }
-
             Images = new Image[(int)Math.Ceiling((float)Height / chunkSize), (int)Math.Ceiling((float)Width / chunkSize)];
         }
 
@@ -67,7 +46,7 @@ namespace OPS.Imaging
         /// <param name="largeImage">Original Image to be partitioned</param>
         /// <param name="chunkSize">Width and height of chunks</param>
         /// <param name="saver">Function to save chunks (default Image.Save)</param>
-        public SparseImage(Image largeImage, int chunkSize = 256, Saver saver = null) : base(0, 0, 0)
+        public SparseImage(Image largeImage, int chunkSize = 256) : base(0, 0, 0)
         {
             this.Metadata = (ImageMetadata)largeImage.Metadata.Clone();
             this.Bands = largeImage.Bands;
@@ -75,23 +54,25 @@ namespace OPS.Imaging
             this.Height = largeImage.Height;
             this.chunkSize = chunkSize;
 
-            if (saver != null)
-            {
-                this.SaveImage = saver;
-            }
-            else
-            {
-                this.SaveImage = Save<byte>;
-            }
-
             Images = new Image[(int)Math.Ceiling((float)Height / chunkSize), (int)Math.Ceiling((float)Width / chunkSize)];
             Partition(largeImage);
         }
 
-        private void Save<T>(Image img, string filename)
+        protected virtual void SaveChunk<T>(Image img, string filename)
         {
             img.Save<T>(filename);
         }
+
+        /// <summary>
+        /// Loads required chunk.
+        /// </summary>
+        /// <param name="rowIndex">Row index of chunk</param>
+        /// <param name="colIndex">Column index of chunk</param>
+        protected virtual Image LoadChunk(string filename)
+        {
+            return Image.Load(filename);
+        }
+
 
         /// <summary>
         /// Save each chunk of SparseImage separately using specified saver.
@@ -106,7 +87,7 @@ namespace OPS.Imaging
                 {
                     if (Images[row, col] != null)
                     {
-                        SaveImage(Images[row, col], CreateFileName(row, col, baseUrl, extension));
+                        SaveChunk<T>(Images[row, col], CreateFileName(row, col, baseUrl, extension));
                     }
                 }
             }
@@ -141,10 +122,7 @@ namespace OPS.Imaging
             {
                 int rowIndex = row / chunkSize;
                 int colIndex = column / chunkSize;
-                if (Images[rowIndex, colIndex] == null)
-                {
-                    LoadChunk(rowIndex, colIndex);
-                }
+                EnsureChunkLoaded(rowIndex, colIndex);
                 return Images[rowIndex, colIndex][band, (row % chunkSize), (column % chunkSize)];
 
             }
@@ -152,26 +130,23 @@ namespace OPS.Imaging
             {
                 int rowIndex = row / chunkSize;
                 int colIndex = column / chunkSize;
-                if (Images[rowIndex, colIndex] == null)
-                {
-                    LoadChunk(rowIndex, colIndex);
-                }
+                EnsureChunkLoaded(rowIndex, colIndex);
                 Images[rowIndex, colIndex][band, (row % chunkSize), (column % chunkSize)] = value;
             }
         }
 
-        /// <summary>
-        /// Loads required chunk.
-        /// </summary>
-        /// <param name="rowIndex">Row index of chunk</param>
-        /// <param name="colIndex">Column index of chunk</param>
-        private void LoadChunk(int rowIndex, int colIndex)
+        void EnsureChunkLoaded(int rowIndex, int colIndex)
         {
-            Images[rowIndex, colIndex] = LoadImage(CreateFileName(rowIndex, colIndex, baseUrl, extension));
-            if ((Images[rowIndex, colIndex].Height != chunkSize && rowIndex * chunkSize + Images[rowIndex, colIndex].Height != Height) 
-                || (Images[rowIndex, colIndex].Width != chunkSize && colIndex * chunkSize + Images[rowIndex,colIndex].Width != Width))
+            if (Images[rowIndex, colIndex] == null)
             {
-                throw new Exception("Chunk size does not match previously partitioned image");
+                var img = LoadChunk(CreateFileName(rowIndex, colIndex, baseUrl, extension));
+                if ((img.Height != chunkSize && rowIndex * chunkSize + img.Height != Height) ||
+                    (img.Width != chunkSize && colIndex * chunkSize + img.Width != Width) ||
+                    (img.Bands != this.Bands))
+                {
+                    throw new Exception("Chunk size does not match previously partitioned image");
+                }
+                Images[rowIndex, colIndex] = img;
             }
         }
 
