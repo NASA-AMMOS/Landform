@@ -16,12 +16,13 @@ const development = {
     sessionCookieSecure: false,
     sessionTimeout: 1000 * 60 * 60 * 24, //24h in ms
     ldapGroup: 'landform',
-    verboseLogging: true,
     logLevel: process.env.LOG_LEVEL || 'silly', //error, warn, info, verbose, debug, silly
     uploadDir: process.env.UPLOAD_DIR || path.join(process.cwd(), 'upload'),
+    binDir: process.env.BIN_DIR || path.join(process.cwd(), 'bin'),
     logDir: process.env.LOG_DIR || path.join(process.cwd(), 'log'),
     dbPrefix: process.env.DB_PREFIX || 'devtiles',
     awsProfile: process.env.AWS_PROFILE || 'default',
+    reapOldTasks: 60 * 60 * 24, //24h in sec
   },
   ldap: {
     url: 'ldaps://ldap.jpl.nasa.gov',
