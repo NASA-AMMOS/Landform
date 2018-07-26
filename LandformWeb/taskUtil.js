@@ -33,11 +33,13 @@ function launchTask(cmd, args, fmt) {
   //also logs it at debug level
   //line = null tells listeners task is finished
   function log(line) {
+    if (Buffer.isBuffer(line)) line = line.toString('utf8');
     const done = line === null;
     //only really done when the process is dead and its output streams are all ended
     if (done && (task.liveStreams > 0 || task.process)) return;
     if (!done) logger.debug(line);
     task.listeners.forEach(l => l(line)); //forward on line = null to listeners if done
+    task.log.push(line);
     if (done) task.listeners = [];
   }
 
@@ -51,7 +53,7 @@ function launchTask(cmd, args, fmt) {
     task.info.running = false;
     task.info.ended = Date.now();
     task.info.success = !code && !signal && !err;
-    task.info.exitCode = code || signal || err.message;
+    task.info.exitCode = task.info.success ? 0 : (code || signal || err.message || 'unknown');
     if (!task.info.success) task.info.error = `failed with error ${task.info.exitCode}`;
     const msg = `${name} ended at ${task.info.ended}${!task.info.success ? ', ' + task.info.error : ''}`;
     logger.verbose(msg);
@@ -106,7 +108,7 @@ setInterval(() => {
 //in all the non-async cases an Error will be thrown if the task errors
 async function runTask(req, res, task, cleanup) {
 
-  if (cleanup) task.promise.then(cleanup, cleanup);
+  if (cleanup) task.promise.then(cleanup, cleanup).catch(cleanup);
 
   const { text, live, async } = parseArgs(req, {
     text: { type: 'bool', default: false },
@@ -129,16 +131,19 @@ async function runTask(req, res, task, cleanup) {
     res.write(JSON.stringify(task.info));
 
     if (task.info.running) {
-      res.listeners.push(msg => {
-        if (msg !== null) { res.write('\n'); res.write(msg); }
-        else sendText(res, JSON.stringify(task.info));
+      task.listeners.push(msg => {
+        res.write('\n');
+        if (msg !== null) res.write(msg);
+        else { res.write(JSON.stringify(task.info)); res.end(); }
       });
     }
 
-    res.write('\n');
-    res.write(task.log.join('\n'));
+    if (task.log.length > 0) {
+      res.write('\n');
+      res.write(task.log.join('\n'));
+    }
 
-    if (!task.info.running) sendText(res, JSON.stringify(task.info));
+    if (!task.info.running) { res.write('\n'); res.write(JSON.stringify(task.info)); res.end(); }
 
   } else if (text) {
 

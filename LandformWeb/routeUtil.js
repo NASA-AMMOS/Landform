@@ -83,7 +83,7 @@ function abortRoute(res, prefix, err, text) {
   const msg = `${prefix}: ${err.message}`;
   const status = 'status' in err ? err.status : 500;
   logger.error(msg);
-  if (logger.levels[logger.level] >= logger.levels.debug) console.error(err);
+  logger.exception(err);
   res.status(status);
   if (!text) sendJson(res, { success: false, error: msg });
   else sendText(msg);

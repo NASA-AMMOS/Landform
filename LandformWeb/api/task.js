@@ -30,7 +30,7 @@ router.get('/:id/log', (req, res) => {
         res.write(task.log.join('\n'));
       }
     }
-  } catch (e) { abortRoute(res, 'error getting task log', e, parseBool(res.query.text)); }
+  } catch (e) { abortRoute(res, 'error getting task log', e); }
 });
 
 module.exports = router;

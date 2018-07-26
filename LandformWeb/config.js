@@ -20,7 +20,7 @@ const development = {
     uploadDir: process.env.UPLOAD_DIR || path.join(process.cwd(), 'upload'),
     binDir: process.env.BIN_DIR || path.join(process.cwd(), 'bin'),
     logDir: process.env.LOG_DIR || path.join(process.cwd(), 'log'),
-    dbPrefix: process.env.DB_PREFIX || 'devtiles',
+    dbPrefix: process.env.DB_PREFIX || 'webdevtiles',
     awsProfile: process.env.AWS_PROFILE || 'default',
     reapOldTasks: 60 * 60 * 24, //24h in sec
   },

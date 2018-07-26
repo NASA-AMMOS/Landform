@@ -34,4 +34,11 @@ logger.stream = {
   removeListener() { /* NOOP */ },
 };
 
+//log exceptions to console only and only if log level is debug or higher
+//TODO maybe rework this so that the exception goes into the regular log transports
+//for now leaving it like this because console.error() formats the exception better anyway
+logger.exception = (err) => {
+  if (logger.levels[logger.level] >= logger.levels.debug) console.error(err);
+};
+
 module.exports = logger;

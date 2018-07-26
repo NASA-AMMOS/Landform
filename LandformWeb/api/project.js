@@ -1,4 +1,5 @@
 const express = require('express');
+const path = require('path');
 const fs = require('fs-extra');
 const multer = require('multer');
 
@@ -9,7 +10,7 @@ const { launchTask, runTask } = require('../taskUtil');
 //spawn TilingServer verb
 //DynamoDB prefix and AWS profile name will be added to the command args
 async function runTilingServer(req, res, verb, args, cleanup) {
-  const task = launchTask('TilingServer', [verb, config.app.dbPrefix, ...args, '--Profile', config.app.awsProfile],
+  const task = launchTask('TilingServer', [verb, config.app.dbPrefix, ...args, '--profile', config.app.awsProfile],
                           (c, a) => `${c} ${a[0]} ${a[2]}`); //task name is "TilingServer <verb> <project>"
   await runTask(req, res, task, cleanup);
 }
@@ -20,10 +21,10 @@ async function createProject(req, res) {
   try {
 
     const args = parseArgs(req, {
-      TilingScheme: { type: 'enum', required: false, options: ['Bin', 'Quad', 'Oct', 'UserDefined'] },
-      SkirtMode: { type: 'enum', required: false, options: ['None', 'X', 'Y', 'Z'] },
-      FacesPerTile: { type: 'int', required: false },
-      TileResolution: { type: 'int', required: false },
+      tilingscheme: { type: 'enum', required: false, options: ['Bin', 'Quad', 'Oct', 'UserDefined'] },
+      skirtmode: { type: 'enum', required: false, options: ['None', 'X', 'Y', 'Z'] },
+      facespertile: { type: 'int', required: false },
+      tileresolution: { type: 'int', required: false },
     }, { commandLine: true });
 
     await runTilingServer(req, res, 'createproject', [req.params.name, ...args]);
@@ -33,22 +34,56 @@ async function createProject(req, res) {
 router.post('/:name', createProject);
 router.put('/:name', createProject);
 
+let nextUpload = 0;
+async function makeTmpDir() {
+  let tmpDir = null;
+  do { tmpDir = path.join(config.app.uploadDir, `tmp${nextUpload++}`); } while (await fs.pathExists(tmpDir));
+  await fs.ensureDir(tmpDir);
+  return tmpDir;
+}
+
 async function uploadInput(req, res) {
+
+  const paths = [];
+  let tmpdir = null;
+
+  let didCleanup = false;
+  function cleanup() {
+    if (!didCleanup) {
+      didCleanup = true;
+      paths.forEach(f => fs.remove(f));
+      if (tmpdir) fs.remove(tmpdir);
+    }
+  }
+
+  async function addFile(f) {
+    const dest = path.join(tmpdir, f.originalname);
+    await fs.move(f.path, dest);
+    paths.push(dest);
+  }
+
   try {
 
-    const paths = [];
+    //multer will have saved the files from the multipart body request into the upload dir
+    //but the filenames will be arbitrary hashes at this point
+    //so move them into a unique temp dir for this upload and rename them back to their original names
+    //this is required so that they will have the correct names including filename extension when they make it to S3
+    //ultimately the pipeline worker will look at that filename extension to determine the file format
 
+    tmpdir = await makeTmpDir();
+
+    //the mesh file is required
     if (!req.files.mesh || req.files.mesh.length < 1) throw routeError('upload does not include mesh file');
-    paths.push(req.files.mesh[0].path);
+    await addFile(req.files.mesh[0]);
 
-    if (req.files.texture && req.files.texture.length > 0) paths.push(req.files.texture[0].path);
+    //the texture file is optional
+    if (req.files.texture && req.files.texture.length > 0) await addFile(req.files.texture[0]);
 
-    const args = parseArgs(req, { TileId: { type: 'string', required: false } }, { commandLine: true });
+    const args = parseArgs(req, { tileid: { type: 'string', required: false } }, { commandLine: true });
 
-    await runTilingServer(req, res, 'uploadinput', [req.params.name, ...paths, ...args],
-                  () => paths.forEach(f => fs.remove(f)));
+    await runTilingServer(req, res, 'uploadinput', [req.params.name, ...paths, ...args], cleanup);
 
-  } catch (e) { abortRoute(res, 'error processing upload', e); }
+  } catch (e) { cleanup(); abortRoute(res, 'error processing upload', e); }
 }
 const multerConfig = { dest: config.app.uploadDir };
 const multerFields = [{ name: 'mesh', maxCount: 1 }, { name: 'texture', maxCount: 1 }];
@@ -62,11 +97,12 @@ router.get('/:name/run', runProject);
 router.post('/:name/run', runProject);
 
 //TODO
-//get project
+//get project (metadata, status, progress, errors, etc)
 //list projects
 //trash/untrash project
 //rename project
-//trash input
+//trash/untrash input
+//rename input
 //download ouptput
 
 module.exports = router;
