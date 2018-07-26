@@ -45,7 +45,7 @@ namespace OPS.Imaging
         /// <param name="filename"></param>
         /// <returns></returns>
         public static Image Load(string filename)
-        {             
+        {
             string ext = Path.GetExtension(filename);
             ImageSerializer s = ImageSerializers.GetSerializer(ext);
             if (s == null)
@@ -81,7 +81,7 @@ namespace OPS.Imaging
         {
             return serializer.Read(filename, converter);
         }
-        
+
         /// <summary>
         /// Saves image to disk using gdal and convert from normalzied values to value range
         /// </summary>
@@ -144,7 +144,7 @@ namespace OPS.Imaging
                 }
             }
         }
-        
+
         /// <summary>
         /// Linearly scale values in this band
         /// </summary>
@@ -184,7 +184,7 @@ namespace OPS.Imaging
         /// <param name="afterMax">max value in result image</param>
         public void ScaleValues(float beforeMin, float beforeMax, float afterMin, float afterMax)
         {
-            for(int b = 0; b < this.Bands; b++)
+            for (int b = 0; b < this.Bands; b++)
             {
                 ScaleValues(b, beforeMin, beforeMax, afterMin, afterMax);
             }
@@ -253,14 +253,14 @@ namespace OPS.Imaging
         public Image Crop(int startRow, int startCol, int width, int height)
         {
             Image result = new Image(this.Bands, width, height);
-            if(this.HasMask)
+            if (this.HasMask)
             {
                 result.CreateMask();
             }
             foreach (ImageCoordinate ic in result.Coordinates(true))
             {
                 result[ic.Band, ic.Row, ic.Col] = this[ic.Band, ic.Row + startRow, ic.Col + startCol];
-                if(this.HasMask)
+                if (this.HasMask)
                 {
                     result.SetMaskValue(ic.Row, ic.Col, this.IsInvalid(ic.Row + startRow, ic.Col + startCol));
                 }
@@ -274,7 +274,7 @@ namespace OPS.Imaging
         /// <param name="r"></param>
         public void GuassianBoxBlur(int r)
         {
-            Blur.GuassianBoxBlur(this, r); 
+            Blur.GuassianBoxBlur(this, r);
         }
 
         public float BilinearSample(int band, float row, float col)
@@ -333,7 +333,7 @@ namespace OPS.Imaging
                 else
                 {
                     filter = MitchellFilter;
-                    
+
                 }
             }
 
@@ -380,9 +380,9 @@ namespace OPS.Imaging
         public Image Rotate90Clockwise()
         {
             Image result = new Image(this.Bands, this.Height, this.Width);
-            for(int r = 0; r < this.Height; r++)
+            for (int r = 0; r < this.Height; r++)
             {
-                for(int c = 0; c < this.Width; c++)
+                for (int c = 0; c < this.Width; c++)
                 {
                     result.SetBandValues(c, this.Height - 1 - r, this.GetBandValues(r, c));
                 }
@@ -531,11 +531,11 @@ namespace OPS.Imaging
         public Image ResizeSimpleBicubic(int targetWidth, int targetHeight)
         {
             Image result = new Image(this.Bands, targetWidth, targetHeight);
-            float wRatio = (this.Width-1) / ((float)result.Width-1);
-            float hRatio = (this.Height-1) / ((float)result.Height-1);
+            float wRatio = (this.Width - 1) / ((float)result.Width - 1);
+            float hRatio = (this.Height - 1) / ((float)result.Height - 1);
             foreach (ImageCoordinate ic in result.Coordinates(true))
             {
-                result[ic.Band, ic.Row, ic.Col] = BicubicSample(ic.Band, ic.Row * hRatio, ic.Col * wRatio);        
+                result[ic.Band, ic.Row, ic.Col] = BicubicSample(ic.Band, ic.Row * hRatio, ic.Col * wRatio);
             }
             return result;
         }
