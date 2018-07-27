@@ -5,7 +5,7 @@
   "main": "server.js",
   "scripts": {
     "postinstall": "cd client && npm install",
-    "start": "concurrently \"npm run server\" \"npm run client\"",
+    "start": "concurrently --kill-others \"npm run server\" \"npm run client\"",
     "server": "node server.js",
     "client": "node start-client.js",
     "build": "node build-client.js",
@@ -27,6 +27,7 @@
     "guid": "0.0.12",
     "jsonwebtoken": "^8.1.0",
     "ldapjs": "^1.0.1",
+    "memorystore": "^1.6.0",
     "passport": "^0.4.0",
     "passport-ldapauth": "^2.0.0",
     "passport-saml": "^0.32.1",

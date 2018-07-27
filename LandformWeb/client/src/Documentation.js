@@ -1,81 +1,41 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
+import ApiEntry from './ApiEntry';
 
 const Documentation = () => (
   <div className="documentation">
-    <h1>Documentation</h1>
-    <h2>Overview</h2>
-    The landform web console consists of two parts, each with its own authentication scheme.
-    <ol>
-      <li>Interactive web console (can use LDAP inside firewall or SSO outside firewall)</li>
-      <li>REST interface (uses cookie or header based token)</li>
-    </ol>
 
     <h2>Authentication</h2>
-    To use the API, first <a href="sso/login">login</a> to the interactive console.
-    Then go <a href="/auth/apiToken">here</a> to generate an api token.
-    Include the value of this token in the header of your API REST requests using
-    the key {"'x-landform-token'"}.
-    API tokens are currently set to expire after 10 days but you can create more at any time.
-    <br />
-    <br />
-    <b>Login LDAP</b><br />
-    POST /auth/ldap<br />
-    Body {'{"username": "yourUsername", "password": "yourPassword"}'}<br />
-    Logs into the interactive console using LDAP credentials if the server
-    running inside the firewall. This is especially useful when debugging since
-    SSO is difficult to simulate.  Instead, use Postman to post your credentials to your development
-    server running on local host.  This will create a sesson
-    and set cookies that subsequent api calls will use to authenticate with.
-    You must be in the landform LDAP group for this to work.
-    <br />
-    <br />
-    <b>Login SSO</b><br />
-    GET /auth/sso<br />
-    You will be redirected to a SSO login page and redirected on success.
-    <br />
-    <br />
-    <b>API Token</b><br />
-    GET /auth/apiToken<br />
-    Returns a json object with an API token
-    <br />
-    <br />
-    <b>Logout</b><br />
-    GET /auth/logout<br />
-    Clears any API cookies and ends interactive browser session, regardless of login
-    method (SSO or LDAP).  Note that generated API keys will continue to work until they expire.
-    <br />
-    <br />
-    <h1>API Documentation</h1>
-    All API methods require an API key {"'x-landform-token'"} to be set in the header or a {"'landform-token'"} cookie set in the browser session
-    <br />
-    <br />
-    Example Curl Command Syntax:
-    <br />
-    <pre>
-      {'curl -d \'{"name": "test-project-name"}\' -H "Content-Type: application/json" -H "x-landform-token: YOUR_API_TOKEN" -X POST http://YOUR_HOSTNAME/api/project'}
-    </pre>
-    <h2>Projects</h2>
-    <b>Create a project</b><br />
-    POST /api/project<br />
-    Body {'{"name": "projectName"}'}<br />
-    Returns project object
-    <br />
-    <br />
-    <b>List projects</b><br />
+    <ol>
+      <li>Login to the web portal using either <Link to="/ldapLogin">LDAP</Link> or <a href="/auth/sso">SSO</a> (preferred).  To use LDAP the server must be running inside the firewall and you must be a member of the <i>landform</i> LDAP group.</li>
+      <li>An <a href="/auth/token">API token</a> will be generated upon successful login and stored in the <i>landform-token</i> cookie. API tokens are currently set to expire after 10 days but you can create more at any time by logging in again.</li>
+      <li>When ready, <a href="/auth/logout">logout</a>.  Generated API keys will continue to work until they expire.  However, logging out will clear any <i>landform-token</i> cookie.</li>
+    </ol>
 
-    GET /api/project<br />
-    Returns a list of project names
-    <br />
-    <br />
-    <b>View project</b><br />
-    GET /api/project/projectName<br />
-    Returns project object
-    <br />
-    <br />
-    <b>Delete project</b><br />
-    DELETE /api/project/projectName<br />
-    Returns project object
-    <br />
+    <h2>REST API</h2>
+
+    All API methods require an API token <i>x-landform-token</i> to be set in the header or in a <i>landform-token</i> cookie in the browser session.
+
+    <ApiEntry
+      title="Create Project" method="POST" route="project"
+      params={[{ name: 'name', type: 'string', desc: 'project name' }]}
+      returns="project object"
+    />
+
+    <ApiEntry
+      title="List Projects" method="GET" route="project"
+      returns="list of project names"
+    />
+
+    <ApiEntry
+      title="Get Project" method="GET" route={<span>project/<i>projectName</i></span>}
+      returns="project object"
+    />
+
+    <ApiEntry
+      title="Delete Project" method="DELETE" route={<span>project/<i>projectName</i></span>}
+      returns="project object"
+    />
   </div>
 );
 

@@ -1,33 +1,21 @@
-# Landform web console
 LandformWeb is a node based server and browser based client for controlling the Landform cluster including but not limited to functionality of the Geometry Tiling Server.
 
-### Current Deployment
-Landlord pub account in the N California region
-https://landform.hi.jpl.nasa.gov/
+Deployed at: https://landform.hi.jpl.nasa.gov
 
-# This repo consists of two parts
-1. An api server implemented in `/server.js`
-1. A client side react app implemented in `/client`
+This repo consists of a backend api server and a frontend react app in `/client`.  In production the frontend app is pre-built with webpack and served as static files by the backend server.  During development a separate frontend server is used with hot module reloading.
 
-# Run in development locally
+### Dev Instructions
 1. `npm install` in the root directory
-1. `cd client` and run `npm install`
-1. `cd ..` back to the root
-1. `npm start` will start both the api server on port 8081 and the react dev server on port 3000 (which will proxy requests to the api server)
-1. go to http://localhost:3000/
-1. note that http://localhost:8081/ will take you to the api server and will render static content from the build directory.  However you will need to run `cd client` and run `npm run build` to generate the static assets.
-1. You can also run the api server and client servers independently with `npm run server` and `npm run client`
+1. `npm start` will start both the backend api server on port 8081 and the frontend react dev server on port 3000 (the frontend server will proxy backend routes to the backend server)
+1. You can also run the api server and client servers independently with `npm run server` and `npm run client`.  This is convenient when doing backend dev so that you can independently reestart the backend server.
+1. Typically you should not need to restart the frontend server for frontend dev because it uses hot module reloading.  However, if you modify the backend server you will need to restart it.  Note: CTRL-C may not work correctly to kill the backend server if you started it from a cygwin prompt; consider using a Git bash prompt or Windows `cmd` instead.
+1. Go to http://localhost:3000 and follow the instructions to login and generate an API token.  Note that SSO login will only work when deployed to the production server URL given above, and LDAP login will only work when the server is within the JPL firewall (i.e. not deployed to AWS for production).
+1. To re-deploy the production server: `deploy.bat aws_profile_name`
 
-# Debug workflow
-1. Use postman to login via POST to /ldap/login.  This will supply an API token cookie for subsequent requests
-1. You can also go to /apiToken to generate a token that can be included under the header key 'x-landform-token'
-
-# To Deploy
-1. If this is a fresh checkout, run `npm install` in both the `root` and `client` directories.  Then cd back up to `root`
-1. `deploy.bat landlord_profile_name`
-
-# Beanstalk setup
-1. North California
+## Beanstalk Setup
+1. http://goto.jpl.nasa.gov/awsconsole
+1. Select region us-west-1 (North California)
+1. Services -> Compute -> Elastic Beanstalk
 1. Create application: "landform"
 1. Create new Web sever eviornment
 1. Page 1
@@ -39,7 +27,7 @@ https://landform.hi.jpl.nasa.gov/
        * NODE_ENV = production
        * SESSION_SECRET - Something securley generated
        * TOKEN_SECRET - Something securley generated
-       * SAML_CERT - Single sign on identity provider certificate.  Found here for dev https://ssodev2.jpl.nasa.gov/oamfed/idp/metadata ```MIIB/jCCAWegAwIBAgIBCjANBgkqhkiG9w0BAQQFADAkMSIwIAYDVQQDExlkZWFvYW0tZGV2MDIuanBsLm5hc2EuZ292MB4XDTE2MDYzMDA0NTQxNloXDTI2MDYyODA0NTQxNlowJDEiMCAGA1UEAxMZZGVhb2FtLWRldjAyLmpwbC5uYXNhLmdvdjCBnzANBgkqhkiG9w0BAQEFAAOBjQAwgYkCgYEAht1N4lGdwUbl7YRyHwSCrnep6/e2I3+Veue0pSA/DGn8OuR/udM8UCja5utqlqJdq200ox4b4Mpz0Jg9kMckALtKe+1DgeESEIx9FpeuBdHlitYQNSbEr30HIG2nmeTOy4Vi5unBO54um3tNazcUTMA0/LJ6KQL8LeZSlB/IxwUCAwEAAaNAMD4wDAYDVR0TAQH/BAIwADAPBgNVHQ8BAf8EBQMDB9gAMB0GA1UdDgQWBBRYo1YjfrNonauLzj6/AsueWFGSszANBgkqhkiG9w0BAQQFAAOBgQACq7GHK/Zsg0+qC0WWa2ZjmOXE6Dqk/xuooG49QT7ihABs7k9U27Fw3xKF6MkC7pca1FwT82eZK1N3XKKpZe7Flu1fMKt2o/XSiBkDjWwUcChVnwGsUBe8hJFwFqg7olNJn1kaVBJUqZIiXF9kS0d+1H55rStOd0CNXAzp9utr2A==```
+       * SAML_CERT - Single sign on identity provider certificate, copy X509Certificate from [here](https://ssodev2.jpl.nasa.gov/oamfed/idp/metadata)
 1. Modify instances 
     1. Instance type: t2.medium
 1. Modify Capacity
@@ -73,13 +61,13 @@ https://landform.hi.jpl.nasa.gov/
 1. Update Route53 for landform.hi.jpl.nasa.gov (on Jeffs acocunt) so that its CNAME record points at the landformweb*.elasticbeanstalk.com url
 1. For the /api/pipeline/* endpoints to work, additional enviornmental variables must be setup.  Typically these are set when the beanstalk is created via cloud formation but can be manually set as needed.
 
-# Setup HTTPS
+### Setup HTTPS
 1. Login to JPL Certificate manager at https://ssl.jpl.nasa.gov
 1. Manage my certificates, select landform.hi.jpl.nasa.gov, save this info for later 
 1. Go to AWS Certificate Manager
 1. Import a certificate
 1. Paste Certificate content into Certificate body
-1. Paste Intermediate and Root certificate into certifcation chian (include the stuff ---- but not the labels between each cert)
+1. Paste Intermediate and Root certificate into certifcation chain (include the stuff ---- but not the labels between each cert)
 1. Paste the contents of \\opslab-central\project\landform\webcert\landform.hi.jpl.nasa.gov.key in the private key field
 1. Import
 1. Edit name tag to be landform.hi.jpl.nasa.gov
@@ -88,42 +76,49 @@ https://landform.hi.jpl.nasa.gov/
 
 # Test Procedures
 
-### Authentication
+## Authentication Test Procedures
 
-SSO Test Procedures
-
+### SSO Test Procedure
 1. Note this will only work on https://landform.hi.jpl.nasa.gov because that is the domain SSO is configured to use.
-2. Click `API Token` and confirm the response is `Not Authenticated`
-3. Click `Login (SSO)` 
-4. Enter JPL credentials
-5. Click `API Toke` and confirm the response is a web token - copy the token ID for later
-6. Click `Logout`
-7. Click `API Token` and confirm the response is `Not Authenticated`
+2. Click `API Token` and confirm the response is `not authenticated`.
+3. Click `Login (SSO)`.
+4. Enter JPL credentials.
+5. Click `API Token` and confirm the response is a web token - copy the token ID for later.
+6. Click `Logout`.
+7. Click `API Token` and confirm the response is `not authenticated`.
 
-LDAP Test Procedure
-
+### LDAP Test Procedure
 1. Note that this will not work on https://landform.hi.jpl.nasa.gov because it is running on a cloud instance and does not currently have access to JPLs internal network / LDAP server. However, it will work when the server is run locally or on a JPL host machine.
 2. If your JPL user is not in the landform LDAP group contact Alex Menzies to be added
 3. Click `Login (LDAP)` 
 4. Enter JPL credentials
 5. Click `API Token` and confirm the response is a web token - copy the token ID for later
 6. Click `Logout`
-7. Click `API Token` and confirm the response is `Not Authenticated`
+7. Click `API Token` and confirm the response is `not authenticated`
 
-REST API Test Procedure
+## REST API Test Procedure
+This procedure is designed to be excuted from the Windows 10 command prompt (`cmd`).  It may not run correctly on other command prompts such as cygwin, Git bash, etc.  It runs tests against the server currently deployed on https://landform.hi.jpl.nasa.gov.  To instead test against a server run locally or on a JPL host machine, use LDAP login instead of SSO and substitute the URL to the machine in the commands below.
 
-1. Login and get an API token
+1. Login and get an API token using either the SSO test procedure above.  Copy the token to the system clipboard, and then paste it on the windows command line to set a temporary environment variable by running a command like this:
 
-2. Create a project
-   `curl -d '{"name":"test-project-name"}' -H "Content-Type: application/json" -H "x-landform-token: API_TOKEN" -X POST https://landform.hi.jpl.nasa.gov/api/project`
+   `set API_TOKEN=PASTED_TOKEN`
+
+   Perform the remaining steps of this procedure in the same command window.
+
+2. Create a project:
+
+   `curl -d "{\"name\":\"test-project-name\"}" -H "Content-Type: application/json" -H "x-landform-token: %API_TOKEN%" -X POST https://landform.hi.jpl.nasa.gov/api/project`
 
 3. List projects
-   `curl -H "Content-Type: application/json" -H "x-landform-token: API_TOKEN" -X GET https://landform.hi.jpl.nasa.gov/api/project`
+
+   `curl -H "x-landform-token: %API_TOKEN%" -X GET https://landform.hi.jpl.nasa.gov/api/project`
 
 4. Get data about a project
-   `curl -H "Content-Type: application/json" -H "x-landform-token: API_TOKEN" -X GET https://landform.hi.jpl.nasa.gov/api/project/test-project-name`
+
+   `curl -H "x-landform-token: %API_TOKEN%" -X GET https://landform.hi.jpl.nasa.gov/api/project/test-project-name`
 
 5. Delete a project
-   `curl -H "Content-Type: application/json" -H "x-landform-token: API_TOKEN" -X DELETE https://landform.hi.jpl.nasa.gov/api/project/test-project-name`
+
+   `curl -H "x-landform-token: %API_TOKEN%" -X DELETE https://landform.hi.jpl.nasa.gov/api/project/test-project-name`
 
    
