@@ -80,9 +80,9 @@ function routeError(msg, status) { const e = new Error(msg); e.status = status |
 //the response is sent as a JSON object by default with success: false and an error message
 //if the optional param text is true then the response is sent as a plain text error message
 function abortRoute(res, msg, errOrStatus, text) {
-  const err = errOrStatus && !isInt(errOrStatus) ? errOrStatus : null;
-  if (err && err.message) msg = `${msg}: ${err.message}`;
+  const err = errOrStatus instanceof Error ? errOrStatus : null;
   const status = isInt(errOrStatus) ? errOrStatus : (err && 'status' in err) ? err.status : 500;
+  if (err && err.message) msg = `${msg}: ${err.message}`;
   logger.error(msg);
   //suppress detailed exception logging for Error objects that have a status set
   //the presence of a status code means that they were thrown by our own route error checking
