@@ -56,7 +56,7 @@ If the task was successfully launched
 * For `text=true` the HTTP status will be 200 or 500 depending on whether the task completed successfully.
 * For `live=true` the HTTP status will be 200 whether or not the task completed successfully (because the status code may need to be sent before the task completes).
 
-## Project API
+## Landform Project Management API
 
 ### Create Project: POST|PUT /api/project/*name*
 Create the named project.  Implements the generic task API.
@@ -87,7 +87,7 @@ TODO what happens if this is called more than once?
 
 TODO this task will typically complete before the project is actually finished running.
 
-## Task API
+## Task Execution API
 
 ## Task Metadata: GET /api/task/*id*
 Returns `application/json` metadata for task with the given id.
