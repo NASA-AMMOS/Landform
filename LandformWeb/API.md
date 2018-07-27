@@ -74,7 +74,7 @@ Accepts the following arugments:
 ### Upload Data: POST /api/project/*name*/upload
 Upload data for the named project.
 
-Uploading the data with the same mesh filename more than once has no effect (not an error).
+Uploading the data with the same mesh filename (TODO?) more than once has no effect (not an error).
 
 Implements the generic task API.
 
