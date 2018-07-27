@@ -37,9 +37,9 @@ function launchTask(cmd, args, options) {
     const done = line === null;
     //only really done when the process is dead and its output streams are all ended
     if (done && (task.liveStreams > 0 || task.process)) return;
-    if (!done) logger.debug(line);
+    if (!done) logger.debug(line); //TODO prob put task spew into a separate log
     task.listeners.forEach(l => l(line)); //forward on line = null to listeners if done
-    task.log.push(line);
+    if (!done) task.log.push(line);
     if (done) task.listeners = [];
   }
 
@@ -53,15 +53,18 @@ function launchTask(cmd, args, options) {
     task.info.running = false;
     task.info.ended = Date.now();
     task.info.success = !code && !signal && !err;
-    task.info.exitCode = task.info.success ? 0 : (code || signal || err.message || 'unknown');
-    if (!task.info.success) task.info.error = `failed with error ${task.info.exitCode}`;
-    const msg = `${name} ended at ${task.info.ended}${!task.info.success ? ', ' + task.info.error : ''}`;
-    logger.verbose(msg);
+    task.info.exitCode = task.info.success ? 0 : (code || signal || (err && err.message) || 'unknown');
+    if (!task.info.success) {
+      task.info.error =
+        err && err.message ? err.message : code ? `code ${code}` : signal ? `signal ${signal}` : 'unknown';
+    }
+    logger.verbose(`task ${task.info.id} '${name}' ended at ${task.info.ended}` +
+                   (task.info.success ? '' : `, ERROR: ${task.info.error}`));
     log(null);
     if (!task.info.success) reject(err || new Error(`task ${task.info.error}`)); else resolve();
   }
 
-  task.process = spawn(path.join(config.app.binDir, `${cmd}.exe`), args);
+  task.process = spawn(path.join(config.app.binDir, `${cmd}.exe`), args, options);
 
   task.promise = new Promise((resolve, reject) => {
     //might get both or either 'error' and/or 'exit' events
@@ -73,7 +76,7 @@ function launchTask(cmd, args, options) {
     byline(stream).on('data', line => log(line)).on('end', () => { task.liveStreams--; log(null); });
   });
 
-  logger.verbose(`${name} started at ${task.info.started}`);
+  logger.verbose(`task ${task.info.id} '${name}' started at ${task.info.started}`);
 
   return task;
 }

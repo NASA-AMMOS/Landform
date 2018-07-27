@@ -8,7 +8,7 @@ const path = require('path');
 
 const config = require('./config');
 const logger = require('./logger');
-const { abortRoute } = require('./util');
+const { abortRoute } = require('./routeUtil');
 const authRouter = require('./auth');
 const token = require('./token');
 const projectRouter = require('./api/project');
@@ -47,13 +47,16 @@ const apiRouter = express.Router();
 apiRouter.use(token.apiTokenCheck);
 apiRouter.use('/project', projectRouter);
 apiRouter.use('/task', taskRouter);
+apiRouter.use('*', (req, res) => abortRoute(res, `unrecognized API '${req.originalUrl}'`, 400));
 app.use('/api', apiRouter);
+
+//TODO favicon; for now return 204 no content
+app.get('/favicon.ico', (req, res) => res.status(204));
 
 //serve webpacked client but in production only
 //for dev the client is served by a separate server on localhost:3000 which does hot module reloading
 //that dev server proxies certain routes back to this server as configured in client/package.json
 if (app.get('env') === 'production') app.use('/', express.static(path.join(__dirname, 'client', 'build')));
 
-app.get('*', (req, res) => abortRoute(res, 'invalid request', new Error(`${req.originalUrl} not found`)));
 
 app.listen(config.app.port, () => { logger.info(`${config.app.name} server listening on port ${config.app.port}`); });
