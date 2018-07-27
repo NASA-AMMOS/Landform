@@ -21,10 +21,10 @@ async function createProject(req, res) {
   try {
 
     const args = parseArgs(req, {
-      tilingscheme: { type: 'enum', required: false, options: ['Bin', 'Quad', 'Oct', 'UserDefined'] },
-      skirtmode: { type: 'enum', required: false, options: ['None', 'X', 'Y', 'Z'] },
-      facespertile: { type: 'int', required: false },
-      tileresolution: { type: 'int', required: false },
+      tilingscheme: { type: 'enum', options: ['Bin', 'Quad', 'Oct', 'UserDefined'] },
+      skirtmode: { type: 'enum', options: ['None', 'X', 'Y', 'Z'] },
+      facespertile: { type: 'int' },
+      tileresolution: { type: 'int' },
     }, { commandLine: true });
 
     await runTilingServer(req, res, 'createproject', [req.params.name, ...args]);
@@ -79,7 +79,7 @@ async function uploadInput(req, res) {
     //the texture file is optional
     if (req.files.texture && req.files.texture.length > 0) await addFile(req.files.texture[0]);
 
-    const args = parseArgs(req, { tileid: { type: 'string', required: false } }, { commandLine: true });
+    const args = parseArgs(req, { tileid: { type: 'string' } }, { commandLine: true });
 
     await runTilingServer(req, res, 'uploadinput', [req.params.name, ...paths, ...args], cleanup);
 
