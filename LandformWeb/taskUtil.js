@@ -126,38 +126,46 @@ async function runTask(req, res, task, cleanup) {
     //they will also be recorded in task.info for potential later async retrieval
     task.promise.catch(() => {});
 
-    if (text) sendText(res, JSON.stringify(task.info)); else sendJson(res, task.info);
+    //send task info and end response
+    if (text) sendText(res, JSON.stringify(task.info));
+    else sendJson(res, task.info);
 
   } else if (live) {
 
     res.contentType('text/plain');
 
-    res.write(JSON.stringify(task.info));
+    res.write(`ID: ${task.info.id}`);
 
-    if (task.info.running) {
-      task.listeners.push(msg => {
-        res.write('\n');
-        if (msg !== null) res.write(msg);
-        else { res.write(JSON.stringify(task.info)); res.end(); }
-      });
+    let err = null;
+    task.promise.catch(e => { err = e; });
+
+    function end() {
+      if (err) res.write(`\nERROR: ${err.message}`);
+      res.end();
     }
 
-    if (task.log.length > 0) {
-      res.write('\n');
-      res.write(task.log.join('\n'));
+    const running = task.info.running;
+    if (running) task.listeners.push(msg => { if (msg !== null) res.write(`\n${msg}`); else end(); }); //'' is falsey
+
+    if (task.log.length > 0) res.write(`\n${task.log.join('\n')}`);
+
+    if (!running) end();
+
+  } else { //blocking task execution, json or text output
+
+    //wait for task to complete
+    let err = null;
+    try { await task.promise; } catch (e) { err = e; res.status(500); }
+
+    //send results and end response
+    if (!text) sendJson(res, task.info);
+    else {
+      res.contentType('text/plain');
+      res.write(`ID: ${task.info.id}`);
+      res.write(`\n${task.log.join('\n')}`);
+      if (err) res.write(`${task.log.length > 0 ? '\n' : ''}ERROR: ${err.message}`);
+      res.end();
     }
-
-    if (!task.info.running) { res.write('\n'); res.write(JSON.stringify(task.info)); res.end(); }
-
-  } else if (text) {
-
-    await task.promise;
-    sendText(res, task.log.join('\n'));
-
-  } else {
-
-    await task.promise;
-    sendJson(res, task.info);
   }
 }
 
