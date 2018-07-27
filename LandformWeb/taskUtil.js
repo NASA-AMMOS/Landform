@@ -58,7 +58,7 @@ function launchTask(cmd, args, fmt) {
     const msg = `${name} ended at ${task.info.ended}${!task.info.success ? ', ' + task.info.error : ''}`;
     logger.verbose(msg);
     log(null);
-    if (!task.info.success) reject(err || new Error(msg)); else resolve();
+    if (!task.info.success) reject(err || new Error(`task ${task.info.error}`)); else resolve();
   }
 
   task.process = spawn(path.join(config.app.binDir, `${cmd}.exe`), args);
