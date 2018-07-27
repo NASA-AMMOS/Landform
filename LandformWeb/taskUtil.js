@@ -108,7 +108,11 @@ setInterval(() => {
 //in all the non-async cases an Error will be thrown if the task errors
 async function runTask(req, res, task, cleanup) {
 
-  if (cleanup) task.promise.then(cleanup, cleanup).catch(cleanup);
+  if (cleanup) {
+    let didCleanup = false;
+    const doCleanup = () => { if (!didCleanup) { didCleanup = true; cleanup(); } };
+    task.promise.then(doCleanup).catch(doCleanup);
+  }
 
   const { text, live, async } = parseArgs(req, {
     text: { type: 'bool', default: false },
