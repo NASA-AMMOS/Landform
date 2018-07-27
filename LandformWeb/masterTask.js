@@ -1,3 +1,4 @@
+const fs = require('fs-extra');
 const config = require('./config');
 const logger = require('./logger');
 const { launchTask } = require('./taskUtil');
@@ -11,8 +12,9 @@ function fail(err) {
 }
 
 try {
+  fs.ensureDirSync(config.app.tmpDir);
   masterTask = launchTask('TilingServer', ['startmaster', config.app.dbPrefix, '--profile', config.app.awsProfile],
-                          (c, a) => `${c} ${a[0]}`); //task name is "TilingServer <verb>"
+                          { cwd: config.app.tmpDir, name: 'TilingServer startmaster' });
   masterTask.promise.catch(err => fail(err));
 } catch (err) { fail(err); }
 

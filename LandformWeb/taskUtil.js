@@ -12,12 +12,12 @@ const tasks = {};
 function getTask(id) { return tasks[id]; }
 
 //spawn a subprocess
-//the optional arg fmt is a function taking (cmd, args) and returning a human-readable name for the task
-//otherwise name = cmd
+//options are passed to child_process.spawn()
+//if options.name is set it is used as the task name, otherwise the task name is cmd
 //returns task object
-function launchTask(cmd, args, fmt) {
+function launchTask(cmd, args, options) {
 
-  const name = fmt ? fmt(cmd, args) : cmd;
+  const name = options && options.name ? options.name : cmd;
   const id = nextTask++;
   const task = tasks[id] = {
     cmd, args,

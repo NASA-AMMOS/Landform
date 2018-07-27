@@ -11,7 +11,7 @@ const { launchTask, runTask } = require('../taskUtil');
 //DynamoDB prefix and AWS profile name will be added to the command args
 async function runTilingServer(req, res, verb, args, cleanup) {
   const task = launchTask('TilingServer', [verb, config.app.dbPrefix, ...args, '--profile', config.app.awsProfile],
-                          (c, a) => `${c} ${a[0]} ${a[2]}`); //task name is "TilingServer <verb> <project>"
+                          { name: `TilingServer ${verb} ${args[0]}` }); //"TilingServer <verb> <project>"
   await runTask(req, res, task, cleanup);
 }
 
