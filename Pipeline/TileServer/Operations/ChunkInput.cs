@@ -94,7 +94,7 @@ namespace OPS.Pipeline.TileServer
 
                 logger.Info("Chunk image");
                 var sparseImage = new SparseCloudImage(image, this.pipeline, CHUNK_RESPLUTION);
-                imageBaseUrl = Path.Combine(Path.Combine(TileServerCloud.ChunkUrlBase, project.Name), Guid.NewGuid().ToString());
+                imageBaseUrl =  TileServerConfig.Instance.ChunkUrl(project.Name, Guid.NewGuid().ToString());
                 // TODO: maintain original bit depth
                 sparseImage.Save<byte>(imageBaseUrl, IMAGE_EXT);
 
@@ -120,7 +120,7 @@ namespace OPS.Pipeline.TileServer
                     string id = Guid.NewGuid().ToString();
                     Mesh m = thing.Clip(bounds, true);
                     m.Save(f);
-                    string meshUrl = new Uri(Path.Combine(Path.Combine(TileServerCloud.ChunkUrlBase, project.Name), id + MESH_EXT)).ToString();
+                    string meshUrl = TileServerConfig.Instance.ChunkUrl(project.Name, id + MESH_EXT);
                     pipeline.Storage.UploadFile(f, meshUrl);
                     TilingInputChunk record = TilingInputChunk.Create(pipeline.DynamoContext, id, project, meshUrl, imageBaseUrl, m.Bounds());
                     chunkIds.Add(id);

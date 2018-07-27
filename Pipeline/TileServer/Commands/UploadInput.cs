@@ -12,25 +12,18 @@ namespace OPS.Pipeline.TileServer
 {
     [Verb("uploadinput", HelpText = "Uploads an input dataset to be tiled")]
     public class UploadInputOptions
-    {
-        [Value(0, Required = true, HelpText = "Dynamo DB prefix")]
-        public string DynamoDBPrefix { get; set; }
-
-        [Value(1, Required = true, HelpText = "Project Name")]
+    {       
+        [Value(0, Required = true, HelpText = "Project Name")]
         public string ProjectName { get; set; }
 
-        [Value(2, Required = true, HelpText = "Mesh input file")]
+        [Value(1, Required = true, HelpText = "Mesh input file")]
         public string MeshFilepath { get; set; }
 
-        [Value(3, Required = false, HelpText = "Texture input file")]
+        [Value(2, Required = false, HelpText = "Texture input file")]
         public string ImageFilepath { get; set; }
 
         [Option(HelpText = "Leaf tile ID if this input dataset represents a pretiled input.  This is only valid for projects using a user defined tiling scheme", Default = null)]
         public string TileId { get; set; }
-
-        [Option(HelpText = "AWS profile to use", Default = "default")]
-        public string Profile { get; set; }
-
     }
 
     public class UploadInput : PipelineCore
@@ -39,14 +32,14 @@ namespace OPS.Pipeline.TileServer
 
         UploadInputOptions options;
 
-        public UploadInput(UploadInputOptions options) : base(dynamoPrefix: options.DynamoDBPrefix, profile: options.Profile)
+        public UploadInput(UploadInputOptions options) : base(dynamoPrefix: TileServerConfig.Instance.VenueName, profile: TileServerConfig.Instance.Profile)
         {
             this.options = options;
         }
 
         public int Run()
         {
-            new TileServerCloud(options.DynamoDBPrefix, this).EnsureTablesExist();
+            new TileServerCloud(this).EnsureTablesExist();
             var project = TilingProject.Find(this.DynamoContext, options.ProjectName);
             if (project == null)
             {
@@ -70,14 +63,14 @@ namespace OPS.Pipeline.TileServer
                 logger.Error("An input with that name already exists");
                 return 0;
             }
-            string inputFolder = Path.Combine(TileServerCloud.InputUrlBase, options.ProjectName);
-            string meshUrl = new Uri(Path.Combine(inputFolder, Path.GetFileName(options.MeshFilepath))).ToString(); // Use a guid instead?
+            string inputFolder = TileServerConfig.Instance.InputUrl(options.ProjectName);
+            string meshUrl = TileServerConfig.Instance.InputUrl(options.ProjectName, Path.GetFileName(options.MeshFilepath));
             logger.Info("Uploading: " + options.MeshFilepath);
             Storage.UploadFile(options.MeshFilepath, meshUrl);
             string imageUrl = null;
             if (options.ImageFilepath != null)
             {
-                imageUrl = new Uri(Path.Combine(inputFolder, Path.GetFileName(options.ImageFilepath))).ToString();
+                imageUrl = TileServerConfig.Instance.InputUrl(options.ProjectName, Path.GetFileName(options.ImageFilepath));
                 logger.Info("Uploading: " + options.ImageFilepath);
                 Storage.UploadFile(options.ImageFilepath, imageUrl);
             }

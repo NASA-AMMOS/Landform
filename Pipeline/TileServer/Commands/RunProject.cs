@@ -17,14 +17,8 @@ namespace OPS.Pipeline.TileServer
 
     public class RunProjectOptions
     {
-        [Value(0, Required = true, HelpText = "Dynamo DB prefix")]
-        public string DynamoDBPrefix { get; set; }
-
-        [Value(1, Required = true, HelpText = "Project Name")]
+        [Value(0, Required = true, HelpText = "Project Name")]
         public string ProjectName { get; set; }
-
-        [Option(HelpText = "AWS profile to use", Default = "default")]
-        public string Profile { get; set; }
     }
 
     public class RunProject : PipelineCore
@@ -32,14 +26,15 @@ namespace OPS.Pipeline.TileServer
         static ILog logger = LogManager.GetLogger(typeof(RunProject));
 
         RunProjectOptions options;
-        public RunProject(RunProjectOptions options) : base(dynamoPrefix: options.DynamoDBPrefix, profile: options.Profile)
+
+        public RunProject(RunProjectOptions options) : base(dynamoPrefix: TileServerConfig.Instance.VenueName, profile: TileServerConfig.Instance.Profile)
         {
             this.options = options;
         }
         
         public int Run()
         {
-            var workerQueue = new TileServerCloud(options.DynamoDBPrefix, this).WorkerQueue;
+            var workerQueue = new TileServerCloud(this).WorkerQueue;
             var project = TilingProject.Find(this.DynamoContext, options.ProjectName);
             logger.Info("Define tiles");
             workerQueue.Enqueue(new DefineTilesMessage(options.ProjectName));

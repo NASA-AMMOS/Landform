@@ -112,7 +112,7 @@ namespace OPS.Pipeline.TileServer
                                 // TODO: retain originial detail here
                                 pair.Image.Save<byte>(tmpImage);
                                 pair.Image.Save<byte>(tmp3DTileImage);
-                                imageUrl = new Uri(Path.Combine(Path.Combine(TileServerCloud.TileUrlBase, this.ProjectName), this.Id + Path.GetExtension(tmpImage))).ToString();
+                                imageUrl = TileServerConfig.Instance.TileUrl(this.ProjectName, this.Id + Path.GetExtension(tmpImage));
                                 pipeline.Storage.UploadFile(tmpImage, imageUrl);
                                 this.ImageUrl = imageUrl;
                             }
@@ -120,12 +120,12 @@ namespace OPS.Pipeline.TileServer
                             {
                                 tmp3DTileImage = tmpImage = null;
                             }
-                            string meshUrl = new Uri(Path.Combine(Path.Combine(TileServerCloud.TileUrlBase, this.ProjectName), this.Id + Path.GetExtension(tmpMesh))).ToString();
+                            string meshUrl = TileServerConfig.Instance.TileUrl(this.ProjectName, this.Id + Path.GetExtension(tmpMesh));
                             pair.Mesh.Save(tmpMesh, Path.GetFileName(imageUrl));
                             pipeline.Storage.UploadFile(tmpMesh, meshUrl);
                             this.MeshUrl = meshUrl;
 
-                            string tileUrl = new Uri(Path.Combine(Path.Combine(TileServerCloud.WWWUrlBase, this.ProjectName), this.Id + Path.GetExtension(tmp3DTileMesh))).ToString();
+                            string tileUrl = TileServerConfig.Instance.WWWUrl(this.ProjectName, this.Id + Path.GetExtension(tmp3DTileMesh));
                             pair.Mesh.Save(tmp3DTileMesh, tmp3DTileImage);
                             pipeline.Storage.UploadFile(tmp3DTileMesh, tileUrl);
 

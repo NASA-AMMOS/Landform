@@ -4,6 +4,7 @@ using log4net;
 using OPS.Plumbing;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -12,35 +13,27 @@ namespace OPS.Pipeline.TileServer
 {
     class TileServerCloud
     {
-
-        public const string InputUrlBase = "s3://landlords-dev/tileserver/data";
-        public const string WWWUrlBase = "s3://landlords-dev/tileserver/www";
-        public const string ChunkUrlBase = "s3://landlords-dev/tileserver/chunk";
-        public const string TileUrlBase = "s3://landlords-dev/tileserver/tiles";
-
-
+        
 
         Type[] tableTypes = new Type[] { typeof(TilingProject), typeof(TilingInput), typeof(TilingNode), typeof(TilingInputChunk) };
 
-        string dynamoDBPrefix;
         PipelineCore pipeline;
 
         static ILog logger = LogManager.GetLogger(typeof(TileServerCloud));
 
-        public TileServerCloud(string dynamoDBPrefix, PipelineCore pipelineCore)
+        public TileServerCloud(PipelineCore pipelineCore)
         {
-            this.dynamoDBPrefix = dynamoDBPrefix;
             this.pipeline = pipelineCore;
         }
 
         public TilingQueue WorkerQueue
         {
-            get { return new TilingQueue(this.dynamoDBPrefix, pipeline.Profile); }
+            get { return new TilingQueue(TileServerConfig.Instance.VenueName, pipeline.Profile); }
         }
 
         public TilingQueue CompletionQueue
         {
-            get { return new TilingQueue(this.dynamoDBPrefix + "_completion", pipeline.Profile); }
+            get { return new TilingQueue(TileServerConfig.Instance.VenueName + "_completion", pipeline.Profile); }
         }
 
         public void EnsureTablesExist()
@@ -48,7 +41,7 @@ namespace OPS.Pipeline.TileServer
             // make sure tables exist
             foreach (var t in tableTypes)
             {
-                var tn = dynamoDBPrefix + CreateCloudTemplates.TableName(t);
+                var tn = TileServerConfig.Instance.VenueName + CreateCloudTemplates.TableName(t);
 
                 try
                 {
@@ -58,7 +51,7 @@ namespace OPS.Pipeline.TileServer
                 {
                     // Table already exists
                     logger.InfoFormat("Table {0}: creating", tn);
-                    pipeline.DynamoDB.CreateTable(CreateCloudTemplates.CreateTable(t, dynamoDBPrefix));
+                    pipeline.DynamoDB.CreateTable(CreateCloudTemplates.CreateTable(t, TileServerConfig.Instance.VenueName));
                     continue;
                 }
                 logger.InfoFormat("Table {0}: exists", tn);
@@ -71,7 +64,7 @@ namespace OPS.Pipeline.TileServer
         {
             foreach (var t in tableTypes)
             {
-                var tn = dynamoDBPrefix + CreateCloudTemplates.TableName(t);
+                var tn = TileServerConfig.Instance.VenueName + CreateCloudTemplates.TableName(t);
                 string tableStatus = "";
                 bool firstTime = true;
                 while (tableStatus != "ACTIVE")

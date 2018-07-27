@@ -16,13 +16,15 @@ namespace OPS.Pipeline.TileServer
         /// <returns></returns>
         public static int RunFromCommandline(string[] args)
         {
+
             /// Commands are defined by the list of types passed into ParseArguments
             /// Each passed in object must have a [Verb] decorator
             return CommandLine.Parser.Default.ParseArguments<CreateProjectOptions,
                                                              UploadInputOptions,
                                                              RunProjectOptions,
                                                              StartWorkerOptions,
-                                                             StartMasterOptions
+                                                             StartMasterOptions,
+                                                             ConfigureServerOptions
                                                              >(args)
               .MapResult(
                 (CreateProjectOptions opts) => new CreateProject(opts).Run(),
@@ -30,6 +32,7 @@ namespace OPS.Pipeline.TileServer
                 (RunProjectOptions opts) => new RunProject(opts).Run(),
                 (StartWorkerOptions opts) => new StartWorker(opts).Run(),
                 (StartMasterOptions opts) => new StartMaster(opts).Run(),
+                (ConfigureServerOptions opts) => new ConfigureServer(opts).Run(),
                 errs => 1);
         }
     }

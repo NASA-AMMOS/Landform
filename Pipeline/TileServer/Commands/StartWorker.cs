@@ -14,12 +14,6 @@ namespace OPS.Pipeline.TileServer
     [Verb("startworker", HelpText = "Starts a worker to process tiling messages")]
     public class StartWorkerOptions
     {
-        [Value(0, Required = true, HelpText = "Dynamo DB prefix")]
-        public string DynamoDBPrefix { get; set; }
-
-        [Option(HelpText = "AWS profile to use", Default = "default")]
-        public string Profile { get; set; }
-        
         [Option(HelpText = "Also start the master server as part of this process - useful for debugging", Default = false)]
         public bool StartMaster { get; set; }
 
@@ -33,19 +27,18 @@ namespace OPS.Pipeline.TileServer
 
         StartWorkerOptions options;
 
-
         public TilingQueue WorkerQueue
         {
-            get { return new TileServerCloud(options.DynamoDBPrefix, this).WorkerQueue; }
+            get { return new TileServerCloud(this).WorkerQueue; }
         }
 
         public TilingQueue CompeltionQueue
         {
-            get { return new TileServerCloud(options.DynamoDBPrefix, this).CompletionQueue; }            
+            get { return new TileServerCloud(this).CompletionQueue; }            
         }
         
 
-        public StartWorker(StartWorkerOptions options) : base(dynamoPrefix: options.DynamoDBPrefix, profile: options.Profile)
+        public StartWorker(StartWorkerOptions options) : base(dynamoPrefix: TileServerConfig.Instance.VenueName, profile: TileServerConfig.Instance.Profile)
         {
             this.options = options;
         }
@@ -58,7 +51,7 @@ namespace OPS.Pipeline.TileServer
             //Configure gdal
             GdalConfiguration.ConfigureGdal();
 
-            new TileServerCloud(options.DynamoDBPrefix, this).EnsureTablesExist();
+            new TileServerCloud(this).EnsureTablesExist();
 
 
             Task masterTask = null;
@@ -66,11 +59,7 @@ namespace OPS.Pipeline.TileServer
             {
                 masterTask = new Task(() =>
                 {
-                    StartMasterOptions opts = new StartMasterOptions()
-                    {
-                        DynamoDBPrefix= options.DynamoDBPrefix,
-                        Profile= options.Profile
-                    };
+                    StartMasterOptions opts = new StartMasterOptions();
                     new StartMaster(opts).Run();
                 });
                 masterTask.Start();

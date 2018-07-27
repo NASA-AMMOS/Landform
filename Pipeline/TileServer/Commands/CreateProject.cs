@@ -14,10 +14,8 @@ namespace OPS.Pipeline.TileServer
     [Verb("createproject", HelpText = "Creates a project")]
     public class CreateProjectOptions
     {
-        [Value(0, Required = true, HelpText = "Dynamo DB prefix")]
-        public string DynamoDBPrefix { get; set; }
 
-        [Value(1, Required = true, HelpText = "Project Name")]
+        [Value(0, Required = true, HelpText = "Project Name")]
         public string ProjectName { get; set; }
         
         [Option(HelpText = "TilingScheme", Default = TilingScheme.Bin)]
@@ -31,9 +29,6 @@ namespace OPS.Pipeline.TileServer
 
         [Option(Required = false, Default = 256, HelpText = "Maximum image resolution per tile")]
         public int TileResolution { get; set; }
-
-        [Option(HelpText = "AWS profile to use", Default = "default")]
-        public string Profile { get; set; }
     }
 
     public class CreateProject : PipelineCore
@@ -42,14 +37,14 @@ namespace OPS.Pipeline.TileServer
 
         CreateProjectOptions options;
 
-        public CreateProject(CreateProjectOptions options) : base(dynamoPrefix: options.DynamoDBPrefix, profile: options.Profile)
+        public CreateProject(CreateProjectOptions options) : base(dynamoPrefix: TileServerConfig.Instance.VenueName, profile: TileServerConfig.Instance.Profile)
         {
             this.options = options;
         }
 
         public int Run()
         {
-            var cloud = new TileServerCloud(options.DynamoDBPrefix, this);
+            var cloud = new TileServerCloud(this);
             cloud.EnsureTablesExist();
             var tmp = cloud.CompletionQueue;
             tmp = cloud.WorkerQueue;

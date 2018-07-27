@@ -17,11 +17,6 @@ namespace OPS.Pipeline.TileServer
     [Verb("startmaster", HelpText = "Runs a tiling workflow")]
     public class StartMasterOptions
     {
-        [Value(0, Required = true, HelpText = "Dynamo DB prefix")]
-        public string DynamoDBPrefix { get; set; }
-
-        [Option(HelpText = "AWS profile to use", Default = "default")]
-        public string Profile { get; set; }
     }
 
     public class StartMaster : PipelineCore
@@ -29,14 +24,15 @@ namespace OPS.Pipeline.TileServer
         static ILog logger = LogManager.GetLogger(typeof(StartMaster));
 
         StartMasterOptions options;
-        public StartMaster(StartMasterOptions options) : base(dynamoPrefix: options.DynamoDBPrefix, profile: options.Profile)
+
+        public StartMaster(StartMasterOptions options) : base(dynamoPrefix: TileServerConfig.Instance.VenueName, profile: TileServerConfig.Instance.Profile)
         {
             this.options = options;
-        }       
+        }
 
         public int Run()
         {
-            var cloud = new TileServerCloud(options.DynamoDBPrefix, this);
+            var cloud = new TileServerCloud(this);
             var workerQueue = cloud.WorkerQueue;
             var completionQueue = cloud.CompletionQueue;
 

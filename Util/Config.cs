@@ -31,11 +31,12 @@ namespace OPS.Util
     /// ConfigEnvironmentVariable attribute
     /// </summary>
     public abstract class Config
-    {
+    { 
         /// <summary>
         /// Name of configuration file.  This should return just the name of the file without .json or a path
         /// </summary>
         /// <returns></returns>
+
         protected virtual string ConfigFilename()
         {
             return null;
@@ -56,6 +57,13 @@ namespace OPS.Util
                 return null;
             }
             return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ApplicationConfigFolder, filename + ".json");
+        }
+
+        public void Save()
+        {
+            string filename = FullPathToConfig(this.ConfigFilename());
+            PathHelper.EnsureExists(Path.GetDirectoryName(filename));
+            File.WriteAllText(filename, JsonConvert.SerializeObject(this, Formatting.Indented));
         }
 
         public Config()

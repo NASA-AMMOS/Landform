@@ -183,6 +183,7 @@
     <Compile Include="Commands\CreateCloudTemplates.cs" />
     <Compile Include="Commands\TileLocalMesh.cs" />
     <Compile Include="TileServer\Cloud\TilingNode.cs" />
+    <Compile Include="TileServer\Commands\ConfigureServer.cs" />
     <Compile Include="TileServer\Commands\CreateProject.cs" />
     <Compile Include="TileServer\Commands\RunProject.cs" />
     <Compile Include="TileServer\Commands\StartMaster.cs" />
@@ -198,9 +199,9 @@
     <Compile Include="TileServer\Operations\ChunkInput.cs" />
     <Compile Include="TileServer\Operations\DefineTiles.cs" />
     <Compile Include="TileServer\Cloud\TilingInputChunk.cs" />
+    <Compile Include="TileServer\TileServerConfig.cs" />
     <Compile Include="TileServer\TilingScheme.cs" />
     <Compile Include="TileServer\Commands\TileServerCommands.cs" />
-    <Compile Include="Commands\TilingWorker.cs" />
     <Compile Include="Commands\Commands.cs" />
     <Compile Include="Commands\ConvertBaselineMesh.cs" />
     <Compile Include="Commands\LegacyToWebVR.cs" />
