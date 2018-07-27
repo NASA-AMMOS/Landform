@@ -1,6 +1,6 @@
 const express = require('express');
 
-const { routeError, abortRoute, sendJson, parseBool, parseArgs } = require('../routeUtil');
+const { routeError, abortRoute, sendJson, parseArgs } = require('../routeUtil');
 const { getTask } = require('../taskUtil');
 const masterTask = require('../masterTask');
 
@@ -27,7 +27,7 @@ router.get('/:id/log', (req, res) => {
       res.contentType('text/plain');
       if (!live || !task.info.running) res.send(task.log.join('\n'));
       else {
-        task.listeners.push(msg => { if (msg !== null) { res.write('\n'); res.write(msg); } else res.end(); });
+        task.listeners.push(msg => { if (msg !== null) res.write(`\n${msg}`); else res.end(); }); //'' is falsey
         res.write(task.log.join('\n'));
       }
     }
