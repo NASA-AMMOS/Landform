@@ -99,7 +99,7 @@ namespace OPS.Pipeline.TileServer
         {
             TemporaryFile.GetAndDelete(".ply", tmpMesh =>
             {
-                TemporaryFile.GetAndDelete(".tif", tmpImage =>
+                TemporaryFile.GetAndDelete(".tif", tmpImage => 
                 {
                     TemporaryFile.GetAndDelete(pair.Mesh.HasFaces ? ".b3dm" : ".pnts", tmp3DTileMesh =>
                     {

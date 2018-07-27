@@ -32,7 +32,10 @@ namespace OPS.Pipeline.TileServer
 
         static ILog logger = LogManager.GetLogger(typeof(ChunkInput));
 
-        const int FacesPerChunk = 250000;
+        public const string MESH_EXT =  ".ply";
+        public const string IMAGE_EXT = ".tif";
+        public const int CHUNK_RESPLUTION = 2046;
+        const int FacesPerChunk = 100000;
         StartWorker pipeline;
         ChunkInputMessage message;
 
@@ -76,6 +79,7 @@ namespace OPS.Pipeline.TileServer
                 mesh.Clean();
             });
             Image image = null;
+            string imageBaseUrl = null;
             if (input.ImageUrl != null)
             {
                 logger.Info("Downloading: " + input.ImageUrl);
@@ -84,60 +88,44 @@ namespace OPS.Pipeline.TileServer
                     pipeline.Storage.DownloadFile(input.ImageUrl, f);
                     image = Image.Load(f);
                 });
+                input.ImageBands = image.Bands;
+                input.ImageWidth = image.Width;
+                input.ImageHeight = image.Height;
+
+                logger.Info("Chunk image");
+                var sparseImage = new SparseCloudImage(image, this.pipeline, CHUNK_RESPLUTION);
+                imageBaseUrl = Path.Combine(Path.Combine(TileServerCloud.ChunkUrlBase, project.Name), Guid.NewGuid().ToString());
+                // TODO: maintain original bit depth
+                sparseImage.Save<byte>(imageBaseUrl, IMAGE_EXT);
+
             }
             logger.Info("Building acceleration structures");
-            MeshOperator op = new MeshOperator(mesh, buildFaceTree: true, buildVertexTree: true, buildUVFaceTree: false);
+            var thing = new TileLocalMesh.TilingInput();
+            var dataset = new TileLocalMesh.TilingInputDataset(mesh, image);
+            thing.AddDataset(dataset);
             // TODO: migrate toward using sparse image so we don't need to know tile definitions
-            logger.Info("Reading tile definitions");
-            SceneNode root = TilingNode.BuildTreeFromDatabase(pipeline.DynamoContext, project);
 
-            List<ChunkData> chunks = new List<ChunkData>();
-            DefineChunks(root, op, new FaceLimitSplitCriteria(FacesPerChunk), chunks);
-
-            TexturedMeshClipper clipper = new TexturedMeshClipper();
-            clipper.AddMeshImagePair(op, image);
-
+            logger.Info("Building mesh chunks");
+            var tilingScheme = new BinaryTreeTilingScheme();
+            var splitCriteria = new FaceLimitSplitCriteria(FacesPerChunk);
+            var root = TileLocalMesh.BuildBoundsTree(thing, tilingScheme, splitCriteria);
+            
             ConcurrentBag<string> chunkIds = new ConcurrentBag<string>();
-            Serial.ForEach(chunks, (chunkData, pls, i) =>
+            var leaves = root.Leaves().ToList();
+            Serial.ForEach(leaves, (leaf, pls, i) =>
             {
-                Mesh m = null;
-                string meshExt = ".ply";
-                string imageExt = ".tif";
-                string id = Guid.NewGuid().ToString();
-                string filenameBase = Path.Combine(TemporaryFile.TemporaryDirectory, id);
-                string meshFilename = filenameBase + meshExt;
-                string imageFilename = null;
-
-                string meshUrl = new Uri(Path.Combine(TileServerCloud.ChunkUrlBase, id + meshExt)).ToString();
-                string imageUrl = null;
-                if(image == null)
+                TemporaryFile.GetAndDelete(MESH_EXT, f =>
                 {
-                    m = op.Clip(chunkData.Bounds);
-                    m.Clean();
-                }
-                else
-                {
-                    var pair = clipper.Clip(chunkData.Bounds);
-                    m = pair.Mesh;
-                    imageFilename = filenameBase + imageExt;
-                    // TODO: retain originial detail here
-                    pair.Image.Save<byte>(imageFilename);
-                    imageUrl = new Uri(Path.Combine(TileServerCloud.ChunkUrlBase, id + imageExt)).ToString();
-                    pipeline.Storage.UploadFile(imageFilename, imageUrl);
-                }
-                m.Save(meshFilename, Path.GetFileName(imageFilename));
-                pipeline.Storage.UploadFile(meshFilename, meshUrl);
-                TilingInputChunk record = TilingInputChunk.Create(pipeline.DynamoContext, id, project, meshUrl, imageUrl, m.Bounds());
-                chunkIds.Add(id);
-                if (File.Exists(meshFilename))
-                {
-                    File.Delete(meshFilename);
-                }
-                if (File.Exists(imageFilename))
-                {
-                    File.Delete(imageFilename);
-                }
-                logger.Info(string.Format("Chunk: {0}/{1}", chunkIds.Count(), chunks.Count));
+                    BoundingBox bounds = leaf.GetComponent<NodeBounds>().Bounds;
+                    string id = Guid.NewGuid().ToString();
+                    Mesh m = thing.Clip(bounds, true);
+                    m.Save(f);
+                    string meshUrl = new Uri(Path.Combine(Path.Combine(TileServerCloud.ChunkUrlBase, project.Name), id + MESH_EXT)).ToString();
+                    pipeline.Storage.UploadFile(f, meshUrl);
+                    TilingInputChunk record = TilingInputChunk.Create(pipeline.DynamoContext, id, project, meshUrl, imageBaseUrl, m.Bounds());
+                    chunkIds.Add(id);
+                    logger.Info(string.Format("Chunk: {0}/{1}", chunkIds.Count(), leaves.Count));
+                });
             });
             input.ChunkIds = chunkIds.ToList();
             input.Chunked = true;
@@ -146,20 +134,5 @@ namespace OPS.Pipeline.TileServer
             logger.Info("Done");
         }
 
-        void DefineChunks(SceneNode node, MeshOperator op, ITileSplitCriteria splitCrieria, List<ChunkData> chunks)
-        {
-            var bounds = node.GetComponent<NodeBounds>().Bounds;
-            if (node.IsLeaf || !splitCrieria.ShouldSplit(op, bounds))
-            {
-                // We are reached target detail or can't split anymore
-                chunks.Add(new ChunkData(node.Name, bounds));
-                return;
-            }
-            // Otherwise recurse
-            foreach (var c in node.Children)
-            {
-                DefineChunks(c, op, splitCrieria, chunks);
-            }            
-        }
     }
 }

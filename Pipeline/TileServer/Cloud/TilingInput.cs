@@ -25,6 +25,12 @@ namespace OPS.Pipeline.TileServer
 
         public string ImageUrl { get; set; }
 
+        public int ImageBands { get; set; }
+
+        public int ImageWidth { get; set; }
+
+        public int ImageHeight { get; set; }
+        
         public string TileId { get; set; }
 
         public bool Chunked { get; set; }

@@ -44,8 +44,8 @@ namespace OPS.Pipeline.TileServer
             
             while (true)
             {
-                var m = completionQueue.Deque();
-                if (m != null)
+                var messages = completionQueue.Deque(10);
+                foreach(var m in messages)
                 {
                     string s = JsonHelper.ToJson(m);
                     if (recentlyProcessed.Count > 5000)
@@ -95,32 +95,46 @@ namespace OPS.Pipeline.TileServer
                             var id = ((TileCompletedMessage)m).TileId;
                             logger.Info("TileCompleted project:" + m.ProjectName + " tile:" + id);
                             var node = TilingNode.Find(this.DynamoContext, project, id);
-                            // For each node that depends on this one
-                            foreach (var pid in node.DependedOnBy)
+                            if (node.ParentId == null)
                             {
-                                var pnode = TilingNode.Find(this.DynamoContext, project, pid);
-                                // Check to see if all of it's dependencies have been completed
-                                bool allDependenciesDone = true;
-                                foreach (var d in pnode.DependsOn)
+                                var tilesetJob = new BuildTilesetJsonMessage(project.Name);
+                                workerQueue.Enqueue(tilesetJob);
+                            }
+                            else
+                            {
+                                // For each node that depends on this one
+                                foreach (var pid in node.DependedOnBy)
                                 {
-                                    var dnode = TilingNode.Find(this.DynamoContext, project, d);
-                                    if (dnode.MeshUrl == null)
+                                    var pnode = TilingNode.Find(this.DynamoContext, project, pid);
+                                    // Check to see if all of it's dependencies have been completed
+                                    bool allDependenciesDone = true;
+                                    foreach (var d in pnode.DependsOn)
                                     {
-                                        allDependenciesDone = false;
-                                        break;
+                                        var dnode = TilingNode.Find(this.DynamoContext, project, d);
+                                        if (dnode.MeshUrl == null)
+                                        {
+                                            allDependenciesDone = false;
+                                            break;
+                                        }
                                     }
-                                }
-                                if (allDependenciesDone)
-                                {
-                                    logger.Info("EnquingParent " + project.Name + " tile:" + pid);
-                                    var parentJob = new BuildParentsMessage(project.Name, pid);
-                                    workerQueue.Enqueue(parentJob);
+                                    if (allDependenciesDone)
+                                    {
+                                        logger.Info("EnquingParent " + project.Name + " tile:" + pid);
+                                        var parentJob = new BuildParentsMessage(project.Name, pid);
+                                        workerQueue.Enqueue(parentJob);
+                                    }
+
                                 }
                             }
                         }
+                        else if (m.GetType() == typeof(BuildTilesetJsonMessage))
+                        {
+                            logger.Info("TilesetComplete " + project.Name);
+
+                        }
                         else
                         {
-                            logger.Info("Unknown message type");
+                            logger.Info("Unknown message type: " + m.GetType());
                         }
 
                     }

@@ -11,6 +11,7 @@ using OPS.Cloud;
 using OPS.Util;
 using Newtonsoft.Json;
 using log4net;
+using OPS.MathExtensions;
 
 namespace OPS.Pipeline.TileServer
 {
@@ -84,26 +85,24 @@ namespace OPS.Pipeline.TileServer
             }
         }
 
-        public TilingQueueMessage Deque()
+        public TilingQueueMessage[] Deque(int maxMessages = 1)
         {
             var req = new ReceiveMessageRequest
             {
                 AttributeNames = new List<string>() { "All" },
                 MessageAttributeNames = new List<string>() { "All" },
-                MaxNumberOfMessages = 1,
-                QueueUrl = this.queueUrl,
+                MaxNumberOfMessages = MathE.Clamp(maxMessages, 1, 10),
+                QueueUrl = this.queueUrl,                
                 WaitTimeSeconds = (int)TimeSpan.FromSeconds(15).TotalSeconds // How long to wait for message
             };
             ReceiveMessageResponse r = GetClient().ReceiveMessage(req);
-            if (r.Messages.Count > 0) //we have a message, hot diggity
+            return r.Messages.Select(msg =>
             {
-                var msg = r.Messages[0];
                 var m = (TilingQueueMessage)JsonHelper.FromJson(msg.Body);
                 m.MessageId = msg.MessageId;
                 m.ReceiptHandle = msg.ReceiptHandle;
                 return m;
-            }
-            return null;
+            }).ToArray();
         }
 
         public void Delete(TilingQueueMessage m)

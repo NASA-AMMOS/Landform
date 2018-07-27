@@ -194,6 +194,7 @@
     <Compile Include="TileServer\Cloud\TilingQueue.cs" />
     <Compile Include="TileServer\Operations\BuildLeaves.cs" />
     <Compile Include="TileServer\Operations\BuildParents.cs" />
+    <Compile Include="TileServer\Operations\BuildTilesetJson.cs" />
     <Compile Include="TileServer\Operations\ChunkInput.cs" />
     <Compile Include="TileServer\Operations\DefineTiles.cs" />
     <Compile Include="TileServer\Cloud\TilingInputChunk.cs" />
@@ -243,6 +244,7 @@
     <Compile Include="Tiling\QuadTreeTilingScheme.cs" />
     <Compile Include="Tiling\ITilingScheme.cs" />
     <Compile Include="Tiling\SceneNodeTilingExtensions.cs" />
+    <Compile Include="Tiling\SparseCloudImage.cs" />
     <Compile Include="Tiling\TexturedMeshClipper.cs" />
     <Compile Include="Tiling\Tile3DBuilder.cs" />
     <Compile Include="Tiling\TilesetSchema.cs" />

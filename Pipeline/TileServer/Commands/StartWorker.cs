@@ -22,6 +22,9 @@ namespace OPS.Pipeline.TileServer
         
         [Option(HelpText = "Also start the master server as part of this process - useful for debugging", Default = false)]
         public bool StartMaster { get; set; }
+
+        [Option(HelpText = "Run a single worker on the main thread for debugging", Default = false)]
+        public bool SingleThreaded { get; set; }
     }
 
     public class StartWorker : PipelineCore
@@ -55,6 +58,9 @@ namespace OPS.Pipeline.TileServer
             //Configure gdal
             GdalConfiguration.ConfigureGdal();
 
+            new TileServerCloud(options.DynamoDBPrefix, this).EnsureTablesExist();
+
+
             Task masterTask = null;
             if(options.StartMaster)
             {
@@ -70,18 +76,23 @@ namespace OPS.Pipeline.TileServer
                 masterTask.Start();
             }
 
-            new TileServerCloud(options.DynamoDBPrefix, this).EnsureTablesExist();
-
-            Task[] tasks = new Task[Environment.ProcessorCount];
-            for(int i = 0; i < tasks.Length; i++)
+            if (options.SingleThreaded)
             {
-                tasks[i] = Task.Run(() => RunWorker());
+                RunWorker();
             }
-            for (int i = 0; i < tasks.Length; i++)
+            else
             {
-                tasks[i].Wait();
+                Task[] tasks = new Task[Environment.ProcessorCount];
+                for (int i = 0; i < tasks.Length; i++)
+                {
+                    tasks[i] = Task.Run(() => RunWorker());
+                }
+                for (int i = 0; i < tasks.Length; i++)
+                {
+                    tasks[i].Wait();
+                }         
             }
-            if(masterTask != null)
+            if (masterTask != null)
             {
                 masterTask.Wait();
             }
@@ -94,8 +105,8 @@ namespace OPS.Pipeline.TileServer
             var queue = WorkerQueue;
             while (true)
             {
-                var m = queue.Deque();
-                if (m != null)
+                var messages = queue.Deque();
+                foreach(var m in messages)
                 {
                     // TODO: start a process that updates timeout ever n seconds
                     try
@@ -117,9 +128,13 @@ namespace OPS.Pipeline.TileServer
                         {
                             new BuildParents((BuildParentsMessage)m, this).Process();
                         }
+                        else if (m.GetType() == typeof(BuildTilesetJsonMessage))
+                        {
+                            new BuildTilesetJson((BuildTilesetJsonMessage)m, this).Process();
+                        }
                         else
                         {
-                            logger.Info("Unknown message type");
+                            logger.Info("Unknown message type: " + m.GetType());
                         }
 
                     }

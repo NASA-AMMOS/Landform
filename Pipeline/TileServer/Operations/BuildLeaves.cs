@@ -61,11 +61,12 @@ namespace OPS.Pipeline.TileServer
         public void Process()
         {
             var project = TilingProject.Find(pipeline.DynamoContext, this.message.ProjectName);
-            var inputs = TilingInput.Find(pipeline.DynamoContext, project).ToList();
 
-            HashSet<string> ids = new HashSet<string>(this.message.TileIds);
-            var leaves = TilingNode.Find(pipeline.DynamoContext, project).ToList().Where(n => ids.Contains(n.Id)).ToList();
-
+            List<TilingNode> leaves = new List<TilingNode>();
+            foreach(var id in this.message.TileIds)
+            {
+                leaves.Add(TilingNode.Find(pipeline.DynamoContext, project, id));
+            }
             // Send completion messages for leaves that are already done
             foreach (var n in leaves)
             {
@@ -75,9 +76,10 @@ namespace OPS.Pipeline.TileServer
                     pipeline.CompeltionQueue.Enqueue(new TileCompletedMessage(project.Name, n.Id));
                 }
             }
+            // Filter any completed leaves
             leaves = leaves.Where(n => n.MeshUrl == null).ToList();
-
-            //logger.Info("Find overlapping chunks");
+            // Get a list of all chunks that overlap with a leaf tile
+            var inputs = TilingInput.Find(pipeline.DynamoContext, project).ToList();
             List<InputChunkGroup> inputGroups = new List<InputChunkGroup>();
             foreach (var input in inputs)
             {
@@ -100,30 +102,28 @@ namespace OPS.Pipeline.TileServer
 
             // TODO: replace bakeclipper with textured mesh clipper
             var bakeClipper = new TileLocalMesh.TilingInput();
-            foreach (var input in inputGroups)
+            foreach (var group in inputGroups)
             {
-                foreach (var chunk in input.Chunks)
+                // Reconstruct a mesh for each input using only the chunks that overlap with leaves that we are building
+                var meshes = group.Chunks.Select(c =>
                 {
                     Mesh m = null;
-                    Image img = null;
-                    TemporaryFile.GetAndDelete(Path.GetExtension(chunk.MeshUrl), f =>
+                    TemporaryFile.GetAndDelete(Path.GetExtension(c.MeshUrl), f =>
                     {
-                        pipeline.Storage.DownloadFile(chunk.MeshUrl, f);
+                        pipeline.Storage.DownloadFile(c.MeshUrl, f);
                         m = Mesh.Load(f);
-
                     });
-                    if (chunk.ImageUrl != null)
-                    {
-                        TemporaryFile.GetAndDelete(Path.GetExtension(chunk.ImageUrl), f =>
-                        {
-                            pipeline.Storage.DownloadFile(chunk.ImageUrl, f);
-                            img = Image.Load(f);
-
-                        });
-                    }
-                    //clipper.AddMeshImagePair(m, img);
-                    bakeClipper.AddDataset(new TileLocalMesh.TilingInputDataset(m, img));
+                    return m;
+                });
+                var mergedMesh = Mesh.Merge(meshes.ToArray());
+                mergedMesh.Clean();
+                SparseCloudImage image = null;
+                string imgUrl = group.Chunks[0].ImageUrl;
+                if (imgUrl != null)
+                {
+                    image = new SparseCloudImage(group.Input.ImageBands, group.Input.ImageWidth, group.Input.ImageHeight, imgUrl, ChunkInput.IMAGE_EXT, this.pipeline, ChunkInput.CHUNK_RESPLUTION);
                 }
+                bakeClipper.AddDataset(new TileLocalMesh.TilingInputDataset(mergedMesh, image));
             }
             bakeClipper.InitTextureBaker();
             //logger.Info("Make leaves");
@@ -132,6 +132,7 @@ namespace OPS.Pipeline.TileServer
             Serial.ForEach(leaves, leaf =>
             {              
                 var m = bakeClipper.Clip(leaf.GetBounds());
+                // TODO: use clipper and subdivide if texture is too big creating new tiles as needed
                 var pair = bakeClipper.BakeTexture(m, project.TileResolution);
                 leaf.SaveMesh(pair, pipeline, 0);
                 processed.Add(leaf);

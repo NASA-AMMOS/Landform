@@ -66,9 +66,12 @@ namespace OPS
             public BoundingBox TotalBounds;
             public List<TilingInputDataset> Datasets;
             public TextureBaker TextureBaker;
+            public TexturedMeshClipper TexturedMeshClipper;
+
             public TilingInput()
             {
                 this.Datasets = new List<TilingInputDataset>();
+                TexturedMeshClipper = new TexturedMeshClipper();
             }
 
             public void AddDataset(TilingInputDataset dataset)
@@ -79,6 +82,10 @@ namespace OPS
                 }
                 TotalBounds = BoundingBoxExtensions.Union(TotalBounds, dataset.MeshOperator.Bounds);
                 this.Datasets.Add(dataset);
+                if (dataset.Image != null)
+                {
+                    this.TexturedMeshClipper.AddMeshImagePair(dataset.Mesh, dataset.Image);
+                }
             }
 
             public void InitTextureBaker()
@@ -122,12 +129,17 @@ namespace OPS
                 return false;
             }
 
-            public Mesh Clip(BoundingBox box)
+            public Mesh Clip(BoundingBox box, bool ragged = false)
             {
-                var meshes = this.Datasets.Where(d => !d.MeshOperator.Empty(box)).Select(d => d.MeshOperator.Clip(box)).ToArray();
+                var meshes = this.Datasets.Where(d => !d.MeshOperator.Empty(box)).Select(d => d.MeshOperator.Clip(box, ragged)).ToArray();
                 var merged =  Mesh.Merge(meshes);
                 merged.Clean();
                 return merged;
+            }
+
+            public MeshImagePair ClipWithTexture(BoundingBox box)
+            {
+                return TexturedMeshClipper.Clip(box);
             }
 
             public MeshImagePair BakeTexture(Mesh mesh, int size)

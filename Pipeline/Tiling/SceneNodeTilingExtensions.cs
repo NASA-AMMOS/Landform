@@ -76,7 +76,9 @@ namespace OPS.Pipeline
                 var clipped = Mesh.Clip(p.Mesh, cropBounds);
                 totalPixels += TextureBaker.ComputePixelArea(clipped, p.Image);
             }
-            return TextureBaker.PixelAreaToSquareDimension(totalPixels);
+            int size =  TextureBaker.PixelAreaToSquareDimension(totalPixels);
+            size = Math.Min(size, maxTextureSize);
+            return size;
         }
 
         /// <summary>
@@ -139,12 +141,16 @@ namespace OPS.Pipeline
             Mesh combinedFull = Mesh.Merge(childMeshesWithoutSkirts);
             combinedFull = Mesh.Clip(combinedFull, searchBounds);
             combinedFull.NormalizeNormals();
+            BoundingBox minimumBounds = node.GetComponent<NodeBounds>().Bounds;
+
             // TODO: handle the fact that we are reconstucting a larger area so we should inflate the number of faces cleverly
             // TODO: Don't use 3 that only works for quad trees, this should be based off number of children
-            int targetFaces = combinedFull.Faces.Count() / node.ChildCount/*3*/;  // could do 4 but lets try 3 for some extra around the edges
+            // / node.ChildCount/*3*/;  // could do 4 but lets try 3 for some extra around the edges
+            // TODO: (in response to todos above) we are trying this without a face reduction until we hit maxfacecount - this favors trying to make all tiles approach the target face count and means
+            // we will continue creating parent tiles with little to no reduction in polycount until that limit is reached at which decimation will start having an effect
+            int targetFaces = Mesh.Clip(combinedFull, minimumBounds).Faces.Count();
             targetFaces = Math.Min(targetFaces, maxFaceCountTarget);
             // Minimum bounds is a tight fitting bounding box around the child meshes with skirts
-            BoundingBox minimumBounds = node.GetComponent<NodeBounds>().Bounds;
             Vector3? cornerDirection = null;
             if (skirtAxis.HasValue)
             {
@@ -169,12 +175,10 @@ namespace OPS.Pipeline
             double geometricError = combinedDecimated.HausdorffDistance(fullClipped);
             geoError.Error = Math.Max(geoError.Error, geometricError);
 
-            // We want a 2x reduction in both size dimensions (4x reduction in area)
-            int size = ComputeParentTileResolution(pairs, combinedDecimated.Bounds()) / 2;
+            int size = ComputeParentTileResolution(pairs, combinedDecimated.Bounds(), maxTextureSize);
             Image img = null;
             if (size != 0)
-            {
-                size = Math.Min(size, maxTextureSize);
+            {               
                 combinedDecimated = UVAtlas.Atlas(combinedDecimated, size, size);
                 img = TextureBaker.BakeTexture(pairs.ToArray(), combinedDecimated, size, size);
                 // Estimate the size of a pixel for this texture.  If this is greater than the geometric error use it instead

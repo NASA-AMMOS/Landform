@@ -119,7 +119,7 @@ namespace OPS.Geometry
                 result = new Mesh(HasNormals, HasUVs, HasColors);
                 result.Vertices.AddRange(vertexTree.Intersects(box.ToRectangle()));                
             }
-            if (!box.FuzzyContains(result.Bounds(), 1E-5))
+            if (!box.FuzzyContains(result.Bounds(), 1E-5) && !ragged)
             {
                 throw new Exception("Clipped mesh exceeds bounding box");
             }
