@@ -8,6 +8,7 @@ const path = require('path');
 
 const config = require('./config');
 const logger = require('./logger');
+const { abortRoute } = require('./util');
 const authRouter = require('./auth');
 const token = require('./token');
 const projectRouter = require('./api/project');
@@ -52,5 +53,7 @@ app.use('/api', apiRouter);
 //for dev the client is served by a separate server on localhost:3000 which does hot module reloading
 //that dev server proxies certain routes back to this server as configured in client/package.json
 if (app.get('env') === 'production') app.use('/', express.static(path.join(__dirname, 'client', 'build')));
+
+app.get('*', (req, res) => abortRoute(res, 'invalid request', new Error(`${req.originalUrl} not found`)));
 
 app.listen(config.app.port, () => { logger.info(`${config.app.name} server listening on port ${config.app.port}`); });
