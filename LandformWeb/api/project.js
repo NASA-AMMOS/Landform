@@ -72,7 +72,9 @@ async function uploadInput(req, res) {
     tmpdir = await makeTmpDir();
 
     //the mesh file is required
-    if (!req.files.mesh || req.files.mesh.length < 1) throw routeError('upload does not include mesh file');
+    if (!req.files || !req.files.mesh || req.files.mesh.length < 1) {
+      throw routeError('upload does not include mesh file');
+    }
     await addFile(req.files.mesh[0]);
 
     //the texture file is optional
