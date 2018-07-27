@@ -7,6 +7,8 @@ Create the named project.  Implements the [generic task API](#generic-task-api).
 
 Creating the same project more than once has no effect (not an error).
 
+TODO more doc for all the arguments below.
+
 Accepts the following arugments:
 * *tilingscheme*: tiling scheme; one of `Bin`, `Quad`, `Oct`, or `UserDefined`; default `Bin`
 * *skirtmode*: skirt mode; one of `None`, `X`, `Y`, `Z`; default `None`
@@ -17,6 +19,14 @@ Accepts the following arugments:
 Upload data for the named project.  Implements the [generic task API](#generic-task-api).
 
 Uploading the data with the same mesh filename (TODO?) more than once has no effect (not an error).
+
+TODO what happens when you upload with a different filename?
+
+TODO does the C# code really look at the filename extensions (exclusively?) to determine data format?
+
+TODO are there any restrictions on filename format?
+
+TODO what formats and resolutions are accepted?
 
 Accepts the following arguments in a `multipart/form-data` encoded HTTP request body:
 * *mesh*: mesh data file (required); data format will be implied from filename extension
