@@ -59,11 +59,9 @@ If the task was successfully launched
 ## Project API
 
 ### Create Project: POST|PUT /api/project/*name*
-Create the named project.
+Create the named project.  Implements the generic task API.
 
 Creating the same project more than once has no effect (not an error).
-
-Implements the generic task API.
 
 Accepts the following arugments:
 * *tilingscheme*: tiling scheme; one of `Bin`, `Quad`, `Oct`, or `UserDefined`; default `Bin`
@@ -72,11 +70,9 @@ Accepts the following arugments:
 * *tileresolution*: maximum image resolution per tile; default 256
 
 ### Upload Data: POST /api/project/*name*/upload
-Upload data for the named project.
+Upload data for the named project.  Implements the generic task API.
 
 Uploading the data with the same mesh filename (TODO?) more than once has no effect (not an error).
-
-Implements the generic task API.
 
 Accepts the following arguments in a `multipart/form-data` encoded HTTP request body:
 * *mesh*: mesh data file (required); data format will be implied from filename extension
@@ -85,11 +81,9 @@ Accepts the following arguments in a `multipart/form-data` encoded HTTP request 
 * all generic task API arguments (may also be specified as URL query parameters)
 
 ### Run Project : GET|POST /api/project/*name*/run
-Initiate a run of a project.
+Initiate a run of a project.  Implements the generic task API.
 
 TODO what happens if this is called more than once?
-
-Implements the generic task API.
 
 TODO this task will typically complete before the project is actually finished running.
 
