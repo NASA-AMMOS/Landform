@@ -2,7 +2,7 @@
 All API methods require an API token to be set as an `x-landform-token` HTTP header or `landform-token` cookie.
 
 
-### Create Project: POST|PUT /api/project/*name*
+### Create Project: POST /api/project/*name*
 Create the named project.  Implements the [generic task API](#generic-task-api).
 
 Creating the same project more than once has no effect (not an error).
@@ -24,12 +24,12 @@ Accepts the following arguments in a `multipart/form-data` encoded HTTP request 
 * *tileid*: tile ID string; must be given if and only if the tiling scheme is user-defined (may also be specified as a URL query parameter)
 * all generic task API arguments (may also be specified as URL query parameters)
 
-### Run Project : GET|POST /api/project/*name*/run
+### Run Project : POST /api/project/*name*/run
 Initiate a run of a project.  Implements the [generic task API](#generic-task-api).
 
 TODO what happens if this is called more than once?
 
-TODO this task will typically complete before the project is actually finished running.
+TODO for now this task will typically complete before the project is actually finished running.
 
 ### Task Metadata: GET /api/task/*id*
 Returns `application/json` metadata for task with the given id.

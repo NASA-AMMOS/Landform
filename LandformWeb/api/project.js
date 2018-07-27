@@ -32,7 +32,6 @@ async function createProject(req, res) {
   } catch (e) { abortRoute(res, 'error creating project', e); }
 }
 router.post('/:name', createProject);
-router.put('/:name', createProject);
 
 let nextUpload = 0;
 async function makeTmpDir() {
@@ -93,7 +92,6 @@ async function runProject(req, res) {
   try { await runTilingServer(req, res, 'runproject', [req.params.name]); }
   catch (e) { abortRoute(res, 'error running project', e); }
 }
-router.get('/:name/run', runProject);
 router.post('/:name/run', runProject);
 
 //TODO
