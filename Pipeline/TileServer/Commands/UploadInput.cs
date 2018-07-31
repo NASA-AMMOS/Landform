@@ -63,7 +63,6 @@ namespace OPS.Pipeline.TileServer
                 logger.Error("An input with that name already exists");
                 return 0;
             }
-            string inputFolder = TileServerConfig.Instance.InputUrl(options.ProjectName);
             string meshUrl = TileServerConfig.Instance.InputUrl(options.ProjectName, Path.GetFileName(options.MeshFilepath));
             logger.Info("Uploading: " + options.MeshFilepath);
             Storage.UploadFile(options.MeshFilepath, meshUrl);
