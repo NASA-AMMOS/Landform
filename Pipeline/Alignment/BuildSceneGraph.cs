@@ -130,9 +130,10 @@ namespace OPS.Pipeline
                         addObservation(o, obsNode);
                     }
                 }
-                
+
                 // Add child frames
-                foreach (var childFrame in ThroughputManager.Run(() => frame.GetChildren(DynamoDB)))
+                var frames = ThroughputManager.Run(() => frame.GetChildren(DynamoDB)).ToList();
+                foreach (var childFrame in frames)
                 {
                     if (!options.IncludeFrame(childFrame, res))
                     {

@@ -47,10 +47,10 @@ namespace OPS.Pipeline
         [Value(5, Required = true, HelpText = "MSLICE AWS profile")]
         public string MSliceProfile { get; set; }
 
-        [Option(HelpText = "Skip ingestion step", Default =false)]
+        [Option(HelpText = "Skip ingestion step", Default = false)]
         public bool SkipIngest { get; set; }
 
-        [Option(HelpText = "Optional directory to save debug output files to", Default=null)]
+        [Option(HelpText = "Optional directory to save debug output files to", Default = null)]
         public string DebugOutputFolder { get; set; }
     }
 
@@ -73,6 +73,8 @@ namespace OPS.Pipeline
             this.options = options;
 
             Features = new LazyComputation<Observation, DetectedFeatures>(this, (o) => o.FeaturesGuid, ComputeImageFeatures);
+            Matches = new LazyComputation<Overlap, ComputedCorrespondence>(this, (o) => o.MatchGuid, ComputeCorrespondence);
+            Masks = new LazyComputation<Observation, PngDataProduct>(this, (o) => o.MaskGuid, ComputeMask);
         }
 
         public List<string> GetDirectoriesToCrawl()
@@ -157,7 +159,7 @@ namespace OPS.Pipeline
                 });
             }
 
-            logger.Info("Observation count: " + obs.Count);
+            //logger.Info("Observation count: " + obs.Count);
 
             // Look up image priors for new images
             // Download new images from S3
@@ -170,9 +172,19 @@ namespace OPS.Pipeline
             
             List<Overlap> overlaps = Overlap.Find(DynamoContext, project.Name).ToList();
             logger.Info("Overlaps detected: " + overlaps.Count);
-
-            Matches = new LazyComputation<Overlap, ComputedCorrespondence>(this, (o) => o.MatchGuid, ComputeCorrespondence);
-            Masks = new LazyComputation<Observation, PngDataProduct>(this, (o) => o.MaskGuid, ComputeMask);
+            int existingGuids = 0;
+            int emptyGuids = 0;
+            foreach (Overlap ol in overlaps)
+            {
+                if(ol.MatchGuid == Guid.Empty)
+                {
+                    emptyGuids++;
+                } else
+                {
+                    existingGuids++;
+                }
+            }
+            logger.Info("Match guid found for " + existingGuids + " overlaps");
 
             // Generate feature discriptors and stuff, store in database
             logger.Info("Generate matches");
@@ -213,7 +225,7 @@ namespace OPS.Pipeline
 
         public ComputedCorrespondence ComputeCorrespondence(Overlap overlap)
         {
-            //if (overlap.Status == Overlap.StatusType.Rejected) return null;
+            if (overlap.Status == Overlap.StatusType.Rejected) return null;
 
             AlignmentScene scene = new AlignmentScene();
             UnorderedImagePair pair;

@@ -55,10 +55,6 @@ namespace OPS.Pipeline
             PathHelper.EnsureExists(options.OutputDirectory);
         }
 
-
-
-        
-
         UncertainRigidTransform ObservationToRoot(Observation obs, FrameCache frameCache)
         {
             Frame frame = frameCache.GetFrame(obs.FrameName);
@@ -74,7 +70,7 @@ namespace OPS.Pipeline
                 {
                     // Otherwise we are a parent transform -  Read the transform and combine it with the existing transform
                     var parentTransform = FrameTransform.Find(DynamoContext, frame).Transform;
-                    transform =  transform * parentTransform; // TODO: this or the reverse of this
+                    transform = parentTransform * transform;
                 }
                 frame = frame.GetParent(DynamoContext);
             }
@@ -86,19 +82,13 @@ namespace OPS.Pipeline
             S3ImageRef s3ref = new S3ImageRef(obs.Url);
             
             Image img = this.Load(s3ref, true);
-            Image mask = null;
-            try
-            {
-                mask = RoverMask.Build(img);
-            }
-            catch
-            {
-            }
+            Image mask = RoverMask.Build(img);
+
             if(mask == null)
             {
-                //TODO: change after no articulation observations are filtered
-  //              return new Mesh();
+                throw new Exception("Images used in reconstruction should have masks!");
             }
+
             Image colorImg = null;
             if (imgObs != null)
             {
@@ -111,19 +101,16 @@ namespace OPS.Pipeline
             {
                 for (int c = 0; c < img.Width; c += stepSize)
                 {
-                    //TODO: should not have null mask
-                    if (mask == null || mask[0, r, c] != 0)
+                    if (mask[0, r, c] != 0)
                     {
                         double range = img[0, r, c];
                         if (range > MathE.EPSILON && range < 64)
                         {
                             var observationPoint = img.CameraModel.Unproject(new Vector2(c, r), range);
-                            //var dist = observationToRoot.TransformPoint(observationPoint);
-                            var rootPoint = Vector3.Transform(observationPoint, obsToRoot); //observationPoint dist.XnaMean;
+                            var rootPoint = Vector3.Transform(observationPoint, Matrix.Transpose(obsToRoot)); //observationPoint dist.XnaMean;
                             var res = new Vertex(rootPoint);
                             if (colorImg != null)
                             {
-                                //TODO: ensure image resolution matches range resolution
                                 if (img.Bands == 3)
                                 {
                                     res.Color = new Vector4(colorImg[0, r, c], colorImg[1, r, c], colorImg[2, r, c], 1);
@@ -177,9 +164,6 @@ namespace OPS.Pipeline
                 logger.Info("Processing observation: " + rngObs.Name);
                 var transform = ObservationToRoot(rngObs, cache);
                 var frame = cache.GetFrame(rngObs.FrameName);
-                //TODO: filter results to products that were candidates for curiosity align
-                //Products marked useforreconstruction = false could have been flagged before (during ingest) OR after (failing to compute features) selection in curiosity align
-                //For now this allows all images to avoid no options for a frame
 
                 int[] rmc = null;
                 {

@@ -64,6 +64,8 @@ namespace OPS.Cloud
 
         //This is set during creation to verify that only one worker can successfully create a single overlap item in Dynamo
         public bool Uploaded { get; set; }
+
+        //This is set upon computing a successful match to cache the result; if empty, check status to determine whether to compute
         public Guid MatchGuid { get; set; }
 
         [DynamoDBVersion]
