@@ -49,7 +49,10 @@ namespace OPS.Pipeline.TileServer
         public TilingQueue(string prefix, string awsProfileName, string endpointName = "us-west-1")
         {
             this.prefix = prefix;
-            this.awsCredentials = Credentials.Get(awsProfileName);
+            if (awsProfileName != null)
+            {
+                this.awsCredentials = Credentials.Get(awsProfileName);
+            }
             this.awsRegion = RegionEndpoint.GetBySystemName(endpointName);
             EnsureExists();
             this.queueUrl = GetClient().GetQueueUrl(queueName).QueueUrl;
@@ -58,6 +61,10 @@ namespace OPS.Pipeline.TileServer
         //Use default credentials (or, for EC2 workers, their IAM role) if credentials are not provided 
         private AmazonSQSClient GetClient()
         {
+            if(awsCredentials == null)
+            {
+                return new AmazonSQSClient(awsRegion);
+            }
             return new AmazonSQSClient(awsCredentials, awsRegion);
         }
 
