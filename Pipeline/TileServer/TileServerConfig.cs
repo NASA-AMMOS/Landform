@@ -1,4 +1,5 @@
-﻿using OPS.Util;
+﻿using Newtonsoft.Json;
+using OPS.Util;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -14,8 +15,33 @@ namespace OPS.Pipeline.TileServer
         [ConfigEnvironmentVariable("TILE_SERVER_REGION")]
         public string Region { get; set; }
 
+
+        [JsonIgnore]
+        private string profile;
+
         [ConfigEnvironmentVariable("TILE_SERVER_PROFILE")]
-        public string Profile { get; set; }
+        public string Profile
+        {
+            get
+            {
+                if(profile != null && profile.ToLower() == "null")
+                {
+                    return null;
+                }
+                return profile;
+            }
+            set
+            {
+                if(value != null && value.ToLower() == "null")
+                {
+                    profile = null;
+                }
+                else
+                {
+                    profile = value;
+                }
+            }
+        }
 
         [ConfigEnvironmentVariable("TILE_SERVER_VENUE_NAME")]
         public string VenueName { get; set; }
@@ -33,10 +59,6 @@ namespace OPS.Pipeline.TileServer
             if(Region == null)
             {
                 throw new Exception("Undefined AWS region in TileServerConfig");
-            }
-            if (Profile == null)
-            {
-                throw new Exception("Undefined AWS profile in TileServerConfig");
             }
             if (VenueName == null)
             {
