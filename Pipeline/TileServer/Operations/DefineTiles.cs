@@ -79,6 +79,11 @@ namespace OPS.Pipeline.TileServer
         {
             logger.Info("Processing message");
             var project = TilingProject.Find(pipeline.DynamoContext, message.ProjectName);
+            if(project == null)
+            {
+                logger.Info("No project found with name: " + message.ProjectName);
+                return;
+            }
             if(project.TilesDefined)
             {
                 logger.Info("Tiles have already been defined for this project");
