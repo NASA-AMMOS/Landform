@@ -300,12 +300,19 @@ namespace OPS.Pipeline.Tiling
                 BoundingBox influenceRegion = BoundingBoxExtensions.Scale(tileBounds, this.Options.influenceRatio);
                 Mesh temp = meshOperator.Clip(influenceRegion);
                 temp.Clean();
-                var res = CreateTile(temp, tileBounds);
-                res.Clean();
-                if(res.Vertices.Count > 0)
-                {
-                    meshes.Add(res);
+                try {
+                    var res = CreateTile(temp, tileBounds);
+                    res.Clean();
+                    if (res.Vertices.Count > 0)
+                    {
+                        meshes.Add(res);
+                    }
                 }
+                catch
+                {
+                    return;
+                }
+               
                 Console.WriteLine("Finished building mesh: " + tileBounds.ToString());
                 /*BoundingBox dummyBox = BoundingBoxExtensions.Scale(tileBounds, 0.99);
                 Vertex v1 = new Vertex(dummyBox.Min);
@@ -338,7 +345,7 @@ namespace OPS.Pipeline.Tiling
             points.ClearUVs();
             points.ClearColors();
             points.Clean();
-            points = PoissonReconstruction.PoissonReconstruct(points, 30);
+            points = PoissonReconstruction.PoissonReconstruct(points);
             points.Clean();
             MeshOperator op = new MeshOperator(points);
             return op.Clip(bounds);

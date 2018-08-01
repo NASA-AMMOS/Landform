@@ -192,7 +192,6 @@
     <Compile Include="General\LegacyScene.cs" />
     <Compile Include="General\ObservationEnums.cs" />
     <Compile Include="GdalConfiguration.cs" />
-    <Compile Include="LocalMesh.cs" />
     <Compile Include="Rover\MSLLocations.cs" />
     <Compile Include="Rover\RoverCoordinateSystem.cs" />
     <Compile Include="Rover\RoverMask.cs" />
@@ -229,6 +228,7 @@
     <Compile Include="Tiling\SceneNodeTilingExtensions.cs" />
     <Compile Include="Tiling\Tile3DBuilder.cs" />
     <Compile Include="Tiling\TilesetSchema.cs" />
+    <Compile Include="Tiling\VertexSplitCriteria.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="app.config" />
