@@ -60,6 +60,7 @@ namespace OPS.Pipeline.TileServer
                 masterTask = new Task(() =>
                 {
                     StartMasterOptions opts = new StartMasterOptions();
+                    opts.SingleThreaded = true;
                     new StartMaster(opts).Run();
                 });
                 masterTask.Start();
