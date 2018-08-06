@@ -237,14 +237,15 @@ namespace OPS.Pipeline
                     return d;
                 }
             }
-            if (parts.Length != 2)
+            if (parts.Length > 2)
             {
                 throw new PDSParserException("Unexpected angle format: " + angleString + ". Expecting '##.### <rad>'");
             }
-            if (parts[1] != "<rad>")
+            else if((parts.Length == 2) && (parts[1] != "<rad>"))
             {
                 throw new NotImplementedException("Parsing non-radian angles is not supported");
             }
+
             return double.Parse(parts[0]);
         }
     }
