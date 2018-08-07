@@ -109,7 +109,7 @@ setInterval(() => {
 //3) the final json task.info
 //
 //in all the non-async cases an Error will be thrown if the task errors
-async function runTask(req, res, task, cleanup) {
+async function taskHandler(req, res, task, cleanup) {
 
   if (cleanup) {
     let didCleanup = false;
@@ -172,4 +172,4 @@ async function runTask(req, res, task, cleanup) {
   }
 }
 
-module.exports = { getTask, launchTask, runTask };
+module.exports = { getTask, launchTask, taskHandler };

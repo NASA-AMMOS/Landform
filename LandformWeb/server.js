@@ -8,6 +8,7 @@ const path = require('path');
 
 const config = require('./config');
 const logger = require('./logger');
+const { tilingMaster } = require('./tilingUtil');
 const { abortRoute } = require('./routeUtil');
 const authRouter = require('./auth');
 const token = require('./token');
@@ -58,5 +59,7 @@ app.get('/favicon.ico', (req, res) => res.status(204));
 //that dev server proxies certain routes back to this server as configured in client/package.json
 if (app.get('env') === 'production') app.use('/', express.static(path.join(__dirname, 'client', 'build')));
 
-
-app.listen(config.app.port, () => { logger.info(`${config.app.name} server listening on port ${config.app.port}`); });
+tilingMaster().then(() => {
+  logger.info('launched TilingServer master');
+  app.listen(config.app.port, () => logger.info(`${config.app.name} listening on port ${config.app.port}`));
+});

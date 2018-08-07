@@ -2,7 +2,7 @@ const express = require('express');
 
 const { routeError, abortRoute, sendJson, parseArgs } = require('../routeUtil');
 const { getTask } = require('../taskUtil');
-const masterTask = require('../masterTask');
+const { tilingMaster } = require('../tilingUtil');
 
 const router = express.Router();
 
@@ -34,6 +34,6 @@ router.get('/:id/log', (req, res) => {
   } catch (e) { abortRoute(res, 'error getting task log', e); }
 });
 
-router.get('/master/id', (req, res) => sendJson(res, masterTask.info.id));
+router.get('/master/id', async(req, res) => sendJson(res, (await tilingMaster()).info.id));
 
 module.exports = router;

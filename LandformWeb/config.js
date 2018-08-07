@@ -6,23 +6,37 @@ const path = require('path');
 
 const development = {
   app: {
+
     name: 'Landform',
+
     port: process.env.PORT || 8081,
+
     tokenSecret: process.env.TOKEN_SECRET || 'dogfishwaffelsandwitchwithbutter-43t-kdfvk',
     tokenHeader: 'x-landform-token',
     tokenCookie: 'landform-token',
     tokenLifespan: 60 * 60 * 24 * 10, //10 days in seconds
+
     sessionCookieSecret: process.env.SESSION_SECRET || 'iancnewowahasliuyfhenwlvncxhzuwyeoifjs',
     sessionCookieSecure: false,
     sessionTimeout: 1000 * 60 * 60 * 24, //24h in ms
+
     ldapGroup: 'landform',
+
     logLevel: process.env.LOG_LEVEL || 'silly', //error, warn, info, verbose, debug, silly
+
     uploadDir: process.env.UPLOAD_DIR || path.join(process.cwd(), 'upload'),
     binDir: process.env.BIN_DIR || path.join(process.cwd(), 'bin'),
     logDir: process.env.LOG_DIR || path.join(process.cwd(), 'log'),
     tmpDir: process.env.TMP_DIR || path.join(process.cwd(), 'tmp'),
-    dbPrefix: process.env.DB_PREFIX || 'webdevtiles',
-    awsProfile: process.env.AWS_PROFILE || 'default',
+
+    awsProfile: process.env.TILE_SERVER_PROFILE || 'default',
+    awsRegion: process.env.TILE_SERVER_REGION || 'us-west-1',
+
+    venueName: process.env.TILE_SERVER_VENUE_NAME || 'webdevtiles',
+    s3URL: process.env.TILE_SERVER_S3_URL || 's3://landlords-dev',
+
+    singleThreadedMaster: process.env.SINGLE_THREADED_MASTER || 'false',
+
     reapOldTasks: 60 * 60 * 24, //24h in sec
   },
   ldap: {
@@ -48,5 +62,6 @@ const development = {
 const production = JSON.parse(JSON.stringify(development)); //deep copy
 production.app.sessionCookieSecure = true;
 production.app.logLevel = process.env.LOG_LEVEL || 'verbose';
+production.app.awsProfile = 'null';
 
 module.exports = { development, production }[process.env.NODE_ENV || 'development'];

@@ -5,15 +5,8 @@ const multer = require('multer');
 
 const config = require('../config');
 const { routeError, abortRoute, parseArgs } = require('../routeUtil');
-const { launchTask, runTask } = require('../taskUtil');
-
-//spawn TilingServer verb
-//DynamoDB prefix and AWS profile name will be added to the command args
-async function runTilingServer(req, res, verb, args, cleanup) {
-  const task = launchTask('TilingServer', [verb, config.app.dbPrefix, ...args, '--profile', config.app.awsProfile],
-                          { name: `TilingServer ${verb} ${args[0]}` }); //"TilingServer <verb> <project>"
-  await runTask(req, res, task, cleanup);
-}
+const { taskHandler } = require('../taskUtil');
+const { tilingTask } = require('../tilingUtil');
 
 const router = express.Router();
 
@@ -27,7 +20,9 @@ async function createProject(req, res) {
       tileresolution: { type: 'int' },
     }, { commandLine: true });
 
-    await runTilingServer(req, res, 'createproject', [req.params.name, ...args]);
+    const task = await tilingTask('createproject', [req.params.name, ...args]);
+
+    await taskHandler(req, res, task);
 
   } catch (e) { abortRoute(res, 'error creating project', e); }
 }
@@ -82,7 +77,9 @@ async function uploadInput(req, res) {
 
     const args = parseArgs(req, { tileid: { type: 'string' } }, { commandLine: true });
 
-    await runTilingServer(req, res, 'uploadinput', [req.params.name, ...paths, ...args], cleanup);
+    const task = await tilingTask('uploadinput', [req.params.name, ...paths, ...args]);
+
+    await taskHandler(req, res, task, cleanup);
 
   } catch (e) { cleanup(); abortRoute(res, 'error processing upload', e); }
 }
@@ -91,8 +88,10 @@ const multerFields = [{ name: 'mesh', maxCount: 1 }, { name: 'texture', maxCount
 router.post('/:name/upload', multer(multerConfig).fields(multerFields), uploadInput);
 
 async function runProject(req, res) {
-  try { await runTilingServer(req, res, 'runproject', [req.params.name]); }
-  catch (e) { abortRoute(res, 'error running project', e); }
+  try {
+    const task = await tilingTask('runproject', [req.params.name]);
+    await taskHandler(req, res, task);
+  } catch (e) { abortRoute(res, 'error running project', e); }
 }
 router.post('/:name/run', runProject);
 

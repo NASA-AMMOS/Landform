@@ -2,7 +2,7 @@ LandformWeb is a node based server and browser based client for controlling the 
 
 Deployed at: https://landform.hi.jpl.nasa.gov
 
-This repo consists of a backend api server and a frontend react app in `/client`.  In production the frontend app is pre-built with webpack and served as static files by the backend server.  During development a separate frontend server is used with hot module reloading.
+This repo consists of a backend [REST API](API.md) server and a frontend react app in `/client`.  In production the frontend app is pre-built with webpack and served as static files by the backend server.  During development a separate frontend server is used with hot module reloading.
 
 ### Dev Instructions
 1. `npm install` in the root directory
@@ -97,6 +97,8 @@ This repo consists of a backend api server and a frontend react app in `/client`
 7. Click `API Token` and confirm the response is `not authenticated`
 
 ## REST API Test Procedure
+**TODO this needs to be updated for the [new API](API.md)**
+
 This procedure is designed to be excuted from the Windows 10 command prompt (`cmd`).  It may not run correctly on other command prompts such as cygwin, Git bash, etc.  It runs tests against the server currently deployed on https://landform.hi.jpl.nasa.gov.  To instead test against a server run locally or on a JPL host machine, use LDAP login instead of SSO and substitute the URL to the machine in the commands below.
 
 1. Login and get an API token using either the SSO test procedure above.  Copy the token to the system clipboard, and then paste it on the windows command line to set a temporary environment variable by running a command like this:
