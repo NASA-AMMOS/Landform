@@ -8,6 +8,9 @@ using System.Threading.Tasks;
 
 namespace OPS.Cloud
 {
+    /// <summary>
+    /// Caches frames keyed on name upon load from dynamodb if enabled (never deletes frames)
+    /// </summary>
     public class FrameCache
     {
         ConcurrentDictionary<string, Frame> frames = new ConcurrentDictionary<string, Frame>();

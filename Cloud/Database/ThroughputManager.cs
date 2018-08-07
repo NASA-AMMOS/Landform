@@ -11,11 +11,12 @@ namespace OPS.Cloud
 {
     public static class ThroughputManager
     {
-        public static T Run<T>(Func<T> cloudOp, ILog logger=null, int initialWaitTime = 1000, double waitScaling = 2, int maxWait = 32000)
+        static ILog logger = LogManager.GetLogger(typeof(ThroughputManager));
+
+        public static T Run<T>(Func<T> cloudOp, int initialWaitTime = 1000, double waitScaling = 2, int maxWait = 32000)
         {
             try
             {
-                //Console.WriteLine("Attempting to run " + cloudOp.ToString());
                 return cloudOp();
             }
             catch (ProvisionedThroughputExceededException e)
@@ -26,13 +27,10 @@ namespace OPS.Cloud
                 }
                 else
                 {
-                    if (logger != null)
-                    {
-                        logger.Info("Encounted througput exception" + e.ToString());
-                        logger.Info("Waiting " + initialWaitTime + " ms before retrying...");
-                    }
+                    logger.Info("Encounted througput exception" + e.ToString());
+                    logger.Info("Waiting " + initialWaitTime + " ms before retrying...");          
                     System.Threading.Thread.Sleep(initialWaitTime);
-                    return Run(cloudOp, logger, (int)(initialWaitTime * waitScaling), waitScaling, maxWait);
+                    return Run(cloudOp, (int)(initialWaitTime * waitScaling), waitScaling, maxWait);
                 }
             }
         }

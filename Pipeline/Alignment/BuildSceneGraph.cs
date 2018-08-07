@@ -99,54 +99,56 @@ namespace OPS.Pipeline
             HashSet<string> observationNames = new HashSet<string>();
             Func<Frame, SceneNode, SceneNode> spawn = null;
 
-            FrameCache frameCache = new FrameCache(Pipeline.DynamoContext, root.ProjectName);
-
-            spawn = (frame, parent) =>
             {
-                var res = new SceneNode(frame.Name, parent?.Transform);
-                var ut = options.GetTransform(frame, parent);
-                if (ut == null) return null;
+                FrameCache frameCache = new FrameCache(Pipeline.DynamoContext, root.ProjectName);
+
+                spawn = (frame, parent) =>
+                {
+                    var res = new SceneNode(frame.Name, parent?.Transform);
+                    var ut = options.GetTransform(frame, parent);
+                    if (ut == null) return null;
 
                 // Add any observations to the node
                 var obs = ThroughputManager.Run(() => Observation.Find(DynamoDB, frame)).Where(o => options.IncludeObservation(o, res)).ToArray();
-                observations.AddRange(obs);
-                foreach (var o in obs)
-                {
-                    observationNames.Add(o.Name);
-                }
-
-                if (obs.Length == 1)
-                {
-                    res.GetOrAddComponent<NodeUncertainTransform>().UncertainTransform = ut;
-                    addObservation(obs[0], res);
-                }
-                else if (obs.Length > 1)
-                {
+                    observations.AddRange(obs);
                     foreach (var o in obs)
                     {
-                        var obsNode = new SceneNode(o.Name, res.Transform);
-                        obsNode.Transform.Matrix = Matrix.Identity;
-                        obsNode.GetOrAddComponent<NodeUncertainTransform>().UncertainTransform = ut;
-                        addObservation(o, obsNode);
+                        observationNames.Add(o.Name);
                     }
-                }
+
+                    if (obs.Length == 1)
+                    {
+                        res.GetOrAddComponent<NodeUncertainTransform>().UncertainTransform = ut;
+                        addObservation(obs[0], res);
+                    }
+                    else if (obs.Length > 1)
+                    {
+                        foreach (var o in obs)
+                        {
+                            var obsNode = new SceneNode(o.Name, res.Transform);
+                            obsNode.Transform.Matrix = Matrix.Identity;
+                            obsNode.GetOrAddComponent<NodeUncertainTransform>().UncertainTransform = ut;
+                            addObservation(o, obsNode);
+                        }
+                    }
 
                 // Add child frames
                 var frames = ThroughputManager.Run(() => frame.GetChildren(DynamoDB)).ToList();
-                foreach (var childFrame in frames)
-                {
-                    if (!options.IncludeFrame(childFrame, res))
+                    foreach (var childFrame in frames)
                     {
-                        continue;
+                        if (!options.IncludeFrame(childFrame, res))
+                        {
+                            continue;
+                        }
+
+                        spawn(childFrame, res);
                     }
 
-                    spawn(childFrame, res);
-                }
+                    return res;
+                };
 
-                return res;
-            };
-
-            scene.Root = spawn(root, null);
+                scene.Root = spawn(root, null);
+            }
 
             // Add all overlaps and computed correspondences
             foreach (var obs in observations)

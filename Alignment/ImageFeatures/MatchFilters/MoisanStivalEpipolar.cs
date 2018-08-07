@@ -1,4 +1,5 @@
 ﻿using Emgu.CV;
+using log4net;
 using Microsoft.Xna.Framework;
 using OPS.Geometry;
 using OPS.Util;
@@ -16,6 +17,8 @@ namespace OPS.Alignment
     /// </summary>
     public class MoisanStivalEpipolar
     {
+        static ILog logger = LogManager.GetLogger(typeof(MoisanStivalEpipolar));
+
         public Vector2[] ModelPoints, DataPoints;
         public Vector2 ModelSize, DataSize;
 
@@ -286,7 +289,8 @@ namespace OPS.Alignment
                 CvInvoke.FindFundamentalMat(m1_cv, m2_cv, _F, Emgu.CV.CvEnum.FmType.SevenPoint);
             } catch(Exception e)
             {
-                //TODO: log exception
+                logger.Error(e.Message);
+                logger.Error(e.StackTrace);
                 yield break;
             }
             int numMatrices = _F.Rows / 3;

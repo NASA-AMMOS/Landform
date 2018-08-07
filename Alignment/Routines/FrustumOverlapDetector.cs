@@ -42,17 +42,8 @@ namespace OPS.Alignment
                     if (!node.HasComponent<NodeConvexHull>())
                     {
                         var chc = node.AddComponent<NodeConvexHull>();
-                        
-                        try
-                        {
-                            var imgObs = ((ObservationImageRef)imgRef).Observation;
-                            chc.Hull = ConvexHull.FromParams((CameraModel)JsonHelper.FromJson(imgObs.CameraModel), imgObs.Width, imgObs.Height);
-                        }
-                        catch
-                        {
-                            var img = GetImage(imgRef);
-                            chc.Hull = ConvexHull.FromImage(img);
-                        }
+                        var imgObs = ((ObservationImageRef)imgRef).Observation;
+                        chc.Hull = ConvexHull.FromParams((CameraModel)JsonHelper.FromJson(imgObs.CameraModel), imgObs.Width, imgObs.Height);
                     }
                     return;
                 }

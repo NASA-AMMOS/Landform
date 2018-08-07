@@ -129,22 +129,6 @@ namespace OPS.Cloud
             return context.Load<Overlap>(newOverlap.CombinedName, newOverlap.ProjectName, new DynamoDBOperationConfig { ConsistentRead = true});
         }
 
-        //TODO: batch create
-        /*public static void CreateMultiple(DynamoDBContext context, string table, List<Tuple<Observation,Observation>> observationPairs)
-        {
-            List<WriteRequest> overlapRequests = observationPairs.Select(pair => new WriteRequest(new PutRequest(new Overlap(pair.Item1.Name, pair.Item2.Name, pair.Item1.ProjectName)))).ToList();
-            var config = new DynamoDBOperationConfig();
-            config.SkipVersionCheck = true;
-            for (int i = 0; i < observationPairs.Count; i += 25)
-            {                
-                BatchWriteItemRequest request = new BatchWriteItemRequest();
-                request.RequestItems = new Dictionary<string, List<WriteRequest>>
-                {
-                    table, overlapRequests.GetRange(i, Math.Min(i+25, overlapRequests.Count))
-                };
-            }
-        }*/
-
         /// <summary>
         /// Save only if most recent version is being edited. If not, return false 
         /// </summary>
@@ -180,7 +164,6 @@ namespace OPS.Cloud
         /// </summary>
         public static IEnumerable<Overlap> Find(DynamoDBContext context, Observation observation)
         {
-            //TODO: previously "ObservationOneName"
             foreach (var prop in new[] { "ObservationNameOne", "ObservationNameTwo" })
             {
                 var filt = new QueryFilter(prop, QueryOperator.Equal, observation.Name);

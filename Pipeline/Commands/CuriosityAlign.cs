@@ -159,8 +159,6 @@ namespace OPS.Pipeline
                 });
             }
 
-            //logger.Info("Observation count: " + obs.Count);
-
             // Look up image priors for new images
             // Download new images from S3
             logger.Info("Find best point image pairs");
