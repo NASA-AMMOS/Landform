@@ -447,23 +447,6 @@ namespace OPS.Geometry
             {
                 throw new Exception("Mesh.RemoveSkirt not implemented for normals...");
             }
-            /*if (!this.HasSkirt)
-            {
-                return;
-            }
-            else
-            {
-                this.HasSkirt = false;
-            }
-            List<Vertex> skirt = new List<Vertex>();
-            foreach(Vertex v in this.Vertices)
-            {
-                if(v.IsSkirtVertex)
-                {
-                    skirt.Add(v);
-                }
-                this.RemoveVertices(skirt);
-            }*/
 
             // List of edges in the mesh located on the exterior (edges adjacent to only one triangle)
             List<Edge> edges = GetExteriorEdges();
@@ -529,9 +512,13 @@ namespace OPS.Geometry
 
         /// <summary>
         /// Adds a skirt to all open edges (edges which are connected on only one side) in the direction specified
+        /// If SkirtAxis.NORMAL used, then skirt position will be based on average of 2-ring face normals.
+        /// Because skirt points can be projected in different directions (and create bad looking skirts),
+        /// skirtpoints will be merged if the distance between them divided by the skirt height falls below threshold
         /// </summary>
         /// <param name="axis">Extrudes the skirt in the X, Y, or Z axis</param>
         /// <param name="heightAsPercentOfWidth">Specifies the height of the skirt, where 100% is the width or</param>
+        /// <param name="threshold">Higher threshold allows close skirt points to be merged</param>
         public void AddSkirt(SkirtAxis axis, double heightAsPercentOfWidth = 0.02, double threshold = 0.15)
         {
             // Calculate skirt offset height
