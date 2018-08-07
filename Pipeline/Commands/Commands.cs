@@ -30,7 +30,8 @@ namespace OPS.Pipeline
                                                              LegacyToTile3DOptions,
                                                              AlignSceneOptions,
                                                              CreateCloudTemplatesOptions,
-                                                             TileLocalMeshOptions
+                                                             TileLocalMeshOptions,
+                                                             TextureMeshOptions
                                                              >(args)
               .MapResult(
                 (AlignmentWorkerOptions opts) => new AlignmentWorker().Run(),
@@ -46,6 +47,7 @@ namespace OPS.Pipeline
                 (AlignSceneOptions opts) => new AlignScene(opts).Run(),
                 (CreateCloudTemplatesOptions opts) => new CreateCloudTemplates(opts).Run(),
                 (TileLocalMeshOptions opts) => new TileLocalMesh(opts).Run(),
+                (TextureMeshOptions opts) => new TextureMesh(opts).Run(),
                 errs => 1);
         }
     }
