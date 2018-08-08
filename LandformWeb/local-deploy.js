@@ -33,6 +33,7 @@ checkDeploy()
 
       runArgs.push('--mount', `type=bind,source="${path.join(process.env.HOME, '.aws')}",target=/root/.aws,readonly`);
       runArgs.push('--env', `AWS_PROFILE=${config.app.awsProfile}`);
+      runArgs.push('--env', 'WITHOUT_HTTPS=true');
 
       runArgs.push('-p', `${config.app.port}:${config.app.port}`);
 

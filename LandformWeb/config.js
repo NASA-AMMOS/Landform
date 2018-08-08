@@ -24,7 +24,7 @@ const development = {
     tokenLifespan: 60 * 60 * 24 * 10, //10 days in seconds
 
     sessionCookieSecret: env.SESSION_SECRET || 'iancnewowahasliuyfhenwlvncxhzuwyeoifjs',
-    sessionCookieSecure: false,
+    sessionCookieSecure: false, //no https for dev
     sessionTimeout: 1000 * 60 * 60 * 24, //24h in ms
 
     ldapGroup: 'landform',
@@ -67,7 +67,7 @@ const development = {
 
 // override select values for production
 const production = JSON.parse(JSON.stringify(development)); //deep copy
-production.app.sessionCookieSecure = true;
+production.app.sessionCookieSecure = !env.WITHOUT_HTTPS;
 production.app.logLevel = env.LOG_LEVEL || 'verbose';
 production.app.awsProfile = env.TILE_SERVER_PROFILE || env.AWS_PROFILE || 'null';
 
