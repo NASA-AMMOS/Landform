@@ -31,7 +31,15 @@ checkDeploy()
 
       if (args.some(a => boolArg(a, 'debug'))) runArgs.push('--env', 'LOG_LEVEL=silly');
 
-      runArgs.push('--mount', `type=bind,source="${path.join(process.env.HOME, '.aws')}",target=/root/.aws,readonly`);
+      //process.env.HOME lies on windows when run as an npm script and HOME != USERPROFILE
+      //https://github.com/nodejs/node/issues/13818
+      //so e.g. if HOME=C:\cygwin64\home\vona and USERPROFILE=C:\Users\vona
+      //then here we will get process.env.HOME=C:\Users\vona
+      //so workaround that by symlinking C:\Users\vona\.aws -> C:\cygwint64\home\vona\.aws
+      //but then resolve that symlink before embedding it in the --mount argument for docker
+      //because docker apparrently can't do that on its own
+      const awsDir = fs.realpathSync(path.join(process.env.HOME, '.aws'));
+      runArgs.push('--mount', `type=bind,source="${awsDir}",target=/root/.aws,readonly`);
       runArgs.push('--env', `AWS_PROFILE=${config.app.awsProfile}`);
       runArgs.push('--env', 'WITHOUT_HTTPS=true');
 
