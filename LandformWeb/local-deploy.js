@@ -32,6 +32,7 @@ checkDeploy()
       if (args.some(a => boolArg(a, 'debug'))) runArgs.push('--env', 'LOG_LEVEL=silly');
 
       runArgs.push('--mount', `type=bind,source="${path.join(process.env.HOME, '.aws')}",target=/root/.aws,readonly`);
+      runArgs.push('--env', `AWS_PROFILE=${config.app.awsProfile}`);
 
       runArgs.push('-p', `${config.app.port}:${config.app.port}`);
 
@@ -43,10 +44,8 @@ checkDeploy()
       console.log(`running docker ${runArgs.join(' ')}`);
       spawn('docker', runArgs, { stdio: 'inherit', shell: true });
 
-      //example interactive command line: docker run --it <image-name> /bin/bash
-      //
-      //or for git bash: winpty docker run --it <image-name> //bin/bash
-      //
+      //example interactive command line: docker run -it <image-name> /bin/bash
+      //or for git bash: winpty docker run -it <image-name> //bin/bash
       //the double slash in //bin/bash prevents git bash from munging that path
 
     } finally { fs.remove(tmpDir); }
