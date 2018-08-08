@@ -12,6 +12,10 @@
 #
 #    aws-login.py
 #
+#    or in git bash run
+#
+#    winpty python aws-login.py
+#
 # 4) enter JPL username and password when prompted
 #
 #    NOTE: this will create %HOME%\.aws\credentials, which is correct
