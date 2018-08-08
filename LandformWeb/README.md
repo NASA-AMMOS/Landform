@@ -2,51 +2,65 @@ LandformWeb is a node based server and browser based client for controlling the 
 
 Deployed at: https://landform.hi.jpl.nasa.gov
 
-This repo consists of a backend [REST API](API.md) server and a frontend react app in `/client`.  In production the frontend app is pre-built with webpack and served as static files by the backend server.  During development a separate frontend server is used with hot module reloading.
+This repo consists of a backend [REST API](API.md) server and a frontend react app in `/client`.  In production the frontend app is pre-built with webpack and served as static files by the backend server.  During development a separate frontend server is used with hot module reloading.  The react app configuration is managed with [create-react-app](https://github.com/facebook/create-react-app).
 
 ### Dev Instructions
 1. `npm install` in the root directory
+1. `../Cloud/aws-login.py` or `winpty python ../Cloud/aws-login.py` if using git bash.  This will generate temporary AWS credentials in `$HOME/.aws/credentials`.
 1. `npm start` will start both the backend api server on port 8081 and the frontend react dev server on port 3000 (the frontend server will proxy backend routes to the backend server)
 1. You can also run the api server and client servers independently with `npm run server` and `npm run client`.  This is convenient when doing backend dev so that you can independently reestart the backend server.
 1. Typically you should not need to restart the frontend server for frontend dev because it uses hot module reloading.  However, if you modify the backend server you will need to restart it.  Note: CTRL-C may not work correctly to kill the backend server if you started it from a cygwin prompt; consider using a Git bash prompt or Windows `cmd` instead.
 1. Go to http://localhost:3000 and follow the instructions to login and generate an API token.  Note that SSO login will only work when deployed to the production server URL given above, and LDAP login will only work when the server is within the JPL firewall (i.e. not deployed to AWS for production).
-1. To (re-)deploy the production server: `npm run deploy` or `npm run deploy -- --profile=aws_profile_name`
 
-## Beanstalk Setup
+### Deployment
+1. `npm run build` - sugar for `npm install && npm run build-client && run npm bundle`
+    1. `npm install` - installs node\_modules and client/node\_modules
+    1. `npm run build-client` - runs `npm run build` to webpack client/build
+    1. `npm run bundle` - creates landformweb.zip containing
+        1. full archive of current git HEAD
+        1. current client/build subtree
+1. (optional) test the Docker container locally
+    1. `../Cloud/aws-login.py` or `winpty python ../Cloud/aws-login.py` if using git bash.  This will generate temporary AWS credentials in \$HOME/.aws/credentials.
+    1. `npm run local-deploy -- [-f|--force] [-i|--interactive] [-d|--debug]`. This will re-build the Docker container ("landformweb") and run it locally.  You can test it at http://localhost:8081.  Options:
+        1. `--force`: use existing landformweb.zip even if it might be outdated
+        1. `--interactive`: drop into a shell in the Docker container instead of running the server.  Note: if using git bash run `winpty node local-deploy.js -i ...` instead.
+        1. `--debug`: set `LOG_LEVEL=silly` in the Docker container
+1. `npm run deploy -- [environment-name] [-f|--force] [--profile=foo]`.  Re-upload to Elastic Beanstalk.  Options:
+    1. `environment-name`: Upload to this Elastic Beanstalk environment instead of `landformweb`
+    1. `--force`: use existing landformweb.zip even if it might be outdated
+    1. `--profile=foo`: use AWS credentials profile `foo` instead of `default`
+
+### Setup Elastic Beanstalk
 1. http://goto.jpl.nasa.gov/awsconsole
+1. Log in as landords/account_owner
 1. Select region us-west-1 (North California)
 1. Services -> Compute -> Elastic Beanstalk
-1. Create application: "landform"
-1. Create new Web sever eviornment
-1. Page 1
+1. Create application: landform
+1. Create new web sever environment
    1. Environment Name and domain: landformweb
    1. Platform: docker
    1. Configure more options
-1. Modify Software
-   1. Envornmental properties
-       * NODE_ENV = production
-       * SESSION_SECRET - Something securley generated
-       * TOKEN_SECRET - Something securley generated
-       * SAML_CERT - Single sign on identity provider certificate, copy X509Certificate from [here](https://ssodev2.jpl.nasa.gov/oamfed/idp/metadata)
-1. Modify instances 
-    1. Instance type: t2.medium
-1. Modify Capacity
-    1. Load balanced
-1. Modify load balancer
-    1. ELB listener off
-    1. Secure ELP listener port 443
-    1. Select the SSL certificate ID (see last step in Setup HTTPS)
-1. Modify security
-    1. IAM instance profile: landlords
+1. Modify software
+   1. Environment variables
+       * NODE\_ENV: production
+       * SESSION\_SECRET - Something securley generated
+       * TOKEN\_SECRET - Something securley generated
+       * SAML\_CERT - Single sign on identity provider certificate, copy X509Certificate from [here](https://ssodev2.jpl.nasa.gov/oamfed/idp/metadata)
+       * TILE\_SERVER\_REGION: us-west-1
+       * TILE\_SERVER\_VENUE\_NAME: webdevtiles (TODO)
+       * TILE\_SERVER\_S3\_URL: s3://landlords-dev
+1. Modify instances -> Instance type: t2.medium
+1. Modify Capacity -> Load balanced
+1. Modify security -> IAM instance profile: landlords
 1. Modify network
     1. Visibility: Public (this may need to be false if creating inside a vpc)
-    	. Load balancer subnets: us-west-1c	subnet-148d7971	172.31.16.0/20
+    1. Load balancer subnets: us-west-1c	subnet-148d7971	172.31.16.0/20
     1. Instance settings Public IP Address: check
-    	. Instance subnets: us-west-1c	subnet-148d7971	172.31.16.0/20
+    1. Instance subnets: us-west-1c	subnet-148d7971	172.31.16.0/20
     1. Instance security groups: leave it alone, default creates a security group that can only talk to the load balancer which is what we want.
 1. Create Environment!
 1. Restrict to JPL only IPs
-    1. Once the environment has loaded, look at the EC2 secuirty group in Instance settings. Make note of it
+    1. Once the environment has loaded, note down the EC2 secuirty group in Instance settings.
     1. Go to EC2 Dashboard and select security groups
     1. Search for the instance security group noted in step 1
     1. Look at the security group referenced in it's inbound source.  This is the ELB secuirty group
@@ -56,23 +70,101 @@ This repo consists of a backend [REST API](API.md) server and a frontend react a
         1. HTTPS TCP 443 137.79.0.0/16
         1. HTTPS TCP 443 137.228.0.0/16
 1. Adjust .elasticbeanstalk/config.yml in this repo as appropriate
-1. Run deploy.bat with appropriate profile name
-1. Setup HTTPS as seen below
-1. Update Route53 for landform.hi.jpl.nasa.gov (on Jeffs acocunt) so that its CNAME record points at the landformweb*.elasticbeanstalk.com url
-1. For the /api/pipeline/* endpoints to work, additional enviornmental variables must be setup.  Typically these are set when the beanstalk is created via cloud formation but can be manually set as needed.
+
+### Setup DNS
+1. http://goto.jpl.nasa.gov/awsconsole
+1. If you don't see Account: jeffnorris (376XXXXXXXXX) in your selectable roles, you need to ask Alex Menzies to add you to the LDAP group aws.376XXXXXXXXX.power_user (if you don't see a list of selectable roles, then you have only one role)
+1. Sign in as that account
+1. Select region us-west-1 (North California)
+1. Services -> Networking -> Route 53
+1. Hosted zones -> hi.jpl.nasa.gov
+1. Create record set
+    1. Name: landform.hi.jpl.nasa.gov
+    1. Type: CNAME
+    1. TTL: 60
+    1. Value: landformweb.us-west-1.elasticbeanstalk.com
+    1. Routing policy: simple
+    1. Click create
 
 ### Setup HTTPS
+1. Generate certificate signing request.
+    1. you will need a CLI that includes the openssl tool - on Windows use git bash
+    1. if it exists, use //opslab-central/condutor/project/landform/webcert/landform.hi.jpl.nasa.gov.key
+        1. otherwise generate an RSA private key and save it there: `openssl genrsa > DEST` where DEST is the path above (careful, don't overwrite it if it already exists)
+    1. generate CSR: `openssl req -new -key landform.hi.jpl.nasa.gov.key -out landform.hi.jpl.nasa.gov.csr` (again, don't overwrite any existing CSR)
+        1. Country name: US
+        1. State name: California
+        1. Locality name: Pasadena
+        1. Organization name: NASA Jet Propulsion Laboratory
+        1. Organizational unit name: OCIO
+        1. Common name: landform.hi.jpl.nasa.gov
+        1. Email address: (empty)
+        1. Challenge password: (empty)
+        1. Company name: (empty)
 1. Login to JPL Certificate manager at https://ssl.jpl.nasa.gov
-1. Manage my certificates, select landform.hi.jpl.nasa.gov, save this info for later 
-1. Go to AWS Certificate Manager
-1. Import a certificate
-1. Paste Certificate content into Certificate body
-1. Paste Intermediate and Root certificate into certifcation chain (include the stuff ---- but not the labels between each cert)
-1. Paste the contents of \\opslab-central\project\landform\webcert\landform.hi.jpl.nasa.gov.key in the private key field
-1. Import
-1. Edit name tag to be landform.hi.jpl.nasa.gov
-1. Go to elastic beanstalk Load Balancing configuration
-1. Select the SSL certificate ID.  These may appear as *.jpl.nasa.gov, in which case you need to use debug console to inspect the drop down and compare the ARN with what is listed in the AWS certificate manager.  Then count how many items down in the option list it is and select that one.  Not kidding.  This is how it works.
+    1. Manage my certificates -> if landform.hi.jpl.nasa.gov already exists, use it
+    1. Otherwise, click Request a Certificate
+        1. LDAP group: landform
+        1. Machine name: landform.hi.jpl.nasa.gov
+        1. Server type: Apache
+        1. CSR: paste entire contents of landform.hi.jpl.nasa.gov.csr
+        1. wait a few minutes, you should get an email when the cert is ready
+    1. Manage my certificates
+        1. click on landform.hi.jpl.nasa.gov
+        1. paste entire contents of certificate to //opslab-central/conductor/project/landform/webcert/landform.hi.jpl.nasa.gov.pem.  It shold have a form like this
+            ```
+            CERTIFICATE:
+            -----BEGIN CERTIFICATE-----
+            (cert)
+            -----END CERTIFICATE-----
+            INTERMEDIATE CERTIFICATE:
+            -----BEGIN CERTIFICATE-----
+            (intermediate cert)
+            -----END CERTIFICATE-----
+            ROOT CERTIFICATE:
+            -----BEGIN CERTIFICATE-----
+            (root cert)
+            -----END CERTIFICATE-----
+            ```
+1. http://goto.jpl.nasa.gov/awsconsole
+    1. Log in as landords/account_owner
+    1. Select region us-west-1 (North California)
+    1. Security -> Certificate Manager
+        1. If landform.hi.jpl.nasa.gov is not already in the list of certs -> Import a certificate
+            1. Paste 
+                ```
+                -----BEGIN CERTIFICATE-----
+                (cert)
+                -----END CERTIFICATE-----
+                ```
+                from landform.hi.jpl.nasa.gov.pem into Certificate body
+            1. Paste 
+                ```
+                -----BEGIN CERTIFICATE-----
+                (intermediate cert)
+                -----END CERTIFICATE-----
+                -----BEGIN CERTIFICATE-----
+                (root cert)
+                -----END CERTIFICATE-----
+                ```
+                from landform.hi.jpl.nasa.gov.pem into Certificate chain
+            1. Paste entire contents of landform.hi.jpl.nasa.gov.key into Certificate private key
+            1. Review and Import -> Import
+            1.  Open accordion for the new cert
+            1. Edit name tag to be landform.hi.jpl.nasa.gov
+        1.  Open accordion for the landform.hi.jpl.nasa.gov cert
+            1. Note Details -> Identifier GUID 
+    1. Services -> Compute -> Elastic Beanstalk
+        1. Landform -> landformweb -> Configuration
+        1. Modify load balancer
+            1. Classic load balancer
+            1. TODO disable existing listener?
+            1. Add listener
+                1. Listener port: 443
+                1. Listener protocol: HTTPS
+                1. Instance port: 80
+                1. Instance protocol: HTTP
+                1. Select the SSL certificate ID.  These may appear as *.jpl.nasa.gov, in which case you need to find the GUID matching Details -> Identifier for the cert in the AWS Certificate Manager.
 
 # Test Procedures
 
