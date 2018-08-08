@@ -4,9 +4,11 @@ const spawnSync = require('child_process').spawnSync;
 const spawn = require('child_process').spawn;
 const Zip = require('@jpl/adm-zip');
 
-const { checkDeploy } = require('./deployUtil');
+const { boolArg, checkDeploy } = require('./deployUtil');
 
 const zf = 'landformweb.zip';
+
+//npm run local-deploy -- [-f|--force|--force=true] [-i|--interactive|--interactive=true] [-d|--debug|--debug=true]
 
 checkDeploy()
   .then((args) => {
@@ -26,15 +28,27 @@ checkDeploy()
       console.log(`running docker ${buildArgs.join(' ')}`);
       spawnSync('docker', buildArgs, { stdio: 'inherit', cwd: tmpDir, shell: true });
 
-      const envArgs = ['--env', 'LOG_LEVEL=silly'];
-      const interactive = args.some(a => a === '-i' || a === '--interactive' || a === '--interactive=true');
-      if (interactive) console.log('NOTE: for git bash run \'winpty node local-deploy.js [-f] -i\'');
-      const runArgs = interactive ? ['run', ...envArgs, '-it', imageTag, '/bin/bash'] : ['run', imageTag];
+      const runArgs = ['run'];
+
+      if (args.some(a => boolArg(a, 'debug'))) runArgs.push('--env', 'LOG_LEVEL=silly');
+
+      if (args.some(a => boolArg(a, 'interactive'))) {
+
+        console.log('NOTE: for git bash run \'winpty node local-deploy.js [-f] [-d] -i\'');
+
+        runArgs.push('-it', imageTag, '/bin/bash');
+
+      } else runArgs.push(imageTag);
+
       console.log(`running docker ${runArgs.join(' ')}`);
+
       spawn('docker', runArgs, { stdio: 'inherit', shell: true });
 
+      //example interactive command line: docker run --it landformweb /bin/bash
+      //
+      //or for git bash: winpty docker run --it landformweb //bin/bash
+      //
       //the double slash in //bin/bash prevents git bash from munging that path
-      //winpty docker run --it landformweb //bin/bash
 
     } finally { fs.remove(tmpDir); }
   })

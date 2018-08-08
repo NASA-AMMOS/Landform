@@ -1,12 +1,16 @@
 const execSync = require('child_process').execSync;
 const fs = require('fs-extra');
 
+function boolArg(v, name) {
+  const lv = v.toLowerCase(), ln = name.toLowerCase();
+  return lv === `-${ln[0]}` || lv === `--${ln}` || lv === `--${ln}=true`;
+}
+
 async function checkDeploy() {
 
   let force = false;
   const args = process.argv.slice(2).reduce((a, v) => {
-    const lv = v.toLowerCase();
-    if (lv === '-f' || lv === '--force' || lv === '--force=true') force = true;
+    if (boolArg(v, 'force')) force = true;
     else a.push(v);
     return a;
   }, []);
@@ -38,4 +42,4 @@ async function checkDeploy() {
   return args;
 }
 
-module.exports = { checkDeploy };
+module.exports = { boolArg, checkDeploy };
