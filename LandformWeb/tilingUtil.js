@@ -22,12 +22,7 @@ async function tilingTask(verb, args) {
   };
   Object.entries(vars).forEach(([varName, cfgKey]) => { if (!(varName in env)) env[varName] = config.app[cfgKey]; });
 
-  return launchTask('TilingServer', [verb, ...args],
-                    {
-                      name: `TilingServer ${verb}`,
-                      cwd: config.app.tmpDir,
-                      env,
-                    });
+  return launchTask('TilingServer', [verb, ...args], { cwd: config.app.tmpDir, env });
 }
 
 let masterTask = null;

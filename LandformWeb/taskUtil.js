@@ -1,5 +1,6 @@
 const spawn = require('child_process').spawn;
 const path = require('path');
+const fs = require('fs-extra');
 const byline = require('byline');
 
 const config = require('./config');
@@ -13,17 +14,27 @@ function getTask(id) { return tasks[id]; }
 
 //spawn a subprocess
 //options are passed to child_process.spawn()
-//if options.name is set it is used as the task name, otherwise the task name is cmd
+//cmd must be an executable in config.app.binDir
+//.exe will be appended if appropriate
+//if not running on windows and the command is an exe then mono will be prepended to the command line
 //returns task object
-function launchTask(cmd, args, options) {
+async function launchTask(cmd, args, options) {
 
-  const name = options && options.name ? options.name : cmd;
+  cmd = path.join(config.app.binDir, cmd);
+
+  if (!(await fs.pathExists(cmd)) && (await fs.pathExists(`${cmd}.exe`))) cmd = `${cmd}.exe`;
+
+  if (cmd.toLowerCase().endsWith('exe') && !process.platform.startsWith('win')) {
+    cmd = 'mono';
+    args.unshift(cmd);
+  }
+
   const id = nextTask++;
   const task = tasks[id] = {
     cmd, args,
     process: null,
     promise: null,
-    info: { id, name, running: true, success: false, exitCode: null, error: null, started: Date.now(), ended: null },
+    info: { id, running: true, success: false, exitCode: null, error: null, started: Date.now(), ended: null },
     log: [],
     listeners: [],
     liveStreams: 2,
@@ -58,13 +69,13 @@ function launchTask(cmd, args, options) {
       task.info.error =
         err && err.message ? err.message : code ? `code ${code}` : signal ? `signal ${signal}` : 'unknown';
     }
-    logger.verbose(`task ${task.info.id} '${name}' ended at ${task.info.ended}` +
+    logger.verbose(`task ${task.info.id} '${cmd} ${args.join(' ')}' ended at ${task.info.ended}` +
                    (task.info.success ? '' : `, ERROR: ${task.info.error}`));
     log(null);
     if (!task.info.success) reject(err || new Error(`task ${task.info.error}`)); else resolve();
   }
 
-  task.process = spawn(path.join(config.app.binDir, `${cmd}.exe`), args, options);
+  task.process = spawn(cmd, args, options);
 
   task.promise = new Promise((resolve, reject) => {
     //might get both or either 'error' and/or 'exit' events
@@ -76,7 +87,7 @@ function launchTask(cmd, args, options) {
     byline(stream).on('data', line => log(line)).on('end', () => { task.liveStreams--; log(null); });
   });
 
-  logger.verbose(`task ${task.info.id} '${name}' started at ${task.info.started}`);
+  logger.verbose(`task ${task.info.id} '${cmd} ${args.join(' ')}' started at ${task.info.started}`);
 
   return task;
 }
