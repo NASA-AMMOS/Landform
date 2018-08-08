@@ -42,8 +42,16 @@ namespace OPS.Alignment
                     if (!node.HasComponent<NodeConvexHull>())
                     {
                         var chc = node.AddComponent<NodeConvexHull>();
-                        var imgObs = ((ObservationImageRef)imgRef).Observation;
-                        chc.Hull = ConvexHull.FromParams((CameraModel)JsonHelper.FromJson(imgObs.CameraModel), imgObs.Width, imgObs.Height);
+                        try
+                        {
+                            var imgObs = ((ObservationImageRef)imgRef).Observation;
+                            chc.Hull = ConvexHull.FromParams((CameraModel)JsonHelper.FromJson(imgObs.CameraModel), imgObs.Width, imgObs.Height);
+                        }
+                        catch
+                        {
+                            var img = GetImage(imgRef);
+                            chc.Hull = ConvexHull.FromImage(img);
+                        }
                     }
                     return;
                 }
@@ -62,7 +70,7 @@ namespace OPS.Alignment
                         var hull = child.GetComponent<NodeConvexHull>();
                         if (hull != null)
                         {
-                            var ut = child.GetComponent<NodeUncertainTransform>();
+                            var ut = child.GetOrAddComponent<NodeUncertainTransform>();
                             childHulls.Add(ConvexHull.Transformed(hull.Hull, ut.UncertainTransform));
                         }
                     }

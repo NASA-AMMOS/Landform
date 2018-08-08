@@ -21,7 +21,6 @@ namespace OPS.Pipeline
 
         public IEnumerable<Overlap> Run(List<Observation> toConsider, ILog logger = null)
         {
-            //toConsider.Sort((a, b) => a.Name.CompareTo(b.Name));
             if (toConsider.Count < 1)
             {
                 yield break;
@@ -69,18 +68,6 @@ namespace OPS.Pipeline
             // Step 2: do the thing
             FrustumOverlapDetector fod = new FrustumOverlapDetector(Pipeline);
             fod.Detect(scene);
-
-            /*var overlaps = new List<Tuple<Observation, Observation>>();
-            foreach (var overlap in scene.Overlaps)
-            {
-                var one = refToObservation[overlap.One];
-                var two = refToObservation[overlap.Two];
-                overlaps.Add(Tuple.Create(one, two));
-                // lower throughput
-                // TODO: other options?
-                //System.Threading.Thread.Sleep(100);
-            }
-            Overlap.CreateMultiple(DynamoDB, overlaps);*/
 
             logger.Info("Found overlaps: " + scene.Overlaps.Count);
 

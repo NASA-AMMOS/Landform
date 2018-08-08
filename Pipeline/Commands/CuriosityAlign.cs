@@ -281,7 +281,6 @@ namespace OPS.Pipeline
             if (scene.ImageToNode.ContainsKey(model) && scene.ImageToNode.ContainsKey(data))
             {
                 var kgf = new KnownGeometryFilter(this, (imgRef) => scene.ImageToNode[imgRef]);
-                kgf.MajorAxisThreshold = double.PositiveInfinity;
                 filters.Add(kgf);
             }
             else
@@ -289,13 +288,13 @@ namespace OPS.Pipeline
                 return null;
             }
 
-            // Brute force match descriptors
+            // Get match descriptors
 
             this.Load(model);
             this.Load(data);
 
-            IFeatureMatcher bfm = new CascadeHashingMatcher();
-            var matches = bfm.Match(scene, pair);
+            IFeatureMatcher matcher = new CascadeHashingMatcher();
+            var matches = matcher.Match(scene, pair);
             if (matches.Count < MIN_MATCHES)
             {
                 logger.Info("No matches for " + overlap.CombinedName);
@@ -319,10 +318,10 @@ namespace OPS.Pipeline
                     return null;
                 }
             }
-
-            var matchImage = MatchImage.Create(this, matches, scene.DetectedFeatures[model], scene.DetectedFeatures[data]);
+          
             if(options.DebugOutputFolder != null)
             {
+                var matchImage = MatchImage.Create(this, matches, scene.DetectedFeatures[model], scene.DetectedFeatures[data]);
                 PathHelper.EnsureExists(options.DebugOutputFolder);
                 matchImage.Save<byte>(Path.Combine(options.DebugOutputFolder, overlap.CombinedName + ".png"));
             }
@@ -392,6 +391,7 @@ namespace OPS.Pipeline
             } catch
             {
                 obs.UseForReconstruction = false;
+                ThroughputManager.Run(() => obs.Save(DynamoContext));
                 return null;
             }
         }

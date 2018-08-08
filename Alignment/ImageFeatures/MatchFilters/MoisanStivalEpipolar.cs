@@ -289,8 +289,7 @@ namespace OPS.Alignment
                 CvInvoke.FindFundamentalMat(m1_cv, m2_cv, _F, Emgu.CV.CvEnum.FmType.SevenPoint);
             } catch(Exception e)
             {
-                logger.Error(e.Message);
-                logger.Error(e.StackTrace);
+                logger.Error("Failed to find fundamental matrix", e);
                 yield break;
             }
             int numMatrices = _F.Rows / 3;

@@ -142,7 +142,6 @@ namespace OPS.Pipeline
         /// </summary>
         public static bool CheckFilename(string filename)
         {
-            
             RoverProductId id = RoverProductId.ParseFromString(filename);
             if (id == null)
             {

@@ -157,7 +157,7 @@ namespace OPS.Plumbing
         }
         public Image Load(ImageRef imgRef)
         {
-            return Load(imgRef, false);
+            return Load(imgRef, true);
         }
         private LRUCache<ImageRef, Image> imageCache = new LRUCache<ImageRef, Image>(100);
 
@@ -236,7 +236,7 @@ namespace OPS.Plumbing
             if (waitForResponse) {
                 Type t = product.GetType();
                 MethodInfo DynamicGet = GetType().GetMethod("Get").MakeGenericMethod(new Type[] {t});
-                while (DynamicGet.Invoke(this, new object[] { project, product.Guid, useCache }) == null)
+                while (DynamicGet.Invoke(this, new object[] { project, product.Guid, false }) == null)
                 {
                     System.Threading.Thread.Sleep(1000);
                 }

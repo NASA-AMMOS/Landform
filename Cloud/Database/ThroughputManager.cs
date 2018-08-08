@@ -34,5 +34,11 @@ namespace OPS.Cloud
                 }
             }
         }
+
+        public static void Run(Action cloudOp, int initialWaitTime = 1000, double waitScaling = 2, int maxWait = 32000)
+        {
+            Func<int> wrapper = () => { cloudOp(); return 0; };
+            Run(wrapper, initialWaitTime, waitScaling, maxWait);
+        }
     }
 }
