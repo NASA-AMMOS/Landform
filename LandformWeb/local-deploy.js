@@ -26,9 +26,10 @@ checkDeploy()
       console.log(`running docker ${buildArgs.join(' ')}`);
       spawnSync('docker', buildArgs, { stdio: 'inherit', cwd: tmpDir, shell: true });
 
+      const envArgs = ['--env', 'LOG_LEVEL=silly'];
       const interactive = args.some(a => a === '-i' || a === '--interactive' || a === '--interactive=true');
-      if (interactive) console.log('NOTE: for interactive use under git bash prefix command with winpty');
-      const runArgs = interactive ? ['run', '-it', imageTag, '/bin/bash'] : ['run', imageTag];
+      if (interactive) console.log('NOTE: for git bash run \'winpty node local-deploy.js [-f] -i\'');
+      const runArgs = interactive ? ['run', ...envArgs, '-it', imageTag, '/bin/bash'] : ['run', imageTag];
       console.log(`running docker ${runArgs.join(' ')}`);
       spawn('docker', runArgs, { stdio: 'inherit', shell: true });
 
