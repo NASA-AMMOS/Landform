@@ -10,7 +10,7 @@ This repo consists of a backend [REST API](API.md) server and a frontend react a
 1. You can also run the api server and client servers independently with `npm run server` and `npm run client`.  This is convenient when doing backend dev so that you can independently reestart the backend server.
 1. Typically you should not need to restart the frontend server for frontend dev because it uses hot module reloading.  However, if you modify the backend server you will need to restart it.  Note: CTRL-C may not work correctly to kill the backend server if you started it from a cygwin prompt; consider using a Git bash prompt or Windows `cmd` instead.
 1. Go to http://localhost:3000 and follow the instructions to login and generate an API token.  Note that SSO login will only work when deployed to the production server URL given above, and LDAP login will only work when the server is within the JPL firewall (i.e. not deployed to AWS for production).
-1. To re-deploy the production server: `deploy.bat aws_profile_name`
+1. To (re-)deploy the production server: `npm run deploy` or `npm run deploy -- --profile=aws_profile_name`
 
 ## Beanstalk Setup
 1. http://goto.jpl.nasa.gov/awsconsole

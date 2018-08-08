@@ -8,9 +8,11 @@
     "start": "concurrently --kill-others \"npm run server\" \"npm run client\"",
     "server": "node server.js",
     "client": "node start-client.js",
-    "build": "node build-client.js",
-    "test": "test",
-    "bundle": "git archive -o landformweb.zip --format=zip HEAD && node bundle-client.js"
+    "build-client": "node build-client.js",
+    "bundle": "git archive -o landformweb.zip --format=zip HEAD && node bundle-client.js",
+    "build": "npm install && npm run build-client && npm run bundle",
+    "deploy": "node deploy.js",
+    "local-deploy": "node local-deploy.js"
   },
   "keywords": [
     "landform"
