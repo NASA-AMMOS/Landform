@@ -31,6 +31,8 @@ async function tilingMaster() {
   if (masterTask) return masterTask;
 
   function abort(err) {
+    //make sure spew gets to log even when log level is < debug, as in production
+    if (logger.levels[logger.level] < logger.levels.debug) logger.error(masterTask.log.join('\n'));
     logger.error(`aborting, error launching 'TilingServer startmaster': ${err.message}`);
     logger.exception(err);
     process.exit(1);
