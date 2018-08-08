@@ -9,6 +9,10 @@ const development = {
 
     name: 'Landform',
 
+    bundle: 'landformweb.zip',
+    ebDeployEnvironment: process.env.EB_DEPLOY_ENV || 'landformweb', //or landformweb-dev
+    localDeployTag: 'landformweb', //docker image tag for local deployment
+
     port: process.env.PORT || 8081,
 
     tokenSecret: process.env.TOKEN_SECRET || 'dogfishwaffelsandwitchwithbutter-43t-kdfvk',
