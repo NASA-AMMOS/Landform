@@ -1,7 +1,11 @@
 FROM node:8
 
+RUN apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys 3FA7E0328081BFF6A14DA29AA6A19B38D3D831EF
 RUN apt-get update
-RUN apt-get install -y mono-runtime libmono-system-core4.0-cil libmono-system-xml-linq4.0-cil libmono-system-runtime-serialization4.0-cil libmono-system-numerics4.0-cil libmono-system-data4.0-cil
+RUN apt-get install apt-transport-https
+RUN echo "deb https://download.mono-project.com/repo/debian stable-jessie main" | tee /etc/apt/sources.list.d/mono-official-stable.list
+RUN apt-get update
+RUN apt-get install -y mono-runtime libmono-system-core4.0-cil libmono-system-xml-linq4.0-cil libmono-system-runtime-serialization4.0-cil libmono-system-numerics4.0-cil libmono-system-data4.0-cil ca-certificates-mono
 
 ARG NODE_ENV
 ENV NODE_ENV $NODE_ENV
