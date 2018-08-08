@@ -28,7 +28,7 @@ async function checkDeploy() {
                       `update ${bundle} with 'npm run build'`);
     }
 
-    const modified = await execSync('git diff-index --name-status HEAD --');
+    const modified = (await execSync('git diff-index --name-status HEAD --')).toString('utf8');
     if (modified) {
       throw new Error(`uncommitted changes:\n${modified}\n` +
                       `commit them and then update ${bundle} with 'npm run build'`);
