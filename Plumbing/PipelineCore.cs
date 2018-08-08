@@ -38,7 +38,9 @@ namespace OPS.Plumbing
                 // until changes to StorageHelper are made. I did not include my
                 // hacky workaround because the changes in Thomas' branch should
                 // be a cleaner way to deal with it.
-                storage = new StorageHelper(null, "us-west-1");
+                //storage = new StorageHelper(null, "us-west-1");
+                //DONTCHECKIN
+                storage = new StorageHelper("s3://landlords-dev/", "us-west-1");
             }
             else
             {
