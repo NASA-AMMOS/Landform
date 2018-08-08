@@ -22,9 +22,15 @@
 #    even if you have specialized HOME to be different from %USERPROFILE%
 #    e.g. in my case HOME=c:\cygwin64\home\ME but USERPROFILE=c:\users\ME
 #
-# 5) pip install awscli
+# 5) try some stuff, e.g.
 #
-# 6) try some stuff, e.g.
+#    pip install awscli --upgrade --user
+#    pip install awsebcli --upgrade --user # if you want to use elastic beanstalk CLI
+#
+#    PATH must include
+#    Windows: %USERPROFILE%\AppData\Roaming\Python\Python??\Scripts
+#    Linux: ~/.local/bin
+#    MacOS: ~/Library/Python/?.?/bin
 #
 #    aws ec2 describe-instances
 #    aws s3 ls
