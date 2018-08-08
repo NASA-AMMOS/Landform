@@ -16,11 +16,10 @@ async function checkDeploy() {
 
   try {
 
-    const hf = '../.git/HEAD';
-    const ht = fs.statSync(hf).mtime;
+    const ht = new Date(1000 * await execSync('git show -s --format="%ct" HEAD'));
     const zt = fs.statSync(zf).mtime;
     if (ht > zt) {
-      throw new Error(`${hf} newer than ${zf}: ${ht.toLocaleString()} > ${zt.toLocaleString()}\n` +
+      throw new Error(`HEAD newer than ${zf}: ${ht.toLocaleString()} > ${zt.toLocaleString()}\n` +
                       `update ${zf} with 'npm run build'`);
     }
 

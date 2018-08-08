@@ -25,8 +25,8 @@ async function launchTask(cmd, args, options) {
   if (!(await fs.pathExists(cmd)) && (await fs.pathExists(`${cmd}.exe`))) cmd = `${cmd}.exe`;
 
   if (cmd.toLowerCase().endsWith('exe') && !process.platform.startsWith('win')) {
-    cmd = 'mono';
     args.unshift(cmd);
+    cmd = 'mono';
   }
 
   const id = nextTask++;

@@ -32,6 +32,9 @@ checkDeploy()
       console.log(`running docker ${runArgs.join(' ')}`);
       spawn('docker', runArgs, { stdio: 'inherit', shell: true });
 
+      //the double slash in //bin/bash prevents git bash from munging that path
+      //winpty docker run --it landformweb //bin/bash
+
     } finally { fs.remove(tmpDir); }
   })
   .catch(e => console.error(e.message));
