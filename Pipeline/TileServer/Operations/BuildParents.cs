@@ -85,7 +85,7 @@ namespace OPS.Pipeline.TileServer
             }
             logger.Info(parent.Id + " generating form " + parent.DependsOn.Count + " tiles");
 
-            parentSceneNode.BuildGeometryFromChildren(parentSceneNode, project.FacesPerTile, project.TileResolution, project.GetSkirtMode());
+            parentSceneNode.BuildGeometryFromChildren(parentSceneNode, project.GetReconMethod(), project.FacesPerTile, project.TileResolution, project.GetSkirtMode());
 
             // TODO handle case where there are no images
             // TODO: retain originial detail here

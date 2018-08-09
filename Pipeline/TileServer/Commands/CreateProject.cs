@@ -21,8 +21,11 @@ namespace OPS.Pipeline.TileServer
         [Option(HelpText = "TilingScheme", Default = TilingScheme.Bin)]
         public TilingScheme TilingScheme { get; set; }
 
-        [Option(HelpText = "TilingScheme", Default = SkirtMode.None)]
+        [Option(HelpText = "SkirtMode", Default = SkirtMode.None)]
         public SkirtMode SkirtMode { get; set; }
+
+        [Option(HelpText = "Mesh Reconstruction Method", Default = MeshReconMethod.Poisson)]
+        public MeshReconMethod ReconMethod { get; set; }
 
         [Option(Required = false, Default = 2000, HelpText = "Target maximum faces per tile")]
         public int FacesPerTile { get; set; }
@@ -55,7 +58,7 @@ namespace OPS.Pipeline.TileServer
             else
             {
                 logger.Info("Creating project: " + options.ProjectName);
-                TilingProject.Create(this.DynamoContext, options.ProjectName, options.TilingScheme, options.SkirtMode, options.FacesPerTile, options.TileResolution);
+                TilingProject.Create(this.DynamoContext, options.ProjectName, options.TilingScheme, options.SkirtMode, options.ReconMethod, options.FacesPerTile, options.TileResolution);
             }
             return 0;
         }

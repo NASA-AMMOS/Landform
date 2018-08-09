@@ -90,7 +90,10 @@ namespace OPS.Pipeline.TileServer
                 pipeline.CompeltionQueue.Enqueue(this.message);
                 return;
             }
-            if(project.GetTilingScheme() == TilingScheme.UserDefined)
+
+
+
+            if (project.GetTilingScheme() == TilingScheme.UserDefined)
             {
                 // Build a tree based on existing tile ids
                 throw new NotImplementedException("");

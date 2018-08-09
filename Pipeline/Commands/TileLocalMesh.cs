@@ -301,7 +301,7 @@ namespace OPS
                         return;
                     }
                     logger.Info(string.Format("Parent: {0} ({1}/{2})", node.Name, index + groupCountOffset, totalParentCount));
-                    node.BuildGeometryFromChildren(root, options.TargetFacesPerTile, options.MaxResolutionPerTile, options.SkirtAxis);
+                    node.BuildGeometryFromChildren(root, MeshReconMethod.Poisson, options.TargetFacesPerTile, options.MaxResolutionPerTile, options.SkirtAxis);
                     node.SaveMesh(options.OutputDirectory, meshExtension: options.MeshExtension, imageExtension: options.ImageExtension);
                     logger.Info(node.GetComponent<MeshImagePair>().Mesh.Faces.Count);
                 });

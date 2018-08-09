@@ -122,7 +122,7 @@ namespace OPS.Pipeline
         /// <param name="maxTextureSize"></param>
         /// <param name="skirtAxis"></param>
         /// <param name="childBoundSearchRatio"></param>
-        public static void BuildGeometryFromChildren(this SceneNode node, SceneNode root, int maxFaceCountTarget, int maxTextureSize, SkirtMode? skirtAxis, double childBoundSearchRatio = DEFAULT_SEARCH_RATIO)
+        public static void BuildGeometryFromChildren(this SceneNode node, SceneNode root, MeshReconMethod reconstructionMethod, int maxFaceCountTarget, int maxTextureSize, SkirtMode? skirtAxis, double childBoundSearchRatio = DEFAULT_SEARCH_RATIO)
         {
             BoundingBox searchBounds;
             var childNodes = FindNodesRequiredForParent(node, root, out searchBounds, childBoundSearchRatio);
@@ -167,7 +167,7 @@ namespace OPS.Pipeline
                     cornerDirection = Vector3.UnitY;
                 }
             }
-            Mesh combinedDecimated = combinedFull.ResampleDecimation(targetFaces, clippingBounds: minimumBounds, cornerDirection: cornerDirection);
+            Mesh combinedDecimated = combinedFull.ResampleDecimation(reconstructionMethod, targetFaces, clippingBounds: minimumBounds, cornerDirection: cornerDirection);
             combinedDecimated.Clean();
 
             NodeGeometricError geoError = node.GetOrAddComponent<NodeGeometricError>();

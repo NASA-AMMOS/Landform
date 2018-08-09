@@ -21,6 +21,7 @@ namespace OPS.Pipeline.TileServer
 
         public string TilingScheme { get; set; }
         public string SkirtMode { get; set; }
+        public string ReconMethod { get; set; }
 
         public int FacesPerTile { get; set; }
         public int TileResolution { get; set; }
@@ -36,11 +37,12 @@ namespace OPS.Pipeline.TileServer
         /// Creates Project object locally.  
         /// </summary>
         /// <param name="name">Project names in the database must be unique</param>
-        protected TilingProject(string name, TilingScheme tilingScheme, SkirtMode skirtMode, int faces, int resolution)
+        protected TilingProject(string name, TilingScheme tilingScheme, SkirtMode skirtMode, MeshReconMethod reconMethod, int faces, int resolution)
         {
             Name = name;
             TilingScheme = tilingScheme.ToString();
             SkirtMode = skirtMode.ToString();
+            ReconMethod = reconMethod.ToString();
             FacesPerTile = faces;
             TileResolution = resolution;
             TilesDefined = false;
@@ -48,9 +50,9 @@ namespace OPS.Pipeline.TileServer
         }
 
 
-        public static TilingProject Create(DynamoDBContext context, string name, TilingScheme tilingScheme, SkirtMode skirtMode, int faces, int resolution)
+        public static TilingProject Create(DynamoDBContext context, string name, TilingScheme tilingScheme, SkirtMode skirtMode, MeshReconMethod reconMethod, int faces, int resolution)
         {
-            TilingProject project = new TilingProject(name, tilingScheme, skirtMode, faces, resolution);
+            TilingProject project = new TilingProject(name, tilingScheme, skirtMode, reconMethod, faces, resolution);
             context.Save(project, new DynamoDBOperationConfig() { IgnoreNullValues = true });
             return project;
         }
@@ -87,6 +89,11 @@ namespace OPS.Pipeline.TileServer
         public SkirtMode GetSkirtMode()
         {
             return (SkirtMode)Enum.Parse(typeof(SkirtMode), this.SkirtMode, true);
+        }
+
+        public MeshReconMethod GetReconMethod()
+        {
+            return (MeshReconMethod)Enum.Parse(typeof(MeshReconMethod), this.ReconMethod, true);
         }
     }
 }

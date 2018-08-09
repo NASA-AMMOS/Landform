@@ -196,7 +196,7 @@ namespace OPS.Pipeline
                     {
                         return;
                     }
-                    node.BuildGeometryFromChildren(terrainRoot, options.MaxFacesPerTile, options.MaxTextureSize, SkirtMode.Y);
+                    node.BuildGeometryFromChildren(terrainRoot, MeshReconMethod.Poisson, options.MaxFacesPerTile, options.MaxTextureSize, SkirtMode.Y);
                     SaveNode(node, options.ImageFormat);
                 });
             }

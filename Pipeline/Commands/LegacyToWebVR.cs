@@ -247,7 +247,7 @@ namespace OPS.Pipeline
                 logger.Info("Creating low poly collision mesh");
                 var meshes = innerNodes.SelectMany(leaf => FindOverlappingLeaves(leaf, scene.TerrainRoot)).Select(node => node.GetComponent<MeshImagePair>().Mesh).ToArray();
                 var m = Mesh.Merge(false, false, false, meshes);
-                m = m.ResampleDecimation(2000, m.Bounds(), new Vector3(0, 1, 0)); 
+                m = m.ResampleDecimation(MeshReconMethod.Poisson, 2000, m.Bounds(), new Vector3(0, 1, 0)); 
                 m.Clean();
                 m = Mesh.Clip(m, innerBounds);
                 m.Clean();
@@ -276,7 +276,7 @@ namespace OPS.Pipeline
                 
 
                 Mesh border = Mesh.Merge(outterNodes.Select(n => n.GetComponent<MeshImagePair>().Mesh).ToArray());
-                border = border.ResampleDecimation(backgroundFaces, border.Bounds(), new Vector3(0, 1, 0));
+                border = border.ResampleDecimation(MeshReconMethod.Poisson, backgroundFaces, border.Bounds(), new Vector3(0, 1, 0));
                 border = Mesh.Cut(border, innerBounds);
                 border.Clean();
 
@@ -330,7 +330,7 @@ namespace OPS.Pipeline
                     targetFaces = nameToFaceCount[leaf.Name];
                 }
                 int faces = Math.Min(m.Faces.Count, targetFaces);
-                m = m.ResampleDecimation(faces, leaf.GetOrAddComponent<NodeBounds>().Bounds, new Vector3(0, 1, 0));
+                m = m.ResampleDecimation(MeshReconMethod.Poisson, faces, leaf.GetOrAddComponent<NodeBounds>().Bounds, new Vector3(0, 1, 0));
              
                 //m = MeshLab.ResampleDecimation(m, numSamples: targetFaces*10, targetFaces: targetFaces);
                 //m = Mesh.Clip(m, leaf.Bounds);
