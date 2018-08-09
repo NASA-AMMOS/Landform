@@ -10,5 +10,5 @@ deploy:
 global:
   application_name: landform
   default_region: us-west-1
-  profile: eb-cli
+  profile: default
   sc: null
