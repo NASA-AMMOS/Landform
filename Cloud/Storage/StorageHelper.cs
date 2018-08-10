@@ -231,9 +231,12 @@ namespace OPS.Cloud
         /// </summary>
         /// <param name="awsProfileName"></param>
         /// <param name="govCloud"></param>
-        public StorageHelper(string awsProfileName, string endpointName = null)
+        public StorageHelper(string awsProfileName = null, string endpointName = null)
         {
-            awsCredentials = Credentials.Get(awsProfileName);
+            if (awsProfileName != null)
+            {
+                awsCredentials = Credentials.Get(awsProfileName);
+            }
             if (endpointName != null)
             {
                 awsRegion = RegionEndpoint.GetBySystemName(endpointName);

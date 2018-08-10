@@ -152,7 +152,7 @@ namespace OPS.Imaging
 
         private string CreateFileName(int row, int col, string baseUrl, string extension)
         {
-            return baseUrl + "_" + row + "_" + col + "_" + extension;
+            return baseUrl + "_" + row + "_" + col + extension;
         }
     }
 }
