@@ -19,11 +19,31 @@ namespace OPS.Pipeline
     {
         static ILog logger = LogManager.GetLogger(typeof(TexturedMeshClipper));
 
-        List<MeshImagePair> pairs;
+
+        class MeshImageOperatorPair
+        {
+            public Image Image;
+            public MeshOperator MeshOperator;
+
+            public MeshImageOperatorPair( MeshOperator op, Image image)
+            {
+                this.Image = image;
+                this.MeshOperator = op;
+   
+            }
+
+            public MeshImageOperatorPair( Mesh m, Image image)
+            {
+                this.Image = image;
+                this.MeshOperator = new MeshOperator(m, buildFaceTree: true, buildVertexTree: false, buildUVFaceTree: false);
+            }
+        }
+
+        List<MeshImageOperatorPair> pairs;
         
         public TexturedMeshClipper()
         {
-            pairs = new List<MeshImagePair>();
+            pairs = new List<MeshImageOperatorPair>();
         }
 
         /// <summary>
@@ -32,7 +52,17 @@ namespace OPS.Pipeline
         /// <param name="pair"></param>
         public void AddMeshImagePair(MeshImagePair pair)
         {
-            pairs.Add(pair);
+            pairs.Add(new MeshImageOperatorPair( pair.Mesh, pair.Image));
+        }
+
+        public void AddMeshImagePair(MeshOperator op, Image image)
+        {
+            pairs.Add(new MeshImageOperatorPair(op, image));
+        }
+
+        public void AddMeshImagePair(Mesh m, Image image)
+        {
+            pairs.Add(new MeshImageOperatorPair(m, image));
         }
 
         /// <summary>
@@ -121,7 +151,7 @@ namespace OPS.Pipeline
         List<TexturePatch> ComputePatches(Mesh mesh, Image img, int borderSize)
         {
             mesh.Clean();
-            MeshOperator op = new MeshOperator(mesh);
+            MeshOperator op = new MeshOperator(mesh, buildFaceTree: false, buildVertexTree: false);
             var triangles = op.Triangles;
             List<TexturePatch> patches = new List<TexturePatch>();
 
@@ -162,6 +192,8 @@ namespace OPS.Pipeline
             return patches;
         }
 
+
+
         /// <summary>
         /// Clips every mesh in the list of MeshImagePairs to specified bounding box. Creates new texture of patches from original images for each portion of clipped mesh packed into single image.
         /// Each patch has border of borderSize pixels. Returns new single MeshImagePair with clipped mesh and packed image.
@@ -179,10 +211,9 @@ namespace OPS.Pipeline
             }
             List<TexturePatch> patches = new List<TexturePatch>();
             
-            foreach (MeshImagePair pair in pairs)
+            foreach (var pair in pairs)
             {
-                MeshOperator op = new MeshOperator(pair.Mesh);
-                Mesh clippedMesh = op.Clip(box);
+                Mesh clippedMesh = pair.MeshOperator.Clip(box);
                 clippedMesh.Clean();
                 patches.AddRange(ComputePatches(clippedMesh, pair.Image, borderSize));
             }
@@ -195,8 +226,8 @@ namespace OPS.Pipeline
                 maxHeight = Math.Max(maxHeight, patches[b].patchImage.Height);
             }
 
-            var binWidth = MathExtensions.MathE.CeilPowerOf2(maxWidth);
-            var binHeight = MathExtensions.MathE.CeilPowerOf2(maxHeight);
+            var binWidth = Math.Max( MathExtensions.MathE.CeilPowerOf2(maxWidth), 1);
+            var binHeight =Math.Max( MathExtensions.MathE.CeilPowerOf2(maxHeight), 1);
             var binDepth = 1;
 
             Cuboid[] cuboids = new Cuboid[patches.Count];
@@ -275,7 +306,7 @@ namespace OPS.Pipeline
             }
             MeshImagePair result = new MeshImagePair();
             result.Image = packedImg;
-            result.Mesh = new Mesh(resultTriangles, hasNormals: pairs[0].Mesh.HasNormals, hasUVs: pairs[0].Mesh.HasUVs, hasColors: pairs[0].Mesh.HasColors);
+            result.Mesh = new Mesh(resultTriangles, hasNormals: pairs[0].MeshOperator.HasNormals, hasUVs: pairs[0].MeshOperator.HasUVs, hasColors: pairs[0].MeshOperator.HasColors);
             return result;
         }
     }

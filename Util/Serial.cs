@@ -21,6 +21,17 @@ namespace OPS.Util
                 action(item);
             }
         }
+
+        public static void ForEach<T>(IEnumerable<T> list, Action<T, ParallelLoopState, long> action)
+        {
+            int i = 0;
+            foreach (T item in list)
+            {
+                action(item, null, i++);
+            }
+        }
+
+
         public static void ForEach<T>(IEnumerable<T> list, ParallelOptions options, Action<T> action)
         {
             foreach (T item in list)

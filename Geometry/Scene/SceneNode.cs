@@ -249,7 +249,7 @@ namespace OPS.Geometry
         /// <returns></returns>
         public IEnumerable<SceneNode> Leaves()
         {
-            foreach(NodeTransform t in this.Transform.Leafs())
+            foreach(NodeTransform t in this.Transform.Leaves())
             {
                 yield return t.Node; 
             }

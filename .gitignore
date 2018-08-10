@@ -91,3 +91,5 @@ PipelineFrontend/!.elasticbeanstalk/*.global.yml
 project.lock.json
 *.vspx
 *.diagsession
+TilingServer/bin/
+TilingServer/obj/

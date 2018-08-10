@@ -48,7 +48,7 @@ namespace OPS.Pipeline
             // Merge into a parent mesh
             Mesh parentMesh = Mesh.Merge(true, false, false, childMeshes);
             // Resample, Remesh, and decimate
-            Mesh decimatedMesh = FSSR.ResampleDeimation(parentMesh, parentTileResamplePoints, parentTileFaceLimit);
+            Mesh decimatedMesh = parentMesh.ResampleDecimation(MeshReconMethod.FSSR, parentTileFaceLimit);
             // Recompute bounds
             curNode.GetOrAddComponent<NodeBounds>().Bounds = tilingScheme.ExpandBounds(curNode.GetOrAddComponent<NodeBounds>().Bounds, decimatedMesh.Bounds());
             // Clip the mesh to the new bounds
