@@ -39,7 +39,7 @@ async function tilingMaster() {
   }
 
   try {
-    masterTask = await tilingTask('startmaster', ['--singlethreaded', config.app.singleThreadedMaster]);
+    masterTask = await tilingTask('startmaster', ['--singlethreaded', !config.app.multiThreadedMaster]);
     masterTask.promise.catch(err => abort(err));
   } catch (err) { abort(err); }
 

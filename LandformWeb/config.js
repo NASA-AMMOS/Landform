@@ -42,7 +42,7 @@ const development = {
     venueName: env.TILE_SERVER_VENUE_NAME || 'webdevtiles',
     s3URL: env.TILE_SERVER_S3_URL || 's3://landlords-dev',
 
-    singleThreadedMaster: env.SINGLE_THREADED_MASTER || 'false',
+    multiThreadedMaster: env.MULTI_THREADED_MASTER === 'true',
 
     reapOldTasks: 60 * 60 * 24, //24h in sec
   },
