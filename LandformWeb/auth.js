@@ -16,7 +16,7 @@ passport.serializeUser((user, done) => { done(null, user); });
 passport.deserializeUser((user, done) => { done(null, user); });
 
 // Get API token
-router.get('/token', (req, res) => {
+router.get('/auth/token', (req, res) => {
   //Content-Language header avoids Chrome offering to translate the result
   if (req.isAuthenticated()) return res.set('Content-Language', 'en').send(token.getRawToken(req));
   return res.status(401).send('not authenticated');
@@ -25,7 +25,7 @@ router.get('/token', (req, res) => {
 // End a users session, cleares the API cookie
 // Any routes using isAuthenticated will no longer work
 // However, calls to the API using the API token in the http header will still work until the API token expires
-router.get('/logout', (req, res) => {
+router.get('/auth/logout', (req, res) => {
   req.logout();
   token.deleteToken(res);
   req.session.destroy((err) => {
@@ -70,7 +70,7 @@ passport.use(new LdapStrategy({ server: config.ldap }, async(user, done) => {
 
 // LDAP login, must be inside the firewall for this to work
 // an api token will be generated and saved as a cookie
-router.post('/ldap', passport.authenticate('ldapauth', { session: true }), (req, res) => {
+router.post('/auth/ldap', passport.authenticate('ldapauth', { session: true }), (req, res) => {
   token.saveToken(res, req.user.uid);
   res.redirect('/');
 });
@@ -83,7 +83,7 @@ router.post('/ldap', passport.authenticate('ldapauth', { session: true }), (req,
 
 passport.use(new SamlStrategy(
   {
-    path: `/auth${config.sso.saml.path}`,
+    path: config.sso.saml.path,
     entryPoint: config.sso.saml.entryPoint,
     issuer: config.sso.saml.issuer,
     cert: config.sso.saml.cert,
@@ -101,7 +101,7 @@ passport.use(new SamlStrategy(
 ));
 
 // Forward to the single signon service specified in the config file
-router.get('/sso', passport.authenticate(config.sso.strategy, { successRedirect: '/', failureRedirect: '/auth/sso' }));
+router.get('/auth/sso', passport.authenticate(config.sso.strategy, { successRedirect: '/', failureRedirect: '/auth/sso' }));
 
 // Single sign on callback path
 // This is called by the single signon service after a successful login

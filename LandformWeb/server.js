@@ -41,7 +41,7 @@ app.use(session({
 }));
 
 //serve auth routes - login, logout, get token
-app.use('/auth', authRouter);
+app.use(authRouter);
 
 //serve API routes
 const apiRouter = express.Router();
