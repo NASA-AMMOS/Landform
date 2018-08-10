@@ -34,7 +34,7 @@ namespace OPS.Pipeline.TileServer
 
         public const string MESH_EXT =  ".ply";
         public const string IMAGE_EXT = ".tif";
-        public const int CHUNK_RESPLUTION = 2046;
+        public const int CHUNK_RESOLUTION = 2048;
         const int FacesPerChunk = 100000;
         StartWorker pipeline;
         ChunkInputMessage message;
@@ -65,7 +65,7 @@ namespace OPS.Pipeline.TileServer
             if (input.Chunked)
             {
                 logger.Info("Input has already been chunked");
-                pipeline.CompeltionQueue.Enqueue(this.message);
+                pipeline.CompletionQueue.Enqueue(this.message);
                 return;
             }
 
@@ -93,22 +93,20 @@ namespace OPS.Pipeline.TileServer
                 input.ImageHeight = image.Height;
 
                 logger.Info("Chunk image");
-                var sparseImage = new SparseCloudImage(image, this.pipeline, CHUNK_RESPLUTION);
+                var sparseImage = new SparseCloudImage(image, this.pipeline, CHUNK_RESOLUTION);
                 imageBaseUrl =  TileServerConfig.Instance.ChunkUrl(project.Name, Guid.NewGuid().ToString());
-                // TODO: maintain original bit depth
                 sparseImage.Save<byte>(imageBaseUrl, IMAGE_EXT);
 
             }
             logger.Info("Building acceleration structures");
-            var thing = new TileLocalMesh.TilingInput();
+            var ti = new TileLocalMesh.TilingInput();
             var dataset = new TileLocalMesh.TilingInputDataset(mesh, image);
-            thing.AddDataset(dataset);
-            // TODO: migrate toward using sparse image so we don't need to know tile definitions
+            ti.AddDataset(dataset);
 
             logger.Info("Building mesh chunks");
             var tilingScheme = new BinaryTreeTilingScheme();
             var splitCriteria = new FaceLimitSplitCriteria(FacesPerChunk);
-            var root = TileLocalMesh.BuildBoundsTree(thing, tilingScheme, splitCriteria);
+            var root = TileLocalMesh.BuildBoundsTree(ti, tilingScheme, splitCriteria);
             
             ConcurrentBag<string> chunkIds = new ConcurrentBag<string>();
             var leaves = root.Leaves().ToList();
@@ -118,7 +116,7 @@ namespace OPS.Pipeline.TileServer
                 {
                     BoundingBox bounds = leaf.GetComponent<NodeBounds>().Bounds;
                     string id = Guid.NewGuid().ToString();
-                    Mesh m = thing.Clip(bounds, true);
+                    Mesh m = ti.Clip(bounds, true);
                     m.Save(f);
                     string meshUrl = TileServerConfig.Instance.ChunkUrl(project.Name, id + MESH_EXT);
                     pipeline.Storage.UploadFile(f, meshUrl);
@@ -130,7 +128,7 @@ namespace OPS.Pipeline.TileServer
             input.ChunkIds = chunkIds.ToList();
             input.Chunked = true;
             input.Save(pipeline.DynamoContext);
-            pipeline.CompeltionQueue.Enqueue(this.message);
+            pipeline.CompletionQueue.Enqueue(this.message);
             logger.Info("Done");
         }
 

@@ -109,7 +109,6 @@ namespace OPS.Pipeline.TileServer
                             string imageUrl = null;
                             if (pair.Image != null)
                             {
-                                // TODO: retain originial detail here
                                 pair.Image.Save<byte>(tmpImage);
                                 pair.Image.Save<byte>(tmp3DTileImage);
                                 imageUrl = TileServerConfig.Instance.TileUrl(this.ProjectName, this.Id + Path.GetExtension(tmpImage));

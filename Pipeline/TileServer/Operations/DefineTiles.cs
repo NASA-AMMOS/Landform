@@ -87,7 +87,7 @@ namespace OPS.Pipeline.TileServer
             if(project.TilesDefined)
             {
                 logger.Info("Tiles have already been defined for this project");
-                pipeline.CompeltionQueue.Enqueue(this.message);
+                pipeline.CompletionQueue.Enqueue(this.message);
                 return;
             }
 
@@ -102,7 +102,6 @@ namespace OPS.Pipeline.TileServer
             {
                 // Buid a tree using input datasets
                 var inputs = TilingInput.Find(pipeline.DynamoContext, project).ToList();
-                // TODO: refactor reused code between this and TileLocalMesh
                 var tilingInput = new TileLocalMesh.TilingInput();
                 foreach (var input in inputs)
                 {
@@ -146,8 +145,6 @@ namespace OPS.Pipeline.TileServer
                 {
                     throw new Exception("Unknonw tiling scheme");
                 }
-                // TODO: Add image size criteria, count up total area of texture space used by mesh uvs and multiply by factor to account for unsued atlas space as an estimate
-                // This won't be prefect so leaf tile generator will still need to be able to split leaves to create more children if needed
                 ITileSplitCriteria splitCriteria = new FaceLimitSplitCriteria(project.FacesPerTile);
 
                 logger.Info("Computing tile tree");
@@ -175,7 +172,7 @@ namespace OPS.Pipeline.TileServer
                 }
                 project.TilesDefined = true;
                 project.Save(pipeline.DynamoContext);
-                pipeline.CompeltionQueue.Enqueue(this.message);
+                pipeline.CompletionQueue.Enqueue(this.message);
             }
         }
 

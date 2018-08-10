@@ -35,6 +35,8 @@ namespace OPS.Pipeline.TileServer
         int timeout = 60 * 15;
         static ILog logger = LogManager.GetLogger(typeof(TilingQueue));
 
+        public const int MAX_MESSAGES_PER_DEQUEUE = 10;
+
 
         string queueName
         {
@@ -92,13 +94,18 @@ namespace OPS.Pipeline.TileServer
             }
         }
 
+        /// <summary>
+        /// Max messages will be clamped between 1 and 10
+        /// </summary>
+        /// <param name="maxMessages"></param>
+        /// <returns></returns>
         public TilingQueueMessage[] Deque(int maxMessages = 1)
         {
             var req = new ReceiveMessageRequest
             {
                 AttributeNames = new List<string>() { "All" },
                 MessageAttributeNames = new List<string>() { "All" },
-                MaxNumberOfMessages = MathE.Clamp(maxMessages, 1, 10),
+                MaxNumberOfMessages = MathE.Clamp(maxMessages, 1, MAX_MESSAGES_PER_DEQUEUE),
                 QueueUrl = this.queueUrl,                
                 WaitTimeSeconds = (int)TimeSpan.FromSeconds(15).TotalSeconds // How long to wait for message
             };
@@ -116,7 +123,7 @@ namespace OPS.Pipeline.TileServer
         {
             if(m.ReceiptHandle == null)
             {
-                throw new CloudException("Message does not have a recipt handle");
+                throw new CloudException("Message does not have a receipt handle");
             }
             var delRequest = new DeleteMessageRequest
             {
@@ -152,16 +159,13 @@ namespace OPS.Pipeline.TileServer
                 AmazonSQSClient client = GetClient();
                 CreateQueueRequest createQueueRequest = new CreateQueueRequest();
                 createQueueRequest.QueueName = this.queueName;
-                createQueueRequest.Attributes["VisibilityTimeout"] = timeout.ToString(); // 30 minutes
+                createQueueRequest.Attributes["VisibilityTimeout"] = timeout.ToString(); 
                 CreateQueueResponse createQueueResponse = client.CreateQueue(createQueueRequest);
             }
             catch (Exception e)
             {
                 logger.Error(e.Message);
             }
-      
-            
         }
-
     }
 }

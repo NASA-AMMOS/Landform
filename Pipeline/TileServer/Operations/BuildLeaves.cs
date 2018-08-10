@@ -73,7 +73,7 @@ namespace OPS.Pipeline.TileServer
                 if (n.MeshUrl != null)
                 {
                     logger.Info(n.Id + " skipping");
-                    pipeline.CompeltionQueue.Enqueue(new TileCompletedMessage(project.Name, n.Id));
+                    pipeline.CompletionQueue.Enqueue(new TileCompletedMessage(project.Name, n.Id));
                 }
             }
             // Filter any completed leaves
@@ -98,9 +98,7 @@ namespace OPS.Pipeline.TileServer
                     inputGroups.Add(group);
                 }
             }
-            //logger.Info("Downloading chunks: " + inputGroups.SelectMany(g=>g.Chunks).Count());
 
-            // TODO: replace bakeclipper with textured mesh clipper
             var bakeClipper = new TileLocalMesh.TilingInput();
             foreach (var group in inputGroups)
             {
@@ -121,22 +119,20 @@ namespace OPS.Pipeline.TileServer
                 string imgUrl = group.Chunks[0].ImageUrl;
                 if (imgUrl != null)
                 {
-                    image = new SparseCloudImage(group.Input.ImageBands, group.Input.ImageWidth, group.Input.ImageHeight, imgUrl, ChunkInput.IMAGE_EXT, this.pipeline, ChunkInput.CHUNK_RESPLUTION);
+                    image = new SparseCloudImage(group.Input.ImageBands, group.Input.ImageWidth, group.Input.ImageHeight, imgUrl, ChunkInput.IMAGE_EXT, this.pipeline, ChunkInput.CHUNK_RESOLUTION);
                 }
                 bakeClipper.AddDataset(new TileLocalMesh.TilingInputDataset(mergedMesh, image));
             }
             bakeClipper.InitTextureBaker();
-            //logger.Info("Make leaves");
 
             ConcurrentBag<TilingNode> processed = new ConcurrentBag<TilingNode>();
             Serial.ForEach(leaves, leaf =>
             {              
                 var m = bakeClipper.Clip(leaf.GetBounds());
-                // TODO: use clipper and subdivide if texture is too big creating new tiles as needed
                 var pair = bakeClipper.BakeTexture(m, project.TileResolution);
                 leaf.SaveMesh(pair, pipeline, 0);
                 processed.Add(leaf);
-                pipeline.CompeltionQueue.Enqueue(new TileCompletedMessage(project.Name, leaf.Id));
+                pipeline.CompletionQueue.Enqueue(new TileCompletedMessage(project.Name, leaf.Id));
                 logger.Info(string.Format(leaf.Id + " generating from {0} chunks ({1}/{2})", inputGroups.SelectMany(g => g.Chunks).Count(), processed.Count(), leaves.Count));
             });
         }     

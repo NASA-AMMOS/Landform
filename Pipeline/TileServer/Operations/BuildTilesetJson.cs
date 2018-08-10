@@ -54,7 +54,7 @@ namespace OPS.Pipeline.TileServer
                 File.WriteAllText(f, jsonData);
                 pipeline.Storage.UploadFile(f, TileServerConfig.Instance.WWWUrl(project.Name, "tileset.json"));
             });
-            pipeline.CompeltionQueue.Enqueue(this.message);
+            pipeline.CompletionQueue.Enqueue(this.message);
         }
     }
 }

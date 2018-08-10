@@ -54,6 +54,7 @@ namespace OPS.Pipeline.TileServer
             if (TilingProject.Find(this.DynamoContext, options.ProjectName) != null)
             {
                 logger.Info("A project by that name already exists");
+                return 1;
             }
             else
             {

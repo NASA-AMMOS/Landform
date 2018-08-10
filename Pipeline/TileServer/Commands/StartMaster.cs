@@ -205,7 +205,7 @@ namespace OPS.Pipeline.TileServer
 
             while (true)
             {
-                var messages = completionQueue.Deque(10);
+                var messages = completionQueue.Deque(TilingQueue.MAX_MESSAGES_PER_DEQUEUE);
                 foreach (var m in messages)
                 {
                     string s = JsonHelper.ToJson(m);          

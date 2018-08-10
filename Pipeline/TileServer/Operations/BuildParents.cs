@@ -49,7 +49,7 @@ namespace OPS.Pipeline.TileServer
             if (parent.MeshUrl != null)
             {
                 logger.Info(parent.Id + " skipping");
-                pipeline.CompeltionQueue.Enqueue(new TileCompletedMessage(project.Name, parent.Id));
+                pipeline.CompletionQueue.Enqueue(new TileCompletedMessage(project.Name, parent.Id));
                 return;
             }
             ConcurrentDictionary<string, SceneNode> idToNode = new ConcurrentDictionary<string, SceneNode>();
@@ -68,30 +68,21 @@ namespace OPS.Pipeline.TileServer
             {
                 if (!idToNode.ContainsKey(childId))
                 {
-                    // TODO: we need to create a new job with these ids or re-enque this job
-                    logger.Info(parent.Id + ": Missing input data");
+                    logger.Error(parent.Id + ": Missing input data");
                     return;
                 }
                 var tmpNode = new SceneNode();
                 tmpNode.AddComponent(idToNode[childId].GetComponent<NodeBounds>());
                 tmpNode.AddComponent(idToNode[childId].GetComponent<MeshImagePair>());
-                // HACK HAC TODO REMOVE
-                if (!tmpNode.HasComponent<NodeGeometricError>())
-                {
-                    tmpNode.AddComponent(new NodeGeometricError(0));
-                }
-
                 tmpNode.Transform.SetParent(parentSceneNode.Transform);
             }
             logger.Info(parent.Id + " generating form " + parent.DependsOn.Count + " tiles");
 
             parentSceneNode.BuildGeometryFromChildren(parentSceneNode, project.GetReconMethod(), project.FacesPerTile, project.TileResolution, project.GetSkirtMode());
 
-            // TODO handle case where there are no images
-            // TODO: retain originial detail here
             var pair = parentSceneNode.GetComponent<MeshImagePair>();
             parent.SaveMesh(pair, pipeline, parentSceneNode.GetComponent<NodeGeometricError>().Error);
-            pipeline.CompeltionQueue.Enqueue(new TileCompletedMessage(project.Name, parent.Id));
+            pipeline.CompletionQueue.Enqueue(new TileCompletedMessage(project.Name, parent.Id));
         }
     }
 }

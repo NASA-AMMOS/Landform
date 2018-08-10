@@ -49,7 +49,6 @@ namespace OPS.Pipeline.TileServer
                 }
                 catch (ResourceNotFoundException)
                 {
-                    // Table already exists
                     logger.InfoFormat("Table {0}: creating", tn);
                     pipeline.DynamoDB.CreateTable(CreateCloudTemplates.CreateTable(t, TileServerConfig.Instance.VenueName));
                     continue;

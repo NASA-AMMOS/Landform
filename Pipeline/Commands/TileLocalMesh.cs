@@ -47,7 +47,6 @@ namespace OPS
         [Option(Required = false, Default = "jpg", HelpText = "Image Extension")]
         public string ImageExtension { get; set; }
 
-        // TODO:  Add uv atlas option
     }
 
 
@@ -102,7 +101,6 @@ namespace OPS
                 List<BoundingBox> results = new List<BoundingBox>();
                 foreach(var b in boxes)
                 {
-                    // TODO: add spatial lookup to support large numbers of input meshes
                     foreach(var dataset in Datasets)
                     {
                         if(!dataset.MeshOperator.Empty(b))
@@ -119,8 +117,6 @@ namespace OPS
             {
                 foreach (var dataset in Datasets)
                 {
-                    // TODO: support texture based splitting
-                    // TODO: add spatial lookup to support large numbers of input meshes
                     if (splitCriteria.ShouldSplit(dataset.MeshOperator, box))
                     {
                         return true;
@@ -159,19 +155,17 @@ namespace OPS
 
             public TilingInputDataset(string meshFilename, string imageFilename)
             {
-                logger.Info(meshFilename);
-                this.Mesh = Mesh.Load(meshFilename);
-                
-                logger.Info(imageFilename);
-                if (imageFilename != null)
-                {
-                    this.Image = Image.Load(imageFilename);
-                }
+                Init(Mesh.Load(meshFilename), imageFilename == null ? null : Image.Load(imageFilename));
             }
 
             public TilingInputDataset(Mesh mesh, Image img)
             {
-                this.Mesh = mesh;
+                Init(mesh, img);
+            }
+
+            void Init(Mesh m, Image img)
+            {
+                this.Mesh = m;
                 if (!this.Mesh.HasNormals)
                 {
                     this.Mesh.GenerateVertexNormals();
@@ -197,17 +191,20 @@ namespace OPS
             ITilingScheme scheme;
             if (options.TilingScheme == TilingScheme.Oct)
             {
-                scheme = new BinaryTreeTilingScheme();
+                scheme = new OctreeTilingScheme();
             }
             else if (options.TilingScheme == TilingScheme.Bin)
             {
-                scheme = new OctreeTilingScheme();
+                scheme = new BinaryTreeTilingScheme();
             }
-            else
+            else if(options.TilingScheme == TilingScheme.Quad)
             {
                 scheme = new QuadTreeTilingScheme(options.SkirtAxis);
             }
-            // TODO: Add image size criteria
+            else
+            {
+                throw new Exception("Tiling scheme not yet supported");   
+            }
             ITileSplitCriteria splitCriteria = new FaceLimitSplitCriteria(options.TargetFacesPerTile);
             logger.Info("Computing tree bounds");
             SceneNode root = BuildBoundsTree(input, scheme, splitCriteria);
@@ -267,7 +264,6 @@ namespace OPS
                 Image img = null;
                 if(options.InputTexture != null)
                 {
-                    // TODO: compute correct resolution
                     var pair = input.BakeTexture(m, options.MaxResolutionPerTile);
                     if(pair.Image != null)
                     {

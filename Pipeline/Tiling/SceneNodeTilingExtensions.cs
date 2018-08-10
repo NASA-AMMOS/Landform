@@ -143,11 +143,9 @@ namespace OPS.Pipeline
             combinedFull.NormalizeNormals();
             BoundingBox minimumBounds = node.GetComponent<NodeBounds>().Bounds;
 
-            // TODO: handle the fact that we are reconstucting a larger area so we should inflate the number of faces cleverly
-            // TODO: Don't use 3 that only works for quad trees, this should be based off number of children
-            // / node.ChildCount/*3*/;  // could do 4 but lets try 3 for some extra around the edges
-            // TODO: (in response to todos above) we are trying this without a face reduction until we hit maxfacecount - this favors trying to make all tiles approach the target face count and means
-            // we will continue creating parent tiles with little to no reduction in polycount until that limit is reached at which decimation will start having an effect
+            // We limit target faces only to maxface count.  This means there will be little to no face reduction
+            // until the face limit is hit. This favors trying to make all tiles the same complexity rather than trying to always have a
+            // constant amount of leaf/parent tile complexity reduction.  This choice primarily affects parent tiles near leafs.
             int targetFaces = Mesh.Clip(combinedFull, minimumBounds).Faces.Count();
             targetFaces = Math.Min(targetFaces, maxFaceCountTarget);
             // Minimum bounds is a tight fitting bounding box around the child meshes with skirts
@@ -189,7 +187,6 @@ namespace OPS.Pipeline
             combinedDecimated.GenerateVertexNormals();
             if (skirtAxis.HasValue)
             {
-                // TODO remove skirt stuff - maintian unskrited meshes in the tree and only skirt them when saving
                 combinedDecimated.AddSkirt(skirtAxis.Value);
             }
             // We need to combine bounds here because decimated bounds may be smaller than the child bounds

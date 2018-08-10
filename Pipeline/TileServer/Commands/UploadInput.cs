@@ -44,24 +44,24 @@ namespace OPS.Pipeline.TileServer
             if (project == null)
             {
                 logger.Error("No project by that name found: " + options.ProjectName);
-                return 0;
+                return 1;
             }
             if(project.GetTilingScheme() == TilingScheme.UserDefined && options.TileId == null)
             {
                 logger.Error("Projects with user defined tiling scheme require that input datasets define a tile id to infer tree structure");
-                return 0;
+                return 1;
             }
             if (project.GetTilingScheme() != TilingScheme.UserDefined && options.TileId != null)
             {
                 logger.Error("Tile ids can only be defined on input datasets when using a user defined tiling scheme");
-                return 0;
+                return 1;
             }
             string name = Path.GetFileNameWithoutExtension(options.MeshFilepath);
 
             if (TilingInput.Find(this.DynamoContext, project, name) != null)
             {
                 logger.Error("An input with that name already exists");
-                return 0;
+                return 1;
             }
             string meshUrl = TileServerConfig.Instance.InputUrl(options.ProjectName, Path.GetFileName(options.MeshFilepath));
             logger.Info("Uploading: " + options.MeshFilepath);

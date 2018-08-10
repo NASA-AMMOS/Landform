@@ -32,7 +32,7 @@ namespace OPS.Pipeline.TileServer
             get { return new TileServerCloud(this).WorkerQueue; }
         }
 
-        public TilingQueue CompeltionQueue
+        public TilingQueue CompletionQueue
         {
             get { return new TileServerCloud(this).CompletionQueue; }            
         }
@@ -98,7 +98,6 @@ namespace OPS.Pipeline.TileServer
                 var messages = queue.Deque();
                 foreach(var m in messages)
                 {
-                    // TODO: start a process that updates timeout ever n seconds
                     try
                     {
                         // process
@@ -134,7 +133,6 @@ namespace OPS.Pipeline.TileServer
                         logger.Error(e.StackTrace);
                     }
 
-                    // TODO: end process that updates timeout
                     queue.Delete(m);
                 }
             }
