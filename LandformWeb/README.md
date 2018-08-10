@@ -1,6 +1,6 @@
 LandformWeb is a node based server and browser based client for controlling the Landform cluster including but not limited to functionality of the Geometry Tiling Server.
 
-Deployed at: https://landform.hi.jpl.nasa.gov
+Deployed at https://landform.hi.jpl.nasa.gov.  This site is only accessible to JPL IP addresses.  For VPN access, use full tunnel mode.
 
 This repo consists of a backend [REST API](API.md) server and a frontend react app in `/client`.  In production the frontend app is pre-built with webpack and served as static files by the backend server.  During development a separate frontend server is used with hot module reloading.  The react app configuration is managed with [create-react-app](https://github.com/facebook/create-react-app).
 
@@ -13,22 +13,29 @@ This repo consists of a backend [REST API](API.md) server and a frontend react a
 1. Go to http://localhost:3000 and follow the instructions to login and generate an API token.  Note that SSO login will only work when deployed to the production server URL given above, and LDAP login will only work when the server is within the JPL firewall (i.e. not deployed to AWS for production).
 
 ### Deployment
-1. `npm run build` - sugar for `npm install && npm run build-client && run npm bundle`
+1. Build landformweb.zip: `npm run build` - sugar for `npm install && npm run build-client && run npm bundle`
     1. `npm install` - installs node\_modules and client/node\_modules
     1. `npm run build-client` - runs `npm run build` to webpack client/build
     1. `npm run bundle` - creates landformweb.zip containing
         1. full archive of current git HEAD
         1. current client/build subtree
+1. Follow the instructions in the header comments of `../Cloud/aws-login.py` to configure your machine with the AWS CLI Python tools, if you haven't already.
 1. (optional) test the Docker container locally
-    1. `../Cloud/aws-login.py` or `winpty python ../Cloud/aws-login.py` if using git bash.  This will generate temporary AWS credentials in \$HOME/.aws/credentials.
+    1. This will require a local installation of [Docker](https://www.docker.com) host.
+    1. Run `../Cloud/aws-login.py` (`winpty python ../Cloud/aws-login.py` if using git bash) to generate temporary AWS credentials in \$HOME/.aws/credentials.
+        1. if you have multiple roles, select arn:aws:iam::589270964471:role/account_owner
     1. `npm run local-deploy -- [-f|--force] [-i|--interactive] [-d|--debug]`. This will re-build the Docker container ("landformweb") and run it locally.  You can test it at http://localhost:8081.  Options:
         1. `--force`: use existing landformweb.zip even if it might be outdated
         1. `--interactive`: drop into a shell in the Docker container instead of running the server.  Note: if using git bash run `winpty node local-deploy.js -i ...` instead.
         1. `--debug`: set `LOG_LEVEL=silly` in the Docker container
-1. `npm run deploy -- [environment-name] [-f|--force] [--profile=foo]`.  Re-upload to Elastic Beanstalk.  Options:
-    1. `environment-name`: Upload to this Elastic Beanstalk environment instead of `landformweb`
-    1. `--force`: use existing landformweb.zip even if it might be outdated
-    1. `--profile=foo`: use AWS credentials profile `foo` instead of `default`
+1. Deploy to Elastic Beanstalk
+    1. Run `../Cloud/aws-login.py` (`winpty python ../Cloud/aws-login.py` if using git bash) to generate temporary AWS credentials in \$HOME/.aws/credentials.
+        1. if you have multiple roles, select arn:aws:iam::589270964471:role/account_owner
+    1. `npm run deploy -- [environment-name] [-f|--force] [--profile=foo]`.  Options:
+        1. `environment-name`: Upload to this Elastic Beanstalk environment instead of `landformweb`
+        1. `--force`: use existing landformweb.zip even if it might be outdated
+        1. `--profile=foo`: use AWS credentials profile `foo` instead of `default`
+    1.  If you are working remotely by VPN you shouldn't be able to access the deployed site (https://landform.hi.jpl.nasa.gov) unless you use full tunnel, because we restrict access to the site to only JPL IP addresses.
 
 ## Setup
 
