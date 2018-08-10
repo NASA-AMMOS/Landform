@@ -66,8 +66,6 @@ namespace OPS.Geometry
             get; private set;
         }
 
-
-
         /// <summary>
         /// Create a mesh operator and compute accelerated structures
         /// </summary>
@@ -107,7 +105,7 @@ namespace OPS.Geometry
             this.hasFaces = mesh.Faces.Count > 0;
             this.Bounds = mesh.Bounds();
         }
-        
+
         /// <summary>
         /// Return a new mesh clipped to the given bounding box
         /// </summary>
@@ -141,7 +139,7 @@ namespace OPS.Geometry
             }
             if (!box.FuzzyContains(result.Bounds(), 1E-5))
             {
-                throw new Exception("Clipped mesh exceeds bounding box");
+                //throw new Exception("Clipped mesh exceeds bounding box");
             }
             return result;
         }   
@@ -172,6 +170,20 @@ namespace OPS.Geometry
                 throw new Exception("MeshOperator must have a vertex tree in order to count vertices");
             }
             return vertexTree.Intersects(box.ToRectangle()).Count;
+        }
+
+        /// <summary>
+        /// Return the number of vertices inside the given box
+        /// </summary>
+        /// <param name="box"></param>
+        /// <returns></returns>
+        public List<Vertex> VerticesIn(BoundingBox box)
+        {
+            if (vertexTree == null)
+            {
+                throw new Exception("MeshOperator must have a vertex tree in order to count vertices");
+            }
+            return vertexTree.Intersects(box.ToRectangle()).Select(i => vertices[i]).ToList();
         }
 
         /// <summary>

@@ -21,7 +21,7 @@ namespace OPS.Geometry
         {
             vertNodes = new List<VertexNode>();
 
-            //Construct VertexData objects for each vertex
+            //Construct VertexNode objects for each vertex
             for (int i = 0; i < mesh.Vertices.Count; i++)
             {
                 vertNodes.Add(new VertexNode(mesh.Vertices[i], i));
@@ -51,6 +51,31 @@ namespace OPS.Geometry
                     }
                 }
             }
+        }
+
+        public List<Tuple<int, int, int>> GetFaceIDs() {
+            var res = new List<Tuple<int, int, int>>();
+
+            HashSet<int> processedIds = new HashSet<int>();
+
+            foreach (VertexNode v in vertNodes)
+            {
+                foreach(Edge e in v.AdjacentEdges)
+                {
+                    //Skip perimeter edges without a left face
+                    if(e.Left == null)
+                    {
+                        continue;
+                    }
+                    //Only process if face has not already been found by another edge
+                    if(!processedIds.Contains(e.Dst.ID) && !processedIds.Contains(e.Left.ID))
+                    {
+                        res.Add(new Tuple<int, int, int>( e.Src.ID, e.Dst.ID, e.Left.ID ));
+                    }
+                }
+                processedIds.Add(v.ID);
+            }
+            return res;
         }
 
         /// <summary>

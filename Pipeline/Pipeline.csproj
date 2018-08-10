@@ -178,6 +178,7 @@
     <Compile Include="Commands\AlignmentWorker.cs" />
     <Compile Include="Commands\BuildFromAlignment.cs" />
     <Compile Include="Commands\CuriosityAlign.cs" />
+    <Compile Include="Commands\CuriosityMesh.cs" />
     <Compile Include="Commands\LegacyToTile3D.cs" />
     <Compile Include="Commands\CreateCloudTemplates.cs" />
     <Compile Include="Commands\TileLocalMesh.cs" />
@@ -204,6 +205,7 @@
     <Compile Include="Tiling\BaselineAtlaser.cs" />
     <Compile Include="Tiling\BaselineImageProducer.cs" />
     <Compile Include="Tiling\BinaryTreeTilingScheme.cs" />
+    <Compile Include="Tiling\BoundaryCorrection.cs" />
     <Compile Include="Tiling\DefaultLeafTileContentProducer.cs" />
     <Compile Include="Tiling\DefaultParentTileContentProducer.cs" />
     <Compile Include="Tiling\FaceLimitSplitCriteria.cs" />
@@ -222,6 +224,7 @@
     <Compile Include="Rover\RoverArticulation.cs" />
     <Compile Include="Rover\RoverProductEnum.cs" />
     <Compile Include="Tiling\OctreeTilingScheme.cs" />
+    <Compile Include="Tiling\OctreeTriangle.cs" />
     <Compile Include="Tiling\PrecomputedLODParentTileContentProducer.cs" />
     <Compile Include="Tiling\QuadTreeTilingScheme.cs" />
     <Compile Include="Tiling\ITilingScheme.cs" />

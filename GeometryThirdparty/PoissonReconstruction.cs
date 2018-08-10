@@ -19,7 +19,7 @@ namespace OPS.Geometry
         /// </summary>
         /// <param name="pointCloud"></param>
         /// <returns></returns>
-        public static Mesh PoissonReconstruct(Mesh pointCloud, float samplesPerNode = 30)
+        public static Mesh PoissonReconstruct(Mesh pointCloud, float samplesPerNode = 30, int depth = 8)
         {
             if (pointCloud.Vertices.Count == 0)
             {
@@ -63,7 +63,7 @@ namespace OPS.Geometry
                 PLYSerializer.Write(pointCloud, inputFile, new PLYMaximumCompatibilityWriter(false));
                 TemporaryFile.GetAndDelete(".ply", outputFile =>
                 {
-                    ProgramRunner pr = new ProgramRunner(poissonReconExe, "--in " + inputFile + " --out " + outputFile + " --samplesPerNode " + samplesPerNode /*+ " --scale 1"*/, captureOutput: true);
+                    ProgramRunner pr = new ProgramRunner(poissonReconExe, "--in " + inputFile + " --out " + outputFile + " --samplesPerNode " + samplesPerNode + " --depth " + depth + " --degree  4"/* + " --confidence 1 " + "-- confidenceBias 1"*/, captureOutput: true);
                     pr.Run();
                     if (!File.Exists(outputFile))
                     {

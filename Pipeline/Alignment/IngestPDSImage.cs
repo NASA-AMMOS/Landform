@@ -284,7 +284,7 @@ namespace OPS.Pipeline
             {
                 string cameraModel = JsonHelper.ToJson(metadata.CameraModel);
                 string url = imgRef.Url;
-                observation = RoverObservation.Create(DynamoDB, observationFrame, observationName, url, productTypeToObservationType[parser.DerivedImageType].ToString(), cameraModel, UseForReconstruction(parser, metadata), parser.Site, parser.Drive, parser.ProductId.Version, parser.Camera.ToString(), parser.ImageSizeType.ToString(), metadata.Width, metadata.Height);
+                observation = RoverObservation.Create(DynamoDB, observationFrame, observationName, url, productTypeToObservationType[parser.DerivedImageType].ToString(), cameraModel, UseForReconstruction(parser, metadata), parser.Site, parser.Drive, parser.ProductId.Version, parser.Camera.ToString(), parser.ImageSizeType.ToString(), "", metadata.Width, metadata.Height);
                 if (observation != null) {
                     return new Result(Status.Added, observation);
                 }

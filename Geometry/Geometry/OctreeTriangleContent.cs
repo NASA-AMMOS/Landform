@@ -11,13 +11,13 @@ namespace OPS.Geometry
     /// <summary>
     /// Structure to facilitate storing triangles in an OctTree
     /// </summary>
-    class OctreeTriangleContent : OctreeNodeContents
+    class HausdorffTriangle : OctreeNodeContents
     {
         public Triangle Triangle { get; internal set; }
         public BasePoint[] BasePoints = null;
         public List<int> TraversalPath;
 
-        public OctreeTriangleContent(Triangle tri)
+        public HausdorffTriangle(Triangle tri)
         {
             Triangle = tri;
         }

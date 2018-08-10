@@ -32,7 +32,8 @@ namespace OPS.Pipeline
                                                              CreateCloudTemplatesOptions,
                                                              TileLocalMeshOptions,                                                             
                                                              CuriosityAlignOptions,
-                                                             BuildFromAlignmentOptions
+                                                             BuildFromAlignmentOptions,
+                                                             CuriosityMeshOptions
                                                              >(args)
               .MapResult(
                 (AlignmentWorkerOptions opts) => new AlignmentWorker().Run(),
@@ -50,6 +51,7 @@ namespace OPS.Pipeline
                 (TileLocalMeshOptions opts) => new TileLocalMesh(opts).Run(),
                 (CuriosityAlignOptions opts) => new CuriosityAlign(opts).Run(),
                 (BuildFromAlignmentOptions opts) => new BuildFromAlignment(opts).Run(),
+                (CuriosityMeshOptions opts) => new CuriosityMesh(opts).Run(),
                 errs => 1);
         }
     }

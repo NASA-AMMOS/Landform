@@ -9,6 +9,60 @@ using System.Threading.Tasks;
 
 namespace OPS.Pipeline.Tiling
 {
+    public class TileNode
+    {
+        public TileNode(TileNode parent, BoundingBox bounds)
+        {
+            this.Parent = parent;
+            this.Bounds = bounds;
+            this.Children = new List<TileNode>();
+            if (parent == null)
+            {
+                this.HasPosXNeighbor = false;
+                this.HasNegXNeighbor = false;
+                this.HasPosYNeighbor = false;
+                this.HasNegYNeighbor = false;
+                this.HasPosZNeighbor = false;
+                this.HasNegZNeighbor = false;
+            } else
+            {
+                this.HasPosXNeighbor = parent.HasPosXNeighbor;
+                this.HasNegXNeighbor = parent.HasNegXNeighbor;
+                this.HasPosYNeighbor = parent.HasPosYNeighbor;
+                this.HasNegYNeighbor = parent.HasNegYNeighbor;
+                this.HasPosZNeighbor = parent.HasPosZNeighbor;
+                this.HasNegZNeighbor = parent.HasNegZNeighbor;
+            }
+        }
+
+        public IEnumerable<TileNode> GetLeaves()
+        {
+            if(this.Children.Count() == 0)
+            {
+                yield return this;
+            } else
+            {
+                foreach(TileNode child in Children)
+                {
+                    foreach (TileNode res in child.GetLeaves())
+                    {
+                        yield return res;
+                    }
+                }
+            }
+        }
+
+        public TileNode Parent;
+        public IEnumerable<TileNode> Children;
+        public BoundingBox Bounds;
+        public bool HasPosXNeighbor;
+        public bool HasNegXNeighbor;
+        public bool HasPosYNeighbor;
+        public bool HasNegYNeighbor;
+        public bool HasPosZNeighbor;
+        public bool HasNegZNeighbor;
+    }
+
     public enum SplitDim
     {
         X, Y, Z
@@ -23,25 +77,26 @@ namespace OPS.Pipeline.Tiling
     public enum TreeType
     {
         N_ary, //quad, oct...
-        KD
+        KD //binary (with alternating split dimension)
     }
 
     public struct GenericTilingSchemeOptions
     {
         public ITileSplitCriteria tileSplitCriteria;
+        public ITileSplitCriteria upperInfluenceRegion;
+        public ITileSplitCriteria lowerInfluenceRegion;
         public SplitDim[] splitDims;
         public SplitType splitType;
         public TreeType treeType;
-        public double influenceRatio;
     }
 
     public class TriangleDensityCriteria : ITileSplitCriteria
     {
         int VertexPerTile;
 
-        public TriangleDensityCriteria(int FacePerVertex)
+        public TriangleDensityCriteria(int vertexPerTile)
         {
-            this.VertexPerTile = FacePerVertex;
+            this.VertexPerTile = vertexPerTile;
         }
 
         bool ITileSplitCriteria.ShouldSplit(MeshOperator meshOperator, BoundingBox bounds)
@@ -93,25 +148,49 @@ namespace OPS.Pipeline.Tiling
             }
         }
 
-        IEnumerable<BoundingBox> BisectBoxes(IEnumerable<BoundingBox> boxes, SplitDim dim)
+        /// <summary>
+        /// Create a list of children by splitting each tile node along the dimension given, children will know in what direction they have neighbors
+        /// </summary>
+        /// <param name="tileNodes"></param>
+        /// <param name="dim"></param>
+        /// <returns></returns>
+        IEnumerable<TileNode> BisectBoxes(IEnumerable<TileNode> tileNodes, SplitDim dim)
         {
 
-            foreach (BoundingBox box in boxes)
+            foreach (TileNode tn in tileNodes)
             {
                 if (dim == SplitDim.X)
                 {
-                    yield return new BoundingBox(new Vector3(box.Min.X, box.Min.Y, box.Min.Z), new Vector3((box.Min.X + box.Max.X) / 2.0, box.Max.Y, box.Max.Z));
-                    yield return new BoundingBox(new Vector3((box.Min.X + box.Max.X) / 2.0, box.Min.Y, box.Min.Z), new Vector3(box.Max.X, box.Max.Y, box.Max.Z));
+                    BoundingBox b1 = new BoundingBox(new Vector3(tn.Bounds.Min.X, tn.Bounds.Min.Y, tn.Bounds.Min.Z), new Vector3((tn.Bounds.Min.X + tn.Bounds.Max.X) / 2.0, tn.Bounds.Max.Y, tn.Bounds.Max.Z));
+                    BoundingBox b2 = new BoundingBox(new Vector3((tn.Bounds.Min.X + tn.Bounds.Max.X) / 2.0, tn.Bounds.Min.Y, tn.Bounds.Min.Z), new Vector3(tn.Bounds.Max.X, tn.Bounds.Max.Y, tn.Bounds.Max.Z));
+                    TileNode tn1 = new TileNode(tn, b1);
+                    TileNode tn2 = new TileNode(tn, b2);
+                    tn1.HasPosXNeighbor = true;
+                    tn2.HasNegXNeighbor = true;
+                    yield return tn1;
+                    yield return tn2;
                 }
                 else if (dim == SplitDim.Y)
                 {
-                    yield return new BoundingBox(new Vector3(box.Min.X, box.Min.Y, box.Min.Z), new Vector3(box.Max.X, (box.Min.Y + box.Max.Y) / 2, box.Max.Z));
-                    yield return new BoundingBox(new Vector3(box.Min.X, (box.Min.Y + box.Max.Y) / 2, box.Min.Z), new Vector3(box.Max.X, box.Max.Y, box.Max.Z));
+                    BoundingBox b1 = new BoundingBox(new Vector3(tn.Bounds.Min.X, tn.Bounds.Min.Y, tn.Bounds.Min.Z), new Vector3(tn.Bounds.Max.X, (tn.Bounds.Min.Y + tn.Bounds.Max.Y) / 2, tn.Bounds.Max.Z));
+                    BoundingBox b2 = new BoundingBox(new Vector3(tn.Bounds.Min.X, (tn.Bounds.Min.Y + tn.Bounds.Max.Y) / 2, tn.Bounds.Min.Z), new Vector3(tn.Bounds.Max.X, tn.Bounds.Max.Y, tn.Bounds.Max.Z));
+                    TileNode tn1 = new TileNode(tn, b1);
+                    TileNode tn2 = new TileNode(tn, b2);
+                    tn1.HasPosYNeighbor = true;
+                    tn2.HasNegYNeighbor = true;
+                    yield return tn1;
+                    yield return tn2;
                 }
                 else
                 {
-                    yield return new BoundingBox(new Vector3(box.Min.X, box.Min.Y, box.Min.Z), new Vector3(box.Max.X, box.Max.Y, (box.Min.Z + box.Max.Z) / 2));
-                    yield return new BoundingBox(new Vector3(box.Min.X, box.Min.Y, (box.Min.Z + box.Max.Z) / 2), new Vector3(box.Max.X, box.Max.Y, box.Max.Z));
+                    BoundingBox b1 = new BoundingBox(new Vector3(tn.Bounds.Min.X, tn.Bounds.Min.Y, tn.Bounds.Min.Z), new Vector3(tn.Bounds.Max.X, tn.Bounds.Max.Y, (tn.Bounds.Min.Z + tn.Bounds.Max.Z) / 2));
+                    BoundingBox b2 = new BoundingBox(new Vector3(tn.Bounds.Min.X, tn.Bounds.Min.Y, (tn.Bounds.Min.Z + tn.Bounds.Max.Z) / 2), new Vector3(tn.Bounds.Max.X, tn.Bounds.Max.Y, tn.Bounds.Max.Z));
+                    TileNode tn1 = new TileNode(tn, b1);
+                    TileNode tn2 = new TileNode(tn, b2);
+                    tn1.HasPosZNeighbor = true;
+                    tn2.HasNegZNeighbor = true;
+                    yield return tn1;
+                    yield return tn2;
                 }
             }
         }
@@ -137,14 +216,14 @@ namespace OPS.Pipeline.Tiling
             }
         }
 
-        private IEnumerable<BoundingBox> WeightedBisectBoxes(IEnumerable<BoundingBox> boxes, SplitDim splitDim, Dictionary<SplitDim, List<List<Vertex>>> sortedLists, out Dictionary<SplitDim, List<List<Vertex>>> newSortedLists)
+        private IEnumerable<TileNode> WeightedBisectBoxes(IEnumerable<TileNode> tileNodes, SplitDim splitDim, Dictionary<SplitDim, List<List<Vertex>>> sortedLists, out Dictionary<SplitDim, List<List<Vertex>>> newSortedLists)
         {         
-            if (boxes.Count() != sortedLists[splitDim].Count)
+            if (tileNodes.Count() != sortedLists[splitDim].Count)
             {
                 throw new ArgumentException("Missing sorted list(s) for weighted split!");
             }
 
-            List<BoundingBox> newBoxes = new List<BoundingBox>();
+            List<TileNode> newTileNodes = new List<TileNode>();
             newSortedLists = new Dictionary<SplitDim, List<List<Vertex>>>();
             foreach (SplitDim dim in Options.splitDims)
             {
@@ -152,8 +231,9 @@ namespace OPS.Pipeline.Tiling
             }
 
             int i = 0;
-            foreach (BoundingBox box in boxes)
+            foreach (TileNode tn in tileNodes)
             {
+                //Compute the split location
                 int medianIndex = sortedLists[splitDim][i].Count()/2;
                 double splitLoc;
                 if (sortedLists[splitDim][i].Count() > 0)
@@ -161,36 +241,55 @@ namespace OPS.Pipeline.Tiling
                     splitLoc = GetCoord(sortedLists[splitDim][i][medianIndex], splitDim);
                 } else
                 {
-                    splitLoc = GetCoord((box.Max + box.Min)/2, splitDim);
+                    splitLoc = GetCoord((tn.Bounds.Max + tn.Bounds.Min)/2, splitDim);
                 }
-                
+
+                //Do the split
+                TileNode tn1;
+                TileNode tn2;
                 if (splitDim == SplitDim.X)
                 {
-                    newBoxes.Add(new BoundingBox(new Vector3(box.Min.X, box.Min.Y, box.Min.Z), new Vector3(splitLoc, box.Max.Y, box.Max.Z)));
-                    newBoxes.Add(new BoundingBox(new Vector3(splitLoc, box.Min.Y, box.Min.Z), new Vector3(box.Max.X, box.Max.Y, box.Max.Z)));
+                    BoundingBox b1 = new BoundingBox(new Vector3(tn.Bounds.Min.X, tn.Bounds.Min.Y, tn.Bounds.Min.Z), new Vector3(splitLoc, tn.Bounds.Max.Y, tn.Bounds.Max.Z));
+                    BoundingBox b2 = new BoundingBox(new Vector3(splitLoc, tn.Bounds.Min.Y, tn.Bounds.Min.Z), new Vector3(tn.Bounds.Max.X, tn.Bounds.Max.Y, tn.Bounds.Max.Z));
+                    tn1 = new TileNode(tn, b1);
+                    tn2 = new TileNode(tn, b2);
+                    tn1.HasPosXNeighbor = true;
+                    tn2.HasNegXNeighbor = true;
                 }
                 else if (splitDim == SplitDim.Y)
                 {
-                    newBoxes.Add(new BoundingBox(new Vector3(box.Min.X, box.Min.Y, box.Min.Z), new Vector3(box.Max.X, splitLoc, box.Max.Z)));
-                    newBoxes.Add(new BoundingBox(new Vector3(box.Min.X, splitLoc, box.Min.Z), new Vector3(box.Max.X, box.Max.Y, box.Max.Z)));
+                    BoundingBox b1 = new BoundingBox(new Vector3(tn.Bounds.Min.X, tn.Bounds.Min.Y, tn.Bounds.Min.Z), new Vector3(tn.Bounds.Max.X, splitLoc, tn.Bounds.Max.Z));
+                    BoundingBox b2 = new BoundingBox(new Vector3(tn.Bounds.Min.X, splitLoc, tn.Bounds.Min.Z), new Vector3(tn.Bounds.Max.X, tn.Bounds.Max.Y, tn.Bounds.Max.Z));
+                    tn1 = new TileNode(tn, b1);
+                    tn2 = new TileNode(tn, b2);
+                    tn1.HasPosYNeighbor = true;
+                    tn2.HasNegYNeighbor = true;
                 }
                 else
                 {
-                    newBoxes.Add(new BoundingBox(new Vector3(box.Min.X, box.Min.Y, box.Min.Z), new Vector3(box.Max.X, box.Max.Y, splitLoc)));
-                    newBoxes.Add(new BoundingBox(new Vector3(box.Min.X, box.Min.Y, splitLoc), new Vector3(box.Max.X, box.Max.Y, box.Max.Z)));
-                }            
-                int baseIndex = newBoxes.Count - 2;
+                    BoundingBox b1 = new BoundingBox(new Vector3(tn.Bounds.Min.X, tn.Bounds.Min.Y, tn.Bounds.Min.Z), new Vector3(tn.Bounds.Max.X, tn.Bounds.Max.Y, splitLoc));
+                    BoundingBox b2 = new BoundingBox(new Vector3(tn.Bounds.Min.X, tn.Bounds.Min.Y, splitLoc), new Vector3(tn.Bounds.Max.X, tn.Bounds.Max.Y, tn.Bounds.Max.Z));
+                    tn1 = new TileNode(tn, b1);
+                    tn2 = new TileNode(tn, b2);
+                    tn1.HasPosZNeighbor = true;
+                    tn2.HasNegZNeighbor = true;
+                }
+                newTileNodes.Add(tn1);
+                newTileNodes.Add(tn2);
+
+                //Create new sorted lists to pass down
+                int baseIndex = newTileNodes.Count - 2;
                 foreach (SplitDim dim in Options.splitDims)
                 {
                     List<Vertex> list1 = new List<Vertex>();
                     List<Vertex> list2 = new List<Vertex>();
                     foreach (Vertex v in sortedLists[dim][i])
                     {
-                        if (newBoxes[baseIndex].Contains(v.Position) == ContainmentType.Contains || newBoxes[baseIndex].Contains(v.Position) == ContainmentType.Intersects)
+                        if (newTileNodes[baseIndex].Bounds.Contains(v.Position) == ContainmentType.Contains || newTileNodes[baseIndex].Bounds.Contains(v.Position) == ContainmentType.Intersects)
                         {
                             list1.Add(v);
                         }
-                        if (newBoxes[baseIndex + 1].Contains(v.Position) == ContainmentType.Contains || newBoxes[baseIndex + 1].Contains(v.Position) == ContainmentType.Intersects)
+                        if (newTileNodes[baseIndex + 1].Bounds.Contains(v.Position) == ContainmentType.Contains || newTileNodes[baseIndex + 1].Bounds.Contains(v.Position) == ContainmentType.Intersects)
                         {
                             list2.Add(v);
                         }
@@ -200,31 +299,22 @@ namespace OPS.Pipeline.Tiling
                 }
                 i++;
             }
-            return newBoxes;
+            return newTileNodes;
         }
 
         private int vertComp(Vertex a, Vertex b, SplitDim dim)
         {
             return GetCoord(a, dim).CompareTo(GetCoord(b, dim));
-            //old...
-            if(dim == SplitDim.X)
-            {
-                return a.Position.X.CompareTo(b.Position.X);
-            } else if(dim == SplitDim.Y)
-            {
-                return a.Position.Y.CompareTo(b.Position.Y);
-            } else
-            {
-                return a.Position.Z.CompareTo(b.Position.Z);
-            }
         }
 
-        public IEnumerable<BoundingBox> SubDivide(MeshOperator meshOperator)
+        public TileNode SubDivide(MeshOperator meshOperator)
         {
-            return SubDivide(meshOperator, meshOperator.Bounds);
+            TileNode root = new TileNode(null, meshOperator.Bounds);
+            SubDivide(meshOperator, root);
+            return root;
         }
 
-        IEnumerable<BoundingBox> SubDivide(MeshOperator meshOperator, BoundingBox bounds, Dictionary<SplitDim, List<List<Vertex>>> sortedLists = null)
+        void SubDivide(MeshOperator meshOperator, TileNode parent, Dictionary<SplitDim, List<List<Vertex>>> sortedLists = null)
         {
             if (meshOperator == null)
             {
@@ -242,63 +332,111 @@ namespace OPS.Pipeline.Tiling
                     sortedLists.Add(dim, new List<List<Vertex>> { vertices });
                 }
             }
-
-            List<BoundingBox> leaves = new List<BoundingBox>();
             
-            //return if small enough
-            if(!this.Options.tileSplitCriteria.ShouldSplit(meshOperator, bounds))
-            {
-                leaves.Add(bounds);
-            } else
+            //If I still need to split
+            if(this.Options.tileSplitCriteria.ShouldSplit(meshOperator, parent.Bounds))
             {
                 //get split dims
-                SplitDim[] splitDims = GetSplitDims(meshOperator, bounds);
+                SplitDim[] splitDims = GetSplitDims(meshOperator, parent.Bounds);
 
                 //do the split in each dim (weighted or unweighted)
-                List<BoundingBox> boxes = new List<BoundingBox> { bounds };
+                List<TileNode> children = new List<TileNode> { parent };
                 foreach (SplitDim dim in splitDims)
                 {
                     if (Options.splitType == SplitType.Unweighted) {
-                        boxes = BisectBoxes(boxes, dim).ToList();
+                        children = BisectBoxes(children, dim).ToList();
                     } else
                     {
                         Dictionary<SplitDim, List<List<Vertex>>> newSortedLists;
-                        boxes = WeightedBisectBoxes(boxes, dim, sortedLists, out newSortedLists).ToList();
+                        children = WeightedBisectBoxes(children, dim, sortedLists, out newSortedLists).ToList();
                         sortedLists = newSortedLists;
                     }
                 }
 
+                parent.Children = children;
+                foreach(var child in parent.Children)
+                {
+                    child.Parent = parent;
+                }
+
                 //recurse
                 int i = 0;
-                foreach (BoundingBox b in boxes)
+                foreach (TileNode tn in parent.Children)
                 {                   
                     if (Options.splitType == SplitType.Weighted)
                     {
-                        var bSortedLists = new Dictionary<SplitDim, List<List<Vertex>>>();
+                        var tnSortedLists = new Dictionary<SplitDim, List<List<Vertex>>>();
                         foreach (SplitDim dim in Options.splitDims)
                         {
-                            bSortedLists.Add(dim, new List<List<Vertex>> { sortedLists[dim][i] });
+                            tnSortedLists.Add(dim, new List<List<Vertex>> { sortedLists[dim][i] });
                         }
-                        leaves.AddRange(SubDivide(meshOperator, b, bSortedLists));
+                        SubDivide(meshOperator, tn, tnSortedLists);
                         i++;
                     } else
                     {
-                        leaves.AddRange(SubDivide(meshOperator, b));
+                        SubDivide(meshOperator, tn);
                     }
                 }
             }
-            return leaves;
         }
 
+        /*
         public IEnumerable<Mesh> Create(MeshOperator meshOperator)
         {
             System.Collections.Concurrent.BlockingCollection<Mesh> meshes = new System.Collections.Concurrent.BlockingCollection<Mesh>();
-            IEnumerable<BoundingBox> boxes = SubDivide(meshOperator, meshOperator.Bounds);
+            var boxes = SubDivide(meshOperator, meshOperator.Bounds);
 
             Serial.ForEach(boxes, tileBounds =>
             {
-                BoundingBox influenceRegion = BoundingBoxExtensions.Scale(tileBounds, this.Options.influenceRatio);
+                double influenceScale = 1;
+                double scaleChange = 2;
+
+                int maxIterations = 50;
+                int iterations = 0;
+
+                //Grab enough points
+                while (!Options.lowerInfluenceRegion.ShouldSplit(meshOperator, BoundingBoxExtensions.Scale(tileBounds, influenceScale)) && iterations <= maxIterations)
+                {
+                    influenceScale *= scaleChange;
+                    iterations++;
+                }
+                scaleChange = influenceScale/2;
+                
+                //Refine box to be within limiting criteria
+                bool tooSmall = false;
+                bool tooLarge = true;
+                while((tooSmall || tooLarge) && iterations < maxIterations)
+                {
+                    if(tooSmall && tooLarge)
+                    {
+                        throw new Exception("Detected bad influence criteria!");
+                    }
+                    iterations++;
+                    scaleChange = scaleChange / 2;
+                    if(tooSmall)
+                    {
+                        influenceScale += scaleChange;
+                    } else
+                    {
+                        influenceScale -= scaleChange;
+                    }
+                    tooSmall = !Options.lowerInfluenceRegion.ShouldSplit(meshOperator, BoundingBoxExtensions.Scale(tileBounds, influenceScale));
+                    tooLarge = Options.upperInfluenceRegion.ShouldSplit(meshOperator, BoundingBoxExtensions.Scale(tileBounds, influenceScale));
+                }
+
+                BoundingBox influenceRegion = BoundingBoxExtensions.Scale(tileBounds, influenceScale);
                 Mesh temp = meshOperator.Clip(influenceRegion);
+
+                if(iterations >= maxIterations)
+                {
+                    Console.WriteLine("WARNING: Failed to converge!");
+                }
+                Console.WriteLine("Processing tile with " + meshOperator.CountVertices(tileBounds) + " vertices using region with " + meshOperator.CountVertices(influenceRegion));
+                Console.WriteLine("After clipping mesh has " + temp.Vertices.Count + " vertices");
+                Console.WriteLine("Scale was " + influenceScale);
+                Console.WriteLine("Iterations: " + iterations);
+
+                //temp.GenerateVertexNormals();
                 temp.Clean();
                 try {
                     var res = CreateTile(temp, tileBounds);
@@ -310,27 +448,16 @@ namespace OPS.Pipeline.Tiling
                 }
                 catch
                 {
+                    Console.WriteLine("FAILED building mesh: " + tileBounds.ToString() + "\n");
                     return;
                 }
                
-                Console.WriteLine("Finished building mesh: " + tileBounds.ToString());
-                /*BoundingBox dummyBox = BoundingBoxExtensions.Scale(tileBounds, 0.99);
-                Vertex v1 = new Vertex(dummyBox.Min);
-                Vertex v2 = new Vertex(dummyBox.Min.X, dummyBox.Max.Y, dummyBox.Min.Z);
-                Vertex v3 = new Vertex(dummyBox.Max.X, dummyBox.Min.Y, dummyBox.Min.Z);
-                Vertex v4 = new Vertex(dummyBox.Max.X, dummyBox.Max.Y, dummyBox.Min.Z);
-                Vertex v5 = new Vertex(dummyBox.Min.X, dummyBox.Min.Y, dummyBox.Max.Z);
-                Vertex v6 = new Vertex(dummyBox.Min.X, dummyBox.Max.Y, dummyBox.Max.Z);
-                Vertex v7 = new Vertex(dummyBox.Max.X, dummyBox.Min.Y, dummyBox.Max.Z);
-                Vertex v8 = new Vertex(dummyBox.Max);
-                
-                box.Vertices.AddRange(new List<Vertex> { v5, v6, v7, v8 } );
-                int i = box.Vertices.Count - 4;
-                box.Faces.AddRange(new List<Face> {new Face(i, i+1, i+2), new Face(i+2, i+1, i+3)});             */
+                Console.WriteLine("Finished building mesh: " + tileBounds.ToString() + "\n");             
             });
             //meshes.Add(box);
             return meshes;
         }
+        */
 
         static Mesh CreateTile(Mesh points, BoundingBox bounds)
         {
@@ -345,7 +472,7 @@ namespace OPS.Pipeline.Tiling
             points.ClearUVs();
             points.ClearColors();
             points.Clean();
-            points = PoissonReconstruction.PoissonReconstruct(points);
+            points = PoissonReconstruction.PoissonReconstruct(points, 30, 6);
             points.Clean();
             MeshOperator op = new MeshOperator(points);
             return op.Clip(bounds);
