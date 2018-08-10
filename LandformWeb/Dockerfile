@@ -19,8 +19,6 @@ WORKDIR /usr/src/app
 
 COPY . .
 
-COPY .ebextensions/nginx/conf.d/landform-nginx.conf /etc/nginx/conf.d
-
 #--unsafe-perm makes npm run as 'root' instead of 'nobody' which avoids
 #npm WARN lifecycle landformweb@1.0.0~postinstall: cannot run in wd ... node npm-install-client.js /usr/src/app
 RUN npm install --production --unsafe-perm
