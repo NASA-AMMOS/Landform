@@ -1,12 +1,10 @@
-const spawn = require('child_process').spawn;
-
 const defEnv = require('./config').app.ebDeployEnvironment;
-const { checkDeploy } = require('./deployUtil');
+const { spawn, checkDeploy, prompt } = require('./deployUtil');
 
 //npm run deploy -- [environment-name] [-f|--force|--force=true] [--profile=foo]
 
 checkDeploy()
-  .then((args) => {
+  .then(async(args) => {
     const cmd = 'eb';
 
     //eb deploy <environment-name>
@@ -21,9 +19,12 @@ checkDeploy()
 
     if (!args.length || args[0].startsWith('-')) args.unshift(defEnv);
 
+    const env = args[0];
+
+    args.unshift('-v');
     args.unshift('deploy');
 
-    console.log(`running '${cmd} ${args.join(' ')}'`);
-    spawn(cmd, args, { stdio: 'inherit', shell: true });
+    if (await prompt('deploy', `deploy to environment '${env}'`)) spawn(cmd, args);
+    else console.log('aborted');
   })
   .catch(e => console.error(e.message));

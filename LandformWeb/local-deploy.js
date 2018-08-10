@@ -1,16 +1,14 @@
 const fs = require('fs-extra');
 const path = require('path');
-const spawnSync = require('child_process').spawnSync;
-const spawn = require('child_process').spawn;
 const Zip = require('@jpl/adm-zip');
 
 const config = require('./config');
-const { boolArg, checkDeploy } = require('./deployUtil');
+const { boolArg, spawn, spawnSync, checkDeploy, checkTTY } = require('./deployUtil');
 
 //npm run local-deploy -- [-f|--force|--force=true] [-i|--interactive|--interactive=true] [-d|--debug|--debug=true]
 
 checkDeploy()
-  .then((args) => {
+  .then(async(args) => {
 
     let nextTmpDir = 0, tmpDir = null;
     do { tmpDir = path.join('tmp', `local-deploy${nextTmpDir++}`); } while (fs.pathExistsSync(tmpDir));
@@ -24,8 +22,7 @@ checkDeploy()
 
       const imageName = config.app.localDeployTag;
       const buildArgs = ['build', '--tag', imageName, '--build-arg', 'NODE_ENV=production', '.'];
-      console.log(`running docker ${buildArgs.join(' ')}`);
-      spawnSync('docker', buildArgs, { stdio: 'inherit', cwd: tmpDir, shell: true });
+      spawnSync('docker', buildArgs, { cwd: tmpDir });
 
       const runArgs = ['run'];
 
@@ -45,17 +42,16 @@ checkDeploy()
 
       runArgs.push('-p', `${config.app.port}:${config.app.port}`);
 
+      let ok = true;
       if (args.some(a => boolArg(a, 'interactive'))) {
-        console.log('NOTE: for git bash run \'winpty node local-deploy.js [-f] [-d] -i\'');
+        //example interactive command line: docker run -it <image-name> /bin/bash
+        //or for git bash: winpty docker run -it <image-name> //bin/bash
+        //the double slash in //bin/bash prevents git bash from munging that path
+        if (!(await checkTTY('local-deploy'))) ok = false;
         runArgs.push('-it', imageName, '/bin/bash');
       } else runArgs.push(imageName);
 
-      console.log(`running docker ${runArgs.join(' ')}`);
-      spawn('docker', runArgs, { stdio: 'inherit', shell: true });
-
-      //example interactive command line: docker run -it <image-name> /bin/bash
-      //or for git bash: winpty docker run -it <image-name> //bin/bash
-      //the double slash in //bin/bash prevents git bash from munging that path
+      if (ok) spawn('docker', runArgs);
 
     } finally { fs.remove(tmpDir); }
   })
