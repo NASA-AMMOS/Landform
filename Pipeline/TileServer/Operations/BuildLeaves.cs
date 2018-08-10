@@ -108,7 +108,7 @@ namespace OPS.Pipeline.TileServer
                     Mesh m = null;
                     TemporaryFile.GetAndDelete(Path.GetExtension(c.MeshUrl), f =>
                     {
-                        pipeline.Storage.DownloadFile(c.MeshUrl, f);
+                        pipeline.Storage(c.MeshUrl).DownloadFile(c.MeshUrl, f);
                         m = Mesh.Load(f);
                     });
                     return m;

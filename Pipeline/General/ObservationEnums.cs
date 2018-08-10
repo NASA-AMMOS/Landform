@@ -9,6 +9,7 @@ namespace OPS.Pipeline
     public enum ObservationType
     {
         Image,
-        Points
+        Points,
+        Normals
     }
 }

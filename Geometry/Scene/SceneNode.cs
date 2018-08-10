@@ -177,7 +177,6 @@ namespace OPS.Geometry
                 "Patricia", "Strongface", "The Danger", "George", "Donald",
                 "Flapjack", "Harry", "Ol' Hickory Ham Mike", "Nick", "Thom", "Watman",
                 "Yoko", "Mortality Itself", "Penny", "Jack", "Rocky", "Bill", "Ted", "Eve"
-            // TODO: expand
         };
 
         static readonly string[] SillyDescriptors = new string[]
@@ -187,7 +186,7 @@ namespace OPS.Geometry
 
         static readonly string[] LessSillyPlaces = new string[]
         {
-            "Flats", "Plains", "Highlands", "Desert", "Mountain", "Savannah", "Ocean", "Taiga", "Valley", "Tundra", "Mesa", "Canyon", "Ridge", "Cliff Face", "Riverbed", "Gorge", "Rock", "Swamp", "Adventure", "Slope", "Descent", "Erg",
+            "Flats", "Plains", "Butte", "Highlands", "Desert", "Mountain", "Savannah", "Ocean", "Taiga", "Valley", "Tundra", "Mesa", "Canyon", "Ridge", "Cliff Face", "Riverbed", "Gorge", "Rock", "Swamp", "Adventure", "Slope", "Descent", "Erg",
             "Barchan", "Dunes", "Dreikanter", "Ventifact", "Yardang", "Palsa", "Fjord", "Marsh", "Inselberg", "Gully", "Gulch", "Cuesta", "Hogback", "Hoodoos", "Arroyo", "Yazoo Stream", "Terrace", "Ravine", "Dome", "Crater", "Cryovolcano",
             "Bornhardt", "Karst Field"
         };

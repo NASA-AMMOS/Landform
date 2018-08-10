@@ -1,4 +1,5 @@
-﻿using OPS.Alignment;
+﻿using log4net;
+using OPS.Alignment;
 using OPS.Cloud;
 using OPS.Geometry;
 using OPS.Plumbing;
@@ -15,12 +16,15 @@ namespace OPS.Pipeline
     {
         public DetectOverlaps(PipelineCore pipeline) : base(pipeline)
         {
+
         }
 
-        public IEnumerable<Overlap> Run(List<Observation> toConsider)
+        public IEnumerable<Overlap> Run(List<Observation> toConsider, ILog logger = null)
         {
-            if (toConsider.Count < 1) yield break;
-
+            if (toConsider.Count < 1)
+            {
+                yield break;
+            }
             // Step 1: construct minimal scene graph containing observations
             AlignmentScene scene = new AlignmentScene();
             string project;
@@ -65,12 +69,17 @@ namespace OPS.Pipeline
             FrustumOverlapDetector fod = new FrustumOverlapDetector(Pipeline);
             fod.Detect(scene);
 
-            foreach (var overlap in scene.Overlaps)
+            logger.Info("Found overlaps: " + scene.Overlaps.Count);
+
+            foreach(var overlap in scene.Overlaps)
             {
                 var one = refToObservation[overlap.One];
                 var two = refToObservation[overlap.Two];
-                var steve = Overlap.Create(Pipeline.DynamoContext, one, two);
-                if (steve != null) yield return steve;
+                var steve = ThroughputManager.Run(() => Overlap.Create(Pipeline.DynamoContext, one, two));
+                if(steve != null)
+                {
+                    yield return steve;
+                }
             }
         }
     }

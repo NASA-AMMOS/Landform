@@ -42,7 +42,16 @@ namespace OPS.Alignment
                     if (!node.HasComponent<NodeConvexHull>())
                     {
                         var chc = node.AddComponent<NodeConvexHull>();
-                        chc.Hull = ConvexHull.FromImage(GetImage(imgRef));
+                        try
+                        {
+                            var imgObs = ((ObservationImageRef)imgRef).Observation;
+                            chc.Hull = ConvexHull.FromParams((CameraModel)JsonHelper.FromJson(imgObs.CameraModel), imgObs.Width, imgObs.Height);
+                        }
+                        catch
+                        {
+                            var img = GetImage(imgRef);
+                            chc.Hull = ConvexHull.FromImage(img);
+                        }
                     }
                     return;
                 }
@@ -126,6 +135,7 @@ namespace OPS.Alignment
 
                 Queue<SceneNode> toConsider = new Queue<SceneNode>();
                 toConsider.Enqueue(scene.Root);
+
                 while (toConsider.Count > 0)
                 {
                     var other = toConsider.Dequeue();
@@ -146,6 +156,7 @@ namespace OPS.Alignment
                     {
                         continue;
                     }
+
                     addOverlap(node, other);
 
                     var imgRefC = other.GetComponent<NodeImageReference>();
@@ -157,8 +168,8 @@ namespace OPS.Alignment
                     foreach (var child in other.Children)
                     {
                         toConsider.Enqueue(child);
-                    }
-                }
+                    }                
+                }                
             }
             scene.Overlaps = unique;
         }

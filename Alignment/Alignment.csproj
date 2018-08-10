@@ -124,6 +124,10 @@
     <Compile Include="Routines\FrustumOverlapDetector.cs" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\Cloud\Cloud.csproj">
+      <Project>{52A91B3E-1D95-4715-A7AD-2840B2F9C6AC}</Project>
+      <Name>Cloud</Name>
+    </ProjectReference>
     <ProjectReference Include="..\Geometry\Geometry.csproj">
       <Project>{49A27854-2DB1-4E1C-893A-F60BDF5F3C86}</Project>
       <Name>Geometry</Name>
@@ -167,6 +171,15 @@
     <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup>
+    <Content Include="ExternalApps\CeresBundler.exe">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="ExternalApps\libglog.dll">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="ExternalApps\main.asm">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
     <Content Include="License-LGPL.txt" />
     <Content Include="TrainingSpaces\default.txt">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>

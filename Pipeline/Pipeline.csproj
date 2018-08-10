@@ -179,6 +179,8 @@
     <Compile Include="Commands\AlignScene.cs" />
     <Compile Include="Commands\BenchmarkS3.cs" />
     <Compile Include="Commands\AlignmentWorker.cs" />
+    <Compile Include="Commands\BuildFromAlignment.cs" />
+    <Compile Include="Commands\CuriosityAlign.cs" />
     <Compile Include="Commands\LegacyToTile3D.cs" />
     <Compile Include="Commands\CreateCloudTemplates.cs" />
     <Compile Include="Commands\TileLocalMesh.cs" />

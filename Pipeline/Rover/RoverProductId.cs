@@ -103,6 +103,7 @@ namespace OPS.Pipeline
             prodToType.Add("RAS", RoverProductType.Image);
             prodToType.Add("RNG", RoverProductType.Range);
             prodToType.Add("XYZ", RoverProductType.XYZ);
+            prodToType.Add("UVW", RoverProductType.NormalMap); //TODO: check
         }
 
         public override RoverProductProducer Producer
@@ -186,6 +187,13 @@ namespace OPS.Pipeline
         }
     }
 
+    public enum MSSSProductType
+    {
+        JPEGGrayscale,
+        JPEGColor,
+        Unknown
+    }
+
     public class MSSSProductId : RoverProductId
     {
 
@@ -245,6 +253,23 @@ namespace OPS.Pipeline
             get
             {
                 return RoverProductType.Image;
+            }
+        }
+
+        public MSSSProductType MSSSProductType
+        {
+            get
+            {
+                string t = this.productType.ToUpper();
+                if (t == "D")
+                {
+                    return MSSSProductType.JPEGGrayscale;
+                }
+                else if (t=="E" || t == "F")
+                {
+                    return MSSSProductType.JPEGColor;
+                }
+                return MSSSProductType.Unknown;
             }
         }
 

@@ -52,7 +52,8 @@ namespace OPS.Pipeline.TileServer
             TemporaryFile.GetAndDelete(".json", f =>
             {
                 File.WriteAllText(f, jsonData);
-                pipeline.Storage.UploadFile(f, TileServerConfig.Instance.WWWUrl(project.Name, "tileset.json"));
+                string url = TileServerConfig.Instance.WWWUrl(project.Name, "tileset.json");
+                pipeline.Storage(url).UploadFile(f, url);
             });
             pipeline.CompletionQueue.Enqueue(this.message);
         }

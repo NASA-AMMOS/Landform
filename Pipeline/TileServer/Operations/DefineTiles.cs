@@ -109,7 +109,7 @@ namespace OPS.Pipeline.TileServer
                     Mesh mesh = null;
                     TemporaryFile.GetAndDelete(Path.GetExtension(input.MeshUrl), f =>
                     {
-                        pipeline.Storage.DownloadFile(input.MeshUrl, f);
+                        pipeline.Storage(input.MeshUrl).DownloadFile(input.MeshUrl, f);
                         mesh = Mesh.Load(f);
                         mesh.RemoveInvalidFaces();
                         mesh.Clean();
@@ -120,7 +120,7 @@ namespace OPS.Pipeline.TileServer
                         logger.Info("Downloading: " + input.ImageUrl);
                         TemporaryFile.GetAndDelete(Path.GetExtension(input.ImageUrl), f =>
                         {
-                            pipeline.Storage.DownloadFile(input.ImageUrl, f);
+                            pipeline.Storage(input.ImageUrl).DownloadFile(input.ImageUrl, f);
                             image = Image.Load(f);
                         });
                     }

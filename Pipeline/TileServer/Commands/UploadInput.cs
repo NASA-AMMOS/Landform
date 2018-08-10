@@ -65,13 +65,13 @@ namespace OPS.Pipeline.TileServer
             }
             string meshUrl = TileServerConfig.Instance.InputUrl(options.ProjectName, Path.GetFileName(options.MeshFilepath));
             logger.Info("Uploading: " + options.MeshFilepath);
-            Storage.UploadFile(options.MeshFilepath, meshUrl);
+            Storage(meshUrl).UploadFile(options.MeshFilepath, meshUrl);
             string imageUrl = null;
             if (options.ImageFilepath != null)
             {
                 imageUrl = TileServerConfig.Instance.InputUrl(options.ProjectName, Path.GetFileName(options.ImageFilepath));
                 logger.Info("Uploading: " + options.ImageFilepath);
-                Storage.UploadFile(options.ImageFilepath, imageUrl);
+                Storage(imageUrl).UploadFile(options.ImageFilepath, imageUrl);
             }
             logger.Info("Updating Database");
             TilingInput.Create(this.DynamoContext, name, project, meshUrl, imageUrl, options.TileId);

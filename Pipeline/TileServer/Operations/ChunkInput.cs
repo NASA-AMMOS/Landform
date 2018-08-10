@@ -73,7 +73,7 @@ namespace OPS.Pipeline.TileServer
             Mesh mesh = null;
             TemporaryFile.GetAndDelete(Path.GetExtension(input.MeshUrl), f =>
             {
-                pipeline.Storage.DownloadFile(input.MeshUrl, f);
+                pipeline.Storage(input.MeshUrl).DownloadFile(input.MeshUrl, f);
                 mesh = Mesh.Load(f);
                 mesh.RemoveInvalidFaces();
                 mesh.Clean();
@@ -85,7 +85,7 @@ namespace OPS.Pipeline.TileServer
                 logger.Info("Downloading: " + input.ImageUrl);
                 TemporaryFile.GetAndDelete(Path.GetExtension(input.ImageUrl), f =>
                 {
-                    pipeline.Storage.DownloadFile(input.ImageUrl, f);
+                    pipeline.Storage(input.ImageUrl).DownloadFile(input.ImageUrl, f);
                     image = Image.Load(f);
                 });
                 input.ImageBands = image.Bands;
@@ -119,7 +119,7 @@ namespace OPS.Pipeline.TileServer
                     Mesh m = ti.Clip(bounds, true);
                     m.Save(f);
                     string meshUrl = TileServerConfig.Instance.ChunkUrl(project.Name, id + MESH_EXT);
-                    pipeline.Storage.UploadFile(f, meshUrl);
+                    pipeline.Storage(meshUrl).UploadFile(f, meshUrl);
                     TilingInputChunk record = TilingInputChunk.Create(pipeline.DynamoContext, id, project, meshUrl, imageBaseUrl, m.Bounds());
                     chunkIds.Add(id);
                     logger.Info(string.Format("Chunk: {0}/{1}", chunkIds.Count(), leaves.Count));

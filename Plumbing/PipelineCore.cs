@@ -9,6 +9,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
@@ -19,6 +20,7 @@ namespace OPS.Plumbing
     {
         public PipelineCore(bool enableS3 = true, bool enableDynamo = true, string dynamoPrefix = "", string s3Url = "", string dynamoUrl = "", string profile = null)
         {
+            storageSelecter = new Dictionary<string, StorageHelper>();
             if (enableS3)
             {
                 var opts = new AmazonS3Config();
@@ -34,11 +36,7 @@ namespace OPS.Plumbing
                 }
                 s3Client = new AmazonS3Client(opts);
 
-                // TODO: StorageHelper will not work with a local deployment
-                // until changes to StorageHelper are made. I did not include my
-                // hacky workaround because the changes in Thomas' branch should
-                // be a cleaner way to deal with it.
-                storage = new StorageHelper(profile, "us-west-1");
+                defaultStorage = new StorageHelper(profile, "us-west-1");
             }
             else
             {
@@ -78,14 +76,50 @@ namespace OPS.Plumbing
         AmazonS3Client s3Client;
         AmazonDynamoDBClient ddbClient;
         DynamoDBContext context;
-        StorageHelper storage;
+        StorageHelper defaultStorage;
+        Dictionary<string, StorageHelper> storageSelecter;
         string cacheFolder;
         
         public string Profile { get; private set; }
         public IAmazonDynamoDB DynamoDB { get { return ddbClient; } }
         public DynamoDBContext DynamoContext { get { return context; } }
         public IAmazonS3 S3Client { get { return s3Client; } }
-        public StorageHelper Storage { get { return storage; } }
+        public StorageHelper Storage(string url) {
+            while (url.Length > 0)
+            {
+                if (storageSelecter.ContainsKey(url))
+                {
+                    return storageSelecter[url];
+                }
+                url = url.Substring(0, url.Length - 1);
+            }
+            return defaultStorage;
+        }
+
+        /// <summary>
+        /// Add a profile to be used for the specified url prefix
+        /// </summary>
+        /// <param name="urlPrefix"></param>
+        /// <param name="profile"></param>
+        public void AddProfile(string urlPrefix, string profile)
+        {
+            storageSelecter.Add(urlPrefix, new StorageHelper(profile));
+        }
+
+        /// <summary>
+        /// Remove a profile
+        /// </summary>
+        /// <param name="urlPrefix"></param>
+        /// <returns></returns>
+        public StorageHelper RemoveProfile(string urlPrefix)
+        {
+            StorageHelper res = storageSelecter[urlPrefix];
+            if(res != null)
+            {
+                storageSelecter.Remove(urlPrefix);
+            }
+            return res;
+        }
 
         /// <summary>
         /// Download a file from S3, using an on-disk cache.
@@ -102,7 +136,7 @@ namespace OPS.Plumbing
                 filename = new Guid(sha.ComputeHash(Encoding.UTF8.GetBytes(s3Url)).Take(16).ToArray()).ToString() + Path.GetExtension(s3Url);
             }
             string cachePath = Path.Combine(cacheFolder, subfolder, filename);
-            if (!File.Exists(cachePath)) Storage.DownloadFile(s3Url, cachePath);
+            if (!File.Exists(cachePath)) Storage(s3Url).DownloadFile(s3Url, cachePath);
             return cachePath;
         }
 
@@ -159,7 +193,7 @@ namespace OPS.Plumbing
             {
                 TemporaryFile.GetAndDelete("", tempFile =>
                 {
-                    Storage.DownloadFile(s3Url, tempFile);
+                    Storage(s3Url).DownloadFile(s3Url, tempFile);
                     res = DataProduct.Load<T>(File.ReadAllBytes(tempFile));
                 });
             }
@@ -172,7 +206,7 @@ namespace OPS.Plumbing
         /// <param name="project">Project name</param>
         /// <param name="product">DataProduct object</param>
         /// <param name="useCache">Enable on-disk cache</param>
-        public virtual void Save(string project, DataProduct product, bool useCache = true)
+        public virtual void Save(string project, DataProduct product, bool waitForResponse = false, bool useCache = true)
         {
             if (product.Guid == Guid.Empty)
             {
@@ -188,7 +222,7 @@ namespace OPS.Plumbing
                     Directory.CreateDirectory(dir);
                 }
                 File.WriteAllBytes(filePath, product.Serialize());
-                Storage.UploadFile(filePath, p.ProductPath + product.Guid.ToString());
+                Storage(filePath).UploadFile(filePath, p.ProductPath + product.Guid.ToString());
             };
 
             if (useCache)
@@ -198,6 +232,15 @@ namespace OPS.Plumbing
             else
             {
                 TemporaryFile.GetAndDelete("", writeAndUpload);
+            }
+
+            if (waitForResponse) {
+                Type t = product.GetType();
+                MethodInfo DynamicGet = GetType().GetMethod("Get").MakeGenericMethod(new Type[] {t});
+                while (DynamicGet.Invoke(this, new object[] { project, product.Guid, false }) == null)
+                {
+                    System.Threading.Thread.Sleep(1000);
+                }
             }
         }
 

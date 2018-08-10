@@ -112,7 +112,7 @@ namespace OPS.Pipeline.TileServer
                                 pair.Image.Save<byte>(tmpImage);
                                 pair.Image.Save<byte>(tmp3DTileImage);
                                 imageUrl = TileServerConfig.Instance.TileUrl(this.ProjectName, this.Id + Path.GetExtension(tmpImage));
-                                pipeline.Storage.UploadFile(tmpImage, imageUrl);
+                                pipeline.Storage(imageUrl).UploadFile(tmpImage, imageUrl);
                                 this.ImageUrl = imageUrl;
                             }
                             else
@@ -121,12 +121,12 @@ namespace OPS.Pipeline.TileServer
                             }
                             string meshUrl = TileServerConfig.Instance.TileUrl(this.ProjectName, this.Id + Path.GetExtension(tmpMesh));
                             pair.Mesh.Save(tmpMesh, Path.GetFileName(imageUrl));
-                            pipeline.Storage.UploadFile(tmpMesh, meshUrl);
+                            pipeline.Storage(meshUrl).UploadFile(tmpMesh, meshUrl);
                             this.MeshUrl = meshUrl;
 
                             string tileUrl = TileServerConfig.Instance.WWWUrl(this.ProjectName, this.Id + Path.GetExtension(tmp3DTileMesh));
                             pair.Mesh.Save(tmp3DTileMesh, tmp3DTileImage);
-                            pipeline.Storage.UploadFile(tmp3DTileMesh, tileUrl);
+                            pipeline.Storage(tileUrl).UploadFile(tmp3DTileMesh, tileUrl);
 
                             this.GeometricError = geometricError;
                             this.Save(pipeline.DynamoContext);
@@ -157,7 +157,7 @@ namespace OPS.Pipeline.TileServer
                 Mesh m = null;
                 TemporaryFile.GetAndDelete(Path.GetExtension(this.MeshUrl), f =>
                 {
-                    pipeline.Storage.DownloadFile(this.MeshUrl, f);
+                    pipeline.Storage(this.MeshUrl).DownloadFile(this.MeshUrl, f);
                     m = Mesh.Load(f);
                 });
                 Image img = null;
@@ -165,7 +165,7 @@ namespace OPS.Pipeline.TileServer
                 {
                     TemporaryFile.GetAndDelete(Path.GetExtension(this.ImageUrl), f =>
                     {
-                        pipeline.Storage.DownloadFile(this.ImageUrl, f);
+                        pipeline.Storage(this.ImageUrl).DownloadFile(this.ImageUrl, f);
                         img = Image.Load(f);
                     });
                 }
