@@ -301,10 +301,15 @@ namespace OPS.Pipeline
             productTypeToObservationType.TryAdd(RoverProductType.Image, ObservationType.Image);
             productTypeToObservationType.TryAdd(RoverProductType.Range, ObservationType.Points);
             productTypeToObservationType.TryAdd(RoverProductType.XYZ, ObservationType.Points);
+            productTypeToObservationType.TryAdd(RoverProductType.NormalMap, ObservationType.Normals);
         }
 
         public override Result Ingest(S3ImageRef imgRef)
         {
+            if(imgRef.DisplayName.Contains("UVW"))
+            {
+                ;
+            }
             if (imgRef is ObservationImageRef)
             {
                 throw new InvalidOperationException("hey now, let's not get *too* weird");

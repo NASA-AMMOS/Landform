@@ -300,5 +300,26 @@ namespace ImageTest
                 img.Save<byte>("blur_0.png");
             }
         }
+
+        [TestMethod]
+        public void TestImageRotate90()
+        {
+            Image img = new Image(1, 2, 3);
+            img[0, 0, 0] = 0;
+            img[0, 0, 1] = 1;
+            img[0, 1, 0] = 2;
+            img[0, 1, 1] = 3;
+            img[0, 2, 0] = 4;
+            img[0, 2, 1] = 5;
+            Image rotatedImg = img.Rotate90Clockwise();
+            Assert.AreEqual(img.Width, rotatedImg.Height);
+            Assert.AreEqual(img.Height, rotatedImg.Width);
+            Assert.AreEqual(img[0, 0, 0], rotatedImg[0, 0, 2]);
+            Assert.AreEqual(img[0, 0, 1], rotatedImg[0, 1, 2]);
+            Assert.AreEqual(img[0, 1, 0], rotatedImg[0, 0, 1]);
+            Assert.AreEqual(img[0, 1, 1], rotatedImg[0, 1, 1]);
+            Assert.AreEqual(img[0, 2, 0], rotatedImg[0, 0, 0]);
+            Assert.AreEqual(img[0, 2, 1], rotatedImg[0, 1, 0]);
+        }
     }
 }

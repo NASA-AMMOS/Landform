@@ -55,29 +55,21 @@ namespace OPS.Pipeline
             PathHelper.EnsureExists(options.OutputDirectory);
         }
 
-        UncertainRigidTransform ObservationToRoot(Observation obs, FrameCache frameCache)
+        Matrix ObservationToRoot(Observation obs, FrameCache frameCache)
         {
             Frame frame = frameCache.GetFrame(obs.FrameName);
-            UncertainRigidTransform transform = null;
-            while (frame != null) 
+            //Start with the initial transform
+            Matrix transform = FrameTransform.Find(DynamoContext, frame).Transform.Mean;
+            while ((frame = frame.GetParent(DynamoContext)) != null) 
             {
-                // Base case, we are the observation frame, initilize transform to the transform for this observation
-                if(transform == null)
-                {
-                    transform = FrameTransform.Find(DynamoContext, frame).Transform;
-                }
-                else
-                {
-                    // Otherwise we are a parent transform -  Read the transform and combine it with the existing transform
-                    var parentTransform = FrameTransform.Find(DynamoContext, frame).Transform;
-                    transform = parentTransform * transform;
-                }
-                frame = frame.GetParent(DynamoContext);
+                //Read the parent transform and combine it with the existing transform
+                var parentTransform = FrameTransform.Find(DynamoContext, frame).Transform.Mean;
+                transform = parentTransform * transform;          
             }
             return transform;
         }
 
-        Mesh BuildPointCloud(Observation obs, UncertainRigidTransform observationToRoot, Observation imgObs = null, int stepSize = 1)
+        Mesh BuildPointCloud(Observation obs, Matrix obsToRoot, Observation imgObs = null, int stepSize = 1)
         {
             S3ImageRef s3ref = new S3ImageRef(obs.Url);
             
@@ -95,7 +87,6 @@ namespace OPS.Pipeline
                 colorImg = Load(new S3ImageRef(imgObs.Url));
             }
 
-            var obsToRoot = observationToRoot.Mean;
             Mesh result = new Mesh();
             for (int r = 0; r < img.Height; r += stepSize)
             {
@@ -154,7 +145,7 @@ namespace OPS.Pipeline
             FrameCache cache = new FrameCache(DynamoContext, options.ProjectName);
 
             ConcurrentBag<TransformRecord> records = new ConcurrentBag<TransformRecord>();
-            Parallel.ForEach(pointObs, new ParallelOptions() { MaxDegreeOfParallelism= Environment.ProcessorCount }, rngObs =>
+            Serial.ForEach(pointObs, new ParallelOptions() { MaxDegreeOfParallelism= Environment.ProcessorCount }, rngObs =>
             {
                 if (!rngObs.UseForReconstruction)
                 {
@@ -174,7 +165,7 @@ namespace OPS.Pipeline
                 }
 
 
-                records.Add(new TransformRecord(transform.Mean, rmc, rngObs.Name));
+                records.Add(new TransformRecord(transform, rmc, rngObs.Name));
                 var obsPair =  MSLProject.FindBestPair(RoverObservation.Find(DynamoContext, frame).Where(ob => ob.UseForReconstruction).ToList());
                 Observation imgObs = null;
                 if(obsPair != null)

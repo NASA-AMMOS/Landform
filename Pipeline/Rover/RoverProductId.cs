@@ -103,6 +103,7 @@ namespace OPS.Pipeline
             prodToType.Add("RAS", RoverProductType.Image);
             prodToType.Add("RNG", RoverProductType.Range);
             prodToType.Add("XYZ", RoverProductType.XYZ);
+            prodToType.Add("UVW", RoverProductType.NormalMap); //TODO: check
         }
 
         public override RoverProductProducer Producer

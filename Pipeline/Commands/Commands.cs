@@ -23,7 +23,6 @@ namespace OPS.Pipeline
                                                              ConvertBaselineMeshesOptions,
                                                              TileBaselineMeshOptions,
                                                              AlignmentWorkerOptions,
-                                                             TilingOptions,
                                                              TileBaselineMeshesOptions,
                                                              BenchmarkS3Options,
                                                              LegacyToWebVROptions,
@@ -36,7 +35,6 @@ namespace OPS.Pipeline
                                                              >(args)
               .MapResult(
                 (AlignmentWorkerOptions opts) => new AlignmentWorker().Run(),
-                (TilingOptions opts) => new TilingWorker().Run(),
                 (ConvertBaselineMeshOptions opts) => new ConvertBaselineMesh(opts).Run(),
                 (ConvertBaselineMeshesOptions opts) => new ConvertBaselineMeshes(opts).Run(),
                 (TileBaselineMeshOptions opts) => new TileBaselineMesh(opts).Run(),

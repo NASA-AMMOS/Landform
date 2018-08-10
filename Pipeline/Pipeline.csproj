@@ -123,6 +123,9 @@
     <Reference Include="RTree, Version=1.1.0.0, Culture=neutral, processorArchitecture=MSIL">
       <HintPath>..\packages\RTree.1.1.0\lib\netstandard2.0\RTree.dll</HintPath>
     </Reference>
+    <Reference Include="Sharp3DBinPacking, Version=1.0.0.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\Sharp3DBinPacking.1.2.0\lib\net45\Sharp3DBinPacking.dll</HintPath>
+    </Reference>
     <Reference Include="System" />
     <Reference Include="System.ComponentModel.Composition" />
     <Reference Include="System.ComponentModel.DataAnnotations" />
@@ -181,7 +184,26 @@
     <Compile Include="Commands\LegacyToTile3D.cs" />
     <Compile Include="Commands\CreateCloudTemplates.cs" />
     <Compile Include="Commands\TileLocalMesh.cs" />
-    <Compile Include="Commands\TilingWorker.cs" />
+    <Compile Include="TileServer\Cloud\TilingNode.cs" />
+    <Compile Include="TileServer\Commands\ConfigureServer.cs" />
+    <Compile Include="TileServer\Commands\CreateProject.cs" />
+    <Compile Include="TileServer\Commands\RunProject.cs" />
+    <Compile Include="TileServer\Commands\StartMaster.cs" />
+    <Compile Include="TileServer\Commands\StartWorker.cs" />
+    <Compile Include="TileServer\Commands\UploadInput.cs" />
+    <Compile Include="TileServer\Cloud\TileServerCloud.cs" />
+    <Compile Include="TileServer\Cloud\TilingInput.cs" />
+    <Compile Include="TileServer\Cloud\TilingProject.cs" />
+    <Compile Include="TileServer\Cloud\TilingQueue.cs" />
+    <Compile Include="TileServer\Operations\BuildLeaves.cs" />
+    <Compile Include="TileServer\Operations\BuildParents.cs" />
+    <Compile Include="TileServer\Operations\BuildTilesetJson.cs" />
+    <Compile Include="TileServer\Operations\ChunkInput.cs" />
+    <Compile Include="TileServer\Operations\DefineTiles.cs" />
+    <Compile Include="TileServer\Cloud\TilingInputChunk.cs" />
+    <Compile Include="TileServer\TileServerConfig.cs" />
+    <Compile Include="TileServer\TilingScheme.cs" />
+    <Compile Include="TileServer\Commands\TileServerCommands.cs" />
     <Compile Include="Commands\Commands.cs" />
     <Compile Include="Commands\ConvertBaselineMesh.cs" />
     <Compile Include="Commands\LegacyToWebVR.cs" />
@@ -225,6 +247,8 @@
     <Compile Include="Tiling\QuadTreeTilingScheme.cs" />
     <Compile Include="Tiling\ITilingScheme.cs" />
     <Compile Include="Tiling\SceneNodeTilingExtensions.cs" />
+    <Compile Include="Tiling\SparseCloudImage.cs" />
+    <Compile Include="Tiling\TexturedMeshClipper.cs" />
     <Compile Include="Tiling\Tile3DBuilder.cs" />
     <Compile Include="Tiling\TilesetSchema.cs" />
   </ItemGroup>
@@ -327,6 +351,7 @@
   <ItemGroup>
     <Analyzer Include="..\packages\AWSSDK.EC2.3.3.49\analyzers\dotnet\cs\AWSSDK.EC2.CodeAnalysis.dll" />
   </ItemGroup>
+  <ItemGroup />
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <Target Name="EnsureNuGetPackageBuildImports" BeforeTargets="PrepareForBuild">
     <PropertyGroup>

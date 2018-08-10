@@ -18,7 +18,7 @@ namespace OPS.Plumbing
 {
     public class PipelineCore
     {
-        public PipelineCore(bool enableS3 = true, bool enableDynamo = true, string dynamoPrefix = "", string s3Url = "", string dynamoUrl = "", string profile = "default")
+        public PipelineCore(bool enableS3 = true, bool enableDynamo = true, string dynamoPrefix = "", string s3Url = "", string dynamoUrl = "", string profile = null)
         {
             storageSelecter = new Dictionary<string, StorageHelper>();
             if (enableS3)
@@ -62,7 +62,7 @@ namespace OPS.Plumbing
                 ddbClient = null;
                 context = null;
             }
-
+            this.Profile = profile;
             cacheFolder = TemporaryFile.GetTempDirectory();
         }
         ~PipelineCore()
@@ -79,7 +79,8 @@ namespace OPS.Plumbing
         StorageHelper defaultStorage;
         Dictionary<string, StorageHelper> storageSelecter;
         string cacheFolder;
-
+        
+        public string Profile { get; private set; }
         public IAmazonDynamoDB DynamoDB { get { return ddbClient; } }
         public DynamoDBContext DynamoContext { get { return context; } }
         public IAmazonS3 S3Client { get { return s3Client; } }

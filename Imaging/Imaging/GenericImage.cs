@@ -422,7 +422,7 @@ namespace OPS.Imaging
         {
             return this.GetEnumerator();
         }
-        
+
         /// <summary>
         /// Convenience accessor for reading image data.  This is slower
         /// than directly accessing the data array with Data[b][row*Width + col]
@@ -432,10 +432,10 @@ namespace OPS.Imaging
         /// <param name="row">Y index</param>
         /// <param name="column">X index</param>
         /// <returns></returns>
-        public T this[int band, int row, int column]
+        public virtual T this[int band, int row, int column]
         {
             get
-            {              
+            {
                 return this.Data[band][(row * Width) + column];
             }
 

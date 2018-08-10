@@ -747,7 +747,7 @@ namespace GeometryTest
             m.Vertices.Add(new Vertex(1, 0, 1, 4, 6, 8, 0, 4, 2, 3, 4, 2));
             m.Faces.Add(new Face(0, 1, 3));
             m.Faces.Add(new Face(0, 2, 3));
-            m.AddSkirt(SkirtAxis.Y);
+            m.AddSkirt(SkirtMode.Y);
             Assert.AreEqual(8, m.Vertices.Count);
             foreach (var v1 in m.Vertices)
             {
@@ -761,13 +761,13 @@ namespace GeometryTest
                 }
                 Assert.AreEqual(2, similarVerts);
             }
-            m.RemoveSkirt(SkirtAxis.Y);
+            m.RemoveSkirt(SkirtMode.Y);
             Assert.AreEqual(4, m.Vertices.Count);
-            m.RemoveSkirt(SkirtAxis.Y);
+            m.RemoveSkirt(SkirtMode.Y);
             Assert.AreEqual(4, m.Vertices.Count);
-            m.RemoveSkirt(SkirtAxis.Z);
+            m.RemoveSkirt(SkirtMode.Z);
             Assert.AreEqual(4, m.Vertices.Count);
-            m.RemoveSkirt(SkirtAxis.X);
+            m.RemoveSkirt(SkirtMode.X);
             Assert.AreEqual(4, m.Vertices.Count);
         }
     }
