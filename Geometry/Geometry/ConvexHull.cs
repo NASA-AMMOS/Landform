@@ -65,18 +65,22 @@ namespace OPS.Geometry
 
         public static ConvexHull FromImage(Image img, double nearClip=0.1, double farClip=20)
         {
+            return FromParams(img.CameraModel, img.Width, img.Height, nearClip, farClip);
+        }
+
+        public static ConvexHull FromParams(CameraModel camera, int width, int height, double nearClip=0.1, double farClip=20)
+        {
             // Get points - just corners for linear models, denser otherwise
             int subdiv = 2;
-            var camera = img.CameraModel;
             if (!camera.Linear) subdiv = 5;
 
             List<Vector3> pts = new List<Vector3>();
             for (int i = 0; i < subdiv; i++)
             {
-                double x = (img.Width - 1.0) * (i / (subdiv - 1.0));
+                double x = (width - 1.0) * (i / (subdiv - 1.0));
                 for (int j = 0; j < subdiv; j++)
                 {
-                    double y = (img.Height - 1.0) * (j / (subdiv - 1.0));
+                    double y = (height - 1.0) * (j / (subdiv - 1.0));
                     for (int k = 0; k < subdiv; k++)
                     {
                         double z = (farClip - nearClip) * (k / (subdiv - 1.0)) + nearClip;

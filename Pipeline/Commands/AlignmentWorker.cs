@@ -10,6 +10,7 @@ using Amazon.DynamoDBv2.DataModel;
 using OPS.Util;
 using OPS.Alignment;
 using OPS.Plumbing;
+using log4net;
 
 namespace OPS.Pipeline
 {
@@ -226,10 +227,10 @@ namespace OPS.Pipeline
         public int FindOverlaps(FindOverlapsMessage m)
         {
             //for this image, look up nearby images in Dynamo
-            RoverObservation thisobs = RoverObservation.Find(Pipeline.DynamoContext, MSLProject.PROJECT_NAME, m.ObservationName);
+            RoverObservation thisobs = RoverObservation.Find(Pipeline.DynamoContext, "MSL", m.ObservationName);
             //for now, look at all other images in Dynamo for this same project 
             IEnumerable<RoverObservation> observations = Pipeline.DynamoContext.Scan<RoverObservation>(new ScanCondition("ProjectName",
-                Amazon.DynamoDBv2.DocumentModel.ScanOperator.Equal, MSLProject.PROJECT_NAME));
+                Amazon.DynamoDBv2.DocumentModel.ScanOperator.Equal, "MSL"));
 
             foreach(var overlap in detector.Run(observations.Cast<Observation>().ToList()))
             {

@@ -11,13 +11,13 @@ namespace OPS.Pipeline
     public class QuadTreeTilingScheme : ITilingScheme
     {
 
-        public SkirtAxis Direction { get; private set;  }
+        public SkirtMode Direction { get; private set;  }
 
         /// <summary>
         /// Split direction defines the axis that will not be subdivided
         /// </summary>
         /// <param name="direction"></param>
-        public QuadTreeTilingScheme(SkirtAxis direction)
+        public QuadTreeTilingScheme(SkirtMode direction)
         {
             this.Direction = direction;
         }
@@ -31,7 +31,7 @@ namespace OPS.Pipeline
         public IEnumerable<BoundingBox> Split(MeshOperator meshOperator, BoundingBox box)
         {
             List<BoundingBox> boxes = new List<BoundingBox>();
-            if (Direction == SkirtAxis.Z)
+            if (Direction == SkirtMode.Z)
             {
 
                 // Split in the XY dimension to produce 4 boxes
@@ -43,7 +43,7 @@ namespace OPS.Pipeline
                 boxes.Add(new BoundingBox(new Vector3(box.Min.X, mid.Y, box.Min.Z), new Vector3(mid.X, box.Max.Y, box.Max.Z)));
                 boxes.Add(new BoundingBox(new Vector3(mid.X, mid.Y, box.Min.Z), new Vector3(box.Max.X, box.Max.Y, box.Max.Z)));               
             }
-            else if(Direction == SkirtAxis.Y)
+            else if(Direction == SkirtMode.Y)
             {
                 // Split in the XZ dimension to produce 4 boxes
                 // C D
@@ -78,13 +78,13 @@ namespace OPS.Pipeline
         public BoundingBox ExpandBounds(BoundingBox currentBounds, BoundingBox desiredBounds)
         {
             // Allow expansion in the z direction
-            if (Direction == SkirtAxis.Z)
+            if (Direction == SkirtMode.Z)
             {
                 currentBounds.Min.Z = Math.Min(currentBounds.Min.Z, desiredBounds.Min.Z);
                 currentBounds.Max.Z = Math.Max(currentBounds.Max.Z, desiredBounds.Max.Z);
                 return currentBounds;
             }
-            else if (Direction == SkirtAxis.Y)
+            else if (Direction == SkirtMode.Y)
             {
                 currentBounds.Min.Y = Math.Min(currentBounds.Min.Y, desiredBounds.Min.Y);
                 currentBounds.Max.Y = Math.Max(currentBounds.Max.Y, desiredBounds.Max.Y);

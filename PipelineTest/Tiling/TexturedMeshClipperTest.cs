@@ -10,7 +10,7 @@ using System.IO;
 using OPS.Pipeline;
 using Microsoft.Xna.Framework;
 
-namespace PipelineTest.Tiling
+namespace PipelineTest
 {
     [TestClass]
     [DeploymentItem("TestData", "TestData")]
@@ -45,5 +45,27 @@ namespace PipelineTest.Tiling
             Assert.IsTrue(clippedPair.Image.Width <= pair.Image.Width && clippedPair.Image.Height <= pair.Image.Height);
             clippedPair.Image.Save<byte>("clippedTexture.png");
         }
-    } 
+
+        [TestMethod]
+        public void MultipleTexturedMeshClipTest()
+        {
+            TexturedMeshClipper clipper = new TexturedMeshClipper();
+            Mesh mesh1 = LoadMesh();
+            Mesh mesh2 = new Mesh(mesh1);
+            mesh1.Clean();
+            mesh2.Clean();
+            Image img = LoadImage();
+            clipper.AddMeshImagePair(new MeshImagePair(mesh1, img));
+            mesh2.Translate(new Vector3(0, 0, 60));
+            clipper.AddMeshImagePair(new MeshImagePair(mesh2, img));
+            BoundingBox box = new BoundingBox(new Vector3(-100, 60, 0), new Vector3(-30, 90, 120));
+
+            MeshImagePair clippedPair = clipper.Clip(box);
+            Assert.IsTrue(clippedPair.Mesh.HasFaces);
+            Assert.IsTrue(clippedPair.Image.Width > 0 && clippedPair.Image.Height > 0);
+            Assert.IsTrue(clippedPair.Image.Width * clippedPair.Image.Height <= img.Width * img.Height * 2);
+            clippedPair.Image.Save<byte>("clippedTexture.png");
+            clippedPair.Mesh.Save("clippedMesh.ply", "clippedTexture.png");
+        }
+    }
 }

@@ -101,7 +101,7 @@ namespace OPS.Geometry
             public BinaryBodyReference POSITION;
             public BinaryBodyReference RGB;
             public BinaryBodyReference NORMAL;
-            public float[] RTC_CENTER;
+            public float[] RTC_CENTER = null;
 
             public FeatureTable() { }
             public FeatureTable(int pointsLength, bool hasNormals, bool hasColors)

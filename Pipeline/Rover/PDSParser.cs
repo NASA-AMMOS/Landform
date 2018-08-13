@@ -217,23 +217,47 @@ namespace OPS.Pipeline
         }
 
         // Mastcam only
-        public int FilterNumber
+        public int? FilterNumber
         {
             get
-            {    
-                 return metadata.ReadAsInt("IMAGE_REQUEST_PARMS", "FILTER_NUMBER");
+            {
+                if (metadata.HasKey("IMAGE_REQUEST_PARMS", "FILTER_NUMBER"))
+                {
+                    return metadata.ReadAsInt("IMAGE_REQUEST_PARMS", "FILTER_NUMBER");
+                }
+                if(metadata.HasKey("OBSERVATION_REQUEST_PARMS", "FILTER_NUMBER"))
+                {
+                    return metadata.ReadAsInt("OBSERVATION_REQUEST_PARMS", "FILTER_NUMBER");
+                }
+                if (metadata.HasKey("INSTRUMENT_STATE_PARMS", "FILTER_NUMBER"))
+                {
+                    return metadata.ReadAsInt("INSTRUMENT_STATE_PARMS", "FILTER_NUMBER");
+                }
+                if (metadata.HasKey("MINI_HEADER", "FILTER_NUMBER"))
+                {
+                    return metadata.ReadAsInt("MINI_HEADER", "FILTER_NUMBER");
+                }
+                return null;
             }
         }
 
         // Mastcam only
-        public double MaximumFocusDistance
+        public double? MaximumFocusDistance
         {
             get
             {
-                return metadata.ReadAsDouble("DERIVED_IMAGE_PARMS", "MSL:MAXIMUM_FOCUS_DISTANCE");
+                if (metadata.HasKey("DERIVED_IMAGE_PARMS", "MSL:MAXIMUM_FOCUS_DISTANCE"))
+                {
+                    return metadata.ReadAsDouble("DERIVED_IMAGE_PARMS", "MSL:MAXIMUM_FOCUS_DISTANCE");
+                }
+                return null;
             }
         }
 
+
+        /// <summary>
+        /// Rover to local level
+        /// </summary>
         public Quaternion RoverOriginRotation
         {
             get
@@ -336,7 +360,7 @@ namespace OPS.Pipeline
         {
             get
             {
-                return Camera == RoverProductCamera.MastcamLeft || Camera == RoverProductCamera.MastcamLeft;
+                return Camera == RoverProductCamera.MastcamLeft || Camera == RoverProductCamera.MastcamRight;
             }
         }
 

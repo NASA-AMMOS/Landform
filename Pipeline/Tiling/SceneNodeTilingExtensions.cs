@@ -13,6 +13,9 @@ namespace OPS.Pipeline
 {
     public static class SceneNodeTilingExtensions
     {
+
+        public const double DEFAULT_SEARCH_RATIO = 1.1f;
+
         public static void SaveMesh(this SceneNode node, string directory, string meshExtension = "ply", string imageExtension = "jpg")
         {
             meshExtension = "." + meshExtension;
@@ -73,7 +76,9 @@ namespace OPS.Pipeline
                 var clipped = Mesh.Clip(p.Mesh, cropBounds);
                 totalPixels += TextureBaker.ComputePixelArea(clipped, p.Image);
             }
-            return TextureBaker.PixelAreaToSquareDimension(totalPixels);
+            int size =  TextureBaker.PixelAreaToSquareDimension(totalPixels);
+            size = Math.Min(size, maxTextureSize);
+            return size;
         }
 
         /// <summary>
@@ -92,6 +97,22 @@ namespace OPS.Pipeline
             return node.Children.All(n => n.HasComponent<MeshImagePair>());
         }
 
+        public static List<SceneNode> FindNodesRequiredForParent(this SceneNode node, SceneNode root, double childBoundSearchRatio = DEFAULT_SEARCH_RATIO)
+        {
+            BoundingBox tmp;
+            return FindNodesRequiredForParent(node, root, out tmp, childBoundSearchRatio);
+        }
+
+        public static List<SceneNode> FindNodesRequiredForParent(this SceneNode node, SceneNode root, out BoundingBox searchBounds, double childBoundSearchRatio = DEFAULT_SEARCH_RATIO)
+        {
+            int childDepth = node.Children.First().Transform.Depth();
+            searchBounds = node.ChildBounds();
+            searchBounds = BoundingBoxExtensions.Scale(searchBounds, childBoundSearchRatio);
+            var childNodes = root.FindOverlapingNodes(childDepth, searchBounds);
+            return childNodes;
+
+        }
+
         /// <summary>
         /// Assumes all nodes below this node have been processed
         /// </summary>
@@ -101,18 +122,17 @@ namespace OPS.Pipeline
         /// <param name="maxTextureSize"></param>
         /// <param name="skirtAxis"></param>
         /// <param name="childBoundSearchRatio"></param>
-        public static void BuildGeometryFromChildren(this SceneNode node, SceneNode root, int maxFaceCountTarget, int maxTextureSize, SkirtAxis? skirtAxis, double childBoundSearchRatio = 1.1)
+        public static void BuildGeometryFromChildren(this SceneNode node, SceneNode root, MeshReconMethod reconstructionMethod, int maxFaceCountTarget, int maxTextureSize, SkirtMode? skirtAxis, double childBoundSearchRatio = DEFAULT_SEARCH_RATIO)
         {
-            int childDepth = node.Children.First().Transform.Depth();
-            BoundingBox searchBounds = node.ChildBounds();
-            searchBounds = BoundingBoxExtensions.Scale(searchBounds, childBoundSearchRatio);
-            var childNodes = root.FindOverlapingNodes(childDepth, searchBounds);
+            BoundingBox searchBounds;
+            var childNodes = FindNodesRequiredForParent(node, root, out searchBounds, childBoundSearchRatio);
             var pairs = childNodes.Select(n => n.GetComponent<MeshImagePair>());
             var childMeshesWithoutSkirts = pairs.Select(p =>
             {
                 var tmp = new Mesh(p.Mesh);
                 if (skirtAxis.HasValue)
                 {
+                    // TODO remove skirt stuff
                     tmp.RemoveSkirt(skirtAxis.Value);
                 }
                 return tmp;
@@ -121,29 +141,31 @@ namespace OPS.Pipeline
             Mesh combinedFull = Mesh.Merge(childMeshesWithoutSkirts);
             combinedFull = Mesh.Clip(combinedFull, searchBounds);
             combinedFull.NormalizeNormals();
-            // TODO: handle the fact that we are reconstucting a larger area so we should inflate the number of faces cleverly
-            // TODO: Don't use 3 that only works for quad trees, this should be based off number of children
-            int targetFaces = combinedFull.Faces.Count() / node.ChildCount/*3*/;  // could do 4 but lets try 3 for some extra around the edges
+            BoundingBox minimumBounds = node.GetComponent<NodeBounds>().Bounds;
+
+            // We limit target faces only to maxface count.  This means there will be little to no face reduction
+            // until the face limit is hit. This favors trying to make all tiles the same complexity rather than trying to always have a
+            // constant amount of leaf/parent tile complexity reduction.  This choice primarily affects parent tiles near leafs.
+            int targetFaces = Mesh.Clip(combinedFull, minimumBounds).Faces.Count();
             targetFaces = Math.Min(targetFaces, maxFaceCountTarget);
             // Minimum bounds is a tight fitting bounding box around the child meshes with skirts
-            BoundingBox minimumBounds = node.GetComponent<NodeBounds>().Bounds;
             Vector3? cornerDirection = null;
             if (skirtAxis.HasValue)
             {
-                if (skirtAxis.Value == SkirtAxis.X)
+                if (skirtAxis.Value == SkirtMode.X)
                 {
                     cornerDirection = Vector3.UnitX;
                 }
-                else if (skirtAxis.Value == SkirtAxis.Y)
+                else if (skirtAxis.Value == SkirtMode.Y)
                 {
                     cornerDirection = Vector3.UnitY;
                 }
-                else if (skirtAxis.Value == SkirtAxis.Z)
+                else if (skirtAxis.Value == SkirtMode.Z)
                 {
                     cornerDirection = Vector3.UnitY;
                 }
             }
-            Mesh combinedDecimated = combinedFull.ResampleDecimation(targetFaces, clippingBounds: minimumBounds, cornerDirection: cornerDirection);
+            Mesh combinedDecimated = combinedFull.ResampleDecimation(reconstructionMethod, targetFaces, clippingBounds: minimumBounds, cornerDirection: cornerDirection);
             combinedDecimated.Clean();
 
             NodeGeometricError geoError = node.GetOrAddComponent<NodeGeometricError>();
@@ -151,12 +173,10 @@ namespace OPS.Pipeline
             double geometricError = combinedDecimated.HausdorffDistance(fullClipped);
             geoError.Error = Math.Max(geoError.Error, geometricError);
 
-            // We want a 2x reduction in both size dimensions (4x reduction in area)
-            int size = ComputeParentTileResolution(pairs, combinedDecimated.Bounds()) / 2;
+            int size = ComputeParentTileResolution(pairs, combinedDecimated.Bounds(), maxTextureSize);
             Image img = null;
             if (size != 0)
-            {
-                size = Math.Min(size, maxTextureSize);
+            {               
                 combinedDecimated = UVAtlas.Atlas(combinedDecimated, size, size);
                 img = TextureBaker.BakeTexture(pairs.ToArray(), combinedDecimated, size, size);
                 // Estimate the size of a pixel for this texture.  If this is greater than the geometric error use it instead

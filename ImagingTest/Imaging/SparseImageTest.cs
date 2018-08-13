@@ -58,13 +58,13 @@ namespace ImagingTest
             img[0, 1, 1] = 123f / 255;
             SparseImage spImg = new SparseImage(img, 1);
             spImg.Save<byte>("sparseImage", ".png");
-            Image img2 = Image.Load("sparseImage_0_0_.png");
+            Image img2 = Image.Load("sparseImage_0_0.png");
             Assert.AreEqual(img2[0, 0, 0], 43f / 255);
-            img2 = Image.Load("sparseImage_0_1_.png");
+            img2 = Image.Load("sparseImage_0_1.png");
             Assert.AreEqual(img2[0, 0, 0], 241f / 255);
-            img2 = Image.Load("sparseImage_1_0_.png");
+            img2 = Image.Load("sparseImage_1_0.png");
             Assert.AreEqual(img2[0, 0, 0], 7f / 255);
-            img2 = Image.Load("sparseImage_1_1_.png");
+            img2 = Image.Load("sparseImage_1_1.png");
             Assert.AreEqual(img2[0, 0, 0], 123f / 255);
         }
 

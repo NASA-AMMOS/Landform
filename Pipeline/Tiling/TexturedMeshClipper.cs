@@ -12,15 +12,38 @@ using log4net;
 
 namespace OPS.Pipeline
 {
+    /// <summary>
+    /// Given one or more MeshImagePairs, can clip to create one textured mesh
+    /// </summary>
     public class TexturedMeshClipper
     {
         static ILog logger = LogManager.GetLogger(typeof(TexturedMeshClipper));
 
-        List<MeshImagePair> pairs;
+
+        class MeshImageOperatorPair
+        {
+            public Image Image;
+            public MeshOperator MeshOperator;
+
+            public MeshImageOperatorPair( MeshOperator op, Image image)
+            {
+                this.Image = image;
+                this.MeshOperator = op;
+   
+            }
+
+            public MeshImageOperatorPair( Mesh m, Image image)
+            {
+                this.Image = image;
+                this.MeshOperator = new MeshOperator(m, buildFaceTree: true, buildVertexTree: false, buildUVFaceTree: false);
+            }
+        }
+
+        List<MeshImageOperatorPair> pairs;
         
         public TexturedMeshClipper()
         {
-            pairs = new List<MeshImagePair>();
+            pairs = new List<MeshImageOperatorPair>();
         }
 
         /// <summary>
@@ -29,9 +52,22 @@ namespace OPS.Pipeline
         /// <param name="pair"></param>
         public void AddMeshImagePair(MeshImagePair pair)
         {
-            pairs.Add(pair);
+            pairs.Add(new MeshImageOperatorPair( pair.Mesh, pair.Image));
         }
 
+        public void AddMeshImagePair(MeshOperator op, Image image)
+        {
+            pairs.Add(new MeshImageOperatorPair(op, image));
+        }
+
+        public void AddMeshImagePair(Mesh m, Image image)
+        {
+            pairs.Add(new MeshImageOperatorPair(m, image));
+        }
+
+        /// <summary>
+        /// Area of original texture that is being used 
+        /// </summary>
         private class TexturePatch
         {
             public HashSet<Triangle> triangles;
@@ -44,6 +80,11 @@ namespace OPS.Pipeline
                 this.triangles = new HashSet<Triangle>();
             }
 
+            /// <summary>
+            /// Merge UV BoundingBox of given triang with border included with the bounding box of patch 
+            /// </summary>
+            /// <param name="t"></param>
+            /// <param name="borderSize"></param>
             public void Add(Triangle t, int borderSize)
             {
                 var uvBounds = t.UVBounds();
@@ -78,6 +119,9 @@ namespace OPS.Pipeline
                 return new Vector2((int)b.Max.X, (int)b.Max.Y);
             }
 
+            /// <summary>
+            /// Finds image corresponding to the patch on the original image
+            /// </summary>
             public void ClipImage()
             {
                 var min = MinPixel();
@@ -96,9 +140,18 @@ namespace OPS.Pipeline
             }
         }
 
+        /// <summary>
+        /// Creates a list of TexturePatches by creating a TexturePatch from the original texture for every group of triangles whose UVBounds intersect,
+        /// selecting which areas of the texture are being used
+        /// </summary>
+        /// <param name="mesh">input mesh with triangles of interest</param>
+        /// <param name="img">original image</param>
+        /// <param name="borderSize">pixel border around patches</param>
+        /// <returns></returns>
         List<TexturePatch> ComputePatches(Mesh mesh, Image img, int borderSize)
         {
-            MeshOperator op = new MeshOperator(mesh);
+            mesh.Clean();
+            MeshOperator op = new MeshOperator(mesh, buildFaceTree: false, buildVertexTree: false);
             var triangles = op.Triangles;
             List<TexturePatch> patches = new List<TexturePatch>();
 
@@ -135,10 +188,11 @@ namespace OPS.Pipeline
                     }
                     patches.Add(patch);
                 }
-
             }
             return patches;
         }
+
+
 
         /// <summary>
         /// Clips every mesh in the list of MeshImagePairs to specified bounding box. Creates new texture of patches from original images for each portion of clipped mesh packed into single image.
@@ -157,10 +211,9 @@ namespace OPS.Pipeline
             }
             List<TexturePatch> patches = new List<TexturePatch>();
             
-            foreach (MeshImagePair pair in pairs)
+            foreach (var pair in pairs)
             {
-                MeshOperator op = new MeshOperator(pair.Mesh);
-                Mesh clippedMesh = op.Clip(box);
+                Mesh clippedMesh = pair.MeshOperator.Clip(box);
                 clippedMesh.Clean();
                 patches.AddRange(ComputePatches(clippedMesh, pair.Image, borderSize));
             }
@@ -173,8 +226,8 @@ namespace OPS.Pipeline
                 maxHeight = Math.Max(maxHeight, patches[b].patchImage.Height);
             }
 
-            var binWidth = MathExtensions.MathE.CeilPowerOf2(maxWidth);
-            var binHeight = MathExtensions.MathE.CeilPowerOf2(maxHeight);
+            var binWidth = Math.Max( MathExtensions.MathE.CeilPowerOf2(maxWidth), 1);
+            var binHeight =Math.Max( MathExtensions.MathE.CeilPowerOf2(maxHeight), 1);
             var binDepth = 1;
 
             Cuboid[] cuboids = new Cuboid[patches.Count];
@@ -184,6 +237,8 @@ namespace OPS.Pipeline
             }
             BinPackResult packed = null;
             var numBins = 0;
+
+            //pack patches and adjust bin width and height until all patches packed into one bin
             while (numBins != 1)
             {
                 var parameter = new BinPackParameter(binWidth, binHeight, binDepth, 0, allowRotation, cuboids);
@@ -205,6 +260,7 @@ namespace OPS.Pipeline
 
             Image packedImg = new Image(pairs[0].Image.Bands, binWidth, binHeight);
             var cubes = packed.BestResult.First();
+            //create new texture image from packing results
             foreach (var cube in cubes)
             {
                 var patch = (TexturePatch)cube.Tag;
@@ -224,6 +280,7 @@ namespace OPS.Pipeline
                         }
                     }
                 }
+                //remap UV coordinates
                 foreach (var t in patch.triangles)
                 {
                     foreach (var v in t.Vertices())
@@ -249,7 +306,7 @@ namespace OPS.Pipeline
             }
             MeshImagePair result = new MeshImagePair();
             result.Image = packedImg;
-            result.Mesh = new Mesh(resultTriangles, hasNormals: pairs[0].Mesh.HasNormals, hasUVs: pairs[0].Mesh.HasUVs, hasColors: pairs[0].Mesh.HasColors);
+            result.Mesh = new Mesh(resultTriangles, hasNormals: pairs[0].MeshOperator.HasNormals, hasUVs: pairs[0].MeshOperator.HasUVs, hasColors: pairs[0].MeshOperator.HasColors);
             return result;
         }
     }

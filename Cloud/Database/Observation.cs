@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-
 using Amazon.DynamoDBv2.DataModel;
 
 namespace OPS.Cloud
@@ -41,6 +40,10 @@ namespace OPS.Cloud
 
         public bool UseForReconstruction { get; set; }
 
+        public int Width;
+
+        public int Height;
+
         /// Add required fields here 
         private void IsValid()
         {
@@ -70,7 +73,7 @@ namespace OPS.Cloud
         /// <param name="url"></param>
         /// <param name="observationType"></param>
         /// <param name="cameraModel"></param>
-        protected Observation(Frame frame, string name, string url, string observationType, string cameraModel, bool useForReconstruction)
+        protected Observation(Frame frame, string name, string url, string observationType, string cameraModel, bool useForReconstruction, int width, int height)
         {
             this.ProjectName = frame.ProjectName;
             this.FrameName = frame.Name;
@@ -79,6 +82,8 @@ namespace OPS.Cloud
             this.ObservationType = observationType;
             this.CameraModel = cameraModel;
             this.UseForReconstruction = useForReconstruction;
+            this.Width = width;
+            this.Height = height;
             IsValid();
         }
 
@@ -95,9 +100,9 @@ namespace OPS.Cloud
         /// <param name="observationType"></param>
         /// <param name="cameraModel"></param>
         /// <returns></returns>
-        public static Observation Create(DynamoDBContext context, Frame frame, string name, string url, string observationType, string cameraModel, bool useForReconstruction)
+        public static Observation Create(DynamoDBContext context, Frame frame, string name, string url, string observationType, string cameraModel, bool useForReconstruction, int width, int height)
         {
-            Observation obs = new Observation(frame, name, url, observationType, cameraModel, useForReconstruction);
+            Observation obs = new Observation(frame, name, url, observationType, cameraModel, useForReconstruction, width, height);
             context.Save(obs, new DynamoDBOperationConfig { IgnoreNullValues = true });
             return obs;
         }
@@ -123,11 +128,26 @@ namespace OPS.Cloud
             return context.Load<Observation>(name, projectName);
         }
 
+        public static IEnumerable<Observation> Find(DynamoDBContext context, string projectName)
+        {
+            return context.Scan<Observation>(
+                new ScanCondition("ProjectName", Amazon.DynamoDBv2.DocumentModel.ScanOperator.Equal, projectName)
+                );
+        }
+
         public static IEnumerable<Observation> Find(DynamoDBContext context, Frame frame)
         {
             return context.Scan<Observation>(
                 new ScanCondition("ProjectName", Amazon.DynamoDBv2.DocumentModel.ScanOperator.Equal, frame.ProjectName),
                 new ScanCondition("FrameName", Amazon.DynamoDBv2.DocumentModel.ScanOperator.Equal, frame.Name)
+                );
+        }
+
+        public static IEnumerable<Observation> FindByType(DynamoDBContext context, string projectName, string observationType)
+        {
+            return context.Scan<Observation>(
+                new ScanCondition("ProjectName", Amazon.DynamoDBv2.DocumentModel.ScanOperator.Equal, projectName),
+                new ScanCondition("ObservationType", Amazon.DynamoDBv2.DocumentModel.ScanOperator.Equal, observationType)
                 );
         }
     }

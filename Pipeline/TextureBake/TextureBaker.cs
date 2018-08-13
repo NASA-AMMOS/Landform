@@ -67,7 +67,7 @@ namespace OPS.Pipeline
         Octree triOctTree;
         int destBands;
 
-        public TextureBaker(MeshImagePair[] source, int maxDepth = 8)
+        public TextureBaker(MeshImagePair[] source, int maxDepth = 14)
         {
             if (source.Count() == 0)
             {
@@ -134,7 +134,7 @@ namespace OPS.Pipeline
 
                         float row = (float)pixel.Y;
                         float col = (float)pixel.X;
-                        var bands = new float[image.Data.Count()];
+                        var bands = new float[image.Bands];
                         for (int b = 0; b < bands.Count(); b++)
                         {
                             bands[b] = image.BicubicSample(b, row, col);

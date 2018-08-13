@@ -23,19 +23,19 @@ namespace OPS.Pipeline
                                                              ConvertBaselineMeshesOptions,
                                                              TileBaselineMeshOptions,
                                                              AlignmentWorkerOptions,
-                                                             TilingOptions,
                                                              TileBaselineMeshesOptions,
                                                              BenchmarkS3Options,
                                                              LegacyToWebVROptions,
                                                              LegacyToTile3DOptions,
                                                              AlignSceneOptions,
                                                              CreateCloudTemplatesOptions,
-                                                             TileLocalMeshOptions,
+                                                             TileLocalMeshOptions,                                                             
+                                                             CuriosityAlignOptions,
+                                                             BuildFromAlignmentOptions,
                                                              TextureMeshOptions
                                                              >(args)
               .MapResult(
                 (AlignmentWorkerOptions opts) => new AlignmentWorker().Run(),
-                (TilingOptions opts) => new TilingWorker().Run(),
                 (ConvertBaselineMeshOptions opts) => new ConvertBaselineMesh(opts).Run(),
                 (ConvertBaselineMeshesOptions opts) => new ConvertBaselineMeshes(opts).Run(),
                 (TileBaselineMeshOptions opts) => new TileBaselineMesh(opts).Run(),
@@ -47,6 +47,8 @@ namespace OPS.Pipeline
                 (AlignSceneOptions opts) => new AlignScene(opts).Run(),
                 (CreateCloudTemplatesOptions opts) => new CreateCloudTemplates(opts).Run(),
                 (TileLocalMeshOptions opts) => new TileLocalMesh(opts).Run(),
+                (CuriosityAlignOptions opts) => new CuriosityAlign(opts).Run(),
+                (BuildFromAlignmentOptions opts) => new BuildFromAlignment(opts).Run(),
                 (TextureMeshOptions opts) => new TextureMesh(opts).Run(),
                 errs => 1);
         }

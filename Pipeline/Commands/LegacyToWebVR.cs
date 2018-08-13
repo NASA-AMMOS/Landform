@@ -203,7 +203,7 @@ namespace OPS.Pipeline
                 var pair = node.GetComponent<MeshImagePair>();
                 if (pair != null && pair.Mesh != null)
                 {
-                    pair.Mesh.RemoveSkirt(SkirtAxis.Y);
+                    pair.Mesh.RemoveSkirt(SkirtMode.Y);
                 }
             });
 
@@ -247,7 +247,7 @@ namespace OPS.Pipeline
                 logger.Info("Creating low poly collision mesh");
                 var meshes = innerNodes.SelectMany(leaf => FindOverlappingLeaves(leaf, scene.TerrainRoot)).Select(node => node.GetComponent<MeshImagePair>().Mesh).ToArray();
                 var m = Mesh.Merge(false, false, false, meshes);
-                m = m.ResampleDecimation(2000, m.Bounds(), new Vector3(0, 1, 0)); 
+                m = m.ResampleDecimation(MeshReconMethod.Poisson, 2000, m.Bounds(), new Vector3(0, 1, 0)); 
                 m.Clean();
                 m = Mesh.Clip(m, innerBounds);
                 m.Clean();
@@ -276,7 +276,7 @@ namespace OPS.Pipeline
                 
 
                 Mesh border = Mesh.Merge(outterNodes.Select(n => n.GetComponent<MeshImagePair>().Mesh).ToArray());
-                border = border.ResampleDecimation(backgroundFaces, border.Bounds(), new Vector3(0, 1, 0));
+                border = border.ResampleDecimation(MeshReconMethod.Poisson, backgroundFaces, border.Bounds(), new Vector3(0, 1, 0));
                 border = Mesh.Cut(border, innerBounds);
                 border.Clean();
 
@@ -297,7 +297,7 @@ namespace OPS.Pipeline
                 var borderImage =
                     TextureBaker.BakeTexture(outterNodes.Select(n => n.GetComponent<MeshImagePair>()).ToArray(), border,
                         backgroundResolution, backgroundResolution);
-                border.AddSkirt(SkirtAxis.Y, 0.25);
+                border.AddSkirt(SkirtMode.Y, 0.25);
                 SceneNode background = new SceneNode("background");
                 background.AddComponent<MeshImagePair>(new MeshImagePair(border, borderImage));
                 WriteTile(background);
@@ -330,7 +330,7 @@ namespace OPS.Pipeline
                     targetFaces = nameToFaceCount[leaf.Name];
                 }
                 int faces = Math.Min(m.Faces.Count, targetFaces);
-                m = m.ResampleDecimation(faces, leaf.GetOrAddComponent<NodeBounds>().Bounds, new Vector3(0, 1, 0));
+                m = m.ResampleDecimation(MeshReconMethod.Poisson, faces, leaf.GetOrAddComponent<NodeBounds>().Bounds, new Vector3(0, 1, 0));
              
                 //m = MeshLab.ResampleDecimation(m, numSamples: targetFaces*10, targetFaces: targetFaces);
                 //m = Mesh.Clip(m, leaf.Bounds);
@@ -345,7 +345,7 @@ namespace OPS.Pipeline
                 m = UVAtlas.Atlas(m, textureWidth, textureHeight);
                 var img = TextureBaker.BakeTexture(pairs.ToArray(), m, textureWidth, textureHeight);
 
-                m.AddSkirt(SkirtAxis.Y);
+                m.AddSkirt(SkirtMode.Y);
                 leaf.GetOrAddComponent<NodeBounds>().Bounds = m.Bounds();
                 leaf.AddComponent(new MeshImagePair(m, img));
                 var ts = WriteTile(leaf);

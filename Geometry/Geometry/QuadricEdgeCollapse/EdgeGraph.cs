@@ -21,7 +21,7 @@ namespace OPS.Geometry
         {
             vertNodes = new List<VertexNode>();
 
-            //Construct VertexData objects for each vertex
+            //Construct VertexNode objects for each vertex
             for (int i = 0; i < mesh.Vertices.Count; i++)
             {
                 vertNodes.Add(new VertexNode(mesh.Vertices[i], i));
