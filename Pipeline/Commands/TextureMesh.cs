@@ -10,11 +10,6 @@ using OPS.Imaging;
 
 namespace OPS.Pipeline
 {
-    //QUESTION: weird that MSL.Texture will split the mesh into tiles as a side effect
-    //          add another command that splits the mesh and uploads them all?
-    //          need the whole mesh anyway to build shadow caster
-    //          would mean could run against cached copy of split meshes and not have split everytime for iteration
-    //QUESTION: is their an option to run against a local pipeline that is a snapshot of a portion of the server?
     [Verb("MSL.Texture", HelpText = "generate textures for a terrain mesh")]
     public class TextureMeshOptions
     {
@@ -44,7 +39,8 @@ namespace OPS.Pipeline
             logger.Info("Texturing mesh...");
 
             //QUESTION: static dynamo table prefix?
-            PipelineCore pipeline = new PipelineCore(dynamoPrefix: options.DatabaseTablePrefix);
+            PipelineCore pipeline = new PipelineCore(dynamoPrefix: options.DatabaseTablePrefix); //TODO: config.TablePrefix
+            pipeline.AddProfile("s3://landlords-dev/", "landlords"); //TODO: not hardcoded
 
             // build scene graph for the project
             Frame meshRoot = GetPrimaryMeshFrame(pipeline);
