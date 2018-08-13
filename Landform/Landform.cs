@@ -28,6 +28,7 @@ namespace Landform
             // Enable logging
             log4net.Config.XmlConfigurator.Configure();
             // Register filetype handlers
+            new DAESerializer().Register();
             new OpenInventorSerializer().Register();
             new DracoSerializer().Register();
 
