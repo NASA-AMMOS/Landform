@@ -120,6 +120,9 @@
       <HintPath>..\packages\GDAL.1.11.1\lib\net40\osr_csharp.dll</HintPath>
       <Private>True</Private>
     </Reference>
+    <Reference Include="RestSharp, Version=106.3.1.0, Culture=neutral, PublicKeyToken=598062e77f915f75, processorArchitecture=MSIL">
+      <HintPath>..\packages\RestSharp.106.3.1\lib\net452\RestSharp.dll</HintPath>
+    </Reference>
     <Reference Include="RTree, Version=1.1.0.0, Culture=neutral, processorArchitecture=MSIL">
       <HintPath>..\packages\RTree.1.1.0\lib\netstandard2.0\RTree.dll</HintPath>
     </Reference>
@@ -158,6 +161,7 @@
       <Private>True</Private>
     </Reference>
     <Reference Include="System.Runtime.Serialization" />
+    <Reference Include="System.Web" />
     <Reference Include="System.Windows" />
     <Reference Include="System.Windows.Forms" />
     <Reference Include="System.Xml.Linq" />
@@ -182,6 +186,7 @@
     <Compile Include="Commands\LegacyToTile3D.cs" />
     <Compile Include="Commands\CreateCloudTemplates.cs" />
     <Compile Include="Commands\TileLocalMesh.cs" />
+    <Compile Include="Rover\MSLPlaces.cs" />
     <Compile Include="TileServer\Cloud\TilingNode.cs" />
     <Compile Include="TileServer\Commands\ConfigureServer.cs" />
     <Compile Include="TileServer\Commands\CreateProject.cs" />
