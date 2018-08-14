@@ -1,12 +1,18 @@
 ﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+
 using log4net;
 using CommandLine;
 using Microsoft.Xna.Framework;
+using Amazon.DynamoDBv2.DataModel;
 
 using OPS.Cloud;
 using OPS.Plumbing;
 using OPS.Geometry;
 using OPS.Imaging;
+using OPS.Pipeline.TileServer;
+using OPS.Util;
 
 namespace OPS.Pipeline
 {
@@ -43,40 +49,34 @@ namespace OPS.Pipeline
             pipeline.AddProfile("s3://landlords-dev/", "landlords"); //TODO: not hardcoded
 
             // build scene graph for the project
-            Frame meshRoot = GetPrimaryMeshFrame(pipeline);
-            Alignment.AlignmentScene scene = BuildSceneGraph(pipeline, meshRoot);
+            //Frame fullMeshRoot = GetPrimaryMeshFrame(pipeline);
+            //Alignment.AlignmentScene scene = BuildSceneGraph(pipeline, fullMeshRoot);
 
-            // generate tiled meshes
-            //Mesh mesh = DownloadParentMesh(pipeline);
-            //BoundingBox[] tileBounds = GetMeshTilingBounds();
+            // download the parent mesh
+            TilingInputChunk tilingInput = GetTilingInputChunk(pipeline);
+            Mesh fullMesh = DownloadFullMesh(pipeline, tilingInput);
 
-            // generate surface textures for all images
-            //foreach (BoundingBox bbox in tileBounds)
-            //{
-            //    MeshDataProduct subMesh = ClipMesh(pipeline, mesh, bbox);
-            //    PngDataProduct imageProduct = new PngDataProduct(CreateOutputTexture(subMesh));
+            // collect tiling bounds
+            IEnumerable<TilingNode> leafTilingNodes = GetTilingNodes(pipeline);
 
-            //    //QUESTION: where do these results go?
-            //    pipeline.Save(options.ProjectName, imageProduct, false);
-            //    pipeline.Save()
-            //    //QUESTION: how to enter this into the tiling database
-            //}
+            // generate leaf tile data
+            int tiledMeshes = 0;
+            foreach (TilingNode leaf in leafTilingNodes)
+            {
+                logger.Info("Generating tile " + leaf.Id);
+                MeshImagePair leafPair = new MeshImagePair();
+                leafPair.Mesh = Mesh.Clip(fullMesh, leaf.GetBounds());
 
-            // upload textures and meshes
-            // update tile server db
+                leafPair.Image = new Image(3, 8, 8);
+                leafPair.Image.ApplyInPlace(0, x => { return (byte)255; });
 
+                leaf.SaveMesh(leafPair, pipeline, 0);
+                tiledMeshes++;
+            }
+            logger.Info("Completed generating " + tiledMeshes + " tiles.");
             return 0;
         }
-
-        private Image CreateOutputTexture(Mesh subMesh)
-        {
-            throw new NotImplementedException();
-        }
-
-        private Mesh ClipMesh(PipelineCore pipeline, Mesh mesh, BoundingBox bbox)
-        {
-            throw new NotImplementedException();
-        }
+       
 
         private Frame GetPrimaryMeshFrame(PipelineCore pipeline)
         {
@@ -85,32 +85,40 @@ namespace OPS.Pipeline
 
         private static Alignment.AlignmentScene BuildSceneGraph(PipelineCore pipeline, Cloud.Frame meshRoot)
         {
+            logger.Info("Building scene graph for " + meshRoot.Name);
+
             Alignment.AlignmentScene scene;
             BuildSceneGraph builder = new BuildSceneGraph(pipeline);
-            BuildSceneGraph.Options options = new BuildSceneGraph.Options(); //TODO: build options
-            scene = builder.Build(meshRoot, options);
+            scene = builder.Build(meshRoot, new BuildSceneGraph.Options());
+
             return scene;
         }
 
-        public Mesh DownloadParentMesh(PipelineCore pipeline)
+        public TilingInputChunk GetTilingInputChunk(PipelineCore pipeline)
         {
-            //QUESTION: how to get a guid for the master mesh? Store as a value in the dynamo db
-            //QUESTION: is there a way to skip going to disk?
+            logger.Info("Get tiling input information");
+            return pipeline.DynamoContext.Scan<TilingInputChunk>(new ScanCondition("Id", Amazon.DynamoDBv2.DocumentModel.ScanOperator.Equal, "FullMesh")).First();
+        }
+        public Mesh DownloadFullMesh(PipelineCore pipeline, TilingInputChunk input)
+        {
+            Mesh result = null;
+            TemporaryFile.GetAndDelete(".ply", f =>
+            {
+                logger.Info("Downloading parent mesh: " + input.MeshUrl + input.Id + ".ply");
+                pipeline.Storage(input.MeshUrl).DownloadFile(input.MeshUrl + input.Id, f);
+                result = Mesh.Load(f);
+            });
 
-            //pipeline.DynamoContext.Find
-
-            //    return context.Load<Mesh>(name, projectName);
-
-            //return pipeline.Get<Mesh>(options.ProjectName, guid, false);
-            throw new NotImplementedException();
+            return result;
         }
 
-        private BoundingBox[] GetMeshTilingBounds()
+        private IEnumerable<TilingNode> GetTilingNodes(PipelineCore pipeline)
         {
-            //QUESTION: how to get tiling information
-            //TODO: clip mesh
-            //TODO: uvatlas
-            throw new NotImplementedException();
+            logger.Info("Collecting tiling information");
+            return pipeline.DynamoContext.Scan<TilingNode>(
+                new ScanCondition("ProjectName", Amazon.DynamoDBv2.DocumentModel.ScanOperator.Equal, options.ProjectName),
+                new ScanCondition("ChildIds", Amazon.DynamoDBv2.DocumentModel.ScanOperator.IsNull)
+            );
         }
     }
 }
