@@ -8,6 +8,7 @@ using OPS.Geometry;
 using OPS.Imaging;
 using OPS.Pipeline.TileServer;
 using OPS.Util;
+using OPS.Cloud;
 
 namespace OPS.Pipeline
 {
@@ -79,7 +80,12 @@ namespace OPS.Pipeline
         public TilingInputChunk GetTilingInputChunk(PipelineCore pipeline)
         {
             logger.Info("Get tiling input information");
-            return pipeline.DynamoContext.Scan<TilingInputChunk>(new ScanCondition("Id", Amazon.DynamoDBv2.DocumentModel.ScanOperator.Equal, "FullMesh")).First();
+
+            TilingInputChunk input = pipeline.DynamoContext.Scan<TilingInputChunk>(new ScanCondition("Id", Amazon.DynamoDBv2.DocumentModel.ScanOperator.Equal, "FullMesh")).First();
+            if (input == null)
+                throw new CloudException("TilingInputChunk not found");
+
+            return input;
         }
 
         /// <summary>
@@ -97,6 +103,9 @@ namespace OPS.Pipeline
                 pipeline.Storage(input.MeshUrl).DownloadFile(input.MeshUrl + input.Id, f);
                 result = Mesh.Load(f);
             });
+
+            if (result == null)
+                throw new CloudException("Failed to download full project mesh");
 
             return result;
         }
