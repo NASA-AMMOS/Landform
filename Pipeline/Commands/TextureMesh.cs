@@ -1,13 +1,8 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Linq;
-
 using log4net;
 using CommandLine;
-using Microsoft.Xna.Framework;
 using Amazon.DynamoDBv2.DataModel;
-
-using OPS.Cloud;
 using OPS.Plumbing;
 using OPS.Geometry;
 using OPS.Imaging;
@@ -16,18 +11,14 @@ using OPS.Util;
 
 namespace OPS.Pipeline
 {
-    [Verb("MSL.Texture", HelpText = "generate textures for a terrain mesh")]
+    [Verb("MSL.Texture", HelpText = "generate leaf tiles (mesh and texture) for a terrain mesh")]
     public class TextureMeshOptions
     {
         [Value(0, Required = true, HelpText = "Project name for dynamo db")]
         public string ProjectName { get; set; }
 
-        [Value(1, Required = true, HelpText = "The frame used as the mesh origin")]
-        public string MeshOriginFrameName { get; set; }
-
-        [Value(2, Required = true, HelpText = "The dynamo db table prefix")]
+        [Value(1, Required = true, HelpText = "The dynamo db table prefix")]
         public string DatabaseTablePrefix { get; set; }
-
     };
 
     class TextureMesh
@@ -40,65 +31,63 @@ namespace OPS.Pipeline
             this.options = opts;
         }
 
+        /// <summary>
+        /// dices a large mesh into the meshes required for the leaf tiling nodes
+        /// generates appropriate texture data from observations
+        /// uploads data to storage and updates tiling node urls to point at them
+        /// </summary>
+        /// <returns></returns>
         public int Run()
         {
             logger.Info("Texturing mesh...");
 
-            //QUESTION: static dynamo table prefix?
-            PipelineCore pipeline = new PipelineCore(dynamoPrefix: options.DatabaseTablePrefix); //TODO: config.TablePrefix
-            pipeline.AddProfile("s3://landlords-dev/", "landlords"); //TODO: not hardcoded
-
-            // build scene graph for the project
-            //Frame fullMeshRoot = GetPrimaryMeshFrame(pipeline);
-            //Alignment.AlignmentScene scene = BuildSceneGraph(pipeline, fullMeshRoot);
+            // setup networking pipe
+            PipelineCore pipeline = new PipelineCore(dynamoPrefix: options.DatabaseTablePrefix);
+            pipeline.AddProfile("s3://landlords-dev/", "landlords");
 
             // download the parent mesh
             TilingInputChunk tilingInput = GetTilingInputChunk(pipeline);
             Mesh fullMesh = DownloadFullMesh(pipeline, tilingInput);
 
-            // collect tiling bounds
-            IEnumerable<TilingNode> leafTilingNodes = GetTilingNodes(pipeline);
-
             // generate leaf tile data
             int tiledMeshes = 0;
-            foreach (TilingNode leaf in leafTilingNodes)
+            foreach (TilingNode leaf in GetLeafTilingNodes(pipeline))
             {
                 logger.Info("Generating tile " + leaf.Id);
+
                 MeshImagePair leafPair = new MeshImagePair();
                 leafPair.Mesh = Mesh.Clip(fullMesh, leaf.GetBounds());
 
+                // placeholder solid texture simulating backproject results 
                 leafPair.Image = new Image(3, 8, 8);
                 leafPair.Image.ApplyInPlace(0, x => { return (byte)255; });
 
                 leaf.SaveMesh(leafPair, pipeline, 0);
                 tiledMeshes++;
             }
+
             logger.Info("Completed generating " + tiledMeshes + " tiles.");
             return 0;
         }
-       
-
-        private Frame GetPrimaryMeshFrame(PipelineCore pipeline)
-        {
-            return Frame.Find(pipeline.DynamoContext, options.ProjectName, options.MeshOriginFrameName);
-        }
-
-        private static Alignment.AlignmentScene BuildSceneGraph(PipelineCore pipeline, Cloud.Frame meshRoot)
-        {
-            logger.Info("Building scene graph for " + meshRoot.Name);
-
-            Alignment.AlignmentScene scene;
-            BuildSceneGraph builder = new BuildSceneGraph(pipeline);
-            scene = builder.Build(meshRoot, new BuildSceneGraph.Options());
-
-            return scene;
-        }
-
+    
+        /// <summary>
+        /// gets the tiling input chunk that describes where the large parent mesh
+        /// for the project is located
+        /// </summary>
+        /// <param name="pipeline"></param>
+        /// <returns></returns>
         public TilingInputChunk GetTilingInputChunk(PipelineCore pipeline)
         {
             logger.Info("Get tiling input information");
             return pipeline.DynamoContext.Scan<TilingInputChunk>(new ScanCondition("Id", Amazon.DynamoDBv2.DocumentModel.ScanOperator.Equal, "FullMesh")).First();
         }
+
+        /// <summary>
+        /// downloads the large parent mesh for the project and loads it into memory
+        /// </summary>
+        /// <param name="pipeline"></param>
+        /// <param name="input"></param>
+        /// <returns></returns>
         public Mesh DownloadFullMesh(PipelineCore pipeline, TilingInputChunk input)
         {
             Mesh result = null;
@@ -112,7 +101,12 @@ namespace OPS.Pipeline
             return result;
         }
 
-        private IEnumerable<TilingNode> GetTilingNodes(PipelineCore pipeline)
+        /// <summary>
+        /// queries the dynamo db for the tiling nodes that have no children
+        /// </summary>
+        /// <param name="pipeline"></param>
+        /// <returns></returns>
+        private IEnumerable<TilingNode> GetLeafTilingNodes(PipelineCore pipeline)
         {
             logger.Info("Collecting tiling information");
             return pipeline.DynamoContext.Scan<TilingNode>(
