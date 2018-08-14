@@ -23,6 +23,7 @@ namespace OPS.Geometry
             new B3DMSerializer().Register();
             new BOBSerializer().Register();
             new STLSerializer().Register();
+            new PNTSSerializer().Register();
         }
 
         /// <summary>

@@ -441,29 +441,12 @@ namespace OPS.Geometry
         /// The edge and its connected corresponding one on the mesh must be aligned on the axis specified
         /// </summary>
         /// <param name="axis">The axis which the skirt is extruded along, where the other two axes must be equal between the two skirt vertices</param>
-        public void RemoveSkirt(SkirtAxis axis = SkirtAxis.Y)
+        public void RemoveSkirt(SkirtMode axis)
         {
-            if (axis == SkirtAxis.NORMAL)
+            if(axis == SkirtMode.NORMAL)
             {
                 throw new Exception("Mesh.RemoveSkirt not implemented for normals...");
             }
-            /*if (!this.HasSkirt)
-            {
-                return;
-            }
-            else
-            {
-                this.HasSkirt = false;
-            }
-            List<Vertex> skirt = new List<Vertex>();
-            foreach(Vertex v in this.Vertices)
-            {
-                if(v.IsSkirtVertex)
-                {
-                    skirt.Add(v);
-                }
-                this.RemoveVertices(skirt);
-            }*/
 
             // List of edges in the mesh located on the exterior (edges adjacent to only one triangle)
             List<Edge> edges = GetExteriorEdges();
@@ -513,9 +496,9 @@ namespace OPS.Geometry
                     }
 
                     // Check if the other two axes are almost equal between the edge vertex and candidate vertex
-                    if ((axis == SkirtAxis.X && edgeVertex.Position.Y.AlmostEqual(candidateVertex.Position.Y) && edgeVertex.Position.Z.AlmostEqual(candidateVertex.Position.Z)) ||
-                        (axis == SkirtAxis.Y && edgeVertex.Position.X.AlmostEqual(candidateVertex.Position.X) && edgeVertex.Position.Z.AlmostEqual(candidateVertex.Position.Z)) ||
-                        (axis == SkirtAxis.Z && edgeVertex.Position.X.AlmostEqual(candidateVertex.Position.X) && edgeVertex.Position.Y.AlmostEqual(candidateVertex.Position.Y))
+                    if ((axis == SkirtMode.X && edgeVertex.Position.Y.AlmostEqual(candidateVertex.Position.Y) && edgeVertex.Position.Z.AlmostEqual(candidateVertex.Position.Z)) ||
+                        (axis == SkirtMode.Y && edgeVertex.Position.X.AlmostEqual(candidateVertex.Position.X) && edgeVertex.Position.Z.AlmostEqual(candidateVertex.Position.Z)) ||
+                        (axis == SkirtMode.Z && edgeVertex.Position.X.AlmostEqual(candidateVertex.Position.X) && edgeVertex.Position.Y.AlmostEqual(candidateVertex.Position.Y))
                     )
                     {
                         // Include the edge vertex in the list to be deleted
@@ -529,15 +512,18 @@ namespace OPS.Geometry
 
         /// <summary>
         /// Adds a skirt to all open edges (edges which are connected on only one side) in the direction specified
+        /// If SkirtMode.NORMAL used, then skirt position will be based on average of 2-ring face normals.
+        /// Because skirt points can be projected in different directions (and create bad looking skirts),
+        /// skirtpoints will be merged if the distance between them divided by the skirt height falls below threshold
         /// </summary>
         /// <param name="axis">Extrudes the skirt in the X, Y, or Z axis</param>
         /// <param name="heightAsPercentOfWidth">Specifies the height of the skirt, where 100% is the width or</param>
-        public void AddSkirt(SkirtAxis axis, double heightAsPercentOfWidth = 0.02, double threshold = 0.15)
+        public void AddSkirt(SkirtMode axis, double heightAsPercentOfWidth = 0.02, double threshold = 0.15)
         {
             // Calculate skirt offset height
             Vector3 size = Bounds().Size();
 
-            if (axis == SkirtAxis.NORMAL)
+            if (axis == SkirtMode.NORMAL)
             {
                 double height = heightAsPercentOfWidth * Math.Max(Math.Max(size.X, size.Y), size.Z); //Always within factor ( * or / ) sqrt 2
                 Dictionary<Vertex, Vertex> skirtMap = new Dictionary<Vertex, Vertex>();
@@ -621,7 +607,6 @@ namespace OPS.Geometry
                                 int v2Index = Vertices.IndexOf(posToVert[v2.Position][0]);
                                 int srcIndex = Vertices.IndexOf(posToVert[e.Src.Vert.Position][0]);
                                 int dstIndex = Vertices.IndexOf(posToVert[e.Dst.Vert.Position][0]);
-
                                 this.Faces.Add(new Face(srcIndex, v1Index, dstIndex));
                                 this.Faces.Add(new Face(v1Index, v2Index, dstIndex));
                             }
@@ -636,11 +621,11 @@ namespace OPS.Geometry
 
                 // Finds the maximum extent of either of the other two axes that the skirt is not being created along
                 double maxDimension;
-                if (axis == SkirtAxis.X)
+                if (axis == SkirtMode.X)
                 {
                     maxDimension = Math.Max(size.Y, size.Z);
                 }
-                else if (axis == SkirtAxis.Y)
+                else if (axis == SkirtMode.Y)
                 {
                     maxDimension = Math.Max(size.X, size.Z);
                 }
@@ -654,15 +639,15 @@ namespace OPS.Geometry
 
                 // Set the offset in the correct axis
                 Vector3 offset = Vector3.Zero;
-                if (axis == SkirtAxis.X)
+                if (axis == SkirtMode.X)
                 {
                     offset = new Vector3(actualHeight, 0, 0);
                 }
-                else if (axis == SkirtAxis.Y)
+                else if (axis == SkirtMode.Y)
                 {
                     offset = new Vector3(0, actualHeight, 0);
                 }
-                else if (axis == SkirtAxis.Z)
+                else if (axis == SkirtMode.Z)
                 {
                     offset = new Vector3(0, 0, actualHeight);
                 }
@@ -1270,7 +1255,7 @@ namespace OPS.Geometry
     /// <summary>
     /// X, Y, or Z axis which the skirt is directed along
     /// </summary>
-    public enum SkirtAxis
+    public enum SkirtMode
     {
         X,
         Y,

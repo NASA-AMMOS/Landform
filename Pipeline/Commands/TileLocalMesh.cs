@@ -11,6 +11,7 @@ using OPS.Imaging;
 using System.IO;
 using log4net;
 using Newtonsoft.Json;
+using OPS.Pipeline.TileServer;
 
 namespace OPS
 {
@@ -34,11 +35,11 @@ namespace OPS
         [Option(Required = false, Default = 256, HelpText = "Maximum image resolution per tile")]
         public int MaxResolutionPerTile { get; set; }
 
-        [Option(Required = false, Default = SchemeOption.BIN, HelpText = "Tiling scheme")]
-        public SchemeOption TilingScheme { get; set; }
+        [Option(Required = false, Default = TilingScheme.Oct, HelpText = "Tiling scheme")]
+        public TilingScheme TilingScheme { get; set; }
 
-        [Option(Required = false, Default = SkirtAxis.None, HelpText = "Axis to use as up in quad tree tiling")]
-        public SkirtAxis SkirtAxis { get; set; }
+        [Option(Required = false, Default = SkirtMode.None, HelpText = "Axis to use as up in quad tree tiling")]
+        public SkirtMode SkirtAxis { get; set; }
         
         [Option(Required = false, Default = "b3dm", HelpText = "Mesh Extension")]
         public string MeshExtension { get; set; }
@@ -46,15 +47,9 @@ namespace OPS
         [Option(Required = false, Default = "jpg", HelpText = "Image Extension")]
         public string ImageExtension { get; set; }
 
-        // TODO:  Add uv atlas option
     }
 
-    public enum SchemeOption
-    {
-        QUAD,
-        OCT,
-        BIN
-    }
+
 
     public class TileLocalMesh
     {
@@ -63,16 +58,19 @@ namespace OPS
 
         TileLocalMeshOptions options;
 
-        bool SkirtsEnabled { get { return options.SkirtAxis != SkirtAxis.None; } }
+        bool SkirtsEnabled { get { return options.SkirtAxis != SkirtMode.None; } }
 
-        class TilingInput
+        public class TilingInput
         {
             public BoundingBox TotalBounds;
             public List<TilingInputDataset> Datasets;
             public TextureBaker TextureBaker;
+            public TexturedMeshClipper TexturedMeshClipper;
+
             public TilingInput()
             {
                 this.Datasets = new List<TilingInputDataset>();
+                TexturedMeshClipper = new TexturedMeshClipper();
             }
 
             public void AddDataset(TilingInputDataset dataset)
@@ -83,6 +81,10 @@ namespace OPS
                 }
                 TotalBounds = BoundingBoxExtensions.Union(TotalBounds, dataset.MeshOperator.Bounds);
                 this.Datasets.Add(dataset);
+                if (dataset.Image != null)
+                {
+                    this.TexturedMeshClipper.AddMeshImagePair(dataset.Mesh, dataset.Image);
+                }
             }
 
             public void InitTextureBaker()
@@ -99,7 +101,6 @@ namespace OPS
                 List<BoundingBox> results = new List<BoundingBox>();
                 foreach(var b in boxes)
                 {
-                    // TODO: add spatial lookup to support large numbers of input meshes
                     foreach(var dataset in Datasets)
                     {
                         if(!dataset.MeshOperator.Empty(b))
@@ -116,7 +117,6 @@ namespace OPS
             {
                 foreach (var dataset in Datasets)
                 {
-                    // TODO: add spatial lookup to support large numbers of input meshes
                     if (splitCriteria.ShouldSplit(dataset.MeshOperator, box))
                     {
                         return true;
@@ -125,10 +125,17 @@ namespace OPS
                 return false;
             }
 
-            public Mesh Clip(BoundingBox box)
+            public Mesh Clip(BoundingBox box, bool ragged = false)
             {
-                var meshes = this.Datasets.Where(d => !d.MeshOperator.Empty(box)).Select(d => d.MeshOperator.Clip(box)).ToArray();
-                return Mesh.Merge(meshes);
+                var meshes = this.Datasets.Where(d => !d.MeshOperator.Empty(box)).Select(d => d.MeshOperator.Clip(box, ragged)).ToArray();
+                var merged =  Mesh.Merge(meshes);
+                merged.Clean();
+                return merged;
+            }
+
+            public MeshImagePair ClipWithTexture(BoundingBox box)
+            {
+                return TexturedMeshClipper.Clip(box);
             }
 
             public MeshImagePair BakeTexture(Mesh mesh, int size)
@@ -140,7 +147,7 @@ namespace OPS
             }
         }
 
-        class TilingInputDataset
+        public class TilingInputDataset
         {
             public Mesh Mesh;
             public Image Image;
@@ -148,18 +155,23 @@ namespace OPS
 
             public TilingInputDataset(string meshFilename, string imageFilename)
             {
-                logger.Info(meshFilename);
-                this.Mesh = Mesh.Load(meshFilename);
-                if(!this.Mesh.HasNormals)
+                Init(Mesh.Load(meshFilename), imageFilename == null ? null : Image.Load(imageFilename));
+            }
+
+            public TilingInputDataset(Mesh mesh, Image img)
+            {
+                Init(mesh, img);
+            }
+
+            void Init(Mesh m, Image img)
+            {
+                this.Mesh = m;
+                if (!this.Mesh.HasNormals)
                 {
                     this.Mesh.GenerateVertexNormals();
                 }
                 this.MeshOperator = new MeshOperator(this.Mesh, buildUVFaceTree: false, buildVertexTree: !this.Mesh.HasFaces);
-                logger.Info(imageFilename);
-                if (imageFilename != null)
-                {
-                    this.Image = Image.Load(imageFilename);
-                }
+                this.Image = img;
             }
         }
 
@@ -177,19 +189,22 @@ namespace OPS
             logger.Info("Init Texture Baker");
             input.InitTextureBaker();
             ITilingScheme scheme;
-            if (options.TilingScheme == SchemeOption.BIN)
-            {
-                scheme = new BinaryTreeTilingScheme();
-            }
-            else if (options.TilingScheme == SchemeOption.OCT)
+            if (options.TilingScheme == TilingScheme.Oct)
             {
                 scheme = new OctreeTilingScheme();
             }
-            else
+            else if (options.TilingScheme == TilingScheme.Bin)
+            {
+                scheme = new BinaryTreeTilingScheme();
+            }
+            else if(options.TilingScheme == TilingScheme.Quad)
             {
                 scheme = new QuadTreeTilingScheme(options.SkirtAxis);
             }
-            // TODO: Add image size criteria
+            else
+            {
+                throw new Exception("Tiling scheme not yet supported");   
+            }
             ITileSplitCriteria splitCriteria = new FaceLimitSplitCriteria(options.TargetFacesPerTile);
             logger.Info("Computing tree bounds");
             SceneNode root = BuildBoundsTree(input, scheme, splitCriteria);
@@ -210,7 +225,7 @@ namespace OPS
             return node.Name + ".b3dm";
         }
 
-        SceneNode BuildBoundsTree(TilingInput input, ITilingScheme tilingScheme, ITileSplitCriteria splitCriteria)
+        public static SceneNode BuildBoundsTree(TilingInput input, ITilingScheme tilingScheme, ITileSplitCriteria splitCriteria)
         {
             SceneNode root = new SceneNode("");
             root.AddComponent(new NodeBounds(input.TotalBounds));
@@ -249,7 +264,6 @@ namespace OPS
                 Image img = null;
                 if(options.InputTexture != null)
                 {
-                    // TODO: compute correct resolution
                     var pair = input.BakeTexture(m, options.MaxResolutionPerTile);
                     if(pair.Image != null)
                     {
@@ -283,7 +297,7 @@ namespace OPS
                         return;
                     }
                     logger.Info(string.Format("Parent: {0} ({1}/{2})", node.Name, index + groupCountOffset, totalParentCount));
-                    node.BuildGeometryFromChildren(root, options.TargetFacesPerTile, options.MaxResolutionPerTile, options.SkirtAxis);
+                    node.BuildGeometryFromChildren(root, MeshReconMethod.Poisson, options.TargetFacesPerTile, options.MaxResolutionPerTile, options.SkirtAxis);
                     node.SaveMesh(options.OutputDirectory, meshExtension: options.MeshExtension, imageExtension: options.ImageExtension);
                     logger.Info(node.GetComponent<MeshImagePair>().Mesh.Faces.Count);
                 });

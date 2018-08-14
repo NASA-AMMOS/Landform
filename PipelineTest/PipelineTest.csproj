@@ -110,6 +110,7 @@
     <Compile Include="Rover\RoverCoordinateSystemTest.cs" />
     <Compile Include="Rover\SiteDriveTest.cs" />
     <Compile Include="Scene\SceneNodeTest.cs" />
+    <Compile Include="Tiling\TexturedMeshClipperTest.cs" />
     <Compile Include="Tiling\Tile3DTest.cs" />
   </ItemGroup>
   <ItemGroup>

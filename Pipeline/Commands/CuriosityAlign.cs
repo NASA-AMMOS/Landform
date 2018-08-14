@@ -20,6 +20,8 @@ using System.IO;
 using System.Security.Cryptography;
 using Microsoft.Xna.Framework;
 using Newtonsoft.Json;
+using OpenTK.Graphics.ES11;
+using System.Collections.Concurrent;
 
 namespace OPS.Pipeline
 {
@@ -45,10 +47,10 @@ namespace OPS.Pipeline
         [Value(5, Required = true, HelpText = "MSLICE AWS profile")]
         public string MSliceProfile { get; set; }
 
-        [Option(HelpText = "Skip ingestion step", Default =false)]
+        [Option(HelpText = "Skip ingestion step", Default = false)]
         public bool SkipIngest { get; set; }
 
-        [Option(HelpText = "Optional directory to save debug output files to", Default=null)]
+        [Option(HelpText = "Optional directory to save debug output files to", Default = null)]
         public string DebugOutputFolder { get; set; }
     }
 
@@ -64,12 +66,15 @@ namespace OPS.Pipeline
         const int MIN_MATCHES = 20;
         public static ASIFTDetector detector = new ASIFTDetector(maxSimulatedDimension: 1024);
 
-
         public CuriosityAlign( CuriosityAlignOptions options) : base(dynamoPrefix: options.DynamoDBPrefix)
         {
             this.AddProfile("s3://landlords-dev/", options.LandformProfile);
             this.AddProfile("s3://red-product/", options.MSliceProfile);
             this.options = options;
+
+            Features = new LazyComputation<Observation, DetectedFeatures>(this, (o) => o.FeaturesGuid, ComputeImageFeatures);
+            Matches = new LazyComputation<Overlap, ComputedCorrespondence>(this, (o) => o.MatchGuid, ComputeCorrespondence);
+            Masks = new LazyComputation<Observation, PngDataProduct>(this, (o) => o.MaskGuid, ComputeMask);
         }
 
         public List<string> GetDirectoriesToCrawl()
@@ -125,52 +130,68 @@ namespace OPS.Pipeline
             
             // Crawl MSL S3 bucket and look for files that aren't in our project            
             IngestPDSImage ingester = new IngestPDSImage(this, options.ProjectName);
-            //List<Observation> obs = new List<Observation>();
+            ConcurrentBag<Observation> obs = new ConcurrentBag<Observation>();
             
+
             if (!options.SkipIngest)
             {
                 Parallel.ForEach(GetDirectoriesToCrawl(), folder =>
                 {
                     Parallel.ForEach(Storage(folder).SearchObjects(folder, "*.IMG", false), url =>
-                    {
-
+                    {                        
                         S3ImageRef s3ref = new S3ImageRef(url);
                         try
                         {
-                            Result res = ingester.Ingest(s3ref);
+                            Result res = ThroughputManager.Run(() => ingester.Ingest(s3ref));
                             if (res != null && res.Observation != null)
                             {
+                                obs.Add(res.Observation);
                                 logger.Info("Ingested: " + url);
                             }
-
                         }
-                        catch (RawMetadataNullValueException)
+                        catch (RawMetadataNullValueException e)
                         {
-
+                            logger.Error("Error ingesting: " + url);
+                            logger.Error(e.Message);
+                            logger.Error(e.StackTrace);
                         }
                     });
                 });
             }
 
-
             // Look up image priors for new images
             // Download new images from S3
-            logger.Info("Detect overlaps");
-            DetectOverlaps detector = new DetectOverlaps(this);         
-            detector.Run(GetObservationsToMatch(project.Name)).ToList();                
+            logger.Info("Find best point image pairs");
 
-
+            DetectOverlaps detector = new DetectOverlaps(this);
+            var bestImages = MSLProject.FindBestPairs(RoverObservation.Find(DynamoContext, project.Name)).Select(p => p.Image).ToList();
+            logger.Info("Detect overlaps from " + bestImages.Count + " best images");
+            detector.Run(bestImages, logger).ToList();                
+            
             List<Overlap> overlaps = Overlap.Find(DynamoContext, project.Name).ToList();
-
-            Matches = new LazyComputation<Overlap, ComputedCorrespondence>(this, (o) => o.MatchGuid, ComputeCorrespondence);
-            Masks = new LazyComputation<Observation, PngDataProduct>(this, (o) => o.MaskGuid, ComputeMask);
-            Features = new LazyComputation<Observation, DetectedFeatures>(this, (o) => o.FeaturesGuid, ComputeImageFeatures);
+            logger.Info("Overlaps detected: " + overlaps.Count);
+            int existingGuids = 0;
+            int emptyGuids = 0;
+            foreach (Overlap ol in overlaps)
+            {
+                if(ol.MatchGuid == Guid.Empty)
+                {
+                    emptyGuids++;
+                } else
+                {
+                    existingGuids++;
+                }
+            }
+            logger.Info("Match guid found for " + existingGuids + " overlaps");
 
             // Generate feature discriptors and stuff, store in database
             logger.Info("Generate matches");
+            int i = 0;
             foreach (Overlap ol in overlaps)
             {
+                i++;
                 Matches.Get(ol.ProjectName, ol);
+                logger.Info("Completed " + i + " of " + overlaps.Count + " matches");
             }
 
             // Run bundle adjustment
@@ -200,35 +221,9 @@ namespace OPS.Pipeline
             return 0;
         }
 
-        public List<Observation> GetObservationsToMatch(string projectName)
-        {
-            List<Observation> results = new List<Observation>();
-
-            // Group observations by frame
-            var obsGroups = RoverObservation.Find(DynamoContext, projectName).GroupBy(ob => ob.FrameName);
-            foreach (var group in obsGroups)
-            {
-                // For each frame filter out only image observations to use in reconstruction
-                var imageObs = group.Where(ob => ob.ObservationType == ObservationType.Image.ToString() && ob.UseForReconstruction);
-                // Sort first by linearization and second by version.  We want nonlinear images with the highest version to come first
-                imageObs = imageObs.OrderBy(ob =>
-                {
-                    CameraModel model = (CameraModel)JsonHelper.FromJson(ob.CameraModel);
-
-                    return (model.Linear ? 0 : 100000) + ob.Version;
-                }).Reverse();
-                if (imageObs.Count() > 0)
-                {
-                    // Add the highest version image to our list.  If a nonlinear version exists it will be used, if not we will fall back to linearized
-                    results.Add(imageObs.First());
-                }
-            }
-            return results;
-        }
-
         public ComputedCorrespondence ComputeCorrespondence(Overlap overlap)
         {
-            //if (overlap.Status == Overlap.StatusType.Rejected) return null;
+            if (overlap.Status == Overlap.StatusType.Rejected) return null;
 
             AlignmentScene scene = new AlignmentScene();
             UnorderedImagePair pair;
@@ -286,7 +281,6 @@ namespace OPS.Pipeline
             if (scene.ImageToNode.ContainsKey(model) && scene.ImageToNode.ContainsKey(data))
             {
                 var kgf = new KnownGeometryFilter(this, (imgRef) => scene.ImageToNode[imgRef]);
-                kgf.MajorAxisThreshold = double.PositiveInfinity;
                 filters.Add(kgf);
             }
             else
@@ -294,13 +288,13 @@ namespace OPS.Pipeline
                 return null;
             }
 
-            // Brute force match descriptors
+            // Get match descriptors
 
             this.Load(model);
             this.Load(data);
 
-            IFeatureMatcher bfm = new CascadeHashingMatcher();
-            var matches = bfm.Match(scene, pair);
+            IFeatureMatcher matcher = new CascadeHashingMatcher();
+            var matches = matcher.Match(scene, pair);
             if (matches.Count < MIN_MATCHES)
             {
                 logger.Info("No matches for " + overlap.CombinedName);
@@ -324,10 +318,10 @@ namespace OPS.Pipeline
                     return null;
                 }
             }
-
-            var matchImage = MatchImage.Create(this, matches, scene.DetectedFeatures[model], scene.DetectedFeatures[data]);
+          
             if(options.DebugOutputFolder != null)
             {
+                var matchImage = MatchImage.Create(this, matches, scene.DetectedFeatures[model], scene.DetectedFeatures[data]);
                 PathHelper.EnsureExists(options.DebugOutputFolder);
                 matchImage.Save<byte>(Path.Combine(options.DebugOutputFolder, overlap.CombinedName + ".png"));
             }
@@ -397,6 +391,7 @@ namespace OPS.Pipeline
             } catch
             {
                 obs.UseForReconstruction = false;
+                ThroughputManager.Run(() => obs.Save(DynamoContext));
                 return null;
             }
         }
@@ -426,23 +421,23 @@ namespace OPS.Pipeline
 
         private void WaitForTables()
         {
-            bool shouldWait = true;
-            while (shouldWait)
+            foreach (var t in new Type[] { typeof(Project), typeof(Observation), typeof(Overlap), typeof(Frame), typeof(FrameTransform), typeof(TransformPrior) })
             {
-                shouldWait = false;
-                System.Threading.Thread.Sleep(100);
-                foreach (var t in new Type[] { typeof(Project), typeof(Observation), typeof(Overlap), typeof(Frame), typeof(FrameTransform), typeof(TransformPrior) })
+                var tn = options.DynamoDBPrefix + CreateCloudTemplates.TableName(t);
+                string tableStatus = "";
+                while (tableStatus != "ACTIVE")
                 {
-                    var tn = options.DynamoDBPrefix + CreateCloudTemplates.TableName(t);
-
+                    logger.Info("Waiting for table: " + CreateCloudTemplates.TableName(t));
                     try
                     {
-                        this.DynamoDB.DescribeTable(new DescribeTableRequest(tn));
+                        var tableResponse = this.DynamoDB.DescribeTable(new DescribeTableRequest(tn));
+                        tableStatus = tableResponse.Table.TableStatus;
                     }
                     catch (ResourceNotFoundException)
                     {
-                        shouldWait = true;
-                    }
+                        //Wait for table
+                        System.Threading.Thread.Sleep(3000);
+                    }                    
                 }
             }
         }

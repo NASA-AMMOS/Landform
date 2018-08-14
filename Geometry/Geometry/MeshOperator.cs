@@ -53,10 +53,10 @@ namespace OPS.Geometry
             }
         }
 
-        bool hasUVs;
-        bool hasNormals;
-        bool hasColors;
-        bool hasFaces;
+        public bool HasUVs { get; private set; }
+        public bool HasNormals { get; private set; }
+        public bool HasColors { get; private set; }
+        public bool HasFaces { get; private set; }
 
         /// <summary>
         /// Return the bounds of the mesh.  Bounds are cached so this method is fast.
@@ -70,39 +70,41 @@ namespace OPS.Geometry
         /// Create a mesh operator and compute accelerated structures
         /// </summary>
         /// <param name="mesh"></param>
-        public MeshOperator(Mesh mesh, bool buildFaceTree = true, bool buildVertexTree = true, bool buildUVFaceTree = true)
+        public MeshOperator(Mesh mesh, bool buildFaceTree = true, bool buildVertexTree = true, bool buildUVFaceTree = true, int maxEntries = 10, int minEntries = 5)
         {
-            triangles = mesh.Triangles();
-            vertices = mesh.Vertices;
-            hasUVs = mesh.HasUVs;
-            hasNormals = mesh.HasNormals;
-            hasColors = mesh.HasColors;
 
+            vertices = mesh.Vertices;
+            HasUVs = mesh.HasUVs;
+            HasNormals = mesh.HasNormals;
+            HasColors = mesh.HasColors;
+            this.triangles = mesh.Triangles();
             if (buildFaceTree)
             {
-                faceTree = new RTree<int>(10, 5);               
-                for(int i = 0; i < triangles.Count; i++)
-                {
-                    faceTree.Add(triangles[i].Bounds().ToRectangle(), i);
+                faceTree = new RTree<int>(maxEntries, minEntries);               
+            	for(int i = 0; i < triangles.Count; i++)
+
+            {
+                faceTree.Add(triangles[i].Bounds().ToRectangle(), i);
                 }
             }
             if (buildVertexTree)
             {
-                vertexTree = new RTree<int>(10, 5);
+                vertexTree = new RTree<int>(maxEntries, minEntries);
                 for(int i = 0; i < vertices.Count; i++)
                 {
                     vertexTree.Add(vertices[i].Bounds().ToRectangle(), i);
                 }
             }
-            if(hasUVs && buildUVFaceTree)
+            if(HasUVs && buildUVFaceTree)
             {
                 uvFaceTree = new RTree<int>(10, 5);
                 for(int i = 0; i < triangles.Count; i++)
+
                 {
                     uvFaceTree.Add(triangles[i].UVBounds().ToRectangle(), i);
                 }
             }
-            this.hasFaces = mesh.Faces.Count > 0;
+            this.HasFaces = mesh.Faces.Count > 0;
             this.Bounds = mesh.Bounds();
         }
 
@@ -111,10 +113,10 @@ namespace OPS.Geometry
         /// </summary>
         /// <param name="box"></param>
         /// <returns></returns>
-        public Mesh Clip(BoundingBox box)
+        public Mesh Clip(BoundingBox box, bool ragged = false)
         {
             Mesh result = null;
-            if (this.hasFaces)
+            if (this.HasFaces)
             {
                 if (faceTree == null)
                 {
@@ -124,9 +126,16 @@ namespace OPS.Geometry
                 List<Triangle> resTriangles = new List<Triangle>();
                 foreach (Triangle t in startingTriangles)
                 {
-                    resTriangles.AddRange(t.Clip(box));
+                    if (ragged)
+                    {
+                        resTriangles.Add(t);
+                    }
+                    else
+                    {
+                        resTriangles.AddRange(t.Clip(box));
+                    }
                 }
-                result = new Mesh(resTriangles, hasNormals, hasUVs, hasColors);
+                result = new Mesh(resTriangles, HasNormals, HasUVs, HasColors);
             }
             else
             {
@@ -134,12 +143,13 @@ namespace OPS.Geometry
                 {
                     throw new Exception("MeshOperator must have a vertex tree in order to clip meshes");
                 }
-                result = new Mesh(hasNormals, hasUVs, hasColors);
-                result.Vertices.AddRange(vertexTree.Intersects(box.ToRectangle()).Select(x => vertices[x]).ToList());                
+                result.Vertices.AddRange(vertexTree.Intersects(box.ToRectangle()).Select(x => vertices[x]).ToList());
+
+                result = new Mesh(HasNormals, HasUVs, HasColors);
             }
-            if (!box.FuzzyContains(result.Bounds(), 1E-5))
+            if (!box.FuzzyContains(result.Bounds(), 1E-5) && !ragged)
             {
-                //throw new Exception("Clipped mesh exceeds bounding box");
+                throw new Exception("Clipped mesh exceeds bounding box");
             }
             return result;
         }   
@@ -195,7 +205,7 @@ namespace OPS.Geometry
         /// <returns></returns>
         public bool Empty(BoundingBox box)
         {
-            if (!hasFaces || vertexTree != null)
+            if (!HasFaces || vertexTree != null)
             {
                 if(vertexTree == null )
                 {
@@ -206,7 +216,7 @@ namespace OPS.Geometry
                     return false;
                 }
             }
-            if (hasFaces)
+            if (HasFaces)
             {
                 if (faceTree == null)
                 {
@@ -256,6 +266,11 @@ namespace OPS.Geometry
                     return b;
             }
             return null;
+        }
+
+        public List<Triangle> UVIntersects(BoundingBox box)
+        {
+            return uvFaceTree.Intersects(box.ToRectangle()).Select(x => triangles[x]).ToList();
         }
     }
 

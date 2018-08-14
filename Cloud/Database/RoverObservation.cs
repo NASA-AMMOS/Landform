@@ -20,10 +20,6 @@ namespace OPS.Cloud
         public string ImageFrameSize { get; set; }
         public string Producer { get; set; }
 
-        //width and height are JUST for current sketchy old overlap detection. TODO probably not nececary 
-        public int Width { get; set; }
-        public int Height { get; set; }
-
         //This constructor must be public for DynamoDb but should not be used
         public RoverObservation()
         {
@@ -31,15 +27,13 @@ namespace OPS.Cloud
         }
 
         protected RoverObservation(Frame frame, string name, string url, string observationType, string cameraModel, bool useForReconstruction, int site, int drive, string version, string sensor, string imageFrameSize, string producer, int width, int height) :
-            base(frame, name, url, observationType, cameraModel, useForReconstruction)
+            base(frame, name, url, observationType, cameraModel, useForReconstruction, width, height)
         {
             this.Site = site;
             this.Drive = drive;
             this.Version = version;
             this.Sensor = sensor;
             this.ImageFrameSize = imageFrameSize;
-            this.Width = width;
-            this.Height = height;
             this.Producer = producer;
         }
 
@@ -54,7 +48,7 @@ namespace OPS.Cloud
         /// <param name="cameraModel"></param>
         /// <param name="useForReconstruction"></param>
         /// <returns></returns>
-        new public static Observation Create(DynamoDBContext context, Frame frame, string name, string url, string observationType, string cameraModel, bool useForReconstruction)
+        public static Observation Create(DynamoDBContext context, Frame frame, string name, string url, string observationType, string cameraModel, bool useForReconstruction)
         {
             throw new NotImplementedException("Call the other version of RoverObservation.Create with rover specific arguments");
         }
@@ -101,7 +95,7 @@ namespace OPS.Cloud
                 );
         }
 
-        public static new IEnumerable<RoverObservation> Find(DynamoDBContext context, Frame frame)
+        new public static IEnumerable<RoverObservation> Find(DynamoDBContext context, Frame frame)
         {
             return context.Scan<RoverObservation>(
                 new ScanCondition("ProjectName", Amazon.DynamoDBv2.DocumentModel.ScanOperator.Equal, frame.ProjectName),

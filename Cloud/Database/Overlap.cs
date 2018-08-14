@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using Amazon.DynamoDBv2.Model;
 using Amazon.DynamoDBv2.DataModel;
 using Amazon.DynamoDBv2.DocumentModel;
+using System.Linq;
 
 namespace OPS.Cloud
 {
@@ -63,6 +64,8 @@ namespace OPS.Cloud
 
         //This is set during creation to verify that only one worker can successfully create a single overlap item in Dynamo
         public bool Uploaded { get; set; }
+
+        //This is set upon computing a successful match to cache the result; if empty, check status to determine whether to compute
         public Guid MatchGuid { get; set; }
 
         [DynamoDBVersion]
@@ -161,7 +164,6 @@ namespace OPS.Cloud
         /// </summary>
         public static IEnumerable<Overlap> Find(DynamoDBContext context, Observation observation)
         {
-            //TODO: previously "ObservationOneName"
             foreach (var prop in new[] { "ObservationNameOne", "ObservationNameTwo" })
             {
                 var filt = new QueryFilter(prop, QueryOperator.Equal, observation.Name);

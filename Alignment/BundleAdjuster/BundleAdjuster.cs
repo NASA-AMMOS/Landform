@@ -335,7 +335,7 @@ namespace OPS.Alignment
                         m.Vertices.Add(new Vertex(result.Points[i].Position));
                     }
                     PathHelper.EnsureExists(debugOutputDirectory);
-                    m.Save(Path.Combine(debugOutputDirectory, "undlecloud.ply"));
+                    m.Save(Path.Combine(debugOutputDirectory, "bundlecloud.ply"));
                 }
 
                 // Trim bad points

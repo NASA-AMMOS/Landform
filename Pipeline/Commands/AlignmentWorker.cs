@@ -10,6 +10,7 @@ using Amazon.DynamoDBv2.DataModel;
 using OPS.Util;
 using OPS.Alignment;
 using OPS.Plumbing;
+using log4net;
 
 namespace OPS.Pipeline
 {

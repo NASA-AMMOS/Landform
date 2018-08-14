@@ -11,7 +11,7 @@ using Priority_Queue;
 namespace OPS.Geometry
 {
     /// <summary>
-    /// Stores two VertexData, the third VertexData of its left face (for winding order), and the location of the collapsed vertex
+    /// Stores two VertexNodes, the third VertexNode of its left face (for winding order), and the location of the collapsed vertex
     /// </summary>
     public class Edge
     {

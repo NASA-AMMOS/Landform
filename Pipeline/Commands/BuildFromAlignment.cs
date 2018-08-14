@@ -15,6 +15,7 @@ using System.IO;
 using Amazon.DynamoDBv2.DataModel;
 using OPS.MathExtensions;
 using System.Collections.Concurrent;
+using OPS.Util;
 
 namespace OPS.Pipeline
 {
@@ -51,83 +52,91 @@ namespace OPS.Pipeline
             this.AddProfile("s3://landlords-dev/", options.LandformProfile);
             this.AddProfile("s3://red-product/", options.MSliceProfile);
             this.options = options;
+            PathHelper.EnsureExists(options.OutputDirectory);
         }
 
-
-
-        class FrameCache
-        {
-            ConcurrentDictionary<string, Frame> frames = new ConcurrentDictionary<string, Frame>();
-
-            DynamoDBContext dynamoContext;
-            string projectName;
-
-            public FrameCache(DynamoDBContext dynamoContext, string projectName)
-            {
-                this.dynamoContext = dynamoContext;
-                this.projectName = projectName;
-            }
-
-            public Frame GetFrame(string name)
-            {
-                if(!frames.ContainsKey(name))
-                {
-                    var frame = Frame.Find(dynamoContext, projectName, name);
-                    if (frame == null)
-                    {
-                        logger.Warn("No frame found for observation: " + name);
-                        return null;
-                    }
-                    frames.TryAdd(name, frame);
-                }
-                return frames[name];
-            }
-        }
-
-        UncertainRigidTransform ObservationToRoot(Observation obs, FrameCache frameCache)
+        Matrix ObservationToRoot(Observation obs, FrameCache frameCache)
         {
             Frame frame = frameCache.GetFrame(obs.FrameName);
-            UncertainRigidTransform transform = null;
-            while (frame != null) 
+            //Start with the initial transform
+            Matrix transform = FrameTransform.Find(DynamoContext, frame).Transform.Mean;
+            while ((frame = frame.GetParent(DynamoContext)) != null) 
             {
-                // Base case, we are the observation frame, initilize transform to the transform for this observation
-                if(transform == null)
-                {
-                    transform = FrameTransform.Find(DynamoContext, frame).Transform;
-                }
-                else
-                {
-                    // Otherwise we are a parent transform -  Read the transform and combine it with the existing transform
-                    var parentTransform = FrameTransform.Find(DynamoContext, frame).Transform;
-                    transform =  transform * parentTransform; // TODO: this or the reverse of this
-                }
-                frame = frame.GetParent(DynamoContext);
+                //Read the parent transform and combine it with the existing transform
+                var parentTransform = FrameTransform.Find(DynamoContext, frame).Transform.Mean;
+                transform = parentTransform * transform;          
             }
             return transform;
         }
 
-        Mesh BuildPointCloud(Observation obs, UncertainRigidTransform observationToRoot, int stepSize = 1)
+        Mesh BuildPointCloud(Observation obs, Matrix obsToRoot, Observation imgObs = null, int stepSize = 1)
         {
             S3ImageRef s3ref = new S3ImageRef(obs.Url);
             
             Image img = this.Load(s3ref, true);
+            Image mask = RoverMask.Build(img);
+
+            if(mask == null)
+            {
+                throw new Exception("Images used in reconstruction should have masks!");
+            }
+
+            Image colorImg = null;
+            if (imgObs != null)
+            {
+                colorImg = Load(new S3ImageRef(imgObs.Url));
+            }
+
             Mesh result = new Mesh();
             for (int r = 0; r < img.Height; r += stepSize)
             {
                 for (int c = 0; c < img.Width; c += stepSize)
                 {
-                    double range = img[0, r, c];
-                    if (range > MathE.EPSILON && range < 64)
+                    if (mask[0, r, c] != 0)
                     {
-                        var observationPoint = img.CameraModel.Unproject(new Vector2(c, r), range);
-                        var dist = observationToRoot.TransformPoint(observationPoint);
-                        var rootPoint = dist.XnaMean;
-                        result.Vertices.Add(new Vertex(rootPoint));
+                        double range = img[0, r, c];
+                        if (range > MathE.EPSILON && range < 64)
+                        {
+                            var observationPoint = img.CameraModel.Unproject(new Vector2(c, r), range);
+                            var rootPoint = Vector3.Transform(observationPoint, Matrix.Transpose(obsToRoot)); //observationPoint dist.XnaMean;
+                            var res = new Vertex(rootPoint);
+                            if (colorImg != null)
+                            {
+                                if (img.Bands == 3)
+                                {
+                                    res.Color = new Vector4(colorImg[0, r, c], colorImg[1, r, c], colorImg[2, r, c], 1);
+                                }
+                                else
+                                {
+                                    res.Color = new Vector4(colorImg[0, r, c], colorImg[0, r, c], colorImg[0, r, c], 1);
+                                }
+                            }
+                            result.Vertices.Add(res);
+                        }
                     }
                 }
             }
             return result;
         }
+
+
+        class TransformRecord
+        {
+            public double[] transform;
+            public int[] rmc;
+            public string product;
+
+            public TransformRecord(Matrix m, int[] rmc, string product)
+            {
+ 
+                transform = new double[] { m.M11, m.M21, m.M31, m.M41,
+                                           m.M12, m.M22, m.M32, m.M42,
+                                           m.M13, m.M23, m.M33, m.M43,
+                                           m.M14, m.M24, m.M34, m.M44};
+                this.rmc = rmc;
+                this.product = product;
+            }
+        } 
 
         public int Run()
         {
@@ -135,21 +144,43 @@ namespace OPS.Pipeline
 
             FrameCache cache = new FrameCache(DynamoContext, options.ProjectName);
 
-            Parallel.ForEach(pointObs, obs =>
+            ConcurrentBag<TransformRecord> records = new ConcurrentBag<TransformRecord>();
+            Serial.ForEach(pointObs, new ParallelOptions() { MaxDegreeOfParallelism= Environment.ProcessorCount }, rngObs =>
             {
-                if (!obs.UseForReconstruction)
+                if (!rngObs.UseForReconstruction)
                 {
-                    logger.Info("Skipping observation: " + obs.Name);
+                    logger.Info("Skipping observation: " + rngObs.Name);
                     return;
                 }
-                logger.Info("Processing observation: " + obs.Name);
-                var transform = ObservationToRoot(obs, cache);
-                var frame = cache.GetFrame(obs.FrameName);
-                var otherObservations = Observation.Find(DynamoContext, frame);
+                logger.Info("Processing observation: " + rngObs.Name);
+                var transform = ObservationToRoot(rngObs, cache);
+                var frame = cache.GetFrame(rngObs.FrameName);
 
-                var m = BuildPointCloud(obs, transform);
-                m.Save(Path.Combine(options.OutputDirectory, obs.Name + ".ply"));
+                int[] rmc = null;
+                {
+                    
+                    Image img = this.Load(new S3ImageRef(rngObs.Url), true);
+                    var parser = new PDSParser((PDSMetadata)img.Metadata);
+                    rmc = parser.MotionCounter;
+                }
+
+
+                records.Add(new TransformRecord(transform, rmc, rngObs.Name));
+                var obsPair =  MSLProject.FindBestPair(RoverObservation.Find(DynamoContext, frame).Where(ob => ob.UseForReconstruction).ToList());
+                Observation imgObs = null;
+                if(obsPair != null)
+                {
+                    imgObs = obsPair.Image;
+                }
+
+                var m = BuildPointCloud(rngObs, transform, imgObs);
+                m.HasColors = true;
+                if (m.Vertices.Count > 0)
+                {
+                    m.Save(Path.Combine(options.OutputDirectory, rngObs.Name + ".ply"));
+                }
             });
+            File.WriteAllText(Path.Combine(options.OutputDirectory, "transforms.json"), JsonHelper.ToJson(records, true));
 
             return 0;
         }

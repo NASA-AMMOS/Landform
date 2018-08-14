@@ -17,6 +17,7 @@ namespace OPS.Imaging
             new DDSSerializer().Register();
             new GDALSeralizer().Register();
             new FITSSerializer().Register();
+            new RGBSerializer().Register();
         }
 
         /// <summary>

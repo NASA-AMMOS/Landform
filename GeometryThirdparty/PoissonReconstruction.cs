@@ -19,7 +19,7 @@ namespace OPS.Geometry
         /// </summary>
         /// <param name="pointCloud"></param>
         /// <returns></returns>
-        public static Mesh PoissonReconstruct(Mesh pointCloud, float samplesPerNode = 30, int depth = 8)
+        public static Mesh Reconstruct(Mesh pointCloud, float samplesPerNode = 30, int depth = 8)
         {
             if (pointCloud.Vertices.Count == 0)
             {

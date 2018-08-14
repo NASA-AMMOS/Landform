@@ -1,5 +1,6 @@
 ﻿using Microsoft.Xna.Framework;
 using OPS.Geometry;
+using OPS.Pipeline.TileServer;
 using OPS.Util;
 using System;
 using System.Collections.Generic;
@@ -35,6 +36,15 @@ namespace OPS.Pipeline.Tiling
             }
         }
 
+        public void ApplyRecursive(Action<TileNode> applyFunc)
+        {
+            applyFunc(this);
+            foreach(TileNode child in this.Children)
+            {
+                child.ApplyRecursive(applyFunc);
+            }
+        }
+
         public IEnumerable<TileNode> GetLeaves()
         {
             if(this.Children.Count() == 0)
@@ -52,6 +62,7 @@ namespace OPS.Pipeline.Tiling
             }
         }
 
+        public string id;
         public TileNode Parent;
         public IEnumerable<TileNode> Children;
         public BoundingBox Bounds;
@@ -83,8 +94,8 @@ namespace OPS.Pipeline.Tiling
     public struct GenericTilingSchemeOptions
     {
         public ITileSplitCriteria tileSplitCriteria;
-        public ITileSplitCriteria upperInfluenceRegion;
-        public ITileSplitCriteria lowerInfluenceRegion;
+        /*public ITileSplitCriteria upperInfluenceRegion;
+        public ITileSplitCriteria lowerInfluenceRegion;*/
         public SplitDim[] splitDims;
         public SplitType splitType;
         public TreeType treeType;
@@ -154,10 +165,10 @@ namespace OPS.Pipeline.Tiling
         /// <param name="tileNodes"></param>
         /// <param name="dim"></param>
         /// <returns></returns>
-        IEnumerable<TileNode> BisectBoxes(IEnumerable<TileNode> tileNodes, SplitDim dim)
+        IEnumerable<TileNode> BisectBoxes(IEnumerable<TileNode> TileNodes, SplitDim dim)
         {
 
-            foreach (TileNode tn in tileNodes)
+            foreach (TileNode tn in TileNodes)
             {
                 if (dim == SplitDim.X)
                 {
@@ -310,6 +321,7 @@ namespace OPS.Pipeline.Tiling
         public TileNode SubDivide(MeshOperator meshOperator)
         {
             TileNode root = new TileNode(null, meshOperator.Bounds);
+            root.id = "0";
             SubDivide(meshOperator, root);
             return root;
         }
@@ -354,13 +366,16 @@ namespace OPS.Pipeline.Tiling
                 }
 
                 parent.Children = children;
+                int i = 0;
                 foreach(var child in parent.Children)
                 {
+                    child.id = parent.id + i;
                     child.Parent = parent;
+                    i++;
                 }
 
                 //recurse
-                int i = 0;
+                i = 0;
                 foreach (TileNode tn in parent.Children)
                 {                   
                     if (Options.splitType == SplitType.Weighted)
@@ -472,7 +487,7 @@ namespace OPS.Pipeline.Tiling
             points.ClearUVs();
             points.ClearColors();
             points.Clean();
-            points = PoissonReconstruction.PoissonReconstruct(points, 30, 6);
+            points = PoissonReconstruction.Reconstruct(points, 30, 6);
             points.Clean();
             MeshOperator op = new MeshOperator(points);
             return op.Clip(bounds);

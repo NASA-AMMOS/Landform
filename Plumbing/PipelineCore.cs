@@ -18,7 +18,7 @@ namespace OPS.Plumbing
 {
     public class PipelineCore
     {
-        public PipelineCore(bool enableS3 = true, bool enableDynamo = true, string dynamoPrefix = "", string s3Url = "", string dynamoUrl = "", string profile = "default")
+        public PipelineCore(bool enableS3 = true, bool enableDynamo = true, string dynamoPrefix = "", string s3Url = "", string dynamoUrl = "", string profile = null)
         {
             storageSelecter = new Dictionary<string, StorageHelper>();
             if (enableS3)
@@ -62,7 +62,7 @@ namespace OPS.Plumbing
                 ddbClient = null;
                 context = null;
             }
-
+            this.Profile = profile;
             cacheFolder = TemporaryFile.GetTempDirectory();
         }
         ~PipelineCore()
@@ -79,7 +79,8 @@ namespace OPS.Plumbing
         StorageHelper defaultStorage;
         Dictionary<string, StorageHelper> storageSelecter;
         string cacheFolder;
-
+        
+        public string Profile { get; private set; }
         public IAmazonDynamoDB DynamoDB { get { return ddbClient; } }
         public DynamoDBContext DynamoContext { get { return context; } }
         public IAmazonS3 S3Client { get { return s3Client; } }
@@ -157,7 +158,7 @@ namespace OPS.Plumbing
         }
         public Image Load(ImageRef imgRef)
         {
-            return Load(imgRef, false);
+            return Load(imgRef, true);
         }
         private LRUCache<ImageRef, Image> imageCache = new LRUCache<ImageRef, Image>(100);
 
@@ -236,7 +237,7 @@ namespace OPS.Plumbing
             if (waitForResponse) {
                 Type t = product.GetType();
                 MethodInfo DynamicGet = GetType().GetMethod("Get").MakeGenericMethod(new Type[] {t});
-                while (DynamicGet.Invoke(this, new object[] { project, product.Guid, useCache }) == null)
+                while (DynamicGet.Invoke(this, new object[] { project, product.Guid, false }) == null)
                 {
                     System.Threading.Thread.Sleep(1000);
                 }

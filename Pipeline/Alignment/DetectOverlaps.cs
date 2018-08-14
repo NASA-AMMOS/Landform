@@ -1,4 +1,5 @@
-﻿using OPS.Alignment;
+﻿using log4net;
+using OPS.Alignment;
 using OPS.Cloud;
 using OPS.Geometry;
 using OPS.Plumbing;
@@ -18,7 +19,7 @@ namespace OPS.Pipeline
 
         }
 
-        public IEnumerable<Overlap> Run(List<Observation> toConsider)
+        public IEnumerable<Overlap> Run(List<Observation> toConsider, ILog logger = null)
         {
             if (toConsider.Count < 1)
             {
@@ -68,15 +69,17 @@ namespace OPS.Pipeline
             FrustumOverlapDetector fod = new FrustumOverlapDetector(Pipeline);
             fod.Detect(scene);
 
-            foreach (var overlap in scene.Overlaps)
+            logger.Info("Found overlaps: " + scene.Overlaps.Count);
+
+            foreach(var overlap in scene.Overlaps)
             {
                 var one = refToObservation[overlap.One];
                 var two = refToObservation[overlap.Two];
-                var steve = Overlap.Create(Pipeline.DynamoContext, one, two);
-                if (steve != null) yield return steve;
-                // lower throughput
-                // TODO: other options?
-                System.Threading.Thread.Sleep(100);
+                var steve = ThroughputManager.Run(() => Overlap.Create(Pipeline.DynamoContext, one, two));
+                if(steve != null)
+                {
+                    yield return steve;
+                }
             }
         }
     }

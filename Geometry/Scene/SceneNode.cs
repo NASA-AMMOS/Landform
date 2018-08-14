@@ -88,8 +88,7 @@ namespace OPS.Geometry
         {
             if (HasComponent<T>())
             {
-                //throw new InvalidOperationException("component already exists");
-                return res;
+                throw new InvalidOperationException("component already exists");
             }
             res.Node = this;
             components[typeof(T)] = res;
@@ -178,7 +177,6 @@ namespace OPS.Geometry
                 "Patricia", "Strongface", "The Danger", "George", "Donald",
                 "Flapjack", "Harry", "Ol' Hickory Ham Mike", "Nick", "Thom", "Watman",
                 "Yoko", "Mortality Itself", "Penny", "Jack", "Rocky", "Bill", "Ted", "Eve"
-            // TODO: expand
         };
 
         static readonly string[] SillyDescriptors = new string[]
@@ -250,7 +248,7 @@ namespace OPS.Geometry
         /// <returns></returns>
         public IEnumerable<SceneNode> Leaves()
         {
-            foreach(NodeTransform t in this.Transform.Leafs())
+            foreach(NodeTransform t in this.Transform.Leaves())
             {
                 yield return t.Node; 
             }
