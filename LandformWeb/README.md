@@ -19,7 +19,6 @@ This repo consists of a backend [REST API](API.md) server and a frontend react a
     1. `npm run bundle` - creates landformweb.zip containing
         1. full archive of current git HEAD
         1. current client/build subtree
-1. Follow the instructions in the header comments of `../Cloud/aws-login.py` to configure your machine with the AWS CLI Python tools, if you haven't already.
 1. Optional - test the Docker container locally.
     1. This will require a local installation of [Docker](https://www.docker.com) host.
     1. `npm run local-deploy -- [-f|--force] [-i|--interactive] [-d|--debug]` to re-build the Docker container "landformweb" and run it locally.
@@ -29,6 +28,7 @@ This repo consists of a backend [REST API](API.md) server and a frontend react a
         1. `--interactive`: drop into a shell in the Docker container instead of running the server.  Note: if using git bash run `winpty node local-deploy.js -i ...` instead.
         1. `--debug`: set `LOG_LEVEL=silly` in the Docker container
 1. Deploy to Elastic Beanstalk
+    1. Follow the instructions in the header comments of `../Cloud/aws-login.py` to configure your machine with the AWS CLI Python tools, if you haven't already.
     1. Run `../Cloud/aws-login.py` (`winpty python ../Cloud/aws-login.py` if using git bash) to generate temporary AWS credentials in \$HOME/.aws/credentials.
         1. if you have multiple roles, select arn:aws:iam::589270964471:role/account_owner
     1. `npm run deploy -- [environment-name] [-f|--force] [--profile=foo]`.  Options:
