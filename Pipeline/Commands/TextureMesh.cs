@@ -1,5 +1,7 @@
 ﻿using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
+using System.Threading;
 using log4net;
 using CommandLine;
 using Amazon.DynamoDBv2.DataModel;
@@ -49,28 +51,40 @@ namespace OPS.Pipeline
             // download the parent mesh
             TilingInputChunk tilingInput = GetTilingInputChunk(pipeline);
             Mesh fullMesh = DownloadFullMesh(pipeline, tilingInput);
+            fullMesh.Clean();
+            MeshOperator op = new MeshOperator(fullMesh);
+
+            // get tiling information
+            IEnumerable<TilingNode> leafTileNodes = GetLeafTilingNodes(pipeline);
+            int numLeafTileNodes = leafTileNodes.Count();
 
             // generate leaf tile data
             int tiledMeshes = 0;
-            foreach (TilingNode leaf in GetLeafTilingNodes(pipeline))
+            int textureDimension = 128;
+            Parallel.ForEach(leafTileNodes, leaf =>
             {
-                logger.Info("Generating tile " + leaf.Id);
+                int curTileIndex = Interlocked.Increment(ref tiledMeshes);
+                logger.Info("Generating tile number " + curTileIndex + "/" + numLeafTileNodes + " (" + (int)(curTileIndex / (float)numLeafTileNodes * 100) + "%): " + leaf.Id);
 
                 MeshImagePair leafPair = new MeshImagePair();
-                leafPair.Mesh = Mesh.Clip(fullMesh, leaf.GetBounds());
+                leafPair.Mesh = op.Clip(leaf.GetBounds());
 
-                // placeholder solid texture simulating backproject results 
-                leafPair.Image = new Image(3, 8, 8);
-                leafPair.Image.ApplyInPlace(0, x => { return (byte)255; });
+                if(leafPair.Mesh.HasFaces)
+                {
+                    leafPair.Mesh = UVAtlas.Atlas(leafPair.Mesh, textureDimension, textureDimension, 0, 1, 1);
 
-                leaf.SaveMesh(leafPair, pipeline, 0);
-                tiledMeshes++;
-            }
+                    // placeholder solid texture simulating backproject results 
+                    leafPair.Image = new Image(3, textureDimension, textureDimension);
+                    leafPair.Image.ApplyInPlace(0, x => { return (byte)255; });
+
+                    leaf.SaveMesh(leafPair, pipeline, 0);
+                }
+            });
 
             logger.Info("Completed generating " + tiledMeshes + " tiles.");
             return 0;
         }
-    
+
         /// <summary>
         /// gets the tiling input chunk that describes where the large parent mesh
         /// for the project is located
