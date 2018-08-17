@@ -14,6 +14,7 @@ const dbg = process.argv.slice(2).some(a => {
 
 const binDir = path.join('..', 'TilingServer', 'bin', dbg ? 'Debug' : 'Release');
 
+//copying only selected files results in a zip that is 100x smaller (1.7M vs 170M)
 const files = [
   'AWSSDK.Core.dll', 'AWSSDK.DynamoDBv2.dll', 'AWSSDK.S3.dll', 'AWSSDK.SQS.dll',
   'Cloud.dll', 'CloudMessages.dll',
@@ -36,6 +37,7 @@ if (fs.pathExistsSync(bundle) && fs.pathExistsSync(binDir)) {
   fs.ensureDirSync(tmpDir);
 
   try {
+    //fs.copySync(src, tmpDir);
     files.forEach(f => fs.copySync(path.join(src, f), path.join(tmpDir, f)));
     z.addLocalFolder(tmpDir, 'bin');
   } finally { fs.remove(tmpDir); }
