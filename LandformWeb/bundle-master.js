@@ -16,8 +16,9 @@ const binDir = path.join('..', 'TilingServer', 'bin', dbg ? 'Debug' : 'Release')
 
 const files = [
   'AWSSDK.Core.dll', 'AWSSDK.DynamoDBv2.dll', 'AWSSDK.S3.dll', 'AWSSDK.SQS.dll',
-  'Cloud.dll', 'CloudMessages.dll', 'CommandLine.dll', 'Geometry.dll', 'Imaging.dll',
-  'MathExtensions.dll', 'Pipeline.dll', 'Plumbing.dll', 'Util.dll',
+  'Cloud.dll', 'CloudMessages.dll',
+  'Geometry.dll', 'GeometryThirdparty.dll', 'Imaging.dll', 'MathExtensions.dll',
+  'Pipeline.dll', 'Plumbing.dll', 'Util.dll', 'CommandLine.dll',
   'TilingServer.exe', 'TilingServer.exe.config',
   'Newtonsoft.Json.dll', 'log4net.dll', 'Xna.dll',
 ];
