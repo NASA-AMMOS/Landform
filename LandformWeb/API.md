@@ -20,13 +20,13 @@ Upload data for the named project.  Implements the [generic task API](#generic-t
 
 Uploading the data with the same mesh filename (TODO?) more than once has no effect (not an error).
 
-TODO what happens when you upload with a different filename?
-
-TODO does the C# code really look at the filename extensions (exclusively?) to determine data format?
-
-TODO are there any restrictions on filename format?
+The data format is implied from the filename extension.
 
 TODO what formats and resolutions are accepted?
+
+TODO what happens when you upload with a different filename?
+
+TODO are there any restrictions on filename format?
 
 Accepts the following arguments in a `multipart/form-data` encoded HTTP request body:
 * *mesh*: mesh data file (required); data format will be implied from filename extension
