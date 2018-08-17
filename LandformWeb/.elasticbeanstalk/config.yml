@@ -7,15 +7,8 @@ branch-defaults:
     group_suffix: null
 deploy:
   artifact: ./landformweb.zip
-environment-defaults:
-  onsight:
-    branch: null
-    repository: null
-  onsight-staging:
-    branch: null
-    repository: null
 global:
   application_name: landform
   default_region: us-west-1
-  profile: eb-cli
+  profile: default
   sc: null
