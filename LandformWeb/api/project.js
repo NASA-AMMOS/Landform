@@ -95,13 +95,4 @@ async function runProject(req, res) {
 }
 router.post('/:name/run', runProject);
 
-//TODO
-//get project (metadata, status, progress, errors, etc)
-//list projects
-//trash/untrash project
-//rename project
-//trash/untrash input
-//rename input
-//download ouptput
-
 module.exports = router;
