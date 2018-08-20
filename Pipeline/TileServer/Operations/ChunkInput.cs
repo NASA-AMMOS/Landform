@@ -105,7 +105,7 @@ namespace OPS.Pipeline.TileServer
 
             logger.Info("Building mesh chunks");
             var tilingScheme = new BinaryTreeTilingScheme();
-            var splitCriteria = new FaceLimitSplitCriteria(FacesPerChunk);
+            var splitCriteria = new FaceSplitCriteria(FacesPerChunk);
             var root = TileLocalMesh.BuildBoundsTree(ti, tilingScheme, splitCriteria);
             
             ConcurrentBag<string> chunkIds = new ConcurrentBag<string>();

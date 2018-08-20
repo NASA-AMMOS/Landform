@@ -53,6 +53,8 @@ namespace OPS.Pipeline
             this.AddProfile("s3://red-product/", options.MSliceProfile);
             this.options = options;
         }
+
+        //TODO: duplicated from BuildFromAlignment, should decide where this lives
         UncertainRigidTransform ObservationToRoot(Observation obs, FrameCache frameCache)
         {
             Frame frame = frameCache.GetFrame(obs.FrameName);

@@ -11,15 +11,15 @@ namespace OPS.Pipeline
     /// <summary>
     /// Splitting criteria to split tiles based on a max number of allowed faces
     /// </summary>
-    public class FaceLimitSplitCriteria : ITileSplitCriteria
+    public class FaceSplitCriteria : ITileSplitCriteria
     {
         int targetFacesPerTile;
 
         /// <summary>
         /// 
         /// </summary>
-        /// <param name="targetFacesPerTile">Faces allowed in an a bouding region before we should split</param>
-        public FaceLimitSplitCriteria(int targetFacesPerTile)
+        /// <param name="targetFacesPerTile">Faces allowed in a bouding region before we should split</param>
+        public FaceSplitCriteria(int targetFacesPerTile)
         {
             this.targetFacesPerTile = targetFacesPerTile;
         }
@@ -33,7 +33,7 @@ namespace OPS.Pipeline
         public bool ShouldSplit(MeshOperator meshOperator, BoundingBox bounds)
         {
             int curPolyCount = meshOperator.CountFaces(bounds);
-            if (curPolyCount == 0 || curPolyCount <= this.targetFacesPerTile)
+            if (curPolyCount <= this.targetFacesPerTile)
             {
                 return false;
             }
