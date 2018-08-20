@@ -52,19 +52,20 @@ namespace OPS.Pipeline
             MeshOperator op = new MeshOperator(fullMesh);
 
             // get tiling information
-            IEnumerable<TilingNode> leafTileNodes = GetLeafTilingNodes(pipeline);
-            int numLeafTileNodes = leafTileNodes.Count();
+            TilingProject project = TilingProject.Find(pipeline.DynamoContext, this.options.ProjectName);
+            SceneNode tilingRoot = TilingNode.BuildTreeFromDatabase(pipeline.DynamoContext, project);
 
             // generate leaf tile data
             int tiledMeshes = 0;
             int textureDimension = 128;
-            Parallel.ForEach(leafTileNodes, leaf =>
+            int numLeafTileNodes = tilingRoot.Leaves().Count();
+            Parallel.ForEach(tilingRoot.Leaves(), leaf =>
             {
                 int curTileIndex = Interlocked.Increment(ref tiledMeshes);
-                logger.Info("Generating tile number " + curTileIndex + "/" + numLeafTileNodes + " (" + (int)(curTileIndex / (float)numLeafTileNodes * 100) + "%): " + leaf.Id);
+                logger.Info("Generating tile number " + curTileIndex + "/" + numLeafTileNodes + " (" + (int)(curTileIndex / (float)numLeafTileNodes * 100) + "%): " + leaf.Name);
 
                 MeshImagePair leafPair = new MeshImagePair();
-                leafPair.Mesh = op.Clip(leaf.GetBounds());
+                leafPair.Mesh = op.Clip(leaf.GetComponent<NodeBounds>().Bounds);
 
                 if(leafPair.Mesh.HasFaces)
                 {
@@ -74,7 +75,7 @@ namespace OPS.Pipeline
                     leafPair.Image = new Image(3, textureDimension, textureDimension);
                     leafPair.Image.ApplyInPlace(0, x => { return (byte)255; });
 
-                    leaf.SaveMesh(leafPair, pipeline, 0);
+                    TilingNode.Find(pipeline.DynamoContext, project, leaf.Name).SaveMesh(leafPair, pipeline, 0);
                 }
             });
 
@@ -119,20 +120,6 @@ namespace OPS.Pipeline
                 throw new CloudException("Failed to download full project mesh");
 
             return result;
-        }
-
-        /// <summary>
-        /// queries the dynamo db for the tiling nodes that have no children
-        /// </summary>
-        /// <param name="pipeline"></param>
-        /// <returns></returns>
-        private IEnumerable<TilingNode> GetLeafTilingNodes(PipelineCore pipeline)
-        {
-            logger.Info("Collecting tiling information");
-            return pipeline.DynamoContext.Scan<TilingNode>(
-                new ScanCondition("ProjectName", Amazon.DynamoDBv2.DocumentModel.ScanOperator.Equal, options.ProjectName),
-                new ScanCondition("ChildIds", Amazon.DynamoDBv2.DocumentModel.ScanOperator.IsNull)
-            );
         }
     }
 }
