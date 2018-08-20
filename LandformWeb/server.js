@@ -7,10 +7,13 @@ const cors = require('cors');
 const path = require('path');
 
 const config = require('./config');
+const logger = require('./logger');
+const { tilingMaster } = require('./tilingUtil');
+const { abortRoute } = require('./routeUtil');
 const authRouter = require('./auth');
 const token = require('./token');
-const projectRouter = require('./project');
-const pipleineRouter = require('./pipeline');
+const projectRouter = require('./api/project');
+const taskRouter = require('./api/task');
 
 const app = express();
 
@@ -38,18 +41,25 @@ app.use(session({
 }));
 
 //serve auth routes - login, logout, get token
-app.use('/auth', authRouter);
+app.use(authRouter);
 
-//serve REST API routes
+//serve API routes
 const apiRouter = express.Router();
 apiRouter.use(token.apiTokenCheck);
 apiRouter.use('/project', projectRouter);
-apiRouter.use('/pipeline', pipleineRouter);
+apiRouter.use('/task', taskRouter);
+apiRouter.use('*', (req, res) => abortRoute(res, `unrecognized API '${req.originalUrl}'`, 400));
 app.use('/api', apiRouter);
+
+//TODO favicon; for now return 204 no content
+app.get('/favicon.ico', (req, res) => res.status(204));
 
 //serve webpacked client but in production only
 //for dev the client is served by a separate server on localhost:3000 which does hot module reloading
 //that dev server proxies certain routes back to this server as configured in client/package.json
 if (app.get('env') === 'production') app.use('/', express.static(path.join(__dirname, 'client', 'build')));
 
-app.listen(config.app.port, () => { console.log(`${config.app.name} server listening on port ${config.app.port}`); });
+tilingMaster().then(() => {
+  logger.info('launched TilingServer master');
+  app.listen(config.app.port, () => logger.info(`${config.app.name} listening on port ${config.app.port}`));
+});
