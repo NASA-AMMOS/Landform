@@ -19,9 +19,6 @@ namespace OPS.Pipeline
     {
         [Value(0, Required = true, HelpText = "Project name for dynamo db")]
         public string ProjectName { get; set; }
-
-        [Value(1, Required = true, HelpText = "The dynamo db table prefix")]
-        public string DatabaseTablePrefix { get; set; }
     };
 
     class TextureMesh
@@ -45,8 +42,8 @@ namespace OPS.Pipeline
             logger.Info("Texturing mesh...");
 
             // setup networking pipe
-            PipelineCore pipeline = new PipelineCore(dynamoPrefix: options.DatabaseTablePrefix);
-            pipeline.AddProfile("s3://landlords-dev/", "landlords");
+            PipelineCore pipeline = new PipelineCore(dynamoPrefix:TileServerConfig.Instance.VenueName);
+            pipeline.AddProfile(TileServerConfig.Instance.S3Url, TileServerConfig.Instance.Profile);
 
             // download the parent mesh
             TilingInputChunk tilingInput = GetTilingInputChunk(pipeline);
