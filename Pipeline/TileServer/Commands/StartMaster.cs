@@ -3,6 +3,7 @@ using log4net;
 using OPS.Geometry;
 using OPS.Plumbing;
 using OPS.Util;
+using OPS.Pipeline.MeshingWorker;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -208,15 +209,40 @@ namespace OPS.Pipeline.TileServer
                 var messages = completionQueue.Deque(TilingQueue.MAX_MESSAGES_PER_DEQUEUE);
                 foreach (var m in messages)
                 {
-                    string s = JsonHelper.ToJson(m);          
+                    string s = JsonHelper.ToJson(m);
                     try
                     {
                         // process
-                        if (m.GetType() == typeof(DefineTilesMessage))
+
+                        //TODO: by thomas
+                        //if (m.GetType() == typeof(BuildMeshMessage))
+                        //{
+                        //    logger.Info("Build mesh");
+                        //
+                        // This is the first message that happens when we trigger a new run
+                        // Force a clearing of the cache just to avoid stale data form a previous run
+                        //  ProjectCache.ClearCacheForProject(m.ProjectName); //TODO: duplicate earlier in state machine for msl path
+                        //  ProjectCache.GetCacheForProject(this, m.ProjectName);
+                        //    //TODO: do build mesh                            
+                        //
+                        //    var textureJob = new TextureMeshMessage(m.ProjectName);
+                        //    workerQueue.Enqueue(textureJob);
+                        //    ProjectCache.GetCacheForProject(this, m.ProjectName).MarkEnqued(leaf.Name);                           
+                        //}
+                        //else 
+                        if (m.GetType() == typeof(TextureMeshCompletedMessage))
+                        {
+                            //let tiling server know it needs to do work with newly completed leaf tiles
+                            foreach (string tileId in (m as TextureMeshCompletedMessage).TileIds)
+                            {
+                                workerQueue.Enqueue(new TileCompletedMessage(m.ProjectName, tileId));
+                            }
+                        }
+                        else if (m.GetType() == typeof(DefineTilesMessage))
                         {
                             // This is the first message that happens when we trigger a new run
                             // Force a clearing of the cache just to avoid stale data form a previous run
-                            ProjectCache.ClearCacheForProject(m.ProjectName);
+                            ProjectCache.ClearCacheForProject(m.ProjectName); //TODO: duplicate earlier in state machine for msl path
                             ProjectCache.GetCacheForProject(this, m.ProjectName);
 
                             logger.Info("DefineTiles project:" + m.ProjectName);

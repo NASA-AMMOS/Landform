@@ -1,34 +1,48 @@
-﻿using System.IO;
+﻿using log4net;
+using System.Collections.Generic;
 using System.Linq;
-using System.Threading.Tasks;
 using System.Threading;
-using log4net;
-using CommandLine;
-using Amazon.DynamoDBv2.DataModel;
-using OPS.Plumbing;
-using OPS.Geometry;
-using OPS.Imaging;
+using System.Threading.Tasks;
 using OPS.Pipeline.TileServer;
-using OPS.Util;
+using OPS.Geometry;
+using OPS.Plumbing;
 using OPS.Cloud;
+using OPS.Imaging;
+using OPS.Util;
 
-namespace OPS.Pipeline
+namespace OPS.Pipeline.MeshingWorker
 {
-    [Verb("MSL.Texture", HelpText = "generate leaf tiles (mesh and texture) for a terrain mesh")]
-    public class TextureMeshOptions
+    // sent to the TextureMeshOp when the project's fullmesh TilingInputNode is ready to be processed
+    public class TextureMeshMessage : TilingQueueMessage
     {
-        [Value(0, Required = true, HelpText = "Project name for dynamo db")]
-        public string ProjectName { get; set; }
-    };
+        public TextureMeshMessage() { }
 
-    class TextureMesh
+        public TextureMeshMessage(string projectName) : base(projectName)
+        { }
+    }
+
+    // sent by the TextureMeshOp as the last leaf tile completes processing
+    public class TextureMeshCompletedMessage : TilingQueueMessage
     {
-        static ILog logger = LogManager.GetLogger(typeof(TextureMesh));
-        private TextureMeshOptions options;
+        public List<string> TileIds { get; set; }
 
-        public TextureMesh(TextureMeshOptions opts)
+        public TextureMeshCompletedMessage(string projectName, List<string> tileIds) : base(projectName)
         {
-            this.options = opts;
+            this.TileIds = tileIds;
+        }
+    }
+
+    class TextureMeshOp
+    {
+        static ILog logger = LogManager.GetLogger(typeof(TextureMeshOp));
+
+        StartWorker pipeline;
+        TextureMeshMessage message;
+
+        public TextureMeshOp(TextureMeshMessage message, StartWorker pipeline)
+        {
+            this.pipeline = pipeline;
+            this.message = message;
         }
 
         /// <summary>
@@ -37,22 +51,18 @@ namespace OPS.Pipeline
         /// uploads data to storage and updates tiling node urls to point at them
         /// </summary>
         /// <returns></returns>
-        public int Run()
+        public int Process()
         {
             logger.Info("Texturing mesh...");
 
-            // setup networking pipe
-            PipelineCore pipeline = new PipelineCore(dynamoPrefix:TileServerConfig.Instance.VenueName);
-            pipeline.AddProfile(TileServerConfig.Instance.S3Url, TileServerConfig.Instance.Profile);
-
             // download the parent mesh
-            TilingInputChunk tilingInput = GetTilingInputChunk(pipeline);
+            TilingInputChunk tilingInput = TilingInputChunk.Find(pipeline.DynamoContext, "FullMesh");
             Mesh fullMesh = DownloadFullMesh(pipeline, tilingInput);
             fullMesh.Clean();
             MeshOperator op = new MeshOperator(fullMesh);
 
             // get tiling information
-            TilingProject project = TilingProject.Find(pipeline.DynamoContext, this.options.ProjectName);
+            TilingProject project = TilingProject.Find(pipeline.DynamoContext, message.ProjectName);
             SceneNode tilingRoot = TilingNode.BuildTreeFromDatabase(pipeline.DynamoContext, project);
 
             // generate leaf tile data
@@ -67,7 +77,7 @@ namespace OPS.Pipeline
                 MeshImagePair leafPair = new MeshImagePair();
                 leafPair.Mesh = op.Clip(leaf.GetComponent<NodeBounds>().Bounds);
 
-                if(leafPair.Mesh.HasFaces)
+                if (leafPair.Mesh.HasFaces)
                 {
                     leafPair.Mesh = UVAtlas.Atlas(leafPair.Mesh, textureDimension, textureDimension, 0, 1, 1);
 
@@ -81,23 +91,6 @@ namespace OPS.Pipeline
 
             logger.Info("Completed generating " + tiledMeshes + " tiles.");
             return 0;
-        }
-
-        /// <summary>
-        /// gets the tiling input chunk that describes where the large parent mesh
-        /// for the project is located
-        /// </summary>
-        /// <param name="pipeline"></param>
-        /// <returns></returns>
-        public TilingInputChunk GetTilingInputChunk(PipelineCore pipeline)
-        {
-            logger.Info("Get tiling input information");
-
-            TilingInputChunk input = pipeline.DynamoContext.Scan<TilingInputChunk>(new ScanCondition("Id", Amazon.DynamoDBv2.DocumentModel.ScanOperator.Equal, "FullMesh")).First();
-            if (input == null)
-                throw new CloudException("TilingInputChunk not found");
-
-            return input;
         }
 
         /// <summary>
@@ -121,5 +114,6 @@ namespace OPS.Pipeline
 
             return result;
         }
+        //}
     }
 }
