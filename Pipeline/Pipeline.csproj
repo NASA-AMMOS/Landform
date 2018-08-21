@@ -229,7 +229,7 @@
     <Compile Include="Tiling\BinaryTreeTilingScheme.cs" />
     <Compile Include="Tiling\DefaultLeafTileContentProducer.cs" />
     <Compile Include="Tiling\DefaultParentTileContentProducer.cs" />
-    <Compile Include="Tiling\FaceLimitSplitCriteria.cs" />
+    <Compile Include="Tiling\FaceSplitCriteria.cs" />
     <Compile Include="Tiling\GenericTilingScheme.cs" />
     <Compile Include="Tiling\IContentProducer.cs" />
     <Compile Include="Tiling\IImageProducer.cs" />

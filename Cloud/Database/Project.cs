@@ -32,11 +32,6 @@ namespace OPS.Cloud
         /// </summary>
         public string InputPath { get; set; }
 
-        /// <summary>
-        /// Name of the mesh in s3
-        /// </summary>
-        public string MeshGuid { get; set; }
-
         //This constructor must be public for DynamoDb but should not be used
         public Project()
         {

@@ -22,19 +22,16 @@ using MathNet.Numerics.LinearAlgebra;
 
 namespace OPS.Pipeline
 {
-    [Verb("curiositymesh", HelpText = "Reads an alignment solution in the database and builds a mesh")]
+    [Verb("curiositymesh", HelpText = "Reads an alignment solution in the database and builds a mesh with tiling scheme")]
     public class CuriosityMeshOptions
     {
-        [Value(0, Required = true, HelpText = "Name of project to use")]
-        public string ProjectName { get; set; }
+        [Value(0, Required = true, HelpText = "Name of alignment project to use")]
+        public string AlignmentProjectName { get; set; }
 
-        [Value(1, Required = true, HelpText = "Prefix for database")]
-        public string DynamoDBPrefix { get; set; }
+        [Value(1, Required = true, HelpText = "Name of tiling project to use")]
+        public string TilingProjectName { get; set; }
 
-        [Value(2, Required = true, HelpText = "Landform AWS profile")]
-        public string LandformProfile { get; set; }
-
-        [Value(3, Required = true, HelpText = "MSLICE AWS profile")]
+        [Value(2, Required = true, HelpText = "MSLICE AWS profile")]
         public string MSliceProfile { get; set; }
     }
 
@@ -47,9 +44,9 @@ namespace OPS.Pipeline
 
         static ILog logger = LogManager.GetLogger(typeof(CuriosityMesh));
 
-        public CuriosityMesh(CuriosityMeshOptions options) : base(dynamoPrefix: options.DynamoDBPrefix)
+        public CuriosityMesh(CuriosityMeshOptions options) : base(dynamoPrefix: TileServerConfig.Instance.VenueName)
         {
-            this.AddProfile("s3://landlords-dev/", options.LandformProfile);
+            this.AddProfile("s3://landlords-dev/", TileServerConfig.Instance.Profile);
             this.AddProfile("s3://red-product/", options.MSliceProfile);
             this.options = options;
         }
@@ -227,18 +224,16 @@ namespace OPS.Pipeline
         public int Run()
         {
             //Read in observations from alignment project
-            var alignmentProject = Project.Find(DynamoContext, options.ProjectName);
-            var pointObs = Observation.FindByType(DynamoContext, options.ProjectName, "Points").ToArray();
+            var alignmentProject = Project.Find(DynamoContext, options.AlignmentProjectName);
+            var x = alignmentProject.ProductPath;
 
-            FrameCache cache = new FrameCache(DynamoContext, options.ProjectName);
+            FrameCache cache = new FrameCache(DynamoContext, options.AlignmentProjectName);
 
             //Use the same logic as the alignment to get best range products
-            var triples = FindBestTriples(RoverObservation.Find(DynamoContext, options.ProjectName));
+            var triples = FindBestTriples(RoverObservation.Find(DynamoContext, options.AlignmentProjectName));
 
             //For transfomrs.json
             //ConcurrentBag<TransformRecord> records = new ConcurrentBag<TransformRecord>();
-
-
 
             ConcurrentBag<Mesh> meshes = new ConcurrentBag<Mesh>();
 
@@ -310,20 +305,19 @@ namespace OPS.Pipeline
             largeMesh = PoissonReconstruction.Reconstruct(largeMesh, 1, 10);
 
             //Get the tiling project (must be same venue as alignment project)
-            var tilingProject = TilingProject.Find(DynamoContext, options.ProjectName);    
-            string meshGuid = "FullMesh";
-            //TODO: will use options from future venue config
-            string s3url = "s3://landlords-dev//thomas-dev//Recon//" + options.ProjectName + "//";
+            var tilingProject = TilingProject.Find(DynamoContext, options.TilingProjectName);    
+            string meshName = "FullMesh";
+            string s3MeshOutputUrl = TileServerConfig.Instance.ChunkUrl(options.TilingProjectName, meshName);
             TemporaryFile.GetAndDelete(".ply", tempFile => {
                 largeMesh.Save(tempFile);
-                this.Storage(s3url).UploadFile(tempFile, s3url + meshGuid);
+                this.Storage(s3MeshOutputUrl).UploadFile(tempFile, s3MeshOutputUrl);
             });
 
             //Create a mesh operator to tile the mesh
             MeshOperator mo = new MeshOperator(largeMesh, buildFaceTree: false, buildUVFaceTree: false);
 
             //Upload a chunk pointing to the full mesh
-            TilingInputChunk.Create(DynamoContext, meshGuid, tilingProject, s3url, null, mo.Bounds);
+            TilingInputChunk.Create(DynamoContext, meshName, tilingProject, s3MeshOutputUrl, null, mo.Bounds);
 
             //Generate the tiling scheme (variable options to come)
             GenericTilingSchemeOptions gtsOpts = new GenericTilingSchemeOptions();
