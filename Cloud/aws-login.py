@@ -1,4 +1,4 @@
-#!python
+#!/usr/bin/env python
 
 # this script is compatible with python 2 and 3
 
@@ -12,15 +12,25 @@
 #
 #    aws-login.py
 #
+#    or in git bash run
+#
+#    winpty python aws-login.py
+#
 # 4) enter JPL username and password when prompted
 #
 #    NOTE: this will create %HOME%\.aws\credentials, which is correct
 #    even if you have specialized HOME to be different from %USERPROFILE%
 #    e.g. in my case HOME=c:\cygwin64\home\ME but USERPROFILE=c:\users\ME
 #
-# 5) pip install awscli
+# 5) try some stuff, e.g.
 #
-# 6) try some stuff, e.g.
+#    pip install awscli --upgrade --user
+#    pip install awsebcli --upgrade --user # if you want to use elastic beanstalk CLI
+#
+#    PATH must include
+#    Windows: %USERPROFILE%\AppData\Roaming\Python\Python??\Scripts
+#    Linux: ~/.local/bin
+#    MacOS: ~/Library/Python/?.?/bin
 #
 #    aws ec2 describe-instances
 #    aws s3 ls
@@ -147,8 +157,7 @@ for inputtag in formsoup.find_all(re.compile('(FORM|form)')):
         idpauthformsubmiturl = parsedurl.scheme + '://' + parsedurl.netloc + action
 
 # Performs the submission of the IdP login form with the above post data
-response = session.post(
-    idpauthformsubmiturl, data=payload, verify=sslverification)
+response = session.post(idpauthformsubmiturl, data=payload, verify=sslverification)
 
 # Debug the response if needed
 #print(response.text)
@@ -170,9 +179,7 @@ assertion = ''
 # Look for the SAMLResponse attribute of the input tag (determined by
 # analyzing the debug print lines above)
 for inputtag in soup.find_all('input'):
-    print(inputtag.get('name'))
     if(inputtag.get('name') == 'SAMLResponse'):
-        print(inputtag.get('value'))
         assertion = inputtag.get('value')
 
 # Better error handling is required for production use.
@@ -239,14 +246,7 @@ filename = home + awsconfigfile
 config = ConfigParser.RawConfigParser()
 config.read(filename)
 
-# make the default section name be 'default' not 'DEFAULT'
-ConfigParser.DEFAULTSECT = 'default'
-
-# ConfigParser doesn't allow us to create the default section
-# but if output_profile is not default we do need to make sure it's created
-if output_profile.lower() == ConfigParser.DEFAULTSECT.lower():
-    output_profile = ConfigParser.DEFAULTSECT
-elif not config.has_section(output_profile):
+if not config.has_section(output_profile) and not output_profile == ConfigParser.DEFAULTSECT:
     config.add_section(output_profile)
 
 config.set(output_profile, 'output', output_format)
@@ -273,9 +273,9 @@ print('----------------------------------------------------------------\n\n')
 
 # Use the AWS STS token to list all of the S3 buckets
 s3conn = boto.s3.connect_to_region(region,
-                     aws_access_key_id=token.credentials.access_key,
-                     aws_secret_access_key=token.credentials.secret_key,
-                     security_token=token.credentials.session_token)
+                                   aws_access_key_id=token.credentials.access_key,
+                                   aws_secret_access_key=token.credentials.secret_key,
+                                   security_token=token.credentials.session_token)
 
 buckets = s3conn.get_all_buckets()
 
