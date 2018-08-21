@@ -1,2 +1,5 @@
 node_modules/
 landformweb.zip
+tmp/
+upload/
+log/
