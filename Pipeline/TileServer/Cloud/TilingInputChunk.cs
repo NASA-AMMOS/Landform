@@ -34,7 +34,7 @@ namespace OPS.Pipeline.TileServer
         /// Creates Project object locally.  
         /// </summary>
         /// <param name="name">Project names in the database must be unique</param>
-        protected TilingInputChunk(string id,string meshUrl, string imageUrl,  BoundingBox bounds)
+        protected TilingInputChunk(string id, string meshUrl, string imageUrl, BoundingBox bounds)
         {
             Id = id;
             MeshUrl = meshUrl;

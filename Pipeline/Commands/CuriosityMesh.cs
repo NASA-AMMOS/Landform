@@ -305,8 +305,8 @@ namespace OPS.Pipeline
 
             //Get the tiling project (must be same venue as alignment project)
             var tilingProject = TilingProject.Find(DynamoContext, options.TilingProjectName);    
-            string meshFile = "FullMesh.ply";
-            string s3MeshOutputUrl = TileServerConfig.Instance.ChunkUrl(options.TilingProjectName, meshFile);
+            string meshName = "FullMesh";
+            string s3MeshOutputUrl = TileServerConfig.Instance.ChunkUrl(options.TilingProjectName, meshName + ".ply");
             TemporaryFile.GetAndDelete(".ply", tempFile => {
                 largeMesh.Save(tempFile);
                 this.Storage(s3MeshOutputUrl).UploadFile(tempFile, s3MeshOutputUrl);
@@ -316,7 +316,7 @@ namespace OPS.Pipeline
             MeshOperator mo = new MeshOperator(largeMesh, buildFaceTree: false, buildUVFaceTree: false);
 
             //Upload a chunk pointing to the full mesh
-            TilingInputChunk.Create(DynamoContext, meshFile, tilingProject, s3MeshOutputUrl, null, mo.Bounds);
+            TilingInput.Create(DynamoContext, meshName, tilingProject, s3MeshOutputUrl, null, null);
 
             //Generate the tiling scheme (variable options to come)
             GenericTilingSchemeOptions gtsOpts = new GenericTilingSchemeOptions();

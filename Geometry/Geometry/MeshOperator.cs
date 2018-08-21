@@ -34,8 +34,7 @@ namespace OPS.Geometry
         public List<Vertex> Vertices
         {
             get {
-                List<Vertex> res = new List<Vertex>(vertices);
-                return res;
+                return new List<Vertex>(vertices);
             }
         }
 
@@ -48,8 +47,7 @@ namespace OPS.Geometry
         {
             get
             {
-                List<Triangle> res = new List<Triangle>(triangles);
-                return res;
+                return new List<Triangle>(triangles);
             }
         }
 
@@ -82,9 +80,8 @@ namespace OPS.Geometry
             {
                 faceTree = new RTree<int>(maxEntries, minEntries);               
             	for(int i = 0; i < triangles.Count; i++)
-
-            {
-                faceTree.Add(triangles[i].Bounds().ToRectangle(), i);
+                {
+                    faceTree.Add(triangles[i].Bounds().ToRectangle(), i);
                 }
             }
             if (buildVertexTree)
@@ -99,7 +96,6 @@ namespace OPS.Geometry
             {
                 uvFaceTree = new RTree<int>(10, 5);
                 for(int i = 0; i < triangles.Count; i++)
-
                 {
                     uvFaceTree.Add(triangles[i].UVBounds().ToRectangle(), i);
                 }

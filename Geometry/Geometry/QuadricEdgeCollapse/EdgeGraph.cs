@@ -53,6 +53,10 @@ namespace OPS.Geometry
             }
         }
 
+        /// <summary>
+        /// Returns the vertexNode ID's of each face
+        /// </summary>
+        /// <returns></returns>
         public List<Tuple<int, int, int>> GetFaceIDs() {
             var res = new List<Tuple<int, int, int>>();
 
@@ -62,7 +66,7 @@ namespace OPS.Geometry
             {
                 foreach(Edge e in v.AdjacentEdges)
                 {
-                    //Skip perimeter edges without a left face
+                    //If a perimeter edge doesn't have a third point defining its left face, no face to collect
                     if(e.Left == null)
                     {
                         continue;
