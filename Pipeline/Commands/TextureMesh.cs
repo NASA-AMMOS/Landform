@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+﻿using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Threading;
@@ -75,7 +75,7 @@ namespace OPS.Pipeline
                     leafPair.Image = new Image(3, textureDimension, textureDimension);
                     leafPair.Image.ApplyInPlace(0, x => { return (byte)255; });
 
-                    TilingNode.Find(pipeline.DynamoContext, project, leaf.Name).SaveMesh(leafPair, pipeline, 0);
+                    ThroughputManager.Run(() => TilingNode.Find(pipeline.DynamoContext, project, leaf.Name).SaveMesh(leafPair, pipeline, 0));
                 }
             });
 
@@ -111,8 +111,8 @@ namespace OPS.Pipeline
             Mesh result = null;
             TemporaryFile.GetAndDelete(".ply", f =>
             {
-                logger.Info("Downloading parent mesh: " + input.MeshUrl + input.Id + ".ply");
-                pipeline.Storage(input.MeshUrl).DownloadFile(input.MeshUrl + input.Id, f);
+                logger.Info("Downloading parent mesh: " + input.MeshUrl);
+                pipeline.Storage(input.MeshUrl).DownloadFile(input.MeshUrl, f);
                 result = Mesh.Load(f);
             });
 
