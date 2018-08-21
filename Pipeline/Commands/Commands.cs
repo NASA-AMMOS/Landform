@@ -32,11 +32,8 @@ namespace OPS.Pipeline
                                                              TileLocalMeshOptions,                                                             
                                                              CuriosityAlignOptions,
                                                              BuildFromAlignmentOptions,
-<<<<<<< HEAD
-                                                             CuriosityMeshOptions
-=======
+                                                             CuriosityMeshOptions,
                                                              TextureMeshOptions
->>>>>>> d4cd578b836bba152c689567a08d3a993787122b
                                                              >(args)
               .MapResult(
                 (AlignmentWorkerOptions opts) => new AlignmentWorker().Run(),
@@ -53,11 +50,8 @@ namespace OPS.Pipeline
                 (TileLocalMeshOptions opts) => new TileLocalMesh(opts).Run(),
                 (CuriosityAlignOptions opts) => new CuriosityAlign(opts).Run(),
                 (BuildFromAlignmentOptions opts) => new BuildFromAlignment(opts).Run(),
-<<<<<<< HEAD
                 (CuriosityMeshOptions opts) => new CuriosityMesh(opts).Run(),
-=======
                 (TextureMeshOptions opts) => new TextureMesh(opts).Run(),
->>>>>>> d4cd578b836bba152c689567a08d3a993787122b
                 errs => 1);
         }
     }

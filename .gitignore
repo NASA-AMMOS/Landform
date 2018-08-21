@@ -87,6 +87,8 @@ PipelineFrontend/.vs/
 PipelineFrontend/.elasticbeanstalk/*
 PipelineFrontend/!.elasticbeanstalk/*.cfg.yml
 PipelineFrontend/!.elasticbeanstalk/*.global.yml
+TilingServer/obj/
+TilingServer/bin/
 
 project.lock.json
 *.vspx
