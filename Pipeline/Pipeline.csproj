@@ -183,6 +183,7 @@
     <Compile Include="Commands\CuriosityAlign.cs" />
     <Compile Include="Commands\LegacyToTile3D.cs" />
     <Compile Include="Commands\CreateCloudTemplates.cs" />
+    <Compile Include="Commands\TextureMesh.cs" />
     <Compile Include="Commands\TileLocalMesh.cs" />
     <Compile Include="TileServer\Cloud\TilingNode.cs" />
     <Compile Include="TileServer\Commands\ConfigureServer.cs" />
