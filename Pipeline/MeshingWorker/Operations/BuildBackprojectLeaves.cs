@@ -13,16 +13,26 @@ using OPS.Util;
 
 namespace OPS.Pipeline.MeshingWorker
 {
-
-
-    class BuildBackprojectedLeaves
+    public class BuildBackprojectLeavesMessage : TilingQueueMessage
     {
-        static ILog logger = LogManager.GetLogger(typeof(BuildBackprojectedLeaves));
+        public List<string> TileIds { get; set; }
+
+        public BuildBackprojectLeavesMessage() { }
+
+        public BuildBackprojectLeavesMessage(string projectName, List<string> tileIds) : base(projectName)
+        {
+            this.TileIds = tileIds;
+        }
+    }
+
+    class BuildBackprojectLeaves
+    {
+        static ILog logger = LogManager.GetLogger(typeof(BuildBackprojectLeaves));
 
         StartWorker pipeline;
-        BuildLeavesMessage message;
+        BuildBackprojectLeavesMessage message;
 
-        public BuildBackprojectedLeaves(BuildLeavesMessage message, StartWorker pipeline)
+        public BuildBackprojectLeaves(BuildBackprojectLeavesMessage message, StartWorker pipeline)
         {
             this.pipeline = pipeline;
             this.message = message;

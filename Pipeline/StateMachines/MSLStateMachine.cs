@@ -1,6 +1,8 @@
 ﻿using OPS.Pipeline.MeshingWorker;
+using OPS.Geometry;
 using OPS.Plumbing;
 using System.Linq;
+using System.Collections.Generic;
 
 namespace OPS.Pipeline.TileServer
 {
@@ -12,20 +14,21 @@ namespace OPS.Pipeline.TileServer
 
         public override void ProcessMessage(TilingQueueMessage m)
         {
+            //TODO: add thomas meshing code here:
+            //if (m.GetType() == typeof(BuildBigMeshMessage))
+            //{
+            //    logger.Info("Build mesh");
 
-            if (m.GetType() == typeof(BuildBigMeshMessage))
-            {
-                logger.Info("Build mesh");
+            //    // This is the first message that happens when we trigger a new run
+            //    // Force a clearing of the cache just to avoid stale data form a previous run
+            //    this.projectCache.Refresh();
 
-                // This is the first message that happens when we trigger a new run
-                // Force a clearing of the cache just to avoid stale data form a previous run
-                this.projectCache.Refresh();
+            //    //TODO: insert thomas code to build big mesh
 
-                //TODO: insert thomas code to build big mesh
-
-                workerQueue.Enqueue(new DefineTilesMessage(m.ProjectName));
-            }
-            else if (m.GetType() == typeof(DefineTilesMessage))
+            //    workerQueue.Enqueue(new DefineTilesMessage(m.ProjectName));
+            //}
+            //else 
+            if (m.GetType() == typeof(DefineTilesMessage))
             {
                 logger.Info("DefineTiles project:" + m.ProjectName);
                 TilingProject project = TilingProject.Find(pipeline.DynamoContext, m.ProjectName);
@@ -39,7 +42,7 @@ namespace OPS.Pipeline.TileServer
                 bool allChunked = inputs.All(i => i.Chunked);
                 if (allChunked)
                 {
-                    BuildBackProjectedLeaves(workerQueue, project);
+                    BuildBackprojectLeaves(project);
                 }
             }
             else if (m.GetType() == typeof(TileCompletedMessage))
@@ -72,6 +75,66 @@ namespace OPS.Pipeline.TileServer
             {
                 logger.Info("Unknown message type: " + m.GetType());
             }
+        }
+
+        protected void ChunkInputs(TilingProject project)
+        {
+            var inputs = TilingInput.Find(pipeline.DynamoContext, project);
+            foreach (var input in inputs)
+            {
+                workerQueue.Enqueue(new ChunkInputMessage(project.Name, input.Name));
+            }
+        }
+
+        protected void BuildBackprojectLeaves(TilingProject project)
+        {
+            logger.Info("Build Leaves");
+            SceneNode root = TilingNode.BuildTreeFromDatabase(pipeline.DynamoContext, project);
+            List<List<SceneNode>> leafGroups = new List<List<SceneNode>>();
+            GroupSceneNodesIntoJobs(root, leafGroups);
+
+            foreach (var group in leafGroups)
+            {
+                var leafJob = new BuildBackprojectLeavesMessage(project.Name, group.Select(n => n.Name).ToList());
+                workerQueue.Enqueue(leafJob);
+                foreach (var leaf in group)
+                {
+                    this.projectCache.MarkEnqued(leaf.Name);
+                }
+            }
+        }
+
+        Queue<SceneNode> GroupSceneNodesIntoJobs(SceneNode node, List<List<SceneNode>> outputGroups, int nodesPerGroup = 32)
+        {
+            var result = new Queue<SceneNode>();
+            if (node.IsLeaf)
+            {
+                result.Enqueue(node);
+                return result;
+            }
+            foreach (var c in node.Children)
+            {
+                var tmp = GroupSceneNodesIntoJobs(c, outputGroups, nodesPerGroup);
+                foreach (var e in tmp)
+                {
+                    result.Enqueue(e);
+                }
+            }
+            while (result.Count > nodesPerGroup)
+            {
+                List<SceneNode> outputGroup = new List<SceneNode>();
+                for (int i = 0; i < nodesPerGroup; i++)
+                {
+                    outputGroup.Add(result.Dequeue());
+                }
+                outputGroups.Add(outputGroup);
+            }
+            if (node.Parent == null && result.Count != 0)
+            {
+                outputGroups.Add(result.ToList());
+                result.Clear();
+            }
+            return result;
         }
     }
 }

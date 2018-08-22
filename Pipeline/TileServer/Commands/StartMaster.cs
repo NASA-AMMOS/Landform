@@ -9,7 +9,7 @@ using System.Threading.Tasks;
 using System.Collections.Concurrent;
 
 namespace OPS.Pipeline.TileServer
-{    
+{
     [Verb("startmaster", HelpText = "Runs a tiling workflow")]
     public class StartMasterOptions
     {
@@ -20,15 +20,14 @@ namespace OPS.Pipeline.TileServer
     public class StartMaster : PipelineCore
     {
         static ILog logger = LogManager.GetLogger(typeof(StartMaster));
-        
+
         StartMasterOptions options;
 
-        ConcurrentDictionary<string, PipelineStateMachine> projectNameToStateMachine = new ConcurrentDictionary<string, PipelineStateMachine>();
+        Dictionary<string, PipelineStateMachine> projectToStateMachine = new Dictionary<string, PipelineStateMachine>();
 
         public StartMaster(StartMasterOptions options) : base(dynamoPrefix: TileServerConfig.Instance.VenueName, profile: TileServerConfig.Instance.Profile)
         {
             this.options = options;
-
         }
 
         public int Run()
@@ -58,16 +57,24 @@ namespace OPS.Pipeline.TileServer
             var cloud = new TileServerCloud(this);
             var workerQueue = cloud.WorkerQueue;
             var completionQueue = cloud.CompletionQueue;
-\
+
             while (true)
             {
                 var messages = completionQueue.Deque(TilingQueue.MAX_MESSAGES_PER_DEQUEUE);
                 foreach (var m in messages)
                 {
+                    lock (projectToStateMachine)
+                    {
+                        if (!projectToStateMachine.ContainsKey(m.ProjectName))
+                        {
+                            projectToStateMachine.Add(m.ProjectName, CreateStateMachine(this, workerQueue, GetProjectType(m.ProjectName), m.ProjectName));
+                        }
+                    }
+
                     string s = JsonHelper.ToJson(m);
                     try
                     {
-                        this.stateMachine(workerQueue, m);
+                        projectToStateMachine[m.ProjectName].ProcessMessage(m);
                     }
                     catch (Exception e)
                     {
@@ -78,5 +85,25 @@ namespace OPS.Pipeline.TileServer
                 }
             }
         }
-     
+
+        private string GetProjectType(string projectName)
+        {
+            //TODO: query a new value in database with a project type
+            throw new NotImplementedException();
+        }
+
+        private PipelineStateMachine CreateStateMachine(PipelineCore pipeline, TilingQueue workerQueue, string projectType, string projectName)
+        {
+            switch (projectType)
+            {
+                case "MSL":
+                    return new MSLStateMachine(pipeline, workerQueue, projectName);
+                case "GenericMesh":
+                    return new GenericMeshStateMachine(pipeline, workerQueue, projectName);
+                default:
+                    throw new System.NotImplementedException("unknown state machine type: " + projectType);
+            }
+        }
+
+    }
 }

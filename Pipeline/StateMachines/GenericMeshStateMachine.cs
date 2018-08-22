@@ -1,6 +1,8 @@
 ﻿
 using System.Linq;
 using OPS.Plumbing;
+using OPS.Geometry;
+using System.Collections.Generic;
 
 namespace OPS.Pipeline.TileServer
 {
@@ -16,6 +18,10 @@ namespace OPS.Pipeline.TileServer
             {
                 logger.Info("DefineTiles project:" + m.ProjectName);
 
+                // This is the first message that happens when we trigger a new run
+                // Force a clearing of the cache just to avoid stale data form a previous run
+                this.projectCache.Refresh();
+
                 TilingProject project = TilingProject.Find(pipeline.DynamoContext, m.ProjectName); //BUGBUG: why not reading from cached tiling project?
                 ChunkInputs(project);
             }
@@ -27,7 +33,7 @@ namespace OPS.Pipeline.TileServer
                 bool allChunked = inputs.All(i => i.Chunked);
                 if (allChunked)
                 {
-                    BuildLeaves(project);
+                    BuildBakedLeaves(project);
                 }
             }
             else if (m.GetType() == typeof(TileCompletedMessage))
@@ -60,6 +66,67 @@ namespace OPS.Pipeline.TileServer
             {
                 logger.Info("Unknown message type: " + m.GetType());
             }
+        }
+
+
+        protected void ChunkInputs(TilingProject project)
+        {
+            var inputs = TilingInput.Find(pipeline.DynamoContext, project);
+            foreach (var input in inputs)
+            {
+                workerQueue.Enqueue(new ChunkInputMessage(project.Name, input.Name));
+            }
+        }
+
+        protected void BuildBakedLeaves(TilingProject project)
+        {
+            logger.Info("Build Leaves");
+            SceneNode root = TilingNode.BuildTreeFromDatabase(pipeline.DynamoContext, project);
+            List<List<SceneNode>> leafGroups = new List<List<SceneNode>>();
+            GroupSceneNodesIntoJobs(root, leafGroups);
+
+            foreach (var group in leafGroups)
+            {
+                var leafJob = new BuildBakedLeavesMessage(project.Name, group.Select(n => n.Name).ToList());
+                workerQueue.Enqueue(leafJob);
+                foreach (var leaf in group)
+                {
+                    this.projectCache.MarkEnqued(leaf.Name);
+                }
+            }
+        }
+
+        Queue<SceneNode> GroupSceneNodesIntoJobs(SceneNode node, List<List<SceneNode>> outputGroups, int nodesPerGroup = 32)
+        {
+            var result = new Queue<SceneNode>();
+            if (node.IsLeaf)
+            {
+                result.Enqueue(node);
+                return result;
+            }
+            foreach (var c in node.Children)
+            {
+                var tmp = GroupSceneNodesIntoJobs(c, outputGroups, nodesPerGroup);
+                foreach (var e in tmp)
+                {
+                    result.Enqueue(e);
+                }
+            }
+            while (result.Count > nodesPerGroup)
+            {
+                List<SceneNode> outputGroup = new List<SceneNode>();
+                for (int i = 0; i < nodesPerGroup; i++)
+                {
+                    outputGroup.Add(result.Dequeue());
+                }
+                outputGroups.Add(outputGroup);
+            }
+            if (node.Parent == null && result.Count != 0)
+            {
+                outputGroups.Add(result.ToList());
+                result.Clear();
+            }
+            return result;
         }
     }
 }

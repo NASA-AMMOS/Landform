@@ -2,10 +2,9 @@
 using log4net;
 using OPS.Geometry;
 using OPS.Plumbing;
+using OPS.Pipeline.MeshingWorker;
+
 using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 
 namespace OPS.Pipeline.TileServer
@@ -109,9 +108,13 @@ namespace OPS.Pipeline.TileServer
                         {
                             new ChunkInput((ChunkInputMessage)m, this).Process();
                         }
-                        else if (m.GetType() == typeof(BuildLeavesMessage))
+                        else if (m.GetType() == typeof(BuildBakedLeavesMessage))
                         {
-                            new BuildLeaves((BuildLeavesMessage)m, this).Process();
+                            new BuildBakedLeaves((BuildBakedLeavesMessage)m, this).Process();
+                        }
+                        else if (m.GetType() == typeof(BuildBackprojectLeavesMessage))
+                        {
+                            new BuildBackprojectLeaves((BuildBackprojectLeavesMessage)m, this).Process();
                         }
                         else if (m.GetType() == typeof(BuildParentsMessage))
                         {
@@ -125,7 +128,6 @@ namespace OPS.Pipeline.TileServer
                         {
                             logger.Info("Unknown message type: " + m.GetType());
                         }
-                        //TODO
                     }
                     catch (Exception e)
                     {
