@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 namespace OPS.Geometry
 {
     /// <summary>
-    /// Serializer for saving meshes as colloda (dae) format
+    /// Serializer for saving meshes as collada (dae) format
     /// Currently uses meshlab to convert the mesh but can be modified
     /// in the future to use assimp to avoid the dependency on meshlab
     /// Reading is not supported
