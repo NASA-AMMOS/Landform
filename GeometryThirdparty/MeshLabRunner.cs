@@ -179,5 +179,17 @@ namespace OPS.Geometry
             });
             return result;
         }
+
+        public static void SaveAs(string outputFilename, Mesh mesh, string imagefilename = null)
+        {
+            var attributes = new MeshLabOutputAttributes(mesh);
+            TemporaryFile.GetAndDelete(".ply", f =>
+            {
+                mesh.Save(f, imagefilename);
+                string opts = string.Format("-i \"{0}\" -o \"{1}\" {2}", f, outputFilename, attributes.ToString());
+                ProgramRunner pr = new ProgramRunner(FullMeshlabServerPath, opts);
+                pr.Run();
+            });
+        }
     }
 }
