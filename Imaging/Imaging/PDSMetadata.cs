@@ -54,6 +54,7 @@ namespace OPS.Imaging
         public Type SampleType;
         public int BitDepth;
         // Start location of image data
+        public string DataPath;
         public long DataOffset;
         public uint BitMask;
         public bool BigEndian = true;
@@ -86,6 +87,10 @@ namespace OPS.Imaging
                 {
                     InitVIC(fs);
                 }
+                else if (ext == ".LBL")
+                {
+                    InitPDS(fs);
+                }
                 else
                 {
                     throw new ImageSerializationException("Unexpected file extension");
@@ -100,6 +105,7 @@ namespace OPS.Imaging
             this.BigEndian = that.BigEndian;
             this.RecordBytes = that.RecordBytes;
             this.DataOffset = that.DataOffset;
+            this.DataPath = that.DataPath;
             this.SampleType = that.SampleType;
             if (that.CameraModel != null)
             {
@@ -125,12 +131,40 @@ namespace OPS.Imaging
             else
             {
                 this.Bands = 1;
-            }            
+            }
             this.BitDepth = ReadAsInt("IMAGE", "SAMPLE_BITS");
             
             this.RecordBytes = ReadAsLong("RECORD_BYTES");
-            int carrot = (int)ReadAsInt("^IMAGE");
-            this.DataOffset = (carrot - 1) * this.RecordBytes;
+
+            if (this[NULL_GROUP, "^IMAGE"].Contains("\""))
+            {
+                //external file
+                string[] data = ReadAsStringArray("^IMAGE");
+                if (data.Length == 1)
+                {
+                    //external file (PDS standard reference 3, 14.1.1, case 3
+                    this.DataOffset = 0;
+                    this.DataPath = data[0];
+                }
+                else
+                {
+                    //external file (PDS standard reference 3, 14.1.1, case 4 and 5
+                    throw new NotImplementedException("add support for external image file with offset");
+                }
+            }
+            else if (this[NULL_GROUP, "^IMAGE"].Contains("<BYTES>"))
+            {
+                //byte offset (PDS standard reference 3, 14.1.1, case 2
+                throw new NotImplementedException("add support for byte offsets");
+            }
+            else
+            {
+                //records offset (PDS standard reference 3, 14.1.1, case 1
+                int carrot = (int)ReadAsInt("^IMAGE");
+                this.DataOffset = (carrot - 1) * this.RecordBytes;
+                this.DataPath = null;
+            }
+
             try
             {
                 this.CameraModel = new PDSCameraModelParser(this).Parse();
