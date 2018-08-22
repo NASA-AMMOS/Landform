@@ -15,28 +15,6 @@ using System.Collections.Concurrent;
 namespace OPS.Pipeline.TileServer
 {
 
-    public class TileCompletedMessage : TilingQueueMessage
-    {
-        public string TileId;
-
-        public TileCompletedMessage(string projectName, string id) : base(projectName)
-        {
-            this.TileId = id;
-        }
-    }
-
-    public class BuildLeavesMessage : TilingQueueMessage
-    {
-        public List<string> TileIds { get; set; }
-
-        public BuildLeavesMessage() { }
-
-        public BuildLeavesMessage(string projectName, List<string> tileIds) : base(projectName)
-        {
-            this.TileIds = tileIds;
-        }
-    }
-
     public class BuildLeaves
     {
 

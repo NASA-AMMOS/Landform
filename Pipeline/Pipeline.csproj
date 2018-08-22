@@ -185,7 +185,11 @@
     <Compile Include="Commands\CreateCloudTemplates.cs" />
     <Compile Include="Commands\TileLocalMesh.cs" />
     <Compile Include="MeshingWorker\Commands\TextureMeshCmd.cs" />
-    <Compile Include="MeshingWorker\Operations\TextureMeshOp.cs" />
+    <Compile Include="MeshingWorker\Operations\BuildBackprojectedLeaves.cs" />
+    <Compile Include="StateMachines\GenericMeshStateMachine.cs" />
+    <Compile Include="StateMachines\MSLStateMachine.cs" />
+    <Compile Include="StateMachines\PipelineStateMachine.cs" />
+    <Compile Include="StateMachines\ProjectCache.cs" />
     <Compile Include="TileServer\Cloud\TilingNode.cs" />
     <Compile Include="TileServer\Commands\ConfigureServer.cs" />
     <Compile Include="TileServer\Commands\CreateProject.cs" />
