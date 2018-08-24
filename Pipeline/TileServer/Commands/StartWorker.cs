@@ -2,7 +2,7 @@
 using log4net;
 using OPS.Geometry;
 using OPS.Plumbing;
-using OPS.Pipeline.MeshingWorker;
+using OPS.Pipeline.MeshWorker;
 
 using System;
 using System.Threading.Tasks;

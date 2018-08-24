@@ -4,7 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using OPS.Pipeline.MeshingWorker;
+using OPS.Pipeline.MeshWorker;
 
 namespace OPS.Pipeline
 {

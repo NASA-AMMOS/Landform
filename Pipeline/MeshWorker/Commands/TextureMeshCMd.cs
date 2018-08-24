@@ -2,7 +2,7 @@
 using CommandLine;
 
 
-namespace OPS.Pipeline.MeshingWorker
+namespace OPS.Pipeline.MeshWorker
 {
     [Verb("MSL.Texture", HelpText = "generate leaf tiles (mesh and texture) for a terrain mesh")]
     public class TextureMeshOptions

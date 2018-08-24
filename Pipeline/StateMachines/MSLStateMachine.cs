@@ -1,4 +1,4 @@
-﻿using OPS.Pipeline.MeshingWorker;
+﻿using OPS.Pipeline.MeshWorker;
 using OPS.Geometry;
 using OPS.Plumbing;
 using System.Linq;

@@ -11,7 +11,7 @@ using OPS.Cloud;
 using OPS.Imaging;
 using OPS.Util;
 
-namespace OPS.Pipeline.MeshingWorker
+namespace OPS.Pipeline.MeshWorker
 {
     public class BuildBackprojectLeavesMessage : TilingQueueMessage
     {
