@@ -25,28 +25,46 @@ namespace OPS.Pipeline
         [ConfigEnvironmentVariable("PLACES_API_KEY")]
         public string APIKey { get; set; }
 
+        [ConfigEnvironmentVariable("PLACES_VENUE")]
+        public string Venue { get; set; } = "msl-ops";
+
+        [ConfigEnvironmentVariable("PLACES_VIEW")]
+        public string View { get; set; } = "localized_interp"; // options: best_tactical, localized_pos, localized_interp 
+
+        [ConfigEnvironmentVariable("PLACES_API_KEY")]
+        public string Url { get; set; } = @"https://mslplaces.jpl.nasa.gov:9443";
+
         protected override string ConfigFilename()
         {
             return "places";
         }
     }
 
+    /// <summary>
+    /// Places is a service that JPL runs for storing and reporting
+    /// different position estimates of spacecraft such as rovers.
+    /// This class interfaces with the MSL version of places to compute relative 
+    /// rover positions between site drives
+    /// </summary>
     public class MSLPlaces
     {
-        const string VENUE = "msl-ops";
-        const string VIEW = "localized_interp";    // options: best_tactical, localized_pos, localized_interp 
-        string URLRoot = @"https://mslplaces.jpl.nasa.gov:9443";  // TODO: make into a conifg variable
+
         double? EllipsoidRadius = null;
 
         XmlDocument GetXmlDoc(string url)
         {
-            RestClient client = new RestClient();
-            client.BaseUrl = new Uri(URLRoot);
             var config = PlacesConfig.Instance;
+            RestClient client = new RestClient();
+            client.BaseUrl = new Uri(config.Url);
             client.Authenticator = new HttpBasicAuthenticator(config.Username, config.APIKey);
             var request = new RestRequest();
+            
             request.Resource = url;
             IRestResponse response = client.Execute(request);
+            if(response.ResponseStatus != ResponseStatus.Completed)
+            {
+                throw new Exception("Error connecting to places: " + response.StatusCode.ToString() + " " + response.ErrorMessage);
+            }
             XmlDocument document = new XmlDocument();
             document.LoadXml(response.Content);
             return document;
@@ -71,9 +89,10 @@ namespace OPS.Pipeline
         {
             if (EllipsoidRadius == null)
             {
-                string urlForRequest = string.Format(@"{0}/places/rmc/orbital(0)/metadata", VENUE);
-                XmlDocument document = GetXmlDoc(urlForRequest);
+                var config = PlacesConfig.Instance;
 
+                string urlForRequest = string.Format(@"{0}/places/rmc/orbital(0)/metadata", config.Venue);
+                XmlDocument document = GetXmlDoc(urlForRequest);
                 foreach (XmlElement itemNode in document.GetElementsByTagName("item"))
                 {
                     XmlNodeList elList = itemNode.GetElementsByTagName("key");
@@ -83,19 +102,30 @@ namespace OPS.Pipeline
                     }
                 }
             }
+            if(!EllipsoidRadius.HasValue)
+            {
+                throw new Exception("Unexpected Places result, ellipsoid radius was null");
+            }
             return EllipsoidRadius.Value;
         }
 
+        /// <summary>
+        /// Finds the estimated mars lat and lon for a given site drive
+        /// </summary>
+        /// <param name="sd"></param>
+        /// <returns></returns>
         public Vector2 GetEstimatedLatLon(SiteDrive sd)
         {
-            string urlForRequest = string.Format(@"{0}/places/query/primary/{1}?from=rover({2},{3})&to=orbital(0)", VENUE, VIEW, sd.Site, sd.Drive);
+            var config = PlacesConfig.Instance;
+            string urlForRequest = string.Format(@"{0}/places/query/primary/{1}?from=rover({2},{3})&to=orbital(0)", config.Venue, config.View, sd.Site, sd.Drive);
             XmlDocument document = GetXmlDoc(urlForRequest);
             Vector3 v = ReadOffsetFromDocument(document);
             // x is northing
             // y is easting
             double ellipsoid_radius = GetElipsoidRadius();
-            double lat = (v.X / ellipsoid_radius) * (180 / Math.PI);
-            double lon = (v.Y / ellipsoid_radius) * (180 / Math.PI);
+
+            double lat = MathHelper.ToDegrees(v.X / ellipsoid_radius);
+            double lon = MathHelper.ToDegrees(v.Y / ellipsoid_radius);
             return new Vector2(lat, lon);
         }
 
@@ -107,22 +137,20 @@ namespace OPS.Pipeline
         /// <returns></returns>
         public Vector3 GetEsitmatedOffset(SiteDrive from, SiteDrive to)
         {
-            string urlForRequest = string.Format(@"{0}/places/query/primary/{1}?from=rover({2},{3})&to=rover({4},{5})", VENUE, VIEW, from.Site, from.Drive, to.Site, to.Drive);
+            var config = PlacesConfig.Instance;
+            string urlForRequest = string.Format(@"{0}/places/query/primary/{1}?from=rover({2},{3})&to=rover({4},{5})", config.Venue, config.View, from.Site, from.Drive, to.Site, to.Drive);
             XmlDocument document = GetXmlDoc(urlForRequest);
             return ReadOffsetFromDocument(document);
         }
 
         /// <summary>
-        /// Returns the estimated offset from the supplied site drive to the starting site drive
+        /// Finds the offset from the landing site to the current site drive
         /// </summary>
-        /// <param name="from"></param>
-        /// <param name="to"></param>
+        /// <param name="sd"></param>
         /// <returns></returns>
         public Vector3 GetEsitmatedOffsetFromStart(SiteDrive sd)
         {
-            string urlForRequest = string.Format(@"{0}/places/query/primary/{1}?from=rover({2},{3})&to=rover(1,0)", VENUE, VIEW, sd.Site, sd.Drive);
-            XmlDocument document = GetXmlDoc(urlForRequest);
-            return ReadOffsetFromDocument(document);
+            return GetEsitmatedOffset(sd, new SiteDrive(1, 0));
         }
     }
 }
