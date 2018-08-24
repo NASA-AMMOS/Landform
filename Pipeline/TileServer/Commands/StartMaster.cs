@@ -250,7 +250,7 @@ namespace OPS.Pipeline.TileServer
                                 foreach (var pid in pc.GetDependentTilesToRun(id))
                                 {
                                     logger.Info("EnquingParent " + m.ProjectName + " tile:" + pid);
-                                    var parentJob = new BuildParentsMessage(m.ProjectName, pid);
+                                    var parentJob = new BuildParentMessage(m.ProjectName, pid);
                                     workerQueue.Enqueue(parentJob);
                                     pc.MarkEnqued(pid);
                                 }

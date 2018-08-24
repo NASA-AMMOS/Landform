@@ -15,33 +15,32 @@ using System.Collections.Concurrent;
 namespace OPS.Pipeline.TileServer
 {
 
-    public class BuildParentsMessage : TilingQueueMessage
+    public class BuildParentMessage : TilingQueueMessage
     {
         public string TileId;
 
-        public BuildParentsMessage() { }
+        public BuildParentMessage() { }
 
-        public BuildParentsMessage(string projectName,string parentId) : base(projectName)
+        public BuildParentMessage(string projectName,string parentId) : base(projectName)
         {
             this.TileId = parentId;
         }
     }
 
-    public class BuildParents
+    public class BuildParent
     {
 
-        static ILog logger = LogManager.GetLogger(typeof(BuildParents));
+        static ILog logger = LogManager.GetLogger(typeof(BuildParent));
 
         StartWorker pipeline;
-        BuildParentsMessage message;
+        BuildParentMessage message;
 
-        public BuildParents(BuildParentsMessage message, StartWorker pipeline)
+        public BuildParent(BuildParentMessage message, StartWorker pipeline)
         {
             this.pipeline = pipeline;
             this.message = message;
         }
-
-
+        
         public void Process()
         {
             var project = TilingProject.Find(pipeline.DynamoContext, this.message.ProjectName);
@@ -70,17 +69,11 @@ namespace OPS.Pipeline.TileServer
                 {
                     logger.Error(parent.Id + ": Missing input data");
                     return;
-                }
-                var tmpNode = new SceneNode(childId);
-                tmpNode.AddComponent(idToNode[childId].GetComponent<NodeBounds>());
-                tmpNode.AddComponent(idToNode[childId].GetComponent<MeshImagePair>());
-                tmpNode.AddComponent(idToNode[childId].GetComponent<NodeGeometricError>());
-                tmpNode.Transform.SetParent(parentSceneNode.Transform);
+                }                
+                idToNode[childId].Transform.SetParent(parentSceneNode.Transform);
             }
             logger.Info(parent.Id + " generating form " + parent.DependsOn.Count + " tiles");
-
             parentSceneNode.BuildGeometryFromChildren(parentSceneNode, project.GetReconMethod(), project.FacesPerTile, project.TileResolution, project.GetSkirtMode());
-
             var pair = parentSceneNode.GetComponent<MeshImagePair>();
             parent.SaveMesh(pair, pipeline, parentSceneNode.GetComponent<NodeGeometricError>().Error);
             pipeline.CompletionQueue.Enqueue(new TileCompletedMessage(project.Name, parent.Id));
