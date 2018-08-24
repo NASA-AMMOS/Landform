@@ -56,6 +56,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="AssimpSerializer.cs" />
+    <Compile Include="DAESerializer.cs" />
     <Compile Include="DracoSerializer.cs" />
     <Compile Include="FSSR.cs" />
     <Compile Include="FSSRException.cs" />

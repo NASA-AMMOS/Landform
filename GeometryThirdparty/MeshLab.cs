@@ -281,5 +281,10 @@ namespace OPS.Geometry
             var backwardDistance = HausdorffDistanceStats.ParseFromMeshLabOutput(backwardMLR.OutputText);
             return HausdorffDistanceStats.Largest(forwardDistance, backwardDistance);
         }
+
+        public static void SaveAs(string outputFilename, Mesh mesh, string imagefilename = null)
+        {
+            MeshLabRunner.SaveAs(outputFilename, mesh, imagefilename);
+        }
     }
 }
