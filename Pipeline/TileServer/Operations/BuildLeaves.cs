@@ -99,7 +99,7 @@ namespace OPS.Pipeline.TileServer
                 }
             }
 
-            var bakeClipper = new TileLocalMesh.TilingInput();
+            var bakeClipper = new MultiMeshClipper();
             foreach (var group in inputGroups)
             {
                 // Reconstruct a mesh for each input using only the chunks that overlap with leaves that we are building
@@ -121,7 +121,7 @@ namespace OPS.Pipeline.TileServer
                 {
                     image = new SparseCloudImage(group.Input.ImageBands, group.Input.ImageWidth, group.Input.ImageHeight, imgUrl, ChunkInput.IMAGE_EXT, this.pipeline, ChunkInput.CHUNK_RESOLUTION);
                 }
-                bakeClipper.AddDataset(new TileLocalMesh.TilingInputDataset(mergedMesh, image));
+                bakeClipper.AddInput(new MultiMeshClipperInput(mergedMesh, image));
             }
             bakeClipper.InitTextureBaker();
 

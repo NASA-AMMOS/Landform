@@ -102,7 +102,7 @@ namespace OPS.Pipeline.TileServer
             {
                 // Buid a tree using input datasets
                 var inputs = TilingInput.Find(pipeline.DynamoContext, project).ToList();
-                var tilingInput = new TileLocalMesh.TilingInput();
+                var tilingInput = new MultiMeshClipper();
                 foreach (var input in inputs)
                 {
                     logger.Info("Downloading: " + input.MeshUrl);
@@ -125,7 +125,7 @@ namespace OPS.Pipeline.TileServer
                         });
                     }
                     logger.Info("Building acceleration structures");
-                    tilingInput.AddDataset(new TileLocalMesh.TilingInputDataset(mesh, image));
+                    tilingInput.AddInput(new MultiMeshClipperInput(mesh, image));
                 }
                 ITilingScheme scheme;
                 if (project.GetTilingScheme() == TilingScheme.Bin)

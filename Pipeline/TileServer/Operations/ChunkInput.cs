@@ -99,14 +99,14 @@ namespace OPS.Pipeline.TileServer
 
             }
             logger.Info("Building acceleration structures");
-            var ti = new TileLocalMesh.TilingInput();
-            var dataset = new TileLocalMesh.TilingInputDataset(mesh, image);
-            ti.AddDataset(dataset);
+            var multiClipper = new MultiMeshClipper();
+            var dataset = new MultiMeshClipperInput(mesh, image);
+            multiClipper.AddInput(dataset);
 
             logger.Info("Building mesh chunks");
             var tilingScheme = new BinaryTreeTilingScheme();
             var splitCriteria = new FaceLimitSplitCriteria(FacesPerChunk);
-            var root = TileLocalMesh.BuildBoundsTree(ti, tilingScheme, splitCriteria);
+            var root = TileLocalMesh.BuildBoundsTree(multiClipper, tilingScheme, splitCriteria);
             
             ConcurrentBag<string> chunkIds = new ConcurrentBag<string>();
             var leaves = root.Leaves().ToList();
@@ -116,7 +116,7 @@ namespace OPS.Pipeline.TileServer
                 {
                     BoundingBox bounds = leaf.GetComponent<NodeBounds>().Bounds;
                     string id = Guid.NewGuid().ToString();
-                    Mesh m = ti.Clip(bounds, true);
+                    Mesh m = multiClipper.Clip(bounds, true);
                     m.Save(f);
                     string meshUrl = TileServerConfig.Instance.ChunkUrl(project.Name, id + MESH_EXT);
                     pipeline.Storage(meshUrl).UploadFile(f, meshUrl);

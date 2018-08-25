@@ -243,6 +243,8 @@
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Rover\RoverArticulation.cs" />
     <Compile Include="Rover\RoverProductEnum.cs" />
+    <Compile Include="Tiling\MultiMeshClipper.cs" />
+    <Compile Include="Tiling\MultiMeshClipperInput.cs" />
     <Compile Include="Tiling\OctreeTilingScheme.cs" />
     <Compile Include="Tiling\PrecomputedLODParentTileContentProducer.cs" />
     <Compile Include="Tiling\QuadTreeTilingScheme.cs" />
