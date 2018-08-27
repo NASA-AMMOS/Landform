@@ -31,7 +31,6 @@ namespace OPS.Pipeline.TileServer
             this.options = options;
 
             RegisterStateMachine("GenericTiling", typeof(GenericTilingStateMachine));
-            RegisterStateMachine("MSL",typeof(MSLStateMachine));
         }
 
         public int Run()

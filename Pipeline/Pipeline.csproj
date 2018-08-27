@@ -187,7 +187,6 @@
     <Compile Include="MeshWorker\Commands\TextureMeshCmd.cs" />
     <Compile Include="MeshWorker\Operations\BuildBackprojectLeaves.cs" />
     <Compile Include="StateMachines\GenericTilingStateMachine.cs" />
-    <Compile Include="StateMachines\MSLStateMachine.cs" />
     <Compile Include="StateMachines\PipelineStateMachine.cs" />
     <Compile Include="StateMachines\ProjectCache.cs" />
     <Compile Include="TileServer\Cloud\TilingNode.cs" />
