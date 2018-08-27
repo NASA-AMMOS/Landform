@@ -19,21 +19,19 @@ namespace OPS.Pipeline.TileServer
 
         public override void ProcessMessage(TilingQueueMessage m)
         {
-            //TODO: add thomas meshing code here:
-            //if (m.GetType() == typeof(BuildBigMeshMessage))
-            //{
-            //    logger.Info("Build mesh");
+            if (m.GetType() == typeof(BuildTilingInput))
+            {
+               logger.Info("Build tiling input");
 
-            //    // This is the first message that happens when we trigger a new run
-            //    // Force a clearing of the cache just to avoid stale data form a previous run
-            //    this.projectCache.Refresh();
+                // This is the first message that happens when we trigger a new run
+                // Force a clearing of the cache just to avoid stale data form a previous run
+                this.projectCache.Refresh();
 
-            //    //TODO: insert thomas code to build big mesh
+                //TODO: call code to build big mesh and create a tiling input
 
-            //    workerQueue.Enqueue(new DefineTilesMessage(m.ProjectName));
-            //}
-            //else 
-            if (m.GetType() == typeof(DefineTilesMessage))
+                workerQueue.Enqueue(new DefineTilesMessage(m.ProjectName));
+           }
+           else if (m.GetType() == typeof(DefineTilesMessage))
             {
                 logger.Info("DefineTiles project:" + m.ProjectName);
                 TilingProject project = TilingProject.Find(pipeline.DynamoContext, m.ProjectName);
@@ -140,6 +138,15 @@ namespace OPS.Pipeline.TileServer
                 result.Clear();
             }
             return result;
+        }
+
+        public class BuildTilingInput : TilingQueueMessage
+        {
+            public BuildTilingInput() { }
+
+            public BuildTilingInput(string projectName) : base(projectName)
+            {
+            }
         }
     }
 }
