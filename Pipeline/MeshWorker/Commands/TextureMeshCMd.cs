@@ -4,17 +4,15 @@ using CommandLine;
 
 namespace OPS.Pipeline.MeshWorker
 {
-    [Verb("MSL.Texture", HelpText = "generate leaf tiles (mesh and texture) for a terrain mesh")]
+    [Verb("MSL.Texture", HelpText = "generate leaf tiles from a large mesh and textures from image observations")]
     public class TextureMeshOptions
     {
-        [Value(0, Required = true, HelpText = "Project name for dynamo db")]
+        [Value(0, Required = true, HelpText = "Project name to run")]
         public string ProjectName { get; set; }
     };
 
-    //TODO: rename to backprojectleaves?
     class TextureMesh
     {
-
         private TextureMeshOptions options;
 
         public TextureMesh(TextureMeshOptions opts)
@@ -24,7 +22,7 @@ namespace OPS.Pipeline.MeshWorker
 
         public int Run()
         {
-            throw new NotImplementedException("implement the command version of backproject leaves");
+            throw new NotImplementedException();
         }
     }
 }

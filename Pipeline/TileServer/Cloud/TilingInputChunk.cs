@@ -50,7 +50,7 @@ namespace OPS.Pipeline.TileServer
             return chunk;
         }
 
-        public static TilingInputChunk Find(DynamoDBContext context, string id) //needs to change to take project?
+        public static TilingInputChunk Find(DynamoDBContext context, string id)
         {
             return context.Load<TilingInputChunk>(id);
         }

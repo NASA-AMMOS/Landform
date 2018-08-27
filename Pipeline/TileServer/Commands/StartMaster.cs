@@ -24,13 +24,13 @@ namespace OPS.Pipeline.TileServer
         StartMasterOptions options;
 
         private static Dictionary<string,Type> registeredStateMachines = new Dictionary<string, Type>();
-        private static Dictionary<string, PipelineStateMachine> projectNameToStateMachine = new Dictionary<string, PipelineStateMachine>();
+        private static ConcurrentDictionary<string, PipelineStateMachine> projectNameToStateMachine = new ConcurrentDictionary<string, PipelineStateMachine>();
 
         public StartMaster(StartMasterOptions options) : base(dynamoPrefix: TileServerConfig.Instance.VenueName, profile: TileServerConfig.Instance.Profile)
         {
             this.options = options;
 
-            RegisterStateMachine("GenericTiling", typeof(GenericTilingStateMachine));
+            RegisterStateMachine(GenericTilingStateMachine.ProjectType(), typeof(GenericTilingStateMachine));
         }
 
         public int Run()
@@ -54,7 +54,6 @@ namespace OPS.Pipeline.TileServer
             return 0;
         }
 
-
         void RunMaster()
         {
             var cloud = new TileServerCloud(this);
@@ -66,14 +65,11 @@ namespace OPS.Pipeline.TileServer
                 var messages = completionQueue.Deque(TilingQueue.MAX_MESSAGES_PER_DEQUEUE);
                 foreach (var m in messages) 
                 {
-                    lock (projectNameToStateMachine)
+                    if (!projectNameToStateMachine.ContainsKey(m.ProjectName))
                     {
-                        if (!projectNameToStateMachine.ContainsKey(m.ProjectName))
-                        {
-                            projectNameToStateMachine.Add(m.ProjectName, CreateStateMachine(workerQueue, m.ProjectName));
-                        }
+                        projectNameToStateMachine.TryAdd(m.ProjectName, CreateStateMachine(workerQueue, m.ProjectName));
                     }
-
+                    
                     string s = JsonHelper.ToJson(m);
                     try
                     {
@@ -89,16 +85,10 @@ namespace OPS.Pipeline.TileServer
             }
         }
 
-        private string GetProjectType(string projectName)
-        {
-            TilingProject project = TilingProject.Find(this.DynamoContext, projectName);
-            return project.ProjectType;
-        }
-
         private void RegisterStateMachine(string projectType, Type stateMachine)
         {
             if (registeredStateMachines.ContainsKey(projectType))
-                throw new ArgumentException("projectType already mapped to different state machine");
+                throw new ArgumentException("projectType already mapped");
          
             registeredStateMachines.Add(projectType, stateMachine);
             
@@ -106,7 +96,8 @@ namespace OPS.Pipeline.TileServer
 
         private PipelineStateMachine CreateStateMachine(TilingQueue workerQueue, string projectName)
         {
-            return (PipelineStateMachine)Activator.CreateInstance(registeredStateMachines[GetProjectType(projectName)], this, workerQueue, projectName);
+            TilingProject project = TilingProject.Find(this.DynamoContext, projectName);
+            return (PipelineStateMachine)Activator.CreateInstance(registeredStateMachines[project.ProjectType], this, workerQueue, projectName);
          }
     }
 }
