@@ -1,8 +1,8 @@
 ﻿using log4net;
+using Microsoft.Xna.Framework;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
-using System.Threading.Tasks;
 using System.IO;
 using OPS.Pipeline.TileServer;
 using OPS.Geometry;
@@ -10,6 +10,8 @@ using OPS.Plumbing;
 using OPS.Cloud;
 using OPS.Imaging;
 using OPS.Util;
+using OPS.Alignment;
+using OPS.RayTrace;
 
 namespace OPS.Pipeline.MeshWorker
 {
@@ -57,7 +59,58 @@ namespace OPS.Pipeline.MeshWorker
             TilingProject project = TilingProject.Find(pipeline.DynamoContext, message.ProjectName);
             List<TilingNode> leaves = CollectLeavesToProcess(project);
 
-            //get big mesh
+            //prepare full mesh
+            Mesh fullMesh = GetFullMesh(project);
+            MeshOperator op = new MeshOperator(fullMesh);
+
+            SceneCaster sc = new SceneCaster();
+            sc.AddMesh(fullMesh, null, Matrix.Identity);
+            sc.Build();
+
+            // Build scene graph
+            Frame rootFrame = Frame.Find(pipeline.DynamoContext, project.Name, MSLProject.ROOT_FRAME_NAME);
+            BuildSceneGraph builder = new BuildSceneGraph(pipeline);
+            AlignmentScene scene = builder.Build(rootFrame, new BuildSceneGraph.Options());
+
+            // generate leaf tile data
+            int tiledMeshes = 0;
+            int textureDimension = 128; //TODO: idenitfy where the destination resolution comes from
+            int numLeafTileNodes = leaves.Count();
+            Serial.ForEach(leaves, leaf =>
+            {
+                int curTileIndex = Interlocked.Increment(ref tiledMeshes);
+                logger.Info("Generating tile number " + curTileIndex + "/" + numLeafTileNodes + " (" + (int)(curTileIndex / (float)numLeafTileNodes * 100) + "%): " + leaf.Id);
+
+                MeshImagePair leafPair = new MeshImagePair();
+                leafPair.Mesh = op.Clip(leaf.GetBounds());
+
+                if (leafPair.Mesh.HasFaces)
+                {
+                    leafPair.Mesh = UVAtlas.Atlas(leafPair.Mesh, textureDimension, textureDimension, 0, 1, 1);
+
+                    //TODO: filter scenegraph for nodes that can see the mesh and build backproject context info
+                    //TODO: build candidatesdb for nodes
+                    //TODO: fill destination texture
+                    //TODO: tonemap
+
+                    leafPair.Image = new Image(3, textureDimension, textureDimension);
+                    leafPair.Image.ApplyInPlace(0, x => { return (byte)255; });
+
+                    //upload the mesh/texture pair and update the tiling node
+                    ThroughputManager.Run(() => TilingNode.Find(pipeline.DynamoContext, project, leaf.Id).SaveMesh(leafPair, pipeline, 0));
+
+                    //notify the tiling server that a tile is ready for building into parent tiles
+                    pipeline.CompletionQueue.Enqueue(new TileCompletedMessage(project.Name, leaf.Id));
+                }
+            });
+
+            logger.Info("Completed generating " + tiledMeshes + " tiles.");
+            return 0;
+        }
+        
+        private Mesh GetFullMesh(TilingProject project)
+        {
+            Mesh fullMesh;
             var inputs = TilingInput.Find(pipeline.DynamoContext, project).ToList();
             InputChunkGroup bigMeshGroup = new InputChunkGroup();
             foreach (var input in inputs)
@@ -81,37 +134,9 @@ namespace OPS.Pipeline.MeshWorker
                 return m;
             });
 
-            Mesh fullMesh = Mesh.Merge(meshes.ToArray());
+            fullMesh = Mesh.Merge(meshes.ToArray());
             fullMesh.Clean();
-            MeshOperator op = new MeshOperator(fullMesh);
-
-            // generate leaf tile data
-            int tiledMeshes = 0;
-            int textureDimension = 128;
-            int numLeafTileNodes = leaves.Count();
-            Serial.ForEach(leaves, leaf =>
-            {
-                int curTileIndex = Interlocked.Increment(ref tiledMeshes);
-                logger.Info("Generating tile number " + curTileIndex + "/" + numLeafTileNodes + " (" + (int)(curTileIndex / (float)numLeafTileNodes * 100) + "%): " + leaf.Id);
-
-                MeshImagePair leafPair = new MeshImagePair();
-                leafPair.Mesh = op.Clip(leaf.GetBounds());
-
-                if (leafPair.Mesh.HasFaces)
-                {
-                    leafPair.Mesh = UVAtlas.Atlas(leafPair.Mesh, textureDimension, textureDimension, 0, 1, 1);
-
-                    // placeholder solid texture simulating backproject results 
-                    leafPair.Image = new Image(3, textureDimension, textureDimension);
-                    leafPair.Image.ApplyInPlace(0, x => { return (byte)255; });
-
-                    ThroughputManager.Run(() => TilingNode.Find(pipeline.DynamoContext, project, leaf.Id).SaveMesh(leafPair, pipeline, 0));
-                    pipeline.CompletionQueue.Enqueue(new TileCompletedMessage(project.Name, leaf.Id));
-                }
-            });
-
-            logger.Info("Completed generating " + tiledMeshes + " tiles.");
-            return 0;
+            return fullMesh;
         }
 
         /// <summary>
