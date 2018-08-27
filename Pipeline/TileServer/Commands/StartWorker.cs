@@ -2,6 +2,7 @@
 using log4net;
 using OPS.Geometry;
 using OPS.Plumbing;
+using OPS.Pipeline.MeshWorker;
 
 using System;
 using System.Threading.Tasks;
@@ -110,6 +111,10 @@ namespace OPS.Pipeline.TileServer
                         else if (m.GetType() == typeof(BuildBakedLeavesMessage))
                         {
                             new BuildBakedLeaves((BuildBakedLeavesMessage)m, this).Process();
+                        }
+                        else if (m.GetType() == typeof(BuildBackprojectLeavesMessage))
+                        {
+                            new BuildBackprojectLeaves((BuildBackprojectLeavesMessage)m, this).Process();
                         }
                         else if (m.GetType() == typeof(BuildParentsMessage))
                         {
