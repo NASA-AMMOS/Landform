@@ -4,7 +4,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using OPS.Pipeline.MeshWorker;
 
 namespace OPS.Pipeline
 {
@@ -49,8 +48,7 @@ namespace OPS.Pipeline
                 (CreateCloudTemplatesOptions opts) => new CreateCloudTemplates(opts).Run(),
                 (TileLocalMeshOptions opts) => new TileLocalMesh(opts).Run(),
                 (CuriosityAlignOptions opts) => new CuriosityAlign(opts).Run(),
-                (BuildFromAlignmentOptions opts) => new BuildFromAlignment(opts).Run(),
-                (TextureMeshOptions opts) => new TextureMesh(opts).Run(),
+                (BuildFromAlignmentOptions opts) => new BuildFromAlignment(opts).Run()
                 errs => 1);
         }
     }
