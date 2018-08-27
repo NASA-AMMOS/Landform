@@ -106,6 +106,7 @@ namespace OPS.Pipeline.MeshWorker
                     leafPair.Image.ApplyInPlace(0, x => { return (byte)255; });
 
                     ThroughputManager.Run(() => TilingNode.Find(pipeline.DynamoContext, project, leaf.Id).SaveMesh(leafPair, pipeline, 0));
+                    pipeline.CompletionQueue.Enqueue(new TileCompletedMessage(project.Name, leaf.Id));
                 }
             });
 
