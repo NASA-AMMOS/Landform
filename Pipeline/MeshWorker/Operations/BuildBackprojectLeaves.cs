@@ -40,7 +40,6 @@ namespace OPS.Pipeline.MeshWorker
 
         class InputChunkGroup
         {
-            public TilingInput Input;
             public List<TilingInputChunk> Chunks = new List<TilingInputChunk>();
         }
 
@@ -145,7 +144,6 @@ namespace OPS.Pipeline.MeshWorker
                 leaves.Add(TilingNode.Find(pipeline.DynamoContext, project, id));
             }
 
-            //TODO: move out, side effect
             // Send completion messages for leaves that are already done
             foreach (var n in leaves)
             {

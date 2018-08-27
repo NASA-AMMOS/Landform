@@ -12,7 +12,7 @@ namespace OPS.Pipeline.TileServer
         {
         }
 
-        override public string ProjectType()
+        static public string ProjectType()
         {
             return "GenericTiling";
         }

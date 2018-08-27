@@ -12,6 +12,11 @@ namespace OPS.Pipeline.TileServer
         {
         }
 
+        static public string ProjectType()
+        {
+            return "MSL";
+        }
+
         public override void ProcessMessage(TilingQueueMessage m)
         {
             //TODO: add thomas meshing code here:
