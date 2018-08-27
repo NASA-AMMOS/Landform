@@ -88,8 +88,8 @@ namespace OPS.Pipeline.TileServer
 
         private string GetProjectType(string projectName)
         {
-            //TODO: query a new value in database with a project type
-            throw new NotImplementedException();
+            TilingProject project = TilingProject.Find(this.DynamoContext, projectName);
+            return project.ProjectType;
         }
 
         private PipelineStateMachine CreateStateMachine(PipelineCore pipeline, TilingQueue workerQueue, string projectType, string projectName)

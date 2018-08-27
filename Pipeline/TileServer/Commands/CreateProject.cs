@@ -32,6 +32,9 @@ namespace OPS.Pipeline.TileServer
 
         [Option(Required = false, Default = 256, HelpText = "Maximum image resolution per tile")]
         public int TileResolution { get; set; }
+
+        [Option(Required = false, Default = "GenericTiling", HelpText = "Selects the processing pipline (eg. GenericTiling, MSL)")]
+        public string ProjectType { get; set; }
     }
 
     public class CreateProject : PipelineCore
@@ -59,7 +62,7 @@ namespace OPS.Pipeline.TileServer
             else
             {
                 logger.Info("Creating project: " + options.ProjectName);
-                TilingProject.Create(this.DynamoContext, options.ProjectName, options.TilingScheme, options.SkirtMode, options.ReconMethod, options.FacesPerTile, options.TileResolution);
+                TilingProject.Create(this.DynamoContext, options.ProjectName, options.TilingScheme, options.SkirtMode, options.ReconMethod, options.FacesPerTile, options.TileResolution, options.ProjectType);
             }
             return 0;
         }

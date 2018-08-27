@@ -6,10 +6,15 @@ using System.Collections.Generic;
 
 namespace OPS.Pipeline.TileServer
 {
-    class GenericMeshStateMachine : PipelineStateMachine
+    class GenericTilingStateMachine : PipelineStateMachine
     {
-        public GenericMeshStateMachine(PipelineCore pipeline, TilingQueue workerQueue, string projectName) : base(pipeline, workerQueue, projectName)
+        public GenericTilingStateMachine(PipelineCore pipeline, TilingQueue workerQueue, string projectName) : base(pipeline, workerQueue, projectName)
         {
+        }
+
+        override public string ProjectType()
+        {
+            return "GenericTiling";
         }
 
         override public void ProcessMessage(TilingQueueMessage m)
