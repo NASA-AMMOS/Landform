@@ -15,42 +15,31 @@ using System.Collections.Concurrent;
 namespace OPS.Pipeline.TileServer
 {
 
-    public class TileCompletedMessage : TilingQueueMessage
-    {
-        public string TileId;
-
-        public TileCompletedMessage(string projectName, string id) : base(projectName)
-        {
-            this.TileId = id;
-        }
-    }
-
-    public class BuildLeavesMessage : TilingQueueMessage
+    public class BuildBakedLeavesMessage : TilingQueueMessage
     {
         public List<string> TileIds { get; set; }
 
-        public BuildLeavesMessage() { }
+        public BuildBakedLeavesMessage() { }
 
-        public BuildLeavesMessage(string projectName, List<string> tileIds) : base(projectName)
+        public BuildBakedLeavesMessage(string projectName, List<string> tileIds) : base(projectName)
         {
             this.TileIds = tileIds;
         }
     }
 
-    public class BuildLeaves
+    public class BuildBakedLeaves
     {
 
-        static ILog logger = LogManager.GetLogger(typeof(BuildLeaves));
+        static ILog logger = LogManager.GetLogger(typeof(BuildBakedLeaves));
 
         StartWorker pipeline;
-        BuildLeavesMessage message;
+        BuildBakedLeavesMessage message;
 
-        public BuildLeaves(BuildLeavesMessage message, StartWorker pipeline)
+        public BuildBakedLeaves(BuildBakedLeavesMessage message, StartWorker pipeline)
         {
             this.pipeline = pipeline;
             this.message = message;
         }
-
 
         class InputChunkGroup
         {

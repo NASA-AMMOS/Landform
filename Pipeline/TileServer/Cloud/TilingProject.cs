@@ -28,6 +28,8 @@ namespace OPS.Pipeline.TileServer
 
         public bool TilesDefined { get; set; }
 
+        public string ProjectType { get; set; }
+
         public TilingProject()
         {
 
@@ -37,7 +39,7 @@ namespace OPS.Pipeline.TileServer
         /// Creates Project object locally.  
         /// </summary>
         /// <param name="name">Project names in the database must be unique</param>
-        protected TilingProject(string name, TilingScheme tilingScheme, SkirtMode skirtMode, MeshReconMethod reconMethod, int faces, int resolution)
+        protected TilingProject(string name, TilingScheme tilingScheme, SkirtMode skirtMode, MeshReconMethod reconMethod, int faces, int resolution, string projectType)
         {
             Name = name;
             TilingScheme = tilingScheme.ToString();
@@ -45,14 +47,15 @@ namespace OPS.Pipeline.TileServer
             ReconMethod = reconMethod.ToString();
             FacesPerTile = faces;
             TileResolution = resolution;
+            ProjectType = projectType;
             TilesDefined = false;
             this.IsValid();
         }
 
 
-        public static TilingProject Create(DynamoDBContext context, string name, TilingScheme tilingScheme, SkirtMode skirtMode, MeshReconMethod reconMethod, int faces, int resolution)
+        public static TilingProject Create(DynamoDBContext context, string name, TilingScheme tilingScheme, SkirtMode skirtMode, MeshReconMethod reconMethod, int faces, int resolution, string projectType)
         {
-            TilingProject project = new TilingProject(name, tilingScheme, skirtMode, reconMethod, faces, resolution);
+            TilingProject project = new TilingProject(name, tilingScheme, skirtMode, reconMethod, faces, resolution, projectType);
             context.Save(project, new DynamoDBOperationConfig() { IgnoreNullValues = true });
             return project;
         }
