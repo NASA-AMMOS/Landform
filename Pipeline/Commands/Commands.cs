@@ -50,7 +50,7 @@ namespace OPS.Pipeline
                 (TileLocalMeshOptions opts) => new TileLocalMesh(opts).Run(),
                 (CuriosityAlignOptions opts) => new CuriosityAlign(opts).Run(),
                 (BuildFromAlignmentOptions opts) => new BuildFromAlignment(opts).Run(),
-                (TextureMeshOptions opts) => new TextureMesh(opts).Run(),
+                (TextureMeshOptions opts) => new TextureMeshCommand(opts).Run(),
                 errs => 1);
         }
     }

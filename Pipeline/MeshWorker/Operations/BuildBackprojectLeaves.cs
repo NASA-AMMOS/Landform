@@ -53,7 +53,7 @@ namespace OPS.Pipeline.MeshWorker
         /// <returns></returns>
         public int Process()
         {
-            logger.Info("Texturing mesh...");
+            logger.Info("Downloading full mesh...");
 
             // get tiling information
             TilingProject project = TilingProject.Find(pipeline.DynamoContext, message.ProjectName);
@@ -74,27 +74,27 @@ namespace OPS.Pipeline.MeshWorker
 
             // generate leaf tile data
             int tiledMeshes = 0;
-            int textureDimension = 128; //TODO: idenitfy where the destination resolution comes from
             int numLeafTileNodes = leaves.Count();
             Serial.ForEach(leaves, leaf =>
             {
                 int curTileIndex = Interlocked.Increment(ref tiledMeshes);
-                logger.Info("Generating tile number " + curTileIndex + "/" + numLeafTileNodes + " (" + (int)(curTileIndex / (float)numLeafTileNodes * 100) + "%): " + leaf.Id);
+                logger.Info("Generating tile mesh number " + curTileIndex + "/" + numLeafTileNodes + " (" + (int)(curTileIndex / (float)numLeafTileNodes * 100) + "%): " + leaf.Id);
 
                 MeshImagePair leafPair = new MeshImagePair();
                 leafPair.Mesh = op.Clip(leaf.GetBounds());
 
                 if (leafPair.Mesh.HasFaces)
                 {
-                    leafPair.Mesh = UVAtlas.Atlas(leafPair.Mesh, textureDimension, textureDimension, 0, 1, 1);
+                    leafPair.Mesh = UVAtlas.Atlas(leafPair.Mesh, project.TileResolution, project.TileResolution, 0, 1, 1);
 
                     //TODO: filter scenegraph for nodes that can see the mesh and build backproject context info
                     //TODO: build candidatesdb for nodes
                     //TODO: fill destination texture
                     //TODO: tonemap
 
-                    leafPair.Image = new Image(3, textureDimension, textureDimension);
-                    leafPair.Image.ApplyInPlace(0, x => { return (byte)255; });
+                    // placeholder solid texture simulating backproject results 
+                    leafPair.Image = new Image(3, project.TileResolution, project.TileResolution);
+                    leafPair.Image.ApplyInPlace(0, x => { return 1.0f; });
 
                     //upload the mesh/texture pair and update the tiling node
                     ThroughputManager.Run(() => TilingNode.Find(pipeline.DynamoContext, project, leaf.Id).SaveMesh(leafPair, pipeline, 0));
