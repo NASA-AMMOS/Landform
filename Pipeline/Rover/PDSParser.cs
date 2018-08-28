@@ -453,6 +453,15 @@ namespace OPS.Pipeline
             }
         }
 
+        public bool IsMAHLI
+        {
+            get
+            {
+                RoverProductCamera inst = Camera;
+                return inst == RoverProductCamera.MAHLI;
+            }
+        }
+
         public bool IsDownsampled
         {
             get
