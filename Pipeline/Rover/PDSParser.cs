@@ -33,6 +33,28 @@ namespace OPS.Pipeline
             get { return metadata.ReadAsInt("IMAGE", "FIRST_LINE_SAMPLE"); }
         }
 
+        private const string Unknown = "UNK";
+
+        public bool HasMissingConstant
+        {
+            get { return metadata.HasKey("IMAGE", "MISSING_CONSTANT") && metadata.ReadAsString("IMAGE", "MISSING_CONSTANT") != Unknown; }
+        }
+
+        public float MissingConstant
+        {
+            get { return (float)metadata.ReadAsDouble("IMAGE", "MISSING_CONSTANT"); }
+        }
+
+        public bool HasInvalidConstant
+        {
+            get { return metadata.HasKey("IMAGE", "INVALID_CONSTANT") && metadata.ReadAsString("IMAGE", "INVALID_CONSTANT") != Unknown; }
+        }
+
+        public float InvalidConstant
+        {
+            get { return (float)metadata.ReadAsDouble("IMAGE", "INVALID_CONSTANT"); }
+        }
+
         public RoverProductId ProductId
         {
             get { return RoverProductId.ParseFromString(metadata.ReadAsString("PRODUCT_ID")); }
@@ -254,6 +276,50 @@ namespace OPS.Pipeline
             }
         }
 
+        public double MinimumFocusDistance
+        {
+            get
+            {
+                if (metadata.HasKey("DERIVED_IMAGE_PARMS", "MSL:MINIMUM_FOCUS_DISTANCE"))
+                {
+
+                    double nearFocus = metadata.ReadAsDouble("DERIVED_IMAGE_PARMS", "MSL:MINIMUM_FOCUS_DISTANCE");
+
+                    if (IsMAHLI)
+                        return nearFocus / 1000.0;
+                    else
+                        return metadata.ReadAsDouble("DERIVED_IMAGE_PARMS", "MSL:MINIMUM_FOCUS_DISTANCE");
+                }
+                else
+                {
+                    RoverProductCamera inst = Camera;
+                    switch (inst)
+                    {
+                        case RoverProductCamera.FrontHazcamLeft:
+                            return 0.1; //from MSL_CAMERA_SIS_latest.PDF
+                        case RoverProductCamera.FrontHazcamRight:
+                            return 0.1; //from MSL_CAMERA_SIS_latest.PDF
+                        case RoverProductCamera.RearHazcamLeft:
+                            return 0.1; //from MSL_CAMERA_SIS_latest.PDF
+                        case RoverProductCamera.RearHazcamRight:
+                            return 0.1; //from MSL_CAMERA_SIS_latest.PDF
+                        case RoverProductCamera.NavcamLeft:
+                            return 0.5; //from MSL_CAMERA_SIS_latest.PDF
+                        case RoverProductCamera.NavcamRight:
+                            return 0.5; //from MSL_CAMERA_SIS_latest.PDF
+                        case RoverProductCamera.MastcamLeft:
+                            return 2.1; //0.5 from MSL_MMM_SIS_053112_final.pdf  NOTE: MSL_CAMERA_SIS_latest.PDF says 2.1m
+                        case RoverProductCamera.MastcamRight:
+                            return 2.1; //1.6 from MSL_MMM_SIS_053112_final.pdf  NOTE: MSL_CAMERA_SIS_latest.PDF says 2.1m
+                        case RoverProductCamera.MAHLI:
+                            return 0.0205; //src: MSL_MMM_SIS_053112_final.pdf
+                        default:
+                            throw new NotImplementedException("need to add a minimum focus distance for this camera type");
+                    }
+                }
+            }
+        }
+
 
         /// <summary>
         /// Rover to local level
@@ -391,12 +457,26 @@ namespace OPS.Pipeline
         {
             get
             {
-                if (metadata.ReadAsString("IMAGE_REQUEST_PARMS", "PIXEL_DOWNSAMPLE_OPTION") != "NONE")
+                if (metadata.HasKey("IMAGE_REQUEST_PARMS", "PIXEL_DOWNSAMPLE_OPTION"))
                 {
-                    int avgWidth = metadata.ReadAsInt("IMAGE_REQUEST_PARMS", "PIXEL_AVERAGING_WIDTH");
-                    int avgHeight = metadata.ReadAsInt("IMAGE_REQUEST_PARMS", "PIXEL_AVERAGING_HEIGHT");
-                    return avgWidth > 1 || avgHeight > 1;
-                      
+                    if (metadata.ReadAsString("IMAGE_REQUEST_PARMS", "PIXEL_DOWNSAMPLE_OPTION") != "NONE")
+                    {
+                        int avgWidth = 1;
+                        if (metadata.HasKey("IMAGE_REQUEST_PARMS", "PIXEL_AVERAGING_WIDTH") &&
+                            metadata.ReadAsString("IMAGE_REQUEST_PARMS", "PIXEL_AVERAGING_WIDTH") != Unknown)
+                        {
+                            avgWidth = metadata.ReadAsInt("IMAGE_REQUEST_PARMS", "PIXEL_AVERAGING_WIDTH");
+                        }
+
+                        int avgHeight = 1;
+                        if (metadata.HasKey("IMAGE_REQUEST_PARMS", "PIXEL_AVERAGING_HEIGHT") &&
+                            metadata.ReadAsString("IMAGE_REQUEST_PARMS", "PIXEL_AVERAGING_HEIGHT") != Unknown)
+                        {
+                            avgHeight = metadata.ReadAsInt("IMAGE_REQUEST_PARMS", "PIXEL_AVERAGING_HEIGHT");
+                        }
+
+                        return avgWidth > 1 || avgHeight > 1;
+                    }
                 }
                 return false;
             }
