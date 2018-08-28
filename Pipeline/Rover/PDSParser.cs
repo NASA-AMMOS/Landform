@@ -11,7 +11,7 @@ namespace OPS.Pipeline
     public class PDSParser
     {
 
-        PDSMetadata metadata;
+        public PDSMetadata metadata;
 
         public PDSParser(PDSMetadata metadata)
         {
