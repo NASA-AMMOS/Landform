@@ -73,16 +73,6 @@ namespace OPS.Pipeline.TileServer
             }
         }
 
-
-        protected void ChunkInputs(TilingProject project)
-        {
-            var inputs = TilingInput.Find(pipeline.DynamoContext, project);
-            foreach (var input in inputs)
-            {
-                workerQueue.Enqueue(new ChunkInputMessage(project.Name, input.Name));
-            }
-        }
-
         protected void BuildBakedLeaves(TilingProject project)
         {
             logger.Info("Build Leaves");
@@ -101,37 +91,6 @@ namespace OPS.Pipeline.TileServer
             }
         }
 
-        Queue<SceneNode> GroupSceneNodesIntoJobs(SceneNode node, List<List<SceneNode>> outputGroups, int nodesPerGroup = 32)
-        {
-            var result = new Queue<SceneNode>();
-            if (node.IsLeaf)
-            {
-                result.Enqueue(node);
-                return result;
-            }
-            foreach (var c in node.Children)
-            {
-                var tmp = GroupSceneNodesIntoJobs(c, outputGroups, nodesPerGroup);
-                foreach (var e in tmp)
-                {
-                    result.Enqueue(e);
-                }
-            }
-            while (result.Count > nodesPerGroup)
-            {
-                List<SceneNode> outputGroup = new List<SceneNode>();
-                for (int i = 0; i < nodesPerGroup; i++)
-                {
-                    outputGroup.Add(result.Dequeue());
-                }
-                outputGroups.Add(outputGroup);
-            }
-            if (node.Parent == null && result.Count != 0)
-            {
-                outputGroups.Add(result.ToList());
-                result.Clear();
-            }
-            return result;
-        }
+        
     }
 }

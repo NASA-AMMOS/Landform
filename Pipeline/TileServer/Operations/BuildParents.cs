@@ -77,7 +77,7 @@ namespace OPS.Pipeline.TileServer
                 tmpNode.AddComponent(idToNode[childId].GetComponent<NodeGeometricError>());
                 tmpNode.Transform.SetParent(parentSceneNode.Transform);
             }
-            logger.Info(parent.Id + " generating form " + parent.DependsOn.Count + " tiles");
+            logger.Info(parent.Id + " generating from " + parent.DependsOn.Count + " tiles");
 
             parentSceneNode.BuildGeometryFromChildren(parentSceneNode, project.GetReconMethod(), project.FacesPerTile, project.TileResolution, project.GetSkirtMode());
 
