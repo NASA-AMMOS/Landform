@@ -1,32 +1,39 @@
-﻿
-using System.Linq;
-using OPS.Plumbing;
+﻿using OPS.Pipeline.MeshWorker;
 using OPS.Geometry;
+using OPS.Plumbing;
+using System.Linq;
 using System.Collections.Generic;
 
 namespace OPS.Pipeline.TileServer
 {
-    class GenericTilingStateMachine : PipelineStateMachine
+    class MSLStateMachine : PipelineStateMachine
     {
-        public GenericTilingStateMachine(PipelineCore pipeline, TilingQueue workerQueue, string projectName) : base(pipeline, workerQueue, projectName)
+        public MSLStateMachine(PipelineCore pipeline, TilingQueue workerQueue, string projectName) : base(pipeline, workerQueue, projectName)
         {
         }
 
         static public string ProjectType()
         {
-            return "GenericTiling";
+            return "MSL";
         }
 
-        override public void ProcessMessage(TilingQueueMessage m)
-        { 
-            if (m.GetType() == typeof(DefineTilesMessage))
+        public override void ProcessMessage(TilingQueueMessage m)
+        {
+            if (m.GetType() == typeof(BuildTilingInput))
             {
-                logger.Info("DefineTiles project:" + m.ProjectName);
+               logger.Info("Build tiling input");
 
                 // This is the first message that happens when we trigger a new run
                 // Force a clearing of the cache just to avoid stale data form a previous run
                 this.projectCache.Refresh();
 
+                //TODO: call code to build big mesh and create a tiling input
+
+                workerQueue.Enqueue(new DefineTilesMessage(m.ProjectName));
+           }
+           else if (m.GetType() == typeof(DefineTilesMessage))
+            {
+                logger.Info("DefineTiles project:" + m.ProjectName);
                 TilingProject project = TilingProject.Find(pipeline.DynamoContext, m.ProjectName);
                 ChunkInputs(project);
             }
@@ -38,7 +45,7 @@ namespace OPS.Pipeline.TileServer
                 bool allChunked = inputs.All(i => i.Chunked);
                 if (allChunked)
                 {
-                    BuildBakedLeaves(project);
+                    BuildBackprojectLeaves(project);
                 }
             }
             else if (m.GetType() == typeof(TileCompletedMessage))
@@ -73,7 +80,7 @@ namespace OPS.Pipeline.TileServer
             }
         }
 
-        protected void BuildBakedLeaves(TilingProject project)
+        protected void BuildBackprojectLeaves(TilingProject project)
         {
             logger.Info("Build Leaves");
             SceneNode root = TilingNode.BuildTreeFromDatabase(pipeline.DynamoContext, project);
@@ -82,7 +89,7 @@ namespace OPS.Pipeline.TileServer
 
             foreach (var group in leafGroups)
             {
-                var leafJob = new BuildBakedLeavesMessage(project.Name, group.Select(n => n.Name).ToList());
+                var leafJob = new BuildBackprojectLeavesMessage(project.Name, group.Select(n => n.Name).ToList());
                 workerQueue.Enqueue(leafJob);
                 foreach (var leaf in group)
                 {
@@ -91,6 +98,17 @@ namespace OPS.Pipeline.TileServer
             }
         }
 
-        
+        /// <summary>
+        /// message sent to create a large mesh from input data 
+        /// and upload it as the tiling input
+        /// </summary>
+        public class BuildTilingInput : TilingQueueMessage
+        {
+            public BuildTilingInput() { }
+
+            public BuildTilingInput(string projectName) : base(projectName)
+            {
+            }
+        }
     }
 }

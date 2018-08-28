@@ -51,7 +51,7 @@ namespace OPS.Pipeline.MeshWorker
         /// <returns></returns>
         public int Process()
         {
-            logger.Info("Texturing mesh...");
+            logger.Info("Downloading full mesh...");
 
             // get tiling information
             TilingProject project = TilingProject.Find(pipeline.DynamoContext, message.ProjectName);
@@ -91,7 +91,7 @@ namespace OPS.Pipeline.MeshWorker
             Serial.ForEach(leaves, leaf =>
             {
                 int curTileIndex = Interlocked.Increment(ref tiledMeshes);
-                logger.Info("Generating tile number " + curTileIndex + "/" + numLeafTileNodes + " (" + (int)(curTileIndex / (float)numLeafTileNodes * 100) + "%): " + leaf.Id);
+                logger.Info("Generating tile mesh number " + curTileIndex + "/" + numLeafTileNodes + " (" + (int)(curTileIndex / (float)numLeafTileNodes * 100) + "%): " + leaf.Id);
 
                 MeshImagePair leafPair = new MeshImagePair();
                 leafPair.Mesh = op.Clip(leaf.GetBounds());
@@ -105,6 +105,7 @@ namespace OPS.Pipeline.MeshWorker
                     leafPair.Image.ApplyInPlace(0, x => { return 1.0f; });
 
                     ThroughputManager.Run(() => TilingNode.Find(pipeline.DynamoContext, project, leaf.Id).SaveMesh(leafPair, pipeline, 0));
+                    pipeline.CompletionQueue.Enqueue(new TileCompletedMessage(project.Name, leaf.Id));
                 }
             });
 
