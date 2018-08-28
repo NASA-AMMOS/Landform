@@ -27,13 +27,13 @@ namespace OPS.Pipeline.TileServer
                 // Force a clearing of the cache just to avoid stale data form a previous run
                 this.projectCache.Refresh();
 
-                TilingProject project = TilingProject.Find(pipeline.DynamoContext, m.ProjectName); //BUGBUG: why not reading from cached tiling project?
+                TilingProject project = TilingProject.Find(pipeline.DynamoContext, m.ProjectName);
                 ChunkInputs(project);
             }
             else if (m.GetType() == typeof(ChunkInputMessage))
             {
                 logger.Info("ChunkInput project:" + m.ProjectName + " input:" + ((ChunkInputMessage)m).InputName);
-                TilingProject project = TilingProject.Find(pipeline.DynamoContext, m.ProjectName);  //BUGBUG: why not reading from cached tiling project?
+                TilingProject project = TilingProject.Find(pipeline.DynamoContext, m.ProjectName);
                 var inputs = TilingInput.Find(pipeline.DynamoContext, project);
                 bool allChunked = inputs.All(i => i.Chunked);
                 if (allChunked)

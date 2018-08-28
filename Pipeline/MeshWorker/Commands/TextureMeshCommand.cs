@@ -11,11 +11,11 @@ namespace OPS.Pipeline.MeshWorker
         public string ProjectName { get; set; }
     };
 
-    class TextureMesh
+    class TextureMeshCommand
     {
         private TextureMeshOptions options;
 
-        public TextureMesh(TextureMeshOptions opts)
+        public TextureMeshCommand(TextureMeshOptions opts)
         {
             this.options = opts;
         }

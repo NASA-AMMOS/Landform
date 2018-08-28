@@ -87,7 +87,6 @@ namespace OPS.Pipeline.MeshWorker
 
             // generate leaf tile data
             int tiledMeshes = 0;
-            int textureDimension = 128;
             int numLeafTileNodes = leaves.Count();
             Serial.ForEach(leaves, leaf =>
             {
@@ -99,11 +98,11 @@ namespace OPS.Pipeline.MeshWorker
 
                 if (leafPair.Mesh.HasFaces)
                 {
-                    leafPair.Mesh = UVAtlas.Atlas(leafPair.Mesh, textureDimension, textureDimension, 0, 1, 1);
+                    leafPair.Mesh = UVAtlas.Atlas(leafPair.Mesh, project.TileResolution, project.TileResolution, 0, 1, 1);
 
                     // placeholder solid texture simulating backproject results 
-                    leafPair.Image = new Image(3, textureDimension, textureDimension);
-                    leafPair.Image.ApplyInPlace(0, x => { return (byte)255; });
+                    leafPair.Image = new Image(3, project.TileResolution, project.TileResolution);
+                    leafPair.Image.ApplyInPlace(0, x => { return 1.0f; });
 
                     ThroughputManager.Run(() => TilingNode.Find(pipeline.DynamoContext, project, leaf.Id).SaveMesh(leafPair, pipeline, 0));
                     pipeline.CompletionQueue.Enqueue(new TileCompletedMessage(project.Name, leaf.Id));
@@ -112,28 +111,6 @@ namespace OPS.Pipeline.MeshWorker
 
             logger.Info("Completed generating " + tiledMeshes + " tiles.");
             return 0;
-        }
-
-        /// <summary>
-        /// downloads the large parent mesh for the project and loads it into memory
-        /// </summary>
-        /// <param name="pipeline"></param>
-        /// <param name="input"></param>
-        /// <returns></returns>
-        public Mesh DownloadFullMesh(PipelineCore pipeline, TilingInputChunk input)
-        {
-            Mesh result = null;
-            TemporaryFile.GetAndDelete(".ply", f =>
-            {
-                logger.Info("Downloading parent mesh: " + input.MeshUrl);
-                pipeline.Storage(input.MeshUrl).DownloadFile(input.MeshUrl, f);
-                result = Mesh.Load(f);
-            });
-
-            if (result == null)
-                throw new CloudException("Failed to download full project mesh");
-
-            return result;
         }
 
         private List<TilingNode> CollectLeavesToProcess(TilingProject project)
