@@ -63,9 +63,9 @@ namespace OPS.Geometry
             return new ConvexHull(hulls.SelectMany(h => h.Vertices.Select(vtx => vtx.Position)));
         }
 
-        public static ConvexHull FromImage(Image img, double nearClip=0.1, double farClip=20)
+        public static ConvexHull FromImage(Image image, double nearClip = 0.1, double farClip = 20)
         {
-            return FromParams(img.CameraModel, img.Width, img.Height, nearClip, farClip);
+            return FromParams(image.CameraModel, image.Width, image.Height, nearClip, farClip);
         }
 
         public static ConvexHull FromParams(CameraModel camera, int width, int height, double nearClip=0.1, double farClip=20)
