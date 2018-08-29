@@ -35,8 +35,6 @@ namespace OPS.Pipeline.MeshWorker
         StartWorker pipeline;
         BuildBackprojectLeavesMessage message;
 
-        const double settingMaxCameraDistance = 16.0f; //meters, the max distance a camera can be from tile center to be considered for backproject
-
         public BuildBackprojectLeaves(BuildBackprojectLeavesMessage message, StartWorker pipeline)
         {
             this.pipeline = pipeline;
@@ -131,11 +129,6 @@ namespace OPS.Pipeline.MeshWorker
                 if (imgRef == null)
                     continue;
 
-                //coarse distance check: camera position to tile center, meshes are created at the same origin as alignment (first site drive of mission)
-                Matrix imgToWorld = node.GetComponent<NodeUncertainTransform>().To(scene.Root).Mean;
-                if (Vector3.Distance(imgToWorld.Translation, tileBounds.Center()) > settingMaxCameraDistance)
-                    continue;
-
                 //download image
                 Image img = pipeline.Load(imgRef.Reference, false);
                
@@ -145,7 +138,8 @@ namespace OPS.Pipeline.MeshWorker
                 if (!SupportedPDSFile(parser))
                     continue;
 
-                //coarse frustum cull: does this mesh's hull intersect the cameras?
+                //coarse frustum cull: does this mesh's hull intersect the cameras
+                Matrix imgToWorld = node.GetComponent<NodeUncertainTransform>().To(scene.Root).Mean;
                 Matrix worldToImg = Matrix.Invert(imgToWorld);
                 ConvexHull focusedImageHull = CreateImageHullForMesh(tileBounds, md.CameraModel, md.Width, md.Height, imgToWorld, worldToImg, parser.MinimumFocusDistance);
                 if (!tileHull.Intersects(focusedImageHull))
