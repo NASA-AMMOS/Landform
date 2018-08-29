@@ -86,14 +86,12 @@ namespace OPS.Pipeline.MeshWorker
 
                 // make the leaf tile mesh
                 leafPair.Mesh = op.Clip(leaf.GetBounds());
-                if (!leafPair.Mesh.HasFaces)
-                    throw new InvalidDataException();
                 leafPair.Mesh = UVAtlas.Atlas(leafPair.Mesh, project.TileResolution, project.TileResolution, 0, 1, 1);
                 ConvexHull meshHull = new ConvexHull(leafPair.Mesh);
                     
                 // backproject
                 List<BackprojectContext> observations = GetPossibleObservations(scene, leafPair.Mesh.Bounds(), meshHull);
-                //TODO: backproject will be integrated here
+                //...backproject will take place here...
 
                 // placeholder solid texture simulating backproject results 
                 leafPair.Image = new Image(3, project.TileResolution, project.TileResolution);
