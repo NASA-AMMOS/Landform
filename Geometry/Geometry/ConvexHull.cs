@@ -83,8 +83,16 @@ namespace OPS.Geometry
                     double y = (height - 1.0) * (j / (subdiv - 1.0));
                     for (int k = 0; k < subdiv; k++)
                     {
-                        double z = (farClip - nearClip) * (k / (subdiv - 1.0)) + nearClip;
-                        pts.Add(camera.Unproject(new Vector2(x, y), z));
+                        Ray ray = camera.Unproject(new Vector2(x, y));
+                        
+                        Plane nearClipPlane = new Plane(-camera.ImagePlaneNormal, Vector3.Dot(camera.ImagePlaneNormal, ray.Position) + nearClip);
+                        Plane farClipPlane = new Plane(-camera.ImagePlaneNormal, Vector3.Dot(camera.ImagePlaneNormal, ray.Position) + farClip);
+
+                        double rayDistNear = ray.Intersects(nearClipPlane).Value;
+                        double rayDistFar = ray.Intersects(farClipPlane).Value;
+                        double rayDist = MathHelper.Lerp(rayDistNear, rayDistFar, k / (double)(subdiv - 1));
+
+                        pts.Add(ray.Position + rayDist * ray.Direction);
                     }
                 }
             }

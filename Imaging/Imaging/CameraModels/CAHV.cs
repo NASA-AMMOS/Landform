@@ -29,6 +29,14 @@ namespace OPS.Imaging
             }
         }
 
+        public override Vector3 ImagePlaneNormal
+        {
+            get
+            {
+                return A;
+            }
+        }
+
         public CAHV(Vector3 c, Vector3 a, Vector3 h, Vector3 v)
         {
             this.C = c;
