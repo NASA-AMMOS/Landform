@@ -40,6 +40,7 @@ namespace OPS.Pipeline.TileServer
         public StartWorker(StartWorkerOptions options) : base(dynamoPrefix: TileServerConfig.Instance.VenueName, profile: TileServerConfig.Instance.Profile)
         {
             this.options = options;
+            this.AddProfile("s3://red-product/", "mslice");
         }
 
         public int Run()
