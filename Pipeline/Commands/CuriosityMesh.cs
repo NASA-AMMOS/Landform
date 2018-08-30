@@ -271,7 +271,7 @@ namespace OPS.Pipeline
                 records.Add(new TransformRecord(transform.Mean, rmc, triple.Point.Name));*/
 
                 //Build the point cloud!
-                var m = BuildPointCloud(triple.Point, transform, triple.Image, triple.Normal, stepSize:5);
+                var m = BuildPointCloud(triple.Point, transform, triple.Image, triple.Normal);
                 m.HasColors = true;
 
                 meshes.Add(m);
