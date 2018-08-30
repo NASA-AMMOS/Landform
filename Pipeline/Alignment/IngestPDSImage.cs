@@ -306,10 +306,6 @@ namespace OPS.Pipeline
 
         public override Result Ingest(S3ImageRef imgRef)
         {
-            if(imgRef.DisplayName.Contains("UVW"))
-            {
-                ;
-            }
             if (imgRef is ObservationImageRef)
             {
                 throw new InvalidOperationException("hey now, let's not get *too* weird");

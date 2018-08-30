@@ -11,10 +11,10 @@ namespace OPS.Imaging
 {
     public class GDALCameraModel : CameraModel, IDisposable
     {
-        SpatialReference WorldFrame;
-        SpatialReference ImageFrame;
-        Matrix GeoTransform;
-        Matrix InverseGeoTransform;
+        public SpatialReference WorldFrame;
+        public SpatialReference ImageFrame;
+        public Matrix GeoTransform;
+        public Matrix InverseGeoTransform;
 
         CoordinateTransformation ImageToWorld;
         CoordinateTransformation WorldToImage;

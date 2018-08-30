@@ -19,6 +19,9 @@ using Amazon.DynamoDBv2.Model;
 using OPS.Pipeline.Tiling;
 using OPS.Pipeline.TileServer;
 using MathNet.Numerics.LinearAlgebra;
+using OSGeo.GDAL;
+using OSGeo.OSR;
+using OSGeo.OGR;
 
 namespace OPS.Pipeline
 {
@@ -172,33 +175,41 @@ namespace OPS.Pipeline
             
         }
 
-        //TODO: In progress
         /// <summary>
-        /// Build a sparse point cloud from orbital data
+        /// Build a point cloud from orbital data
         /// </summary>
         /// <param name="s3ref"></param>
         /// <param name="observationToRoot"></param>
         /// <param name="stepSize"></param>
         /// <returns></returns>
-        Mesh BuildOrbitalCloud(S3ImageRef s3ref, UncertainRigidTransform observationToRoot, int stepSize = 200)
+        Mesh BuildOrbitalCloud(Image img, BoundingBox bounds, Func<Vector3, Vector3> orbitalToLocal = null)
         {
-            Image img = this.Load(s3ref, true);
-
-            var obsToRoot = observationToRoot.Mean;
-
             Mesh result = new Mesh();
-            for (int r = 0; r < img.Height; r += stepSize)
+            //TODO: not thread safe
+            Serial.For((int)bounds.Min.X, (int)Math.Ceiling(bounds.Max.X), (r) =>
             {
-                for (int c = 0; c < img.Width; c += stepSize)
+                Serial.For((int)bounds.Min.Y, (int)Math.Ceiling(bounds.Max.Y), (c) =>
                 {
+                    //Project each pixel
                     double range = img[0, r, c];
-                    var observationPoint = new Vector3(r, c, range);
-                    var rootPoint = Vector3.Transform(observationPoint, Matrix.Transpose(obsToRoot)); //observationPoint dist.XnaMean;
+                    var rootPoint = img.CameraModel.Unproject(new Vector2(r, c), range);
                     var res = new Vertex(rootPoint);
-                    res.Normal = new Vector3(0,0,1);                           
+                    //Normal is equivalent to position assuming origin is Mars center
+                    res.Normal = res.Position;
+                    res.Normal.Normalize();
+                    //Transform position and normal if necessary
+                    if(orbitalToLocal != null)
+                    {
+                        var normalPoint = res.Position + res.Normal;
+                        res.Position = orbitalToLocal(res.Position);
+                        res.Normal = orbitalToLocal(normalPoint) - res.Position;
+                    }
                     result.Vertices.Add(res);
-                }
-            }
+                });              
+            });
+            result.HasColors = false;
+            result.HasUVs = false;
+            result.HasNormals = true;
             return result;
         }
    
@@ -239,23 +250,6 @@ namespace OPS.Pipeline
             //Project each range product to build point cloud
             Parallel.ForEach(triples, new ParallelOptions() { MaxDegreeOfParallelism = Environment.ProcessorCount }, triple =>
             {
-                // Temporary filter to limit to single site drive =============================================
-                {
-                    PDSMetadata metadata = null;
-                    this.Storage(triple.Image.Url).GetStorageStream(triple.Image.Url, stream =>
-                    {
-                        metadata = new PDSMetadata(stream);
-                    });
-
-                    PDSParser parser = new PDSParser(metadata);
-                    if (parser.Drive != 1472)
-                    {
-                        logger.Info("Skipped mesh");
-                        return;
-                    }
-                }
-                // =============================================================================================
-
                 if (triple.Point == null || triple.Normal == null)
                 {
                     return;
@@ -277,34 +271,151 @@ namespace OPS.Pipeline
                 records.Add(new TransformRecord(transform.Mean, rmc, triple.Point.Name));*/
 
                 //Build the point cloud!
-                var m = BuildPointCloud(triple.Point, transform, triple.Image, triple.Normal);
+                var m = BuildPointCloud(triple.Point, transform, triple.Image, triple.Normal, stepSize:5);
                 m.HasColors = true;
 
                 meshes.Add(m);
-                logger.Info("Completed " + meshes.Count() + " of " + triples.Count() + " meshes.");
+                logger.Info("Completed building " + meshes.Count() + " of " + triples.Count() + " point clouds.");
             });
             //Transforms file
             //File.WriteAllText(Path.Combine(options.OutputDirectory, "transforms.json"), JsonHelper.ToJson(records, true));
 
             var largeMesh = Mesh.Merge(meshes.ToArray());
 
-            //Orbital mesh will come later
-            /*
+            //Orbital data
+            Image orbitalImg = null;
+            Dataset dataset = null;
             var orbitalRef = new S3ImageRef("s3://12landlords/TerrainSourceAssets/basemaps/out_deltaradii_smg_1m.tif");
-            var identityTransform = new UncertainRigidTransform(Matrix.CreateScale(new Vector3(1, 1, 1)), CreateMatrix.Diagonal<double>(new double[] { 0.0, 0.0, 0.0, 0, 0, 0 }));
-            var orbitalMesh = BuildOrbitalCloud(orbitalRef, identityTransform);
-            orbitalMesh.HasNormals = true;
-            */
+            TemporaryFile.GetAndDelete(".tif", tempFile => {
+                dataset = Gdal.Open(tempFile, Access.GA_ReadOnly);
+                orbitalImg = Image.Load(tempFile);
+            });        
+
+            if(orbitalImg == null || dataset == null)
+            {
+                throw new Exception("Failed to load orbital data");
+            }
+
+            //Site drive 01 from locations xml, transforms from alignment are currently relative to this site drive
+            //TODO: Read from xml
+            double lat01 = -4.5894669521344875;
+            double lon01 = 137.4416334989196;
+
+            //Compute translation from local to orbital frame           
+            var geoFrame = new SpatialReference(dataset.GetProjectionRef()).CloneGeogCS(); //Gets the geographic (lat/lon) coordinate system from the tiff, without CloneGeogCS this would default to projected (xy) coordinates
+            GDALCameraModel camera = (GDALCameraModel)orbitalImg.CameraModel;
+            var imageFrame = camera.ImageFrame;
+            var latLonToImage = new CoordinateTransformation(geoFrame, imageFrame);
+            var imageToLatLon = new CoordinateTransformation(imageFrame, geoFrame);
+
+            Func<double, double, Vector2> latLonToPixel = new Func<double, double, Vector2>((lon, lat) => {
+                double[] inOut = new double[] {lon, lat, 0, 1 };
+                latLonToImage.TransformPoint(inOut);
+                var pixel4 = Vector4.Transform(new Vector4(inOut), Matrix.Transpose(camera.InverseGeoTransform));
+                return new Vector2(pixel4.X, pixel4.Y);
+            });
+            Func<double, double, Vector2> pixelToLatLon = new Func<double, double, Vector2>((row, col) => {
+                var xy = Vector4.Transform(new Vector4(row, col, 0, 1), Matrix.Transpose(camera.GeoTransform));
+                var xyDA = xy.ToDoubleArray();
+                imageToLatLon.TransformPoint(xyDA);               
+                return new Vector2(xyDA[0], xyDA[1]);
+            });
+
+            var site01Pixel = latLonToPixel(lon01, lat01);
+
+            //TODO: Interpolate between pixels to get range, rather than floor
+            Vector3 localToOrbitalTranslation = camera.Unproject(site01Pixel, orbitalImg[0, (int)site01Pixel.X, (int)site01Pixel.Y]);
+
+            //Compute rotation from local to orbital frame
+            //TODO: This should be double checked once alignment step is updated
+
+            //Account for lat lon
+            double latChange = lat01 + 90; //Additional 90 degree rotation of zx plane
+            double lonChange = lon01;
+
+            Matrix latAdjustRot = new Matrix();
+            latAdjustRot.M11 = Math.Cos(latChange * Math.PI / 180.0);
+            latAdjustRot.M12 = 0;
+            latAdjustRot.M13 = -Math.Sin(latChange * Math.PI / 180.0);
+            latAdjustRot.M14 = 0;
+            latAdjustRot.M21 = 0;
+            latAdjustRot.M22 = 1;
+            latAdjustRot.M23 = 0;
+            latAdjustRot.M24 = 0;
+            latAdjustRot.M31 = Math.Sin(latChange * Math.PI / 180.0);
+            latAdjustRot.M32 = 0;
+            latAdjustRot.M33 = Math.Cos(latChange * Math.PI / 180.0);
+            latAdjustRot.M34 = 0;
+            latAdjustRot.M41 = 0;
+            latAdjustRot.M42 = 0;
+            latAdjustRot.M43 = 0;
+            latAdjustRot.M44 = 1;
+
+            Matrix lonAdjustRot = new Matrix();
+            lonAdjustRot.M11 = 1;
+            lonAdjustRot.M12 = 0;
+            lonAdjustRot.M13 = 0;
+            lonAdjustRot.M14 = 0;
+            lonAdjustRot.M21 = 0;
+            lonAdjustRot.M22 = Math.Cos(lonChange * Math.PI / 180.0);
+            lonAdjustRot.M23 = Math.Sin(lonChange * Math.PI / 180.0);
+            lonAdjustRot.M24 = 0;
+            lonAdjustRot.M31 = 0;
+            lonAdjustRot.M32 = -Math.Sin(lonChange * Math.PI / 180.0);
+            lonAdjustRot.M33 = Math.Cos(lonChange * Math.PI / 180.0);
+            lonAdjustRot.M34 = 0;
+            lonAdjustRot.M41 = 0;
+            lonAdjustRot.M42 = 0;
+            lonAdjustRot.M43 = 0;
+            lonAdjustRot.M44 = 1;
+
+            Matrix localToOrbitalRotation = lonAdjustRot * latAdjustRot;
+
+            Matrix orbitalToLocalRotation = Matrix.Invert(localToOrbitalRotation);
+            localToOrbitalRotation = Matrix.Transpose(localToOrbitalRotation); //XNA vectors are row vectors, transform needs to be transposed
+            orbitalToLocalRotation = Matrix.Transpose(orbitalToLocalRotation);          
+
+            //Apply rotation and translation, order matters
+            Func<Vector3, Vector3> localToOrbital = new Func<Vector3, Vector3>((localXYZ => {
+                Vector3 rotatedXYZ = Vector3.Transform(localXYZ, localToOrbitalRotation);
+                return rotatedXYZ + localToOrbitalTranslation;
+            }));
+            Func<Vector3, Vector3> orbitalToLocal = new Func<Vector3, Vector3>(orbitalXYZ =>
+            {
+                Vector3 translatedXYZ = orbitalXYZ - localToOrbitalTranslation;
+                return Vector3.Transform(translatedXYZ, orbitalToLocalRotation);
+            });
+
+            //Get orbital points within bounds of our mesh
+            var bounds = largeMesh.Bounds();
+            var boundingCorners = bounds.GetCorners();
+            var boundingPixels = new List<Vector3>();
+
+            //Find the pixel associated with each bounding corner
+            foreach (Vector3 corner in boundingCorners)
+            {
+                Vector3 orbitalCorner = localToOrbital(corner);
+                Vector2 pixel = camera.Project(orbitalCorner, out double range);
+                boundingPixels.Add(new Vector3(pixel, range));
+            }
+
+            //Project orbital data within pixel bounds
+            var pixelBounds = BoundingBox.CreateFromPoints(boundingPixels);
+            var orbitalMesh = BuildOrbitalCloud(orbitalImg, pixelBounds, orbitalToLocal);
 
             largeMesh.HasNormals = true;
             largeMesh.HasColors = false;
-            logger.Info("Attempting to mesh " + largeMesh.Vertices.Count() + " vertices");
             
+            largeMesh.MergeWith(orbitalMesh);           
+            largeMesh.NormalizeNormals();
+
+            logger.Info("Attempting to mesh " + largeMesh.Vertices.Count() + " vertices");
+
             //Mesh the point cloud
-            largeMesh = PoissonReconstruction.Reconstruct(largeMesh, 1, 10);
+            largeMesh = PoissonReconstruction.Reconstruct(largeMesh, 1, 11); //Good meshing with low presample and high depth
 
             //Get the tiling project (must be same venue as alignment project)
-            var tilingProject = TilingProject.Find(DynamoContext, options.TilingProjectName);    
+            var tilingProject = TilingProject.Find(DynamoContext, options.TilingProjectName);
             string meshName = "FullMesh";
             string s3MeshOutputUrl = TileServerConfig.Instance.ChunkUrl(options.TilingProjectName, meshName + ".ply");
             TemporaryFile.GetAndDelete(".ply", tempFile => {
@@ -327,7 +438,7 @@ namespace OPS.Pipeline
             GenericTilingScheme gts = new GenericTilingScheme(gtsOpts);
 
             TileNode root = gts.SubDivide(mo);
-            
+
             //Upload Tiling Nodes
             Action<TileNode> upload = (tn) =>
             {
@@ -424,4 +535,3 @@ namespace OPS.Pipeline
         }
     }
 }
-

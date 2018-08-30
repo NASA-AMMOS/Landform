@@ -10,8 +10,20 @@ using System.Threading.Tasks;
 
 namespace OPS.Pipeline.Tiling
 {
+    //TODO: Migrate functionality into tiling server
     public class TileNode
     {
+        public string id;
+        public TileNode Parent;
+        public IEnumerable<TileNode> Children;
+        public BoundingBox Bounds;
+        public bool HasPosXNeighbor; //Useful for only clipping boundaries where a neighbor exists - if meshing done per tile, can avoid clipping needed geometry (e.g. a high peak) that falls outside original tile bounds
+        public bool HasNegXNeighbor;
+        public bool HasPosYNeighbor;
+        public bool HasNegYNeighbor;
+        public bool HasPosZNeighbor;
+        public bool HasNegZNeighbor;
+
         public TileNode(TileNode parent, BoundingBox bounds)
         {
             this.Parent = parent;
@@ -36,6 +48,10 @@ namespace OPS.Pipeline.Tiling
             }
         }
 
+        /// <summary>
+        /// Applies a function to each node in this subtree
+        /// </summary>
+        /// <param name="applyFunc"></param>
         public void ApplyRecursive(Action<TileNode> applyFunc)
         {
             applyFunc(this);
@@ -45,6 +61,10 @@ namespace OPS.Pipeline.Tiling
             }
         }
 
+        /// <summary>
+        /// Returns all leaves of this subtree
+        /// </summary>
+        /// <returns></returns>
         public IEnumerable<TileNode> GetLeaves()
         {
             if(this.Children.Count() == 0)
@@ -61,24 +81,15 @@ namespace OPS.Pipeline.Tiling
                 }
             }
         }
-
-        public string id;
-        public TileNode Parent;
-        public IEnumerable<TileNode> Children;
-        public BoundingBox Bounds;
-        public bool HasPosXNeighbor;
-        public bool HasNegXNeighbor;
-        public bool HasPosYNeighbor;
-        public bool HasNegYNeighbor;
-        public bool HasPosZNeighbor;
-        public bool HasNegZNeighbor;
     }
 
+    //Directions tiling is allowed to split
     public enum SplitDim
     {
         X, Y, Z
     }
 
+    //Split tile based on either point density, or area
     public enum SplitType
     {
         Weighted,
@@ -94,26 +105,9 @@ namespace OPS.Pipeline.Tiling
     public struct GenericTilingSchemeOptions
     {
         public ITileSplitCriteria tileSplitCriteria;
-        /*public ITileSplitCriteria upperInfluenceRegion;
-        public ITileSplitCriteria lowerInfluenceRegion;*/
         public SplitDim[] splitDims;
         public SplitType splitType;
         public TreeType treeType;
-    }
-
-    public class TriangleDensityCriteria : ITileSplitCriteria
-    {
-        int VertexPerTile;
-
-        public TriangleDensityCriteria(int vertexPerTile)
-        {
-            this.VertexPerTile = vertexPerTile;
-        }
-
-        bool ITileSplitCriteria.ShouldSplit(MeshOperator meshOperator, BoundingBox bounds)
-        {
-            return meshOperator.CountVertices(bounds) > this.VertexPerTile;
-        }
     }
 
     public class GenericTilingScheme
@@ -134,6 +128,12 @@ namespace OPS.Pipeline.Tiling
             }
         }
 
+        /// <summary>
+        /// Decide which dimension(s) to split along
+        /// </summary>
+        /// <param name="meshOperator"></param>
+        /// <param name="bounds"></param>
+        /// <returns></returns>
         SplitDim[] GetSplitDims(MeshOperator meshOperator, BoundingBox bounds)
         {
             if(Options.treeType == TreeType.N_ary)
@@ -206,6 +206,12 @@ namespace OPS.Pipeline.Tiling
             }
         }
 
+        /// <summary>
+        /// Convenience for getting a vertex/vector coordinate with enum
+        /// </summary>
+        /// <param name="v"></param>
+        /// <param name="dim"></param>
+        /// <returns></returns>
         private static double GetCoord(Vertex v, SplitDim dim)
         {
             return GetCoord(v.Position, dim);
@@ -227,6 +233,14 @@ namespace OPS.Pipeline.Tiling
             }
         }
 
+        /// <summary>
+        /// See BisectBoxes, splits based on point density
+        /// </summary>
+        /// <param name="tileNodes"></param>
+        /// <param name="splitDim"></param>
+        /// <param name="sortedLists"></param>
+        /// <param name="newSortedLists"></param>
+        /// <returns></returns>
         private IEnumerable<TileNode> WeightedBisectBoxes(IEnumerable<TileNode> tileNodes, SplitDim splitDim, Dictionary<SplitDim, List<List<Vertex>>> sortedLists, out Dictionary<SplitDim, List<List<Vertex>>> newSortedLists)
         {         
             if (tileNodes.Count() != sortedLists[splitDim].Count)
@@ -318,6 +332,11 @@ namespace OPS.Pipeline.Tiling
             return GetCoord(a, dim).CompareTo(GetCoord(b, dim));
         }
 
+        /// <summary>
+        /// Recursively build a tiling scheme
+        /// </summary>
+        /// <param name="meshOperator"></param>
+        /// <returns></returns>
         public TileNode SubDivide(MeshOperator meshOperator)
         {
             TileNode root = new TileNode(null, meshOperator.Bounds);
@@ -326,7 +345,13 @@ namespace OPS.Pipeline.Tiling
             return root;
         }
 
-        void SubDivide(MeshOperator meshOperator, TileNode parent, Dictionary<SplitDim, List<List<Vertex>>> sortedLists = null)
+        /// <summary>
+        /// Helper
+        /// </summary>
+        /// <param name="meshOperator"></param>
+        /// <param name="parent"></param>
+        /// <param name="sortedLists"></param>
+        private void SubDivide(MeshOperator meshOperator, TileNode parent, Dictionary<SplitDim, List<List<Vertex>>> sortedLists = null)
         {
             if (meshOperator == null)
             {
@@ -393,104 +418,6 @@ namespace OPS.Pipeline.Tiling
                     }
                 }
             }
-        }
-
-        /*
-        public IEnumerable<Mesh> Create(MeshOperator meshOperator)
-        {
-            System.Collections.Concurrent.BlockingCollection<Mesh> meshes = new System.Collections.Concurrent.BlockingCollection<Mesh>();
-            var boxes = SubDivide(meshOperator, meshOperator.Bounds);
-
-            Serial.ForEach(boxes, tileBounds =>
-            {
-                double influenceScale = 1;
-                double scaleChange = 2;
-
-                int maxIterations = 50;
-                int iterations = 0;
-
-                //Grab enough points
-                while (!Options.lowerInfluenceRegion.ShouldSplit(meshOperator, BoundingBoxExtensions.Scale(tileBounds, influenceScale)) && iterations <= maxIterations)
-                {
-                    influenceScale *= scaleChange;
-                    iterations++;
-                }
-                scaleChange = influenceScale/2;
-                
-                //Refine box to be within limiting criteria
-                bool tooSmall = false;
-                bool tooLarge = true;
-                while((tooSmall || tooLarge) && iterations < maxIterations)
-                {
-                    if(tooSmall && tooLarge)
-                    {
-                        throw new Exception("Detected bad influence criteria!");
-                    }
-                    iterations++;
-                    scaleChange = scaleChange / 2;
-                    if(tooSmall)
-                    {
-                        influenceScale += scaleChange;
-                    } else
-                    {
-                        influenceScale -= scaleChange;
-                    }
-                    tooSmall = !Options.lowerInfluenceRegion.ShouldSplit(meshOperator, BoundingBoxExtensions.Scale(tileBounds, influenceScale));
-                    tooLarge = Options.upperInfluenceRegion.ShouldSplit(meshOperator, BoundingBoxExtensions.Scale(tileBounds, influenceScale));
-                }
-
-                BoundingBox influenceRegion = BoundingBoxExtensions.Scale(tileBounds, influenceScale);
-                Mesh temp = meshOperator.Clip(influenceRegion);
-
-                if(iterations >= maxIterations)
-                {
-                    Console.WriteLine("WARNING: Failed to converge!");
-                }
-                Console.WriteLine("Processing tile with " + meshOperator.CountVertices(tileBounds) + " vertices using region with " + meshOperator.CountVertices(influenceRegion));
-                Console.WriteLine("After clipping mesh has " + temp.Vertices.Count + " vertices");
-                Console.WriteLine("Scale was " + influenceScale);
-                Console.WriteLine("Iterations: " + iterations);
-
-                //temp.GenerateVertexNormals();
-                temp.Clean();
-                try {
-                    var res = CreateTile(temp, tileBounds);
-                    res.Clean();
-                    if (res.Vertices.Count > 0)
-                    {
-                        meshes.Add(res);
-                    }
-                }
-                catch
-                {
-                    Console.WriteLine("FAILED building mesh: " + tileBounds.ToString() + "\n");
-                    return;
-                }
-               
-                Console.WriteLine("Finished building mesh: " + tileBounds.ToString() + "\n");             
-            });
-            //meshes.Add(box);
-            return meshes;
-        }
-        */
-
-        static Mesh CreateTile(Mesh points, BoundingBox bounds)
-        {
-            if (points.Vertices.Count == 0)
-            {
-                return null;
-            }
-            if (!points.HasNormals)
-            {
-                points.GenerateVertexNormals();
-            }
-            points.ClearUVs();
-            points.ClearColors();
-            points.Clean();
-            points = PoissonReconstruction.Reconstruct(points, 30, 6);
-            points.Clean();
-            MeshOperator op = new MeshOperator(points);
-            return op.Clip(bounds);
         }
     }
 }
