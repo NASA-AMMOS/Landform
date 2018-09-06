@@ -110,10 +110,7 @@ namespace OPS.Pipeline.MeshWorker
 
         private bool ShouldIncludeObservation(Observation observation, SceneNode parent)
         {
-            RoverObservation ro = observation as RoverObservation;
-            return ro.ObservationType == ObservationType.Image.ToString() && 
-                   ro.Sensor != RoverProductCamera.MAHLI.ToString() &&
-                   ro.Sensor != RoverProductCamera.Unknown.ToString();
+            return observation.UseForReconstruction && observation.ObservationType == ObservationType.Image.ToString();
         }
 
         // assumes mesh is built with the origin at the origin at the root frame the scene graph was built with
@@ -127,15 +124,17 @@ namespace OPS.Pipeline.MeshWorker
                 if (imgRef == null)
                     continue;
 
+                Observation obs = ((ObservationImageRef)(imgRef.Reference)).Observation;
+                if (obs.UseForReconstruction == false)
+                    continue;
+
                 //download image
                 Image img = pipeline.Load(imgRef.Reference, false);
                
                 //validate image has a supported config
                 PDSMetadata md = img.Metadata as PDSMetadata;
                 PDSParser parser = new PDSParser(md);
-                if (!SupportedPDSFile(parser))
-                    continue;
-
+              
                 //coarse frustum cull: does this mesh's hull intersect the cameras
                 Matrix imgToWorld = node.GetComponent<NodeUncertainTransform>().To(scene.Root).Mean;
                 Matrix worldToImg = Matrix.Invert(imgToWorld);
@@ -239,19 +238,6 @@ namespace OPS.Pipeline.MeshWorker
 
             // Filter any completed leaves
             return leaves.Where(n => n.MeshUrl == null).ToList();
-        }
-
-        bool SupportedPDSFile(PDSParser parser)
-        {
-            // backproject needs to be validated with these image types 
-            if (parser.IsDownsampled || parser.ImageSizeType == RoverProductSize.Thumbnail)
-                return false; 
-
-            //no way to tell good or bad pixels (not marked with missing/invalid constant in the image that was tested)
-            if (parser.IsPartial)
-                return false;
-     
-            return true;
         }
 
         private class BackprojectContext
