@@ -86,7 +86,7 @@ namespace OPS.Pipeline.MeshWorker
 
                 // make the leaf tile mesh
                 leafPair.Mesh = op.Clip(leaf.GetBounds());
-                leafPair.Mesh = UVAtlas.Atlas(leafPair.Mesh, project.TileResolution, project.TileResolution, 0, 1, 1);
+                leafPair.Mesh = UVAtlas.Atlas(leafPair.Mesh, project.TileResolution, project.TileResolution);
                 ConvexHull meshHull = new ConvexHull(leafPair.Mesh);
                     
                 // backproject
