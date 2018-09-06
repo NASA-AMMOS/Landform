@@ -280,43 +280,19 @@ namespace OPS.Pipeline
         {
             get
             {
-                if (metadata.HasKey("DERIVED_IMAGE_PARMS", "MSL:MINIMUM_FOCUS_DISTANCE"))
+                if (metadata.ReadAsString("INSTRUMENT_HOST_ID") == "MSL")
                 {
-
-                    double nearFocus = metadata.ReadAsDouble("DERIVED_IMAGE_PARMS", "MSL:MINIMUM_FOCUS_DISTANCE");
-
-                    if (IsMAHLI)
-                        return nearFocus / 1000.0;
-                    else
-                        return metadata.ReadAsDouble("DERIVED_IMAGE_PARMS", "MSL:MINIMUM_FOCUS_DISTANCE");
-                }
-                else
-                {
-                    RoverProductCamera inst = Camera;
-                    switch (inst)
+                    if (metadata.HasKey("DERIVED_IMAGE_PARMS", "MSL:MINIMUM_FOCUS_DISTANCE"))
                     {
-                        case RoverProductCamera.FrontHazcamLeft:
-                            return 0.1; //from MSL_CAMERA_SIS_latest.PDF
-                        case RoverProductCamera.FrontHazcamRight:
-                            return 0.1; //from MSL_CAMERA_SIS_latest.PDF
-                        case RoverProductCamera.RearHazcamLeft:
-                            return 0.1; //from MSL_CAMERA_SIS_latest.PDF
-                        case RoverProductCamera.RearHazcamRight:
-                            return 0.1; //from MSL_CAMERA_SIS_latest.PDF
-                        case RoverProductCamera.NavcamLeft:
-                            return 0.5; //from MSL_CAMERA_SIS_latest.PDF
-                        case RoverProductCamera.NavcamRight:
-                            return 0.5; //from MSL_CAMERA_SIS_latest.PDF
-                        case RoverProductCamera.MastcamLeft:
-                            return 2.1; //0.5 from MSL_MMM_SIS_053112_final.pdf  NOTE: MSL_CAMERA_SIS_latest.PDF says 2.1m
-                        case RoverProductCamera.MastcamRight:
-                            return 2.1; //1.6 from MSL_MMM_SIS_053112_final.pdf  NOTE: MSL_CAMERA_SIS_latest.PDF says 2.1m
-                        case RoverProductCamera.MAHLI:
-                            return 0.0205; //src: MSL_MMM_SIS_053112_final.pdf
-                        default:
-                            throw new NotImplementedException("need to add a minimum focus distance for this camera type");
+                        double nearFocus = metadata.ReadAsDouble("DERIVED_IMAGE_PARMS", "MSL:MINIMUM_FOCUS_DISTANCE");
+                 
+                        if (IsMAHLI)
+                            nearFocus /= 1000.0; //mahli is in millimeters
+
+                        return nearFocus;
                     }
                 }
+                return 0;
             }
         }
 
