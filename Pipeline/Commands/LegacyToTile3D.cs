@@ -13,6 +13,7 @@ using Microsoft.Xna.Framework;
 using Newtonsoft.Json;
 using System.IO;
 using OPS.Imaging;
+using System.Threading;
 
 namespace OPS.Pipeline
 {
@@ -162,7 +163,7 @@ namespace OPS.Pipeline
             }
             logger.Info("Write leaves");
             Parallel.ForEach(terrainRoot.Leaves(), node =>
-            {                
+            {
                 var mesh = node.GetComponent<MeshImagePair>().Mesh;
                 mesh.GenerateVertexNormals();
                 mesh.AddSkirt(SkirtMode.Y);
@@ -185,11 +186,15 @@ namespace OPS.Pipeline
             }
             
             logger.Info("Generate parents");
+            int totalParents = terrainRoot.DepthFirstTraverse().Where(n => !n.IsLeaf).Count();
+            int parentsCompleted = 0;
             foreach (var group in depthGroups)
             {
-                Parallel.ForEach(group, node =>
+                Parallel.ForEach(group, new ParallelOptions() { MaxDegreeOfParallelism = Environment.ProcessorCount }, node =>
                 {
-                    logger.Info("Creating parent data:" + node.Name);
+                    Interlocked.Increment(ref parentsCompleted);
+                    int percentDone = (int)((parentsCompleted / (float)totalParents) * 100);
+                    logger.Info("Creating parent data:" + node.Name + " (" + percentDone + "%)");
                     // Check to see all children have meshes, otherwise defere processing
                     bool canMakeMesh = node.Children.All(n => n.HasComponent<MeshImagePair>());
                     if (!canMakeMesh)
