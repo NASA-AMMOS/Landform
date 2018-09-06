@@ -406,6 +406,23 @@ namespace OPS.Cloud
         }
 
         /// <summary>
+        /// Download a directory and save it to local disk
+        /// </summary>
+        /// <param name="s3url"></param>
+        /// <param name="filename"></param>
+        public void DownloadDirectory(string s3url, string directory)
+        {
+            using (var client = GetClient(s3url))
+            {
+                S3Url location = new S3Url(s3url);
+                using (TransferUtility tu = new TransferUtility(client))
+                {
+                    tu.DownloadDirectory(location.BucketName, location.Prefix, directory);
+                }
+            }
+        }
+
+        /// <summary>
         /// Upload a file from local disk
         /// </summary>
         /// <param name="s3url"></param>
