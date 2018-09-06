@@ -67,7 +67,7 @@ namespace OPS.Pipeline
         Octree triOctTree;
         int destBands;
 
-        public TextureBaker(MeshImagePair[] source, int maxDepth = 14)
+        public TextureBaker(MeshImagePair[] source, int maxNodeSize = 10, int maxDepth = 14)
         {
             if (source.Count() == 0)
             {
@@ -86,7 +86,7 @@ namespace OPS.Pipeline
             }
             BoundingBox finalBox = BoundingBoxExtensions.Union(boxes.ToArray());
             // construct oct tree on source meshes
-            this.triOctTree = new Octree(finalBox, maxDepth: maxDepth);
+            this.triOctTree = new Octree(finalBox, maxOctreeNodeSize: maxNodeSize, maxDepth: maxDepth);
             for (int i = 0; i < source.Count(); i++)
             {                
                 List<OctreeNodeContents> insertList = new List<OctreeNodeContents>();
@@ -150,9 +150,9 @@ namespace OPS.Pipeline
         }
 
 
-        public static Image BakeTexture(MeshImagePair[] source, Mesh dest, int destWidth, int destHeight, int padWidth = -1)
+        public static Image BakeTexture(MeshImagePair[] source, Mesh dest, int destWidth, int destHeight, int padWidth = -1, int maxNodeSize = 10, int maxDepth=14)
         {
-            return new TextureBaker(source).Bake(dest, destWidth, destHeight, padWidth);
+            return new TextureBaker(source, maxNodeSize, maxDepth).Bake(dest, destWidth, destHeight, padWidth);
         } 
     }
 }
