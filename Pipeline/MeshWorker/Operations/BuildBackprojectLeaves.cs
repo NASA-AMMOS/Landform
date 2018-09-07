@@ -39,13 +39,15 @@ namespace OPS.Pipeline.MeshWorker
 
         struct Options
         {
-            public string AlignmentProjectName;
+            public string AlignmentProjectName; //the project name that contains the alignment data to be used with this tiling project
         }
 
         public BuildBackprojectLeaves(BuildBackprojectLeavesMessage message, StartWorker pipeline)
         {
             this.pipeline = pipeline;
             this.message = message;
+
+            this.options.AlignmentProjectName = message.ProjectName;
         }
 
         class InputChunkGroup
