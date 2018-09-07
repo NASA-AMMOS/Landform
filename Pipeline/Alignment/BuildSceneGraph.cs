@@ -43,6 +43,12 @@ namespace OPS.Pipeline
             /// If null, defaults to values in the FrameTransforms table.
             /// </summary>
             public FrameTransformDelegate GetTransform;
+
+            /// <summary>
+            /// if true, an observation requires features to have been detected to have its image reference
+            /// added to the scene graph nodes
+            /// </summary>
+            public bool? RequireFeaturesForImageReferences;
         }
 
         public UncertainRigidTransform StandardFrameTransform(Frame frame, SceneNode parent)
@@ -81,16 +87,29 @@ namespace OPS.Pipeline
             {
                 options.GetTransform = StandardFrameTransform;
             }
+            if(options.RequireFeaturesForImageReferences == null)
+            {
+                options.RequireFeaturesForImageReferences = true;
+            }
 
             AlignmentScene scene = new AlignmentScene();
 
             Action<Observation, SceneNode> addObservation = (obs, node) =>
             {
-                if (obs.FeaturesGuid == null || obs.FeaturesGuid == Guid.Empty) return;
-                var feat = Get<DetectedFeatures>(obs.ProjectName, obs.FeaturesGuid);
                 var imgRef = new ObservationImageRef(obs);
 
-                scene.DetectedFeatures[imgRef] = feat.Features;
+                DetectedFeatures feat = null;
+
+                if (obs.FeaturesGuid != null && obs.FeaturesGuid != Guid.Empty)
+                {
+                    feat = Get<DetectedFeatures>(obs.ProjectName, obs.FeaturesGuid);
+                    scene.DetectedFeatures[imgRef] = feat.Features;
+                }
+                else if (options.RequireFeaturesForImageReferences.Value == true)
+                {
+                    return;
+                }
+
                 scene.ImageToNode[imgRef] = node;
                 node.AddComponent<NodeImageReference>().Reference = imgRef;
             };
