@@ -40,7 +40,11 @@ namespace OPS.Pipeline.TileServer
         public StartWorker(StartWorkerOptions options) : base(dynamoPrefix: TileServerConfig.Instance.VenueName, profile: TileServerConfig.Instance.Profile)
         {
             this.options = options;
-            this.AddProfile("s3://red-product/", "mslice");
+
+            //MSL specific: this project does not hold its images within the same s3 bucket as the project, future projects
+            // are expected to be within the same bucket
+            if(OPS.Cloud.Credentials.Exists("mslice"))
+                this.AddProfile("s3://red-product/", "mslice");
         }
 
         public int Run()
