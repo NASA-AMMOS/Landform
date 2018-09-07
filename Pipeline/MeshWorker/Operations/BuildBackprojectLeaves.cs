@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.IO;
+using OPS.Pipeline;
 using OPS.Pipeline.TileServer;
 using OPS.Geometry;
 using OPS.Plumbing;
@@ -28,12 +29,18 @@ namespace OPS.Pipeline.MeshWorker
         }
     }
 
-    class BuildBackprojectLeaves
+    public class BuildBackprojectLeaves
     {
         static ILog logger = LogManager.GetLogger(typeof(BuildBackprojectLeaves));
 
         StartWorker pipeline;
         BuildBackprojectLeavesMessage message;
+        Options options;
+
+        struct Options
+        {
+            public string AlignmentProjectName;
+        }
 
         public BuildBackprojectLeaves(BuildBackprojectLeavesMessage message, StartWorker pipeline)
         {
@@ -68,11 +75,14 @@ namespace OPS.Pipeline.MeshWorker
             sc.Build();
 
             logger.Info("Building scene graph...");
-            Frame rootFrame = Frame.Find(pipeline.DynamoContext, project.Name, MSLProject.ROOT_FRAME_NAME);
+            Frame rootFrame = Frame.Find(pipeline.DynamoContext, options.AlignmentProjectName, MSLProject.ROOT_FRAME_NAME); 
             BuildSceneGraph builder = new BuildSceneGraph(pipeline);
-            BuildSceneGraph.Options opts = new BuildSceneGraph.Options();
-            opts.IncludeObservation = ShouldIncludeObservation;
-            AlignmentScene scene = builder.Build(rootFrame, new BuildSceneGraph.Options());
+            BuildSceneGraph.Options opts = new BuildSceneGraph.Options
+            {
+                IncludeObservation = (o, p) => o.UseForReconstruction && o.ObservationType == ObservationType.Image.ToString(),
+                RequireFeaturesForImageReferences = false
+            };
+            AlignmentScene scene = builder.Build(rootFrame, opts);
 
             // generate leaf tile data
             int tiledMeshes = 0;
@@ -88,8 +98,9 @@ namespace OPS.Pipeline.MeshWorker
                 leafPair.Mesh = op.Clip(leaf.GetBounds());
                 leafPair.Mesh = UVAtlas.Atlas(leafPair.Mesh, project.TileResolution, project.TileResolution);
                 ConvexHull meshHull = new ConvexHull(leafPair.Mesh);
-                    
+
                 // backproject
+                MarkUndesiredObservations(scene);
                 List<BackprojectContext> observations = GetPossibleObservations(scene, leafPair.Mesh.Bounds(), meshHull);
                 //...backproject will take place here...
 
@@ -108,9 +119,48 @@ namespace OPS.Pipeline.MeshWorker
             return 0;
         }
 
-        private bool ShouldIncludeObservation(Observation observation, SceneNode parent)
+        /// <summary>
+        /// sweep through the alignment scene and mark any less desirable versions of the same image ans not for use in backproject
+        /// this prioritizes the images with the same code used during alignment (eg. preferring non-linearized versions, preferring the most current version, etc)
+        /// </summary>
+        /// <param name="scene"></param>
+        private void MarkUndesiredObservations(AlignmentScene scene)
         {
-            return observation.UseForReconstruction && observation.ObservationType == ObservationType.Image.ToString();
+            foreach (SceneNode node in scene.Root.DepthFirstTraverse())
+            {
+                if (node.IsLeaf)
+                    continue;
+
+                var imgRefs = node.Children.Where(n => n.HasComponent<NodeImageReference>()).Select(n => n.GetComponent<NodeImageReference>().Reference);
+                var obs = imgRefs.Select(n => ((ObservationImageRef)n).Observation);
+                var groups = obs.GroupBy(ob => ob.FrameName);
+
+                foreach (var group in groups)
+                {
+                    if (group.Count() == 1)
+                        continue;
+                     
+                    List<RoverObservation> robs = new List<RoverObservation>();
+                    foreach(var ob in group)
+                    {
+                        RoverObservation rob = ThroughputManager.Run(() => RoverObservation.Find(pipeline.DynamoContext, options.AlignmentProjectName, ob.Name));
+                        if (rob != null)
+                        {
+                            robs.Add(rob);
+                        }
+                    }
+                   
+                    RoverObservation best = MSLProject.FindBestImage(robs);
+
+                    foreach(var ob in group)
+                    {
+                        if(ob.Name != best.Name)
+                        {
+                            ob.UseForReconstruction = false;
+                        }
+                    }
+                }
+            }
         }
 
         // assumes mesh is built with the origin at the origin at the root frame the scene graph was built with
