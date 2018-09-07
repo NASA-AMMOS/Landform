@@ -33,7 +33,7 @@ namespace OPS.Pipeline.TileServer
 
         public TilingQueue CompletionQueue
         {
-            get { return new TileServerCloud(this).CompletionQueue; }            
+            get { return new TileServerCloud(this).CompletionQueue; }
         }
         
 
@@ -41,10 +41,11 @@ namespace OPS.Pipeline.TileServer
         {
             this.options = options;
 
-            //MSL specific: this project does not hold its images within the same s3 bucket as the project, future projects
-            // are expected to be within the same bucket
-            if(OPS.Cloud.Credentials.Exists("mslice"))
-                this.AddProfile("s3://red-product/", "mslice");
+            //MSL specific: this project does not hold its images within the same s3 bucket as the project, future projects  are expected to be within the same bucket
+            if (OPS.Cloud.Credentials.Exists(TileServerConfig.Instance.MSLICEProfile))
+            {
+                this.AddProfile(TileServerConfig.Instance.MSLICES3Url, TileServerConfig.Instance.MSLICEProfile);
+            }
         }
 
         public int Run()

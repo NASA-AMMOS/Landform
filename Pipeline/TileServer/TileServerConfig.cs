@@ -43,6 +43,34 @@ namespace OPS.Pipeline.TileServer
             }
         }
 
+        [JsonIgnore]
+        private string msliceProfile;
+
+        public string MSLICEProfile
+        {
+            get
+            {
+                if (msliceProfile != null && msliceProfile.ToLower() == "null")
+                {
+                    return null;
+                }
+                return msliceProfile;
+            }
+            set
+            {
+                if (value != null && value.ToLower() == "null")
+                {
+                    msliceProfile = null;
+                }
+                else
+                {
+                    msliceProfile = value;
+                }
+            }
+        }
+
+        public string MSLICES3Url { get; set; }
+
         [ConfigEnvironmentVariable("TILE_SERVER_VENUE_NAME")]
         public string VenueName { get; set; }
 
