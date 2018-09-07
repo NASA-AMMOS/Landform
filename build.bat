@@ -10,8 +10,13 @@ if %errorlevel% neq 0 exit /b %errorlevel%
 mkdir out
 move JPL.Landform*nupkg out
 mkdir out\Landform
-copy Landform\bin\Release\* out\Landform
+robocopy /s /e Landform\bin\Release\ out\Landform
 cd LandformWeb
-call build.bat
+CALL npm install
+if %errorlevel% neq 0 exit /b %errorlevel%
+CALL npm run build
+if %errorlevel% neq 0 exit /b %errorlevel%
+CALL npm run bundle
+if %errorlevel% neq 0 exit /b %errorlevel%
 move landformweb.zip ..\out\
 cd ..
