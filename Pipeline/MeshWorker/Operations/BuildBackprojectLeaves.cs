@@ -193,10 +193,12 @@ namespace OPS.Pipeline.MeshWorker
                     continue;
 
                 //found an image that could possibly contribute image data, save context for later use by backproject
-                BackprojectContext context = new BackprojectContext();
-                context.Parser = parser;
-                context.CameraModel = new PDSCameraModelParser(parser.metadata).Parse();
-                context.FocusedImageHull = focusedImageHull;
+                BackprojectContext context = new BackprojectContext
+                {
+                    Parser = parser,
+                    CameraModel = new PDSCameraModelParser(parser.metadata).Parse(),
+                    FocusedImageHull = focusedImageHull
+                };
                 results.Add(context);
             }
 
