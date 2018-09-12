@@ -184,8 +184,13 @@
     <Compile Include="Commands\CuriosityMesh.cs" />
     <Compile Include="Commands\LegacyToTile3D.cs" />
     <Compile Include="Commands\CreateCloudTemplates.cs" />
-    <Compile Include="Commands\TextureMesh.cs" />
     <Compile Include="Commands\TileLocalMesh.cs" />
+    <Compile Include="MeshWorker\Commands\TextureMeshCommand.cs" />
+    <Compile Include="MeshWorker\Operations\BuildBackprojectLeaves.cs" />
+    <Compile Include="StateMachines\GenericTilingStateMachine.cs" />
+    <Compile Include="StateMachines\MSLStateMachine.cs" />
+    <Compile Include="StateMachines\PipelineStateMachine.cs" />
+    <Compile Include="StateMachines\ProjectCache.cs" />
     <Compile Include="TileServer\Cloud\TilingNode.cs" />
     <Compile Include="TileServer\Commands\ConfigureServer.cs" />
     <Compile Include="TileServer\Commands\CreateProject.cs" />
@@ -197,7 +202,7 @@
     <Compile Include="TileServer\Cloud\TilingInput.cs" />
     <Compile Include="TileServer\Cloud\TilingProject.cs" />
     <Compile Include="TileServer\Cloud\TilingQueue.cs" />
-    <Compile Include="TileServer\Operations\BuildLeaves.cs" />
+    <Compile Include="TileServer\Operations\BuildBakedLeaves.cs" />
     <Compile Include="TileServer\Operations\BuildParents.cs" />
     <Compile Include="TileServer\Operations\BuildTilesetJson.cs" />
     <Compile Include="TileServer\Operations\ChunkInput.cs" />

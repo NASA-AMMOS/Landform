@@ -11,7 +11,7 @@ namespace OPS.Pipeline
     public class PDSParser
     {
 
-        PDSMetadata metadata;
+        public PDSMetadata metadata;
 
         public PDSParser(PDSMetadata metadata)
         {
@@ -31,6 +31,28 @@ namespace OPS.Pipeline
         public int FirstSample
         {
             get { return metadata.ReadAsInt("IMAGE", "FIRST_LINE_SAMPLE"); }
+        }
+
+        private const string Unknown = "UNK";
+
+        public bool HasMissingConstant
+        {
+            get { return metadata.HasKey("IMAGE", "MISSING_CONSTANT") && metadata.ReadAsString("IMAGE", "MISSING_CONSTANT") != Unknown; }
+        }
+
+        public float MissingConstant
+        {
+            get { return (float)metadata.ReadAsDouble("IMAGE", "MISSING_CONSTANT"); }
+        }
+
+        public bool HasInvalidConstant
+        {
+            get { return metadata.HasKey("IMAGE", "INVALID_CONSTANT") && metadata.ReadAsString("IMAGE", "INVALID_CONSTANT") != Unknown; }
+        }
+
+        public float InvalidConstant
+        {
+            get { return (float)metadata.ReadAsDouble("IMAGE", "INVALID_CONSTANT"); }
         }
 
         public RoverProductId ProductId
@@ -254,6 +276,26 @@ namespace OPS.Pipeline
             }
         }
 
+        public double MinimumFocusDistance
+        {
+            get
+            {
+                if (metadata.ReadAsString("INSTRUMENT_HOST_ID") == "MSL")
+                {
+                    if (metadata.HasKey("DERIVED_IMAGE_PARMS", "MSL:MINIMUM_FOCUS_DISTANCE"))
+                    {
+                        double nearFocus = metadata.ReadAsDouble("DERIVED_IMAGE_PARMS", "MSL:MINIMUM_FOCUS_DISTANCE");
+                 
+                        if (IsMAHLI)
+                            nearFocus /= 1000.0; //mahli is in millimeters
+
+                        return nearFocus;
+                    }
+                }
+                return 0;
+            }
+        }
+
 
         /// <summary>
         /// Rover to local level
@@ -387,16 +429,39 @@ namespace OPS.Pipeline
             }
         }
 
+        public bool IsMAHLI
+        {
+            get
+            {
+                RoverProductCamera inst = Camera;
+                return inst == RoverProductCamera.MAHLI;
+            }
+        }
+
         public bool IsDownsampled
         {
             get
             {
-                if (metadata.ReadAsString("IMAGE_REQUEST_PARMS", "PIXEL_DOWNSAMPLE_OPTION") != "NONE")
+                if (metadata.HasKey("IMAGE_REQUEST_PARMS", "PIXEL_DOWNSAMPLE_OPTION"))
                 {
-                    int avgWidth = metadata.ReadAsInt("IMAGE_REQUEST_PARMS", "PIXEL_AVERAGING_WIDTH");
-                    int avgHeight = metadata.ReadAsInt("IMAGE_REQUEST_PARMS", "PIXEL_AVERAGING_HEIGHT");
-                    return avgWidth > 1 || avgHeight > 1;
-                      
+                    if (metadata.ReadAsString("IMAGE_REQUEST_PARMS", "PIXEL_DOWNSAMPLE_OPTION") != "NONE")
+                    {
+                        int avgWidth = 1;
+                        if (metadata.HasKey("IMAGE_REQUEST_PARMS", "PIXEL_AVERAGING_WIDTH") &&
+                            metadata.ReadAsString("IMAGE_REQUEST_PARMS", "PIXEL_AVERAGING_WIDTH") != Unknown)
+                        {
+                            avgWidth = metadata.ReadAsInt("IMAGE_REQUEST_PARMS", "PIXEL_AVERAGING_WIDTH");
+                        }
+
+                        int avgHeight = 1;
+                        if (metadata.HasKey("IMAGE_REQUEST_PARMS", "PIXEL_AVERAGING_HEIGHT") &&
+                            metadata.ReadAsString("IMAGE_REQUEST_PARMS", "PIXEL_AVERAGING_HEIGHT") != Unknown)
+                        {
+                            avgHeight = metadata.ReadAsInt("IMAGE_REQUEST_PARMS", "PIXEL_AVERAGING_HEIGHT");
+                        }
+
+                        return avgWidth > 1 || avgHeight > 1;
+                    }
                 }
                 return false;
             }

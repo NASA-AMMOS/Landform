@@ -2,10 +2,9 @@
 using log4net;
 using OPS.Geometry;
 using OPS.Plumbing;
+using OPS.Pipeline.MeshWorker;
+
 using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 
 namespace OPS.Pipeline.TileServer
@@ -34,13 +33,19 @@ namespace OPS.Pipeline.TileServer
 
         public TilingQueue CompletionQueue
         {
-            get { return new TileServerCloud(this).CompletionQueue; }            
+            get { return new TileServerCloud(this).CompletionQueue; }
         }
         
 
         public StartWorker(StartWorkerOptions options) : base(dynamoPrefix: TileServerConfig.Instance.VenueName, profile: TileServerConfig.Instance.Profile)
         {
             this.options = options;
+
+            //MSL specific: this project does not hold its images within the same s3 bucket as the project, future projects  are expected to be within the same bucket
+            if (OPS.Cloud.Credentials.Exists(TileServerConfig.Instance.MSLICEProfile))
+            {
+                this.AddProfile(TileServerConfig.Instance.MSLICES3Url, TileServerConfig.Instance.MSLICEProfile);
+            }
         }
 
         public int Run()
@@ -109,9 +114,13 @@ namespace OPS.Pipeline.TileServer
                         {
                             new ChunkInput((ChunkInputMessage)m, this).Process();
                         }
-                        else if (m.GetType() == typeof(BuildLeavesMessage))
+                        else if (m.GetType() == typeof(BuildBakedLeavesMessage))
                         {
-                            new BuildLeaves((BuildLeavesMessage)m, this).Process();
+                            new BuildBakedLeaves((BuildBakedLeavesMessage)m, this).Process();
+                        }
+                        else if (m.GetType() == typeof(BuildBackprojectLeavesMessage))
+                        {
+                            new BuildBackprojectLeaves((BuildBackprojectLeavesMessage)m, this).Process();
                         }
                         else if (m.GetType() == typeof(BuildParentsMessage))
                         {
@@ -125,7 +134,6 @@ namespace OPS.Pipeline.TileServer
                         {
                             logger.Info("Unknown message type: " + m.GetType());
                         }
-
                     }
                     catch (Exception e)
                     {

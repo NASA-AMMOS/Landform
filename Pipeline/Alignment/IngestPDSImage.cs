@@ -25,6 +25,16 @@ namespace OPS.Pipeline
         public const int MIN_MASTCAM_FOCUS_CUTOFF = 3;
         public const int MAX_MASTCAM_WIDTH = 1344;
 
+        public static RoverObservation FindBestImage(IEnumerable<RoverObservation> frameObservations)
+        {
+            var list = frameObservations.Where(ob => ob.UseForReconstruction).ToList();
+            if (list.Count > 0)
+            {
+                list.Sort(RoverObservationComparison);
+                return list.First();
+            }
+            return null;
+        }
 
         public static ImagePointPair FindBestPair(IEnumerable<RoverObservation> frameObservations)
         {

@@ -63,6 +63,14 @@ namespace OPS.Imaging
             }
         }
 
+        public override Vector3 ImagePlaneNormal
+        {
+            get
+            {
+                return A;
+            }
+        }
+
         /// <summary>
         /// Port from Todd's CMOD_CAHVOR_2D_TO_3D
         /// </summary>

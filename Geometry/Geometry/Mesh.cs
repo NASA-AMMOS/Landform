@@ -613,8 +613,6 @@ namespace OPS.Geometry
                         }
                     }
                 }
-                // Clean the mesh for good measure
-                Clean();
             }
             else
             {
@@ -690,11 +688,10 @@ namespace OPS.Geometry
                     // Construct both triangles for the face
                     Faces.Add(new Face(aIndex, aSkirtIndex, bIndex));
                     Faces.Add(new Face(bIndex, aSkirtIndex, bSkirtIndex));
-
-                    // Clean the mesh for good measure
-                    Clean();
                 }
             }
+            // Clean the mesh for good measure
+            Clean();
         }
 
         /// <summary>

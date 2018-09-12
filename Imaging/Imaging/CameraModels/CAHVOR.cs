@@ -22,6 +22,14 @@ namespace OPS.Imaging
             }
         }
 
+        public override Vector3 ImagePlaneNormal
+        {
+            get
+            {
+                return A;
+            }
+        }
+
         //Default constructor for json deserialization 
         public CAHVOR()
         {

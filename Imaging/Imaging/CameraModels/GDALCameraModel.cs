@@ -165,6 +165,14 @@ namespace OPS.Imaging
         {
             Dispose(true);
         }
+
+        public override Vector3 ImagePlaneNormal
+        {
+            get
+            {
+                throw new NotImplementedException();
+            }
+        }
         #endregion
     }
 }

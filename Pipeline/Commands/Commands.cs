@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using OPS.Pipeline.MeshWorker;
 
 namespace OPS.Pipeline
 {
@@ -51,7 +52,7 @@ namespace OPS.Pipeline
                 (CuriosityAlignOptions opts) => new CuriosityAlign(opts).Run(),
                 (BuildFromAlignmentOptions opts) => new BuildFromAlignment(opts).Run(),
                 (CuriosityMeshOptions opts) => new CuriosityMesh(opts).Run(),
-                (TextureMeshOptions opts) => new TextureMesh(opts).Run(),
+                (TextureMeshOptions opts) => new TextureMeshCommand(opts).Run(),
                 errs => 1);
         }
     }

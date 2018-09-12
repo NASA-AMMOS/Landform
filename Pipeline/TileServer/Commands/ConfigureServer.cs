@@ -24,6 +24,12 @@ namespace OPS.Pipeline.TileServer
 
         [Option(HelpText = "AWS Profile", Default = null)]
         public string Profile { get; set; }
+
+        [Option(HelpText = "MSLICE Profile", Default = "mslice")]
+        public string MSLICEProfile { get; set; }
+
+        [Option(HelpText = "MSLICE S3 Url", Default = "s3://red-product/")]
+        public string MSLICES3Url { get; set; }
     }
 
     public class ConfigureServer
@@ -41,6 +47,8 @@ namespace OPS.Pipeline.TileServer
             config.S3Url = ReadProperty("S3 Url", options.S3Url, config.S3Url);
             config.Region = ReadProperty("AWS Region", options.Region, config.Region);
             config.Profile = ReadProperty("AWS Profile", options.Profile, config.Profile);
+            config.MSLICEProfile = ReadProperty("MSLICE Profile", options.MSLICEProfile, config.MSLICEProfile);
+            config.MSLICES3Url = ReadProperty("MSLICE S3 Url", options.MSLICES3Url, config.MSLICES3Url);
             config.Save();
             string userdata = BuildEC2UserDataScript(config);
             string userDataFilepath = Path.GetFullPath("ec2userdata.txt");
