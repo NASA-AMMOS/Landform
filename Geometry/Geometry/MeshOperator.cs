@@ -139,9 +139,9 @@ namespace OPS.Geometry
                 {
                     throw new Exception("MeshOperator must have a vertex tree in order to clip meshes");
                 }
-                result.Vertices.AddRange(vertexTree.Intersects(box.ToRectangle()).Select(x => vertices[x]).ToList());
 
                 result = new Mesh(HasNormals, HasUVs, HasColors);
+                result.Vertices.AddRange(vertexTree.Intersects(box.ToRectangle()).Select(x => vertices[x]).ToList());
             }
             if (!box.FuzzyContains(result.Bounds(), 1E-5) && !ragged)
             {
