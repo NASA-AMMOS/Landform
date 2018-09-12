@@ -66,6 +66,26 @@ namespace GeometryTest
             Assert.IsFalse(mo.Empty(bb));
         }
 
+        [TestMethod]
+        public void MeshOperatorsVerticesIn()
+        {
+            Mesh m = new Mesh();
+            m.Vertices.Add(new Vertex(new Vector3(-1, -1, -1)));
+            m.Vertices.Add(new Vertex(new Vector3(-1, -1,  1)));
+            m.Vertices.Add(new Vertex(new Vector3(-1,  1, -1)));
+            m.Vertices.Add(new Vertex(new Vector3(-1,  1,  1)));
+            m.Vertices.Add(new Vertex(new Vector3( 1, -1, -1)));
+            m.Vertices.Add(new Vertex(new Vector3( 1, -1,  1)));
+            m.Vertices.Add(new Vertex(new Vector3( 1,  1, -1)));
+            m.Vertices.Add(new Vertex(new Vector3( 1,  1,  1)));
+
+            BoundingBox bb = new BoundingBox(new Vector3(-1.5, -1.5, -1.5), new Vector3(-0.5, 1.5, -0.5));
+            MeshOperator mo = new MeshOperator(m);
+            var vertsIn = mo.VerticesIn(bb);
+            Assert.AreEqual(vertsIn.Count, 2);
+            Assert.IsTrue(vertsIn.Contains(new Vertex(new Vector3(-1, -1, -1))));
+            Assert.IsTrue(vertsIn.Contains(new Vertex(new Vector3(-1, 1, -1))));
+        }
 
         [TestMethod]
         public void MeshOperatorUVTest()
