@@ -115,7 +115,7 @@
                 1. Listener protocol: `HTTPS`
                 1. Instance port: `80`
                 1. Instance protocol: `HTTP`
-                1. Select the SSL certificate ID.  These may appear as *.jpl.nasa.gov, in which case you need to find the GUID matching Details -> Identifier for the cert in the AWS Certificate Manager.
+                1. Select the SSL certificate ID.  These may appear as `*.jpl.nasa.gov`, in which case you need to find the GUID matching Details -> Identifier for the cert in the AWS Certificate Manager.
             1. Apply
 
 ## Part 4: Restrict to JPL only IPs
