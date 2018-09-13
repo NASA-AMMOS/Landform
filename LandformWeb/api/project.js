@@ -2,6 +2,7 @@ const express = require('express');
 const path = require('path');
 const fs = require('fs-extra');
 const multer = require('multer');
+const url = require('url');
 
 const config = require('../config');
 const { routeError, abortRoute, parseArgs } = require('../routeUtil');
@@ -94,5 +95,11 @@ async function runProject(req, res) {
   } catch (e) { abortRoute(res, 'error running project', e); }
 }
 router.post('/:name/run', runProject);
+
+router.get('/:name/view', (req, res) => {
+  const s3Bucket = new url.URL(config.app.s3URL).hostname;
+  const tilesetURL = `https://${s3Bucket}.s3.amazonaws.com/${config.app.venueName}/www/${req.params.name}/tileset.json`;
+  res.redirect(`/viewer/index.html?TilesetURL=${encodeURIComponent(tilesetURL)}`);
+});
 
 module.exports = router;

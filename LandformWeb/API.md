@@ -34,20 +34,23 @@ Accepts the following arguments in a `multipart/form-data` encoded HTTP request 
 * *tileid*: tile ID string; must be given if and only if the tiling scheme is user-defined (may also be specified as a URL query parameter)
 * all generic task API arguments (may also be specified as URL query parameters)
 
-### Run Project : POST /api/project/*name*/run
+### Run Project: POST /api/project/*name*/run
 Initiate a run of a project.  Implements the [generic task API](#generic-task-api).
 
 TODO what happens if this is called more than once?
 
 TODO for now this task will typically complete before the project is actually finished running.
 
+### View Project: GET /api/project/*name*/view
+Launch a web-based 3D viewer for a completed project.
+
 ### Task Metadata: GET /api/task/*id*
-Returns `application/json` metadata for task with the given id.
+Returns JSON metadata for task with the given id.
 
 ### Task Log: GET /api/task/*id*/log
 Returns the log for task with the given id.
 
-By default the log is returned as an `application/json` array of strings containing the line-by-line text output of the task.  If the task is still running then whatever it has output up to the time of call will be returned.
+By default the log is returned as an JSON array of strings containing the line-by-line text output of the task.  If the task is still running then whatever it has output up to the time of call will be returned.
 
 If the argument `text=true` is specified then the output is `text/plain` lines instead of a JSON array.
 
@@ -59,7 +62,7 @@ Returns id of the master task.
 ---
 
 ## Generic Task API
-Many API calls launch a task.  By default such calls are synchronous: they will not return a response until the task completes.  At that point an `application/json` response will normally be sent with the following *task metadata*:
+Many API calls launch a task.  By default such calls are synchronous in that they will not return a response until the task completes.  At that point an `application/json` response will normally be sent with the following task metadata:
 ```
 {
   id: server assigned unique task identifier
@@ -72,9 +75,9 @@ Many API calls launch a task.  By default such calls are synchronous: they will 
   ended: task end time (ms since epoch on server)
 }
 ```
-In this case the HTTP status will be 200 (ok) if the task completed successfully or 500 (server error) if it failed.
+The HTTP status will be 200 (ok) if the task completed successfully or 500 (server error) if it failed.
 
-If the server encountered an error processing the request (e.g. invalid API call) or failed to launch the task it will return an `application/json` failure response containing only the following *API error metadata*:
+If the server encountered an error processing the request (e.g. invalid API call) or failed to launch the task it will return an `application/json` failure response containing only the following error metadata:
 ```
 {
   success: false
@@ -93,7 +96,7 @@ The server will expire task metadata and logs after 24h has expired since the co
 Unless otherwise specified, all API arguments may be specified as either URL query parameters or as fields in a `application/json` or `application/x-www-form-urlencoded` HTTP request body.  If both the query parameter and body field are present the former takes precedence.
 
 ### Asynchronous Task API
-If the caller prefers an asynchronous task interface the request may include the optional argument `async=true`.  In this case the server will respond with the task (or API error) metadata without waiting for the task to complete.
+If the caller prefers an asynchronous task interface the request may include the optional argument `async=true`.  In this case the server will respond with the task (or API error) metadata without waiting for the task to complete.  The HTTP status will be 200 if the task launched successfully, 400 if the API call was invalid, or 500 if the task failed to launch.
 
 If the task was successfully launched the caller may monitor execution of the task by subsequently polling the /api/task/*id* API.  The `success`, `exitCode`, `error`, and `ended` fields are only valid once the task is completed, i.e. `running=false`.
 
