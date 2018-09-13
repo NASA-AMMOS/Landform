@@ -20,7 +20,7 @@ checkDeploy()
       console.log(`extracting ${config.app.bundle} to ${tmpDir}`);
       zip.extractAllTo(tmpDir);
 
-      const imageName = config.app.localDeployTag;
+      const imageName = config.app.deployEnvironment;
       const buildArgs = ['build', '--tag', imageName, '--build-arg', 'NODE_ENV=production', '.'];
       spawnSync('docker', buildArgs, { cwd: tmpDir });
 
@@ -32,13 +32,14 @@ checkDeploy()
       //https://github.com/nodejs/node/issues/13818
       //so e.g. if HOME=C:\cygwin64\home\vona and USERPROFILE=C:\Users\vona
       //then here we will get process.env.HOME=C:\Users\vona
-      //so workaround that by symlinking C:\Users\vona\.aws -> C:\cygwint64\home\vona\.aws
+      //so workaround that by symlinking C:\Users\vona\.aws -> C:\cygwin64\home\vona\.aws
       //but then resolve that symlink before embedding it in the --mount argument for docker
       //because docker apparrently can't do that on its own
       const awsDir = fs.realpathSync(path.join(process.env.HOME, '.aws'));
       runArgs.push('--mount', `type=bind,source="${awsDir}",target=/root/.aws,readonly`);
       runArgs.push('--env', `AWS_PROFILE=${config.app.awsProfile}`);
       runArgs.push('--env', 'WITHOUT_HTTPS=true');
+      runArgs.push('--env', `TILE_SERVER_VENUE_NAME=${config.app.venueName}`);
 
       runArgs.push('-p', `${config.app.port}:${config.app.port}`);
 

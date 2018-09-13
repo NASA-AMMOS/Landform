@@ -7,8 +7,16 @@
 # 1) install latest python3
 #
 # 2) pip install boto beautifulsoup4 requests-ntlm
+#    pip install awscli --upgrade --user # if you want to use aws CLI
+#    pip install awsebcli --upgrade --user # if you want to use elastic beanstalk CLI
 #
-# 3) open windows command prompt (not git bash or cygwin) and run
+# 3) your PATH environment variable must include
+#
+#    Windows: %USERPROFILE%\AppData\Roaming\Python\Python??\Scripts
+#    Linux: ~/.local/bin
+#    MacOS: ~/Library/Python/?.?/bin
+#
+# 4) open windows command prompt (not git bash or cygwin) and run
 #
 #    aws-login.py
 #
@@ -16,21 +24,15 @@
 #
 #    winpty python aws-login.py
 #
-# 4) enter JPL username and password when prompted
+# 5) enter JPL username and password when prompted
 #
 #    NOTE: this will create %HOME%\.aws\credentials, which is correct
 #    even if you have specialized HOME to be different from %USERPROFILE%
 #    e.g. in my case HOME=c:\cygwin64\home\ME but USERPROFILE=c:\users\ME
+#    however, watch out for programs such as NPM which ignore custom setting of HOME
+#    in that case, you may need to use mklink to create a symlink USERPROFILE/.aws -> HOME/.aws
 #
-# 5) try some stuff, e.g.
-#
-#    pip install awscli --upgrade --user
-#    pip install awsebcli --upgrade --user # if you want to use elastic beanstalk CLI
-#
-#    PATH must include
-#    Windows: %USERPROFILE%\AppData\Roaming\Python\Python??\Scripts
-#    Linux: ~/.local/bin
-#    MacOS: ~/Library/Python/?.?/bin
+# 6) try some stuff, e.g.
 #
 #    aws ec2 describe-instances
 #    aws s3 ls
