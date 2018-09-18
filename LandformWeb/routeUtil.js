@@ -36,7 +36,7 @@ function parseArgs(req, descriptors, opts) {
     if (!ignoreQuery && name in req.query) val = req.query[name];
     else if (!ignoreBody && name in req.body) val = req.body[name];
     else if (dsc.required) throw routeError(`missing required parameter ${name}`);
-    else if ('default' in dsc) val = dsc;
+    else if ('default' in dsc) val = dsc.default;
     else skip = true;
 
     if (!skip) {

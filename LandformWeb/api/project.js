@@ -5,7 +5,7 @@ const multer = require('multer');
 const url = require('url');
 
 const config = require('../config');
-const { routeError, abortRoute, parseArgs } = require('../routeUtil');
+const { routeError, abortRoute, parseArgs, sendText } = require('../routeUtil');
 const { taskHandler } = require('../taskUtil');
 const { tilingTask } = require('../tilingUtil');
 
@@ -96,10 +96,19 @@ async function runProject(req, res) {
 }
 router.post('/:name/run', runProject);
 
-router.get('/:name/view', (req, res) => {
+function resultURL(name) {
   const s3Bucket = new url.URL(config.app.s3URL).hostname;
-  const tilesetURL = `https://${s3Bucket}.s3.amazonaws.com/${config.app.venueName}/www/${req.params.name}/tileset.json`;
-  res.redirect(`/viewer/index.html?TilesetURL=${encodeURIComponent(tilesetURL)}`);
+  return `https://${s3Bucket}.s3.amazonaws.com/${config.app.venueName}/www/${name}/tileset.json`;
+}
+
+router.get('/:name/result', (req, res) => {
+  const redirect = parseArgs(req, { redirect: { type: 'bool', default: true } }).redirect;
+  const ret = resultURL(req.params.name);
+  if (redirect) res.redirect(ret); else sendText(res, ret);
+});
+
+router.get('/:name/view', (req, res) => {
+  res.redirect(`/viewer/index.html?TilesetURL=${encodeURIComponent(resultURL(req.params.name))}`);
 });
 
 module.exports = router;
