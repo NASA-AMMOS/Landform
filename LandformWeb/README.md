@@ -1,5 +1,4 @@
 # LandformWeb
-
 LandformWeb is a [node.js](https://nodejs.org) server and [React](https://reactjs.org) browser client for controlling the Landform cluster including but not limited to functionality of the Geometry Tiling Server.
 
 Deployed at https://landform.hi.jpl.nasa.gov.  This site is only accessible to JPL IP addresses.  For VPN access, use full tunnel mode.
@@ -7,9 +6,9 @@ Deployed at https://landform.hi.jpl.nasa.gov.  This site is only accessible to J
 This repo consists of a backend REST API server and a frontend react app in `/client`.  In production the frontend app is pre-built with webpack and served as static files by the backend server.  During development a separate frontend server is used with hot module reloading.  The react app configuration is managed with [create-react-app](https://github.com/facebook/create-react-app).
 
 Additional docs:
-* [REST API](API.md)
-* [Test Procedures](TEST.md)
-* [AWS Setup](SETUP.md)
+* [REST API](docs/API.md)
+* [Test Procedures](docs/TEST.md)
+* [AWS Setup](docs/SETUP.md)
 
 ## AWS Credentials
 Most development and deployment tasks require AWS credentials.
@@ -32,7 +31,7 @@ During local development (environment variable `NODE_ENV=development`) the tilin
 In a production context (`NODE_ENV=production`) the tiling server binary will be found at `./bin/TilingServer.exe`, which will be copied from `../TilingServer/bin/Release/TilingServer.exe` when the build zip is bundled.
 
 ### Tiling Worker
-In order to run projects you will also need at least one tiling worker connected to the same AWS venue.  For development one option is to run the tiling worker locally:
+In order to run projects you will also need at least one running tiling worker connected to the same AWS venue.  For development one option is to run the tiling worker locally:
 1. Acquire AWS credentials as described above if you haven't already.
 1. `cd ../TilingServer/bin/Release`
 1. `TilingServer.exe configure`
@@ -74,7 +73,7 @@ For production TODO.
     1. You can access it at http://localhost:8081.
     1. Options:
         1. `--force`: use existing `landformweb.zip` even if it might be outdated
-        1. `--interactive`: drop into a shell in the Docker container instead of running the server.  Note: if using git bash run `winpty node local-deploy.js -i ...` instead.
+        1. `--interactive`: drop into a shell in the Docker container instead of running the server.  Note: if using git bash run `winpty node tools/localDeploy.js -i ...` instead.
         1. `--debug`: set `LOG_LEVEL=silly` in the Docker container
 1. Deploy to Elastic Beanstalk
     1. Check `deployEnvironment` in `config.js` - the server will be deployed to this Elastic Beanstalk environment.  The `deployEnvironment` that will be used is determined by the `NODE_ENV` environment variable in the shell where the `deploy` script is run, even though in the deployment the value of `NODE_ENV` is typically configured in the Elastic Beanstalk environment as `NODE_ENV=production`.

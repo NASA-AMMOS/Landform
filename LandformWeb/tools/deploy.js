@@ -1,5 +1,5 @@
 const { spawn, checkDeploy, prompt } = require('./deployUtil');
-const defEnv = require('./config').app.deployEnvironment;
+const defEnv = require('../config').app.deployEnvironment;
 
 //npm run deploy -- [environment-name] [-f|--force|--force=true] [--profile=foo]
 

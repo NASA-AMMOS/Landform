@@ -20,7 +20,7 @@ WORKDIR /usr/src/app
 COPY . .
 
 #--unsafe-perm makes npm run as 'root' instead of 'nobody' which avoids
-#npm WARN lifecycle landformweb@1.0.0~postinstall: cannot run in wd ... node npm-install-client.js /usr/src/app
+#npm WARN lifecycle landformweb@1.0.0~postinstall: cannot run in wd ... node tools/npmInstallClient.js /usr/src/app
 RUN npm install --production --unsafe-perm
 
 EXPOSE 8081

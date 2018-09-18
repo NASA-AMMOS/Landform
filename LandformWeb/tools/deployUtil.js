@@ -2,8 +2,9 @@ const child = require('child_process');
 const fs = require('fs-extra');
 const readline = require('readline');
 
-const bundle = require('./config').app.bundle;
+const bundle = require('../config').app.bundle;
 
+//checks if v is "--name", "--name=true", or "-n"
 function boolArg(v, name) {
   const lv = v.toLowerCase(), ln = name.toLowerCase();
   return lv === `-${ln[0]}` || lv === `--${ln}` || lv === `--${ln}=true`;
@@ -32,12 +33,16 @@ function spawnSync(cmd, args, opts) {
   return child.spawnSync(cmd, args, opts);
 }
 
+//verifies that the app bundle zip exists and looks ok
+//if not, throws Error
+//respects the "force" command line options (--force, --force=true, -f)
+//if any of those options are present then the only fatal error is if the bundle doesn't exist
+//returns command line args with force options removed
 async function checkDeploy() {
 
   let force = false;
   const args = process.argv.slice(2).reduce((a, v) => {
-    if (boolArg(v, 'force')) force = true;
-    else a.push(v);
+    if (boolArg(v, 'force')) force = true; else a.push(v);
     return a;
   }, []);
 
@@ -67,6 +72,9 @@ async function checkDeploy() {
   return args;
 }
 
+//check that we are running under a compatible terminal emulator
+//in particular Cygwin bash prompt is not a real terminal emulator
+//and git bash requires prefixing the command line with "winpty"
 async function checkTTY(cmd) {
 
   let uname = '';
@@ -75,13 +83,13 @@ async function checkTTY(cmd) {
   if (uname.startsWith('cygwin')) {
 
     console.log('this command is not compatibile with Cygwin prompt, use Windows cmd');
-    console.log(`or run 'winpty node ${cmd}.js [args]' in git bash`);
+    console.log(`or run 'winpty node tools/${cmd}.js [args]' in git bash`);
     return false;
 
   } else if (uname.startsWith('mingw')) {
 
     if (process.stdout.isTTY) return true;
-    console.log(`run 'winpty node ${cmd}.js [args]' in git bash, or use Windows cmd`);
+    console.log(`run 'winpty node tools/${cmd}.js [args]' in git bash, or use Windows cmd`);
     return false;
   }
 
@@ -89,6 +97,7 @@ async function checkTTY(cmd) {
   return process.stdout.isTTY;
 }
 
+//prompt user with a yes/no question
 async function prompt(cmd, msg) {
 
   if (!(await checkTTY(cmd))) return false;

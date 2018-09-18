@@ -5,16 +5,16 @@
   "description": "",
   "main": "server.js",
   "scripts": {
-    "postinstall": "node npm-install-client.js",
+    "postinstall": "node tools/npmInstallClient.js",
     "start": "concurrently --kill-others \"npm run server\" \"npm run client\"",
     "server": "node server.js",
-    "client": "node start-client.js",
-    "build-client": "node build-client.js",
+    "client": "node tools/startClient.js",
+    "build-client": "node tools/buildClient.js",
     "bundle-server": "git archive -o landformweb.zip --format=zip HEAD",
-    "bundle": "npm run bundle-server && node bundle-client.js && node bundle-master.js",
+    "bundle": "npm run bundle-server && node tools/bundleClient.js && node tools/bundleMaster.js",
     "build": "npm install && npm run build-client && npm run bundle",
-    "deploy": "node deploy.js",
-    "local-deploy": "node local-deploy.js"
+    "deploy": "node tools/deploy.js",
+    "local-deploy": "node tools/localDeploy.js"
   },
   "keywords": [
     "landform"

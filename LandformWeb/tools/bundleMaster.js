@@ -2,7 +2,7 @@ const fs = require('fs-extra');
 const path = require('path');
 const Zip = require('@jpl/adm-zip');
 
-const config = require('./config');
+const config = require('../config');
 
 const bundle = config.app.bundle;
 const binDir = config.app.binDir;
