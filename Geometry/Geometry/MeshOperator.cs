@@ -179,7 +179,7 @@ namespace OPS.Geometry
         }
 
         /// <summary>
-        /// Return the number of vertices inside the given box
+        /// Return the vertices inside the given box
         /// </summary>
         /// <param name="box"></param>
         /// <returns></returns>
