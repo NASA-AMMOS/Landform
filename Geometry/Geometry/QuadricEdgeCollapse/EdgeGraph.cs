@@ -54,35 +54,6 @@ namespace OPS.Geometry
         }
 
         /// <summary>
-        /// Returns the vertexNode ID's of each face
-        /// </summary>
-        /// <returns></returns>
-        public List<Tuple<int, int, int>> GetFaceIDs() {
-            var res = new List<Tuple<int, int, int>>();
-
-            HashSet<int> processedIds = new HashSet<int>();
-
-            foreach (VertexNode v in vertNodes)
-            {
-                foreach(Edge e in v.AdjacentEdges)
-                {
-                    //If a perimeter edge doesn't have a third point defining its left face, no face to collect
-                    if(e.Left == null)
-                    {
-                        continue;
-                    }
-                    //Only process if face has not already been found by another edge
-                    if(!processedIds.Contains(e.Dst.ID) && !processedIds.Contains(e.Left.ID))
-                    {
-                        res.Add(new Tuple<int, int, int>( e.Src.ID, e.Dst.ID, e.Left.ID ));
-                    }
-                }
-                processedIds.Add(v.ID);
-            }
-            return res;
-        }
-
-        /// <summary>
         /// Returns a fresh id for a new node
         /// </summary>
         /// <returns></returns>
