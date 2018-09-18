@@ -143,15 +143,6 @@ namespace OPS.Imaging
                         }
                         img.CreateMask(fillValue);
                     }
-
-                    string proj = dataset.GetProjection();
-                    if (proj != null && proj != "")
-                    {
-                        double[] geoTransform = new double[6];
-                        dataset.GetGeoTransform(geoTransform);
-                        img.CameraModel = new GDALCameraModel(geoTransform, proj);
-                    }
-
                     using (Band band = dataset.GetRasterBand(1))
                     {
                         if (band.DataType == DataType.GDT_Byte)
