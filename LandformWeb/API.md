@@ -135,7 +135,7 @@ If the argument `redirect=false` is specified then the output is the `text/plain
 
 Request
 
-    GET 8081/api/project/testproj/result?redirect=false
+    GET /api/project/testproj/result?redirect=false
     Host: https://landform.hi.jpl.nasa.gov
     x-landform-token: API_TOKEN
 
