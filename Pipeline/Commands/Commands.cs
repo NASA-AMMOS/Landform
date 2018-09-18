@@ -33,7 +33,6 @@ namespace OPS.Pipeline
                                                              TileLocalMeshOptions,                                                             
                                                              CuriosityAlignOptions,
                                                              BuildFromAlignmentOptions,
-                                                             CuriosityMeshOptions,
                                                              TextureMeshOptions
                                                              >(args)
               .MapResult(
@@ -51,7 +50,6 @@ namespace OPS.Pipeline
                 (TileLocalMeshOptions opts) => new TileLocalMesh(opts).Run(),
                 (CuriosityAlignOptions opts) => new CuriosityAlign(opts).Run(),
                 (BuildFromAlignmentOptions opts) => new BuildFromAlignment(opts).Run(),
-                (CuriosityMeshOptions opts) => new CuriosityMesh(opts).Run(),
                 (TextureMeshOptions opts) => new TextureMeshCommand(opts).Run(),
                 errs => 1);
         }
