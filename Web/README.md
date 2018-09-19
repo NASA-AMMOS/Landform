@@ -46,7 +46,7 @@ For production TODO.
 ## Development Workflow
 1. Install latest [node.js](https://nodejs.org) 8.x.x.
 1. Acquire AWS credentials and build `TilingServer.exe` with Visual Studio as explained above.
-1. `npm install` in the `LandformWeb` directory
+1. `npm install`
 1. Check `venueName` in `config.js` - the server will connect to live AWS services for that venue.
 1. `npm start -- [-d|--debug]` will start both the backend api server on port 8081 and the frontend react dev server on port 3000 (the frontend server will proxy backend routes to the backend server).
     1. You can also run the api server and client servers independently with `npm run server -- [-d|--debug]` and `npm run client`.  This is convenient when doing backend dev so that you can independently restart the backend server.
@@ -63,7 +63,7 @@ For production TODO.
     * `npm install` - installs `node_modules` and `client/node_modules`
     * `npm run build-client` - runs `npm run build` to webpack `client/build`
     * `npm run bundle` - creates `landformweb.zip` containing
-        * full archive of current git HEAD for the `LandformWeb` subtree
+        * full archive of current git HEAD for the `Web` subtree
         * current `client/build` subtree
         * required binaries from `../TilingServer/bin/Release` under `bin`
 1. Optional - test the Docker container locally.
