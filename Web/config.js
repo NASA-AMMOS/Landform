@@ -28,7 +28,7 @@ const development = {
     sessionCookieSecure: false, //no https for dev
     sessionTimeout: 1000 * 60 * 60 * 24, //24h in ms
 
-    ldapGroup: 'landform',
+    ldapGroup: env.TILE_SERVER_LDAP_GROUP || 'landform',
 
     logLevel: env.LOG_LEVEL || 'silly', //error, warn, info, verbose, debug, silly
 
