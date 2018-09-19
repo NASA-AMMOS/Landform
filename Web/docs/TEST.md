@@ -1,49 +1,98 @@
 # LandformWeb Test Procedures
+These instructions detail how to test a deployment of LandformWeb.
 
-## Authentication Test Procedures
-
-### SSO Test Procedure
+## Authentication Test
 1. Note this will only work on https://landform.hi.jpl.nasa.gov because that is the domain SSO is configured to use.
-2. Click `API Token` and confirm the response is `not authenticated`.
-3. Click `Login (SSO)`.
-4. Enter JPL credentials.
-5. Click `API Token` and confirm the response is a web token - copy the token ID for later.
-6. Click `Logout`.
-7. Click `API Token` and confirm the response is `not authenticated`.
+1. Click `API Token` and confirm the response is `not authenticated`.
+1. Click `Login (SSO)`.
+1. Enter credentials for a JPL user identity that is a member of the `TILE_SERVER_LDAP_GROUP` configured when the Landform master server was deployed.  For test and production deployments managed by the Landform team, this is `landform`.
+1. Click `API Token` and confirm the response is a web token - copy the token ID for later.
+1. Click `Logout`.
+1. Click `API Token` and confirm the response is `not authenticated`.
 
-### LDAP Test Procedure
-1. Note that this will not work on https://landform.hi.jpl.nasa.gov because it is running on a cloud instance and does not currently have access to JPLs internal network / LDAP server. However, it will work when the server is run locally or on a JPL host machine.
-2. If your JPL user is not in the landform LDAP group contact Alex Menzies to be added
-3. Click `Login (LDAP)` 
-4. Enter JPL credentials
-5. Click `API Token` and confirm the response is a web token - copy the token ID for later
-6. Click `Logout`
-7. Click `API Token` and confirm the response is `not authenticated`
+Note: SSO will only work in a deployment where the Landform master server DNS name matches a configuration registered with the JPL SSO service.  If you are running the server locally within the JPL IP address space, e.g. for testing, then you can use the LDAP login instead of SSO.
 
-## REST API Test Procedure
+## REST API Tests
+Three methods are supported for running [REST API](../docs/API.md) tests:
+1. Using [curl](https://curl.haxx.se/windows) from the Windows 10 command prompt (`cmd`)
+2. Using `curl` from any other compatible command prompt.
+3. Using [Postman](https://www.getpostman.com).
 
-**TODO this needs to be updated for the [new API](API.md)**
+Details are given below for `curl` on the Windows 10 command prompt.  To use another compatible command prompt you may need to modify the syntax slightly.  For example, in `bash` style command prompts variable substitution syntax is `$VARIABLE` instead of `%VARIABLE%`.
 
-This procedure is designed to be excuted from the Windows 10 command prompt (`cmd`).  It may not run correctly on other command prompts such as cygwin, Git bash, etc.  It runs tests against the server currently deployed on https://landform.hi.jpl.nasa.gov.  To instead test against a server run locally or on a JPL host machine, use LDAP login instead of SSO and substitute the URL to the machine in the commands below.
+To use Postman
+1. download and import this [Postman collection](../test/Landform-test.postman_collection.json)
+2. define variables
+   1. ellipsis menu for collection -> Edit -> Variables
+   4. set the "current value" for each variable following the Setup procedure below
+   5. Update
+3. Follow the test sequence below, but using the pre-defined requests in the Postman collection instead of `curl`.  For example, to create the project, click the "create project" request in the collection and then click "Send".
 
-1. Login and get an API token using either the SSO test procedure above.  Copy the token to the system clipboard, and then paste it on the windows command line to set a temporary environment variable by running a command like this:
+### Setup
+1. Login and get an API token using the authentication test procedure.  Copy the token to the system clipboard, and then paste it on the windows command line to set a temporary environment variable by running a command like this:
 
-   `set API_TOKEN=PASTED_TOKEN`
+  `set API_TOKEN=(pasted token)`
 
-   Perform the remaining steps of this procedure in the same command window.
+2. Set the server URL.  For example, to test against the production or test server managed by the Landform team:
 
-2. Create a project:
+  `set SERVER_URL=https://landform[-dev].hi.jpl.nasa.gov`
 
-   `curl -d "{\"name\":\"test-project-name\"}" -H "Content-Type: application/json" -H "x-landform-token: %API_TOKEN%" -X POST https://landform.hi.jpl.nasa.gov/api/project`
+ Otherwise substitute the end-user DNS name of your Landform master server.
 
-3. List projects
+3. Determine a unique name for a test project.  For example, each time you run this procedure use a project name like `testN` where `N` is an integer that you increment.
 
-   `curl -H "x-landform-token: %API_TOKEN%" -X GET https://landform.hi.jpl.nasa.gov/api/project`
+   `set PROJECT_NAME=testN`
 
-4. Get data about a project
+ Perform the remaining steps of this procedure in the same command window where these variables were set.
 
-   `curl -H "x-landform-token: %API_TOKEN%" -X GET https://landform.hi.jpl.nasa.gov/api/project/test-project-name`
+4. Select a mesh and texture file for the test project from the following:
+  * mesh: `inputMeshSmall.ply`, texture: `inputImage.png`
+  * TODO
 
-5. Delete a project
+  Note: test data is available at TODO.
 
-   `curl -H "x-landform-token: %API_TOKEN%" -X DELETE https://landform.hi.jpl.nasa.gov/api/project/test-project-name`
+### Test Sequence
+1. Create project:
+
+       curl -sS --request POST \
+            --url http://%SERVER_URL%/api/projects/%PROJECT_NAME% \
+            --header "x-landform-token: %API_TOKEN%"
+
+2. List projects: TODO
+
+3. Upload input files:
+
+       curl -sS --request POST \
+            --url http://%SERVER_URL%/api/projects/%PROJECT_NAME%/upload \
+            --header "x-landform-token: %API_TOKEN%" \
+            --header "content-type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW" \
+            --form mesh=(mesh filename) \
+            --form texture=(texture filename)
+
+  use the mesh and texture filenames you selected during setup.  If using Postman select the "upload data" request, then click Body, then Choose Files.
+
+4. Get project metadata: TODO
+
+5. Run project:
+
+       curl -sS --request POST \
+            --url http://%SERVER_URL%/api/projects/%PROJECT_NAME%/run \
+            --header "x-landform-token: %API_TOKEN%"
+
+6. Get project result:
+
+       curl -sS -L --request GET \
+            --url http://%SERVER_URL%/api/projects/%PROJECT_NAME%/result \
+            --header "x-landform-token: %API_TOKEN%"
+
+    Note: This redirects to the AWS S3 storage for the tileset result and should return HTTP 403 (forbidden) until the project execution is complete.
+
+7. Visualize project result:
+
+       curl -sS --request GET \
+            --url http://%SERVER_URL%/api/projects/%PROJECT_NAME%/view?redirect=false \
+            --header "x-landform-token: %API_TOKEN%"
+
+   Copy the returned URL to the system clipboard and then "paste and search" in the URL bar of a Chrome browser.
+
+8. Delete project: TODO

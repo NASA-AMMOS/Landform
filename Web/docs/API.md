@@ -2,7 +2,7 @@
 All API methods require an API token to be set as an `x-landform-token` HTTP header or `landform-token` cookie.
 
 
-### Create Project: POST /api/project/*name*
+### Create Project: POST /api/projects/*name*
 Create the named project.  Implements the [task API](#task-api).
 
 Creating the same project more than once has no effect (not an error).
@@ -17,7 +17,7 @@ Accepts the following arugments:
 
 Request
 
-    POST /api/project/testproj HTTP/1.1
+    POST /api/projects/testproj HTTP/1.1
     Host: https://landform.hi.jpl.nas.gov
     x-landform-token: API_TOKEN
     Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW
@@ -40,7 +40,7 @@ Response
       "ended": 1537227672413
     }
 
-### Upload Data: POST /api/project/*name*/upload
+### Upload Data: POST /api/projects/*name*/upload
 Upload data for the named project.  Implements the [task API](#task-api).
 
 Uploading the data with the same mesh filename more than once has no effect (not an error).
@@ -57,7 +57,7 @@ Accepts the following arguments in a `multipart/form-data` encoded HTTP request 
 
 Request
 
-    POST https://landform.hi.jpl.nasa.gov/api/project/testproj/upload HTTP/1.1
+    POST https://landform.hi.jpl.nasa.gov/api/projects/testproj/upload HTTP/1.1
     Host: https://landform.hi.jpl.nas.gov
     x-landform-token: API_TOKEN
     Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW
@@ -90,18 +90,18 @@ Response
       "ended": 1537228980192
     }
 
-### Run Project: POST /api/project/*name*/run
+### Run Project: POST /api/projects/*name*/run
 Initiate a run of a project.  Implements the [task API](#task-api).
 
 Note: in the current implementation this task only initiates the execution of a project.  It will typically complete before the project is actually finished running.  To determine whether the project execution has completed:
-1. Determine the project result URL via the `/api/project/*name*/result?redirect=false` API.
+1. Determine the project result URL via the `/api/projects/*name*/result?redirect=false` API.
 2. Poll the project result URL.  When it returns HTTP 200 (OK) with valid JSON the project has completed execution.
 
 **Example:** run project "testproj"
 
 Request
 
-    POST /api/project/testproj/run HTTP/1.1
+    POST /api/projects/testproj/run HTTP/1.1
     Host: https://landform.hi.jpl.nasa.gov
     x-landform-token: API_TOKEN
     Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW
@@ -124,18 +124,24 @@ Response
       "ended": 1537229780231
     }
 
-### Get Project Result URL: GET /api/project/*name*/result
+### Get Project Metadata: GET /api/projects/*name*
+TODO
+
+### Get Metadata for Multiple Projects: GET /api/projects
+TODO
+
+### Get Project Result URL: GET /api/projects/*name*/result
 Fetch `tileset.json` result for a project.
 
 By default this API will return a HTTP 302 (found) redirect to the `tileset.json` file stored on AWS.  If execution of the project is not yet completed, this URL will return HTTP 403 (forbidden).
 
-If the argument `redirect=false` is specified then the output is the `text/plain` `tileset.json` URL with no redirect.
+If the argument `redirect=false` is specified then the output is the `text/plain` URL to the tileset with no redirect.
 
 **Example:** get result URL for project "testproj" without redirect
 
 Request
 
-    GET /api/project/testproj/result?redirect=false
+    GET /api/projects/testproj/result?redirect=false
     Host: https://landform.hi.jpl.nasa.gov
     x-landform-token: API_TOKEN
 
@@ -147,14 +153,18 @@ Response
 
     https://landlords-dev.s3.amazonaws.com/landformweb/www/testproj/tileset.json
 
-### View Project: GET /api/project/*name*/view
+### View Project: GET /api/projects/*name*/view
 Launch a web-based 3D viewer for a completed project.
+
+By default this API will return a HTTP 302 (found) redirect to a web-based viewer for the project hosted by the LandformWeb server.
+
+If the argument `redirect=false` is specified then the output is the `text/plain` viewer URL with no redirect.
 
 **Example:** launch 3D viewer for project "testproj"
 
 Request
 
-    GET /api/project/testproj/view HTTP/1.1
+    GET /api/projects/testproj/view HTTP/1.1
     Host: https://landform.hi.jpl.nasa.gov
     x-landform-token: API_TOKEN
     
@@ -164,6 +174,8 @@ Response
     location: /viewer/index.html?TilesetURL=https%3A%2F%2Flandlords-dev.s3.amazonaws.com%2Flandformweb%2Fwww%2Ftestproj%2Ftileset.json
     content-type: text/html; charset=utf-8
 
+### Delete Project: DELETE /api/projects/*name*
+TODO
 
 ---
 
@@ -193,8 +205,8 @@ If the server encountered an error processing the request (e.g. invalid API call
 In this case the HTTP status will be 400 (bad request) if the API call was invalid or 500 if the task failed to lauch for some other reason.
 
 If the task was successfully launched (i.e. if a task `id` was returned):
-* The text output of the task may be retrieved via the /api/task/*id*/log API.
-* The task metadata may be retrieved again via the /api/task/*id* API.
+* The text output of the task may be retrieved via the /api/tasks/*id*/log API.
+* The task metadata may be retrieved again via the /api/tasks/*id* API.
 
 The server will expire task metadata and logs after 24h has expired since the completion of the task, after which they will no longer be available.
 
@@ -204,7 +216,7 @@ Unless otherwise specified, all API arguments may be specified as either URL que
 #### Asynchronous Task API
 If the caller prefers an asynchronous task interface the request may include the optional argument `async=true`.  In this case the server will respond with the task (or API error) metadata without waiting for the task to complete.  The HTTP status will be 200 if the task launched successfully, 400 if the API call was invalid, or 500 if the task failed to launch.
 
-If the task was successfully launched the caller may monitor execution of the task by subsequently polling the /api/task/*id* API.  The `success`, `exitCode`, `error`, and `ended` fields are only valid once the task is completed, i.e. `running=false`.
+If the task was successfully launched the caller may monitor execution of the task by subsequently polling the /api/tasks/*id* API.  The `success`, `exitCode`, `error`, and `ended` fields are only valid once the task is completed, i.e. `running=false`.
 
 #### Text Task API
 If the caller prefers to receive the text output of the task instead of the task metadata the request may include the optional argument `text=true` or `live=true` (the latter takes precedence over the former, and `async=true` takes precedence over both).
@@ -222,14 +234,14 @@ If the task was successfully launched
 * For `text=true` the HTTP status will be 200 or 500 depending on whether the task completed successfully.
 * For `live=true` the HTTP status will be 200 whether or not the task completed successfully (because the status code may need to be sent before the task completes).
 
-### Get Master Task ID: GET /api/task/master/id
+### Get Master Task ID: GET /api/tasks/master/id
 Returns id of the master task.
 
 **Example:**
 
 Request
 
-    GET /api/task/master/id HTTP/1.1
+    GET /api/tasks/master/id HTTP/1.1
     Host: SERVER_URL
     x-landform-token: API_TOKEN
 
@@ -241,14 +253,14 @@ Response
 
     0
 
-### Get Task Metadata: GET /api/task/*id*
+### Get Task Metadata: GET /api/tasks/*id*
 Returns JSON metadata for task with the given id.
 
 **Example:** get metadata for task 0 (typically task 0 is the master task)
 
 Request
 
-    GET /api/task/0 HTTP/1.1
+    GET /api/tasks/0 HTTP/1.1
     Host: https://landform.hi.jpl.nasa.gov
     x-landform-token: API_TOKEN
 
@@ -268,7 +280,7 @@ Response
       "ended": null
     }
 
-### Get Task Log: GET /api/task/*id*/log
+### Get Task Log: GET /api/tasks/*id*/log
 Returns the log for task with the given id.
 
 By default the log is returned as an JSON array of strings containing the line-by-line text output of the task.  If the task is still running then whatever it has output up to the time of call will be returned.
@@ -281,7 +293,7 @@ If the argument `live=true` is specified then the output is `text/plain` lines s
 
 Request
 
-    GET /api/task/0/log?text=true HTTP/1.1
+    GET /api/tasks/0/log?text=true HTTP/1.1
     Host: https://landform.hi.jpl.nasa.gov
     x-landform-token: API_TOKEN
 

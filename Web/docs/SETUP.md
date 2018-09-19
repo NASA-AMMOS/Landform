@@ -98,15 +98,15 @@ Most steps below require the end-user DNS name for your Landform master server, 
 1. Generate certificate signing request.  You will need a CLI that includes the `openssl` tool - on Windows one option is [Git bash](https://gitforwindows.org).
     1. generate an RSA private key: `openssl genrsa > landform.hi.jpl.nasa.gov.key` (recommended for internal Landform use, otherwise any filename)
     1. generate CSR: `openssl req -new -key KEYFILE -out DNS_NAME.csr` where `KEYFILE` is the RSA private key you generated above, and `DNS_NAME` is your Landform master server DNS name.
-        1. Country name: `US`
-        1. State name: `California`
-        1. Locality name: `Pasadena`
-        1. Organization name: `NASA Jet Propulsion Laboratory`
-        1. Organizational unit name: `OCIO`
-        1. Common name: your Landform master server DNS name
-        1. Email address: (empty)
-        1. Challenge password: (empty)
-        1. Company name: (empty)
+        * Country name: `US`
+        * State name: `California`
+        * Locality name: `Pasadena`
+        * Organization name: `NASA Jet Propulsion Laboratory`
+        * Organizational unit name: `OCIO`
+        * Common name: your Landform master server DNS name
+        * Email address: (empty)
+        * Challenge password: (empty)
+        * Company name: (empty)
 1. Login to JPL Certificate manager at https://ssl.jpl.nasa.gov
 1. Manage my certificates -> Request a Certificate
     1. LDAP group: `landform` (internal Landform use only, otherwise use your own LDAP group)
@@ -165,11 +165,11 @@ Most steps below require the end-user DNS name for your Landform master server, 
             1. Classic load balancer
             1. Turn off existing listener
             1. Add listener
-                1. Listener port: `443`
-                1. Listener protocol: `HTTPS`
-                1. Instance port: `80`
-                1. Instance protocol: `HTTP`
-                1. Select the SSL certificate ID.  These may appear as `*.jpl.nasa.gov`, in which case you need to find the GUID matching the cert in the AWS Certificate Manager.
+                * Listener port: `443`
+                * Listener protocol: `HTTPS`
+                * Instance port: `80`
+                * Instance protocol: `HTTP`
+                * Select the SSL certificate ID.  These may appear as `*.jpl.nasa.gov`, in which case you need to find the GUID matching the cert in the AWS Certificate Manager.
             1. Apply
 
 ## 4: Restrict to JPL IPs
@@ -186,10 +186,10 @@ This step is optional but recommended.  It restricts access to your Landform mas
     1. Search for the instance security group noted above
     1. Look at the security group referenced in its inbound source.  This is the ELB security group.
     1. Search for and select the ELB security group and change its inbound settings to:
-        1. `HTTPS TCP 443 128.149.0.0/16`
-        1. `HTTPS TCP 443 137.78.0.0/16 `
-        1. `HTTPS TCP 443 137.79.0.0/16`
-        1. `HTTPS TCP 443 137.228.0.0/16`
+        * `HTTPS TCP 443 128.149.0.0/16`
+        * `HTTPS TCP 443 137.78.0.0/16`
+        * `HTTPS TCP 443 137.79.0.0/16`
+        * `HTTPS TCP 443 137.228.0.0/16`
 
 ## 5: Configure Elastic Beanstalk Environment for Landform Master Server
 This step configures the Elastic Beanstalk environment with specifics of your deployment for the Landform master server.
@@ -210,6 +210,7 @@ This step configures the Elastic Beanstalk environment with specifics of your de
     * `TILE_SERVER_REGION`: `us-west-1`
     * `TILE_SERVER_VENUE_NAME`: `landformweb[-dev]` (recommended, but can be any name) - this is the Landform venue name and it must match the venue name in the Landform worker configuration
     * `TILE_SERVER_S3_URL`: `s3://landlords-dev` (internal landform use only, otherwise use your own S3 bucket)
+    * `TILE_SERVER_LDAP_GROUP`: `landform` (internal landform use only, otherwise use your own LDAP group)
 1. Apply
 
 ## 6: Deploy Landform Master Server Release

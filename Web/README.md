@@ -1,9 +1,9 @@
 # LandformWeb
 LandformWeb is a [node.js](https://nodejs.org) server and [React](https://reactjs.org) browser client for controlling the Landform cluster including but not limited to functionality of the Geometry Tiling Server.
 
-Deployed at https://landform.hi.jpl.nasa.gov.  This site is only accessible to JPL IP addresses.  For VPN access, use full tunnel mode.
+Deployed at https://landform.hi.jpl.nasa.gov.  (This site is only accessible to JPL IP addresses.  For VPN access, use full tunnel mode.)
 
-This repo consists of a backend REST API server and a frontend react app in `/client`.  In production the frontend app is pre-built with webpack and served as static files by the backend server.  During development a separate frontend server is used with hot module reloading.  The react app configuration is managed with [create-react-app](https://github.com/facebook/create-react-app).
+The frontend React app (in the `client` subdir) is managed with [create-react-app](https://github.com/facebook/create-react-app).  In production the frontend app is pre-built with webpack and served as static files by the backend server, which also serves the REST API.  During development a separate frontend server is used with webpack hot module reloading for the frontend and a proxy setup to relay REST APIs to the backend.
 
 Additional docs:
 * [REST API](docs/API.md)
@@ -12,11 +12,11 @@ Additional docs:
 
 ## AWS Credentials
 Most development and deployment tasks require AWS credentials.
-1. Make sure you are in the `aws.589270964471.account_owner` LDAP group.  If not, talk to Alex.
+1. Make sure you are in the `aws.5892XXXXXXXX.account_owner` LDAP group.  If not, talk to Alex.
 1. Follow the instructions in the header comments of `../Cloud/aws-login.py` to configure your machine with the required Python libraries.  Also follow the optional instructions to install the AWS CLI and AWS Elastic Beanstalk CLI tools.
 1. Run `../Cloud/aws-login.py` from the windows `cmd` prompt or `winpty python ../Cloud/aws-login.py` if using git bash (Cygwin bash does not work unfortunately).
     1. Enter your JPL username and password.
-    1. If you have multiple roles, select `arn:aws:iam::589270964471:role/account_owner`.
+    1. If you have multiple roles, select `arn:aws:iam::5892XXXXXXXX:role/account_owner`.
 
 This will generate temporary AWS credentials in `$HOME/.aws/credentials`.  Note credentials generated this way are always temporary and will expire in some hours.  To renew them, run the `aws-login.py` script again.
 
@@ -39,11 +39,11 @@ In order to run projects you will also need at least one running tiling worker c
     1. enter profile name for AWS credentials
 1. `TilingServer.exe startworker`
 
-For production TODO.
+For production or integration testing the worker is deployed to an EC2 autoscale group.  See the [AWS setup](docs/SETUP.md) documentation.
 
 ---
 
-## Development Workflow
+## Master Server Development Workflow
 1. Install latest [node.js](https://nodejs.org) 8.x.x.
 1. Acquire AWS credentials and build `TilingServer.exe` with Visual Studio as explained above.
 1. `npm install`
@@ -56,7 +56,7 @@ For production TODO.
 ### Issues & Workarounds
 * CTRL-C may not work correctly to kill the backend server if you started it from a cygwin prompt; consider using a Git bash prompt or Windows `cmd` instead.
 
-## Test & Production Deployment Workflow
+## Master Server Test & Deployment Workflow
 1. Install latest [node.js](https://nodejs.org) 8.x.x.
 1. Acquire AWS credentials and build `TilingServer.exe` with Visual Studio as explained above.
 1. `npm run build` to generate `landformweb.zip`.  This is sugar for `npm install && npm run build-client && npm run bundle`
@@ -70,17 +70,19 @@ For production TODO.
     1. This will require a local installation of [Docker](https://www.docker.com) host.
     1. Check `venueName` in `config.js` - the server will connect to live AWS services for that venue.  The `venueName` that will be used is determined by the `NODE_ENV` environment variable in the shell where the `local-deploy` script is run, even though in the container `NODE_ENV=production` always.  Typically this results in `venueName=landformweb-dev`, which is appropriate for testing.
     1. `npm run local-deploy -- [-f|--force] [-i|--interactive] [-d|--debug]` to re-build the Docker container and run it locally.  The name of the docker container is given by the value of `deployEnvironment` from `config.js`, using the value of `NODE_ENV` in the shell where the `local-deploy` script runs.  Typically `deployEnvironment=landformweb-dev`, which is appropriate for testing.
-    1. You can access it at http://localhost:8081.
     1. Options:
-        1. `--force`: use existing `landformweb.zip` even if it might be outdated
-        1. `--interactive`: drop into a shell in the Docker container instead of running the server.  Note: if using git bash run `winpty node tools/localDeploy.js -i ...` instead.
-        1. `--debug`: set `LOG_LEVEL=silly` in the Docker container
+        * `--force`: use existing `landformweb.zip` even if it might be outdated
+        * `--interactive`: drop into a shell in the Docker container instead of running the server.  Note: if using git bash run `winpty node tools/localDeploy.js -i ...` instead.
+        * `--debug`: set `LOG_LEVEL=silly` in the Docker container
+    1. You can now access the server at http://localhost:8081.  Run through the [test procedures](docs/TEST.md).
 1. Deploy to Elastic Beanstalk
     1. Check `deployEnvironment` in `config.js` - the server will be deployed to this Elastic Beanstalk environment.  The `deployEnvironment` that will be used is determined by the `NODE_ENV` environment variable in the shell where the `deploy` script is run, even though in the deployment the value of `NODE_ENV` is typically configured in the Elastic Beanstalk environment as `NODE_ENV=production`.
     1. The `venueName` that will be used in the deployment is typically configured in the Elastic Beanstalk environment as the environment variable `TILE_SERVER_VENUE_NAME`.  Typically the venue name is configured to be the same as the environment name, so the production `landformweb` environment uses the `landformweb` venue, and the testing environment `landformweb-dev` uses the `landformweb-dev` venue.
-    1. `npm run deploy -- [environment-name] [-f|--force] [--profile=foo]`.  Options:
-        1. `environment-name`: Upload to this Elastic Beanstalk environment instead of the default from `config.js`
-        1. `--force`: use existing landformweb.zip even if it might be outdated
-        1. `--profile=foo`: use AWS credentials profile `foo` instead of `default`
+    1. `npm run deploy -- [environment-name] [-f|--force] [--profile=foo]`.
+    1. Options:
+        * `environment-name`: Upload to this Elastic Beanstalk environment instead of the default from `config.js`
+        * `--force`: use existing landformweb.zip even if it might be outdated
+        * `--profile=foo`: use AWS credentials profile `foo` instead of `default`
     1. You can watch the Elastic Beanstalk (re-)deployment progress by logging in to the [AWS web console](http://goto.jpl.nasa.gov/awsconsole).
     1. Once the deployment is complete the site will be live at https://landform-dev.hi.jpl.nasa.gov (omit `-dev` for production).  Note, if using VPN full tunnel is required because we restrict access to JPL IP addresses.
+    1. Run through the [test procedures](docs/TEST.md).
