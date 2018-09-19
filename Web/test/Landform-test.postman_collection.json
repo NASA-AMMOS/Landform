@@ -17,13 +17,13 @@
 				],
 				"body": {},
 				"url": {
-					"raw": "{{SERVER_URL}}/api/project/{{PROJECT_NAME}}",
+					"raw": "{{SERVER_URL}}/api/projects/{{PROJECT_NAME}}",
 					"host": [
 						"{{SERVER_URL}}"
 					],
 					"path": [
 						"api",
-						"project",
+						"projects",
 						"{{PROJECT_NAME}}"
 					]
 				}
@@ -54,13 +54,13 @@
 					]
 				},
 				"url": {
-					"raw": "{{SERVER_URL}}/api/project/{{PROJECT_NAME}}/upload",
+					"raw": "{{SERVER_URL}}/api/projects/{{PROJECT_NAME}}/upload",
 					"host": [
 						"{{SERVER_URL}}"
 					],
 					"path": [
 						"api",
-						"project",
+						"projects",
 						"{{PROJECT_NAME}}",
 						"upload"
 					]
@@ -92,13 +92,13 @@
 				],
 				"body": {},
 				"url": {
-					"raw": "{{SERVER_URL}}/api/project/{{PROJECT_NAME}}/run",
+					"raw": "{{SERVER_URL}}/api/projects/{{PROJECT_NAME}}/run",
 					"host": [
 						"{{SERVER_URL}}"
 					],
 					"path": [
 						"api",
-						"project",
+						"projects",
 						"{{PROJECT_NAME}}",
 						"run"
 					]
@@ -130,13 +130,13 @@
 				],
 				"body": {},
 				"url": {
-					"raw": "{{SERVER_URL}}/api/task/0/log?text=true",
+					"raw": "{{SERVER_URL}}/api/tasks/0/log?text=true",
 					"host": [
 						"{{SERVER_URL}}"
 					],
 					"path": [
 						"api",
-						"task",
+						"tasks",
 						"0",
 						"log"
 					],
@@ -162,13 +162,13 @@
 				],
 				"body": {},
 				"url": {
-					"raw": "{{SERVER_URL}}/api/project/{{PROJECT_NAME}}/result?redirect=false",
+					"raw": "{{SERVER_URL}}/api/projects/{{PROJECT_NAME}}/result?redirect=false",
 					"host": [
 						"{{SERVER_URL}}"
 					],
 					"path": [
 						"api",
-						"project",
+						"projects",
 						"{{PROJECT_NAME}}",
 						"result"
 					],
@@ -194,13 +194,13 @@
 				],
 				"body": {},
 				"url": {
-					"raw": "{{SERVER_URL}}/api/project/{{PROJECT_NAME}}/result",
+					"raw": "{{SERVER_URL}}/api/projects/{{PROJECT_NAME}}/result",
 					"host": [
 						"{{SERVER_URL}}"
 					],
 					"path": [
 						"api",
-						"project",
+						"projects",
 						"{{PROJECT_NAME}}",
 						"result"
 					]
@@ -220,13 +220,13 @@
 				],
 				"body": {},
 				"url": {
-					"raw": "{{SERVER_URL}}/api/project/{{PROJECT_NAME}}/view",
+					"raw": "{{SERVER_URL}}/api/projects/{{PROJECT_NAME}}/view",
 					"host": [
 						"{{SERVER_URL}}"
 					],
 					"path": [
 						"api",
-						"project",
+						"projects",
 						"{{PROJECT_NAME}}",
 						"view"
 					]
@@ -246,13 +246,13 @@
 				],
 				"body": {},
 				"url": {
-					"raw": "{{SERVER_URL}}/api/task/master/id",
+					"raw": "{{SERVER_URL}}/api/tasks/master/id",
 					"host": [
 						"{{SERVER_URL}}"
 					],
 					"path": [
 						"api",
-						"task",
+						"tasks",
 						"master",
 						"id"
 					]
@@ -272,13 +272,13 @@
 				],
 				"body": {},
 				"url": {
-					"raw": "{{SERVER_URL}}/api/task/0",
+					"raw": "{{SERVER_URL}}/api/tasks/0",
 					"host": [
 						"{{SERVER_URL}}"
 					],
 					"path": [
 						"api",
-						"task",
+						"tasks",
 						"0"
 					]
 				}

@@ -46,8 +46,8 @@ app.use(authRouter);
 //serve API routes
 const apiRouter = express.Router();
 apiRouter.use(token.apiTokenCheck);
-apiRouter.use('/project', projectRouter);
-apiRouter.use('/task', taskRouter);
+apiRouter.use('/projects', projectRouter);
+apiRouter.use('/tasks', taskRouter);
 apiRouter.use('*', (req, res) => abortRoute(res, `unrecognized API '${req.originalUrl}'`, 400));
 app.use('/api', apiRouter);
 

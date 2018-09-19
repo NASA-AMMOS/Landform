@@ -108,7 +108,9 @@ router.get('/:name/result', (req, res) => {
 });
 
 router.get('/:name/view', (req, res) => {
-  res.redirect(`/viewer/index.html?TilesetURL=${encodeURIComponent(resultURL(req.params.name))}`);
+  const redirect = parseArgs(req, { redirect: { type: 'bool', default: true } }).redirect;
+  const ret = `/viewer/index.html?TilesetURL=${encodeURIComponent(resultURL(req.params.name))}`;
+  if (redirect) res.redirect(ret); else sendText(res, `${req.method}://${req.hostname}${ret}`);
 });
 
 module.exports = router;
