@@ -3,26 +3,30 @@ const config = require('./config');
 const logger = require('./logger');
 const { launchTask } = require('./taskUtil');
 
-//creates tmpDir if necessary, then runs TilingServer verb args in it with appropriate environment vars
-//waits for tmpDir to be created but does not wait for task to complete
-//returns task
-async function tilingTask(verb, args) {
+function setTilingEnv(env) {
 
-  await fs.ensureDir(config.app.tmpDir);
-
-  //forward our own environment vars to subprocess
-  const env = process.env;
+  env = env || process.env;
 
   //if any of these vars are not set then set them from the indicated key in config.app
   const vars = {
     TILE_SERVER_REGION: 'awsRegion',
     TILE_SERVER_PROFILE: 'awsProfile',
     TILE_SERVER_VENUE_NAME: 'venueName',
-    TILE_SERVER_S3_URL: 's3URL',
+    TILE_SERVER_S3_URL: 's3Url',
+    TILE_SERVER_MSLICE_PROFILE: 'awsMSLICEProfile',
+    TILE_SERVER_MSLICE_S3_URL: 'awsMSLICES3Url',
   };
   Object.entries(vars).forEach(([varName, cfgKey]) => { if (!(varName in env)) env[varName] = config.app[cfgKey]; });
 
-  return launchTask('TilingServer', [verb, ...args], { cwd: config.app.tmpDir, env });
+  return env;
+}
+
+//creates tmpDir if necessary, then runs TilingServer verb args in it with appropriate environment vars
+//waits for tmpDir to be created but does not wait for task to complete
+//returns task
+async function tilingTask(verb, args) {
+  await fs.ensureDir(config.app.tmpDir);
+  return launchTask('TilingServer', [verb, ...args], { cwd: config.app.tmpDir, env: setTilingEnv() });
 }
 
 let masterTask = null;
@@ -39,11 +43,11 @@ async function tilingMaster() {
   }
 
   try {
-    masterTask = await tilingTask('startmaster', ['--singlethreaded', !config.app.multiThreadedMaster]);
+    masterTask = await tilingTask('startmaster', [`--singlethreaded=${!config.app.multiThreadedMaster}`]);
     masterTask.promise.catch(err => abort(err));
   } catch (err) { abort(err); }
 
   return masterTask;
 }
 
-module.exports = { tilingTask, tilingMaster };
+module.exports = { setTilingEnv, tilingTask, tilingMaster };

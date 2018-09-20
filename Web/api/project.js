@@ -97,7 +97,7 @@ async function runProject(req, res) {
 router.post('/:name/run', runProject);
 
 function resultURL(name) {
-  const s3Bucket = new url.URL(config.app.s3URL).hostname;
+  const s3Bucket = new url.URL(config.app.s3Url).hostname;
   return `https://${s3Bucket}.s3.amazonaws.com/${config.app.venueName}/www/${name}/tileset.json`;
 }
 

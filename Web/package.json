@@ -9,6 +9,8 @@
     "start": "concurrently --kill-others \"npm run server\" \"npm run client\"",
     "server": "node server.js",
     "client": "node tools/startClient.js",
+    "worker": "node tools/startWorker.js",
+    "configure-backend": "node tools/configureBackend.js",
     "build-client": "node tools/buildClient.js",
     "bundle-server": "git archive -o landformweb.zip --format=zip HEAD",
     "bundle": "npm run bundle-server && node tools/bundleClient.js && node tools/bundleMaster.js",

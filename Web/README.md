@@ -26,21 +26,17 @@ This will generate temporary AWS credentials in `$HOME/.aws/credentials`.  Note 
 ## TilingServer
 The backend node.js server will run the .NET tiling server (`../TilingServer` subproject) as a subprocess.  Thus, most development and deployment tasks require that you first use VisualStudio to build the TilingServer subproject.
 
-During local development (environment variable `NODE_ENV=development`) the tiling server binary will be found at `../TilingServer/bin/Release/TilingServer.exe`.  To use the debug build instead specify the `-d` or `--debug` option on the command line, e.g. `npm start -- -d`.
+During local development (environment variable `NODE_ENV=development`) the tiling server binary will be found at `../TilingServer/bin/Release/TilingServer.exe`.  To use the debug build of `TilingServer.exe` instead of the release version, set the environment variable `DEBUG_TILING_SERVER=true`.
 
-In a production context (`NODE_ENV=production`) the tiling server binary will be found at `./bin/TilingServer.exe`, which will be copied from `../TilingServer/bin/Release/TilingServer.exe` when the build zip is bundled.
+In a production context (`NODE_ENV=production` or `NODE_ENV=integration`) the tiling server binary will be found at `./bin/TilingServer.exe`, which will be copied from `../TilingServer/bin/Release/TilingServer.exe` when the build zip is bundled.
 
 ### Tiling Worker
-In order to run projects you will also need at least one running tiling worker connected to the same AWS venue.  For development one option is to run the tiling worker locally:
-1. Acquire AWS credentials as described above if you haven't already.
-1. `cd ../TilingServer/bin/Release`
-1. `TilingServer.exe configure`
-    1. Enter same venue name, s3 URL, and AWS region as in `config.js`.
-       1. For development the venue name is computed based on your username and machine name, run `npm run show-venue` to see it.
-    1. Enter profile name for AWS credentials.
-1. `TilingServer.exe startworker`
+In order to run projects you will also need at least one running tiling worker connected to the same AWS venue.  For development one option is to run the tiling worker locally: `npm run start-worker`.
 
 For production or integration testing the worker is deployed to an EC2 autoscale group.  See the [AWS setup](docs/SETUP.md) documentation.
+
+#### Issues & Workarounds
+* CTRL-C may not work correctly to kill the worker if you started it from a cygwin prompt; consider using a Git bash prompt or Windows `cmd` instead.
 
 ---
 
@@ -51,7 +47,6 @@ For production or integration testing the worker is deployed to an EC2 autoscale
 1. `npm run show-venue` - the server will connect to live AWS services for that venue.
 1. `npm start` will start both the backend api server on port 8081 and the frontend react dev server on port 3000 (the frontend server will proxy backend routes to the backend server).
     1. You can also run the api server and client servers independently with `npm run server` and `npm run client`.  This is convenient when doing backend dev so that you can independently restart the backend server.
-    1. To use the debug build of `TilingServer.exe` instead of the release version, set the environment variable `DEBUG_TILING_SERVER=true`.
 1. Typically you should not need to restart the frontend server for frontend dev because it uses hot module reloading.  However, if you modify the backend server you will need to restart it.
 1. Go to http://localhost:3000 and follow the instructions to login and generate an API token.  Note that SSO login will only work when deployed to the production server URL given above, and LDAP login will only work when the server is within the JPL firewall (i.e. not deployed to AWS for production).
 

@@ -32,11 +32,12 @@ const development = {
     logDir: env.LOG_DIR || path.join(cwd, 'log'),
     tmpDir: env.TMP_DIR || path.join(cwd, 'tmp'),
 
-    awsProfile: env.TILE_SERVER_PROFILE || env.AWS_PROFILE || 'default',
-    awsRegion: env.TILE_SERVER_REGION || env.AWS_DEFAULT_REGION || 'us-west-1',
-
     venueName: env.TILE_SERVER_VENUE_NAME || `landformweb-dev-${os.userInfo().username}-${os.hostname()}`,
-    s3URL: env.TILE_SERVER_S3_URL || 's3://landlords-dev',
+    s3Url: env.TILE_SERVER_S3_URL || 's3://landlords-dev',
+    awsRegion: env.TILE_SERVER_REGION || env.AWS_DEFAULT_REGION || 'us-west-1',
+    awsProfile: env.TILE_SERVER_PROFILE || env.AWS_PROFILE || 'default',
+    awsMSLICEProfile: env.TILE_SERVER_MSLICE_PROFILE || 'mslice',
+    awsMSLICES3Url: env.TILE_SERVER_MSLICE_S3_URL || 's3://red-product',
 
     multiThreadedMaster: !!env.MULTI_THREADED_MASTER,
 

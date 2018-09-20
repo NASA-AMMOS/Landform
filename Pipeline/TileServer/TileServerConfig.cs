@@ -46,6 +46,7 @@ namespace OPS.Pipeline.TileServer
         [JsonIgnore]
         private string msliceProfile;
 
+        [ConfigEnvironmentVariable("TILE_SERVER_MSLICE_PROFILE")]
         public string MSLICEProfile
         {
             get
@@ -69,6 +70,7 @@ namespace OPS.Pipeline.TileServer
             }
         }
 
+        [ConfigEnvironmentVariable("TILE_SERVER_MSLICE_S3_URL")]
         public string MSLICES3Url { get; set; }
 
         [ConfigEnvironmentVariable("TILE_SERVER_VENUE_NAME")]
