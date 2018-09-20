@@ -67,7 +67,7 @@ This is sugar for `npm install && npm run build-client && npm run bundle`.
     * current `client/build` subtree
     * required binaries from `../TilingServer/bin/Release` under `bin`
 
-### Optional - test the Master Server in a Docker container locally.
+### Test the Master Server in a Docker Container Locally (Optional)
 This will require a local installation of [Docker](https://www.docker.com) host.
 
 1. `npm run show-venue` - the server will connect to live AWS services for that venue.
