@@ -157,7 +157,7 @@ namespace OPS.Util
         public static string GetTempDirectory()
         {
             string tempDir = Guid.NewGuid().ToString();
-            string fullPathToTempDirectory = Path.GetFullPath(tmpDirectory) + tempDir;
+            string fullPathToTempDirectory = Path.Combine(Path.GetFullPath(tmpDirectory), tempDir);
             PathHelper.EnsureExists(Path.GetFullPath(fullPathToTempDirectory));
             return fullPathToTempDirectory;
         }
