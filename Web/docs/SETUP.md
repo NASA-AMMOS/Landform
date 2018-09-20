@@ -214,7 +214,8 @@ This step configures the Elastic Beanstalk environment with specifics of your de
 1. Apply
 
 ## 6: Deploy Landform Master Server Release
-1. The following instructions assume you have a `landformweb-VERSION.zip` bundle.  For command-line deployment in the context of Landform development you can also follow the alternate instructions in the [README](../README.md).
+The following instructions assume you have a `landformweb-VERSION.zip` bundle.
+
 1. http://goto.jpl.nasa.gov/awsconsole
 1. Log in as landords/account_owner
 1. Select region `us-west-1` (North California)

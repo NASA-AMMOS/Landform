@@ -28,7 +28,7 @@ The backend node.js server will run the .NET tiling server (`../TilingServer` su
 
 During local development (environment variable `NODE_ENV=development`) the tiling server binary will be found at `../TilingServer/bin/Release/TilingServer.exe`.  To use the debug build of `TilingServer.exe` instead of the release version, set the environment variable `DEBUG_TILING_SERVER=true`.
 
-In a production context (`NODE_ENV=production` or `NODE_ENV=integration`) the tiling server binary will be found at `./bin/TilingServer.exe`, which will be copied from `../TilingServer/bin/Release/TilingServer.exe` when the build zip is bundled.
+In a deployed context (`NODE_ENV=production` or `NODE_ENV=integration`) the tiling server binary will be found at `./bin/TilingServer.exe`, which will be copied from `../TilingServer/bin/Release/TilingServer.exe` when the build zip is bundled.
 
 ### Tiling Worker
 In order to run projects you will also need at least one running tiling worker connected to the same AWS venue.  For development one option is to run the tiling worker locally: `npm run start-worker`.
@@ -40,7 +40,7 @@ For production or integration testing the worker is deployed to an EC2 autoscale
 
 ---
 
-## Master Server Development Workflow
+## Development Workflow
 1. Install latest [node.js](https://nodejs.org) 8.x.x.
 1. Acquire AWS credentials and build `TilingServer.exe` with Visual Studio as explained above.
 1. `npm install`
@@ -53,34 +53,45 @@ For production or integration testing the worker is deployed to an EC2 autoscale
 ### Issues & Workarounds
 * CTRL-C may not work correctly to kill the backend server if you started it from a cygwin prompt; consider using a Git bash prompt or Windows `cmd` instead.
 
-## Master Server Test & Deployment Workflow
-1. Install latest [node.js](https://nodejs.org) 8.x.x.
-1. Acquire AWS credentials and build `TilingServer.exe` with Visual Studio as explained above.
-1. `npm run build` to generate `landformweb.zip`.  This is sugar for `npm install && npm run build-client && npm run bundle`
-    * `npm install` - installs `node_modules` and `client/node_modules`
-    * `npm run build-client` - runs `npm run build` to webpack `client/build`
-    * `npm run bundle` - creates `landformweb.zip` containing
-        * full archive of current git HEAD for the `Web` subtree
-        * current `client/build` subtree
-        * required binaries from `../TilingServer/bin/Release` under `bin`
-1. Optional - test the Docker container locally.
-    1. This will require a local installation of [Docker](https://www.docker.com) host.
-    1. `npm run show-venue` - the server will connect to live AWS services for that venue.
-       1. The `venueName` that will be used is determined by the `NODE_ENV` environment variable in the shell where the `local-deploy` script is run, even though in the container `NODE_ENV=production` always.  This enables testing a local deployment connected to a private AWS venue.
-    1. `npm run local-deploy -- [-f|--force] [-i|--interactive] [-d|--debug]` to re-build the Docker container and run it locally.  The name of the docker container is given by the value of `deployEnvironment` from `config.js`, using the value of `NODE_ENV` in the shell where the `local-deploy` script runs.  Typically `deployEnvironment=landformweb-dev`, which is appropriate for testing.
-    1. Options:
-        * `--force`: use existing `landformweb.zip` even if it might be outdated
-        * `--interactive`: drop into a shell in the Docker container instead of running the server.  Note: if using git bash run `winpty node tools/localDeploy.js -i ...` instead.
-        * `--debug`: set `LOG_LEVEL=silly` in the Docker container
-    1. You can now access the server at http://localhost:8081.  Run through the [test procedures](docs/TEST.md).
-1. Deploy to Elastic Beanstalk
-    1. Check `deployEnvironment` in `config.js` - the server will be deployed to this Elastic Beanstalk environment.  The `deployEnvironment` that will be used is determined by the `NODE_ENV` environment variable in the shell where the `deploy` script is run, even though in the deployment the value of `NODE_ENV` is typically configured in the Elastic Beanstalk environment as `NODE_ENV=production`.
-    1. The `venueName` that will be used in the deployment is typically configured in the Elastic Beanstalk environment as the environment variable `TILE_SERVER_VENUE_NAME`.  Typically the venue name is configured to be the same as the environment name, so the production `landformweb` environment uses the `landformweb` venue, and the testing environment `landformweb-dev` uses the `landformweb-dev` venue.
-    1. `npm run deploy -- [environment-name] [-f|--force] [--profile=foo]`.
-    1. Options:
-        * `environment-name`: Upload to this Elastic Beanstalk environment instead of the default from `config.js`
-        * `--force`: use existing landformweb.zip even if it might be outdated
-        * `--profile=foo`: use AWS credentials profile `foo` instead of `default`
-    1. You can watch the Elastic Beanstalk (re-)deployment progress by logging in to the [AWS web console](http://goto.jpl.nasa.gov/awsconsole).
-    1. Once the deployment is complete the site will be live at https://landform-dev.hi.jpl.nasa.gov (omit `-dev` for production).  Note, if using VPN full tunnel is required because we restrict access to JPL IP addresses.
-    1. Run through the [test procedures](docs/TEST.md).
+## Test & Deployment Workflow
+Install latest [node.js](https://nodejs.org) 8.x.x and acquire AWS credentials and build `TilingServer.exe` with Visual Studio as explained above.
+
+### Generate Release Bundle
+Run `npm run build` to generate `landformweb.zip`.
+
+This is sugar for `npm install && npm run build-client && npm run bundle`.
+* `npm install` installs `node_modules` and `client/node_modules`
+* `npm run build-client` runs `npm run build` to webpack `client/build`
+* `npm run bundle` creates `landformweb.zip` containing
+    * full archive of current git HEAD for the `Web` subtree
+    * current `client/build` subtree
+    * required binaries from `../TilingServer/bin/Release` under `bin`
+
+### Optional - test the Master Server in a Docker container locally.
+This will require a local installation of [Docker](https://www.docker.com) host.
+
+1. `npm run show-venue` - the server will connect to live AWS services for that venue.
+   1. The `venueName` that will be used is determined by the `NODE_ENV` environment variable in the shell where the `local-deploy` script is run, even though in the container `NODE_ENV=production` always.  This enables testing a local deployment connected to a private AWS venue.
+1. `npm run local-deploy -- [-f|--force] [-i|--interactive] [-d|--debug]` to re-build the Docker container and run it locally.  The name of the docker container is given by the value of `deployEnvironment` from `config.js`, using the value of `NODE_ENV` in the shell where the `local-deploy` script runs.  Typically `deployEnvironment=landformweb-dev`, which is appropriate for testing.
+1. Options:
+    * `--force`: use existing `landformweb.zip` even if it might be outdated
+    * `--interactive`: drop into a shell in the Docker container instead of running the server.  Note: if using git bash run `winpty node tools/localDeploy.js -i ...` instead.
+    * `--debug`: set `LOG_LEVEL=silly` in the Docker container
+1. You can now access the server at http://localhost:8081.  Run through the [test procedures](docs/TEST.md).
+
+### Deploy Master Server to Elastic Beanstalk
+It is also possible to manually deploy the release bundle using the AWS Elastic Beanstalk web console, as documented in the [AWS setup](docs/SETUP.md) instructions.
+
+1. Check `deployEnvironment` in `config.js` - the server will be deployed to this Elastic Beanstalk environment.  The `deployEnvironment` that will be used is determined by the `NODE_ENV` environment variable in the shell where the `deploy` script is run, even though in the deployment the value of `NODE_ENV` is typically configured in the Elastic Beanstalk environment as `NODE_ENV=production`.
+1. The `venueName` that will be used in the deployment typically depends on the `NODE_ENV` configured in the Elastic Beanstalk environment.  Typically the environment `landform-dev` has `NODE_ENV=integration` and the environment `landform` has `NODE_ENV=production`.  It is also possible to override `TILE_SERVER_VENUE_NAME` directly in the environment configuration.
+1. `npm run deploy -- [environment-name] [-f|--force] [--profile=foo]`.
+1. Options:
+    * `environment-name`: Upload to this Elastic Beanstalk environment instead of the default from `config.js`
+    * `--force`: use existing landformweb.zip even if it might be outdated
+    * `--profile=foo`: use AWS credentials profile `foo` instead of `default`
+1. You can watch the Elastic Beanstalk (re-)deployment progress by logging in to the [AWS web console](http://goto.jpl.nasa.gov/awsconsole).
+1. Once the deployment is complete the site will be live at https://landform-dev.hi.jpl.nasa.gov (omit `-dev` for production).  Note, if using VPN full tunnel is required because we restrict access to JPL IP addresses.
+1. Run through the [test procedures](docs/TEST.md).
+
+### Deploy Worker to EC2
+TODO
