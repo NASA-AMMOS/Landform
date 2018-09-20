@@ -53,6 +53,8 @@ namespace OPS.Pipeline.TileServer
 
         public int Run()
         {
+            TileServerConfig.Instance.Dump(logger);
+
             // Register filetype handlers
             new OpenInventorSerializer().Register();
             new DracoSerializer().Register();
@@ -60,7 +62,6 @@ namespace OPS.Pipeline.TileServer
             GdalConfiguration.ConfigureGdal();
 
             new TileServerCloud(this).EnsureTablesExist();
-
 
             Task masterTask = null;
             if(options.StartMaster)

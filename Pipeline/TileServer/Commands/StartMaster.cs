@@ -36,6 +36,8 @@ namespace OPS.Pipeline.TileServer
 
         public int Run()
         {
+            TileServerConfig.Instance.Dump(logger);
+
             if (options.SingleThreaded)
             {
                 logger.Info("TilingServer master single-threaded");

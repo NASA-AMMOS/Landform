@@ -1,4 +1,5 @@
 ﻿using Newtonsoft.Json;
+using log4net;
 using OPS.Util;
 using System;
 using System.Collections.Generic;
@@ -122,5 +123,14 @@ namespace OPS.Pipeline.TileServer
             return new Uri(Path.Combine(S3Url, VenueName, folder, projectName, filename).Replace('\\','/')).ToString();
         }
 
+        public void Dump(ILog logger)
+        {
+            logger.Info("Landform venue: " + VenueName);
+            logger.Info("S3URL: " + S3Url);
+            logger.Info("AWS Region: " + Region);
+            logger.Info("AWS Profile: " + Profile);
+            logger.Info("MSLICE AWS Profile: " + MSLICEProfile);
+            logger.Info("MSLICE S3 URL: " + MSLICES3Url);
+        }
     }
 }
