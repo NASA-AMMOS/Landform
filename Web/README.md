@@ -35,8 +35,9 @@ In order to run projects you will also need at least one running tiling worker c
 1. Acquire AWS credentials as described above if you haven't already.
 1. `cd ../TilingServer/bin/Release`
 1. `TilingServer.exe configure`
-    1. enter same venue name, s3 URL, and AWS region as in `config.js`
-    1. enter profile name for AWS credentials
+    1. Enter same venue name, s3 URL, and AWS region as in `config.js`.
+       1. For development the venue name is computed based on your username and machine name, run `npm run show-venue` to see it.
+    1. Enter profile name for AWS credentials.
 1. `TilingServer.exe startworker`
 
 For production or integration testing the worker is deployed to an EC2 autoscale group.  See the [AWS setup](docs/SETUP.md) documentation.
@@ -47,9 +48,10 @@ For production or integration testing the worker is deployed to an EC2 autoscale
 1. Install latest [node.js](https://nodejs.org) 8.x.x.
 1. Acquire AWS credentials and build `TilingServer.exe` with Visual Studio as explained above.
 1. `npm install`
-1. Check `venueName` in `config.js` - the server will connect to live AWS services for that venue.
-1. `npm start -- [-d|--debug]` will start both the backend api server on port 8081 and the frontend react dev server on port 3000 (the frontend server will proxy backend routes to the backend server).
-    1. You can also run the api server and client servers independently with `npm run server -- [-d|--debug]` and `npm run client`.  This is convenient when doing backend dev so that you can independently restart the backend server.
+1. `npm run show-venue` - the server will connect to live AWS services for that venue.
+1. `npm start` will start both the backend api server on port 8081 and the frontend react dev server on port 3000 (the frontend server will proxy backend routes to the backend server).
+    1. You can also run the api server and client servers independently with `npm run server` and `npm run client`.  This is convenient when doing backend dev so that you can independently restart the backend server.
+    1. To use the debug build of `TilingServer.exe` instead of the release version, set the environment variable `DEBUG_TILING_SERVER=true`.
 1. Typically you should not need to restart the frontend server for frontend dev because it uses hot module reloading.  However, if you modify the backend server you will need to restart it.
 1. Go to http://localhost:3000 and follow the instructions to login and generate an API token.  Note that SSO login will only work when deployed to the production server URL given above, and LDAP login will only work when the server is within the JPL firewall (i.e. not deployed to AWS for production).
 
@@ -68,7 +70,8 @@ For production or integration testing the worker is deployed to an EC2 autoscale
         * required binaries from `../TilingServer/bin/Release` under `bin`
 1. Optional - test the Docker container locally.
     1. This will require a local installation of [Docker](https://www.docker.com) host.
-    1. Check `venueName` in `config.js` - the server will connect to live AWS services for that venue.  The `venueName` that will be used is determined by the `NODE_ENV` environment variable in the shell where the `local-deploy` script is run, even though in the container `NODE_ENV=production` always.  Typically this results in `venueName=landformweb-dev`, which is appropriate for testing.
+    1. `npm run show-venue` - the server will connect to live AWS services for that venue.
+       1. The `venueName` that will be used is determined by the `NODE_ENV` environment variable in the shell where the `local-deploy` script is run, even though in the container `NODE_ENV=production` always.  This enables testing a local deployment connected to a private AWS venue.
     1. `npm run local-deploy -- [-f|--force] [-i|--interactive] [-d|--debug]` to re-build the Docker container and run it locally.  The name of the docker container is given by the value of `deployEnvironment` from `config.js`, using the value of `NODE_ENV` in the shell where the `local-deploy` script runs.  Typically `deployEnvironment=landformweb-dev`, which is appropriate for testing.
     1. Options:
         * `--force`: use existing `landformweb.zip` even if it might be outdated

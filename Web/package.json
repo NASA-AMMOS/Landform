@@ -14,7 +14,8 @@
     "bundle": "npm run bundle-server && node tools/bundleClient.js && node tools/bundleMaster.js",
     "build": "npm install && npm run build-client && npm run bundle",
     "deploy": "node tools/deploy.js",
-    "local-deploy": "node tools/localDeploy.js"
+    "local-deploy": "node tools/localDeploy.js",
+    "show-venue": "node tools/showVenue.js"
   },
   "keywords": [
     "landform"

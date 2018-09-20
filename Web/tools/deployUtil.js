@@ -41,6 +41,8 @@ function spawnSync(cmd, args, opts) {
 async function checkDeploy() {
 
   let force = false;
+  //argv[0] is the path to the node binary
+  //argv[1] is the path to start script
   const args = process.argv.slice(2).reduce((a, v) => {
     if (boolArg(v, 'force')) force = true; else a.push(v);
     return a;

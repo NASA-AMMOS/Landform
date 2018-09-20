@@ -200,7 +200,7 @@ This step configures the Elastic Beanstalk environment with specifics of your de
 1. Services -> Compute -> Elastic Beanstalk
 1. Navigate into the Elastic Beanstalk application and environment you configured above
 1. Software -> Environment variables
-    * `NODE_ENV`: `production`
+    * `NODE_ENV`: `production` (`integration` for testing)
     * `SESSION_SECRET`: any private string
     * `TOKEN_SECRET`: any private string
     * `SAML_ENTRY_POINT`: `https://sso1.jpl.nasa.gov/oamfed/idp/initiatesso?providerid=https://landform.hi.jpl.nasa.gov`(for internal Landform use only, otherwise contact JPL IT to set up SSO)
