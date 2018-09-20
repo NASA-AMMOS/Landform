@@ -40,9 +40,9 @@ namespace OPS.Pipeline
             get { return metadata.HasKey("IMAGE", "MISSING_CONSTANT") && metadata.ReadAsString("IMAGE", "MISSING_CONSTANT") != Unknown; }
         }
 
-        public float MissingConstant
+        public double[] MissingConstant
         {
-            get { return (float)metadata.ReadAsDouble("IMAGE", "MISSING_CONSTANT"); }
+            get { return metadata.ReadAsDoubleArray("IMAGE", "MISSING_CONSTANT"); }
         }
 
         public bool HasInvalidConstant
