@@ -201,14 +201,14 @@ This step configures the Elastic Beanstalk environment with specifics of your de
 1. Navigate into the Elastic Beanstalk application and environment you configured above
 1. Software -> Environment variables
     * `NODE_ENV`: `production` (`integration` for testing)
+      * for internal Landform use, setting `NODE_ENV` should be sufficient, as all other environment variables will be set automatically based on that
+      * otherwise, use `NODE_ENV=production` and customize the variables below
     * `SESSION_SECRET`: any private string
     * `TOKEN_SECRET`: any private string
-    * `SAML_ENTRY_POINT`: `https://sso1.jpl.nasa.gov/oamfed/idp/initiatesso?providerid=https://landform.hi.jpl.nasa.gov`(for internal Landform use only, otherwise contact JPL IT to set up SSO)
-      * use `ssoint` instead of `sso1` for development and integration testing 
-    * `SAML_CERT`: Single sign on identity provider certificate, copy X509Certificate from https://sso1.jpl.nasa.gov/oamfed/idp/metadata
-      * use `ssoint` instead of `sso1` for development and integration testing
+    * `SAML_ENTRY_POINT`: for internal Landform use SSO should already be properly configured.  Otherwise you will need to contact JPL IT to set up SSO for your deployment.  Typically this field will have a form like `https://SSO_HOST.jpl.nasa.gov/oamfed/idp/initiatesso?providerid=LANDFORM_URL` where `SSO_HOST` is `ssoint` for integration testing and `sso1` for production, and `LANDFORM_URL` is the URL to your Landform master server.
+    * `SAML_CERT`: for internal Landform use SSO should already be properly configured depending on `NODE_ENV`.  Otherwise typically copy the X509Certificate field from `https://SSO_HOST.jpl.nasa.gov/oamfed/idp/metadata`.
     * `TILE_SERVER_REGION`: `us-west-1`
-    * `TILE_SERVER_VENUE_NAME`: `landformweb[-dev]` (recommended, but can be any name) - this is the Landform venue name and it must match the venue name in the Landform worker configuration
+    * `TILE_SERVER_VENUE_NAME`: `landformweb[-dev]` (recommended, but can be any name) - this is the Landform venue name for the deployment; it must match the venue name in the Landform worker configuration.
     * `TILE_SERVER_S3_URL`: `s3://landlords-dev` (internal landform use only, otherwise use your own S3 bucket)
     * `TILE_SERVER_LDAP_GROUP`: `landform` (internal landform use only, otherwise use your own LDAP group)
 1. Apply
