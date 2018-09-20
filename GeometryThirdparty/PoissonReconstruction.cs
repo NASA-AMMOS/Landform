@@ -13,13 +13,15 @@ namespace OPS.Geometry
     public class PoissonReconstruction
     {
         private static readonly ILog logger = LogManager.GetLogger(typeof(PoissonReconstruction));
+        private enum BoundaryTypes { Free = 1, Dirichlet = 2, Neumann = 3 };
 
         /// <summary>
         /// Creates a mesh from a point cloud
         /// </summary>
         /// <param name="pointCloud"></param>
+        /// <param name="extrapolateBoundaries">if true, it uses the neumann boundary (derivative). if false it uses the dirichlet boundary (actual value). the former can add big sweeping wings to the edges of the mesh, but does more agressive hole filling.</param>
         /// <returns></returns>
-        public static Mesh Reconstruct(Mesh pointCloud)
+        public static Mesh Reconstruct(Mesh pointCloud, bool extrapolateBoundaries=true)
         {
             if (pointCloud.Vertices.Count == 0)
             {
@@ -63,7 +65,8 @@ namespace OPS.Geometry
                 PLYSerializer.Write(pointCloud, inputFile, new PLYMaximumCompatibilityWriter(false));
                 TemporaryFile.GetAndDelete(".ply", outputFile =>
                 {
-                    ProgramRunner pr = new ProgramRunner(poissonReconExe, "--in " + inputFile + " --out " + outputFile /*+ " --scale 1"*/, captureOutput: true);
+                    string arguments = "--in " + inputFile + " --out " + outputFile + " --bType " + (extrapolateBoundaries ? (int)BoundaryTypes.Neumann : (int)BoundaryTypes.Dirichlet);
+                    ProgramRunner pr = new ProgramRunner(poissonReconExe, arguments, captureOutput: true);
                     pr.Run();
                     if (!File.Exists(outputFile))
                     {
