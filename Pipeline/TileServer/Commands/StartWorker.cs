@@ -63,11 +63,19 @@ namespace OPS.Pipeline.TileServer
             if(options.StartMaster)
             {
                 masterTask = new Task(() =>
-                {
-                    StartMasterOptions opts = new StartMasterOptions();
-                    opts.SingleThreaded = true;
-                    new StartMaster(opts).Run();
-                });
+                        {
+                            try
+                            {
+                                StartMasterOptions opts = new StartMasterOptions();
+                                opts.SingleThreaded = true;
+                                new StartMaster(opts).Run();
+                            }
+                            catch (Exception e)
+                            {
+                                logger.Error("error in master task: " + e.Message);
+                                logger.Error(e.StackTrace);
+                            }
+                        });
                 masterTask.Start();
             }
 
@@ -80,7 +88,17 @@ namespace OPS.Pipeline.TileServer
                 Task[] tasks = new Task[Environment.ProcessorCount];
                 for (int i = 0; i < tasks.Length; i++)
                 {
-                    tasks[i] = Task.Run(() => RunWorker());
+                    tasks[i] = Task.Run(() => {
+                            try
+                            {
+                                RunWorker();
+                            }
+                            catch (Exception e)
+                            {
+                                logger.Error("error in worker task " + i + ": " + e.Message);
+                                logger.Error(e.StackTrace);
+                            }
+                        });
                 }
                 for (int i = 0; i < tasks.Length; i++)
                 {

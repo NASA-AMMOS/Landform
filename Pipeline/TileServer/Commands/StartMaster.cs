@@ -48,7 +48,17 @@ namespace OPS.Pipeline.TileServer
                 Task[] tasks = new Task[Environment.ProcessorCount];
                 for (int i = 0; i < tasks.Length; i++)
                 {
-                    tasks[i] = Task.Run(() => RunMaster());
+                    tasks[i] = Task.Run(() => {
+                            try
+                            {
+                                RunMaster();
+                            }
+                            catch (Exception e)
+                            {
+                                logger.Error("error in master task " + i + ": " + e.Message);
+                                logger.Error(e.StackTrace);
+                            }
+                        });
                 }
                 for (int i = 0; i < tasks.Length; i++)
                 {
