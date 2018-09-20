@@ -55,7 +55,7 @@ namespace OPS.Geometry
             {
                 logger.Warn("Found " + notNormalCount  + " vertices with non unit length normals");
             }
-            string poissonReconExe = Path.Combine(PathHelper.GetApplicationPath(), "ExternalApps", "PoissonReconV9.exe");
+            string poissonReconExe = Path.Combine(PathHelper.GetApplicationPath(), "ExternalApps", "PoissonReconV10.02.exe");
             Mesh result = null;
             float scale = MathE.Max(pointCloud.Bounds().Size().ToFloatArray()) / (float)Math.Sqrt(pointCloud.Vertices.Count) * 2;
             TemporaryFile.GetAndDelete(".ply", inputFile =>

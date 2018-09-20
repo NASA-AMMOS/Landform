@@ -100,10 +100,7 @@
     <Content Include="ExternalApps\meshclean.exe">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
-    <Content Include="ExternalApps\PoissonReconV9.exe">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-    <Content Include="ExternalApps\PoissonRecon.exe">
+    <Content Include="ExternalApps\PoissonReconV10.02.exe">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
     <Content Include="ExternalApps\SurfaceTrimmer.exe">
