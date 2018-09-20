@@ -83,6 +83,7 @@ namespace OPS.Geometry
                     {
                         logger.Error(pr.OutputText);
                         logger.Error(pr.ErrorText);
+                        throw new MeshException("Failed to run " + poissonReconExe);
                     }
                     int ouputVertCount = Mesh.Load(outputFile).Vertices.Count;
                     if (ouputVertCount == 0)
