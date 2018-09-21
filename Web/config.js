@@ -28,7 +28,7 @@ const development = {
     logLevel: env.LOG_LEVEL || 'silly', //error, warn, info, verbose, debug, silly
 
     uploadDir: env.UPLOAD_DIR || path.join(cwd, 'upload'),
-    binDir: env.BIN_DIR || path.join(cwd, '..', 'TilingServer', 'bin', !!env.DEBUG_TILING_SERVER ? 'Debug' : 'Release'),
+    binDir: env.BIN_DIR || path.join(cwd, '..', 'TilingServer', 'bin', env.DEBUG_TILING_SERVER ? 'Debug' : 'Release'),
     logDir: env.LOG_DIR || path.join(cwd, 'log'),
     tmpDir: env.TMP_DIR || path.join(cwd, 'tmp'),
 
