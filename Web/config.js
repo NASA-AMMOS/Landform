@@ -10,6 +10,7 @@ const development = {
     name: 'Landform',
 
     bundle: 'landformweb.zip',
+    workerBundle: 'landformweb-worker.zip',
     deployEnvironment: env.EB_DEPLOY_ENV || 'landformweb-dev',
 
     port: env.PORT || 8081,
