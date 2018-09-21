@@ -347,7 +347,13 @@ namespace OPS.Cloud
                     // Process response.
                     foreach (string prefix in response.CommonPrefixes)
                     {
-                        if (regex.IsMatch(prefix))
+                        // Remove the location prefix from the returned results for the regex check
+                        var item = prefix;
+                        if (!string.IsNullOrEmpty(location.Prefix))
+                        {
+                            item = item.Replace(location.Prefix, "");
+                        }
+                        if (regex.IsMatch(item))
                         {
                             yield return new S3Url(location.BucketName, prefix).Url;
                         }
