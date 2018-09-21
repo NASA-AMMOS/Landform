@@ -112,11 +112,28 @@ namespace OPS.Pipeline.TileServer
             ReceiveMessageResponse r = GetClient().ReceiveMessage(req);
             return r.Messages.Select(msg =>
             {
-                var m = (TilingQueueMessage)JsonHelper.FromJson(msg.Body);
-                m.MessageId = msg.MessageId;
-                m.ReceiptHandle = msg.ReceiptHandle;
-                return m;
-            }).ToArray();
+                try
+                {
+                    var m = (TilingQueueMessage)JsonHelper.FromJson(msg.Body);
+                    m.MessageId = msg.MessageId;
+                    m.ReceiptHandle = msg.ReceiptHandle;
+                    return m;
+                }
+                catch (Exception e)
+                {
+                    
+                    logger.Error("invalid message '" + msg.Body + "' in " + queueName + " (deleting): " + e.Message);
+                    try
+                    {
+                        DeleteMessage(msg.ReceiptHandle);
+                    }
+                    catch (Exception e2)
+                    {
+                        logger.Error(e2.Message);
+                    }
+                    return null;
+                }
+            }).Where(obj => obj != null).ToArray();
         }
 
         public void Delete(TilingQueueMessage m)
@@ -125,10 +142,15 @@ namespace OPS.Pipeline.TileServer
             {
                 throw new CloudException("Message does not have a receipt handle");
             }
+            DeleteMessage(m.ReceiptHandle);
+        }
+
+        private void DeleteMessage(string receiptHandle)
+        {
             var delRequest = new DeleteMessageRequest
             {
                 QueueUrl = this.queueUrl,
-                ReceiptHandle = m.ReceiptHandle
+                ReceiptHandle = receiptHandle
             };
 
             var response = GetClient().DeleteMessageAsync(delRequest).Result;

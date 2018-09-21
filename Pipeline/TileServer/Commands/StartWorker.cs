@@ -41,15 +41,20 @@ namespace OPS.Pipeline.TileServer
         {
             this.options = options;
 
-            //MSL specific: this project does not hold its images within the same s3 bucket as the project, future projects  are expected to be within the same bucket
-            if (OPS.Cloud.Credentials.Exists(TileServerConfig.Instance.MSLICEProfile))
+            //MSL specific: this project does not hold its images within the same s3 bucket as the project
+            //future projects  are expected to be within the same bucket
+            var config = TileServerConfig.Instance;
+            if (!string.IsNullOrEmpty(config.MSLICEProfile) && !string.IsNullOrEmpty(config.MSLICES3Url) &&
+                OPS.Cloud.Credentials.Exists(config.MSLICEProfile))
             {
-                this.AddProfile(TileServerConfig.Instance.MSLICES3Url, TileServerConfig.Instance.MSLICEProfile);
+                this.AddProfile(config.MSLICES3Url, config.MSLICEProfile);
             }
         }
 
         public int Run()
         {
+            TileServerConfig.Instance.Dump(logger);
+
             // Register filetype handlers
             new OpenInventorSerializer().Register();
             new DracoSerializer().Register();
@@ -58,16 +63,23 @@ namespace OPS.Pipeline.TileServer
 
             new TileServerCloud(this).EnsureTablesExist();
 
-
             Task masterTask = null;
             if(options.StartMaster)
             {
                 masterTask = new Task(() =>
-                {
-                    StartMasterOptions opts = new StartMasterOptions();
-                    opts.SingleThreaded = true;
-                    new StartMaster(opts).Run();
-                });
+                        {
+                            try
+                            {
+                                StartMasterOptions opts = new StartMasterOptions();
+                                opts.SingleThreaded = true;
+                                new StartMaster(opts).Run();
+                            }
+                            catch (Exception e)
+                            {
+                                logger.Error("error in master task: " + e.Message);
+                                logger.Error(e.StackTrace);
+                            }
+                        });
                 masterTask.Start();
             }
 
@@ -80,7 +92,17 @@ namespace OPS.Pipeline.TileServer
                 Task[] tasks = new Task[Environment.ProcessorCount];
                 for (int i = 0; i < tasks.Length; i++)
                 {
-                    tasks[i] = Task.Run(() => RunWorker());
+                    tasks[i] = Task.Run(() => {
+                            try
+                            {
+                                RunWorker();
+                            }
+                            catch (Exception e)
+                            {
+                                logger.Error("error in worker task " + i + ": " + e.Message);
+                                logger.Error(e.StackTrace);
+                            }
+                        });
                 }
                 for (int i = 0; i < tasks.Length; i++)
                 {
