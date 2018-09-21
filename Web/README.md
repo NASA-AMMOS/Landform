@@ -30,19 +30,19 @@ During local development (environment variable `NODE_ENV=development`) the tilin
 
 In a deployed context (`NODE_ENV=production` or `NODE_ENV=integration`) the tiling server binary will be found at `./bin/TilingServer.exe`, which will be copied from `../TilingServer/bin/Release/TilingServer.exe` when the build zip is bundled.
 
-### Tiling Worker
+## Tiling Worker
 In order to run projects you will also need at least one running tiling worker connected to the same AWS venue.  For development one option is to run the tiling worker locally: `npm run start-worker`.
 
 For production or integration testing the worker is [deployed to an EC2 autoscale group](#deploy-worker-to-ec2).
 
-#### Issues & Workarounds
+### Issues & Workarounds
 * CTRL-C may not work correctly to kill the worker if you started it from a cygwin prompt; consider using a Git bash prompt or Windows `cmd` instead.
 
 ---
 
 ## Development Workflow
-1. Install latest [node.js](https://nodejs.org) 8.x.x.
-1. Acquire AWS credentials and build `TilingServer.exe` with Visual Studio as explained above.
+First install latest [node.js](https://nodejs.org) 8.x.x and acquire AWS credentials and build `TilingServer.exe` with Visual Studio as explained above.
+
 1. `npm install`
 1. `npm run show-venue` - the server will connect to live AWS services for that venue.
 1. Make sure a [tiling worker](#tiling-worker) is running in that venue.
@@ -55,9 +55,9 @@ For production or integration testing the worker is [deployed to an EC2 autoscal
 * CTRL-C may not work correctly to kill the backend server if you started it from a cygwin prompt; consider using a Git bash prompt or Windows `cmd` instead.
 
 ## Test & Deployment Workflow
-Install latest [node.js](https://nodejs.org) 8.x.x and acquire AWS credentials and build `TilingServer.exe` with Visual Studio as explained above.
+First install latest [node.js](https://nodejs.org) 8.x.x and acquire AWS credentials and build `TilingServer.exe` with Visual Studio as explained above.
 
-### Generate Release Bundle
+### 1. Generate Release Bundle
 Run `npm run build` to generate `landformweb.zip`.
 
 This is sugar for `npm install && npm run build-client && npm run bundle`.
@@ -68,7 +68,7 @@ This is sugar for `npm install && npm run build-client && npm run bundle`.
     * current `client/build` subtree
     * required binaries from `../TilingServer/bin/Release` under `bin`
 
-### Test the Master Server in a Docker Container Locally (Optional)
+### 2. Test the Master Server in a Docker Container Locally (Optional)
 This will require a local installation of [Docker](https://www.docker.com) host.
 
 1. `npm run show-venue` - the server will connect to live AWS services for that venue.
@@ -82,7 +82,7 @@ This will require a local installation of [Docker](https://www.docker.com) host.
 1. You can now access the server at http://localhost:8081.
 1. Run through the [test procedures](docs/TEST.md).
 
-### Deploy Master Server to Elastic Beanstalk
+### 3. Deploy Master Server to Elastic Beanstalk
 It is also possible to manually deploy the release bundle using the AWS Elastic Beanstalk web console, as documented in the [AWS setup](docs/SETUP.md) instructions.
 
 1. Check `deployEnvironment` in `config.js` - the server will be deployed to this Elastic Beanstalk environment.  The `deployEnvironment` that will be used is determined by the `NODE_ENV` environment variable in the shell where the `deploy` script is run, even though in the deployment the value of `NODE_ENV` is typically configured in the Elastic Beanstalk environment as `NODE_ENV=production`.
@@ -93,7 +93,8 @@ It is also possible to manually deploy the release bundle using the AWS Elastic 
     * `environment-name`: Upload to this Elastic Beanstalk environment instead of the default from `config.js`
     * `--force`: use existing landformweb.zip even if it might be outdated
     * `--profile=foo`: use AWS credentials profile `foo` instead of `default`
-1. You can watch the Elastic Beanstalk (re-)deployment progress by logging in to the [AWS web console](http://goto.jpl.nasa.gov/awsconsole).
+1. The deployment process will take a few minutes.
+  1. You can also watch the deployment progress by logging in to the [AWS web console](http://goto.jpl.nasa.gov/awsconsole).
 1. Once the deployment is complete the site will be live at https://landform-dev.hi.jpl.nasa.gov (omit `-dev` for production).  Note, if using VPN full tunnel is required because we restrict access to JPL IP addresses.
 1. Run through the [test procedures](docs/TEST.md).
 
