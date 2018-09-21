@@ -17,6 +17,8 @@ const taskRouter = require('./api/task');
 
 const app = express();
 
+const nodeEnv = app.get('env');
+
 app.use(cors());
 
 app.use(bodyParser.json());
@@ -25,7 +27,7 @@ app.use(bodyParser.urlencoded({ extended: true }));
 // Since we run this server on elastic beanstalk we need to trust the first proxy in order to use cookie.secure
 // See https://github.com/expressjs/session#cookie-options
 // and https://docs.aws.amazon.com/elasticbeanstalk/latest/dg/nodejs-platform-proxy.html
-if (app.get('env') === 'production') app.set('trust proxy', 1);
+if (nodeEnv === 'production') app.set('trust proxy', 1);
 
 app.use(cookieParser(config.app.sessionCookieSecret));
 
@@ -57,11 +59,13 @@ app.get('/favicon.ico', (req, res) => res.status(204));
 //serve webpacked client but in production only
 //for dev the client is served by a separate server on localhost:3000 which does hot module reloading
 //that dev server proxies certain routes back to this server as configured in client/package.json
-if (app.get('env') === 'production') app.use('/', express.static(path.join(__dirname, 'client', 'build')));
+if (nodeEnv === 'production' || nodeEnv === 'integration') {
+  app.use('/', express.static(path.join(__dirname, 'client', 'build')));
+}
 
 //serve public dir of client but in development only
 //this is so that e.g. http://localhost:8081/viewer/index.html works, which is what the project/view API returns
-if (app.get('env') === 'development') app.use('/', express.static(path.join(__dirname, 'client', 'public')));
+if (nodeEnv === 'development') app.use('/', express.static(path.join(__dirname, 'client', 'public')));
 
 logger.info(`NODE_ENV: ${app.get('env')}`);
 logger.info(`LDAP group: ${config.app.ldapGroup}`);
