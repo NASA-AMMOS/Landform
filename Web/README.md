@@ -31,7 +31,9 @@ During local development (environment variable `NODE_ENV=development`) the tilin
 In a deployed context (`NODE_ENV=production` or `NODE_ENV=integration`) the tiling server binary will be found at `./bin/TilingServer.exe`, which will be copied from `../TilingServer/bin/Release/TilingServer.exe` when the build zip is bundled.
 
 ## Tiling Worker
-In order to run projects you will also need at least one running tiling worker connected to the same AWS venue.  For development one option is to run the tiling worker locally: `npm run start-worker`.
+In order to run projects you will also need at least one running tiling worker connected to the same AWS venue.  For development one option is to run the tiling worker locally:
+1. `npm run show-venue` - the server will connect to live AWS services for that venue
+2. `npm run start-worker` or `npm run start-worker -- venue-name` to use a different venue.
 
 For production or integration testing the worker is [deployed to an EC2 autoscale group](#deploy-worker-to-ec2).
 
