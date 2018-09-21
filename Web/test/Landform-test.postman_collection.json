@@ -7,6 +7,25 @@
 	"item": [
 		{
 			"name": "create project",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"id": "d3b1180e-bd46-49a6-9edc-84db8164841a",
+						"type": "text/javascript",
+						"exec": [
+							"pm.test(\"HTTP OK\", function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"pm.test(\"task success\", function () {",
+							"    pm.expect(pm.response.json().success).to.eql(true);",
+							"});",
+							""
+						]
+					}
+				}
+			],
 			"request": {
 				"method": "POST",
 				"header": [
@@ -32,6 +51,25 @@
 		},
 		{
 			"name": "upload data",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"id": "7942a72d-fb1c-405b-a4d5-6b8577605ff6",
+						"type": "text/javascript",
+						"exec": [
+							"pm.test(\"HTTP OK\", function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"pm.test(\"task success\", function () {",
+							"    pm.expect(pm.response.json().success).to.eql(true);",
+							"});",
+							""
+						]
+					}
+				}
+			],
 			"request": {
 				"method": "POST",
 				"header": [
@@ -74,9 +112,16 @@
 				{
 					"listen": "test",
 					"script": {
-						"id": "2263b666-1ba2-468e-8dee-0f0bcf558ca0",
+						"id": "20161023-466b-489a-be1a-0627003999dd",
 						"type": "text/javascript",
 						"exec": [
+							"pm.test(\"HTTP OK\", function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"pm.test(\"task success\", function () {",
+							"    pm.expect(pm.response.json().success).to.eql(true);",
+							"});",
 							""
 						]
 					}
@@ -152,6 +197,29 @@
 		},
 		{
 			"name": "get project result URL",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"id": "d0df6d5f-5537-44d3-9248-e67829270b8e",
+						"type": "text/javascript",
+						"exec": [
+							"pm.test(\"HTTP OK\", function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"pm.test(\"content type\", function () {",
+							"    pm.response.to.have.header(\"Content-Type\");",
+							"    pm.response.to.be.header(\"Content-Type\", \"text/plain; charset=utf-8\");",
+							"});",
+							"",
+							"pm.test(\"body is correct\", function () {",
+							"    pm.response.to.have.body(new RegExp(`https://.+[.]s3[.]amazonaws[.]com/.+/www/${pm.variables.get('PROJECT_NAME')}/tileset.json`));",
+							"});"
+						]
+					}
+				}
+			],
 			"request": {
 				"method": "GET",
 				"header": [
@@ -209,7 +277,30 @@
 			"response": []
 		},
 		{
-			"name": "view project result",
+			"name": "get project result viewer URL",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"id": "4b3fc4e4-a5ad-4b36-b03d-0fc4905edbb8",
+						"type": "text/javascript",
+						"exec": [
+							"pm.test(\"HTTP OK\", function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"pm.test(\"content type\", function () {",
+							"    pm.response.to.have.header(\"Content-Type\");",
+							"    pm.response.to.be.header(\"Content-Type\", \"text/plain; charset=utf-8\");",
+							"});",
+							"",
+							"pm.test(\"body is correct\", function () {",
+							"    pm.response.to.have.body(new RegExp('http.+'));",
+							"});"
+						]
+					}
+				}
+			],
 			"request": {
 				"method": "GET",
 				"header": [
@@ -220,7 +311,7 @@
 				],
 				"body": {},
 				"url": {
-					"raw": "{{SERVER_URL}}/api/projects/{{PROJECT_NAME}}/view",
+					"raw": "{{SERVER_URL}}/api/projects/{{PROJECT_NAME}}/view?redirect=false",
 					"host": [
 						"{{SERVER_URL}}"
 					],
@@ -229,6 +320,12 @@
 						"projects",
 						"{{PROJECT_NAME}}",
 						"view"
+					],
+					"query": [
+						{
+							"key": "redirect",
+							"value": "false"
+						}
 					]
 				}
 			},
@@ -236,6 +333,29 @@
 		},
 		{
 			"name": "get master task ID",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"id": "4d4f9ed7-3e53-4e15-9959-d8c244ee4e96",
+						"type": "text/javascript",
+						"exec": [
+							"pm.test(\"HTTP OK\", function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"pm.test(\"content type\", function () {",
+							"    pm.response.to.have.header(\"Content-Type\");",
+							"    pm.response.to.be.header(\"Content-Type\", \"application/json; charset=utf-8\");",
+							"});",
+							"",
+							"pm.test(\"body is correct\", function () {",
+							"    pm.response.to.have.body(new RegExp('[0-9]+'));",
+							"});"
+						]
+					}
+				}
+			],
 			"request": {
 				"method": "GET",
 				"header": [
@@ -262,6 +382,24 @@
 		},
 		{
 			"name": "get master task status",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"id": "ecfb254f-452f-4f2b-91c6-ef319eec087e",
+						"type": "text/javascript",
+						"exec": [
+							"pm.test(\"HTTP OK\", function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"pm.test(\"task running\", function () {",
+							"    pm.expect(pm.response.json().running).to.eql(true);",
+							"});"
+						]
+					}
+				}
+			],
 			"request": {
 				"method": "GET",
 				"header": [
@@ -310,20 +448,20 @@
 	],
 	"variable": [
 		{
-			"id": "4ac31030-f601-464c-8d7a-4eaef3b99488",
-			"key": "API_TOKEN",
-			"value": "",
-			"type": "string"
-		},
-		{
-			"id": "2c2f7071-5d6c-49e2-b54a-b78df73313b4",
+			"id": "7de76f1c-cc9a-4b94-bad8-0c9798e63a5b",
 			"key": "PROJECT_NAME",
 			"value": "",
 			"type": "string"
 		},
 		{
-			"id": "b129bcdb-6e3a-460c-b50f-ad18b433b47f",
+			"id": "2955761b-f44d-4b4e-8d7a-9f70ca12b7e9",
 			"key": "SERVER_URL",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"id": "adbcf513-5463-4abc-9084-ade0f04f4c17",
+			"key": "API_TOKEN",
 			"value": "",
 			"type": "string"
 		}
