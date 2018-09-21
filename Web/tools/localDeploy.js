@@ -7,7 +7,7 @@ const { boolArg, spawn, spawnSync, checkDeploy, checkTTY } = require('./deployUt
 
 //npm run local-deploy -- [-f|--force|--force=true] [-i|--interactive|--interactive=true] [-d|--debug|--debug=true]
 
-checkDeploy()
+checkDeploy('local-deploy')
   .then(async(args) => {
 
     const dockerImage = config.app.deployEnvironment;
@@ -16,31 +16,42 @@ checkDeploy()
     do { tmpDir = path.join('tmp', `local-deploy${nextTmpDir++}`); } while (fs.pathExistsSync(tmpDir));
     fs.ensureDirSync(tmpDir);
 
-    try {
-      const zip = new Zip(config.app.bundle);
-
-      console.log(`extracting ${config.app.bundle} to ${tmpDir}`);
-      zip.extractAllTo(tmpDir);
-
-      const buildArgs = ['build', '--tag', dockerImage, '--build-arg', 'NODE_ENV=production', '.'];
-      spawnSync('docker', buildArgs, { cwd: tmpDir });
-
-    } finally { fs.remove(tmpDir); }
-
-    const runArgs = ['run'];
-
-    if (args.some(a => boolArg(a, 'debug'))) runArgs.push('--env', 'LOG_LEVEL=silly');
-
     //process.env.HOME lies on windows when run as an npm script and HOME != USERPROFILE
     //https://github.com/nodejs/node/issues/13818
     //so e.g. if HOME=C:\cygwin64\home\vona and USERPROFILE=C:\Users\vona
     //then here we will get process.env.HOME=C:\Users\vona
     //so workaround that by symlinking C:\Users\vona\.aws -> C:\cygwin64\home\vona\.aws
     //(you can create symlinks in windows by first enabling developer mode and then using mklink)
-    //but then resolve that symlink before embedding it in the --mount argument for docker
-    //because docker apparrently can't do that on its own
     const awsDir = fs.realpathSync(path.join(process.env.HOME, '.aws'));
-    runArgs.push('--mount', `type=bind,source="${awsDir}",target=/root/.aws,readonly`);
+
+    try {
+      const zip = new Zip(config.app.bundle);
+
+      console.log(`extracting ${config.app.bundle} to ${tmpDir}`);
+      zip.extractAllTo(tmpDir);
+
+      fs.copySync(awsDir, path.join(tmpDir, '.aws'), { overwrite: true });
+
+      const buildArgs = ['build', '--tag', dockerImage];
+
+      buildArgs.push('--build-arg', 'NODE_ENV=production');
+
+      buildArgs.push('.');
+
+      spawnSync('docker', buildArgs, { cwd: tmpDir });
+
+    } finally { fs.remove(tmpDir); }
+
+    const runArgs = ['run'];
+
+    //this should work as an alternate to copying awsDir to tmpDir/.aws above
+    //and then to /root/.aws in Dockerfile
+    //unfortunately local filesystem mounts in docker for windows seem quite fragile and we've seen multiple problems
+    //e.g. https://stackoverflow.com/questions/42203488
+    //runArgs.push('--mount', `type=bind,source="${awsDir}",target=/root/.aws,readonly`);
+
+    if (args.some(a => boolArg(a, 'debug'))) runArgs.push('--env', 'LOG_LEVEL=silly');
+
     runArgs.push('--env', `AWS_PROFILE=${config.app.awsProfile}`);
     runArgs.push('--env', 'WITHOUT_HTTPS=true');
     runArgs.push('--env', `TILE_SERVER_VENUE_NAME=${config.app.venueName}`);

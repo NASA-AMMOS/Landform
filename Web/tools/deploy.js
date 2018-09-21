@@ -3,7 +3,7 @@ const defEnv = require('../config').app.deployEnvironment;
 
 //npm run deploy -- [environment-name] [-f|--force|--force=true] [--profile=foo]
 
-checkDeploy()
+checkDeploy('deploy')
   .then(async(args) => {
     //eb deploy <environment-name>
     //

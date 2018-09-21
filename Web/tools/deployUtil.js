@@ -38,7 +38,7 @@ function spawnSync(cmd, args, opts) {
 //respects the "force" command line options (--force, --force=true, -f)
 //if any of those options are present then the only fatal error is if the bundle doesn't exist
 //returns command line args with force options removed
-async function checkDeploy() {
+async function checkDeploy(cmd) {
 
   let force = false;
   //argv[0] is the path to the node binary
@@ -68,7 +68,7 @@ async function checkDeploy() {
   } catch (e) {
     console.log(e.message);
     if (force) console.log(`force=true, continuing with existing ${bundle}`);
-    else throw new Error(`or run 'npm run deploy -- --force=true' to use existing ${bundle}`);
+    else throw new Error(`or run 'npm run ${cmd} -- --force=true' to use existing ${bundle}`);
   }
 
   return args;
