@@ -18,16 +18,20 @@ namespace OPS.Pipeline.TileServer
         }
 
         override public void ProcessMessage(TilingQueueMessage m)
-        { 
-            if (m.GetType() == typeof(DefineTilesMessage))
+        {
+            if(m.GetType() == typeof(RunProjectMessage))
+            {
+                logger.Info("Run project:" + m.ProjectName);
+                
+                this.workerQueue.Enqueue(new DefineTilesMessage(m.ProjectName));
+            }
+            else if (m.GetType() == typeof(DefineTilesMessage))
             {
                 logger.Info("DefineTiles project:" + m.ProjectName);
-
-                // This is the first message that happens when we trigger a new run
-                // Force a clearing of the cache just to avoid stale data form a previous run
+              
+                TilingProject project = TilingProject.Find(pipeline.DynamoContext, m.ProjectName);
                 this.projectCache.Refresh();
 
-                TilingProject project = TilingProject.Find(pipeline.DynamoContext, m.ProjectName);
                 ChunkInputs(project);
             }
             else if (m.GetType() == typeof(ChunkInputMessage))

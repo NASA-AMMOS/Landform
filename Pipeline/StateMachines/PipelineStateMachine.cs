@@ -71,6 +71,15 @@ namespace OPS.Pipeline.TileServer
 
     // shared messages for all current pipelines
 
+    public class RunProjectMessage : TilingQueueMessage
+    {
+        public RunProjectMessage() { }
+
+        public RunProjectMessage(string projectName) : base(projectName)
+        {
+        }
+    }
+
     public class TileCompletedMessage : TilingQueueMessage
     {
         public string TileId;
