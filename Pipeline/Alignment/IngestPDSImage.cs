@@ -312,6 +312,7 @@ namespace OPS.Pipeline
             productTypeToObservationType.TryAdd(RoverProductType.Range, ObservationType.Points);
             productTypeToObservationType.TryAdd(RoverProductType.XYZ, ObservationType.Points);
             productTypeToObservationType.TryAdd(RoverProductType.NormalMap, ObservationType.Normals);
+            productTypeToObservationType.TryAdd(RoverProductType.RoverMask, ObservationType.RoverMask);
         }
 
         public override Result Ingest(S3ImageRef imgRef)
