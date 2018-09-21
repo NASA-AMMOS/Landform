@@ -16,7 +16,7 @@ This repo consists of a backend [REST API](API.md) server and a frontend react a
 1. Use VisualStudio to build the TilingServer subproject in Release configuration.
 1. Build landformweb.zip: `npm run build` - sugar for `npm install && npm run build-client && npm run bundle`
     1. `npm install` - installs node\_modules and client/node\_modules
-    1. `npm run build-client` - runs `npm run build` to webpack client/build
+    1. `npm run build-client` - runs `npm run build` in client/
     1. `npm run bundle` - creates landformweb.zip containing
         1. full archive of current git HEAD
         1. current client/build/ subtree
