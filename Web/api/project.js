@@ -5,7 +5,7 @@ const multer = require('multer');
 const url = require('url');
 
 const config = require('../config');
-const { routeError, abortRoute, parseArgs, sendText } = require('../routeUtil');
+const { routeError, abortRoute, parseArgs, sendJson } = require('../routeUtil');
 const { taskHandler } = require('../taskUtil');
 const { tilingTask } = require('../tilingUtil');
 
@@ -104,13 +104,13 @@ function resultURL(name) {
 router.get('/:name/result', (req, res) => {
   const redirect = parseArgs(req, { redirect: { type: 'bool', default: true } }).redirect;
   const ret = resultURL(req.params.name);
-  if (redirect) res.redirect(ret); else sendText(res, ret);
+  if (redirect) res.redirect(ret); else sendJson(res, ret);
 });
 
 router.get('/:name/view', (req, res) => {
   const redirect = parseArgs(req, { redirect: { type: 'bool', default: true } }).redirect;
   const ret = `/viewer/index.html?TilesetURL=${encodeURIComponent(resultURL(req.params.name))}`;
-  if (redirect) res.redirect(ret); else sendText(res, `${req.protocol}://${req.hostname}:${config.app.port}${ret}`);
+  if (redirect) res.redirect(ret); else sendJson(res, `${req.protocol}://${req.hostname}:${config.app.port}${ret}`);
 });
 
 module.exports = router;

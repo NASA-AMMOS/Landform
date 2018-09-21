@@ -131,11 +131,11 @@ TODO
 TODO
 
 ### Get Project Result URL: GET /api/projects/*name*/result
-Fetch `tileset.json` result for a project.
+Fetch [3DTiles](https://github.com/AnalyticalGraphicsInc/3d-tiles) `tileset.json` result for a project.
 
-By default this API will return a HTTP 302 (found) redirect to the `tileset.json` file stored on AWS.  If execution of the project is not yet completed, this URL will return HTTP 403 (forbidden).
+By default this API will return a HTTP 302 (found) redirect to the `tileset.json` file stored on AWS.  If execution of the project is not yet completed then AWS will return HTTP 403 (forbidden).
 
-If the argument `redirect=false` is specified then the output is the `text/plain` URL to the tileset with no redirect.
+If the argument `redirect=false` is specified then the output is the URL to the tileset with no redirect.
 
 **Example:** get result URL for project "testproj" without redirect
 
@@ -149,7 +149,7 @@ Response
 
     HTTP/1.1 200
     status: 200
-    content-type: text/plain; charset=utf-8
+    content-type: application/json; charset=utf-8
 
     https://landlords-dev.s3.amazonaws.com/landformweb/www/testproj/tileset.json
 
@@ -158,7 +158,7 @@ Launch a web-based 3D viewer for a completed project.
 
 By default this API will return a HTTP 302 (found) redirect to a web-based viewer for the project hosted by the LandformWeb server.
 
-If the argument `redirect=false` is specified then the output is the `text/plain` viewer URL with no redirect.
+If the argument `redirect=false` is specified then the output is the viewer URL with no redirect.
 
 **Example:** launch 3D viewer for project "testproj"
 

@@ -16,7 +16,7 @@ Note: SSO will only work in a deployment where the Landform master server DNS na
 Three methods are supported for running [REST API](../docs/API.md) tests:
 1. Using [curl](https://curl.haxx.se/windows) from the Windows 10 command prompt (`cmd`)
 2. Using `curl` from any other compatible command prompt.
-3. Using [Postman](https://www.getpostman.com).
+3. Using [Postman](https://www.getpostman.com).  This is the recommended method as it is mostly automated.
 
 Details are given below for `curl` on the Windows 10 command prompt.  To use another compatible command prompt you may need to modify the syntax slightly.  For example, in `bash` style command prompts variable substitution syntax is `$VARIABLE` instead of `%VARIABLE%`.
 
@@ -58,6 +58,8 @@ To use Postman
             --url http://%SERVER_URL%/api/projects/%PROJECT_NAME% \
             --header "x-landform-token: %API_TOKEN%"
 
+   Validation: check that the response code is HTTP 200 (ok), the content type is `application/json`, and the response body is a valid JSON object with `success=true`.
+
 2. List projects: TODO
 
 3. Upload input files:
@@ -69,7 +71,9 @@ To use Postman
             --form mesh=(mesh filename) \
             --form texture=(texture filename)
 
-  use the mesh and texture filenames you selected during setup.  If using Postman select the "upload data" request, then click Body, then Choose Files.
+   use the mesh and texture filenames you selected during setup.  If using Postman select the "upload data" request, then click Body, then Choose Files.
+
+   Validation: check that the response code is HTTP 200 (ok), the content type is `application/json`, and the response body is a valid JSON object with `success=true`.
 
 4. Get project metadata: TODO
 
@@ -79,20 +83,24 @@ To use Postman
             --url http://%SERVER_URL%/api/projects/%PROJECT_NAME%/run \
             --header "x-landform-token: %API_TOKEN%"
 
-6. Get project result:
+   Validation: check that the response code is HTTP 200 (ok), the content type is `application/json`, and the response body is a valid JSON object with `success=true`.
 
-       curl -sS -L --request GET \
-            --url http://%SERVER_URL%/api/projects/%PROJECT_NAME%/result \
+6. Get project result URL:
+
+       curl -sS --request GET \
+            --url http://%SERVER_URL%/api/projects/%PROJECT_NAME%/result?redirect=false \
             --header "x-landform-token: %API_TOKEN%"
 
-    Note: This redirects to the AWS S3 storage for the tileset result and should return HTTP 403 (forbidden) until the project execution is complete.
+   Validation: check that the response code is HTTP 200 (ok), the content type is `application/json`, and the response body is a valid URL.
 
-7. Visualize project result:
+6. Get project viewer URL:
 
        curl -sS --request GET \
             --url http://%SERVER_URL%/api/projects/%PROJECT_NAME%/view?redirect=false \
             --header "x-landform-token: %API_TOKEN%"
 
-   Copy the returned URL to the system clipboard and then "paste and search" in the URL bar of a Chrome browser.
+   Validation: check that the response code is HTTP 200 (ok), the content type is `application/json`, and the response body is a valid URL.
+
+   To visually inspect the dataset, copy the returned URL to the system clipboard and then load it in a Chrome browser.
 
 8. Delete project: TODO
