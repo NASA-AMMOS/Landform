@@ -43,9 +43,19 @@ Response
 ### Upload Data: POST /api/projects/*name*/upload
 Upload data for the named project.  Implements the [task API](#task-api).
 
-Uploading the data with the same mesh filename more than once has no effect (not an error).
+Data formats are implied from the filename extension.
 
-The data format is implied from the filename extension.
+Supported extensions for mesh files include `.obj` and `.ply`.  PLY files may be ASCII or binary.
+
+Supported extensions for image files include `.tiff`, `.tif`, `.jpg`, and `.png`. TIFF files may be 8 or 16 bit.  Images may be greyscale or 3 band color.
+
+Uploading data with the same mesh file basename (i.e. the filename omitting the extension) into the same project more than once is an error.
+
+If more than one mesh/image pair dataset is is uploaded in the same project where the image filenames are the same but the image data is different, only the most recently uploaded image data will be used for that image filename for all datasets.
+
+All uploads must be complete before a project starts running.
+
+Image data is validated when a project is run, not on upload.
 
 Accepts the following arguments in a `multipart/form-data` encoded HTTP request body:
 * *mesh*: mesh data file (required); data format will be implied from filename extension
@@ -93,7 +103,7 @@ Response
 ### Run Project: POST /api/projects/*name*/run
 Initiate a run of a project.  Implements the [task API](#task-api).
 
-Note: in the current implementation this task only initiates the execution of a project.  It will typically complete before the project is actually finished running.  To determine whether the project execution has completed:
+This task only *initiates* the execution of a project.  It will typically complete before the project is actually finished running.  To determine whether the project execution has completed:
 1. Determine the project result URL via the `/api/projects/*name*/result?redirect=false` API.
 2. Poll the project result URL.  When it returns HTTP 200 (OK) with valid JSON the project has completed execution.
 
