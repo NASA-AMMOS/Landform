@@ -5,7 +5,6 @@ const LdapStrategy = require('passport-ldapauth');
 const { createClient: createLDAPClient } = require('ldapjs');
 
 const config = require('./config');
-const logger = require('./logger');
 const token = require('./token');
 
 const router = express.Router();
@@ -82,6 +81,9 @@ router.post('/auth/ldap', passport.authenticate('ldapauth', { session: true }), 
 // because SSO setup required registering that server with the SSO service
 // https://dir.jpl.nasa.gov/websso/index.php
 
+//JPL wiki page for Landform SSO configuration
+//https://wiki.jpl.nasa.gov/pages/viewpage.action?pageId=186145545
+
 passport.use(new SamlStrategy(
   {
     path: config.sso.saml.path,
@@ -89,16 +91,15 @@ passport.use(new SamlStrategy(
     issuer: config.sso.saml.issuer,
     cert: config.sso.saml.cert,
   },
-  ((profile, done) => done(
-    null,
-    {
-      id: profile.uid,
+  ((profile, done) => {
+    done(null, {
+      uid: profile.uid,
       email: profile.email,
       displayName: profile.cn,
       firstName: profile.givenName,
       lastName: profile.sn,
-    },
-  )),
+    });
+  }),
 ));
 
 // Forward to the single signon service specified in the config file
@@ -109,9 +110,9 @@ router.get('/auth/sso', passport.authenticate(config.sso.strategy, { successRedi
 // and will parse out user information from SAML data
 // An api token will be generated and saved as a cookie
 router.post(config.sso.saml.path,
-            passport.authenticate(config.sso.strategy, { failureRedirect: '/', failureFlash: true }),
+            passport.authenticate(config.sso.strategy, { session: true, failureRedirect: '/', failureFlash: true }),
             (req, res) => {
-              logger.info(`SSO login successful, uid=${req.user.uid}`);
+              req.user.uid = req.user.uid || 'foo';
               token.saveToken(res, req.user.uid);
               res.redirect('/');
             });

@@ -27,7 +27,7 @@ app.use(bodyParser.urlencoded({ extended: true }));
 // Since we run this server on elastic beanstalk we need to trust the first proxy in order to use cookie.secure
 // See https://github.com/expressjs/session#cookie-options
 // and https://docs.aws.amazon.com/elasticbeanstalk/latest/dg/nodejs-platform-proxy.html
-if (nodeEnv === 'production') app.set('trust proxy', 1);
+if (nodeEnv === 'production' || nodeEnv === 'integration') app.set('trust proxy', 1);
 
 app.use(cookieParser(config.app.sessionCookieSecret));
 
