@@ -104,8 +104,8 @@ namespace OPS.Pipeline
         /// <param name="a"></param>
         /// <param name="b"></param>
         /// <returns></returns>
-        static int RoverObservationComparison(RoverObservation a, RoverObservation b)
-        {
+        static public int RoverObservationComparison(RoverObservation a, RoverObservation b)
+        {          
             // sort first by producer
             if (a.Producer == RoverProductProducer.MSSS.ToString() && b.Producer == RoverProductProducer.OPGS.ToString())
             {
@@ -126,8 +126,9 @@ namespace OPS.Pipeline
             {
                 return 1;
             }
-            // sort by version
-            return int.Parse(b.Version) - int.Parse(a.Version);
+
+            // versions go numeric 1 to 9, A-Z, _ (opgs) and numeric 0 to 9, A-Z (msss)
+            return (int)b.Version[0] - (int)a.Version[0];
         }
         
         static bool IsLinear(RoverObservation observation)
