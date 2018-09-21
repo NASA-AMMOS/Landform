@@ -5,6 +5,7 @@ const LdapStrategy = require('passport-ldapauth');
 const { createClient: createLDAPClient } = require('ldapjs');
 
 const config = require('./config');
+const logger = require('./logger');
 const token = require('./token');
 
 const router = express.Router();
@@ -108,11 +109,11 @@ router.get('/auth/sso', passport.authenticate(config.sso.strategy, { successRedi
 // and will parse out user information from SAML data
 // An api token will be generated and saved as a cookie
 router.post(config.sso.saml.path,
-  passport.authenticate(config.sso.strategy, { failureRedirect: '/', failureFlash: true }),
-  (req, res) => {
-    token.saveToken(res, req.user.uid);
-    res.redirect('/');
-  },
-);
+            passport.authenticate(config.sso.strategy, { failureRedirect: '/', failureFlash: true }),
+            (req, res) => {
+              logger.info(`SSO login successful, uid=${req.user.uid}`);
+              token.saveToken(res, req.user.uid);
+              res.redirect('/');
+            });
 
 module.exports = router;
