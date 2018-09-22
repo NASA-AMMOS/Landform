@@ -245,7 +245,7 @@ These steps only need to be performed once before your first deployment.
   1. Rules
      1. Add Rule
        * Type: `RDP`
-       * Source: `Custom: 128.149.0.0/16, 137.78.0.0/16, 137.79.0.0/16, 137.228.0.0/16`
+       * Source: `Custom: 128.149.0.0/16, 137.78.0.0/16, 137.79.0.0/16, 137.228.0.0/16` - restrict RDP access to JPL IP addresses
 1. Services -> Compute -> EC2
 1. Network & Security -> Key Pairs (optional - only if you want to be able to log in to the EC2 instances in the autoscale group for debugging or maintenance)
   1. select, create, or import a key pair
@@ -265,7 +265,7 @@ These instructions only need to be run once for a new venue or when the venue co
     * select the previous template in "Launch template name"
     * select the most recent version of the previous template in "Source Template Version"
     * the new template will be pre-populated with values from the old template
-    * most likely, the only field you'll need to replace is "User Data"
+    * most likely the only field you'll need to replace is "User Data"
   * Launch Template Name: `landformweb[-dev]-workers` (recommended, but can be any name)
   * AMI ID: `ami-0df605282263fb1c9` (Microsoft Windows Server 2016 Base 64-bit)
   * Instance Type: `t2.2xlarge` recommended, other [instance types](https://aws.amazon.com/ec2/instance-types) can be chosen for different [price](https://aws.amazon.com/ec2/pricing/on-demand)/performance tradeoffs 
@@ -301,7 +301,7 @@ These instructions only needs to be run when the Landform worker version changes
 1. upload `landformweb-worker-VERSION.zip`
 1. right click on `landformweb-worker-VERSION.zip` and rename to `tileserver.zip`
 1. you will need to restart all EC2 instances in the autoscale group to pick up the changes
-  1. one way to do that is to delete any existing auto scaling group and re-create following the instructions below
+  1. one way to do that is to delete any existing auto scaling group and then re-create following the instructions below
 
 ### 4. Create Auto Scaling Group
 1. http://goto.jpl.nasa.gov/awsconsole
