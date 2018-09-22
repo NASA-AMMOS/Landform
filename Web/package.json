@@ -18,7 +18,7 @@
     "build": "npm install && npm run build-client && npm run bundle",
     "deploy": "node tools/deploy.js",
     "local-deploy": "node tools/localDeploy.js",
-    "show-venue": "node tools/showVenue.js"
+    "show-config": "node tools/showConfig.js"
   },
   "keywords": [
     "landform"
