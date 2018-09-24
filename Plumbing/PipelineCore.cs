@@ -156,6 +156,24 @@ namespace OPS.Plumbing
 
             return imgRef.Load(this);
         }
+
+        /// <summary>
+        /// Convenience function to allow pipeline.Load(x) instead of x.Load(pipeline).
+        /// </summary>
+        public Image Load(ImageRef imgRef, bool memoryCache, IImageConverter imageConverter)
+        {
+            if (memoryCache)
+            {
+                if (!imageCache.ContainsKey(imgRef))
+                {
+                    imageCache[imgRef] = imgRef.Load(this,imageConverter);
+                }
+                return imageCache[imgRef];
+            }
+
+            return imgRef.Load(this, imageConverter);
+        }
+
         public Image Load(ImageRef imgRef)
         {
             return Load(imgRef, true);
