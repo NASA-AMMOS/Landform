@@ -11,7 +11,7 @@ namespace PipelineTest
     {
         [TestMethod]
         [DeploymentItem("TestData", "TestData")]
-        public void PDSParser()
+        public void PDSParserBase()
         {
             {
                 string filename = Path.Combine("TestData", "img", @"ML0_451292526RCX_S0311094MCAM02555M1.IMG");
@@ -94,6 +94,7 @@ namespace PipelineTest
                 Assert.AreEqual(0.0275015, m.Articulation.LeftRockerAngle);
                 Assert.AreEqual(6.20445, m.Articulation.MastAzimuth);
                 Assert.AreEqual(1.97266, m.Articulation.MastElevation);
+                Assert.AreEqual(PDSParser.ReferenceCoordinateFrame.Site, m.DerivedImageCoordinateFrame);
             }
 
 
@@ -134,8 +135,8 @@ namespace PipelineTest
                 Assert.AreEqual(-0.013007, m.Articulation.LeftRockerAngle);
                 Assert.AreEqual(4.092333, m.Articulation.MastAzimuth);
                 Assert.AreEqual(1.127138, m.Articulation.MastElevation);
-            }
 
+            }
         }
     }
 
