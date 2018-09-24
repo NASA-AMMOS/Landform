@@ -32,6 +32,8 @@ namespace OPS.Pipeline.TileServer
 
         public bool StartedRunning { get; set; }
 
+        public bool FinishedRunning { get; set; }
+
         public TilingProject()
         {
 

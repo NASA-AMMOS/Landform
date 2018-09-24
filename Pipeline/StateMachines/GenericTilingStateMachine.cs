@@ -65,6 +65,9 @@ namespace OPS.Pipeline.TileServer
             }
             else if (m.GetType() == typeof(BuildTilesetJsonMessage))
             {
+                TilingProject project = TilingProject.Find(pipeline.DynamoContext, m.ProjectName);
+                project.FinishedRunning = true;
+                project.Save(pipeline.DynamoContext);
                 logger.Info("TilesetComplete " + m.ProjectName);
             }
             else
