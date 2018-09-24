@@ -53,9 +53,9 @@ Uploading data with the same mesh file basename (i.e. the filename omitting the 
 
 If more than one mesh/image pair dataset is is uploaded in the same project where the image filenames are the same but the image data is different, only the most recently uploaded image data will be used for that image filename for all datasets.
 
-All uploads must be complete before a project starts running.
+All uploads must be complete before a project starts running.  The inputs used by a project are determined at the time the project is first run.  Additional inputs uploaded to the project after that time are ignored, even if the project is re-run.
 
-Image data is validated when a project is run, not on upload.
+Input data is validated when a project is run, not on upload.
 
 Accepts the following arguments in a `multipart/form-data` encoded HTTP request body:
 * *mesh*: mesh data file (required); data format will be implied from filename extension
@@ -106,6 +106,8 @@ Initiate a run of a project.  Implements the [task API](#task-api).
 This task only *initiates* the execution of a project.  It will typically complete before the project is actually finished running.  To determine whether the project execution has completed:
 1. Determine the project result URL via the `/api/projects/*name*/result?redirect=false` API.
 2. Poll the project result URL.  When it returns HTTP 200 (OK) with valid JSON the project has completed execution.
+
+It is safe to issue this command more than once.  However, project results are only computed once: in the absence of errors, subsequent runs of a project after the first run has begun have no effect.
 
 **Example:** run project "testproj"
 
