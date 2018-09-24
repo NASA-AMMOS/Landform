@@ -30,6 +30,8 @@ namespace OPS.Pipeline.TileServer
 
         public string ProjectType { get; set; }
 
+        public bool StartedRunning { get; set; }
+
         public TilingProject()
         {
 
