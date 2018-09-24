@@ -13,8 +13,7 @@ namespace OPS.Pipeline.TileServer
     [Verb("startmaster", HelpText = "Runs a tiling workflow")]
     public class StartMasterOptions
     {
-        [Option(HelpText = "Run a single master on the main thread for debugging", Default = false)]
-        public bool SingleThreaded { get; set; }
+
     }
 
     public class StartMaster : PipelineCore
@@ -36,22 +35,9 @@ namespace OPS.Pipeline.TileServer
 
         public int Run()
         {
-            if (options.SingleThreaded)
-            {
-                RunMaster();
-            }
-            else
-            {
-                Task[] tasks = new Task[Environment.ProcessorCount];
-                for (int i = 0; i < tasks.Length; i++)
-                {
-                    tasks[i] = Task.Run(() => RunMaster());
-                }
-                for (int i = 0; i < tasks.Length; i++)
-                {
-                    tasks[i].Wait();
-                }
-            }
+
+            RunMaster();
+            
             return 0;
         }
 
