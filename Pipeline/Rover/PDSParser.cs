@@ -474,5 +474,24 @@ namespace OPS.Pipeline
                 return new PDSRoverArticulationParser(this.metadata).Parse();
             }
         }
+
+        public enum ReferenceCoordinateFrame
+        {
+            RoverNav,
+            Site
+        }
+
+        public ReferenceCoordinateFrame DerivedImageCoordinateFrame
+        {
+            get
+            {
+                if (metadata.ReadAsString("DERIVED_IMAGE_PARMS", "REFERENCE_COORD_SYSTEM_NAME") == "ROVER_NAV_FRAME")
+                    return ReferenceCoordinateFrame.RoverNav;
+                else if (metadata.ReadAsString("DERIVED_IMAGE_PARMS", "REFERENCE_COORD_SYSTEM_NAME") == "SITE_FRAME")
+                    return ReferenceCoordinateFrame.Site;
+                else
+                    throw new PDSParserException("unknown reference coordinate system");
+            }
+        }
     }
 }
