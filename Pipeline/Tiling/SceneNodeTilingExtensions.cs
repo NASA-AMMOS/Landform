@@ -202,7 +202,80 @@ namespace OPS.Pipeline
                 geoError.Error = Math.Max(error, geoError.Error);
             }
         }
+
+        /// <summary>
+        /// Given a list of nodes, connect them in a tree based on name prefix convention and return the root
+        /// </summary>
+        /// <param name="nodes"></param>
+        /// <returns></returns>
+        public static SceneNode ConnectNodesByName(List<SceneNode> nodes)
+        {
+            Dictionary<string, SceneNode> lookup = new Dictionary<string, SceneNode>();
+            foreach(var node in nodes)
+            {
+                lookup.Add(node.Name, node);
+            }
+            Queue<SceneNode> nodesToConnect = new Queue<SceneNode>(nodes);
+            SceneNode root = null;
+            while(nodesToConnect.Count != 0)
+            {
+                var node = nodesToConnect.Dequeue();
+                if(node.Name == "root")
+                {
+                    root = node;
+                    continue;
+                }
+                string parentId = (node.Name.Length == 1) ? "root" : node.Name.Substring(0, node.Name.Length - 1);
+                if(!lookup.ContainsKey(parentId))
+                {
+                    var p = new SceneNode(parentId);
+                    nodesToConnect.Enqueue(p);
+                    lookup.Add(parentId, p);
+                }
+                var parent = lookup[parentId];
+                node.Transform.SetParent(parent.Transform);
+            }
+            return root;
+        }
         
+        /// <summary>
+        /// Given a tree with leaves that have meshes, compute bounding boxes up the tree such that
+        /// parents bounding boxes fully enclose their children.  Add NodeBounds components onto the
+        /// nodes of the tree and set their bounds accordingly.  If parent nodes have mesh data their
+        /// meshes will also be enclosed by the calculated bounds.
+        /// </summary>
+        /// <param name="root"></param>
+        public static void ComputeBounds(SceneNode root)
+        {
+            HashSet<SceneNode> curParents = new HashSet<SceneNode>();
+            foreach (var leaf in root.Leaves())
+            {
+                var pair = leaf.GetComponent<MeshImagePair>();
+                leaf.GetOrAddComponent<NodeBounds>().Bounds = pair.Mesh.Bounds();
+                if (leaf.Parent != null)
+                {
+                    curParents.Add(leaf.Parent);
+                }
+            }
+            while (curParents.Count > 0)
+            {
+                HashSet<SceneNode> nextParents = new HashSet<SceneNode>();
+                foreach (var p in curParents)
+                {
+                    p.GetOrAddComponent<NodeBounds>().Bounds = BoundingBoxExtensions.Union(p.Children.Select(c => c.GetOrAddComponent<NodeBounds>().Bounds).ToArray());
+                    if(p.HasComponent<MeshImagePair>() && p.GetComponent<MeshImagePair>().Mesh != null)
+                    {
+                        p.GetComponent<NodeBounds>().Bounds = BoundingBoxExtensions.Union(p.GetComponent<MeshImagePair>().Mesh.Bounds(), p.GetComponent<NodeBounds>().Bounds);
+                    }
+                    if (p.Parent != null)
+                    {
+                        nextParents.Add(p.Parent);
+                    }
+                }
+                curParents = nextParents;
+            }           
+        }
+
         /// <summary>
         /// Returns this tree as a set of groups where each group contains all the nodes at a given depth
         /// The first group is the deapest and the last group is the shallowest (containing only the root of the tree)

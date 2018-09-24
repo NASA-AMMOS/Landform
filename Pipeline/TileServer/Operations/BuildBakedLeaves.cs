@@ -67,6 +67,11 @@ namespace OPS.Pipeline.TileServer
             }
             // Filter any completed leaves
             leaves = leaves.Where(n => n.MeshUrl == null).ToList();
+            if(leaves.Count == 0)
+            {
+                logger.Info("All leaves already generated");
+                return;
+            }
             // Get a list of all chunks that overlap with a leaf tile
             var inputs = TilingInput.Find(pipeline.DynamoContext, project).ToList();
             List<InputChunkGroup> inputGroups = new List<InputChunkGroup>();

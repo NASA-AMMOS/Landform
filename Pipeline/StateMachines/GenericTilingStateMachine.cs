@@ -28,7 +28,15 @@ namespace OPS.Pipeline.TileServer
                 this.projectCache.Refresh();
 
                 TilingProject project = TilingProject.Find(pipeline.DynamoContext, m.ProjectName);
-                ChunkInputs(project);
+                if(project.TilingScheme == TilingScheme.UserDefined.ToString())
+                {
+                    // Skip Chunking
+                    BuildBakedLeaves(project);
+                }
+                else
+                {
+                    ChunkInputs(project);
+                }
             }
             else if (m.GetType() == typeof(ChunkInputMessage))
             {
