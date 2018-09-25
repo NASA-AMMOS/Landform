@@ -22,7 +22,7 @@ namespace OPS.Pipeline.TileServer
             this.projectCache = new ProjectCache(pipeline, projectName);
         }
        
-        abstract public void ProcessMessage(TilingQueueMessage m);
+        abstract public void ProcessCompletedMessage(TilingQueueMessage m);
         
         // shared functionality for all current pipelines
 
@@ -31,11 +31,53 @@ namespace OPS.Pipeline.TileServer
             var inputs = TilingInput.Find(pipeline.DynamoContext, project);
             foreach (var input in inputs)
             {
+                logger.Info("chunking input " + input.Name + " in " + project.Name);
                 workerQueue.Enqueue(new ChunkInputMessage(project.Name, input.Name));
             }
         }
 
-        protected Queue<SceneNode> GroupSceneNodesIntoJobs(SceneNode node, List<List<SceneNode>> outputGroups, int nodesPerGroup = 32)
+        protected bool InputChunked(TilingProject project, string inputName)
+        {
+            logger.Info("input " + inputName + " chunked in " + project.Name);
+            var inputs = TilingInput.Find(pipeline.DynamoContext, project);
+            bool allChunked = inputs.All(i => i.Chunked);
+            if (allChunked)
+            {
+                logger.Info("all inputs chunked in " + project.Name);
+            }
+            return allChunked;
+        }
+
+        protected void TileCompleted(TilingProject project, string tileId)
+        {
+            logger.Info("tile " + tileId + " completed in " + project.Name);
+            
+            projectCache.MarkDone(tileId);
+            if (tileId == projectCache.RootId)
+            {
+                logger.Info("building tileset JSON in " + project.Name);
+                workerQueue.Enqueue(new BuildTilesetJsonMessage(project.Name));
+            }
+            else
+            {
+                foreach (var pid in projectCache.GetDependentTilesToRun(tileId))
+                {
+                    logger.Info("enquing parent " + pid + " in " + project.Name);
+                    workerQueue.Enqueue(new BuildParentsMessage(project.Name, pid));
+                    projectCache.MarkEnqued(pid);
+                }
+            }
+        }
+
+        protected void TilesetCompleted(TilingProject project)
+        {
+            project.FinishedRunning = true;
+            project.Save(pipeline.DynamoContext);
+            logger.Info(project.Name + " finished running");
+        }
+
+        protected Queue<SceneNode> GroupSceneNodesIntoJobs(SceneNode node, List<List<SceneNode>> outputGroups,
+                                                           int nodesPerGroup = 32)
         {
             var result = new Queue<SceneNode>();
             if (node.IsLeaf)
@@ -67,6 +109,7 @@ namespace OPS.Pipeline.TileServer
             }
             return result;
         }
+
     }
 
     // shared messages for all current pipelines

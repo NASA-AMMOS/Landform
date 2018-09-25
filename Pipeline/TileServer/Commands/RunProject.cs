@@ -45,12 +45,12 @@ namespace OPS.Pipeline.TileServer
                 return 1;
             }
 
-            logger.Info("Define tiles: " + options.ProjectName);
-
             project.StartedRunning = true;
             project.Save(DynamoContext);
 
             workerQueue.Enqueue(new DefineTilesMessage(options.ProjectName));
+
+            logger.Info(options.ProjectName + " started running");
 
             return 0;
         }

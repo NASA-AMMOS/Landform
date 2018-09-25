@@ -1,7 +1,6 @@
 using CommandLine;
 using log4net;
 using OPS.Plumbing;
-using OPS.Util;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -57,7 +56,10 @@ namespace OPS.Pipeline.TileServer
         public int Run()
         {
             //https://stackoverflow.com/questions/4094032/how-to-switch-on-off-logging-using-log4net
-            if (options.Quiet) LogManager.GetRepository().ResetConfiguration();
+            if (options.Quiet)
+            {
+                LogManager.GetRepository().ResetConfiguration();
+            }
 
             new TileServerCloud(this).EnsureTablesExist();
 

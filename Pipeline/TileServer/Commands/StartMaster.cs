@@ -88,7 +88,7 @@ namespace OPS.Pipeline.TileServer
                     
                     try
                     {
-                        projectNameToStateMachine[m.ProjectName].ProcessMessage(m);
+                        projectNameToStateMachine[m.ProjectName].ProcessCompletedMessage(m);
                     }
                     catch (Exception e)
                     {
