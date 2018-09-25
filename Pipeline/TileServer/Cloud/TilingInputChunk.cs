@@ -57,12 +57,11 @@ namespace OPS.Pipeline.TileServer
             return context.Load<TilingInputChunk>(id);
         }
 
-        public void Delete(PipelineCore pipeline, DynamoDBContext context, bool ignoreErrors = true, ILog logger = null)
+        public void Delete(PipelineCore pipeline, bool ignoreErrors = true, ILog logger = null)
         {
             pipeline.Storage(MeshUrl).DeleteObject(MeshUrl, ignoreErrors: ignoreErrors, logger: logger);
             pipeline.Storage(ImageUrl).DeleteObjects(ImageUrl, ignoreErrors: ignoreErrors, logger: logger);
-            Console.WriteLine(String.Format("TilingInputChunk.Delete({0})", Id));
-            //TODO context.Delete(this);
+            pipeline.DeleteDynamoItem(this, ignoreErrors, logger);
         }
 
         public BoundingBox GetBounds()

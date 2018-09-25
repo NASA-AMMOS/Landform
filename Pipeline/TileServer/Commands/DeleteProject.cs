@@ -47,7 +47,7 @@ namespace OPS.Pipeline.TileServer
                 return 1;
             }
 
-            project.Delete(this, DynamoContext, true, logger);
+            project.Delete(this, true, logger);
 
             return 0;
         }

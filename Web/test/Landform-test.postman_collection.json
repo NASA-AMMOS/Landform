@@ -391,15 +391,14 @@
 				],
 				"body": {},
 				"url": {
-					"raw": "{{SERVER_URL}}/api/projects/{{PROJECT_NAME}}/run",
+					"raw": "{{SERVER_URL}}/api/projects/{{PROJECT_NAME}}",
 					"host": [
 						"{{SERVER_URL}}"
 					],
 					"path": [
 						"api",
 						"projects",
-						"{{PROJECT_NAME}}",
-						"run"
+						"{{PROJECT_NAME}}"
 					]
 				}
 			},

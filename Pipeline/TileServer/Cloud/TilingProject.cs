@@ -87,16 +87,16 @@ namespace OPS.Pipeline.TileServer
             context.Save(this, new DynamoDBOperationConfig() { IgnoreNullValues = true });
         }
 
-        public void Delete(PipelineCore pipeline, DynamoDBContext context, bool ignoreErrors = true, ILog logger = null)
+        public void Delete(PipelineCore pipeline, bool ignoreErrors = true, ILog logger = null)
         {
-            foreach (var node in TilingNode.Find(context, this))
+            foreach (var node in TilingNode.Find(pipeline.DynamoContext, this))
             {
-                node.Delete(pipeline, context, ignoreErrors, logger);
+                node.Delete(pipeline, ignoreErrors, logger);
             }
 
-            foreach (var input in TilingInput.Find(context, this))
+            foreach (var input in TilingInput.Find(pipeline.DynamoContext, this))
             {
-                input.Delete(pipeline, context, ignoreErrors, logger);
+                input.Delete(pipeline, ignoreErrors, logger);
             }
 
             pipeline.DeleteProjectCache(Name);
@@ -104,8 +104,7 @@ namespace OPS.Pipeline.TileServer
             string wwwS3Url = TileServerConfig.Instance.WWWUrl(Name);
             pipeline.Storage(wwwS3Url).DeleteObjects(wwwS3Url, ignoreErrors: ignoreErrors, logger: logger);
 
-            Console.WriteLine(String.Format("TilingProject.Delete({0})", Name));
-            //TODO context.Delete(this);
+            pipeline.DeleteDynamoItem(this, ignoreErrors, logger);
         }
 
         private void IsValid()

@@ -13,6 +13,7 @@ using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
+using log4net;
 
 namespace OPS.Plumbing
 {
@@ -249,8 +250,27 @@ namespace OPS.Plumbing
             var projectCacheFolder = Path.Combine(cacheFolder, project);
             if (Directory.Exists(projectCacheFolder))
             {
-                Console.WriteLine(String.Format("DeleteProjectCache({0})", projectCacheFolder));
-                //TODO Directory.Delete(projectCacheFolder, true);
+                Directory.Delete(projectCacheFolder, true);
+            }
+        }
+
+        public void DeleteDynamoItem<T>(T obj, bool ignoreErrors = true, ILog logger = null)
+        {
+            try
+            {
+                DynamoContext.Delete(obj);
+            }
+            catch (Exception e)
+            {
+                if (!ignoreErrors)
+                {
+                    throw e;
+                }
+
+                if (logger != null)
+                {
+                    logger.Warn(string.Format("error deleting DynamoDB object: {0}", e.Message));
+                }
             }
         }
 

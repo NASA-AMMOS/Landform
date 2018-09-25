@@ -86,18 +86,17 @@ namespace OPS.Pipeline.TileServer
             context.Save(this, new DynamoDBOperationConfig() { IgnoreNullValues = true });
         }
 
-        public void Delete(PipelineCore pipeline, DynamoDBContext context, bool ignoreErrors = true, ILog logger = null)
+        public void Delete(PipelineCore pipeline, bool ignoreErrors = true, ILog logger = null)
         {
             foreach (var chunkId in ChunkIds)
             {
-                TilingInputChunk.Find(context, chunkId).Delete(pipeline, context, ignoreErrors, logger);
+                TilingInputChunk.Find(pipeline.DynamoContext, chunkId).Delete(pipeline, ignoreErrors, logger);
             }
 
             pipeline.Storage(MeshUrl).DeleteObject(MeshUrl, ignoreErrors: ignoreErrors, logger: logger);
             pipeline.Storage(ImageUrl).DeleteObject(ImageUrl, ignoreErrors: ignoreErrors, logger: logger);
 
-            Console.WriteLine(String.Format("TilingInput.Delete({0})", Name));
-            //TODO context.Delete(this);
+            pipeline.DeleteDynamoItem(this, ignoreErrors, logger);
         }
 
         private void IsValid()

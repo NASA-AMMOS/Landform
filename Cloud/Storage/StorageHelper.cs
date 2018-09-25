@@ -515,9 +515,7 @@ namespace OPS.Cloud
                 using (var client = GetClient(s3Url))
                 {
                     S3Url location = new S3Url(s3Url);
-                    Console.WriteLine(String.Format("StorageHelper.DeleteObject({0}, {1})",
-                                                    location.BucketName, location.Prefix));
-                    //TODO client.DeleteObject(location.BucketName, location.Prefix);
+                    client.DeleteObject(location.BucketName, location.Prefix);
                 }
             }
             catch (Exception e)
@@ -553,10 +551,7 @@ namespace OPS.Cloud
                 
                 using (var client = GetClient(s3Url))
                 {
-                    Console.WriteLine(String.Format("StorageHelper.DeleteObjects({0}{1})",
-                                                    request.BucketName,
-                                                    request.Objects.Aggregate("", (s, kv) => s + ", " + kv.Key)));
-                    //TODO client.DeleteObjects(request);
+                    client.DeleteObjects(request);
                 }
             }
             catch (Exception e)
