@@ -186,6 +186,7 @@
     <Compile Include="Commands\TileLocalMesh.cs" />
     <Compile Include="MeshWorker\Commands\TextureMeshCommand.cs" />
     <Compile Include="MeshWorker\Operations\BuildBackprojectLeaves.cs" />
+    <Compile Include="MeshWorker\Operations\BuildTilingInput.cs" />
     <Compile Include="StateMachines\GenericTilingStateMachine.cs" />
     <Compile Include="StateMachines\MSLStateMachine.cs" />
     <Compile Include="StateMachines\PipelineStateMachine.cs" />

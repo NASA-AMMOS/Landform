@@ -19,22 +19,23 @@ namespace OPS.Pipeline.TileServer
 
         public override void ProcessMessage(TilingQueueMessage m)
         {
-            if (m.GetType() == typeof(BuildTilingInput))
+            if (m.GetType() == typeof(RunProjectMessage))
             {
-               logger.Info("Build tiling input");
+                logger.Info("Run project:" + m.ProjectName);
 
-                // This is the first message that happens when we trigger a new run
-                // Force a clearing of the cache just to avoid stale data form a previous run
-                this.projectCache.Refresh();
+                workerQueue.Enqueue(new BuildTilingInputMessage(m.ProjectName));
+           }
+           else if(m.GetType() == typeof(BuildTilingInputMessage))
+           {
+                logger.Info("BuildTilingInput project:" + m.ProjectName);
 
-                //TODO: call code to build big mesh and create a tiling input
-
-                workerQueue.Enqueue(new DefineTilesMessage(m.ProjectName));
+                this.workerQueue.Enqueue(new DefineTilesMessage(m.ProjectName));
            }
            else if (m.GetType() == typeof(DefineTilesMessage))
             {
                 logger.Info("DefineTiles project:" + m.ProjectName);
                 TilingProject project = TilingProject.Find(pipeline.DynamoContext, m.ProjectName);
+                this.projectCache.Refresh();
                 ChunkInputs(project);
             }
             else if (m.GetType() == typeof(ChunkInputMessage))
@@ -96,19 +97,6 @@ namespace OPS.Pipeline.TileServer
                     this.projectCache.MarkEnqued(leaf.Name);
                 }
             }
-        }
-
-        /// <summary>
-        /// message sent to create a large mesh from input data 
-        /// and upload it as the tiling input
-        /// </summary>
-        public class BuildTilingInput : TilingQueueMessage
-        {
-            public BuildTilingInput() { }
-
-            public BuildTilingInput(string projectName) : base(projectName)
-            {
-            }
-        }
+        }       
     }
 }
