@@ -135,7 +135,7 @@ namespace OPS.Pipeline.TileServer
             switch (uri.Scheme)
             {
                 case "https": return url;
-                case "s3": return (new Uri("https://" + uri.Host + ".s3.amazonaws.com/" + uri.AbsolutePath)).ToString();
+                case "s3": return (new Uri("https://" + uri.Host + ".s3.amazonaws.com" + uri.AbsolutePath)).ToString();
                 default: throw new Exception("unrecognized protocol: \"" + url + "\"");
             }
         }
