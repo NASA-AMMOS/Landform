@@ -7,7 +7,6 @@ using Amazon;
 using Amazon.S3;
 using Amazon.S3.Model;
 using Amazon.S3.Transfer;
-using Amazon.S3.IO;
 using Amazon.Runtime;
 using System.Text.RegularExpressions;
 using System.IO;
