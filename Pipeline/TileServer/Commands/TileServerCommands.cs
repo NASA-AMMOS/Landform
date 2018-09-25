@@ -25,7 +25,8 @@ namespace OPS.Pipeline.TileServer
                                                              StartWorkerOptions,
                                                              StartMasterOptions,
                                                              ConfigureServerOptions,
-                                                             ProjectMetadataOptions
+                                                             ProjectMetadataOptions,
+                                                             ListProjectsOptions
                                                              >(args)
               .MapResult(
                 (CreateProjectOptions opts) => new CreateProject(opts).Run(),
@@ -35,6 +36,7 @@ namespace OPS.Pipeline.TileServer
                 (StartMasterOptions opts) => new StartMaster(opts).Run(),
                 (ConfigureServerOptions opts) => new ConfigureServer(opts).Run(),
                 (ProjectMetadataOptions opts) => new ProjectMetadata(opts).Run(),
+                (ListProjectsOptions opts) => new ListProjects(opts).Run(),
                 errs => 1);
         }
     }

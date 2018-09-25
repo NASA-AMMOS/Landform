@@ -74,6 +74,11 @@ namespace OPS.Pipeline.TileServer
             return project;
         }
 
+        public static IEnumerable<TilingProject> FindAll(DynamoDBContext context)
+        {
+            return context.Scan<TilingProject>();
+        }
+
         public void Save(DynamoDBContext context)
         {
             this.IsValid();

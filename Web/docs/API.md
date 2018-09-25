@@ -205,8 +205,29 @@ Response
     }
 
 
-### Get Metadata for Multiple Projects: GET /api/projects
-TODO
+### List Projects: GET /api/projects
+Get a list of the existing project names.
+
+The project names are returned as a JSON array of strings.
+
+**Example:**
+
+Request
+
+    GET /api/projects HTTP/1.1
+    Host: https://landform.hi.jpl.nasa.gov
+    x-landform-token: API_TOKEN
+
+Response
+
+    HTTP/1.1 200
+    status: 200
+    content-type: application/json; charset=utf-8
+
+    [
+      "testproj",
+      "testproj1"
+    ]
 
 ### Get Project Result URL: GET /api/projects/*name*/result
 Fetch [3DTiles](https://github.com/AnalyticalGraphicsInc/3d-tiles) `tileset.json` result for a project.

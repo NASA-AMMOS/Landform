@@ -60,7 +60,13 @@ To use Postman
 
    Validation: check that the response code is HTTP 200 (ok), the content type is `application/json`, and the response body is a valid JSON object with `success=true`.
 
-1. List projects: TODO
+1. List projects:
+
+       curl -sS --request GET \
+            --url http://%SERVER_URL%/api/projects \
+            --header "x-landform-token: %API_TOKEN%"
+
+   Validation: check that the response code is HTTP 200 (ok), the content type is `application/json`, and the response body is a valid JSON array of strings containing `%PROJECT_NAME%`.
 
 1. Upload input files:
 
@@ -74,8 +80,6 @@ To use Postman
    use the mesh and texture filenames you selected during setup.  If using Postman select the "upload data" request, then click Body, then Choose Files.
 
    Validation: check that the response code is HTTP 200 (ok), the content type is `application/json`, and the response body is a valid JSON object with `success=true`.
-
-1. Get project metadata: TODO
 
 1. Run project:
 

@@ -54,6 +54,50 @@
 			"response": []
 		},
 		{
+			"name": "list projects",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"id": "c023b660-a47f-45f9-9db4-e929081fe179",
+						"type": "text/javascript",
+						"exec": [
+							"pm.test(\"HTTP OK\", function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"pm.test(\"response is valid array\", function () {",
+							"    var projects = pm.response.json();",
+							"    pm.expect(projects).to.be.an('array').that.includes(pm.variables.get(\"PROJECT_NAME\"));",
+							"});",
+							""
+						]
+					}
+				}
+			],
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "x-landform-token",
+						"value": "{{API_TOKEN}}"
+					}
+				],
+				"body": {},
+				"url": {
+					"raw": "{{SERVER_URL}}/api/projects",
+					"host": [
+						"{{SERVER_URL}}"
+					],
+					"path": [
+						"api",
+						"projects"
+					]
+				}
+			},
+			"response": []
+		},
+		{
 			"name": "upload data",
 			"event": [
 				{

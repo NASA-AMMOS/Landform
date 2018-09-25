@@ -121,4 +121,12 @@ async function projectMetadata(req, res) {
 }
 router.get('/:name', projectMetadata);
 
+async function listProjects(req, res) {
+  try {
+    const task = await tilingTask('listprojects', ['--quiet']);
+    await taskHandler(req, res, task, { pipe: true, exposeArgs: [], errorStatus });
+  } catch (e) { abortRoute(res, 'error listing projects', e); }
+}
+router.get('/', listProjects);
+
 module.exports = router;

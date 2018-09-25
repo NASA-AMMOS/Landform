@@ -22,7 +22,6 @@ namespace OPS.Pipeline.TileServer
         public bool Quiet { get; set; }
     }
 
-
     class SanitizedInput
     {
         public string Name;
@@ -49,7 +48,8 @@ namespace OPS.Pipeline.TileServer
 
         ProjectMetadataOptions options;
 
-        public ProjectMetadata(ProjectMetadataOptions options) : base(dynamoPrefix: TileServerConfig.Instance.VenueName, profile: TileServerConfig.Instance.Profile)
+        public ProjectMetadata(ProjectMetadataOptions options)
+            : base(dynamoPrefix: TileServerConfig.Instance.VenueName, profile: TileServerConfig.Instance.Profile)
         {
             this.options = options;
         }
@@ -61,7 +61,7 @@ namespace OPS.Pipeline.TileServer
 
             new TileServerCloud(this).EnsureTablesExist();
 
-            var project = TilingProject.Find(this.DynamoContext, options.ProjectName);
+            var project = TilingProject.Find(DynamoContext, options.ProjectName);
 
             if (project == null)
             {
@@ -72,7 +72,7 @@ namespace OPS.Pipeline.TileServer
             var md = new Metadata();
             md.Project = project;
 
-            var inputs = TilingInput.Find(this.DynamoContext, project).ToList();
+            var inputs = TilingInput.Find(DynamoContext, project).ToList();
             var sanitizedInputs = new List<SanitizedInput>();
             foreach (var input in inputs)
             {
@@ -94,7 +94,7 @@ namespace OPS.Pipeline.TileServer
 
             if (project.TilesDefined)
             {
-                var nodes = TilingNode.Find(this.DynamoContext, project).ToList();
+                var nodes = TilingNode.Find(DynamoContext, project).ToList();
                 md.NumNodes = nodes.Count;
 
                 int numProcessed = 0;
