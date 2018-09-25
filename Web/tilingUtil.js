@@ -51,6 +51,6 @@ async function tilingMaster() {
 }
 
 //map exit code to http status code
-function tilingErrorStatus(code) { console.log(`GOTHERE ${code}`); return code === 1 ? 400 : 500; }
+function tilingErrorStatus(code) { return code === 1 ? 400 : 500; }
 
 module.exports = { setTilingEnv, tilingTask, tilingMaster, tilingErrorStatus };
