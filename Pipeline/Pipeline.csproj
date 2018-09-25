@@ -193,6 +193,7 @@
     <Compile Include="TileServer\Cloud\TilingNode.cs" />
     <Compile Include="TileServer\Commands\ConfigureServer.cs" />
     <Compile Include="TileServer\Commands\CreateProject.cs" />
+    <Compile Include="TileServer\Commands\DeleteProject.cs" />
     <Compile Include="TileServer\Commands\ListProjects.cs" />
     <Compile Include="TileServer\Commands\ProjectMetadata.cs" />
     <Compile Include="TileServer\Commands\RunProject.cs" />

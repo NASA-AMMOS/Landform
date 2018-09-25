@@ -6,6 +6,8 @@ using System.Threading.Tasks;
 using OPS.Cloud;
 using Amazon.DynamoDBv2.DataModel;
 using OPS.Geometry;
+using OPS.Plumbing;
+using log4net;
 
 namespace OPS.Pipeline.TileServer
 {
@@ -83,6 +85,27 @@ namespace OPS.Pipeline.TileServer
         {
             this.IsValid();
             context.Save(this, new DynamoDBOperationConfig() { IgnoreNullValues = true });
+        }
+
+        public void Delete(PipelineCore pipeline, DynamoDBContext context, bool ignoreErrors = true, ILog logger = null)
+        {
+            foreach (var node in TilingNode.Find(context, this))
+            {
+                node.Delete(pipeline, context, ignoreErrors, logger);
+            }
+
+            foreach (var input in TilingInput.Find(context, this))
+            {
+                input.Delete(pipeline, context, ignoreErrors, logger);
+            }
+
+            pipeline.DeleteProjectCache(Name);
+
+            string wwwS3Url = TileServerConfig.Instance.WWWUrl(Name);
+            pipeline.Storage(wwwS3Url).DeleteObjects(wwwS3Url, ignoreErrors: ignoreErrors, logger: logger);
+
+            Console.WriteLine(String.Format("TilingProject.Delete({0})", Name));
+            //TODO context.Delete(this);
         }
 
         private void IsValid()

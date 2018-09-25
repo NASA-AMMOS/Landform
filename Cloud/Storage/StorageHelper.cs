@@ -7,11 +7,13 @@ using Amazon;
 using Amazon.S3;
 using Amazon.S3.Model;
 using Amazon.S3.Transfer;
+using Amazon.S3.IO;
 using Amazon.Runtime;
 using System.Text.RegularExpressions;
 using System.IO;
 using OPS.Util;
 using System.Collections.Concurrent;
+using log4net;
 
 namespace OPS.Cloud
 {
@@ -498,6 +500,75 @@ namespace OPS.Cloud
                 using (var s = new StorageStream(client, s3url, startPosition, bufferSize))
                 {
                     streamHandler(s);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Delete an object
+        /// </summary>
+        /// <returns></returns>
+        public void DeleteObject(string s3Url, bool ignoreErrors = true, ILog logger = null)
+        {
+            try
+            {
+                using (var client = GetClient(s3Url))
+                {
+                    S3Url location = new S3Url(s3Url);
+                    Console.WriteLine(String.Format("StorageHelper.DeleteObject({0}, {1})",
+                                                    location.BucketName, location.Prefix));
+                    //TODO client.DeleteObject(location.BucketName, location.Prefix);
+                }
+            }
+            catch (Exception e)
+            {
+                if (!ignoreErrors)
+                {
+                    throw e;
+                }
+
+                if (logger != null)
+                {
+                    logger.Warn(string.Format("error deleting object {0}: {1}", s3Url, e.Message));
+                }
+            }
+        }
+
+        /// <summary>
+        /// Delete a set of objects
+        /// </summary>
+        /// <returns></returns>
+        public void DeleteObjects(string s3Url, string pattern = "*", bool recursive = true,
+                                  bool ignoreErrors = true, ILog logger = null)
+        {
+            try
+            {
+                IEnumerable<string> objects = SearchObjects(s3Url, pattern, recursive);
+
+                DeleteObjectsRequest request = new DeleteObjectsRequest
+                {
+                    BucketName = (new S3Url(s3Url)).BucketName,
+                    Objects = objects.Select(obj => new KeyVersion{ Key = (new S3Url(obj)).Prefix }).ToList()
+                };
+                
+                using (var client = GetClient(s3Url))
+                {
+                    Console.WriteLine(String.Format("StorageHelper.DeleteObjects({0}{1})",
+                                                    request.BucketName,
+                                                    request.Objects.Aggregate("", (s, kv) => s + ", " + kv.Key)));
+                    //TODO client.DeleteObjects(request);
+                }
+            }
+            catch (Exception e)
+            {
+                if (!ignoreErrors)
+                {
+                    throw e;
+                }
+
+                if (logger != null)
+                {
+                    logger.Warn(string.Format("error searching objects with prefix {0}: {1}", s3Url, e.Message));
                 }
             }
         }

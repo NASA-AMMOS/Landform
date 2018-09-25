@@ -120,7 +120,7 @@ namespace OPS.Plumbing
             }
             return res;
         }
-
+                                       
         /// <summary>
         /// Download a file from S3, using an on-disk cache.
         /// </summary>
@@ -241,6 +241,16 @@ namespace OPS.Plumbing
                 {
                     System.Threading.Thread.Sleep(1000);
                 }
+            }
+        }
+
+        public void DeleteProjectCache(string project)
+        {
+            var projectCacheFolder = Path.Combine(cacheFolder, project);
+            if (Directory.Exists(projectCacheFolder))
+            {
+                Console.WriteLine(String.Format("DeleteProjectCache({0})", projectCacheFolder));
+                //TODO Directory.Delete(projectCacheFolder, true);
             }
         }
 

@@ -11,6 +11,7 @@ using System.Threading.Tasks;
 using OPS.Imaging;
 using System.IO;
 using OPS.Plumbing;
+using log4net;
 
 namespace OPS.Pipeline.TileServer
 {
@@ -58,7 +59,9 @@ namespace OPS.Pipeline.TileServer
         }
 
 
-        public static TilingNode Create(DynamoDBContext context, string id, TilingProject project, string meshUrl, string imageUrl, string parentId, List<string> childIds, List<string> dependsOn, List<String> dependedOnBy, BoundingBox bounds)
+        public static TilingNode Create(DynamoDBContext context, string id, TilingProject project,
+                                        string meshUrl, string imageUrl, string parentId, List<string> childIds,
+                                        List<string> dependsOn, List<String> dependedOnBy, BoundingBox bounds)
         {
             TilingNode node = new TilingNode(id, project, meshUrl, imageUrl, parentId, childIds, dependsOn, dependedOnBy, bounds);
             context.Save(node, new DynamoDBOperationConfig() { IgnoreNullValues = true });
@@ -82,6 +85,14 @@ namespace OPS.Pipeline.TileServer
         public void Save(DynamoDBContext context)
         {
             context.Save(this, new DynamoDBOperationConfig() { IgnoreNullValues = true });
+        }
+
+        public void Delete(PipelineCore pipeline, DynamoDBContext context, bool ignoreErrors = true, ILog logger = null)
+        {
+            pipeline.Storage(MeshUrl).DeleteObject(MeshUrl, ignoreErrors: ignoreErrors, logger: logger);
+            pipeline.Storage(ImageUrl).DeleteObject(ImageUrl, ignoreErrors: ignoreErrors, logger: logger);
+            Console.WriteLine(String.Format("TilingNode.Delete({0})", Id));
+            //TODO context.Delete(this);
         }
 
         public bool IsLeaf()

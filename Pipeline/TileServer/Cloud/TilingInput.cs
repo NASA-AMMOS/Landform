@@ -5,6 +5,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using OPS.Plumbing;
+using log4net;
 
 namespace OPS.Pipeline.TileServer
 {
@@ -57,7 +59,8 @@ namespace OPS.Pipeline.TileServer
             this.IsValid();
         }
 
-        public static TilingInput Create(DynamoDBContext context, string name, TilingProject project, string meshUrl, string imageUrl, string id)
+        public static TilingInput Create(DynamoDBContext context, string name, TilingProject project,
+                                         string meshUrl, string imageUrl, string id)
         {
             TilingInput input = new TilingInput(name, project, meshUrl, imageUrl, id);
             context.Save(input, new DynamoDBOperationConfig() { IgnoreNullValues = true });
@@ -81,6 +84,20 @@ namespace OPS.Pipeline.TileServer
         {
             this.IsValid();
             context.Save(this, new DynamoDBOperationConfig() { IgnoreNullValues = true });
+        }
+
+        public void Delete(PipelineCore pipeline, DynamoDBContext context, bool ignoreErrors = true, ILog logger = null)
+        {
+            foreach (var chunkId in ChunkIds)
+            {
+                TilingInputChunk.Find(context, chunkId).Delete(pipeline, context, ignoreErrors, logger);
+            }
+
+            pipeline.Storage(MeshUrl).DeleteObject(MeshUrl, ignoreErrors: ignoreErrors, logger: logger);
+            pipeline.Storage(ImageUrl).DeleteObject(ImageUrl, ignoreErrors: ignoreErrors, logger: logger);
+
+            Console.WriteLine(String.Format("TilingInput.Delete({0})", Name));
+            //TODO context.Delete(this);
         }
 
         private void IsValid()

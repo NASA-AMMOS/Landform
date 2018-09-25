@@ -29,6 +29,14 @@ async function createProject(req, res) {
 }
 router.post('/:name', createProject);
 
+async function deleteProject(req, res) {
+  try {
+    const task = await tilingTask('deleteproject', [req.params.name]);
+    await taskHandler(req, res, task, { errorStatus });
+  } catch (e) { abortRoute(res, 'error deleting project', e); }
+}
+router.delete('/:name', deleteProject);
+
 let nextUpload = 0;
 async function makeTmpDir() {
   let tmpDir = null;

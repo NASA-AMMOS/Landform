@@ -115,4 +115,10 @@ To use Postman
 
    To visually inspect the dataset, copy the returned URL to the system clipboard and then load it in a Chrome browser.
 
-1. Delete project: TODO
+1. Delete project:
+
+       curl -sS --request DELETE \
+            --url http://%SERVER_URL%/api/projects/%PROJECT_NAME% \
+            --header "x-landform-token: %API_TOKEN%"
+
+   Validation: check that the response code is HTTP 200 (ok), the content type is `application/json`, and the response body is a valid JSON object with `success=true`.

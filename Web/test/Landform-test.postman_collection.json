@@ -253,68 +253,6 @@
 			"response": []
 		},
 		{
-			"name": "get master log",
-			"event": [
-				{
-					"listen": "prerequest",
-					"script": {
-						"id": "69af028c-bd3a-4fe7-908a-ab55d08db06a",
-						"type": "text/javascript",
-						"exec": [
-							""
-						]
-					}
-				},
-				{
-					"listen": "test",
-					"script": {
-						"id": "bebd9d6a-3863-48ef-be01-beb8c8c9500e",
-						"type": "text/javascript",
-						"exec": [
-							"pm.test(\"HTTP OK\", function () {",
-							"    pm.response.to.have.status(200);",
-							"});",
-							"",
-							"pm.test(\"content type\", function () {",
-							"    pm.response.to.have.header(\"Content-Type\");",
-							"    pm.response.to.be.header(\"Content-Type\", \"text/plain; charset=utf-8\");",
-							"});",
-							""
-						]
-					}
-				}
-			],
-			"request": {
-				"method": "GET",
-				"header": [
-					{
-						"key": "x-landform-token",
-						"value": "{{API_TOKEN}}"
-					}
-				],
-				"body": {},
-				"url": {
-					"raw": "{{SERVER_URL}}/api/tasks/0/log?text=true",
-					"host": [
-						"{{SERVER_URL}}"
-					],
-					"path": [
-						"api",
-						"tasks",
-						"0",
-						"log"
-					],
-					"query": [
-						{
-							"key": "text",
-							"value": "true"
-						}
-					]
-				}
-			},
-			"response": []
-		},
-		{
 			"name": "get project result URL",
 			"event": [
 				{
@@ -423,6 +361,51 @@
 			"response": []
 		},
 		{
+			"name": "delete project",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"id": "f217fc5c-c2d6-42a3-ba32-e1d0343a3769",
+						"type": "text/javascript",
+						"exec": [
+							"pm.test(\"HTTP OK\", function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"pm.test(\"task success\", function () {",
+							"    pm.expect(pm.response.json().success).to.eql(true);",
+							"});",
+							""
+						]
+					}
+				}
+			],
+			"request": {
+				"method": "DELETE",
+				"header": [
+					{
+						"key": "x-landform-token",
+						"value": "{{API_TOKEN}}"
+					}
+				],
+				"body": {},
+				"url": {
+					"raw": "{{SERVER_URL}}/api/projects/{{PROJECT_NAME}}/run",
+					"host": [
+						"{{SERVER_URL}}"
+					],
+					"path": [
+						"api",
+						"projects",
+						"{{PROJECT_NAME}}",
+						"run"
+					]
+				}
+			},
+			"response": []
+		},
+		{
 			"name": "get master task ID",
 			"event": [
 				{
@@ -512,6 +495,68 @@
 						"api",
 						"tasks",
 						"0"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "get master log",
+			"event": [
+				{
+					"listen": "prerequest",
+					"script": {
+						"id": "69af028c-bd3a-4fe7-908a-ab55d08db06a",
+						"type": "text/javascript",
+						"exec": [
+							""
+						]
+					}
+				},
+				{
+					"listen": "test",
+					"script": {
+						"id": "bebd9d6a-3863-48ef-be01-beb8c8c9500e",
+						"type": "text/javascript",
+						"exec": [
+							"pm.test(\"HTTP OK\", function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"pm.test(\"content type\", function () {",
+							"    pm.response.to.have.header(\"Content-Type\");",
+							"    pm.response.to.be.header(\"Content-Type\", \"text/plain; charset=utf-8\");",
+							"});",
+							""
+						]
+					}
+				}
+			],
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "x-landform-token",
+						"value": "{{API_TOKEN}}"
+					}
+				],
+				"body": {},
+				"url": {
+					"raw": "{{SERVER_URL}}/api/tasks/0/log?text=true",
+					"host": [
+						"{{SERVER_URL}}"
+					],
+					"path": [
+						"api",
+						"tasks",
+						"0",
+						"log"
+					],
+					"query": [
+						{
+							"key": "text",
+							"value": "true"
+						}
 					]
 				}
 			},

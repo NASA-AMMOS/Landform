@@ -18,7 +18,7 @@ Accepts the following arugments:
 Request
 
     POST /api/projects/testproj HTTP/1.1
-    Host: https://landform.hi.jpl.nas.gov
+    Host: https://landform.hi.jpl.nasa.gov
     x-landform-token: API_TOKEN
     Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW
     
@@ -43,7 +43,7 @@ Response
 ### Upload Data: POST /api/projects/*name*/upload
 Upload data for the named project.  Implements the [task API](#task-api).
 
-Fails with HTTP status 400 (bad request) if the name project does not exist.
+Fails with HTTP status 400 (bad request) if the named project does not exist.
 
 Data formats are implied from the filename extension.
 
@@ -70,7 +70,7 @@ Accepts the following arguments in a `multipart/form-data` encoded HTTP request 
 Request
 
     POST https://landform.hi.jpl.nasa.gov/api/projects/testproj/upload HTTP/1.1
-    Host: https://landform.hi.jpl.nas.gov
+    Host: https://landform.hi.jpl.nasa.gov
     x-landform-token: API_TOKEN
     Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW
     
@@ -105,7 +105,7 @@ Response
 ### Run Project: POST /api/projects/*name*/run
 Initiate a run of a project.  Implements the [task API](#task-api).
 
-Fails with HTTP status 400 (bad request) if the name project does not exist.
+Fails with HTTP status 400 (bad request) if the named project does not exist.
 
 This task only initiates the execution of a project.  It will typically complete before the project is actually finished running.  To determine whether the project execution has completed, do one of the following:
 * poll the project metadata via `/api/projects/*name*` and wait for `Project.FinishedRunning=true`
@@ -143,7 +143,7 @@ Response
 ### Get Project Metadata: GET /api/projects/*name*
 Get JSON metadata for a project.
 
-Fails with HTTP status 400 (bad request) if the name project does not exist.
+Fails with HTTP status 400 (bad request) if the named project does not exist.
 
 The project metadata is returned as a JSON object with at least the following fields:
 * `Project`
@@ -274,7 +274,33 @@ Response
     content-type: text/html; charset=utf-8
 
 ### Delete Project: DELETE /api/projects/*name*
-TODO
+Delete the named project. Implements the [task API](#task-api).
+
+Fails with HTTP status 400 (bad request) if the named project is currently running.
+
+**Example:**  delete project "testproj"
+
+Request
+
+    DELETE /api/projects/testproj HTTP/1.1
+    Host: https://landform.hi.jpl.nasa.gov
+    x-landform-token: API_TOKEN
+
+Response
+
+    HTTP/1.1 200
+    status: 200
+    content-type: application/json; charset=utf-8
+
+    {
+      "id": 1,
+      "running": false,
+      "success": true,
+      "exitCode": 0,
+      "error": null,
+      "started": 1537227661847,
+      "ended": 1537227672413
+    }
 
 ---
 
