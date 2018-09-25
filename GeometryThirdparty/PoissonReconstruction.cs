@@ -13,7 +13,16 @@ namespace OPS.Geometry
     public class PoissonReconstruction
     {
         private static readonly ILog logger = LogManager.GetLogger(typeof(PoissonReconstruction));
-        private enum BoundaryTypes { Free = 1, Dirichlet = 2, Neumann = 3 };
+        public enum BoundaryTypes { Free = 1, Dirichlet = 2, Neumann = 3 };
+
+        public class Options
+        {
+            public BoundaryTypes Boundary;          //exe defaults: Neumann
+            public float MinOctreeCellWidth;        //exe defaults: doesn't use this parameter, uses --depth 8
+            public float MinOctreeSamplesPerCell;   //exe defaults: 1, recommends 1-5 clean data 15-20 noisy data
+            public int BSplineDegree;               //exe defaults: 1, supports 1-2
+            public bool UseNormalsForConfidence;    //exe defaults: no, if true magnitude of normal indicates confidence
+        };
 
         /// <summary>
         /// Creates a mesh from a point cloud
@@ -21,7 +30,7 @@ namespace OPS.Geometry
         /// <param name="pointCloud"></param>
         /// <param name="extrapolateBoundaries">if true, it uses the neumann boundary (derivative). if false it uses the dirichlet boundary (actual value). the former can add big sweeping wings to the edges of the mesh, but does more agressive hole filling.</param>
         /// <returns></returns>
-        public static Mesh Reconstruct(Mesh pointCloud, bool extrapolateBoundaries=true)
+        public static Mesh Reconstruct(Mesh pointCloud, Options options=null)
         {
             if (pointCloud.Vertices.Count == 0)
             {
@@ -44,19 +53,25 @@ namespace OPS.Geometry
             {
                 throw new MeshException("PoissonRecon input mesh had invalid normals");
             }
-            int notNormalCount = 0;
-            foreach (var vert in pointCloud.Vertices)
+
+            //unless using normal magnitude for confidence
+            if (options != null && !options.UseNormalsForConfidence)
             {
-                double len = vert.Normal.Length();
-                if (Math.Abs(len - 1) > 1e-3)
+                int notNormalCount = 0;
+                foreach (var vert in pointCloud.Vertices)
                 {
-                    notNormalCount++;
+                    double len = vert.Normal.Length();
+                    if (Math.Abs(len - 1) > 1e-3)
+                    {
+                        notNormalCount++;
+                    }
+                }
+                if (notNormalCount > 0)
+                {
+                    logger.Warn("Found " + notNormalCount + " vertices with non unit length normals");
                 }
             }
-            if (notNormalCount > 0)
-            {
-                logger.Warn("Found " + notNormalCount  + " vertices with non unit length normals");
-            }
+
             string poissonReconExe = Path.Combine(PathHelper.GetApplicationPath(), "ExternalApps", "PoissonReconV10.02.exe");
             Mesh result = null;
             float scale = MathE.Max(pointCloud.Bounds().Size().ToFloatArray()) / (float)Math.Sqrt(pointCloud.Vertices.Count) * 2;
@@ -65,7 +80,12 @@ namespace OPS.Geometry
                 PLYSerializer.Write(pointCloud, inputFile, new PLYMaximumCompatibilityWriter(false));
                 TemporaryFile.GetAndDelete(".ply", outputFile =>
                 {
-                    string arguments = "--in " + inputFile + " --out " + outputFile + " --bType " + (extrapolateBoundaries ? (int)BoundaryTypes.Neumann : (int)BoundaryTypes.Dirichlet);
+                    string arguments = "--in " + inputFile + " --out " + outputFile + " --normals";
+
+                    if (options != null)
+                    {
+                        arguments += String.Format(" --bType {0} --width {1} --samplesPerNode {2} --degree {3} --confidence {4}", (int)options.Boundary, options.MinOctreeCellWidth, options.MinOctreeSamplesPerCell, options.BSplineDegree, options.UseNormalsForConfidence ? 1 : 0);
+                    }
                     ProgramRunner pr = new ProgramRunner(poissonReconExe, arguments, captureOutput: true);
                     pr.Run();
                     if (!File.Exists(outputFile))
