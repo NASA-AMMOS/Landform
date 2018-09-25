@@ -95,6 +95,11 @@ idpentryurl = 'https://sso2.jpl.nasa.gov/adfs/ls/IdpInitiatedSignOn.aspx?loginTo
 # empty for none
 ad_domain = 'JPL'
 
+# the credentials will be valid for this many seconds
+# this cannot exceed the maximum configured for the role
+#duration = 3600 # 1h
+duration = 14400 # 4h
+
 # Uncomment to enable low level debugging
 #logging.basicConfig(level=logging.DEBUG)
 
@@ -238,7 +243,7 @@ else:
 
 # Use the assertion to get an AWS STS token using Assume Role with SAML
 conn = boto.sts.connect_to_region(region, anon=True)
-token = conn.assume_role_with_saml(role_arn, principal_arn, assertion)
+token = conn.assume_role_with_saml(role_arn, principal_arn, assertion, duration_seconds=duration)
 
 # Write the AWS STS token into the AWS credential file
 home = expanduser('~')
