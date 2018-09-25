@@ -18,7 +18,7 @@ namespace OPS.Geometry
         public class Options
         {
             public BoundaryTypes Boundary;          //exe defaults: Neumann
-            public float MinOctreeCellWidth;        //exe defaults: doesn't use this parameter, uses --depth 8
+            public float MinOctreeCellWidthMeters;  //exe defaults: doesn't use this parameter, uses --depth 8
             public float MinOctreeSamplesPerCell;   //exe defaults: 1, recommends 1-5 clean data 15-20 noisy data
             public int BSplineDegree;               //exe defaults: 1, supports 1-2
             public bool UseNormalsForConfidence;    //exe defaults: no, if true magnitude of normal indicates confidence
@@ -84,7 +84,7 @@ namespace OPS.Geometry
 
                     if (options != null)
                     {
-                        arguments += String.Format(" --bType {0} --width {1} --samplesPerNode {2} --degree {3} --confidence {4}", (int)options.Boundary, options.MinOctreeCellWidth, options.MinOctreeSamplesPerCell, options.BSplineDegree, options.UseNormalsForConfidence ? 1 : 0);
+                        arguments += String.Format(" --bType {0} --width {1} --samplesPerNode {2} --degree {3} --confidence {4}", (int)options.Boundary, options.MinOctreeCellWidthMeters, options.MinOctreeSamplesPerCell, options.BSplineDegree, options.UseNormalsForConfidence ? 1 : 0);
                     }
                     ProgramRunner pr = new ProgramRunner(poissonReconExe, arguments, captureOutput: true);
                     pr.Run();
