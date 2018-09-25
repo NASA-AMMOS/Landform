@@ -55,7 +55,7 @@ namespace OPS.Pipeline
             PathHelper.EnsureExists(options.OutputDirectory);
         }
 
-        Matrix ObservationToRoot(Observation obs, FrameCache frameCache)
+        static public Matrix ObservationToRoot(DynamoDBContext DynamoContext, Observation obs, FrameCache frameCache)
         {
             Frame frame = frameCache.GetFrame(obs.FrameName);
             //Start with the initial transform
@@ -153,7 +153,7 @@ namespace OPS.Pipeline
                     return;
                 }
                 logger.Info("Processing observation: " + rngObs.Name);
-                var transform = ObservationToRoot(rngObs, cache);
+                var transform = ObservationToRoot(DynamoContext, rngObs, cache);
                 var frame = cache.GetFrame(rngObs.FrameName);
 
                 int[] rmc = null;
