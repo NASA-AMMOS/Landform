@@ -166,6 +166,49 @@
 			"response": []
 		},
 		{
+			"name": "get project metadata",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"id": "6e977225-4dc7-4322-9467-baac0be5c4b6",
+						"type": "text/javascript",
+						"exec": [
+							"pm.test(\"HTTP OK\", function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"pm.test(\"response is json\", function () {",
+							"    pm.response.to.have.jsonBody();",
+							"});"
+						]
+					}
+				}
+			],
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "x-landform-token",
+						"value": "{{API_TOKEN}}"
+					}
+				],
+				"body": {},
+				"url": {
+					"raw": "{{SERVER_URL}}/api/projects/{{PROJECT_NAME}}",
+					"host": [
+						"{{SERVER_URL}}"
+					],
+					"path": [
+						"api",
+						"projects",
+						"{{PROJECT_NAME}}"
+					]
+				}
+			},
+			"response": []
+		},
+		{
 			"name": "get master log",
 			"event": [
 				{
@@ -455,19 +498,19 @@
 	],
 	"variable": [
 		{
-			"id": "3cd992c2-1988-4a7b-ba76-ccbe4d16df2c",
+			"id": "6d5bcfb3-5b3c-492f-9b22-d968290b1a83",
 			"key": "PROJECT_NAME",
 			"value": "",
 			"type": "string"
 		},
 		{
-			"id": "dbf65320-da84-402b-98e8-3a86cf9655dd",
+			"id": "8489d315-d8a7-4645-96b1-0dcf2e8ad923",
 			"key": "SERVER_URL",
 			"value": "",
 			"type": "string"
 		},
 		{
-			"id": "7d90184e-f7cc-4213-a37d-7cdc0e763273",
+			"id": "eb883e9d-9d9a-4eb2-b8bf-340adc95daf1",
 			"key": "API_TOKEN",
 			"value": "",
 			"type": "string"

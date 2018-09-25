@@ -104,47 +104,52 @@ setInterval(() => {
 
 //generic handler for API calls that run a task
 //
-//optional function cleanup will be run when the task completes (success or fail)
+//function options.cleanup will be run when the task completes (success or fail)
 //
-//if the request includes a query or body param async=true then the HTTP request will be ended now with the task.info
+//the following boolean options are supported: text, live, async, pipe
+//for each one, the default value is set in the passed options
+//the passed options can also include an array exposeArgs of the option names to expose in the REST api
+//if exposeArgs is undefined or null then it defaults to ['text', 'live', 'async']
+//request query or body params for exposed options override the defaults
+//
+//if async=true then the HTTP request will be ended now with the task.info
 //otherwise the HTTP request will end when the task ends
-//
-//if no text=true or live=true param then the request will end when the task ends and return a json task.info object
-//with success=true|false and errror=string in the case of failure
-//
-//if text=true then the request will return the log spew of the task
 //
 //if live=true then the request will return as plaintext
 //1) the current json task.info
-//2) the the log spew of the task as it is produced
+//2) the the log spew of the task *as it is produced*
 //3) the final json task.info
 //
-//in all the non-async cases an Error will be thrown if the task errors
-async function taskHandler(req, res, task, cleanup) {
+//if pipe=true then the request will block until the task ends and return the output log of the task as application/json
+//
+//if text=true then the request will block until the task ends and return the id, log, and any error of the task as text/plain
+//
+//otherwise the request will block until the task ends and return the task.info object as application/json
+async function taskHandler(req, res, task, options) {
 
-  if (cleanup) {
+  options = options || {};
+
+  (options.exposeArgs || ['text', 'live', 'async']).forEach(arg => {
+    options[arg] = parseArgs(req, { [arg]: { type: 'bool', default: !!options[arg] } })[arg];
+  });
+
+  if (options.cleanup) {
     let didCleanup = false;
-    const doCleanup = () => { if (!didCleanup) { didCleanup = true; cleanup(); } };
+    const doCleanup = () => { if (!didCleanup) { didCleanup = true; options.cleanup(); } };
     task.promise.then(doCleanup).catch(doCleanup);
   }
 
-  const { text, live, async } = parseArgs(req, {
-    text: { type: 'bool', default: false },
-    live: { type: 'bool', default: false },
-    async: { type: 'bool', default: false },
-  });
-
-  if (async) {
+  if (options.async) {
 
     //just swallow exceptions here to prevent unhandled promise rejection warnings
     //they will also be recorded in task.info for potential later async retrieval
     task.promise.catch(() => {});
 
     //send task info and end response
-    if (text) sendText(res, JSON.stringify(task.info));
+    if (options.text) sendText(res, JSON.stringify(task.info));
     else sendJson(res, task.info);
 
-  } else if (live) {
+  } else if (options.live) {
 
     res.contentType('text/plain');
 
@@ -169,11 +174,21 @@ async function taskHandler(req, res, task, cleanup) {
 
     //wait for task to complete
     let err = null;
-    try { await task.promise; } catch (e) { err = e; res.status(500); }
+    try { await task.promise; }
+    catch (e) {
+      err = e;
+      if (options.errorStatus) res.status(options.errorStatus(task.info.exitCode));
+      else res.status(500);
+    }
 
     //send results and end response
-    if (!text) sendJson(res, task.info);
-    else {
+    if (options.pipe) {
+      res.contentType('application/json');
+      if (!err) res.write(task.log.join('\n'));
+      res.end();
+    } else if (!options.text) {
+      sendJson(res, task.info);
+    } else {
       res.contentType('text/plain');
       res.write(`ID: ${task.info.id}`);
       res.write(`\n${task.log.join('\n')}`);

@@ -7,7 +7,7 @@ const url = require('url');
 const config = require('../config');
 const { routeError, abortRoute, parseArgs, sendJson } = require('../routeUtil');
 const { taskHandler } = require('../taskUtil');
-const { tilingTask } = require('../tilingUtil');
+const { tilingTask, tilingErrorStatus: errorStatus } = require('../tilingUtil');
 
 const router = express.Router();
 
@@ -23,7 +23,7 @@ async function createProject(req, res) {
 
     const task = await tilingTask('createproject', [req.params.name, ...args]);
 
-    await taskHandler(req, res, task);
+    await taskHandler(req, res, task, { errorStatus });
 
   } catch (e) { abortRoute(res, 'error creating project', e); }
 }
@@ -80,7 +80,7 @@ async function uploadInput(req, res) {
 
     const task = await tilingTask('uploadinput', [req.params.name, ...paths, ...args]);
 
-    await taskHandler(req, res, task, cleanup);
+    await taskHandler(req, res, task, { cleanup, errorStatus });
 
   } catch (e) { cleanup(); abortRoute(res, 'error processing upload', e); }
 }
@@ -91,7 +91,7 @@ router.post('/:name/upload', multer(multerConfig).fields(multerFields), uploadIn
 async function runProject(req, res) {
   try {
     const task = await tilingTask('runproject', [req.params.name]);
-    await taskHandler(req, res, task);
+    await taskHandler(req, res, task, { errorStatus });
   } catch (e) { abortRoute(res, 'error running project', e); }
 }
 router.post('/:name/run', runProject);
@@ -112,5 +112,13 @@ router.get('/:name/view', (req, res) => {
   const ret = `/viewer/index.html?TilesetURL=${encodeURIComponent(resultURL(req.params.name))}`;
   if (redirect) res.redirect(ret); else sendJson(res, `${req.protocol}://${req.hostname}:${config.app.port}${ret}`);
 });
+
+async function projectMetadata(req, res) {
+  try {
+    const task = await tilingTask('projectmetadata', [req.params.name, '--quiet']);
+    await taskHandler(req, res, task, { pipe: true, exposeArgs: [], errorStatus });
+  } catch (e) { abortRoute(res, 'error getting project metadata', e); }
+}
+router.get('/:name', projectMetadata);
 
 module.exports = router;

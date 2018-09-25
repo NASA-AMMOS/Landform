@@ -17,6 +17,9 @@ namespace OPS.Pipeline.TileServer
     {       
         [Value(0, Required = true, HelpText = "Project Name")]
         public string ProjectName { get; set; }
+
+        [Option(Required = false, Default = false, HelpText = "suppress non-essential output")]
+        public bool Quiet { get; set; }
     }
 
 
@@ -53,6 +56,9 @@ namespace OPS.Pipeline.TileServer
 
         public int Run()
         {
+            //https://stackoverflow.com/questions/4094032/how-to-switch-on-off-logging-using-log4net
+            if (options.Quiet) LogManager.GetRepository().ResetConfiguration();
+
             new TileServerCloud(this).EnsureTablesExist();
 
             var project = TilingProject.Find(this.DynamoContext, options.ProjectName);

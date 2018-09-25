@@ -5,7 +5,7 @@ All API methods require an API token to be set as an `x-landform-token` HTTP hea
 ### Create Project: POST /api/projects/*name*
 Create the named project.  Implements the [task API](#task-api).
 
-Creating the same project more than once has no effect (not an error).
+Fails with HTTP status 400 (bad request) if a project with the same name already exists.
 
 Accepts the following arugments:
 * *tilingscheme*: tiling scheme; one of `Bin`, `Quad`, `Oct`, or `UserDefined`; default `Bin`
@@ -42,6 +42,8 @@ Response
 
 ### Upload Data: POST /api/projects/*name*/upload
 Upload data for the named project.  Implements the [task API](#task-api).
+
+Fails with HTTP status 400 (bad request) if the name project does not exist.
 
 Data formats are implied from the filename extension.
 
@@ -103,9 +105,11 @@ Response
 ### Run Project: POST /api/projects/*name*/run
 Initiate a run of a project.  Implements the [task API](#task-api).
 
-This task only *initiates* the execution of a project.  It will typically complete before the project is actually finished running.  To determine whether the project execution has completed:
-1. Determine the project result URL via the `/api/projects/*name*/result?redirect=false` API.
-2. Poll the project result URL.  When it returns HTTP 200 (OK) with valid JSON the project has completed execution.
+Fails with HTTP status 400 (bad request) if the name project does not exist.
+
+This task only initiates the execution of a project.  It will typically complete before the project is actually finished running.  To determine whether the project execution has completed, do one of the following:
+* poll the project metadata via `/api/projects/*name*` and wait for `Project.FinishedRunning=true`
+* get the project result URL via `/api/projects/*name*/result?redirect=false` and poll it until the status is HTTP 200 (OK).
 
 It is safe to issue this command more than once.  However, project results are only computed once: in the absence of errors, subsequent runs of a project after the first run has begun have no effect.
 
@@ -137,7 +141,69 @@ Response
     }
 
 ### Get Project Metadata: GET /api/projects/*name*
-TODO
+Get JSON metadata for a project.
+
+Fails with HTTP status 400 (bad request) if the name project does not exist.
+
+The project metadata is returned as a JSON object with at least the following fields:
+* `Project`
+  * `Name`: project name
+  * `TilingScheme`, `SkirtMode`, `FacesPerTile`, `TileResolution`: correspond to the options when the object was created
+  * `StartedRunning`: whether the project has started execution
+  * `FinishedRunning`: whether the project has finished execution
+* `Inputs`: array of project inputs
+  * `Name`: name of this input
+  * `MeshUrl`: URL of the mesh for this input
+  * `ImageUrl`: URL of the image for this input
+  * `Processed`: whether this input has been processed yet
+  * `ImageBands`, `ImageWidth`, `ImageHeight`: image metadata, null if the input has not yet been processed
+* `NumNodes`: the total number of [3DTiles](https://github.com/AnalyticalGraphicsInc/3d-tiles) hierarchy nodes defined for the project, or null if that has not been computed yet
+* `NumProcesedNodes`: number of hierarchy nodes processed so far, or null if the project has not yet begun execution
+* `OutputUrl`: the URL at which the final `tileset.json` is expected, see `/api/projects/*name*/result` for more info
+
+**Example:** get metadata for project "testproj"
+
+Request
+
+    GET /api/projects/testproj HTTP/1.1
+    Host: https://landform.hi.jpl.nasa.gov
+    x-landform-token: API_TOKEN
+
+Response
+
+    HTTP/1.1 200
+    status: 200
+    content-type: application/json; charset=utf-8
+
+    {
+      "Project": {
+        "Name": "testproj",
+        "TilingScheme": "Bin",
+        "SkirtMode": "None",
+        "ReconMethod": "Poisson",
+        "FacesPerTile": 2000,
+        "TileResolution": 256,
+        "TilesDefined": true,
+        "ProjectType": "GenericTiling",
+        "StartedRunning": true,
+        "FinishedRunning": true
+      },
+      "Inputs": [
+        {
+          "Name": "inputMeshSmall",
+          "MeshUrl": "https://landlords-dev.s3.amazonaws.com/landformweb/input/testproj/inputMeshSmall.ply",
+          "ImageUrl": "https://landlords-dev.s3.amazonaws.com/landformweb/input/testproj/inputMeshSmall.ply",
+          "Processed": true,
+          "ImageBands": 3,
+          "ImageWidth": 4096,
+          "ImageHeight": 4096
+        }
+      ],
+      "NumNodes": 111,
+      "NumProcessedNodes": 111,
+      "OutputUrl": "https://landlords-dev.s3.amazonaws.com/landformweb/www/testproj/tileset.json"
+    }
+
 
 ### Get Metadata for Multiple Projects: GET /api/projects
 TODO
