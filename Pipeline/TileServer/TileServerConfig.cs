@@ -1,4 +1,5 @@
 ﻿using Newtonsoft.Json;
+using log4net;
 using OPS.Util;
 using System;
 using System.Collections.Generic;
@@ -46,6 +47,7 @@ namespace OPS.Pipeline.TileServer
         [JsonIgnore]
         private string msliceProfile;
 
+        [ConfigEnvironmentVariable("TILE_SERVER_MSLICE_PROFILE")]
         public string MSLICEProfile
         {
             get
@@ -69,6 +71,7 @@ namespace OPS.Pipeline.TileServer
             }
         }
 
+        [ConfigEnvironmentVariable("TILE_SERVER_MSLICE_S3_URL")]
         public string MSLICES3Url { get; set; }
 
         [ConfigEnvironmentVariable("TILE_SERVER_VENUE_NAME")]
@@ -120,5 +123,14 @@ namespace OPS.Pipeline.TileServer
             return new Uri(Path.Combine(S3Url, VenueName, folder, projectName, filename).Replace('\\','/')).ToString();
         }
 
+        public void Dump(ILog logger)
+        {
+            logger.Info("Landform venue: " + VenueName);
+            logger.Info("S3URL: " + S3Url);
+            logger.Info("AWS Region: " + Region);
+            logger.Info("AWS Profile: " + Profile);
+            logger.Info("MSLICE AWS Profile: " + MSLICEProfile);
+            logger.Info("MSLICE S3 URL: " + MSLICES3Url);
+        }
     }
 }

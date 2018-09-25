@@ -10,6 +10,17 @@ using log4net;
 
 namespace OPS.Geometry
 {
+    class PoissonConfig : SingletonConfig<PoissonConfig>
+    {
+        [ConfigEnvironmentVariable("LANDFORM_POISSON_EXE")]
+        public string PoissonExe { get; set; }
+
+        public PoissonConfig()
+        {
+            if (string.IsNullOrEmpty(PoissonExe)) PoissonExe = "PoissonReconV9.exe"; //default
+        }
+    }
+
     public class PoissonReconstruction
     {
         private static readonly ILog logger = LogManager.GetLogger(typeof(PoissonReconstruction));
@@ -55,7 +66,10 @@ namespace OPS.Geometry
             {
                 logger.Warn("Found " + notNormalCount  + " vertices with non unit length normals");
             }
-            string poissonReconExe = Path.Combine(PathHelper.GetApplicationPath(), "ExternalApps", "PoissonReconV9.exe");
+
+            string poissonReconExe =
+                Path.Combine(PathHelper.GetApplicationPath(), "ExternalApps", PoissonConfig.Instance.PoissonExe);
+
             Mesh result = null;
             float scale = MathE.Max(pointCloud.Bounds().Size().ToFloatArray()) / (float)Math.Sqrt(pointCloud.Vertices.Count) * 2;
             TemporaryFile.GetAndDelete(".ply", inputFile =>
@@ -69,6 +83,7 @@ namespace OPS.Geometry
                     {
                         logger.Error(pr.OutputText);
                         logger.Error(pr.ErrorText);
+                        throw new MeshException("Failed to run " + poissonReconExe);
                     }
                     int ouputVertCount = Mesh.Load(outputFile).Vertices.Count;
                     if (ouputVertCount == 0)

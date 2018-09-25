@@ -35,9 +35,16 @@ namespace OPS.Pipeline.TileServer
 
         public int Run()
         {
-
-            RunMaster();
-            
+            TileServerConfig.Instance.Dump(logger);  
+            try
+            {
+                RunMaster();
+            }
+            catch (Exception e)
+            {
+                logger.Error("error in master task: " + e.Message);
+                logger.Error(e.StackTrace);
+            }               
             return 0;
         }
 
