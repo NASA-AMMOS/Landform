@@ -87,7 +87,12 @@ namespace OPS.Pipeline.MeshWorker
 
             //find the best observations to use for each point cloud
             List<PointCloudObservations> pointCloudObservations = CollectPointCloudInputs(obsCache);
-
+            if (pointCloudObservations.Count == 0)
+            {
+                logger.Error("no observations were found to build a point cloud");
+                return 1;
+            }
+            
             //accumulate the large point cloud
             Mesh aggregatePointCloud = new Mesh(hasNormals: true);
             for (int idx = 0; idx < pointCloudObservations.Count; idx++)
@@ -101,8 +106,14 @@ namespace OPS.Pipeline.MeshWorker
                     aggregatePointCloud.MergeWith(new Mesh[] { pointCloud }, false);
                 }
             }
-
-            //Mesh the point cloud
+            
+            // build the large mesh from the aggregate point cloud using poisson reconstruction
+            if (aggregatePointCloud.Vertices.Count == 0)
+            {
+                logger.Error("Aggregate point cloud contains no points");
+                return 1;
+            }
+          
             logger.Info("Reconstructing point cloud: " + aggregatePointCloud.Vertices.Count() + " vertices");
             PoissonReconstruction.Options opts = new PoissonReconstruction.Options
             {
@@ -113,29 +124,28 @@ namespace OPS.Pipeline.MeshWorker
                 UseNormalsForConfidence = true                              // indicates the normal magnitudes are not uniformly unit scaled to indicate confidence in the position attached to it
             };
 
-            Mesh surfacedMesh = PoissonReconstruction.Reconstruct(aggregatePointCloud, opts);
-
+            Mesh surfacedMesh = PoissonReconstruction.Reconstruct(aggregatePointCloud, opts);            
             if (surfacedMesh == null || surfacedMesh.Vertices.Count == 0)
             {
                 logger.Error("Point cloud failed to reconstruct");
+                return 1;
             }
-            else
+
+            //upload mesh
+            string meshName = "FullMesh";
+            string s3MeshOutputUrl = TileServerConfig.Instance.InputUrl(message.ProjectName, meshName + ".ply");
+            TemporaryFile.GetAndDelete(".ply", tempFile =>
             {
-                //upload mesh
-                string meshName = "FullMesh";
-                string s3MeshOutputUrl = TileServerConfig.Instance.InputUrl(message.ProjectName, meshName + ".ply");
-                TemporaryFile.GetAndDelete(".ply", tempFile =>
-                {
-                    logger.Info("Uploading mesh: " + s3MeshOutputUrl);
-                    surfacedMesh.Save(tempFile);
-                    this.pipeline.Storage(s3MeshOutputUrl).UploadFile(tempFile, s3MeshOutputUrl);
-                });
+                logger.Info("Uploading mesh: " + s3MeshOutputUrl);
+                surfacedMesh.Save(tempFile);
+                this.pipeline.Storage(s3MeshOutputUrl).UploadFile(tempFile, s3MeshOutputUrl);
+            });
 
-                //create a tiling input
-                TilingProject tilingProject = TilingProject.Find(this.pipeline.DynamoContext, message.ProjectName);
-                TilingInput.Create(this.pipeline.DynamoContext, meshName, tilingProject, s3MeshOutputUrl, null, null);
-            }
-
+            //create a tiling input
+            TilingProject tilingProject = TilingProject.Find(this.pipeline.DynamoContext, message.ProjectName);
+            TilingInput.Create(this.pipeline.DynamoContext, meshName, tilingProject, s3MeshOutputUrl, null, null);
+            
+            //indicate successs to the tiling server master
             pipeline.CompletionQueue.Enqueue(new BuildTilingInputMessage(this.message.ProjectName));
             return 0;
         }
@@ -158,6 +168,7 @@ namespace OPS.Pipeline.MeshWorker
             pct.Points.Obs = pointCloudObservations.PointsObs;
             pct.Points.PDSImage = GetObservationImage(pointCloudObservations.PointsObs, RoverProductType.Range);
             pct.Points.GeneratedImage = ConvertRNGToXYR(pct.Points.PDSImage);
+
             pct.Normals.Obs = pointCloudObservations.NormalObs;
             pct.Normals.PDSImage = GetObservationImage(pointCloudObservations.NormalObs, RoverProductType.NormalMap);
             pct.Normals.GeneratedImage = GenerateNormalsImage(pct.Normals.PDSImage);
