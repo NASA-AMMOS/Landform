@@ -388,5 +388,7 @@ These instructions only needs to be run when the Landform worker version changes
 1. Download remote desktop (RDP) file
 1. Double click RDP file to open remote desktop
 1. Username: `admin`, password as above
-1. The Landform tiling server should be located in `C:\tileserver`
-1. The [EC2Launch](https://docs.aws.amazon.com/AWSEC2/latest/WindowsGuide/ec2-windows-user-data.html) log for the user data script should be at `C:\ProgramData\Amazon\EC2-Windows\Launch\Log\UserdataExecution`
+1. The Landform tiling server should be located in `C:\tileserver`.
+  * You can tail the Landform tileserver log by running `Get-Content c:\tileserver\log.txt -Wait -Tail 30` in PowerShell.
+1. The [EC2Launch](https://docs.aws.amazon.com/AWSEC2/latest/WindowsGuide/ec2-windows-user-data.html) log for the user data script should be at `C:\ProgramData\Amazon\EC2-Windows\Launch\Log\UserdataExecution`.
+  * You may need to [show hidden files and folders](https://support.microsoft.com/en-us/help/14201/windows-show-hidden-files) to see `C:\ProgramData`.
