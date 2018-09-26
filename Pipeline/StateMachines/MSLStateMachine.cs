@@ -47,7 +47,7 @@ namespace OPS.Pipeline.TileServer
                 logger.Info("DefineTiles project:" + m.ProjectName);
                 TilingProject project = TilingProject.Find(pipeline.DynamoContext,projectName);
                 this.projectCache.Refresh();
-                ChunkInputs(project);
+                ChunkInputs();
             }
             else if (m.GetType() == typeof(ChunkInputMessage))
             {
