@@ -3,11 +3,14 @@ using OPS.Geometry;
 using OPS.Plumbing;
 using System.Linq;
 using System.Collections.Generic;
+using log4net;
 
 namespace OPS.Pipeline.TileServer
 {
     class MSLStateMachine : PipelineStateMachine
     {
+        private static ILog logger = LogManager.GetLogger(typeof(MSLStateMachine));
+
         public MSLStateMachine(PipelineCore pipeline, TilingQueue workerQueue, string projectName)
             : base(pipeline, workerQueue, projectName)
         {

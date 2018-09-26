@@ -142,6 +142,7 @@ namespace OPS.Pipeline.TileServer
 
         public void Dump(ILog logger)
         {
+            logger.Info("Architecture: " + (IntPtr.Size == 4 ? "x86" : "x64"));
             logger.Info("Landform venue: " + VenueName);
             logger.Info("S3URL: " + S3Url);
             logger.Info("AWS Region: " + Region);

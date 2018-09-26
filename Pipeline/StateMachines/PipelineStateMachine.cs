@@ -9,7 +9,7 @@ namespace OPS.Pipeline.TileServer
 {
     abstract class PipelineStateMachine
     {
-        protected static ILog logger = LogManager.GetLogger(typeof(PipelineStateMachine));
+        private static ILog logger = LogManager.GetLogger(typeof(PipelineStateMachine));
 
         protected PipelineCore pipeline;
         protected TilingQueue workerQueue;
