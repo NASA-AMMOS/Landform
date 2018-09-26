@@ -478,20 +478,47 @@ namespace OPS.Pipeline
         public enum ReferenceCoordinateFrame
         {
             RoverNav,
+            LocalLevel,
             Site
         }
 
-        public ReferenceCoordinateFrame DerivedImageCoordinateFrame
+        private ReferenceCoordinateFrame GetReferenceCoordinateFrame(string group)
+        {
+            if (metadata.ReadAsString(group, "REFERENCE_COORD_SYSTEM_NAME") == "ROVER_NAV_FRAME")
+                return ReferenceCoordinateFrame.RoverNav;
+            else if (metadata.ReadAsString(group, "REFERENCE_COORD_SYSTEM_NAME") == "SITE_FRAME")
+                return ReferenceCoordinateFrame.Site;
+            else if (metadata.ReadAsString(group, "REFERENCE_COORD_SYSTEM_NAME") == "LOCAL_LEVEL_FRAME")
+                return ReferenceCoordinateFrame.LocalLevel;
+            else
+                throw new PDSParserException("unknown reference coordinate system");
+        }
+
+        public ReferenceCoordinateFrame DerivedImageRefFrame
         {
             get
             {
-                if (metadata.ReadAsString("DERIVED_IMAGE_PARMS", "REFERENCE_COORD_SYSTEM_NAME") == "ROVER_NAV_FRAME")
-                    return ReferenceCoordinateFrame.RoverNav;
-                else if (metadata.ReadAsString("DERIVED_IMAGE_PARMS", "REFERENCE_COORD_SYSTEM_NAME") == "SITE_FRAME")
-                    return ReferenceCoordinateFrame.Site;
-                else
-                    throw new PDSParserException("unknown reference coordinate system");
+                return GetReferenceCoordinateFrame("DERIVED_IMAGE_PARMS");
             }
         }
+
+
+        public ReferenceCoordinateFrame CameraModelRefFrame
+        {
+            get
+            {
+                return GetReferenceCoordinateFrame("GEOMETRIC_CAMERA_MODEL");
+            }
+        }
+        
+        public Vector3 RangeOrigin
+        {
+            get
+            {
+              double[] originVecv = metadata.ReadAsDoubleArray("DERIVED_IMAGE_PARMS", "RANGE_ORIGIN_VECTOR");
+              return new Vector3(originVecv);
+            } 
+        }
+    
     }
 }
