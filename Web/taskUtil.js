@@ -93,14 +93,16 @@ async function launchTask(cmd, args, options) {
 }
 
 //avoid memory leak, reap completed tasks
-setInterval(() => {
-  const tooOld = Date.now() - config.app.reapOldTasks * 1000;
-  const dead = [];
-  Object.values(tasks).forEach(task => {
-    if (!task.info.running && task.info.ended < tooOld) dead.push(task.info.id);
-  });
-  dead.forEach(id => { delete tasks[id]; });
-}, 60 * 1000);
+function startTaskReaper() {
+  setInterval(() => {
+    const tooOld = Date.now() - config.app.reapOldTasks * 1000;
+    const dead = [];
+    Object.values(tasks).forEach(task => {
+      if (!task.info.running && task.info.ended < tooOld) dead.push(task.info.id);
+    });
+    dead.forEach(id => { delete tasks[id]; });
+  }, 60 * 1000);
+}
 
 //generic handler for API calls that run a task
 //
@@ -183,4 +185,4 @@ async function taskHandler(req, res, task, cleanup) {
   }
 }
 
-module.exports = { getTask, launchTask, taskHandler };
+module.exports = { getTask, launchTask, startTaskReaper, taskHandler };

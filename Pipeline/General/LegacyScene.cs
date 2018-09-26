@@ -69,37 +69,11 @@ namespace OPS.Pipeline
                 MeshImagePair pair = new MeshImagePair(m, img);
                 node.AddComponent(pair);
             }
-            ComputeBounds(SkyRoot);
-            ComputeBounds(TerrainRoot);
+            SceneNodeTilingExtensions.ComputeBounds(SkyRoot);
+            SceneNodeTilingExtensions.ComputeBounds(TerrainRoot);
         }
 
-        void ComputeBounds(SceneNode root)
-        {
-            HashSet<SceneNode> curParents = new HashSet<SceneNode>();
-            foreach (var leaf in root.Leaves())
-            {
-                var pair = leaf.GetComponent<MeshImagePair>();
-                leaf.GetOrAddComponent<NodeBounds>().Bounds = pair.Mesh.Bounds();
-                if (leaf.Parent != null)
-                {
-                    curParents.Add(leaf.Parent);
-                }
-            }
 
-            while (curParents.Count > 0)
-            {
-                HashSet<SceneNode> nextParents = new HashSet<SceneNode>();
-                foreach (var p in curParents)
-                {
-                    p.GetOrAddComponent<NodeBounds>().Bounds = BoundingBoxExtensions.Union(p.Children.Select(c => c.GetOrAddComponent<NodeBounds>().Bounds).ToArray());
-                    if (p.Parent != null)
-                    {
-                        nextParents.Add(p.Parent);
-                    }
-                }
-                curParents = nextParents;
-            }
-        }
 
         static SceneNode FindOrCreateNode(string id, SceneNode root)
         {

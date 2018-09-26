@@ -1,5 +1,7 @@
-node_modules/
 landformweb.zip
+landformweb-worker.zip
+ec2userdata.txt
+node_modules/
 tmp/
 upload/
 log/

@@ -38,11 +38,61 @@ If you are administering an end-use deployment outside the Landform team then yo
 
 For the Landform team the typical values are noted below.  For development and integration testing use the `-dev` names, e.g. `landformweb-dev`, for production omit `-dev`.
 
-## 1: Create Elastic Beanstalk Environment for Master Server
+## 1. S3 Bucket Setup
+Landform stores its input and output datasets in an AWS S3 bucket.  The bucket `landlords-dev` is already setup for internal Landform use and deployments managed by the Landform team.  If you are administering an end-use deployment outside the Landform team, you will need to create and configure your own S3 bucket.
+
+The bucket needs to be fully accessible by the account in which the Landform server components (master and workers) are deployed.  Typically this is ensured by using the same account to create the S3 bucket as for deploying the server components.
+
+The bucket typically also needs external `https` access so that results of Landform processing can be accessed for viewing and downstream use.  The instructions below show how to set this up limited to clients with JPL IP addresses.
+
+1. http://goto.jpl.nasa.gov/awsconsole
+1. Log in with the same AWS account you use to deploy the Landform server components
+1. Select region `us-west-1` (North California)
+1. Services -> Storage -> S3
+1. Create Bucket
+  1. enter a bucket name - note it must be globally unique across all S3 bucket names
+  1. Create
+1. Select bucket in list
+  1. Permissions -> Bucket Policy
+    1. paste the following, replacing `BUCKET_NAME` with your bucket name
+       ```
+        {
+          "Version": "2012-10-17",
+          "Id": "S3PolicyId1",
+          "Statement": [
+            {
+              "Sid": "allow readonly from JPL",
+              "Effect": "Allow",
+              "Principal": {
+                  "AWS": "*"
+              },
+              "Action": "s3:GetObject",
+              "Resource": "arn:aws:s3:::BUCKET_NAME/*",
+              "Condition": {
+                "IpAddress": {
+                  "aws:SourceIp": [
+                    "128.149.0.0/16",
+                    "137.78.0.0/16",
+                    "137.79.0.0/16",
+                    "137.228.0.0/16"
+                  ]
+                }
+              }
+            }
+          ]
+        } 
+        ```
+    1. Save
+  1. Properties -> Static website hosting
+    1. Use this bucket to host a website
+    1. Index document: `index.html`
+    1. Save
+
+## 2: Create Elastic Beanstalk Environment for Master Server
 This step creates the Elastic Beanstalk application and environment into which the Landform master server will be deployed.
 
 1. http://goto.jpl.nasa.gov/awsconsole
-1. log in as `landords/account_owner` (internal Landform use only, otherwise use your own AWS account)
+1. Log in as `landords/account_owner` (internal Landform use only, otherwise use your own AWS account)
 1. Select region `us-west-1` (North California)
 1. Services -> Compute -> Elastic Beanstalk
 1. Create application: `Landform` (recommended, but can be any name)
@@ -61,7 +111,7 @@ This step creates the Elastic Beanstalk application and environment into which t
         1. Instance subnets: same as load balancer
 1. Create Environment - it takes a few minutes
 
-## 2: Configure DNS
+## 3: Configure DNS
 This step is optional.  It configures a public DNS entry to redirect to the Elastic Beanstalk environment configured above.  The Landform team uses the Amazon Route 53 DNS service, but any DNS provider that supports CNAME records should work.
 
 The landform team uses this to redirect `https://landform[-dev].hi.jpl.nasa.gov` to `https://landformweb[-dev].us-west-1.elasticbeanstalk.com`.
@@ -81,7 +131,7 @@ If you forgo this step you can still access the Landform master server at a URL 
     1. Routing policy: `simple`
     1. Create
 
-## 3: Configure HTTPS
+## 4: Configure HTTPS
 This step uses the JPL and AWS certificate managers to generate and deploy cryptographic certificates to enable secure HTTPS connection to the Landform master server.
 
 The overall flow is
@@ -172,7 +222,7 @@ Most steps below require the end-user DNS name for your Landform master server, 
                 * Select the SSL certificate ID.  These may appear as `*.jpl.nasa.gov`, in which case you need to find the GUID matching the cert in the AWS Certificate Manager.
             1. Apply
 
-## 4: Restrict to JPL IPs
+## 5: Restrict to JPL IPs
 This step is optional but recommended.  It restricts access to your Landform master server to clients within the JPL IP address space.
 
 1. http://goto.jpl.nasa.gov/awsconsole
@@ -191,7 +241,7 @@ This step is optional but recommended.  It restricts access to your Landform mas
         * `HTTPS TCP 443 137.79.0.0/16`
         * `HTTPS TCP 443 137.228.0.0/16`
 
-## 5: Configure Elastic Beanstalk Environment for Landform Master Server
+## 6: Configure Elastic Beanstalk Environment for Landform Master Server
 This step configures the Elastic Beanstalk environment with specifics of your deployment for the Landform master server.
 
 1. http://goto.jpl.nasa.gov/awsconsole
@@ -201,7 +251,7 @@ This step configures the Elastic Beanstalk environment with specifics of your de
 1. Navigate into the Elastic Beanstalk application and environment you configured above
 1. Software -> Environment variables
     * `NODE_ENV`: `production` (`integration` for testing)
-      * for internal Landform use, setting `NODE_ENV` should be sufficient, as all other environment variables will be set automatically based on that
+      * setting `NODE_ENV` should be sufficient for internal Landform use as all other environment variables will be set automatically based on that
       * otherwise, use `NODE_ENV=production` and customize the variables below
     * `SESSION_SECRET`: any private string
     * `TOKEN_SECRET`: any private string
@@ -213,11 +263,11 @@ This step configures the Elastic Beanstalk environment with specifics of your de
     * `TILE_SERVER_LDAP_GROUP`: `landform` (internal landform use only, otherwise use your own LDAP group)
 1. Apply
 
-## 6: Deploy Landform Master Server Release
+## 7: Deploy Landform Master Server Release
 The following instructions assume you have a `landformweb-VERSION.zip` bundle.
 
 1. http://goto.jpl.nasa.gov/awsconsole
-1. Log in as landords/account_owner
+1. Log in as `landords/account_owner` (internal Landform use only, otherwise use your own AWS account)
 1. Select region `us-west-1` (North California)
 1. Services -> Compute -> Elastic Beanstalk
 1. Navigate into the Elastic Beanstalk application and environment you configured above
@@ -226,8 +276,115 @@ The following instructions assume you have a `landformweb-VERSION.zip` bundle.
 1. Version Label: VERSION
 1. Deploy - it takes a few minutes
 
-## 7: Configure EC2 Auto Scale Group for Landform Workers
-TODO
+## 8: Deploy Landform Worker to EC2 Auto Scale Group
+The following instructions assume you have a `landformweb-worker-VERSION.zip` bundle and an `ec2userdata.txt` file.
 
-## 8: Deploy Landform Worker Release
-TODO
+You must already have deployed the Landform master server on Elastic Beanstalk in the same venue following the instructions above.
+
+### 1. Setup Security
+These steps only need to be performed once before your first deployment.
+
+1. http://goto.jpl.nasa.gov/awsconsole
+1. Log in as `landords/account_owner` (internal Landform use only, otherwise use your own AWS account)
+1. Select region `us-west-1` (North California)
+1. Services -> Compute -> EC2
+1. Network & Security -> Security Groups (optional - only if you don't already have a security group that enables RDP and you want to have remote access to the EC2 instances in the autoscale group for debugging or maintenance)
+  1. Create Security Group
+  1. Name: `RDP Only` (recommended, but can be any name)
+  1. Description: `RDP Only for Landform` (recommended, but can be any name)
+  1. Rules
+     1. Add Rule
+       * Type: `RDP`
+       * Source: `Custom: 128.149.0.0/16, 137.78.0.0/16, 137.79.0.0/16, 137.228.0.0/16` - restrict RDP access to JPL IP addresses
+1. Services -> Compute -> EC2
+1. Network & Security -> Key Pairs (optional - only if you want to be able to log in to the EC2 instances in the autoscale group for debugging or maintenance)
+  1. select, create, or import a key pair
+  1. you can use a tool like `ssh-keygen -t rsa` to generate a key pair
+
+### 2. Create Launch Template
+These instructions only need to be run once for a new venue or when the venue configuration (`ec2userdata.txt`) changes.
+
+1. http://goto.jpl.nasa.gov/awsconsole
+1. Log in as `landords/account_owner` (internal Landform use only, otherwise use your own AWS account)
+1. Select region `us-west-1` (North California)
+1. Services -> Compute -> EC2
+1. Instances -> Launch Templates
+1. Create New Launch Template
+  * If you have already created a template for a Landform venue then you can
+    * select "Create a new template version*
+    * select the previous template in "Launch template name"
+    * select the most recent version of the previous template in "Source Template Version"
+    * the new template will be pre-populated with values from the old template
+    * most likely the only field you'll need to replace is "User Data"
+  * Launch Template Name: `landformweb[-dev]-workers` (recommended, but can be any name)
+  * AMI ID: `ami-0df605282263fb1c9` (Microsoft Windows Server 2016 Base 64-bit)
+  * Instance Type: `t2.2xlarge` recommended, other [instance types](https://aws.amazon.com/ec2/instance-types) can be chosen for different [price](https://aws.amazon.com/ec2/pricing/on-demand)/performance tradeoffs 
+  * Key Pair: the key pair you selected above
+  * Network Type: `classic`
+  * Availability Zone: `us-west-1c`
+  * Security Groups: `RDP Only` (or whatever security group you selected above)
+  * Storage Volumes -> Add New Volume
+    * Volume Type: `ephemeral0`
+    * Device Name: `xvda Windows`
+    * Size: `100 GiB`
+    * IOPS: `2000`
+  * Tags -> Add Tag
+    * Key: `Name` - note this must be capitalized exactly as shown
+    * Value: `landformweb[-dev]-worker` (recommended, but can be any name) - this will identify the EC2 instances in the group
+  * Advanced
+    * IAM Instance Profile: `landlords` (internal Landform use only, otherwise use your own profile) 
+    * User Data: cut and paste the entire contents of `ec2userdata.txt`
+1. Create Launch Tempate
+
+### 3. Upload New Worker
+These instructions only needs to be run when the Landform worker version changes (`landform-worker-VERSION.zip`).
+
+1. http://goto.jpl.nasa.gov/awsconsole
+1. Log in as `landords/account_owner` (internal Landform use only, otherwise use your own AWS account)
+1. Select region `us-west-1` (North California)
+1. Services -> Storage -> S3
+1. select your S3 bucket (`landlords-dev` for internal Landform use)
+1. select the subfolder matching your venue name (e.g. `landformweb[-dev]`)
+1. create subfolder `app` if it doesn't already exist
+1. select subfolder `app`
+1. if `landformweb-worker.zip` exists, delete it
+1. upload `landformweb-worker-VERSION.zip`
+1. right click on `landformweb-worker-VERSION.zip` and rename to `tileserver.zip`
+1. you will need to restart all EC2 instances in the autoscale group to pick up the changes
+  1. one way to do that is to delete any existing auto scaling group and then re-create following the instructions below
+
+### 4. Create Auto Scaling Group
+1. http://goto.jpl.nasa.gov/awsconsole
+1. Log in as `landords/account_owner` (internal Landform use only, otherwise use your own AWS account)
+1. Select region `us-west-1` (North California)
+1. Services -> Compute -> EC2
+1. Auto Scaling -> Auto Scaling Groups -> Create Auto Scaling Group
+1. Launch Template
+1. select the launch template you just created
+1. Next Step
+  * Group Name: `landformweb[-dev]-workers` (recommended, but can be any name)
+  * Subnet: `172.31.16.0/20 | Default in us-west-1c`
+1. Configure Scaling Policies
+  * Use scaling policies to ajust the capacity of the group
+  * Scale Between: 1 and 4 instances (recommended, but other parameters can be chosen for different price/performance tradeoffs)
+  * Metric type: `Average CPU Utilization`
+  * Target value: `60`
+  * Instances need: `300` seconds to warm up after scaling
+1. Review
+1. Create Auto Scaling Group
+
+### 5. To Remote in to an EC2 Instance in the Autoscale Group
+1. http://goto.jpl.nasa.gov/awsconsole
+1. Log in as `landords/account_owner` (internal Landform use only, otherwise use your own AWS account)
+1. Select region `us-west-1` (North California)
+1. Services -> Compute -> EC2
+1. Instances -> Instances
+  1. right click on an instance in the group
+  1. if this is your first time connecting
+    1. Get Password
+    1. paste contents of private key from the key pair you selected above (or choose file)
+    1. Decrypt Password
+    1. copy to clipboard
+  1. download remote desktop (RDP) file
+  1. double click RDP file to open remote desktop
+  1. username: `admin`, password as above
