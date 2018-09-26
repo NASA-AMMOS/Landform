@@ -379,12 +379,14 @@ These instructions only needs to be run when the Landform worker version changes
 1. Select region `us-west-1` (North California)
 1. Services -> Compute -> EC2
 1. Instances -> Instances
-  1. right click on an instance in the group
-  1. if this is your first time connecting
-    1. Get Password
-    1. paste contents of private key from the key pair you selected above (or choose file)
-    1. Decrypt Password
-    1. copy to clipboard
-  1. download remote desktop (RDP) file
-  1. double click RDP file to open remote desktop
-  1. username: `admin`, password as above
+1. Right click on an instance in the group
+1. if this is your first time connecting
+  1. Get Password
+  1. paste contents of private key from the key pair you selected above (or choose file)
+  1. Decrypt Password
+  1. copy to clipboard
+1. Download remote desktop (RDP) file
+1. Double click RDP file to open remote desktop
+1. Username: `admin`, password as above
+1. The Landform tiling server should be located in `C:\tileserver`
+1. The [EC2Launch](https://docs.aws.amazon.com/AWSEC2/latest/WindowsGuide/ec2-windows-user-data.html) log for the user data script should be at `C:\ProgramData\Amazon\EC2-Windows\Launch\Log\UserdataExecution`
