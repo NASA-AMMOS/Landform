@@ -97,7 +97,7 @@ namespace OPS.Pipeline.MeshWorker
             Mesh aggregatePointCloud = new Mesh(hasNormals: true);
             for (int idx = 0; idx < pointCloudObservations.Count; idx++)
             {
-                logger.InfoFormat("Building point cloud {0}/{1} ({2})%): {3}", idx, pointCloudObservations.Count, (int)(100 * idx / (float)pointCloudObservations.Count), pointCloudObservations[idx].PointsObs.FrameName);
+                logger.InfoFormat("Building point cloud {0}/{1} ({2})%): {3}", idx+1, pointCloudObservations.Count, (int)(100 * idx / (float)pointCloudObservations.Count), pointCloudObservations[idx].PointsObs.FrameName);
 
                 PointCloudInput pcImgs = GetPointCloudInput(pointCloudObservations[idx]);
                 Mesh pointCloud = BuildPointCloudMesh(pcImgs, frameCache, obsCache);
