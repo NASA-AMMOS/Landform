@@ -25,12 +25,27 @@ namespace OPS.Pipeline
 
         public int FirstLine
         {
-            get { return metadata.ReadAsInt("IMAGE", "FIRST_LINE"); }
+            get
+            {
+                if (metadata.HasKey("IMAGE", "FIRST_LINE"))
+                {
+                    return metadata.ReadAsInt("IMAGE", "FIRST_LINE");
+                }
+                return metadata.ReadAsInt("IMAGE_DATA", "FIRST_LINE");
+            }
         }
 
         public int FirstSample
         {
-            get { return metadata.ReadAsInt("IMAGE", "FIRST_LINE_SAMPLE"); }
+            get {
+
+                if (metadata.HasKey("IMAGE", "FIRST_LINE_SAMPLE"))
+                {
+                    return metadata.ReadAsInt("IMAGE", "FIRST_LINE_SAMPLE");
+                }
+                return metadata.ReadAsInt("IMAGE_DATA", "FIRST_LINE_SAMPLE");
+
+            }
         }
 
         private const string Unknown = "UNK";
@@ -337,6 +352,10 @@ namespace OPS.Pipeline
         {
             get
             {
+                if (metadata.HasKey("IDENTIFICATION", "ROVER_MOTION_COUNTER"))
+                {
+                    return metadata.ReadAsIntArray("IDENTIFICATION", "ROVER_MOTION_COUNTER");
+                }
                 return metadata.ReadAsIntArray("ROVER_MOTION_COUNTER");
             }
         }
@@ -472,6 +491,37 @@ namespace OPS.Pipeline
             get
             {
                 return new PDSRoverArticulationParser(this.metadata).Parse();
+            }
+        }
+
+        public double HorizontalFOV
+        {
+            get
+            {
+                // Todo: write read angle
+                if (this.metadata.HasKey("INSTRUMENT_STATE_PARMS", "AZIMUTH_FOV"))
+                {
+                    return MathHelper.ToRadians(this.metadata.ReadAsDouble("INSTRUMENT_STATE_PARMS", "AZIMUTH_FOV"));
+                }
+
+                return MathHelper.ToRadians(this.metadata.ReadAsDouble("INSTRUMENT_STATE_PARMS", "HORIZONTAL_FOV"));
+                
+               
+            }
+        }
+
+        public double VerticleFOV
+        {
+            get
+            {
+                // Todo: write read angle
+
+                if (this.metadata.HasKey("INSTRUMENT_STATE_PARMS", "ELEVATION_FOV"))
+                {
+                    return MathHelper.ToRadians(this.metadata.ReadAsDouble("INSTRUMENT_STATE_PARMS", "ELEVATION_FOV"));
+                }
+                return MathHelper.ToRadians(this.metadata.ReadAsDouble("INSTRUMENT_STATE_PARMS", "VERTICAL_FOV"));
+                
             }
         }
     }
