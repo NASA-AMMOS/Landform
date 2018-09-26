@@ -274,8 +274,8 @@ namespace OPS.Pipeline.MeshWorker
             if (opgsId.ProductType != RoverProductType.Range)
                 throw new NotImplementedException("synthetic confidence supported from range images currently"); ;
 
-            Image rne = new Image(1, pdsImage.Metadata.Width, pdsImage.Metadata.Height);
-            rne.CreateMask(false);
+            Image confidence = new Image(1, pdsImage.Metadata.Width, pdsImage.Metadata.Height);
+            confidence.CreateMask(false);
 
             for (int idxRow = 0; idxRow < pdsImage.Metadata.Height; idxRow++)
             {
@@ -283,11 +283,12 @@ namespace OPS.Pipeline.MeshWorker
                 {
                     if (pdsImage.IsInvalid(idxRow, idxCol) || pdsImage[0, idxRow, idxCol] <= 0.0f)
                     {
-                        rne.SetMaskValue(idxRow, idxCol, true);
+                        confidence.SetMaskValue(idxRow, idxCol, true);
                     }
                     else
                     {
-                        rne[0, idxRow, idxCol] = 1 / pdsImage[0, idxRow, idxCol];
+                        //naive confidence: farther away the point is, the lower the confidence
+                        confidence[0, idxRow, idxCol] = 1 / pdsImage[0, idxRow, idxCol];
                     }
                 }
             }
