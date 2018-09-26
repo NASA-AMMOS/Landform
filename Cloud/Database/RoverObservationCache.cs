@@ -18,7 +18,6 @@ namespace OPS.Cloud
         string projectName;
         int sleepThrottleMS;
 
-        //TODO: read capacity from template or api
         public RoverObservationCache(DynamoDBContext dynamoContext, string projectName, int estimatedItemSizeBytes, int tableReadCapacity)
         {
             this.dynamoContext = dynamoContext;
