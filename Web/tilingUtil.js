@@ -25,6 +25,7 @@ function setTilingEnv(env) {
 //waits for tmpDir to be created but does not wait for task to complete
 //returns task
 async function tilingTask(verb, args) {
+  args = args || [];
   await fs.ensureDir(config.app.tmpDir);
   return launchTask('TilingServer', [verb, ...args], { cwd: config.app.tmpDir, env: setTilingEnv() });
 }
@@ -43,7 +44,7 @@ async function tilingMaster() {
   }
 
   try {
-    masterTask = await tilingTask('startmaster', [`--singlethreaded=${!config.app.multiThreadedMaster}`]);
+    masterTask = await tilingTask('startmaster');
     masterTask.promise.catch(err => abort(err));
   } catch (err) { abort(err); }
 

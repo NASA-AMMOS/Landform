@@ -40,8 +40,6 @@ const development = {
     awsMSLICEProfile: env.TILE_SERVER_MSLICE_PROFILE || 'mslice',
     awsMSLICES3Url: env.TILE_SERVER_MSLICE_S3_URL || 's3://red-product',
 
-    multiThreadedMaster: !!env.MULTI_THREADED_MASTER,
-
     reapOldTasks: 60 * 60 * 24, //24h in sec
   },
   ldap: {
