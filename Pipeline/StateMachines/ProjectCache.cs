@@ -38,7 +38,7 @@ namespace OPS.Pipeline.TileServer
                 dependsOn = new Dictionary<string, List<string>>();
                 completed = new HashSet<string>();
                 enqued = new HashSet<string>();
-                var list = TilingNode.Find(this.pipeline.DynamoContext, this.project).ToList();
+                var list = TilingNode.Find(pipeline.DynamoContext, project.Name).ToList();
                 foreach (var n in list)
                 {
                     ids.Add(n.Id);

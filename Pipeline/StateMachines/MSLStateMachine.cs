@@ -1,8 +1,9 @@
-﻿using OPS.Pipeline.MeshWorker;
-using OPS.Geometry;
-using OPS.Plumbing;
+﻿using System;
 using System.Linq;
 using System.Collections.Generic;
+using OPS.Plumbing;
+using OPS.Geometry;
+using OPS.Pipeline.MeshWorker;
 using log4net;
 
 namespace OPS.Pipeline.TileServer
@@ -23,7 +24,11 @@ namespace OPS.Pipeline.TileServer
 
         public override void ProcessCompletedMessage(TilingQueueMessage m)
         {
-            var project = TilingProject.Find(pipeline.DynamoContext, m.ProjectName);
+            if (m.ProjectName != projectName)
+            {
+                throw new ArgumentException(string.Format("received message for project \"{0}\", expected \"{1}\"",
+                                                          m.ProjectName, projectName));
+            }
 
             if (m.GetType() == typeof(BuildTilingInput))
             {
@@ -33,28 +38,28 @@ namespace OPS.Pipeline.TileServer
 
                 //TODO: call code to build big mesh and create a tiling input
 
-                logger.Info("defining tiles in project " + project.Name);
-                workerQueue.Enqueue(new DefineTilesMessage(project.Name));
+                logger.Info("defining tiles in project " + projectName);
+                workerQueue.Enqueue(new DefineTilesMessage(projectName));
             }
             else if (m.GetType() == typeof(DefineTilesMessage))
             {
-                ChunkInputs(project);
+                ChunkInputs();
             }
             else if (m.GetType() == typeof(ChunkInputMessage))
             {
-                bool allChunked = InputChunked(project, ((ChunkInputMessage)m).InputName);
+                bool allChunked = InputChunked(((ChunkInputMessage)m).InputName);
                 if (allChunked)
                 {
-                    BuildBackprojectLeaves(project);
+                    BuildBackprojectLeaves();
                 }
             }
             else if (m.GetType() == typeof(TileCompletedMessage))
             {
-                TileCompleted(project, ((TileCompletedMessage)m).TileId);
+                TileCompleted(((TileCompletedMessage)m).TileId);
             }
             else if (m.GetType() == typeof(BuildTilesetJsonMessage))
             {
-                TilesetCompleted(project);
+                TilesetCompleted();
             }
             else
             {
@@ -62,16 +67,16 @@ namespace OPS.Pipeline.TileServer
             }
         }
 
-        protected void BuildBackprojectLeaves(TilingProject project)
+        protected void BuildBackprojectLeaves()
         {
-            logger.Info("building backproject leaves in " + project.Name);
-            SceneNode root = TilingNode.BuildTreeFromDatabase(pipeline.DynamoContext, project);
+            logger.Info("building backproject leaves in " + projectName);
+            SceneNode root = TilingNode.BuildTreeFromDatabase(pipeline.DynamoContext, projectName);
             List<List<SceneNode>> leafGroups = new List<List<SceneNode>>();
             GroupSceneNodesIntoJobs(root, leafGroups);
 
             foreach (var group in leafGroups)
             {
-                var leafJob = new BuildBackprojectLeavesMessage(project.Name, group.Select(n => n.Name).ToList());
+                var leafJob = new BuildBackprojectLeavesMessage(projectName, group.Select(n => n.Name).ToList());
                 workerQueue.Enqueue(leafJob);
                 foreach (var leaf in group)
                 {

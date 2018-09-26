@@ -67,16 +67,16 @@ namespace OPS.Pipeline.TileServer
             return input;
         }
 
-        public static TilingInput Find(DynamoDBContext context, TilingProject project, string name)
+        public static TilingInput Find(DynamoDBContext context, string projectName, string name)
         {
-            return context.Load<TilingInput>(name, project.Name);
+            return context.Load<TilingInput>(name, projectName);
         }
 
 
-        public static IEnumerable<TilingInput> Find(DynamoDBContext context, TilingProject project)
+        public static IEnumerable<TilingInput> Find(DynamoDBContext context, string projectName)
         {
             return context.Scan<TilingInput>(
-                new ScanCondition("ProjectName", Amazon.DynamoDBv2.DocumentModel.ScanOperator.Equal, project.Name)
+                new ScanCondition("ProjectName", Amazon.DynamoDBv2.DocumentModel.ScanOperator.Equal, projectName)
                 );
         }
 

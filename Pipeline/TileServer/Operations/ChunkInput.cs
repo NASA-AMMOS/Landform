@@ -60,12 +60,12 @@ namespace OPS.Pipeline.TileServer
         public void Process()
         {
             logger.Info("Processing message");
-            var project = TilingProject.Find(pipeline.DynamoContext, this.message.ProjectName);
-            var input = TilingInput.Find(pipeline.DynamoContext, project, message.InputName);
+            var project = TilingProject.Find(pipeline.DynamoContext, message.ProjectName);
+            var input = TilingInput.Find(pipeline.DynamoContext, project.Name, message.InputName);
             if (input.Chunked)
             {
                 logger.Info("Input has already been chunked");
-                pipeline.CompletionQueue.Enqueue(this.message);
+                pipeline.CompletionQueue.Enqueue(message);
                 return;
             }
 
@@ -93,7 +93,7 @@ namespace OPS.Pipeline.TileServer
                 input.ImageHeight = image.Height;
 
                 logger.Info("Chunk image");
-                var sparseImage = new SparseCloudImage(image, this.pipeline, CHUNK_RESOLUTION);
+                var sparseImage = new SparseCloudImage(image, pipeline, CHUNK_RESOLUTION);
                 imageBaseUrl =  TileServerConfig.Instance.ChunkUrl(project.Name, Guid.NewGuid().ToString());
                 sparseImage.Save<byte>(imageBaseUrl, IMAGE_EXT);
 
@@ -128,7 +128,7 @@ namespace OPS.Pipeline.TileServer
             input.ChunkIds = chunkIds.ToList();
             input.Chunked = true;
             input.Save(pipeline.DynamoContext);
-            pipeline.CompletionQueue.Enqueue(this.message);
+            pipeline.CompletionQueue.Enqueue(message);
             logger.Info("Done");
         }
 

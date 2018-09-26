@@ -69,16 +69,16 @@ namespace OPS.Pipeline.TileServer
         }
 
 
-        public static TilingNode Find(DynamoDBContext context, TilingProject project, string id)
+        public static TilingNode Find(DynamoDBContext context, string projectName, string id)
         {
-            return context.Load<TilingNode>(id, project.Name);
+            return context.Load<TilingNode>(id, projectName);
         }
 
 
-        public static IEnumerable<TilingNode> Find(DynamoDBContext context, TilingProject project)
+        public static IEnumerable<TilingNode> Find(DynamoDBContext context, string projectName)
         {
             return context.Scan<TilingNode>(
-                new ScanCondition("ProjectName", Amazon.DynamoDBv2.DocumentModel.ScanOperator.Equal, project.Name)
+                new ScanCondition("ProjectName", Amazon.DynamoDBv2.DocumentModel.ScanOperator.Equal, projectName)
                 );
         }
 
@@ -185,9 +185,9 @@ namespace OPS.Pipeline.TileServer
             return false;
         }
 
-        public static SceneNode BuildTreeFromDatabase(DynamoDBContext context, TilingProject project)
+        public static SceneNode BuildTreeFromDatabase(DynamoDBContext context, string projectName)
         {
-            var nodes = Find(context, project).ToList();
+            var nodes = Find(context, projectName).ToList();
             Dictionary<string, SceneNode> idToNode = new Dictionary<string, SceneNode>();
             // Create all nodes
             foreach (var n in nodes)

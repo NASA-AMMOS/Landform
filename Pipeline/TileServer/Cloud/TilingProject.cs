@@ -89,12 +89,12 @@ namespace OPS.Pipeline.TileServer
 
         public void Delete(PipelineCore pipeline, bool ignoreErrors = true, ILog logger = null)
         {
-            foreach (var node in TilingNode.Find(pipeline.DynamoContext, this))
+            foreach (var node in TilingNode.Find(pipeline.DynamoContext, Name))
             {
                 node.Delete(pipeline, ignoreErrors, logger);
             }
 
-            foreach (var input in TilingInput.Find(pipeline.DynamoContext, this))
+            foreach (var input in TilingInput.Find(pipeline.DynamoContext, Name))
             {
                 input.Delete(pipeline, ignoreErrors, logger);
             }
