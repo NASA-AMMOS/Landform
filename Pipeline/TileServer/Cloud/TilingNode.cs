@@ -89,8 +89,16 @@ namespace OPS.Pipeline.TileServer
 
         public void Delete(PipelineCore pipeline, bool ignoreErrors = true, ILog logger = null)
         {
-            pipeline.Storage(MeshUrl).DeleteObject(MeshUrl, ignoreErrors: ignoreErrors, logger: logger);
-            pipeline.Storage(ImageUrl).DeleteObject(ImageUrl, ignoreErrors: ignoreErrors, logger: logger);
+            if (!string.IsNullOrEmpty(MeshUrl))
+            {
+                pipeline.Storage(MeshUrl).DeleteObject(MeshUrl, ignoreErrors: ignoreErrors, logger: logger);
+            }
+
+            if (!string.IsNullOrEmpty(ImageUrl))
+            {
+                pipeline.Storage(ImageUrl).DeleteObject(ImageUrl, ignoreErrors: ignoreErrors, logger: logger);
+            }
+
             pipeline.DeleteDynamoItem(this, ignoreErrors, logger);
         }
 

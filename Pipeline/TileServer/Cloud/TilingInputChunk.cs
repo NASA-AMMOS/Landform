@@ -59,8 +59,18 @@ namespace OPS.Pipeline.TileServer
 
         public void Delete(PipelineCore pipeline, bool ignoreErrors = true, ILog logger = null)
         {
-            pipeline.Storage(MeshUrl).DeleteObject(MeshUrl, ignoreErrors: ignoreErrors, logger: logger);
-            pipeline.Storage(ImageUrl).DeleteObjects(ImageUrl, ignoreErrors: ignoreErrors, logger: logger);
+            if (!string.IsNullOrEmpty(MeshUrl))
+            {
+                pipeline.Storage(MeshUrl).DeleteObject(MeshUrl, ignoreErrors: ignoreErrors, logger: logger);
+            }
+
+            if (!string.IsNullOrEmpty(ImageUrl))
+            {
+                //note this call is DeleteObjects() not DeleteObject()
+                //because there can be multiple files with the same basename for these images
+                pipeline.Storage(ImageUrl).DeleteObjects(ImageUrl, ignoreErrors: ignoreErrors, logger: logger);
+            }
+                
             pipeline.DeleteDynamoItem(this, ignoreErrors, logger);
         }
 
