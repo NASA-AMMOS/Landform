@@ -98,6 +98,10 @@ namespace OPS.Geometry
                     if (options != null)
                     {
                         arguments += String.Format(" --bType {0} --width {1} --samplesPerNode {2} --degree {3} --confidence {4}", (int)options.Boundary, options.MinOctreeCellWidthMeters, options.MinOctreeSamplesPerCell, options.BSplineDegree, options.UseNormalsForConfidence ? 1 : 0);
+
+                        //a workaround for running on powerful machines. without it there is an ERROR about not being able
+                        // to open a file (likely a bug in multithread buffered file reading)
+                        arguments += " --threads 1";
                     }
                     ProgramRunner pr = new ProgramRunner(poissonReconExe, arguments, captureOutput: true);
                     pr.Run();
