@@ -36,7 +36,7 @@ namespace OPS.Pipeline.TileServer
         {
             var cloud = new TileServerCloud(this);
             cloud.EnsureTablesExist();
-            var workerQueue = cloud.WorkerQueue;
+            var completionQueue = cloud.CompletionQueue;
 
             var project = TilingProject.Find(DynamoContext, options.ProjectName);
             if (project == null)
@@ -48,7 +48,7 @@ namespace OPS.Pipeline.TileServer
             project.StartedRunning = true;
             project.Save(DynamoContext);
 
-            workerQueue.Enqueue(new RunProjectMessage(options.ProjectName));
+            completionQueue.Enqueue(new RunProjectMessage(options.ProjectName));
 
             logger.Info(options.ProjectName + " started running");
 
