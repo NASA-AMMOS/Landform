@@ -299,8 +299,27 @@ namespace OPS.Pipeline.MeshWorker
         /// this converts the range products into an image similar to the XYR products
         /// a position in the rover frame, until mission XYZ/XYR products are available
         /// </summary>
-        private Image ConvertRNGToXYR(Image img)
+        static public Image ConvertRNGToXYR(Image img)
         {
+            //validate assumptions about input data for rng images
+            PDSParser rangePDR = new PDSParser((PDSMetadata)img.Metadata);
+            if (rangePDR.DerivedImageRefFrame != PDSParser.ReferenceCoordinateFrame.RoverNav)
+            {
+                if (rangePDR.CameraModelRefFrame != PDSParser.ReferenceCoordinateFrame.RoverNav)
+                    throw new NotImplementedException("non-rover frame camera model not supported yet");
+            
+                CAHV cahv = img.CameraModel as CAHV;
+                if (cahv == null)
+                    throw new NotImplementedException("only cahv, cahvor, cahvore camera models handled currently");
+
+                // find the range data's origin in rover frame
+                Vector3 cameraPosRover = Vector3.Transform(rangePDR.RangeOrigin, RoverCoordinateSystem.SiteToRover(rangePDR.RoverOriginRotation, rangePDR.OriginOffset));
+
+                //verify we can use the camera model's position as the origin for the range data
+                if (!Vector3.AlmostEqual(cameraPosRover, cahv.C, 0.0005))
+                    throw new NotImplementedException("only expecting range maps from the camera's location");
+            }
+
             Image xyr = new Image(3, img.Metadata.Width, img.Metadata.Height);
             xyr.CreateMask(false);
 
