@@ -35,7 +35,6 @@ namespace OPS.Pipeline.TileServer
                 TilingProject project = TilingProject.Find(pipeline.DynamoContext, m.ProjectName);
                 this.projectCache.Refresh();
 
-                TilingProject project = TilingProject.Find(pipeline.DynamoContext, m.ProjectName);
                 if(project.TilingScheme == TilingScheme.UserDefined.ToString())
                 {
                     // Skip Chunking
