@@ -542,6 +542,24 @@ namespace OPS.Cloud
             {
                 IEnumerable<string> objects = SearchObjects(s3Url, pattern, recursive);
 
+                objects = objects.Where(obj => {
+                        if (obj.StartsWith(s3Url))
+                        {
+                            return true;
+                        }
+                        var msg = string.Format("suspicious glob result \"{0}\", should begin \"{1}\", not deleting",
+                                                obj, s3Url);
+                        if (!ignoreErrors)
+                        {
+                            throw new System.Exception(msg);
+                        }
+                        else if (logger != null)
+                        {
+                            logger.Warn(msg);
+                        }
+                        return false;
+                    });
+
                 DeleteObjectsRequest request = new DeleteObjectsRequest
                 {
                     BucketName = (new S3Url(s3Url)).BucketName,
