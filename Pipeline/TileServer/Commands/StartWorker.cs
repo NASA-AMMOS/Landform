@@ -64,22 +64,21 @@ namespace OPS.Pipeline.TileServer
             new TileServerCloud(this).EnsureTablesExist();
 
             Task masterTask = null;
-            if(options.StartMaster)
+            if (options.StartMaster)
             {
                 masterTask = new Task(() =>
-                        {
-                            try
-                            {
-                                StartMasterOptions opts = new StartMasterOptions();
-                                opts.SingleThreaded = true;
-                                new StartMaster(opts).Run();
-                            }
-                            catch (Exception e)
-                            {
-                                logger.Error("error in master task: " + e.Message);
-                                logger.Error(e.StackTrace);
-                            }
-                        });
+                {
+                    try
+                    {
+                        StartMasterOptions opts = new StartMasterOptions();
+                        new StartMaster(opts).Run();
+                    }
+                    catch (Exception e)
+                    {
+                        logger.Error("error in master task: " + e.Message);
+                        logger.Error(e.StackTrace);
+                    }
+                });
                 masterTask.Start();
             }
 
