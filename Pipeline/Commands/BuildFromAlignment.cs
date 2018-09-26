@@ -55,15 +55,15 @@ namespace OPS.Pipeline
             PathHelper.EnsureExists(options.OutputDirectory);
         }
 
-        static public Matrix ObservationToRoot(DynamoDBContext DynamoContext, Observation obs, FrameCache frameCache)
+        static public Matrix ObservationToRoot(DynamoDBContext dynamoContext, Observation obs, FrameCache frameCache)
         {
             Frame frame = frameCache.GetFrame(obs.FrameName);
             //Start with the initial transform
-            Matrix transform = FrameTransform.Find(DynamoContext, frame).Transform.Mean;
-            while ((frame = frame.GetParent(DynamoContext)) != null) 
+            Matrix transform = FrameTransform.Find(dynamoContext, frame).Transform.Mean;
+            while ((frame = frame.GetParent(dynamoContext)) != null) 
             {
                 //Read the parent transform and combine it with the existing transform
-                var parentTransform = FrameTransform.Find(DynamoContext, frame).Transform.Mean;
+                var parentTransform = FrameTransform.Find(dynamoContext, frame).Transform.Mean;
                 transform = parentTransform * transform;          
             }
             return transform;

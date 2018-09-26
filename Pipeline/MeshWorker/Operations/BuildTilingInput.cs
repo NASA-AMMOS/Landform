@@ -81,8 +81,8 @@ namespace OPS.Pipeline.MeshWorker
             logger.Info("Building tiling input...");
 
             //cache data needed to build pointcloud
-            FrameCache frameCache = new FrameCache(pipeline.DynamoContext, this.options.AlignmentProjectName);
-            RoverObservationCache obsCache = new RoverObservationCache(pipeline.DynamoContext, this.options.AlignmentProjectName, this.options.EstimatedItemSizeBytes, this.options.TableReadCapacity);
+            FrameCache frameCache = new FrameCache(pipeline.DynamoContext, options.AlignmentProjectName);
+            RoverObservationCache obsCache = new RoverObservationCache(pipeline.DynamoContext, options.AlignmentProjectName, options.EstimatedItemSizeBytes, options.TableReadCapacity);
             obsCache.FillCache(onlyReconstructionObs: true);
 
             //find the best observations to use for each point cloud
