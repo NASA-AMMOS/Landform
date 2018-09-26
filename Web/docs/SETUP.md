@@ -38,11 +38,61 @@ If you are administering an end-use deployment outside the Landform team then yo
 
 For the Landform team the typical values are noted below.  For development and integration testing use the `-dev` names, e.g. `landformweb-dev`, for production omit `-dev`.
 
-## 1: Create Elastic Beanstalk Environment for Master Server
+## 1. S3 Bucket Setup
+Landform stores its input and output datasets in an AWS S3 bucket.  The bucket `landlords-dev` is already setup for internal Landform use and deployments managed by the Landform team.  If you are administering an end-use deployment outside the Landform team, you will need to create and configure your own S3 bucket.
+
+The bucket needs to be fully accessible by the account in which the Landform server components (master and workers) are deployed.  Typically this is ensured by using the same account to create the S3 bucket as for deploying the server components.
+
+The bucket typically also needs external `https` access so that results of Landform processing can be accessed for viewing and downstream use.  The instructions below show how to set this up limited to clients with JPL IP addresses.
+
+1. http://goto.jpl.nasa.gov/awsconsole
+1. Log in with the same AWS account you use to deploy the Landform server components
+1. Select region `us-west-1` (North California)
+1. Services -> Storage -> S3
+1. Create Bucket
+  1. enter a bucket name - note it must be globally unique across all S3 bucket names
+  1. Create
+1. Select bucket in list
+  1. Permissions -> Bucket Policy
+    1. paste the following, replacing `BUCKET_NAME` with your bucket name
+       ```
+        {
+          "Version": "2012-10-17",
+          "Id": "S3PolicyId1",
+          "Statement": [
+            {
+              "Sid": "allow readonly from JPL",
+              "Effect": "Allow",
+              "Principal": {
+                  "AWS": "*"
+              },
+              "Action": "s3:GetObject",
+              "Resource": "arn:aws:s3:::BUCKET_NAME/*",
+              "Condition": {
+                "IpAddress": {
+                  "aws:SourceIp": [
+                    "128.149.0.0/16",
+                    "137.78.0.0/16",
+                    "137.79.0.0/16",
+                    "137.228.0.0/16"
+                  ]
+                }
+              }
+            }
+          ]
+        } 
+        ```
+    1. Save
+  1. Properties -> Static website hosting
+    1. Use this bucket to host a website
+    1. Index document: `index.html`
+    1. Save
+
+## 2: Create Elastic Beanstalk Environment for Master Server
 This step creates the Elastic Beanstalk application and environment into which the Landform master server will be deployed.
 
 1. http://goto.jpl.nasa.gov/awsconsole
-1. log in as `landords/account_owner` (internal Landform use only, otherwise use your own AWS account)
+1. Log in as `landords/account_owner` (internal Landform use only, otherwise use your own AWS account)
 1. Select region `us-west-1` (North California)
 1. Services -> Compute -> Elastic Beanstalk
 1. Create application: `Landform` (recommended, but can be any name)
@@ -61,7 +111,7 @@ This step creates the Elastic Beanstalk application and environment into which t
         1. Instance subnets: same as load balancer
 1. Create Environment - it takes a few minutes
 
-## 2: Configure DNS
+## 3: Configure DNS
 This step is optional.  It configures a public DNS entry to redirect to the Elastic Beanstalk environment configured above.  The Landform team uses the Amazon Route 53 DNS service, but any DNS provider that supports CNAME records should work.
 
 The landform team uses this to redirect `https://landform[-dev].hi.jpl.nasa.gov` to `https://landformweb[-dev].us-west-1.elasticbeanstalk.com`.
@@ -81,7 +131,7 @@ If you forgo this step you can still access the Landform master server at a URL 
     1. Routing policy: `simple`
     1. Create
 
-## 3: Configure HTTPS
+## 4: Configure HTTPS
 This step uses the JPL and AWS certificate managers to generate and deploy cryptographic certificates to enable secure HTTPS connection to the Landform master server.
 
 The overall flow is
@@ -172,7 +222,7 @@ Most steps below require the end-user DNS name for your Landform master server, 
                 * Select the SSL certificate ID.  These may appear as `*.jpl.nasa.gov`, in which case you need to find the GUID matching the cert in the AWS Certificate Manager.
             1. Apply
 
-## 4: Restrict to JPL IPs
+## 5: Restrict to JPL IPs
 This step is optional but recommended.  It restricts access to your Landform master server to clients within the JPL IP address space.
 
 1. http://goto.jpl.nasa.gov/awsconsole
@@ -191,7 +241,7 @@ This step is optional but recommended.  It restricts access to your Landform mas
         * `HTTPS TCP 443 137.79.0.0/16`
         * `HTTPS TCP 443 137.228.0.0/16`
 
-## 5: Configure Elastic Beanstalk Environment for Landform Master Server
+## 6: Configure Elastic Beanstalk Environment for Landform Master Server
 This step configures the Elastic Beanstalk environment with specifics of your deployment for the Landform master server.
 
 1. http://goto.jpl.nasa.gov/awsconsole
@@ -201,7 +251,7 @@ This step configures the Elastic Beanstalk environment with specifics of your de
 1. Navigate into the Elastic Beanstalk application and environment you configured above
 1. Software -> Environment variables
     * `NODE_ENV`: `production` (`integration` for testing)
-      * for internal Landform use, setting `NODE_ENV` should be sufficient, as all other environment variables will be set automatically based on that
+      * setting `NODE_ENV` should be sufficient for internal Landform use as all other environment variables will be set automatically based on that
       * otherwise, use `NODE_ENV=production` and customize the variables below
     * `SESSION_SECRET`: any private string
     * `TOKEN_SECRET`: any private string
@@ -213,7 +263,7 @@ This step configures the Elastic Beanstalk environment with specifics of your de
     * `TILE_SERVER_LDAP_GROUP`: `landform` (internal landform use only, otherwise use your own LDAP group)
 1. Apply
 
-## 6: Deploy Landform Master Server Release
+## 7: Deploy Landform Master Server Release
 The following instructions assume you have a `landformweb-VERSION.zip` bundle.
 
 1. http://goto.jpl.nasa.gov/awsconsole
@@ -226,10 +276,10 @@ The following instructions assume you have a `landformweb-VERSION.zip` bundle.
 1. Version Label: VERSION
 1. Deploy - it takes a few minutes
 
-## 7: Deploy Landform Worker to EC2 Auto Scale Group
+## 8: Deploy Landform Worker to EC2 Auto Scale Group
 The following instructions assume you have a `landformweb-worker-VERSION.zip` bundle and an `ec2userdata.txt` file.
 
-You must already have deployed the Landform master server on Elastic Beanstal in the same venue following the instructions above.
+You must already have deployed the Landform master server on Elastic Beanstalk in the same venue following the instructions above.
 
 ### 1. Setup Security
 These steps only need to be performed once before your first deployment.
