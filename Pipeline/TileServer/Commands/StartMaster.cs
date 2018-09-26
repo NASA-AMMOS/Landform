@@ -13,7 +13,7 @@ namespace OPS.Pipeline.TileServer
     [Verb("startmaster", HelpText = "Runs a tiling workflow")]
     public class StartMasterOptions
     {
-        [Option(HelpText = "Run a single master on the main thread for debugging", Default = false)]
+        [Option(HelpText = "Run a single master on the main thread", Default = true)]
         public bool SingleThreaded { get; set; }
     }
 
@@ -36,16 +36,31 @@ namespace OPS.Pipeline.TileServer
 
         public int Run()
         {
+            TileServerConfig.Instance.Dump(logger);
+
             if (options.SingleThreaded)
             {
+                logger.Info("TilingServer master single-threaded");
                 RunMaster();
             }
             else
             {
+                logger.Info("TilingServer master multi-threaded (EXPERIMENTAL)");
+
                 Task[] tasks = new Task[Environment.ProcessorCount];
                 for (int i = 0; i < tasks.Length; i++)
                 {
-                    tasks[i] = Task.Run(() => RunMaster());
+                    tasks[i] = Task.Run(() => {
+                            try
+                            {
+                                RunMaster();
+                            }
+                            catch (Exception e)
+                            {
+                                logger.Error("error in master task " + i + ": " + e.Message);
+                                logger.Error(e.StackTrace);
+                            }
+                        });
                 }
                 for (int i = 0; i < tasks.Length; i++)
                 {
