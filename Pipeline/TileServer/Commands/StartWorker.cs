@@ -37,7 +37,8 @@ namespace OPS.Pipeline.TileServer
         }
         
 
-        public StartWorker(StartWorkerOptions options) : base(dynamoPrefix: TileServerConfig.Instance.VenueName, profile: TileServerConfig.Instance.Profile)
+        public StartWorker(StartWorkerOptions options)
+            : base(dynamoPrefix: TileServerConfig.Instance.VenueName, profile: TileServerConfig.Instance.Profile)
         {
             this.options = options;
 

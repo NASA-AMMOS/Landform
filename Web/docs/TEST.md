@@ -60,9 +60,15 @@ To use Postman
 
    Validation: check that the response code is HTTP 200 (ok), the content type is `application/json`, and the response body is a valid JSON object with `success=true`.
 
-2. List projects: TODO
+1. List projects:
 
-3. Upload input files:
+       curl -sS --request GET \
+            --url http://%SERVER_URL%/api/projects \
+            --header "x-landform-token: %API_TOKEN%"
+
+   Validation: check that the response code is HTTP 200 (ok), the content type is `application/json`, and the response body is a valid JSON array of strings containing `%PROJECT_NAME%`.
+
+1. Upload input files:
 
        curl -sS --request POST \
             --url http://%SERVER_URL%/api/projects/%PROJECT_NAME%/upload \
@@ -75,9 +81,7 @@ To use Postman
 
    Validation: check that the response code is HTTP 200 (ok), the content type is `application/json`, and the response body is a valid JSON object with `success=true`.
 
-4. Get project metadata: TODO
-
-5. Run project:
+1. Run project:
 
        curl -sS --request POST \
             --url http://%SERVER_URL%/api/projects/%PROJECT_NAME%/run \
@@ -85,7 +89,15 @@ To use Postman
 
    Validation: check that the response code is HTTP 200 (ok), the content type is `application/json`, and the response body is a valid JSON object with `success=true`.
 
-6. Get project result URL:
+1. Get project metadata:
+
+       curl -sS --request GET \
+            --url http://%SERVER_URL%/api/projects/%PROJECT_NAME% \
+            --header "x-landform-token: %API_TOKEN%"
+
+   Validation: check that the response code is HTTP 200 (ok), the content type is `application/json`, and the response body is a valid JSON object.
+
+1. Get project result URL:
 
        curl -sS --request GET \
             --url http://%SERVER_URL%/api/projects/%PROJECT_NAME%/result?redirect=false \
@@ -93,7 +105,7 @@ To use Postman
 
    Validation: check that the response code is HTTP 200 (ok), the content type is `application/json`, and the response body is a valid URL.
 
-6. Get project viewer URL:
+1. Get project viewer URL:
 
        curl -sS --request GET \
             --url http://%SERVER_URL%/api/projects/%PROJECT_NAME%/view?redirect=false \
@@ -103,4 +115,10 @@ To use Postman
 
    To visually inspect the dataset, copy the returned URL to the system clipboard and then load it in a Chrome browser.
 
-8. Delete project: TODO
+1. Delete project:
+
+       curl -sS --request DELETE \
+            --url http://%SERVER_URL%/api/projects/%PROJECT_NAME% \
+            --header "x-landform-token: %API_TOKEN%"
+
+   Validation: check that the response code is HTTP 200 (ok), the content type is `application/json`, and the response body is a valid JSON object with `success=true`.
