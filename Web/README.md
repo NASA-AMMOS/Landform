@@ -31,7 +31,9 @@ During local development (environment variable `NODE_ENV=development`) the tilin
 In a deployed context (`NODE_ENV=production` or `NODE_ENV=integration`) the tiling server binary will be found at `./bin/TilingServer.exe`, which will be copied from `../TilingServer/bin/Release/TilingServer.exe` when the build zip is bundled.
 
 ## Tiling Worker
-In order to run projects you will also need at least one running tiling worker connected to the same AWS venue.  For development one option is to run the tiling worker locally: `npm run start-worker`.
+In order to run projects you will also need at least one running tiling worker connected to the same AWS venue.  For development one option is to run the tiling worker locally:
+1. `npm run show-config` - the server will connect to live AWS services for that venue
+2. `npm run start-worker` or `npm run start-worker -- venue-name` to use a different venue.
 
 For production or integration testing the worker is [deployed to an EC2 autoscale group](#deploy-worker-to-ec2).
 
@@ -41,10 +43,10 @@ For production or integration testing the worker is [deployed to an EC2 autoscal
 ---
 
 ## Development Workflow
-First install latest [node.js](https://nodejs.org) 8.x.x and acquire AWS credentials and build `TilingServer.exe` with Visual Studio as explained above.
+First install latest [node.js](https://nodejs.org) 8.x.x, acquire [AWS credentials](#aws-credentials), and build `TilingServer.exe` with Visual Studio as explained above.
 
 1. `npm install`
-1. `npm run show-venue` - the server will connect to live AWS services for that venue.
+1. `npm run show-config` - the server will connect to live AWS services for that venue.
 1. Make sure a [tiling worker](#tiling-worker) is running in that venue.
 1. `npm start` will start both the backend api server on port 8081 and the frontend react dev server on port 3000 (the frontend server will proxy backend routes to the backend server).
     1. You can also run the api server and client servers independently with `npm run server` and `npm run client`.  This is convenient when doing backend dev so that you can independently restart the backend server.
@@ -55,7 +57,7 @@ First install latest [node.js](https://nodejs.org) 8.x.x and acquire AWS credent
 * CTRL-C may not work correctly to kill the backend server if you started it from a cygwin prompt; consider using a Git bash prompt or Windows `cmd` instead.
 
 ## Test & Deployment Workflow
-First install latest [node.js](https://nodejs.org) 8.x.x and acquire AWS credentials and build `TilingServer.exe` with Visual Studio as explained above.
+First install latest [node.js](https://nodejs.org) 8.x.x, acquire [AWS credentials](#aws-credentials), and build `TilingServer.exe` with Visual Studio as explained above.
 
 ### 1. Generate Release Bundle
 Run `npm run build` to generate `landformweb.zip`.
@@ -71,7 +73,7 @@ This is sugar for `npm install && npm run build-client && npm run bundle`.
 ### 2. Test the Master Server in a Docker Container Locally (Optional)
 This will require a local installation of [Docker](https://www.docker.com) host.
 
-1. `npm run show-venue` - the server will connect to live AWS services for that venue.
+1. `npm run show-config` - the server will connect to live AWS services for that venue.
    1. The `venueName` that will be used is determined by the `NODE_ENV` environment variable in the shell where the `local-deploy` script is run, even though in the container `NODE_ENV=production` always.  This enables testing a local deployment connected to a private AWS venue.
 1. Make sure a [tiling worker](#tiling-worker) is running in that venue.
 1. `npm run local-deploy -- [-f|--force] [-i|--interactive] [-d|--debug]` to re-build the Docker container and run it locally.  The name of the docker container is given by the value of `deployEnvironment` from `config.js`, using the value of `NODE_ENV` in the shell where the `local-deploy` script runs.  Typically `deployEnvironment=landformweb-dev`, which is appropriate for testing.
@@ -99,6 +101,10 @@ It is also possible to manually deploy the release bundle using the AWS Elastic 
 1. Run through the [test procedures](docs/TEST.md).
 
 ### Deploy Worker to EC2
-It is also possible to manually deploy the worker using the AWS EC2 web console, as documented in the [AWS setup](docs/SETUP.md) instructions.
-
-TODO
+First install latest [node.js](https://nodejs.org) 8.x.x, acquire [AWS credentials](#aws-credentials), and build `TilingServer.exe` with Visual Studio as explained above.
+`
+1. `npm run show-config` - the server will connect to live AWS services for that venue by default.
+1. `npm run configure-backend -- [venue-name]` - this will generate a customized `ec2userdata.txt`.  This file will be used to configure instances in an EC2 autoscale group.
+  1. NOTE: This command runs `TileServer.exe configure` with parameters taken from `config.js` according to the current value of `NODE_ENV`.  A side effect is that a `\$USERPROFILE/.landform/tileserver.json` file will also be written with that config, and any subsequent runs of `TileServer.exe` (by the same user on the same machine) will run with those options as defaults.  Normally this is OK as commands like `npm start` and `npm run worker` override the defaults with fresh values based on `config.js`.
+1. `npm run bundle-worker` - this will generate `landformweb-worker.zip` containing the binaries the instances in the autoscale group will run.
+1. Deploy the worker using the AWS EC2 web console as documented in the [AWS setup](docs/SETUP.md) instructions.

@@ -110,7 +110,32 @@ router.get('/:name/result', (req, res) => {
 router.get('/:name/view', (req, res) => {
   const redirect = parseArgs(req, { redirect: { type: 'bool', default: true } }).redirect;
   const ret = `/viewer/index.html?TilesetURL=${encodeURIComponent(resultURL(req.params.name))}`;
-  if (redirect) res.redirect(ret); else sendJson(res, `${req.protocol}://${req.hostname}:${config.app.port}${ret}`);
+  if (redirect) res.redirect(ret);
+  else {
+    //this is tricky
+    //
+    //we need a URL that will work no matter if we are deployed in production or running in a dev environment
+    //
+    //in dev environments typically the viewer is served by a webpack dev server running on port 3000
+    //but it is hard to know that for sure here
+    //
+    //in dev typically the REST API (this server itself) is running on port config.app.port (typically 8081)
+    //but that is also true in EB deployments because typically in that case we are behind an nginx reverse proxy
+    //actually in EB deployments typically the reverse proxying is 443 (nginx) -> 80 (docker) -> 8081 (node)
+    //
+    //so for dev the URL needs to include a port, ideally 3000
+    //but because that is hard to know we'll settle for config.app.port, which will also work
+    //**because in dev contexts the REST API server will also serve the viewer at the same relative path
+    //
+    //so we "just" need to answer the question "are we running in a deployment or in a dev environment?"
+    //typically this would be answered by NODE_ENV
+    //however, when testing a deployment locally with docker, NODE_ENV=production, but we still need port=8081
+    //so make the call based on the original request protocol
+    //because only EB deployments actually implement https
+    let base = `${req.protocol}://${req.hostname}`;
+    if (req.protocol !== 'https') base += `:${config.app.port}`;
+    sendJson(res, `${base}${ret}`);
+  }
 });
 
 module.exports = router;

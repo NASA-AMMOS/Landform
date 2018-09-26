@@ -14,6 +14,7 @@ const authRouter = require('./auth');
 const token = require('./token');
 const projectRouter = require('./api/project');
 const taskRouter = require('./api/task');
+const { startTaskReaper } = require('./taskUtil');
 
 const app = express();
 
@@ -79,4 +80,5 @@ logger.info(`AWS MSLICE S3 URL: ${config.app.awsMSLICES3Url}`);
 tilingMaster().then(() => {
   logger.info('launched TilingServer master');
   app.listen(config.app.port, () => logger.info(`${config.app.name} listening on port ${config.app.port}`));
+  startTaskReaper();
 });
