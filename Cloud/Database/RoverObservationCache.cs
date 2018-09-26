@@ -10,6 +10,9 @@ using System.Threading;
 
 namespace OPS.Cloud
 {
+    /// <summary>
+    /// queries rover observations one by one with an overly safe throttling (assumes the actual read takes zero time)
+    /// </summary>
     public class RoverObservationCache
     {
         Dictionary<string, List<RoverObservation>> obsByFrame = new Dictionary<string, List<RoverObservation>>();
@@ -58,7 +61,7 @@ namespace OPS.Cloud
         }
 
         int GetThrottleMS(int estimatedItemSizeBytes, int tableReadCapacity)
-        {            
+        {
             const int dynamoPageSizeBytes = 4000;
             int dynamoBytesPerSec = dynamoPageSizeBytes * tableReadCapacity;
             int obsReadsPerSec = dynamoBytesPerSec / estimatedItemSizeBytes;
