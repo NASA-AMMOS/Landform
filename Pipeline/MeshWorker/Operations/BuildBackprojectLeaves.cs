@@ -111,7 +111,7 @@ namespace OPS.Pipeline.MeshWorker
                 leafPair.Image.ApplyInPlace(0, x => { return 1.0f; });
 
                 //upload the mesh/texture pair and update the tiling node
-                ThroughputManager.Run(() => TilingNode.Find(pipeline.DynamoContext, project, leaf.Id).SaveMesh(leafPair, pipeline, 0));
+                ThroughputManager.Run(() => TilingNode.Find(pipeline.DynamoContext, project.Name, leaf.Id).SaveMesh(leafPair, pipeline, 0));
                 
                 //notify the tiling server that a tile is ready for building into parent tiles
                 pipeline.CompletionQueue.Enqueue(new TileCompletedMessage(project.Name, leaf.Id));
@@ -239,7 +239,7 @@ namespace OPS.Pipeline.MeshWorker
         private Mesh GetFullMesh(TilingProject project)
         {
             Mesh fullMesh;
-            var inputs = TilingInput.Find(pipeline.DynamoContext, project).ToList();
+            var inputs = TilingInput.Find(pipeline.DynamoContext, project.Name).ToList();
             InputChunkGroup bigMeshGroup = new InputChunkGroup();
             foreach (var input in inputs)
             {
@@ -277,7 +277,7 @@ namespace OPS.Pipeline.MeshWorker
 
             foreach (var id in this.message.TileIds)
             {
-                leaves.Add(TilingNode.Find(pipeline.DynamoContext, project, id));
+                leaves.Add(TilingNode.Find(pipeline.DynamoContext, project.Name, id));
             }
 
             // Send completion messages for leaves that are already done

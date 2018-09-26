@@ -11,6 +11,7 @@ using System.Threading.Tasks;
 using OPS.Imaging;
 using System.IO;
 using OPS.Plumbing;
+using log4net;
 
 namespace OPS.Pipeline.TileServer
 {
@@ -58,7 +59,9 @@ namespace OPS.Pipeline.TileServer
         }
 
 
-        public static TilingNode Create(DynamoDBContext context, string id, TilingProject project, string meshUrl, string imageUrl, string parentId, List<string> childIds, List<string> dependsOn, List<String> dependedOnBy, BoundingBox bounds)
+        public static TilingNode Create(DynamoDBContext context, string id, TilingProject project,
+                                        string meshUrl, string imageUrl, string parentId, List<string> childIds,
+                                        List<string> dependsOn, List<String> dependedOnBy, BoundingBox bounds)
         {
             TilingNode node = new TilingNode(id, project, meshUrl, imageUrl, parentId, childIds, dependsOn, dependedOnBy, bounds);
             context.Save(node, new DynamoDBOperationConfig() { IgnoreNullValues = true });
@@ -66,22 +69,29 @@ namespace OPS.Pipeline.TileServer
         }
 
 
-        public static TilingNode Find(DynamoDBContext context, TilingProject project, string id)
+        public static TilingNode Find(DynamoDBContext context, string projectName, string id)
         {
-            return context.Load<TilingNode>(id, project.Name);
+            return context.Load<TilingNode>(id, projectName);
         }
 
 
-        public static IEnumerable<TilingNode> Find(DynamoDBContext context, TilingProject project)
+        public static IEnumerable<TilingNode> Find(DynamoDBContext context, string projectName)
         {
             return context.Scan<TilingNode>(
-                new ScanCondition("ProjectName", Amazon.DynamoDBv2.DocumentModel.ScanOperator.Equal, project.Name)
+                new ScanCondition("ProjectName", Amazon.DynamoDBv2.DocumentModel.ScanOperator.Equal, projectName)
                 );
         }
 
         public void Save(DynamoDBContext context)
         {
             context.Save(this, new DynamoDBOperationConfig() { IgnoreNullValues = true });
+        }
+
+        public void Delete(PipelineCore pipeline, bool ignoreErrors = true, ILog logger = null)
+        {
+            pipeline.Storage(MeshUrl).DeleteObject(MeshUrl, ignoreErrors: ignoreErrors, logger: logger);
+            pipeline.Storage(ImageUrl).DeleteObject(ImageUrl, ignoreErrors: ignoreErrors, logger: logger);
+            pipeline.DeleteDynamoItem(this, ignoreErrors, logger);
         }
 
         public bool IsLeaf()
@@ -175,9 +185,9 @@ namespace OPS.Pipeline.TileServer
             return false;
         }
 
-        public static SceneNode BuildTreeFromDatabase(DynamoDBContext context, TilingProject project)
+        public static SceneNode BuildTreeFromDatabase(DynamoDBContext context, string projectName)
         {
-            var nodes = Find(context, project).ToList();
+            var nodes = Find(context, projectName).ToList();
             Dictionary<string, SceneNode> idToNode = new Dictionary<string, SceneNode>();
             // Create all nodes
             foreach (var n in nodes)

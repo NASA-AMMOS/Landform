@@ -5,6 +5,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using OPS.Plumbing;
+using log4net;
 
 namespace OPS.Pipeline.TileServer
 {
@@ -57,23 +59,24 @@ namespace OPS.Pipeline.TileServer
             this.IsValid();
         }
 
-        public static TilingInput Create(DynamoDBContext context, string name, TilingProject project, string meshUrl, string imageUrl, string id)
+        public static TilingInput Create(DynamoDBContext context, string name, TilingProject project,
+                                         string meshUrl, string imageUrl, string id)
         {
             TilingInput input = new TilingInput(name, project, meshUrl, imageUrl, id);
             context.Save(input, new DynamoDBOperationConfig() { IgnoreNullValues = true });
             return input;
         }
 
-        public static TilingInput Find(DynamoDBContext context, TilingProject project, string name)
+        public static TilingInput Find(DynamoDBContext context, string projectName, string name)
         {
-            return context.Load<TilingInput>(name, project.Name);
+            return context.Load<TilingInput>(name, projectName);
         }
 
 
-        public static IEnumerable<TilingInput> Find(DynamoDBContext context, TilingProject project)
+        public static IEnumerable<TilingInput> Find(DynamoDBContext context, string projectName)
         {
             return context.Scan<TilingInput>(
-                new ScanCondition("ProjectName", Amazon.DynamoDBv2.DocumentModel.ScanOperator.Equal, project.Name)
+                new ScanCondition("ProjectName", Amazon.DynamoDBv2.DocumentModel.ScanOperator.Equal, projectName)
                 );
         }
 
@@ -81,6 +84,19 @@ namespace OPS.Pipeline.TileServer
         {
             this.IsValid();
             context.Save(this, new DynamoDBOperationConfig() { IgnoreNullValues = true });
+        }
+
+        public void Delete(PipelineCore pipeline, bool ignoreErrors = true, ILog logger = null)
+        {
+            foreach (var chunkId in ChunkIds)
+            {
+                TilingInputChunk.Find(pipeline.DynamoContext, chunkId).Delete(pipeline, ignoreErrors, logger);
+            }
+
+            pipeline.Storage(MeshUrl).DeleteObject(MeshUrl, ignoreErrors: ignoreErrors, logger: logger);
+            pipeline.Storage(ImageUrl).DeleteObject(ImageUrl, ignoreErrors: ignoreErrors, logger: logger);
+
+            pipeline.DeleteDynamoItem(this, ignoreErrors, logger);
         }
 
         private void IsValid()

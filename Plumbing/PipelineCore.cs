@@ -13,6 +13,7 @@ using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
+using log4net;
 
 namespace OPS.Plumbing
 {
@@ -120,7 +121,7 @@ namespace OPS.Plumbing
             }
             return res;
         }
-
+                                       
         /// <summary>
         /// Download a file from S3, using an on-disk cache.
         /// </summary>
@@ -258,6 +259,35 @@ namespace OPS.Plumbing
                 while (DynamicGet.Invoke(this, new object[] { project, product.Guid, false }) == null)
                 {
                     System.Threading.Thread.Sleep(1000);
+                }
+            }
+        }
+
+        public void DeleteProjectCache(string project)
+        {
+            var projectCacheFolder = Path.Combine(cacheFolder, project);
+            if (Directory.Exists(projectCacheFolder))
+            {
+                Directory.Delete(projectCacheFolder, true);
+            }
+        }
+
+        public void DeleteDynamoItem<T>(T obj, bool ignoreErrors = true, ILog logger = null)
+        {
+            try
+            {
+                DynamoContext.Delete(obj);
+            }
+            catch (Exception e)
+            {
+                if (!ignoreErrors)
+                {
+                    throw e;
+                }
+
+                if (logger != null)
+                {
+                    logger.Warn(string.Format("error deleting DynamoDB object: {0}", e.Message));
                 }
             }
         }

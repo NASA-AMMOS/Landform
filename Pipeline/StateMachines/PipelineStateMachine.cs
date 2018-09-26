@@ -14,28 +14,73 @@ namespace OPS.Pipeline.TileServer
         protected PipelineCore pipeline;
         protected TilingQueue workerQueue;
         protected ProjectCache projectCache;
+        protected string projectName;
 
         public PipelineStateMachine(PipelineCore pipeline, TilingQueue workerQueue, string projectName)
         {
             this.pipeline = pipeline;
             this.workerQueue = workerQueue;
+            this.projectName = projectName;
             this.projectCache = new ProjectCache(pipeline, projectName);
         }
        
-        abstract public void ProcessMessage(TilingQueueMessage m);
+        abstract public void ProcessCompletedMessage(TilingQueueMessage m);
         
         // shared functionality for all current pipelines
 
-        protected void ChunkInputs(TilingProject project)
+        protected void ChunkInputs()
         {
-            var inputs = TilingInput.Find(pipeline.DynamoContext, project);
+            var inputs = TilingInput.Find(pipeline.DynamoContext, projectName);
             foreach (var input in inputs)
             {
-                workerQueue.Enqueue(new ChunkInputMessage(project.Name, input.Name));
+                logger.Info("chunking input " + input.Name + " in " + projectName);
+                workerQueue.Enqueue(new ChunkInputMessage(projectName, input.Name));
             }
         }
 
-        protected Queue<SceneNode> GroupSceneNodesIntoJobs(SceneNode node, List<List<SceneNode>> outputGroups, int nodesPerGroup = 32)
+        protected bool InputChunked(string inputName)
+        {
+            logger.Info("input " + inputName + " chunked in " + projectName);
+            var inputs = TilingInput.Find(pipeline.DynamoContext, projectName);
+            bool allChunked = inputs.All(i => i.Chunked);
+            if (allChunked)
+            {
+                logger.Info("all inputs chunked in " + projectName);
+            }
+            return allChunked;
+        }
+
+        protected void TileCompleted(string tileId)
+        {
+            logger.Info("tile " + tileId + " completed in " + projectName);
+            
+            projectCache.MarkDone(tileId);
+            if (tileId == projectCache.RootId)
+            {
+                logger.Info("building tileset JSON in " + projectName);
+                workerQueue.Enqueue(new BuildTilesetJsonMessage(projectName));
+            }
+            else
+            {
+                foreach (var pid in projectCache.GetDependentTilesToRun(tileId))
+                {
+                    logger.Info("enquing parent " + pid + " in " + projectName);
+                    workerQueue.Enqueue(new BuildParentsMessage(projectName, pid));
+                    projectCache.MarkEnqued(pid);
+                }
+            }
+        }
+
+        protected void TilesetCompleted()
+        {
+            var project = TilingProject.Find(pipeline.DynamoContext, projectName);
+            project.FinishedRunning = true;
+            project.Save(pipeline.DynamoContext);
+            logger.Info(projectName + " finished running");
+        }
+
+        protected Queue<SceneNode> GroupSceneNodesIntoJobs(SceneNode node, List<List<SceneNode>> outputGroups,
+                                                           int nodesPerGroup = 32)
         {
             var result = new Queue<SceneNode>();
             if (node.IsLeaf)
@@ -67,6 +112,7 @@ namespace OPS.Pipeline.TileServer
             }
             return result;
         }
+
     }
 
     // shared messages for all current pipelines

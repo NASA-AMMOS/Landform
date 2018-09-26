@@ -64,10 +64,9 @@ namespace OPS.Pipeline.TileServer
                         projectNameToStateMachine.TryAdd(m.ProjectName, CreateStateMachine(workerQueue, m.ProjectName));
                     }
                     
-                    string s = JsonHelper.ToJson(m);
                     try
                     {
-                        projectNameToStateMachine[m.ProjectName].ProcessMessage(m);
+                        projectNameToStateMachine[m.ProjectName].ProcessCompletedMessage(m);
                     }
                     catch (Exception e)
                     {

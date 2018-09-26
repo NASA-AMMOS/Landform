@@ -1,8 +1,9 @@
-﻿using OPS.Pipeline.MeshWorker;
-using OPS.Geometry;
-using OPS.Plumbing;
+﻿using System;
 using System.Linq;
 using System.Collections.Generic;
+using OPS.Plumbing;
+using OPS.Geometry;
+using OPS.Pipeline.MeshWorker;
 using log4net;
 
 namespace OPS.Pipeline.TileServer
@@ -11,8 +12,8 @@ namespace OPS.Pipeline.TileServer
     {
         private static ILog logger = LogManager.GetLogger(typeof(MSLStateMachine));
 
-
-        public MSLStateMachine(PipelineCore pipeline, TilingQueue workerQueue, string projectName) : base(pipeline, workerQueue, projectName)
+        public MSLStateMachine(PipelineCore pipeline, TilingQueue workerQueue, string projectName)
+            : base(pipeline, workerQueue, projectName)
         {
         }
 
@@ -21,63 +22,48 @@ namespace OPS.Pipeline.TileServer
             return "MSL";
         }
 
-        public override void ProcessMessage(TilingQueueMessage m)
+        public override void ProcessCompletedMessage(TilingQueueMessage m)
         {
+            if (m.ProjectName != projectName)
+            {
+                throw new ArgumentException(string.Format("received message for project \"{0}\", expected \"{1}\"",
+                                                          m.ProjectName, projectName));
+            }
+
             if (m.GetType() == typeof(RunProjectMessage))
             {
-                logger.Info("Run project:" + m.ProjectName);
+                logger.Info("Run project:" + projectName);
 
-                workerQueue.Enqueue(new BuildTilingInputMessage(m.ProjectName));
+                workerQueue.Enqueue(new BuildTilingInputMessage(projectName));
            }
            else if(m.GetType() == typeof(BuildTilingInputMessage))
            {
-                logger.Info("BuildTilingInput project:" + m.ProjectName);
+                logger.Info("BuildTilingInput project:" + projectName);
 
-                this.workerQueue.Enqueue(new DefineTilesMessage(m.ProjectName));
+                this.workerQueue.Enqueue(new DefineTilesMessage(projectName));
            }
            else if (m.GetType() == typeof(DefineTilesMessage))
             {
                 logger.Info("DefineTiles project:" + m.ProjectName);
-                TilingProject project = TilingProject.Find(pipeline.DynamoContext, m.ProjectName);
+                TilingProject project = TilingProject.Find(pipeline.DynamoContext,projectName);
                 this.projectCache.Refresh();
                 ChunkInputs(project);
             }
             else if (m.GetType() == typeof(ChunkInputMessage))
             {
-                logger.Info("ChunkInput project:" + m.ProjectName + " input:" + ((ChunkInputMessage)m).InputName);
-                TilingProject project = TilingProject.Find(pipeline.DynamoContext, m.ProjectName);
-                var inputs = TilingInput.Find(pipeline.DynamoContext, project);
-                bool allChunked = inputs.All(i => i.Chunked);
+                bool allChunked = InputChunked(((ChunkInputMessage)m).InputName);
                 if (allChunked)
                 {
-                    BuildBackprojectLeaves(project);
+                    BuildBackprojectLeaves();
                 }
             }
             else if (m.GetType() == typeof(TileCompletedMessage))
             {
-                var id = ((TileCompletedMessage)m).TileId;
-                logger.Info("TileCompleted project:" + m.ProjectName + " tile:" + id);
-
-                this.projectCache.MarkDone(id);
-                if (id == this.projectCache.RootId)
-                {
-                    var tilesetJob = new BuildTilesetJsonMessage(m.ProjectName);
-                    workerQueue.Enqueue(tilesetJob);
-                }
-                else
-                {
-                    foreach (var pid in this.projectCache.GetDependentTilesToRun(id))
-                    {
-                        logger.Info("EnquingParent " + m.ProjectName + " tile:" + pid);
-                        var parentJob = new BuildParentsMessage(m.ProjectName, pid);
-                        workerQueue.Enqueue(parentJob);
-                        this.projectCache.MarkEnqued(pid);
-                    }
-                }
+                TileCompleted(((TileCompletedMessage)m).TileId);
             }
             else if (m.GetType() == typeof(BuildTilesetJsonMessage))
             {
-                logger.Info("TilesetComplete " + m.ProjectName);
+                TilesetCompleted();
             }
             else
             {
@@ -85,20 +71,20 @@ namespace OPS.Pipeline.TileServer
             }
         }
 
-        protected void BuildBackprojectLeaves(TilingProject project)
+        protected void BuildBackprojectLeaves()
         {
-            logger.Info("Build Leaves");
-            SceneNode root = TilingNode.BuildTreeFromDatabase(pipeline.DynamoContext, project);
+            logger.Info("building backproject leaves in " + projectName);
+            SceneNode root = TilingNode.BuildTreeFromDatabase(pipeline.DynamoContext, projectName);
             List<List<SceneNode>> leafGroups = new List<List<SceneNode>>();
             GroupSceneNodesIntoJobs(root, leafGroups);
 
             foreach (var group in leafGroups)
             {
-                var leafJob = new BuildBackprojectLeavesMessage(project.Name, group.Select(n => n.Name).ToList());
+                var leafJob = new BuildBackprojectLeavesMessage(projectName, group.Select(n => n.Name).ToList());
                 workerQueue.Enqueue(leafJob);
                 foreach (var leaf in group)
                 {
-                    this.projectCache.MarkEnqued(leaf.Name);
+                    projectCache.MarkEnqued(leaf.Name);
                 }
             }
         }       

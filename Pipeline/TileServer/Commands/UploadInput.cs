@@ -58,7 +58,7 @@ namespace OPS.Pipeline.TileServer
             }
             string name = Path.GetFileNameWithoutExtension(options.MeshFilepath);
 
-            if (TilingInput.Find(this.DynamoContext, project, name) != null)
+            if (TilingInput.Find(this.DynamoContext, project.Name, name) != null)
             {
                 logger.Error("An input with that name already exists");
                 return 1;

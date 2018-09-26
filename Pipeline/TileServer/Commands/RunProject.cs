@@ -34,10 +34,24 @@ namespace OPS.Pipeline.TileServer
         
         public int Run()
         {
-            var completionQueue = new TileServerCloud(this).CompletionQueue;
-            var project = TilingProject.Find(this.DynamoContext, options.ProjectName);
-            logger.Info("Run project");
-            completionQueue.Enqueue(new RunProjectMessage(options.ProjectName));
+            var cloud = new TileServerCloud(this);
+            cloud.EnsureTablesExist();
+            var workerQueue = cloud.WorkerQueue;
+
+            var project = TilingProject.Find(DynamoContext, options.ProjectName);
+            if (project == null)
+            {
+                logger.Error("No project by that name found: " + options.ProjectName);
+                return 1;
+            }
+
+            project.StartedRunning = true;
+            project.Save(DynamoContext);
+
+            workerQueue.Enqueue(new RunProjectMessage(options.ProjectName));
+
+            logger.Info(options.ProjectName + " started running");
+
             return 0;
         }
     }
