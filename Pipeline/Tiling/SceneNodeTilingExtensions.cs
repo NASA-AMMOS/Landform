@@ -16,6 +16,8 @@ namespace OPS.Pipeline
 
         public const double DEFAULT_SEARCH_RATIO = 1.1f;
 
+        public const int MIN_FACES_FOR_RECONSTRUCTION = 50;
+
         public static void SaveMesh(this SceneNode node, string directory, string meshExtension = "ply", string imageExtension = "jpg")
         {
             meshExtension = "." + meshExtension;
@@ -150,26 +152,40 @@ namespace OPS.Pipeline
             // We limit target faces only to maxface count.  This means there will be little to no face reduction
             // until the face limit is hit. This favors trying to make all tiles the same complexity rather than trying to always have a
             // constant amount of leaf/parent tile complexity reduction.  This choice primarily affects parent tiles near leafs.
-            int targetFaces = Mesh.Clip(combinedFull, minimumBounds).Faces.Count();
-            targetFaces = Math.Min(targetFaces, maxFaceCountTarget);
-            // Minimum bounds is a tight fitting bounding box around the child meshes with skirts
-            Vector3? cornerDirection = null;
-            if (skirtAxis.HasValue)
+            Mesh combinedDecimated = null;
+            Mesh combinedFullClipped = Mesh.Clip(combinedFull, minimumBounds);
+            // Resample decimation can fail on meshes with very few faces.  If we are below the threshold where we expect this to fail just
+            // pass along the geometry assuming it is less than maxFaceCount
+            if (combinedFullClipped.Faces.Count < MIN_FACES_FOR_RECONSTRUCTION && combinedFullClipped.Faces.Count <= maxFaceCountTarget)
             {
-                if (skirtAxis.Value == SkirtMode.X)
-                {
-                    cornerDirection = Vector3.UnitX;
-                }
-                else if (skirtAxis.Value == SkirtMode.Y)
-                {
-                    cornerDirection = Vector3.UnitY;
-                }
-                else if (skirtAxis.Value == SkirtMode.Z)
-                {
-                    cornerDirection = Vector3.UnitY;
-                }
+                combinedDecimated = combinedFullClipped;
             }
-            Mesh combinedDecimated = combinedFull.ResampleDecimation(reconstructionMethod, targetFaces, clippingBounds: minimumBounds, cornerDirection: cornerDirection);
+            else
+            { 
+                // Note: that we choose to do a resample decimation even when we have fewer than maxFaceCountTarget
+                // We could consider just passing along the combinedFullClipped geometry but doing a decimation here 
+                // probably helps avoid propegating topological issues.  This would be a good thing to investigate.
+                int targetFaces = combinedFullClipped.Faces.Count();
+                targetFaces = Math.Min(targetFaces, maxFaceCountTarget);
+                // Minimum bounds is a tight fitting bounding box around the child meshes with skirts
+                Vector3? cornerDirection = null;
+                if (skirtAxis.HasValue)
+                {
+                    if (skirtAxis.Value == SkirtMode.X)
+                    {
+                        cornerDirection = Vector3.UnitX;
+                    }
+                    else if (skirtAxis.Value == SkirtMode.Y)
+                    {
+                        cornerDirection = Vector3.UnitY;
+                    }
+                    else if (skirtAxis.Value == SkirtMode.Z)
+                    {
+                        cornerDirection = Vector3.UnitY;
+                    }
+                }
+                combinedDecimated = combinedFull.ResampleDecimation(reconstructionMethod, targetFaces, clippingBounds: minimumBounds, cornerDirection: cornerDirection);
+            }
             combinedDecimated.Clean();
 
             NodeGeometricError geoError = node.GetOrAddComponent<NodeGeometricError>();
