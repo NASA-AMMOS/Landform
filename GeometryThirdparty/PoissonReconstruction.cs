@@ -95,7 +95,7 @@ namespace OPS.Geometry
                 {
                     TemporaryFile.GetAndDeleteDirectory(tmpDir =>
                     {
-                        string arguments = "--in " + inputFile + " --out " + outputFile + " --normals --tmpDir " + tmpDir;
+                        string arguments = "--in " + inputFile + " --out " + outputFile + " --normals --tempDir " + tmpDir;
 
                         if (options != null)
                         {
