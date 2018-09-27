@@ -298,7 +298,7 @@ These steps only need to be performed once before your first deployment.
        * Source: `Custom: 128.149.0.0/16, 137.78.0.0/16, 137.79.0.0/16, 137.228.0.0/16` - restrict RDP access to JPL IP addresses
 1. Services -> Compute -> EC2
 1. Network & Security -> Key Pairs (optional - only if you want to be able to log in to the EC2 instances in the autoscale group for debugging or maintenance)
-  1. select, create, or import a key pair
+  1. choose `landform-ec2` for internal Landform use, otherwise select, create, or import a key pair
   1. you can use a tool like `ssh-keygen -t rsa` to generate a key pair
 
 ### 2. Create Launch Template
@@ -382,7 +382,8 @@ These instructions only needs to be run when the Landform worker version changes
 1. Right click on an instance in the group
 1. if this is your first time connecting
   1. Get Password
-  1. paste contents of private key from the key pair you selected above (or choose file)
+  1. choose file and select the *private* key from the key pair you specified when creating the launch template above
+    * for internal Landform use talk with the team to get the file
   1. Decrypt Password
   1. copy to clipboard
 1. Download remote desktop (RDP) file
