@@ -105,23 +105,31 @@ namespace OPS.Pipeline.MeshWorker
 
                 // make the leaf tile mesh
                 leafPair.Mesh = op.Clip(leaf.GetBounds());
-                leafPair.Mesh = UVAtlas.Atlas(leafPair.Mesh, project.TileResolution, project.TileResolution);
-                ConvexHull meshHull = new ConvexHull(leafPair.Mesh);
 
-                // backproject
-                MarkUndesiredObservations(scene);
-                List<BackprojectContext> observations = GetPossibleObservations(scene, leafPair.Mesh.Bounds(), meshHull);
-                //...backproject will take place here...
+                if (leafPair.Mesh.Vertices.Count < 4)
+                {
+                    logger.Warn("Too few verts for tile to build convex hull, skipping tile");
+                }
+                else
+                {
+                    leafPair.Mesh = UVAtlas.Atlas(leafPair.Mesh, project.TileResolution, project.TileResolution);
+                    ConvexHull meshHull = new ConvexHull(leafPair.Mesh);
 
-                // placeholder solid texture simulating backproject results 
-                leafPair.Image = new Image(3, project.TileResolution, project.TileResolution);
-                leafPair.Image.ApplyInPlace(0, x => { return 1.0f; });
+                    // backproject
+                    MarkUndesiredObservations(scene);
+                    List<BackprojectContext> observations = GetPossibleObservations(scene, leafPair.Mesh.Bounds(), meshHull);
+                    //...backproject will take place here...
 
-                //upload the mesh/texture pair and update the tiling node
-                ThroughputManager.Run(() => TilingNode.Find(pipeline.DynamoContext, project.Name, leaf.Id).SaveMesh(leafPair, pipeline, 0));
-                
-                //notify the tiling server that a tile is ready for building into parent tiles
-                pipeline.CompletionQueue.Enqueue(new TileCompletedMessage(project.Name, leaf.Id));
+                    // placeholder solid texture simulating backproject results 
+                    leafPair.Image = new Image(3, project.TileResolution, project.TileResolution);
+                    leafPair.Image.ApplyInPlace(0, x => { return 1.0f; });
+
+                    //upload the mesh/texture pair and update the tiling node
+                    ThroughputManager.Run(() => TilingNode.Find(pipeline.DynamoContext, project.Name, leaf.Id).SaveMesh(leafPair, pipeline, 0));
+
+                    //notify the tiling server that a tile is ready for building into parent tiles
+                    pipeline.CompletionQueue.Enqueue(new TileCompletedMessage(project.Name, leaf.Id));
+                }
             });
 
             logger.Info("Completed generating " + tiledMeshes + " tiles.");
