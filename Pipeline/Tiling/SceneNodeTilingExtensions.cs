@@ -139,7 +139,7 @@ namespace OPS.Pipeline
             }).ToArray();
 
             Mesh combinedFull = Mesh.MergeWithCommonAttributes(childMeshesWithoutSkirts);
-            if(!combinedFull.HasNormals)
+            if (!combinedFull.HasNormals)
             {
                 combinedFull.GenerateVertexNormals();
             }

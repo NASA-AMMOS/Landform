@@ -922,7 +922,7 @@ namespace OPS.Geometry
             bool normals = meshesToCombine.All(m => m.HasNormals);
             bool uvs = meshesToCombine.All(m => m.HasUVs);
             bool colors = meshesToCombine.All(m => m.HasColors);
-            return Merge(normals,uvs, colors, meshesToCombine);
+            return Merge(normals, uvs, colors, meshesToCombine);
         }
 
         /// <summary>
