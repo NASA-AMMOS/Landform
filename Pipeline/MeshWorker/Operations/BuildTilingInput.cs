@@ -382,7 +382,7 @@ namespace OPS.Pipeline.MeshWorker
                 return null;
             }
 
-            Matrix observationToRoot = BuildFromAlignment.ObservationToRoot(this.pipeline.DynamoContext, pcInput.Points.Obs, frameCache);
+            Matrix observationToRoot = BuildFromAlignment.ObservationToRoot(this.pipeline.DynamoContext, pcInput.Points.Obs, frameCache).Mean;
             return Mesh.Transformed(ptsRoverFrame, observationToRoot);
         }
 

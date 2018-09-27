@@ -160,14 +160,13 @@ namespace OPS.Pipeline.TileServer
                         {
                             logger.Info("Unknown message type: " + m.GetType());
                         }
+                        queue.Delete(m);
                     }
                     catch (Exception e)
                     {
                         logger.Error(e.Message);
                         logger.Error(e.StackTrace);
                     }
-
-                    queue.Delete(m);
                 }
             }
         }

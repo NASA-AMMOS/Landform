@@ -50,11 +50,11 @@ namespace OPS.Geometry
             // Fill each list of triangles with all the triangles from their respective mesh
             foreach (Triangle tri in meshA.Triangles())
             {
-                triListA.Add(new OctreeTriangleContent(tri));
+                triListA.Add(new HausdorffTriangle(tri));
             }
             foreach (Triangle tri in meshB.Triangles())
             {
-                triListB.Add(new OctreeTriangleContent(tri));
+                triListB.Add(new HausdorffTriangle(tri));
             }
 
             // Insert all the triangles from each mesh into their respective octree
@@ -92,7 +92,7 @@ namespace OPS.Geometry
                 }
 
                 // Place the traversal path in the triangle structure so it knows how to reach its octree node cell
-                foreach (OctreeTriangleContent voxelTri in node.Contained)
+                foreach (HausdorffTriangle voxelTri in node.Contained)
                 {
                     // Traversal goes from the bottom up, so it must be reversed to traverse from the top back down
                     List<int> reversedPath = new List<int>(path);
@@ -136,7 +136,7 @@ namespace OPS.Geometry
                 // The current cell actually represents an individual triangle, 
                 if (current.Owner == null)
                 {
-                    OctreeTriangleContent currentOctreeTri = (OctreeTriangleContent)current.Contained[0];
+                    HausdorffTriangle currentOctreeTri = (HausdorffTriangle)current.Contained[0];
                     Triangle currentTri = currentOctreeTri.Triangle;
 
                     // Triangle points
@@ -156,10 +156,10 @@ namespace OPS.Geometry
                     Triangle tri3 = new Triangle(p2, m12, m20);
 
                     // Turn triangles into voxel triangles
-                    OctreeTriangleContent octreeTri0 = new OctreeTriangleContent(tri0);
-                    OctreeTriangleContent octreeTri1 = new OctreeTriangleContent(tri1);
-                    OctreeTriangleContent octreeTri2 = new OctreeTriangleContent(tri2);
-                    OctreeTriangleContent octreeTri3 = new OctreeTriangleContent(tri3);
+                    HausdorffTriangle octreeTri0 = new HausdorffTriangle(tri0);
+                    HausdorffTriangle octreeTri1 = new HausdorffTriangle(tri1);
+                    HausdorffTriangle octreeTri2 = new HausdorffTriangle(tri2);
+                    HausdorffTriangle octreeTri3 = new HausdorffTriangle(tri3);
 
                     // Find the corresponding base points for each point used in the subdivided mesh
                     OctreeNode lastTree = otherTree.FollowPath(currentOctreeTri.TraversalPath);
@@ -192,7 +192,7 @@ namespace OPS.Geometry
                 else if (current.IsLeaf())
                 {
                     // Process each triangle that intersects this cell (including those wholly contained)
-                    foreach (OctreeTriangleContent tri in current.Intersecting)
+                    foreach (HausdorffTriangle tri in current.Intersecting)
                     {
                         ProcessTriangle(tri, current, otherTree, epsilon, ref hausdorffDistanceSquared, queue);
                     }
@@ -223,7 +223,7 @@ namespace OPS.Geometry
         /// <param name="tri">The voxel triangle getting processed</param>
         /// <param name="current">The cell which contains this triangle</param>
         /// <param name="otherTree">The entire other octree from the other mesh which this triangle is not a part of</param>
-        private static void ProcessTriangle(OctreeTriangleContent tri, OctreeNode current, Octree otherTree, double epsilon, ref double hausdorffDistanceSquared, SimplePriorityQueue<OctreeNode> queue)
+        private static void ProcessTriangle(HausdorffTriangle tri, OctreeNode current, Octree otherTree, double epsilon, ref double hausdorffDistanceSquared, SimplePriorityQueue<OctreeNode> queue)
         {
             // Compute the barycenter of this triangle
             Vector3 barycenter = tri.Triangle.Barycenter();
@@ -286,7 +286,7 @@ namespace OPS.Geometry
         /// <param name="tri">The triangle which we are finding nearby points from</param>
         /// <param name="otherTree">The entire other octree for the mesh which this triangle is not a part of</param>
         /// <returns></returns>
-        private static BasePoint[] FindNearestBasePointsFromTriangle(OctreeTriangleContent tri, Octree otherTree)
+        private static BasePoint[] FindNearestBasePointsFromTriangle(HausdorffTriangle tri, Octree otherTree)
         {
             // Prepare a home for the three base points that will be found
             BasePoint[] basePoints = new BasePoint[3];
@@ -318,7 +318,7 @@ namespace OPS.Geometry
         private static BasePoint FindNearestBasePointFromPoint(Vector3 point, Octree otherTree, OctreeNode startingOctreeNode, out OctreeNode lastOctreeNode)
         {
             // Find the closest triangle to this requested point in 3D space
-            OctreeTriangleContent triangleContent = (OctreeTriangleContent)otherTree.Closest(point, startingOctreeNode, out lastOctreeNode);
+            HausdorffTriangle triangleContent = (HausdorffTriangle)otherTree.Closest(point, startingOctreeNode, out lastOctreeNode);
 
             // Find the physical point on the triangle which is geometrically closest to the requested point
             Vector3 closestPoint = triangleContent.Triangle.ClosestPoint(point).Position;
@@ -394,9 +394,9 @@ namespace OPS.Geometry
     struct BasePoint
     {
         public Vector3 Position;
-        public OctreeTriangleContent TriangleContent;
+        public HausdorffTriangle TriangleContent;
 
-        public BasePoint(Vector3 position, OctreeTriangleContent triangleContent)
+        public BasePoint(Vector3 position, HausdorffTriangle triangleContent)
         {
             Position = position;
             TriangleContent = triangleContent;

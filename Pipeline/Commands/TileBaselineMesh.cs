@@ -178,7 +178,7 @@ namespace OPS.Pipeline
             }
             QuadTreeTilingScheme tilingScheme = new QuadTreeTilingScheme(splitDirection);
             // Setup tiler to split tiles based on number of faces
-            MeshTiler tiler = new MeshTiler(meshOperator, meshOperator.Bounds, tilingScheme, new FaceLimitSplitCriteria(FACE_LIMIT_PER_TILE));
+            MeshTiler tiler = new MeshTiler(meshOperator, meshOperator.Bounds, tilingScheme, new FaceSplitCriteria(FACE_LIMIT_PER_TILE));
             IContentProducer leafProducer = new DefaultLeafTileContentProducer(imageProducer);
             // Chose a parent tile producer depending on if the original file had multiple LODs 
             IContentProducer parentProducer;

@@ -86,7 +86,7 @@ namespace OPS.Plumbing
         public DynamoDBContext DynamoContext { get { return context; } }
         public IAmazonS3 S3Client { get { return s3Client; } }
         public StorageHelper Storage(string url) {
-            while (url.Length > 0)
+            while (url != null && url.Length > 0)
             {
                 if (storageSelecter.ContainsKey(url))
                 {

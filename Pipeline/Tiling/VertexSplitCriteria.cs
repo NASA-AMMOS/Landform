@@ -8,20 +8,17 @@ using OPS.Geometry;
 
 namespace OPS.Pipeline
 {
-    /// <summary>
-    /// Splitting criteria to split tiles based on a max number of allowed faces
-    /// </summary>
-    public class FaceLimitSplitCriteria : ITileSplitCriteria
+    public class VertexSplitCriteria : ITileSplitCriteria
     {
-        int targetFacesPerTile;
+        int targetVertexNumPerTile;
 
         /// <summary>
         /// 
         /// </summary>
         /// <param name="targetFacesPerTile">Faces allowed in an a bouding region before we should split</param>
-        public FaceLimitSplitCriteria(int targetFacesPerTile)
+        public VertexSplitCriteria(int targetVertexNumPerTile)
         {
-            this.targetFacesPerTile = targetFacesPerTile;
+            this.targetVertexNumPerTile = targetVertexNumPerTile;
         }
 
         /// <summary>
@@ -32,12 +29,13 @@ namespace OPS.Pipeline
         /// <returns>True if we should split the area</returns>
         public bool ShouldSplit(MeshOperator meshOperator, BoundingBox bounds)
         {
-            int curPolyCount = meshOperator.CountFaces(bounds);
-            if (curPolyCount == 0 || curPolyCount <= this.targetFacesPerTile)
+            int curVertexCount = meshOperator.CountVertices(bounds);
+            if (curVertexCount <= this.targetVertexNumPerTile)
             {
                 return false;
             }
             return true;
         }
     }
+    
 }
