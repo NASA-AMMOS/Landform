@@ -125,14 +125,15 @@ namespace OPS.Pipeline.TileServer
                     logger.Info("Building acceleration structures");
                     tilingInput.AddDataset(new TileLocalMesh.TilingInputDataset(pair.Mesh, pair.Image));
                 }
+                var projectScheme = project.GetTilingScheme();
                 ITilingScheme scheme;
-                if (project.GetTilingScheme() == TilingScheme.Bin)
+                if (projectScheme == TilingScheme.Bin)
                 {
                     scheme = new BinaryTreeTilingScheme();
                 }
-                else if (project.GetTilingScheme() == TilingScheme.Quad)
+                else if (projectScheme == TilingScheme.QuadX || projectScheme == TilingScheme.QuadY || projectScheme == TilingScheme.QuadZ)
                 {
-                    scheme = new QuadTreeTilingScheme(project.GetSkirtMode());
+                    scheme = new QuadTreeTilingScheme(projectScheme);
                 }
                 else if (project.GetTilingScheme() == TilingScheme.Oct)
                 {

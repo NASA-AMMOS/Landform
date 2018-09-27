@@ -197,9 +197,9 @@ namespace OPS
             {
                 scheme = new BinaryTreeTilingScheme();
             }
-            else if(options.TilingScheme == TilingScheme.Quad)
+            else if(options.TilingScheme == TilingScheme.QuadX || options.TilingScheme == TilingScheme.QuadY || options.TilingScheme == TilingScheme.QuadZ)
             {
-                scheme = new QuadTreeTilingScheme(options.SkirtAxis);
+                scheme = new QuadTreeTilingScheme(options.TilingScheme);
             }
             else
             {

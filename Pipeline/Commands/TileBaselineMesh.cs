@@ -171,10 +171,10 @@ namespace OPS.Pipeline
             }
             // Configure tiling scheme
             // In local level up down is in Z-axis but in Unity it is Y-axis
-            SkirtMode splitDirection = SkirtMode.Z;
+            QuadTreeAxis splitDirection = QuadTreeAxis.Z;
             if(options.UseUnityFrame)
             {
-                splitDirection = SkirtMode.Y;
+                splitDirection = QuadTreeAxis.Y;
             }
             QuadTreeTilingScheme tilingScheme = new QuadTreeTilingScheme(splitDirection);
             // Setup tiler to split tiles based on number of faces
