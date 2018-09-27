@@ -57,7 +57,6 @@ namespace OPS.Pipeline
             List<BoundingBox> boxes = new List<BoundingBox>();
             if (Direction == QuadTreeAxis.Z)
             {
-
                 // Split in the XY dimension to produce 4 boxes
                 // C D
                 // A B
@@ -80,9 +79,16 @@ namespace OPS.Pipeline
             }
             else
             {
-                throw new NotImplementedException();
+                // Split in the YZ dimension to produce 4 boxes
+                // C D
+                // A B
+                Vector3 mid = box.Min + (box.Size() / 2);
+                boxes.Add(new BoundingBox(new Vector3(box.Min.X, box.Min.Y, box.Min.Z), new Vector3(box.Max.X, mid.Y, mid.Z)));
+                boxes.Add(new BoundingBox(new Vector3(box.Min.X, box.Min.Y, mid.Z), new Vector3(box.Max.X, mid.Y, box.Max.Z)));
+                boxes.Add(new BoundingBox(new Vector3(box.Min.X, mid.Y, box.Min.Z), new Vector3(box.Max.X, box.Max.Y, mid.Z)));
+                boxes.Add(new BoundingBox(new Vector3(box.Min.X, mid.Y, mid.Z), new Vector3(box.Max.X, box.Max.Y, box.Max.Z)));
             }
-            if(meshOperator == null)
+            if (meshOperator == null)
             {
                 return boxes;
             }
