@@ -67,13 +67,13 @@ namespace OPS.Pipeline.TileServer
                     try
                     {
                         projectNameToStateMachine[m.ProjectName].ProcessCompletedMessage(m);
+                        completionQueue.Delete(m);
                     }
                     catch (Exception e)
                     {
                         logger.Error(e.Message);
                         logger.Error(e.StackTrace);
                     }
-                    completionQueue.Delete(m);
                 }
             }
         }
