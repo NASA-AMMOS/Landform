@@ -310,6 +310,11 @@ namespace OPS.Pipeline
                     var imgname = f.Replace(".iv", ".rgb");
                     string destRoot = Path.Combine(outdir, Path.GetFileNameWithoutExtension(f));
                     Mesh m = Mesh.Load(f);
+                    if(!m.HasNormals)
+                    {
+                        m.GenerateVertexNormals();
+                    }
+                    Console.WriteLine("Normals: " + m.HasNormals);
                     Image img = Image.Load(imgname);
                     img.Save<byte>(destRoot + ".jpg");
 
