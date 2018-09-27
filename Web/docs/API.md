@@ -5,7 +5,7 @@ All API methods require an API token to be set as an `x-landform-token` HTTP hea
 ### Create Project: POST /api/projects/*name*
 Create the named project.  Implements the [task API](#task-api).
 
-Creating the same project more than once has no effect (not an error).
+Fails with HTTP status 400 (bad request) if a project with the same name already exists.
 
 Accepts the following arugments:
 * *tilingscheme*: tiling scheme; one of `Bin`, `Quad`, `Oct`, or `UserDefined`; default `Bin`
@@ -18,7 +18,7 @@ Accepts the following arugments:
 Request
 
     POST /api/projects/testproj HTTP/1.1
-    Host: https://landform.hi.jpl.nas.gov
+    Host: https://landform.hi.jpl.nasa.gov
     x-landform-token: API_TOKEN
     Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW
     
@@ -43,6 +43,8 @@ Response
 ### Upload Data: POST /api/projects/*name*/upload
 Upload data for the named project.  Implements the [task API](#task-api).
 
+Fails with HTTP status 400 (bad request) if the named project does not exist.
+
 Data formats are implied from the filename extension.
 
 Supported extensions for mesh files include `.obj` and `.ply`.  PLY files may be ASCII or binary.
@@ -53,9 +55,9 @@ Uploading data with the same mesh file basename (i.e. the filename omitting the 
 
 If more than one mesh/image pair dataset is is uploaded in the same project where the image filenames are the same but the image data is different, only the most recently uploaded image data will be used for that image filename for all datasets.
 
-All uploads must be complete before a project starts running.
+All uploads must be complete before a project starts running.  The inputs used by a project are determined at the time the project is first run.  Additional inputs uploaded to the project after that time are ignored, even if the project is re-run.
 
-Image data is validated when a project is run, not on upload.
+Input data is validated when a project is run, not on upload.
 
 Accepts the following arguments in a `multipart/form-data` encoded HTTP request body:
 * *mesh*: mesh data file (required); data format will be implied from filename extension
@@ -68,7 +70,7 @@ Accepts the following arguments in a `multipart/form-data` encoded HTTP request 
 Request
 
     POST https://landform.hi.jpl.nasa.gov/api/projects/testproj/upload HTTP/1.1
-    Host: https://landform.hi.jpl.nas.gov
+    Host: https://landform.hi.jpl.nasa.gov
     x-landform-token: API_TOKEN
     Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW
     
@@ -103,9 +105,13 @@ Response
 ### Run Project: POST /api/projects/*name*/run
 Initiate a run of a project.  Implements the [task API](#task-api).
 
-This task only *initiates* the execution of a project.  It will typically complete before the project is actually finished running.  To determine whether the project execution has completed:
-1. Determine the project result URL via the `/api/projects/*name*/result?redirect=false` API.
-2. Poll the project result URL.  When it returns HTTP 200 (OK) with valid JSON the project has completed execution.
+Fails with HTTP status 400 (bad request) if the named project does not exist.
+
+This task only initiates the execution of a project.  It will typically complete before the project is actually finished running.  To determine whether the project execution has completed, do one of the following:
+* poll the project metadata via `/api/projects/*name*` and wait for `Project.FinishedRunning=true`
+* get the project result URL via `/api/projects/*name*/result?redirect=false` and poll it until the status is HTTP 200 (OK).
+
+It is safe to issue this command more than once.  However, project results are only computed once: in the absence of errors, subsequent runs of a project after the first run has begun have no effect.
 
 **Example:** run project "testproj"
 
@@ -135,10 +141,93 @@ Response
     }
 
 ### Get Project Metadata: GET /api/projects/*name*
-TODO
+Get JSON metadata for a project.
 
-### Get Metadata for Multiple Projects: GET /api/projects
-TODO
+Fails with HTTP status 400 (bad request) if the named project does not exist.
+
+The project metadata is returned as a JSON object with at least the following fields:
+* `Project`
+  * `Name`: project name
+  * `TilingScheme`, `SkirtMode`, `FacesPerTile`, `TileResolution`: correspond to the options when the object was created
+  * `StartedRunning`: whether the project has started execution
+  * `FinishedRunning`: whether the project has finished execution
+* `Inputs`: array of project inputs
+  * `Name`: name of this input
+  * `MeshUrl`: URL of the mesh for this input
+  * `ImageUrl`: URL of the image for this input
+  * `Processed`: whether this input has been processed yet
+  * `ImageBands`, `ImageWidth`, `ImageHeight`: image metadata, null if the input has not yet been processed
+* `NumNodes`: the total number of [3DTiles](https://github.com/AnalyticalGraphicsInc/3d-tiles) hierarchy nodes defined for the project, or null if that has not been computed yet
+* `NumProcesedNodes`: number of hierarchy nodes processed so far, or null if the project has not yet begun execution
+* `OutputUrl`: the URL at which the final `tileset.json` is expected, see `/api/projects/*name*/result` for more info
+
+**Example:** get metadata for project "testproj"
+
+Request
+
+    GET /api/projects/testproj HTTP/1.1
+    Host: https://landform.hi.jpl.nasa.gov
+    x-landform-token: API_TOKEN
+
+Response
+
+    HTTP/1.1 200
+    status: 200
+    content-type: application/json; charset=utf-8
+
+    {
+      "Project": {
+        "Name": "testproj",
+        "TilingScheme": "Bin",
+        "SkirtMode": "None",
+        "ReconMethod": "Poisson",
+        "FacesPerTile": 2000,
+        "TileResolution": 256,
+        "TilesDefined": true,
+        "ProjectType": "GenericTiling",
+        "StartedRunning": true,
+        "FinishedRunning": true
+      },
+      "Inputs": [
+        {
+          "Name": "inputMeshSmall",
+          "MeshUrl": "https://landlords-dev.s3.amazonaws.com/landformweb/input/testproj/inputMeshSmall.ply",
+          "ImageUrl": "https://landlords-dev.s3.amazonaws.com/landformweb/input/testproj/inputMeshSmall.ply",
+          "Processed": true,
+          "ImageBands": 3,
+          "ImageWidth": 4096,
+          "ImageHeight": 4096
+        }
+      ],
+      "NumNodes": 111,
+      "NumProcessedNodes": 111,
+      "OutputUrl": "https://landlords-dev.s3.amazonaws.com/landformweb/www/testproj/tileset.json"
+    }
+
+
+### List Projects: GET /api/projects
+Get a list of the existing project names.
+
+The project names are returned as a JSON array of strings.
+
+**Example:**
+
+Request
+
+    GET /api/projects HTTP/1.1
+    Host: https://landform.hi.jpl.nasa.gov
+    x-landform-token: API_TOKEN
+
+Response
+
+    HTTP/1.1 200
+    status: 200
+    content-type: application/json; charset=utf-8
+
+    [
+      "testproj",
+      "testproj1"
+    ]
 
 ### Get Project Result URL: GET /api/projects/*name*/result
 Fetch [3DTiles](https://github.com/AnalyticalGraphicsInc/3d-tiles) `tileset.json` result for a project.
@@ -185,7 +274,33 @@ Response
     content-type: text/html; charset=utf-8
 
 ### Delete Project: DELETE /api/projects/*name*
-TODO
+Delete the named project. Implements the [task API](#task-api).
+
+Fails with HTTP status 400 (bad request) if the named project is currently running.
+
+**Example:**  delete project "testproj"
+
+Request
+
+    DELETE /api/projects/testproj HTTP/1.1
+    Host: https://landform.hi.jpl.nasa.gov
+    x-landform-token: API_TOKEN
+
+Response
+
+    HTTP/1.1 200
+    status: 200
+    content-type: application/json; charset=utf-8
+
+    {
+      "id": 1,
+      "running": false,
+      "success": true,
+      "exitCode": 0,
+      "error": null,
+      "started": 1537227661847,
+      "ended": 1537227672413
+    }
 
 ---
 

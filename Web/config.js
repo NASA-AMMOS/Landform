@@ -10,6 +10,7 @@ const development = {
     name: 'Landform',
 
     bundle: 'landformweb.zip',
+    workerBundle: 'landformweb-worker.zip',
     deployEnvironment: env.EB_DEPLOY_ENV || 'landformweb-dev',
 
     port: env.PORT || 8081,
@@ -38,8 +39,6 @@ const development = {
     awsProfile: env.TILE_SERVER_PROFILE || env.AWS_PROFILE || 'default',
     awsMSLICEProfile: env.TILE_SERVER_MSLICE_PROFILE || 'mslice',
     awsMSLICES3Url: env.TILE_SERVER_MSLICE_S3_URL || 's3://red-product',
-
-    multiThreadedMaster: !!env.MULTI_THREADED_MASTER,
 
     reapOldTasks: 60 * 60 * 24, //24h in sec
   },

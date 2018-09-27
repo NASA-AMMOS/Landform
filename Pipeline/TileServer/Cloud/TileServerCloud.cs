@@ -68,7 +68,7 @@ namespace OPS.Pipeline.TileServer
                 bool firstTime = true;
                 while (tableStatus != "ACTIVE")
                 {
-                    logger.Info("Waiting for table: " + CreateCloudTemplates.TableName(t));
+                    logger.Info("Waiting for table: " + tn);
                     try
                     {
                         var tableResponse = this.pipeline.DynamoDB.DescribeTable(new DescribeTableRequest(tn));

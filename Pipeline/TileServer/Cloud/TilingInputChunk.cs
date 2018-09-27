@@ -7,6 +7,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using OPS.Plumbing;
+using log4net;
 
 namespace OPS.Pipeline.TileServer
 {
@@ -53,6 +55,23 @@ namespace OPS.Pipeline.TileServer
         public static TilingInputChunk Find(DynamoDBContext context, string id)
         {
             return context.Load<TilingInputChunk>(id);
+        }
+
+        public void Delete(PipelineCore pipeline, bool ignoreErrors = true, ILog logger = null)
+        {
+            if (!string.IsNullOrEmpty(MeshUrl))
+            {
+                pipeline.Storage(MeshUrl).DeleteObject(MeshUrl, ignoreErrors: ignoreErrors, logger: logger);
+            }
+
+            if (!string.IsNullOrEmpty(ImageUrl))
+            {
+                //note this call is DeleteObjects() not DeleteObject()
+                //because there can be multiple files with the same basename for these images
+                pipeline.Storage(ImageUrl).DeleteObjects(ImageUrl, ignoreErrors: ignoreErrors, logger: logger);
+            }
+                
+            pipeline.DeleteDynamoItem(this, ignoreErrors, logger);
         }
 
         public BoundingBox GetBounds()

@@ -6,6 +6,8 @@ using System.Threading.Tasks;
 using OPS.Cloud;
 using Amazon.DynamoDBv2.DataModel;
 using OPS.Geometry;
+using OPS.Plumbing;
+using log4net;
 
 namespace OPS.Pipeline.TileServer
 {
@@ -29,6 +31,10 @@ namespace OPS.Pipeline.TileServer
         public bool TilesDefined { get; set; }
 
         public string ProjectType { get; set; }
+
+        public bool StartedRunning { get; set; }
+
+        public bool FinishedRunning { get; set; }
 
         public TilingProject()
         {
@@ -70,10 +76,35 @@ namespace OPS.Pipeline.TileServer
             return project;
         }
 
+        public static IEnumerable<TilingProject> FindAll(DynamoDBContext context)
+        {
+            return context.Scan<TilingProject>();
+        }
+
         public void Save(DynamoDBContext context)
         {
             this.IsValid();
             context.Save(this, new DynamoDBOperationConfig() { IgnoreNullValues = true });
+        }
+
+        public void Delete(PipelineCore pipeline, bool ignoreErrors = true, ILog logger = null)
+        {
+            foreach (var node in TilingNode.Find(pipeline.DynamoContext, Name))
+            {
+                node.Delete(pipeline, ignoreErrors, logger);
+            }
+
+            foreach (var input in TilingInput.Find(pipeline.DynamoContext, Name))
+            {
+                input.Delete(pipeline, ignoreErrors, logger);
+            }
+
+            pipeline.DeleteProjectCache(Name);
+
+            string wwwS3Url = TileServerConfig.Instance.WWWUrl(Name);
+            pipeline.Storage(wwwS3Url).DeleteObjects(wwwS3Url, ignoreErrors: ignoreErrors, logger: logger);
+
+            pipeline.DeleteDynamoItem(this, ignoreErrors, logger);
         }
 
         private void IsValid()

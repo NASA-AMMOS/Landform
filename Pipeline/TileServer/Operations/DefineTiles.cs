@@ -88,7 +88,7 @@ namespace OPS.Pipeline.TileServer
             if(project.TilesDefined)
             {
                 logger.Info("Tiles have already been defined for this project");
-                pipeline.CompletionQueue.Enqueue(this.message);
+                pipeline.CompletionQueue.Enqueue(message);
                 return;
             }
 
@@ -96,7 +96,7 @@ namespace OPS.Pipeline.TileServer
             if (project.GetTilingScheme() == TilingScheme.UserDefined)
             {
                 // Build a tree based on existing tile ids
-                var inputs = TilingInput.Find(pipeline.DynamoContext, project).ToList();
+                var inputs = TilingInput.Find(pipeline.DynamoContext, project.Name).ToList();
                 ConcurrentBag<SceneNode> nodes = new ConcurrentBag<SceneNode>();
                 Parallel.ForEach(inputs, new ParallelOptions() { MaxDegreeOfParallelism = 8 }, input =>
                 {
@@ -117,7 +117,7 @@ namespace OPS.Pipeline.TileServer
             else
             {
                 // Buid a tree using input datasets
-                var inputs = TilingInput.Find(pipeline.DynamoContext, project).ToList();
+                var inputs = TilingInput.Find(pipeline.DynamoContext, project.Name).ToList();
                 var tilingInput = new TileLocalMesh.TilingInput();
                 foreach (var input in inputs)
                 {
@@ -173,7 +173,7 @@ namespace OPS.Pipeline.TileServer
             }                            
             project.TilesDefined = true;
             project.Save(pipeline.DynamoContext);
-            pipeline.CompletionQueue.Enqueue(this.message);
+            pipeline.CompletionQueue.Enqueue(message);
         }
 
         MeshImagePair DownloadInput(TilingInput input)

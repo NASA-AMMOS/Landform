@@ -12,6 +12,7 @@ using System.Text.RegularExpressions;
 using System.IO;
 using OPS.Util;
 using System.Collections.Concurrent;
+using log4net;
 
 namespace OPS.Cloud
 {
@@ -498,6 +499,88 @@ namespace OPS.Cloud
                 using (var s = new StorageStream(client, s3url, startPosition, bufferSize))
                 {
                     streamHandler(s);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Delete an object
+        /// </summary>
+        /// <returns></returns>
+        public void DeleteObject(string s3Url, bool ignoreErrors = true, ILog logger = null)
+        {
+            try
+            {
+                using (var client = GetClient(s3Url))
+                {
+                    S3Url location = new S3Url(s3Url);
+                    client.DeleteObject(location.BucketName, location.Prefix);
+                }
+            }
+            catch (Exception e)
+            {
+                if (!ignoreErrors)
+                {
+                    throw e;
+                }
+
+                if (logger != null)
+                {
+                    logger.Warn(string.Format("error deleting object {0}: {1}", s3Url, e.Message));
+                }
+            }
+        }
+
+        /// <summary>
+        /// Delete a set of objects
+        /// </summary>
+        /// <returns></returns>
+        public void DeleteObjects(string s3Url, string pattern = "*", bool recursive = true,
+                                  bool ignoreErrors = true, ILog logger = null)
+        {
+            try
+            {
+                IEnumerable<string> objects = SearchObjects(s3Url, pattern, recursive);
+
+                objects = objects.Where(obj => {
+                        if (obj.StartsWith(s3Url))
+                        {
+                            return true;
+                        }
+                        var msg = string.Format("suspicious glob result \"{0}\", should begin \"{1}\", not deleting",
+                                                obj, s3Url);
+                        if (!ignoreErrors)
+                        {
+                            throw new System.Exception(msg);
+                        }
+                        else if (logger != null)
+                        {
+                            logger.Warn(msg);
+                        }
+                        return false;
+                    });
+
+                DeleteObjectsRequest request = new DeleteObjectsRequest
+                {
+                    BucketName = (new S3Url(s3Url)).BucketName,
+                    Objects = objects.Select(obj => new KeyVersion{ Key = (new S3Url(obj)).Prefix }).ToList()
+                };
+                
+                using (var client = GetClient(s3Url))
+                {
+                    client.DeleteObjects(request);
+                }
+            }
+            catch (Exception e)
+            {
+                if (!ignoreErrors)
+                {
+                    throw e;
+                }
+
+                if (logger != null)
+                {
+                    logger.Warn(string.Format("error searching objects with prefix {0}: {1}", s3Url, e.Message));
                 }
             }
         }

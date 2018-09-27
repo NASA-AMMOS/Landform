@@ -54,6 +54,50 @@
 			"response": []
 		},
 		{
+			"name": "list projects",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"id": "c023b660-a47f-45f9-9db4-e929081fe179",
+						"type": "text/javascript",
+						"exec": [
+							"pm.test(\"HTTP OK\", function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"pm.test(\"response is valid array\", function () {",
+							"    var projects = pm.response.json();",
+							"    pm.expect(projects).to.be.an('array').that.includes(pm.variables.get(\"PROJECT_NAME\"));",
+							"});",
+							""
+						]
+					}
+				}
+			],
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "x-landform-token",
+						"value": "{{API_TOKEN}}"
+					}
+				],
+				"body": {},
+				"url": {
+					"raw": "{{SERVER_URL}}/api/projects",
+					"host": [
+						"{{SERVER_URL}}"
+					],
+					"path": [
+						"api",
+						"projects"
+					]
+				}
+			},
+			"response": []
+		},
+		{
 			"name": "upload data",
 			"event": [
 				{
@@ -166,33 +210,21 @@
 			"response": []
 		},
 		{
-			"name": "get master log",
+			"name": "get project metadata",
 			"event": [
-				{
-					"listen": "prerequest",
-					"script": {
-						"id": "69af028c-bd3a-4fe7-908a-ab55d08db06a",
-						"type": "text/javascript",
-						"exec": [
-							""
-						]
-					}
-				},
 				{
 					"listen": "test",
 					"script": {
-						"id": "bebd9d6a-3863-48ef-be01-beb8c8c9500e",
+						"id": "6e977225-4dc7-4322-9467-baac0be5c4b6",
 						"type": "text/javascript",
 						"exec": [
 							"pm.test(\"HTTP OK\", function () {",
 							"    pm.response.to.have.status(200);",
 							"});",
 							"",
-							"pm.test(\"content type\", function () {",
-							"    pm.response.to.have.header(\"Content-Type\");",
-							"    pm.response.to.be.header(\"Content-Type\", \"text/plain; charset=utf-8\");",
-							"});",
-							""
+							"pm.test(\"response is json\", function () {",
+							"    pm.response.to.have.jsonBody();",
+							"});"
 						]
 					}
 				}
@@ -207,21 +239,14 @@
 				],
 				"body": {},
 				"url": {
-					"raw": "{{SERVER_URL}}/api/tasks/0/log?text=true",
+					"raw": "{{SERVER_URL}}/api/projects/{{PROJECT_NAME}}",
 					"host": [
 						"{{SERVER_URL}}"
 					],
 					"path": [
 						"api",
-						"tasks",
-						"0",
-						"log"
-					],
-					"query": [
-						{
-							"key": "text",
-							"value": "true"
-						}
+						"projects",
+						"{{PROJECT_NAME}}"
 					]
 				}
 			},
@@ -336,6 +361,50 @@
 			"response": []
 		},
 		{
+			"name": "delete project",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"id": "f217fc5c-c2d6-42a3-ba32-e1d0343a3769",
+						"type": "text/javascript",
+						"exec": [
+							"pm.test(\"HTTP OK\", function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"pm.test(\"task success\", function () {",
+							"    pm.expect(pm.response.json().success).to.eql(true);",
+							"});",
+							""
+						]
+					}
+				}
+			],
+			"request": {
+				"method": "DELETE",
+				"header": [
+					{
+						"key": "x-landform-token",
+						"value": "{{API_TOKEN}}"
+					}
+				],
+				"body": {},
+				"url": {
+					"raw": "{{SERVER_URL}}/api/projects/{{PROJECT_NAME}}",
+					"host": [
+						"{{SERVER_URL}}"
+					],
+					"path": [
+						"api",
+						"projects",
+						"{{PROJECT_NAME}}"
+					]
+				}
+			},
+			"response": []
+		},
+		{
 			"name": "get master task ID",
 			"event": [
 				{
@@ -429,6 +498,68 @@
 				}
 			},
 			"response": []
+		},
+		{
+			"name": "get master log",
+			"event": [
+				{
+					"listen": "prerequest",
+					"script": {
+						"id": "69af028c-bd3a-4fe7-908a-ab55d08db06a",
+						"type": "text/javascript",
+						"exec": [
+							""
+						]
+					}
+				},
+				{
+					"listen": "test",
+					"script": {
+						"id": "bebd9d6a-3863-48ef-be01-beb8c8c9500e",
+						"type": "text/javascript",
+						"exec": [
+							"pm.test(\"HTTP OK\", function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"pm.test(\"content type\", function () {",
+							"    pm.response.to.have.header(\"Content-Type\");",
+							"    pm.response.to.be.header(\"Content-Type\", \"text/plain; charset=utf-8\");",
+							"});",
+							""
+						]
+					}
+				}
+			],
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "x-landform-token",
+						"value": "{{API_TOKEN}}"
+					}
+				],
+				"body": {},
+				"url": {
+					"raw": "{{SERVER_URL}}/api/tasks/0/log?text=true",
+					"host": [
+						"{{SERVER_URL}}"
+					],
+					"path": [
+						"api",
+						"tasks",
+						"0",
+						"log"
+					],
+					"query": [
+						{
+							"key": "text",
+							"value": "true"
+						}
+					]
+				}
+			},
+			"response": []
 		}
 	],
 	"event": [
@@ -455,19 +586,19 @@
 	],
 	"variable": [
 		{
-			"id": "3cd992c2-1988-4a7b-ba76-ccbe4d16df2c",
+			"id": "6d5bcfb3-5b3c-492f-9b22-d968290b1a83",
 			"key": "PROJECT_NAME",
 			"value": "",
 			"type": "string"
 		},
 		{
-			"id": "dbf65320-da84-402b-98e8-3a86cf9655dd",
+			"id": "8489d315-d8a7-4645-96b1-0dcf2e8ad923",
 			"key": "SERVER_URL",
 			"value": "",
 			"type": "string"
 		},
 		{
-			"id": "7d90184e-f7cc-4213-a37d-7cdc0e763273",
+			"id": "eb883e9d-9d9a-4eb2-b8bf-340adc95daf1",
 			"key": "API_TOKEN",
 			"value": "",
 			"type": "string"
