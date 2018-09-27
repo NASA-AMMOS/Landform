@@ -55,16 +55,24 @@ namespace OPS.Pipeline
             PathHelper.EnsureExists(options.OutputDirectory);
         }
 
-        Matrix ObservationToRoot(Observation obs, FrameCache frameCache)
+        UncertainRigidTransform ObservationToRoot(Observation obs, FrameCache frameCache)
         {
             Frame frame = frameCache.GetFrame(obs.FrameName);
-            //Start with the initial transform
-            Matrix transform = FrameTransform.Find(DynamoContext, frame).Transform.Mean;
-            while ((frame = frame.GetParent(DynamoContext)) != null) 
+            UncertainRigidTransform transform = null;
+            while (frame != null)
             {
-                //Read the parent transform and combine it with the existing transform
-                var parentTransform = FrameTransform.Find(DynamoContext, frame).Transform.Mean;
-                transform = parentTransform * transform;          
+                // Base case, we are the observation frame, initilize transform to the transform for this observation
+                if (transform == null)
+                {
+                    transform = FrameTransform.Find(DynamoContext, frame).Transform;
+                }
+                else
+                {
+                    // Otherwise we are a parent transform -  Read the transform and combine it with the existing transform
+                    var parentTransform = FrameTransform.Find(DynamoContext, frame).Transform;
+                    transform = parentTransform * transform;
+                }
+                frame = frame.GetParent(DynamoContext);
             }
             return transform;
         }
@@ -165,7 +173,7 @@ namespace OPS.Pipeline
                 }
 
 
-                records.Add(new TransformRecord(transform, rmc, rngObs.Name));
+                records.Add(new TransformRecord(transform.Mean, rmc, rngObs.Name));
                 var obsPair =  MSLProject.FindBestPair(RoverObservation.Find(DynamoContext, frame).Where(ob => ob.UseForReconstruction).ToList());
                 Observation imgObs = null;
                 if(obsPair != null)
@@ -173,7 +181,7 @@ namespace OPS.Pipeline
                     imgObs = obsPair.Image;
                 }
 
-                var m = BuildPointCloud(rngObs, transform, imgObs);
+                var m = BuildPointCloud(rngObs, transform.Mean, imgObs);
                 m.HasColors = true;
                 if (m.Vertices.Count > 0)
                 {

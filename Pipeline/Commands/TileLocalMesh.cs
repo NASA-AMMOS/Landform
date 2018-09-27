@@ -205,7 +205,7 @@ namespace OPS
             {
                 throw new Exception("Tiling scheme not yet supported");   
             }
-            ITileSplitCriteria splitCriteria = new FaceLimitSplitCriteria(options.TargetFacesPerTile);
+            ITileSplitCriteria splitCriteria = new FaceSplitCriteria(options.TargetFacesPerTile);
             logger.Info("Computing tree bounds");
             SceneNode root = BuildBoundsTree(input, scheme, splitCriteria);
             logger.Info("Process leaf nodes");

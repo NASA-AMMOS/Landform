@@ -104,7 +104,7 @@ namespace OPS.Pipeline
         /// <param name="a"></param>
         /// <param name="b"></param>
         /// <returns></returns>
-        static int RoverObservationComparison(RoverObservation a, RoverObservation b)
+        public static int RoverObservationComparison(RoverObservation a, RoverObservation b)
         {
             // sort first by producer
             if (a.Producer == RoverProductProducer.MSSS.ToString() && b.Producer == RoverProductProducer.OPGS.ToString())
@@ -130,7 +130,7 @@ namespace OPS.Pipeline
             return int.Parse(b.Version) - int.Parse(a.Version);
         }
         
-        static bool IsLinear(RoverObservation observation)
+        public static bool IsLinear(RoverObservation observation)
         {
             return ((CameraModel)JsonHelper.FromJson(observation.CameraModel)).Linear;
         }
@@ -316,10 +316,6 @@ namespace OPS.Pipeline
 
         public override Result Ingest(S3ImageRef imgRef)
         {
-            if(imgRef.DisplayName.Contains("UVW"))
-            {
-                ;
-            }
             if (imgRef is ObservationImageRef)
             {
                 throw new InvalidOperationException("hey now, let's not get *too* weird");

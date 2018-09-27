@@ -142,7 +142,7 @@ namespace OPS.Pipeline.TileServer
                 {
                     throw new Exception("Unknonw tiling scheme");
                 }
-                ITileSplitCriteria splitCriteria = new FaceLimitSplitCriteria(project.FacesPerTile);
+                ITileSplitCriteria splitCriteria = new FaceSplitCriteria(project.FacesPerTile);
 
                 logger.Info("Computing tile tree");
                 root = TileLocalMesh.BuildBoundsTree(tilingInput, scheme, splitCriteria);
