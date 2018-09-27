@@ -30,7 +30,6 @@ namespace OPS.Pipeline
             public int EndSol ;
             public bool Primary;
             public Matrix Transform;
-            public Quaternion RoverOriginRotation;
             public List<ImageData> Images = new List<ImageData>();
         }
 
@@ -210,7 +209,7 @@ namespace OPS.Pipeline
             dimEl.AppendChild(firstLineSampleEl);
             dimEl.AppendChild(originEl);
 
-            Quaternion qvals = siteData.RoverOriginRotation;
+            Quaternion qvals = p.RoverOriginRotation;
             XmlElement rotationQuaternion = doc.CreateElement("rover_rotation");
             rotationQuaternion.InnerText = string.Format("{0} {1} {2} {3}", qvals.W, qvals.X, qvals.Y, qvals.Z);
             imageEl.AppendChild(rotationQuaternion);
@@ -268,13 +267,13 @@ namespace OPS.Pipeline
             var manifest = new LegacySceneManfiest();
             Dictionary<string, LegacySceneManfiest.SiteDriveData> siteDriveLookup = new Dictionary<string, LegacySceneManfiest.SiteDriveData>();
 
-            Serial.ForEach(System.IO.Directory.EnumerateFiles(indir, "*.obj"), f =>
+            Serial.ForEach(System.IO.Directory.EnumerateFiles(indir, "*.iv"), f =>
             {
 
-                var imgname = f.Replace(".obj", ".vic");
 
                 // Make metadata
                 {
+                    var imgname = f.Replace(".iv", ".vic");
                     var meta = new PDSMetadata(imgname);
                     var p = new PDSParser(meta);
 
@@ -308,10 +307,17 @@ namespace OPS.Pipeline
 
                 //Make meshes
                 {
+                    var imgname = f.Replace(".iv", ".rgb");
                     string destRoot = Path.Combine(outdir, Path.GetFileNameWithoutExtension(f));
                     Mesh m = Mesh.Load(f);
                     Image img = Image.Load(imgname);
                     img.Save<byte>(destRoot + ".jpg");
+
+                    PDSMetadata metadata = new PDSMetadata(f.Replace(".iv", ".VIC"));
+                    string subDest = Path.Combine(outdir, new PDSParser(metadata).SiteDrive, Path.GetFileNameWithoutExtension(f) + ".IMG.jpg");
+                    PathHelper.EnsureExists(Path.GetDirectoryName(subDest));
+                    img.Save<byte>(subDest);
+
                     m.Save(destRoot + ".obj", destRoot + ".jpg");
                 }
             });
