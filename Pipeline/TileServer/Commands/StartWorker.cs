@@ -152,6 +152,10 @@ namespace OPS.Pipeline.TileServer
                         {
                             new BuildTilesetJson((BuildTilesetJsonMessage)m, this).Process();
                         }
+                        else if (m.GetType() == typeof(BuildTilingInputMessage))
+                        {
+                            new BuildTilingInput((BuildTilingInputMessage)m, this).Process();
+                        }
                         else
                         {
                             logger.Info("Unknown message type: " + m.GetType());

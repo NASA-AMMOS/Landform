@@ -40,5 +40,45 @@ namespace GeometryTest
             Assert.IsTrue(ray.Position + rayDist * ray.Direction == new Vector3(0, 0, 3));
 
         }
+
+        [TestMethod()]
+        public void SimpleConvexHullIntersect()
+        {
+            BoundingBox bounds = new BoundingBox(-Vector3.One, Vector3.One);
+            ConvexHull hull = new ConvexHull(bounds.GetCorners());
+
+            Ray hitRay = new Ray(new Vector3(0, 0, -2), Vector3.UnitZ);
+            Ray missRay = new Ray(new Vector3(2, 0, -2), Vector3.UnitZ);
+
+            Assert.IsTrue(hull.Intersects(hitRay));
+            Assert.IsFalse(hull.Intersects(missRay));
+        }
+
+        [TestMethod()]
+        public void SingleTriHull()
+        {
+            Triangle tri = new Triangle(new Vector3(1, 0, 3), new Vector3(2, 1, 3), new Vector3(3, 0, 3));
+            Mesh m = new Mesh(new List<Triangle> { tri });
+            ConvexHull hull = new ConvexHull(m);
+
+            BoundingBox bbox = new BoundingBox(new Vector3(2, -1, 2), new Vector3(4, 3, 4));
+            ConvexHull bbHull = new ConvexHull(bbox.GetCorners());
+
+            Assert.IsTrue(hull.Intersects(bbHull));
+            Assert.IsTrue(bbHull.Intersects(hull));
+
+            BoundingBox missBbox = new BoundingBox(new Vector3(0, -1, 2), new Vector3(0.5, 3, 4));
+            ConvexHull missBBHull = new ConvexHull(missBbox.GetCorners());
+
+            Assert.IsFalse(hull.Intersects(missBBHull));
+            Assert.IsFalse(missBBHull.Intersects(hull));
+
+            Assert.IsTrue(hull.Intersects(new Ray(new Vector3(2, 0.5, 2), Vector3.UnitZ)));
+            Assert.IsTrue(hull.Intersects(new Ray(new Vector3(2, 0.5, 4), -Vector3.UnitZ)));
+
+            Assert.IsFalse(hull.Intersects(new Ray(new Vector3(0, 1.5, 2), Vector3.UnitZ)));
+            Assert.IsFalse(hull.Intersects(new Ray(new Vector3(0, 4.5, 4), -Vector3.UnitZ)));
+
+        }
     }
 }

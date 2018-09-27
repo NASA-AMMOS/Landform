@@ -40,9 +40,9 @@ namespace OPS.Pipeline
             get { return metadata.HasKey("IMAGE", "MISSING_CONSTANT") && metadata.ReadAsString("IMAGE", "MISSING_CONSTANT") != Unknown; }
         }
 
-        public float MissingConstant
+        public double[] MissingConstant
         {
-            get { return (float)metadata.ReadAsDouble("IMAGE", "MISSING_CONSTANT"); }
+            get { return metadata.ReadAsDoubleArray("IMAGE", "MISSING_CONSTANT"); }
         }
 
         public bool HasInvalidConstant
@@ -474,5 +474,51 @@ namespace OPS.Pipeline
                 return new PDSRoverArticulationParser(this.metadata).Parse();
             }
         }
+
+        public enum ReferenceCoordinateFrame
+        {
+            RoverNav,
+            LocalLevel,
+            Site
+        }
+
+        private ReferenceCoordinateFrame GetReferenceCoordinateFrame(string group)
+        {
+            if (metadata.ReadAsString(group, "REFERENCE_COORD_SYSTEM_NAME") == "ROVER_NAV_FRAME")
+                return ReferenceCoordinateFrame.RoverNav;
+            else if (metadata.ReadAsString(group, "REFERENCE_COORD_SYSTEM_NAME") == "SITE_FRAME")
+                return ReferenceCoordinateFrame.Site;
+            else if (metadata.ReadAsString(group, "REFERENCE_COORD_SYSTEM_NAME") == "LOCAL_LEVEL_FRAME")
+                return ReferenceCoordinateFrame.LocalLevel;
+            else
+                throw new PDSParserException("unknown reference coordinate system");
+        }
+
+        public ReferenceCoordinateFrame DerivedImageRefFrame
+        {
+            get
+            {
+                return GetReferenceCoordinateFrame("DERIVED_IMAGE_PARMS");
+            }
+        }
+
+
+        public ReferenceCoordinateFrame CameraModelRefFrame
+        {
+            get
+            {
+                return GetReferenceCoordinateFrame("GEOMETRIC_CAMERA_MODEL");
+            }
+        }
+        
+        public Vector3 RangeOrigin
+        {
+            get
+            {
+              double[] originVecv = metadata.ReadAsDoubleArray("DERIVED_IMAGE_PARMS", "RANGE_ORIGIN_VECTOR");
+              return new Vector3(originVecv);
+            } 
+        }
+    
     }
 }

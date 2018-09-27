@@ -29,11 +29,17 @@ namespace OPS.Pipeline.TileServer
                                                           m.ProjectName, projectName));
             }
 
-            if (m.GetType() == typeof(DefineTilesMessage))
+            if (m.GetType() == typeof(RunProjectMessage))
             {
-                // This is the first message that happens when we trigger a new run
-                // Force a clearing of the cache just to avoid stale data form a previous run
-                projectCache.Refresh();
+                logger.Info("Run project:" + m.ProjectName);
+                
+                this.workerQueue.Enqueue(new DefineTilesMessage(m.ProjectName));
+            }
+            else if (m.GetType() == typeof(DefineTilesMessage))
+            {
+                logger.Info("DefineTiles project:" + m.ProjectName);
+              
+                this.projectCache.Refresh();
 
                 var project = TilingProject.Find(pipeline.DynamoContext, projectName);
                 if(project.TilingScheme == TilingScheme.UserDefined.ToString())

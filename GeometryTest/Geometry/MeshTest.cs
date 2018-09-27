@@ -606,7 +606,7 @@ namespace GeometryTest
             }
             a.HasUVs = true;
 
-            a.MergeWith(b);
+            a.MergeWith(new Mesh[] { b });
             Assert.AreEqual(b.Vertices[2], a.Vertices[5]);
             Assert.AreEqual(6, a.Vertices.Count);
             Assert.AreEqual(2, a.Faces.Count);

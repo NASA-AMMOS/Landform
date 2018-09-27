@@ -30,6 +30,15 @@ namespace OPS.Plumbing
             return image;
         }
 
+        public override Image Load(PipelineCore pipeline, IImageConverter imageConverter)
+        {
+            if (image == null)
+            {
+                image = Image.Load(Path, imageConverter);
+            }
+            return image;
+        }
+
         public override string DisplayName
         {
             get

@@ -17,20 +17,29 @@ namespace OPS.Geometry
 
         public PoissonConfig()
         {
-            if (string.IsNullOrEmpty(PoissonExe)) PoissonExe = "PoissonReconV9.exe"; //default
+            if (string.IsNullOrEmpty(PoissonExe)) PoissonExe = "PoissonReconV10.02.exe"; //default
         }
     }
 
     public class PoissonReconstruction
     {
         private static readonly ILog logger = LogManager.GetLogger(typeof(PoissonReconstruction));
+        public enum BoundaryTypes { Free = 1, Dirichlet = 2, Neumann = 3 };
+
+        public class Options
+        {
+            public BoundaryTypes Boundary;          //exe defaults: Neumann
+            public float MinOctreeCellWidthMeters;  //exe defaults: doesn't use this parameter, uses --depth 8
+            public float MinOctreeSamplesPerCell;   //exe defaults: 1, recommends 1-5 clean data 15-20 noisy data
+            public int BSplineDegree;               //exe defaults: 1, supports 1-2
+            public bool UseNormalsForConfidence;    //exe defaults: no, if true magnitude of normal indicates confidence
+        };
 
         /// <summary>
         /// Creates a mesh from a point cloud
         /// </summary>
-        /// <param name="pointCloud"></param>
         /// <returns></returns>
-        public static Mesh Reconstruct(Mesh pointCloud, float samplesPerNode = 30, int depth = 8)
+        public static Mesh Reconstruct(Mesh pointCloud, Options options=null)
         {
             if (pointCloud.Vertices.Count == 0)
             {
@@ -53,18 +62,23 @@ namespace OPS.Geometry
             {
                 throw new MeshException("PoissonRecon input mesh had invalid normals");
             }
-            int notNormalCount = 0;
-            foreach (var vert in pointCloud.Vertices)
+
+            //unless using normal magnitude for confidence
+            if (options != null && !options.UseNormalsForConfidence)
             {
-                double len = vert.Normal.Length();
-                if (Math.Abs(len - 1) > 1e-3)
+                int notNormalCount = 0;
+                foreach (var vert in pointCloud.Vertices)
                 {
-                    notNormalCount++;
+                    double len = vert.Normal.Length();
+                    if (Math.Abs(len - 1) > 1e-3)
+                    {
+                        notNormalCount++;
+                    }
                 }
-            }
-            if (notNormalCount > 0)
-            {
-                logger.Warn("Found " + notNormalCount  + " vertices with non unit length normals");
+                if (notNormalCount > 0)
+                {
+                    logger.Warn("Found " + notNormalCount + " vertices with non unit length normals");
+                }
             }
 
             string poissonReconExe =
@@ -77,25 +91,39 @@ namespace OPS.Geometry
                 PLYSerializer.Write(pointCloud, inputFile, new PLYMaximumCompatibilityWriter(false));
                 TemporaryFile.GetAndDelete(".ply", outputFile =>
                 {
-                    ProgramRunner pr = new ProgramRunner(poissonReconExe, "--in " + inputFile + " --out " + outputFile + " --samplesPerNode " + samplesPerNode + " --depth " + depth + " --degree  4"/* + " --confidence 1 " + "-- confidenceBias 1"*/, captureOutput: true);
-                    pr.Run();
-                    if (!File.Exists(outputFile))
+                    TemporaryFile.GetAndDeleteDirectory(tmpDir =>
                     {
-                        logger.Error(pr.OutputText);
-                        logger.Error(pr.ErrorText);
-                        throw new MeshException("Failed to run " + poissonReconExe);
-                    }
-                    int ouputVertCount = Mesh.Load(outputFile).Vertices.Count;
-                    if (ouputVertCount == 0)
-                    {
-                        logger.Error(pr.OutputText);
-                        logger.Error(pr.ErrorText);
-                    }
-                    result = Mesh.Load(outputFile);
-                    if (result.Vertices.Count == 0)
-                    {
-                        throw new MeshException("Failed to reconstruct mesh");
-                    }
+                        string arguments = "--in " + inputFile + " --out " + outputFile + " --normals --tempDir " + tmpDir;
+
+                        if (options != null)
+                        {
+                            arguments += String.Format(" --bType {0} --width {1} --samplesPerNode {2} --degree {3} --confidence {4}", (int)options.Boundary, options.MinOctreeCellWidthMeters, options.MinOctreeSamplesPerCell, options.BSplineDegree, options.UseNormalsForConfidence ? 1 : 0);
+                        }
+
+                        //a workaround for running on powerful machines. without it there is an ERROR about not being able
+                        // to open a file (likely a bug in multithread buffered file reading)
+                        arguments += " --threads 1";
+
+                        ProgramRunner pr = new ProgramRunner(poissonReconExe, arguments, captureOutput: true);
+                        pr.Run();
+                        if (!File.Exists(outputFile))
+                        {
+                            logger.Error(pr.OutputText);
+                            logger.Error(pr.ErrorText);
+                            throw new MeshException("Failed to run " + poissonReconExe);
+                        }
+                        int ouputVertCount = Mesh.Load(outputFile).Vertices.Count;
+                        if (ouputVertCount == 0)
+                        {
+                            logger.Error(pr.OutputText);
+                            logger.Error(pr.ErrorText);
+                        }
+                        result = Mesh.Load(outputFile);
+                        if (result.Vertices.Count == 0)
+                        {
+                            throw new MeshException("Failed to reconstruct mesh");
+                        }
+                    });
                 });
             });
             return result;

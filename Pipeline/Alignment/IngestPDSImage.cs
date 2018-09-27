@@ -126,8 +126,9 @@ namespace OPS.Pipeline
             {
                 return 1;
             }
-            // sort by version
-            return int.Parse(b.Version) - int.Parse(a.Version);
+
+            // versions go numeric 1 to 9, A-Z, _ (opgs) and numeric 0 to 9, A-Z (msss)
+            return (int)b.Version[0] - (int)a.Version[0];
         }
         
         public static bool IsLinear(RoverObservation observation)
@@ -312,6 +313,7 @@ namespace OPS.Pipeline
             productTypeToObservationType.TryAdd(RoverProductType.Range, ObservationType.Points);
             productTypeToObservationType.TryAdd(RoverProductType.XYZ, ObservationType.Points);
             productTypeToObservationType.TryAdd(RoverProductType.NormalMap, ObservationType.Normals);
+            productTypeToObservationType.TryAdd(RoverProductType.RoverMask, ObservationType.RoverMask);
         }
 
         public override Result Ingest(S3ImageRef imgRef)

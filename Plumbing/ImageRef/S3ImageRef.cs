@@ -31,6 +31,16 @@ namespace OPS.Plumbing
             return image;
         }
 
+        public override Image Load(PipelineCore pipeline, IImageConverter imageConverter)
+        {
+            if (image == null)
+            {
+                string fn = pipeline.DownloadCached(Url, "images");
+                image = Image.Load(fn, imageConverter);
+            }
+            return image;
+
+        }
         public override string DisplayName
         {
             get

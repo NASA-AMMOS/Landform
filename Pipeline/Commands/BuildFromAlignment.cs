@@ -55,7 +55,7 @@ namespace OPS.Pipeline
             PathHelper.EnsureExists(options.OutputDirectory);
         }
 
-        UncertainRigidTransform ObservationToRoot(Observation obs, FrameCache frameCache)
+        static public UncertainRigidTransform ObservationToRoot(DynamoDBContext dynamoContext, Observation obs, FrameCache frameCache)
         {
             Frame frame = frameCache.GetFrame(obs.FrameName);
             UncertainRigidTransform transform = null;
@@ -64,15 +64,15 @@ namespace OPS.Pipeline
                 // Base case, we are the observation frame, initilize transform to the transform for this observation
                 if (transform == null)
                 {
-                    transform = FrameTransform.Find(DynamoContext, frame).Transform;
+                    transform = FrameTransform.Find(dynamoContext, frame).Transform;
                 }
                 else
                 {
                     // Otherwise we are a parent transform -  Read the transform and combine it with the existing transform
-                    var parentTransform = FrameTransform.Find(DynamoContext, frame).Transform;
+                    var parentTransform = FrameTransform.Find(dynamoContext, frame).Transform;
                     transform = parentTransform * transform;
                 }
-                frame = frame.GetParent(DynamoContext);
+                frame = frame.GetParent(dynamoContext);
             }
             return transform;
         }
@@ -161,7 +161,7 @@ namespace OPS.Pipeline
                     return;
                 }
                 logger.Info("Processing observation: " + rngObs.Name);
-                var transform = ObservationToRoot(rngObs, cache);
+                var transform = ObservationToRoot(DynamoContext, rngObs, cache);
                 var frame = cache.GetFrame(rngObs.FrameName);
 
                 int[] rmc = null;

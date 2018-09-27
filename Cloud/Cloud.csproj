@@ -88,6 +88,7 @@
     <Compile Include="Database\Frame.cs" />
     <Compile Include="Database\FrameCache.cs" />
     <Compile Include="Database\Observation.cs" />
+    <Compile Include="Database\RoverObservationCache.cs" />
     <Compile Include="Database\Overlap.cs" />
     <Compile Include="Database\ThroughputManager.cs" />
     <Compile Include="Database\TransformPrior.cs" />

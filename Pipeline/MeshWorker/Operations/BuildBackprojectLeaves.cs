@@ -77,7 +77,14 @@ namespace OPS.Pipeline.MeshWorker
             sc.Build();
 
             logger.Info("Building scene graph...");
-            Frame rootFrame = Frame.Find(pipeline.DynamoContext, options.AlignmentProjectName, MSLProject.ROOT_FRAME_NAME); 
+            Frame rootFrame = Frame.Find(pipeline.DynamoContext, options.AlignmentProjectName, MSLProject.ROOT_FRAME_NAME);
+
+            if (rootFrame == null)
+            {
+                logger.Error("Alignment project " + options.AlignmentProjectName + " not found");
+                return 1;
+            }
+
             BuildSceneGraph builder = new BuildSceneGraph(pipeline);
             BuildSceneGraph.Options opts = new BuildSceneGraph.Options
             {
@@ -98,6 +105,11 @@ namespace OPS.Pipeline.MeshWorker
 
                 // make the leaf tile mesh
                 leafPair.Mesh = op.Clip(leaf.GetBounds());
+                if (leafPair.Mesh.Vertices.Count < 3)
+                {
+                    throw new Exception("Invalid tile contains less than 3 verts");
+                }
+
                 leafPair.Mesh = UVAtlas.Atlas(leafPair.Mesh, project.TileResolution, project.TileResolution);
                 ConvexHull meshHull = new ConvexHull(leafPair.Mesh);
 
@@ -112,9 +124,9 @@ namespace OPS.Pipeline.MeshWorker
 
                 //upload the mesh/texture pair and update the tiling node
                 ThroughputManager.Run(() => TilingNode.Find(pipeline.DynamoContext, project.Name, leaf.Id).SaveMesh(leafPair, pipeline, 0));
-                
+
                 //notify the tiling server that a tile is ready for building into parent tiles
-                pipeline.CompletionQueue.Enqueue(new TileCompletedMessage(project.Name, leaf.Id));
+                pipeline.CompletionQueue.Enqueue(new TileCompletedMessage(project.Name, leaf.Id));                
             });
 
             logger.Info("Completed generating " + tiledMeshes + " tiles.");

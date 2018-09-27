@@ -746,7 +746,7 @@ namespace OPS.Geometry
         /// If any faces are defined this will also remove any vertices that are not referenced
         /// by a face
         /// </summary>
-        public void Clean()
+        public void Clean(bool normalize=true)
         {
             RemoveDuplicateVertices();
             if (HasFaces)
@@ -755,7 +755,7 @@ namespace OPS.Geometry
                 RemoveUnreferencedVertices();
                 RemoveDuplicateFaces();
             }
-            if (HasNormals)
+            if (normalize && HasNormals)
             {
                 NormalizeNormals();
             }
@@ -871,7 +871,7 @@ namespace OPS.Geometry
         /// Vertex objects are cloned to avoid side effects in case the meshes are modifed in the future
         /// </summary>
         /// <param name="otherMeshes"></param>
-        public void MergeWith(params Mesh[] otherMeshes)
+        public void MergeWith(Mesh[] otherMeshes, bool normalize = true)
         {
             for (int i = 0; i < otherMeshes.Length; i++)
             {
@@ -894,7 +894,8 @@ namespace OPS.Geometry
                     this.Faces.Add(f);
                 }
             }
-            Clean();
+            
+            Clean(normalize);
         }
 
         /// <summary>

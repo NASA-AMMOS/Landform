@@ -21,6 +21,7 @@ namespace OPS.Util
 
         static string tmpDirectory = "tmp";
         public delegate void FilenameDelegate(string s);
+        public delegate void DirectoryDelegate(string s);
         public delegate void MultipleFilenameDelegate(string[] s);
 
         private static readonly ILog logger = LogManager.GetLogger(typeof(TemporaryFile));
@@ -128,6 +129,17 @@ namespace OPS.Util
             string tempFile = GetTempName(extension);
             func(tempFile);
             DeleteWithRetry(tempFile);
+        }
+
+        /// <summary>
+        /// Execute a delegate with a temporary directory and delete the temp directory when the delegate completes
+        /// </summary>
+        /// <param name="func">Delegate to execute</param>
+        public static void GetAndDeleteDirectory(DirectoryDelegate func)
+        {
+            string tempDir = GetTempDirectory();
+            func(tempDir);
+            DeleteTempDirectory(tempDir);
         }
 
         /// <summary>
