@@ -912,6 +912,20 @@ namespace OPS.Geometry
         }
 
         /// <summary>
+        /// Combines and returns one or more meshes
+        /// The combined mesh will have an attribute (normals, uvs, colors) only if all the input meshes have that attribute
+        /// </summary>
+        /// <param name="meshesToCombine"></param>
+        /// <returns></returns>
+        public static Mesh MergeWithCommonAttributes(params Mesh[] meshesToCombine)
+        {
+            bool normals = meshesToCombine.All(m => m.HasNormals);
+            bool uvs = meshesToCombine.All(m => m.HasUVs);
+            bool colors = meshesToCombine.All(m => m.HasColors);
+            return Merge(normals,uvs, colors, meshesToCombine);
+        }
+
+        /// <summary>
         /// Combines several meshes and returnes a new mesh with the specified attributes
         /// </summary>
         /// <param name="hasNormals"></param>

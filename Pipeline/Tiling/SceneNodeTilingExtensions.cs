@@ -138,7 +138,11 @@ namespace OPS.Pipeline
                 return tmp;
             }).ToArray();
 
-            Mesh combinedFull = Mesh.Merge(childMeshesWithoutSkirts);
+            Mesh combinedFull = Mesh.MergeWithCommonAttributes(childMeshesWithoutSkirts);
+            if(!combinedFull.HasNormals)
+            {
+                combinedFull.GenerateVertexNormals();
+            }
             combinedFull = Mesh.Clip(combinedFull, searchBounds);
             combinedFull.NormalizeNormals();
             BoundingBox minimumBounds = node.GetComponent<NodeBounds>().Bounds;
