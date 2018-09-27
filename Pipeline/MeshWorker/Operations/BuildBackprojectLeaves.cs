@@ -106,7 +106,9 @@ namespace OPS.Pipeline.MeshWorker
                 // make the leaf tile mesh
                 leafPair.Mesh = op.Clip(leaf.GetBounds());
                 if (leafPair.Mesh.Vertices.Count < 3)
+                {
                     throw new Exception("Invalid tile contains less than 3 verts");
+                }
 
                 leafPair.Mesh = UVAtlas.Atlas(leafPair.Mesh, project.TileResolution, project.TileResolution);
                 ConvexHull meshHull = new ConvexHull(leafPair.Mesh);
