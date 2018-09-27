@@ -3,11 +3,14 @@ using System.Linq;
 using OPS.Plumbing;
 using OPS.Geometry;
 using System.Collections.Generic;
+using log4net;
 
 namespace OPS.Pipeline.TileServer
 {
     class GenericTilingStateMachine : PipelineStateMachine
     {
+        protected static ILog logger = LogManager.GetLogger(typeof(GenericTilingStateMachine));
+
         public GenericTilingStateMachine(PipelineCore pipeline, TilingQueue workerQueue, string projectName) : base(pipeline, workerQueue, projectName)
         {
         }
@@ -28,7 +31,15 @@ namespace OPS.Pipeline.TileServer
                 this.projectCache.Refresh();
 
                 TilingProject project = TilingProject.Find(pipeline.DynamoContext, m.ProjectName);
-                ChunkInputs(project);
+                if(project.TilingScheme == TilingScheme.UserDefined.ToString())
+                {
+                    // Skip Chunking
+                    BuildBakedLeaves(project);
+                }
+                else
+                {
+                    ChunkInputs(project);
+                }
             }
             else if (m.GetType() == typeof(ChunkInputMessage))
             {
