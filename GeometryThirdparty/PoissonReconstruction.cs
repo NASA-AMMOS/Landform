@@ -38,8 +38,6 @@ namespace OPS.Geometry
         /// <summary>
         /// Creates a mesh from a point cloud
         /// </summary>
-        /// <param name="pointCloud"></param>
-        /// <param name="extrapolateBoundaries">if true, it uses the neumann boundary (derivative). if false it uses the dirichlet boundary (actual value). the former can add big sweeping wings to the edges of the mesh, but does more agressive hole filling.</param>
         /// <returns></returns>
         public static Mesh Reconstruct(Mesh pointCloud, Options options=null)
         {
