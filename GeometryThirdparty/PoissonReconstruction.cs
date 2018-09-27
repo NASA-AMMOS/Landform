@@ -93,36 +93,39 @@ namespace OPS.Geometry
                 PLYSerializer.Write(pointCloud, inputFile, new PLYMaximumCompatibilityWriter(false));
                 TemporaryFile.GetAndDelete(".ply", outputFile =>
                 {
-                    string arguments = "--in " + inputFile + " --out " + outputFile + " --normals";
+                    TemporaryFile.GetAndDeleteDirectory(tmpDir =>
+                    {
+                        string arguments = "--in " + inputFile + " --out " + outputFile + " --normals --tmpDir " + tmpDir;
 
-                    if (options != null)
-                    {
-                        arguments += String.Format(" --bType {0} --width {1} --samplesPerNode {2} --degree {3} --confidence {4}", (int)options.Boundary, options.MinOctreeCellWidthMeters, options.MinOctreeSamplesPerCell, options.BSplineDegree, options.UseNormalsForConfidence ? 1 : 0);                        
-                    }
+                        if (options != null)
+                        {
+                            arguments += String.Format(" --bType {0} --width {1} --samplesPerNode {2} --degree {3} --confidence {4}", (int)options.Boundary, options.MinOctreeCellWidthMeters, options.MinOctreeSamplesPerCell, options.BSplineDegree, options.UseNormalsForConfidence ? 1 : 0);
+                        }
 
-                    //a workaround for running on powerful machines. without it there is an ERROR about not being able
-                    // to open a file (likely a bug in multithread buffered file reading)
-                    arguments += " --threads 1";
+                        //a workaround for running on powerful machines. without it there is an ERROR about not being able
+                        // to open a file (likely a bug in multithread buffered file reading)
+                        arguments += " --threads 1";
 
-                    ProgramRunner pr = new ProgramRunner(poissonReconExe, arguments, captureOutput: true);
-                    pr.Run();
-                    if (!File.Exists(outputFile))
-                    {
-                        logger.Error(pr.OutputText);
-                        logger.Error(pr.ErrorText);
-                        throw new MeshException("Failed to run " + poissonReconExe);
-                    }
-                    int ouputVertCount = Mesh.Load(outputFile).Vertices.Count;
-                    if (ouputVertCount == 0)
-                    {
-                        logger.Error(pr.OutputText);
-                        logger.Error(pr.ErrorText);
-                    }
-                    result = Mesh.Load(outputFile);
-                    if (result.Vertices.Count == 0)
-                    {
-                        throw new MeshException("Failed to reconstruct mesh");
-                    }
+                        ProgramRunner pr = new ProgramRunner(poissonReconExe, arguments, captureOutput: true);
+                        pr.Run();
+                        if (!File.Exists(outputFile))
+                        {
+                            logger.Error(pr.OutputText);
+                            logger.Error(pr.ErrorText);
+                            throw new MeshException("Failed to run " + poissonReconExe);
+                        }
+                        int ouputVertCount = Mesh.Load(outputFile).Vertices.Count;
+                        if (ouputVertCount == 0)
+                        {
+                            logger.Error(pr.OutputText);
+                            logger.Error(pr.ErrorText);
+                        }
+                        result = Mesh.Load(outputFile);
+                        if (result.Vertices.Count == 0)
+                        {
+                            throw new MeshException("Failed to reconstruct mesh");
+                        }
+                    });
                 });
             });
             return result;
