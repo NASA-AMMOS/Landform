@@ -267,13 +267,13 @@ namespace OPS.Pipeline
             var manifest = new LegacySceneManfiest();
             Dictionary<string, LegacySceneManfiest.SiteDriveData> siteDriveLookup = new Dictionary<string, LegacySceneManfiest.SiteDriveData>();
 
-            Serial.ForEach(System.IO.Directory.EnumerateFiles(indir, "*.iv"), f =>
+            Serial.ForEach(System.IO.Directory.EnumerateFiles(indir, "*.obj"), f =>
             {
 
 
                 // Make metadata
                 {
-                    var imgname = f.Replace(".iv", ".vic");
+                    var imgname = f.Replace(".obj", ".vic");
                     var meta = new PDSMetadata(imgname);
                     var p = new PDSParser(meta);
 
@@ -307,7 +307,7 @@ namespace OPS.Pipeline
 
                 //Make meshes
                 {
-                    var imgname = f.Replace(".iv", ".rgb");
+                    var imgname = f.Replace(".obj", ".rgb");
                     string destRoot = Path.Combine(outdir, Path.GetFileNameWithoutExtension(f));
                     Mesh m = Mesh.Load(f);
                     if(!m.HasNormals)
@@ -316,9 +316,10 @@ namespace OPS.Pipeline
                     }
                     Console.WriteLine("Normals: " + m.HasNormals);
                     Image img = Image.Load(imgname);
+                    Console.WriteLine("Bands: " + img.Bands);
                     img.Save<byte>(destRoot + ".jpg");
 
-                    PDSMetadata metadata = new PDSMetadata(f.Replace(".iv", ".VIC"));
+                    PDSMetadata metadata = new PDSMetadata(f.Replace(".obj", ".VIC"));
                     string subDest = Path.Combine(outdir, new PDSParser(metadata).SiteDrive, Path.GetFileNameWithoutExtension(f) + ".IMG.jpg");
                     PathHelper.EnsureExists(Path.GetDirectoryName(subDest));
                     img.Save<byte>(subDest);
