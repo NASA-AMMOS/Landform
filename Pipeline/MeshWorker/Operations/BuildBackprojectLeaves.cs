@@ -77,7 +77,14 @@ namespace OPS.Pipeline.MeshWorker
             sc.Build();
 
             logger.Info("Building scene graph...");
-            Frame rootFrame = Frame.Find(pipeline.DynamoContext, options.AlignmentProjectName, MSLProject.ROOT_FRAME_NAME); 
+            Frame rootFrame = Frame.Find(pipeline.DynamoContext, options.AlignmentProjectName, MSLProject.ROOT_FRAME_NAME);
+
+            if (rootFrame == null)
+            {
+                logger.Error("Alignment project " + options.AlignmentProjectName + " not found");
+                return 1;
+            }
+
             BuildSceneGraph builder = new BuildSceneGraph(pipeline);
             BuildSceneGraph.Options opts = new BuildSceneGraph.Options
             {
