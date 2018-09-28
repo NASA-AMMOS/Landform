@@ -16,8 +16,6 @@ namespace OPS.Pipeline
 
         public const double DEFAULT_SEARCH_RATIO = 1.1f;
 
-        public const int MIN_FACES_FOR_RECONSTRUCTION = 50;
-
         public static void SaveMesh(this SceneNode node, string directory, string meshExtension = "ply", string imageExtension = "jpg")
         {
             meshExtension = "." + meshExtension;
@@ -153,20 +151,15 @@ namespace OPS.Pipeline
             // until the face limit is hit. This favors trying to make all tiles the same complexity rather than trying to always have a
             // constant amount of leaf/parent tile complexity reduction.  This choice primarily affects parent tiles near leafs.
             Mesh combinedDecimated = null;
-            Mesh combinedFullClipped = Mesh.Clip(combinedFull, minimumBounds);
+            Mesh fullClipped = Mesh.Clip(combinedFull, minimumBounds);
             // Resample decimation can fail on meshes with very few faces.  If we are below the threshold where we expect this to fail just
             // pass along the geometry assuming it is less than maxFaceCount
-            if (combinedFullClipped.Faces.Count < MIN_FACES_FOR_RECONSTRUCTION && combinedFullClipped.Faces.Count <= maxFaceCountTarget)
+            if (fullClipped.Faces.Count <= maxFaceCountTarget)
             {
-                combinedDecimated = combinedFullClipped;
+                combinedDecimated = fullClipped;
             }
             else
             { 
-                // Note: that we choose to do a resample decimation even when we have fewer than maxFaceCountTarget
-                // We could consider just passing along the combinedFullClipped geometry but doing a decimation here 
-                // probably helps avoid propegating topological issues.  This would be a good thing to investigate.
-                int targetFaces = combinedFullClipped.Faces.Count();
-                targetFaces = Math.Min(targetFaces, maxFaceCountTarget);
                 // Minimum bounds is a tight fitting bounding box around the child meshes with skirts
                 Vector3? cornerDirection = null;
                 if (skirtAxis.HasValue)
@@ -184,13 +177,12 @@ namespace OPS.Pipeline
                         cornerDirection = Vector3.UnitY;
                     }
                 }
-                combinedDecimated = combinedFull.ResampleDecimation(reconstructionMethod, targetFaces, clippingBounds: minimumBounds, cornerDirection: cornerDirection);
+                combinedDecimated = combinedFull.ResampleDecimation(reconstructionMethod, maxFaceCountTarget, clippingBounds: minimumBounds, cornerDirection: cornerDirection);
             }
             combinedDecimated.Clean();
-
             NodeGeometricError geoError = node.GetOrAddComponent<NodeGeometricError>();
-            Mesh fullClipped = Mesh.Clip(combinedFull, minimumBounds);
-            double geometricError = combinedDecimated.HausdorffDistance(fullClipped);
+            double accuracy = combinedDecimated.Bounds().MaxDimension() * 0.005; // 0.5 percent of max bounds 
+            double geometricError = combinedDecimated.HausdorffDistance(accuracy, fullClipped);
             geoError.Error = Math.Max(geoError.Error, geometricError);
 
             int size = ComputeParentTileResolution(pairs, combinedDecimated.Bounds(), maxTextureSize);
@@ -204,7 +196,10 @@ namespace OPS.Pipeline
                 double sizePerPixel = new Vector2(ext.X, ext.Z).Length() / new Vector2(size / 2, size / 2).Length();
                 geoError.Error = Math.Max(geoError.Error, sizePerPixel);
             }
-            combinedDecimated.GenerateVertexNormals();
+            if (!combinedDecimated.HasNormals)
+            {
+                combinedDecimated.GenerateVertexNormals();
+            }
             if (skirtAxis.HasValue)
             {
                 combinedDecimated.AddSkirt(skirtAxis.Value);
