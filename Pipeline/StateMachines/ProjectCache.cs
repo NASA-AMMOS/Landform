@@ -40,7 +40,7 @@ namespace OPS.Pipeline.TileServer
             lock (lockObj)
             {
                 Clear();
-                var list = TilingNode.Find(context, project.Name).ToList();
+                var list = TilingNode.Find(context, project).ToList();
                 foreach (var n in list)
                 {
                     ids.Add(n.Id);

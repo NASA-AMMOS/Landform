@@ -38,6 +38,8 @@ namespace OPS.Pipeline.TileServer
 
         public List<string> InputNames { get; set; }
 
+        public List<string> NodeIds { get; set; }
+
         public TilingProject()
         {
 
@@ -95,7 +97,7 @@ namespace OPS.Pipeline.TileServer
 
         public void Delete(PipelineCore pipeline, bool ignoreErrors = true, ILog logger = null)
         {
-            foreach (var node in TilingNode.Find(pipeline.DynamoContext, Name))
+            foreach (var node in TilingNode.Find(pipeline.DynamoContext, this))
             {
                 node.Delete(pipeline, ignoreErrors, logger);
             }

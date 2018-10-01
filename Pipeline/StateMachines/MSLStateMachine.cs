@@ -73,7 +73,8 @@ namespace OPS.Pipeline.TileServer
         protected void BuildBackprojectLeaves()
         {
             logger.Info("building backproject leaves in " + projectName);
-            SceneNode root = TilingNode.BuildTreeFromDatabase(pipeline.DynamoContext, projectName);
+            TilingProject project = TilingProject.Find(pipeline.DynamoContext, projectName);
+            SceneNode root = TilingNode.BuildTreeFromDatabase(pipeline.DynamoContext, project);
             List<List<SceneNode>> leafGroups = new List<List<SceneNode>>();
             GroupSceneNodesIntoJobs(root, leafGroups);
 

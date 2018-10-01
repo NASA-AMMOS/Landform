@@ -96,7 +96,7 @@ namespace OPS.Pipeline.TileServer
 
             if (project.TilesDefined)
             {
-                var nodes = TilingNode.Find(DynamoContext, project.Name).ToList();
+                var nodes = TilingNode.Find(DynamoContext, project).ToList();
                 md.NumNodes = nodes.Count;
 
                 int numProcessed = 0;

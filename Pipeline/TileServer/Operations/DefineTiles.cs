@@ -162,16 +162,24 @@ namespace OPS.Pipeline.TileServer
             }
 
             logger.Info("Saving tile tree");
+            List<string> ids = new List<string>();
             foreach (var node in root.DepthFirstTraverse())
             {
+                ids.Add(node.Name);
                 string parentId = node.Parent == null ? null : node.Parent.Name;
                 List<string> childIds = node.Children.Select(c => c.Name).ToList();
-                var tilingNode = TilingNode.Create(pipeline.DynamoContext, node.Name, project, null, null, parentId, childIds, dependencies.DependsOn(node.Name), dependencies.DependedOnBy(node.Name), node.GetComponent<NodeBounds>().Bounds);
+                var tilingNode = TilingNode.Create(pipeline.DynamoContext, node.Name, project,
+                                                   null /* meshUrl */, null /* iamgeUrl */,
+                                                   parentId, childIds,
+                                                   dependencies.DependsOn(node.Name),
+                                                   dependencies.DependedOnBy(node.Name),
+                                                   node.GetComponent<NodeBounds>().Bounds);
                 if(node.IsLeaf && node.HasComponent<MeshImagePair>())
                 {
                     tilingNode.SaveMesh(node.GetComponent<MeshImagePair>(), pipeline, 0);
                 }
             }                            
+            project.NodeIds = ids;
             project.TilesDefined = true;
             project.Save(pipeline.DynamoContext);
             pipeline.CompletionQueue.Enqueue(message);
