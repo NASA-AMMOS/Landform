@@ -8,7 +8,7 @@ Create the named project.  Implements the [task API](#task-api).
 Fails with HTTP status 400 (bad request) if a project with the same name already exists.
 
 Accepts the following arugments:
-* *tilingscheme*: tiling scheme; one of `Bin`, `Quad`, `Oct`, or `UserDefined`; default `Bin`
+* *tilingscheme*: tiling scheme; one of `Bin`, `QuadX`, `QuadY`, `QuadZ`, `Oct`, or `UserDefined`; default `Bin`
 * *skirtmode*: skirt mode; one of `None`, `X`, `Y`, `Z`; default `None`
 * *facespertile*: target maximum faces per tile; default 2000
 * *tileresolution*: maximum image resolution per tile; default 256

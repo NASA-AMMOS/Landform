@@ -9,7 +9,9 @@ namespace OPS.Pipeline.TileServer
     public enum TilingScheme
     {        
         Bin,
-        Quad,
+        QuadX,
+        QuadY,
+        QuadZ,
         Oct,
         UserDefined
     }

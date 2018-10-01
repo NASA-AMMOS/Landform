@@ -143,7 +143,7 @@ namespace OPS.Pipeline
                         meshCopy.ClearNormals();
                         meshCopy.Clean();
                         MeshOperator mo = new MeshOperator(meshCopy);
-                        var tilingScheme = new QuadTreeTilingScheme(SkirtMode.Y);
+                        var tilingScheme = new QuadTreeTilingScheme(QuadTreeAxis.Y);
                         var boxes = tilingScheme.Split(mo, mo.Bounds);
                         int i = 0;
                         foreach (var box in boxes)
