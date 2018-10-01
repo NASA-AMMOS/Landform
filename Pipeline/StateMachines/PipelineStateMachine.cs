@@ -21,28 +21,35 @@ namespace OPS.Pipeline.TileServer
             this.pipeline = pipeline;
             this.workerQueue = workerQueue;
             this.projectName = projectName;
-            this.projectCache = new ProjectCache(pipeline, projectName);
+            this.projectCache = new ProjectCache();
         }
        
         abstract public void ProcessCompletedMessage(TilingQueueMessage m);
         
         // shared functionality for all current pipelines
 
-        protected void ChunkInputs()
+        protected void ChunkInputs(TilingProject project)
         {
-            var inputs = TilingInput.Find(pipeline.DynamoContext, projectName);
-            foreach (var input in inputs)
+            foreach (var inputName in project.InputNames)
             {
-                logger.Info("chunking input " + input.Name + " in " + projectName);
-                workerQueue.Enqueue(new ChunkInputMessage(projectName, input.Name));
+                var input = TilingInput.Find(pipeline.DynamoContext, projectName, inputName);
+                if (!input.Chunked)
+                {
+                    logger.Info("chunking input " + inputName + " in " + projectName);
+                    projectCache.AddInputToChunk(inputName);
+                    workerQueue.Enqueue(new ChunkInputMessage(projectName, inputName));
+                }
+                else
+                {
+                    logger.Info("input " + inputName + " in " + projectName + " already chunked");
+                }
             }
         }
 
         protected bool InputChunked(string inputName)
         {
             logger.Info("input " + inputName + " chunked in " + projectName);
-            var inputs = TilingInput.Find(pipeline.DynamoContext, projectName);
-            bool allChunked = inputs.All(i => i.Chunked);
+            bool allChunked = projectCache.InputChunked(inputName);
             if (allChunked)
             {
                 logger.Info("all inputs chunked in " + projectName);
@@ -77,6 +84,7 @@ namespace OPS.Pipeline.TileServer
             project.FinishedRunning = true;
             project.Save(pipeline.DynamoContext);
             logger.Info(projectName + " finished running");
+            projectCache.Clear();
         }
 
         protected Queue<SceneNode> GroupSceneNodesIntoJobs(SceneNode node, List<List<SceneNode>> outputGroups,

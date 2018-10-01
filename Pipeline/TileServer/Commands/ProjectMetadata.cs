@@ -74,7 +74,7 @@ namespace OPS.Pipeline.TileServer
             var md = new Metadata();
             md.Project = project;
 
-            var inputs = TilingInput.Find(DynamoContext, project.Name).ToList();
+            var inputs = TilingInput.Find(DynamoContext, project).ToList();
             var sanitizedInputs = new List<SanitizedInput>();
             foreach (var input in inputs)
             {

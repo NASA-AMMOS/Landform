@@ -73,7 +73,7 @@ namespace OPS.Pipeline.TileServer
                 return;
             }
             // Get a list of all chunks that overlap with a leaf tile
-            var inputs = TilingInput.Find(pipeline.DynamoContext, project.Name).ToList();
+            var inputs = TilingInput.Find(pipeline.DynamoContext, project).ToList();
             List<InputChunkGroup> inputGroups = new List<InputChunkGroup>();
             foreach (var input in inputs)
             {

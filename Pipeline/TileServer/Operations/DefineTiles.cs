@@ -96,7 +96,7 @@ namespace OPS.Pipeline.TileServer
             if (project.GetTilingScheme() == TilingScheme.UserDefined)
             {
                 // Build a tree based on existing tile ids
-                var inputs = TilingInput.Find(pipeline.DynamoContext, project.Name).ToList();
+                var inputs = TilingInput.Find(pipeline.DynamoContext, project).ToList();
                 ConcurrentBag<SceneNode> nodes = new ConcurrentBag<SceneNode>();
                 Parallel.ForEach(inputs, new ParallelOptions() { MaxDegreeOfParallelism = 8 }, input =>
                 {
@@ -117,7 +117,7 @@ namespace OPS.Pipeline.TileServer
             else
             {
                 // Buid a tree using input datasets
-                var inputs = TilingInput.Find(pipeline.DynamoContext, project.Name).ToList();
+                var inputs = TilingInput.Find(pipeline.DynamoContext, project).ToList();
                 var tilingInput = new TileLocalMesh.TilingInput();
                 foreach (var input in inputs)
                 {
