@@ -147,9 +147,6 @@ namespace OPS.Pipeline
             combinedFull.NormalizeNormals();
             BoundingBox minimumBounds = node.GetComponent<NodeBounds>().Bounds;
 
-            // We limit target faces only to maxface count.  This means there will be little to no face reduction
-            // until the face limit is hit. This favors trying to make all tiles the same complexity rather than trying to always have a
-            // constant amount of leaf/parent tile complexity reduction.  This choice primarily affects parent tiles near leafs.
             Mesh combinedDecimated = null;
             Mesh fullClipped = Mesh.Clip(combinedFull, minimumBounds);
             // Resample decimation can fail on meshes with very few faces.  If we are below the threshold where we expect this to fail just
