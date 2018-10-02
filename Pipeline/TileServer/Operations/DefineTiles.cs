@@ -118,12 +118,12 @@ namespace OPS.Pipeline.TileServer
             {
                 // Buid a tree using input datasets
                 var inputs = TilingInput.Find(pipeline.DynamoContext, project).ToList();
-                var tilingInput = new MultiMeshClipper();
+                var multiClipper = new MultiMeshClipper();
                 foreach (var input in inputs)
                 {
                     var pair = DownloadInput(input);
                     logger.Info("Building acceleration structures");
-                    tilingInput.AddInput(new MultiMeshClipperInput(pair.Mesh, pair.Image));
+                    multiClipper.AddInput(new MultiMeshClipperInput(pair.Mesh, pair.Image));
                 }
                 var projectScheme = project.GetTilingScheme();
                 ITilingScheme scheme;
@@ -146,7 +146,7 @@ namespace OPS.Pipeline.TileServer
                 ITileSplitCriteria splitCriteria = new FaceSplitCriteria(project.FacesPerTile);
 
                 logger.Info("Computing tile tree");
-                root = TileLocalMesh.BuildBoundsTree(tilingInput, scheme, splitCriteria);
+                root = TileLocalMesh.BuildBoundsTree(multiClipper, scheme, splitCriteria);
             }
             // Compute tile dependencies
             var dependencies = new TileDependencyMapping();

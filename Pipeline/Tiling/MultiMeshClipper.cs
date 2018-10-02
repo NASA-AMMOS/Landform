@@ -1,4 +1,5 @@
-﻿using Microsoft.Xna.Framework;
+﻿using log4net;
+using Microsoft.Xna.Framework;
 using OPS.Geometry;
 using System;
 using System.Collections.Generic;
@@ -17,8 +18,11 @@ namespace OPS.Pipeline
     /// </summary>
     public class MultiMeshClipper
     {
+        static ILog logger = LogManager.GetLogger(typeof(MultiMeshClipper));
+
+
         public BoundingBox TotalBounds;
-        public List<MultiMeshClipperInput> Datasets;
+        public List<MultiMeshClipperInput> Inputs;
         public TextureBaker TextureBaker;
         public TexturedMeshClipper TexturedMeshClipper;
 
@@ -26,7 +30,7 @@ namespace OPS.Pipeline
 
         public MultiMeshClipper()
         {
-            this.Datasets = new List<MultiMeshClipperInput>();
+            this.Inputs = new List<MultiMeshClipperInput>();
             TexturedMeshClipper = new TexturedMeshClipper();
         }
 
@@ -44,12 +48,12 @@ namespace OPS.Pipeline
             {
                 throw new Exception("Cannot add dataset after calling InitTextureBaker()");
             }
-            if (this.Datasets.Count == 0)
+            if (this.Inputs.Count == 0)
             {
                 TotalBounds = dataset.MeshOperator.Bounds;
             }
             TotalBounds = BoundingBoxExtensions.Union(TotalBounds, dataset.MeshOperator.Bounds);
-            this.Datasets.Add(dataset);
+            this.Inputs.Add(dataset);
             if (dataset.Image != null)
             {
                 this.TexturedMeshClipper.AddMeshImagePair(dataset.Mesh, dataset.Image);
@@ -61,15 +65,19 @@ namespace OPS.Pipeline
         /// This method shold be called after all inputs have been added but before any calls to BakeTexture are made
         /// </summary>
         public void InitTextureBaker()
-        {
+        {            
             if (!textureBakerInitialized)
             {
                 textureBakerInitialized = true;
-                var datasets = this.Datasets.Where(d => d.Image != null).Select(d => new MeshImagePair(d.Mesh, d.Image)).ToArray();
+                var datasets = this.Inputs.Where(d => d.Image != null).Select(d => new MeshImagePair(d.Mesh, d.Image)).ToArray();
                 if (datasets.Length > 0)
                 {
                     TextureBaker = new TextureBaker(datasets);
                 }
+            }
+            else
+            {
+                logger.Warn("Already initialized");
             }
         }
 
@@ -83,7 +91,7 @@ namespace OPS.Pipeline
             List<BoundingBox> results = new List<BoundingBox>();
             foreach (var b in boxes)
             {
-                foreach (var dataset in Datasets)
+                foreach (var dataset in Inputs)
                 {
                     if (!dataset.MeshOperator.Empty(b))
                     {
@@ -103,7 +111,7 @@ namespace OPS.Pipeline
         /// <returns></returns>
         public bool ShouldSplit(ITileSplitCriteria splitCriteria, BoundingBox box)
         {
-            foreach (var dataset in Datasets)
+            foreach (var dataset in Inputs)
             {
                 // Issue #221
                 // This only checks if any single input needs to be split
@@ -126,7 +134,7 @@ namespace OPS.Pipeline
         /// <returns></returns>
         public Mesh Clip(BoundingBox box, bool ragged = false)
         {
-            var meshes = this.Datasets.Where(d => !d.MeshOperator.Empty(box)).Select(d => d.MeshOperator.Clip(box, ragged)).ToArray();
+            var meshes = this.Inputs.Where(d => !d.MeshOperator.Empty(box)).Select(d => d.MeshOperator.Clip(box, ragged)).ToArray();
             var merged = Mesh.Merge(meshes);
             merged.Clean();
             return merged;
