@@ -169,7 +169,7 @@ namespace OPS.Pipeline.TileServer
                 string parentId = node.Parent == null ? null : node.Parent.Name;
                 List<string> childIds = node.Children.Select(c => c.Name).ToList();
                 var tilingNode = TilingNode.Create(pipeline.DynamoContext, node.Name, project,
-                                                   null /* meshUrl */, null /* iamgeUrl */,
+                                                   null /* meshUrl */, null /* imageUrl */,
                                                    parentId, childIds,
                                                    dependencies.DependsOn(node.Name),
                                                    dependencies.DependedOnBy(node.Name),
