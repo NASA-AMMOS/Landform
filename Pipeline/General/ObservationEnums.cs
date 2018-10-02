@@ -10,6 +10,7 @@ namespace OPS.Pipeline
     {
         Image,
         Points,
-        Normals
+        Normals,
+        RoverMask
     }
 }

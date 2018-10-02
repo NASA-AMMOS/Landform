@@ -12,6 +12,7 @@ using System.Text.RegularExpressions;
 using System.IO;
 using OPS.Util;
 using System.Collections.Concurrent;
+using log4net;
 
 namespace OPS.Cloud
 {
@@ -347,7 +348,13 @@ namespace OPS.Cloud
                     // Process response.
                     foreach (string prefix in response.CommonPrefixes)
                     {
-                        if (regex.IsMatch(prefix))
+                        // Remove the location prefix from the returned results for the regex check
+                        var item = prefix;
+                        if (!string.IsNullOrEmpty(location.Prefix))
+                        {
+                            item = item.Replace(location.Prefix, "");
+                        }
+                        if (regex.IsMatch(item))
                         {
                             yield return new S3Url(location.BucketName, prefix).Url;
                         }
@@ -401,6 +408,23 @@ namespace OPS.Cloud
                 using (TransferUtility tu = new TransferUtility(client))
                 {
                     tu.Download(filename, location.BucketName, location.Prefix);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Download a directory and save it to local disk
+        /// </summary>
+        /// <param name="s3url"></param>
+        /// <param name="filename"></param>
+        public void DownloadDirectory(string s3url, string directory)
+        {
+            using (var client = GetClient(s3url))
+            {
+                S3Url location = new S3Url(s3url);
+                using (TransferUtility tu = new TransferUtility(client))
+                {
+                    tu.DownloadDirectory(location.BucketName, location.Prefix, directory);
                 }
             }
         }
@@ -475,6 +499,88 @@ namespace OPS.Cloud
                 using (var s = new StorageStream(client, s3url, startPosition, bufferSize))
                 {
                     streamHandler(s);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Delete an object
+        /// </summary>
+        /// <returns></returns>
+        public void DeleteObject(string s3Url, bool ignoreErrors = true, ILog logger = null)
+        {
+            try
+            {
+                using (var client = GetClient(s3Url))
+                {
+                    S3Url location = new S3Url(s3Url);
+                    client.DeleteObject(location.BucketName, location.Prefix);
+                }
+            }
+            catch (Exception e)
+            {
+                if (!ignoreErrors)
+                {
+                    throw e;
+                }
+
+                if (logger != null)
+                {
+                    logger.Warn(string.Format("error deleting object {0}: {1}", s3Url, e.Message));
+                }
+            }
+        }
+
+        /// <summary>
+        /// Delete a set of objects
+        /// </summary>
+        /// <returns></returns>
+        public void DeleteObjects(string s3Url, string pattern = "*", bool recursive = true,
+                                  bool ignoreErrors = true, ILog logger = null)
+        {
+            try
+            {
+                IEnumerable<string> objects = SearchObjects(s3Url, pattern, recursive);
+
+                objects = objects.Where(obj => {
+                        if (obj.StartsWith(s3Url))
+                        {
+                            return true;
+                        }
+                        var msg = string.Format("suspicious glob result \"{0}\", should begin \"{1}\", not deleting",
+                                                obj, s3Url);
+                        if (!ignoreErrors)
+                        {
+                            throw new System.Exception(msg);
+                        }
+                        else if (logger != null)
+                        {
+                            logger.Warn(msg);
+                        }
+                        return false;
+                    });
+
+                DeleteObjectsRequest request = new DeleteObjectsRequest
+                {
+                    BucketName = (new S3Url(s3Url)).BucketName,
+                    Objects = objects.Select(obj => new KeyVersion{ Key = (new S3Url(obj)).Prefix }).ToList()
+                };
+                
+                using (var client = GetClient(s3Url))
+                {
+                    client.DeleteObjects(request);
+                }
+            }
+            catch (Exception e)
+            {
+                if (!ignoreErrors)
+                {
+                    throw e;
+                }
+
+                if (logger != null)
+                {
+                    logger.Warn(string.Format("error searching objects with prefix {0}: {1}", s3Url, e.Message));
                 }
             }
         }

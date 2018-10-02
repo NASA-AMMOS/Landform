@@ -13,6 +13,7 @@ using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
+using log4net;
 
 namespace OPS.Plumbing
 {
@@ -85,7 +86,7 @@ namespace OPS.Plumbing
         public DynamoDBContext DynamoContext { get { return context; } }
         public IAmazonS3 S3Client { get { return s3Client; } }
         public StorageHelper Storage(string url) {
-            while (url.Length > 0)
+            while (url != null && url.Length > 0)
             {
                 if (storageSelecter.ContainsKey(url))
                 {
@@ -120,7 +121,7 @@ namespace OPS.Plumbing
             }
             return res;
         }
-
+                                       
         /// <summary>
         /// Download a file from S3, using an on-disk cache.
         /// </summary>
@@ -156,6 +157,24 @@ namespace OPS.Plumbing
 
             return imgRef.Load(this);
         }
+
+        /// <summary>
+        /// Convenience function to allow pipeline.Load(x) instead of x.Load(pipeline).
+        /// </summary>
+        public Image Load(ImageRef imgRef, bool memoryCache, IImageConverter imageConverter)
+        {
+            if (memoryCache)
+            {
+                if (!imageCache.ContainsKey(imgRef))
+                {
+                    imageCache[imgRef] = imgRef.Load(this,imageConverter);
+                }
+                return imageCache[imgRef];
+            }
+
+            return imgRef.Load(this, imageConverter);
+        }
+
         public Image Load(ImageRef imgRef)
         {
             return Load(imgRef, true);
@@ -240,6 +259,35 @@ namespace OPS.Plumbing
                 while (DynamicGet.Invoke(this, new object[] { project, product.Guid, false }) == null)
                 {
                     System.Threading.Thread.Sleep(1000);
+                }
+            }
+        }
+
+        public void DeleteProjectCache(string project)
+        {
+            var projectCacheFolder = Path.Combine(cacheFolder, project);
+            if (Directory.Exists(projectCacheFolder))
+            {
+                Directory.Delete(projectCacheFolder, true);
+            }
+        }
+
+        public void DeleteDynamoItem<T>(T obj, bool ignoreErrors = true, ILog logger = null)
+        {
+            try
+            {
+                DynamoContext.Delete(obj);
+            }
+            catch (Exception e)
+            {
+                if (!ignoreErrors)
+                {
+                    throw e;
+                }
+
+                if (logger != null)
+                {
+                    logger.Warn(string.Format("error deleting DynamoDB object: {0}", e.Message));
                 }
             }
         }

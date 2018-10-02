@@ -24,7 +24,7 @@
     <PackageReference Include="Amazon.Lambda.S3Events" Version="1.0.2" />
     <PackageReference Include="Amazon.Lambda.Serialization.Json" Version="1.2.0" />
     <PackageReference Include="AWSSDK.DynamoDBv2" Version="3.3.8" />
-    <PackageReference Include="AWSSDK.S3" Version="3.3.18.2" />
+    <PackageReference Include="AWSSDK.S3" Version="3.3.20.2" />
   </ItemGroup>
 
   <ItemGroup>

@@ -21,6 +21,7 @@ namespace OPS.Util
 
         static string tmpDirectory = "tmp";
         public delegate void FilenameDelegate(string s);
+        public delegate void DirectoryDelegate(string s);
         public delegate void MultipleFilenameDelegate(string[] s);
 
         private static readonly ILog logger = LogManager.GetLogger(typeof(TemporaryFile));
@@ -89,6 +90,34 @@ namespace OPS.Util
             }
         }
 
+        private static void DeleteWithRetry(string tempFile)
+        {
+            if (File.Exists(tempFile))
+            {
+                try
+                {
+                    File.Delete(tempFile);
+                }
+                catch (Exception)
+                {
+                    logger.Warn("error deleting \"" + tempFile + "\", trying again in 5s");
+                    Task.Run(async () =>
+                            {
+                                await Task.Delay(5000);
+                                try
+                                {
+                                    File.Delete(tempFile);
+                                    logger.Info("deleted \"" + tempFile + "\"");
+                                }
+                                catch (Exception e2)
+                                {
+                                    logger.Error(e2);
+                                }
+                            });
+                }
+            }
+        }
+
         /// <summary>
         /// Execute a delegate with a temporary filename, and delete the temp file when
         /// the delegate completes.
@@ -99,10 +128,18 @@ namespace OPS.Util
         {
             string tempFile = GetTempName(extension);
             func(tempFile);
-            if (File.Exists(tempFile))
-            {
-                File.Delete(tempFile);
-            }
+            DeleteWithRetry(tempFile);
+        }
+
+        /// <summary>
+        /// Execute a delegate with a temporary directory and delete the temp directory when the delegate completes
+        /// </summary>
+        /// <param name="func">Delegate to execute</param>
+        public static void GetAndDeleteDirectory(DirectoryDelegate func)
+        {
+            string tempDir = GetTempDirectory();
+            func(tempDir);
+            DeleteTempDirectory(tempDir);
         }
 
         /// <summary>
@@ -121,10 +158,7 @@ namespace OPS.Util
             func(tmpFiles);
             for (int i = 0; i < tmpFiles.Length; i++)
             {
-                if (File.Exists(tmpFiles[i]))
-                {
-                    File.Delete(tmpFiles[i]);
-                }
+                DeleteWithRetry(tmpFiles[i]);
             }
         }
 
@@ -143,10 +177,7 @@ namespace OPS.Util
             func(tmpFiles);
             for (int i = 0; i < tmpFiles.Length; i++)
             {
-                if (File.Exists(tmpFiles[i]))
-                {
-                    File.Delete(tmpFiles[i]);
-                }
+                DeleteWithRetry(tmpFiles[i]);
             }
         }
 
@@ -157,7 +188,7 @@ namespace OPS.Util
         public static string GetTempDirectory()
         {
             string tempDir = Guid.NewGuid().ToString();
-            string fullPathToTempDirectory = Path.GetFullPath(tmpDirectory) + tempDir;
+            string fullPathToTempDirectory = Path.Combine(Path.GetFullPath(tmpDirectory), tempDir);
             PathHelper.EnsureExists(Path.GetFullPath(fullPathToTempDirectory));
             return fullPathToTempDirectory;
         }

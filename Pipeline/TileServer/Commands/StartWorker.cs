@@ -2,10 +2,9 @@
 using log4net;
 using OPS.Geometry;
 using OPS.Plumbing;
+using OPS.Pipeline.MeshWorker;
+
 using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 
 namespace OPS.Pipeline.TileServer
@@ -34,17 +33,29 @@ namespace OPS.Pipeline.TileServer
 
         public TilingQueue CompletionQueue
         {
-            get { return new TileServerCloud(this).CompletionQueue; }            
+            get { return new TileServerCloud(this).CompletionQueue; }
         }
         
 
-        public StartWorker(StartWorkerOptions options) : base(dynamoPrefix: TileServerConfig.Instance.VenueName, profile: TileServerConfig.Instance.Profile)
+        public StartWorker(StartWorkerOptions options)
+            : base(dynamoPrefix: TileServerConfig.Instance.VenueName, profile: TileServerConfig.Instance.Profile)
         {
             this.options = options;
+
+            //MSL specific: this project does not hold its images within the same s3 bucket as the project
+            //future projects  are expected to be within the same bucket
+            var config = TileServerConfig.Instance;
+            if (!string.IsNullOrEmpty(config.MSLICEProfile) && !string.IsNullOrEmpty(config.MSLICES3Url) &&
+                OPS.Cloud.Credentials.Exists(config.MSLICEProfile))
+            {
+                this.AddProfile(config.MSLICES3Url, config.MSLICEProfile);
+            }
         }
 
         public int Run()
         {
+            TileServerConfig.Instance.Dump(logger);
+
             // Register filetype handlers
             new OpenInventorSerializer().Register();
             new DracoSerializer().Register();
@@ -53,15 +64,21 @@ namespace OPS.Pipeline.TileServer
 
             new TileServerCloud(this).EnsureTablesExist();
 
-
             Task masterTask = null;
-            if(options.StartMaster)
+            if (options.StartMaster)
             {
                 masterTask = new Task(() =>
                 {
-                    StartMasterOptions opts = new StartMasterOptions();
-                    opts.SingleThreaded = true;
-                    new StartMaster(opts).Run();
+                    try
+                    {
+                        StartMasterOptions opts = new StartMasterOptions();
+                        new StartMaster(opts).Run();
+                    }
+                    catch (Exception e)
+                    {
+                        logger.Error("error in master task: " + e.Message);
+                        logger.Error(e.StackTrace);
+                    }
                 });
                 masterTask.Start();
             }
@@ -75,7 +92,17 @@ namespace OPS.Pipeline.TileServer
                 Task[] tasks = new Task[Environment.ProcessorCount];
                 for (int i = 0; i < tasks.Length; i++)
                 {
-                    tasks[i] = Task.Run(() => RunWorker());
+                    tasks[i] = Task.Run(() => {
+                            try
+                            {
+                                RunWorker();
+                            }
+                            catch (Exception e)
+                            {
+                                logger.Error("error in worker task " + i + ": " + e.Message);
+                                logger.Error(e.StackTrace);
+                            }
+                        });
                 }
                 for (int i = 0; i < tasks.Length; i++)
                 {
@@ -109,9 +136,13 @@ namespace OPS.Pipeline.TileServer
                         {
                             new ChunkInput((ChunkInputMessage)m, this).Process();
                         }
-                        else if (m.GetType() == typeof(BuildLeavesMessage))
+                        else if (m.GetType() == typeof(BuildBakedLeavesMessage))
                         {
-                            new BuildLeaves((BuildLeavesMessage)m, this).Process();
+                            new BuildBakedLeaves((BuildBakedLeavesMessage)m, this).Process();
+                        }
+                        else if (m.GetType() == typeof(BuildBackprojectLeavesMessage))
+                        {
+                            new BuildBackprojectLeaves((BuildBackprojectLeavesMessage)m, this).Process();
                         }
                         else if (m.GetType() == typeof(BuildParentMessage))
                         {
@@ -121,19 +152,21 @@ namespace OPS.Pipeline.TileServer
                         {
                             new BuildTilesetJson((BuildTilesetJsonMessage)m, this).Process();
                         }
+                        else if (m.GetType() == typeof(BuildTilingInputMessage))
+                        {
+                            new BuildTilingInput((BuildTilingInputMessage)m, this).Process();
+                        }
                         else
                         {
                             logger.Info("Unknown message type: " + m.GetType());
                         }
-
+                        queue.Delete(m);
                     }
                     catch (Exception e)
                     {
                         logger.Error(e.Message);
                         logger.Error(e.StackTrace);
                     }
-
-                    queue.Delete(m);
                 }
             }
         }

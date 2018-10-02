@@ -197,15 +197,15 @@ namespace OPS
             {
                 scheme = new BinaryTreeTilingScheme();
             }
-            else if(options.TilingScheme == TilingScheme.Quad)
+            else if(options.TilingScheme == TilingScheme.QuadX || options.TilingScheme == TilingScheme.QuadY || options.TilingScheme == TilingScheme.QuadZ)
             {
-                scheme = new QuadTreeTilingScheme(options.SkirtAxis);
+                scheme = new QuadTreeTilingScheme(options.TilingScheme);
             }
             else
             {
                 throw new Exception("Tiling scheme not yet supported");   
             }
-            ITileSplitCriteria splitCriteria = new FaceLimitSplitCriteria(options.TargetFacesPerTile);
+            ITileSplitCriteria splitCriteria = new FaceSplitCriteria(options.TargetFacesPerTile);
             logger.Info("Computing tree bounds");
             SceneNode root = BuildBoundsTree(input, scheme, splitCriteria);
             logger.Info("Process leaf nodes");

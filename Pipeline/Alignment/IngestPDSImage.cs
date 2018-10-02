@@ -25,6 +25,16 @@ namespace OPS.Pipeline
         public const int MIN_MASTCAM_FOCUS_CUTOFF = 3;
         public const int MAX_MASTCAM_WIDTH = 1344;
 
+        public static RoverObservation FindBestImage(IEnumerable<RoverObservation> frameObservations)
+        {
+            var list = frameObservations.Where(ob => ob.UseForReconstruction).ToList();
+            if (list.Count > 0)
+            {
+                list.Sort(RoverObservationComparison);
+                return list.First();
+            }
+            return null;
+        }
 
         public static ImagePointPair FindBestPair(IEnumerable<RoverObservation> frameObservations)
         {
@@ -94,7 +104,7 @@ namespace OPS.Pipeline
         /// <param name="a"></param>
         /// <param name="b"></param>
         /// <returns></returns>
-        static int RoverObservationComparison(RoverObservation a, RoverObservation b)
+        public static int RoverObservationComparison(RoverObservation a, RoverObservation b)
         {
             // sort first by producer
             if (a.Producer == RoverProductProducer.MSSS.ToString() && b.Producer == RoverProductProducer.OPGS.ToString())
@@ -116,11 +126,12 @@ namespace OPS.Pipeline
             {
                 return 1;
             }
-            // sort by version
-            return int.Parse(b.Version) - int.Parse(a.Version);
+
+            // versions go numeric 1 to 9, A-Z, _ (opgs) and numeric 0 to 9, A-Z (msss)
+            return (int)b.Version[0] - (int)a.Version[0];
         }
         
-        static bool IsLinear(RoverObservation observation)
+        public static bool IsLinear(RoverObservation observation)
         {
             return ((CameraModel)JsonHelper.FromJson(observation.CameraModel)).Linear;
         }
@@ -302,14 +313,11 @@ namespace OPS.Pipeline
             productTypeToObservationType.TryAdd(RoverProductType.Range, ObservationType.Points);
             productTypeToObservationType.TryAdd(RoverProductType.XYZ, ObservationType.Points);
             productTypeToObservationType.TryAdd(RoverProductType.NormalMap, ObservationType.Normals);
+            productTypeToObservationType.TryAdd(RoverProductType.RoverMask, ObservationType.RoverMask);
         }
 
         public override Result Ingest(S3ImageRef imgRef)
         {
-            if(imgRef.DisplayName.Contains("UVW"))
-            {
-                ;
-            }
             if (imgRef is ObservationImageRef)
             {
                 throw new InvalidOperationException("hey now, let's not get *too* weird");

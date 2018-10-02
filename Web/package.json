@@ -1,0 +1,59 @@
+{
+  "name": "landformweb",
+  "version": "1.0.0",
+  "private": true,
+  "description": "",
+  "main": "server.js",
+  "scripts": {
+    "postinstall": "node tools/npmInstallClient.js",
+    "start": "concurrently --kill-others \"npm run server\" \"npm run client\"",
+    "server": "node server.js",
+    "client": "node tools/startClient.js",
+    "worker": "node tools/startWorker.js",
+    "configure-backend": "node tools/configureBackend.js",
+    "bundle-worker": "node tools/bundleWorker.js",
+    "build-client": "node tools/buildClient.js",
+    "bundle-server": "git archive -o landformweb.zip --format=zip HEAD",
+    "bundle": "npm run bundle-server && node tools/bundleClient.js && node tools/bundleMaster.js",
+    "build": "npm install && npm run build-client && npm run bundle",
+    "deploy": "node tools/deploy.js",
+    "local-deploy": "node tools/localDeploy.js",
+    "show-config": "node tools/showConfig.js"
+  },
+  "keywords": [
+    "landform"
+  ],
+  "author": "",
+  "license": "UNLICENSED",
+  "dependencies": {
+    "aws-sdk": "^2.315.0",
+    "body-parser": "^1.18.2",
+    "byline": "^5.0.0",
+    "cookie-parser": "^1.4.3",
+    "cors": "^2.8.4",
+    "express": "^4.16.2",
+    "express-session": "^1.15.6",
+    "fs-extra": "^7.0.0",
+    "guid": "0.0.12",
+    "jsonwebtoken": "^8.1.0",
+    "ldapjs": "^1.0.1",
+    "memorystore": "^1.6.0",
+    "multer": "^1.3.1",
+    "passport": "^0.4.0",
+    "passport-ldapauth": "^2.0.0",
+    "passport-saml": "^0.32.1",
+    "winston": "^3.1.0",
+    "winston-daily-rotate-file": "^3.3.2",
+    "xml2js": "^0.4.19"
+  },
+  "devDependencies": {
+    "@jpl/adm-zip": "^0.4.15",
+    "@jpl/eslint-plugin-compact-brace-style": "^0.0.1",
+    "concurrently": "^3.6.1",
+    "eslint": "^4.14.0",
+    "eslint-config-airbnb": "^16.1.0",
+    "eslint-plugin-import": "^2.14.0",
+    "eslint-plugin-jsx-a11y": "^6.1.1",
+    "eslint-plugin-react": "^7.11.1"
+  }
+}
