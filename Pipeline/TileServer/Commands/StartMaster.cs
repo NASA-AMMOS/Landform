@@ -7,6 +7,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Collections.Concurrent;
+using System.Threading;
 
 namespace OPS.Pipeline.TileServer
 {
@@ -35,16 +36,21 @@ namespace OPS.Pipeline.TileServer
 
         public int Run()
         {
-            TileServerConfig.Instance.Dump(logger);  
-            try
+            TileServerConfig.Instance.Dump(logger);
+            while (true)
             {
-                RunMaster();
+                try
+                {
+                    RunMaster();
+                }
+                catch (Exception e)
+                {
+                    logger.Error("error in master task: " + e.Message);
+                    logger.Error(e.StackTrace);
+                    // Introduce a sleep here to limit debug spew just in case a misconfiguration is causing this error
+                    Thread.Sleep(2000);  
+                }
             }
-            catch (Exception e)
-            {
-                logger.Error("error in master task: " + e.Message);
-                logger.Error(e.StackTrace);
-            }               
             return 0;
         }
 

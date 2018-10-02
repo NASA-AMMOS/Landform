@@ -6,6 +6,7 @@ using OPS.Pipeline.MeshWorker;
 
 using System;
 using System.Threading.Tasks;
+using System.Threading;
 
 namespace OPS.Pipeline.TileServer
 {
@@ -93,6 +94,8 @@ namespace OPS.Pipeline.TileServer
                 for (int i = 0; i < tasks.Length; i++)
                 {
                     tasks[i] = Task.Run(() => {
+                        while (true)
+                        {   
                             try
                             {
                                 RunWorker();
@@ -101,8 +104,11 @@ namespace OPS.Pipeline.TileServer
                             {
                                 logger.Error("error in worker task " + i + ": " + e.Message);
                                 logger.Error(e.StackTrace);
+                                // Introduce a sleep here to limit debug spew just in case a misconfiguration is causing this error
+                                Thread.Sleep(2000);
                             }
-                        });
+                        }
+                    });
                 }
                 for (int i = 0; i < tasks.Length; i++)
                 {
