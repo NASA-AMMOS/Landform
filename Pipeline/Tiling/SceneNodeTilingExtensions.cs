@@ -147,34 +147,39 @@ namespace OPS.Pipeline
             combinedFull.NormalizeNormals();
             BoundingBox minimumBounds = node.GetComponent<NodeBounds>().Bounds;
 
-            // We limit target faces only to maxface count.  This means there will be little to no face reduction
-            // until the face limit is hit. This favors trying to make all tiles the same complexity rather than trying to always have a
-            // constant amount of leaf/parent tile complexity reduction.  This choice primarily affects parent tiles near leafs.
-            int targetFaces = Mesh.Clip(combinedFull, minimumBounds).Faces.Count();
-            targetFaces = Math.Min(targetFaces, maxFaceCountTarget);
-            // Minimum bounds is a tight fitting bounding box around the child meshes with skirts
-            Vector3? cornerDirection = null;
-            if (skirtAxis.HasValue)
-            {
-                if (skirtAxis.Value == SkirtMode.X)
-                {
-                    cornerDirection = Vector3.UnitX;
-                }
-                else if (skirtAxis.Value == SkirtMode.Y)
-                {
-                    cornerDirection = Vector3.UnitY;
-                }
-                else if (skirtAxis.Value == SkirtMode.Z)
-                {
-                    cornerDirection = Vector3.UnitY;
-                }
-            }
-            Mesh combinedDecimated = combinedFull.ResampleDecimation(reconstructionMethod, targetFaces, clippingBounds: minimumBounds, cornerDirection: cornerDirection);
-            combinedDecimated.Clean();
-
-            NodeGeometricError geoError = node.GetOrAddComponent<NodeGeometricError>();
+            Mesh combinedDecimated = null;
             Mesh fullClipped = Mesh.Clip(combinedFull, minimumBounds);
-            double geometricError = combinedDecimated.HausdorffDistance(fullClipped);
+            // If the combined mesh is already less than the target face count we can skip the ResampleDecimation
+            // This also has the added benifit of avoiding calls to ResampleDecimation on very low face count meshes which can sometimes fail
+            if (fullClipped.Faces.Count <= maxFaceCountTarget)
+            {
+                combinedDecimated = fullClipped;
+            }
+            else
+            { 
+                // Minimum bounds is a tight fitting bounding box around the child meshes with skirts
+                Vector3? cornerDirection = null;
+                if (skirtAxis.HasValue)
+                {
+                    if (skirtAxis.Value == SkirtMode.X)
+                    {
+                        cornerDirection = Vector3.UnitX;
+                    }
+                    else if (skirtAxis.Value == SkirtMode.Y)
+                    {
+                        cornerDirection = Vector3.UnitY;
+                    }
+                    else if (skirtAxis.Value == SkirtMode.Z)
+                    {
+                        cornerDirection = Vector3.UnitZ;
+                    }
+                }
+                combinedDecimated = combinedFull.ResampleDecimation(reconstructionMethod, maxFaceCountTarget, clippingBounds: minimumBounds, cornerDirection: cornerDirection);
+            }
+            combinedDecimated.Clean();
+            NodeGeometricError geoError = node.GetOrAddComponent<NodeGeometricError>();
+            double accuracy = combinedDecimated.Bounds().MaxDimension() * 0.005; // 0.5 percent of max bounds 
+            double geometricError = combinedDecimated.HausdorffDistance(accuracy, fullClipped);
             geoError.Error = Math.Max(geoError.Error, geometricError);
 
             int size = ComputeParentTileResolution(pairs, combinedDecimated.Bounds(), maxTextureSize);
@@ -188,7 +193,10 @@ namespace OPS.Pipeline
                 double sizePerPixel = new Vector2(ext.X, ext.Z).Length() / new Vector2(size / 2, size / 2).Length();
                 geoError.Error = Math.Max(geoError.Error, sizePerPixel);
             }
-            combinedDecimated.GenerateVertexNormals();
+            if (!combinedDecimated.HasNormals)
+            {
+                combinedDecimated.GenerateVertexNormals();
+            }
             if (skirtAxis.HasValue)
             {
                 combinedDecimated.AddSkirt(skirtAxis.Value);
