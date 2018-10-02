@@ -22,7 +22,7 @@
   <ItemGroup>
     <PackageReference Include="Amazon.Lambda.Core" Version="1.0.0*" />
     <PackageReference Include="Amazon.Lambda.Serialization.Json" Version="1.2.0" />
-    <PackageReference Include="AWSSDK.S3" Version="3.3.18.2" />
+    <PackageReference Include="AWSSDK.S3" Version="3.3.20.2" />
     <PackageReference Include="AWSSDK.SQS" Version="3.3.3.7" />
     <PackageReference Include="AWSSDK.DynamoDBv2" Version="3.3.8" />
     <PackageReference Include="Amazon.Lambda.DynamoDBEvents" Version="1.0.1" />

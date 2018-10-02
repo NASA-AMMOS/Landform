@@ -7,7 +7,7 @@ using Microsoft.Xna.Framework;
 
 namespace OPS.Imaging
 {
-    class PDSCameraModelParser
+    public class PDSCameraModelParser
     {
         const int CAHVORE_CMOD_TYPE_PERSPECTIVE = 1;
         const int CAHVORE_CMOD_TYPE_FISHEYE = 2;

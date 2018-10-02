@@ -36,13 +36,71 @@ namespace OPS.Pipeline
         public static readonly Matrix LocalLevelToUnity = Matrix.Invert(UnityToLocalLevel);
 
         /// <summary>
-        /// Converts a rover origin rotation as specified in a PDS image metadata to a matrix
+        /// Creates a matrix that can be used to transform points from local level frame to rover frame
+        /// row major storage and row vector convention ( point * matrix) 
         /// </summary>
-        /// <param name="roverOriginRotation"></param>
+        /// <param name="roverOriginRotation">rover origin rotation as specified in a PDS image metadata, caller verify reference frame is site_frame</param>
         /// <returns></returns>
         public static Matrix LocalLevelToRover(Quaternion roverOriginRotation)
         {
             return Matrix.CreateFromQuaternion(Quaternion.Inverse(roverOriginRotation));
+        }
+
+        /// <summary>
+        /// Creates a matrix that can be used to transform points from rover frame to local level frame
+        /// row major storage and row vector convention ( point * matrix) 
+        /// </summary>
+        /// <param name="roverOriginRotation">rover origin rotation as specified in a PDS image metadata, caller verify reference frame is site_frame</param>
+        /// <returns</returns>
+        public static Matrix RoverToLocalLevel(Quaternion roverOriginRotation)
+        {
+            return Matrix.CreateFromQuaternion(roverOriginRotation);
+        }
+
+        /// <summary>
+        /// Creates a matrix that can be used to transform points from local level frame to site frame
+        /// row major storage and row vector convention ( point * matrix) 
+        /// </summary>
+        /// <param name="originOffset">rover origin offset as specified in a PDS image metadata, caller verify reference frame is site_frame</param>
+        /// <returns></returns>
+        public static Matrix LocalLevelToSite(Vector3 originOffset)
+        {
+            return Matrix.CreateTranslation(originOffset);
+        }
+
+        /// <summary>
+        /// Creates a matrix that can be used to transform points from site frame to local level frame
+        /// row major storage and row vector convention ( point * matrix) 
+        /// </summary>
+        /// <param name="originOffset">rover origin offset as specified in a PDS image metadata, caller verify reference frame is site_frame</param>
+        /// <returns></returns>
+        public static Matrix SiteToLocalLevel(Vector3 originOffset)
+        {
+            return Matrix.CreateTranslation(-originOffset);
+        }
+
+        /// <summary>
+        /// Creates a matrix that can be used to transform points from site frame to rover frame
+        /// row major storage and row vector convention ( point * matrix)  
+        /// </summary>
+        /// <param name="roverOriginRotation">rover origin rotation as specified in a PDS image metadata to a matrix, caller verify reference frame is site_frame</param>
+        /// <param name="originOffset">rover origin offset as specified in a PDS image metadata, caller verify reference frame is site_frame</param>
+        /// <returns></returns>
+        public static Matrix SiteToRover(Quaternion roverOriginRotation, Vector3 originOffset)
+        {
+            return SiteToLocalLevel(originOffset) * LocalLevelToRover(roverOriginRotation);
+        }
+
+        /// <summary>
+        /// Creates a matrix that can be used to transform points from rover frame to site frame
+        /// row major storage and row vector convention ( point * matrix)
+        /// </summary>
+        /// <param name="roverOriginRotation">rover origin rotation as specified in a PDS image metadata to a matrix, caller verify reference frame is site_frame</param>
+        /// <param name="originOffset">rover origin offset as specified in a PDS image metadata, caller verify reference frame is site_frame</param>
+        /// <returns></returns>
+        public static Matrix RoverToSite(Quaternion roverOriginRotation, Vector3 originOffset)
+        {
+            return RoverToLocalLevel(roverOriginRotation) * LocalLevelToSite(originOffset);
         }
 
         /// <summary>

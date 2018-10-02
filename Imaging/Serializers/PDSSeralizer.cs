@@ -39,7 +39,8 @@ namespace OPS.Imaging
                 }
             }
 
-            using (FileStream fs = File.OpenRead(filename))
+            string fileToRead = metadata.DataPath != null ? Path.Combine(Path.GetDirectoryName(filename),metadata.DataPath) : filename;
+            using (FileStream fs = File.OpenRead(fileToRead))
             {
                 fs.Seek(metadata.DataOffset, SeekOrigin.Begin);
 
@@ -287,7 +288,7 @@ END
 
         public override string[] GetExtensions()
         {
-            return new string[] { ".img", ".vic" };
+            return new string[] { ".img", ".vic" , ".lbl"};
         }
 
         public override IImageConverter DefaultReadConverter()

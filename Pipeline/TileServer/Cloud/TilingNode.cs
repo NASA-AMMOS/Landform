@@ -11,6 +11,7 @@ using System.Threading.Tasks;
 using OPS.Imaging;
 using System.IO;
 using OPS.Plumbing;
+using log4net;
 
 namespace OPS.Pipeline.TileServer
 {
@@ -44,7 +45,9 @@ namespace OPS.Pipeline.TileServer
         /// Creates Project object locally.  
         /// </summary>
         /// <param name="name">Project names in the database must be unique</param>
-        protected TilingNode(string id, TilingProject project, string meshUrl, string imageUrl, string parentId, List<string> childIds, List<string> dependsOn, List<String> dependedOnBy, BoundingBox bounds)
+        protected TilingNode(string id, TilingProject project, string meshUrl, string imageUrl, string parentId,
+                             List<string> childIds, List<string> dependsOn, List<String> dependedOnBy,
+                             BoundingBox bounds)
         {
             Id = id;
             ProjectName = project.Name;
@@ -58,30 +61,65 @@ namespace OPS.Pipeline.TileServer
         }
 
 
-        public static TilingNode Create(DynamoDBContext context, string id, TilingProject project, string meshUrl, string imageUrl, string parentId, List<string> childIds, List<string> dependsOn, List<String> dependedOnBy, BoundingBox bounds)
+        public static TilingNode Create(DynamoDBContext context, string id, TilingProject project,
+                                        string meshUrl, string imageUrl, string parentId, List<string> childIds,
+                                        List<string> dependsOn, List<String> dependedOnBy, BoundingBox bounds)
         {
-            TilingNode node = new TilingNode(id, project, meshUrl, imageUrl, parentId, childIds, dependsOn, dependedOnBy, bounds);
-            context.Save(node, new DynamoDBOperationConfig() { IgnoreNullValues = true });
+            TilingNode node = new TilingNode(id, project, meshUrl, imageUrl, parentId, childIds, dependsOn,
+                                             dependedOnBy, bounds);
+            context.Save(node);
             return node;
         }
 
 
-        public static TilingNode Find(DynamoDBContext context, TilingProject project, string id)
+        public static TilingNode Find(DynamoDBContext context, string projectName, string id)
         {
-            return context.Load<TilingNode>(id, project.Name);
+            return context.Load<TilingNode>(id, projectName);
         }
 
 
         public static IEnumerable<TilingNode> Find(DynamoDBContext context, TilingProject project)
         {
-            return context.Scan<TilingNode>(
-                new ScanCondition("ProjectName", Amazon.DynamoDBv2.DocumentModel.ScanOperator.Equal, project.Name)
-                );
+            if (project.NodeIds != null)
+            {
+                //DynamoDB Scan() can cause throughput exceptions
+                //https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/bp-query-scan.html
+                //for new projects we can avoid it here because we save the tile ids in the project record
+                List<TilingNode> nodes = new List<TilingNode>();
+                foreach (var id in project.NodeIds)
+                {
+                    nodes.Add(Find(context, project.Name, id));
+                }
+                return nodes;
+            }
+            else
+            {
+                //fall back to scanning for all input records that match the project name
+                //e.g. for legacy projects
+                return context.Scan<TilingNode>(new ScanCondition("ProjectName",
+                                                                   Amazon.DynamoDBv2.DocumentModel.ScanOperator.Equal,
+                                                                   project.Name));
+            }
         }
 
         public void Save(DynamoDBContext context)
         {
-            context.Save(this, new DynamoDBOperationConfig() { IgnoreNullValues = true });
+            context.Save(this);
+        }
+
+        public void Delete(PipelineCore pipeline, bool ignoreErrors = true, ILog logger = null)
+        {
+            if (!string.IsNullOrEmpty(MeshUrl))
+            {
+                pipeline.Storage(MeshUrl).DeleteObject(MeshUrl, ignoreErrors: ignoreErrors, logger: logger);
+            }
+
+            if (!string.IsNullOrEmpty(ImageUrl))
+            {
+                pipeline.Storage(ImageUrl).DeleteObject(ImageUrl, ignoreErrors: ignoreErrors, logger: logger);
+            }
+
+            pipeline.DeleteDynamoItem(this, ignoreErrors, logger);
         }
 
         public bool IsLeaf()
@@ -97,6 +135,14 @@ namespace OPS.Pipeline.TileServer
 
         public void SaveMesh(MeshImagePair pair, PipelineCore pipeline, double geometricError)
         {
+            if(pair.Image != null && !pair.Mesh.HasUVs)
+            {
+                throw new Exception("Attempting to save tiling node mesh with image but no UVs");
+            }
+            if(!pair.Mesh.HasNormals)
+            {
+                throw new Exception("Attempting to save tiling node mesh without normals");
+            }
             TemporaryFile.GetAndDelete(".ply", tmpMesh =>
             {
                 TemporaryFile.GetAndDelete(".tif", tmpImage => 
@@ -168,6 +214,22 @@ namespace OPS.Pipeline.TileServer
                         pipeline.Storage(this.ImageUrl).DownloadFile(this.ImageUrl, f);
                         img = Image.Load(f);
                     });
+                }
+                if(m == null)
+                {
+                    throw new Exception("Error loading tiling node mesh");
+                }
+                if (this.ImageUrl != null && img == null)
+                {
+                    throw new Exception("Error loading tiling node image");
+                }
+                if (img != null && !m.HasUVs)
+                {
+                    throw new Exception("Attempting to load tiling node mesh with image but no UVs");
+                }
+                if (!m.HasNormals)
+                {
+                    throw new Exception("Attempting to load tiling node mesh without normals");
                 }
                 node.AddComponent(new MeshImagePair(m, img));
                 return true;

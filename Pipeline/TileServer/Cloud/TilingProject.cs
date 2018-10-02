@@ -6,6 +6,8 @@ using System.Threading.Tasks;
 using OPS.Cloud;
 using Amazon.DynamoDBv2.DataModel;
 using OPS.Geometry;
+using OPS.Plumbing;
+using log4net;
 
 namespace OPS.Pipeline.TileServer
 {
@@ -28,6 +30,16 @@ namespace OPS.Pipeline.TileServer
 
         public bool TilesDefined { get; set; }
 
+        public string ProjectType { get; set; }
+
+        public bool StartedRunning { get; set; }
+
+        public bool FinishedRunning { get; set; }
+
+        public List<string> InputNames { get; set; }
+
+        public List<string> NodeIds { get; set; }
+
         public TilingProject()
         {
 
@@ -37,7 +49,8 @@ namespace OPS.Pipeline.TileServer
         /// Creates Project object locally.  
         /// </summary>
         /// <param name="name">Project names in the database must be unique</param>
-        protected TilingProject(string name, TilingScheme tilingScheme, SkirtMode skirtMode, MeshReconMethod reconMethod, int faces, int resolution)
+        protected TilingProject(string name, TilingScheme tilingScheme, SkirtMode skirtMode,
+                                MeshReconMethod reconMethod, int faces, int resolution, string projectType)
         {
             Name = name;
             TilingScheme = tilingScheme.ToString();
@@ -45,15 +58,19 @@ namespace OPS.Pipeline.TileServer
             ReconMethod = reconMethod.ToString();
             FacesPerTile = faces;
             TileResolution = resolution;
+            ProjectType = projectType;
             TilesDefined = false;
             this.IsValid();
         }
 
 
-        public static TilingProject Create(DynamoDBContext context, string name, TilingScheme tilingScheme, SkirtMode skirtMode, MeshReconMethod reconMethod, int faces, int resolution)
+        public static TilingProject Create(DynamoDBContext context, string name, TilingScheme tilingScheme,
+                                           SkirtMode skirtMode, MeshReconMethod reconMethod, int faces, int resolution,
+                                           string projectType)
         {
-            TilingProject project = new TilingProject(name, tilingScheme, skirtMode, reconMethod, faces, resolution);
-            context.Save(project, new DynamoDBOperationConfig() { IgnoreNullValues = true });
+            TilingProject project = new TilingProject(name, tilingScheme, skirtMode, reconMethod, faces, resolution,
+                                                      projectType);
+            project.Save(context);
             return project;
         }
 
@@ -67,10 +84,35 @@ namespace OPS.Pipeline.TileServer
             return project;
         }
 
+        public static IEnumerable<TilingProject> FindAll(DynamoDBContext context)
+        {
+            return context.Scan<TilingProject>();
+        }
+
         public void Save(DynamoDBContext context)
         {
             this.IsValid();
-            context.Save(this, new DynamoDBOperationConfig() { IgnoreNullValues = true });
+            context.Save(this);
+        }
+
+        public void Delete(PipelineCore pipeline, bool ignoreErrors = true, ILog logger = null)
+        {
+            foreach (var node in TilingNode.Find(pipeline.DynamoContext, this))
+            {
+                node.Delete(pipeline, ignoreErrors, logger);
+            }
+
+            foreach (var input in TilingInput.Find(pipeline.DynamoContext, this))
+            {
+                input.Delete(pipeline, ignoreErrors, logger);
+            }
+
+            pipeline.DeleteProjectCache(Name);
+
+            string wwwS3Url = TileServerConfig.Instance.WWWUrl(Name);
+            pipeline.Storage(wwwS3Url).DeleteObjects(wwwS3Url, ignoreErrors: ignoreErrors, logger: logger);
+
+            pipeline.DeleteDynamoItem(this, ignoreErrors, logger);
         }
 
         private void IsValid()

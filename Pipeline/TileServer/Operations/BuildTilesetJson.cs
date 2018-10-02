@@ -34,7 +34,7 @@ namespace OPS.Pipeline.TileServer
 
         public void Process()
         {
-            var project = TilingProject.Find(pipeline.DynamoContext, this.message.ProjectName);
+            var project = TilingProject.Find(pipeline.DynamoContext, message.ProjectName);
             logger.Info("Building json: " + project.Name);
             var root = TilingNode.BuildTreeFromDatabase(pipeline.DynamoContext, project);
             // Only nodes with mesh image pairs will be marked as having content in the tile builder so add them

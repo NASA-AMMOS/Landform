@@ -44,5 +44,13 @@ namespace OPS.Imaging
                 return false;
             }
         }
+
+        public override Vector3 ImagePlaneNormal
+        {
+            get
+            {
+                throw new NotImplementedException();
+            }
+        }
     }
 }

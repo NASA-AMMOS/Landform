@@ -4,6 +4,7 @@ using OPS.Plumbing;
 using OPS.Util;
 using System;
 using System.Collections.Generic;
+using System.Collections.Concurrent;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -87,16 +88,31 @@ namespace OPS.Pipeline.TileServer
             if(project.TilesDefined)
             {
                 logger.Info("Tiles have already been defined for this project");
-                pipeline.CompletionQueue.Enqueue(this.message);
+                pipeline.CompletionQueue.Enqueue(message);
                 return;
             }
 
-
-
+            SceneNode root = null;
             if (project.GetTilingScheme() == TilingScheme.UserDefined)
             {
                 // Build a tree based on existing tile ids
-                throw new NotImplementedException("");
+                var inputs = TilingInput.Find(pipeline.DynamoContext, project).ToList();
+                ConcurrentBag<SceneNode> nodes = new ConcurrentBag<SceneNode>();
+                Parallel.ForEach(inputs, new ParallelOptions() { MaxDegreeOfParallelism = 8 }, input =>
+                {
+                    var pair = DownloadInput(input);
+                    if(!pair.Mesh.HasNormals)
+                    {
+                        pair.Mesh.GenerateVertexNormals();
+                    }
+                    pair.Mesh.RemoveInvalidFaces();
+                    pair.Mesh.Clean();
+                    var node = new SceneNode(input.TileId);
+                    node.AddComponent(pair);
+                    nodes.Add(node);
+                });
+                root = SceneNodeTilingExtensions.ConnectNodesByName(nodes.ToList());
+                SceneNodeTilingExtensions.ComputeBounds(root);
             }
             else
             {
@@ -105,37 +121,19 @@ namespace OPS.Pipeline.TileServer
                 var tilingInput = new MultiMeshClipper();
                 foreach (var input in inputs)
                 {
-                    logger.Info("Downloading: " + input.MeshUrl);
-                    Mesh mesh = null;
-                    TemporaryFile.GetAndDelete(Path.GetExtension(input.MeshUrl), f =>
-                    {
-                        pipeline.Storage(input.MeshUrl).DownloadFile(input.MeshUrl, f);
-                        mesh = Mesh.Load(f);
-                        mesh.RemoveInvalidFaces();
-                        mesh.Clean();
-                    });
-                    Image image = null;
-                    if (input.ImageUrl != null)
-                    {
-                        logger.Info("Downloading: " + input.ImageUrl);
-                        TemporaryFile.GetAndDelete(Path.GetExtension(input.ImageUrl), f =>
-                        {
-                            pipeline.Storage(input.ImageUrl).DownloadFile(input.ImageUrl, f);
-                            image = Image.Load(f);
-                        });
-                    }
+                    var pair = DownloadInput(input);
                     logger.Info("Building acceleration structures");
-                    tilingInput.AddInput(new MultiMeshClipperInput(mesh, image));
+                    tilingInput.AddInput(new MultiMeshClipperInput(pair.Mesh, pair.Image));
                 }
+                var projectScheme = project.GetTilingScheme();
                 ITilingScheme scheme;
-                if (project.GetTilingScheme() == TilingScheme.Bin)
+                if (projectScheme == TilingScheme.Bin)
                 {
                     scheme = new BinaryTreeTilingScheme();
                 }
-                else if (project.GetTilingScheme() == TilingScheme.Quad)
+                else if (projectScheme == TilingScheme.QuadX || projectScheme == TilingScheme.QuadY || projectScheme == TilingScheme.QuadZ)
                 {
-                    scheme = new QuadTreeTilingScheme(project.GetSkirtMode());
-                    
+                    scheme = new QuadTreeTilingScheme(projectScheme);
                 }
                 else if (project.GetTilingScheme() == TilingScheme.Oct)
                 {
@@ -145,35 +143,70 @@ namespace OPS.Pipeline.TileServer
                 {
                     throw new Exception("Unknonw tiling scheme");
                 }
-                ITileSplitCriteria splitCriteria = new FaceLimitSplitCriteria(project.FacesPerTile);
+                ITileSplitCriteria splitCriteria = new FaceSplitCriteria(project.FacesPerTile);
 
                 logger.Info("Computing tile tree");
-                SceneNode root = TileLocalMesh.BuildBoundsTree(tilingInput, scheme, splitCriteria);
-
-                // Compute tile dependencies
-                var dependencies = new TileDependencyMapping();
-                foreach (var node in root.DepthFirstTraverse())
+                root = TileLocalMesh.BuildBoundsTree(tilingInput, scheme, splitCriteria);
+            }
+            // Compute tile dependencies
+            var dependencies = new TileDependencyMapping();
+            foreach (var node in root.DepthFirstTraverse())
+            {
+                if (!node.IsLeaf)
                 {
-                    if (!node.IsLeaf)
+                    foreach (var d in node.FindNodesRequiredForParent(root))
                     {
-                        foreach (var d in node.FindNodesRequiredForParent(root))
-                        {
-                            dependencies.AddDependency(node.Name, d.Name);
-                        }
+                        dependencies.AddDependency(node.Name, d.Name);
                     }
                 }
-
-                logger.Info("Saving tile tree");
-                foreach (var node in root.DepthFirstTraverse())
-                {
-                    string parentId = node.Parent == null ? null : node.Parent.Name;
-                    List<string> childIds = node.Children.Select(c => c.Name).ToList();
-                    TilingNode.Create(pipeline.DynamoContext, node.Name, project, null, null, parentId, childIds, dependencies.DependsOn(node.Name), dependencies.DependedOnBy(node.Name), node.GetComponent<NodeBounds>().Bounds);
-                }
-                project.TilesDefined = true;
-                project.Save(pipeline.DynamoContext);
-                pipeline.CompletionQueue.Enqueue(this.message);
             }
+
+            logger.Info("Saving tile tree");
+            List<string> ids = new List<string>();
+            foreach (var node in root.DepthFirstTraverse())
+            {
+                ids.Add(node.Name);
+                string parentId = node.Parent == null ? null : node.Parent.Name;
+                List<string> childIds = node.Children.Select(c => c.Name).ToList();
+                var tilingNode = TilingNode.Create(pipeline.DynamoContext, node.Name, project,
+                                                   null /* meshUrl */, null /* imageUrl */,
+                                                   parentId, childIds,
+                                                   dependencies.DependsOn(node.Name),
+                                                   dependencies.DependedOnBy(node.Name),
+                                                   node.GetComponent<NodeBounds>().Bounds);
+                if(node.IsLeaf && node.HasComponent<MeshImagePair>())
+                {
+                    tilingNode.SaveMesh(node.GetComponent<MeshImagePair>(), pipeline, 0);
+                }
+            }                            
+            project.NodeIds = ids;
+            project.TilesDefined = true;
+            project.Save(pipeline.DynamoContext);
+            pipeline.CompletionQueue.Enqueue(message);
+        }
+
+        MeshImagePair DownloadInput(TilingInput input)
+        {
+            logger.Info("Downloading: " + input.MeshUrl);
+            Mesh mesh = null;
+            TemporaryFile.GetAndDelete(Path.GetExtension(input.MeshUrl), f =>
+            {
+                pipeline.Storage(input.MeshUrl).DownloadFile(input.MeshUrl, f);
+                mesh = Mesh.Load(f);
+                mesh.RemoveInvalidFaces();
+                mesh.Clean();
+            });
+            Image image = null;
+            if (input.ImageUrl != null)
+            {
+                logger.Info("Downloading: " + input.ImageUrl);
+                TemporaryFile.GetAndDelete(Path.GetExtension(input.ImageUrl), f =>
+                {
+                    pipeline.Storage(input.ImageUrl).DownloadFile(input.ImageUrl, f);
+                    image = Image.Load(f);
+                });
+            }
+            return new MeshImagePair(mesh, image);
         }
 
     }

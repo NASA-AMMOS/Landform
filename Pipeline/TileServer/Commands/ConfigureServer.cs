@@ -24,6 +24,12 @@ namespace OPS.Pipeline.TileServer
 
         [Option(HelpText = "AWS Profile", Default = null)]
         public string Profile { get; set; }
+
+        [Option(HelpText = "MSLICE Profile", Default = "mslice")]
+        public string MSLICEProfile { get; set; }
+
+        [Option(HelpText = "MSLICE S3 Url", Default = "s3://red-product/")]
+        public string MSLICES3Url { get; set; }
     }
 
     public class ConfigureServer
@@ -41,6 +47,8 @@ namespace OPS.Pipeline.TileServer
             config.S3Url = ReadProperty("S3 Url", options.S3Url, config.S3Url);
             config.Region = ReadProperty("AWS Region", options.Region, config.Region);
             config.Profile = ReadProperty("AWS Profile", options.Profile, config.Profile);
+            config.MSLICEProfile = ReadProperty("MSLICE Profile", options.MSLICEProfile, config.MSLICEProfile);
+            config.MSLICES3Url = ReadProperty("MSLICE S3 Url", options.MSLICES3Url, config.MSLICES3Url);
             config.Save();
             string userdata = BuildEC2UserDataScript(config);
             string userDataFilepath = Path.GetFullPath("ec2userdata.txt");
@@ -59,7 +67,7 @@ New-Item -Path ""c:\temp"" -ItemType ""directory"" -Force
 c:\temp\vc_redist_2017.x64.exe /quiet
 (new-object net.webclient).DownloadFile('https://download.microsoft.com/download/9/3/F/93FCF1E7-E6A4-478B-96E7-D4B285925B00/vc_redist.x64.exe','c:\temp\vc_redist_2015.x64.exe')
 c:\temp\vc_redist_2015.x64.exe /quiet
-Set-ExecutionPolicy RemoteSigned -Force
+#Set-ExecutionPolicy RemoteSigned -Force
 Import-Module AWSPowerShell
 (new-object net.webclient).DownloadFile('https://aws-codedeploy-us-west-1.s3.amazonaws.com/latest/codedeploy-agent.msi','c:\temp\codedeploy-agent.msi')
 c:\temp\codedeploy-agent.msi /quiet /l c:\temp\host-agent-install-log.txt

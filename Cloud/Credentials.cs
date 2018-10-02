@@ -26,5 +26,16 @@ namespace OPS.Cloud
             }
             return awsCredentials;
         }
+
+        /// <summary>
+        /// Reports whether credentials exist for a profile name
+        /// </summary>
+        /// <param name="awsProfileName"></param>
+        /// <returns></returns>
+        public static bool Exists(string awsProfileName)
+        {
+            var chain = new CredentialProfileStoreChain();
+            return chain.TryGetAWSCredentials(awsProfileName, out AWSCredentials awsCredentials);
+        }
     }
 }

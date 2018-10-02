@@ -162,7 +162,7 @@ namespace OPS.Geometry
         /// </summary>
         /// <param name="mesh"></param>
         /// <param name="meshImage"></param>
-        public void InsertList(List<OctreeNodeContents> list)
+        public void InsertList(IEnumerable<OctreeNodeContents> list)
         {
             foreach(OctreeNodeContents contents in list)
             {

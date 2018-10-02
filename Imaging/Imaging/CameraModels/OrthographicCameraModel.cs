@@ -22,6 +22,14 @@ namespace OPS.Imaging
             get { return true; }
         }
 
+        public override Vector3 ImagePlaneNormal
+        {
+            get
+            {
+                throw new NotImplementedException();
+            }
+        }
+
         /// <summary>
         /// Create a camera at the location and orientation specified by transform
         /// Use the XY pixel resolution
