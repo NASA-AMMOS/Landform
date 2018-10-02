@@ -206,7 +206,7 @@
     <Compile Include="TileServer\Cloud\TilingProject.cs" />
     <Compile Include="TileServer\Cloud\TilingQueue.cs" />
     <Compile Include="TileServer\Operations\BuildBakedLeaves.cs" />
-    <Compile Include="TileServer\Operations\BuildParents.cs" />
+    <Compile Include="TileServer\Operations\BuildParent.cs" />
     <Compile Include="TileServer\Operations\BuildTilesetJson.cs" />
     <Compile Include="TileServer\Operations\ChunkInput.cs" />
     <Compile Include="TileServer\Operations\DefineTiles.cs" />

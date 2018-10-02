@@ -150,9 +150,9 @@ namespace OPS.Pipeline.TileServer
                         {
                             new BuildBackprojectLeaves((BuildBackprojectLeavesMessage)m, this).Process();
                         }
-                        else if (m.GetType() == typeof(BuildParentsMessage))
+                        else if (m.GetType() == typeof(BuildParentMessage))
                         {
-                            new BuildParents((BuildParentsMessage)m, this).Process();
+                            new BuildParent((BuildParentMessage)m, this).Process();
                         }
                         else if (m.GetType() == typeof(BuildTilesetJsonMessage))
                         {
