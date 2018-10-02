@@ -44,14 +44,10 @@ namespace OPS.Pipeline.TileServer
 
         }
 
-        /// <summary>
-        /// Creates Project object locally.  
-        /// </summary>
-        /// <param name="name">Project names in the database must be unique</param>
-        protected TilingInput(string name, TilingProject project, string meshUrl, string imageUrl, string id)
+        protected TilingInput(string name, string projectName, string meshUrl, string imageUrl, string id)
         {
             Name = name;
-            ProjectName = project.Name;
+            ProjectName = projectName;
             MeshUrl = meshUrl;
             ImageUrl = imageUrl;
             TileId = id;
@@ -62,8 +58,18 @@ namespace OPS.Pipeline.TileServer
         public static TilingInput Create(DynamoDBContext context, string name, TilingProject project,
                                          string meshUrl, string imageUrl, string id)
         {
-            TilingInput input = new TilingInput(name, project, meshUrl, imageUrl, id);
-            context.Save(input, new DynamoDBOperationConfig() { IgnoreNullValues = true });
+            if (project.InputNames == null)
+            {
+                project.InputNames = new List<string>();
+            }
+            else if (project.InputNames.Contains(name))
+            {
+                throw new ArgumentException("project \"" + project.Name + "\" already contains input \"" + name + "\"");
+            }
+            TilingInput input = new TilingInput(name, project.Name, meshUrl, imageUrl, id);
+            context.Save(input);
+            project.InputNames.Add(name);
+            context.Save(project);
             return input;
         }
 
@@ -73,24 +79,43 @@ namespace OPS.Pipeline.TileServer
         }
 
 
-        public static IEnumerable<TilingInput> Find(DynamoDBContext context, string projectName)
+        public static IEnumerable<TilingInput> Find(DynamoDBContext context, TilingProject project)
         {
-            return context.Scan<TilingInput>(
-                new ScanCondition("ProjectName", Amazon.DynamoDBv2.DocumentModel.ScanOperator.Equal, projectName)
-                );
+            if (project.InputNames != null)
+            {
+                //DynamoDB Scan() can cause throughput exceptions
+                //https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/bp-query-scan.html
+                //for new projects we can avoid it here because we save the input names in the project record
+                List<TilingInput> inputs = new List<TilingInput>();
+                foreach (var name in project.InputNames)
+                {
+                    inputs.Add(Find(context, project.Name, name));
+                }
+                return inputs;
+            }
+            else
+            {
+                //for legacy projects fall back to scanning for all input records that match the project name
+                return context.Scan<TilingInput>(new ScanCondition("ProjectName",
+                                                                   Amazon.DynamoDBv2.DocumentModel.ScanOperator.Equal,
+                                                                   project.Name));
+            }
         }
 
         public void Save(DynamoDBContext context)
         {
             this.IsValid();
-            context.Save(this, new DynamoDBOperationConfig() { IgnoreNullValues = true });
+            context.Save(this);
         }
 
         public void Delete(PipelineCore pipeline, bool ignoreErrors = true, ILog logger = null)
         {
-            foreach (var chunkId in ChunkIds)
+            if (ChunkIds != null)
             {
-                TilingInputChunk.Find(pipeline.DynamoContext, chunkId).Delete(pipeline, ignoreErrors, logger);
+                foreach (var chunkId in ChunkIds)
+                {
+                    TilingInputChunk.Find(pipeline.DynamoContext, chunkId).Delete(pipeline, ignoreErrors, logger);
+                }
             }
 
             if (!string.IsNullOrEmpty(MeshUrl))

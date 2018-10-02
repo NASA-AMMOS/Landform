@@ -74,7 +74,7 @@ namespace OPS.Pipeline.TileServer
             var md = new Metadata();
             md.Project = project;
 
-            var inputs = TilingInput.Find(DynamoContext, project.Name).ToList();
+            var inputs = TilingInput.Find(DynamoContext, project).ToList();
             var sanitizedInputs = new List<SanitizedInput>();
             foreach (var input in inputs)
             {
@@ -96,7 +96,7 @@ namespace OPS.Pipeline.TileServer
 
             if (project.TilesDefined)
             {
-                var nodes = TilingNode.Find(DynamoContext, project.Name).ToList();
+                var nodes = TilingNode.Find(DynamoContext, project).ToList();
                 md.NumNodes = nodes.Count;
 
                 int numProcessed = 0;

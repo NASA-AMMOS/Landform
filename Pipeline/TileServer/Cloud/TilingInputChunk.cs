@@ -32,10 +32,6 @@ namespace OPS.Pipeline.TileServer
 
         }
 
-        /// <summary>
-        /// Creates Project object locally.  
-        /// </summary>
-        /// <param name="name">Project names in the database must be unique</param>
         protected TilingInputChunk(string id, string meshUrl, string imageUrl, BoundingBox bounds)
         {
             Id = id;
@@ -45,10 +41,11 @@ namespace OPS.Pipeline.TileServer
         }
 
 
-        public static TilingInputChunk Create(DynamoDBContext context, string id, TilingProject project, string meshUrl, string imageUrl, BoundingBox bounds)
+        public static TilingInputChunk Create(DynamoDBContext context, string id, TilingProject project,
+                                              string meshUrl, string imageUrl, BoundingBox bounds)
         {
             TilingInputChunk chunk = new TilingInputChunk(id, meshUrl, imageUrl, bounds);
-            context.Save(chunk, new DynamoDBOperationConfig() { IgnoreNullValues = true });
+            context.Save(chunk);
             return chunk;
         }
 

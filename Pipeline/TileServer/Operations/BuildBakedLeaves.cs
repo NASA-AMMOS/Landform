@@ -23,7 +23,7 @@ namespace OPS.Pipeline.TileServer
 
         public BuildBakedLeavesMessage(string projectName, List<string> tileIds) : base(projectName)
         {
-            this.TileIds = tileIds;
+            TileIds = tileIds;
         }
     }
 
@@ -49,10 +49,10 @@ namespace OPS.Pipeline.TileServer
 
         public void Process()
         {
-            var project = TilingProject.Find(pipeline.DynamoContext, this.message.ProjectName);
+            var project = TilingProject.Find(pipeline.DynamoContext, message.ProjectName);
 
             List<TilingNode> leaves = new List<TilingNode>();
-            foreach(var id in this.message.TileIds)
+            foreach(var id in message.TileIds)
             {
                 leaves.Add(TilingNode.Find(pipeline.DynamoContext, project.Name, id));
             }
@@ -73,7 +73,7 @@ namespace OPS.Pipeline.TileServer
                 return;
             }
             // Get a list of all chunks that overlap with a leaf tile
-            var inputs = TilingInput.Find(pipeline.DynamoContext, project.Name).ToList();
+            var inputs = TilingInput.Find(pipeline.DynamoContext, project).ToList();
             List<InputChunkGroup> inputGroups = new List<InputChunkGroup>();
             foreach (var input in inputs)
             {
@@ -113,7 +113,7 @@ namespace OPS.Pipeline.TileServer
                 string imgUrl = group.Chunks[0].ImageUrl;
                 if (imgUrl != null)
                 {
-                    image = new SparseCloudImage(group.Input.ImageBands, group.Input.ImageWidth, group.Input.ImageHeight, imgUrl, ChunkInput.IMAGE_EXT, this.pipeline, ChunkInput.CHUNK_RESOLUTION);
+                    image = new SparseCloudImage(group.Input.ImageBands, group.Input.ImageWidth, group.Input.ImageHeight, imgUrl, ChunkInput.IMAGE_EXT, pipeline, ChunkInput.CHUNK_RESOLUTION);
                 }
                 bakeClipper.AddDataset(new TileLocalMesh.TilingInputDataset(mergedMesh, image));
             }

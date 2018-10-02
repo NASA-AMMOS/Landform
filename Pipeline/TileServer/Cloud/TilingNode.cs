@@ -45,7 +45,9 @@ namespace OPS.Pipeline.TileServer
         /// Creates Project object locally.  
         /// </summary>
         /// <param name="name">Project names in the database must be unique</param>
-        protected TilingNode(string id, TilingProject project, string meshUrl, string imageUrl, string parentId, List<string> childIds, List<string> dependsOn, List<String> dependedOnBy, BoundingBox bounds)
+        protected TilingNode(string id, TilingProject project, string meshUrl, string imageUrl, string parentId,
+                             List<string> childIds, List<string> dependsOn, List<String> dependedOnBy,
+                             BoundingBox bounds)
         {
             Id = id;
             ProjectName = project.Name;
@@ -63,8 +65,9 @@ namespace OPS.Pipeline.TileServer
                                         string meshUrl, string imageUrl, string parentId, List<string> childIds,
                                         List<string> dependsOn, List<String> dependedOnBy, BoundingBox bounds)
         {
-            TilingNode node = new TilingNode(id, project, meshUrl, imageUrl, parentId, childIds, dependsOn, dependedOnBy, bounds);
-            context.Save(node, new DynamoDBOperationConfig() { IgnoreNullValues = true });
+            TilingNode node = new TilingNode(id, project, meshUrl, imageUrl, parentId, childIds, dependsOn,
+                                             dependedOnBy, bounds);
+            context.Save(node);
             return node;
         }
 
@@ -75,16 +78,33 @@ namespace OPS.Pipeline.TileServer
         }
 
 
-        public static IEnumerable<TilingNode> Find(DynamoDBContext context, string projectName)
+        public static IEnumerable<TilingNode> Find(DynamoDBContext context, TilingProject project)
         {
-            return context.Scan<TilingNode>(
-                new ScanCondition("ProjectName", Amazon.DynamoDBv2.DocumentModel.ScanOperator.Equal, projectName)
-                );
+            if (project.NodeIds != null)
+            {
+                //DynamoDB Scan() can cause throughput exceptions
+                //https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/bp-query-scan.html
+                //for new projects we can avoid it here because we save the tile ids in the project record
+                List<TilingNode> nodes = new List<TilingNode>();
+                foreach (var id in project.NodeIds)
+                {
+                    nodes.Add(Find(context, project.Name, id));
+                }
+                return nodes;
+            }
+            else
+            {
+                //fall back to scanning for all input records that match the project name
+                //e.g. for legacy projects
+                return context.Scan<TilingNode>(new ScanCondition("ProjectName",
+                                                                   Amazon.DynamoDBv2.DocumentModel.ScanOperator.Equal,
+                                                                   project.Name));
+            }
         }
 
         public void Save(DynamoDBContext context)
         {
-            context.Save(this, new DynamoDBOperationConfig() { IgnoreNullValues = true });
+            context.Save(this);
         }
 
         public void Delete(PipelineCore pipeline, bool ignoreErrors = true, ILog logger = null)
@@ -217,9 +237,9 @@ namespace OPS.Pipeline.TileServer
             return false;
         }
 
-        public static SceneNode BuildTreeFromDatabase(DynamoDBContext context, string projectName)
+        public static SceneNode BuildTreeFromDatabase(DynamoDBContext context, TilingProject project)
         {
-            var nodes = Find(context, projectName).ToList();
+            var nodes = Find(context, project).ToList();
             Dictionary<string, SceneNode> idToNode = new Dictionary<string, SceneNode>();
             // Create all nodes
             foreach (var n in nodes)

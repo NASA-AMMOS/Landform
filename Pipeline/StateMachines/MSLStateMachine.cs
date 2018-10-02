@@ -29,25 +29,31 @@ namespace OPS.Pipeline.TileServer
                 throw new ArgumentException(string.Format("received message for project \"{0}\", expected \"{1}\"",
                                                           m.ProjectName, projectName));
             }
-
+            
             if (m.GetType() == typeof(RunProjectMessage))
             {
-                logger.Info("Run project:" + projectName);
-
+                logger.Info("running project " + projectName);
+                projectCache.Clear();
                 workerQueue.Enqueue(new BuildTilingInputMessage(projectName));
-           }
-           else if(m.GetType() == typeof(BuildTilingInputMessage))
-           {
-                logger.Info("BuildTilingInput project:" + projectName);
-
-                this.workerQueue.Enqueue(new DefineTilesMessage(projectName));
-           }
-           else if (m.GetType() == typeof(DefineTilesMessage))
+            }
+            else if(m.GetType() == typeof(BuildTilingInputMessage))
             {
-                logger.Info("DefineTiles project:" + m.ProjectName);
-                TilingProject project = TilingProject.Find(pipeline.DynamoContext,projectName);
-                this.projectCache.Refresh();
-                ChunkInputs();
+                logger.Info("tiling input built in project " + projectName);
+                workerQueue.Enqueue(new DefineTilesMessage(projectName));
+            }
+            else if (m.GetType() == typeof(DefineTilesMessage))
+            {
+                logger.Info("tiles defined in project " + m.ProjectName);
+
+                TilingProject project = TilingProject.Find(pipeline.DynamoContext, projectName);
+
+                projectCache.Init(pipeline.DynamoContext, project); //must be called after tiles are defined
+
+                bool allChunked = ChunkInputs(project);
+                if (allChunked)
+                {
+                    BuildBackprojectLeaves();
+                }
             }
             else if (m.GetType() == typeof(ChunkInputMessage))
             {
@@ -74,7 +80,8 @@ namespace OPS.Pipeline.TileServer
         protected void BuildBackprojectLeaves()
         {
             logger.Info("building backproject leaves in " + projectName);
-            SceneNode root = TilingNode.BuildTreeFromDatabase(pipeline.DynamoContext, projectName);
+            TilingProject project = TilingProject.Find(pipeline.DynamoContext, projectName);
+            SceneNode root = TilingNode.BuildTreeFromDatabase(pipeline.DynamoContext, project);
             List<List<SceneNode>> leafGroups = new List<List<SceneNode>>();
             GroupSceneNodesIntoJobs(root, leafGroups);
 

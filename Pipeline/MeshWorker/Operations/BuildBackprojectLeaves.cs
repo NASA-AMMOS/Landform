@@ -251,7 +251,7 @@ namespace OPS.Pipeline.MeshWorker
         private Mesh GetFullMesh(TilingProject project)
         {
             Mesh fullMesh;
-            var inputs = TilingInput.Find(pipeline.DynamoContext, project.Name).ToList();
+            var inputs = TilingInput.Find(pipeline.DynamoContext, project).ToList();
             InputChunkGroup bigMeshGroup = new InputChunkGroup();
             foreach (var input in inputs)
             {

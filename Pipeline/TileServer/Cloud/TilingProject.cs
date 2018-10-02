@@ -36,6 +36,10 @@ namespace OPS.Pipeline.TileServer
 
         public bool FinishedRunning { get; set; }
 
+        public List<string> InputNames { get; set; }
+
+        public List<string> NodeIds { get; set; }
+
         public TilingProject()
         {
 
@@ -45,7 +49,8 @@ namespace OPS.Pipeline.TileServer
         /// Creates Project object locally.  
         /// </summary>
         /// <param name="name">Project names in the database must be unique</param>
-        protected TilingProject(string name, TilingScheme tilingScheme, SkirtMode skirtMode, MeshReconMethod reconMethod, int faces, int resolution, string projectType)
+        protected TilingProject(string name, TilingScheme tilingScheme, SkirtMode skirtMode,
+                                MeshReconMethod reconMethod, int faces, int resolution, string projectType)
         {
             Name = name;
             TilingScheme = tilingScheme.ToString();
@@ -59,10 +64,13 @@ namespace OPS.Pipeline.TileServer
         }
 
 
-        public static TilingProject Create(DynamoDBContext context, string name, TilingScheme tilingScheme, SkirtMode skirtMode, MeshReconMethod reconMethod, int faces, int resolution, string projectType)
+        public static TilingProject Create(DynamoDBContext context, string name, TilingScheme tilingScheme,
+                                           SkirtMode skirtMode, MeshReconMethod reconMethod, int faces, int resolution,
+                                           string projectType)
         {
-            TilingProject project = new TilingProject(name, tilingScheme, skirtMode, reconMethod, faces, resolution, projectType);
-            context.Save(project, new DynamoDBOperationConfig() { IgnoreNullValues = true });
+            TilingProject project = new TilingProject(name, tilingScheme, skirtMode, reconMethod, faces, resolution,
+                                                      projectType);
+            project.Save(context);
             return project;
         }
 
@@ -84,17 +92,17 @@ namespace OPS.Pipeline.TileServer
         public void Save(DynamoDBContext context)
         {
             this.IsValid();
-            context.Save(this, new DynamoDBOperationConfig() { IgnoreNullValues = true });
+            context.Save(this);
         }
 
         public void Delete(PipelineCore pipeline, bool ignoreErrors = true, ILog logger = null)
         {
-            foreach (var node in TilingNode.Find(pipeline.DynamoContext, Name))
+            foreach (var node in TilingNode.Find(pipeline.DynamoContext, this))
             {
                 node.Delete(pipeline, ignoreErrors, logger);
             }
 
-            foreach (var input in TilingInput.Find(pipeline.DynamoContext, Name))
+            foreach (var input in TilingInput.Find(pipeline.DynamoContext, this))
             {
                 input.Delete(pipeline, ignoreErrors, logger);
             }

@@ -31,25 +31,29 @@ namespace OPS.Pipeline.TileServer
 
             if (m.GetType() == typeof(RunProjectMessage))
             {
-                logger.Info("Run project:" + m.ProjectName);
-                
-                this.workerQueue.Enqueue(new DefineTilesMessage(m.ProjectName));
+                logger.Info("running project " + projectName);
+                projectCache.Clear();
+                workerQueue.Enqueue(new DefineTilesMessage(projectName));
             }
             else if (m.GetType() == typeof(DefineTilesMessage))
             {
-                logger.Info("DefineTiles project:" + m.ProjectName);
-              
-                this.projectCache.Refresh();
+                logger.Info("tiles defined in " + m.ProjectName);
 
                 var project = TilingProject.Find(pipeline.DynamoContext, projectName);
-                if(project.TilingScheme == TilingScheme.UserDefined.ToString())
+
+                projectCache.Init(pipeline.DynamoContext, project); //must be called after tiles are defined
+
+                if (project.TilingScheme == TilingScheme.UserDefined.ToString())
                 {
-                    // Skip Chunking
-                    BuildBakedLeaves();
+                    BuildBakedLeaves(); //skip chunking
                 }
                 else
                 {
-                    ChunkInputs();
+                    bool allChunked = ChunkInputs(project);
+                    if (allChunked)
+                    {
+                        BuildBakedLeaves();
+                    }
                 }
             }
             else if (m.GetType() == typeof(ChunkInputMessage))
@@ -77,7 +81,8 @@ namespace OPS.Pipeline.TileServer
         protected void BuildBakedLeaves()
         {
             logger.Info("building baked leaves in " + projectName);
-            SceneNode root = TilingNode.BuildTreeFromDatabase(pipeline.DynamoContext, projectName);
+            var project = TilingProject.Find(pipeline.DynamoContext, projectName);
+            SceneNode root = TilingNode.BuildTreeFromDatabase(pipeline.DynamoContext, project);
             List<List<SceneNode>> leafGroups = new List<List<SceneNode>>();
             GroupSceneNodesIntoJobs(root, leafGroups);
 

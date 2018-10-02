@@ -1,6 +1,7 @@
 ﻿using OPS.Plumbing;
 using System.Collections.Generic;
 using System.Linq;
+using Amazon.DynamoDBv2.DataModel;
 
 namespace OPS.Pipeline.TileServer
 {
@@ -12,24 +13,15 @@ namespace OPS.Pipeline.TileServer
         HashSet<string> completed;
         HashSet<string> enqued;
         public string RootId { get; private set; }
+        HashSet<string> inputsToChunk;
 
-        PipelineCore pipeline;
-        TilingProject project;
         object lockObj = new object();
 
-        public ProjectCache(PipelineCore pipeline, string projectName)
+        public ProjectCache()
         {
-            this.pipeline = pipeline;
-            this.project = TilingProject.Find(pipeline.DynamoContext, projectName);
-            Init();
         }
 
-        public void Refresh()
-        {
-            Init();
-        }
-
-        void Init()
+        public void Clear()
         {
             lock (lockObj)
             {
@@ -38,7 +30,17 @@ namespace OPS.Pipeline.TileServer
                 dependsOn = new Dictionary<string, List<string>>();
                 completed = new HashSet<string>();
                 enqued = new HashSet<string>();
-                var list = TilingNode.Find(pipeline.DynamoContext, project.Name).ToList();
+                RootId = null;
+                inputsToChunk = new HashSet<string>();
+            }
+        }
+                
+        public void Init(DynamoDBContext context, TilingProject project)
+        {
+            lock (lockObj)
+            {
+                Clear();
+                var list = TilingNode.Find(context, project).ToList();
                 foreach (var n in list)
                 {
                     ids.Add(n.Id);
@@ -118,6 +120,24 @@ namespace OPS.Pipeline.TileServer
             {
                 var ready = ids.Where(i => ShouldRun(i)).ToList();
                 return ready;
+            }
+        }
+
+        public void AddInputToChunk(string name)
+        {
+            lock (lockObj)
+            {
+                inputsToChunk.Add(name);
+            }
+        }
+
+        //returns true when all inputs have been chunked
+        public bool InputChunked(string name)
+        {
+            lock (lockObj)
+            {
+                inputsToChunk.Remove(name);
+                return inputsToChunk.Count == 0;
             }
         }
     }
