@@ -80,7 +80,7 @@ namespace OPS.Pipeline.TileServer
 
         public static IEnumerable<TilingNode> Find(DynamoDBContext context, TilingProject project)
         {
-            if (project.NodeIds != null && project.NodeIds.Count > 0)
+            if (project.NodeIds != null)
             {
                 //DynamoDB Scan() can cause throughput exceptions
                 //https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/bp-query-scan.html

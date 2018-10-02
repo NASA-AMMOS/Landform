@@ -81,7 +81,7 @@ namespace OPS.Pipeline.TileServer
 
         public static IEnumerable<TilingInput> Find(DynamoDBContext context, TilingProject project)
         {
-            if (project.InputNames != null && project.InputNames.Count > 0)
+            if (project.InputNames != null)
             {
                 //DynamoDB Scan() can cause throughput exceptions
                 //https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/bp-query-scan.html
@@ -90,7 +90,6 @@ namespace OPS.Pipeline.TileServer
                 foreach (var name in project.InputNames)
                 {
                     inputs.Add(Find(context, project.Name, name));
-                    
                 }
                 return inputs;
             }
