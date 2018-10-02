@@ -44,9 +44,16 @@ namespace OPS.Pipeline.TileServer
             else if (m.GetType() == typeof(DefineTilesMessage))
             {
                 logger.Info("tiles defined in project " + m.ProjectName);
+
                 TilingProject project = TilingProject.Find(pipeline.DynamoContext, projectName);
+
                 projectCache.Init(pipeline.DynamoContext, project); //must be called after tiles are defined
-                ChunkInputs(project);
+
+                bool allChunked = ChunkInputs(project);
+                if (allChunked)
+                {
+                    BuildBackprojectLeaves();
+                }
             }
             else if (m.GetType() == typeof(ChunkInputMessage))
             {

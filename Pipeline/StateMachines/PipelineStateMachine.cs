@@ -28,13 +28,16 @@ namespace OPS.Pipeline.TileServer
         
         // shared functionality for all current pipelines
 
-        protected void ChunkInputs(TilingProject project)
+        //returns true if all inputs have already been chunked
+        protected bool ChunkInputs(TilingProject project)
         {
+            bool allChunked = true;
             foreach (var inputName in project.InputNames)
             {
                 var input = TilingInput.Find(pipeline.DynamoContext, projectName, inputName);
                 if (!input.Chunked)
                 {
+                    allChunked = false;
                     logger.Info("chunking input " + inputName + " in " + projectName);
                     projectCache.AddInputToChunk(inputName);
                     workerQueue.Enqueue(new ChunkInputMessage(projectName, inputName));
@@ -44,6 +47,7 @@ namespace OPS.Pipeline.TileServer
                     logger.Info("input " + inputName + " in " + projectName + " already chunked");
                 }
             }
+            return allChunked;
         }
 
         protected bool InputChunked(string inputName)

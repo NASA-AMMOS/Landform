@@ -38,16 +38,22 @@ namespace OPS.Pipeline.TileServer
             else if (m.GetType() == typeof(DefineTilesMessage))
             {
                 logger.Info("tiles defined in " + m.ProjectName);
+
                 var project = TilingProject.Find(pipeline.DynamoContext, projectName);
+
                 projectCache.Init(pipeline.DynamoContext, project); //must be called after tiles are defined
-                if(project.TilingScheme == TilingScheme.UserDefined.ToString())
+
+                if (project.TilingScheme == TilingScheme.UserDefined.ToString())
                 {
-                    // Skip Chunking
-                    BuildBakedLeaves();
+                    BuildBakedLeaves(); //skip chunking
                 }
                 else
                 {
-                    ChunkInputs(project);
+                    bool allChunked = ChunkInputs(project);
+                    if (allChunked)
+                    {
+                        BuildBakedLeaves();
+                    }
                 }
             }
             else if (m.GetType() == typeof(ChunkInputMessage))
