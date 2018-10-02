@@ -92,7 +92,7 @@ namespace OPS.Pipeline.TileServer
                     inputGroups.Add(group);
                 }
             }
-
+            bool hasImages = false;
             var bakeClipper = new MultiMeshClipper();
             foreach (var group in inputGroups)
             {
@@ -113,6 +113,7 @@ namespace OPS.Pipeline.TileServer
                 string imgUrl = group.Chunks[0].ImageUrl;
                 if (imgUrl != null)
                 {
+                    hasImages = true;
                     image = new SparseCloudImage(group.Input.ImageBands, group.Input.ImageWidth, group.Input.ImageHeight, imgUrl, ChunkInput.IMAGE_EXT, pipeline, ChunkInput.CHUNK_RESOLUTION);
                 }
                 bakeClipper.AddInput(new MultiMeshClipperInput(mergedMesh, image));
@@ -123,7 +124,11 @@ namespace OPS.Pipeline.TileServer
             Serial.ForEach(leaves, leaf =>
             {              
                 var m = bakeClipper.Clip(leaf.GetBounds());
-                var pair = bakeClipper.BakeTexture(m, project.TileResolution);
+                var pair = new MeshImagePair(m, null);
+                if(hasImages)
+                {
+                    pair = bakeClipper.BakeTexture(m, project.TileResolution);
+                }
                 leaf.SaveMesh(pair, pipeline, 0);
                 processed.Add(leaf);
                 pipeline.CompletionQueue.Enqueue(new TileCompletedMessage(project.Name, leaf.Id));
