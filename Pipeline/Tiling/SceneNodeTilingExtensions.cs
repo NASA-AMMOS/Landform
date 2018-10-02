@@ -149,8 +149,8 @@ namespace OPS.Pipeline
 
             Mesh combinedDecimated = null;
             Mesh fullClipped = Mesh.Clip(combinedFull, minimumBounds);
-            // Resample decimation can fail on meshes with very few faces.  If we are below the threshold where we expect this to fail just
-            // pass along the geometry assuming it is less than maxFaceCount
+            // If the combined mesh is already less than the target face count we can skip the ResampleDecimation
+            // This also has the added benifit of avoiding calls to ResampleDecimation on very low face count meshes which can sometimes fail
             if (fullClipped.Faces.Count <= maxFaceCountTarget)
             {
                 combinedDecimated = fullClipped;
@@ -171,7 +171,7 @@ namespace OPS.Pipeline
                     }
                     else if (skirtAxis.Value == SkirtMode.Z)
                     {
-                        cornerDirection = Vector3.UnitY;
+                        cornerDirection = Vector3.UnitZ;
                     }
                 }
                 combinedDecimated = combinedFull.ResampleDecimation(reconstructionMethod, maxFaceCountTarget, clippingBounds: minimumBounds, cornerDirection: cornerDirection);
