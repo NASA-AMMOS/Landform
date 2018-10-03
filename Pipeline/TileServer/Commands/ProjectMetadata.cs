@@ -97,19 +97,23 @@ namespace OPS.Pipeline.TileServer
             var sanitizedInputs = new List<SanitizedInput>();
             foreach (var input in inputs)
             {
-                var sanitizedInput = new SanitizedInput {
-                    Name = input.Name,
-                    MeshUrl = TileServerConfig.ConvertUrlToHttps(input.MeshUrl),
-                    ImageUrl = TileServerConfig.ConvertUrlToHttps(input.MeshUrl),
-                    Processed = input.Chunked
-                };
-                if (input.Chunked)
+                //if project deletion is ongoing then input could be null here
+                if (input != null)
                 {
-                    sanitizedInput.ImageBands = input.ImageBands;
-                    sanitizedInput.ImageWidth = input.ImageWidth;
-                    sanitizedInput.ImageHeight = input.ImageHeight;
+                    var sanitizedInput = new SanitizedInput {
+                        Name = input.Name,
+                        MeshUrl = TileServerConfig.ConvertUrlToHttps(input.MeshUrl),
+                        ImageUrl = TileServerConfig.ConvertUrlToHttps(input.MeshUrl),
+                        Processed = input.Chunked
+                    };
+                    if (input.Chunked)
+                    {
+                        sanitizedInput.ImageBands = input.ImageBands;
+                        sanitizedInput.ImageWidth = input.ImageWidth;
+                        sanitizedInput.ImageHeight = input.ImageHeight;
+                    }
+                    sanitizedInputs.Add(sanitizedInput);
                 }
-                sanitizedInputs.Add(sanitizedInput);
             }
             md.Inputs = sanitizedInputs;
 
@@ -121,7 +125,8 @@ namespace OPS.Pipeline.TileServer
                 int numProcessed = 0;
                 foreach (var node in nodes)
                 {
-                    if (!string.IsNullOrEmpty(node.MeshUrl))
+                    //if project deletion is ongoing then node could be null here
+                    if (node != null && !string.IsNullOrEmpty(node.MeshUrl))
                     {
                         numProcessed++;
                     }
