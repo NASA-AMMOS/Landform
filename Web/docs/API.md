@@ -10,8 +10,10 @@ Fails with HTTP status 400 (bad request) if a project with the same name already
 Accepts the following arugments:
 * *tilingscheme*: tiling scheme; one of `Bin`, `QuadX`, `QuadY`, `QuadZ`, `Oct`, or `UserDefined`; default `Bin`
 * *skirtmode*: skirt mode; one of `None`, `X`, `Y`, `Z`; default `None`
+* *reconmethod*: reconstruction method; one of `Poisson`, `FSSR`; default `Poisson`
 * *facespertile*: target maximum faces per tile; default 2000
 * *tileresolution*: maximum image resolution per tile; default 256
+* *projecttype*: project type; one of `GenericTiling` or `MSL`, default `GenericTiling`.
 
 **Example:**  create project "testproj"
 
