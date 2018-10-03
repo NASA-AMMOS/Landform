@@ -73,12 +73,15 @@ namespace OPS.Pipeline.TileServer
             }
             else
             {
+                int n = 0;
                 foreach (var pid in projectCache.GetDependentTilesToRun(tileId))
                 {
+                    n++;
                     logger.Info("enquing parent " + pid + " in " + projectName);
                     workerQueue.Enqueue(new BuildParentMessage(projectName, pid));
-                    projectCache.MarkEnqued(pid);
+                    projectCache.MarkEnqueued(pid);
                 }
+                logger.Info("enqueued " + n + " parents in " + projectName);
             }
         }
 

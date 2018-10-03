@@ -32,13 +32,15 @@ namespace OPS.Pipeline.TileServer
 
         static ILog logger = LogManager.GetLogger(typeof(BuildBakedLeaves));
 
-        StartWorker pipeline;
         BuildBakedLeavesMessage message;
+        PipelineCore pipeline;
+        TileServerCloud cloud;
 
-        public BuildBakedLeaves(BuildBakedLeavesMessage message, StartWorker pipeline)
+        public BuildBakedLeaves(BuildBakedLeavesMessage message, PipelineCore pipeline, TileServerCloud cloud)
         {
-            this.pipeline = pipeline;
             this.message = message;
+            this.pipeline = pipeline;
+            this.cloud = cloud;
         }
 
         class InputChunkGroup
@@ -62,7 +64,7 @@ namespace OPS.Pipeline.TileServer
                 if (n.MeshUrl != null)
                 {
                     logger.Info(n.Id + " skipping");
-                    pipeline.CompletionQueue.Enqueue(new TileCompletedMessage(project.Name, n.Id));
+                    cloud.MasterQueue.Enqueue(new TileCompletedMessage(project.Name, n.Id));
                 }
             }
             // Filter any completed leaves
@@ -114,7 +116,10 @@ namespace OPS.Pipeline.TileServer
                 if (imgUrl != null)
                 {
                     hasImages = true;
-                    image = new SparseCloudImage(group.Input.ImageBands, group.Input.ImageWidth, group.Input.ImageHeight, imgUrl, ChunkInput.IMAGE_EXT, pipeline, ChunkInput.CHUNK_RESOLUTION);
+                    image = new SparseCloudImage(group.Input.ImageBands,
+                                                 group.Input.ImageWidth, group.Input.ImageHeight,
+                                                 imgUrl, ChunkInput.IMAGE_EXT,
+                                                 pipeline, ChunkInput.CHUNK_RESOLUTION);
                 }
                 bakeClipper.AddInput(new MultiMeshClipperInput(mergedMesh, image));
             }
@@ -131,8 +136,10 @@ namespace OPS.Pipeline.TileServer
                 }
                 leaf.SaveMesh(pair, pipeline, 0);
                 processed.Add(leaf);
-                pipeline.CompletionQueue.Enqueue(new TileCompletedMessage(project.Name, leaf.Id));
-                logger.Info(string.Format(leaf.Id + " generating from {0} chunks ({1}/{2})", inputGroups.SelectMany(g => g.Chunks).Count(), processed.Count(), leaves.Count));
+                cloud.MasterQueue.Enqueue(new TileCompletedMessage(project.Name, leaf.Id));
+                logger.Info(string.Format(leaf.Id + " generating from {0} chunks ({1}/{2})",
+                                          inputGroups.SelectMany(g => g.Chunks).Count(),
+                                          processed.Count(), leaves.Count));
             });
         }     
     }

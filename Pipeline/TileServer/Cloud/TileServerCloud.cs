@@ -11,11 +11,17 @@ using System.Threading.Tasks;
 
 namespace OPS.Pipeline.TileServer
 {
-    class TileServerCloud
+    public class TileServerCloud
     {
         
 
-        Type[] tableTypes = new Type[] { typeof(TilingProject), typeof(TilingInput), typeof(TilingNode), typeof(TilingInputChunk) };
+        Type[] tableTypes = new Type[]
+            {
+                typeof(TilingProject),
+                typeof(TilingInput),
+                typeof(TilingNode),
+                typeof(TilingInputChunk)
+            };
 
         PipelineCore pipeline;
 
@@ -26,14 +32,30 @@ namespace OPS.Pipeline.TileServer
             this.pipeline = pipelineCore;
         }
 
+        private TilingQueue _workerQueue;
         public TilingQueue WorkerQueue
         {
-            get { return new TilingQueue(TileServerConfig.Instance.VenueName, pipeline.Profile); }
+            get
+            {
+                if (_workerQueue == null)
+                {
+                    _workerQueue = new TilingQueue(TileServerConfig.Instance.VenueName + "_worker", pipeline.Profile);
+                }
+                return _workerQueue;
+            }
         }
 
-        public TilingQueue CompletionQueue
+        private TilingQueue _masterQueue;
+        public TilingQueue MasterQueue
         {
-            get { return new TilingQueue(TileServerConfig.Instance.VenueName + "_completion", pipeline.Profile); }
+            get
+            {
+                if (_masterQueue == null)
+                {
+                    _masterQueue = new TilingQueue(TileServerConfig.Instance.VenueName + "_master", pipeline.Profile);
+                }
+                return _masterQueue;
+            }
         }
 
         public void EnsureTablesExist()

@@ -32,13 +32,15 @@ namespace OPS.Pipeline.TileServer
 
         static ILog logger = LogManager.GetLogger(typeof(BuildParent));
 
-        StartWorker pipeline;
         BuildParentMessage message;
+        PipelineCore pipeline;
+        TileServerCloud cloud;
 
-        public BuildParent(BuildParentMessage message, StartWorker pipeline)
+        public BuildParent(BuildParentMessage message, PipelineCore pipeline, TileServerCloud cloud)
         {
-            this.pipeline = pipeline;
             this.message = message;
+            this.pipeline = pipeline;
+            this.cloud = cloud;
         }
         
         public void Process()
@@ -48,11 +50,12 @@ namespace OPS.Pipeline.TileServer
             if (parent.MeshUrl != null)
             {
                 logger.Info(parent.Id + " skipping");
-                pipeline.CompletionQueue.Enqueue(new TileCompletedMessage(project.Name, parent.Id));
+                cloud.MasterQueue.Enqueue(new TileCompletedMessage(project.Name, parent.Id));
                 return;
             }
             ConcurrentDictionary<string, SceneNode> idToNode = new ConcurrentDictionary<string, SceneNode>();
-            var dependsOnTilingNodes = parent.DependsOn.Select(cid => TilingNode.Find(pipeline.DynamoContext, project.Name, cid));
+            var dependsOnTilingNodes = parent.DependsOn.Select(cid => TilingNode.Find(pipeline.DynamoContext,
+                                                                                      project.Name, cid));
             Serial.ForEach(dependsOnTilingNodes, n =>
             {
                 SceneNode node = n.GetSceneNode();
@@ -73,10 +76,11 @@ namespace OPS.Pipeline.TileServer
                 idToNode[childId].Transform.SetParent(parentSceneNode.Transform);
             }
             logger.Info(parent.Id + " generating from " + parent.DependsOn.Count + " tiles");
-            parentSceneNode.BuildGeometryFromChildren(parentSceneNode, project.GetReconMethod(), project.FacesPerTile, project.TileResolution, project.GetSkirtMode());
+            parentSceneNode.BuildGeometryFromChildren(parentSceneNode, project.GetReconMethod(), project.FacesPerTile,
+                                                      project.TileResolution, project.GetSkirtMode());
             var pair = parentSceneNode.GetComponent<MeshImagePair>();
             parent.SaveMesh(pair, pipeline, parentSceneNode.GetComponent<NodeGeometricError>().Error);
-            pipeline.CompletionQueue.Enqueue(new TileCompletedMessage(project.Name, parent.Id));
+            cloud.MasterQueue.Enqueue(new TileCompletedMessage(project.Name, parent.Id));
         }
     }
 }

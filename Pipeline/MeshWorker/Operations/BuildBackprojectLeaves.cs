@@ -33,8 +33,10 @@ namespace OPS.Pipeline.MeshWorker
     {
         static ILog logger = LogManager.GetLogger(typeof(BuildBackprojectLeaves));
 
-        StartWorker pipeline;
         BuildBackprojectLeavesMessage message;
+        PipelineCore pipeline;
+        TileServerCloud cloud;
+
         Options options;
 
         struct Options
@@ -42,12 +44,13 @@ namespace OPS.Pipeline.MeshWorker
             public string AlignmentProjectName; //the project name that contains the alignment data to be used with this tiling project
         }
 
-        public BuildBackprojectLeaves(BuildBackprojectLeavesMessage message, StartWorker pipeline)
+        public BuildBackprojectLeaves(BuildBackprojectLeavesMessage message, PipelineCore pipeline, TileServerCloud cloud)
         {
-            this.pipeline = pipeline;
             this.message = message;
+            this.pipeline = pipeline;
+            this.cloud = cloud;
 
-            this.options.AlignmentProjectName = message.ProjectName;
+            options.AlignmentProjectName = message.ProjectName;
         }
 
         class InputChunkGroup
@@ -126,7 +129,7 @@ namespace OPS.Pipeline.MeshWorker
                 ThroughputManager.Run(() => TilingNode.Find(pipeline.DynamoContext, project.Name, leaf.Id).SaveMesh(leafPair, pipeline, 0));
 
                 //notify the tiling server that a tile is ready for building into parent tiles
-                pipeline.CompletionQueue.Enqueue(new TileCompletedMessage(project.Name, leaf.Id));                
+                cloud.MasterQueue.Enqueue(new TileCompletedMessage(project.Name, leaf.Id));                
             });
 
             logger.Info("Completed generating " + tiledMeshes + " tiles.");
@@ -298,7 +301,7 @@ namespace OPS.Pipeline.MeshWorker
                 if (n.MeshUrl != null)
                 {
                     logger.Info(n.Id + " skipping");
-                    pipeline.CompletionQueue.Enqueue(new TileCompletedMessage(project.Name, n.Id));
+                    cloud.MasterQueue.Enqueue(new TileCompletedMessage(project.Name, n.Id));
                 }
             }
 

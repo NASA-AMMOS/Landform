@@ -36,13 +36,16 @@ namespace OPS.Pipeline.TileServer
         public const string IMAGE_EXT = ".tif";
         public const int CHUNK_RESOLUTION = 2048;
         const int FacesPerChunk = 100000;
-        StartWorker pipeline;
-        ChunkInputMessage message;
 
-        public ChunkInput(ChunkInputMessage message, StartWorker pipeline)
+        ChunkInputMessage message;
+        PipelineCore pipeline;
+        TileServerCloud cloud;
+
+        public ChunkInput(ChunkInputMessage message, PipelineCore pipeline, TileServerCloud cloud)
         {
-            this.pipeline = pipeline;
             this.message = message;
+            this.pipeline = pipeline;
+            this.cloud = cloud;
         }
 
         class ChunkData
@@ -59,17 +62,17 @@ namespace OPS.Pipeline.TileServer
 
         public void Process()
         {
-            logger.Info("Processing message");
+            logger.Info("Chunking input " + message.InputName + " in project " + message.ProjectName);
             var project = TilingProject.Find(pipeline.DynamoContext, message.ProjectName);
             var input = TilingInput.Find(pipeline.DynamoContext, project.Name, message.InputName);
             if (input.Chunked)
             {
                 logger.Info("Input has already been chunked");
-                pipeline.CompletionQueue.Enqueue(message);
+                cloud.MasterQueue.Enqueue(message);
                 return;
             }
 
-            logger.Info("Downloading: " + input.MeshUrl);
+            logger.Info("Downloading " + input.MeshUrl);
             Mesh mesh = null;
             TemporaryFile.GetAndDelete(Path.GetExtension(input.MeshUrl), f =>
             {
@@ -82,7 +85,7 @@ namespace OPS.Pipeline.TileServer
             string imageBaseUrl = null;
             if (input.ImageUrl != null)
             {
-                logger.Info("Downloading: " + input.ImageUrl);
+                logger.Info("Downloading " + input.ImageUrl);
                 TemporaryFile.GetAndDelete(Path.GetExtension(input.ImageUrl), f =>
                 {
                     pipeline.Storage(input.ImageUrl).DownloadFile(input.ImageUrl, f);
@@ -120,7 +123,8 @@ namespace OPS.Pipeline.TileServer
                     m.Save(f);
                     string meshUrl = TileServerConfig.Instance.ChunkUrl(project.Name, id + MESH_EXT);
                     pipeline.Storage(meshUrl).UploadFile(f, meshUrl);
-                    TilingInputChunk record = TilingInputChunk.Create(pipeline.DynamoContext, id, project, meshUrl, imageBaseUrl, m.Bounds());
+                    TilingInputChunk record = TilingInputChunk.Create(pipeline.DynamoContext, id, project,
+                                                                      meshUrl, imageBaseUrl, m.Bounds());
                     chunkIds.Add(id);
                     logger.Info(string.Format("Chunk: {0}/{1}", chunkIds.Count(), leaves.Count));
                 });
@@ -128,9 +132,8 @@ namespace OPS.Pipeline.TileServer
             input.ChunkIds = chunkIds.ToList();
             input.Chunked = true;
             input.Save(pipeline.DynamoContext);
-            pipeline.CompletionQueue.Enqueue(message);
-            logger.Info("Done");
+            cloud.MasterQueue.Enqueue(message);
+            logger.Info("Chunk input done");
         }
-
     }
 }

@@ -32,8 +32,10 @@ namespace OPS.Pipeline.MeshWorker
     {
         static ILog logger = LogManager.GetLogger(typeof(BuildTilingInput));
 
-        StartWorker pipeline;
         BuildTilingInputMessage message;
+        PipelineCore pipeline;
+        TileServerCloud cloud;
+
         Options options;
 
         struct Options
@@ -43,16 +45,17 @@ namespace OPS.Pipeline.MeshWorker
             public int TableReadCapacity;       //dynamo throttling: provisioned read capacity
         }
 
-        public BuildTilingInput(BuildTilingInputMessage message, StartWorker pipeline)
+        public BuildTilingInput(BuildTilingInputMessage message, PipelineCore pipeline, TileServerCloud cloud)
         {
-            this.pipeline = pipeline;
             this.message = message;
+            this.pipeline = pipeline;
+            this.cloud = cloud;
 
-            this.options.AlignmentProjectName = message.ProjectName;
+            options.AlignmentProjectName = message.ProjectName;
 
             //Issue #268: query/build these values from AWS apis
-            this.options.EstimatedItemSizeBytes = 820;
-            this.options.TableReadCapacity = 50;
+            options.EstimatedItemSizeBytes = 820;
+            options.TableReadCapacity = 50;
         }
 
         struct PointCloudObservations
@@ -138,15 +141,15 @@ namespace OPS.Pipeline.MeshWorker
             {
                 logger.Info("Uploading mesh: " + s3MeshOutputUrl);
                 surfacedMesh.Save(tempFile);
-                this.pipeline.Storage(s3MeshOutputUrl).UploadFile(tempFile, s3MeshOutputUrl);
+                pipeline.Storage(s3MeshOutputUrl).UploadFile(tempFile, s3MeshOutputUrl);
             });
 
             //create a tiling input
-            TilingProject tilingProject = TilingProject.Find(this.pipeline.DynamoContext, message.ProjectName);
-            TilingInput.Create(this.pipeline.DynamoContext, meshName, tilingProject, s3MeshOutputUrl, null, null);
+            TilingProject tilingProject = TilingProject.Find(pipeline.DynamoContext, message.ProjectName);
+            TilingInput.Create(pipeline.DynamoContext, meshName, tilingProject, s3MeshOutputUrl, null, null);
             
             //indicate successs to the tiling server master
-            pipeline.CompletionQueue.Enqueue(new BuildTilingInputMessage(this.message.ProjectName));
+            cloud.MasterQueue.Enqueue(new BuildTilingInputMessage(message.ProjectName));
             return 0;
         }
 
@@ -196,7 +199,7 @@ namespace OPS.Pipeline.MeshWorker
         private Image GetObservationImage(RoverObservation obs, params RoverProductType[] expectedProductTypes)
         {
             S3ImageRef s3ref = new S3ImageRef(obs.Url);
-            Image img = this.pipeline.Load(s3ref, false, ImageConverters.PassThrough);
+            Image img = pipeline.Load(s3ref, false, ImageConverters.PassThrough);
             PDSParser parser = new PDSParser((PDSMetadata)img.Metadata);
 
             if (parser.ProductId.Producer != RoverProductProducer.OPGS)
@@ -382,7 +385,7 @@ namespace OPS.Pipeline.MeshWorker
                 return null;
             }
 
-            Matrix observationToRoot = BuildFromAlignment.ObservationToRoot(this.pipeline.DynamoContext, pcInput.Points.Obs, frameCache).Mean;
+            Matrix observationToRoot = BuildFromAlignment.ObservationToRoot(pipeline.DynamoContext, pcInput.Points.Obs, frameCache).Mean;
             return Mesh.Transformed(ptsRoverFrame, observationToRoot);
         }
 

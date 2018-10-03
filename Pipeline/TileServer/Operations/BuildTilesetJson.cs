@@ -1,6 +1,7 @@
 ﻿using log4net;
 using Newtonsoft.Json;
 using OPS.Util;
+using OPS.Plumbing;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -22,13 +23,16 @@ namespace OPS.Pipeline.TileServer
 
         static ILog logger = LogManager.GetLogger(typeof(BuildTilesetJson));
 
-        StartWorker pipeline;
         BuildTilesetJsonMessage message;
+        PipelineCore pipeline;
+        TileServerCloud cloud;
+        
 
-        public BuildTilesetJson(BuildTilesetJsonMessage message, StartWorker pipeline)
+        public BuildTilesetJson(BuildTilesetJsonMessage message, PipelineCore pipeline, TileServerCloud cloud)
         {
-            this.pipeline = pipeline;
             this.message = message;
+            this.pipeline = pipeline;
+            this.cloud = cloud;
         }
 
 
@@ -55,7 +59,7 @@ namespace OPS.Pipeline.TileServer
                 string url = TileServerConfig.Instance.WWWUrl(project.Name, "tileset.json");
                 pipeline.Storage(url).UploadFile(f, url);
             });
-            pipeline.CompletionQueue.Enqueue(this.message);
+            cloud.MasterQueue.Enqueue(this.message);
         }
     }
 }

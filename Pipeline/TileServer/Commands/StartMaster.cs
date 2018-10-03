@@ -57,12 +57,10 @@ namespace OPS.Pipeline.TileServer
         void RunMaster()
         {
             var cloud = new TileServerCloud(this);
-            var workerQueue = cloud.WorkerQueue;
-            var completionQueue = cloud.CompletionQueue;
 
             while (true)
             {
-                var messages = completionQueue.Deque(TilingQueue.MAX_MESSAGES_PER_DEQUEUE);
+                var messages = cloud.MasterQueue.Dequeue(TilingQueue.MAX_MESSAGES_PER_DEQUEUE);
                 foreach (var m in messages) 
                 {
                     if (!projectNameToStateMachine.ContainsKey(m.ProjectName))
@@ -73,7 +71,7 @@ namespace OPS.Pipeline.TileServer
                     try
                     {
                         projectNameToStateMachine[m.ProjectName].ProcessCompletedMessage(m);
-                        completionQueue.Delete(m);
+                        cloud.MasterQueue.Delete(m);
                     }
                     catch (Exception e)
                     {

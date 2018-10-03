@@ -27,8 +27,9 @@ namespace OPS.Pipeline.TileServer
     {
         static ILog logger = LogManager.GetLogger(typeof(DefineTiles));
 
-        StartWorker pipeline;
         DefineTilesMessage message;
+        PipelineCore pipeline;
+        TileServerCloud cloud;
 
         class TileDependencyMapping
         {
@@ -70,15 +71,16 @@ namespace OPS.Pipeline.TileServer
             }
         }
 
-        public DefineTiles(DefineTilesMessage message, StartWorker pipeline)
+        public DefineTiles(DefineTilesMessage message, PipelineCore pipeline, TileServerCloud cloud)
         {
-            this.pipeline = pipeline;
             this.message = message;
+            this.pipeline = pipeline;
+            this.cloud = cloud;
         }
 
         public void Process()
         {
-            logger.Info("Processing message");
+            logger.Info("Defining tiles in project " + message.ProjectName);
             var project = TilingProject.Find(pipeline.DynamoContext, message.ProjectName);
             if(project == null)
             {
@@ -87,8 +89,8 @@ namespace OPS.Pipeline.TileServer
             }
             if(project.TilesDefined)
             {
-                logger.Info("Tiles have already been defined for this project");
-                pipeline.CompletionQueue.Enqueue(message);
+                logger.Info("Tiles have already been defined for project " + message.ProjectName);
+                cloud.MasterQueue.Enqueue(message);
                 return;
             }
 
@@ -182,7 +184,7 @@ namespace OPS.Pipeline.TileServer
             project.NodeIds = ids;
             project.TilesDefined = true;
             project.Save(pipeline.DynamoContext);
-            pipeline.CompletionQueue.Enqueue(message);
+            cloud.MasterQueue.Enqueue(message);
         }
 
         MeshImagePair DownloadInput(TilingInput input)

@@ -67,7 +67,7 @@ namespace OPS.Pipeline.TileServer
             }
         }
 
-        public void MarkEnqued(string id)
+        public void MarkEnqueued(string id)
         {
             lock (lockObj)
             {

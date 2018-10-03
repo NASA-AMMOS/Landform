@@ -91,7 +91,7 @@ namespace OPS.Pipeline.TileServer
                 workerQueue.Enqueue(leafJob);
                 foreach (var leaf in group)
                 {
-                    projectCache.MarkEnqued(leaf.Name);
+                    projectCache.MarkEnqueued(leaf.Name);
                 }
             }
         }       
