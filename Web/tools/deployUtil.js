@@ -91,7 +91,7 @@ async function checkTTY(cmd) {
   } else if (uname.startsWith('mingw')) {
 
     if (process.stdout.isTTY) return true;
-    console.log(`run 'winpty node tools/${cmd}.js [args]' in git bash, or use Windows cmd`);
+    console.log(`this command requires a TTY: run 'winpty node tools/${cmd}.js [args]' in git bash or use Windows cmd`);
     return false;
   }
 
