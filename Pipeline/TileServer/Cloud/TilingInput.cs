@@ -58,18 +58,22 @@ namespace OPS.Pipeline.TileServer
         public static TilingInput Create(DynamoDBContext context, string name, TilingProject project,
                                          string meshUrl, string imageUrl, string id)
         {
+            TilingInput input = new TilingInput(name, project.Name, meshUrl, imageUrl, id);
+            input.Save(context);
+
             if (project.InputNames == null)
             {
                 project.InputNames = new List<string>();
             }
-            else if (project.InputNames.Contains(name))
+
+            //not necessarily an error if project.InputNames already contains this input name
+            //in that case the save() above will just update the TilingInput table with any changes
+            if (!project.InputNames.Contains(name))
             {
-                throw new ArgumentException("project \"" + project.Name + "\" already contains input \"" + name + "\"");
+                project.InputNames.Add(name);
+                context.Save(project);
             }
-            TilingInput input = new TilingInput(name, project.Name, meshUrl, imageUrl, id);
-            context.Save(input);
-            project.InputNames.Add(name);
-            context.Save(project);
+            
             return input;
         }
 
@@ -77,7 +81,6 @@ namespace OPS.Pipeline.TileServer
         {
             return context.Load<TilingInput>(name, projectName);
         }
-
 
         public static IEnumerable<TilingInput> Find(DynamoDBContext context, TilingProject project)
         {

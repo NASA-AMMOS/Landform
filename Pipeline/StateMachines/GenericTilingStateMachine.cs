@@ -21,67 +21,32 @@ namespace OPS.Pipeline.TileServer
             return "GenericTiling";
         }
 
-        override public void ProcessCompletedMessage(TilingQueueMessage m)
+        override public bool ProcessMessage(TilingQueueMessage m)
         {
-            if (m.ProjectName != projectName)
+            if (base.ProcessMessage(m))
             {
-                throw new ArgumentException(string.Format("received message for project \"{0}\", expected \"{1}\"",
-                                                          m.ProjectName, projectName));
+                return true;
             }
+
+            bool processed = false;
 
             if (m.GetType() == typeof(RunProjectMessage))
             {
-                logger.Info("running project " + projectName);
-                projectCache.Clear();
-                workerQueue.Enqueue(new DefineTilesMessage(projectName));
+                RunProject(new DefineTilesMessage(projectName));
+                processed = true;
             }
-            else if (m.GetType() == typeof(DefineTilesMessage))
-            {
-                logger.Info("tiles defined in " + m.ProjectName);
 
-                var project = TilingProject.Find(pipeline.DynamoContext, projectName);
-
-                projectCache.Init(pipeline.DynamoContext, project); //must be called after tiles are defined
-
-                if (project.TilingScheme == TilingScheme.UserDefined.ToString())
-                {
-                    BuildBakedLeaves(); //skip chunking
-                }
-                else
-                {
-                    bool allChunked = ChunkInputs(project);
-                    if (allChunked)
-                    {
-                        BuildBakedLeaves();
-                    }
-                }
-            }
-            else if (m.GetType() == typeof(ChunkInputMessage))
-            {
-                bool allChunked = InputChunked(((ChunkInputMessage)m).InputName);
-                if (allChunked)
-                {
-                    BuildBakedLeaves();
-                }
-            }
-            else if (m.GetType() == typeof(TileCompletedMessage))
-            {
-                TileCompleted(((TileCompletedMessage)m).TileId);
-            }
-            else if (m.GetType() == typeof(BuildTilesetJsonMessage))
-            {
-                TilesetCompleted();
-            }
-            else
-            {
-                logger.Info("Unknown message type: " + m.GetType());
-            }
+            return processed;
         }
 
-        protected void BuildBakedLeaves()
+        protected override bool SkipChunking(TilingProject project)
+        {
+            return project.TilingScheme == TilingScheme.UserDefined.ToString();
+        }
+
+        protected override void BuildLeaves(TilingProject project)
         {
             logger.Info("building baked leaves in " + projectName);
-            var project = TilingProject.Find(pipeline.DynamoContext, projectName);
             SceneNode root = TilingNode.BuildTreeFromDatabase(pipeline.DynamoContext, project);
             List<List<SceneNode>> leafGroups = new List<List<SceneNode>>();
             GroupSceneNodesIntoJobs(root, leafGroups);

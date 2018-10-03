@@ -8,6 +8,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Serialization;
 
 namespace OPS.Pipeline.TileServer
 {
@@ -39,6 +40,24 @@ namespace OPS.Pipeline.TileServer
         public int? NumNodes;
         public int? NumProcessedNodes;
         public string OutputUrl;
+    }
+
+    public class IgnorePropertiesResolver : DefaultContractResolver
+    {
+        private HashSet<string> ignore;
+
+        public IgnorePropertiesResolver(params string[] names)
+        {
+            ignore = new HashSet<string>(names);
+        }
+
+        protected override JsonProperty CreateProperty(System.Reflection.MemberInfo mi, MemberSerialization ms)
+        {
+            JsonProperty prop = base.CreateProperty(mi, ms);
+            string name = prop.DeclaringType.Name + "." + prop.PropertyName;
+            prop.Ignored = ignore.Contains(name);
+            return prop;
+        }
     }
 
     public class ProjectMetadata : PipelineCore
@@ -112,8 +131,11 @@ namespace OPS.Pipeline.TileServer
 
             md.OutputUrl = TileServerConfig.Instance.WWWUrl(project.Name, "tileset.json", https: true);
 
-            //not using JsonHelper.ToJson() because here we don't want the $type fields
-            Console.WriteLine(JsonConvert.SerializeObject(md, Formatting.Indented));
+            var settings = new JsonSerializerSettings
+            {
+                ContractResolver = new IgnorePropertiesResolver("TilingProject.NodeIds", "TilingProject.InputNames")
+            };
+            Console.WriteLine(JsonConvert.SerializeObject(md, Formatting.Indented, settings));
 
             return 0;
         }

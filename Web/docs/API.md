@@ -5,8 +5,6 @@ All API methods require an API token to be set as an `x-landform-token` HTTP hea
 ### Create Project: POST /api/projects/*name*
 Create the named project.  Implements the [task API](#task-api).
 
-Fails with HTTP status 400 (bad request) if a project with the same name already exists.
-
 Accepts the following arugments:
 * *tilingscheme*: tiling scheme; one of `Bin`, `QuadX`, `QuadY`, `QuadZ`, `Oct`, or `UserDefined`; default `Bin`
 * *skirtmode*: skirt mode; one of `None`, `X`, `Y`, `Z`; default `None`
@@ -14,6 +12,14 @@ Accepts the following arugments:
 * *facespertile*: target maximum faces per tile; default 2000
 * *tileresolution*: maximum image resolution per tile; default 256
 * *projecttype*: project type; one of `GenericTiling` or `MSL`, default `GenericTiling`.
+
+Fails with HTTP status 400 (bad request) if a project with the same name already exists.
+
+If multiple calls to this API are made in rapid succession with the same project name only one will succeed.  However, in this case it is possible that the HTTP status of more than one of the calls may be HTTP 200 (OK).
+
+The return status may be HTTP 200 even if one or more arguments are invalid.  However the project will not actually be created in that case.
+
+This API may return before the project is actually created, even if the [async task API](#asynchronous-task-api) is not requested.  Poll the project metadata API `/api/projects/*name*` to determine when the project has been created.
 
 **Example:**  create project "testproj"
 
@@ -45,7 +51,14 @@ Response
 ### Upload Data: POST /api/projects/*name*/upload
 Upload data for the named project.  Implements the [task API](#task-api).
 
+Accepts the following arguments in a `multipart/form-data` encoded HTTP request body:
+* *mesh*: mesh data file (required); data format will be implied from filename extension
+* *texture*: texture image file (optional); data format will be implied from filename extension
+* *tileid*: tile ID string; must be given if and only if the tiling scheme for the project is `UserDefined` (this argument may also be specified as a URL parameter).
+
 Fails with HTTP status 400 (bad request) if the named project does not exist.
+
+If the project is deleted or run quickly after a call to this API then it is possible that the HTTP status will be 200 (OK) but the upload will not ultimately succeed.
 
 Data formats are implied from the filename extension.
 
@@ -53,19 +66,13 @@ Supported extensions for mesh files include `.obj` and `.ply`.  PLY files may be
 
 Supported extensions for image files include `.tiff`, `.tif`, `.jpg`, and `.png`. TIFF files may be 8 or 16 bit.  Images may be greyscale or 3 band color.
 
-Uploading data with the same mesh file basename (i.e. the filename omitting the extension) into the same project more than once is an error.
-
-If more than one mesh/image pair dataset is is uploaded in the same project where the image filenames are the same but the image data is different, only the most recently uploaded image data will be used for that image filename for all datasets.
+If more than upload is made with the same mesh basename (filename excluding extension) in a project then only the most recently uploaded data will be used.
 
 All uploads must be complete before a project starts running.  The inputs used by a project are determined at the time the project is first run.  Additional inputs uploaded to the project after that time are ignored, even if the project is re-run.
 
 Input data is validated when a project is run, not on upload.
 
-Accepts the following arguments in a `multipart/form-data` encoded HTTP request body:
-* *mesh*: mesh data file (required); data format will be implied from filename extension
-* *texture*: texture image file (optional); data format will be implied from filename extension
-* *tileid*: tile ID string; must be given if and only if the tiling scheme is user-defined (may also be specified as a URL query parameter)
-* all task API arguments (may also be specified as URL query parameters)
+This API may return before the upload is added to the project, even if the [async task API](#asynchronous-task-api) is not requested.  Poll the project metadata API `/api/projects/*name*` to determine when the data has been added.
 
 **Example:** upload "inputMeshSmall.ply" and "inputImage.png" to "testproj"
 
@@ -109,7 +116,9 @@ Initiate a run of a project.  Implements the [task API](#task-api).
 
 Fails with HTTP status 400 (bad request) if the named project does not exist.
 
-This task only initiates the execution of a project.  It will typically complete before the project is actually finished running.  To determine whether the project execution has completed, do one of the following:
+If the project is deleted quickly after a call to this API then it is possible that the HTTP status will be 200 (OK) but the run will fail.
+
+This task only initiates the execution of a project.  It will typically complete before the project is actually finished running even if the [async task API](#asynchronous-task-api) is not requested.  To determine whether the project execution has completed, do one of the following:
 * poll the project metadata via `/api/projects/*name*` and wait for `Project.FinishedRunning=true`
 * get the project result URL via `/api/projects/*name*/result?redirect=false` and poll it until the status is HTTP 200 (OK).
 
@@ -278,7 +287,13 @@ Response
 ### Delete Project: DELETE /api/projects/*name*
 Delete the named project. Implements the [task API](#task-api).
 
-Fails with HTTP status 400 (bad request) if the named project is currently running.
+Fails with HTTP status 400 (bad request) if the named project does not exist or is currently running.
+
+If multiple calls to this API are made in rapid succession with the same project name only one will succeed.  However, in this case it is possible that the HTTP status of more than one of the calls may be HTTP 200 (OK).
+
+If the project is run quickly after this API is called then the deletion may fail even though the status of the delete call may have been HTTP 200.
+
+This API may return before the project is deleted, even if the [async task API](#asynchronous-task-api) is not requested.  Poll the project metadata API `/api/projects/*name*` to determine when the project has been deleted.
 
 **Example:**  delete project "testproj"
 

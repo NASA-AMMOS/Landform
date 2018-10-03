@@ -43,7 +43,8 @@ namespace OPS.Pipeline.TileServer
 
         CreateProjectOptions options;
 
-        public CreateProject(CreateProjectOptions options) : base(dynamoPrefix: TileServerConfig.Instance.VenueName, profile: TileServerConfig.Instance.Profile)
+        public CreateProject(CreateProjectOptions options)
+            : base(dynamoPrefix: TileServerConfig.Instance.VenueName, profile: TileServerConfig.Instance.Profile)
         {
             this.options = options;
         }
@@ -52,18 +53,22 @@ namespace OPS.Pipeline.TileServer
         {
             var cloud = new TileServerCloud(this);
             cloud.EnsureTablesExist();
-            var tmp = cloud.CompletionQueue;
-            tmp = cloud.WorkerQueue;
+
             if (TilingProject.Find(this.DynamoContext, options.ProjectName) != null)
             {
                 logger.Info("A project by that name already exists");
                 return 1;
             }
-            else
-            {
-                logger.Info("Creating project: " + options.ProjectName);
-                TilingProject.Create(this.DynamoContext, options.ProjectName, options.TilingScheme, options.SkirtMode, options.ReconMethod, options.FacesPerTile, options.TileResolution, options.ProjectType);
-            }
+
+            cloud.MasterQueue.Enqueue(new CreateProjectMessage(options.ProjectName)
+                                      {
+                                          TilingScheme = options.TilingScheme,
+                                          SkirtMode = options.SkirtMode,
+                                          ReconMethod = options.ReconMethod,
+                                          FacesPerTile = options.FacesPerTile,
+                                          TileResolution = options.TileResolution,
+                                          ProjectType = options.ProjectType
+                                      });
             return 0;
         }
 

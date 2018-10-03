@@ -31,7 +31,8 @@ namespace OPS.Pipeline.TileServer
 
         public int Run()
         {
-            new TileServerCloud(this).EnsureTablesExist();
+            var cloud = new TileServerCloud(this);
+            cloud.EnsureTablesExist();
 
             var project = TilingProject.Find(DynamoContext, options.ProjectName);
 
@@ -43,11 +44,11 @@ namespace OPS.Pipeline.TileServer
 
             if (project.StartedRunning && !project.FinishedRunning)
             {
-                logger.Error("Cannot delete project that is currently running");
+                logger.Error("Cannot delete project " + options.ProjectName + " that is currently running");
                 return 1;
             }
 
-            project.Delete(this, true, logger);
+            cloud.MasterQueue.Enqueue(new DeleteProjectMessage(options.ProjectName));
 
             return 0;
         }
