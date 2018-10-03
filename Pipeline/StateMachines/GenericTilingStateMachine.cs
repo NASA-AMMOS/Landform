@@ -21,45 +21,14 @@ namespace OPS.Pipeline.TileServer
             return "GenericTiling";
         }
 
-        override public bool ProcessMessage(TilingQueueMessage m)
-        {
-            if (base.ProcessMessage(m))
-            {
-                return true;
-            }
-
-            bool processed = false;
-
-            if (m.GetType() == typeof(RunProjectMessage))
-            {
-                RunProject(new DefineTilesMessage(projectName));
-                processed = true;
-            }
-
-            return processed;
-        }
-
         protected override bool SkipChunking(TilingProject project)
         {
             return project.TilingScheme == TilingScheme.UserDefined.ToString();
         }
 
-        protected override void BuildLeaves(TilingProject project)
+        protected override TilingQueueMessage MakeLeafJobMessage(List<string> leaves)
         {
-            logger.Info("building baked leaves in " + projectName);
-            SceneNode root = TilingNode.BuildTreeFromDatabase(pipeline.DynamoContext, project);
-            List<List<SceneNode>> leafGroups = new List<List<SceneNode>>();
-            GroupSceneNodesIntoJobs(root, leafGroups);
-
-            foreach (var group in leafGroups)
-            {
-                var leafJob = new BuildBakedLeavesMessage(projectName, group.Select(n => n.Name).ToList());
-                workerQueue.Enqueue(leafJob);
-                foreach (var leaf in group)
-                {
-                    projectCache.MarkEnqueued(leaf.Name);
-                }
-            }
+            return new BuildBakedLeavesMessage(projectName, leaves);
         }
     }
 }

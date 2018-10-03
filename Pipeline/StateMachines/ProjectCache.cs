@@ -7,138 +7,129 @@ namespace OPS.Pipeline.TileServer
 {
     class ProjectCache
     {
-        HashSet<string> ids;
-        Dictionary<string, List<string>> dependedOnBy;
-        Dictionary<string, List<string>> dependsOn;
-        HashSet<string> completed;
-        HashSet<string> enqued;
-        public string RootId { get; private set; }
-        HashSet<string> inputsToChunk;
 
-        object lockObj = new object();
+        private DynamoDBContext context;
+        private string projectName;
 
-        public ProjectCache()
+        private bool initialized;
+
+        private string rootId;
+        private HashSet<string> ids;
+        private Dictionary<string, List<string>> dependedOnBy;
+        private Dictionary<string, List<string>> dependsOn;
+        private HashSet<string> completed;
+        private HashSet<string> enqued;
+        private HashSet<string> inputsToChunk;
+
+        public ProjectCache(DynamoDBContext context, string projectName)
         {
+            this.context = context;
+            this.projectName = projectName;
+            Reset();
         }
 
-        public void Clear()
+        public void Reset()
         {
-            lock (lockObj)
-            {
-                ids = new HashSet<string>();
-                dependedOnBy = new Dictionary<string, List<string>>();
-                dependsOn = new Dictionary<string, List<string>>();
-                completed = new HashSet<string>();
-                enqued = new HashSet<string>();
-                RootId = null;
-                inputsToChunk = new HashSet<string>();
-            }
+            initialized = false;
+            rootId = null;
+            ids = new HashSet<string>();
+            dependedOnBy = new Dictionary<string, List<string>>();
+            dependsOn = new Dictionary<string, List<string>>();
+            completed = new HashSet<string>();
+            enqued = new HashSet<string>();
+            inputsToChunk = new HashSet<string>();
         }
                 
-        public void Init(DynamoDBContext context, TilingProject project)
+        private void EnsureInitialized()
         {
-            lock (lockObj)
+            if (initialized)
             {
-                Clear();
-                var list = TilingNode.Find(context, project).ToList();
-                foreach (var n in list)
-                {
-                    ids.Add(n.Id);
+                return;
+            }
 
-                    if (n.DependedOnBy == null)
-                    {
-                        n.DependedOnBy = new List<string>();
-                    }
-                    if (n.DependsOn == null)
-                    {
-                        n.DependsOn = new List<string>();
-                    }
-                    dependedOnBy.Add(n.Id, n.DependedOnBy);
-                    dependsOn.Add(n.Id, n.DependsOn);
-                    if (n.MeshUrl != null)
-                    {
-                        completed.Add(n.Id);
-                    }
-                    if (n.ParentId == null)
-                    {
-                        RootId = n.Id;
-                    }
+            var project = TilingProject.Find(context, projectName);
+            if (project == null || !project.TilesDefined)
+            {
+                throw new System.Exception("cannot initialize cache for " + projectName +
+                                           ": project not found or tiles not defined yet");
+            }
+
+            var nodes = TilingNode.Find(context, project).ToList();
+            foreach (var n in nodes)
+            {
+                ids.Add(n.Id);
+                
+                if (n.DependedOnBy == null)
+                {
+                    n.DependedOnBy = new List<string>();
+                }
+                if (n.DependsOn == null)
+                {
+                    n.DependsOn = new List<string>();
+                }
+                dependedOnBy.Add(n.Id, n.DependedOnBy);
+                dependsOn.Add(n.Id, n.DependsOn);
+                if (n.MeshUrl != null)
+                {
+                    completed.Add(n.Id);
+                }
+                if (n.ParentId == null)
+                {
+                    rootId = n.Id;
                 }
             }
+
+            initialized = true;
+        }
+
+        public string RootId()
+        {
+            EnsureInitialized();
+            return rootId;
         }
 
         public void MarkEnqueued(string id)
         {
-            lock (lockObj)
-            {
-                enqued.Add(id);
-            }
+            EnsureInitialized();
+            enqued.Add(id);
         }
 
         public void MarkDone(string id)
         {
-            lock (lockObj)
-            {
-                completed.Add(id);
-            }
+            EnsureInitialized();
+            completed.Add(id);
         }
 
         public bool AlreadyProcessed(string id)
         {
-            lock (lockObj)
-            {
-                return enqued.Contains(id) || completed.Contains(id);
-            }
-        }
-
-        public bool ShouldRun(string id)
-        {
-            lock (lockObj)
-            {
-                // Don't run if we node is done or enqueued
-                if (AlreadyProcessed(id))
-                {
-                    return false;
-                }
-                // Only run if all nodes id depends on are completed
-                return dependsOn[id].All(i => completed.Contains(i));
-            }
+            EnsureInitialized();
+            return enqued.Contains(id) || completed.Contains(id);
         }
 
         public List<string> GetDependentTilesToRun(string id)
         {
-            lock (lockObj)
-            {
-                // Find all nodes that depend on id and return only those that are ready to run
-                return dependedOnBy[id].Where(i => ShouldRun(i)).ToList();
-            }
-        }
-
-        public List<string> GetTilesReadyToRun()
-        {
-            lock (lockObj)
-            {
-                var ready = ids.Where(i => ShouldRun(i)).ToList();
-                return ready;
-            }
+            EnsureInitialized();
+            return dependedOnBy[id].Where(i => ShouldRun(i)).ToList();
         }
 
         public void AddInputToChunk(string name)
         {
-            lock (lockObj)
-            {
-                inputsToChunk.Add(name);
-            }
+            EnsureInitialized();
+            inputsToChunk.Add(name);
         }
 
         //returns true when all inputs have been chunked
         public bool InputChunked(string name)
         {
-            lock (lockObj)
-            {
-                inputsToChunk.Remove(name);
-                return inputsToChunk.Count == 0;
-            }
+            EnsureInitialized();
+            inputsToChunk.Remove(name);
+            return inputsToChunk.Count == 0;
+        }
+
+        public bool ShouldRun(string id)
+        {
+            EnsureInitialized();
+            return !AlreadyProcessed(id) && dependsOn[id].All(i => completed.Contains(i));
         }
     }
 }
