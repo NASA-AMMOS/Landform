@@ -28,15 +28,13 @@ namespace OPS.Pipeline.MeshWorker
     /// <summary>
     /// create a large mesh from input data and uploads it as the tiling input
     /// </summary>
-    public class BuildTilingInput
+    public class BuildTilingInput : TileServerOperation
     {
         static ILog logger = LogManager.GetLogger(typeof(BuildTilingInput));
 
-        BuildTilingInputMessage message;
-        PipelineCore pipeline;
-        TileServerCloud cloud;
+        private BuildTilingInputMessage message;
 
-        Options options;
+        private Options options;
 
         struct Options
         {
@@ -46,10 +44,9 @@ namespace OPS.Pipeline.MeshWorker
         }
 
         public BuildTilingInput(BuildTilingInputMessage message, PipelineCore pipeline, TileServerCloud cloud)
+            : base(message.ProjectName, pipeline, cloud, logger)
         {
             this.message = message;
-            this.pipeline = pipeline;
-            this.cloud = cloud;
 
             options.AlignmentProjectName = message.ProjectName;
 
@@ -81,7 +78,7 @@ namespace OPS.Pipeline.MeshWorker
 
         public int Process()
         {
-            logger.Info("Building tiling input...");
+            LogInfo("started");
 
             //cache data needed to build pointcloud
             FrameCache frameCache = new FrameCache(pipeline.DynamoContext, options.AlignmentProjectName);
@@ -92,7 +89,7 @@ namespace OPS.Pipeline.MeshWorker
             List<PointCloudObservations> pointCloudObservations = CollectPointCloudInputs(obsCache);
             if (pointCloudObservations.Count == 0)
             {
-                logger.Error("no observations were found to build a point cloud");
+                LogError("no observations were found to build a point cloud");
                 return 1;
             }
             
@@ -100,7 +97,10 @@ namespace OPS.Pipeline.MeshWorker
             Mesh aggregatePointCloud = new Mesh(hasNormals: true);
             for (int idx = 0; idx < pointCloudObservations.Count; idx++)
             {
-                logger.InfoFormat("Building point cloud {0}/{1} ({2})%): {3}", idx+1, pointCloudObservations.Count, (int)(100 * idx / (float)pointCloudObservations.Count), pointCloudObservations[idx].PointsObs.FrameName);
+                LogInfo(string.Format("building point cloud {0}/{1} ({2})%): {3}",
+                                      idx+1, pointCloudObservations.Count,
+                                      (int)(100 * idx / (float)pointCloudObservations.Count),
+                                      pointCloudObservations[idx].PointsObs.FrameName));
 
                 PointCloudInput pcImgs = GetPointCloudInput(pointCloudObservations[idx]);
                 Mesh pointCloud = BuildPointCloudMesh(pcImgs, frameCache, obsCache);
@@ -113,11 +113,11 @@ namespace OPS.Pipeline.MeshWorker
             // build the large mesh from the aggregate point cloud using poisson reconstruction
             if (aggregatePointCloud.Vertices.Count == 0)
             {
-                logger.Error("Aggregate point cloud contains no points");
+                LogError("aggregate point cloud contains no points");
                 return 1;
             }
           
-            logger.Info("Reconstructing point cloud: " + aggregatePointCloud.Vertices.Count() + " vertices");
+            LogInfo("reconstructing point cloud: " + aggregatePointCloud.Vertices.Count() + " vertices");
             PoissonReconstruction.Options opts = new PoissonReconstruction.Options
             {
                 Boundary = PoissonReconstruction.BoundaryTypes.Dirichlet,   // suppresses the large wings often seen when extrapolating without orbital data 
@@ -130,7 +130,7 @@ namespace OPS.Pipeline.MeshWorker
             Mesh surfacedMesh = PoissonReconstruction.Reconstruct(aggregatePointCloud, opts);            
             if (surfacedMesh == null || surfacedMesh.Vertices.Count == 0)
             {
-                logger.Error("Point cloud failed to reconstruct");
+                LogError("point cloud failed to reconstruct");
                 return 1;
             }
 
@@ -139,7 +139,7 @@ namespace OPS.Pipeline.MeshWorker
             string s3MeshOutputUrl = TileServerConfig.Instance.InputUrl(message.ProjectName, meshName + ".ply");
             TemporaryFile.GetAndDelete(".ply", tempFile =>
             {
-                logger.Info("Uploading mesh: " + s3MeshOutputUrl);
+                LogInfo("uploading mesh " + s3MeshOutputUrl);
                 surfacedMesh.Save(tempFile);
                 pipeline.Storage(s3MeshOutputUrl).UploadFile(tempFile, s3MeshOutputUrl);
             });
@@ -150,6 +150,9 @@ namespace OPS.Pipeline.MeshWorker
             
             //indicate successs to the tiling server master
             cloud.MasterQueue.Enqueue(new BuildTilingInputMessage(message.ProjectName));
+
+            LogInfo("complete");
+
             return 0;
         }
 
@@ -381,7 +384,7 @@ namespace OPS.Pipeline.MeshWorker
 
             if (ptsRoverFrame.Vertices.Count == 0)
             {
-                logger.Warn("point cloud contributed no data " + pcInput.Points.Obs.FrameName);
+                LogWarn("point cloud contributed no data " + pcInput.Points.Obs.FrameName);
                 return null;
             }
 

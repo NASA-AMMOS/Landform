@@ -211,6 +211,7 @@
     <Compile Include="TileServer\Operations\ChunkInput.cs" />
     <Compile Include="TileServer\Operations\DefineTiles.cs" />
     <Compile Include="TileServer\Cloud\TilingInputChunk.cs" />
+    <Compile Include="TileServer\Operations\TileServerOperation.cs" />
     <Compile Include="TileServer\TileServerConfig.cs" />
     <Compile Include="TileServer\TilingScheme.cs" />
     <Compile Include="TileServer\Commands\TileServerCommands.cs" />

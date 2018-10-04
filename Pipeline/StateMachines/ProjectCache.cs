@@ -106,6 +106,12 @@ namespace OPS.Pipeline.TileServer
             return enqued.Contains(id) || completed.Contains(id);
         }
 
+        public bool AlreadyCompleted(string id)
+        {
+            EnsureInitialized();
+            return completed.Contains(id);
+        }
+
         public List<string> GetDependentTilesToRun(string id)
         {
             EnsureInitialized();

@@ -27,20 +27,16 @@ namespace OPS.Pipeline.TileServer
         }
     }
 
-    public class BuildBakedLeaves
+    public class BuildBakedLeaves : TileServerOperation
     {
-
         static ILog logger = LogManager.GetLogger(typeof(BuildBakedLeaves));
 
-        BuildBakedLeavesMessage message;
-        PipelineCore pipeline;
-        TileServerCloud cloud;
+        private BuildBakedLeavesMessage message;
 
         public BuildBakedLeaves(BuildBakedLeavesMessage message, PipelineCore pipeline, TileServerCloud cloud)
+            : base(message.ProjectName, pipeline, cloud, logger)
         {
             this.message = message;
-            this.pipeline = pipeline;
-            this.cloud = cloud;
         }
 
         class InputChunkGroup
@@ -51,6 +47,7 @@ namespace OPS.Pipeline.TileServer
 
         public void Process()
         {
+            LogInfo("started batch of " + message.TileIds.Count + " leaf tiles");
             var project = TilingProject.Find(pipeline.DynamoContext, message.ProjectName);
 
             List<TilingNode> leaves = new List<TilingNode>();
@@ -63,7 +60,7 @@ namespace OPS.Pipeline.TileServer
             {
                 if (n.MeshUrl != null)
                 {
-                    logger.Info(n.Id + " skipping");
+                    LogInfo("leaf " + n.Id + " already complete, skipping");
                     cloud.MasterQueue.Enqueue(new TileCompletedMessage(project.Name, n.Id));
                 }
             }
@@ -71,7 +68,7 @@ namespace OPS.Pipeline.TileServer
             leaves = leaves.Where(n => n.MeshUrl == null).ToList();
             if(leaves.Count == 0)
             {
-                logger.Info("All leaves already generated");
+                LogInfo("all leaves in job already generated");
                 return;
             }
             // Get a list of all chunks that overlap with a leaf tile
@@ -137,10 +134,11 @@ namespace OPS.Pipeline.TileServer
                 leaf.SaveMesh(pair, pipeline, 0);
                 processed.Add(leaf);
                 cloud.MasterQueue.Enqueue(new TileCompletedMessage(project.Name, leaf.Id));
-                logger.Info(string.Format(leaf.Id + " generating from {0} chunks ({1}/{2})",
-                                          inputGroups.SelectMany(g => g.Chunks).Count(),
-                                          processed.Count(), leaves.Count));
+                LogInfo(string.Format("generating leaf {0} from {1} chunks ({2}/{3})",
+                                      leaf.Id, inputGroups.SelectMany(g => g.Chunks).Count(),
+                                      processed.Count(), leaves.Count));
             });
-        }     
+            LogInfo("batch completed, generated " + processed.Count() + " leaf tiles");
+        }
     }
 }

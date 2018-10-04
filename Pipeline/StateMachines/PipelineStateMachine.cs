@@ -17,6 +17,16 @@ namespace OPS.Pipeline.TileServer
         protected ProjectCache projectCache;
         protected string projectName;
 
+        protected void LogInfo(string msg)
+        {
+            logger.Info(string.Format("[{0}] {1}", projectName, msg));
+        }
+
+        protected void LogError(string msg)
+        {
+            logger.Error(string.Format("[{0}] {1}", projectName, msg));
+        }
+
         public PipelineStateMachine(PipelineCore pipeline, TilingQueue workerQueue, string projectName)
         {
             this.pipeline = pipeline;
@@ -81,14 +91,14 @@ namespace OPS.Pipeline.TileServer
             var project = TilingProject.Find(pipeline.DynamoContext, projectName);
             if (project == null)
             {
-                logger.Info("creating project " + projectName);
+                LogInfo("creating project");
                 TilingProject.Create(pipeline.DynamoContext, projectName, m.TilingScheme, m.SkirtMode, m.ReconMethod,
                                      m.FacesPerTile, m.TileResolution, m.ProjectType);
             }
             else
             {
                 //could get here if the project was created after the check in CreateProject.cs
-                logger.Error("cannot create project " + projectName + ": project already exists");
+                LogError("cannot create project, already exists");
             }
         }
 
@@ -99,20 +109,20 @@ namespace OPS.Pipeline.TileServer
             {
                 if (!project.StartedRunning || project.FinishedRunning)
                 {
-                    logger.Info("deleting project " + projectName);
+                    LogInfo("deleting project");
                     project.Delete(pipeline, true /* ignoreErrors */, logger); //can take a little while
-                    logger.Info("project " + projectName + " deleted");
+                    LogInfo("project deleted");
                 }
                 else
                 {
                     //could get here if the project was run after the check in DeleteProject.cs
-                    logger.Error("cannot delete project " + projectName + ": currently running");
+                    LogError("cannot delete project, currently running");
                 }
             }
             else
             {
                 //could get here if the project was deleted after the check in DeleteProject.cs
-                logger.Error("cannot delete project " + projectName + ": project not found");
+                LogError("cannot delete project, project not found");
             }
         }
 
@@ -124,25 +134,26 @@ namespace OPS.Pipeline.TileServer
                 if (!project.StartedRunning)
                 {
                     //it's not an error to upload an input with the same name again - the last upload wins
-                    logger.Info("adding/updating input " + m.Name + " in project " + projectName);
+                    LogInfo("adding/updating input " + m.Name);
                     TilingInput.Create(pipeline.DynamoContext, m.Name, project, m.MeshUrl, m.ImageUrl, m.TileId);
                 }
                 else
                 {
                     //could get here if the project was run after the check in UploadInput.cs
-                    logger.Error("cannot add/update input in project " + projectName + ": already run");
+                    LogError("cannot add/update input, already run");
                 }
                 
             }
             else
             {
                 //could get here if the project was deleted after the check in UploadInput.cs
-                logger.Error("cannot add input to project " + projectName + ": project not found");
+                LogError("cannot add input, project not found");
             }
         }
 
         virtual protected void RunProject()
         {
+            LogInfo("defining tiles");
             RunProject(new DefineTilesMessage(projectName));
         }
 
@@ -152,7 +163,7 @@ namespace OPS.Pipeline.TileServer
             var project = TilingProject.Find(pipeline.DynamoContext, projectName);
             if (project != null)
             {
-                logger.Info("running project " + projectName);
+                LogInfo("running project");
                 project.StartedRunning = true;
                 project.Save(pipeline.DynamoContext);
                 workerQueue.Enqueue(nextMessage);
@@ -160,16 +171,17 @@ namespace OPS.Pipeline.TileServer
             else
             {
                 //could get here if the project was deleted after the check in RunProject.cs
-                logger.Error("cannot run project " + projectName + ": project not found");
+                LogError("cannot run project, project not found");
             }
         }
 
         virtual protected void TilesDefined()
         {
-            logger.Info("tiles defined in " + projectName);
+            LogInfo("tiles defined");
             var project = TilingProject.Find(pipeline.DynamoContext, projectName);
             if (SkipChunking(project))
             {
+                LogInfo("input chunking skipped");
                 BuildNodes(project);
             }
             else
@@ -177,6 +189,7 @@ namespace OPS.Pipeline.TileServer
                 bool allChunked = ChunkInputs(project);
                 if (allChunked)
                 {
+                    LogInfo("all inputs chunked");
                     BuildNodes(project);
                 }
             }
@@ -197,13 +210,13 @@ namespace OPS.Pipeline.TileServer
                 if (!input.Chunked)
                 {
                     allChunked = false;
-                    logger.Info("chunking input " + inputName + " in " + projectName);
+                    LogInfo("chunking input " + inputName);
                     projectCache.AddInputToChunk(inputName);
                     workerQueue.Enqueue(new ChunkInputMessage(projectName, inputName));
                 }
                 else
                 {
-                    logger.Info("input " + inputName + " in " + projectName + " already chunked");
+                    LogInfo("input " + inputName + " already chunked");
                 }
             }
             return allChunked;
@@ -211,11 +224,11 @@ namespace OPS.Pipeline.TileServer
 
         virtual protected void InputChunked(string inputName)
         {
-            logger.Info("input " + inputName + " chunked in " + projectName);
+            LogInfo("input " + inputName + " chunked");
             bool allChunked = projectCache.InputChunked(inputName);
             if (allChunked)
             {
-                logger.Info("all inputs chunked in " + projectName);
+                LogInfo("all inputs chunked");
                 var project = TilingProject.Find(pipeline.DynamoContext, projectName);
                 BuildNodes(project);
             }
@@ -245,8 +258,8 @@ namespace OPS.Pipeline.TileServer
                     }
                 }
             }
-            logger.Info("building " + unprocessedLeaves + "/" + totalLeaves + " uprocessed leaves" +
-                        " (" + leafJobs + " jobs) in " + projectName);
+            LogInfo("building " + unprocessedLeaves + " uprocessed leaves" +
+                    " (" + leafJobs + " jobs, " + totalLeaves + " total leaves)");
 
             var parents = root.NonLeaves();
             int totalParents = 0, readyParents = 0;
@@ -261,7 +274,12 @@ namespace OPS.Pipeline.TileServer
                     projectCache.MarkEnqueued(name);
                 }
             }
-            logger.Info("building " + readyParents + "/" + totalParents + " ready parents in " + projectName);
+            LogInfo("building " + readyParents + " unprocessed but ready parents (" + totalParents + " total parents)");
+
+            if (projectCache.AlreadyCompleted(root.Name))
+            {
+                RootCompleted();
+            }
         }       
 
         //collect all leaves in groups up to the given max size per group
@@ -307,8 +325,7 @@ namespace OPS.Pipeline.TileServer
             projectCache.MarkDone(tileId);
             if (tileId == projectCache.RootId())
             {
-                logger.Info("tile " + tileId + " completed in " + projectName + ", building tileset JSON");
-                workerQueue.Enqueue(new BuildTilesetJsonMessage(projectName));
+                RootCompleted();
             }
             else
             {
@@ -316,12 +333,18 @@ namespace OPS.Pipeline.TileServer
                 foreach (var pid in projectCache.GetDependentTilesToRun(tileId))
                 {
                     n++;
-                    logger.Info("enquing parent " + pid + " in " + projectName);
+                    LogInfo("building parent " + pid);
                     workerQueue.Enqueue(new BuildParentMessage(projectName, pid));
                     projectCache.MarkEnqueued(pid);
                 }
-                logger.Info("tile " + tileId + " completed in " + projectName + ", enqueued " + n + " parents");
+                LogInfo("tile " + tileId + " completed, enqueued " + n + " parents");
             }
+        }
+
+        virtual protected void RootCompleted()
+        {
+            LogInfo("root tile completed, building tileset JSON");
+            workerQueue.Enqueue(new BuildTilesetJsonMessage(projectName));
         }
 
         virtual protected void TilesetCompleted()
@@ -329,7 +352,7 @@ namespace OPS.Pipeline.TileServer
             var project = TilingProject.Find(pipeline.DynamoContext, projectName);
             project.FinishedRunning = true;
             project.Save(pipeline.DynamoContext);
-            logger.Info(projectName + " finished running");
+            LogInfo("finished running");
             projectCache.Reset();
         }
     }

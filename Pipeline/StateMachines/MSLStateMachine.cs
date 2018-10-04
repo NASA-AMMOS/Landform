@@ -30,7 +30,8 @@ namespace OPS.Pipeline.TileServer
             }
             if (m.GetType() == typeof(BuildTilingInputMessage))
             {
-                logger.Info("tiling input built in project " + projectName);
+                LogInfo("tiling input built");
+                LogInfo("defining tiles");
                 workerQueue.Enqueue(new DefineTilesMessage(projectName));
                 return true;
             }
@@ -39,6 +40,7 @@ namespace OPS.Pipeline.TileServer
 
         override protected void RunProject()
         {
+            LogInfo("building tiling input");
             RunProject(new BuildTilingInputMessage(projectName));
         }
 

@@ -29,15 +29,13 @@ namespace OPS.Pipeline.MeshWorker
         }
     }
 
-    public class BuildBackprojectLeaves
+    public class BuildBackprojectLeaves : TileServerOperation
     {
         static ILog logger = LogManager.GetLogger(typeof(BuildBackprojectLeaves));
 
-        BuildBackprojectLeavesMessage message;
-        PipelineCore pipeline;
-        TileServerCloud cloud;
+        private BuildBackprojectLeavesMessage message;
 
-        Options options;
+        private Options options;
 
         struct Options
         {
@@ -45,10 +43,9 @@ namespace OPS.Pipeline.MeshWorker
         }
 
         public BuildBackprojectLeaves(BuildBackprojectLeavesMessage message, PipelineCore pipeline, TileServerCloud cloud)
+            : base(message.ProjectName, pipeline, cloud, logger)
         {
             this.message = message;
-            this.pipeline = pipeline;
-            this.cloud = cloud;
 
             options.AlignmentProjectName = message.ProjectName;
         }
@@ -66,25 +63,26 @@ namespace OPS.Pipeline.MeshWorker
         /// <returns></returns>
         public int Process()
         {
-            logger.Info("Collecting tiling information...");
+            LogInfo("started batch of " + message.TileIds.Count + " leaf tiles");
+            LogInfo("collecting tiling information");
             TilingProject project = TilingProject.Find(pipeline.DynamoContext, message.ProjectName);
             List<TilingNode> leaves = GetLeavesToProcess(project);
 
-            logger.Info("Downloading full mesh...");
+            LogInfo("downloading full mesh");
             Mesh fullMesh = GetFullMesh(project);
 
-            logger.Info("Preparing full mesh...");
+            LogInfo("preparing full mesh");
             MeshOperator op = new MeshOperator(fullMesh);
             SceneCaster sc = new SceneCaster();
             sc.AddMesh(fullMesh, null, Matrix.Identity);
             sc.Build();
 
-            logger.Info("Building scene graph...");
+            LogInfo("building scene graph");
             Frame rootFrame = Frame.Find(pipeline.DynamoContext, options.AlignmentProjectName, MSLProject.ROOT_FRAME_NAME);
 
             if (rootFrame == null)
             {
-                logger.Error("Alignment project " + options.AlignmentProjectName + " not found");
+                LogError("alignment project " + options.AlignmentProjectName + " not found");
                 return 1;
             }
 
@@ -102,7 +100,7 @@ namespace OPS.Pipeline.MeshWorker
             Serial.ForEach(leaves, leaf =>
             {
                 int curTileIndex = Interlocked.Increment(ref tiledMeshes);
-                logger.Info("Generating tile mesh number " + curTileIndex + "/" + numLeafTileNodes + " (" + (int)(curTileIndex / (float)numLeafTileNodes * 100) + "%): " + leaf.Id);
+                LogInfo("generating tile mesh " + curTileIndex + "/" + numLeafTileNodes + " (" + (int)(curTileIndex / (float)numLeafTileNodes * 100) + "%): " + leaf.Id);
 
                 MeshImagePair leafPair = new MeshImagePair();
 
@@ -110,7 +108,7 @@ namespace OPS.Pipeline.MeshWorker
                 leafPair.Mesh = op.Clip(leaf.GetBounds());
                 if (leafPair.Mesh.Vertices.Count < 3)
                 {
-                    throw new Exception("Invalid tile contains less than 3 verts");
+                    throw new Exception("invalid tile contains less than 3 verts");
                 }
 
                 leafPair.Mesh = UVAtlas.Atlas(leafPair.Mesh, project.TileResolution, project.TileResolution);
@@ -132,7 +130,8 @@ namespace OPS.Pipeline.MeshWorker
                 cloud.MasterQueue.Enqueue(new TileCompletedMessage(project.Name, leaf.Id));                
             });
 
-            logger.Info("Completed generating " + tiledMeshes + " tiles.");
+            LogInfo("batch completed, generated " + tiledMeshes + " leaf tiles");
+                        
             return 0;
         }
 
@@ -300,7 +299,7 @@ namespace OPS.Pipeline.MeshWorker
             {
                 if (n.MeshUrl != null)
                 {
-                    logger.Info(n.Id + " skipping");
+                    LogInfo("leaf " + n.Id + " already complete, skipping");
                     cloud.MasterQueue.Enqueue(new TileCompletedMessage(project.Name, n.Id));
                 }
             }

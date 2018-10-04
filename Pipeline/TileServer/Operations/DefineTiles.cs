@@ -23,13 +23,11 @@ namespace OPS.Pipeline.TileServer
         }
     }
 
-    public class DefineTiles
+    public class DefineTiles : TileServerOperation
     {
         static ILog logger = LogManager.GetLogger(typeof(DefineTiles));
 
-        DefineTilesMessage message;
-        PipelineCore pipeline;
-        TileServerCloud cloud;
+        private DefineTilesMessage message;
 
         class TileDependencyMapping
         {
@@ -72,24 +70,23 @@ namespace OPS.Pipeline.TileServer
         }
 
         public DefineTiles(DefineTilesMessage message, PipelineCore pipeline, TileServerCloud cloud)
+            : base(message.ProjectName, pipeline, cloud, logger)
         {
             this.message = message;
-            this.pipeline = pipeline;
-            this.cloud = cloud;
         }
 
         public void Process()
         {
-            logger.Info("Defining tiles in project " + message.ProjectName);
+            LogInfo("started");
             var project = TilingProject.Find(pipeline.DynamoContext, message.ProjectName);
             if(project == null)
             {
-                logger.Info("No project found with name: " + message.ProjectName);
+                LogError("project not found");
                 return;
             }
             if(project.TilesDefined)
             {
-                logger.Info("Tiles have already been defined for project " + message.ProjectName);
+                LogInfo("tiles already defined");
                 cloud.MasterQueue.Enqueue(message);
                 return;
             }
@@ -99,6 +96,7 @@ namespace OPS.Pipeline.TileServer
             {
                 // Build a tree based on existing tile ids
                 var inputs = TilingInput.Find(pipeline.DynamoContext, project).ToList();
+                LogInfo("user-defined tiling scheme, " + inputs.Count + " inputs");
                 ConcurrentBag<SceneNode> nodes = new ConcurrentBag<SceneNode>();
                 Parallel.ForEach(inputs, new ParallelOptions() { MaxDegreeOfParallelism = 8 }, input =>
                 {
@@ -120,11 +118,12 @@ namespace OPS.Pipeline.TileServer
             {
                 // Buid a tree using input datasets
                 var inputs = TilingInput.Find(pipeline.DynamoContext, project).ToList();
+                LogInfo(inputs.Count + " inputs");
                 var multiClipper = new MultiMeshClipper();
                 foreach (var input in inputs)
                 {
                     var pair = DownloadInput(input);
-                    logger.Info("Building acceleration structures");
+                    LogInfo("building acceleration structures");
                     multiClipper.AddInput(new MultiMeshClipperInput(pair.Mesh, pair.Image));
                 }
                 var projectScheme = project.GetTilingScheme();
@@ -143,14 +142,14 @@ namespace OPS.Pipeline.TileServer
                 }
                 else
                 {
-                    throw new Exception("Unknonw tiling scheme");
+                    throw new Exception("unknown tiling scheme");
                 }
                 ITileSplitCriteria splitCriteria = new FaceSplitCriteria(project.FacesPerTile);
 
-                logger.Info("Computing tile tree");
+                LogInfo("computing tile tree");
                 root = TileLocalMesh.BuildBoundsTree(multiClipper, scheme, splitCriteria);
             }
-            // Compute tile dependencies
+
             var dependencies = new TileDependencyMapping();
             foreach (var node in root.DepthFirstTraverse())
             {
@@ -163,7 +162,7 @@ namespace OPS.Pipeline.TileServer
                 }
             }
 
-            logger.Info("Saving tile tree");
+            LogInfo("saving tile tree");
             List<string> ids = new List<string>();
             foreach (var node in root.DepthFirstTraverse())
             {
@@ -185,11 +184,12 @@ namespace OPS.Pipeline.TileServer
             project.TilesDefined = true;
             project.Save(pipeline.DynamoContext);
             cloud.MasterQueue.Enqueue(message);
+            LogInfo("complete");
         }
 
         MeshImagePair DownloadInput(TilingInput input)
         {
-            logger.Info("Downloading: " + input.MeshUrl);
+            LogInfo("downloading " + input.MeshUrl);
             Mesh mesh = null;
             TemporaryFile.GetAndDelete(Path.GetExtension(input.MeshUrl), f =>
             {
@@ -201,7 +201,7 @@ namespace OPS.Pipeline.TileServer
             Image image = null;
             if (input.ImageUrl != null)
             {
-                logger.Info("Downloading: " + input.ImageUrl);
+                LogInfo("downloading " + input.ImageUrl);
                 TemporaryFile.GetAndDelete(Path.GetExtension(input.ImageUrl), f =>
                 {
                     pipeline.Storage(input.ImageUrl).DownloadFile(input.ImageUrl, f);
