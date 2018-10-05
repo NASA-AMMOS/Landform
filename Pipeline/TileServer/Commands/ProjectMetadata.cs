@@ -1,5 +1,6 @@
 using CommandLine;
 using log4net;
+using OPS.Util;
 using OPS.Plumbing;
 using System;
 using System.Collections.Generic;
@@ -7,8 +8,6 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Serialization;
 
 namespace OPS.Pipeline.TileServer
 {
@@ -42,24 +41,6 @@ namespace OPS.Pipeline.TileServer
         public string OutputUrl;
     }
 
-    public class IgnorePropertiesResolver : DefaultContractResolver
-    {
-        private HashSet<string> ignore;
-
-        public IgnorePropertiesResolver(params string[] names)
-        {
-            ignore = new HashSet<string>(names);
-        }
-
-        protected override JsonProperty CreateProperty(System.Reflection.MemberInfo mi, MemberSerialization ms)
-        {
-            JsonProperty prop = base.CreateProperty(mi, ms);
-            string name = prop.DeclaringType.Name + "." + prop.PropertyName;
-            prop.Ignored = ignore.Contains(name);
-            return prop;
-        }
-    }
-
     public class ProjectMetadata : PipelineCore
     {
         static ILog logger = LogManager.GetLogger(typeof(ProjectMetadata));
@@ -87,7 +68,7 @@ namespace OPS.Pipeline.TileServer
             if (project == null)
             {
                 logger.Error("No project by that name found: " + options.ProjectName);
-                return 1;
+                return 1; //argument error
             }
 
             var md = new Metadata();
@@ -136,11 +117,8 @@ namespace OPS.Pipeline.TileServer
 
             md.OutputUrl = TileServerConfig.Instance.WWWUrl(project.Name, "tileset.json", https: true);
 
-            var settings = new JsonSerializerSettings
-            {
-                ContractResolver = new IgnorePropertiesResolver("TilingProject.NodeIds", "TilingProject.InputNames")
-            };
-            Console.WriteLine(JsonConvert.SerializeObject(md, Formatting.Indented, settings));
+            var ignore = new string[] { "TilingProject.NodeIds", "TilingProject.InputNames" };
+            Console.WriteLine(JsonHelper.ToJson(md, indent: true, ignoreProperties: ignore));
 
             return 0;
         }

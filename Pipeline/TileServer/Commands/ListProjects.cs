@@ -1,5 +1,6 @@
 using CommandLine;
 using log4net;
+using OPS.Util;
 using OPS.Plumbing;
 using System;
 using System.Collections.Generic;
@@ -7,7 +8,6 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using Newtonsoft.Json;
 
 namespace OPS.Pipeline.TileServer
 {
@@ -43,8 +43,7 @@ namespace OPS.Pipeline.TileServer
             var projects = TilingProject.FindAll(DynamoContext);
             var projectNames = projects.Select(project => project.Name).ToList();
 
-            //not using JsonHelper.ToJson() because here we don't want the $type fields
-            Console.WriteLine(JsonConvert.SerializeObject(projectNames, Formatting.Indented));
+            JsonHelper.ToJson(projectNames, indent: true, autoTypes: false);
 
             return 0;
         }
