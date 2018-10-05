@@ -19,7 +19,7 @@ function isInt(n) { return isNum(n) && parseInt(n) === parseFloat(n); }
 //options: array of allowed values if type is 'enum'
 //
 //recognized options:
-//commandLine: whether to return results as an command line array of "-name value" pairs
+//commandLine: whether to return results as an command line array of "--name value" pairs
 //ignoreQuery: don't consider req.query
 //ignoreBody: don't consider req.body
 //
@@ -56,7 +56,7 @@ function parseArgs(req, descriptors, opts) {
 
   if (commandLine) {
     const cl = [];
-    Object.entries(ret).forEach(([n, v]) => { cl.push(`-${n}`); cl.push(v); });
+    Object.entries(ret).forEach(([n, v]) => { cl.push(`--${n}`); cl.push(v); });
     return cl;
   }
 
