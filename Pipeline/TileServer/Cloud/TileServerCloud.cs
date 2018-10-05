@@ -13,8 +13,6 @@ namespace OPS.Pipeline.TileServer
 {
     public class TileServerCloud
     {
-        
-
         Type[] tableTypes = new Type[]
             {
                 typeof(TilingProject),

@@ -103,18 +103,20 @@ namespace OPS.Pipeline
             return FindNodesRequiredForParent(node, root, out tmp, childBoundSearchRatio);
         }
 
-        //find all nodes that would be required to build a mesh for a given node
-        //
-        //this is potentially more than just the topological descendants of the node
-        //because typically we cast a wider spatial search which enables better boundary conditions for the mesh
-        //
-        //this method returns all nodes d that meet the following conjunctive criteria
-        //a) d descends from root
-        //b) d is at least the same depth (topological distance) from root as this node's children
-        //c) the bounding box of d intersects the search bounds, computed as the bounding box union of our
-        //   children's bounds scaled (generally up) by the given search ratio
-        //
-        //NOTE: as in all the tiling code bounds are all in same coordinate frame (all node Transforms are identity)
+        /// <summary>
+        /// find all nodes that would be required to build a mesh for a given node
+        ///
+        /// this is potentially more than just the topological descendants of the node
+        /// because typically we cast a wider spatial search which enables better boundary conditions for the mesh
+        ///
+        /// this method returns all nodes d that meet the following conjunctive criteria
+        /// a) d descends from root
+        /// b) d is at least the same depth (topological distance) from root as this node's children
+        /// c) the bounding box of d intersects the search bounds, computed as the bounding box union of our
+        ///    children's bounds scaled (generally up) by the given search ratio
+        ///
+        /// NOTE: as in all the tiling code bounds are all in same coordinate frame (all node Transforms are identity)
+        /// </summary>
         public static List<SceneNode> FindNodesRequiredForParent(this SceneNode node, SceneNode root, out BoundingBox searchBounds, double childBoundSearchRatio = DEFAULT_SEARCH_RATIO)
         {
             int childDepth = node.Children.First().Transform.Depth();

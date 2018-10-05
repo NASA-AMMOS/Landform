@@ -200,7 +200,9 @@ namespace OPS.Pipeline.TileServer
             return false;
         }
 
-        //returns true if all inputs have already been chunked
+        /// <summary>
+        /// </summary>
+        /// <returns>true iff all inputs have already been chunked</returns>
         virtual protected bool ChunkInputs(TilingProject project)
         {
             bool allChunked = true;
@@ -282,9 +284,11 @@ namespace OPS.Pipeline.TileServer
             }
         }       
 
-        //collect all leaves in groups up to the given max size per group
-        //attempts to group leaves which are spatially close together into the same group
-        //uses tree topology as a proxy for spatial proximity
+        /// <summary>
+        /// collect all leaves in groups up to the given max size per group
+        /// attempts to group leaves which are spatially close together into the same group
+        /// uses tree topology as a proxy for spatial proximity
+        /// </summary>
         virtual protected Queue<SceneNode> CollectLeafGroups(SceneNode node, List<List<SceneNode>> groups,
                                                              int maxGroupSize = 32)
         {
@@ -321,7 +325,6 @@ namespace OPS.Pipeline.TileServer
 
         virtual protected void TileCompleted(string tileId)
         {
-            
             projectCache.MarkDone(tileId);
             if (tileId == projectCache.RootId())
             {

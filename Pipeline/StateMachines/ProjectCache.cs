@@ -124,7 +124,9 @@ namespace OPS.Pipeline.TileServer
             inputsToChunk.Add(name);
         }
 
-        //returns true when all inputs have been chunked
+        /// <summary>
+        /// </summary>
+        /// <returns>returns true when all inputs have been chunked</returns>
         public bool InputChunked(string name)
         {
             EnsureInitialized();
