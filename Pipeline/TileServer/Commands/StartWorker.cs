@@ -118,7 +118,7 @@ namespace OPS.Pipeline.TileServer
             logger.Info("Worker starting");
 
             //each worker thread has its own pieline and cloud instance
-            //this avoids the need for synchronization of access to the message queues
+            //this avoids the need for synchronization
             var pipeline = new PipelineCore(dynamoPrefix: TileServerConfig.Instance.VenueName,
                                             profile: TileServerConfig.Instance.Profile);
             var cloud = new TileServerCloud(pipeline);
