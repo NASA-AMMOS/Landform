@@ -43,7 +43,7 @@ namespace OPS.Pipeline.TileServer
             var projects = TilingProject.FindAll(DynamoContext);
             var projectNames = projects.Select(project => project.Name).ToList();
 
-            JsonHelper.ToJson(projectNames, indent: true, autoTypes: false);
+            Console.WriteLine(JsonHelper.ToJson(projectNames, indent: true, autoTypes: false));
 
             return 0;
         }
