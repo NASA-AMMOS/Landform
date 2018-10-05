@@ -60,6 +60,7 @@
     <Compile Include="SingletonConfig.cs" />
     <Compile Include="TemporaryFile.cs" />
     <Compile Include="StringHelper.cs" />
+    <Compile Include="TypeDispatcher.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
