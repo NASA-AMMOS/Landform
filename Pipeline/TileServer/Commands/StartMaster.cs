@@ -51,7 +51,9 @@ namespace OPS.Pipeline.TileServer
                     Thread.Sleep(2000);  
                 }
             }
+#pragma warning disable 0162
             return 0;
+#pragma warning restore 0162
         }
 
         void RunMaster()
