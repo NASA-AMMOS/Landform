@@ -19,8 +19,6 @@ If multiple calls to this API are made in rapid succession with the same project
 
 The return status may be HTTP 200 even if one or more arguments are invalid.  However the project will not actually be created in that case.
 
-This API may return before the project is actually created, even if the [async task API](#asynchronous-task-api) is not requested.  Poll the project metadata API `/api/projects/*name*` to determine when the project has been created.
-
 **Example:**  create project "testproj"
 
 Request
@@ -72,8 +70,6 @@ All uploads must be complete before a project starts running.  The inputs used b
 
 Input data is validated when a project is run, not on upload.
 
-This API may return before the upload is added to the project, even if the [async task API](#asynchronous-task-api) is not requested.  Poll the project metadata API `/api/projects/*name*` to determine when the data has been added.
-
 **Example:** upload "inputMeshSmall.ply" and "inputImage.png" to "testproj"
 
 Request
@@ -118,7 +114,7 @@ Fails with HTTP status 400 (bad request) if the named project does not exist.
 
 If the project is deleted quickly after a call to this API then it is possible that the HTTP status will be 200 (OK) but the run will fail.
 
-This task only initiates the execution of a project.  It will typically complete before the project is actually finished running even if the [async task API](#asynchronous-task-api) is not requested.  To determine whether the project execution has completed, do one of the following:
+This task only initiates the execution of a project.  To determine whether the project execution has completed, do one of the following:
 * poll the project metadata via `/api/projects/*name*` and wait for `Project.FinishedRunning=true`
 * get the project result URL via `/api/projects/*name*/result?redirect=false` and poll it until the status is HTTP 200 (OK).
 
@@ -292,8 +288,6 @@ Fails with HTTP status 400 (bad request) if the named project does not exist or 
 If multiple calls to this API are made in rapid succession with the same project name only one will succeed.  However, in this case it is possible that the HTTP status of more than one of the calls may be HTTP 200 (OK).
 
 If the project is run quickly after this API is called then the deletion may fail even though the status of the delete call may have been HTTP 200.
-
-This API may return before the project is deleted, even if the [async task API](#asynchronous-task-api) is not requested.  Poll the project metadata API `/api/projects/*name*` to determine when the project has been deleted.
 
 **Example:**  delete project "testproj"
 

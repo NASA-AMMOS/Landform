@@ -42,7 +42,7 @@ namespace OPS.Pipeline.TileServer
             if (project == null)
             {
                 logger.Error("No project by that name found: " + options.ProjectName);
-                return 1;
+                return 1; //argument error
             }
 
             cloud.MasterQueue.Enqueue(new RunProjectMessage(options.ProjectName));
