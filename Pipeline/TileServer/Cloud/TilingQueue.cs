@@ -99,7 +99,7 @@ namespace OPS.Pipeline.TileServer
         /// </summary>
         /// <param name="maxMessages"></param>
         /// <returns></returns>
-        public TilingQueueMessage[] Deque(int maxMessages = 1)
+        public TilingQueueMessage[] Dequeue(int maxMessages = 1)
         {
             var req = new ReceiveMessageRequest
             {

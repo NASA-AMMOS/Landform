@@ -12,12 +12,25 @@ namespace OPS.Geometry
 {
     class PoissonConfig : SingletonConfig<PoissonConfig>
     {
+        //on some machines the default version of PoissonRecon.exe fails with "Illegal instruction"
+        //it is usually possible to workaround this, at least sufficient for dev purposes
+        //by setting the environment variable LANDFORM_POISSON_EXE_LEGACY=true
+
         [ConfigEnvironmentVariable("LANDFORM_POISSON_EXE")]
         public string PoissonExe { get; set; }
+
+        [ConfigEnvironmentVariable("LANDFORM_POISSON_EXE_LEGACY")]
+        public bool PoissonExeLegacy { get; set; }
 
         public PoissonConfig()
         {
             if (string.IsNullOrEmpty(PoissonExe)) PoissonExe = "PoissonReconV10.02.exe"; //default
+            if (PoissonExeLegacy) PoissonExe = "PoissonRecon.exe";
+        }
+
+        public void Dump(ILog logger)
+        {
+            logger.Info("Poisson exe: " + PoissonExe + (PoissonExeLegacy ? " (legacy)" : ""));
         }
     }
 
@@ -25,6 +38,7 @@ namespace OPS.Geometry
     {
         private static readonly ILog logger = LogManager.GetLogger(typeof(PoissonReconstruction));
         public enum BoundaryTypes { Free = 1, Dirichlet = 2, Neumann = 3 };
+        private static bool dumpedConfig;
 
         public class Options
         {
@@ -81,11 +95,18 @@ namespace OPS.Geometry
                 }
             }
 
-            string poissonReconExe =
-                Path.Combine(PathHelper.GetApplicationPath(), "ExternalApps", PoissonConfig.Instance.PoissonExe);
+            if (!dumpedConfig)
+            {
+                PoissonConfig.Instance.Dump(logger);
+                dumpedConfig = true;
+            }
+
+            var cfg = PoissonConfig.Instance;
+            string exe = Path.Combine(PathHelper.GetApplicationPath(), "ExternalApps", cfg.PoissonExe);
 
             Mesh result = null;
-            float scale = MathE.Max(pointCloud.Bounds().Size().ToFloatArray()) / (float)Math.Sqrt(pointCloud.Vertices.Count) * 2;
+            Exception ex = null;
+
             TemporaryFile.GetAndDelete(".ply", inputFile =>
             {
                 PLYSerializer.Write(pointCloud, inputFile, new PLYMaximumCompatibilityWriter(false));
@@ -93,39 +114,75 @@ namespace OPS.Geometry
                 {
                     TemporaryFile.GetAndDeleteDirectory(tmpDir =>
                     {
-                        string arguments = "--in " + inputFile + " --out " + outputFile + " --normals --tempDir " + tmpDir;
+                        string arguments = "--in " + inputFile + " --out " + outputFile;
 
-                        if (options != null)
+                        if (!cfg.PoissonExeLegacy)
                         {
-                            arguments += String.Format(" --bType {0} --width {1} --samplesPerNode {2} --degree {3} --confidence {4}", (int)options.Boundary, options.MinOctreeCellWidthMeters, options.MinOctreeSamplesPerCell, options.BSplineDegree, options.UseNormalsForConfidence ? 1 : 0);
+                            arguments += " --normals";
+                            arguments += " --tempDir " + tmpDir;
+                            
+                            if (options != null)
+                            {
+                                arguments +=
+                                    String.Format(" --bType {0} --width {1} --samplesPerNode {2} --degree {3} --confidence {4}",
+                                                  (int)options.Boundary, options.MinOctreeCellWidthMeters,
+                                                  options.MinOctreeSamplesPerCell, options.BSplineDegree,
+                                                  options.UseNormalsForConfidence ? 1 : 0);
+                            }
+
+                            //a workaround for running on powerful machines. without it there is an ERROR about not
+                            // being able to open a file (likely a bug in multithread buffered file reading)
+                            arguments += " --threads 1";
                         }
 
-                        //a workaround for running on powerful machines. without it there is an ERROR about not being able
-                        // to open a file (likely a bug in multithread buffered file reading)
-                        arguments += " --threads 1";
+                        ProgramRunner pr = new ProgramRunner(exe, arguments, captureOutput: true);
+                        try
+                        {
+                            int exitCode = pr.Run();
 
-                        ProgramRunner pr = new ProgramRunner(poissonReconExe, arguments, captureOutput: true);
-                        pr.Run();
-                        if (!File.Exists(outputFile))
+                            if (exitCode != 0)
+                            {
+                                throw new MeshException("exited with status " + exitCode);
+                            }
+
+                            //at least some legacy versions of PoissonRecon.exe can error out but still
+                            //have zero exit code and write a valid and nonempty output mesh
+                            //it seems the only way to detect that is like this
+                            if (cfg.PoissonExeLegacy && !string.IsNullOrEmpty(pr.ErrorText) &&
+                                !System.Text.RegularExpressions.Regex.Split(pr.ErrorText, "\r\n|\r|\n") //split lines
+                                .All(l => l.StartsWith("[WARNING]")))
+                            {
+                                throw new MeshException("nonempty error output");
+                            }
+
+                            if (!File.Exists(outputFile))
+                            {
+                                throw new MeshException("no output file");
+                            }
+
+                            result = Mesh.Load(outputFile);
+
+                            if (result.Vertices.Count == 0)
+                            {
+                                throw new MeshException("empty output");
+                            }
+                        }
+                        catch (Exception e)
                         {
                             logger.Error(pr.OutputText);
                             logger.Error(pr.ErrorText);
-                            throw new MeshException("Failed to run " + poissonReconExe);
-                        }
-                        int ouputVertCount = Mesh.Load(outputFile).Vertices.Count;
-                        if (ouputVertCount == 0)
-                        {
-                            logger.Error(pr.OutputText);
-                            logger.Error(pr.ErrorText);
-                        }
-                        result = Mesh.Load(outputFile);
-                        if (result.Vertices.Count == 0)
-                        {
-                            throw new MeshException("Failed to reconstruct mesh");
+                            ex = new MeshException("Failed to run " + (cfg.PoissonExeLegacy ? "(legacy) " : "") +
+                                                   exe + " " + arguments + ": " + e.Message);
                         }
                     });
                 });
             });
+
+            if (ex != null)
+            {
+                throw ex;
+            }
+
             return result;
         }
     }

@@ -27,17 +27,6 @@ namespace OPS.Pipeline.TileServer
 
         StartWorkerOptions options;
 
-        public TilingQueue WorkerQueue
-        {
-            get { return new TileServerCloud(this).WorkerQueue; }
-        }
-
-        public TilingQueue CompletionQueue
-        {
-            get { return new TileServerCloud(this).CompletionQueue; }
-        }
-        
-
         public StartWorker(StartWorkerOptions options)
             : base(dynamoPrefix: TileServerConfig.Instance.VenueName, profile: TileServerConfig.Instance.Profile)
         {
@@ -63,7 +52,8 @@ namespace OPS.Pipeline.TileServer
             //Configure gdal
             GdalConfiguration.ConfigureGdal();
 
-            new TileServerCloud(this).EnsureTablesExist();
+            var cloud = new TileServerCloud(this);
+            cloud.EnsureTablesExist();
 
             Task masterTask = null;
             if (options.StartMaster)
@@ -125,10 +115,14 @@ namespace OPS.Pipeline.TileServer
         public void RunWorker()
         {
             logger.Info("Worker starting");
-            var queue = WorkerQueue;
+
+            //each worker thread has its own cloud instance
+            //this avoids the need for synchronization of access to the message queues
+            var cloud = new TileServerCloud(this);
+
             while (true)
             {
-                var messages = queue.Deque();
+                var messages = cloud.WorkerQueue.Dequeue();
                 foreach(var m in messages)
                 {
                     try
@@ -136,37 +130,37 @@ namespace OPS.Pipeline.TileServer
                         // process
                         if (m.GetType() == typeof(DefineTilesMessage))
                         {
-                            new DefineTiles((DefineTilesMessage)m, this).Process();
+                            new DefineTiles((DefineTilesMessage)m, this, cloud).Process();
                         }
                         else if (m.GetType() == typeof(ChunkInputMessage))
                         {
-                            new ChunkInput((ChunkInputMessage)m, this).Process();
+                            new ChunkInput((ChunkInputMessage)m, this, cloud).Process();
                         }
                         else if (m.GetType() == typeof(BuildBakedLeavesMessage))
                         {
-                            new BuildBakedLeaves((BuildBakedLeavesMessage)m, this).Process();
+                            new BuildBakedLeaves((BuildBakedLeavesMessage)m, this, cloud).Process();
                         }
                         else if (m.GetType() == typeof(BuildBackprojectLeavesMessage))
                         {
-                            new BuildBackprojectLeaves((BuildBackprojectLeavesMessage)m, this).Process();
+                            new BuildBackprojectLeaves((BuildBackprojectLeavesMessage)m, this, cloud).Process();
                         }
                         else if (m.GetType() == typeof(BuildParentMessage))
                         {
-                            new BuildParent((BuildParentMessage)m, this).Process();
+                            new BuildParent((BuildParentMessage)m, this, cloud).Process();
                         }
                         else if (m.GetType() == typeof(BuildTilesetJsonMessage))
                         {
-                            new BuildTilesetJson((BuildTilesetJsonMessage)m, this).Process();
+                            new BuildTilesetJson((BuildTilesetJsonMessage)m, this, cloud).Process();
                         }
                         else if (m.GetType() == typeof(BuildTilingInputMessage))
                         {
-                            new BuildTilingInput((BuildTilingInputMessage)m, this).Process();
+                            new BuildTilingInput((BuildTilingInputMessage)m, this, cloud).Process();
                         }
                         else
                         {
                             logger.Info("Unknown message type: " + m.GetType());
                         }
-                        queue.Delete(m);
+                        cloud.WorkerQueue.Delete(m);
                     }
                     catch (Exception e)
                     {

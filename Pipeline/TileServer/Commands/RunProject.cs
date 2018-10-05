@@ -27,7 +27,8 @@ namespace OPS.Pipeline.TileServer
 
         RunProjectOptions options;
 
-        public RunProject(RunProjectOptions options) : base(dynamoPrefix: TileServerConfig.Instance.VenueName, profile: TileServerConfig.Instance.Profile)
+        public RunProject(RunProjectOptions options)
+            : base(dynamoPrefix: TileServerConfig.Instance.VenueName, profile: TileServerConfig.Instance.Profile)
         {
             this.options = options;
         }
@@ -36,21 +37,15 @@ namespace OPS.Pipeline.TileServer
         {
             var cloud = new TileServerCloud(this);
             cloud.EnsureTablesExist();
-            var completionQueue = cloud.CompletionQueue;
 
             var project = TilingProject.Find(DynamoContext, options.ProjectName);
             if (project == null)
             {
                 logger.Error("No project by that name found: " + options.ProjectName);
-                return 1;
+                return 1; //argument error
             }
 
-            project.StartedRunning = true;
-            project.Save(DynamoContext);
-
-            completionQueue.Enqueue(new RunProjectMessage(options.ProjectName));
-
-            logger.Info(options.ProjectName + " started running");
+            cloud.MasterQueue.Enqueue(new RunProjectMessage(options.ProjectName));
 
             return 0;
         }

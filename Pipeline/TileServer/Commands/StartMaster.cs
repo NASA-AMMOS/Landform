@@ -51,29 +51,56 @@ namespace OPS.Pipeline.TileServer
                     Thread.Sleep(2000);  
                 }
             }
+#pragma warning disable 0162
             return 0;
+#pragma warning restore 0162
         }
 
         void RunMaster()
         {
             var cloud = new TileServerCloud(this);
-            var workerQueue = cloud.WorkerQueue;
-            var completionQueue = cloud.CompletionQueue;
 
             while (true)
             {
-                var messages = completionQueue.Deque(TilingQueue.MAX_MESSAGES_PER_DEQUEUE);
+                var messages = cloud.MasterQueue.Dequeue(TilingQueue.MAX_MESSAGES_PER_DEQUEUE);
                 foreach (var m in messages) 
                 {
-                    if (!projectNameToStateMachine.ContainsKey(m.ProjectName))
-                    {
-                        projectNameToStateMachine.TryAdd(m.ProjectName, CreateStateMachine(workerQueue, m.ProjectName));
-                    }
-                    
                     try
                     {
-                        projectNameToStateMachine[m.ProjectName].ProcessCompletedMessage(m);
-                        completionQueue.Delete(m);
+                        if (!projectNameToStateMachine.ContainsKey(m.ProjectName))
+                        {
+                            string projectType = null;
+                            if (m.GetType() == typeof(CreateProjectMessage))
+                            {
+                                projectType = ((CreateProjectMessage)m).ProjectType;
+                            }
+                            else
+                            {
+                                TilingProject project = TilingProject.Find(this.DynamoContext, m.ProjectName);
+                                if (project != null)
+                                {
+                                    projectType = project.ProjectType;
+                                }
+                            }
+                            if (string.IsNullOrEmpty(projectType) || !registeredStateMachines.ContainsKey(projectType))
+                            {
+                                throw new Exception("could not create state machine for project " + m.ProjectName +
+                                                    " of type \"" + projectType + "\"");
+                            }
+
+                            var smt = registeredStateMachines[projectType];
+                            var sm = (PipelineStateMachine)Activator.CreateInstance(smt, this, cloud.WorkerQueue,
+                                                                                    m.ProjectName);
+                            projectNameToStateMachine.TryAdd(m.ProjectName, sm);
+                        }
+
+                        bool processed = projectNameToStateMachine[m.ProjectName].ProcessMessage(m);
+                        if (!processed)
+                        {
+                            logger.Error("unknown message type: " + m.GetType());
+                        }
+
+                        cloud.MasterQueue.Delete(m);
                     }
                     catch (Exception e)
                     {
@@ -87,16 +114,10 @@ namespace OPS.Pipeline.TileServer
         private void RegisterStateMachine(string projectType, Type stateMachine)
         {
             if (registeredStateMachines.ContainsKey(projectType))
-                throw new ArgumentException("projectType already mapped");
-         
+            {
+                throw new ArgumentException("state machine for project type " + projectType + " already registered");
+            }
             registeredStateMachines.Add(projectType, stateMachine);
-            
         }
-
-        private PipelineStateMachine CreateStateMachine(TilingQueue workerQueue, string projectName)
-        {
-            TilingProject project = TilingProject.Find(this.DynamoContext, projectName);
-            return (PipelineStateMachine)Activator.CreateInstance(registeredStateMachines[project.ProjectType], this, workerQueue, projectName);
-         }
     }
 }

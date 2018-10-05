@@ -27,17 +27,15 @@ namespace OPS.Pipeline.TileServer
         }
     }
 
-    public class BuildBakedLeaves
+    public class BuildBakedLeaves : TileServerOperation
     {
-
         static ILog logger = LogManager.GetLogger(typeof(BuildBakedLeaves));
 
-        StartWorker pipeline;
-        BuildBakedLeavesMessage message;
+        private BuildBakedLeavesMessage message;
 
-        public BuildBakedLeaves(BuildBakedLeavesMessage message, StartWorker pipeline)
+        public BuildBakedLeaves(BuildBakedLeavesMessage message, PipelineCore pipeline, TileServerCloud cloud)
+            : base(message.ProjectName, pipeline, cloud, logger)
         {
-            this.pipeline = pipeline;
             this.message = message;
         }
 
@@ -49,6 +47,7 @@ namespace OPS.Pipeline.TileServer
 
         public void Process()
         {
+            LogInfo("started batch of " + message.TileIds.Count + " leaf tiles");
             var project = TilingProject.Find(pipeline.DynamoContext, message.ProjectName);
 
             List<TilingNode> leaves = new List<TilingNode>();
@@ -61,15 +60,15 @@ namespace OPS.Pipeline.TileServer
             {
                 if (n.MeshUrl != null)
                 {
-                    logger.Info(n.Id + " skipping");
-                    pipeline.CompletionQueue.Enqueue(new TileCompletedMessage(project.Name, n.Id));
+                    LogInfo("leaf " + n.Id + " already complete, skipping");
+                    cloud.MasterQueue.Enqueue(new TileCompletedMessage(project.Name, n.Id));
                 }
             }
             // Filter any completed leaves
             leaves = leaves.Where(n => n.MeshUrl == null).ToList();
             if(leaves.Count == 0)
             {
-                logger.Info("All leaves already generated");
+                LogInfo("all leaves in job already generated");
                 return;
             }
             // Get a list of all chunks that overlap with a leaf tile
@@ -114,7 +113,10 @@ namespace OPS.Pipeline.TileServer
                 if (imgUrl != null)
                 {
                     hasImages = true;
-                    image = new SparseCloudImage(group.Input.ImageBands, group.Input.ImageWidth, group.Input.ImageHeight, imgUrl, ChunkInput.IMAGE_EXT, pipeline, ChunkInput.CHUNK_RESOLUTION);
+                    image = new SparseCloudImage(group.Input.ImageBands,
+                                                 group.Input.ImageWidth, group.Input.ImageHeight,
+                                                 imgUrl, ChunkInput.IMAGE_EXT,
+                                                 pipeline, ChunkInput.CHUNK_RESOLUTION);
                 }
                 bakeClipper.AddInput(new MultiMeshClipperInput(mergedMesh, image));
             }
@@ -131,9 +133,12 @@ namespace OPS.Pipeline.TileServer
                 }
                 leaf.SaveMesh(pair, pipeline, 0);
                 processed.Add(leaf);
-                pipeline.CompletionQueue.Enqueue(new TileCompletedMessage(project.Name, leaf.Id));
-                logger.Info(string.Format(leaf.Id + " generating from {0} chunks ({1}/{2})", inputGroups.SelectMany(g => g.Chunks).Count(), processed.Count(), leaves.Count));
+                cloud.MasterQueue.Enqueue(new TileCompletedMessage(project.Name, leaf.Id));
+                LogInfo(string.Format("generating leaf {0} from {1} chunks ({2}/{3})",
+                                      leaf.Id, inputGroups.SelectMany(g => g.Chunks).Count(),
+                                      processed.Count(), leaves.Count));
             });
-        }     
+            LogInfo("batch completed, generated " + processed.Count() + " leaf tiles");
+        }
     }
 }

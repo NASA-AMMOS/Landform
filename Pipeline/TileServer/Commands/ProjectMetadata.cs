@@ -1,5 +1,6 @@
 using CommandLine;
 using log4net;
+using OPS.Util;
 using OPS.Plumbing;
 using System;
 using System.Collections.Generic;
@@ -7,7 +8,6 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using Newtonsoft.Json;
 
 namespace OPS.Pipeline.TileServer
 {
@@ -68,7 +68,7 @@ namespace OPS.Pipeline.TileServer
             if (project == null)
             {
                 logger.Error("No project by that name found: " + options.ProjectName);
-                return 1;
+                return 1; //argument error
             }
 
             var md = new Metadata();
@@ -78,19 +78,23 @@ namespace OPS.Pipeline.TileServer
             var sanitizedInputs = new List<SanitizedInput>();
             foreach (var input in inputs)
             {
-                var sanitizedInput = new SanitizedInput {
-                    Name = input.Name,
-                    MeshUrl = TileServerConfig.ConvertUrlToHttps(input.MeshUrl),
-                    ImageUrl = TileServerConfig.ConvertUrlToHttps(input.MeshUrl),
-                    Processed = input.Chunked
-                };
-                if (input.Chunked)
+                //if project deletion is ongoing then input could be null here
+                if (input != null)
                 {
-                    sanitizedInput.ImageBands = input.ImageBands;
-                    sanitizedInput.ImageWidth = input.ImageWidth;
-                    sanitizedInput.ImageHeight = input.ImageHeight;
+                    var sanitizedInput = new SanitizedInput {
+                        Name = input.Name,
+                        MeshUrl = TileServerConfig.ConvertUrlToHttps(input.MeshUrl),
+                        ImageUrl = TileServerConfig.ConvertUrlToHttps(input.MeshUrl),
+                        Processed = input.Chunked
+                    };
+                    if (input.Chunked)
+                    {
+                        sanitizedInput.ImageBands = input.ImageBands;
+                        sanitizedInput.ImageWidth = input.ImageWidth;
+                        sanitizedInput.ImageHeight = input.ImageHeight;
+                    }
+                    sanitizedInputs.Add(sanitizedInput);
                 }
-                sanitizedInputs.Add(sanitizedInput);
             }
             md.Inputs = sanitizedInputs;
 
@@ -102,7 +106,8 @@ namespace OPS.Pipeline.TileServer
                 int numProcessed = 0;
                 foreach (var node in nodes)
                 {
-                    if (!string.IsNullOrEmpty(node.MeshUrl))
+                    //if project deletion is ongoing then node could be null here
+                    if (node != null && !string.IsNullOrEmpty(node.MeshUrl))
                     {
                         numProcessed++;
                     }
@@ -112,8 +117,8 @@ namespace OPS.Pipeline.TileServer
 
             md.OutputUrl = TileServerConfig.Instance.WWWUrl(project.Name, "tileset.json", https: true);
 
-            //not using JsonHelper.ToJson() because here we don't want the $type fields
-            Console.WriteLine(JsonConvert.SerializeObject(md, Formatting.Indented));
+            var ignore = new string[] { "TilingProject.NodeIds", "TilingProject.InputNames" };
+            Console.WriteLine(JsonHelper.ToJson(md, indent: true, ignoreProperties: ignore));
 
             return 0;
         }

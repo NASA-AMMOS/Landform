@@ -27,32 +27,32 @@ namespace OPS.Pipeline.TileServer
         }
     }
 
-    public class BuildParent
+    public class BuildParent : TileServerOperation
     {
-
         static ILog logger = LogManager.GetLogger(typeof(BuildParent));
 
-        StartWorker pipeline;
-        BuildParentMessage message;
+        private BuildParentMessage message;
 
-        public BuildParent(BuildParentMessage message, StartWorker pipeline)
+        public BuildParent(BuildParentMessage message, PipelineCore pipeline, TileServerCloud cloud)
+            : base(message.ProjectName, pipeline, cloud, logger)
         {
-            this.pipeline = pipeline;
             this.message = message;
         }
         
         public void Process()
         {
+            LogInfo("started building parent " + message.TileId);
             var project = TilingProject.Find(pipeline.DynamoContext, message.ProjectName);
             TilingNode parent = TilingNode.Find(pipeline.DynamoContext, project.Name, message.TileId);
             if (parent.MeshUrl != null)
             {
-                logger.Info(parent.Id + " skipping");
-                pipeline.CompletionQueue.Enqueue(new TileCompletedMessage(project.Name, parent.Id));
+                LogInfo("parent " + parent.Id + " already complete, skipping");
+                cloud.MasterQueue.Enqueue(new TileCompletedMessage(project.Name, parent.Id));
                 return;
             }
             ConcurrentDictionary<string, SceneNode> idToNode = new ConcurrentDictionary<string, SceneNode>();
-            var dependsOnTilingNodes = parent.DependsOn.Select(cid => TilingNode.Find(pipeline.DynamoContext, project.Name, cid));
+            var dependsOnTilingNodes = parent.DependsOn.Select(cid => TilingNode.Find(pipeline.DynamoContext,
+                                                                                      project.Name, cid));
             Serial.ForEach(dependsOnTilingNodes, n =>
             {
                 SceneNode node = n.GetSceneNode();
@@ -67,16 +67,18 @@ namespace OPS.Pipeline.TileServer
             {
                 if (!idToNode.ContainsKey(childId))
                 {
-                    logger.Error(parent.Id + ": Missing input data");
+                    LogError(parent.Id + "missing input data");
                     return;
                 }                
                 idToNode[childId].Transform.SetParent(parentSceneNode.Transform);
             }
-            logger.Info(parent.Id + " generating from " + parent.DependsOn.Count + " tiles");
-            parentSceneNode.BuildGeometryFromChildren(parentSceneNode, project.GetReconMethod(), project.FacesPerTile, project.TileResolution, project.GetSkirtMode());
+            LogInfo("generating parent " + message.TileId + " from " + parent.DependsOn.Count + " tiles");
+            parentSceneNode.BuildGeometryFromChildren(parentSceneNode, project.GetReconMethod(), project.FacesPerTile,
+                                                      project.TileResolution, project.GetSkirtMode());
             var pair = parentSceneNode.GetComponent<MeshImagePair>();
             parent.SaveMesh(pair, pipeline, parentSceneNode.GetComponent<NodeGeometricError>().Error);
-            pipeline.CompletionQueue.Enqueue(new TileCompletedMessage(project.Name, parent.Id));
+            cloud.MasterQueue.Enqueue(new TileCompletedMessage(project.Name, parent.Id));
+            LogInfo("completed building parent " + message.TileId);
         }
     }
 }

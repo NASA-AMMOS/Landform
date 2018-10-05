@@ -116,6 +116,10 @@ namespace OPS.Util
                         {
                             prop.SetValue(this, double.Parse(str));
                         }
+                        else if (prop.PropertyType == typeof(bool))
+                        {
+                            prop.SetValue(this, !string.IsNullOrEmpty(str));
+                        }
                         else
                         {
                             throw new Exception("Cannot specify config arguments of type " + prop.PropertyType + "with environment variables");

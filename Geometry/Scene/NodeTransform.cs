@@ -210,7 +210,7 @@ namespace OPS.Geometry
         }
                 
         /// <summary>
-        /// Breadth first traversal of all leaf transforms
+        /// Traverse all leaf transforms reachable from this transform in depth first order
         /// </summary>
         /// <returns></returns>
         public IEnumerable<NodeTransform> Leaves()
@@ -220,7 +220,6 @@ namespace OPS.Geometry
             while (stack.Count > 0)
             {
                 NodeTransform curTrans = stack.Pop();
-                // This node is a leaf node if it has no children
                 if (curTrans.IsLeaf)
                 {
                     yield return curTrans;
@@ -235,9 +234,33 @@ namespace OPS.Geometry
             }
         }
 
+        /// <summary>
+        /// Traverse all non-leaf transforms reachable from this transform in depth first order
+        /// </summary>
+        /// <returns></returns>
+        public IEnumerable<NodeTransform> NonLeaves()
+        {
+            Stack<NodeTransform> stack = new Stack<NodeTransform>();
+            if (!IsLeaf)
+            {
+                stack.Push(this);
+            }
+            while (stack.Count > 0)
+            {
+                NodeTransform curTrans = stack.Pop();
+                yield return curTrans;
+                foreach (var child in curTrans.Children)
+                {
+                    if (!child.IsLeaf)
+                    {
+                        stack.Push(child);
+                    }
+                }
+            }
+        }
 
         /// <summary>
-        /// Perform a breadth first traversal starting at this node
+        /// Perform a depth first traversal starting at this node
         /// </summary>
         /// <returns></returns>
         public IEnumerable<NodeTransform> DepthFirstTraverse()

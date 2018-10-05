@@ -1,6 +1,7 @@
 ﻿using log4net;
 using Newtonsoft.Json;
 using OPS.Util;
+using OPS.Plumbing;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -17,25 +18,23 @@ namespace OPS.Pipeline.TileServer
         public BuildTilesetJsonMessage(string projectName) : base(projectName) { }
     }
 
-    public class BuildTilesetJson
+    public class BuildTilesetJson : TileServerOperation
     {
-
         static ILog logger = LogManager.GetLogger(typeof(BuildTilesetJson));
 
-        StartWorker pipeline;
-        BuildTilesetJsonMessage message;
+        private BuildTilesetJsonMessage message;
 
-        public BuildTilesetJson(BuildTilesetJsonMessage message, StartWorker pipeline)
+        public BuildTilesetJson(BuildTilesetJsonMessage message, PipelineCore pipeline, TileServerCloud cloud)
+            : base(message.ProjectName, pipeline, cloud, logger)
         {
-            this.pipeline = pipeline;
             this.message = message;
         }
 
-
         public void Process()
         {
+            LogInfo("started");
             var project = TilingProject.Find(pipeline.DynamoContext, message.ProjectName);
-            logger.Info("Building json: " + project.Name);
+            LogInfo("building json");
             var root = TilingNode.BuildTreeFromDatabase(pipeline.DynamoContext, project);
             // Only nodes with mesh image pairs will be marked as having content in the tile builder so add them
             // The meshes and images aren't actually used so we don't need to load them
@@ -55,7 +54,8 @@ namespace OPS.Pipeline.TileServer
                 string url = TileServerConfig.Instance.WWWUrl(project.Name, "tileset.json");
                 pipeline.Storage(url).UploadFile(f, url);
             });
-            pipeline.CompletionQueue.Enqueue(this.message);
+            cloud.MasterQueue.Enqueue(this.message);
+            LogInfo("completed");
         }
     }
 }
