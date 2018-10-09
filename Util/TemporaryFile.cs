@@ -7,6 +7,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Threading;
+using System.Runtime.InteropServices;
 
 namespace OPS.Util
 {
@@ -82,13 +83,26 @@ namespace OPS.Util
             func(tempFile);
             if (File.Exists(tempFile))
             {
-                if (File.Exists(realFilename))
-                {
-                    File.Delete(realFilename);
-                }
-                File.Move(tempFile, realFilename);
+                //there is a fighting chance that this is atomic
+                //https://docs.microsoft.com/en-us/windows/desktop/FileIO/deprecation-of-txf#applications-updating-a-single-file-with-document-like-data
+                //unfortunately it doesn't work when the destination file doesn't already exist
+                //File.Replace(tempFile, realFilename, null);
+
+                //this is also supposed to be atomic
+                //but it doesn't work if the destination exists
+                //File.Move(tempFile, realFilename);
+
+                //rather than introduce a lock here or do a race-prone existence check
+                //let's try this https://stackoverflow.com/a/38372760
+                //flags 11 = MOVEFILE_COPY_ALLOWED (2) | MOVEFILE_REPLACE_EXISTING (1) | MOVEFILE_WRITE_THROUGH (8)
+                Directory.CreateDirectory(Path.GetDirectoryName(realFilename)); //OK if exists, creates parents
+                MoveFileEx(tempFile, realFilename, 11);
             }
         }
+
+        [return: MarshalAs(UnmanagedType.Bool)]
+        [DllImport("kernel32.dll", SetLastError=true, CharSet=CharSet.Unicode)]
+        static extern bool MoveFileEx(string existingFileName, string newFileName, int flags);
 
         private static void DeleteWithRetry(string tempFile)
         {
@@ -185,10 +199,13 @@ namespace OPS.Util
         /// Provide a guid temp directory so caller can save specific file names at a unique path 
         /// </summary>
         /// <returns></returns>
-        public static string GetTempDirectory()
+        public static string GetTempDirectory(string dirName = null)
         {
-            string tempDir = Guid.NewGuid().ToString();
-            string fullPathToTempDirectory = Path.Combine(Path.GetFullPath(tmpDirectory), tempDir);
+            if (string.IsNullOrEmpty(dirName))
+            {
+                dirName = Guid.NewGuid().ToString();
+            }
+            string fullPathToTempDirectory = Path.Combine(Path.GetFullPath(tmpDirectory), dirName);
             PathHelper.EnsureExists(Path.GetFullPath(fullPathToTempDirectory));
             return fullPathToTempDirectory;
         }

@@ -64,23 +64,30 @@ namespace OPS.Plumbing
                 context = null;
             }
             this.Profile = profile;
-            cacheFolder = TemporaryFile.GetTempDirectory();
-        }
-        ~PipelineCore()
-        {
-            if (Directory.Exists(cacheFolder))
-            {
-                Directory.Delete(cacheFolder, true);
-            }
+
+            //use a different download cache dir for every run
+            //also, if more than one PipelineCore instance is created then use different download dirs for each
+            downloadCache = TemporaryFile.GetTempDirectory();
+
+            //this would be an alternate strategy of intentionally sharing the download dir across
+            //different instances of PipelineCore
+            //downloadCache = TemporaryFile.GetTempDirectory("downloads");
         }
 
-        AmazonS3Client s3Client;
-        AmazonDynamoDBClient ddbClient;
-        DynamoDBContext context;
-        StorageHelper defaultStorage;
-        Dictionary<string, StorageHelper> storageSelecter;
-        string cacheFolder;
-        
+        //delete the download cache if we cleanly exit
+        //unfortunately this usually does not run on an unclean exit, leaving droppings in the filesystem
+        ~PipelineCore()
+        {
+            DeleteDownloadCache();
+        }
+
+        private AmazonS3Client s3Client;
+        private AmazonDynamoDBClient ddbClient;
+        private DynamoDBContext context;
+        private StorageHelper defaultStorage;
+        private Dictionary<string, StorageHelper> storageSelecter;
+        private string downloadCache;
+
         public string Profile { get; private set; }
         public IAmazonDynamoDB DynamoDB { get { return ddbClient; } }
         public DynamoDBContext DynamoContext { get { return context; } }
@@ -133,11 +140,14 @@ namespace OPS.Plumbing
         {
             if (filename == null)
             {
-                SHA1 sha = SHA1.Create();
-                filename = new Guid(sha.ComputeHash(Encoding.UTF8.GetBytes(s3Url)).Take(16).ToArray()).ToString() + Path.GetExtension(s3Url);
+                var hash = SHA1.Create().ComputeHash(Encoding.UTF8.GetBytes(s3Url));
+                filename = new Guid(hash.Take(16).ToArray()).ToString() + Path.GetExtension(s3Url);
             }
-            string cachePath = Path.Combine(cacheFolder, subfolder, filename);
-            if (!File.Exists(cachePath)) Storage(s3Url).DownloadFile(s3Url, cachePath);
+            string cachePath = CachePath(subfolder, filename);
+            if (!File.Exists(cachePath))
+            {
+                TemporaryFile.GetAndMove(cachePath, tmpFile => Storage(s3Url).DownloadFile(s3Url, tmpFile));
+            }
             return cachePath;
         }
 
@@ -246,7 +256,7 @@ namespace OPS.Plumbing
 
             if (useCache)
             {
-                writeAndUpload(CachePath(project, product.Guid));
+                writeAndUpload(CachePath(project, product.Guid.ToString()));
             }
             else
             {
@@ -265,10 +275,18 @@ namespace OPS.Plumbing
 
         public void DeleteProjectCache(string project)
         {
-            var projectCacheFolder = Path.Combine(cacheFolder, project);
-            if (Directory.Exists(projectCacheFolder))
+            var projectCache = Path.Combine(downloadCache, project);
+            if (Directory.Exists(projectCache))
             {
-                Directory.Delete(projectCacheFolder, true);
+                Directory.Delete(projectCache, true);
+            }
+        }
+
+        public void DeleteDownloadCache()
+        {
+            if (Directory.Exists(downloadCache))
+            {
+                Directory.Delete(downloadCache, true);
             }
         }
 
@@ -292,9 +310,9 @@ namespace OPS.Plumbing
             }
         }
 
-        internal string CachePath(string project, Guid guid)
+        internal string CachePath(string project, string filename)
         {
-            return Path.Combine(cacheFolder, project, guid.ToString());
+            return Path.Combine(downloadCache, project, filename);
         }
     }
 }
