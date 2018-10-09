@@ -5,6 +5,9 @@ using OPS.Plumbing;
 using OPS.Pipeline.MeshWorker;
 
 using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.Collections.Concurrent;
 using System.Threading.Tasks;
 using System.Threading;
 
@@ -23,9 +26,20 @@ namespace OPS.Pipeline.TileServer
 
     public class StartWorker : PipelineCore
     {
-        static ILog logger = LogManager.GetLogger(typeof(StartWorker));
+        public const int MAX_PROCESSING_SEC = 15 * 60;
 
-        StartWorkerOptions options;
+        //indexed by message handle
+        private class MessageInfo
+        {
+            public int deadline; //seconds since epoch
+            public int numExceptions;
+        }
+        private ConcurrentDictionary<string, MessageInfo> messagesInFlight =
+            new ConcurrentDictionary<string, MessageInfo>();
+
+        private static ILog logger = LogManager.GetLogger(typeof(StartWorker));
+
+        private StartWorkerOptions options;
 
         public StartWorker(StartWorkerOptions options)
             : base(dynamoPrefix: TileServerConfig.Instance.VenueName, profile: TileServerConfig.Instance.Profile)
@@ -100,16 +114,103 @@ namespace OPS.Pipeline.TileServer
                         }
                     });
                 }
-                for (int i = 0; i < tasks.Length; i++)
+
+                var workerQueue = new TileServerCloud(this).WorkerQueue;
+
+                //block until all worker threads are done
+                //
+                //also implement the heartbeat to progressively update the visibility timeout for messages "in flight"
+                //i.e. currently being processed by one of the workers
+                //while a message is in its visiblity timeout it is still in the SQS queue but hidden from other workers
+                //this scheme helps avoid multiple workers from trying to process the same message
+                //https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-visibility-timeout.html
+                //however note that unless we use FIFO queues (which we currently do not)
+                //then it's possible that messages will be received more than once
+                //FIFO queues impose a limit on the max transactions per second
+                //and also aren't available in us-west-1 region as of this writing
+                //(and they're a little more expensive)
+                while (true)
                 {
-                    tasks[i].Wait();
-                }         
+                    bool allDone = true;
+                    foreach (var task in tasks)
+                    {
+                        if (!task.IsCompleted)
+                        {
+                            allDone = false;
+                            break;
+                        }
+                    }
+
+                    if (allDone)
+                    {
+                        break;
+                    }
+
+                    Thread.Sleep(1000 * TilingQueue.VISIBILITY_TIMEOUT_SEC / 2);
+
+                    foreach (var entry in messagesInFlight)
+                    {
+                        var receiptHandle = entry.Key;
+                        var info = entry.Value;
+                        if (CurrentTimeSec() < info.deadline)
+                        {
+                            try
+                            {
+                                workerQueue.UpdateTimeout(receiptHandle, TilingQueue.VISIBILITY_TIMEOUT_SEC);
+                            }
+                            catch (Exception e)
+                            {
+                                //ignore first exception, the message was prob just deleted after we started iterating
+                                //there does not seem to be a much better way to do this
+                                info.numExceptions++;
+                                if (info.numExceptions >= 2)
+                                {
+                                    logger.Error("error updating message timeout: " + e.Message);
+                                }
+                            }
+                        }
+                        else
+                        {
+                            logger.Error("max processing time " + MAX_PROCESSING_SEC + "s reached for message, " +
+                                         "stopping heartbeat");
+                            ((IDictionary)messagesInFlight).Remove(receiptHandle);
+                        }
+                    }
+                }
             }
+
             if (masterTask != null)
             {
                 masterTask.Wait();
             }
+
             return 0;
+        }
+
+        private static int CurrentTimeSec()
+        {
+            return (int)(DateTime.UtcNow - new DateTime(1970, 1, 1)).TotalSeconds;
+        }
+
+        private void StartedProcessing(TilingQueue queue, TilingQueueMessage m)
+        {
+            if (!options.SingleThreaded)
+            {
+                var info = new MessageInfo() { deadline = CurrentTimeSec() + MAX_PROCESSING_SEC };
+                messagesInFlight.TryAdd(m.ReceiptHandle, info);
+            }
+            else
+            {
+                queue.UpdateTimeout(m, MAX_PROCESSING_SEC);
+            }
+        }
+
+        private void FinishedProcessing(TilingQueueMessage m)
+        {
+            if (!options.SingleThreaded)
+            {
+                ((IDictionary)messagesInFlight).Remove(m.ReceiptHandle);
+            }
         }
 
         public void RunWorker()
@@ -122,12 +223,11 @@ namespace OPS.Pipeline.TileServer
 
             while (true)
             {
-                var messages = cloud.WorkerQueue.Dequeue();
-                foreach(var m in messages)
+                foreach (var m in cloud.WorkerQueue.Dequeue())
                 {
                     try
                     {
-                        // process
+                        StartedProcessing(cloud.WorkerQueue, m);
                         if (m.GetType() == typeof(DefineTilesMessage))
                         {
                             new DefineTiles((DefineTilesMessage)m, this, cloud).Process();
@@ -160,7 +260,8 @@ namespace OPS.Pipeline.TileServer
                         {
                             logger.Info("Unknown message type: " + m.GetType());
                         }
-                        cloud.WorkerQueue.Delete(m);
+                        FinishedProcessing(m);
+                        cloud.WorkerQueue.DeleteMessage(m);
                     }
                     catch (Exception e)
                     {

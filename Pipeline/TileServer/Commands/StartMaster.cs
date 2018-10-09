@@ -62,8 +62,7 @@ namespace OPS.Pipeline.TileServer
 
             while (true)
             {
-                var messages = cloud.MasterQueue.Dequeue(TilingQueue.MAX_MESSAGES_PER_DEQUEUE);
-                foreach (var m in messages) 
+                foreach (var m in cloud.MasterQueue.Dequeue()) 
                 {
                     try
                     {
@@ -100,7 +99,7 @@ namespace OPS.Pipeline.TileServer
                             logger.Error("unknown message type: " + m.GetType());
                         }
 
-                        cloud.MasterQueue.Delete(m);
+                        cloud.MasterQueue.DeleteMessage(m);
                     }
                     catch (Exception e)
                     {
