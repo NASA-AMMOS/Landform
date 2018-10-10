@@ -241,7 +241,7 @@ namespace OPS.Pipeline.TileServer
                         StartedProcessing(cloud.WorkerQueue, m);
                         dispatcher.Handle(m);
                         FinishedProcessing(m);
-                        cloud.WorkerQueue.Delete(m);
+                        cloud.WorkerQueue.DeleteMessage(m);
                     }
                     catch (Exception e)
                     {
