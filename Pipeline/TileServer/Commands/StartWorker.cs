@@ -7,6 +7,7 @@ using OPS.Pipeline.MeshWorker;
 
 using System;
 using System.Collections;
+using System.Linq;
 using System.Collections.Generic;
 using System.Collections.Concurrent;
 using System.Threading.Tasks;
@@ -116,11 +117,7 @@ namespace OPS.Pipeline.TileServer
                     });
                 }
 
-                var workerQueue = new TileServerCloud(this).WorkerQueue;
-
-                //block until all worker threads are done
-                //
-                //also implement the heartbeat to progressively update the visibility timeout for messages "in flight"
+                //implement the heartbeat to progressively update the visibility timeout for messages "in flight"
                 //i.e. currently being processed by one of the workers
                 //while a message is in its visiblity timeout it is still in the SQS queue but hidden from other workers
                 //this scheme helps avoid multiple workers from trying to process the same message
@@ -130,19 +127,12 @@ namespace OPS.Pipeline.TileServer
                 //FIFO queues impose a limit on the max transactions per second
                 //and also aren't available in us-west-1 region as of this writing
                 //(and they're a little more expensive)
+                var workerQueue = new TileServerCloud(this).WorkerQueue;
                 while (true)
                 {
-                    bool allDone = true;
-                    foreach (var task in tasks)
-                    {
-                        if (!task.IsCompleted)
-                        {
-                            allDone = false;
-                            break;
-                        }
-                    }
-
-                    if (allDone)
+                    //in the current implementation the worker threads should never exit
+                    //but in case they all do for some reason then we shouldn't hang around either
+                    if (tasks.All(t => t.IsCompleted))
                     {
                         break;
                     }
