@@ -83,6 +83,13 @@ namespace OPS.Util
             func(tempFile);
             if (File.Exists(tempFile))
             {
+                //this is not atomic and is an MT race
+                //if (File.Exists(realFilename))
+                //{
+                //    File.Delete(realFilename);
+                //}
+                //File.Move(tempFile, realFilename);
+
                 //there is a fighting chance that this is atomic
                 //https://docs.microsoft.com/en-us/windows/desktop/FileIO/deprecation-of-txf#applications-updating-a-single-file-with-document-like-data
                 //unfortunately it doesn't work when the destination file doesn't already exist
@@ -100,6 +107,11 @@ namespace OPS.Util
             }
         }
 
+        //this seems to be the most palatable option to try to atomically move a file
+        //whether or not the destination already exists
+        //https://stackoverflow.com/a/38372760
+        //and yes, it's kernel32.dll even on 64 bit windows
+        //https://stackoverflow.com/a/1364762
         [return: MarshalAs(UnmanagedType.Bool)]
         [DllImport("kernel32.dll", SetLastError=true, CharSet=CharSet.Unicode)]
         static extern bool MoveFileEx(string existingFileName, string newFileName, int flags);
