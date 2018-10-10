@@ -1,12 +1,12 @@
-﻿using Amazon.SQS.Model;
-using Amazon.SQS;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using Amazon.Runtime;
 using Amazon;
+using Amazon.SQS;
+using Amazon.SQS.Model;
+using Amazon.Runtime;
 using OPS.Cloud;
 using OPS.Util;
 using Newtonsoft.Json;
@@ -19,98 +19,101 @@ namespace OPS.Pipeline.TileServer
     {
         [JsonIgnore]
         public string MessageId;
+
         [JsonIgnore]
         public string ReceiptHandle;
 
         public string ProjectName;
+
         public TilingQueueMessage() { }
-        public TilingQueueMessage(string projectName) { this.ProjectName = projectName; }
+        public TilingQueueMessage(string projectName) { ProjectName = projectName; }
     }
 
     public class TilingQueue
     {
-        string prefix;
-        AWSCredentials awsCredentials;
-        RegionEndpoint awsRegion;
-        int timeout = 60 * 15;
-        static ILog logger = LogManager.GetLogger(typeof(TilingQueue));
+        public const int VISIBILITY_TIMEOUT_SEC = 20;
 
-        public const int MAX_MESSAGES_PER_DEQUEUE = 10;
+        private static ILog logger = LogManager.GetLogger(typeof(TilingQueue));
 
+        public string Name;
 
-        string queueName
-        {
-            get
-            {
-                return "TilingServerQueue" + this.prefix;
-            }
-        }
-
-        string queueUrl;
+        private string url;
+        private AmazonSQSClient client;
 
         public TilingQueue(string prefix, string awsProfileName, string endpointName = "us-west-1")
         {
-            this.prefix = prefix;
+            Name = "TilingServerQueue" + prefix;
+
+            RegionEndpoint awsRegion = RegionEndpoint.GetBySystemName(endpointName);
+            AWSCredentials awsCredentials = null;
             if (awsProfileName != null)
             {
-                this.awsCredentials = Credentials.Get(awsProfileName);
+                awsCredentials = Credentials.Get(awsProfileName);
             }
-            this.awsRegion = RegionEndpoint.GetBySystemName(endpointName);
-            EnsureExists();
-            this.queueUrl = GetClient().GetQueueUrl(queueName).QueueUrl;
+
+            if (awsCredentials != null)
+            {
+                client = new AmazonSQSClient(awsCredentials, awsRegion);
+            }
+            else
+            {
+                client = new AmazonSQSClient(awsRegion);
+            }
+
+            try
+            {
+                url = client.GetQueueUrl(Name).QueueUrl;
+            }
+            catch (QueueDoesNotExistException)
+            {
+                CreateQueueRequest createQueueRequest = new CreateQueueRequest() { QueueName = Name };
+                createQueueRequest.Attributes["VisibilityTimeout"] = VISIBILITY_TIMEOUT_SEC.ToString(); 
+                url = client.CreateQueue(createQueueRequest).QueueUrl;
+            }
         }
         
-        //Use default credentials (or, for EC2 workers, their IAM role) if credentials are not provided 
-        private AmazonSQSClient GetClient()
-        {
-            if(awsCredentials == null)
-            {
-                return new AmazonSQSClient(awsRegion);
-            }
-            return new AmazonSQSClient(awsCredentials, awsRegion);
-        }
-
         public void Enqueue(TilingQueueMessage message)
         {
-            SendMessageRequest request = new SendMessageRequest(queueUrl, JsonHelper.ToJson(message));
-            SendMessageResponse response = GetClient().SendMessage(request);
-            if (response.HttpStatusCode != System.Net.HttpStatusCode.OK)
-            {
-                throw new CloudException("Could not enque message");
-            }
-        }
-
-        public void UpdateTimeout(TilingQueueMessage m)
-        {
-            if(m.ReceiptHandle == null)
-            {
-                throw new CloudException("Message does not have a recipt handle");
-            }
-            ChangeMessageVisibilityRequest request = new ChangeMessageVisibilityRequest(queueUrl, m.ReceiptHandle, this.timeout);
-            ChangeMessageVisibilityResponse response = GetClient().ChangeMessageVisibility(request);
-            if (response.HttpStatusCode != System.Net.HttpStatusCode.OK)
-            {
-                throw new CloudException("Could not update visibility");
-            }
+            client.SendMessage(new SendMessageRequest(url, JsonHelper.ToJson(message)));
         }
 
         /// <summary>
-        /// Max messages will be clamped between 1 and 10
+        /// If timeoutSec is omitted or negative the default VISIBILITY_TIMEOUT_SEC will be used.
         /// </summary>
-        /// <param name="maxMessages"></param>
         /// <returns></returns>
-        public TilingQueueMessage[] Dequeue(int maxMessages = 1)
+        public void UpdateTimeout(TilingQueueMessage m, int timeoutSec = -1)
+        {
+            if (m.ReceiptHandle == null)
+            {
+                throw new CloudException("Message does not have a receipt handle");
+            }
+            UpdateTimeout(m.ReceiptHandle);
+        }
+
+        /// <summary>
+        /// If timeoutSec is omitted or negative the default VISIBILITY_TIMEOUT_SEC will be used.
+        /// </summary>
+        /// <returns></returns>
+        public void UpdateTimeout(string messageHandle, int timeoutSec = -1)
+        {
+            if (timeoutSec < 0)
+            {
+                timeoutSec = VISIBILITY_TIMEOUT_SEC;
+            }
+            client.ChangeMessageVisibility(new ChangeMessageVisibilityRequest(url, messageHandle, timeoutSec));
+        }
+
+        public TilingQueueMessage[] Dequeue(int maxMessages = 10, int waitSec = 15)
         {
             var req = new ReceiveMessageRequest
             {
+                QueueUrl = url,                
                 AttributeNames = new List<string>() { "All" },
                 MessageAttributeNames = new List<string>() { "All" },
-                MaxNumberOfMessages = MathE.Clamp(maxMessages, 1, MAX_MESSAGES_PER_DEQUEUE),
-                QueueUrl = this.queueUrl,                
-                WaitTimeSeconds = (int)TimeSpan.FromSeconds(15).TotalSeconds // How long to wait for message
+                MaxNumberOfMessages = maxMessages,
+                WaitTimeSeconds = waitSec
             };
-            ReceiveMessageResponse r = GetClient().ReceiveMessage(req);
-            return r.Messages.Select(msg =>
+            return client.ReceiveMessage(req).Messages.Select(msg =>
             {
                 try
                 {
@@ -122,72 +125,37 @@ namespace OPS.Pipeline.TileServer
                 catch (Exception e)
                 {
                     
-                    logger.Error("invalid message '" + msg.Body + "' in " + queueName + " (deleting): " + e.Message);
+                    logger.Error("invalid message '" + msg.Body + "' in " + Name + " (deleting): " + e.Message);
                     try
                     {
                         DeleteMessage(msg.ReceiptHandle);
                     }
                     catch (Exception e2)
                     {
-                        logger.Error(e2.Message);
+                        logger.Error("error deleting message: " + e2.Message);
                     }
                     return null;
                 }
             }).Where(obj => obj != null).ToArray();
         }
 
-        public void Delete(TilingQueueMessage m)
+        public void DeleteMessage(TilingQueueMessage m)
         {
-            if(m.ReceiptHandle == null)
+            if (m.ReceiptHandle == null)
             {
-                throw new CloudException("Message does not have a receipt handle");
+                throw new CloudException("message does not have a receipt handle");
             }
             DeleteMessage(m.ReceiptHandle);
         }
 
-        private void DeleteMessage(string receiptHandle)
+        public void DeleteMessage(string receiptHandle)
         {
-            var delRequest = new DeleteMessageRequest
-            {
-                QueueUrl = this.queueUrl,
-                ReceiptHandle = receiptHandle
-            };
-
-            var response = GetClient().DeleteMessageAsync(delRequest).Result;
-            if (response.HttpStatusCode != System.Net.HttpStatusCode.OK)
-            {
-                throw new CloudException("Could not delete message");
-            }
+            client.DeleteMessage(new DeleteMessageRequest { QueueUrl = url, ReceiptHandle = receiptHandle });
         }
 
-        void Delete()
+        public void Delete()
         {
-            try
-            {
-                AmazonSQSClient client = GetClient();
-                var request = new DeleteQueueRequest(this.queueUrl);
-                var response = client.DeleteQueue(request);
-            }
-            catch (Exception e)
-            {
-                logger.Error(e.Message);
-            }
-        }
-
-        void EnsureExists()
-        {
-            try
-            {
-                AmazonSQSClient client = GetClient();
-                CreateQueueRequest createQueueRequest = new CreateQueueRequest();
-                createQueueRequest.QueueName = this.queueName;
-                createQueueRequest.Attributes["VisibilityTimeout"] = timeout.ToString(); 
-                CreateQueueResponse createQueueResponse = client.CreateQueue(createQueueRequest);
-            }
-            catch (Exception e)
-            {
-                logger.Error(e.Message);
-            }
+            client.DeleteQueue(new DeleteQueueRequest(url));
         }
     }
 }

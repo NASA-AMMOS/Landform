@@ -56,6 +56,12 @@ namespace OPS.Pipeline.TileServer
             }
         }
 
+        public void DeleteQueues()
+        {
+            WorkerQueue.Delete();
+            MasterQueue.Delete();
+        }
+
         public void EnsureTablesExist()
         {
             // make sure tables exist

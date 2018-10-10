@@ -18,6 +18,7 @@
     "build": "npm install && npm run build-client && npm run bundle",
     "deploy": "node tools/deploy.js",
     "local-deploy": "node tools/localDeploy.js",
+    "delete-queues": "node tools/deleteQueues.js",
     "show-config": "node tools/showConfig.js"
   },
   "keywords": [
