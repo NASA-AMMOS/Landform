@@ -28,7 +28,8 @@ namespace OPS.Pipeline.TileServer
                                                              ProjectMetadataOptions,
                                                              ListProjectsOptions,
                                                              DeleteProjectOptions,
-                                                             DeleteQueuesOptions
+                                                             DeleteQueuesOptions,
+                                                             DeleteCacheOptions
                                                              >(args)
               .MapResult(
                 (CreateProjectOptions opts) => new CreateProject(opts).Run(),
@@ -41,6 +42,7 @@ namespace OPS.Pipeline.TileServer
                 (ListProjectsOptions opts) => new ListProjects(opts).Run(),
                 (DeleteProjectOptions opts) => new DeleteProject(opts).Run(),
                 (DeleteQueuesOptions opts) => new DeleteQueues(opts).Run(),
+                (DeleteCacheOptions opts) => new DeleteCache(opts).Run(),
                 errs => 1);
         }
     }
