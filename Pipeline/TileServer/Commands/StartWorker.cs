@@ -117,20 +117,18 @@ namespace OPS.Pipeline.TileServer
         {
             logger.Info("Worker starting");
 
-            //each worker thread has its own pieline and cloud instance
+            //each worker thread has its own cloud instance
             //this avoids the need for synchronization
-            var pipeline = new PipelineCore(dynamoPrefix: TileServerConfig.Instance.VenueName,
-                                            profile: TileServerConfig.Instance.Profile);
-            var cloud = new TileServerCloud(pipeline);
+            var cloud = new TileServerCloud(this);
 
             var dispatcher = new TypeDispatcher()
-                .Case((DefineTilesMessage m) => new DefineTiles(m, pipeline, cloud).Process())
-                .Case((ChunkInputMessage m) => new ChunkInput(m, pipeline, cloud).Process())
-                .Case((BuildBakedLeavesMessage m) => new BuildBakedLeaves(m, pipeline, cloud).Process())
-                .Case((BuildBackprojectLeavesMessage m) => new BuildBackprojectLeaves(m, pipeline, cloud).Process())
-                .Case((BuildParentMessage m) => new BuildParent(m, pipeline, cloud).Process())
-                .Case((BuildTilesetJsonMessage m) => new BuildTilesetJson(m, pipeline, cloud).Process())
-                .Case((BuildTilingInputMessage m) => new BuildTilingInput(m, pipeline, cloud).Process());
+                .Case((DefineTilesMessage m) => new DefineTiles(m, this, cloud).Process())
+                .Case((ChunkInputMessage m) => new ChunkInput(m, this, cloud).Process())
+                .Case((BuildBakedLeavesMessage m) => new BuildBakedLeaves(m, this, cloud).Process())
+                .Case((BuildBackprojectLeavesMessage m) => new BuildBackprojectLeaves(m, this, cloud).Process())
+                .Case((BuildParentMessage m) => new BuildParent(m, this, cloud).Process())
+                .Case((BuildTilesetJsonMessage m) => new BuildTilesetJson(m, this, cloud).Process())
+                .Case((BuildTilingInputMessage m) => new BuildTilingInput(m, this, cloud).Process());
             dispatcher.Unhandled = (t, x) => logger.Error("Unknown message type: " + t);
 
             while (true)
