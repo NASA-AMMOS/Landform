@@ -29,7 +29,10 @@ namespace OPS.Util
             }
             else
             {
-                if (Unhandled != null) Unhandled(t, x);
+                if (Unhandled != null)
+                {
+                    Unhandled(t, x);
+                }
                 return false;
             }
         }
