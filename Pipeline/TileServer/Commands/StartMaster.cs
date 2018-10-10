@@ -93,11 +93,7 @@ namespace OPS.Pipeline.TileServer
                             projectNameToStateMachine.TryAdd(m.ProjectName, sm);
                         }
 
-                        bool processed = projectNameToStateMachine[m.ProjectName].ProcessMessage(m);
-                        if (!processed)
-                        {
-                            logger.Error("unknown message type: " + m.GetType());
-                        }
+                        projectNameToStateMachine[m.ProjectName].ProcessMessage(m);
 
                         cloud.MasterQueue.DeleteMessage(m);
                     }

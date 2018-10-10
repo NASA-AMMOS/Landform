@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Linq;
 using System.Collections.Generic;
+using OPS.Util;
 using OPS.Plumbing;
 using OPS.Geometry;
 using OPS.Pipeline.MeshWorker;
@@ -22,20 +23,13 @@ namespace OPS.Pipeline.TileServer
             return "MSL";
         }
 
-        public override bool ProcessMessage(TilingQueueMessage m)
+        override protected TypeDispatcher InitDispatcher()
         {
-            if (base.ProcessMessage(m))
-            {
-                return true;
-            }
-            if (m.GetType() == typeof(BuildTilingInputMessage))
-            {
-                LogInfo("tiling input built");
-                LogInfo("defining tiles");
-                workerQueue.Enqueue(new DefineTilesMessage(projectName));
-                return true;
-            }
-            return false;
+            return base.InitDispatcher()
+                .Case((BuildTilingInputMessage m) => {
+                        LogInfo("tiling input built, defining tiles");
+                        workerQueue.Enqueue(new DefineTilesMessage(projectName));
+                    });
         }
 
         override protected void RunProject()
