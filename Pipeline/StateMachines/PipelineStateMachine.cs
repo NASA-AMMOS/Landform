@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Linq;
 using System.Collections.Generic;
+using OPS.Util;
 using OPS.Plumbing;
 using OPS.Geometry;
 using OPS.Pipeline.TileServer;
@@ -16,6 +17,7 @@ namespace OPS.Pipeline.TileServer
         protected TilingQueue workerQueue;
         protected ProjectCache projectCache;
         protected string projectName;
+        protected TypeDispatcher dispatcher;
 
         protected void LogInfo(string msg)
         {
@@ -33,57 +35,32 @@ namespace OPS.Pipeline.TileServer
             this.workerQueue = workerQueue;
             this.projectName = projectName;
             projectCache = new ProjectCache(pipeline.DynamoContext, projectName);
+            InitDispatcher();
         }
 
-        //returns true iff the message was handled
-        virtual public bool ProcessMessage(TilingQueueMessage m)
+        virtual protected TypeDispatcher InitDispatcher()
+        {
+            dispatcher = new TypeDispatcher()
+                .Case((CreateProjectMessage m) => CreateProject(m))
+                .Case((DeleteProjectMessage m) => DeleteProject())
+                .Case((AddInputMessage m) => AddInput(m))
+                .Case((RunProjectMessage m) => RunProject())
+                .Case((DefineTilesMessage m) => TilesDefined())
+                .Case((ChunkInputMessage m) => InputChunked(m.InputName))
+                .Case((TileCompletedMessage m) => TileCompleted(m.TileId))
+                .Case((BuildTilesetJsonMessage m) => TilesetCompleted());
+            dispatcher.Unhandled = (t, x) => logger.Error("unknown message type: " + t);
+            return dispatcher;
+        }
+
+        virtual public void ProcessMessage(TilingQueueMessage m)
         {
             if (m.ProjectName != projectName)
             {
                 throw new ArgumentException(string.Format("received message for project \"{0}\", expected \"{1}\"",
                                                           m.ProjectName, projectName));
             }
-            if (m.GetType() == typeof(CreateProjectMessage))
-            {
-                CreateProject((CreateProjectMessage)m);
-                return true;
-            }
-            if (m.GetType() == typeof(DeleteProjectMessage))
-            {
-                DeleteProject();
-                return true;
-            }
-            if (m.GetType() == typeof(AddInputMessage))
-            {
-                AddInput((AddInputMessage)m);
-                return true;
-            }
-            if (m.GetType() == typeof(RunProjectMessage))
-            {
-                RunProject();
-                return true;
-            }
-            if (m.GetType() == typeof(DefineTilesMessage))
-            {
-                TilesDefined();
-                return true;
-            }
-            if (m.GetType() == typeof(ChunkInputMessage))
-            {
-                InputChunked(((ChunkInputMessage)m).InputName);
-                return true;
-            }
-            if (m.GetType() == typeof(TileCompletedMessage))
-            {
-                TileCompleted(((TileCompletedMessage)m).TileId);
-                return true;
-            }
-            if (m.GetType() == typeof(BuildTilesetJsonMessage))
-            {
-                TilesetCompleted();
-                return true;
-            }
-            return false;
+            dispatcher.Handle(m);
         }
         
         virtual protected void CreateProject(CreateProjectMessage m)

@@ -1,5 +1,6 @@
 ﻿using CommandLine;
 using log4net;
+using OPS.Util;
 using OPS.Geometry;
 using OPS.Plumbing;
 using OPS.Pipeline.MeshWorker;
@@ -117,8 +118,18 @@ namespace OPS.Pipeline.TileServer
             logger.Info("Worker starting");
 
             //each worker thread has its own cloud instance
-            //this avoids the need for synchronization of access to the message queues
+            //this avoids the need for synchronization
             var cloud = new TileServerCloud(this);
+
+            var dispatcher = new TypeDispatcher()
+                .Case((DefineTilesMessage m) => new DefineTiles(m, this, cloud).Process())
+                .Case((ChunkInputMessage m) => new ChunkInput(m, this, cloud).Process())
+                .Case((BuildBakedLeavesMessage m) => new BuildBakedLeaves(m, this, cloud).Process())
+                .Case((BuildBackprojectLeavesMessage m) => new BuildBackprojectLeaves(m, this, cloud).Process())
+                .Case((BuildParentMessage m) => new BuildParent(m, this, cloud).Process())
+                .Case((BuildTilesetJsonMessage m) => new BuildTilesetJson(m, this, cloud).Process())
+                .Case((BuildTilingInputMessage m) => new BuildTilingInput(m, this, cloud).Process());
+            dispatcher.Unhandled = (t, x) => logger.Error("Unknown message type: " + t);
 
             while (true)
             {
@@ -127,39 +138,7 @@ namespace OPS.Pipeline.TileServer
                 {
                     try
                     {
-                        // process
-                        if (m.GetType() == typeof(DefineTilesMessage))
-                        {
-                            new DefineTiles((DefineTilesMessage)m, this, cloud).Process();
-                        }
-                        else if (m.GetType() == typeof(ChunkInputMessage))
-                        {
-                            new ChunkInput((ChunkInputMessage)m, this, cloud).Process();
-                        }
-                        else if (m.GetType() == typeof(BuildBakedLeavesMessage))
-                        {
-                            new BuildBakedLeaves((BuildBakedLeavesMessage)m, this, cloud).Process();
-                        }
-                        else if (m.GetType() == typeof(BuildBackprojectLeavesMessage))
-                        {
-                            new BuildBackprojectLeaves((BuildBackprojectLeavesMessage)m, this, cloud).Process();
-                        }
-                        else if (m.GetType() == typeof(BuildParentMessage))
-                        {
-                            new BuildParent((BuildParentMessage)m, this, cloud).Process();
-                        }
-                        else if (m.GetType() == typeof(BuildTilesetJsonMessage))
-                        {
-                            new BuildTilesetJson((BuildTilesetJsonMessage)m, this, cloud).Process();
-                        }
-                        else if (m.GetType() == typeof(BuildTilingInputMessage))
-                        {
-                            new BuildTilingInput((BuildTilingInputMessage)m, this, cloud).Process();
-                        }
-                        else
-                        {
-                            logger.Info("Unknown message type: " + m.GetType());
-                        }
+                        dispatcher.Handle(m);
                         cloud.WorkerQueue.Delete(m);
                     }
                     catch (Exception e)
