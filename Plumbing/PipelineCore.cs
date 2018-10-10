@@ -19,7 +19,8 @@ namespace OPS.Plumbing
 {
     public class PipelineCore
     {
-        public PipelineCore(bool enableS3 = true, bool enableDynamo = true, string dynamoPrefix = "", string s3Url = "", string dynamoUrl = "", string profile = null)
+        public PipelineCore(bool enableS3 = true, bool enableDynamo = true,
+                            string dynamoPrefix = "", string s3Url = "", string dynamoUrl = "", string profile = null)
         {
             storageSelecter = new Dictionary<string, StorageHelper>();
             if (enableS3)
@@ -65,13 +66,12 @@ namespace OPS.Plumbing
             }
             this.Profile = profile;
 
-            //use a different download cache dir for every run
-            //also, if more than one PipelineCore instance is created then use different download dirs for each
-            downloadCache = TemporaryFile.GetTempDirectory();
+            //use a different download cache dir for every PipelineCore instance
+            //i.e. different for every thread and every run
+            //DownloadCache = TemporaryFile.GetTempDirectory();
 
-            //this would be an alternate strategy of intentionally sharing the download dir across
-            //different instances of PipelineCore
-            //downloadCache = TemporaryFile.GetTempDirectory("downloads");
+            //share the download cache dir across different instances
+            DownloadCache = TemporaryFile.GetTempDirectory("downloads");
         }
 
         //delete the download cache if we cleanly exit
@@ -81,12 +81,13 @@ namespace OPS.Plumbing
             DeleteDownloadCache();
         }
 
+        public string DownloadCache { get; private set; }
+
         private AmazonS3Client s3Client;
         private AmazonDynamoDBClient ddbClient;
         private DynamoDBContext context;
         private StorageHelper defaultStorage;
         private Dictionary<string, StorageHelper> storageSelecter;
-        private string downloadCache;
 
         public string Profile { get; private set; }
         public IAmazonDynamoDB DynamoDB { get { return ddbClient; } }
@@ -275,7 +276,7 @@ namespace OPS.Plumbing
 
         public void DeleteProjectCache(string project)
         {
-            var projectCache = Path.Combine(downloadCache, project);
+            var projectCache = Path.Combine(DownloadCache, project);
             if (Directory.Exists(projectCache))
             {
                 Directory.Delete(projectCache, true);
@@ -284,9 +285,9 @@ namespace OPS.Plumbing
 
         public void DeleteDownloadCache()
         {
-            if (Directory.Exists(downloadCache))
+            if (Directory.Exists(DownloadCache))
             {
-                Directory.Delete(downloadCache, true);
+                Directory.Delete(DownloadCache, true);
             }
         }
 
@@ -312,7 +313,7 @@ namespace OPS.Plumbing
 
         internal string CachePath(string project, string filename)
         {
-            return Path.Combine(downloadCache, project, filename);
+            return Path.Combine(DownloadCache, project, filename);
         }
     }
 }
