@@ -10,6 +10,7 @@
     "server": "node server.js",
     "client": "node tools/startClient.js",
     "worker": "node tools/startWorker.js",
+    "make-token": "node tools/makeToken.js",
     "configure-backend": "node tools/configureBackend.js",
     "bundle-worker": "node tools/bundleWorker.js",
     "build-client": "node tools/buildClient.js",
