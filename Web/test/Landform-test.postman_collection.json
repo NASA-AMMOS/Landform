@@ -59,7 +59,6 @@
 					"listen": "test",
 					"script": {
 						"id": "4de96066-1947-4745-be04-328ccbe124ce",
-						"type": "text/javascript",
 						"exec": [
 							"pm.test(\"HTTP OK\", function () {",
 							"    pm.response.to.have.status(200);",
@@ -73,7 +72,8 @@
 							"    pm.expect(pm.response.json().success).to.eql(true);",
 							"});",
 							""
-						]
+						],
+						"type": "text/javascript"
 					}
 				}
 			],
@@ -90,7 +90,7 @@
 					"raw": ""
 				},
 				"url": {
-					"raw": "{{SERVER_URL}}/api/projects/{{PROJECT_NAME}}",
+					"raw": "{{SERVER_URL}}/api/projects/{{PROJECT_NAME}}?{{PROJECT_OPTIONS}}",
 					"host": [
 						"{{SERVER_URL}}"
 					],
@@ -98,6 +98,12 @@
 						"api",
 						"projects",
 						"{{PROJECT_NAME}}"
+					],
+					"query": [
+						{
+							"key": "{{PROJECT_OPTIONS}}",
+							"value": null
+						}
 					]
 				}
 			},
