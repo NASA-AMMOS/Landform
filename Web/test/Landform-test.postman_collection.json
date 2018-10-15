@@ -1,10 +1,57 @@
 {
 	"info": {
-		"_postman_id": "4698539a-9115-4517-b4ed-a33bc8418001",
+		"_postman_id": "d1ed7616-6d05-4e41-98dd-09810737523a",
 		"name": "Landform-test",
 		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
 	},
 	"item": [
+		{
+			"name": "delete project",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"id": "f217fc5c-c2d6-42a3-ba32-e1d0343a3769",
+						"type": "text/javascript",
+						"exec": [
+							"pm.test(\"HTTP OK\", function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"pm.test(\"task success\", function () {",
+							"    pm.expect(pm.response.json().success).to.eql(true);",
+							"});",
+							""
+						]
+					}
+				}
+			],
+			"request": {
+				"method": "DELETE",
+				"header": [
+					{
+						"key": "x-landform-token",
+						"value": "{{API_TOKEN}}"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": ""
+				},
+				"url": {
+					"raw": "{{SERVER_URL}}/api/projects/{{PROJECT_NAME}}",
+					"host": [
+						"{{SERVER_URL}}"
+					],
+					"path": [
+						"api",
+						"projects",
+						"{{PROJECT_NAME}}"
+					]
+				}
+			},
+			"response": []
+		},
 		{
 			"name": "create project",
 			"event": [
@@ -38,7 +85,10 @@
 						"value": "{{API_TOKEN}}"
 					}
 				],
-				"body": {},
+				"body": {
+					"mode": "raw",
+					"raw": ""
+				},
 				"url": {
 					"raw": "{{SERVER_URL}}/api/projects/{{PROJECT_NAME}}",
 					"host": [
@@ -83,7 +133,10 @@
 						"value": "{{API_TOKEN}}"
 					}
 				],
-				"body": {},
+				"body": {
+					"mode": "raw",
+					"raw": ""
+				},
 				"url": {
 					"raw": "{{SERVER_URL}}/api/projects",
 					"host": [
@@ -104,7 +157,6 @@
 					"listen": "test",
 					"script": {
 						"id": "3df4938d-2659-429b-9cc7-8207ff9abaaf",
-						"type": "text/javascript",
 						"exec": [
 							"pm.test(\"HTTP OK\", function () {",
 							"    pm.response.to.have.status(200);",
@@ -118,7 +170,8 @@
 							"    pm.expect(pm.response.json().success).to.eql(true);",
 							"});",
 							""
-						]
+						],
+						"type": "text/javascript"
 					}
 				}
 			],
@@ -135,12 +188,10 @@
 					"formdata": [
 						{
 							"key": "mesh",
-							"value": "",
 							"type": "file"
 						},
 						{
 							"key": "texture",
-							"value": "",
 							"type": "file"
 						}
 					]
@@ -193,7 +244,10 @@
 						"value": "{{API_TOKEN}}"
 					}
 				],
-				"body": {},
+				"body": {
+					"mode": "raw",
+					"raw": ""
+				},
 				"url": {
 					"raw": "{{SERVER_URL}}/api/projects/{{PROJECT_NAME}}/run",
 					"host": [
@@ -204,49 +258,6 @@
 						"projects",
 						"{{PROJECT_NAME}}",
 						"run"
-					]
-				}
-			},
-			"response": []
-		},
-		{
-			"name": "get project metadata",
-			"event": [
-				{
-					"listen": "test",
-					"script": {
-						"id": "6e977225-4dc7-4322-9467-baac0be5c4b6",
-						"type": "text/javascript",
-						"exec": [
-							"pm.test(\"HTTP OK\", function () {",
-							"    pm.response.to.have.status(200);",
-							"});",
-							"",
-							"pm.test(\"response is json\", function () {",
-							"    pm.response.to.have.jsonBody();",
-							"});"
-						]
-					}
-				}
-			],
-			"request": {
-				"method": "GET",
-				"header": [
-					{
-						"key": "x-landform-token",
-						"value": "{{API_TOKEN}}"
-					}
-				],
-				"body": {},
-				"url": {
-					"raw": "{{SERVER_URL}}/api/projects/{{PROJECT_NAME}}",
-					"host": [
-						"{{SERVER_URL}}"
-					],
-					"path": [
-						"api",
-						"projects",
-						"{{PROJECT_NAME}}"
 					]
 				}
 			},
@@ -284,7 +295,10 @@
 						"value": "{{API_TOKEN}}"
 					}
 				],
-				"body": {},
+				"body": {
+					"mode": "raw",
+					"raw": ""
+				},
 				"url": {
 					"raw": "{{SERVER_URL}}/api/projects/{{PROJECT_NAME}}/result?redirect=false",
 					"host": [
@@ -338,7 +352,10 @@
 						"value": "{{API_TOKEN}}"
 					}
 				],
-				"body": {},
+				"body": {
+					"mode": "raw",
+					"raw": ""
+				},
 				"url": {
 					"raw": "{{SERVER_URL}}/api/projects/{{PROJECT_NAME}}/view?redirect=false",
 					"host": [
@@ -361,35 +378,37 @@
 			"response": []
 		},
 		{
-			"name": "delete project",
+			"name": "get project metadata",
 			"event": [
 				{
 					"listen": "test",
 					"script": {
-						"id": "f217fc5c-c2d6-42a3-ba32-e1d0343a3769",
+						"id": "6e977225-4dc7-4322-9467-baac0be5c4b6",
 						"type": "text/javascript",
 						"exec": [
 							"pm.test(\"HTTP OK\", function () {",
 							"    pm.response.to.have.status(200);",
 							"});",
 							"",
-							"pm.test(\"task success\", function () {",
-							"    pm.expect(pm.response.json().success).to.eql(true);",
-							"});",
-							""
+							"pm.test(\"response is json\", function () {",
+							"    pm.response.to.have.jsonBody();",
+							"});"
 						]
 					}
 				}
 			],
 			"request": {
-				"method": "DELETE",
+				"method": "GET",
 				"header": [
 					{
 						"key": "x-landform-token",
 						"value": "{{API_TOKEN}}"
 					}
 				],
-				"body": {},
+				"body": {
+					"mode": "raw",
+					"raw": ""
+				},
 				"url": {
 					"raw": "{{SERVER_URL}}/api/projects/{{PROJECT_NAME}}",
 					"host": [
@@ -399,163 +418,6 @@
 						"api",
 						"projects",
 						"{{PROJECT_NAME}}"
-					]
-				}
-			},
-			"response": []
-		},
-		{
-			"name": "get master task ID",
-			"event": [
-				{
-					"listen": "test",
-					"script": {
-						"id": "c0233a7a-a299-4ff0-8cdd-243397583695",
-						"type": "text/javascript",
-						"exec": [
-							"pm.test(\"HTTP OK\", function () {",
-							"    pm.response.to.have.status(200);",
-							"});",
-							"",
-							"pm.test(\"response is json\", function () {",
-							"    pm.response.to.have.jsonBody();",
-							"});",
-							"",
-							"pm.test(\"body is correct\", function () {",
-							"    pm.response.to.have.body(new RegExp('[0-9]+'));",
-							"});"
-						]
-					}
-				}
-			],
-			"request": {
-				"method": "GET",
-				"header": [
-					{
-						"key": "x-landform-token",
-						"value": "{{API_TOKEN}}"
-					}
-				],
-				"body": {},
-				"url": {
-					"raw": "{{SERVER_URL}}/api/tasks/master/id",
-					"host": [
-						"{{SERVER_URL}}"
-					],
-					"path": [
-						"api",
-						"tasks",
-						"master",
-						"id"
-					]
-				}
-			},
-			"response": []
-		},
-		{
-			"name": "get master task status",
-			"event": [
-				{
-					"listen": "test",
-					"script": {
-						"id": "7d55dd73-6c05-4aa9-b0f4-3de0f2dfb300",
-						"type": "text/javascript",
-						"exec": [
-							"pm.test(\"HTTP OK\", function () {",
-							"    pm.response.to.have.status(200);",
-							"});",
-							"",
-							"pm.test(\"response is json\", function () {",
-							"    pm.response.to.have.jsonBody();",
-							"});",
-							"",
-							"pm.test(\"task running\", function () {",
-							"    pm.expect(pm.response.json().running).to.eql(true);",
-							"});"
-						]
-					}
-				}
-			],
-			"request": {
-				"method": "GET",
-				"header": [
-					{
-						"key": "x-landform-token",
-						"value": "{{API_TOKEN}}"
-					}
-				],
-				"body": {},
-				"url": {
-					"raw": "{{SERVER_URL}}/api/tasks/0",
-					"host": [
-						"{{SERVER_URL}}"
-					],
-					"path": [
-						"api",
-						"tasks",
-						"0"
-					]
-				}
-			},
-			"response": []
-		},
-		{
-			"name": "get master log",
-			"event": [
-				{
-					"listen": "prerequest",
-					"script": {
-						"id": "69af028c-bd3a-4fe7-908a-ab55d08db06a",
-						"type": "text/javascript",
-						"exec": [
-							""
-						]
-					}
-				},
-				{
-					"listen": "test",
-					"script": {
-						"id": "bebd9d6a-3863-48ef-be01-beb8c8c9500e",
-						"type": "text/javascript",
-						"exec": [
-							"pm.test(\"HTTP OK\", function () {",
-							"    pm.response.to.have.status(200);",
-							"});",
-							"",
-							"pm.test(\"content type\", function () {",
-							"    pm.response.to.have.header(\"Content-Type\");",
-							"    pm.response.to.be.header(\"Content-Type\", \"text/plain; charset=utf-8\");",
-							"});",
-							""
-						]
-					}
-				}
-			],
-			"request": {
-				"method": "GET",
-				"header": [
-					{
-						"key": "x-landform-token",
-						"value": "{{API_TOKEN}}"
-					}
-				],
-				"body": {},
-				"url": {
-					"raw": "{{SERVER_URL}}/api/tasks/0/log?text=true",
-					"host": [
-						"{{SERVER_URL}}"
-					],
-					"path": [
-						"api",
-						"tasks",
-						"0",
-						"log"
-					],
-					"query": [
-						{
-							"key": "text",
-							"value": "true"
-						}
 					]
 				}
 			},
@@ -582,26 +444,6 @@
 					""
 				]
 			}
-		}
-	],
-	"variable": [
-		{
-			"id": "6d5bcfb3-5b3c-492f-9b22-d968290b1a83",
-			"key": "PROJECT_NAME",
-			"value": "",
-			"type": "string"
-		},
-		{
-			"id": "8489d315-d8a7-4645-96b1-0dcf2e8ad923",
-			"key": "SERVER_URL",
-			"value": "",
-			"type": "string"
-		},
-		{
-			"id": "eb883e9d-9d9a-4eb2-b8bf-340adc95daf1",
-			"key": "API_TOKEN",
-			"value": "",
-			"type": "string"
 		}
 	]
 }
