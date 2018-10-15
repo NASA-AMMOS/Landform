@@ -10,6 +10,8 @@ function boolArg(v, name) {
   return lv === `-${ln[0]}` || lv === `--${ln}` || lv === `--${ln}=true`;
 }
 
+function hasFlag(name) { return process.argv.slice(2).some(v => boolArg(v, name)); }
+
 //run cmd, wait for it to complete, and return its stdout spew
 //throws if cmd not found or returns nonzero exit status
 //ignores stderr from cmd
@@ -113,4 +115,21 @@ async function prompt(cmd, msg) {
   });
 }
 
-module.exports = { boolArg, exec, spawn, spawnSync, checkDeploy, checkTTY, prompt };
+function parseSec(duration) {
+  if (!duration || duration.length < 1) return 0;
+  if (duration === 'help') return 'N|Ns|Nm|Nh|Nd|Nw|No|Ny';
+  const suffix = duration[duration.length - 1].toLowerCase();
+  let sec = parseInt(duration);
+  switch (suffix) {
+    case 's': default: break;
+    case 'm': sec *= 60; break;
+    case 'h': sec *= 60 * 60; break;
+    case 'd': sec *= 60 * 60 * 24; break;
+    case 'w': sec *= 60 * 60 * 24 * 7; break;
+    case 'o': sec *= 60 * 60 * 24 * 7 * 31; break;
+    case 'y': sec *= 60 * 60 * 24 * 7 * 365; break;
+  }
+  return sec;
+}
+
+module.exports = { boolArg, hasFlag, exec, spawn, spawnSync, checkDeploy, checkTTY, prompt, parseSec };

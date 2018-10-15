@@ -2,7 +2,7 @@ const fs = require('fs-extra');
 const Zip = require('@jpl/adm-zip');
 
 const config = require('../config');
-const { prompt } = require('./deployUtil');
+const { prompt } = require('./toolUtil');
 
 const bundle = config.app.workerBundle;
 const binDir = config.app.binDir;

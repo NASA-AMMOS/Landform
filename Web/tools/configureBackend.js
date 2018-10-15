@@ -1,7 +1,7 @@
 const fs = require('fs-extra');
 const path = require('path');
 const config = require('../config');
-const { spawnSync } = require('./deployUtil');
+const { spawnSync } = require('./toolUtil');
 
 //npm run configure-backend -- [venue-name]
 

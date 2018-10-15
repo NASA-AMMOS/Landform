@@ -1,6 +1,6 @@
 const config = require('../config');
 const { setTilingEnv } = require('../tilingUtil');
-const { spawn } = require('./deployUtil');
+const { spawn } = require('./toolUtil');
 
 //npm run delete-queues -- [venue-name]
 
