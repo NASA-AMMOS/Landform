@@ -118,7 +118,7 @@ namespace OPS.Pipeline.TileServer
             md.OutputUrl = TileServerConfig.Instance.WWWUrl(project.Name, "tileset.json", https: true);
 
             var ignore = new string[] { "TilingProject.NodeIds", "TilingProject.InputNames" };
-            Console.WriteLine(JsonHelper.ToJson(md, indent: true, ignoreProperties: ignore));
+            Console.WriteLine(JsonHelper.ToJson(md, indent: true, autoTypes: false, ignoreProperties: ignore));
 
             return 0;
         }
