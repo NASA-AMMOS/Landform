@@ -1,6 +1,7 @@
 ﻿using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.Model;
 using log4net;
+using OPS.Cloud;
 using OPS.Plumbing;
 using System;
 using System.Collections.Generic;
@@ -18,7 +19,13 @@ namespace OPS.Pipeline.TileServer
                 typeof(TilingProject),
                 typeof(TilingInput),
                 typeof(TilingNode),
-                typeof(TilingInputChunk)
+                typeof(TilingInputChunk),
+                typeof(Project),
+                typeof(FrameTransform),
+                typeof(Frame),
+                typeof(Observation),
+                typeof(Overlap),
+                typeof(TransformPrior)
             };
 
         PipelineCore pipeline;

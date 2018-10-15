@@ -12,6 +12,7 @@ using System.Collections.Generic;
 using System.Collections.Concurrent;
 using System.Threading.Tasks;
 using System.Threading;
+using OPS.Pipeline.AlignmentServer;
 
 namespace OPS.Pipeline.TileServer
 {
@@ -221,25 +222,28 @@ namespace OPS.Pipeline.TileServer
                 .Case((BuildBackprojectLeavesMessage m) => new BuildBackprojectLeaves(m, pipeline, cloud).Process())
                 .Case((BuildParentMessage m) => new BuildParent(m, pipeline, cloud).Process())
                 .Case((BuildTilesetJsonMessage m) => new BuildTilesetJson(m, pipeline, cloud).Process())
-                .Case((BuildTilingInputMessage m) => new BuildTilingInput(m, pipeline, cloud).Process());
+                .Case((BuildTilingInputMessage m) => new BuildTilingInput(m, pipeline, cloud).Process())
+                .Case((CreateMaskMessage m) => new CreateMask(m, pipeline, cloud).Process())
+                .Case((DetectFeaturesMessage m) => new AlignmentServer.DetectFeatures(m, pipeline, cloud).Process())
+                .Case((MatchImagesMessage m) => new MatchImages(m, pipeline, cloud).Process());
             dispatcher.Unhandled = (t, x) => logger.Error("Unknown message type: " + t);
 
             while (true)
             {
                 foreach (var m in cloud.WorkerQueue.Dequeue())
                 {
-                    try
-                    {
+                    /*try
+                    {*/
                         StartedProcessing(cloud.WorkerQueue, m);
                         dispatcher.Handle(m);
                         FinishedProcessing(m);
                         cloud.WorkerQueue.DeleteMessage(m);
-                    }
+                    /*}
                     catch (Exception e)
                     {
                         logger.Error(e.Message);
                         logger.Error(e.StackTrace);
-                    }
+                    }*/
                 }
             }
         }
