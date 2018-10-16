@@ -1,57 +1,10 @@
 {
 	"info": {
 		"_postman_id": "d1ed7616-6d05-4e41-98dd-09810737523a",
-		"name": "Landform-test",
+		"name": "Landform-run",
 		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
 	},
 	"item": [
-		{
-			"name": "delete project",
-			"event": [
-				{
-					"listen": "test",
-					"script": {
-						"id": "f217fc5c-c2d6-42a3-ba32-e1d0343a3769",
-						"type": "text/javascript",
-						"exec": [
-							"pm.test(\"HTTP OK\", function () {",
-							"    pm.response.to.have.status(200);",
-							"});",
-							"",
-							"pm.test(\"task success\", function () {",
-							"    pm.expect(pm.response.json().success).to.eql(true);",
-							"});",
-							""
-						]
-					}
-				}
-			],
-			"request": {
-				"method": "DELETE",
-				"header": [
-					{
-						"key": "x-landform-token",
-						"value": "{{API_TOKEN}}"
-					}
-				],
-				"body": {
-					"mode": "raw",
-					"raw": ""
-				},
-				"url": {
-					"raw": "{{SERVER_URL}}/api/projects/{{PROJECT_NAME}}",
-					"host": [
-						"{{SERVER_URL}}"
-					],
-					"path": [
-						"api",
-						"projects",
-						"{{PROJECT_NAME}}"
-					]
-				}
-			},
-			"response": []
-		},
 		{
 			"name": "create project",
 			"event": [
