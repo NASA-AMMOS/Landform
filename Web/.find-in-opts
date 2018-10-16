@@ -1,5 +1,6 @@
 -a -not -regex .*node_modules.*
 -a -not -regex .*client/build.*
+-a -not -regex .*client/public/viewer/Build.*
 -a -not -regex .*tmp.*
 -a -not -regex .*upload.*
 -a -not -regex .*log.*
