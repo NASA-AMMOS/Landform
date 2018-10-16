@@ -11,6 +11,7 @@
     "client": "node tools/startClient.js",
     "worker": "node tools/startWorker.js",
     "make-token": "node tools/makeToken.js",
+    "tests": "node tools/runTests.js",
     "configure-backend": "node tools/configureBackend.js",
     "bundle-worker": "node tools/bundleWorker.js",
     "build-client": "node tools/buildClient.js",
