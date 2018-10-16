@@ -3,12 +3,13 @@ const { hasFlag, parseSec } = require('./toolUtil');
 
 const argv = process.argv;
 
-function usage() {
+function usage(err) {
   console.log(`USAGE: makeToken user ${parseSec('help')} [-h|--help]`);
-  process.exit();
+  process.exit(err);
 }
 
-if (argv.length < 4 || hasFlag('help')) usage();
+if (argv.length < 4) usage(1);
+if (hasFlag('help')) usage();
 
 const user = argv[2];
 
