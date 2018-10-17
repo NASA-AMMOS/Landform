@@ -17,7 +17,7 @@ namespace OPS.Pipeline.TileServer
 {
     [DynamoDBTable("TilingNode")]
     [DynamoDBReadCapacity(30, 50)]
-    [DynamoDBWriteCapacity(5, 50)]
+    [DynamoDBWriteCapacity(15, 50)] //increased write capacity from 5 to 15 to reduce backoffs in node creation/deletion
     public class TilingNode
     {
         [DynamoDBHashKey] //Partition key
