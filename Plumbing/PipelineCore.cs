@@ -1,5 +1,6 @@
 ﻿using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.DataModel;
+using Amazon.DynamoDBv2.Model;
 using Amazon.S3;
 using OPS.Cloud;
 using OPS.Imaging;
@@ -12,6 +13,7 @@ using System.Linq;
 using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using log4net;
 
@@ -295,7 +297,29 @@ namespace OPS.Plumbing
         {
             try
             {
-                DynamoContext.Delete(obj);
+                for (int backoff = 50; true; backoff *= 2)
+                {
+                    try
+                    {
+                        //the DynamoDB API is supposed to implement its own exponential backoff
+                        //but in practice this seems to either be a lie or insufficient
+                        //https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Programming.Errors.html#Programming.Errors.RetryAndBackoff
+                        DynamoContext.Delete(obj);
+                        break;
+                    }
+                    catch (ProvisionedThroughputExceededException e)
+                    {
+                        if (backoff < 100 * 1000)
+                        {
+                            //System.Console.WriteLine("BACKOFF " + backoff + "ms"); //handy if we need to debug
+                            Thread.Sleep(backoff);
+                        }
+                        else
+                        {
+                            throw e;
+                        }
+                    }
+                }
             }
             catch (Exception e)
             {

@@ -1,4 +1,5 @@
 ﻿using Amazon.DynamoDBv2.DataModel;
+using Amazon.DynamoDBv2.Model;
 using Microsoft.Xna.Framework;
 using OPS.Cloud;
 using OPS.Geometry;
@@ -7,6 +8,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using OPS.Imaging;
 using System.IO;
@@ -67,7 +69,7 @@ namespace OPS.Pipeline.TileServer
         {
             TilingNode node = new TilingNode(id, project, meshUrl, imageUrl, parentId, childIds, dependsOn,
                                              dependedOnBy, bounds);
-            context.Save(node);
+            node.Save(context);
             return node;
         }
 
@@ -105,7 +107,29 @@ namespace OPS.Pipeline.TileServer
 
         public void Save(DynamoDBContext context)
         {
-            context.Save(this);
+            for (int backoff = 50; true; backoff *= 2)
+            {
+                try
+                {
+                    //the DynamoDB API is supposed to implement its own exponential backoff
+                    //but in practice this seems to either be a lie or insufficient
+                    //https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Programming.Errors.html#Programming.Errors.RetryAndBackoff
+                    context.Save(this);
+                    break;
+                }
+                catch (ProvisionedThroughputExceededException e)
+                {
+                    if (backoff < 100 * 1000)
+                    {
+                        //System.Console.WriteLine("BACKOFF " + backoff + "ms"); //handy if we need to debug
+                        Thread.Sleep(backoff);
+                    }
+                    else
+                    {
+                        throw e;
+                    }
+                }
+            }
         }
 
         public void Delete(PipelineCore pipeline, bool ignoreErrors = true, ILog logger = null)
@@ -175,9 +199,8 @@ namespace OPS.Pipeline.TileServer
                             pair.Mesh.Save(tmp3DTileMesh, tmp3DTileImage);
                             pipeline.Storage(tileUrl).UploadFile(tmp3DTileMesh, tileUrl);
 
-                            this.GeometricError = geometricError;
-                            this.Save(pipeline.DynamoContext);
-
+                            GeometricError = geometricError;
+                            Save(pipeline.DynamoContext);
                         });
                     });
                 });
