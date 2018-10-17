@@ -133,14 +133,14 @@ function parseSec(duration) {
 }
 
 
-// yyyyMMddTHHmmssGMTzzzzz
+// yyyyMMddHHmmssZzz
 function timeStamp(timeOrDate) {
   const d = (timeOrDate instanceof Date) ? timeOrDate : timeOrDate > 0 ? new Date(timeOrDate) : new Date();
   const tzo = -d.getTimezoneOffset();
   const pad2 = n => { n = Math.floor(Math.abs(n)); return (n < 10 ? '0' : '') + n; };
   return `${d.getFullYear()}${pad2(d.getMonth() + 1)}${pad2(d.getDate())}` +
-         `T${pad2(d.getHours())}${pad2(d.getMinutes())}${pad2(d.getSeconds())}` +
-         `GMT${tzo >= 0 ? '+' : '-'}${pad2(tzo / 60)}${pad2(tzo % 60)}`;
+         `${pad2(d.getHours())}${pad2(d.getMinutes())}${pad2(d.getSeconds())}` +
+         `Z${tzo >= 0 ? '+' : '-'}${pad2(tzo / 60)}`;
 }
 
 function timeFmt(ms) {
