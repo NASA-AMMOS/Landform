@@ -152,10 +152,10 @@ namespace OPS.Pipeline.TileServer
             }
 
             var dependencies = new TileDependencyMapping();
-            int n = 0;
+            int nn = 0, n = 0;
             foreach (var node in root.DepthFirstTraverse())
             {
-                n++;
+                nn++;
                 if (!node.IsLeaf)
                 {
                     foreach (var d in node.FindNodesRequiredForParent(root))
@@ -165,7 +165,7 @@ namespace OPS.Pipeline.TileServer
                 }
             }
 
-            LogInfo("saving tile tree, " + n + " nodes");
+            LogInfo("saving tile tree, " + nn + " nodes");
             List<string> ids = new List<string>();
             foreach (var node in root.DepthFirstTraverse())
             {
@@ -183,6 +183,10 @@ namespace OPS.Pipeline.TileServer
                     tilingNode.SaveMesh(node.GetComponent<MeshImagePair>(), pipeline, 0);
                 }
                 Thread.Sleep(10); //throttle to reduce chance of exponential backoff
+                if (++n % 500 == 0)
+                {
+                    LogInfo("created " + n + " nodes");
+                }
             }                            
             project.NodeIds = ids;
             project.TilesDefined = true;
