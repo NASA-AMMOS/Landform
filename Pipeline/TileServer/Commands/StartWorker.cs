@@ -237,6 +237,7 @@ namespace OPS.Pipeline.TileServer
                     }
                     catch (Exception e)
                     {
+                        FinishedProcessing(m);
                         logger.Error(e.Message);
                         logger.Error(e.StackTrace);
                     }
