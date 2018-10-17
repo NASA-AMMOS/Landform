@@ -69,26 +69,48 @@ function runTest(projDir) {
       const msg = `error running ${projName} in ${fullPath}: ${e.message || e}`;
       console.error(msg);
       const info = { error: msg };
-      fs.writeJsonSync(`${stamp}-${projName}-fail.txt`, info, { spaces: 2 }); //if no projDir this will be in testDir
+      fs.writeJsonSync(`log-${projName}-${stamp}-fail.txt`, info, { spaces: 2 }); //if no projDir will be in testDir
       done(); //move on to next test even if this one errored
     };
 
     const run = opts => { //run Postman collection
+
       const coll = opts.collection.info.name;
+
       opts.timeout = maxMS - elapsed();
+
       console.log(`${timeStamp()}: running ${coll} for ${projName} in ${fullPath}, max time ${timeFmt(opts.timeout)}`);
+
       return new Promise((_resolve, reject) => {
         const _done = (err, summary) => {
-          if (err) reject(new Error(`error running ${coll} for ${projName} in ${fullPath}: ${err.message || err}`));
+
+          err = err || summary.error;
+          if (err) {
+            if (opts.bail || opts.abortOnError || opts.abortOnFailure) { reject(err); return; }
+            console.warn(`ignoring error: ${err.message || err}`);
+          }
+
+          if (summary.run && summary.run.failures && summary.run.failures.length > 0) {
+            err = summary.run.failures[0].error || 'unknown test assertion failure';
+            if (err) {
+              if (opts.bail || opts.abortOnFailure) { reject(err); return; }
+              console.warn(`ignoring error: ${err.message || err}`);
+            }
+          }
+
           if (summary.run && summary.run.executions) {
             if (opts.omitExecutions) delete summary.run.executions;
             else summary.run.executions = summary.run.executions.map(ex => parseJsonResponse(ex));
           }
-          fs.writeJsonSync(`${stamp}-${projName}-${coll}-success.txt`, summary, { spaces: 2 });
+
+          fs.writeJsonSync(`log-${projName}-${coll}-${stamp}.txt`, summary, { spaces: 2 });
+
           _resolve();
         };
+
         if (dryRun) _done(null, { dryRun: true, ...opts });
         else newman.run(opts, _done);
+
       });
     };
 
@@ -133,10 +155,12 @@ function runTest(projDir) {
         ],
       };
 
-      const bail = true, delayRequest = pollSec * 1000, omitExecutions = true;
-      run({ environment, collection: deleteCollection }) //don't bail if delete fails (e.g. on first run)
-        .then(() => run({ environment, bail, collection: projCollection }))
-        .then(() => run({ environment, bail, delayRequest, omitExecutions, collection: pollCollection }))
+      const abortOnError = true;
+      const abortOnAny = { bail: true, abortOnError: true, abortOnFailure: true };
+      const delayRequest = pollSec * 1000, omitExecutions = true;
+      run({ environment, abortOnError, collection: deleteCollection }) //don't bail if delete fails (e.g. on first run)
+        .then(() => run({ environment, ...abortOnAny, collection: projCollection }))
+        .then(() => run({ environment, ...abortOnAny, delayRequest, omitExecutions, collection: pollCollection }))
         .then(done)
         .catch(error);
 
