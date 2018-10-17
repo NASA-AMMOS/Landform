@@ -26,7 +26,7 @@ namespace OPS.Pipeline.TileServer
     {
         static ILog logger = LogManager.GetLogger(typeof(DeleteProject));
 
-        const int MAX_WAIT_MS = 60 * 1000;
+        const int MAX_WAIT_MS = 20 * 60 * 1000; //it can take a while to delete a big project
         const int SLEEP_MS = 500;
 
         DeleteProjectOptions options;
