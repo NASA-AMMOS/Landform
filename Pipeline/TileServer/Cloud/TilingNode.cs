@@ -88,14 +88,15 @@ namespace OPS.Pipeline.TileServer
                 List<TilingNode> nodes = new List<TilingNode>();
                 foreach (var id in project.NodeIds)
                 {
-                    nodes.Add(Find(context, project.Name, id));
+                    var node = Find(context, project.Name, id);
+                    if (node != null) nodes.Add(node);
                 }
                 return nodes;
             }
             else
             {
-                //fall back to scanning for all input records that match the project name
-                //e.g. for legacy projects
+                //fall back to scanning for all records that match the project name
+                //e.g. for legacy projects or if the project record is not well formed
                 return context.Scan<TilingNode>(new ScanCondition("ProjectName",
                                                                    Amazon.DynamoDBv2.DocumentModel.ScanOperator.Equal,
                                                                    project.Name));

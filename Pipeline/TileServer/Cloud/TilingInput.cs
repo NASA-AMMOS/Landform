@@ -92,13 +92,15 @@ namespace OPS.Pipeline.TileServer
                 List<TilingInput> inputs = new List<TilingInput>();
                 foreach (var name in project.InputNames)
                 {
-                    inputs.Add(Find(context, project.Name, name));
+                    var input = Find(context, project.Name, name);
+                    if (input != null) inputs.Add(input);
                 }
                 return inputs;
             }
             else
             {
-                //for legacy projects fall back to scanning for all input records that match the project name
+                //fall back to scanning for all records that match the project name
+                //e.g. for legacy projects or if the project record is not well formed
                 return context.Scan<TilingInput>(new ScanCondition("ProjectName",
                                                                    Amazon.DynamoDBv2.DocumentModel.ScanOperator.Equal,
                                                                    project.Name));
