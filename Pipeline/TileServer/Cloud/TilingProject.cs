@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using OPS.Cloud;
 using Amazon.DynamoDBv2.DataModel;
@@ -100,6 +101,7 @@ namespace OPS.Pipeline.TileServer
             foreach (var node in TilingNode.Find(pipeline.DynamoContext, this))
             {
                 node.Delete(pipeline, ignoreErrors, logger);
+                Thread.Sleep(10); //throttle to reduce chance of exponential backoff
             }
 
             foreach (var input in TilingInput.Find(pipeline.DynamoContext, this))

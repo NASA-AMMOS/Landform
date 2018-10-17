@@ -8,6 +8,7 @@ using System.Collections.Concurrent;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using OPS.Imaging;
 using Newtonsoft.Json;
@@ -151,8 +152,10 @@ namespace OPS.Pipeline.TileServer
             }
 
             var dependencies = new TileDependencyMapping();
+            int n = 0;
             foreach (var node in root.DepthFirstTraverse())
             {
+                n++;
                 if (!node.IsLeaf)
                 {
                     foreach (var d in node.FindNodesRequiredForParent(root))
@@ -162,7 +165,7 @@ namespace OPS.Pipeline.TileServer
                 }
             }
 
-            LogInfo("saving tile tree");
+            LogInfo("saving tile tree, " + n + " nodes");
             List<string> ids = new List<string>();
             foreach (var node in root.DepthFirstTraverse())
             {
@@ -179,6 +182,7 @@ namespace OPS.Pipeline.TileServer
                 {
                     tilingNode.SaveMesh(node.GetComponent<MeshImagePair>(), pipeline, 0);
                 }
+                Thread.Sleep(10); //throttle to reduce chance of exponential backoff
             }                            
             project.NodeIds = ids;
             project.TilesDefined = true;
