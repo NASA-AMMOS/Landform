@@ -10,7 +10,7 @@ const binDir = config.app.binDir;
 function zipIt() {
   console.log(`zipping '${binDir}/*' to '${bundle}'`);
   const z = new Zip();
-  z.addLocalFolder(binDir, '', (n) => !n.startsWith('tmp') && n !== 'log.txt');
+  z.addLocalFolder(binDir, '', (n) => !n.startsWith('tmp') && !(n.startsWith('log') && n.endsWith('.txt')));
   z.writeZip(bundle);
   //z.getEntries().forEach(e => console.log(e.entryName));
 }
