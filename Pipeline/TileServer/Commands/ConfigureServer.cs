@@ -72,6 +72,11 @@ Import-Module AWSPowerShell
 (new-object net.webclient).DownloadFile('https://aws-codedeploy-us-west-1.s3.amazonaws.com/latest/codedeploy-agent.msi','c:\temp\codedeploy-agent.msi')
 c:\temp\codedeploy-agent.msi /quiet /l c:\temp\host-agent-install-log.txt
 powershell.exe -Command Read-S3Object -BucketName {2} -Key {0}{3}/app/tileserver.zip -File c:\temp\tileserver.zip
+# ExtractToDirectory() will not overwrite existing files
+# and this EC2 instance filesystem is persistent across reboots
+# so to handle the case that tileserver.zip has been updated, first blow away any existing c:\tileserver
+# this will lose any old logs under c:\tileserver\log too, but that's arguably FNB
+Remove-Item c:\tileserver -Force -Recurse -ErrorAction SilentlyContinue
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 [System.IO.Compression.ZipFile]::ExtractToDirectory(""C:\temp\tileserver.zip"", ""c:\tileserver"")
 c:\tileserver\TilingServer.exe configure --venuename={0} --s3url={1} --region={4} --profile=null
