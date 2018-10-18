@@ -316,6 +316,11 @@ These instructions only need to be run once for a new venue or when the venue co
     * select the most recent version of the previous template in "Source Template Version"
     * the new template will be pre-populated with values from the old template
     * most likely the only field you'll need to replace is "User Data"
+    * after saving the new version
+      * select the template in the list
+      * Actions -> Set default version
+      * select the newest version
+      * click set as default version
   * Launch Template Name: `landformweb[-dev]-workers` (recommended, but can be any name)
   * AMI ID: `ami-0df605282263fb1c9` (Microsoft Windows Server 2016 Base 64-bit)
   * Instance Type: `t2.2xlarge` recommended, other [instance types](https://aws.amazon.com/ec2/instance-types) can be chosen for different [price](https://aws.amazon.com/ec2/pricing/on-demand)/performance tradeoffs 
