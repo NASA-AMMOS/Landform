@@ -185,6 +185,7 @@
     <Compile Include="Commands\LegacyToTile3D.cs" />
     <Compile Include="Commands\CreateCloudTemplates.cs" />
     <Compile Include="Commands\TileLocalMesh.cs" />
+    <Compile Include="General\LegacySceneManfiest.cs" />
     <Compile Include="MeshWorker\Commands\TextureMeshCommand.cs" />
     <Compile Include="MeshWorker\Operations\BuildBackprojectLeaves.cs" />
     <Compile Include="MeshWorker\Operations\BuildTilingInput.cs" />

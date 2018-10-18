@@ -74,7 +74,7 @@ namespace OPS.Pipeline
             }
         }
 
-        List<double> MatrixToList(Matrix m)
+        public static List<double> MatrixToList(Matrix m)
         {            
             return new double[]
             {
