@@ -28,7 +28,7 @@ namespace OPS.Pipeline.TileServer
 
     public class StartWorker : PipelineCore
     {
-        public const int MAX_PROCESSING_SEC = 15 * 60;
+        public const int MAX_PROCESSING_SEC = 6 * 60 * 60; //6h
 
         //indexed by message handle
         private class MessageInfo
