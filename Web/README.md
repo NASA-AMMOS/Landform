@@ -75,21 +75,19 @@ This will require a local installation of [Docker](https://www.docker.com) host.
 
 1. `npm run show-config` - the server will connect to live AWS services for that venue.
    1. The `venueName` that will be used is determined by the `NODE_ENV` environment variable in the shell where the `local-deploy` script is run, even though in the container `NODE_ENV=production` always.  This enables testing a local deployment connected to a private AWS venue.
-1. Make sure a [tiling worker](#tiling-worker) is running in that venue.
 1. `npm run local-deploy -- [-f|--force] [-i|--interactive] [-d|--debug]` to re-build the Docker container and run it locally.  The name of the docker container is given by the value of `deployEnvironment` from `config.js`, using the value of `NODE_ENV` in the shell where the `local-deploy` script runs.  Typically `deployEnvironment=landformweb-dev`, which is appropriate for testing.
 1. Options:
     * `--force`: use existing `landformweb.zip` even if it might be outdated
     * `--interactive`: drop into a shell in the Docker container instead of running the server.  Note: if using git bash run `winpty node tools/localDeploy.js -i ...` instead.
     * `--debug`: set `LOG_LEVEL=silly` in the Docker container
 1. You can now access the server at http://localhost:8081.
-1. Run through the [test procedures](docs/TEST.md).
+1. Make sure a [tiling worker](#tiling-worker) is running in that venue, then run through the [test procedures](docs/TEST.md).
 
 ### 3. Deploy Master Server to Elastic Beanstalk
 It is also possible to manually deploy the release bundle using the AWS Elastic Beanstalk web console, as documented in the [AWS setup](docs/SETUP.md) instructions.
 
-1. Check `deployEnvironment` in `config.js` - the server will be deployed to this Elastic Beanstalk environment.  The `deployEnvironment` that will be used is determined by the `NODE_ENV` environment variable in the shell where the `deploy` script is run, even though in the deployment the value of `NODE_ENV` is typically configured in the Elastic Beanstalk environment as `NODE_ENV=production`.
+1. Check `deployEnvironment` in `config.js` - the server will be deployed to this Elastic Beanstalk environment unless a different environment is explicitly named on the command line as explained below.  The `deployEnvironment` that will be used is determined by the `NODE_ENV` environment variable in the shell where the `deploy` script is run.
 1. The `venueName` that will be used in the deployment typically depends on the `NODE_ENV` configured in the Elastic Beanstalk environment.  Typically the environment `landform-dev` has `NODE_ENV=integration` and the environment `landform` has `NODE_ENV=production`.  It is also possible to override `TILE_SERVER_VENUE_NAME` directly in the environment configuration.
-1. Make sure a [tiling worker](#tiling-worker) is running in that venue.
 1. `npm run deploy -- [environment-name] [-f|--force] [--profile=foo]`.
 1. Options:
     * `environment-name`: Upload to this Elastic Beanstalk environment instead of the default from `config.js`
@@ -98,11 +96,11 @@ It is also possible to manually deploy the release bundle using the AWS Elastic 
 1. The deployment process will take a few minutes.
   1. You can also watch the deployment progress by logging in to the [AWS web console](http://goto.jpl.nasa.gov/awsconsole).
 1. Once the deployment is complete the site will be live at https://landform-dev.hi.jpl.nasa.gov (omit `-dev` for production).  Note, if using VPN full tunnel is required because we restrict access to JPL IP addresses.
-1. Run through the [test procedures](docs/TEST.md).
+1. Make sure a [tiling worker](#tiling-worker) is running in the venue, then run through the [test procedures](docs/TEST.md).
 
 ### Deploy Worker to EC2
 First install latest [node.js](https://nodejs.org) 8.x.x, acquire [AWS credentials](#aws-credentials), and build `TilingServer.exe` with Visual Studio as explained above.
-`
+
 1. `npm run show-config` - the server will connect to live AWS services for that venue by default.
 1. `npm run configure-backend -- [venue-name]` - this will generate a customized `ec2userdata.txt`.  This file will be used to configure instances in an EC2 autoscale group.
   1. NOTE: This command runs `TileServer.exe configure` with parameters taken from `config.js` according to the current value of `NODE_ENV`.  A side effect is that a `\$USERPROFILE/.landform/tileserver.json` file will also be written with that config, and any subsequent runs of `TileServer.exe` (by the same user on the same machine) will run with those options as defaults.  Normally this is OK as commands like `npm start` and `npm run worker` override the defaults with fresh values based on `config.js`.
