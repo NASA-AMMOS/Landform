@@ -42,6 +42,11 @@ namespace OPS.Util
             return null;
         }
 
+        public string ConfigFilepath()
+        {
+            return FullPathToConfig(ConfigFilename());
+        }
+
         /// <summary>
         /// Set the name of the application config folder
         /// Config files for this application should be stored in a folder of this name under the users home directory
@@ -61,7 +66,7 @@ namespace OPS.Util
 
         public void Save()
         {
-            string filename = FullPathToConfig(this.ConfigFilename());
+            string filename = ConfigFilepath();
             PathHelper.EnsureExists(Path.GetDirectoryName(filename));
             File.WriteAllText(filename, JsonConvert.SerializeObject(this, Formatting.Indented));
         }
@@ -69,7 +74,7 @@ namespace OPS.Util
         public Config()
         {
             // Read from config file
-            string filename = FullPathToConfig(this.ConfigFilename());
+            string filename = ConfigFilepath();
             if (filename != null && File.Exists(filename))
             {
                 JsonConvert.PopulateObject(File.ReadAllText(filename), this);

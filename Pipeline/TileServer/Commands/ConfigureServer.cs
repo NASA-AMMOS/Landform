@@ -1,4 +1,5 @@
 ﻿using CommandLine;
+using log4net;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -30,10 +31,17 @@ namespace OPS.Pipeline.TileServer
 
         [Option(HelpText = "MSLICE S3 Url", Default = "s3://red-product/")]
         public string MSLICES3Url { get; set; }
+
+        [Option(HelpText = "Do not persist config", Default = false)]
+        public bool NoPersist { get; set; }
+
+        [Option(HelpText = "Do not write user data script", Default = false)]
+        public bool NoUserData { get; set; }
     }
 
     public class ConfigureServer
     {
+        ILog logger = LogManager.GetLogger(typeof(ConfigureServer));
         ConfigureServerOptions options;
         public ConfigureServer(ConfigureServerOptions options)
         {
@@ -49,11 +57,27 @@ namespace OPS.Pipeline.TileServer
             config.Profile = ReadProperty("AWS Profile", options.Profile, config.Profile);
             config.MSLICEProfile = ReadProperty("MSLICE Profile", options.MSLICEProfile, config.MSLICEProfile);
             config.MSLICES3Url = ReadProperty("MSLICE S3 Url", options.MSLICES3Url, config.MSLICES3Url);
-            config.Save();
-            string userdata = BuildEC2UserDataScript(config);
-            string userDataFilepath = Path.GetFullPath("ec2userdata.txt");
-            Console.WriteLine("Saving EC2 User Data to: " + userDataFilepath);
-            File.WriteAllText(userDataFilepath, BuildEC2UserDataScript(config));
+            config.Dump(logger);
+            var cfgPath = config.ConfigFilepath();
+            if (!options.NoPersist)
+            {
+                logger.Info("persisting config to " + cfgPath);
+                config.Save();
+            }
+            else
+            {
+                logger.Info("not persisting config to " + cfgPath);
+            }
+            string userDataPath = Path.GetFullPath("ec2userdata.txt");
+            if (!options.NoUserData)
+            {
+                logger.Info("saving EC2 user data script to " + userDataPath);
+                File.WriteAllText(userDataPath, BuildEC2UserDataScript(config));
+            }
+            else
+            {
+                logger.Info("not saving EC2 user data script to " + userDataPath);
+            }
             return 0;
         }
 
