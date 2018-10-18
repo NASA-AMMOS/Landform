@@ -7,7 +7,7 @@ const { spawnSync, hasFlag } = require('./toolUtil');
 
 const argv = process.argv;
 let venue = config.app.venueName;
-if (argv.length > 2 && argv[2].startsWith('-')) venue = argv[2];
+if (argv.length > 2 && !argv[2].startsWith('-')) venue = argv[2];
 
 const cfgFile = 'ec2userdata.txt';
 
