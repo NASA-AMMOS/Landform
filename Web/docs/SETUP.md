@@ -323,11 +323,6 @@ These instructions only need to be run once for a new venue or when the venue co
   * Network Type: `classic`
   * Availability Zone: `us-west-1c`
   * Security Groups: `RDP Only` (or whatever security group you selected above)
-  * Storage Volumes -> Add New Volume
-    * Volume Type: `ephemeral0`
-    * Device Name: `xvda Windows`
-    * Size: `100 GiB`
-    * IOPS: `2000`
   * Tags -> Add Tag
     * Key: `Name` - note this must be capitalized exactly as shown
     * Value: `landformweb[-dev]-worker` (recommended, but can be any name) - this will identify the EC2 instances in the group
