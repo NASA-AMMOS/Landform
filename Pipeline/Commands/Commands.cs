@@ -33,8 +33,8 @@ namespace OPS.Pipeline
                                                              TileLocalMeshOptions,                                                             
                                                              CuriosityAlignOptions,
                                                              BuildFromAlignmentOptions,
-                                                             TextureMeshOptions
-                                                             >(args)
+                                                             TextureMeshOptions,
+                                                             EmtToSceneOptions >(args)
               .MapResult(
                 (AlignmentWorkerOptions opts) => new AlignmentWorker().Run(),
                 (ConvertBaselineMeshOptions opts) => new ConvertBaselineMesh(opts).Run(),
@@ -51,6 +51,7 @@ namespace OPS.Pipeline
                 (CuriosityAlignOptions opts) => new CuriosityAlign(opts).Run(),
                 (BuildFromAlignmentOptions opts) => new BuildFromAlignment(opts).Run(),
                 (TextureMeshOptions opts) => new TextureMeshCommand(opts).Run(),
+                (EmtToSceneOptions opts) => new EmtToScene(opts).Run(),
                 errs => 1);
         }
     }
