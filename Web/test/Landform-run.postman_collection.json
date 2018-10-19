@@ -132,6 +132,16 @@
 						],
 						"type": "text/javascript"
 					}
+				},
+				{
+					"listen": "prerequest",
+					"script": {
+						"id": "9abd4aa2-adfa-4c73-af4d-d6b532fcac47",
+						"exec": [
+							"pm.environment.set(\"UPLOAD_OPTIONS\", \"\");"
+						],
+						"type": "text/javascript"
+					}
 				}
 			],
 			"request": {
@@ -147,16 +157,18 @@
 					"formdata": [
 						{
 							"key": "mesh",
-							"type": "file"
+							"type": "file",
+							"value": ""
 						},
 						{
 							"key": "texture",
-							"type": "file"
+							"type": "file",
+							"value": ""
 						}
 					]
 				},
 				"url": {
-					"raw": "{{SERVER_URL}}/api/projects/{{PROJECT_NAME}}/upload",
+					"raw": "{{SERVER_URL}}/api/projects/{{PROJECT_NAME}}/upload?{{UPLOAD_OPTIONS}}",
 					"host": [
 						"{{SERVER_URL}}"
 					],
@@ -165,6 +177,12 @@
 						"projects",
 						"{{PROJECT_NAME}}",
 						"upload"
+					],
+					"query": [
+						{
+							"key": "{{UPLOAD_OPTIONS}}",
+							"value": null
+						}
 					]
 				}
 			},

@@ -135,14 +135,20 @@ function runTest(projDir) {
       const items = projCollection.item;
       const inputIndex = items.findIndex(item => item.name === uploadItemName);
       if (inputIndex < 0) throw new Error(`'${uploadItemName}' not found in ${projCollection.info.name}`);
-      const uploadItems = [items[inputIndex]];
+      const uploadItem = items[inputIndex], uploadItems = [];
       const numInputs = projCfg.inputs.length;
       for (let i = 0; i < numInputs; i++) {
-        let item = uploadItems[0];
-        if (i > 0) { item = deepCopy(item); uploadItems.push(item); }
+        const item = deepCopy(uploadItem);
+        uploadItems.push(item);
         item.name = `upload data (${i + 1}/${numInputs})`;
-        item.request.body.formdata.find(d => d.key === 'mesh').src = projCfg.inputs[i].mesh;
-        item.request.body.formdata.find(d => d.key === 'texture').src = projCfg.inputs[i].texture;
+        const { mesh, texture, options } = projCfg.inputs[i];
+        item.request.body.formdata.find(d => d.key === 'mesh').src = mesh;
+        item.request.body.formdata.find(d => d.key === 'texture').src = texture;
+        if (options) {
+          item.event.find(e => e.listen === 'prerequest').script.exec = [
+            `pm.environment.set(\\"UPLOAD_OPTIONS\\", \\"${options}\\");`,
+          ];
+        }
       }
       projCollection.item = items.slice(0, inputIndex).concat(uploadItems, items.slice(inputIndex + 1));
 
