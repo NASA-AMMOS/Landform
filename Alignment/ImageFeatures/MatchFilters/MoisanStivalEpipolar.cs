@@ -286,7 +286,7 @@ namespace OPS.Alignment
             Mat _F = new Mat();
             try
             {
-                CvInvoke.FindFundamentalMat(m1_cv, m2_cv, _F, Emgu.CV.CvEnum.FmType.SevenPoint);
+                _F = CvInvoke.FindFundamentalMat(m1_cv, m2_cv, Emgu.CV.CvEnum.FmType.SevenPoint);
             } catch(Exception e)
             {
                 logger.Error("Failed to find fundamental matrix", e);
