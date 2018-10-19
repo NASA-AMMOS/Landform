@@ -2,7 +2,7 @@ const fs = require('fs-extra');
 const path = require('path');
 const newman = require('newman');
 
-const { hasFlag, parseSec, deepCopy, timeStamp, timeFmt, checkTTY } = require('./toolUtil');
+const { hasFlag, parseSec, deepCopy, timeStamp, timeFmt, checkTTY, readJson } = require('./toolUtil');
 
 const deleteCollection = require('../test/Landform-delete.postman_collection.json');
 const runCollection = require('../test/Landform-run.postman_collection.json');
@@ -40,7 +40,7 @@ if (!fs.pathExistsSync(cfgFile)) {
   process.exit(2);
 }
 
-const testCfg = fs.readJsonSync(cfgFile);
+const testCfg = readJson(cfgFile);
 
 const stamp = timeStamp();
 
@@ -124,7 +124,7 @@ function runTest(projDir) {
 
       process.chdir(fullPath);
 
-      const projCfg = fs.readJsonSync(projCfgFile);
+      const projCfg = readJson(projCfgFile);
       projName = projCfg.name;
       maxMS = parseSec(projCfg.maxTime) * 1000;
 

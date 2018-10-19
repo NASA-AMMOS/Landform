@@ -1,6 +1,8 @@
 const child = require('child_process');
 const fs = require('fs-extra');
 const readline = require('readline');
+const parseJson = require('json-parse-better-errors');
+const stripJsonComments = require('strip-json-comments');
 
 const bundle = require('../config').app.bundle;
 
@@ -133,7 +135,7 @@ function parseSec(duration) {
 }
 
 
-// yyyyMMddHHmmssZzz
+//yyyyMMddHHmmssZzz
 function timeStamp(timeOrDate) {
   const d = (timeOrDate instanceof Date) ? timeOrDate : timeOrDate > 0 ? new Date(timeOrDate) : new Date();
   const tzo = -d.getTimezoneOffset();
@@ -156,10 +158,14 @@ function timeFmt(ms) {
 
 function deepCopy(obj) { return JSON.parse(JSON.stringify(obj)); }
 
+//read json with comments and better error reporting
+function readJson(file) { return parseJson(stripJsonComments(fs.readFileSync(file, 'utf8'))); }
+
 module.exports = {
   boolArg, hasFlag,
   exec, spawn, spawnSync,
   checkDeploy, checkTTY, prompt,
   parseSec, timeStamp, timeFmt,
   deepCopy,
+  readJson,
 };

@@ -58,6 +58,8 @@
     "eslint-plugin-import": "^2.14.0",
     "eslint-plugin-jsx-a11y": "^6.1.1",
     "eslint-plugin-react": "^7.11.1",
-    "newman": "^4.1.0"
+    "json-parse-better-errors": "^1.0.2",
+    "newman": "^4.1.0",
+    "strip-json-comments": "^2.0.1"
   }
 }
