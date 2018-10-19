@@ -19,7 +19,7 @@ namespace UtilTest
             TemporaryFile.GetAndMove("getAndMove.txt", tmp =>
             {
                 tmpName = tmp;
-                Assert.IsTrue(Directory.Exists("tmp"));
+                Assert.IsTrue(Directory.Exists(Path.GetDirectoryName(tmp)));
                 File.WriteAllText(tmp, "Hello world");
                 Assert.IsFalse(File.Exists("getAndMove.txt"));
             });
@@ -35,7 +35,7 @@ namespace UtilTest
             TemporaryFile.GetAndDelete("getAndDel.txt", tmp =>
             {
                 tmpName = tmp;
-                Assert.IsTrue(Directory.Exists("tmp"));
+                Assert.IsTrue(Directory.Exists(Path.GetDirectoryName(tmp)));
                 File.WriteAllText(tmp, "Goodbye world");
                 Assert.IsFalse(File.Exists("getAndDel.txt"));
             });
@@ -49,12 +49,13 @@ namespace UtilTest
             String[] filelist = null;
             TemporaryFile.GetAndDeleteMultiple(5, ".foo", tmp =>
             {
+                
                 Assert.AreEqual(5, tmp.Length);
                 filelist = tmp;
                 foreach(var f in tmp)
                 {
                     Assert.AreEqual(".foo", Path.GetExtension(f));
-                    Assert.IsTrue(Directory.Exists("tmp"));
+                    Assert.IsTrue(Directory.Exists(Path.GetDirectoryName(f)));
                     File.WriteAllText(f, "Goodbye world");
                     Assert.IsFalse(File.Exists("getAndDel.txt"));
                 }
