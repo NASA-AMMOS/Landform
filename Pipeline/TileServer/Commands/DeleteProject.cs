@@ -18,8 +18,8 @@ namespace OPS.Pipeline.TileServer
         [Value(0, Required = true, HelpText = "Project Name")]
         public string ProjectName { get; set; }
 
-        [Option(HelpText = "Wait until input has been uploaded to project", Default = true)]
-        public bool Wait { get; set; }
+        [Option(HelpText = "Do not wait until project has been deleted", Default = false)]
+        public bool NoWait { get; set; }
     }
 
     public class DeleteProject : PipelineCore
@@ -58,7 +58,7 @@ namespace OPS.Pipeline.TileServer
 
             cloud.MasterQueue.Enqueue(new DeleteProjectMessage(options.ProjectName));
 
-            if (options.Wait)
+            if (!options.NoWait)
             {
                 logger.Info("waiting for project to be deleted");
                 var sw = new Stopwatch();

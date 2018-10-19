@@ -27,8 +27,8 @@ namespace OPS.Pipeline.TileServer
         [Option(HelpText = "Leaf tile ID if this input dataset represents a pretiled input.  This is only valid for projects using a user defined tiling scheme", Default = null)]
         public string TileId { get; set; }
 
-        [Option(HelpText = "Wait until input has been uploaded to project", Default = true)]
-        public bool Wait { get; set; }
+        [Option(HelpText = "Do not wait until input has been uploaded to project", Default = false)]
+        public bool NoWait { get; set; }
     }
 
     public class UploadInput : PipelineCore
@@ -109,7 +109,7 @@ namespace OPS.Pipeline.TileServer
                                           TileId = options.TileId
                                       });
 
-            if (options.Wait)
+            if (!options.NoWait)
             {
                 logger.Info("waiting for intput to be added to project");
                 var sw = new Stopwatch();

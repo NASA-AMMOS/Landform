@@ -38,8 +38,8 @@ namespace OPS.Pipeline.TileServer
         [Option(Required = false, Default = "GenericTiling", HelpText = "Selects the processing pipline (eg. GenericTiling, MSL)")]
         public string ProjectType { get; set; }
 
-        [Option(HelpText = "Wait until input has been uploaded to project", Default = true)]
-        public bool Wait { get; set; }
+        [Option(HelpText = "Do not wait until project has been created", Default = false)]
+        public bool NoWait { get; set; }
     }
 
     public class CreateProject : PipelineCore
@@ -79,7 +79,7 @@ namespace OPS.Pipeline.TileServer
                                           ProjectType = options.ProjectType
                                       });
 
-            if (options.Wait)
+            if (!options.NoWait)
             {
                 logger.Info("waiting for project to be created");
                 var sw = new Stopwatch();
