@@ -36,18 +36,21 @@ namespace OPS.Pipeline.TileServer
 
     public class TilingQueue
     {
-        public const int VISIBILITY_TIMEOUT_SEC = 20;
+        public const int DEF_TIMEOUT_SEC = 20;
 
         private static ILog logger = LogManager.GetLogger(typeof(TilingQueue));
 
-        public string Name;
+        public string Name { get; private set; }
+        public int TimeoutSec { get; private set; }
 
         private string url;
         private AmazonSQSClient client;
 
-        public TilingQueue(string prefix, string awsProfileName, string endpointName = "us-west-1")
+        public TilingQueue(string prefix, string awsProfileName, int timeoutSec = DEF_TIMEOUT_SEC,
+                           string endpointName = "us-west-1")
         {
             Name = "TilingServerQueue" + prefix;
+            TimeoutSec = timeoutSec;
 
             RegionEndpoint awsRegion = RegionEndpoint.GetBySystemName(endpointName);
             AWSCredentials awsCredentials = null;
@@ -72,7 +75,7 @@ namespace OPS.Pipeline.TileServer
             catch (QueueDoesNotExistException)
             {
                 CreateQueueRequest createQueueRequest = new CreateQueueRequest() { QueueName = Name };
-                createQueueRequest.Attributes["VisibilityTimeout"] = VISIBILITY_TIMEOUT_SEC.ToString(); 
+                createQueueRequest.Attributes["VisibilityTimeout"] = timeoutSec.ToString(); 
                 url = client.CreateQueue(createQueueRequest).QueueUrl;
             }
         }
@@ -83,29 +86,17 @@ namespace OPS.Pipeline.TileServer
             message.MessageId = response.MessageId;
         }
 
-        /// <summary>
-        /// If timeoutSec is omitted or negative the default VISIBILITY_TIMEOUT_SEC will be used.
-        /// </summary>
-        /// <returns></returns>
-        public void UpdateTimeout(TilingQueueMessage m, int timeoutSec = -1)
+        public void UpdateTimeout(TilingQueueMessage m, int timeoutSec)
         {
             if (m.ReceiptHandle == null)
             {
                 throw new CloudException("Message does not have a receipt handle");
             }
-            UpdateTimeout(m.ReceiptHandle);
+            UpdateTimeout(m.ReceiptHandle, timeoutSec);
         }
 
-        /// <summary>
-        /// If timeoutSec is omitted or negative the default VISIBILITY_TIMEOUT_SEC will be used.
-        /// </summary>
-        /// <returns></returns>
-        public void UpdateTimeout(string messageHandle, int timeoutSec = -1)
+        public void UpdateTimeout(string messageHandle, int timeoutSec)
         {
-            if (timeoutSec < 0)
-            {
-                timeoutSec = VISIBILITY_TIMEOUT_SEC;
-            }
             client.ChangeMessageVisibility(new ChangeMessageVisibilityRequest(url, messageHandle, timeoutSec));
         }
 

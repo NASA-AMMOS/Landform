@@ -13,6 +13,9 @@ namespace OPS.Pipeline.TileServer
 {
     public class TileServerCloud
     {
+        const int WORKER_QUEUE_TIMEOUT_SEC = 60;
+        const int MASTER_QUEUE_TIMEOUT_SEC = 30 * 60;
+
         Type[] tableTypes = new Type[]
             {
                 typeof(TilingProject),
@@ -37,7 +40,8 @@ namespace OPS.Pipeline.TileServer
             {
                 if (_workerQueue == null)
                 {
-                    _workerQueue = new TilingQueue(TileServerConfig.Instance.VenueName + "_worker", pipeline.Profile);
+                    _workerQueue = new TilingQueue(TileServerConfig.Instance.VenueName + "_worker", pipeline.Profile,
+                                                   WORKER_QUEUE_TIMEOUT_SEC);
                 }
                 return _workerQueue;
             }
@@ -50,7 +54,8 @@ namespace OPS.Pipeline.TileServer
             {
                 if (_masterQueue == null)
                 {
-                    _masterQueue = new TilingQueue(TileServerConfig.Instance.VenueName + "_master", pipeline.Profile);
+                    _masterQueue = new TilingQueue(TileServerConfig.Instance.VenueName + "_master", pipeline.Profile,
+                                                   MASTER_QUEUE_TIMEOUT_SEC);
                 }
                 return _masterQueue;
             }
