@@ -1,5 +1,6 @@
 const { makeToken } = require('../token');
-const { hasFlag, parseSec } = require('./toolUtil');
+const { parseSec } = require('../timeUtil');
+const { hasFlag } = require('./toolUtil');
 
 const argv = process.argv;
 

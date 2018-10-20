@@ -2,6 +2,7 @@ const fs = require('fs-extra');
 const config = require('./config');
 const logger = require('./logger');
 const { launchTask } = require('./taskUtil');
+const { timeStamp } = require('./timeUtil');
 
 function setTilingEnv(env) {
 
@@ -24,10 +25,14 @@ function setTilingEnv(env) {
 //creates tmpDir if necessary, then runs TilingServer verb args in it with appropriate environment vars
 //waits for tmpDir to be created but does not wait for task to complete
 //returns task
-async function tilingTask(verb, args) {
-  args = args || [];
+const log = `log-TilingServer-webcommands-${timeStamp()}-${process.pid}.txt`;
+async function tilingTask(verb, args, opts) {
   await fs.ensureDir(config.app.tmpDir);
-  return launchTask('TilingServer', [verb, ...args], { cwd: config.app.tmpDir, env: setTilingEnv() });
+  args = args || [];
+  args.unshift(verb);
+  opts = opts || {};
+  if (!opts.defaultLog) args.push(`--logfile=${log}`);
+  return launchTask('TilingServer', args, { cwd: config.app.tmpDir, env: setTilingEnv() });
 }
 
 let masterTask = null;
@@ -44,7 +49,7 @@ async function tilingMaster() {
   }
 
   try {
-    masterTask = await tilingTask('startmaster');
+    masterTask = await tilingTask('startmaster', null, { defaultLog: true });
     masterTask.promise.catch(err => abort(err));
   } catch (err) { abort(err); }
 
