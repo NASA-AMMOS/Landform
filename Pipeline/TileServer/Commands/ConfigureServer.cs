@@ -7,43 +7,44 @@ using System.Text;
 using System.Threading.Tasks;
 using System.IO;
 using OPS.Cloud;
+using OPS.Plumbing;
 
 namespace OPS.Pipeline.TileServer
 {
-
     [Verb("configure", HelpText = "Configures a venue")]
-    public class ConfigureServerOptions
+    public class ConfigureServerOptions : PipelineCoreOptions
     {
-        [Option(HelpText = "Venue Name", Default = null)]
+        [Option(Default = null, HelpText = "Venue Name")]
         public string VenueName { get; set; }
         
-        [Option(HelpText = "S3 Url", Default = null)]
+        [Option(Default = null, HelpText = "S3 Url")]
         public string S3Url { get; set; }
 
-        [Option(HelpText = "AWS Region", Default = null)]
+        [Option(Default = null, HelpText = "AWS Region")]
         public string Region { get; set; }
 
-        [Option(HelpText = "AWS Profile", Default = null)]
+        [Option(Default = null, HelpText = "AWS Profile")]
         public string Profile { get; set; }
 
-        [Option(HelpText = "MSLICE Profile", Default = "mslice")]
+        [Option(Default = "mslice", HelpText = "MSLICE Profile")]
         public string MSLICEProfile { get; set; }
 
-        [Option(HelpText = "MSLICE S3 Url", Default = "s3://red-product/")]
+        [Option(Default = "s3://red-product/", HelpText = "MSLICE S3 Url")]
         public string MSLICES3Url { get; set; }
 
-        [Option(HelpText = "Do not persist config", Default = false)]
+        [Option(Default = false, HelpText = "Do not persist config")]
         public bool NoPersist { get; set; }
 
-        [Option(HelpText = "Do not write user data script", Default = false)]
+        [Option(Default = false, HelpText = "Do not write user data script")]
         public bool NoUserData { get; set; }
     }
 
-    public class ConfigureServer
+    public class ConfigureServer : PipelineCore
     {
-        ILog logger = LogManager.GetLogger(typeof(ConfigureServer));
-        ConfigureServerOptions options;
+        private ConfigureServerOptions options;
+
         public ConfigureServer(ConfigureServerOptions options)
+            : base(options, TileServerConfig.Instance.VenueName, TileServerConfig.Instance.Profile, enableS3: false, enableDynamo: false)
         {
             this.options = options;
         }
@@ -57,26 +58,26 @@ namespace OPS.Pipeline.TileServer
             config.Profile = ReadProperty("AWS Profile", options.Profile, config.Profile);
             config.MSLICEProfile = ReadProperty("MSLICE Profile", options.MSLICEProfile, config.MSLICEProfile);
             config.MSLICES3Url = ReadProperty("MSLICE S3 Url", options.MSLICES3Url, config.MSLICES3Url);
-            config.Dump(logger);
+            config.Dump(Logger);
             var cfgPath = config.ConfigFilepath();
             if (!options.NoPersist)
             {
-                logger.Info("persisting config to " + cfgPath);
+                Logger.Info("persisting config to " + cfgPath);
                 config.Save();
             }
             else
             {
-                logger.Info("not persisting config to " + cfgPath);
+                Logger.Info("not persisting config to " + cfgPath);
             }
             string userDataPath = Path.GetFullPath("ec2userdata.txt");
             if (!options.NoUserData)
             {
-                logger.Info("saving EC2 user data script to " + userDataPath);
+                Logger.Info("saving EC2 user data script to " + userDataPath);
                 File.WriteAllText(userDataPath, BuildEC2UserDataScript(config));
             }
             else
             {
-                logger.Info("not saving EC2 user data script to " + userDataPath);
+                Logger.Info("not saving EC2 user data script to " + userDataPath);
             }
             return 0;
         }

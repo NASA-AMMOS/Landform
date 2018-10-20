@@ -96,34 +96,34 @@ namespace OPS.Pipeline.TileServer
             context.Save(this);
         }
 
-        public void Delete(PipelineCore pipeline, bool ignoreErrors = true, ILog logger = null)
+        public void Delete(PipelineCore pipeline, bool ignoreErrors = true)
         {
             var nodes = TilingNode.Find(pipeline.DynamoContext, this);
             int nn = nodes.Count(), n = 0; 
-            if (logger != null) logger.Info("deleting " + nn + " nodes");
+            pipeline.Logger.Info("deleting " + nn + " nodes");
             foreach (var node in nodes)
             {
-                node.Delete(pipeline, ignoreErrors, logger);
+                node.Delete(pipeline, ignoreErrors);
                 Thread.Sleep(10); //throttle to reduce chance of exponential backoff
-                if (++n % 500 == 0 && logger != null)
+                if (++n % 500 == 0)
                 {
-                    logger.Info("deleted " + n + " nodes");
+                    pipeline.Logger.Info("deleted " + n + " nodes");
                 }
             }
 
             var inputs = TilingInput.Find(pipeline.DynamoContext, this);
-            if (logger != null) logger.Info("deleting " + inputs.Count() + " inputs");
+            pipeline.Logger.Info("deleting " + inputs.Count() + " inputs");
             foreach (var input in inputs)
             {
-                input.Delete(pipeline, ignoreErrors, logger);
+                input.Delete(pipeline, ignoreErrors);
             }
 
             pipeline.DeleteProjectCache(Name);
 
             string wwwS3Url = TileServerConfig.Instance.WWWUrl(Name);
-            pipeline.Storage(wwwS3Url).DeleteObjects(wwwS3Url, ignoreErrors: ignoreErrors, logger: logger);
+            pipeline.Storage(wwwS3Url).DeleteObjects(wwwS3Url, ignoreErrors: ignoreErrors, logger: pipeline.Logger);
 
-            pipeline.DeleteDynamoItem(this, ignoreErrors, logger);
+            pipeline.DeleteDynamoItem(this, ignoreErrors);
         }
 
         private void IsValid()

@@ -27,7 +27,7 @@ namespace OPS.Pipeline
 {
 
     [Verb("curiosityalign", HelpText = "Aligns a range of sols for curiosity and stores the solution in the database")]
-    public class CuriosityAlignOptions
+    public class CuriosityAlignOptions : PipelineCoreOptions
     {
         [Value(0, Required = true, HelpText = "Name of project to create")]
         public string ProjectName { get; set; }
@@ -59,14 +59,13 @@ namespace OPS.Pipeline
     {
         CuriosityAlignOptions options;
 
-        static ILog logger = LogManager.GetLogger(typeof(CuriosityAlign));
         public LazyComputation<Observation, DetectedFeatures> Features;
         public LazyComputation<Overlap, ComputedCorrespondence> Matches;
         public LazyComputation<Observation, PngDataProduct> Masks;
         const int MIN_MATCHES = 20;
         public static ASIFTDetector detector = new ASIFTDetector(maxSimulatedDimension: 1024);
 
-        public CuriosityAlign( CuriosityAlignOptions options) : base(dynamoPrefix: options.DynamoDBPrefix)
+        public CuriosityAlign( CuriosityAlignOptions options) : base(options, options.DynamoDBPrefix)
         {
             this.AddProfile("s3://landlords-dev/", options.LandformProfile);
             this.AddProfile("s3://red-product/", options.MSliceProfile);
@@ -146,14 +145,14 @@ namespace OPS.Pipeline
                             if (res != null && res.Observation != null)
                             {
                                 obs.Add(res.Observation);
-                                logger.Info("Ingested: " + url);
+                                Logger.Info("Ingested: " + url);
                             }
                         }
                         catch (RawMetadataNullValueException e)
                         {
-                            logger.Error("Error ingesting: " + url);
-                            logger.Error(e.Message);
-                            logger.Error(e.StackTrace);
+                            Logger.Error("Error ingesting: " + url);
+                            Logger.Error(e.Message);
+                            Logger.Error(e.StackTrace);
                         }
                     });
                 });
@@ -161,15 +160,15 @@ namespace OPS.Pipeline
 
             // Look up image priors for new images
             // Download new images from S3
-            logger.Info("Find best point image pairs");
+            Logger.Info("Find best point image pairs");
 
             DetectOverlaps detector = new DetectOverlaps(this);
             var bestImages = MSLProject.FindBestPairs(RoverObservation.Find(DynamoContext, project.Name)).Select(p => p.Image).ToList();
-            logger.Info("Detect overlaps from " + bestImages.Count + " best images");
-            detector.Run(bestImages, logger).ToList();                
+            Logger.Info("Detect overlaps from " + bestImages.Count + " best images");
+            detector.Run(bestImages, Logger).ToList();                
             
             List<Overlap> overlaps = Overlap.Find(DynamoContext, project.Name).ToList();
-            logger.Info("Overlaps detected: " + overlaps.Count);
+            Logger.Info("Overlaps detected: " + overlaps.Count);
             int existingGuids = 0;
             int emptyGuids = 0;
             foreach (Overlap ol in overlaps)
@@ -182,16 +181,16 @@ namespace OPS.Pipeline
                     existingGuids++;
                 }
             }
-            logger.Info("Match guid found for " + existingGuids + " overlaps");
+            Logger.Info("Match guid found for " + existingGuids + " overlaps");
 
             // Generate feature discriptors and stuff, store in database
-            logger.Info("Generate matches");
+            Logger.Info("Generate matches");
             int i = 0;
             foreach (Overlap ol in overlaps)
             {
                 i++;
                 Matches.Get(ol.ProjectName, ol);
-                logger.Info("Completed " + i + " of " + overlaps.Count + " matches");
+                Logger.Info("Completed " + i + " of " + overlaps.Count + " matches");
             }
 
             // Run bundle adjustment
@@ -239,7 +238,7 @@ namespace OPS.Pipeline
                 var feat1 = Features.Get(obs1.ProjectName, obs1);
                 if(feat0 == null || feat1 == null)
                 {
-                    logger.Info("Unable to load features for " + overlap.CombinedName);
+                    Logger.Info("Unable to load features for " + overlap.CombinedName);
                     overlap.Status = Overlap.StatusType.Rejected;
                     overlap.TrySave(this.DynamoContext);
                     return null;
@@ -249,7 +248,7 @@ namespace OPS.Pipeline
                 scene.DetectedFeatures[ref1] = feat1.Features;
 
                 if (scene.DetectedFeatures[ref0] == null || scene.DetectedFeatures[ref1] == null) {
-                    logger.Info("Unable to load features for " + overlap.CombinedName);
+                    Logger.Info("Unable to load features for " + overlap.CombinedName);
                     overlap.Status = Overlap.StatusType.Rejected;
                     overlap.TrySave(this.DynamoContext);
                     return null;
@@ -271,7 +270,7 @@ namespace OPS.Pipeline
                 handlePriors(ref1, frame1);
             }
 
-            logger.DebugFormat("Matching {0}", overlap.CombinedName);
+            Logger.DebugFormat("Matching {0}", overlap.CombinedName);
 
             var model = (ObservationImageRef)pair.One;
             var data = (ObservationImageRef)pair.Two;
@@ -297,7 +296,7 @@ namespace OPS.Pipeline
             var matches = matcher.Match(scene, pair);
             if (matches.Count < MIN_MATCHES)
             {
-                logger.Info("No matches for " + overlap.CombinedName);
+                Logger.Info("No matches for " + overlap.CombinedName);
                 overlap.Status = Overlap.StatusType.Rejected;
                 overlap.TrySave(this.DynamoContext);
                 return null;
@@ -309,10 +308,10 @@ namespace OPS.Pipeline
             {
                 int oldCount = matches.Count;
                 matches = filter.Filter(scene, matches);
-                logger.DebugFormat("* {0}: {1} -> {2}", filter.GetType().Name, oldCount, matches.Count);
+                Logger.DebugFormat("* {0}: {1} -> {2}", filter.GetType().Name, oldCount, matches.Count);
                 if (matches.Count < MIN_MATCHES)
                 {
-                    logger.Info("No matches for " + overlap.CombinedName);
+                    Logger.Info("No matches for " + overlap.CombinedName);
                     overlap.Status = Overlap.StatusType.Rejected;
                     overlap.TrySave(this.DynamoContext);
                     return null;
@@ -362,7 +361,7 @@ namespace OPS.Pipeline
                 }
                 catch (Emgu.CV.Util.CvException ex)
                 {
-                    logger.Error("failed to detect for " + obs.Name, ex);
+                    Logger.Error("failed to detect for " + obs.Name, ex);
                     return null;
                 }
             }
@@ -410,12 +409,12 @@ namespace OPS.Pipeline
                 catch (ResourceNotFoundException)
                 {
                     // Table already exists
-                    logger.InfoFormat("Table {0}: creating", tn);
+                    Logger.InfoFormat("Table {0}: creating", tn);
                     this.DynamoDB.CreateTable(CreateCloudTemplates.CreateTable(t, options.DynamoDBPrefix));
                     continue;
                 }
 
-                logger.InfoFormat("Table {0}: exists", tn);
+                Logger.InfoFormat("Table {0}: exists", tn);
             }
         }
 
@@ -427,7 +426,7 @@ namespace OPS.Pipeline
                 string tableStatus = "";
                 while (tableStatus != "ACTIVE")
                 {
-                    logger.Info("Waiting for table: " + CreateCloudTemplates.TableName(t));
+                    Logger.Info("Waiting for table: " + CreateCloudTemplates.TableName(t));
                     try
                     {
                         var tableResponse = this.DynamoDB.DescribeTable(new DescribeTableRequest(tn));

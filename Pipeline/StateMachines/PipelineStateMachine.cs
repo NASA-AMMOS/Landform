@@ -11,22 +11,25 @@ namespace OPS.Pipeline.TileServer
 {
     abstract class PipelineStateMachine
     {
-        private static ILog logger = LogManager.GetLogger(typeof(PipelineStateMachine));
-
         protected PipelineCore pipeline;
         protected TilingQueue workerQueue;
         protected ProjectCache projectCache;
         protected string projectName;
         protected TypeDispatcher dispatcher;
 
-        protected void LogInfo(string msg)
+        protected void LogInfo(string msg, params Object[] args)
         {
-            logger.Info(string.Format("[{0}] {1}", projectName, msg));
+            pipeline.LogInfo("[{0}] ({1}) {2}", projectName, GetType().Name, string.Format(msg, args));
         }
 
-        protected void LogError(string msg)
+        protected void LogWarn(string msg, params Object[] args)
         {
-            logger.Error(string.Format("[{0}] {1}", projectName, msg));
+            pipeline.LogWarn("[{0}] ({1}) {2}", projectName, GetType().Name, string.Format(msg, args));
+        }
+
+        protected void LogError(string msg, params Object[] args)
+        {
+            pipeline.LogError("[{0}] ({1}) {2}", projectName, GetType().Name, string.Format(msg, args));
         }
 
         public PipelineStateMachine(PipelineCore pipeline, TilingQueue workerQueue, string projectName)
@@ -49,7 +52,7 @@ namespace OPS.Pipeline.TileServer
                 .Case((ChunkInputMessage m) => InputChunked(m.InputName))
                 .Case((TileCompletedMessage m) => TileCompleted(m.TileId))
                 .Case((BuildTilesetJsonMessage m) => TilesetCompleted());
-            dispatcher.Unhandled = (t, x) => logger.Error("unknown message type: " + t);
+            dispatcher.Unhandled = (t, x) => pipeline.Logger.Error("unknown message type: " + t);
             return dispatcher;
         }
 
@@ -87,7 +90,7 @@ namespace OPS.Pipeline.TileServer
                 if (!project.StartedRunning || project.FinishedRunning)
                 {
                     LogInfo("deleting project");
-                    project.Delete(pipeline, true /* ignoreErrors */, logger); //can take a little while
+                    project.Delete(pipeline, ignoreErrors: true); //can take a little while
                     LogInfo("project deleted");
                 }
                 else

@@ -16,7 +16,7 @@ namespace OPS.Pipeline
 {
 
     [Verb("alignmentworker", HelpText = "Poll image queue. When new images appear, upload their metadata and potential overlaps to DynamoDB. Requires an allignmentworker config file. ")]
-    public class AlignmentWorkerOptions
+    public class AlignmentWorkerOptions : PipelineCoreOptions
     {
     }
 
@@ -43,6 +43,8 @@ namespace OPS.Pipeline
 
     public class AlignmentWorker : PipelineRoutine
     {
+        private AlignmentWorkerOptions options;
+
         private AlignmentConfig config;
 
         //AWS clients. All thread safe and reusable 
@@ -58,12 +60,13 @@ namespace OPS.Pipeline
         private int messagesFailed = 0;
         
         //Constructor creates clients and reads config file 
-        public AlignmentWorker()
+        public AlignmentWorker(AlignmentWorkerOptions options)
             :  base(null)
         {
             //Initialize our utils
+            this.options = options;
             this.config = new AlignmentConfig();
-            Pipeline = new PipelineCore(dynamoPrefix: config.TablePrefix);
+            Pipeline = new PipelineCore(options, config.TablePrefix);
 
             //Initialize AWS utils 
             SQSClient = new AmazonSQSClient(Amazon.RegionEndpoint.USWest1);

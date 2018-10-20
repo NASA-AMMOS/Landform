@@ -20,17 +20,11 @@ namespace TilingServer
         static int Main(string[] args)
         {
             Config.ApplicationConfigFolder = ".landform";
-
-            // Enable logging
+            Config.BaseCommand = "TilingServer";
             if (args.Length > 0)
             {
-                log4net.GlobalContext.Properties["command"] = "tilingserver-" + args[0];
+                Config.SubCommand = args[0];
             }
-            else
-            {
-                log4net.GlobalContext.Properties["command"] = "tilingserver";
-            }
-            log4net.Config.XmlConfigurator.Configure();
 
             // Parse command line arguments
             int returnCode = TileServerCommands.RunFromCommandline(args);

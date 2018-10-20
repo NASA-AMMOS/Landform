@@ -4,7 +4,6 @@ using OPS.Util;
 using OPS.Geometry;
 using OPS.Plumbing;
 using OPS.Pipeline.MeshWorker;
-
 using System;
 using System.Collections;
 using System.Linq;
@@ -12,17 +11,18 @@ using System.Collections.Generic;
 using System.Collections.Concurrent;
 using System.Threading.Tasks;
 using System.Threading;
+using System.Diagnostics;
 
 namespace OPS.Pipeline.TileServer
 {
     
     [Verb("startworker", HelpText = "Starts a worker to process tiling messages")]
-    public class StartWorkerOptions
+    public class StartWorkerOptions : PipelineCoreOptions
     {
-        [Option(HelpText = "Also start the master server as part of this process - useful for debugging", Default = false)]
+        [Option(Default = false, HelpText = "Also start the master server (e.g. for debugging)")]
         public bool StartMaster { get; set; }
 
-        [Option(HelpText = "Run a single worker on the main thread for debugging", Default = false)]
+        [Option(Default = false, HelpText = "Run a single worker on the main thread (e.g. for debugging)")]
         public bool SingleThreaded { get; set; }
     }
 
@@ -44,7 +44,7 @@ namespace OPS.Pipeline.TileServer
         private StartWorkerOptions options;
 
         public StartWorker(StartWorkerOptions options)
-            : base(dynamoPrefix: TileServerConfig.Instance.VenueName, profile: TileServerConfig.Instance.Profile)
+            : base(options, TileServerConfig.Instance.VenueName, TileServerConfig.Instance.Profile)
         {
             this.options = options;
 
@@ -60,7 +60,7 @@ namespace OPS.Pipeline.TileServer
 
         public int Run()
         {
-            TileServerConfig.Instance.Dump(logger);
+            TileServerConfig.Instance.Dump(Logger);
 
             // Register filetype handlers
             new OpenInventorSerializer().Register();
@@ -83,8 +83,8 @@ namespace OPS.Pipeline.TileServer
                     }
                     catch (Exception e)
                     {
-                        logger.Error("error in master task: " + e.Message);
-                        logger.Error(e.StackTrace);
+                        Logger.ErrorFormat("error in master task ({0}): {1}", e.GetType().FullName, e.Message);
+                        Logger.Error(e.StackTrace);
                     }
                 });
                 masterTask.Start();
@@ -108,8 +108,9 @@ namespace OPS.Pipeline.TileServer
                             }
                             catch (Exception e)
                             {
-                                logger.Error("error in worker task " + i + ": " + e.Message);
-                                logger.Error(e.StackTrace);
+                                Logger.ErrorFormat("error in worker task {0} ({1}): {2}",
+                                                   i, e.GetType().FullName, e.Message);
+                                Logger.Error(e.StackTrace);
                                 // Introduce a sleep here to limit debug spew just in case a misconfiguration is causing this error
                                 Thread.Sleep(2000);
                             }
@@ -156,7 +157,7 @@ namespace OPS.Pipeline.TileServer
                                 info.numExceptions++;
                                 if (info.numExceptions >= 2)
                                 {
-                                    logger.Error("error updating message timeout: " + e.Message);
+                                    Logger.Error("error updating message timeout: " + e.Message);
                                 }
                             }
                         }
@@ -206,13 +207,15 @@ namespace OPS.Pipeline.TileServer
 
         public void RunWorker()
         {
-            logger.Info("Worker starting");
+            Logger.Info("Worker starting");
 
             //each worker thread has its own cloud instance
             //this avoids the need for synchronization
-            var pipeline = new PipelineCore(dynamoPrefix: TileServerConfig.Instance.VenueName,
-                                            profile: TileServerConfig.Instance.Profile);
+            var pipeline = new PipelineCore(options,
+                                            TileServerConfig.Instance.VenueName, TileServerConfig.Instance.Profile,
+                                            logger: Logger); //all threads share the same logger which is MT safe
             var cloud = new TileServerCloud(pipeline);
+            var workerQueue = cloud.WorkerQueue;
 
             var dispatcher = new TypeDispatcher()
                 .Case((DefineTilesMessage m) => new DefineTiles(m, pipeline, cloud).Process())
@@ -222,12 +225,14 @@ namespace OPS.Pipeline.TileServer
                 .Case((BuildParentMessage m) => new BuildParent(m, pipeline, cloud).Process())
                 .Case((BuildTilesetJsonMessage m) => new BuildTilesetJson(m, pipeline, cloud).Process())
                 .Case((BuildTilingInputMessage m) => new BuildTilingInput(m, pipeline, cloud).Process());
-            dispatcher.Unhandled = (t, x) => logger.Error("Unknown message type: " + t);
+            dispatcher.Unhandled = (t, x) => Logger.Error("Unknown message type: " + t);
 
             while (true)
             {
-                foreach (var m in cloud.WorkerQueue.Dequeue())
+                foreach (var m in workerQueue.Dequeue())
                 {
+                    Stopwatch sw = new Stopwatch();
+                    sw.Start();
                     try
                     {
                         StartedProcessing(cloud.WorkerQueue, m);
@@ -238,8 +243,15 @@ namespace OPS.Pipeline.TileServer
                     catch (Exception e)
                     {
                         FinishedProcessing(m);
-                        logger.Error(e.Message);
-                        logger.Error(e.StackTrace);
+                        Logger.ErrorFormat("{0}: processing error ({1}): {2}",
+                                           m.Info(), e.GetType().FullName, e.Message);
+                        Logger.Error(e.StackTrace);
+                    }
+                    double totalSec = 0.001 * sw.ElapsedMilliseconds;
+                    if (totalSec > MAX_PROCESSING_SEC)
+                    {
+                        Logger.ErrorFormat("{0}: took {1:F3}s, but max processing time is {2:F3}s",
+                                           m.Info(), totalSec, MAX_PROCESSING_SEC);
                     }
                 }
             }

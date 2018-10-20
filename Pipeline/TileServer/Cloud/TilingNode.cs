@@ -108,19 +108,19 @@ namespace OPS.Pipeline.TileServer
             PipelineCore.DynamoExponentialBackoff(() => context.Save(this));
         }
 
-        public void Delete(PipelineCore pipeline, bool ignoreErrors = true, ILog logger = null)
+        public void Delete(PipelineCore pipeline, bool ignoreErrors = true)
         {
             if (!string.IsNullOrEmpty(MeshUrl))
             {
-                pipeline.Storage(MeshUrl).DeleteObject(MeshUrl, ignoreErrors: ignoreErrors, logger: logger);
+                pipeline.Storage(MeshUrl).DeleteObject(MeshUrl, ignoreErrors: ignoreErrors, logger: pipeline.Logger);
             }
 
             if (!string.IsNullOrEmpty(ImageUrl))
             {
-                pipeline.Storage(ImageUrl).DeleteObject(ImageUrl, ignoreErrors: ignoreErrors, logger: logger);
+                pipeline.Storage(ImageUrl).DeleteObject(ImageUrl, ignoreErrors: ignoreErrors, logger: pipeline.Logger);
             }
 
-            pipeline.DeleteDynamoItem(this, ignoreErrors, logger);
+            pipeline.DeleteDynamoItem(this, ignoreErrors);
         }
 
         public bool IsLeaf()

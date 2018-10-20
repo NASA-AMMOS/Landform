@@ -27,6 +27,11 @@ namespace OPS.Pipeline.TileServer
 
         public TilingQueueMessage() { }
         public TilingQueueMessage(string projectName) { ProjectName = projectName; }
+
+        public string Info()
+        {
+            return string.Format("[{0}] {1} {2}", ProjectName, GetType().Name, MessageId);
+        }
     }
 
     public class TilingQueue
@@ -74,7 +79,8 @@ namespace OPS.Pipeline.TileServer
         
         public void Enqueue(TilingQueueMessage message)
         {
-            client.SendMessage(new SendMessageRequest(url, JsonHelper.ToJson(message)));
+            var response = client.SendMessage(new SendMessageRequest(url, JsonHelper.ToJson(message)));
+            message.MessageId = response.MessageId;
         }
 
         /// <summary>

@@ -6,37 +6,35 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using System.Collections.Concurrent;
 using System.Threading;
+using System.Diagnostics;
 
 namespace OPS.Pipeline.TileServer
 {
     [Verb("startmaster", HelpText = "Runs a tiling workflow")]
-    public class StartMasterOptions
+    public class StartMasterOptions : PipelineCoreOptions
     {
-
     }
 
     public class StartMaster : PipelineCore
     {
-        static ILog logger = LogManager.GetLogger(typeof(StartMaster));
+        private StartMasterOptions options;
 
-        StartMasterOptions options;
+        private Dictionary<string,Type> registeredStateMachines = new Dictionary<string, Type>();
+        private Dictionary<string, PipelineStateMachine> projectNameToStateMachine =
+            new Dictionary<string, PipelineStateMachine>();
 
-        private static Dictionary<string,Type> registeredStateMachines = new Dictionary<string, Type>();
-        private static ConcurrentDictionary<string, PipelineStateMachine> projectNameToStateMachine = new ConcurrentDictionary<string, PipelineStateMachine>();
-
-        public StartMaster(StartMasterOptions options) : base(dynamoPrefix: TileServerConfig.Instance.VenueName, profile: TileServerConfig.Instance.Profile)
+        public StartMaster(StartMasterOptions options)
+            : base(options, TileServerConfig.Instance.VenueName, TileServerConfig.Instance.Profile)
         {
             this.options = options;
-
             RegisterStateMachine(GenericTilingStateMachine.ProjectType(), typeof(GenericTilingStateMachine));
             RegisterStateMachine(MSLStateMachine.ProjectType(), typeof(MSLStateMachine));
         }
 
         public int Run()
         {
-            TileServerConfig.Instance.Dump(logger);
+            TileServerConfig.Instance.Dump(Logger);
             while (true)
             {
                 try
@@ -45,8 +43,8 @@ namespace OPS.Pipeline.TileServer
                 }
                 catch (Exception e)
                 {
-                    logger.Error("error in master task: " + e.Message);
-                    logger.Error(e.StackTrace);
+                    Logger.ErrorFormat("error in master task ({0}): {1}", e.GetType().FullName, e.Message);
+                    Logger.Error(e.StackTrace);
                     // Introduce a sleep here to limit debug spew just in case a misconfiguration is causing this error
                     Thread.Sleep(2000);  
                 }
@@ -59,11 +57,14 @@ namespace OPS.Pipeline.TileServer
         void RunMaster()
         {
             var cloud = new TileServerCloud(this);
+            var masterQueue = cloud.MasterQueue;
 
             while (true)
             {
-                foreach (var m in cloud.MasterQueue.Dequeue()) 
+                foreach (var m in masterQueue.Dequeue()) 
                 {
+                    Stopwatch sw = new Stopwatch();
+                    sw.Start();
                     try
                     {
                         if (!projectNameToStateMachine.ContainsKey(m.ProjectName))
@@ -90,7 +91,7 @@ namespace OPS.Pipeline.TileServer
                             var smt = registeredStateMachines[projectType];
                             var sm = (PipelineStateMachine)Activator.CreateInstance(smt, this, cloud.WorkerQueue,
                                                                                     m.ProjectName);
-                            projectNameToStateMachine.TryAdd(m.ProjectName, sm);
+                            projectNameToStateMachine.Add(m.ProjectName, sm);
                         }
 
                         projectNameToStateMachine[m.ProjectName].ProcessMessage(m);
@@ -99,8 +100,15 @@ namespace OPS.Pipeline.TileServer
                     }
                     catch (Exception e)
                     {
-                        logger.Error(e.Message);
-                        logger.Error(e.StackTrace);
+                        Logger.ErrorFormat("{0}: processing error ({1}): {2}",
+                                           m.Info(), e.GetType().FullName, e.Message);
+                        Logger.Error(e.StackTrace);
+                    }
+                    double totalSec = 0.001 * sw.ElapsedMilliseconds;
+                    if (totalSec > masterQueue.TimeoutSec)
+                    {
+                        Logger.ErrorFormat("{0}: took {1}s, but max processing time is {2}s",
+                                           m.Info(), totalSec, masterQueue.TimeoutSec);
                     }
                 }
             }

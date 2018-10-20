@@ -55,6 +55,16 @@ namespace OPS.Util
         /// </summary>
         public static string ApplicationConfigFolder { get; set; }
 
+        public static string BaseCommand { get; set; }
+        public static string SubCommand { get; set; }
+        public static string FullCommand {
+            get
+            {
+                string sc = !string.IsNullOrEmpty(SubCommand) ? "-" + SubCommand : "";
+                return BaseCommand + sc;
+            }
+        }
+
         static string FullPathToConfig(string filename)
         {
             if(ApplicationConfigFolder == null || filename == null)

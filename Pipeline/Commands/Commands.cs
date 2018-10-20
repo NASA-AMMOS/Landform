@@ -36,7 +36,7 @@ namespace OPS.Pipeline
                                                              TextureMeshOptions
                                                              >(args)
               .MapResult(
-                (AlignmentWorkerOptions opts) => new AlignmentWorker().Run(),
+                (AlignmentWorkerOptions opts) => new AlignmentWorker(opts).Run(),
                 (ConvertBaselineMeshOptions opts) => new ConvertBaselineMesh(opts).Run(),
                 (ConvertBaselineMeshesOptions opts) => new ConvertBaselineMeshes(opts).Run(),
                 (TileBaselineMeshOptions opts) => new TileBaselineMesh(opts).Run(),
