@@ -37,7 +37,7 @@ namespace OPS.Pipeline.TileServer
             this.pipeline = pipeline;
             this.workerQueue = workerQueue;
             this.projectName = projectName;
-            projectCache = new ProjectCache(pipeline.DynamoContext, projectName);
+            projectCache = new ProjectCache(pipeline.DynamoContext, projectName, pipeline.Logger);
             InitDispatcher();
         }
 

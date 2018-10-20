@@ -2,14 +2,16 @@
 using System.Collections.Generic;
 using System.Linq;
 using Amazon.DynamoDBv2.DataModel;
+using log4net;
+using System.Diagnostics;
 
 namespace OPS.Pipeline.TileServer
 {
     class ProjectCache
     {
-
         private DynamoDBContext context;
         private string projectName;
+        private ILog logger;
 
         private bool initialized;
 
@@ -21,10 +23,11 @@ namespace OPS.Pipeline.TileServer
         private HashSet<string> enqued;
         private HashSet<string> inputsToChunk;
 
-        public ProjectCache(DynamoDBContext context, string projectName)
+        public ProjectCache(DynamoDBContext context, string projectName, ILog logger)
         {
             this.context = context;
             this.projectName = projectName;
+            this.logger = logger;
             Reset();
         }
 
@@ -46,6 +49,14 @@ namespace OPS.Pipeline.TileServer
             {
                 return;
             }
+
+            if (logger != null)
+            {
+                logger.InfoFormat("[{0}] initializing project cache", projectName);
+            }
+
+            Stopwatch sw = new Stopwatch();
+            sw.Start();
 
             var project = TilingProject.Find(context, projectName);
             if (project == null || !project.TilesDefined)
@@ -77,6 +88,12 @@ namespace OPS.Pipeline.TileServer
                 {
                     rootId = n.Id;
                 }
+            }
+
+            if (logger != null)
+            {
+                logger.InfoFormat("[{0}] initialized project cache in {1}s",
+                                  projectName, 0.001 * sw.ElapsedMilliseconds);
             }
 
             initialized = true;
