@@ -82,8 +82,7 @@ namespace OPS.Pipeline.TileServer
         
         public void Enqueue(TilingQueueMessage message)
         {
-            var response = client.SendMessage(new SendMessageRequest(url, JsonHelper.ToJson(message)));
-            message.MessageId = response.MessageId;
+            client.SendMessage(new SendMessageRequest(url, JsonHelper.ToJson(message)));
         }
 
         public void UpdateTimeout(TilingQueueMessage m, int timeoutSec)
