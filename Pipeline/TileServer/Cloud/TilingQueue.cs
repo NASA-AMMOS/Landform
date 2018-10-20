@@ -30,7 +30,12 @@ namespace OPS.Pipeline.TileServer
 
         public string Info()
         {
-            return string.Format("[{0}] {1} {2}", ProjectName, GetType().Name, MessageId);
+            var typeName = GetType().Name;
+            if (typeName.EndsWith("Message"))
+            {
+                typeName = typeName.Substring(0, typeName.Length - "Message".Length);
+            }
+            return string.Format("[{0}] {1} {2}", ProjectName, typeName, MessageId);
         }
     }
 
