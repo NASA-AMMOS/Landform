@@ -32,6 +32,15 @@ namespace OPS.Pipeline.TileServer
             RegisterStateMachine(MSLStateMachine.ProjectType(), typeof(MSLStateMachine));
         }
 
+        private void RegisterStateMachine(string projectType, Type stateMachine)
+        {
+            if (registeredStateMachines.ContainsKey(projectType))
+            {
+                throw new ArgumentException("state machine for project type " + projectType + " already registered");
+            }
+            registeredStateMachines.Add(projectType, stateMachine);
+        }
+
         public int Run()
         {
             TileServerConfig.Instance.Dump(Logger);
@@ -54,14 +63,15 @@ namespace OPS.Pipeline.TileServer
 #pragma warning restore 0162
         }
 
-        void RunMaster()
+        private void RunMaster()
         {
             var cloud = new TileServerCloud(this);
             var masterQueue = cloud.MasterQueue;
-
             while (true)
             {
-                foreach (var m in masterQueue.Dequeue()) 
+                //only take one message at a time when we are ready to process it
+                var m = masterQueue.DequeueOne();
+                if (m != null)
                 {
                     Stopwatch sw = new Stopwatch();
                     sw.Start();
@@ -96,7 +106,7 @@ namespace OPS.Pipeline.TileServer
 
                         projectNameToStateMachine[m.ProjectName].ProcessMessage(m);
 
-                        cloud.MasterQueue.DeleteMessage(m);
+                        masterQueue.DeleteMessage(m);
                     }
                     catch (Exception e)
                     {
@@ -111,16 +121,8 @@ namespace OPS.Pipeline.TileServer
                                            m.Info(), totalSec, masterQueue.TimeoutSec);
                     }
                 }
+                Thread.Sleep(100); //throttle Dequeue()
             }
-        }
-
-        private void RegisterStateMachine(string projectType, Type stateMachine)
-        {
-            if (registeredStateMachines.ContainsKey(projectType))
-            {
-                throw new ArgumentException("state machine for project type " + projectType + " already registered");
-            }
-            registeredStateMachines.Add(projectType, stateMachine);
         }
     }
 }

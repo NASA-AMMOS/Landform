@@ -23,6 +23,19 @@ namespace OPS.Pipeline.TileServer
         [JsonIgnore]
         public string ReceiptHandle;
 
+        //approx first time any receiver received this message
+        //or -1 if unknown
+        //ms since UTC epoch
+        [JsonIgnore]
+        public int ApproxFirstReceiveMS = -1;
+
+        //approx latest time we received this message
+        //this may be a lower bounds
+        //note: other receivers may have received it even later
+        //ms since UTC epoch
+        [JsonIgnore]
+        public int ApproxLastReceiveMS = -1;
+
         public string ProjectName;
 
         public TilingQueueMessage() { }
@@ -104,7 +117,18 @@ namespace OPS.Pipeline.TileServer
             client.ChangeMessageVisibility(new ChangeMessageVisibilityRequest(url, messageHandle, timeoutSec));
         }
 
-        public TilingQueueMessage[] Dequeue(int maxMessages = 10, int waitSec = 15)
+        private static int CurrentEpochMS()
+        {
+            return (int)(DateTime.UtcNow - new DateTime(1970, 1, 1)).TotalMilliseconds;
+        }
+
+        public TilingQueueMessage DequeueOne(int waitSec = 0)
+        {
+            var msgs = Dequeue(1, waitSec);
+            return msgs.Length > 0 ? msgs[0] : null;
+        }
+
+        public TilingQueueMessage[] Dequeue(int maxMessages = 1, int waitSec = 0)
         {
             var req = new ReceiveMessageRequest
             {
@@ -114,13 +138,28 @@ namespace OPS.Pipeline.TileServer
                 MaxNumberOfMessages = maxMessages,
                 WaitTimeSeconds = waitSec
             };
-            return client.ReceiveMessage(req).Messages.Select(msg =>
+            var now = CurrentEpochMS(); //lower bounds
+            var msgs = client.ReceiveMessage(req).Messages;
+            return msgs.Select(msg =>
             {
                 try
                 {
                     var m = (TilingQueueMessage)JsonHelper.FromJson(msg.Body);
                     m.MessageId = msg.MessageId;
                     m.ReceiptHandle = msg.ReceiptHandle;
+                    string ts = null;
+                    if (msg.Attributes != null &&
+                        msg.Attributes.TryGetValue("ApproximateFirstReceiveTimestamp", out ts))
+                    {
+                        try
+                        {
+                            m.ApproxFirstReceiveMS = int.Parse(ts);
+                        }
+                        catch (Exception)
+                        {
+                        }
+                    }
+                    m.ApproxLastReceiveMS = Math.Max(now, m.ApproxFirstReceiveMS);
                     return m;
                 }
                 catch (Exception e)
