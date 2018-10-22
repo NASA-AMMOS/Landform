@@ -34,21 +34,21 @@ namespace OPS.Pipeline.TileServer
 
         private class MessageRec
         {
-            public double StartTime { get; private set; }
+            public double StartSec { get; private set; }
             public string Info { get; private set; }
 
             public volatile string ReceiptHandle;
             public volatile bool Done;
             public int NumHeartbeats;
             public int NumErrors;
-            public double ApproxLastReceiveTime;
+            public double ApproxLastReceiveSec;
 
             public MessageRec(TilingQueueMessage m)
             {
-                StartTime = CurrentTimeSec();
+                StartSec = UTCTime.Now();
                 ReceiptHandle = m.ReceiptHandle;
                 Info = m.Info();
-                ApproxLastReceiveTime = 0.001 * m.ApproxLastReceiveMS;
+                ApproxLastReceiveSec = 0.001 * m.ApproxLastReceiveMS;
             }
         }
 
@@ -158,7 +158,7 @@ namespace OPS.Pipeline.TileServer
                     if (lastHeartbeat >= 0)
                     {
                         //try to maintain heartbeat period proportional to queue timout
-                        double period = CurrentTimeSec() - lastHeartbeat;
+                        double period = UTCTime.Now() - lastHeartbeat;
                         int sleepMS = (int)(1000 * (heartbeatPeriod - period));
                         if (sleepMS > 0)
                         {
@@ -166,7 +166,7 @@ namespace OPS.Pipeline.TileServer
                         }
                     }
 
-                    double start = CurrentTimeSec();
+                    double start = UTCTime.Now();
 
                     List<KeyValuePair<string, MessageRec>> inFlight = null;
                     lock (messagesInFlight)
@@ -185,7 +185,7 @@ namespace OPS.Pipeline.TileServer
                     {
                         var messageHandle = entry.Key;
                         var rec = entry.Value;
-                        var totalSec = CurrentTimeSec() - rec.StartTime;
+                        var totalSec = UTCTime.Now() - rec.StartSec;
                         if (totalSec > MAX_PROCESSING_SEC)
                         {
                             Logger.ErrorFormat("{0} {1:F3}s processing > max {2:F3}s, stopping heartbeat",
@@ -225,7 +225,7 @@ namespace OPS.Pipeline.TileServer
                                     //                   "latest receive time {3:F3}, " +
                                     //                   "error {4}/{5} updating timeout ({6}): {7}{8}",
                                     //                   rec.Info, totalSec, MAX_PROCESSING_SEC,
-                                    //                   rec.ApproxLastReceiveTime, ne, nh,
+                                    //                   rec.ApproxLastReceiveSec, ne, nh,
                                     //                   e.GetType().FullName,
                                     //                   e is AmazonSQSException ?
                                     //                   (e as AmazonSQSException).ErrorCode + " ": "",
@@ -248,7 +248,7 @@ namespace OPS.Pipeline.TileServer
                     {
                         //upper bound on time between visibility update of any in-flight message:
                         //end of this heartbeat - start of previous
-                        double bound = CurrentTimeSec() - lastHeartbeat;
+                        double bound = UTCTime.Now() - lastHeartbeat;
                         if (bound > workerQueue.TimeoutSec)
                         {
                             Logger.ErrorFormat("heartbeat cycle took {0:F3}s, but msg visibility timeout is {1:F3}s",
@@ -268,18 +268,16 @@ namespace OPS.Pipeline.TileServer
             return 0;
         }
 
-        private static double CurrentTimeSec()
-        {
-            return (DateTime.UtcNow - new DateTime(1970, 1, 1)).TotalSeconds;
-        }
-
         private bool StartedProcessing(TilingQueue queue, TilingQueueMessage m)
         {
             if (!options.SingleThreaded)
             {
-                double existingStartTime = -1;
-                double now = CurrentTimeSec(), totalSec = -1, rt = -1;
-                int ne = 0, nh = 0;
+                double existingStartSec = -1;
+                double now = UTCTime.Now();
+                double totalSec = -1;
+                double rt = -1;
+                int ne = 0;
+                int nh = 0;
                 lock (messagesInFlight)
                 {
                     if (!messagesInFlight.ContainsKey(m.MessageId))
@@ -289,21 +287,21 @@ namespace OPS.Pipeline.TileServer
                     else
                     {
                         var rec = messagesInFlight[m.MessageId];
-                        existingStartTime = rec.StartTime;
-                        totalSec = now - existingStartTime;
+                        existingStartSec = rec.StartSec;
+                        totalSec = now - existingStartSec;
                         ne = rec.NumErrors;
                         nh = rec.NumHeartbeats;
                         //use latest receipt handle for heartbeats and deletion
                         //https://stackoverflow.com/a/42000192
                         rt = 0.001 * m.ApproxLastReceiveMS;
-                        if (rt >= rec.ApproxLastReceiveTime)
+                        if (rt >= rec.ApproxLastReceiveSec)
                         {
                             rec.ReceiptHandle = m.ReceiptHandle;
-                            rec.ApproxLastReceiveTime = rt;
+                            rec.ApproxLastReceiveSec = rt;
                         }
                     }
                 }
-                if (existingStartTime >= 0)
+                if (existingStartSec >= 0)
                 {
                     //multiple message receipt *is* possible in SQS 
                     //https://aws.amazon.com/sqs/faqs
@@ -315,7 +313,7 @@ namespace OPS.Pipeline.TileServer
                     //we cannot detect multiple recipt across such processes, so we need to just let that happen
                     Logger.WarnFormat("{0}: already started processing at {1:F3}, total {2:F3}s, " +
                                       "last receive time {3:F3}, ignoring multiple message receipt{4}",
-                                      m.Info(), existingStartTime, totalSec, rt,
+                                      m.Info(), existingStartSec, totalSec, rt,
                                       ne > 0 ? string.Format(", {0}/{1} heartbeat errors", ne, nh) : "");
 
                     return false;
@@ -325,14 +323,14 @@ namespace OPS.Pipeline.TileServer
             {
                 queue.UpdateTimeout(m, MAX_PROCESSING_SEC);
             }
-            Logger.InfoFormat("{0}: started processing at {1:F3}", m.Info(), CurrentTimeSec());
+            Logger.InfoFormat("{0}: started processing at {1:F3}", m.Info(), UTCTime.Now());
             return true;
         }
 
         private MessageRec FinishedProcessing(TilingQueueMessage m)
         {
             MessageRec rec = null;
-            double now = CurrentTimeSec(), totalSec = -1;
+            double now = UTCTime.Now(), totalSec = -1;
             int ne = 0, nh = 0;
             if (!options.SingleThreaded)
             {
@@ -343,7 +341,7 @@ namespace OPS.Pipeline.TileServer
                         throw new Exception("message not found");
                     }
                     rec.Done = true; //in case heartbeat task is already iterating over a copy of messagesInFlight
-                    totalSec = now - rec.StartTime;
+                    totalSec = now - rec.StartSec;
                     ne = rec.NumErrors;
                     nh = rec.NumHeartbeats;
                     if (!messagesInFlight.Remove(m.MessageId))

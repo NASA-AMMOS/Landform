@@ -61,6 +61,7 @@
     <Compile Include="TemporaryFile.cs" />
     <Compile Include="StringHelper.cs" />
     <Compile Include="TypeDispatcher.cs" />
+    <Compile Include="UTCTime.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />

@@ -117,11 +117,6 @@ namespace OPS.Pipeline.TileServer
             client.ChangeMessageVisibility(new ChangeMessageVisibilityRequest(url, messageHandle, timeoutSec));
         }
 
-        private static int CurrentEpochMS()
-        {
-            return (int)(DateTime.UtcNow - new DateTime(1970, 1, 1)).TotalMilliseconds;
-        }
-
         public TilingQueueMessage DequeueOne(int waitSec = 0)
         {
             var msgs = Dequeue(1, waitSec);
@@ -138,7 +133,10 @@ namespace OPS.Pipeline.TileServer
                 MaxNumberOfMessages = maxMessages,
                 WaitTimeSeconds = waitSec
             };
-            var now = CurrentEpochMS(); //lower bounds
+            //try to track information about receive times
+            //among other things if a message is multiply received this can help track the latest receivehandle
+            //which is apparently needed for SQS apis like ChangeMessageVisibility() and DeleteMessage()
+            int now = (int)UTCTime.NowMS(); //lower bounds
             var msgs = client.ReceiveMessage(req).Messages;
             return msgs.Select(msg =>
             {
