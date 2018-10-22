@@ -99,7 +99,8 @@ namespace OPS.Pipeline.TileServer
         public void Delete(PipelineCore pipeline, bool ignoreErrors = true)
         {
             var nodes = TilingNode.Find(pipeline.DynamoContext, this);
-            int nn = nodes.Count(), n = 0; 
+            int nn = nodes.Count();
+            int n = 0; 
             pipeline.Logger.Info("deleting " + nn + " nodes");
             foreach (var node in nodes)
             {
