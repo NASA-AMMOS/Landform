@@ -11,8 +11,12 @@ using System.Collections.Generic;
 using System.Collections.Concurrent;
 using System.Threading.Tasks;
 using System.Threading;
+<<<<<<< HEAD
 using System.Diagnostics;
 using Amazon.SQS;
+=======
+using OPS.Pipeline.AlignmentServer;
+>>>>>>> master
 
 namespace OPS.Pipeline.TileServer
 {
@@ -374,8 +378,11 @@ namespace OPS.Pipeline.TileServer
                 .Case((BuildBackprojectLeavesMessage m) => new BuildBackprojectLeaves(m, pipeline, cloud).Process())
                 .Case((BuildParentMessage m) => new BuildParent(m, pipeline, cloud).Process())
                 .Case((BuildTilesetJsonMessage m) => new BuildTilesetJson(m, pipeline, cloud).Process())
-                .Case((BuildTilingInputMessage m) => new BuildTilingInput(m, pipeline, cloud).Process());
-            dispatcher.Unhandled = (t, x) => Logger.Error("Unknown message type: " + t);
+                .Case((BuildTilingInputMessage m) => new BuildTilingInput(m, pipeline, cloud).Process())
+                .Case((CreateMaskMessage m) => new CreateMask(m, pipeline, cloud).Process())
+                .Case((DetectFeaturesMessage m) => new AlignmentServer.DetectFeatures(m, pipeline, cloud).Process())
+                .Case((MatchImagesMessage m) => new MatchImages(m, pipeline, cloud).Process());
+            dispatcher.Unhandled = (t, x) => logger.Error("Unknown message type: " + t);
 
             while (true)
             {
