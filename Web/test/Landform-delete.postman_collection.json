@@ -1,0 +1,78 @@
+{
+	"info": {
+		"_postman_id": "bb77c843-f9eb-42e3-a090-72deb09d0b3c",
+		"name": "Landform-delete",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "delete project",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"id": "f217fc5c-c2d6-42a3-ba32-e1d0343a3769",
+						"type": "text/javascript",
+						"exec": [
+							"pm.test(\"HTTP OK\", function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"pm.test(\"task success\", function () {",
+							"    pm.expect(pm.response.json().success).to.eql(true);",
+							"});",
+							""
+						]
+					}
+				}
+			],
+			"request": {
+				"method": "DELETE",
+				"header": [
+					{
+						"key": "x-landform-token",
+						"value": "{{API_TOKEN}}"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": ""
+				},
+				"url": {
+					"raw": "{{SERVER_URL}}/api/projects/{{PROJECT_NAME}}",
+					"host": [
+						"{{SERVER_URL}}"
+					],
+					"path": [
+						"api",
+						"projects",
+						"{{PROJECT_NAME}}"
+					]
+				}
+			},
+			"response": []
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"id": "5d91069d-ccea-431b-bc51-2979d17f97ce",
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"id": "d2f57e5b-319f-482c-a2ff-6ececbfdc2aa",
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		}
+	]
+}

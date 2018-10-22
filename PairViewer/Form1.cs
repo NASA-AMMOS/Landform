@@ -16,6 +16,7 @@ using MathNet.Numerics.LinearAlgebra;
 using System.IO;
 using OPS.Plumbing;
 using Newtonsoft.Json;
+using log4net;
 
 namespace PairViewer
 {
@@ -74,7 +75,7 @@ namespace PairViewer
         public PairViewerForm()
         {
             InitializeComponent();
-            Pipeline = new PipelineCore(false, false, s3Url: "");
+            Pipeline = new PipelineCore(new PipelineCoreOptions(), enableS3: false, enableDynamo: false, s3Url: "");
 
             Locations = new MSLLocations();
             Scene = new AlignmentScene();

@@ -29,12 +29,10 @@ namespace OPS.Pipeline.TileServer
 
     public class BuildParent : TileServerOperation
     {
-        static ILog logger = LogManager.GetLogger(typeof(BuildParent));
-
         private BuildParentMessage message;
 
         public BuildParent(BuildParentMessage message, PipelineCore pipeline, TileServerCloud cloud)
-            : base(message.ProjectName, pipeline, cloud, logger)
+            : base(message, pipeline, cloud)
         {
             this.message = message;
         }

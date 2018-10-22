@@ -14,8 +14,7 @@ using Microsoft.Xna.Framework;
 namespace OPS.Pipeline.TileServer
 {
     [Verb("runproject", HelpText = "Runs a tiling workflow")]
-
-    public class RunProjectOptions
+    public class RunProjectOptions : PipelineCoreOptions
     {
         [Value(0, Required = true, HelpText = "Project Name")]
         public string ProjectName { get; set; }
@@ -23,12 +22,10 @@ namespace OPS.Pipeline.TileServer
 
     public class RunProject : PipelineCore
     {
-        static ILog logger = LogManager.GetLogger(typeof(RunProject));
-
-        RunProjectOptions options;
+        private RunProjectOptions options;
 
         public RunProject(RunProjectOptions options)
-            : base(dynamoPrefix: TileServerConfig.Instance.VenueName, profile: TileServerConfig.Instance.Profile)
+            : base(options, TileServerConfig.Instance.VenueName, TileServerConfig.Instance.Profile)
         {
             this.options = options;
         }
@@ -41,13 +38,19 @@ namespace OPS.Pipeline.TileServer
             var project = TilingProject.Find(DynamoContext, options.ProjectName);
             if (project == null)
             {
-                logger.Error("No project by that name found: " + options.ProjectName);
+                Logger.Error("No project by that name found: " + options.ProjectName);
                 return 1; //argument error
             }
 
             if (project.InputNames == null || project.InputNames.Count < 1)
             {
-                logger.Error("No inputs defined for project " + options.ProjectName);
+                Logger.Error("No inputs defined for project " + options.ProjectName);
+                return 1; //argument error
+            }
+
+            if (project.InputNames == null || project.InputNames.Count < 1)
+            {
+                Logger.Error("No inputs defined for project " + options.ProjectName);
                 return 1; //argument error
             }
 

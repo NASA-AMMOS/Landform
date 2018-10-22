@@ -22,11 +22,10 @@ namespace OPS.Pipeline
 {
 
     [Verb("align-scene", HelpText = "Align a folder of images")]
-    public class AlignSceneOptions
+    public class AlignSceneOptions : PipelineCoreOptions
     {
         [Value(0, Required = true, HelpText = "Path containing images")]
         public string InputPath { get; set; }
-
 
         [Value(1, Required = true, HelpText = "Output JSON")]
         public string OutputPath { get; set; }
@@ -97,7 +96,7 @@ namespace OPS.Pipeline
 
             MSLLocations locations = new MSLLocations();
 
-            PipelineCore pipeline = new PipelineCore();
+            PipelineCore pipeline = new PipelineCore(options);
 
             ConcurrentDictionary<ImageRef, Image> masks = new ConcurrentDictionary<ImageRef, Image>();
 

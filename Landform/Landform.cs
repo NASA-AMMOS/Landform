@@ -25,8 +25,12 @@ namespace Landform
         static int Main(string[] args)
         {
             Config.ApplicationConfigFolder = ".landform";
+
             // Enable logging
+            //TODO centralize log4net initialization to uniformly handle --quiet and --logfile command line opts
+            //https://github.jpl.nasa.gov/OnSight/Landform/issues/308
             log4net.Config.XmlConfigurator.Configure();
+
             // Register filetype handlers
             new DAESerializer().Register();
             new OpenInventorSerializer().Register();

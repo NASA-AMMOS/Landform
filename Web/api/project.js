@@ -33,6 +33,10 @@ router.post('/:name', createProject);
 
 async function deleteProject(req, res) {
   try {
+    //default timeout seems to be 2 min
+    //https://github.com/expressjs/express/issues/3330
+    //the c# commandlet implementation, in this case TileServer.DeleteProject, also has a corresponding timeout
+    req.setTimeout(30 * 60 * 1000); //it can take a while to delete a big project
     const task = await tilingTask('deleteproject', [req.params.name]);
     await taskHandler(req, res, task, { errorStatus });
   } catch (e) { abortRoute(res, 'error deleting project', e); }

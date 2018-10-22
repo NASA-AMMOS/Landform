@@ -3,7 +3,7 @@ const path = require('path');
 const Zip = require('@jpl/adm-zip');
 
 const config = require('../config');
-const { boolArg, spawn, spawnSync, checkDeploy, checkTTY } = require('./deployUtil');
+const { boolArg, spawn, spawnSync, checkDeploy, checkTTY } = require('./toolUtil');
 
 //npm run local-deploy -- [-f|--force|--force=true] [-i|--interactive|--interactive=true] [-d|--debug|--debug=true]
 

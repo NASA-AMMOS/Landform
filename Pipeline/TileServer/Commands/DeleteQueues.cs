@@ -6,20 +6,18 @@ using System;
 namespace OPS.Pipeline.TileServer
 {
     [Verb("deletequeues", HelpText = "Delete queues")]
-    public class DeleteQueuesOptions
+    public class DeleteQueuesOptions : PipelineCoreOptions
     {       
-        [Option(HelpText = "Disable confirmation prompt", Default = false)]
+        [Option(Default = false, HelpText = "Disable confirmation prompt")]
         public bool Force { get; set; }
     }
 
     public class DeleteQueues : PipelineCore
     {
-        static ILog logger = LogManager.GetLogger(typeof(DeleteQueues));
-
-        DeleteQueuesOptions options;
+        private DeleteQueuesOptions options;
 
         public DeleteQueues(DeleteQueuesOptions options)
-            : base(dynamoPrefix: TileServerConfig.Instance.VenueName, profile: TileServerConfig.Instance.Profile)
+            : base(options, TileServerConfig.Instance.VenueName, TileServerConfig.Instance.Profile)
         {
             this.options = options;
         }
@@ -34,7 +32,7 @@ namespace OPS.Pipeline.TileServer
                 var response = Console.ReadLine();
                 if (response.ToLower() != "yes") return 1;
             }
-            logger.Info("deleting queues: " + queues);
+            Logger.Info("deleting queues: " + queues);
             cloud.DeleteQueues();
             return 0;
         }

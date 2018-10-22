@@ -17,7 +17,7 @@ using System.Threading.Tasks;
 namespace OPS.Pipeline.AlignmentServer
 {
     [Verb("start-align-master", HelpText = "Runs an alignment workflow")]
-    public class StartAlignMasterOptions
+    public class StartAlignMasterOptions : PipelineCoreOptions
     {
         [Value(0, Required = true, HelpText = "Name of project to create")]
         public string ProjectName { get; set; }
@@ -27,6 +27,7 @@ namespace OPS.Pipeline.AlignmentServer
 
         [Option(HelpText = "Recompute all masks (implies --RedoFeatures)", Default = false)]
         public bool RedoMasks { get; set; }
+
         [Option(HelpText = "Recompute all image features", Default = false)]
         public bool RedoFeatures { get; set; }
     }
@@ -35,6 +36,7 @@ namespace OPS.Pipeline.AlignmentServer
     {
         public string Name { get; }
         internal AlignmentMaster Master;
+        internal ILog Logger { get { return Master.Logger; } }
 
         public Stage(AlignmentMaster master)
         {
@@ -47,8 +49,6 @@ namespace OPS.Pipeline.AlignmentServer
 
     public class IngestStage : Stage
     {
-        static ILog logger = LogManager.GetLogger(typeof(IngestStage));
-
         protected TypeDispatcher dispatcher;
 
         public IngestStage(AlignmentMaster master)
@@ -61,7 +61,7 @@ namespace OPS.Pipeline.AlignmentServer
             IngestionRequested = new ConcurrentBag<ImageRef>();
             IngestionCompleted = new ConcurrentBag<ImageRef>();
 
-            logger.Info("Beginning ingestion stage");
+            Logger.Info("Beginning ingestion stage");
 
             var inFolder = Master.Project.InputPath;
             IngestPDSImage ingester = new IngestPDSImage(Master, Master.Options.ProjectName);
@@ -79,7 +79,7 @@ namespace OPS.Pipeline.AlignmentServer
                     };
                     if (!Master.ObservationStates.TryAdd(obsRef, newState))
                     {
-                        logger.Error("Failed to insert new observation state for " + obsRef);
+                        Logger.Error("Failed to insert new observation state for " + obsRef);
                         return;
                     }
 
@@ -125,7 +125,7 @@ namespace OPS.Pipeline.AlignmentServer
                 }
             });
 
-            logger.Info("Observations created, doing masks & features");
+            Logger.Info("Observations created, doing masks & features");
         }
         
         public ConcurrentBag<ImageRef> IngestionRequested;
@@ -167,14 +167,13 @@ namespace OPS.Pipeline.AlignmentServer
         {
             if (!dispatcher.Handle(message))
             {
-                logger.WarnFormat("No handler for message {0}", message);
+                Logger.WarnFormat("No handler for message {0}", message);
             }
         }
     }
 
     public class MatchStage : Stage
     {
-        static ILog logger = LogManager.GetLogger(typeof(MatchStage));
         protected TypeDispatcher dispatcher;
 
         public List<OverlapState> AllOverlaps;
@@ -189,7 +188,7 @@ namespace OPS.Pipeline.AlignmentServer
             AllOverlaps = new List<OverlapState>();
             computedOverlaps = 0;
 
-            logger.Info("Beginning matching stage");
+            Logger.Info("Beginning matching stage");
 
             var fod = new FrustumOverlapDetector(Master);
             var sb = new BuildSceneGraph(Master);
@@ -245,7 +244,7 @@ namespace OPS.Pipeline.AlignmentServer
             computedOverlaps++;
             if (computedOverlaps >= AllOverlaps.Count)
             {
-                logger.Info("Matching done!");
+                Logger.Info("Matching done!");
                 
                 var bsg = new BuildSceneGraph(Master);
                 Frame frame = Frame.Find(Master.DynamoContext, Master.Project.Name, MSLProject.ROOT_FRAME_NAME);
@@ -268,7 +267,7 @@ namespace OPS.Pipeline.AlignmentServer
                     Master.DynamoContext.Save(ft);
                 }
 
-                logger.Info("Everything done!");
+                Logger.Info("Everything done!");
             }
         }
 
@@ -278,7 +277,7 @@ namespace OPS.Pipeline.AlignmentServer
         {
             if (!dispatcher.Handle(message))
             {
-                logger.WarnFormat("No handler for message {0}", message);
+                Logger.WarnFormat("No handler for message {0}", message);
             }
         }
     }
@@ -302,8 +301,6 @@ namespace OPS.Pipeline.AlignmentServer
 
     public class AlignmentMaster : PipelineCore
     {
-        static ILog logger = LogManager.GetLogger(typeof(AlignmentMaster));
-
         public StartAlignMasterOptions Options;
         public ConcurrentDictionary<ImageRef, ImageState> ObservationStates;
 
@@ -313,7 +310,7 @@ namespace OPS.Pipeline.AlignmentServer
         internal Project Project { get; private set; }
 
         public AlignmentMaster(StartAlignMasterOptions options)
-             : base(dynamoPrefix: TileServerConfig.Instance.VenueName, profile: TileServerConfig.Instance.Profile)
+            : base(options, TileServerConfig.Instance.VenueName, TileServerConfig.Instance.Profile)
         {
             Options = options;
             Options.RedoFeatures |= Options.RedoMasks;
@@ -342,7 +339,7 @@ namespace OPS.Pipeline.AlignmentServer
 #if DEBUG
                         throw;
 #else
-                        logger.Error("Failed processing message of type " + m.GetType().Name, ex);
+                        Logger.Error("Failed processing message of type " + m.GetType().Name, ex);
 #endif
                     }
                     Cloud.MasterQueue.DeleteMessage(m);

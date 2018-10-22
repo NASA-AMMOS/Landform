@@ -12,13 +12,10 @@ using System.Threading.Tasks;
 namespace OPS.Pipeline.TileServer
 {
     [Verb("projectmetadata", HelpText = "Get project metadata")]
-    public class ProjectMetadataOptions
+    public class ProjectMetadataOptions : PipelineCoreOptions
     {       
         [Value(0, Required = true, HelpText = "Project Name")]
         public string ProjectName { get; set; }
-
-        [Option(Required = false, Default = false, HelpText = "suppress non-essential output")]
-        public bool Quiet { get; set; }
     }
 
     class SanitizedInput
@@ -43,31 +40,23 @@ namespace OPS.Pipeline.TileServer
 
     public class ProjectMetadata : PipelineCore
     {
-        static ILog logger = LogManager.GetLogger(typeof(ProjectMetadata));
-
-        ProjectMetadataOptions options;
+        private ProjectMetadataOptions options;
 
         public ProjectMetadata(ProjectMetadataOptions options)
-            : base(dynamoPrefix: TileServerConfig.Instance.VenueName, profile: TileServerConfig.Instance.Profile)
+            : base(options, TileServerConfig.Instance.VenueName, TileServerConfig.Instance.Profile)
         {
             this.options = options;
         }
 
         public int Run()
         {
-            //https://stackoverflow.com/questions/4094032/how-to-switch-on-off-logging-using-log4net
-            if (options.Quiet)
-            {
-                LogManager.GetRepository().ResetConfiguration();
-            }
-
             new TileServerCloud(this).EnsureTablesExist();
 
             var project = TilingProject.Find(DynamoContext, options.ProjectName);
 
             if (project == null)
             {
-                logger.Error("No project by that name found: " + options.ProjectName);
+                Logger.Error("No project by that name found: " + options.ProjectName);
                 return 1; //argument error
             }
 

@@ -1,6 +1,8 @@
 const child = require('child_process');
 const fs = require('fs-extra');
 const readline = require('readline');
+const parseJson = require('json-parse-better-errors');
+const stripJsonComments = require('strip-json-comments');
 
 const bundle = require('../config').app.bundle;
 
@@ -9,6 +11,8 @@ function boolArg(v, name) {
   const lv = v.toLowerCase(), ln = name.toLowerCase();
   return lv === `-${ln[0]}` || lv === `--${ln}` || lv === `--${ln}=true`;
 }
+
+function hasFlag(name) { return process.argv.slice(2).some(v => boolArg(v, name)); }
 
 //run cmd, wait for it to complete, and return its stdout spew
 //throws if cmd not found or returns nonzero exit status
@@ -113,4 +117,15 @@ async function prompt(cmd, msg) {
   });
 }
 
-module.exports = { boolArg, exec, spawn, spawnSync, checkDeploy, checkTTY, prompt };
+function deepCopy(obj) { return JSON.parse(JSON.stringify(obj)); }
+
+//read json with comments and better error reporting
+function readJson(file) { return parseJson(stripJsonComments(fs.readFileSync(file, 'utf8'))); }
+
+module.exports = {
+  boolArg, hasFlag,
+  exec, spawn, spawnSync,
+  checkDeploy, checkTTY, prompt,
+  deepCopy,
+  readJson,
+};

@@ -20,12 +20,10 @@ namespace OPS.Pipeline.TileServer
 
     public class BuildTilesetJson : TileServerOperation
     {
-        static ILog logger = LogManager.GetLogger(typeof(BuildTilesetJson));
-
         private BuildTilesetJsonMessage message;
 
         public BuildTilesetJson(BuildTilesetJsonMessage message, PipelineCore pipeline, TileServerCloud cloud)
-            : base(message.ProjectName, pipeline, cloud, logger)
+            : base(message, pipeline, cloud)
         {
             this.message = message;
         }

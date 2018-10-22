@@ -31,8 +31,6 @@ namespace OPS.Pipeline.MeshWorker
 
     public class BuildBackprojectLeaves : TileServerOperation
     {
-        static ILog logger = LogManager.GetLogger(typeof(BuildBackprojectLeaves));
-
         private BuildBackprojectLeavesMessage message;
 
         private Options options;
@@ -43,7 +41,7 @@ namespace OPS.Pipeline.MeshWorker
         }
 
         public BuildBackprojectLeaves(BuildBackprojectLeavesMessage message, PipelineCore pipeline, TileServerCloud cloud)
-            : base(message.ProjectName, pipeline, cloud, logger)
+            : base(message, pipeline, cloud)
         {
             this.message = message;
 

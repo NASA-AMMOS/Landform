@@ -12,59 +12,54 @@ using System.Linq;
 using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using log4net;
+using log4net.Appender;
+using CommandLine;
 
 namespace OPS.Plumbing
 {
+    public class PipelineCoreOptions
+    {
+        [Option(Default = false, HelpText = "Suppress non-essential output")]
+        public bool Quiet { get; set; }
+
+        [Option(Default = null, HelpText = "Override default log filename")]
+        public string LogFile { get; set; }
+    }
+
     public class PipelineCore
     {
-        public PipelineCore(bool enableS3 = true, bool enableDynamo = true,
-                            string dynamoPrefix = "", string s3Url = "", string dynamoUrl = "", string profile = null)
+        public string DownloadCache { get; private set; }
+        public string Profile { get; private set; }
+        public IAmazonDynamoDB DynamoDB { get; private set; }
+        public DynamoDBContext DynamoContext { get; private set; }
+        public IAmazonS3 S3Client { get; private set; }
+
+        public ILog Logger { get; private set; }
+
+        private StorageHelper defaultStorage;
+        private Dictionary<string, StorageHelper> storageSelecter = new Dictionary<string, StorageHelper>();
+
+        public PipelineCore(PipelineCoreOptions options, string dynamoPrefix = "", string awsProfile = null,
+                            bool enableS3 = true, bool enableDynamo = true,
+                            string s3Url = "", string dynamoUrl = "", ILog logger = null)
         {
-            storageSelecter = new Dictionary<string, StorageHelper>();
-            if (enableS3)
-            {
-                var opts = new AmazonS3Config();
-                if (s3Url == "")
-                {
-                    opts.RegionEndpoint = Amazon.RegionEndpoint.USWest1;
-                }
-                else
-                {
-                    opts.ServiceURL = s3Url;
-                    opts.ForcePathStyle = true;
-                    opts.SignatureVersion = "2";
-                }
-                s3Client = new AmazonS3Client(opts);
+            Profile = awsProfile;
 
-                defaultStorage = new StorageHelper(profile, "us-west-1");
+            if (logger != null)
+            {
+                Logger = logger;
             }
             else
             {
-                s3Client = null;
+                ConfigureLogging(options);
             }
 
-            if (enableDynamo)
-            {
-                AmazonDynamoDBConfig config = new AmazonDynamoDBConfig();
-                if (dynamoUrl == "")
-                {
-                    config.RegionEndpoint = Amazon.RegionEndpoint.USWest1;
-                }
-                else
-                {
-                    config.ServiceURL = dynamoUrl;
-                }
-                ddbClient = new AmazonDynamoDBClient(config);
-                context = new DynamoDBContext(ddbClient, new DynamoDBContextConfig { TableNamePrefix = dynamoPrefix });
-            }
-            else
-            {
-                ddbClient = null;
-                context = null;
-            }
-            this.Profile = profile;
+            if (enableS3) ConfigureStorage(awsProfile, s3Url);
+
+            if (enableDynamo) ConfigureDB(awsProfile, dynamoPrefix, dynamoUrl);
 
             //use a different download cache dir for every PipelineCore instance
             //i.e. different for every thread and every run
@@ -81,18 +76,6 @@ namespace OPS.Plumbing
             DeleteDownloadCache();
         }
 
-        public string DownloadCache { get; private set; }
-
-        private AmazonS3Client s3Client;
-        private AmazonDynamoDBClient ddbClient;
-        private DynamoDBContext context;
-        private StorageHelper defaultStorage;
-        private Dictionary<string, StorageHelper> storageSelecter;
-
-        public string Profile { get; private set; }
-        public IAmazonDynamoDB DynamoDB { get { return ddbClient; } }
-        public DynamoDBContext DynamoContext { get { return context; } }
-        public IAmazonS3 S3Client { get { return s3Client; } }
         public StorageHelper Storage(string url) {
             while (url != null && url.Length > 0)
             {
@@ -291,11 +274,38 @@ namespace OPS.Plumbing
             }
         }
 
-        public void DeleteDynamoItem<T>(T obj, bool ignoreErrors = true, ILog logger = null)
+        public static void DynamoExponentialBackoff(Action func, int maxMS = 100 * 1000, int minMS = 50)
+        {
+            for (int backoff = minMS; true; backoff *= 2)
+            {
+                try
+                {
+                    //the DynamoDB API is supposed to implement its own exponential backoff
+                    //but in practice this seems to either be a lie or insufficient
+                    //https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Programming.Errors.html#Programming.Errors.RetryAndBackoff
+                    func();
+                    break;
+                }
+                catch (Amazon.DynamoDBv2.Model.ProvisionedThroughputExceededException e)
+                {
+                    if (backoff > maxMS)
+                    {
+                        throw e;
+                    }
+                    else
+                    {
+                        //LogInfo("BACKOFF {0}ms", backoff); //handy if we need to debug
+                        Thread.Sleep(backoff);
+                    }
+                }
+            }
+        }
+
+        public void DeleteDynamoItem<T>(T obj, bool ignoreErrors = true)
         {
             try
             {
-                DynamoContext.Delete(obj);
+                DynamoExponentialBackoff(() => DynamoContext.Delete(obj));
             }
             catch (Exception e)
             {
@@ -303,17 +313,128 @@ namespace OPS.Plumbing
                 {
                     throw e;
                 }
-
-                if (logger != null)
-                {
-                    logger.Warn(string.Format("error deleting DynamoDB object: {0}", e.Message));
-                }
+                Logger.WarnFormat("error deleting DynamoDB object: {0}", e.Message);
             }
         }
 
-        internal string CachePath(string project, string filename)
+        public void LogInfo(string msg, params Object[] args)
+        {
+            Logger.InfoFormat(msg, args);
+        }
+
+        public void LogWarn(string msg, params Object[] args)
+        {
+            Logger.WarnFormat(msg, args);
+        }
+
+        public void LogError(string msg, params Object[] args)
+        {
+            Logger.ErrorFormat(msg, args);
+        }
+
+        private string CachePath(string project, string filename)
         {
             return Path.Combine(DownloadCache, project, filename);
+        }
+
+        private void ConfigureLogging(PipelineCoreOptions options)
+        {
+            log4net.GlobalContext.Properties["command"] = Config.FullCommand;
+
+            log4net.Config.XmlConfigurator.Configure();
+
+            //it is fairly tricky to change log filename at runtime
+            //https://stackoverflow.com/a/6963420
+            var h = (log4net.Repository.Hierarchy.Hierarchy) LogManager.GetRepository();
+            foreach (IAppender a in h.Root.Appenders)
+            {
+                if (a is FileAppender)
+                {
+                    FileAppender fa = (FileAppender)a;
+                    if (!string.IsNullOrEmpty(options.LogFile))
+                    {
+                        var old = new FileInfo(fa.File);
+                        fa.File = Path.Combine(old.DirectoryName, options.LogFile);
+                        fa.ActivateOptions();
+                        if (old.Exists)
+                        {
+                            if (old.Length == 0)
+                            {
+                                try
+                                {
+                                    old.Delete();
+                                }
+                                catch (Exception e)
+                                {
+                                    if (!options.Quiet)
+                                    {
+                                        Console.WriteLine(string.Format("error deleting empty log file ({0}): {1}",
+                                                                        e.GetType().FullName, e.Message));
+                                    }
+                                }
+                            }
+                            else
+                            {
+                                if (!options.Quiet)
+                                {
+                                    Console.WriteLine(string.Format("changing log file to {0}, " +
+                                                                    "old log file {1} not empty", fa.File, old));
+                                }
+                            }
+                        }
+                    }
+                    if (!options.Quiet)
+                    {
+                        Console.WriteLine(string.Format("logging to {0}", fa.File));
+                    }
+                }
+                else if (a is ConsoleAppender)
+                {
+                    ConsoleAppender ca = (ConsoleAppender)a;
+                    if (options.Quiet)
+                    {
+                        ca.Threshold = log4net.Core.Level.Off;
+                        ca.ActivateOptions();
+                    }
+                }
+            }
+
+            Logger = LogManager.GetLogger(GetType());
+        }
+
+        private void ConfigureStorage(string profile, string s3Url)
+        {
+            var cfg = new AmazonS3Config();
+            if (string.IsNullOrEmpty(s3Url))
+            {
+                cfg.RegionEndpoint = Amazon.RegionEndpoint.USWest1;
+            }
+            else
+            {
+                cfg.ServiceURL = s3Url;
+                cfg.ForcePathStyle = true;
+                cfg.SignatureVersion = "2";
+            }
+            var creds = profile != null ? Credentials.Get(profile) : null;
+            S3Client = creds != null ? new AmazonS3Client(creds, cfg) : new AmazonS3Client(cfg);
+            
+            defaultStorage = new StorageHelper(profile, "us-west-1");
+        }
+
+        private void ConfigureDB(string profile, string dynamoPrefix, string dynamoUrl)
+        {
+            var cfg = new AmazonDynamoDBConfig();
+            if (string.IsNullOrEmpty(dynamoUrl))
+            {
+                cfg.RegionEndpoint = Amazon.RegionEndpoint.USWest1;
+            }
+            else
+            {
+                cfg.ServiceURL = dynamoUrl;
+            }
+            var creds = profile != null ? Credentials.Get(profile) : null;
+            DynamoDB = creds != null ? new AmazonDynamoDBClient(creds, cfg) : new AmazonDynamoDBClient(cfg);
+            DynamoContext = new DynamoDBContext(DynamoDB, new DynamoDBContextConfig { TableNamePrefix = dynamoPrefix });
         }
     }
 }
