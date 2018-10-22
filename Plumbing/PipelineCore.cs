@@ -396,34 +396,36 @@ namespace OPS.Plumbing
 
         private void ConfigureStorage(string profile, string s3Url)
         {
-            var opts = new AmazonS3Config();
-            if (s3Url == "")
+            var cfg = new AmazonS3Config();
+            if (string.IsNullOrEmpty(s3Url))
             {
-                opts.RegionEndpoint = Amazon.RegionEndpoint.USWest1;
+                cfg.RegionEndpoint = Amazon.RegionEndpoint.USWest1;
             }
             else
             {
-                opts.ServiceURL = s3Url;
-                opts.ForcePathStyle = true;
-                opts.SignatureVersion = "2";
+                cfg.ServiceURL = s3Url;
+                cfg.ForcePathStyle = true;
+                cfg.SignatureVersion = "2";
             }
-            S3Client = new AmazonS3Client(Credentials.Get(profile), opts);
+            var creds = profile != null ? Credentials.Get(profile) : null;
+            S3Client = creds != null ? new AmazonS3Client(creds, cfg) : new AmazonS3Client(cfg);
             
             defaultStorage = new StorageHelper(profile, "us-west-1");
         }
 
         private void ConfigureDB(string profile, string dynamoPrefix, string dynamoUrl)
         {
-            AmazonDynamoDBConfig config = new AmazonDynamoDBConfig();
-            if (dynamoUrl == "")
+            var cfg = new AmazonDynamoDBConfig();
+            if (string.IsNullOrEmpty(dynamoUrl))
             {
-                config.RegionEndpoint = Amazon.RegionEndpoint.USWest1;
+                cfg.RegionEndpoint = Amazon.RegionEndpoint.USWest1;
             }
             else
             {
-                config.ServiceURL = dynamoUrl;
+                cfg.ServiceURL = dynamoUrl;
             }
-            DynamoDB = new AmazonDynamoDBClient(Credentials.Get(profile), config);
+            var creds = profile != null ? Credentials.Get(profile) : null;
+            DynamoDB = creds != null ? new AmazonDynamoDBClient(creds, cfg) : new AmazonDynamoDBClient(cfg);
             DynamoContext = new DynamoDBContext(DynamoDB, new DynamoDBContextConfig { TableNamePrefix = dynamoPrefix });
         }
     }
