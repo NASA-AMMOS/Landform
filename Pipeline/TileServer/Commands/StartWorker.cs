@@ -232,18 +232,18 @@ namespace OPS.Pipeline.TileServer
             {
                 foreach (var m in cloud.WorkerQueue.Dequeue())
                 {
-                    /*try
-                    {*/
+                    try
+                    {
                         StartedProcessing(cloud.WorkerQueue, m);
                         dispatcher.Handle(m);
                         FinishedProcessing(m);
                         cloud.WorkerQueue.DeleteMessage(m);
-                    /*}
+                    }
                     catch (Exception e)
                     {
                         logger.Error(e.Message);
                         logger.Error(e.StackTrace);
-                    }*/
+                    }
                 }
             }
         }
