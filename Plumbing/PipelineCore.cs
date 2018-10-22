@@ -294,7 +294,7 @@ namespace OPS.Plumbing
                     }
                     else
                     {
-                        //System.Console.WriteLine("BACKOFF " + backoff + "ms"); //handy if we need to debug
+                        //LogInfo("BACKOFF {0}ms", backoff); //handy if we need to debug
                         Thread.Sleep(backoff);
                     }
                 }
@@ -366,19 +366,27 @@ namespace OPS.Plumbing
                                 }
                                 catch (Exception e)
                                 {
-                                    Console.WriteLine(string.Format("error deleting empty log file ({0}): {1}",
-                                                                    e.GetType().FullName, e.Message));
+                                    if (!options.Quiet)
+                                    {
+                                        Console.WriteLine(string.Format("error deleting empty log file ({0}): {1}",
+                                                                        e.GetType().FullName, e.Message));
+                                    }
                                 }
                             }
                             else
                             {
-                                Console.WriteLine(string.Format("changing log file to {0}, old log file {1} not empty",
-                                                                fa.File, old));
+                                if (!options.Quiet)
+                                {
+                                    Console.WriteLine(string.Format("changing log file to {0}, " +
+                                                                    "old log file {1} not empty", fa.File, old));
+                                }
                             }
                         }
                     }
-                    Console.WriteLine("logging to " + fa.File);
-                    break;
+                    if (!options.Quiet)
+                    {
+                        Console.WriteLine(string.Format("logging to {0}", fa.File));
+                    }
                 }
                 else if (a is ConsoleAppender)
                 {

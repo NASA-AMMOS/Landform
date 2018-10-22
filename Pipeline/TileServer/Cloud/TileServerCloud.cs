@@ -31,9 +31,7 @@ namespace OPS.Pipeline.TileServer
                 typeof(TransformPrior)
             };
 
-        PipelineCore pipeline;
-
-        static ILog logger = LogManager.GetLogger(typeof(TileServerCloud));
+        private PipelineCore pipeline;
 
         public TileServerCloud(PipelineCore pipelineCore)
         {
@@ -84,14 +82,13 @@ namespace OPS.Pipeline.TileServer
                 try
                 {
                     pipeline.DynamoDB.DescribeTable(new DescribeTableRequest(tn));
+                    pipeline.Logger.InfoFormat("Table {0}: exists", tn);
                 }
                 catch (ResourceNotFoundException)
                 {
-                    logger.InfoFormat("Table {0}: creating", tn);
+                    pipeline.Logger.InfoFormat("Table {0}: creating", tn);
                     pipeline.DynamoDB.CreateTable(CreateCloudTemplates.CreateTable(t, TileServerConfig.Instance.VenueName));
-                    continue;
                 }
-                logger.InfoFormat("Table {0}: exists", tn);
             }
 
             WaitForTables();
@@ -106,7 +103,7 @@ namespace OPS.Pipeline.TileServer
                 bool firstTime = true;
                 while (tableStatus != "ACTIVE")
                 {
-                    logger.Info("Waiting for table: " + tn);
+                    pipeline.Logger.Info("Waiting for table: " + tn);
                     try
                     {
                         var tableResponse = this.pipeline.DynamoDB.DescribeTable(new DescribeTableRequest(tn));
