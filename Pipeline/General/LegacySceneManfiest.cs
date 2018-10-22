@@ -262,15 +262,18 @@ namespace OPS.Pipeline
         public static void BuildFromDirectory(string dir)
         {
             string indir = dir;
-            string outdir = Path.Combine(indir, "output");
-            PathHelper.EnsureExists(outdir);
+            string sceneDir = Path.Combine(indir, "scene");
+            string imagesDir = Path.Combine(sceneDir, "images");
+            string preprocessedDir = Path.Combine(indir, "preprocessed");
+            PathHelper.EnsureExists(sceneDir);
+            PathHelper.EnsureExists(imagesDir);
+            PathHelper.EnsureExists(preprocessedDir);
+
             var manifest = new LegacySceneManfiest();
             Dictionary<string, LegacySceneManfiest.SiteDriveData> siteDriveLookup = new Dictionary<string, LegacySceneManfiest.SiteDriveData>();
 
             Serial.ForEach(System.IO.Directory.EnumerateFiles(indir, "*.obj"), f =>
             {
-
-
                 // Make metadata
                 {
                     var imgname = f.Replace(".obj", ".vic");
@@ -294,42 +297,107 @@ namespace OPS.Pipeline
                         Metadata = meta
                     };
                     siteDriveLookup[p.SiteDrive].Images.Add(imageData);
-                    //Console.WriteLine(p.Site + " " + p.Drive);
-                    //foreach (var g in meta.Groups())
-                    //{
-                    //    foreach (var k in meta.Keys(g))
-                    //    {
-                    //        Console.WriteLine(g + "\t" + k + "\t" + meta[g, k]);
-                    //    }
-                    //}
 
                 }
 
                 //Make meshes
                 {
                     var imgname = f.Replace(".obj", ".rgb");
-                    string destRoot = Path.Combine(outdir, Path.GetFileNameWithoutExtension(f));
+                    string destRoot = Path.Combine(preprocessedDir, Path.GetFileNameWithoutExtension(f));
                     Mesh m = Mesh.Load(f);
                     if(!m.HasNormals)
                     {
                         m.GenerateVertexNormals();
                     }
+                    ConvertMeshToYUp(m);
+
                     Console.WriteLine("Normals: " + m.HasNormals);
                     Image img = Image.Load(imgname);
                     Console.WriteLine("Bands: " + img.Bands);
                     img.Save<byte>(destRoot + ".jpg");
 
                     PDSMetadata metadata = new PDSMetadata(f.Replace(".obj", ".VIC"));
-                    string subDest = Path.Combine(outdir, new PDSParser(metadata).SiteDrive, Path.GetFileNameWithoutExtension(f) + ".IMG.jpg");
+                    string subDest = Path.Combine(imagesDir, new PDSParser(metadata).SiteDrive, Path.GetFileNameWithoutExtension(f) + ".IMG.jpg");
                     PathHelper.EnsureExists(Path.GetDirectoryName(subDest));
                     img.Save<byte>(subDest);
 
                     m.Save(destRoot + ".obj", destRoot + ".jpg");
                 }
             });
-            siteDriveLookup[siteDriveLookup.Keys.OrderBy(x => x).Last()].Primary = true;
+            var primarySiteDrive = siteDriveLookup.Keys.OrderBy(x => x).Last();
+            siteDriveLookup[primarySiteDrive].Primary = true;
             string content = manifest.Create();
-            File.WriteAllText(Path.Combine(outdir, "manifest.xml"), content);
+            string sceneSiteDriveFolder = Path.Combine(sceneDir, Path.Combine("ds" + primarySiteDrive, "201801010000"));
+            PathHelper.EnsureExists(sceneSiteDriveFolder);
+            File.WriteAllText(Path.Combine(sceneSiteDriveFolder, "manifest.xml"), content);
+            string tileDir = Path.Combine(sceneSiteDriveFolder, "tile3d_2.0");
+            PathHelper.EnsureExists(tileDir);
+            File.WriteAllText(Path.Combine(tileDir, "tilesetSky.json"), SkyTilesetContent);
+
+        }
+
+        const string SkyTilesetContent = @"{
+  ""asset"": {
+    ""version"": ""1.0"",
+    ""gltfUpAxis"": ""Z""
+  },
+  ""root"": {
+    ""boundingVolume"": {
+      ""box"": [
+        0,
+        768.3815307617188,
+        0,
+        8192,
+        0,
+        0,
+        0,
+        2366.5615844726562,
+        0,
+        0,
+        0,
+        8192
+      ]
+    },
+    ""transform"": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      1
+    ],
+    ""children"": [],
+    ""geometricError"": 16384,
+    ""refine"": ""REPLACE""
+  },
+  ""geometricError"": 16384
+}";
+
+        /// <summary>
+        /// Convert a mesh 
+        /// From: Right-handed Z down
+        /// To: Right-handed Y up with a 90 degree rotation
+        /// This is more unity like but is still right handed
+        /// </summary>
+        /// <param name="mesh"></param>
+        public static void ConvertMeshToYUp(Mesh mesh)
+        {
+            foreach(var v in mesh.Vertices)
+            {
+                var p = v.Position;
+                //v.Position = new Vector3(p.X, -p.Z, p.Y);
+                v.Position = new Vector3(-p.Y, -p.Z, p.X);
+            }
         }
     }
 }

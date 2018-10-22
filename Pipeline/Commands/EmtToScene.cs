@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using OPS.Cloud;
 using OPS.Util;
 using System.IO;
+using OPS.Pipeline.TileServer;
 
 namespace OPS.Pipeline
 {
@@ -18,17 +19,15 @@ namespace OPS.Pipeline
         [Value(0, Required = true, HelpText = "Input iv directory path or S3 location")]
         public string InputIVFile { get; set; }
 
-        [Value(1, Required = true, HelpText = "Output directory or S3 location")]
-        public string OutputDirectory { get; set; }
-
-
+        [Value(1, Required = true, HelpText = "Project name for tiling server")]
+        public string TilingProjectName { get; set; }
+        
         [Option(Required = false, Default = "menzies_m2020_gov", HelpText = "")]
         public string InputAWSProfile { get; set; }
 
         [Option(Required = false, Default = "us-gov-west-1", HelpText = "")]
         public string InputAWSRegion { get; set; }
-
-
+        
         [Option(Required = false, Default = null, HelpText = "")]
         public string WorkingDir { get; set; }
 
@@ -109,6 +108,7 @@ namespace OPS.Pipeline
 
             public string OBJ;
             public string IMG;
+            public string VIC;
             public string PNG;
 
             public MeshRecord(string ivLocation, EmtToScene emtToScene)
@@ -118,6 +118,7 @@ namespace OPS.Pipeline
                 var objLocation = ivLocation.Replace("meshes/wedge", "ncam").Replace(".iv", ".obj");
                 OBJ = emtToScene.GetFile(objLocation);
                 IMG = emtToScene.GetFile(objLocation.Replace(".obj", ".IMG"));
+                VIC = emtToScene.GetFile(objLocation.Replace(".obj", ".VIC"));
                 PNG = emtToScene.GetFile(objLocation.Replace(".obj", ".png"));
             }
         }
@@ -132,7 +133,42 @@ namespace OPS.Pipeline
 
             var meshLocations = GetMeshLocationList();
             var records = meshLocations.Select(f => new MeshRecord(f, this)).ToList();
+            LegacySceneManfiest.BuildFromDirectory(options.WorkingDir);
+            var createOptions = new CreateProjectOptions()
+            {
+                ProjectName = options.TilingProjectName,
+                TilingScheme = TilingScheme.QuadY,
+                SkirtMode = Geometry.SkirtMode.None,
+                ReconMethod = Geometry.MeshReconMethod.Poisson,
+                FacesPerTile = 2000,
+                TileResolution = 256,
+                ProjectType = "GenericTiling",
+                Wait = true
+            };
+            int r = new CreateProject(createOptions).Run();
 
+            foreach (var f in Directory.EnumerateFiles(Path.Combine(options.WorkingDir, "preprocessed"), "*.obj"))
+            {
+                string img = f.Replace(".obj", ".jpg");
+                var uploadOptions = new UploadInputOptions()
+                {
+                    ProjectName = options.TilingProjectName,
+                    MeshFilepath = f,
+                    ImageFilepath = img,
+                    TileId = null,
+                    Wait = true
+                };
+                r = new UploadInput(uploadOptions).Run();
+            }
+
+            var runOptions = new RunProjectOptions()
+            {
+                ProjectName = options.TilingProjectName
+            };
+            r = new RunProject(runOptions).Run();
+
+            var tilesetUrl = TileServerConfig.Instance.WWWUrl(options.TilingProjectName);
+            logger.Info("Building tileset.  When done copy data from " + tilesetUrl + " to tile3d_2.0 directory");
             return 0;
         }
 
