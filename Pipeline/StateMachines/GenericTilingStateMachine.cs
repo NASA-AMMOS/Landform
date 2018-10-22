@@ -9,16 +9,9 @@ namespace OPS.Pipeline.TileServer
 {
     class GenericTilingStateMachine : PipelineStateMachine
     {
-        protected static ILog logger = LogManager.GetLogger(typeof(GenericTilingStateMachine));
-
         public GenericTilingStateMachine(PipelineCore pipeline, TilingQueue workerQueue, string projectName)
             : base(pipeline, workerQueue, projectName)
         {
-        }
-
-        static public string ProjectType()
-        {
-            return "GenericTiling";
         }
 
         protected override bool SkipChunking(TilingProject project)

@@ -11,16 +11,9 @@ namespace OPS.Pipeline.TileServer
 {
     class MSLStateMachine : PipelineStateMachine
     {
-        private static ILog logger = LogManager.GetLogger(typeof(MSLStateMachine));
-
         public MSLStateMachine(PipelineCore pipeline, TilingQueue workerQueue, string projectName)
             : base(pipeline, workerQueue, projectName)
         {
-        }
-
-        static public string ProjectType()
-        {
-            return "MSL";
         }
 
         override protected TypeDispatcher InitDispatcher()

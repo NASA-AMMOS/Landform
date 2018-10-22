@@ -9,8 +9,16 @@ using log4net;
 
 namespace OPS.Pipeline.TileServer
 {
-    abstract class PipelineStateMachine
+    public abstract class PipelineStateMachine
     {
+        public enum ProjectType { GenericTiling, MSL };
+
+        public static Dictionary<ProjectType, Type> StateMachines = new Dictionary<ProjectType, Type>()
+        {
+            { ProjectType.GenericTiling, typeof(GenericTilingStateMachine) },
+            { ProjectType.MSL, typeof(MSLStateMachine) },
+        };
+
         protected PipelineCore pipeline;
         protected TilingQueue workerQueue;
         protected ProjectCache projectCache;

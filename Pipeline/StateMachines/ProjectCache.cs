@@ -7,7 +7,7 @@ using System.Diagnostics;
 
 namespace OPS.Pipeline.TileServer
 {
-    class ProjectCache
+    public class ProjectCache
     {
         private DynamoDBContext context;
         private string projectName;

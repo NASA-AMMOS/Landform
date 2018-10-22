@@ -19,13 +19,13 @@ namespace OPS.Pipeline.TileServer
         [Value(0, Required = true, HelpText = "Project Name")]
         public string ProjectName { get; set; }
         
-        [Option(Default = TilingScheme.Bin, HelpText = "TilingScheme")]
+        [Option(Default = TilingScheme.Bin, HelpText = "Tiling scheme")]
         public TilingScheme TilingScheme { get; set; }
 
-        [Option(Default = SkirtMode.None, HelpText = "SkirtMode")]
+        [Option(Default = SkirtMode.None, HelpText = "Skirt mode")]
         public SkirtMode SkirtMode { get; set; }
 
-        [Option(Default = MeshReconMethod.Poisson, HelpText = "Mesh Reconstruction Method")]
+        [Option(Default = MeshReconMethod.Poisson, HelpText = "Mesh reconstruction method")]
         public MeshReconMethod ReconMethod { get; set; }
 
         [Option(Default = 2000, HelpText = "Target maximum faces per tile")]
@@ -34,8 +34,8 @@ namespace OPS.Pipeline.TileServer
         [Option(Default = 256, HelpText = "Maximum image resolution per tile")]
         public int TileResolution { get; set; }
 
-        [Option(Default = "GenericTiling", HelpText = "Processing pipline (GenericTiling, MSL)")]
-        public string ProjectType { get; set; }
+        [Option(Default = PipelineStateMachine.ProjectType.GenericTiling, HelpText = "Processing pipline")]
+        public PipelineStateMachine.ProjectType ProjectType { get; set; }
 
         [Option(Default = false, HelpText = "Do not wait until project has been created")]
         public bool NoWait { get; set; }
@@ -73,7 +73,7 @@ namespace OPS.Pipeline.TileServer
                                           ReconMethod = options.ReconMethod,
                                           FacesPerTile = options.FacesPerTile,
                                           TileResolution = options.TileResolution,
-                                          ProjectType = options.ProjectType
+                                          ProjectType = options.ProjectType.ToString()
                                       });
 
             if (!options.NoWait)

@@ -20,7 +20,6 @@ namespace OPS.Pipeline.TileServer
     {
         private StartMasterOptions options;
 
-        private Dictionary<string,Type> registeredStateMachines = new Dictionary<string, Type>();
         private Dictionary<string, PipelineStateMachine> projectNameToStateMachine =
             new Dictionary<string, PipelineStateMachine>();
 
@@ -28,17 +27,6 @@ namespace OPS.Pipeline.TileServer
             : base(options, TileServerConfig.Instance.VenueName, TileServerConfig.Instance.Profile)
         {
             this.options = options;
-            RegisterStateMachine(GenericTilingStateMachine.ProjectType(), typeof(GenericTilingStateMachine));
-            RegisterStateMachine(MSLStateMachine.ProjectType(), typeof(MSLStateMachine));
-        }
-
-        private void RegisterStateMachine(string projectType, Type stateMachine)
-        {
-            if (registeredStateMachines.ContainsKey(projectType))
-            {
-                throw new ArgumentException("state machine for project type " + projectType + " already registered");
-            }
-            registeredStateMachines.Add(projectType, stateMachine);
         }
 
         public int Run()
@@ -92,13 +80,16 @@ namespace OPS.Pipeline.TileServer
                                     projectType = project.ProjectType;
                                 }
                             }
-                            if (string.IsNullOrEmpty(projectType) || !registeredStateMachines.ContainsKey(projectType))
+                            PipelineStateMachine.ProjectType pt;
+                            if (string.IsNullOrEmpty(projectType) ||
+                                !Enum.TryParse(projectType, /* ignoreCase */ true, out pt) ||
+                                !PipelineStateMachine.StateMachines.ContainsKey(pt))
                             {
                                 throw new Exception("could not create state machine for project " + m.ProjectName +
                                                     " of type \"" + projectType + "\"");
                             }
 
-                            var smt = registeredStateMachines[projectType];
+                            var smt = PipelineStateMachine.StateMachines[pt];
                             var sm = (PipelineStateMachine)Activator.CreateInstance(smt, this, cloud.WorkerQueue,
                                                                                     m.ProjectName);
                             projectNameToStateMachine.Add(m.ProjectName, sm);
