@@ -48,6 +48,12 @@ namespace OPS.Pipeline.TileServer
                 return 1; //argument error
             }
 
+            if (project.InputNames == null || project.InputNames.Count < 1)
+            {
+                logger.Error("No inputs defined for project " + options.ProjectName);
+                return 1; //argument error
+            }
+
             cloud.MasterQueue.Enqueue(new RunProjectMessage(options.ProjectName));
 
             return 0;
