@@ -1,6 +1,7 @@
 ﻿using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.Model;
 using log4net;
+using OPS.Cloud;
 using OPS.Plumbing;
 using System;
 using System.Collections.Generic;
@@ -13,17 +14,24 @@ namespace OPS.Pipeline.TileServer
 {
     public class TileServerCloud
     {
+        const int WORKER_QUEUE_TIMEOUT_SEC = 60;
+        const int MASTER_QUEUE_TIMEOUT_SEC = 30 * 60;
+
         Type[] tableTypes = new Type[]
             {
                 typeof(TilingProject),
                 typeof(TilingInput),
                 typeof(TilingNode),
-                typeof(TilingInputChunk)
+                typeof(TilingInputChunk),
+                typeof(Project),
+                typeof(FrameTransform),
+                typeof(Frame),
+                typeof(Observation),
+                typeof(Overlap),
+                typeof(TransformPrior)
             };
 
-        PipelineCore pipeline;
-
-        static ILog logger = LogManager.GetLogger(typeof(TileServerCloud));
+        private PipelineCore pipeline;
 
         public TileServerCloud(PipelineCore pipelineCore)
         {
@@ -37,7 +45,8 @@ namespace OPS.Pipeline.TileServer
             {
                 if (_workerQueue == null)
                 {
-                    _workerQueue = new TilingQueue(TileServerConfig.Instance.VenueName + "_worker", pipeline.Profile);
+                    _workerQueue = new TilingQueue(TileServerConfig.Instance.VenueName + "_worker", pipeline.Profile,
+                                                   WORKER_QUEUE_TIMEOUT_SEC);
                 }
                 return _workerQueue;
             }
@@ -50,7 +59,8 @@ namespace OPS.Pipeline.TileServer
             {
                 if (_masterQueue == null)
                 {
-                    _masterQueue = new TilingQueue(TileServerConfig.Instance.VenueName + "_master", pipeline.Profile);
+                    _masterQueue = new TilingQueue(TileServerConfig.Instance.VenueName + "_master", pipeline.Profile,
+                                                   MASTER_QUEUE_TIMEOUT_SEC);
                 }
                 return _masterQueue;
             }
@@ -72,14 +82,13 @@ namespace OPS.Pipeline.TileServer
                 try
                 {
                     pipeline.DynamoDB.DescribeTable(new DescribeTableRequest(tn));
+                    pipeline.Logger.InfoFormat("Table {0}: exists", tn);
                 }
                 catch (ResourceNotFoundException)
                 {
-                    logger.InfoFormat("Table {0}: creating", tn);
+                    pipeline.Logger.InfoFormat("Table {0}: creating", tn);
                     pipeline.DynamoDB.CreateTable(CreateCloudTemplates.CreateTable(t, TileServerConfig.Instance.VenueName));
-                    continue;
                 }
-                logger.InfoFormat("Table {0}: exists", tn);
             }
 
             WaitForTables();
@@ -94,7 +103,7 @@ namespace OPS.Pipeline.TileServer
                 bool firstTime = true;
                 while (tableStatus != "ACTIVE")
                 {
-                    logger.Info("Waiting for table: " + tn);
+                    pipeline.Logger.Info("Waiting for table: " + tn);
                     try
                     {
                         var tableResponse = this.pipeline.DynamoDB.DescribeTable(new DescribeTableRequest(tn));

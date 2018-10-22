@@ -17,7 +17,7 @@ namespace OPS.Pipeline.TileServer
 {
     [DynamoDBTable("TilingNode")]
     [DynamoDBReadCapacity(30, 50)]
-    [DynamoDBWriteCapacity(5, 50)]
+    [DynamoDBWriteCapacity(15, 50)] //increased write capacity from 5 to 15 to reduce backoffs in node creation/deletion
     public class TilingNode
     {
         [DynamoDBHashKey] //Partition key
@@ -67,7 +67,7 @@ namespace OPS.Pipeline.TileServer
         {
             TilingNode node = new TilingNode(id, project, meshUrl, imageUrl, parentId, childIds, dependsOn,
                                              dependedOnBy, bounds);
-            context.Save(node);
+            node.Save(context);
             return node;
         }
 
@@ -88,14 +88,15 @@ namespace OPS.Pipeline.TileServer
                 List<TilingNode> nodes = new List<TilingNode>();
                 foreach (var id in project.NodeIds)
                 {
-                    nodes.Add(Find(context, project.Name, id));
+                    var node = Find(context, project.Name, id);
+                    if (node != null) nodes.Add(node);
                 }
                 return nodes;
             }
             else
             {
-                //fall back to scanning for all input records that match the project name
-                //e.g. for legacy projects
+                //fall back to scanning for all records that match the project name
+                //e.g. for legacy projects or if the project record is not well formed
                 return context.Scan<TilingNode>(new ScanCondition("ProjectName",
                                                                    Amazon.DynamoDBv2.DocumentModel.ScanOperator.Equal,
                                                                    project.Name));
@@ -104,22 +105,22 @@ namespace OPS.Pipeline.TileServer
 
         public void Save(DynamoDBContext context)
         {
-            context.Save(this);
+            PipelineCore.DynamoExponentialBackoff(() => context.Save(this));
         }
 
-        public void Delete(PipelineCore pipeline, bool ignoreErrors = true, ILog logger = null)
+        public void Delete(PipelineCore pipeline, bool ignoreErrors = true)
         {
             if (!string.IsNullOrEmpty(MeshUrl))
             {
-                pipeline.Storage(MeshUrl).DeleteObject(MeshUrl, ignoreErrors: ignoreErrors, logger: logger);
+                pipeline.Storage(MeshUrl).DeleteObject(MeshUrl, ignoreErrors: ignoreErrors, logger: pipeline.Logger);
             }
 
             if (!string.IsNullOrEmpty(ImageUrl))
             {
-                pipeline.Storage(ImageUrl).DeleteObject(ImageUrl, ignoreErrors: ignoreErrors, logger: logger);
+                pipeline.Storage(ImageUrl).DeleteObject(ImageUrl, ignoreErrors: ignoreErrors, logger: pipeline.Logger);
             }
 
-            pipeline.DeleteDynamoItem(this, ignoreErrors, logger);
+            pipeline.DeleteDynamoItem(this, ignoreErrors);
         }
 
         public bool IsLeaf()
@@ -174,9 +175,8 @@ namespace OPS.Pipeline.TileServer
                             pair.Mesh.Save(tmp3DTileMesh, tmp3DTileImage);
                             pipeline.Storage(tileUrl).UploadFile(tmp3DTileMesh, tileUrl);
 
-                            this.GeometricError = geometricError;
-                            this.Save(pipeline.DynamoContext);
-
+                            GeometricError = geometricError;
+                            Save(pipeline.DynamoContext);
                         });
                     });
                 });

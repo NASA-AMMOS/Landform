@@ -316,6 +316,11 @@ These instructions only need to be run once for a new venue or when the venue co
     * select the most recent version of the previous template in "Source Template Version"
     * the new template will be pre-populated with values from the old template
     * most likely the only field you'll need to replace is "User Data"
+    * after saving the new version
+      * select the template in the list
+      * Actions -> Set default version
+      * select the newest version
+      * click set as default version
   * Launch Template Name: `landformweb[-dev]-workers` (recommended, but can be any name)
   * AMI ID: `ami-0df605282263fb1c9` (Microsoft Windows Server 2016 Base 64-bit)
   * Instance Type: `t2.2xlarge` recommended, other [instance types](https://aws.amazon.com/ec2/instance-types) can be chosen for different [price](https://aws.amazon.com/ec2/pricing/on-demand)/performance tradeoffs 
@@ -323,11 +328,6 @@ These instructions only need to be run once for a new venue or when the venue co
   * Network Type: `classic`
   * Availability Zone: `us-west-1c`
   * Security Groups: `RDP Only` (or whatever security group you selected above)
-  * Storage Volumes -> Add New Volume
-    * Volume Type: `ephemeral0`
-    * Device Name: `xvda Windows`
-    * Size: `100 GiB`
-    * IOPS: `2000`
   * Tags -> Add Tag
     * Key: `Name` - note this must be capitalized exactly as shown
     * Value: `landformweb[-dev]-worker` (recommended, but can be any name) - this will identify the EC2 instances in the group
@@ -390,6 +390,6 @@ These instructions only needs to be run when the Landform worker version changes
 1. Double click RDP file to open remote desktop
 1. Username: `admin`, password as above
 1. The Landform tiling server should be located in `C:\tileserver`.
-  * You can tail the Landform tileserver log by running `Get-Content c:\tileserver\log.txt -Wait -Tail 30` in PowerShell.
+  * You can tail the Landform tileserver log by running `Get-Content c:\tileserver\log\log-tilingserver-startworker*.txt -Wait -Tail 30` in PowerShell.
 1. The [EC2Launch](https://docs.aws.amazon.com/AWSEC2/latest/WindowsGuide/ec2-windows-user-data.html) log for the user data script should be at `C:\ProgramData\Amazon\EC2-Windows\Launch\Log\UserdataExecution`.
   * You may need to [show hidden files and folders](https://support.microsoft.com/en-us/help/14201/windows-show-hidden-files) to see `C:\ProgramData`.

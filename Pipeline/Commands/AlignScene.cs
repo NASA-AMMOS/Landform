@@ -22,11 +22,10 @@ namespace OPS.Pipeline
 {
 
     [Verb("align-scene", HelpText = "Align a folder of images")]
-    public class AlignSceneOptions
+    public class AlignSceneOptions : PipelineCoreOptions
     {
         [Value(0, Required = true, HelpText = "Path containing images")]
         public string InputPath { get; set; }
-
 
         [Value(1, Required = true, HelpText = "Output JSON")]
         public string OutputPath { get; set; }
@@ -97,10 +96,9 @@ namespace OPS.Pipeline
 
             MSLLocations locations = new MSLLocations();
 
-            PipelineCore pipeline = new PipelineCore();
+            PipelineCore pipeline = new PipelineCore(options);
 
             ConcurrentDictionary<ImageRef, Image> masks = new ConcurrentDictionary<ImageRef, Image>();
-            Memoizer<ImageRef, Image> imageCache = new Memoizer<ImageRef, Image>(pipeline.Load);
 
             logger.Info("Building scene...");
             logger.Info("1. masks");
@@ -118,7 +116,7 @@ namespace OPS.Pipeline
 
                 logger.InfoFormat("{0}: {1}", imgRef.DisplayName, path);
 
-                var img = imageCache[imgRef];
+                var img = pipeline.Load(imgRef);
                 var md = img.Metadata as PDSMetadata;
                 if (md == null)
                 {
@@ -166,7 +164,7 @@ namespace OPS.Pipeline
             foreach (var imgRef in images)
             {
                 string fn = ((DiskImageRef)imgRef).Path;
-                var md = imageCache[imgRef].Metadata as PDSMetadata;
+                var md = pipeline.Load(imgRef).Metadata as PDSMetadata;
                 PDSParser parsed = new PDSParser(md);
 
                 // Create nodes
@@ -206,7 +204,7 @@ namespace OPS.Pipeline
             {
                 var fn = ((DiskImageRef)imgRef).Path;
                 var imgNode = scene.ImageToNode[imgRef];
-                var md = imageCache[imgRef].Metadata as PDSMetadata;
+                var md = pipeline.Load(imgRef).Metadata as PDSMetadata;
                 PDSParser parsed = new PDSParser(md);
 
                 string colName = Path.GetFileName(fn);
@@ -273,7 +271,7 @@ namespace OPS.Pipeline
                 }
 
                 ImageFeature[] features;
-                var img = imageCache[imgRef];
+                var img = pipeline.Load(imgRef);
                 var mask = masks[imgRef];
                 if (asift)
                 {

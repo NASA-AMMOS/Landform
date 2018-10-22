@@ -12,32 +12,22 @@ using System.Threading.Tasks;
 namespace OPS.Pipeline.TileServer
 {
     [Verb("listprojects", HelpText = "List projects")]
-    public class ListProjectsOptions
+    public class ListProjectsOptions : PipelineCoreOptions
     {       
-        [Option(Required = false, Default = false, HelpText = "suppress non-essential output")]
-        public bool Quiet { get; set; }
     }
 
     public class ListProjects : PipelineCore
     {
-        static ILog logger = LogManager.GetLogger(typeof(ListProjects));
-
-        ListProjectsOptions options;
+        private ListProjectsOptions options;
 
         public ListProjects(ListProjectsOptions options)
-            : base(dynamoPrefix: TileServerConfig.Instance.VenueName, profile: TileServerConfig.Instance.Profile)
+            : base(options, TileServerConfig.Instance.VenueName, TileServerConfig.Instance.Profile )
         {
             this.options = options;
         }
 
         public int Run()
         {
-            //https://stackoverflow.com/questions/4094032/how-to-switch-on-off-logging-using-log4net
-            if (options.Quiet)
-            {
-                LogManager.GetRepository().ResetConfiguration();
-            }
-
             new TileServerCloud(this).EnsureTablesExist();
 
             var projects = TilingProject.FindAll(DynamoContext);

@@ -21,7 +21,7 @@ Three methods are supported for running [REST API](../docs/API.md) tests:
 Details are given below for `curl` on the Windows 10 command prompt.  To use another compatible command prompt you may need to modify the syntax slightly.  For example, in `bash` style command prompts variable substitution syntax is `$VARIABLE` instead of `%VARIABLE%`.
 
 To use Postman
-1. download and import this [Postman collection](../test/Landform-test.postman_collection.json)
+1. download and import this [Postman collection](../test/Landform-run.postman_collection.json)
 2. define variables
    1. ellipsis menu for collection -> Edit -> Variables
    4. set the "current value" for each variable following the Setup procedure below

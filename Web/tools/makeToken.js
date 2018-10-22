@@ -1,0 +1,23 @@
+const { makeToken } = require('../token');
+const { parseSec } = require('../timeUtil');
+const { hasFlag } = require('./toolUtil');
+
+const argv = process.argv;
+
+function usage(err) {
+  console.log(`USAGE: makeToken user ${parseSec('help')} [-h|--help]`);
+  process.exit(err);
+}
+
+if (argv.length < 4) usage(1);
+if (hasFlag('help')) usage();
+
+const user = argv[2];
+
+const duration = argv[3];
+if (duration.length < 1) usage();
+const sec = parseSec(duration);
+
+console.log(`token for user '${user}' with duration ${duration} (${sec}s):`);
+
+console.log(makeToken(user, sec));

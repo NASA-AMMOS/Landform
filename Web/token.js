@@ -2,8 +2,8 @@ const jwt = require('jsonwebtoken');
 
 const config = require('./config');
 
-function makeToken(uid) {
-  return jwt.sign({ uid }, config.app.tokenSecret, { expiresIn: config.app.tokenLifespan });
+function makeToken(uid, lifespanSeconds) {
+  return jwt.sign({ uid }, config.app.tokenSecret, { expiresIn: lifespanSeconds || config.app.tokenLifespan });
 }
 
 function getRawToken(req) {
@@ -37,4 +37,4 @@ function saveToken(res, uid) {
 
 function deleteToken(res) { res.clearCookie(config.app.tokenCookie); }
 
-module.exports = { saveToken, apiTokenCheck, getRawToken, deleteToken, decodeToken };
+module.exports = { makeToken, saveToken, apiTokenCheck, getRawToken, deleteToken, decodeToken };

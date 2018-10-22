@@ -54,21 +54,21 @@ namespace OPS.Pipeline.TileServer
             return context.Load<TilingInputChunk>(id);
         }
 
-        public void Delete(PipelineCore pipeline, bool ignoreErrors = true, ILog logger = null)
+        public void Delete(PipelineCore pipeline, bool ignoreErrors = true)
         {
             if (!string.IsNullOrEmpty(MeshUrl))
             {
-                pipeline.Storage(MeshUrl).DeleteObject(MeshUrl, ignoreErrors: ignoreErrors, logger: logger);
+                pipeline.Storage(MeshUrl).DeleteObject(MeshUrl, ignoreErrors: ignoreErrors, logger: pipeline.Logger);
             }
 
             if (!string.IsNullOrEmpty(ImageUrl))
             {
                 //note this call is DeleteObjects() not DeleteObject()
                 //because there can be multiple files with the same basename for these images
-                pipeline.Storage(ImageUrl).DeleteObjects(ImageUrl, ignoreErrors: ignoreErrors, logger: logger);
+                pipeline.Storage(ImageUrl).DeleteObjects(ImageUrl, ignoreErrors: ignoreErrors, logger: pipeline.Logger);
             }
                 
-            pipeline.DeleteDynamoItem(this, ignoreErrors, logger);
+            pipeline.DeleteDynamoItem(this, ignoreErrors);
         }
 
         public BoundingBox GetBounds()

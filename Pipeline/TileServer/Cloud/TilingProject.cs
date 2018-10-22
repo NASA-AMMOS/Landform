@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using OPS.Cloud;
 using Amazon.DynamoDBv2.DataModel;
@@ -95,24 +96,35 @@ namespace OPS.Pipeline.TileServer
             context.Save(this);
         }
 
-        public void Delete(PipelineCore pipeline, bool ignoreErrors = true, ILog logger = null)
+        public void Delete(PipelineCore pipeline, bool ignoreErrors = true)
         {
-            foreach (var node in TilingNode.Find(pipeline.DynamoContext, this))
+            var nodes = TilingNode.Find(pipeline.DynamoContext, this);
+            int nn = nodes.Count();
+            int n = 0; 
+            pipeline.Logger.Info("deleting " + nn + " nodes");
+            foreach (var node in nodes)
             {
-                node.Delete(pipeline, ignoreErrors, logger);
+                node.Delete(pipeline, ignoreErrors);
+                Thread.Sleep(10); //throttle to reduce chance of exponential backoff
+                if (++n % 500 == 0)
+                {
+                    pipeline.Logger.Info("deleted " + n + " nodes");
+                }
             }
 
-            foreach (var input in TilingInput.Find(pipeline.DynamoContext, this))
+            var inputs = TilingInput.Find(pipeline.DynamoContext, this);
+            pipeline.Logger.Info("deleting " + inputs.Count() + " inputs");
+            foreach (var input in inputs)
             {
-                input.Delete(pipeline, ignoreErrors, logger);
+                input.Delete(pipeline, ignoreErrors);
             }
 
             pipeline.DeleteProjectCache(Name);
 
             string wwwS3Url = TileServerConfig.Instance.WWWUrl(Name);
-            pipeline.Storage(wwwS3Url).DeleteObjects(wwwS3Url, ignoreErrors: ignoreErrors, logger: logger);
+            pipeline.Storage(wwwS3Url).DeleteObjects(wwwS3Url, ignoreErrors: ignoreErrors, logger: pipeline.Logger);
 
-            pipeline.DeleteDynamoItem(this, ignoreErrors, logger);
+            pipeline.DeleteDynamoItem(this, ignoreErrors);
         }
 
         private void IsValid()

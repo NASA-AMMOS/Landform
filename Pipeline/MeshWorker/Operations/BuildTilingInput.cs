@@ -30,8 +30,6 @@ namespace OPS.Pipeline.MeshWorker
     /// </summary>
     public class BuildTilingInput : TileServerOperation
     {
-        static ILog logger = LogManager.GetLogger(typeof(BuildTilingInput));
-
         private BuildTilingInputMessage message;
 
         private Options options;
@@ -44,7 +42,7 @@ namespace OPS.Pipeline.MeshWorker
         }
 
         public BuildTilingInput(BuildTilingInputMessage message, PipelineCore pipeline, TileServerCloud cloud)
-            : base(message.ProjectName, pipeline, cloud, logger)
+            : base(message, pipeline, cloud)
         {
             this.message = message;
 
@@ -97,10 +95,10 @@ namespace OPS.Pipeline.MeshWorker
             Mesh aggregatePointCloud = new Mesh(hasNormals: true);
             for (int idx = 0; idx < pointCloudObservations.Count; idx++)
             {
-                LogInfo(string.Format("building point cloud {0}/{1} ({2})%): {3}",
-                                      idx+1, pointCloudObservations.Count,
-                                      (int)(100 * idx / (float)pointCloudObservations.Count),
-                                      pointCloudObservations[idx].PointsObs.FrameName));
+                LogInfo("building point cloud {0}/{1} ({2})%): {3}",
+                        idx+1, pointCloudObservations.Count,
+                        (int)(100 * idx / (float)pointCloudObservations.Count),
+                        pointCloudObservations[idx].PointsObs.FrameName);
 
                 PointCloudInput pcImgs = GetPointCloudInput(pointCloudObservations[idx]);
                 Mesh pointCloud = BuildPointCloudMesh(pcImgs, frameCache, obsCache);

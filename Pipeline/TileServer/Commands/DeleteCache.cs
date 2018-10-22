@@ -6,20 +6,18 @@ using System;
 namespace OPS.Pipeline.TileServer
 {
     [Verb("deletecache", HelpText = "Delete cache")]
-    public class DeleteCacheOptions
+    public class DeleteCacheOptions : PipelineCoreOptions
     {       
-        [Option(HelpText = "Disable confirmation prompt", Default = false)]
+        [Option(Default = false, HelpText = "Disable confirmation prompt")]
         public bool Force { get; set; }
     }
 
     public class DeleteCache : PipelineCore
     {
-        static ILog logger = LogManager.GetLogger(typeof(DeleteCache));
-
-        DeleteCacheOptions options;
+        private DeleteCacheOptions options;
 
         public DeleteCache(DeleteCacheOptions options)
-            : base(dynamoPrefix: TileServerConfig.Instance.VenueName, profile: TileServerConfig.Instance.Profile)
+            : base(options, TileServerConfig.Instance.VenueName, TileServerConfig.Instance.Profile)
         {
             this.options = options;
         }
@@ -32,7 +30,7 @@ namespace OPS.Pipeline.TileServer
                 var response = Console.ReadLine();
                 if (response.ToLower() != "yes") return 1;
             }
-            logger.Info("deleting download cache: " + DownloadCache);
+            Logger.Info("deleting download cache: " + DownloadCache);
             DeleteDownloadCache();
             return 0;
         }

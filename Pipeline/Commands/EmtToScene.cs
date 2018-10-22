@@ -142,8 +142,8 @@ namespace OPS.Pipeline
                 ReconMethod = Geometry.MeshReconMethod.Poisson,
                 FacesPerTile = 2000,
                 TileResolution = 256,
-                ProjectType = "GenericTiling",
-                Wait = true
+                ProjectType = PipelineStateMachine.ProjectType.GenericTiling,
+                NoWait = true
             };
             int r = new CreateProject(createOptions).Run();
 
@@ -156,7 +156,7 @@ namespace OPS.Pipeline
                     MeshFilepath = f,
                     ImageFilepath = img,
                     TileId = null,
-                    Wait = true
+                    NoWait = true
                 };
                 r = new UploadInput(uploadOptions).Run();
             }

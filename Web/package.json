@@ -10,6 +10,8 @@
     "server": "node server.js",
     "client": "node tools/startClient.js",
     "worker": "node tools/startWorker.js",
+    "make-token": "node tools/makeToken.js",
+    "tests": "node tools/runTests.js",
     "configure-backend": "node tools/configureBackend.js",
     "bundle-worker": "node tools/bundleWorker.js",
     "build-client": "node tools/buildClient.js",
@@ -55,6 +57,9 @@
     "eslint-config-airbnb": "^16.1.0",
     "eslint-plugin-import": "^2.14.0",
     "eslint-plugin-jsx-a11y": "^6.1.1",
-    "eslint-plugin-react": "^7.11.1"
+    "eslint-plugin-react": "^7.11.1",
+    "json-parse-better-errors": "^1.0.2",
+    "newman": "^4.1.0",
+    "strip-json-comments": "^2.0.1"
   }
 }
