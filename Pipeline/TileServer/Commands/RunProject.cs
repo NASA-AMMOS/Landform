@@ -50,7 +50,7 @@ namespace OPS.Pipeline.TileServer
 
             if (project.InputNames == null || project.InputNames.Count < 1)
             {
-                logger.Error("No inputs defined for project " + options.ProjectName);
+                Logger.Error("No inputs defined for project " + options.ProjectName);
                 return 1; //argument error
             }
 
