@@ -1,6 +1,7 @@
 ﻿using CommandLine;
 using CommandLine.Text;
 using log4net;
+using MathNet.Numerics.LinearAlgebra;
 using OPS.Alignment;
 using OPS.Cloud;
 using OPS.Geometry;
@@ -62,6 +63,11 @@ namespace OPS.Pipeline.AlignmentServer
             IngestionCompleted = new ConcurrentBag<ImageRef>();
 
             Logger.Info("Beginning ingestion stage");
+
+            var rootFrame = Frame.FindOrCreate(master.DynamoContext, master.Project, MSLProject.ROOT_FRAME_NAME);
+            var rootTransform = FrameTransform.FindOrCreate(master.DynamoContext, rootFrame, new UncertainRigidTransform(new MathExtensions.GaussianND(
+                CreateVector.Dense<double>(6), CreateMatrix.Dense<double>(6, 6)
+                )));
 
             var inFolder = Master.Project.InputPath;
             IngestPDSImage ingester = new IngestPDSImage(Master, Master.Options.ProjectName);

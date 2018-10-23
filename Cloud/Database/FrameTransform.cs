@@ -71,7 +71,7 @@ namespace OPS.Cloud
         /// <param name="rotation"></param>
         /// <param name="transformSource"></param>
         /// <param name="error"></param>
-        protected FrameTransform(Frame frame, UncertainRigidTransform transform, string transformSource)
+        protected FrameTransform(Frame frame, UncertainRigidTransform transform)
         {
             this.ProjectName = frame.ProjectName;
             this.FrameName = frame.Name;
@@ -79,17 +79,17 @@ namespace OPS.Cloud
             this.Covariance = transform.Distribution.Covariance;
         }
         
-        public static FrameTransform Create(DynamoDBContext context, Frame frame, UncertainRigidTransform transform, string transformSource)
+        public static FrameTransform Create(DynamoDBContext context, Frame frame, UncertainRigidTransform transform)
         {
             //Now that the id has been saved to the lookup table, we are free to add the transform itself 
-            FrameTransform ft = new FrameTransform(frame, transform, transformSource);
+            FrameTransform ft = new FrameTransform(frame, transform);
             context.Save(ft);
 
             return ft;
         }
 
 
-        public static FrameTransform FindOrCreate(DynamoDBContext context, Frame frame, UncertainRigidTransform transform, string transformSource)
+        public static FrameTransform FindOrCreate(DynamoDBContext context, Frame frame, UncertainRigidTransform transform)
         {
             // Try to find this project
             FrameTransform frameTransform = Find(context, frame);
@@ -98,7 +98,7 @@ namespace OPS.Cloud
                 return frameTransform;
             }
             // If it doesn't exist try to create it
-            frameTransform = Create(context, frame, transform, transformSource);
+            frameTransform = Create(context, frame, transform);
             if (frameTransform != null)
             {
                 return frameTransform;
