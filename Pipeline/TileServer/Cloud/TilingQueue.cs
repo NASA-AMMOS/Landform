@@ -97,6 +97,11 @@ namespace OPS.Pipeline.TileServer
                 url = client.CreateQueue(createQueueRequest).QueueUrl;
             }
         }
+
+        public void Purge()
+        {
+            client.PurgeQueue(url);
+        }
         
         public void Enqueue(TilingQueueMessage message)
         {

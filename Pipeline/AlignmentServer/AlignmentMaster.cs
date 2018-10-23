@@ -336,6 +336,8 @@ namespace OPS.Pipeline.AlignmentServer
         {
             Cloud = new TileServerCloud(this);
             Cloud.EnsureTablesExist();
+            Cloud.MasterQueue.Purge();
+            Cloud.WorkerQueue.Purge();
 
             Project = Project.FindOrCreate(DynamoContext, Options.ProjectName, Options.ProductPath, Options.InputPath);
             CurrentStage = new IngestStage(this);
