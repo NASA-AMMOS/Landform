@@ -228,6 +228,8 @@ namespace OPS.Pipeline.AlignmentServer
 
                 Master.Cloud.WorkerQueue.Enqueue(new MatchImagesMessage()
                 {
+                    Project = Master.Project.Name,
+
                     ModelImage = model,
                     ModelFeaturesGuid = Master.ObservationStates[model].FeaturesGuid,
                     ModelFrameName = model.Observation.FrameName,
