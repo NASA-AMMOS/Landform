@@ -275,11 +275,10 @@ namespace OPS.Pipeline
             Serial.ForEach(System.IO.Directory.EnumerateFiles(indir, "*.obj"), f =>
             {
                 // Make metadata
+                var vicname = f.Replace(".obj", ".vic");
+                var meta = new PDSMetadata(vicname);
+                var p = new PDSParser(meta);
                 {
-                    var imgname = f.Replace(".obj", ".vic");
-                    var meta = new PDSMetadata(imgname);
-                    var p = new PDSParser(meta);
-
                     if (!siteDriveLookup.ContainsKey(p.SiteDrive))
                     {
                         var sd = new LegacySceneManfiest.SiteDriveData()
@@ -293,7 +292,7 @@ namespace OPS.Pipeline
                     }
                     var imageData = new LegacySceneManfiest.ImageData()
                     {
-                        FileId = Path.GetFileNameWithoutExtension(imgname),
+                        FileId = Path.GetFileNameWithoutExtension(vicname),
                         Metadata = meta
                     };
                     siteDriveLookup[p.SiteDrive].Images.Add(imageData);
@@ -309,8 +308,9 @@ namespace OPS.Pipeline
                     {
                         m.GenerateVertexNormals();
                     }
+                    Console.WriteLine("Origin Offset: " + p.OriginOffset);
+                    m.Translate(-p.OriginOffset);
                     ConvertMeshToYUp(m);
-
                     Console.WriteLine("Normals: " + m.HasNormals);
                     Image img = Image.Load(imgname);
                     Console.WriteLine("Bands: " + img.Bands);
