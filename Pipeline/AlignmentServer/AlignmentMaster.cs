@@ -58,6 +58,11 @@ namespace OPS.Pipeline.AlignmentServer
     {
         protected TypeDispatcher dispatcher;
 
+        static bool ValidGuid(Guid g)
+        {
+            return g != null && g != Guid.Empty;
+        }
+
         public IngestStage(AlignmentMaster master)
             : base(master)
         {
@@ -97,7 +102,7 @@ namespace OPS.Pipeline.AlignmentServer
 
                     IngestionRequested.Add(obsRef);
 
-                    if (res.Observation.MaskGuid != null && !Master.Options.RedoMasks)
+                    if (ValidGuid(res.Observation.MaskGuid) && !Master.Options.RedoMasks)
                     {
                         Master.Cloud.MasterQueue.Enqueue(new MaskCreatedMessage()
                         {
@@ -106,7 +111,7 @@ namespace OPS.Pipeline.AlignmentServer
                             MaskGuid = res.Observation.MaskGuid
                         });
 
-                        if (res.Observation.FeaturesGuid != null && !Master.Options.RedoFeatures)
+                        if (ValidGuid(res.Observation.FeaturesGuid) && !Master.Options.RedoFeatures)
                         {
                             Master.Cloud.MasterQueue.Enqueue(new FeaturesDetectedMessage()
                             {
