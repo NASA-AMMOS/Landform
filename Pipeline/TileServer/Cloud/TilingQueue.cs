@@ -27,14 +27,14 @@ namespace OPS.Pipeline.TileServer
         //or -1 if unknown
         //ms since UTC epoch
         [JsonIgnore]
-        public int ApproxFirstReceiveMS = -1;
+        public double ApproxFirstReceiveMS = -1;
 
         //approx latest time we received this message
         //this may be a lower bounds
         //note: other receivers may have received it even later
         //ms since UTC epoch
         [JsonIgnore]
-        public int ApproxLastReceiveMS = -1;
+        public double ApproxLastReceiveMS = -1;
 
         public string ProjectName;
 
@@ -136,7 +136,7 @@ namespace OPS.Pipeline.TileServer
             //try to track information about receive times
             //among other things if a message is multiply received this can help track the latest receivehandle
             //which is apparently needed for SQS apis like ChangeMessageVisibility() and DeleteMessage()
-            int now = (int)UTCTime.NowMS(); //lower bounds
+            var now = UTCTime.NowMS(); //lower bounds
             var msgs = client.ReceiveMessage(req).Messages;
             return msgs.Select(msg =>
             {
@@ -151,7 +151,7 @@ namespace OPS.Pipeline.TileServer
                     {
                         try
                         {
-                            m.ApproxFirstReceiveMS = int.Parse(ts);
+                            m.ApproxFirstReceiveMS = double.Parse(ts);
                         }
                         catch (Exception)
                         {
