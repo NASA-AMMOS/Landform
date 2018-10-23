@@ -105,13 +105,6 @@ namespace OPS.Pipeline.AlignmentServer
 
                     if (ValidGuid(res.Observation.MaskGuid) && !Master.Options.RedoMasks)
                     {
-                        Master.Cloud.MasterQueue.Enqueue(new MaskCreatedMessage()
-                        {
-                            Image = obsRef,
-                            Project = res.Observation.ProjectName,
-                            MaskGuid = res.Observation.MaskGuid
-                        });
-
                         if (ValidGuid(res.Observation.FeaturesGuid) && !Master.Options.RedoFeatures)
                         {
                             Master.Cloud.MasterQueue.Enqueue(new FeaturesDetectedMessage()
@@ -124,11 +117,11 @@ namespace OPS.Pipeline.AlignmentServer
                         }
                         else
                         {
-                            Master.Cloud.WorkerQueue.Enqueue(new DetectFeaturesMessage()
+                            Master.Cloud.MasterQueue.Enqueue(new MaskCreatedMessage()
                             {
                                 Image = obsRef,
-                                MaskGuid = res.Observation.MaskGuid,
-                                Project = res.Observation.ProjectName
+                                Project = res.Observation.ProjectName,
+                                MaskGuid = res.Observation.MaskGuid
                             });
                         }
                     }
@@ -169,6 +162,7 @@ namespace OPS.Pipeline.AlignmentServer
             var state = Master.ObservationStates[obj.Image];
             state.FeaturesGuid = obj.FeaturesGuid;
             state.Observation.FeaturesGuid = state.FeaturesGuid;
+            state.Observation.MaskGuid = state.MaskGuid;
             state.Observation.Save(Master.DynamoContext);
 
             IngestionCompleted.Add(obj.Image);
