@@ -42,8 +42,6 @@ if (!fs.pathExistsSync(cfgFile)) {
 
 const testCfg = readJson(cfgFile);
 
-const stamp = timeStamp();
-
 function parseJsonResponse(ex) {
   if (ex.response && Buffer.isBuffer(ex.response.stream)) {
     try { ex.response.json = JSON.parse(ex.response.stream.toString('utf8')); }
@@ -55,6 +53,7 @@ function parseJsonResponse(ex) {
 function runTest(projDir) {
   return new Promise(resolve => {
 
+    const stamp = timeStamp();
     let projName = projDir, maxMS = 0; //will be updated after we read project config file
     const fullPath = path.join(testDir, projDir);
     const start = Date.now(), elapsed = () => Date.now() - start;
@@ -66,10 +65,11 @@ function runTest(projDir) {
     };
 
     const error = e => {
-      const msg = `error running ${projName} in ${fullPath}: ${e.message || e}`;
+      const msg = `error running ${projName} in ${fullPath}: (${e.name || 'unknown'}) ${e.message || e}`;
       console.error(msg);
       const info = { error: msg };
-      fs.writeJsonSync(`log-${projName}-${stamp}-fail.txt`, info, { spaces: 2 }); //if no projDir will be in testDir
+      const coll = 'collectionName' in e ? `${e.collectionName}-` : '';
+      fs.writeJsonSync(`log-${projName}-${stamp}-${coll}fail.txt`, info, { spaces: 2 });
       done(); //move on to next test even if this one errored
     };
 
@@ -84,26 +84,28 @@ function runTest(projDir) {
       return new Promise((_resolve, reject) => {
         const _done = (err, summary) => {
 
+          if (summary.run && summary.run.executions) {
+            if (opts.omitExecutions) delete summary.run.executions;
+            else summary.run.executions = summary.run.executions.map(parseJsonResponse);
+          }
+
+          fs.writeJsonSync(`log-${projName}-${stamp}-${coll}.txt`, summary, { spaces: 2 });
+
           err = err || summary.error;
           if (err) {
+            err.collectionName = coll;
             if (opts.bail || opts.abortOnError || opts.abortOnFailure) { reject(err); return; }
             console.warn(`ignoring error: ${err.message || err}`);
           }
 
           if (summary.run && summary.run.failures && summary.run.failures.length > 0) {
-            err = summary.run.failures[0].error || 'unknown test assertion failure';
+            err = summary.run.failures[0].error || new Error('unknown test assertion failure');
             if (err) {
+              err.collectionName = coll;
               if (opts.bail || opts.abortOnFailure) { reject(err); return; }
               console.warn(`ignoring error: ${err.message || err}`);
             }
           }
-
-          if (summary.run && summary.run.executions) {
-            if (opts.omitExecutions) delete summary.run.executions;
-            else summary.run.executions = summary.run.executions.map(ex => parseJsonResponse(ex));
-          }
-
-          fs.writeJsonSync(`log-${projName}-${coll}-${stamp}.txt`, summary, { spaces: 2 });
 
           _resolve();
         };
@@ -177,7 +179,7 @@ function runTest(projDir) {
 checkTTY('runTests') //ctrl-c doesn't work right in cygwin
   .then(ok => {
     if (ok) {
-      console.log(`${stamp}: running ${testCfg.testDirs.length} projects in ${testDir}`);
+      console.log(`${timeStamp()}: running ${testCfg.testDirs.length} projects in ${testDir}`);
       console.log(`server: ${testCfg.serverUrl}`);
       if (dryRun) console.log('dry run');
       testCfg.testDirs.reduce((promise, dir) => promise.then(() => runTest(dir)), Promise.resolve());
