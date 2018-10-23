@@ -92,7 +92,8 @@ namespace OPS.Pipeline.AlignmentServer
                     var newState = new ImageState()
                     {
                         Observation = res.Observation,
-                        Source = new S3ImageRef(url)
+                        Source = new S3ImageRef(url),
+                        Overlaps = new List<OverlapState>()
                     };
                     if (!Master.ObservationStates.TryAdd(obsRef, newState))
                     {
