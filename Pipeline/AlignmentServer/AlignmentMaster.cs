@@ -23,6 +23,12 @@ namespace OPS.Pipeline.AlignmentServer
         [Value(0, Required = true, HelpText = "Name of project to create")]
         public string ProjectName { get; set; }
 
+        [Value(1, Required = true, HelpText = "Input path")]
+        public string InputPath { get; set; }
+
+        [Value(2, Required = true, HelpText = "Product path")]
+        public string ProductPath { get; set; }
+
         [Option(HelpText = "Optional directory to save debug output files to", Default = null)]
         public string DebugOutputFolder { get; set; }
 
@@ -329,7 +335,7 @@ namespace OPS.Pipeline.AlignmentServer
             Cloud = new TileServerCloud(this);
             Cloud.EnsureTablesExist();
 
-            Project = Project.Find(DynamoContext, Options.ProjectName);
+            Project = Project.FindOrCreate(DynamoContext, Options.ProjectName, Options.ProductPath, Options.InputPath);
             CurrentStage = new IngestStage(this);
 
             while (true)
