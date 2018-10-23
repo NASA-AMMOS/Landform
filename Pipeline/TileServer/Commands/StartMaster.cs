@@ -65,10 +65,11 @@ namespace OPS.Pipeline.TileServer
                     sw.Start();
                     try
                     {
+                        bool projectDeleted = false;
                         if (!projectNameToStateMachine.ContainsKey(m.ProjectName))
                         {
                             string projectType = null;
-                            if (m.GetType() == typeof(CreateProjectMessage))
+                            if (m is CreateProjectMessage)
                             {
                                 projectType = ((CreateProjectMessage)m).ProjectType;
                             }
@@ -79,23 +80,33 @@ namespace OPS.Pipeline.TileServer
                                 {
                                     projectType = project.ProjectType;
                                 }
+                                else if (m is DeleteProjectMessage)
+                                {
+                                    projectDeleted = true;
+                                }
                             }
-                            PipelineStateMachine.ProjectType pt;
-                            if (string.IsNullOrEmpty(projectType) ||
-                                !Enum.TryParse(projectType, /* ignoreCase */ true, out pt) ||
-                                !PipelineStateMachine.StateMachines.ContainsKey(pt))
+                            if (!projectDeleted)
                             {
-                                throw new Exception("could not create state machine for project " + m.ProjectName +
-                                                    " of type \"" + projectType + "\"");
+                                PipelineStateMachine.ProjectType pt;
+                                if (string.IsNullOrEmpty(projectType) ||
+                                    !Enum.TryParse(projectType, /* ignoreCase */ true, out pt) ||
+                                    !PipelineStateMachine.StateMachines.ContainsKey(pt))
+                                {
+                                    throw new Exception("could not create state machine for project " + m.ProjectName +
+                                                        " of type \"" + projectType + "\"");
+                                }
+                                
+                                var smt = PipelineStateMachine.StateMachines[pt];
+                                var sm = (PipelineStateMachine)Activator.CreateInstance(smt, this, cloud.WorkerQueue,
+                                                                                        m.ProjectName);
+                                projectNameToStateMachine.Add(m.ProjectName, sm);
                             }
-
-                            var smt = PipelineStateMachine.StateMachines[pt];
-                            var sm = (PipelineStateMachine)Activator.CreateInstance(smt, this, cloud.WorkerQueue,
-                                                                                    m.ProjectName);
-                            projectNameToStateMachine.Add(m.ProjectName, sm);
                         }
 
-                        projectNameToStateMachine[m.ProjectName].ProcessMessage(m);
+                        if (!projectDeleted)
+                        {
+                            projectNameToStateMachine[m.ProjectName].ProcessMessage(m);
+                        }
 
                         masterQueue.DeleteMessage(m);
                     }
@@ -104,6 +115,17 @@ namespace OPS.Pipeline.TileServer
                         Logger.ErrorFormat("{0}: processing error ({1}): {2}",
                                            m.Info(), e.GetType().FullName, e.Message);
                         Logger.Error(e.StackTrace);
+
+                        try
+                        {
+                            //try to make the message available in our queue again soon
+                            masterQueue.UpdateTimeout(m, 3 /* seconds */);
+                        }
+                        catch (Exception e2)
+                        {
+                            Logger.ErrorFormat("{0}: error resetting visibility timeout ({1}): {2}",
+                                               m.Info(), e2.GetType().FullName, e2.Message);
+                        }
                     }
                     double totalSec = 0.001 * sw.ElapsedMilliseconds;
                     if (totalSec > masterQueue.TimeoutSec)
