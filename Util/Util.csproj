@@ -50,6 +50,7 @@
   <ItemGroup>
     <Compile Include="Config.cs" />
     <Compile Include="JsonHelper.cs" />
+    <Compile Include="Logging.cs" />
     <Compile Include="LRUCache.cs" />
     <Compile Include="Memoizer.cs" />
     <Compile Include="PathHelper.cs" />

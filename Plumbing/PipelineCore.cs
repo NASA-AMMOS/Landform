@@ -15,7 +15,6 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using log4net;
-using log4net.Appender;
 using CommandLine;
 
 namespace OPS.Plumbing
@@ -54,7 +53,8 @@ namespace OPS.Plumbing
             }
             else
             {
-                ConfigureLogging(options);
+                Logging.ConfigureLogging(options.Quiet, options.LogFile);
+                Logger = LogManager.GetLogger(GetType());
             }
 
             if (enableS3) ConfigureStorage(awsProfile, s3Url);
@@ -294,7 +294,6 @@ namespace OPS.Plumbing
                     }
                     else
                     {
-                        //LogInfo("BACKOFF {0}ms", backoff); //handy if we need to debug
                         Thread.Sleep(backoff);
                     }
                 }
@@ -335,71 +334,6 @@ namespace OPS.Plumbing
         private string CachePath(string project, string filename)
         {
             return Path.Combine(DownloadCache, project, filename);
-        }
-
-        private void ConfigureLogging(PipelineCoreOptions options)
-        {
-            log4net.GlobalContext.Properties["command"] = Config.FullCommand;
-
-            log4net.Config.XmlConfigurator.Configure();
-
-            //it is fairly tricky to change log filename at runtime
-            //https://stackoverflow.com/a/6963420
-            var h = (log4net.Repository.Hierarchy.Hierarchy) LogManager.GetRepository();
-            foreach (IAppender a in h.Root.Appenders)
-            {
-                if (a is FileAppender)
-                {
-                    FileAppender fa = (FileAppender)a;
-                    if (!string.IsNullOrEmpty(options.LogFile))
-                    {
-                        var old = new FileInfo(fa.File);
-                        fa.File = Path.Combine(old.DirectoryName, options.LogFile);
-                        fa.ActivateOptions();
-                        if (old.Exists)
-                        {
-                            if (old.Length == 0)
-                            {
-                                try
-                                {
-                                    old.Delete();
-                                }
-                                catch (Exception e)
-                                {
-                                    if (!options.Quiet)
-                                    {
-                                        Console.WriteLine(string.Format("error deleting empty log file ({0}): {1}",
-                                                                        e.GetType().FullName, e.Message));
-                                    }
-                                }
-                            }
-                            else
-                            {
-                                if (!options.Quiet)
-                                {
-                                    Console.WriteLine(string.Format("changing log file to {0}, " +
-                                                                    "old log file {1} not empty", fa.File, old));
-                                }
-                            }
-                        }
-                    }
-                    if (!options.Quiet)
-                    {
-                        Console.WriteLine(string.Format("logging to {0}", fa.File));
-                    }
-                }
-                else if (a is ConsoleAppender)
-                {
-                    ConsoleAppender ca = (ConsoleAppender)a;
-                    if (options.Quiet)
-                    {
-                        ca.Threshold = log4net.Core.Level.Off;
-                        ca.ActivateOptions();
-                    }
-                }
-            }
-
-            Logger = LogManager.GetLogger(GetType());
         }
 
         private void ConfigureStorage(string profile, string s3Url)
