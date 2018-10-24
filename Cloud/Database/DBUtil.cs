@@ -32,6 +32,7 @@ namespace OPS.Cloud
         public const int DEFAULT_READ_CAPACITY = 50;
         public const int DEFAULT_WRITE_CAPACITY = 5;
         public const int MIN_MS_PER_SCAN_REQUEST = 500;
+        public const double SCAN_DEADBAND_REL = 0.2;
 
         public static string GetTableName(Type type)
         {
@@ -410,7 +411,7 @@ namespace OPS.Cloud
             Dictionary<string, AttributeValue> lastKeyEvaluated = null;
             string lastAction = "none";
             double factor = 2;
-            double deadband = 0.2 * maxReadUnitsPerSec;
+            double deadband = SCAN_DEADBAND_REL * maxReadUnitsPerSec;
             bool done = false;
             do
             {
@@ -472,7 +473,6 @@ namespace OPS.Cloud
                                       consumedReadUnits, consumedReadUnitsPerSec, maxReadUnitsPerSec, readCapacity,
                                       lastAction, factor, deadband);
                 }
-                    
 
                 if (numBackoffs == 0 && Math.Abs(consumedReadUnitsPerSec - maxReadUnitsPerSec) <= deadband)
                 {
@@ -482,7 +482,7 @@ namespace OPS.Cloud
                 {
                     sleepMS = 0;
                     factor = lastAction == "slow down" ? (1 + 0.5 * (factor - 1)) : 2;
-                    itemsPerRequest = (int)(factor * Math.Min(itemsPerRequest, int.MaxValue / factor));
+                    itemsPerRequest = (int)Math.Min(factor * itemsPerRequest, int.MaxValue);
                     lastAction = "speed up";
                 }
                 else
