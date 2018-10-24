@@ -98,18 +98,25 @@ namespace OPS.Pipeline.TileServer
 
         public void Delete(PipelineCore pipeline, bool ignoreErrors = true)
         {
-            var nodes = TilingNode.Find(pipeline.DynamoContext, this, pipeline.Logger);
-            int nn = nodes.Count();
-            int n = 0; 
-            pipeline.Logger.Info("deleting " + nn + " nodes");
-            foreach (var node in nodes)
+            if (StartedRunning)
             {
-                node.Delete(pipeline, ignoreErrors);
-                Thread.Sleep(10); //throttle to reduce chance of exponential backoff
-                if (++n % 500 == 0)
+                var nodes = TilingNode.Find(pipeline.DynamoContext, this, pipeline.Logger);
+                int nn = nodes.Count();
+                int n = 0; 
+                pipeline.Logger.Info("deleting " + nn + " nodes");
+                foreach (var node in nodes)
                 {
-                    pipeline.Logger.Info("deleted " + n + " nodes");
+                    node.Delete(pipeline, ignoreErrors);
+                    Thread.Sleep(10); //throttle to reduce chance of exponential backoff
+                    if (++n % 500 == 0)
+                    {
+                        pipeline.Logger.Info("deleted " + n + " nodes");
+                    }
                 }
+            }
+            else
+            {
+                pipeline.Logger.Info("deleting 0 nodes - project never run");
             }
 
             var inputs = TilingInput.Find(pipeline.DynamoContext, this, pipeline.Logger);
