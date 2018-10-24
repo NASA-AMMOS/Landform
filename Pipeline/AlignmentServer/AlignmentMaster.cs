@@ -251,9 +251,12 @@ namespace OPS.Pipeline.AlignmentServer
 
             // create db entry once all of the work is done - natural rate limiting
             var dbOverlap = Overlap.Create(Master.DynamoContext, Master.ObservationStates[obj.ModelImage].Observation, Master.ObservationStates[obj.DataImage].Observation);
-            dbOverlap.Status = (obj.CorrespondenceGuid != Guid.Empty) ? Overlap.StatusType.Matched : Overlap.StatusType.Rejected;
-            dbOverlap.MatchGuid = state.CorrespondenceGuid;
-            dbOverlap.TrySave(Master.DynamoContext);
+            if (dbOverlap != null)
+            {
+                dbOverlap.Status = (obj.CorrespondenceGuid != Guid.Empty) ? Overlap.StatusType.Matched : Overlap.StatusType.Rejected;
+                dbOverlap.MatchGuid = state.CorrespondenceGuid;
+                dbOverlap.TrySave(Master.DynamoContext);
+            }
 
             computedOverlaps++;
             if (computedOverlaps >= AllOverlaps.Count)
