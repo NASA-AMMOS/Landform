@@ -85,9 +85,9 @@ namespace OPS.Pipeline.TileServer
             return project;
         }
 
-        public static IEnumerable<TilingProject> FindAll(DynamoDBContext context)
+        public static IEnumerable<TilingProject> FindAll(DynamoDBContext context, ILog logger = null)
         {
-            return context.Scan<TilingProject>();
+            return DBUtil.Scan<TilingProject>(context, logger);
         }
 
         public void Save(DynamoDBContext context)
@@ -98,7 +98,7 @@ namespace OPS.Pipeline.TileServer
 
         public void Delete(PipelineCore pipeline, bool ignoreErrors = true)
         {
-            var nodes = TilingNode.Find(pipeline.DynamoContext, this);
+            var nodes = TilingNode.Find(pipeline.DynamoContext, this, pipeline.Logger);
             int nn = nodes.Count();
             int n = 0; 
             pipeline.Logger.Info("deleting " + nn + " nodes");
@@ -112,7 +112,7 @@ namespace OPS.Pipeline.TileServer
                 }
             }
 
-            var inputs = TilingInput.Find(pipeline.DynamoContext, this);
+            var inputs = TilingInput.Find(pipeline.DynamoContext, this, pipeline.Logger);
             pipeline.Logger.Info("deleting " + inputs.Count() + " inputs");
             foreach (var input in inputs)
             {

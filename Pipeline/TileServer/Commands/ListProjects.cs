@@ -28,7 +28,7 @@ namespace OPS.Pipeline.TileServer
 
         public int Run()
         {
-            new TileServerCloud(this).EnsureTablesExist();
+            var cloud = new TileServerCloud(this); //ensures queues and tables exist
 
             var projects = TilingProject.FindAll(DynamoContext);
             var projectNames = projects.Select(project => project.Name).ToList();

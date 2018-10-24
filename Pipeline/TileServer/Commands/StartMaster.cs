@@ -20,6 +20,8 @@ namespace OPS.Pipeline.TileServer
     {
         private StartMasterOptions options;
 
+        private TileServerCloud cloud;
+
         private Dictionary<string, PipelineStateMachine> projectNameToStateMachine =
             new Dictionary<string, PipelineStateMachine>();
 
@@ -32,6 +34,9 @@ namespace OPS.Pipeline.TileServer
         public int Run()
         {
             TileServerConfig.Instance.Dump(Logger);
+
+            cloud = new TileServerCloud(this);
+
             while (true)
             {
                 try
@@ -53,7 +58,6 @@ namespace OPS.Pipeline.TileServer
 
         private void RunMaster()
         {
-            var cloud = new TileServerCloud(this);
             var masterQueue = cloud.MasterQueue;
             while (true)
             {

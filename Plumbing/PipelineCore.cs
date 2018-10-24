@@ -32,7 +32,7 @@ namespace OPS.Plumbing
     {
         public string DownloadCache { get; private set; }
         public string Profile { get; private set; }
-        public IAmazonDynamoDB DynamoDB { get; private set; }
+        public IAmazonDynamoDB DynamoClient { get; private set; }
         public DynamoDBContext DynamoContext { get; private set; }
         public IAmazonS3 S3Client { get; private set; }
 
@@ -63,7 +63,11 @@ namespace OPS.Plumbing
                 defaultStorage = new StorageHelper(awsProfile, "us-west-1");
             }
 
-            if (enableDynamo) ConfigureDB(awsProfile, dynamoPrefix, dynamoUrl);
+            if (enableDynamo)
+            {
+                DynamoContext = DBUtil.MakeContext(dynamoPrefix, awsProfile, dynamoUrl);
+                DynamoClient = DBUtil.GetClientForContext(DynamoContext);
+            }
 
             //use a different download cache dir for every PipelineCore instance
             //i.e. different for every thread and every run
@@ -278,46 +282,9 @@ namespace OPS.Plumbing
             }
         }
 
-        public static void DynamoExponentialBackoff(Action func, int maxMS = 100 * 1000, int minMS = 50)
-        {
-            for (int backoff = minMS; true; backoff *= 2)
-            {
-                try
-                {
-                    //the DynamoDB API is supposed to implement its own exponential backoff
-                    //but in practice this seems to either be a lie or insufficient
-                    //https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Programming.Errors.html#Programming.Errors.RetryAndBackoff
-                    func();
-                    break;
-                }
-                catch (Amazon.DynamoDBv2.Model.ProvisionedThroughputExceededException e)
-                {
-                    if (backoff > maxMS)
-                    {
-                        throw e;
-                    }
-                    else
-                    {
-                        Thread.Sleep(backoff);
-                    }
-                }
-            }
-        }
-
         public void DeleteDynamoItem<T>(T obj, bool ignoreErrors = true)
         {
-            try
-            {
-                DynamoExponentialBackoff(() => DynamoContext.Delete(obj));
-            }
-            catch (Exception e)
-            {
-                if (!ignoreErrors)
-                {
-                    throw e;
-                }
-                Logger.WarnFormat("error deleting DynamoDB object: {0}", e.Message);
-            }
+            DBUtil.DeleteItem(DynamoContext, obj, ignoreErrors, Logger);
         }
 
         public void LogInfo(string msg, params Object[] args)
@@ -338,22 +305,6 @@ namespace OPS.Plumbing
         private string CachePath(string project, string filename)
         {
             return Path.Combine(DownloadCache, project, filename);
-        }
-
-        private void ConfigureDB(string profile, string dynamoPrefix, string dynamoUrl)
-        {
-            var cfg = new AmazonDynamoDBConfig();
-            if (string.IsNullOrEmpty(dynamoUrl))
-            {
-                cfg.RegionEndpoint = Amazon.RegionEndpoint.USWest1;
-            }
-            else
-            {
-                cfg.ServiceURL = dynamoUrl;
-            }
-            var creds = profile != null ? Credentials.Get(profile) : null;
-            DynamoDB = creds != null ? new AmazonDynamoDBClient(creds, cfg) : new AmazonDynamoDBClient(cfg);
-            DynamoContext = new DynamoDBContext(DynamoDB, new DynamoDBContextConfig { TableNamePrefix = dynamoPrefix });
         }
     }
 }

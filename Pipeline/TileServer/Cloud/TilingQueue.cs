@@ -56,45 +56,44 @@ namespace OPS.Pipeline.TileServer
     {
         public const int DEF_TIMEOUT_SEC = 20;
 
-        private static ILog logger = LogManager.GetLogger(typeof(TilingQueue));
-
         public string Name { get; private set; }
         public int TimeoutSec { get; private set; }
 
+        private ILog logger;
         private string url;
         private AmazonSQSClient client;
 
         public TilingQueue(string prefix, string awsProfileName, int timeoutSec = DEF_TIMEOUT_SEC,
-                           string endpointName = "us-west-1")
+                           string endpointName = "us-west-1", ILog logger = null)
         {
+            this.logger = logger != null ? logger : LogManager.GetLogger(typeof(TilingQueue));
+                
             Name = "TilingServerQueue" + prefix;
             TimeoutSec = timeoutSec;
 
-            RegionEndpoint awsRegion = RegionEndpoint.GetBySystemName(endpointName);
-            AWSCredentials awsCredentials = null;
-            if (awsProfileName != null)
-            {
-                awsCredentials = Credentials.Get(awsProfileName);
-            }
-
-            if (awsCredentials != null)
-            {
-                client = new AmazonSQSClient(awsCredentials, awsRegion);
-            }
-            else
-            {
-                client = new AmazonSQSClient(awsRegion);
-            }
+            client = GetClient(awsProfileName, endpointName);
 
             try
             {
                 url = client.GetQueueUrl(Name).QueueUrl;
+                logger.InfoFormat("queue \"{0}\" exists", Name);
+                var req = new GetQueueAttributesRequest() { QueueUrl = url, AttributeNames = { "VisibilityTimeout" } };
+                var res = client.GetQueueAttributes(req);
+                if (res.VisibilityTimeout != timeoutSec)
+                {
+                    logger.InfoFormat("updating visibility timeout for queue \"{0}\" from {1}s to {2}s",
+                                      Name, res.VisibilityTimeout, timeoutSec);
+                    var attrs = new Dictionary<string, string>();
+                    attrs["VisibilityTimeout"] = timeoutSec.ToString();
+                    client.SetQueueAttributes(url, attrs);
+                }
             }
             catch (QueueDoesNotExistException)
             {
-                CreateQueueRequest createQueueRequest = new CreateQueueRequest() { QueueName = Name };
-                createQueueRequest.Attributes["VisibilityTimeout"] = timeoutSec.ToString(); 
-                url = client.CreateQueue(createQueueRequest).QueueUrl;
+                logger.InfoFormat("creating queue \"{0}\"", Name);
+                var req = new CreateQueueRequest() { QueueName = Name };
+                req.Attributes["VisibilityTimeout"] = timeoutSec.ToString(); 
+                url = client.CreateQueue(req).QueueUrl;
             }
         }
         
@@ -191,9 +190,54 @@ namespace OPS.Pipeline.TileServer
             client.DeleteMessage(new DeleteMessageRequest { QueueUrl = url, ReceiptHandle = receiptHandle });
         }
 
+        public static AmazonSQSClient GetClient(string awsProfileName = null, string endpointName = "us-west-1")
+        {
+            RegionEndpoint awsRegion = RegionEndpoint.GetBySystemName(endpointName);
+            AWSCredentials awsCredentials = null;
+            if (awsProfileName != null)
+            {
+                awsCredentials = Credentials.Get(awsProfileName);
+            }
+
+            if (awsCredentials != null)
+            {
+                return new AmazonSQSClient(awsCredentials, awsRegion);
+            }
+            else
+            {
+                return new AmazonSQSClient(awsRegion);
+            }
+        }
+
+        public static bool QueueExists(AmazonSQSClient client, string name)
+        {
+            try
+            {
+                client.GetQueueUrl(name);
+                return true;
+            }
+            catch (QueueDoesNotExistException)
+            {
+                return false;
+            }
+        }
+
+        public static bool DeleteQueue(AmazonSQSClient client, string name)
+        {
+            try
+            {
+                client.DeleteQueue(client.GetQueueUrl(name).QueueUrl);
+                return true;
+            }
+            catch (QueueDoesNotExistException)
+            {
+                return false;
+            }
+        }
+
         public void Delete()
         {
-            client.DeleteQueue(new DeleteQueueRequest(url));
+            DeleteQueue(client, Name);
         }
     }
 }

@@ -1,4 +1,5 @@
 ﻿using Amazon.DynamoDBv2.DataModel;
+using Amazon.DynamoDBv2.DocumentModel;
 using Microsoft.Xna.Framework;
 using OPS.Cloud;
 using OPS.Geometry;
@@ -16,7 +17,7 @@ using log4net;
 namespace OPS.Pipeline.TileServer
 {
     [DynamoDBTable("TilingNode")]
-    [DynamoDBReadCapacity(30, 50)]
+    [DynamoDBReadCapacity(100, 200)]
     [DynamoDBWriteCapacity(15, 50)] //increased write capacity from 5 to 15 to reduce backoffs in node creation/deletion
     public class TilingNode
     {
@@ -78,7 +79,7 @@ namespace OPS.Pipeline.TileServer
         }
 
 
-        public static IEnumerable<TilingNode> Find(DynamoDBContext context, TilingProject project)
+        public static IEnumerable<TilingNode> Find(DynamoDBContext context, TilingProject project, ILog logger = null)
         {
             if (project.NodeIds != null)
             {
@@ -97,15 +98,14 @@ namespace OPS.Pipeline.TileServer
             {
                 //fall back to scanning for all records that match the project name
                 //e.g. for legacy projects or if the project record is not well formed
-                return context.Scan<TilingNode>(new ScanCondition("ProjectName",
-                                                                   Amazon.DynamoDBv2.DocumentModel.ScanOperator.Equal,
-                                                                   project.Name));
+                return DBUtil.Scan<TilingNode>(context, logger,
+                                               new ScanCondition("ProjectName", ScanOperator.Equal, project.Name));
             }
         }
 
         public void Save(DynamoDBContext context)
         {
-            PipelineCore.DynamoExponentialBackoff(() => context.Save(this));
+            DBUtil.ExponentialBackoff(() => context.Save(this));
         }
 
         public void Delete(PipelineCore pipeline, bool ignoreErrors = true)
