@@ -57,7 +57,11 @@ namespace OPS.Plumbing
                 Logger = LogManager.GetLogger(GetType());
             }
 
-            if (enableS3) ConfigureStorage(awsProfile, s3Url);
+            if (enableS3)
+            {
+                S3Client = StorageHelper.MakeClient(awsProfile, s3Url);
+                defaultStorage = new StorageHelper(awsProfile, "us-west-1");
+            }
 
             if (enableDynamo) ConfigureDB(awsProfile, dynamoPrefix, dynamoUrl);
 
@@ -334,25 +338,6 @@ namespace OPS.Plumbing
         private string CachePath(string project, string filename)
         {
             return Path.Combine(DownloadCache, project, filename);
-        }
-
-        private void ConfigureStorage(string profile, string s3Url)
-        {
-            var cfg = new AmazonS3Config();
-            if (string.IsNullOrEmpty(s3Url))
-            {
-                cfg.RegionEndpoint = Amazon.RegionEndpoint.USWest1;
-            }
-            else
-            {
-                cfg.ServiceURL = s3Url;
-                cfg.ForcePathStyle = true;
-                cfg.SignatureVersion = "2";
-            }
-            var creds = profile != null ? Credentials.Get(profile) : null;
-            S3Client = creds != null ? new AmazonS3Client(creds, cfg) : new AmazonS3Client(cfg);
-            
-            defaultStorage = new StorageHelper(profile, "us-west-1");
         }
 
         private void ConfigureDB(string profile, string dynamoPrefix, string dynamoUrl)
