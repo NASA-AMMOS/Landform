@@ -24,6 +24,9 @@ namespace OPS.Plumbing
         [Option(Default = false, HelpText = "Suppress non-essential output")]
         public bool Quiet { get; set; }
 
+        [Option(Default = false, HelpText = "Log debug info")]
+        public bool Debug { get; set; }
+
         [Option(Default = null, HelpText = "Override default log filename")]
         public string LogFile { get; set; }
     }
@@ -53,7 +56,7 @@ namespace OPS.Plumbing
             }
             else
             {
-                Logging.ConfigureLogging(options.Quiet, options.LogFile);
+                Logging.ConfigureLogging(options.Quiet, options.Debug, options.LogFile);
                 Logger = LogManager.GetLogger(GetType());
             }
 

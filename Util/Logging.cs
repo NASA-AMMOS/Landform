@@ -4,12 +4,15 @@ using System.Collections.Generic;
 using System.IO;
 using log4net;
 using log4net.Appender;
+using log4net.Layout;
 
 namespace OPS.Util
 {
     public class Logging
     {
-        public static void ConfigureLogging(bool quiet = false, string overrideLogFilename = null)
+        const string DEBUG_PATTERN_LAYOUT = "%date %logger{1} %location: %message%newline";
+
+        public static void ConfigureLogging(bool quiet = false, bool debug = false, string overrideLogFilename = null)
         {
             //this is used as part of the the default log filename
             log4net.GlobalContext.Properties["command"] = Config.FullCommand;
@@ -24,18 +27,27 @@ namespace OPS.Util
                 if (a is FileAppender)
                 {
                     FileAppender fa = (FileAppender)a;
-                    if (!string.IsNullOrEmpty(overrideLogFilename))
+                    bool fileChanged = !string.IsNullOrEmpty(overrideLogFilename);
+                    FileInfo oldFile = null;
+                    if (fileChanged)
                     {
-                        var old = new FileInfo(fa.File);
-                        fa.File = Path.Combine(old.DirectoryName, overrideLogFilename);
+                        oldFile = new FileInfo(fa.File);
+                        fa.File = Path.Combine(oldFile.DirectoryName, overrideLogFilename);
+                    }
+                    if (debug)
+                    {
+                        fa.Layout = new PatternLayout(DEBUG_PATTERN_LAYOUT);
+                    }
+                    if (fileChanged || debug)
+                    {
                         fa.ActivateOptions();
-                        if (old.Exists)
+                        if (oldFile != null && oldFile.Exists)
                         {
-                            if (old.Length == 0)
+                            if (oldFile.Length == 0)
                             {
                                 try
                                 {
-                                    old.Delete();
+                                    oldFile.Delete();
                                 }
                                 catch (Exception e)
                                 {
@@ -51,7 +63,7 @@ namespace OPS.Util
                                 if (!quiet)
                                 {
                                     Console.WriteLine(string.Format("changing log file to {0}, " +
-                                                                    "old log file {1} not empty", fa.File, old));
+                                                                    "old log file {1} not empty", fa.File, oldFile));
                                 }
                             }
                         }
@@ -64,9 +76,16 @@ namespace OPS.Util
                 else if (a is ConsoleAppender)
                 {
                     ConsoleAppender ca = (ConsoleAppender)a;
+                    if (debug)
+                    {
+                        ca.Layout = new PatternLayout(DEBUG_PATTERN_LAYOUT);
+                    }
                     if (quiet)
                     {
                         ca.Threshold = log4net.Core.Level.Off;
+                    }
+                    if (debug || quiet)
+                    {
                         ca.ActivateOptions();
                     }
                 }
