@@ -65,12 +65,26 @@ function runTest(projDir) {
     };
 
     const error = e => {
-      const msg = `error running ${projName} in ${fullPath}: (${e.name || 'unknown'}) ${e.message || e}`;
+      const coll = e.collectionName ? `-${e.collectionName}` : '';
+      let msg = `error running ${projName}${coll} in ${fullPath}: (${e.name || 'unknown'}) ${e.message || e}`;
+      if (e.firstError) msg += `: ${e.firstError}`;
       console.error(msg);
       const info = { error: msg };
-      const coll = 'collectionName' in e ? `${e.collectionName}-` : '';
-      fs.writeJsonSync(`log-${projName}-${stamp}-${coll}fail.txt`, info, { spaces: 2 });
+      fs.writeJsonSync(`log-${projName}-${stamp}${coll}-fail.txt`, info, { spaces: 2 });
       done(); //move on to next test even if this one errored
+    };
+
+    const getFirstErrorMessage = summary => {
+      let msg = '';
+      if (summary.run && summary.run.failures && summary.run.failures.length > 0) {
+        const id = summary.run.failures[0].source ? summary.run.failures[0].source.id : null;
+        if (id && summary.run.executions) {
+          const ex = summary.run.executions.find(e => e.item && e.item.id === id);
+          if (ex.item.name) msg += `error in ${ex.item.name}`;
+          if (ex.response && ex.response.json) msg += `: ${ex.response.json.error}`;
+        }
+      }
+      return msg;
     };
 
     const run = opts => { //run Postman collection
@@ -93,17 +107,17 @@ function runTest(projDir) {
 
           err = err || summary.error;
           if (err) {
-            err.collectionName = coll;
+            err.collectionName = coll; err.firstError = getFirstErrorMessage(summary);
             if (opts.bail || opts.abortOnError || opts.abortOnFailure) { reject(err); return; }
-            console.warn(`ignoring error: ${err.message || err}`);
+            console.warn(`ignoring error: ${err.message || err}${err.firstError ? (': ' + err.firstError) : ''}`);
           }
 
           if (summary.run && summary.run.failures && summary.run.failures.length > 0) {
             err = summary.run.failures[0].error || new Error('unknown test assertion failure');
             if (err) {
-              err.collectionName = coll;
+              err.collectionName = coll; err.firstError = getFirstErrorMessage(summary);
               if (opts.bail || opts.abortOnFailure) { reject(err); return; }
-              console.warn(`ignoring error: ${err.message || err}`);
+              console.warn(`ignoring error: ${err.message || err}${err.firstError ? (': ' + err.firstError) : ''}`);
             }
           }
 
