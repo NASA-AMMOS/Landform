@@ -443,7 +443,7 @@ namespace OPS.Geometry
         /// <param name="axis">The axis which the skirt is extruded along, where the other two axes must be equal between the two skirt vertices</param>
         public void RemoveSkirt(SkirtMode axis)
         {
-            if(axis == SkirtMode.NORMAL)
+            if(axis == SkirtMode.Normal)
             {
                 throw new Exception("Mesh.RemoveSkirt not implemented for normals...");
             }
@@ -512,7 +512,7 @@ namespace OPS.Geometry
 
         /// <summary>
         /// Adds a skirt to all open edges (edges which are connected on only one side) in the direction specified
-        /// If SkirtMode.NORMAL used, then skirt position will be based on average of 2-ring face normals.
+        /// If SkirtMode.Normal used, then skirt position will be based on average of 2-ring face normals.
         /// Because skirt points can be projected in different directions (and create bad looking skirts),
         /// skirtpoints will be merged if the distance between them divided by the skirt height falls below threshold
         /// </summary>
@@ -523,7 +523,7 @@ namespace OPS.Geometry
             // Calculate skirt offset height
             Vector3 size = Bounds().Size();
 
-            if (axis == SkirtMode.NORMAL)
+            if (axis == SkirtMode.Normal)
             {
                 double height = heightAsPercentOfWidth * Math.Max(Math.Max(size.X, size.Y), size.Z); //Always within factor ( * or / ) sqrt 2
                 Dictionary<Vertex, Vertex> skirtMap = new Dictionary<Vertex, Vertex>();
@@ -1272,7 +1272,7 @@ namespace OPS.Geometry
         X,
         Y,
         Z,
-        NORMAL,
+        Normal,
         None
     }
 }
