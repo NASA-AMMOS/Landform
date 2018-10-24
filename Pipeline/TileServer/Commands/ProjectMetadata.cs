@@ -56,7 +56,7 @@ namespace OPS.Pipeline.TileServer
 
             if (project == null)
             {
-                Logger.Error("No project by that name found: " + options.ProjectName);
+                Logger.ErrorFormat("project \"{0}\" not found", options.ProjectName);
                 return 1; //argument error
             }
 

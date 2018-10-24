@@ -10,7 +10,8 @@ namespace OPS.Util
 {
     public class Logging
     {
-        const string DEBUG_PATTERN_LAYOUT = "%date %logger{1} %location: %message%newline";
+        //%level must be last token before : to faciltate parsing errors in web code
+        const string DEBUG_PATTERN_LAYOUT = "%date %logger{1} %location %level: %message%newline";
 
         public static void ConfigureLogging(bool quiet = false, bool debug = false, string overrideLogFilename = null)
         {

@@ -52,25 +52,25 @@ namespace OPS.Pipeline.TileServer
 
             if (project == null)
             {
-                Logger.Error("No project by that name found: " + options.ProjectName);
+                Logger.ErrorFormat("project \"{0}\" not found", options.ProjectName);
                 return 1; //argument error
             }
 
             if (project.StartedRunning)
             {
-                Logger.Error("Cannot add input to project " + options.ProjectName + " that is already run");
+                Logger.ErrorFormat("Cannot add input to project \"{0}\", project already run", options.ProjectName);
                 return 1; //argument error
             }
 
             if(project.GetTilingScheme() == TilingScheme.UserDefined && options.TileId == null)
             {
-                Logger.Error("Projects with user defined tiling scheme require that input datasets define a tile id to infer tree structure");
+                Logger.Error("projects with user defined tiling scheme require that input datasets define a tile id");
                 return 1; //argument error
             }
 
             if (project.GetTilingScheme() != TilingScheme.UserDefined && options.TileId != null)
             {
-                Logger.Error("Tile ids can only be defined on input datasets when using a user defined tiling scheme");
+                Logger.Error("tile ids can only be defined on input datasets when using a user defined tiling scheme");
                 return 1; //argument error
             }
 
@@ -84,18 +84,18 @@ namespace OPS.Pipeline.TileServer
 
             string meshUrl = TileServerConfig.Instance.InputUrl(options.ProjectName,
                                                                 Path.GetFileName(options.MeshFilepath));
-            Logger.Info("Uploading " + options.MeshFilepath);
+            Logger.InfoFormat("uploading {0}", options.MeshFilepath);
             Storage(meshUrl).UploadFile(options.MeshFilepath, meshUrl);
-            Logger.Info("Upload complete: " + options.MeshFilepath);
+            Logger.InfoFormat("upload complete {0}", options.MeshFilepath);
 
             string imageUrl = null;
             if (options.ImageFilepath != null)
             {
                 imageUrl = TileServerConfig.Instance.InputUrl(options.ProjectName,
                                                               Path.GetFileName(options.ImageFilepath));
-                Logger.Info("Uploading " + options.ImageFilepath);
+                Logger.InfoFormat("uploading {0}", options.ImageFilepath);
                 Storage(imageUrl).UploadFile(options.ImageFilepath, imageUrl);
-                Logger.Info("Upload complete: " + options.ImageFilepath);
+                Logger.InfoFormat("upload complete {0}", options.ImageFilepath);
             }
 
             cloud.MasterQueue.Enqueue(new AddInputMessage(options.ProjectName)

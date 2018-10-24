@@ -61,7 +61,7 @@ namespace OPS.Pipeline.TileServer
             var project = TilingProject.Find(this.DynamoContext, options.ProjectName);
             if (project != null)
             {
-                Logger.Info("A project by that name already exists");
+                Logger.ErrorFormat("project \"{0}\" already exists", options.ProjectName);
                 return 1; //argument error
             }
 
