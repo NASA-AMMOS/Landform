@@ -382,7 +382,7 @@ namespace OPS.Cloud
                 if (logger != null)
                 {
                     logger.InfoFormat("low-level DynamoDB scan for table \"{0}\" completed in {1:F3}s: " +
-                                      "{2} results, {3} exponential backoffs",
+                                      "{2} results, {3} backoffs",
                                       tableName, 0.001 * sw.ElapsedMilliseconds, result.Count, nb);
                 }
                 return result;
