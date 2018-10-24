@@ -64,7 +64,7 @@ namespace OPS.Pipeline.TileServer
         private AmazonSQSClient client;
 
         public TilingQueue(string prefix, string awsProfileName, int timeoutSec = DEF_TIMEOUT_SEC,
-                           string endpointName = "us-west-1", ILog logger = null)
+                           string endpointName = "us-west-1", ILog logger = null, bool quiet = false)
         {
             this.logger = logger != null ? logger : LogManager.GetLogger(typeof(TilingQueue));
                 
@@ -76,9 +76,22 @@ namespace OPS.Pipeline.TileServer
             try
             {
                 url = client.GetQueueUrl(Name).QueueUrl;
-                logger.InfoFormat("queue \"{0}\" exists", Name);
-                var req = new GetQueueAttributesRequest() { QueueUrl = url, AttributeNames = { "VisibilityTimeout" } };
+                var req = new GetQueueAttributesRequest()
+                    {
+                        QueueUrl = url,
+                        AttributeNames =
+                        {
+                            "VisibilityTimeout",
+                            "ApproximateNumberOfMessages",
+                            "ApproximateNumberOfMessagesNotVisible"
+                        }
+                    };
                 var res = client.GetQueueAttributes(req);
+                if (!quiet)
+                {
+                    logger.InfoFormat("queue \"{0}\" exists, approx {1} messages ({2} in flight)",
+                                      Name, res.ApproximateNumberOfMessages, res.ApproximateNumberOfMessagesNotVisible);
+                }
                 if (res.VisibilityTimeout != timeoutSec)
                 {
                     logger.InfoFormat("updating visibility timeout for queue \"{0}\" from {1}s to {2}s",

@@ -33,30 +33,34 @@ namespace OPS.Pipeline.TileServer
 
         private PipelineCore pipeline;
 
-        public TileServerCloud(PipelineCore pipelineCore, bool initQueues = true, bool initTables = true)
+        public TileServerCloud(PipelineCore pipelineCore, bool initQueues = true, bool initTables = true,
+                               bool quiet = false)
         {
             this.pipeline = pipelineCore;
             if (initQueues)
             {
-                InitializeQueues();
+                InitializeQueues(quiet);
             }
             if (initTables)
             {
-                InitializeTables();
+                InitializeTables(quiet);
             }
         }
 
         public TilingQueue WorkerQueue { get; private set; }
         public TilingQueue MasterQueue { get; private set; }
 
-        public void InitializeQueues()
+        public void InitializeQueues(bool quiet = false)
         {
             var prefix = TileServerConfig.Instance.VenueName;
             MasterQueue = new TilingQueue(prefix + "_master", pipeline.Profile, MASTER_QUEUE_TIMEOUT_SEC,
-                                          logger: pipeline.Logger);
+                                          logger: pipeline.Logger, quiet: quiet);
             WorkerQueue = new TilingQueue(prefix + "_worker", pipeline.Profile, WORKER_QUEUE_TIMEOUT_SEC,
-                                          logger: pipeline.Logger);
-            pipeline.Logger.Info("queues initialized");
+                                          logger: pipeline.Logger, quiet: quiet);
+            if (!quiet)
+            {
+                pipeline.Logger.Info("queues initialized");
+            }
         }
 
         public void DeleteQueues()
@@ -67,18 +71,21 @@ namespace OPS.Pipeline.TileServer
             TilingQueue.DeleteQueue(client, prefix + "_worker");
         }
 
-        public void InitializeTables()
+        public void InitializeTables(bool quiet = false)
         {
             var prefix = TileServerConfig.Instance.VenueName;
             foreach (var t in tableTypes)
             {
-                DBUtil.CreateOrUpdateTable(pipeline.DynamoClient, t, prefix, pipeline.Logger);
+                DBUtil.CreateOrUpdateTable(pipeline.DynamoClient, t, prefix, quiet ? null : pipeline.Logger);
             }
             foreach (var t in tableTypes)
             {
-                DBUtil.WaitForTable(pipeline.DynamoClient, t, prefix, pipeline.Logger);
+                DBUtil.WaitForTable(pipeline.DynamoClient, t, prefix, quiet ? null : pipeline.Logger);
             }
-            pipeline.Logger.Info("tables initialized");
+            if (!quiet)
+            {
+                pipeline.Logger.Info("tables initialized");
+            }
         }
     }
 }

@@ -50,7 +50,7 @@ namespace OPS.Pipeline.TileServer
 
         public int Run()
         {
-            var cloud = new TileServerCloud(this); //ensures queues and tables exist
+            var cloud = new TileServerCloud(this, quiet: true); //ensures queues and tables exist
 
             var project = TilingProject.Find(DynamoContext, options.ProjectName);
 

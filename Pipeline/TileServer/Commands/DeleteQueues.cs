@@ -24,7 +24,7 @@ namespace OPS.Pipeline.TileServer
 
         public int Run()
         {
-            var cloud = new TileServerCloud(this, initQueues: false, initTables: false);
+            var cloud = new TileServerCloud(this, initQueues: false, initTables: false, quiet: true);
             if (!options.Force)
             {
                 Console.WriteLine("delete queues in venue " + TileServerConfig.Instance.VenueName + " (yes/no)?");

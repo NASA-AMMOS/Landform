@@ -56,7 +56,7 @@ namespace OPS.Pipeline.TileServer
 
         public int Run()
         {
-            var cloud = new TileServerCloud(this);
+            var cloud = new TileServerCloud(this, quiet: true);
 
             var project = TilingProject.Find(this.DynamoContext, options.ProjectName);
             if (project != null)
