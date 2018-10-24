@@ -459,7 +459,7 @@ namespace OPS.Pipeline.TileServer
                         Logger.Error(e.StackTrace);
                     }
                 }
-                Thread.Sleep(100); //throttle Dequeue()
+                Thread.Sleep(500); //throttle Dequeue()
             }
         }
     }

@@ -138,7 +138,7 @@ namespace OPS.Pipeline.TileServer
                                            m.Info(), totalSec, masterQueue.TimeoutSec);
                     }
                 }
-                Thread.Sleep(100); //throttle Dequeue()
+                Thread.Sleep(500); //throttle Dequeue()
             }
         }
     }
