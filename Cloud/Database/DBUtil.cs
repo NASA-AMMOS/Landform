@@ -405,8 +405,12 @@ namespace OPS.Cloud
             int numRequests = 0;
             int maxScannedPerRequest = 0;
             int totalScanned = 0;
+            double totalReadUnits = 0;
             var filter = ScanConditionsToFilter(conditions);
             Dictionary<string, AttributeValue> lastKeyEvaluated = null;
+            string lastAction = "none";
+            double factor = 2;
+            double deadband = 0.2 * maxReadUnitsPerSec;
             bool done = false;
             do
             {
@@ -439,6 +443,7 @@ namespace OPS.Cloud
                 maxScannedPerRequest = Math.Max(maxScannedPerRequest, response.ScannedCount);
                 totalScanned += response.ScannedCount;
                 double consumedReadUnits = response.ConsumedCapacity.CapacityUnits;
+                totalReadUnits += consumedReadUnits;
 
                 lastKeyEvaluated = response.LastEvaluatedKey;
                 done = lastKeyEvaluated == null || lastKeyEvaluated.Count == 0;
@@ -457,38 +462,51 @@ namespace OPS.Cloud
                 if (logger != null && !done)
                 {
                     logger.InfoFormat("low-level DynamoDB scan request {0} for table \"{1}\": " +
-                                      "{2} results ({3} total), {4} backoffs, {5:F3}s period ({6:F3}s sleep), " +
-                                      "{7} scanned items ({8} total), " +
-                                      "{9:F3} read units, {10:F3} read units/sec (target {11:F3}/{12:F3})",
+                                      "{2} results ({3} cumulative), {4} backoffs, {5:F3}s period ({6:F3}s sleep), " +
+                                      "{7} scanned ({8} cumulative), " +
+                                      "{9:F3} read units ({10:F3}/sec, target {11:F3}/{12:F3}), " +
+                                      "last action: {13}, factor: {14:F3}, deadband: {15:F3}",
                                       numRequests, tableName,
                                       response.Count, result.Count, numBackoffs, sec, 0.001 * sleepMS,
                                       response.ScannedCount, totalScanned,
-                                      consumedReadUnits, consumedReadUnitsPerSec, maxReadUnitsPerSec, readCapacity);
+                                      consumedReadUnits, consumedReadUnitsPerSec, maxReadUnitsPerSec, readCapacity,
+                                      lastAction, factor, deadband);
                 }
                     
-                if (numBackoffs == 0 && consumedReadUnitsPerSec < maxReadUnitsPerSec)
+
+                if (numBackoffs == 0 && Math.Abs(consumedReadUnitsPerSec - maxReadUnitsPerSec) <= deadband)
+                {
+                    lastAction = "none";
+                }
+                else if (numBackoffs == 0 && consumedReadUnitsPerSec < maxReadUnitsPerSec)
                 {
                     sleepMS = 0;
-                    itemsPerRequest = 2 * Math.Min(itemsPerRequest, int.MaxValue / 2);
+                    factor = lastAction == "slow down" ? (1 + 0.5 * (factor - 1)) : 2;
+                    itemsPerRequest = (int)(factor * Math.Min(itemsPerRequest, int.MaxValue / factor));
+                    lastAction = "speed up";
                 }
                 else
                 {
                     sleepMS = (int)Math.Max(0, 1000 * ((consumedReadUnits / maxReadUnitsPerSec) - sec));
-                    itemsPerRequest = Math.Max(1, itemsPerRequest / 2);
+                    factor = lastAction == "speed up" ? (1 + 0.5 * (factor - 1)): 2;
+                    itemsPerRequest = (int)Math.Max(1, itemsPerRequest / factor);
+                    lastAction = "slow down";
                 }
 
             } while (!done);
 
             if (logger != null)
             {
+                double totalSec = 0.001 * sw.ElapsedMilliseconds;
                 logger.InfoFormat("low-level DynamoDB scan for table \"{0}\" completed in {1}s: " +
                                   "{2} results, {3} backoffs, {4:F3}s total sleep, " +
                                   "{5} requests, max {6} scanned items/request, {7} total items scanned, " +
-                                  "{8:F3} max read units/sec (target {9:F3}/{10:F3})",
-                                  tableName, 0.001 * sw.ElapsedMilliseconds, result.Count,
+                                  "{8:F3} average ({9:F3} max) read units/sec (target {10:F3}/{11:F3})",
+                                  tableName, totalSec, result.Count,
                                   totalBackoffs, 0.001 * totalSleepMS,
                                   numRequests, maxScannedPerRequest, totalScanned,
-                                  maxConsumedReadUnitsPerSec, maxReadUnitsPerSec, readCapacity);
+                                  totalReadUnits / totalSec, maxConsumedReadUnitsPerSec,
+                                  maxReadUnitsPerSec, readCapacity);
             }
 
             return result;
