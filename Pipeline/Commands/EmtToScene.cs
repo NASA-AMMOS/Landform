@@ -150,7 +150,7 @@ namespace OPS.Pipeline
                 FacesPerTile = 2000,
                 TileResolution = 256,
                 ProjectType = PipelineStateMachine.ProjectType.GenericTiling,
-                NoWait = true
+                NoWait = false
             };
             int r = new CreateProject(createOptions).Run();
 
@@ -163,7 +163,7 @@ namespace OPS.Pipeline
                     MeshFilepath = f,
                     ImageFilepath = img,
                     TileId = null,
-                    NoWait = true
+                    NoWait = false
                 };
                 r = new UploadInput(uploadOptions).Run();
             }
