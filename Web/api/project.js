@@ -16,7 +16,7 @@ async function createProject(req, res) {
 
     const args = parseArgs(req, {
       tilingscheme: { type: 'enum', options: ['Bin', 'QuadX', 'QuadY', 'QuadZ', 'Oct', 'UserDefined'] },
-      skirtmode: { type: 'enum', options: ['None', 'X', 'Y', 'Z'] },
+      skirtmode: { type: 'enum', options: ['None', 'Normal', 'X', 'Y', 'Z'] },
       reconmethod: { type: 'enum', options: ['Poisson', 'FSSR'] },
       facespertile: { type: 'int' },
       tileresolution: { type: 'int' },
