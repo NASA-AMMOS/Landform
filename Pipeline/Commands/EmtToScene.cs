@@ -9,6 +9,7 @@ using OPS.Cloud;
 using OPS.Util;
 using System.IO;
 using OPS.Pipeline.TileServer;
+using OPS.Geometry;
 
 namespace OPS.Pipeline
 {
@@ -133,6 +134,12 @@ namespace OPS.Pipeline
 
             var meshLocations = GetMeshLocationList();
             var records = meshLocations.Select(f => new MeshRecord(f, this)).ToList();
+            // Filter empty meshes
+            records = records.Where(rec =>
+            {
+                var m = Mesh.Load(rec.OBJ);
+                return m.Vertices.Count > 0 && m.Faces.Count > 0;
+            }).ToList();
             LegacySceneManfiest.BuildFromDirectory(options.WorkingDir);
             var createOptions = new CreateProjectOptions()
             {
