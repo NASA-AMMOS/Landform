@@ -96,6 +96,7 @@ namespace OPS.Pipeline.TileServer
             context.Save(this);
         }
 
+        public const int SLEEP_BETWEEN_NODE_DELETES_MS = 10;
         public void Delete(PipelineCore pipeline, bool ignoreErrors = true)
         {
             if (StartedRunning)
@@ -107,7 +108,7 @@ namespace OPS.Pipeline.TileServer
                 foreach (var node in nodes)
                 {
                     node.Delete(pipeline, ignoreErrors);
-                    Thread.Sleep(10); //throttle to reduce chance of exponential backoff
+                    Thread.Sleep(SLEEP_BETWEEN_NODE_DELETES_MS); //throttle to reduce chance of exponential backoff
                     if (++n % 500 == 0)
                     {
                         pipeline.Logger.Info("deleted " + n + " nodes");

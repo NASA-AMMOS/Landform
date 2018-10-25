@@ -80,7 +80,7 @@ namespace OPS.Pipeline.TileServer
             }
             foreach (var t in tableTypes)
             {
-                DBUtil.WaitForTable(pipeline.DynamoClient, t, prefix, quiet ? null : pipeline.Logger);
+                DBUtil.WaitForTable(pipeline.DynamoClient, t, prefix, logger: quiet ? null : pipeline.Logger);
             }
             if (!quiet)
             {

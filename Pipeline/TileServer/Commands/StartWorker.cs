@@ -357,6 +357,7 @@ namespace OPS.Pipeline.TileServer
             return rec;
         }
 
+        const int DEQUEUE_THROTTLE_MS = 500;
         private void RunWorker()
         {
             //each worker thread has its own cloud instance
@@ -459,7 +460,7 @@ namespace OPS.Pipeline.TileServer
                         Logger.Error(e.StackTrace);
                     }
                 }
-                Thread.Sleep(500); //throttle Dequeue()
+                Thread.Sleep(DEQUEUE_THROTTLE_MS);
             }
         }
     }

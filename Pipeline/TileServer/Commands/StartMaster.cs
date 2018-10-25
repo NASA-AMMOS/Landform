@@ -56,6 +56,8 @@ namespace OPS.Pipeline.TileServer
 #pragma warning restore 0162
         }
 
+        const int FAILED_MESSAGE_TIMEOUT_SEC = 3;
+        const int DEQUEUE_THROTTLE_MS = 500;
         private void RunMaster()
         {
             var masterQueue = cloud.MasterQueue;
@@ -123,7 +125,7 @@ namespace OPS.Pipeline.TileServer
                         try
                         {
                             //try to make the message available in our queue again soon
-                            masterQueue.UpdateTimeout(m, 3 /* seconds */);
+                            masterQueue.UpdateTimeout(m, FAILED_MESSAGE_TIMEOUT_SEC);
                         }
                         catch (Exception e2)
                         {
@@ -138,7 +140,7 @@ namespace OPS.Pipeline.TileServer
                                            m.Info(), totalSec, masterQueue.TimeoutSec);
                     }
                 }
-                Thread.Sleep(500); //throttle Dequeue()
+                Thread.Sleep(DEQUEUE_THROTTLE_MS);
             }
         }
     }

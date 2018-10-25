@@ -216,11 +216,22 @@ namespace OPS.Cloud
             }
         }
 
-        public static void WaitForTable(IAmazonDynamoDB client, Type type, string prefix="", ILog logger = null)
+        public const double DEF_MAX_TABLE_WAIT_SEC = 30;
+        public const int TABLE_WAIT_SLEEP_MS = 3000;
+
+        public static void WaitForTable(IAmazonDynamoDB client, Type type, string prefix="",
+                                        double maxWaitSec = DEF_MAX_TABLE_WAIT_SEC, ILog logger = null)
         {
+            var sw = new Stopwatch();
+            sw.Start();
             var tn = prefix + GetTableName(type);
             while (true)
             {
+                if (0.001 * sw.ElapsedMilliseconds > maxWaitSec)
+                {
+                    throw new CloudException(string.Format("table \"{0}\" still not active after {1:F3}s",
+                                                           tn, maxWaitSec));
+                }
                 try
                 {
                     var res = client.DescribeTable(tn);
@@ -236,7 +247,7 @@ namespace OPS.Cloud
                 {
                     logger.InfoFormat("waiting for table \"{0}\"", tn);
                 }
-                System.Threading.Thread.Sleep(3000);
+                System.Threading.Thread.Sleep(TABLE_WAIT_SLEEP_MS);
             }
         }
 
@@ -244,7 +255,7 @@ namespace OPS.Cloud
         /// Run func with exponential backoff in case of ProvisionedThroughputExceededException
         /// </summary>
         /// <returns>number of backoffs</returns>
-        public static int ExponentialBackoff(Action func, int maxMS = 100 * 1000, int minMS = 50)
+        public static int ExponentialBackoff(Action func, int maxMS = 100 * 1000, int minMS = 50, ILog logger = null)
         {
             int nb = 0;
             for (int backoff = minMS; true; backoff *= 2)
@@ -266,6 +277,10 @@ namespace OPS.Cloud
                     else
                     {
                         ++nb;
+                        if (logger != null)
+                        {
+                            logger.InfoFormat("dynamo exponential backoff {0}, {1}ms", nb, backoff);
+                        }
                         Thread.Sleep(backoff);
                     }
                 }
@@ -277,20 +292,27 @@ namespace OPS.Cloud
         {
             try
             {
-                ExponentialBackoff(() => context.Delete(obj));
+                ExponentialBackoff(() => context.Delete(obj), logger: logger);
             }
             catch (Exception e)
             {
-                if (!ignoreErrors)
-                {
-                    throw e;
-                }
                 if (logger != null)
                 {
                     logger.WarnFormat("error deleting DynamoDB object ({0}): {1}", e.GetType().FullName, e.Message);
                 }
+                if (!ignoreErrors)
+                {
+                    throw e;
+                }
             }
         }
+
+        //the AWS DynamoDB "DataModel" API uses DynamoDBContext handles
+        //but the lower level client API requires an AmazonDynamoDBClient handle
+        //and unfortunately it does not seem possible to recover the client handle given only a context handle
+        //but it is possible to create a context from a client
+        //so our approach is to centralize making contexts and remember the associated client handles here
+        //they can later be retrieved, particularly if we are asked to do a Scan() given a context handle
 
         private static WeakDictionary<DynamoDBContext, AmazonDynamoDBClient> clientForContext =
             new WeakDictionary<DynamoDBContext, AmazonDynamoDBClient>();
@@ -330,16 +352,21 @@ namespace OPS.Cloud
             return prefix;
         }
 
+        public const double DEF_SCAN_REL_CAPACITY = 0.5;
         public static IEnumerable<T> Scan<T>(DynamoDBContext context, params ScanCondition[] conditions)
         {
-            return Scan<T>(context, 0.5, true, null, conditions);
+            return Scan<T>(context, DEF_SCAN_REL_CAPACITY, true, null, conditions);
         }
 
         public static IEnumerable<T> Scan<T>(DynamoDBContext context, ILog logger, params ScanCondition[] conditions)
         {
-            return Scan<T>(context, 0.5, true, logger, conditions);
+            return Scan<T>(context, DEF_SCAN_REL_CAPACITY, true, logger, conditions);
         }
 
+        /// <summary>
+        /// Scan a table with dyanamic speed up / slow down to try to maintain the indicated read units per second
+        /// </summary>
+        /// <param name="relCapacity">read units per sec as fraction of table provisioned capacity</param>
         public static IEnumerable<T> Scan<T>(DynamoDBContext context, double relCapacity, bool consistent, ILog logger,
                                              params ScanCondition[] conditions)
         {
@@ -358,35 +385,9 @@ namespace OPS.Cloud
 
             if (client == null)
             {
-                //this high level API is convenient but can cause throughput exceptions
-                //https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/bp-query-scan.html
-                //https://aws.amazon.com/blogs/developer/rate-limited-scans-in-amazon-dynamodb
-                if (logger != null)
-                {
-                    logger.WarnFormat("failed to get DynamoDB client for context, " +
-                                      "defaulting to high-level scan for table \"{0}\"", tableName);
-                }
-                int nb = 0;
-                IEnumerable<T> lazyEnumerable = null;
-                nb += ExponentialBackoff(() => { lazyEnumerable = context.Scan<T>(conditions); });
-                IEnumerator<T> lazyEnumerator = null;
-                nb += ExponentialBackoff(() => { lazyEnumerator = lazyEnumerable.GetEnumerator(); });
-                bool ok = true;
-                do
-                {
-                    nb += ExponentialBackoff(() => { ok = lazyEnumerator.MoveNext(); });
-                    if (ok)
-                    {
-                        nb += ExponentialBackoff(() => { result.Add(lazyEnumerator.Current); });
-                    }
-                } while (ok);
-                if (logger != null)
-                {
-                    logger.InfoFormat("low-level DynamoDB scan for table \"{0}\" completed in {1:F3}s: " +
-                                      "{2} results, {3} backoffs",
-                                      tableName, 0.001 * sw.ElapsedMilliseconds, result.Count, nb);
-                }
-                return result;
+                //fallback, we could not lookup the client associated with this context
+                //see commentry above
+                return ScanWithBackoff<T>(context, consistent, logger, conditions);
             }
 
             tableName = GetPrefixForContext(context) + tableName;
@@ -430,15 +431,25 @@ namespace OPS.Cloud
 
                 if (filter.Count > 1)
                 {
+                    //get exception if this is set but filter.Count <= 1
                     request.ConditionalOperator = ConditionalOperator.AND;
                 }
 
                 ScanResponse response = null;
-                int numBackoffs = ExponentialBackoff(() => { response = client.Scan(request); });
+
+                //ideally this will not exponential backoff
+                //rather our speed up / slow down algorithm will ramp up the items per request
+                //until we achieve our target read speed, never actually triggering a throughput exception
+                //however allowing the possibility of exponential backoff is intended to help address
+                //the case that there may be more than one client accessing this table in parallel
+                //in such a case we may not legitimately be able to use the throughput we are targetting
+                int numBackoffs = ExponentialBackoff(() => { response = client.Scan(request); }, logger: logger);
+
                 foreach (var item in response.Items)
                 {
                     result.Add(context.FromDocument<T>(Document.FromAttributeMap(item)));
                 }
+
                 totalBackoffs += numBackoffs;
                 numRequests++;
                 maxScannedPerRequest = Math.Max(maxScannedPerRequest, response.ScannedCount);
@@ -509,6 +520,83 @@ namespace OPS.Cloud
                                   maxReadUnitsPerSec, readCapacity);
             }
 
+            return result;
+        }
+
+        public static IEnumerable<T> ScanWithBackoff<T>(DynamoDBContext context, params ScanCondition[] conditions)
+        {
+            return ScanWithBackoff<T>(context, true, null, conditions);
+        }
+
+        public static IEnumerable<T> ScanWithBackoff<T>(DynamoDBContext context, ILog logger,
+                                                        params ScanCondition[] conditions)
+        {
+            return ScanWithBackoff<T>(context, true, logger, conditions);
+        }
+
+        /// <summary>
+        /// the high-level DynamoDBContext.Scan<T>() API is convenient but can cause throughput exceptions
+        /// we really should only get here if we couldn't get a DynamoDB client handle associated with
+        /// a context handle in the above Scan() implementation
+        /// https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/bp-query-scan.html
+        /// https://aws.amazon.com/blogs/developer/rate-limited-scans-in-amazon-dynamodb
+        /// </summary>
+        public static IEnumerable<T> ScanWithBackoff<T>(DynamoDBContext context, bool consistent, ILog logger,
+                                                        params ScanCondition[] conditions)
+        {
+            var sw = new Stopwatch();
+            sw.Start();
+
+            var result = new List<T>();
+            var tableName = GetTableName(typeof(T));
+
+            if (logger != null)
+            {
+                logger.WarnFormat("failed to get DynamoDB client for context, " +
+                                  "defaulting to high-level scan for table \"{0}\"", tableName);
+            }
+            int nb = 0;
+            IEnumerable<T> lazyEnumerable = null;
+            double lastLog = sw.ElapsedMilliseconds;
+            nb += ExponentialBackoff(() =>
+                    {
+                        //it is *probably* not necessary to wrap this call itself in ExponentialBackoff()
+                        //it seems that the real work starts when we try to iterate the returned lazy enumerator
+                        //buit it shouldn't hurt and the doc is not clear
+                        var cfg = new DynamoDBOperationConfig() { ConsistentRead = consistent };
+                        lazyEnumerable = context.Scan<T>(conditions, cfg);
+                    }, logger: logger);
+            IEnumerator<T> lazyEnumerator = null;
+            nb += ExponentialBackoff(() =>
+                    {
+                        //ditto, it is probably not necessary to wrap this call in ExponentialBackoff()
+                        lazyEnumerator = lazyEnumerable.GetEnumerator();
+                    }, logger: logger);
+            bool ok = true;
+            for (int i = 0; ok; i++)
+            {
+                //it may  not be necessary to wrap both MoveNext() and Current in ExponentialBackoff()
+                //but it shouldn't hurt and the doc is not clear
+                nb += ExponentialBackoff(() => { ok = lazyEnumerator.MoveNext(); }, logger: logger);
+                if (ok)
+                {
+                    nb += ExponentialBackoff(() => { result.Add(lazyEnumerator.Current); }, logger: logger);
+                }
+                double now = sw.ElapsedMilliseconds;
+                if (logger != null && now - lastLog > 10 *1000)
+                {
+                    logger.InfoFormat("high-level DynamoDB scan for table \"{0}\" running for {1:F3}s: " +
+                                      "{2} iterations, {3} results so far, {4} backoffs",
+                                      tableName, 0.001 * now, i + 1, result.Count, nb);
+                    lastLog = now;
+                }
+            }
+            if (logger != null)
+            {
+                logger.InfoFormat("high-level DynamoDB scan for table \"{0}\" completed in {1:F3}s: " +
+                                  "{2} results, {3} backoffs",
+                                  tableName, 0.001 * sw.ElapsedMilliseconds, result.Count, nb);
+            }
             return result;
         }
 

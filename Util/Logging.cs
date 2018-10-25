@@ -46,6 +46,11 @@ namespace OPS.Util
                         {
                             if (oldFile.Length == 0)
                             {
+                                //the log filename has changed, but no logs have been written yet to the old file
+                                //it seems that log4net creates the file (zero-length) before anything gets written
+                                //in this case, just delete the old filename because most of the point of this whole
+                                //thing is to try to avoid the filesystem getting littered up with a lot of different
+                                //log files - and zero length log files are of pretty much no use anyway
                                 try
                                 {
                                     oldFile.Delete();
@@ -61,6 +66,8 @@ namespace OPS.Util
                             }
                             else
                             {
+                                //the log filename has changed, but logs have already been written to the
+                                //old filename - so leave it there
                                 if (!quiet)
                                 {
                                     Console.WriteLine(string.Format("changing log file to {0}, " +
