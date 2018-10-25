@@ -162,7 +162,7 @@ function runTest(projDir) {
         item.request.body.formdata.find(d => d.key === 'texture').src = texture;
         if (options) {
           item.event.find(e => e.listen === 'prerequest').script.exec = [
-            `pm.environment.set(\\"UPLOAD_OPTIONS\\", \\"${options}\\");`,
+            `pm.environment.set("UPLOAD_OPTIONS", "${options}");`,
           ];
         }
       }
