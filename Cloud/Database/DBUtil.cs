@@ -203,7 +203,20 @@ namespace OPS.Cloud
                                           "from {1} read / {2} write to {3} read / {4} write",
                                           tn, pt.ReadCapacityUnits, pt.WriteCapacityUnits, rc, wc);
                     }
-                    client.UpdateTable(tn, new ProvisionedThroughput(rc, wc));
+                    try
+                    {
+                        client.UpdateTable(tn, new ProvisionedThroughput(rc, wc));
+                    }
+                    catch (ResourceInUseException e)
+                    {
+                        //this can happen if more than one process tries to update the throughput at once
+                        //(it takes some seconds to do the update)
+                        if (logger != null)
+                        {
+                            logger.WarnFormat("error updating provisioned capacity on table \"{0}\" ({1}): {2}",
+                                              tn, e.GetType().FullName, e.Message);
+                        }
+                    }
                 }
             }
             catch (ResourceNotFoundException)
