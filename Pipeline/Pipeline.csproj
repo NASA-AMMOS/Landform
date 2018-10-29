@@ -184,7 +184,6 @@
     <Compile Include="Commands\BenchmarkS3.cs" />
     <Compile Include="Commands\BuildFromAlignment.cs" />
     <Compile Include="Commands\LegacyToTile3D.cs" />
-    <Compile Include="Commands\CreateCloudTemplates.cs" />
     <Compile Include="Commands\TileLocalMesh.cs" />
     <Compile Include="MeshWorker\Commands\TextureMeshCommand.cs" />
     <Compile Include="MeshWorker\Operations\BuildBackprojectLeaves.cs" />

@@ -27,14 +27,14 @@ namespace OPS.Pipeline.TileServer
         //or -1 if unknown
         //ms since UTC epoch
         [JsonIgnore]
-        public int ApproxFirstReceiveMS = -1;
+        public double ApproxFirstReceiveMS = -1;
 
         //approx latest time we received this message
         //this may be a lower bounds
         //note: other receivers may have received it even later
         //ms since UTC epoch
         [JsonIgnore]
-        public int ApproxLastReceiveMS = -1;
+        public double ApproxLastReceiveMS = -1;
 
         public string ProjectName;
 
@@ -56,45 +56,57 @@ namespace OPS.Pipeline.TileServer
     {
         public const int DEF_TIMEOUT_SEC = 20;
 
-        private static ILog logger = LogManager.GetLogger(typeof(TilingQueue));
-
         public string Name { get; private set; }
         public int TimeoutSec { get; private set; }
 
+        private ILog logger;
         private string url;
         private AmazonSQSClient client;
 
         public TilingQueue(string prefix, string awsProfileName, int timeoutSec = DEF_TIMEOUT_SEC,
-                           string endpointName = "us-west-1")
+                           string endpointName = "us-west-1", ILog logger = null, bool quiet = false)
         {
+            this.logger = logger != null ? logger : LogManager.GetLogger(typeof(TilingQueue));
+                
             Name = "TilingServerQueue" + prefix;
             TimeoutSec = timeoutSec;
 
-            RegionEndpoint awsRegion = RegionEndpoint.GetBySystemName(endpointName);
-            AWSCredentials awsCredentials = null;
-            if (awsProfileName != null)
-            {
-                awsCredentials = Credentials.Get(awsProfileName);
-            }
-
-            if (awsCredentials != null)
-            {
-                client = new AmazonSQSClient(awsCredentials, awsRegion);
-            }
-            else
-            {
-                client = new AmazonSQSClient(awsRegion);
-            }
+            client = GetClient(awsProfileName, endpointName);
 
             try
             {
                 url = client.GetQueueUrl(Name).QueueUrl;
+                var req = new GetQueueAttributesRequest()
+                    {
+                        QueueUrl = url,
+                        AttributeNames =
+                        {
+                            "VisibilityTimeout",
+                            "ApproximateNumberOfMessages",
+                            "ApproximateNumberOfMessagesNotVisible"
+                        }
+                    };
+                var res = client.GetQueueAttributes(req);
+                if (!quiet)
+                {
+                    logger.InfoFormat("queue \"{0}\" exists, approx {1} messages ({2} in flight)",
+                                      Name, res.ApproximateNumberOfMessages, res.ApproximateNumberOfMessagesNotVisible);
+                }
+                if (res.VisibilityTimeout != timeoutSec)
+                {
+                    logger.InfoFormat("updating visibility timeout for queue \"{0}\" from {1}s to {2}s",
+                                      Name, res.VisibilityTimeout, timeoutSec);
+                    var attrs = new Dictionary<string, string>();
+                    attrs["VisibilityTimeout"] = timeoutSec.ToString();
+                    client.SetQueueAttributes(url, attrs);
+                }
             }
             catch (QueueDoesNotExistException)
             {
-                CreateQueueRequest createQueueRequest = new CreateQueueRequest() { QueueName = Name };
-                createQueueRequest.Attributes["VisibilityTimeout"] = timeoutSec.ToString(); 
-                url = client.CreateQueue(createQueueRequest).QueueUrl;
+                logger.InfoFormat("creating queue \"{0}\"", Name);
+                var req = new CreateQueueRequest() { QueueName = Name };
+                req.Attributes["VisibilityTimeout"] = timeoutSec.ToString(); 
+                url = client.CreateQueue(req).QueueUrl;
             }
         }
         
@@ -136,7 +148,7 @@ namespace OPS.Pipeline.TileServer
             //try to track information about receive times
             //among other things if a message is multiply received this can help track the latest receivehandle
             //which is apparently needed for SQS apis like ChangeMessageVisibility() and DeleteMessage()
-            int now = (int)UTCTime.NowMS(); //lower bounds
+            var now = UTCTime.NowMS(); //lower bounds
             var msgs = client.ReceiveMessage(req).Messages;
             return msgs.Select(msg =>
             {
@@ -151,7 +163,7 @@ namespace OPS.Pipeline.TileServer
                     {
                         try
                         {
-                            m.ApproxFirstReceiveMS = int.Parse(ts);
+                            m.ApproxFirstReceiveMS = double.Parse(ts);
                         }
                         catch (Exception)
                         {
@@ -191,9 +203,54 @@ namespace OPS.Pipeline.TileServer
             client.DeleteMessage(new DeleteMessageRequest { QueueUrl = url, ReceiptHandle = receiptHandle });
         }
 
+        public static AmazonSQSClient GetClient(string awsProfileName = null, string endpointName = "us-west-1")
+        {
+            RegionEndpoint awsRegion = RegionEndpoint.GetBySystemName(endpointName);
+            AWSCredentials awsCredentials = null;
+            if (awsProfileName != null)
+            {
+                awsCredentials = Credentials.Get(awsProfileName);
+            }
+
+            if (awsCredentials != null)
+            {
+                return new AmazonSQSClient(awsCredentials, awsRegion);
+            }
+            else
+            {
+                return new AmazonSQSClient(awsRegion);
+            }
+        }
+
+        public static bool QueueExists(AmazonSQSClient client, string name)
+        {
+            try
+            {
+                client.GetQueueUrl(name);
+                return true;
+            }
+            catch (QueueDoesNotExistException)
+            {
+                return false;
+            }
+        }
+
+        public static bool DeleteQueue(AmazonSQSClient client, string name)
+        {
+            try
+            {
+                client.DeleteQueue(client.GetQueueUrl(name).QueueUrl);
+                return true;
+            }
+            catch (QueueDoesNotExistException)
+            {
+                return false;
+            }
+        }
+
         public void Delete()
         {
-            client.DeleteQueue(new DeleteQueueRequest(url));
+            DeleteQueue(client, Name);
         }
     }
 }

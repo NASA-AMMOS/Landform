@@ -56,13 +56,12 @@ namespace OPS.Pipeline.TileServer
 
         public int Run()
         {
-            var cloud = new TileServerCloud(this);
-            cloud.EnsureTablesExist();
+            var cloud = new TileServerCloud(this, quiet: true);
 
             var project = TilingProject.Find(this.DynamoContext, options.ProjectName);
             if (project != null)
             {
-                Logger.Info("A project by that name already exists");
+                Logger.ErrorFormat("project \"{0}\" already exists", options.ProjectName);
                 return 1; //argument error
             }
 

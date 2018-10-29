@@ -37,14 +37,13 @@ namespace OPS.Pipeline.TileServer
 
         public int Run()
         {
-            var cloud = new TileServerCloud(this);
-            cloud.EnsureTablesExist();
+            var cloud = new TileServerCloud(this, quiet: true);
 
             var project = TilingProject.Find(DynamoContext, options.ProjectName);
 
             if (project == null)
             {
-                Logger.Error("No project by that name found: " + options.ProjectName);
+                Logger.ErrorFormat("project \"{0}\" not found", options.ProjectName);
                 return 1; //argument error
             }
 

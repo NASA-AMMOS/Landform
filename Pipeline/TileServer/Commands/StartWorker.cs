@@ -84,7 +84,6 @@ namespace OPS.Pipeline.TileServer
             GdalConfiguration.ConfigureGdal();
 
             var cloud = new TileServerCloud(this);
-            cloud.EnsureTablesExist();
 
             Task masterTask = null;
             if (options.StartMaster)
@@ -144,7 +143,7 @@ namespace OPS.Pipeline.TileServer
                 //FIFO queues impose a limit on the max transactions per second
                 //and also aren't available in us-west-1 region as of this writing
                 //(and they're a little more expensive)
-                var workerQueue = new TileServerCloud(this).WorkerQueue;
+                var workerQueue = cloud.WorkerQueue;
                 double lastHeartbeat = -1;
                 double heartbeatPeriod = HEARTBEAT_PERIOD_REL * workerQueue.TimeoutSec;
                 while (true)
@@ -358,6 +357,7 @@ namespace OPS.Pipeline.TileServer
             return rec;
         }
 
+        const int DEQUEUE_THROTTLE_MS = 500;
         private void RunWorker()
         {
             //each worker thread has its own cloud instance
@@ -365,7 +365,7 @@ namespace OPS.Pipeline.TileServer
             var pipeline = new PipelineCore(options,
                                             TileServerConfig.Instance.VenueName, TileServerConfig.Instance.Profile,
                                             logger: Logger); //all threads share the same logger which is MT safe
-            var cloud = new TileServerCloud(pipeline);
+            var cloud = new TileServerCloud(pipeline, initQueues: true, initTables: false, quiet: true);
             var workerQueue = cloud.WorkerQueue;
 
             var dispatcher = new TypeDispatcher()
@@ -460,7 +460,7 @@ namespace OPS.Pipeline.TileServer
                         Logger.Error(e.StackTrace);
                     }
                 }
-                Thread.Sleep(100); //throttle Dequeue()
+                Thread.Sleep(DEQUEUE_THROTTLE_MS);
             }
         }
     }
