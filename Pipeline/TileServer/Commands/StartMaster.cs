@@ -57,7 +57,7 @@ namespace OPS.Pipeline.TileServer
         }
 
         const int FAILED_MESSAGE_TIMEOUT_SEC = 3;
-        const int DEQUEUE_THROTTLE_MS = 500;
+        const int DEQUEUE_THROTTLE_MS = 50;
         private void RunMaster()
         {
             var masterQueue = cloud.MasterQueue;
@@ -65,10 +65,10 @@ namespace OPS.Pipeline.TileServer
             {
                 //only take one message at a time when we are ready to process it
                 var m = masterQueue.DequeueOne();
+                Stopwatch sw = new Stopwatch();
+                sw.Start();
                 if (m != null)
                 {
-                    Stopwatch sw = new Stopwatch();
-                    sw.Start();
                     try
                     {
                         bool projectDeleted = false;
@@ -140,7 +140,11 @@ namespace OPS.Pipeline.TileServer
                                            m.Info(), totalSec, masterQueue.TimeoutSec);
                     }
                 }
-                Thread.Sleep(DEQUEUE_THROTTLE_MS);
+                int sleepMS = (int)(DEQUEUE_THROTTLE_MS - sw.ElapsedMilliseconds);
+                if (sleepMS > 0)
+                {
+                    Thread.Sleep(sleepMS);
+                }
             }
         }
     }
