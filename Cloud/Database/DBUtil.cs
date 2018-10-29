@@ -487,12 +487,13 @@ namespace OPS.Cloud
                 if (logger != null && !done)
                 {
                     logger.InfoFormat("low-level DynamoDB scan request {0} for table \"{1}\": " +
-                                      "{2} results ({3} cumulative), {4} backoffs, {5:F3}s period ({6:F3}s sleep), " +
-                                      "{7} scanned ({8} cumulative), " +
-                                      "{9:F3} read units ({10:F3}/sec, target {11:F3}/{12:F3}), " +
-                                      "last action: {13}, factor: {14:F3}, deadband: {15:F3}",
+                                      "{2} results ({3} cumulative), {4} backoffs, " +
+                                      "{5:F3}s period ({6:F3}s sleep) {7:F3}s total, {8} scanned ({9} cumulative), " +
+                                      "{10:F3} read units ({11:F3}/sec, target {12:F3}/{13:F3}), " +
+                                      "last action: {14}, factor: {15:F3}, deadband: {16:F3}",
                                       numRequests, tableName,
-                                      response.Count, result.Count, numBackoffs, sec, 0.001 * sleepMS,
+                                      response.Count, result.Count, numBackoffs,
+                                      sec, 0.001 * sleepMS, 0.001 * sw.ElapsedMilliseconds,
                                       response.ScannedCount, totalScanned,
                                       consumedReadUnits, consumedReadUnitsPerSec, maxReadUnitsPerSec, readCapacity,
                                       lastAction, factor, deadband);
@@ -522,7 +523,7 @@ namespace OPS.Cloud
             if (logger != null)
             {
                 double totalSec = 0.001 * sw.ElapsedMilliseconds;
-                logger.InfoFormat("low-level DynamoDB scan for table \"{0}\" completed in {1}s: " +
+                logger.InfoFormat("low-level DynamoDB scan for table \"{0}\" completed in {1:F3}s: " +
                                   "{2} results, {3} backoffs, {4:F3}s total sleep, " +
                                   "{5} requests, max {6} scanned items/request, {7} total items scanned, " +
                                   "{8:F3} average ({9:F3} max) read units/sec (target {10:F3}/{11:F3})",
