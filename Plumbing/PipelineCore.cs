@@ -15,7 +15,6 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using log4net;
-using log4net.Appender;
 using CommandLine;
 
 namespace OPS.Plumbing
@@ -25,6 +24,9 @@ namespace OPS.Plumbing
         [Option(Default = false, HelpText = "Suppress non-essential output")]
         public bool Quiet { get; set; }
 
+        [Option(Default = false, HelpText = "Log debug info")]
+        public bool Debug { get; set; }
+
         [Option(Default = null, HelpText = "Override default log filename")]
         public string LogFile { get; set; }
     }
@@ -33,7 +35,7 @@ namespace OPS.Plumbing
     {
         public string DownloadCache { get; private set; }
         public string Profile { get; private set; }
-        public IAmazonDynamoDB DynamoDB { get; private set; }
+        public IAmazonDynamoDB DynamoClient { get; private set; }
         public DynamoDBContext DynamoContext { get; private set; }
         public IAmazonS3 S3Client { get; private set; }
 
@@ -54,12 +56,21 @@ namespace OPS.Plumbing
             }
             else
             {
-                ConfigureLogging(options);
+                Logging.ConfigureLogging(options.Quiet, options.Debug, options.LogFile);
+                Logger = LogManager.GetLogger(GetType());
             }
 
-            if (enableS3) ConfigureStorage(awsProfile, s3Url);
+            if (enableS3)
+            {
+                S3Client = StorageHelper.MakeClient(awsProfile, s3Url);
+                defaultStorage = new StorageHelper(awsProfile, "us-west-1");
+            }
 
-            if (enableDynamo) ConfigureDB(awsProfile, dynamoPrefix, dynamoUrl);
+            if (enableDynamo)
+            {
+                DynamoContext = DBUtil.MakeContext(dynamoPrefix, awsProfile, dynamoUrl);
+                DynamoClient = DBUtil.GetClientForContext(DynamoContext);
+            }
 
             //use a different download cache dir for every PipelineCore instance
             //i.e. different for every thread and every run
@@ -274,47 +285,9 @@ namespace OPS.Plumbing
             }
         }
 
-        public static void DynamoExponentialBackoff(Action func, int maxMS = 100 * 1000, int minMS = 50)
-        {
-            for (int backoff = minMS; true; backoff *= 2)
-            {
-                try
-                {
-                    //the DynamoDB API is supposed to implement its own exponential backoff
-                    //but in practice this seems to either be a lie or insufficient
-                    //https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Programming.Errors.html#Programming.Errors.RetryAndBackoff
-                    func();
-                    break;
-                }
-                catch (Amazon.DynamoDBv2.Model.ProvisionedThroughputExceededException e)
-                {
-                    if (backoff > maxMS)
-                    {
-                        throw e;
-                    }
-                    else
-                    {
-                        //LogInfo("BACKOFF {0}ms", backoff); //handy if we need to debug
-                        Thread.Sleep(backoff);
-                    }
-                }
-            }
-        }
-
         public void DeleteDynamoItem<T>(T obj, bool ignoreErrors = true)
         {
-            try
-            {
-                DynamoExponentialBackoff(() => DynamoContext.Delete(obj));
-            }
-            catch (Exception e)
-            {
-                if (!ignoreErrors)
-                {
-                    throw e;
-                }
-                Logger.WarnFormat("error deleting DynamoDB object: {0}", e.Message);
-            }
+            DBUtil.DeleteItem(DynamoContext, obj, ignoreErrors, Logger);
         }
 
         public void LogInfo(string msg, params Object[] args)
@@ -335,106 +308,6 @@ namespace OPS.Plumbing
         private string CachePath(string project, string filename)
         {
             return Path.Combine(DownloadCache, project, filename);
-        }
-
-        private void ConfigureLogging(PipelineCoreOptions options)
-        {
-            log4net.GlobalContext.Properties["command"] = Config.FullCommand;
-
-            log4net.Config.XmlConfigurator.Configure();
-
-            //it is fairly tricky to change log filename at runtime
-            //https://stackoverflow.com/a/6963420
-            var h = (log4net.Repository.Hierarchy.Hierarchy) LogManager.GetRepository();
-            foreach (IAppender a in h.Root.Appenders)
-            {
-                if (a is FileAppender)
-                {
-                    FileAppender fa = (FileAppender)a;
-                    if (!string.IsNullOrEmpty(options.LogFile))
-                    {
-                        var old = new FileInfo(fa.File);
-                        fa.File = Path.Combine(old.DirectoryName, options.LogFile);
-                        fa.ActivateOptions();
-                        if (old.Exists)
-                        {
-                            if (old.Length == 0)
-                            {
-                                try
-                                {
-                                    old.Delete();
-                                }
-                                catch (Exception e)
-                                {
-                                    if (!options.Quiet)
-                                    {
-                                        Console.WriteLine(string.Format("error deleting empty log file ({0}): {1}",
-                                                                        e.GetType().FullName, e.Message));
-                                    }
-                                }
-                            }
-                            else
-                            {
-                                if (!options.Quiet)
-                                {
-                                    Console.WriteLine(string.Format("changing log file to {0}, " +
-                                                                    "old log file {1} not empty", fa.File, old));
-                                }
-                            }
-                        }
-                    }
-                    if (!options.Quiet)
-                    {
-                        Console.WriteLine(string.Format("logging to {0}", fa.File));
-                    }
-                }
-                else if (a is ConsoleAppender)
-                {
-                    ConsoleAppender ca = (ConsoleAppender)a;
-                    if (options.Quiet)
-                    {
-                        ca.Threshold = log4net.Core.Level.Off;
-                        ca.ActivateOptions();
-                    }
-                }
-            }
-
-            Logger = LogManager.GetLogger(GetType());
-        }
-
-        private void ConfigureStorage(string profile, string s3Url)
-        {
-            var cfg = new AmazonS3Config();
-            if (string.IsNullOrEmpty(s3Url))
-            {
-                cfg.RegionEndpoint = Amazon.RegionEndpoint.USWest1;
-            }
-            else
-            {
-                cfg.ServiceURL = s3Url;
-                cfg.ForcePathStyle = true;
-                cfg.SignatureVersion = "2";
-            }
-            var creds = profile != null ? Credentials.Get(profile) : null;
-            S3Client = creds != null ? new AmazonS3Client(creds, cfg) : new AmazonS3Client(cfg);
-            
-            defaultStorage = new StorageHelper(profile, "us-west-1");
-        }
-
-        private void ConfigureDB(string profile, string dynamoPrefix, string dynamoUrl)
-        {
-            var cfg = new AmazonDynamoDBConfig();
-            if (string.IsNullOrEmpty(dynamoUrl))
-            {
-                cfg.RegionEndpoint = Amazon.RegionEndpoint.USWest1;
-            }
-            else
-            {
-                cfg.ServiceURL = dynamoUrl;
-            }
-            var creds = profile != null ? Credentials.Get(profile) : null;
-            DynamoDB = creds != null ? new AmazonDynamoDBClient(creds, cfg) : new AmazonDynamoDBClient(cfg);
-            DynamoContext = new DynamoDBContext(DynamoDB, new DynamoDBContextConfig { TableNamePrefix = dynamoPrefix });
         }
     }
 }

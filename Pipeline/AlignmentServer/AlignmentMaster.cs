@@ -351,8 +351,7 @@ namespace OPS.Pipeline.AlignmentServer
         public int Run()
         {
             Cloud = new TileServerCloud(this);
-            Cloud.EnsureTablesExist();
- 
+            
             Project = Project.FindOrCreate(DynamoContext, Options.ProjectName, Options.ProductPath, Options.InputPath);
             CurrentStage = new IngestStage(this);
             CurrentStage.Run();

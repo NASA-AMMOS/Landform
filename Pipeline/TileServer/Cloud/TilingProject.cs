@@ -85,9 +85,9 @@ namespace OPS.Pipeline.TileServer
             return project;
         }
 
-        public static IEnumerable<TilingProject> FindAll(DynamoDBContext context)
+        public static IEnumerable<TilingProject> FindAll(DynamoDBContext context, ILog logger = null)
         {
-            return context.Scan<TilingProject>();
+            return DBUtil.Scan<TilingProject>(context, logger);
         }
 
         public void Save(DynamoDBContext context)
@@ -96,23 +96,31 @@ namespace OPS.Pipeline.TileServer
             context.Save(this);
         }
 
+        public const int SLEEP_BETWEEN_NODE_DELETES_MS = 10;
         public void Delete(PipelineCore pipeline, bool ignoreErrors = true)
         {
-            var nodes = TilingNode.Find(pipeline.DynamoContext, this);
-            int nn = nodes.Count();
-            int n = 0; 
-            pipeline.Logger.Info("deleting " + nn + " nodes");
-            foreach (var node in nodes)
+            if (StartedRunning)
             {
-                node.Delete(pipeline, ignoreErrors);
-                Thread.Sleep(10); //throttle to reduce chance of exponential backoff
-                if (++n % 500 == 0)
+                var nodes = TilingNode.Find(pipeline.DynamoContext, this, pipeline.Logger);
+                int nn = nodes.Count();
+                int n = 0; 
+                pipeline.Logger.Info("deleting " + nn + " nodes");
+                foreach (var node in nodes)
                 {
-                    pipeline.Logger.Info("deleted " + n + " nodes");
+                    node.Delete(pipeline, ignoreErrors);
+                    Thread.Sleep(SLEEP_BETWEEN_NODE_DELETES_MS); //throttle to reduce chance of exponential backoff
+                    if (++n % 500 == 0)
+                    {
+                        pipeline.Logger.Info("deleted " + n + " nodes");
+                    }
                 }
             }
+            else
+            {
+                pipeline.Logger.Info("deleting 0 nodes - project never run");
+            }
 
-            var inputs = TilingInput.Find(pipeline.DynamoContext, this);
+            var inputs = TilingInput.Find(pipeline.DynamoContext, this, pipeline.Logger);
             pipeline.Logger.Info("deleting " + inputs.Count() + " inputs");
             foreach (var input in inputs)
             {

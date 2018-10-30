@@ -66,8 +66,12 @@ async function launchTask(cmd, args, options) {
     task.info.success = !code && !signal && !err;
     task.info.exitCode = task.info.success ? 0 : (code || signal || (err && err.message) || 'unknown');
     if (!task.info.success) {
+      const re = /error:\s*(.*)$/i; let msg = '';
+      for (let i = task.log.length - 1; i >= 0; i--) {
+        const m = re.exec(task.log[i]); if (m) { msg = `: ${m[1]}`; break; }
+      }
       task.info.error =
-        err && err.message ? err.message : code ? `code ${code}` : signal ? `signal ${signal}` : 'unknown';
+        err && err.message ? err.message : code ? `code ${code}${msg}` : signal ? `signal ${signal}` : 'unknown';
     }
     logger.verbose(`task ${task.info.id} '${cmd} ${args.join(' ')}' ended at ${task.info.ended}` +
                    (task.info.success ? '' : `, ERROR: ${task.info.error}`));

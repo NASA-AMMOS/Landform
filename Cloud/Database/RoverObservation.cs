@@ -5,6 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 
 using Amazon.DynamoDBv2.DataModel;
+using Amazon.DynamoDBv2.DocumentModel;
 
 namespace OPS.Cloud
 {
@@ -90,17 +91,15 @@ namespace OPS.Cloud
 
         new public static IEnumerable<RoverObservation> Find(DynamoDBContext context, string projectName)
         {
-            return context.Scan<RoverObservation>(
-                new ScanCondition("ProjectName", Amazon.DynamoDBv2.DocumentModel.ScanOperator.Equal, projectName)
-                );
+            return DBUtil.Scan<RoverObservation>(context,
+                                                 new ScanCondition("ProjectName", ScanOperator.Equal, projectName));
         }
 
         new public static IEnumerable<RoverObservation> Find(DynamoDBContext context, Frame frame)
         {
-            return context.Scan<RoverObservation>(
-                new ScanCondition("ProjectName", Amazon.DynamoDBv2.DocumentModel.ScanOperator.Equal, frame.ProjectName),
-                new ScanCondition("FrameName", Amazon.DynamoDBv2.DocumentModel.ScanOperator.Equal, frame.Name)
-                );
+            return DBUtil.Scan<RoverObservation>(context,
+                                                 new ScanCondition("ProjectName", ScanOperator.Equal, frame.ProjectName),
+                                                 new ScanCondition("FrameName", ScanOperator.Equal, frame.Name));
         }
     }
 }
