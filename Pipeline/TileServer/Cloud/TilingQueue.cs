@@ -155,13 +155,14 @@ namespace OPS.Pipeline.TileServer
             //which is apparently needed for SQS apis like ChangeMessageVisibility() and DeleteMessage()
             var now = UTCTime.NowMS(); //lower bounds
 
+            List<Message> msgs = null;
             try
             {
-                var msgs = client.ReceiveMessage(req).Messages;
+                msgs = client.ReceiveMessage(req).Messages;
             }
             catch (OverLimitException e)
             {
-                logger.Warn("OverLimit! " + e.Message);
+                logger.Error("client over limit: " + e.Message);
             }
 
             return msgs.Select(msg =>
