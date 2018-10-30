@@ -142,8 +142,18 @@ namespace OPS.Pipeline.TileServer
             //among other things if a message is multiply received this can help track the latest receivehandle
             //which is apparently needed for SQS apis like ChangeMessageVisibility() and DeleteMessage()
             long now = (long)UTCTime.NowMS(); //lower bounds
-            var msgs = client.ReceiveMessage(req).Messages;
-            return msgs.Select(msg =>
+
+            ReceiveMessageResponse msgs = null;
+            try
+            {
+                msgs = client.ReceiveMessage(req);
+            }
+            catch (OverLimitException e)
+            {
+                logger.Warn("OverLimit! " + e.Message);
+            }
+
+            return msgs.Messages.Select(msg =>
             {
                 try
                 {
