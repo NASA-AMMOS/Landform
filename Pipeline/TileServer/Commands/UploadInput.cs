@@ -58,19 +58,21 @@ namespace OPS.Pipeline.TileServer
 
             if (project.StartedRunning)
             {
-                Logger.ErrorFormat("Cannot add input to project \"{0}\", project already run", options.ProjectName);
+                Logger.ErrorFormat("cannot add input to project \"{0}\", project already run", options.ProjectName);
                 return 1; //argument error
             }
 
             if(project.GetTilingScheme() == TilingScheme.UserDefined && options.TileId == null)
             {
-                Logger.Error("projects with user defined tiling scheme require that input datasets define a tile id");
+                Logger.ErrorFormat("project \"{0}\" has user defined tiling - input datasets must define tile id",
+                                   options.ProjectName);
                 return 1; //argument error
             }
 
             if (project.GetTilingScheme() != TilingScheme.UserDefined && options.TileId != null)
             {
-                Logger.Error("tile ids can only be defined on input datasets when using a user defined tiling scheme");
+                Logger.ErrorFormat("project \"{0}\" does not have user defined tiling - " +
+                                   "input datasets must not define tile id", options.ProjectName);
                 return 1; //argument error
             }
 
@@ -84,18 +86,22 @@ namespace OPS.Pipeline.TileServer
 
             string meshUrl = TileServerConfig.Instance.InputUrl(options.ProjectName,
                                                                 Path.GetFileName(options.MeshFilepath));
-            Logger.InfoFormat("uploading {0}", options.MeshFilepath);
+            Logger.InfoFormat("uploading input mesh \"{0}\" for project \"{1}\"",
+                              options.MeshFilepath, options.ProjectName);
             Storage(meshUrl).UploadFile(options.MeshFilepath, meshUrl);
-            Logger.InfoFormat("upload complete {0}", options.MeshFilepath);
+            Logger.InfoFormat("upload input mesh \"{0}\" for project \"{1}\" complete",
+                              options.MeshFilepath, options.ProjectName);
 
             string imageUrl = null;
             if (options.ImageFilepath != null)
             {
                 imageUrl = TileServerConfig.Instance.InputUrl(options.ProjectName,
                                                               Path.GetFileName(options.ImageFilepath));
-                Logger.InfoFormat("uploading {0}", options.ImageFilepath);
+                Logger.InfoFormat("uploading input image \"{0}\" for project \"{1}\"",
+                                  options.ImageFilepath, options.ProjectName);
                 Storage(imageUrl).UploadFile(options.ImageFilepath, imageUrl);
-                Logger.InfoFormat("upload complete {0}", options.ImageFilepath);
+                Logger.InfoFormat("uploading input image \"{0}\" for project \"{1}\" complete",
+                                  options.ImageFilepath, options.ProjectName);
             }
 
             cloud.MasterQueue.Enqueue(new AddInputMessage(options.ProjectName)
@@ -115,14 +121,15 @@ namespace OPS.Pipeline.TileServer
                 {
                     if (sw.ElapsedMilliseconds > MAX_WAIT_MS)
                     {
-                        Logger.Error("upload still not added to project in " + MAX_WAIT_MS + "ms");
+                        Logger.ErrorFormat("upload \"{0}\" still not added to project \"{1}\" in {2}ms",
+                                           name, options.ProjectName, MAX_WAIT_MS);
                         return 2; //internal error
                     }
                     Thread.Sleep(SLEEP_MS);
                     project = TilingProject.Find(DynamoContext, options.ProjectName);
                 }
                 while (project.InputNames == null || !project.InputNames.Contains(name));
-                Logger.Info("intput has been added to project");
+                Logger.InfoFormat("intput \"{0}\" has been added to project \"{1}\"", name, options.ProjectName);
             }
 
             return 0;

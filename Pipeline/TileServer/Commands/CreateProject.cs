@@ -77,21 +77,21 @@ namespace OPS.Pipeline.TileServer
 
             if (!options.NoWait)
             {
-                Logger.Info("waiting for project to be created");
+                Logger.InfoFormat("waiting for project \"{0}\" to be created", options.ProjectName);
                 var sw = new Stopwatch();
                 sw.Start();
                 do
                 {
                     if (sw.ElapsedMilliseconds > MAX_WAIT_MS)
                     {
-                        Logger.Error("project not created in " + MAX_WAIT_MS + "ms");
+                        Logger.ErrorFormat("project \"{0}\" not created in {1}ms", options.ProjectName, MAX_WAIT_MS);
                         return 2; //internal error
                     }
                     Thread.Sleep(SLEEP_MS);
                     project = TilingProject.Find(DynamoContext, options.ProjectName);
                 }
                 while (project == null);
-                Logger.Info("project has been created");
+                Logger.InfoFormat("project \"{0}\" has been created", options.ProjectName);
             }
 
             return 0;
