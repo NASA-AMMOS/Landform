@@ -50,6 +50,7 @@ namespace OPS.Pipeline.AlignmentServer
             this.Master = master;
         }
 
+        public abstract void Run();
         public abstract void OnMessageReceived(TilingQueueMessage message);
         public abstract void Heartbeat();
     }
@@ -74,9 +75,14 @@ namespace OPS.Pipeline.AlignmentServer
             IngestionCompleted = new ConcurrentBag<ImageRef>();
 
             Logger.Info("Beginning ingestion stage");
+        }
 
-            var rootFrame = Frame.FindOrCreate(master.DynamoContext, master.Project, MSLProject.ROOT_FRAME_NAME);
-            var rootTransform = FrameTransform.FindOrCreate(master.DynamoContext, rootFrame, new UncertainRigidTransform(new MathExtensions.GaussianND(
+        public override void Run()
+        {
+            Logger.Info("Preparing ingestion messages");
+
+            var rootFrame = Frame.FindOrCreate(Master.DynamoContext, Master.Project, MSLProject.ROOT_FRAME_NAME);
+            var rootTransform = FrameTransform.FindOrCreate(Master.DynamoContext, rootFrame, new UncertainRigidTransform(new MathExtensions.GaussianND(
                 CreateVector.Dense<double>(6), CreateMatrix.Dense<double>(6, 6)
                 )));
 
@@ -138,7 +144,7 @@ namespace OPS.Pipeline.AlignmentServer
 
             Logger.Info("Observations created, doing masks & features");
         }
-        
+
         public ConcurrentBag<ImageRef> IngestionRequested;
         public ConcurrentBag<ImageRef> IngestionCompleted;
         
@@ -170,6 +176,7 @@ namespace OPS.Pipeline.AlignmentServer
             if (IngestionCompleted.Count == IngestionRequested.Count)
             {
                 Master.CurrentStage = new MatchStage(Master);
+                Master.CurrentStage.Run();
             }
         }
 
@@ -201,6 +208,12 @@ namespace OPS.Pipeline.AlignmentServer
             computedOverlaps = 0;
 
             Logger.Info("Beginning matching stage");
+           
+        }
+
+        public override void Run()
+        {
+            Logger.Info("Preparing matching image messages");
 
             var fod = new FrustumOverlapDetector(Master);
             var sb = new BuildSceneGraph(Master);
@@ -344,6 +357,7 @@ namespace OPS.Pipeline.AlignmentServer
 
             Project = Project.FindOrCreate(DynamoContext, Options.ProjectName, Options.ProductPath, Options.InputPath);
             CurrentStage = new IngestStage(this);
+            CurrentStage.Run();
 
             while (true)
             {
