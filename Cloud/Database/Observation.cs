@@ -14,8 +14,8 @@ namespace OPS.Cloud
     /// Fresh Creates, or Saves with missing values, will not overwrite existing values. 
     /// </summary>
     [DynamoDBTable("Observations")]
-    [DynamoDBReadCapacity(5, 50)]
-    [DynamoDBWriteCapacity(5, 50)]
+    [DynamoDBReadCapacity(50, 100)]
+    [DynamoDBWriteCapacity(50, 100)]
     public class Observation
     {
         [DynamoDBRangeKey]
