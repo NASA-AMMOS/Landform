@@ -26,10 +26,17 @@ namespace Landform
         {
             Config.ApplicationConfigFolder = ".landform";
 
-            // Enable logging
+            //these enable Logging.ConfigureLogging() to retrieve Config.FullCommand
+            //so that can become part of the log filename log/log-Landform-subcommand-timestamp-pid.txt
+            Config.BaseCommand = "Landform";
+            if (args.Length > 0)
+            {
+                Config.SubCommand = args[0];
+            }
+
             //TODO centralize log4net initialization to uniformly handle --quiet and --logfile command line opts
             //https://github.jpl.nasa.gov/OnSight/Landform/issues/308
-            log4net.Config.XmlConfigurator.Configure();
+            Logging.ConfigureLogging();
 
             // Register filetype handlers
             new DAESerializer().Register();
