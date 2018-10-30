@@ -45,7 +45,7 @@ namespace OPS.Pipeline.TileServer
             this.pipeline = pipeline;
             this.workerQueue = workerQueue;
             this.projectName = projectName;
-            projectCache = new ProjectCache(pipeline.DynamoContext, projectName, pipeline.Logger);
+            projectCache = new ProjectCache(pipeline, projectName, pipeline.Logger);
             InitDispatcher();
         }
 
@@ -228,7 +228,7 @@ namespace OPS.Pipeline.TileServer
 
         virtual protected void BuildNodes(TilingProject project)
         {
-            SceneNode root = TilingNode.BuildTreeFromDatabase(pipeline.DynamoContext, project);
+            SceneNode root = TilingNode.BuildTreeFromDatabase(pipeline, project);
 
             List<List<SceneNode>> leafGroups = new List<List<SceneNode>>();
             CollectLeafGroups(root, leafGroups);

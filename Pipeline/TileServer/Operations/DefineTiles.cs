@@ -186,7 +186,7 @@ namespace OPS.Pipeline.TileServer
                     LogInfo("created " + n + " nodes");
                 }
             }                            
-            project.NodeIds = ids;
+            project.SaveNodeIds(ids, pipeline);
             project.TilesDefined = true;
             project.Save(pipeline.DynamoContext);
             cloud.MasterQueue.Enqueue(message);

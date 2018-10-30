@@ -89,7 +89,7 @@ namespace OPS.Pipeline.TileServer
 
             if (project.TilesDefined)
             {
-                var nodes = TilingNode.Find(DynamoContext, project).ToList();
+                var nodes = TilingNode.Find(this, project).ToList();
                 md.NumNodes = nodes.Count;
 
                 int numProcessed = 0;
@@ -106,7 +106,7 @@ namespace OPS.Pipeline.TileServer
 
             md.OutputUrl = TileServerConfig.Instance.WWWUrl(project.Name, "tileset.json", https: true);
 
-            var ignore = new string[] { "TilingProject.NodeIds", "TilingProject.InputNames" };
+            var ignore = new string[] { "TilingProject.NodeIdsUrl", "TilingProject.InputNames" };
             Console.WriteLine(JsonHelper.ToJson(md, indent: true, autoTypes: false, ignoreProperties: ignore));
 
             return 0;

@@ -4,11 +4,14 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using OPS.Cloud;
+using System.IO;
 using Amazon.DynamoDBv2.DataModel;
+using OPS.Cloud;
+using OPS.Util;
 using OPS.Geometry;
 using OPS.Plumbing;
 using log4net;
+using Newtonsoft.Json.Linq;
 
 namespace OPS.Pipeline.TileServer
 {
@@ -39,11 +42,10 @@ namespace OPS.Pipeline.TileServer
 
         public List<string> InputNames { get; set; }
 
-        public List<string> NodeIds { get; set; }
+        public string NodeIdsUrl { get; set; }
 
         public TilingProject()
         {
-
         }
 
         /// <summary>
@@ -61,7 +63,7 @@ namespace OPS.Pipeline.TileServer
             TileResolution = resolution;
             ProjectType = projectType;
             TilesDefined = false;
-            this.IsValid();
+            IsValid();
         }
 
 
@@ -92,7 +94,7 @@ namespace OPS.Pipeline.TileServer
 
         public void Save(DynamoDBContext context)
         {
-            this.IsValid();
+            IsValid();
             context.Save(this);
         }
 
@@ -101,7 +103,7 @@ namespace OPS.Pipeline.TileServer
         {
             if (StartedRunning)
             {
-                var nodes = TilingNode.Find(pipeline.DynamoContext, this, pipeline.Logger);
+                var nodes = TilingNode.Find(pipeline, this, pipeline.Logger);
                 int nn = nodes.Count();
                 int n = 0; 
                 pipeline.Logger.Info("deleting " + nn + " nodes");
@@ -132,6 +134,11 @@ namespace OPS.Pipeline.TileServer
             string wwwS3Url = TileServerConfig.Instance.WWWUrl(Name);
             pipeline.Storage(wwwS3Url).DeleteObjects(wwwS3Url, ignoreErrors: ignoreErrors, logger: pipeline.Logger);
 
+            if (!string.IsNullOrEmpty(NodeIdsUrl))
+            {
+                pipeline.Storage(NodeIdsUrl).DeleteObjects(NodeIdsUrl, ignoreErrors: ignoreErrors, logger: pipeline.Logger);
+            }
+
             pipeline.DeleteDynamoItem(this, ignoreErrors);
         }
 
@@ -145,17 +152,45 @@ namespace OPS.Pipeline.TileServer
 
         public TilingScheme GetTilingScheme()
         {
-            return (TilingScheme)Enum.Parse(typeof(TilingScheme), this.TilingScheme, true);
+            return (TilingScheme)Enum.Parse(typeof(TilingScheme), TilingScheme, true);
         }
 
         public SkirtMode GetSkirtMode()
         {
-            return (SkirtMode)Enum.Parse(typeof(SkirtMode), this.SkirtMode, true);
+            return (SkirtMode)Enum.Parse(typeof(SkirtMode), SkirtMode, true);
         }
 
         public MeshReconMethod GetReconMethod()
         {
-            return (MeshReconMethod)Enum.Parse(typeof(MeshReconMethod), this.ReconMethod, true);
+            return (MeshReconMethod)Enum.Parse(typeof(MeshReconMethod), ReconMethod, true);
+        }
+
+        public List<string> LoadNodeIds(PipelineCore pipeline)
+        {
+            List<string> ids = null;
+            if (!string.IsNullOrEmpty(NodeIdsUrl))
+            {
+                TemporaryFile.GetAndDelete(".json", tmpJson =>
+                        {
+                            pipeline.Storage(NodeIdsUrl).DownloadFile(NodeIdsUrl, tmpJson);
+                            var json = File.ReadAllText(tmpJson);
+                            ids = ((JArray)JsonHelper.FromJson(json, autoTypes: false)).ToObject<List<string>>();
+                        });
+            }
+            return ids;
+        }
+
+        public string SaveNodeIds(List<string> ids, PipelineCore pipeline)
+        {
+            var url = TileServerConfig.Instance.TileUrl(Name, "nodeids.json");
+            TemporaryFile.GetAndDelete(".json", tmpJson =>
+            {
+                var json = JsonHelper.ToJson(ids, autoTypes: false);
+                File.WriteAllText(tmpJson, json);
+                pipeline.Storage(url).UploadFile(tmpJson, url);
+            });
+            NodeIdsUrl = url;
+            return url;
         }
     }
 }

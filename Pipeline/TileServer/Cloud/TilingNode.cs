@@ -79,17 +79,18 @@ namespace OPS.Pipeline.TileServer
         }
 
 
-        public static IEnumerable<TilingNode> Find(DynamoDBContext context, TilingProject project, ILog logger = null)
+        public static IEnumerable<TilingNode> Find(PipelineCore pipeline, TilingProject project, ILog logger = null)
         {
-            if (project.NodeIds != null)
+            List<string> ids = project.LoadNodeIds(pipeline);
+            if (ids != null)
             {
                 //DynamoDB Scan() can cause throughput exceptions
                 //https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/bp-query-scan.html
                 //for new projects we can avoid it here because we save the tile ids in the project record
                 List<TilingNode> nodes = new List<TilingNode>();
-                foreach (var id in project.NodeIds)
+                foreach (var id in ids)
                 {
-                    var node = Find(context, project.Name, id);
+                    var node = Find(pipeline.DynamoContext, project.Name, id);
                     if (node != null) nodes.Add(node);
                 }
                 return nodes;
@@ -98,7 +99,7 @@ namespace OPS.Pipeline.TileServer
             {
                 //fall back to scanning for all records that match the project name
                 //e.g. for legacy projects or if the project record is not well formed
-                return DBUtil.Scan<TilingNode>(context, logger,
+                return DBUtil.Scan<TilingNode>(pipeline.DynamoContext, logger,
                                                new ScanCondition("ProjectName", ScanOperator.Equal, project.Name));
             }
         }
@@ -130,7 +131,7 @@ namespace OPS.Pipeline.TileServer
 
         public BoundingBox GetBounds()
         {
-            return (BoundingBox)JsonHelper.FromJson(this.Bounds);
+            return (BoundingBox)JsonHelper.FromJson(Bounds);
         }
 
 
@@ -158,20 +159,20 @@ namespace OPS.Pipeline.TileServer
                             {
                                 pair.Image.Save<byte>(tmpImage);
                                 pair.Image.Save<byte>(tmp3DTileImage);
-                                imageUrl = TileServerConfig.Instance.TileUrl(this.ProjectName, this.Id + Path.GetExtension(tmpImage));
+                                imageUrl = TileServerConfig.Instance.TileUrl(ProjectName, Id + Path.GetExtension(tmpImage));
                                 pipeline.Storage(imageUrl).UploadFile(tmpImage, imageUrl);
-                                this.ImageUrl = imageUrl;
+                                ImageUrl = imageUrl;
                             }
                             else
                             {
                                 tmp3DTileImage = tmpImage = null;
                             }
-                            string meshUrl = TileServerConfig.Instance.TileUrl(this.ProjectName, this.Id + Path.GetExtension(tmpMesh));
+                            string meshUrl = TileServerConfig.Instance.TileUrl(ProjectName, Id + Path.GetExtension(tmpMesh));
                             pair.Mesh.Save(tmpMesh, Path.GetFileName(imageUrl));
                             pipeline.Storage(meshUrl).UploadFile(tmpMesh, meshUrl);
-                            this.MeshUrl = meshUrl;
+                            MeshUrl = meshUrl;
 
-                            string tileUrl = TileServerConfig.Instance.WWWUrl(this.ProjectName, this.Id + Path.GetExtension(tmp3DTileMesh));
+                            string tileUrl = TileServerConfig.Instance.WWWUrl(ProjectName, Id + Path.GetExtension(tmp3DTileMesh));
                             pair.Mesh.Save(tmp3DTileMesh, tmp3DTileImage);
                             pipeline.Storage(tileUrl).UploadFile(tmp3DTileMesh, tileUrl);
 
@@ -187,31 +188,31 @@ namespace OPS.Pipeline.TileServer
 
         public SceneNode GetSceneNode()
         {
-            SceneNode node = new SceneNode(this.Id);
-            node.AddComponent(new NodeBounds(this.GetBounds()));
-            if(this.GeometricError.HasValue)
+            SceneNode node = new SceneNode(Id);
+            node.AddComponent(new NodeBounds(GetBounds()));
+            if(GeometricError.HasValue)
             {
-                node.AddComponent(new NodeGeometricError(this.GeometricError.Value));
+                node.AddComponent(new NodeGeometricError(GeometricError.Value));
             }
             return node;
         }
 
         public bool LoadMeshImagePair(SceneNode node, PipelineCore pipeline)
         {
-            if (this.MeshUrl != null)
+            if (MeshUrl != null)
             {
                 Mesh m = null;
-                TemporaryFile.GetAndDelete(Path.GetExtension(this.MeshUrl), f =>
+                TemporaryFile.GetAndDelete(Path.GetExtension(MeshUrl), f =>
                 {
-                    pipeline.Storage(this.MeshUrl).DownloadFile(this.MeshUrl, f);
+                    pipeline.Storage(MeshUrl).DownloadFile(MeshUrl, f);
                     m = Mesh.Load(f);
                 });
                 Image img = null;
-                if (this.ImageUrl != null)
+                if (ImageUrl != null)
                 {
-                    TemporaryFile.GetAndDelete(Path.GetExtension(this.ImageUrl), f =>
+                    TemporaryFile.GetAndDelete(Path.GetExtension(ImageUrl), f =>
                     {
-                        pipeline.Storage(this.ImageUrl).DownloadFile(this.ImageUrl, f);
+                        pipeline.Storage(ImageUrl).DownloadFile(ImageUrl, f);
                         img = Image.Load(f);
                     });
                 }
@@ -219,7 +220,7 @@ namespace OPS.Pipeline.TileServer
                 {
                     throw new Exception("Error loading tiling node mesh");
                 }
-                if (this.ImageUrl != null && img == null)
+                if (ImageUrl != null && img == null)
                 {
                     throw new Exception("Error loading tiling node image");
                 }
@@ -237,9 +238,9 @@ namespace OPS.Pipeline.TileServer
             return false;
         }
 
-        public static SceneNode BuildTreeFromDatabase(DynamoDBContext context, TilingProject project)
+        public static SceneNode BuildTreeFromDatabase(PipelineCore pipeline, TilingProject project)
         {
-            var nodes = Find(context, project).ToList();
+            var nodes = Find(pipeline, project).ToList();
             Dictionary<string, SceneNode> idToNode = new Dictionary<string, SceneNode>();
             // Create all nodes
             foreach (var n in nodes)
