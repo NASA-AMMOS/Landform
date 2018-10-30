@@ -14,6 +14,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System.Threading;
 
 namespace OPS.Pipeline.AlignmentServer
 {
@@ -347,6 +348,7 @@ namespace OPS.Pipeline.AlignmentServer
             ObservationStates = new ConcurrentDictionary<ImageRef, ImageState>();
         }
 
+        private const int DequeReceiveThrottlingMS = 50;
 
         public int Run()
         {
@@ -374,6 +376,8 @@ namespace OPS.Pipeline.AlignmentServer
                     }
                     Cloud.MasterQueue.DeleteMessage(m);
                 }
+
+                Thread.Sleep(DequeReceiveThrottlingMS);
             }
         }
     }
