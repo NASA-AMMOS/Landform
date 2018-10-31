@@ -73,7 +73,7 @@ namespace OPS.Pipeline.TileServer
                     var sanitizedInput = new SanitizedInput {
                         Name = input.Name,
                         MeshUrl = TileServerConfig.ConvertUrlToHttps(input.MeshUrl),
-                        ImageUrl = TileServerConfig.ConvertUrlToHttps(input.MeshUrl),
+                        ImageUrl = TileServerConfig.ConvertUrlToHttps(input.ImageUrl),
                         Processed = input.Chunked
                     };
                     if (input.Chunked)
