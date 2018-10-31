@@ -55,6 +55,15 @@ namespace OPS.Geometry
         /// <returns></returns>
         public static Mesh Reconstruct(Mesh pointCloud, Options options=null)
         {
+            if (!dumpedConfig)
+            {
+                PoissonConfig.Instance.Dump(logger);
+                dumpedConfig = true;
+            }
+
+            var cfg = PoissonConfig.Instance;
+            string exe = Path.Combine(PathHelper.GetApplicationPath(), "ExternalApps", cfg.PoissonExe);
+
             if (pointCloud.Vertices.Count == 0)
             {
                 throw new MeshException("Empty point cloud passed into PoissonRecon");
@@ -67,10 +76,10 @@ namespace OPS.Geometry
             {
                 throw new MeshException("PoissonRecon meshes cannot have uvs");
             }
-            if (pointCloud.HasColors)
+            if (pointCloud.HasColors && cfg.PoissonExeLegacy)
             {
                 //throw new MeshException("PoissonRecon meshes cannot have colors");
-                logger.Warn("PoissionRecon meshes cannot have colors - removing colors");
+                logger.Warn("PoissionRecon (legacy) meshes cannot have colors - removing colors");
                 pointCloud = new Mesh(pointCloud);
                 pointCloud.ClearColors();
             }
@@ -98,15 +107,6 @@ namespace OPS.Geometry
                 }
             }
 
-            if (!dumpedConfig)
-            {
-                PoissonConfig.Instance.Dump(logger);
-                dumpedConfig = true;
-            }
-
-            var cfg = PoissonConfig.Instance;
-            string exe = Path.Combine(PathHelper.GetApplicationPath(), "ExternalApps", cfg.PoissonExe);
-
             Mesh result = null;
             Exception ex = null;
 
@@ -121,6 +121,11 @@ namespace OPS.Geometry
 
                         if (!cfg.PoissonExeLegacy)
                         {
+                            if (pointCloud.HasColors)
+                            {
+                                arguments += " --colors";
+                            }
+
                             arguments += " --normals";
                             arguments += " --tempDir " + tmpDir;
                             
