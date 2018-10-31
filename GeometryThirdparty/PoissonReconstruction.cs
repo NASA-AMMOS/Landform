@@ -69,7 +69,10 @@ namespace OPS.Geometry
             }
             if (pointCloud.HasColors)
             {
-                throw new MeshException("PoissonRecon meshes cannot have colors");
+                //throw new MeshException("PoissonRecon meshes cannot have colors");
+                logger.Warn("PoissionRecon meshes cannot have colors - removing colors");
+                pointCloud = new Mesh(pointCloud);
+                pointCloud.ClearColors();
             }
             // Confirm all normals are non-zero
             if (pointCloud.ContainsZeroLengthNormals())
