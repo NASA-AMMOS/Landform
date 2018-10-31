@@ -81,7 +81,8 @@ namespace OPS.Pipeline.TileServer
             {
                 LogInfo("creating project");
                 TilingProject.Create(pipeline.DynamoContext, projectName, m.TilingScheme, m.SkirtMode, m.ReconMethod,
-                                     m.FacesPerTile, m.TileResolution, m.ProjectType);
+                                     m.FacesPerTile, m.TileResolution, m.ProjectType,
+                                     m.ExportMeshFormat, m.ExportImageFormat);
             }
             else
             {
@@ -356,6 +357,8 @@ namespace OPS.Pipeline.TileServer
         public int FacesPerTile;
         public int TileResolution;
         public string ProjectType;
+        public string ExportMeshFormat;
+        public string ExportImageFormat;
 
         public CreateProjectMessage() { }
         public CreateProjectMessage(string projectName) : base(projectName) { }

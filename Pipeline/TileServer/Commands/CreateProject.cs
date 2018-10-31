@@ -13,31 +13,37 @@ using log4net;
 
 namespace OPS.Pipeline.TileServer
 {
-    [Verb("createproject", HelpText = "Creates a project")]
+    [Verb("createproject", HelpText = "creates a project")]
     public class CreateProjectOptions : PipelineCoreOptions
     {
-        [Value(0, Required = true, HelpText = "Project Name")]
+        [Value(0, Required = true, HelpText = "project name")]
         public string ProjectName { get; set; }
         
-        [Option(Default = TilingScheme.Bin, HelpText = "Tiling scheme")]
+        [Option(Default = TilingScheme.Bin, HelpText = "tiling scheme")]
         public TilingScheme TilingScheme { get; set; }
 
-        [Option(Default = SkirtMode.None, HelpText = "Skirt mode")]
+        [Option(Default = SkirtMode.None, HelpText = "skirt mode")]
         public SkirtMode SkirtMode { get; set; }
 
-        [Option(Default = MeshReconMethod.Poisson, HelpText = "Mesh reconstruction method")]
+        [Option(Default = MeshReconMethod.Poisson, HelpText = "mesh reconstruction method")]
         public MeshReconMethod ReconMethod { get; set; }
 
-        [Option(Default = 2000, HelpText = "Target maximum faces per tile")]
+        [Option(Default = 2000, HelpText = "target maximum faces per tile")]
         public int FacesPerTile { get; set; }
 
-        [Option(Default = 256, HelpText = "Maximum image resolution per tile")]
+        [Option(Default = 256, HelpText = "maximum image resolution per tile")]
         public int TileResolution { get; set; }
 
-        [Option(Default = PipelineStateMachine.ProjectType.GenericTiling, HelpText = "Processing pipline")]
+        [Option(Default = PipelineStateMachine.ProjectType.GenericTiling, HelpText = "processing pipline")]
         public PipelineStateMachine.ProjectType ProjectType { get; set; }
 
-        [Option(Default = false, HelpText = "Do not wait until project has been created")]
+        [Option(Default = null, HelpText = "write additional mesh format, e.g. obj, ply, stl")]
+        public string ExportMeshFormat { get; set; }
+
+        [Option(Default = null, HelpText = "write additional image format, e.g. tif, png, jpg")]
+        public string ExportImageFormat { get; set; }
+
+        [Option(Default = false, HelpText = "do not wait until project has been created")]
         public bool NoWait { get; set; }
     }
 
@@ -72,7 +78,9 @@ namespace OPS.Pipeline.TileServer
                                           ReconMethod = options.ReconMethod,
                                           FacesPerTile = options.FacesPerTile,
                                           TileResolution = options.TileResolution,
-                                          ProjectType = options.ProjectType.ToString()
+                                          ProjectType = options.ProjectType.ToString(),
+                                          ExportMeshFormat = options.ExportMeshFormat,
+                                          ExportImageFormat = options.ExportImageFormat
                                       });
 
             if (!options.NoWait)

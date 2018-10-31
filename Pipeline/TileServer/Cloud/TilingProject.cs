@@ -44,6 +44,10 @@ namespace OPS.Pipeline.TileServer
 
         public string NodeIdsUrl { get; set; }
 
+        public string ExportMeshFormat { get; set; }
+
+        public string ExportImageFormat { get; set; }
+
         public TilingProject()
         {
         }
@@ -53,7 +57,8 @@ namespace OPS.Pipeline.TileServer
         /// </summary>
         /// <param name="name">Project names in the database must be unique</param>
         protected TilingProject(string name, TilingScheme tilingScheme, SkirtMode skirtMode,
-                                MeshReconMethod reconMethod, int faces, int resolution, string projectType)
+                                MeshReconMethod reconMethod, int faces, int resolution, string projectType,
+                                string exportMeshFormat, string exportImageFormat)
         {
             Name = name;
             TilingScheme = tilingScheme.ToString();
@@ -63,16 +68,18 @@ namespace OPS.Pipeline.TileServer
             TileResolution = resolution;
             ProjectType = projectType;
             TilesDefined = false;
+            ExportMeshFormat = exportMeshFormat;
+            ExportImageFormat = exportImageFormat;
             IsValid();
         }
 
 
         public static TilingProject Create(DynamoDBContext context, string name, TilingScheme tilingScheme,
                                            SkirtMode skirtMode, MeshReconMethod reconMethod, int faces, int resolution,
-                                           string projectType)
+                                           string projectType, string exportMeshFormat, string exportImageFormat)
         {
             TilingProject project = new TilingProject(name, tilingScheme, skirtMode, reconMethod, faces, resolution,
-                                                      projectType);
+                                                      projectType, exportMeshFormat, exportImageFormat);
             project.Save(context);
             return project;
         }
