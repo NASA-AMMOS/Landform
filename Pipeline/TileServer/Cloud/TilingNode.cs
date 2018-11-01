@@ -134,6 +134,17 @@ namespace OPS.Pipeline.TileServer
             return (BoundingBox)JsonHelper.FromJson(Bounds);
         }
 
+        /// <summary>
+        /// Assigns a mesh and possibly a corresponding texture image to this node.
+        /// Sets MeshUrl, ImageUrl, and GeometricError, and saves the node metadata back to DynamoDB.
+        /// Also uploads the mesh and image (if any) to S3.
+        /// Up to three copies of each are uploaded:
+        /// 1. in the tile folder for our internal use, in our internal formats (ply, tif)
+        /// 2. in the www folder for runtime visualization use, in b3dm format
+        //  3. optionally copies of the mesh and/or image are also uploaded to www in the specified export formats
+        /// </summary>
+        /// <param name="exportMeshFormat">if not null or empty then also save mesh to www dir in this format</param>
+        /// <param name="exportImageFormat">if not null or empty then also save image to www dir in this format</param>
         public void SaveMesh(MeshImagePair pair, PipelineCore pipeline, double geometricError = 0,
                              string exportMeshFormat = null, string exportImageFormat = null)
         {
@@ -153,23 +164,6 @@ namespace OPS.Pipeline.TileServer
             }
 
             var cfg = TileServerConfig.Instance;
-
-            Func<string, string, string> getMtlFile = (objFile, imgFile) => 
-            {
-                if (!objFile.EndsWith(".obj"))
-                {
-                    return null;
-                }
-                string mtl = Path.Combine(Path.GetDirectoryName(objFile),
-                                          Path.GetFileNameWithoutExtension(imgFile)) + ".mtl";
-                return File.Exists(mtl) ? mtl : null;
-            };
-
-            Action<string, string> upload = (file, url) =>
-            {
-                pipeline.Storage(url).UploadFile(file, url);
-                pipeline.Logger.InfoFormat("uploaded {0}", url);
-            };
 
             string exMeshExt = null;
             string exMeshFile = null;
@@ -195,10 +189,31 @@ namespace OPS.Pipeline.TileServer
                 exImageUrl = cfg.WWWUrl(ProjectName, exImageFile);
             }
 
+            Action<string, string> upload = (file, url) =>
+            {
+                pipeline.Storage(url).UploadFile(file, url);
+                //this could be useful for debugging in the future
+                //pipeline.Logger.InfoFormat("uploaded {0}", url);
+            };
+
+            Action<string, string> uploadAndDeleteMtl = (mesh, img) => 
+            {
+                if (mesh.EndsWith(".obj")) //input has already been lowercased
+                {
+                    string mtl = Path.Combine(Path.GetDirectoryName(mesh),
+                                              Path.GetFileNameWithoutExtension(img)) + ".mtl";
+                    if (File.Exists(mtl))
+                    {
+                        upload(mtl, exMeshMtlUrl);
+                        TemporaryFile.DeleteWithRetry(mtl);
+                    }
+                }
+            };
+
             //save node image to S3 for our internal use
             //typical format is tiff, but png or jpg should work as well
             //do this first because we will want imageFile when we save the mesh below
-            //(also saves export image to S3 iff it is the same format)
+            //also saves export image to S3 iff it is the same format as our internal format
             string imageExt = ".tif";
             string imageFile = Id + imageExt;
             ImageUrl = cfg.TileUrl(ProjectName, imageFile);
@@ -222,7 +237,7 @@ namespace OPS.Pipeline.TileServer
 
             //save node mesh to S3 for our internal use
             //typical format is ply, but obj should work as well
-            //(also saves export mesh to S3 iff it and the export image are the same format as we use internally)
+            //also saves export mesh to S3 iff it and the export image are the same format as our internal formats
             string meshExt = ".ply";
             string meshFile = Id + meshExt;
             MeshUrl = cfg.TileUrl(ProjectName, meshFile);
@@ -239,19 +254,14 @@ namespace OPS.Pipeline.TileServer
                 if (exMeshExt == meshExt && (imageFile == null || exImageExt == imageExt))
                 {
                     upload(tmpMesh, exMeshUrl);
-                    string tmpMtl = getMtlFile(tmpMesh, imageFile);
-                    if (tmpMtl != null)
-                    {
-                        upload(tmpMtl, exMeshMtlUrl);
-                        TemporaryFile.DeleteWithRetry(tmpMtl);
-                    }
+                    uploadAndDeleteMtl(tmpMesh, imageFile);
                     uploadedExMesh = true;
                 }
             });
 
             //save combined mesh and image as a 3D Tiles b3dm (batched 3D model) file for runtime visualization
             //or, if the mesh is not triangulated, then just save the point cloud as a pnts file
-            //(also saves export image to S3 iff it is the same format)
+            //also saves export image to S3 iff it hasn't been uploaded already and is the same format as for 3D tiles
             string tileMeshExt = pair.Mesh.HasFaces ? ".b3dm" : ".pnts";
             string tileImageExt = ".jpg"; //could be jpg or png, will be embedded in the b3dm file
             string tileUrl = cfg.WWWUrl(ProjectName, Id + tileMeshExt);
@@ -262,7 +272,7 @@ namespace OPS.Pipeline.TileServer
                     if (pair.Image != null)
                     {
                         pair.Image.Save<byte>(tmpImage);
-                        if (exImageExt != imageExt && exImageExt == tileImageExt)
+                        if (exImageExt == tileImageExt && !uploadedExImage)
                         {
                             upload(tmpImage, exImageUrl);
                             uploadedExImage = true;
@@ -276,6 +286,10 @@ namespace OPS.Pipeline.TileServer
                     //for pnts the image data is ignored
                     pair.Mesh.Save(tmpMesh, tmpImage);
                     upload(tmpMesh, tileUrl);
+                    if (tileMeshExt == exMeshExt)
+                    {
+                        uploadedExMesh = true;
+                    }
                 });
             });
 
@@ -297,12 +311,7 @@ namespace OPS.Pipeline.TileServer
                 {
                     pair.Mesh.Save(tmpMesh, exImageFile); //image file is used only to reference, see comments above
                     upload(tmpMesh, exMeshUrl);
-                    string tmpMtl = getMtlFile(tmpMesh, exImageFile);
-                    if (tmpMtl != null)
-                    {
-                        upload(tmpMtl, exMeshMtlUrl);
-                        TemporaryFile.DeleteWithRetry(tmpMtl);
-                    }
+                    uploadAndDeleteMtl(tmpMesh, exImageFile);
                     uploadedExMesh = true;
                 });
             }
