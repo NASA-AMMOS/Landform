@@ -104,7 +104,7 @@ powershell.exe -Command Read-S3Object -BucketName {2} -Key {0}{3}/app/tileserver
 Remove-Item c:\tileserver -Force -Recurse -ErrorAction SilentlyContinue
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 [System.IO.Compression.ZipFile]::ExtractToDirectory(""C:\temp\tileserver.zip"", ""c:\tileserver"")
-c:\tileserver\TilingServer.exe configure --venuename={0} --s3url={1} --region={4} --profile=null
+c:\tileserver\TilingServer.exe configure --venuename={0} --s3url={1} --region={4} --profile=null --nouserdata
 Start-Process -WorkingDirectory c:\tileserver c:\tileserver\TilingServer.exe startworker
 </powershell>
 <persist>true</persist>";
