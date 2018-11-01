@@ -13,7 +13,7 @@ const binDir = config.app.binDir;
 //copying only selected files results in a zip that is 100x smaller (1.7M vs 170M)
 const files = [
   'AWSSDK.Core.dll', 'AWSSDK.DynamoDBv2.dll', 'AWSSDK.S3.dll', 'AWSSDK.SQS.dll',
-  'Cloud.dll', 'Geometry.dll', 'GeometryThirdparty.dll', 'Imaging.dll', 'MathExtensions.dll',
+  'Cloud.dll', 'Geometry.dll', 'GeometryThirdparty.dll', 'Imaging.dll', 'MathExtensions.dll', 'MathNet.Numerics.dll',
   'Pipeline.dll', 'Plumbing.dll', 'Util.dll', 'CommandLine.dll',
   'TilingServer.exe', 'TilingServer.exe.config',
   'Newtonsoft.Json.dll', 'log4net.dll', 'Xna.dll',
