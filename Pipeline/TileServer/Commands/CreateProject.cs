@@ -7,6 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Diagnostics;
 using OPS.Geometry;
+using OPS.Imaging;
 using OPS.Plumbing;
 using Amazon.DynamoDBv2.Model;
 using log4net;
@@ -37,10 +38,10 @@ namespace OPS.Pipeline.TileServer
         [Option(Default = PipelineStateMachine.ProjectType.GenericTiling, HelpText = "processing pipline")]
         public PipelineStateMachine.ProjectType ProjectType { get; set; }
 
-        [Option(Default = null, HelpText = "write additional mesh format, e.g. obj, ply, stl")]
+        [Option(Default = null, HelpText = "write additional mesh format, or \"help\" to list")]
         public string ExportMeshFormat { get; set; }
 
-        [Option(Default = null, HelpText = "write additional image format, e.g. tif, png, jpg")]
+        [Option(Default = null, HelpText = "write additional image format, or \"help\" to list")]
         public string ExportImageFormat { get; set; }
 
         [Option(Default = false, HelpText = "do not wait until project has been created")]
@@ -64,6 +65,52 @@ namespace OPS.Pipeline.TileServer
         {
             var cloud = new TileServerCloud(this, quiet: true);
 
+            string exMeshFmt = null;
+            if (!string.IsNullOrEmpty(options.ExportMeshFormat))
+            {
+                exMeshFmt = options.ExportMeshFormat.ToLower();
+
+                if (exMeshFmt == "help")
+                {
+                    //print as error so that this will get forwarded back to REST API response
+                    Logger.ErrorFormat("valid mesh export formats: {0}",
+                                       String.Join(", ", MeshSerializers.Instance.SupportedFormats()));
+                    return 1; //not really an error, but can't return success status either
+                }
+
+                if (!MeshSerializers.Instance.SupportsFormat(exMeshFmt))
+                {
+                    Logger.ErrorFormat("cannot create project \"{0}\", invalid mesh export format \"{1}\", " +
+                                       "valid formats: {2}",
+                                       options.ProjectName, options.ExportMeshFormat,
+                                       String.Join(", ", MeshSerializers.Instance.SupportedFormats()));
+                    return 1; //argument error
+                }
+            }
+
+            string exImageFmt = null;
+            if (!string.IsNullOrEmpty(options.ExportImageFormat))
+            {
+                exImageFmt = options.ExportImageFormat.ToLower();
+
+                if (exImageFmt == "help")
+                {
+                    //print as error so that this will get forwarded back to REST API response
+                    Logger.ErrorFormat("valid image export formats: {0}",
+                                       String.Join(", ", ImageSerializers.Instance.SupportedFormats()));
+                    return 1; //not really an error, but can't return success status either
+                }
+
+                if (!ImageSerializers.Instance.SupportsFormat(exImageFmt))
+                {
+                    Logger.ErrorFormat("cannot create project \"{0}\", invalid image export format \"{1}\", " +
+                                       "valid formats: {2}",
+                                       options.ProjectName, options.ExportImageFormat,
+                                       String.Join(", ", ImageSerializers.Instance.SupportedFormats()));
+                    return 1; //argument error
+                }
+            }
+
             var project = TilingProject.Find(this.DynamoContext, options.ProjectName);
             if (project != null)
             {
@@ -79,8 +126,8 @@ namespace OPS.Pipeline.TileServer
                                           FacesPerTile = options.FacesPerTile,
                                           TileResolution = options.TileResolution,
                                           ProjectType = options.ProjectType.ToString(),
-                                          ExportMeshFormat = options.ExportMeshFormat,
-                                          ExportImageFormat = options.ExportImageFormat
+                                          ExportMeshFormat = exMeshFmt,
+                                          ExportImageFormat = exImageFmt 
                                       });
 
             if (!options.NoWait)
