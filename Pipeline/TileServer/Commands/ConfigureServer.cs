@@ -92,7 +92,7 @@ New-Item -Path ""c:\temp"" -ItemType ""directory"" -Force
 c:\temp\vc_redist_2017.x64.exe /quiet
 (new-object net.webclient).DownloadFile('https://download.microsoft.com/download/9/3/F/93FCF1E7-E6A4-478B-96E7-D4B285925B00/vc_redist.x64.exe','c:\temp\vc_redist_2015.x64.exe')
 c:\temp\vc_redist_2015.x64.exe /quiet
-Set-ExecutionPolicy RemoteSigned -Force
+#Set-ExecutionPolicy RemoteSigned -Force
 Import-Module AWSPowerShell
 (new-object net.webclient).DownloadFile('https://aws-codedeploy-us-west-1.s3.amazonaws.com/latest/codedeploy-agent.msi','c:\temp\codedeploy-agent.msi')
 c:\temp\codedeploy-agent.msi /quiet /l c:\temp\host-agent-install-log.txt
