@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-
+using OPS.Util;
 
 namespace OPS.Imaging
 {
@@ -73,10 +73,14 @@ namespace OPS.Imaging
         /// <summary>
         /// Register this serializer's extension with the ImageSerializers class
         /// </summary>
+        public void Register(ImageSerializers map)
+        {
+            map.Register(GetExtensions(), this);
+        }
+
         public void Register()
         {
-            ImageSerializers.Register(GetExtensions(), this);
-        }
-        
+            Register(ImageSerializers.Instance);
+        } 
     }
 }

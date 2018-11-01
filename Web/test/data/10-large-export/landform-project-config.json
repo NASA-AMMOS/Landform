@@ -1,0 +1,8 @@
+{
+  "name": "10-large-export",
+  "options": "tilingscheme=QuadZ&skirtmode=Z&facespertile=250000&tileresolution=8192&exportmeshformat=obj&exportimageformat=tif",
+  "inputs": [
+    { "mesh": "hawaii.obj", "texture": "hawaii.png" }
+  ],
+  "maxTime": "1h"
+}

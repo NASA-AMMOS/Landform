@@ -385,12 +385,12 @@ namespace OPS.Pipeline.TileServer
             {
                 //only take one message at a time when we are ready to process it
                 var m = workerQueue.DequeueOne();
+                Stopwatch sw = new Stopwatch();
+                sw.Start();
                 if (m != null)
                 {
                     try
                     {
-                        Stopwatch sw = new Stopwatch();
-                        sw.Start();
                         if (StartedProcessing(cloud.WorkerQueue, m))
                         {
                             bool handled = false;
@@ -460,7 +460,11 @@ namespace OPS.Pipeline.TileServer
                         Logger.Error(e.StackTrace);
                     }
                 }
-                Thread.Sleep(DEQUEUE_THROTTLE_MS);
+                int sleepMS = (int)(DEQUEUE_THROTTLE_MS - sw.ElapsedMilliseconds);
+                if (sleepMS > 0)
+                {
+                    Thread.Sleep(sleepMS);
+                }
             }
         }
     }

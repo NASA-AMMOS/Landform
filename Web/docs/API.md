@@ -12,6 +12,8 @@ Accepts the following arugments:
 * *facespertile*: target maximum faces per tile; default 2000
 * *tileresolution*: maximum image resolution per tile; default 256
 * *projecttype*: project type; one of `GenericTiling` or `MSL`, default `GenericTiling`.
+* *exportmeshformat*: additional mesh format to write, one of `obj`, `ply`, `stl`, or ``; default `` (none)
+* *exportimageformat*: additional image format to write, one of `tif`, `png`, `jpg`, or ``; default `` (none)
 
 Fails with HTTP status 400 (bad request) if a project with the same name already exists.
 

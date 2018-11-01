@@ -49,7 +49,7 @@ namespace OPS.Pipeline.TileServer
 
             if (project.StartedRunning && !project.FinishedRunning)
             {
-                Logger.Error("Cannot delete project " + options.ProjectName + " that is currently running");
+                Logger.ErrorFormat("cannot delete project \"{0}\", project currently running",options.ProjectName);
                 return 1; //argument error
             }
 
@@ -57,21 +57,21 @@ namespace OPS.Pipeline.TileServer
 
             if (!options.NoWait)
             {
-                Logger.Info("waiting for project to be deleted");
+                Logger.InfoFormat("waiting for project \"{0}\" to be deleted", options.ProjectName);
                 var sw = new Stopwatch();
                 sw.Start();
                 do
                 {
                     if (sw.ElapsedMilliseconds > MAX_WAIT_MS)
                     {
-                        Logger.Error("project not deleted in " + MAX_WAIT_MS + "ms");
+                        Logger.ErrorFormat("project \"{0}\" not deleted in {1}ms", options.ProjectName, MAX_WAIT_MS);
                         return 2; //internal error
                     }
                     Thread.Sleep(SLEEP_MS);
                     project = TilingProject.Find(DynamoContext, options.ProjectName);
                 }
                 while (project != null);
-                Logger.Info("project has been deleted");
+                Logger.InfoFormat("project \"{0}\" has been deleted", options.ProjectName);
             }
 
             return 0;

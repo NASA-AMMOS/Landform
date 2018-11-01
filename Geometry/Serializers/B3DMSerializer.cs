@@ -10,6 +10,7 @@ namespace OPS.Geometry
 {
     /// <summary>
     /// Writes b3dm files for use with 3D Tiles specification
+    /// https://github.com/AnalyticalGraphicsInc/3d-tiles/tree/master/specification/TileFormats/Batched3DModel
     /// </summary>
     public class B3DMSerializer : MeshSerializer
     {

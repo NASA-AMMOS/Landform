@@ -58,6 +58,7 @@
     <Compile Include="ProgramRunner.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Serial.cs" />
+    <Compile Include="SerializerMap.cs" />
     <Compile Include="Singleton.cs" />
     <Compile Include="SingletonConfig.cs" />
     <Compile Include="TemporaryFile.cs" />

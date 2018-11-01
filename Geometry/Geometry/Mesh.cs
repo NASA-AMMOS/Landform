@@ -1209,7 +1209,7 @@ namespace OPS.Geometry
         public void Save(string filename, string textureFilename = null)
         {
             string ext = Path.GetExtension(filename).ToLower();
-            MeshSerializer s = MeshSerializers.GetSerializer(ext);
+            MeshSerializer s = MeshSerializers.Instance.GetSerializer(ext);
             if (s == null)
             {
                 throw new MeshSerializerException("Mesh format not supported");
@@ -1225,7 +1225,7 @@ namespace OPS.Geometry
         public static Mesh Load(string filename)
         {
             string ext = Path.GetExtension(filename).ToLower();
-            MeshSerializer s = MeshSerializers.GetSerializer(ext);
+            MeshSerializer s = MeshSerializers.Instance.GetSerializer(ext);
             if (s == null)
             {
                 throw new MeshSerializerException("Mesh format not supported");

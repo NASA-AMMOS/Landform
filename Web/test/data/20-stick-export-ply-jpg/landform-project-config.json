@@ -1,0 +1,8 @@
+{
+  "name": "20-stick-export-ply-jpg",
+  "options": "exportmeshformat=ply&exportimageformat=jpg",
+  "inputs": [
+    { "mesh": "stick.obj", "texture": "stick.jpg" }
+  ],
+  "maxTime": "1h"
+}

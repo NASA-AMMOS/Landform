@@ -11,6 +11,7 @@ namespace OPS.Geometry
 {
     /// <summary>
     /// Saves a binary gltf file
+    /// https://github.com/KhronosGroup/glTF/tree/master/specification/2.0#binary-gltf-layout
     /// </summary>
     public class GLBSerializer : MeshSerializer
     {
