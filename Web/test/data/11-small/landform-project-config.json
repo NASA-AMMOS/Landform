@@ -1,0 +1,8 @@
+{
+  "name": "11-small",
+  "options": "",
+  "inputs": [
+    { "mesh": "inputMeshSmall.ply", "texture": "inputImage.png" }
+  ],
+  "maxTime": "1h"
+}

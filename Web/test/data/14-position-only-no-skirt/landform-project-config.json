@@ -1,0 +1,8 @@
+{
+  "name": "14-position-only-no-skirt",
+  "options": "tilingscheme=Bin&skirtmode=None",
+  "inputs": [
+    { "mesh": "itokawa.ply" }
+  ],
+  "maxTime": "1h"
+}
