@@ -44,7 +44,7 @@ namespace OPS.Pipeline.TileServer
         private ConfigureServerOptions options;
 
         public ConfigureServer(ConfigureServerOptions options)
-            : base(options, TileServerConfig.Instance.VenueName, TileServerConfig.Instance.Profile, enableS3: false, enableDynamo: false)
+            : base(options, options.VenueName, options.Profile, enableS3: false, enableDynamo: false)
         {
             this.options = options;
         }
