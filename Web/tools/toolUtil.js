@@ -122,10 +122,19 @@ function deepCopy(obj) { return JSON.parse(JSON.stringify(obj)); }
 //read json with comments and better error reporting
 function readJson(file) { return parseJson(stripJsonComments(fs.readFileSync(file, 'utf8'))); }
 
+function binFileFilter(n) {
+  const ok =
+    !n.startsWith('tmp') &&
+    !(n.startsWith('log') && n.endsWith('.txt')) &&
+    !n.startsWith('TestData') && !n.startsWith('TrainingSpaces') && !n.startsWith('Rover');
+  return ok;
+}
+
 module.exports = {
   boolArg, hasFlag,
   exec, spawn, spawnSync,
   checkDeploy, checkTTY, prompt,
   deepCopy,
   readJson,
+  binFileFilter,
 };
