@@ -2,7 +2,7 @@
   "name": "08-large-texture",
   "options": "tilingscheme=QuadZ&SkirtMode=Z",
   "inputs": [
-    { "mesh": "hawaii.obj", "texture": "hawaii.jpg" }
+    { "mesh": "hawaii.obj", "texture": "hawaii.png" }
   ],
   "maxTime": "1h"
 }
