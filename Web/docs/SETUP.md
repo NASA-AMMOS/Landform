@@ -276,6 +276,13 @@ The following instructions assume you have a `landformweb-VERSION.zip` bundle.
 1. Version Label: VERSION
 1. Deploy - it takes a few minutes
 
+Once the server is deployed it will be live.  To shut it down, either terminate the corresponding Elastic Beanstalk environment or set its autoscale group to max 0 instances.  The latter may be more convenient because terminating the enviornment seems to loose its configuration.  One way to reduce the autoscale group to 0 instances is to us the Python `eb` command line tool.  Using Python 3:
+
+    pip install awsebcli
+    eb scale 0 ENVIRONMENT --profile=PROFILE
+    
+where `ENVIRONMENT` is the Elastic Beanstalk environment name, e.g. `landformweb[-dev]`, and PROFILE is the AWS profile to use.
+
 ## 8: Deploy Landform Worker to EC2 Auto Scale Group
 The following instructions assume you have a `landformweb-worker-VERSION.zip` bundle and an `ec2userdata.txt` file.
 
