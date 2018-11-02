@@ -104,3 +104,15 @@ First install latest [node.js](https://nodejs.org) 8.x.x, acquire [AWS credentia
 1. `npm run configure-backend -- [venue-name]` - this will generate a customized `ec2userdata.txt`.  This file will be used to configure instances in an EC2 autoscale group.
 1. `npm run bundle-worker` - this will generate `landformweb-worker.zip` containing the binaries the instances in the autoscale group will run.
 1. Deploy the worker using the AWS EC2 web console as documented in the [AWS setup](docs/SETUP.md) instructions.
+
+
+### Nightly Test
+`landform-test.hi.jpl.nasa.gov` is a `t3.small` EC2 instance running Ubuntu Server 18.04 LTS.  It runs the tests defined in [test/data/landform-test-config.json](test/data/landform-test-config.json) nightly using the [tools/runTests.js](toosl/runTests.js) script.  The landform sever it connects to is also specified in the test config file.  It reads the test data from S3 at `/landlords-dev/landformweb-test-data` using [s3fs-fuse](https://github.com/s3fs-fuse/s3fs-fuse) and writes timestamped log files back to the same directory tree in S3.  The tests are run one-by-one in order starting at 7am UTC (11pm Pacific standard time, 12am Pacific daylight time).  If a test fails then one of the timestamped log files written to its directory will be named like `log-*-fail.txt`.  Failure of one test does not disable running subsequent tests.
+
+The EC2 instance for running tests is created from an EC2 launch configuration named `landformweb-test` in the `landlords` account.  The userdata startup script is [test/data/ec2userdata-ubuntu-18.04.sh](test/data/ec2userdata-ubuntu-18.04.sh).  The DNS registration for `landform-test.hi.jpl.nasa.gov` is manually managed with Amazon Route 53.  See the [AWS setup](docs/SETUP.md) for info on that.  For maintenance you can ssh into the instance using the `landform-ec2` key pair like this:
+
+    ssh -i path/to/landform-ec2 ubuntu@landform-test.hi.jpl.nasa.gov
+
+(If you get an error about permissions on the key file then run `chmod 400 path/to/landform-ec2`.)  The instance has a firewall configured to allow SSH access only from JPL IP addresses - if you are remoted in over VPN then use full tunnel.
+
+In order for `landform-test.hi.jpl.nasa.gov` to connect to a landform web server, e.g. `landform.hi.jpl.nasa.gov`, the latter must allow inbound HTTPS traffic from the former.  In our typical setup this means that the EC2 security group used by Elastic Beanstalk for the landform web server must have an entry manually added to it with `Type=HTTPS, Protocol=TCP, Port Range=443, Source=ADDR/32, Description=landform-test.hi.jpl.nasa.gov` where `ADDR` is the IP address of landform-test.hi.jpl.nasa.gov. Normally the security group is configured to allow incoming connections only from JPL IP addresses.  See the [AWS setup](docs/SETUP.md#5-restrict-to-jpl-ips) docs for more info.
