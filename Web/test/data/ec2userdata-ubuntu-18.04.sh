@@ -19,7 +19,6 @@ cd $srcdir
 #sudo -u ubuntu npm install 
 #but for now just ignore the normal package setup and install the few needed packages directly
 sudo -u ubuntu mv package.json package.json-NOT
-sudo -u ubuntu mv package-lock.json package-lock.json-NOT
 sudo -u ubuntu npm install newman fs-extra json-parse-better-errors strip-json-comments
 # run tests once per day at minute 0 of hour 7 UTC
 # this is midnight pacific time during daylight saving time (summer)
