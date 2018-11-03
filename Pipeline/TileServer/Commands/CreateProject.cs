@@ -93,20 +93,29 @@ namespace OPS.Pipeline.TileServer
             {
                 exImageFmt = options.ExportImageFormat.ToLower();
 
+                //TODO this is a workaround for
+                //https://github.jpl.nasa.gov/OnSight/Landform/issues/347
+                string[] fmts = new string[]
+                {
+                    "img", "vic", "lbl", "dds", "crn",
+                    "tif", "tiff", "jpg", "bmp", "png",
+                    "jp2", "j2k", "fit", "fits", "rgb"
+                };
+
                 if (exImageFmt == "help")
                 {
                     //print as error so that this will get forwarded back to REST API response
                     Logger.ErrorFormat("valid image export formats: {0}",
-                                       String.Join(", ", ImageSerializers.Instance.SupportedFormats()));
+                                       String.Join(", ", fmts /* ImageSerializers.Instance.SupportedFormats() */));
                     return 1; //not really an error, but can't return success status either
                 }
 
-                if (!ImageSerializers.Instance.SupportsFormat(exImageFmt))
+                if (Array.IndexOf(fmts, exImageFmt) < 0 /* !ImageSerializers.Instance.SupportsFormat(exImageFmt) */)
                 {
                     Logger.ErrorFormat("cannot create project \"{0}\", invalid image export format \"{1}\", " +
                                        "valid formats: {2}",
                                        options.ProjectName, options.ExportImageFormat,
-                                       String.Join(", ", ImageSerializers.Instance.SupportedFormats()));
+                                       String.Join(", ", fmts /* ImageSerializers.Instance.SupportedFormats() */));
                     return 1; //argument error
                 }
             }
