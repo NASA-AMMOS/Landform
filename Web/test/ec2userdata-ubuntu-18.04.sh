@@ -1,7 +1,8 @@
 #!/bin/sh
 datadir=/mnt/landformweb-test-data
 srcdir=/home/ubuntu/landformweb
-curl -sL https://deb.nodesource.com/setup_8.x | bash -
+curl -sL https://deb.nodesource.com/setup_8.x > /var/tmp/node_8x_setup.sh
+bash /var/tmp/node_8x_setup.sh
 apt-get install -y s3fs nodejs make unzip
 umount $datadir # ok if doesn't exist or not mounted
 mkdir -p $datadir
