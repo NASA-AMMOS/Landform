@@ -8,5 +8,5 @@ logfile=log-landform-test-runner-$stamp.txt
 #so write the log to /var/tmp and then move it when done
 /usr/bin/node $srcdir/tools/runTests.js $datadir >> /var/tmp/$logfile 2>&1
 mkdir -p $datadir/log
-mv /var/log/$logfile $datadir/log/$logfile
+mv /var/tmp/$logfile $datadir/log/$logfile
 
