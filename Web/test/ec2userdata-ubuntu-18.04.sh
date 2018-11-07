@@ -24,4 +24,5 @@ sudo -u ubuntu npm install newman fs-extra json-parse-better-errors strip-json-c
 # run tests once per day at minute 0 of hour 7 UTC
 # this is midnight pacific time during daylight saving time (summer)
 # and 11pm pacific time otherwise
+chmod a+x $srcdir/test/runTests.sh
 (crontab -u ubuntu -l ; echo "0 7 * * * $srcdir/test/runTests.sh $datadir 2>&1 | /usr/bin/logger -t landformweb-test") | sort - | uniq - | crontab -u ubuntu -
