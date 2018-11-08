@@ -56,7 +56,9 @@ namespace OPS.Util
                         fa.ActivateOptions();
                         if (oldFile != null && oldFile.Exists)
                         {
-                            if (oldFile.Length == 0)
+                            //if (oldFile.Length == 0)
+                            //https://github.jpl.nasa.gov/OnSight/Landform/issues/350
+                            if (oldFile.Length < 5)
                             {
                                 //the log filename has changed, but no logs have been written yet to the old file
                                 //it seems that log4net creates the file (zero-length) before anything gets written
