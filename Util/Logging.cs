@@ -60,7 +60,7 @@ namespace OPS.Util
                             //https://github.jpl.nasa.gov/OnSight/Landform/issues/350
                             if (oldFile.Length < 5)
                             {
-                                if (oldFile.Length > 0)
+                                if (oldFile.Length > 0 && !quiet)
                                 {
                                     Console.WriteLine(string.Format("deleting log file {0} " +
                                                                     "with only {1} bytes before changing filename",
