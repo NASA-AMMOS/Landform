@@ -1,6 +1,7 @@
 ﻿using CommandLine;
 using CommandLine.Text;
 using log4net;
+using MathNet.Numerics.LinearAlgebra;
 using OPS.Alignment;
 using OPS.Cloud;
 using OPS.Geometry;
@@ -13,6 +14,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System.Threading;
 
 namespace OPS.Pipeline.AlignmentServer
 {
@@ -21,6 +23,12 @@ namespace OPS.Pipeline.AlignmentServer
     {
         [Value(0, Required = true, HelpText = "Name of project to create")]
         public string ProjectName { get; set; }
+
+        [Value(1, Required = true, HelpText = "Input path")]
+        public string InputPath { get; set; }
+
+        [Value(2, Required = true, HelpText = "Product path")]
+        public string ProductPath { get; set; }
 
         [Option(HelpText = "Optional directory to save debug output files to", Default = null)]
         public string DebugOutputFolder { get; set; }
@@ -43,6 +51,7 @@ namespace OPS.Pipeline.AlignmentServer
             this.Master = master;
         }
 
+        public abstract void Run();
         public abstract void OnMessageReceived(TilingQueueMessage message);
         public abstract void Heartbeat();
     }
@@ -50,6 +59,11 @@ namespace OPS.Pipeline.AlignmentServer
     public class IngestStage : Stage
     {
         protected TypeDispatcher dispatcher;
+
+        static bool ValidGuid(Guid g)
+        {
+            return g != null && g != Guid.Empty;
+        }
 
         public IngestStage(AlignmentMaster master)
             : base(master)
@@ -62,6 +76,16 @@ namespace OPS.Pipeline.AlignmentServer
             IngestionCompleted = new ConcurrentBag<ImageRef>();
 
             Logger.Info("Beginning ingestion stage");
+        }
+
+        public override void Run()
+        {
+            Logger.Info("Preparing ingestion messages");
+
+            var rootFrame = Frame.FindOrCreate(Master.DynamoContext, Master.Project, MSLProject.ROOT_FRAME_NAME);
+            var rootTransform = FrameTransform.FindOrCreate(Master.DynamoContext, rootFrame, new UncertainRigidTransform(new MathExtensions.GaussianND(
+                CreateVector.Dense<double>(6), CreateMatrix.Dense<double>(6, 6)
+                )));
 
             var inFolder = Master.Project.InputPath;
             IngestPDSImage ingester = new IngestPDSImage(Master, Master.Options.ProjectName);
@@ -75,7 +99,8 @@ namespace OPS.Pipeline.AlignmentServer
                     var newState = new ImageState()
                     {
                         Observation = res.Observation,
-                        Source = new S3ImageRef(url)
+                        Source = new S3ImageRef(url),
+                        Overlaps = new List<OverlapState>()
                     };
                     if (!Master.ObservationStates.TryAdd(obsRef, newState))
                     {
@@ -85,16 +110,9 @@ namespace OPS.Pipeline.AlignmentServer
 
                     IngestionRequested.Add(obsRef);
 
-                    if (res.Observation.MaskGuid != null && !Master.Options.RedoMasks)
+                    if (ValidGuid(res.Observation.MaskGuid) && !Master.Options.RedoMasks)
                     {
-                        Master.Cloud.MasterQueue.Enqueue(new MaskCreatedMessage()
-                        {
-                            Image = obsRef,
-                            Project = res.Observation.ProjectName,
-                            MaskGuid = res.Observation.MaskGuid
-                        });
-
-                        if (res.Observation.FeaturesGuid != null && !Master.Options.RedoFeatures)
+                        if (ValidGuid(res.Observation.FeaturesGuid) && !Master.Options.RedoFeatures)
                         {
                             Master.Cloud.MasterQueue.Enqueue(new FeaturesDetectedMessage()
                             {
@@ -106,11 +124,11 @@ namespace OPS.Pipeline.AlignmentServer
                         }
                         else
                         {
-                            Master.Cloud.WorkerQueue.Enqueue(new DetectFeaturesMessage()
+                            Master.Cloud.MasterQueue.Enqueue(new MaskCreatedMessage()
                             {
                                 Image = obsRef,
-                                MaskGuid = res.Observation.MaskGuid,
-                                Project = res.Observation.ProjectName
+                                Project = res.Observation.ProjectName,
+                                MaskGuid = res.Observation.MaskGuid
                             });
                         }
                     }
@@ -127,7 +145,7 @@ namespace OPS.Pipeline.AlignmentServer
 
             Logger.Info("Observations created, doing masks & features");
         }
-        
+
         public ConcurrentBag<ImageRef> IngestionRequested;
         public ConcurrentBag<ImageRef> IngestionCompleted;
         
@@ -151,6 +169,7 @@ namespace OPS.Pipeline.AlignmentServer
             var state = Master.ObservationStates[obj.Image];
             state.FeaturesGuid = obj.FeaturesGuid;
             state.Observation.FeaturesGuid = state.FeaturesGuid;
+            state.Observation.MaskGuid = state.MaskGuid;
             state.Observation.Save(Master.DynamoContext);
 
             IngestionCompleted.Add(obj.Image);
@@ -158,6 +177,7 @@ namespace OPS.Pipeline.AlignmentServer
             if (IngestionCompleted.Count == IngestionRequested.Count)
             {
                 Master.CurrentStage = new MatchStage(Master);
+                Master.CurrentStage.Run();
             }
         }
 
@@ -189,6 +209,12 @@ namespace OPS.Pipeline.AlignmentServer
             computedOverlaps = 0;
 
             Logger.Info("Beginning matching stage");
+           
+        }
+
+        public override void Run()
+        {
+            Logger.Info("Preparing matching image messages");
 
             var fod = new FrustumOverlapDetector(Master);
             var sb = new BuildSceneGraph(Master);
@@ -216,6 +242,8 @@ namespace OPS.Pipeline.AlignmentServer
 
                 Master.Cloud.WorkerQueue.Enqueue(new MatchImagesMessage()
                 {
+                    Project = Master.Project.Name,
+
                     ModelImage = model,
                     ModelFeaturesGuid = Master.ObservationStates[model].FeaturesGuid,
                     ModelFrameName = model.Observation.FrameName,
@@ -237,9 +265,12 @@ namespace OPS.Pipeline.AlignmentServer
 
             // create db entry once all of the work is done - natural rate limiting
             var dbOverlap = Overlap.Create(Master.DynamoContext, Master.ObservationStates[obj.ModelImage].Observation, Master.ObservationStates[obj.DataImage].Observation);
-            dbOverlap.Status = (obj.CorrespondenceGuid != Guid.Empty) ? Overlap.StatusType.Matched : Overlap.StatusType.Rejected;
-            dbOverlap.MatchGuid = state.CorrespondenceGuid;
-            dbOverlap.TrySave(Master.DynamoContext);
+            if (dbOverlap != null)
+            {
+                dbOverlap.Status = (obj.CorrespondenceGuid != Guid.Empty) ? Overlap.StatusType.Matched : Overlap.StatusType.Rejected;
+                dbOverlap.MatchGuid = state.CorrespondenceGuid;
+                dbOverlap.TrySave(Master.DynamoContext);
+            }
 
             computedOverlaps++;
             if (computedOverlaps >= AllOverlaps.Count)
@@ -317,13 +348,15 @@ namespace OPS.Pipeline.AlignmentServer
             ObservationStates = new ConcurrentDictionary<ImageRef, ImageState>();
         }
 
+        private const int DequeReceiveThrottlingMS = 50;
 
         public int Run()
         {
             Cloud = new TileServerCloud(this);
-
-            Project = Project.Find(DynamoContext, Options.ProjectName);
+            
+            Project = Project.FindOrCreate(DynamoContext, Options.ProjectName, Options.ProductPath, Options.InputPath);
             CurrentStage = new IngestStage(this);
+            CurrentStage.Run();
 
             while (true)
             {
@@ -343,6 +376,8 @@ namespace OPS.Pipeline.AlignmentServer
                     }
                     Cloud.MasterQueue.DeleteMessage(m);
                 }
+
+                Thread.Sleep(DequeReceiveThrottlingMS);
             }
         }
     }

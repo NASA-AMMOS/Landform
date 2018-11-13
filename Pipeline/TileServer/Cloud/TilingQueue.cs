@@ -109,6 +109,11 @@ namespace OPS.Pipeline.TileServer
                 url = client.CreateQueue(req).QueueUrl;
             }
         }
+
+        public void Purge()
+        {
+            client.PurgeQueue(url);
+        }
         
         public void Enqueue(TilingQueueMessage message)
         {
@@ -149,7 +154,18 @@ namespace OPS.Pipeline.TileServer
             //among other things if a message is multiply received this can help track the latest receivehandle
             //which is apparently needed for SQS apis like ChangeMessageVisibility() and DeleteMessage()
             var now = UTCTime.NowMS(); //lower bounds
-            var msgs = client.ReceiveMessage(req).Messages;
+
+            List<Message> msgs = null;
+            try
+            {
+                msgs = client.ReceiveMessage(req).Messages;
+            }
+            catch (OverLimitException e)
+            {
+                logger.Error("client over limit: " + e.Message, e);
+                throw;
+            }
+
             return msgs.Select(msg =>
             {
                 try
