@@ -162,7 +162,8 @@ namespace OPS.Pipeline.TileServer
             }
             catch (OverLimitException e)
             {
-                logger.Error("client over limit: " + e.Message);
+                logger.Error("client over limit: " + e.Message, e);
+                throw;
             }
 
             return msgs.Select(msg =>
