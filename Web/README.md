@@ -87,7 +87,7 @@ This will require a local installation of [Docker](https://www.docker.com) host.
 It is also possible to manually deploy the release bundle using the AWS Elastic Beanstalk web console, as documented in the [AWS setup](docs/SETUP.md) instructions.
 
 1. Check `deployEnvironment` in `config.js` - the server will be deployed to this Elastic Beanstalk environment unless a different environment is explicitly named on the command line as explained below.  The `deployEnvironment` that will be used is determined by the `NODE_ENV` environment variable in the shell where the `deploy` script is run.
-1. The `venueName` that will be used in the deployment typically depends on the `NODE_ENV` configured in the Elastic Beanstalk environment.  Typically the environment `landform-dev` has `NODE_ENV=integration` and the environment `landform` has `NODE_ENV=production`.  It is also possible to override `TILE_SERVER_VENUE_NAME` directly in the environment configuration.
+1. The `venueName` that will be used in the deployment typically depends on the `NODE_ENV` configured in the Elastic Beanstalk environment.  Typically the environment `landformweb-dev` has `NODE_ENV=integration` and the environment `landformweb` has `NODE_ENV=production`.  It is also possible to override `TILE_SERVER_VENUE_NAME` directly in the environment configuration.
 1. `npm run deploy -- [environment-name] [-f|--force] [--profile=foo]`.
 1. Options:
     * `environment-name`: Upload to this Elastic Beanstalk environment instead of the default from `config.js`

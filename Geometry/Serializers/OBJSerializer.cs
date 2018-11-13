@@ -227,16 +227,26 @@ namespace OPS.Geometry
         /// Saves a mesh out as an obj file.  Note that obj format does not offically support
         /// color vertex attributes so these will be lost.  Only position, uv, and normals will be 
         /// written out.  If the optional textureFilename is included a .mtl file will be created with the
-        /// same name as the mesh specifying to use the supplied image as a diffuse texture.
+        /// same name as the image specifying to use the supplied image as a diffuse texture.
         /// </summary>
         /// <param name="mesh">Mesh to export</param>
         /// <param name="filename">Output filename</param>
         /// <param name="textureFilename">Optional diffuse texture to include as a material</param>
         public static void Write(Mesh mesh, string filename, string textureFilename = null, bool writeColors = true)
         {
-            string mtlFilename = Path.Combine(Path.GetDirectoryName(filename), Path.GetFileNameWithoutExtension(filename)) + ".mtl";
+            string mtlFilename = null;
             if (textureFilename != null)
             {
+                //important: material filename is in same directory as obj but has name foo.mtl
+                //where the texture file is e.g. foo.jpg
+                //this covers the case where the obj file being written is a temp file, e.g. GUID.obj
+                //and will be moved or uploded to a different final destination like foo.obj
+                //in that case the passed textureFilename could be something like foo.jpg
+                //ant then the mtllib ref that gets written into GUID.obj is foo.mtl
+                //so that in the tmp dir we have GUID.obj and foo.mtl
+                //and in the final destination we can have foo.obj, foo.mtl, and foo.jpg
+                mtlFilename = Path.Combine(Path.GetDirectoryName(filename),
+                                           Path.GetFileNameWithoutExtension(textureFilename)) + ".mtl";
                 using (StreamWriter file = new StreamWriter(mtlFilename))
                 {
                     file.WriteLine("newmtl material0");

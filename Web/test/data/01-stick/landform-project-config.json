@@ -1,0 +1,8 @@
+{
+  "name": "01-stick",
+  "options": "tilingscheme=QuadX",
+  "inputs": [
+    { "mesh": "stick.ply", "texture": "stick.png" }
+  ],
+  "maxTime": "1h"
+}

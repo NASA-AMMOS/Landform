@@ -1,0 +1,9 @@
+{
+  "name": "06-multi-input",
+  "options": "",
+  "inputs": [
+    { "mesh": "stick.obj", "texture": "stick.jpg" },
+    { "mesh": "raptor.obj", "texture": "raptor.jpg" }
+  ],
+  "maxTime": "1h"
+}

@@ -1,0 +1,8 @@
+{
+  "name": "18-stick-export-obj-png",
+  "options": "exportmeshformat=obj&exportimageformat=png",
+  "inputs": [
+    { "mesh": "stick.obj", "texture": "stick.jpg" }
+  ],
+  "maxTime": "1h"
+}

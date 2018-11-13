@@ -6,6 +6,8 @@ function isNum(n) { return !isNaN(n) && n !== null; } //eslint-disable-line no-r
 
 function isInt(n) { return isNum(n) && parseInt(n) === parseFloat(n); }
 
+function isStr(n) { return typeof n === 'string' || n instanceof String; }
+
 //accepts REST endpoint argument descriptors and attempts to parse them from req.query or req.body
 //
 //if an arg is both in req.query and req.body then the value from req.query will be used
@@ -48,7 +50,7 @@ function parseArgs(req, descriptors, opts) {
         case 'int': val = parseInt(val); break;
         case 'float': val = parseFloat(val); break;
         case 'bool': val = parseBool(val); break;
-        case 'string': default: val = JSON.stringify(val); break;
+        case 'string': default: val = isStr(val) ? val : ('' + val); break;
       }
       ret[name] = val;
     }
@@ -56,7 +58,10 @@ function parseArgs(req, descriptors, opts) {
 
   if (commandLine) {
     const cl = [];
-    Object.entries(ret).forEach(([n, v]) => { cl.push(`--${n}`); cl.push(v); });
+    //if v is a string with whitespace this is still OK
+    //because it all gets treated as a single command line argument
+    //(and attempts at explicitly escaping whitespace or quoting here generally backfire)
+    Object.entries(ret).forEach(([n, v]) => cl.push(`--${n}=${v}`));
     return cl;
   }
 
@@ -92,4 +97,10 @@ function abortRoute(res, msg, errOrStatus, text) {
   else sendText(msg);
 }
 
-module.exports = { parseBool, isNum, isInt, parseArgs, sendJson, sendText, sendSuccess, routeError, abortRoute };
+module.exports = {
+  parseBool,
+  isNum, isInt, isStr,
+  parseArgs,
+  sendJson, sendText, sendSuccess,
+  routeError, abortRoute,
+};

@@ -1,56 +1,30 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using OPS.Util;
 
 namespace OPS.Imaging
 {
-    static class ImageSerializers
+    public class ImageSerializers : SerializerMap<ImageSerializer>
     {
-        static Dictionary<string, ImageSerializer> serializers;
-
-        static ImageSerializers()
+        //it is surprisingly hairy to "just" inherit from Singleton in this class hierarchy
+        private static ImageSerializers instance;
+        public static ImageSerializers Instance
         {
-            serializers = new Dictionary<string, ImageSerializer>();
-            new PDSSeralizer().Register();
-            new DDSSerializer().Register();
-            new GDALSeralizer().Register();
-            new FITSSerializer().Register();
-            new RGBSerializer().Register();
-        }
-
-        /// <summary>
-        /// Registers a handler for a file extension
-        /// Extensions should be lower case and include the .
-        /// </summary>
-        /// <param name="ext"></param>
-        /// <param name="serializer"></param>
-        public static void Register(string[] extensions, ImageSerializer serializer)
-        {
-            foreach (var ext in extensions)
+            get
             {
-                var lowerExt = ext.ToLower();
-                if (!serializers.ContainsKey(lowerExt))
+                if (instance == null)
                 {
-                    serializers.Add(lowerExt, serializer);
+                    instance = new ImageSerializers();
                 }
+                return instance;
             }
         }
 
-        /// <summary>
-        /// Gets a serializer for a given extension (including the .)
-        /// </summary>
-        /// <param name="extension"></param>
-        /// <returns></returns>
-        public static ImageSerializer GetSerializer(string extension)
+        protected override void RegisterSerializers()
         {
-            extension = extension.ToLower();
-            if (!serializers.ContainsKey(extension))
-            {
-                return null;
-            }
-            return serializers[extension];
+            new PDSSeralizer().Register(this);
+            new DDSSerializer().Register(this);
+            new GDALSeralizer().Register(this);
+            new FITSSerializer().Register(this);
+            new RGBSerializer().Register(this);
         }
     }
 }

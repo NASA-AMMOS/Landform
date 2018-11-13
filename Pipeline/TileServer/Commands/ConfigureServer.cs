@@ -44,7 +44,7 @@ namespace OPS.Pipeline.TileServer
         private ConfigureServerOptions options;
 
         public ConfigureServer(ConfigureServerOptions options)
-            : base(options, TileServerConfig.Instance.VenueName, TileServerConfig.Instance.Profile, enableS3: false, enableDynamo: false)
+            : base(options, options.VenueName, options.Profile, enableS3: false, enableDynamo: false)
         {
             this.options = options;
         }
@@ -92,7 +92,7 @@ New-Item -Path ""c:\temp"" -ItemType ""directory"" -Force
 c:\temp\vc_redist_2017.x64.exe /quiet
 (new-object net.webclient).DownloadFile('https://download.microsoft.com/download/9/3/F/93FCF1E7-E6A4-478B-96E7-D4B285925B00/vc_redist.x64.exe','c:\temp\vc_redist_2015.x64.exe')
 c:\temp\vc_redist_2015.x64.exe /quiet
-Set-ExecutionPolicy RemoteSigned -Force
+#Set-ExecutionPolicy RemoteSigned -Force
 Import-Module AWSPowerShell
 (new-object net.webclient).DownloadFile('https://aws-codedeploy-us-west-1.s3.amazonaws.com/latest/codedeploy-agent.msi','c:\temp\codedeploy-agent.msi')
 c:\temp\codedeploy-agent.msi /quiet /l c:\temp\host-agent-install-log.txt
@@ -104,7 +104,7 @@ powershell.exe -Command Read-S3Object -BucketName {2} -Key {0}{3}/app/tileserver
 Remove-Item c:\tileserver -Force -Recurse -ErrorAction SilentlyContinue
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 [System.IO.Compression.ZipFile]::ExtractToDirectory(""C:\temp\tileserver.zip"", ""c:\tileserver"")
-c:\tileserver\TilingServer.exe configure --venuename={0} --s3url={1} --region={4} --profile=null
+c:\tileserver\TilingServer.exe configure --venuename={0} --s3url={1} --region={4} --profile=null --nouserdata
 Start-Process -WorkingDirectory c:\tileserver c:\tileserver\TilingServer.exe startworker
 </powershell>
 <persist>true</persist>";

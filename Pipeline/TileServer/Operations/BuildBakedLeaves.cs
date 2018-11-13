@@ -129,7 +129,7 @@ namespace OPS.Pipeline.TileServer
                 {
                     pair = bakeClipper.BakeTexture(m, project.TileResolution);
                 }
-                leaf.SaveMesh(pair, pipeline, 0);
+                leaf.SaveMesh(pair, pipeline, 0, project.ExportMeshFormat, project.ExportImageFormat);
                 processed.Add(leaf);
                 cloud.MasterQueue.Enqueue(new TileCompletedMessage(project.Name, leaf.Id));
                 LogInfo("generating leaf {0} from {1} chunks ({2}/{3})",

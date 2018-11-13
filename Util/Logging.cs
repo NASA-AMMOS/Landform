@@ -13,12 +13,24 @@ namespace OPS.Util
         //%level must be last token before : to faciltate parsing errors in web code
         const string DEBUG_PATTERN_LAYOUT = "%date %logger{1} %location %level: %message%newline";
 
+        private static volatile bool didConfig = false;
         public static void ConfigureLogging(bool quiet = false, bool debug = false, string overrideLogFilename = null)
         {
             //this is used as part of the the default log filename
             log4net.GlobalContext.Properties["command"] = Config.FullCommand;
 
-            log4net.Config.XmlConfigurator.Configure();
+            //normally Logging.ConfigureLogging() would only be called once during app init
+            //but there are some cases where it's hard to structure the code
+            //to avoid more than one possible call
+            //that's OK, but we only want to set things up from App.config once
+            //if we call XmlConfigurator.Configure() more than once than one effect
+            //is that we can get get extra log files on disk
+            //because each call can create a log file with a different timestamp in the filename
+            if (!didConfig)
+            {
+                log4net.Config.XmlConfigurator.Configure();
+                didConfig = true;
+            }
 
             //it is fairly tricky to change log filename at runtime
             //https://stackoverflow.com/a/6963420

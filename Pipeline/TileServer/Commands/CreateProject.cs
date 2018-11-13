@@ -7,37 +7,44 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Diagnostics;
 using OPS.Geometry;
+using OPS.Imaging;
 using OPS.Plumbing;
 using Amazon.DynamoDBv2.Model;
 using log4net;
 
 namespace OPS.Pipeline.TileServer
 {
-    [Verb("createproject", HelpText = "Creates a project")]
+    [Verb("createproject", HelpText = "creates a project")]
     public class CreateProjectOptions : PipelineCoreOptions
     {
-        [Value(0, Required = true, HelpText = "Project Name")]
+        [Value(0, Required = true, HelpText = "project name")]
         public string ProjectName { get; set; }
         
-        [Option(Default = TilingScheme.Bin, HelpText = "Tiling scheme")]
+        [Option(Default = TilingScheme.Bin, HelpText = "tiling scheme")]
         public TilingScheme TilingScheme { get; set; }
 
-        [Option(Default = SkirtMode.None, HelpText = "Skirt mode")]
+        [Option(Default = SkirtMode.None, HelpText = "skirt mode")]
         public SkirtMode SkirtMode { get; set; }
 
-        [Option(Default = MeshReconMethod.Poisson, HelpText = "Mesh reconstruction method")]
+        [Option(Default = MeshReconMethod.Poisson, HelpText = "mesh reconstruction method")]
         public MeshReconMethod ReconMethod { get; set; }
 
-        [Option(Default = 2000, HelpText = "Target maximum faces per tile")]
+        [Option(Default = 2000, HelpText = "target maximum faces per tile")]
         public int FacesPerTile { get; set; }
 
-        [Option(Default = 256, HelpText = "Maximum image resolution per tile")]
+        [Option(Default = 256, HelpText = "maximum image resolution per tile")]
         public int TileResolution { get; set; }
 
-        [Option(Default = PipelineStateMachine.ProjectType.GenericTiling, HelpText = "Processing pipline")]
+        [Option(Default = PipelineStateMachine.ProjectType.GenericTiling, HelpText = "processing pipline")]
         public PipelineStateMachine.ProjectType ProjectType { get; set; }
 
-        [Option(Default = false, HelpText = "Do not wait until project has been created")]
+        [Option(Default = null, HelpText = "write additional mesh format, or \"help\" to list")]
+        public string ExportMeshFormat { get; set; }
+
+        [Option(Default = null, HelpText = "write additional image format, or \"help\" to list")]
+        public string ExportImageFormat { get; set; }
+
+        [Option(Default = false, HelpText = "do not wait until project has been created")]
         public bool NoWait { get; set; }
     }
 
@@ -58,6 +65,61 @@ namespace OPS.Pipeline.TileServer
         {
             var cloud = new TileServerCloud(this, quiet: true);
 
+            string exMeshFmt = null;
+            if (!string.IsNullOrEmpty(options.ExportMeshFormat))
+            {
+                exMeshFmt = options.ExportMeshFormat.ToLower();
+
+                if (exMeshFmt == "help")
+                {
+                    //print as error so that this will get forwarded back to REST API response
+                    Logger.ErrorFormat("valid mesh export formats: {0}",
+                                       String.Join(", ", MeshSerializers.Instance.SupportedFormats()));
+                    return 1; //not really an error, but can't return success status either
+                }
+
+                if (!MeshSerializers.Instance.SupportsFormat(exMeshFmt))
+                {
+                    Logger.ErrorFormat("cannot create project \"{0}\", invalid mesh export format \"{1}\", " +
+                                       "valid formats: {2}",
+                                       options.ProjectName, options.ExportMeshFormat,
+                                       String.Join(", ", MeshSerializers.Instance.SupportedFormats()));
+                    return 1; //argument error
+                }
+            }
+
+            string exImageFmt = null;
+            if (!string.IsNullOrEmpty(options.ExportImageFormat))
+            {
+                exImageFmt = options.ExportImageFormat.ToLower();
+
+                //TODO this is a workaround for
+                //https://github.jpl.nasa.gov/OnSight/Landform/issues/347
+                string[] fmts = new string[]
+                {
+                    "img", "vic", "lbl", "dds", "crn",
+                    "tif", "tiff", "jpg", "bmp", "png",
+                    "jp2", "j2k", "fit", "fits", "rgb"
+                };
+
+                if (exImageFmt == "help")
+                {
+                    //print as error so that this will get forwarded back to REST API response
+                    Logger.ErrorFormat("valid image export formats: {0}",
+                                       String.Join(", ", fmts /* ImageSerializers.Instance.SupportedFormats() */));
+                    return 1; //not really an error, but can't return success status either
+                }
+
+                if (Array.IndexOf(fmts, exImageFmt) < 0 /* !ImageSerializers.Instance.SupportsFormat(exImageFmt) */)
+                {
+                    Logger.ErrorFormat("cannot create project \"{0}\", invalid image export format \"{1}\", " +
+                                       "valid formats: {2}",
+                                       options.ProjectName, options.ExportImageFormat,
+                                       String.Join(", ", fmts /* ImageSerializers.Instance.SupportedFormats() */));
+                    return 1; //argument error
+                }
+            }
+
             var project = TilingProject.Find(this.DynamoContext, options.ProjectName);
             if (project != null)
             {
@@ -72,26 +134,28 @@ namespace OPS.Pipeline.TileServer
                                           ReconMethod = options.ReconMethod,
                                           FacesPerTile = options.FacesPerTile,
                                           TileResolution = options.TileResolution,
-                                          ProjectType = options.ProjectType.ToString()
+                                          ProjectType = options.ProjectType.ToString(),
+                                          ExportMeshFormat = exMeshFmt,
+                                          ExportImageFormat = exImageFmt 
                                       });
 
             if (!options.NoWait)
             {
-                Logger.Info("waiting for project to be created");
+                Logger.InfoFormat("waiting for project \"{0}\" to be created", options.ProjectName);
                 var sw = new Stopwatch();
                 sw.Start();
                 do
                 {
                     if (sw.ElapsedMilliseconds > MAX_WAIT_MS)
                     {
-                        Logger.Error("project not created in " + MAX_WAIT_MS + "ms");
+                        Logger.ErrorFormat("project \"{0}\" not created in {1}ms", options.ProjectName, MAX_WAIT_MS);
                         return 2; //internal error
                     }
                     Thread.Sleep(SLEEP_MS);
                     project = TilingProject.Find(DynamoContext, options.ProjectName);
                 }
                 while (project == null);
-                Logger.Info("project has been created");
+                Logger.InfoFormat("project \"{0}\" has been created", options.ProjectName);
             }
 
             return 0;

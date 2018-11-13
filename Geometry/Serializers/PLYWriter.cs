@@ -28,7 +28,7 @@ namespace OPS.Geometry
 
             if (textureName != null)
             {
-                sw.WriteLine("comment " + PLYSerializer.TextureFileCommentName +" " + textureName);
+                sw.WriteLine("comment " + PLYSerializer.TextureFileCommentName +" " + Path.GetFileName(textureName));
             }
             if (comments != null)
             {

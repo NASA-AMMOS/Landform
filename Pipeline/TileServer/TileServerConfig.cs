@@ -131,6 +131,10 @@ namespace OPS.Pipeline.TileServer
 
         public static string ConvertUrlToHttps(string url)
         {
+            if (string.IsNullOrEmpty(url))
+            {
+                return url;
+            }
             var uri = new Uri(url);
             switch (uri.Scheme)
             {

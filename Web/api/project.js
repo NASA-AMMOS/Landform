@@ -21,6 +21,8 @@ async function createProject(req, res) {
       facespertile: { type: 'int' },
       tileresolution: { type: 'int' },
       projecttype: { type: 'enum', options: ['GenericTiling', 'MSL'] },
+      exportmeshformat: { type: 'enum', options: ['', 'obj', 'ply', 'stl'] },
+      exportimageformat: { type: 'enum', options: ['', 'tif', 'png', 'jpg'] },
     }, { commandLine: true });
 
     const task = await tilingTask('createproject', [req.params.name, ...args]);

@@ -360,7 +360,7 @@ These instructions only needs to be run when the Landform worker version changes
 1. Services -> Compute -> EC2
 1. Auto Scaling -> Auto Scaling Groups -> Create Auto Scaling Group
 1. Launch Template
-1. select the launch template you just created
+1. select the launch template you created bove, e.g. `landformweb[-dev]-workers`
 1. Next Step
   * Group Name: `landformweb[-dev]-workers` (recommended, but can be any name)
   * Subnet: `172.31.16.0/20 | Default in us-west-1c`
