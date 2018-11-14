@@ -110,6 +110,14 @@ This step creates the Elastic Beanstalk application and environment into which t
         1. Load balancer subnets: `us-west-1c subnet-148d7971 172.31.16.0/20`
         1. Instance subnets: same as load balancer
 1. Create Environment - it takes a few minutes
+1. Increase elastic load balancer timeout to avoid 504 gateway timeout errors.
+    1. http://goto.jpl.nasa.gov/awsconsole
+    1. Log in as `landords/account_owner` (internal Landform use only, otherwise use your own AWS account)
+    1. Select region `us-west-1` (North California)
+    1. Services -> Compute -> EC2
+    1. Load Balancing -> Load Balancers
+    1. Select the load balancer corresponding to the elastic beanstalk environment - on the "Instances" tab you should see an instance with the same  name as the elastic beanstalk environment.
+    1. On the "Description" tab for the load balancer, click "Edit idle timeout" and set it to 1800 seconds.
 
 ## 3: Configure DNS
 This step is optional.  It configures a public DNS entry to redirect to the Elastic Beanstalk environment configured above.  The Landform team uses the Amazon Route 53 DNS service, but any DNS provider that supports CNAME records should work.
@@ -275,6 +283,13 @@ The following instructions assume you have a `landformweb-VERSION.zip` bundle.
 1. Choose File: `landformweb-VERSION.zip`
 1. Version Label: VERSION
 1. Deploy - it takes a few minutes
+
+Once the server is deployed it will be live.  To shut it down, either terminate the corresponding Elastic Beanstalk environment or set its autoscale group to max 0 instances.  The latter may be more convenient because terminating the environment seems to loose its configuration.  One way to reduce the autoscale group to 0 instances is to us the Python `eb` command line tool.  Using Python 3:
+
+    pip install awsebcli
+    eb scale 0 ENVIRONMENT --profile=PROFILE
+    
+where `ENVIRONMENT` is the Elastic Beanstalk environment name, e.g. `landformweb[-dev]`, and PROFILE is the AWS profile to use.
 
 ## 8: Deploy Landform Worker to EC2 Auto Scale Group
 The following instructions assume you have a `landformweb-worker-VERSION.zip` bundle and an `ec2userdata.txt` file.

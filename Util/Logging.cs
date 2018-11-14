@@ -56,8 +56,17 @@ namespace OPS.Util
                         fa.ActivateOptions();
                         if (oldFile != null && oldFile.Exists)
                         {
-                            if (oldFile.Length == 0)
+                            //if (oldFile.Length == 0)
+                            //https://github.jpl.nasa.gov/OnSight/Landform/issues/350
+                            if (oldFile.Length < 5)
                             {
+                                if (oldFile.Length > 0 && !quiet)
+                                {
+                                    Console.WriteLine(string.Format("deleting log file {0} " +
+                                                                    "with only {1} bytes before changing filename",
+                                                                    oldFile, oldFile.Length));
+                                }
+
                                 //the log filename has changed, but no logs have been written yet to the old file
                                 //it seems that log4net creates the file (zero-length) before anything gets written
                                 //in this case, just delete the old filename because most of the point of this whole
