@@ -24,7 +24,7 @@ This will generate temporary AWS credentials in `$HOME/.aws/credentials`.  Note 
 * If you have specialized your `HOME` environment variable to be different from `USERPROFILE` then you will need to create a symlink `USERPROFILE/.aws` -> `HOME/.aws`.  Unfortunately on Windows NPM brutally replaces any custom setting for `HOME` with the value of `USERPROFILE`, which breaks resolution of AWS credentials for commands run as NPM scripts (e.g. `npm start`, `npm run deploy`).  To create a symlink on Windows first enable developer mode in Windows settings.  Then use [mklink](https://blogs.windows.com/buildingapps/2016/12/02/symlinks-windows-10) to create the link.  For example, in Windows `cmd` prompt: `mklink /d %USERPROFILE%\.aws %HOME%\.aws`.
 
 ## TilingServer
-The backend node.js server will run the .NET tiling server (`../TilingServer`) as a subprocess.  Thus, most development and deployment tasks require that you first use VisualStudio to build the `TilingServer` subproject.
+The node.js web server will run the .NET tiling server (`../TilingServer`) as a subprocess.  Thus, most development and deployment tasks require that you first use VisualStudio to build the `TilingServer` subproject.
 
 During local development (environment variable `NODE_ENV=development`) the tiling server binary will be found at `../TilingServer/bin/Release/TilingServer.exe`.  To use the debug build of `TilingServer.exe` instead of the release version, set the environment variable `DEBUG_TILING_SERVER=true`.
 
@@ -33,7 +33,7 @@ In a deployed context (`NODE_ENV=production` or `NODE_ENV=integration`) the tili
 ## Tiling Worker
 In order to run projects you will also need at least one running tiling worker connected to the same AWS venue.  For development one option is to run the tiling worker locally:
 1. `npm run show-config` - the server will connect to live AWS services for that venue
-2. `npm run start-worker` or `npm run start-worker -- venue-name` to use a different venue.
+2. `npm run worker` or `npm run worker -- venue-name` to use a different venue.
 
 For production or integration testing the worker is [deployed to an EC2 autoscale group](#deploy-worker-to-ec2).
 
@@ -43,7 +43,7 @@ For production or integration testing the worker is [deployed to an EC2 autoscal
 ---
 
 ## Development Workflow
-First install latest [node.js](https://nodejs.org) 8.x.x, acquire [AWS credentials](#aws-credentials), and build `TilingServer.exe` with Visual Studio as explained above.
+First install latest [node.js](https://nodejs.org) 8.x.x, acquire [AWS credentials](#aws-credentials), and build `TilingServer.exe` with Visual Studio as explained [above](#tilingserver).  To run projects locally you will also need to start an instance of the [tiling worker](#tiling-worker).
 
 1. `npm install`
 1. `npm run show-config` - the server will connect to live AWS services for that venue.
@@ -106,7 +106,7 @@ First install latest [node.js](https://nodejs.org) 8.x.x, acquire [AWS credentia
 1. Deploy the worker using the AWS EC2 web console as documented in the [AWS setup](docs/SETUP.md) instructions.
 
 
-### Nightly Test
+## Nightly Test
 `landform-test.hi.jpl.nasa.gov` is a `t3.small` EC2 instance running Ubuntu Server 18.04 LTS.  It runs the tests defined in [test/data/landform-test-config.json](test/data/landform-test-config.json) nightly using the [tools/runTests.js](toosl/runTests.js) script.  The landform sever it connects to is also specified in the test config file.  It reads the test data from S3 at `/landlords-dev/landformweb-test-data` using [s3fs-fuse](https://github.com/s3fs-fuse/s3fs-fuse) and writes timestamped log files back to the same directory tree in S3.  The tests are run one-by-one in order starting at 7am UTC (11pm Pacific standard time, 12am Pacific daylight time).  If a test fails then one of the timestamped log files written to its directory will be named like `log-*-fail.txt`.  Failure of one test does not disable running subsequent tests.
 
 The test projects may be visualized by logging in to the landform server, e.g. https://landform.hi.jpl.nasa.gov, and then going to a URL like https://landform.hi.jpl.nasa.gov/api/projects/PROJECT_NAME/view where `PROJECT_NAME` is the name of one of the test projects, e.g. `00-stick`.  The test data from the previous night is available until the next round of tests are run.
@@ -118,3 +118,30 @@ The EC2 instance for running tests is created from an EC2 launch configuration n
 (If you get an error about permissions on the key file then run `chmod 400 path/to/landform-ec2`.)  The instance has a firewall configured to allow SSH access only from JPL IP addresses - if you are remoted in over VPN then use full tunnel.
 
 In order for `landform-test.hi.jpl.nasa.gov` to connect to a landform web server, e.g. `landform.hi.jpl.nasa.gov`, the latter must allow inbound HTTPS traffic from the former.  In our typical setup this means that the EC2 security group used by Elastic Beanstalk for the landform web server must have an entry manually added to it with `Type=HTTPS, Protocol=TCP, Port Range=443, Source=ADDR/32, Description=landform-test.hi.jpl.nasa.gov` where `ADDR` is the IP address of landform-test.hi.jpl.nasa.gov. Normally the security group is configured to allow incoming connections only from JPL IP addresses.  See the [AWS setup](docs/SETUP.md#5-restrict-to-jpl-ips) docs for more info.
+
+### Running the Test Projects Locally
+The nightly tests run against our deployed venue at `landform.hi.jpl.nasa.gov`.  It is possible to run the same set of tests locally against a local venue (or any other venue).  You may want to do this to check for regressions against current master, for example.
+
+1. Download and unzip https://landlords-dev.s3.amazonaws.com/landformweb-test-data/landform-test-data.zip
+2. The venue to be tested is defined by `serverUrl` in `landform-test-data/landform-test-config.json`.  It defaults to `http://localhost:8081`, which is for a local venue. If you do want to test a local build then start up the landform master and worker locally e.g. following the [development workflow](#development-workflow) above.
+3. Run `npm run tests /path/to/landform-test-data`.
+
+TLDR:
+
+    # install node.js 8.x 
+
+    # in terminal 1
+    cd Landform/Web
+    npm install
+    npm run server
+
+    # in terminal 2
+    cd Landform/Web
+    npm run worker
+
+    # in terminal 3
+    cd Landform/Web
+    curl -O https://landlords-dev.s3.amazonaws.com/landformweb-test-data/landform-test-data.zip
+    unzip landform-test-data.zip
+    npm run tests landform-test-data
+
