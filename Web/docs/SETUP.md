@@ -110,6 +110,14 @@ This step creates the Elastic Beanstalk application and environment into which t
         1. Load balancer subnets: `us-west-1c subnet-148d7971 172.31.16.0/20`
         1. Instance subnets: same as load balancer
 1. Create Environment - it takes a few minutes
+1. Increase elastic load balancer timeout to avoid 504 gateway timeout errors.
+    1. http://goto.jpl.nasa.gov/awsconsole
+    1. Log in as `landords/account_owner` (internal Landform use only, otherwise use your own AWS account)
+    1. Select region `us-west-1` (North California)
+    1. Services -> Compute -> EC2
+    1. Load Balancing -> Load Balancers
+    1. Select the load balancer corresponding to the elastic beanstalk environment - on the "Instances" tab you should see an instance with the same  name as the elastic beanstalk environment.
+    1. On the "Description" tab for the load balancer, click "Edit idle timeout" and set it to 1800 seconds.
 
 ## 3: Configure DNS
 This step is optional.  It configures a public DNS entry to redirect to the Elastic Beanstalk environment configured above.  The Landform team uses the Amazon Route 53 DNS service, but any DNS provider that supports CNAME records should work.
