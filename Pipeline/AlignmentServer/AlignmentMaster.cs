@@ -38,6 +38,9 @@ namespace OPS.Pipeline.AlignmentServer
 
         [Option(HelpText = "Recompute all image features", Default = false)]
         public bool RedoFeatures { get; set; }
+
+        [Option(HelpText = "Start a worker in the same process (useful for debugging)", Default = false)]
+        public bool StartWorker { get; set; }
     }
 
     public abstract class Stage
@@ -340,6 +343,8 @@ namespace OPS.Pipeline.AlignmentServer
        
         internal Project Project { get; private set; }
 
+        private Task workerTask = null;
+
         public AlignmentMaster(StartAlignMasterOptions options)
             : base(options, TileServerConfig.Instance.VenueName, TileServerConfig.Instance.Profile)
         {
@@ -354,6 +359,26 @@ namespace OPS.Pipeline.AlignmentServer
                 OPS.Cloud.Credentials.Exists(config.MSLICEProfile))
             {
                 this.AddProfile(config.MSLICES3Url, config.MSLICEProfile);
+            }
+
+            //optionally start the worker (useful for debugging)
+            if (options.StartWorker)
+            {
+                workerTask = new Task(() =>
+                {
+                    try
+                    {
+                        StartWorkerOptions opts = new StartWorkerOptions();
+                        opts.SingleThreaded = true;
+                        new StartWorker(opts).Run();
+                    }
+                    catch (Exception e)
+                    {
+                        Logger.ErrorFormat("error in worker task ({0}): {1}", e.GetType().FullName, e.Message);
+                        Logger.Error(e.StackTrace);
+                    }
+                });
+                workerTask.Start();
             }
         }
 
@@ -387,6 +412,11 @@ namespace OPS.Pipeline.AlignmentServer
                 }
 
                 Thread.Sleep(DequeReceiveThrottlingMS);
+            }
+
+            if (workerTask != null)
+            {
+                workerTask.Wait();
             }
         }
     }
