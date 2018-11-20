@@ -349,13 +349,14 @@ namespace OPS.Pipeline.TileServer
         }
 
         const int DEQUEUE_THROTTLE_MS = 500;
+        const int WORKER_IMAGELRUCACHESIZE = 5;
         private void RunWorker()
         {
             //each worker thread has its own cloud instance
             //this avoids the need for synchronization
             var pipeline = new PipelineCore(options,
                                             TileServerConfig.Instance.VenueName, TileServerConfig.Instance.Profile,
-                                            logger: Logger); //all threads share the same logger which is MT safe
+                                            logger: Logger, numImagesLRUCache: WORKER_IMAGELRUCACHESIZE); //all threads share the same logger which is MT safe
 
             //MSL specific: this project does not hold its images within the same s3 bucket as the project
             //future projects  are expected to be within the same bucket
