@@ -12,9 +12,6 @@ using OPS.Util;
 
 namespace OPS.Pipeline
 {
-
-    
-
     public class LegacySceneManfiest
     {
         public class ImageData
@@ -301,7 +298,8 @@ namespace OPS.Pipeline
 
                 //Make meshes
                 {
-                    var imgname = f.Replace(".obj", ".rgb");
+                    //var imgname = f.Replace(".obj", ".rgb");
+                    var imgname = f.Replace(".obj", ".png");
                     string destRoot = Path.Combine(preprocessedDir, Path.GetFileNameWithoutExtension(f));
                     Mesh m = Mesh.Load(f);
                     if(!m.HasNormals)

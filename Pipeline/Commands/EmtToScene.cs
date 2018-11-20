@@ -56,6 +56,7 @@ namespace OPS.Pipeline
             {
                 if (location.StartsWith("s3://"))
                 {
+                    Console.WriteLine("location: " + location);
                     var inputStorageHelper = new StorageHelper(options.InputAWSProfile, options.InputAWSRegion);
                     inputStorageHelper.DownloadFile(location, path);
                 }
@@ -70,35 +71,46 @@ namespace OPS.Pipeline
 
         public List<string> GetMeshLocationList()
         {
-            var lines = File.ReadAllLines(GetFile(options.InputIVFile));
-            List<string> results = new List<string>();
-            foreach(var line in lines)
+            if (options.InputIVFile.EndsWith(".iv"))
             {
-                if(!line.Contains(".iv"))
+                // Use the files listed in the master iv file
+                var lines = File.ReadAllLines(GetFile(options.InputIVFile));
+                List<string> results = new List<string>();
+                foreach (var line in lines)
                 {
-                    continue;
-                }
-                int start = line.IndexOf("\"")+1;
-                int end = line.LastIndexOf("\"");
-                var relativeFile = line.Substring(start , end-start);
-                if (relativeFile.StartsWith("."))
-                {
-                    relativeFile = relativeFile.Substring(1, relativeFile.Length - 1);
-                }
-                string absFile;
-                if(options.InputIVFile.StartsWith("s3://"))
-                {
-                    var root = S3GetDirectory(options.InputIVFile);
-                    absFile = root + relativeFile;
-                }
-                else
-                {
-                    absFile = Path.Combine(Path.GetDirectoryName(options.InputIVFile), relativeFile);
-                }
+                    if (!line.Contains(".iv"))
+                    {
+                        continue;
+                    }
+                    int start = line.IndexOf("\"") + 1;
+                    int end = line.LastIndexOf("\"");
+                    var relativeFile = line.Substring(start, end - start);
+                    if (relativeFile.StartsWith("."))
+                    {
+                        relativeFile = relativeFile.Substring(1, relativeFile.Length - 1);
+                    }
+                    string absFile;
+                    if (options.InputIVFile.StartsWith("s3://"))
+                    {
+                        var root = S3GetDirectory(options.InputIVFile);
+                        absFile = root + relativeFile;
+                    }
+                    else
+                    {
+                        absFile = Path.Combine(Path.GetDirectoryName(options.InputIVFile), relativeFile);
+                    }
 
-                results.Add(absFile);
+                    results.Add(absFile);
+                }
+                return results;
             }
-            return results;
+            else
+            {
+                // Assume the input is a directory and use all iv files in it
+                var inputStorageHelper = new StorageHelper(options.InputAWSProfile, options.InputAWSRegion);
+                var results = inputStorageHelper.SearchObjects(options.InputIVFile, "*.iv").ToList();
+                return results;
+            }
         }
 
 
@@ -116,11 +128,13 @@ namespace OPS.Pipeline
             {
                 IV = emtToScene.GetFile(ivLocation);
                 RGB = emtToScene.GetFile(ivLocation.Replace(".iv", ".rgb"));
-                var objLocation = ivLocation.Replace("meshes/wedge", "ncam").Replace(".iv", ".obj");
+                PNG = emtToScene.GetFile(ivLocation.Replace(".iv", ".png"));
+                var objLocation = (ivLocation.Replace("mesh/wedge2", "ncam")).Replace(".iv", ".obj");
+                Console.WriteLine("objLocation: " + objLocation);
                 OBJ = emtToScene.GetFile(objLocation);
                 IMG = emtToScene.GetFile(objLocation.Replace(".obj", ".IMG"));
                 VIC = emtToScene.GetFile(objLocation.Replace(".obj", ".VIC"));
-                PNG = emtToScene.GetFile(objLocation.Replace(".obj", ".png"));
+                
             }
         }
 
@@ -132,6 +146,7 @@ namespace OPS.Pipeline
                 options.WorkingDir = TemporaryFile.GetTempDirectory();
             }
 
+            int r;
             var meshLocations = GetMeshLocationList();
             var records = meshLocations.Select(f => new MeshRecord(f, this)).ToList();
             // Filter empty meshes
@@ -152,7 +167,8 @@ namespace OPS.Pipeline
                 ProjectType = PipelineStateMachine.ProjectType.GenericTiling,
                 NoWait = false
             };
-            int r = new CreateProject(createOptions).Run();
+
+            r = new CreateProject(createOptions).Run();
 
             foreach (var f in Directory.EnumerateFiles(Path.Combine(options.WorkingDir, "preprocessed"), "*.obj"))
             {
