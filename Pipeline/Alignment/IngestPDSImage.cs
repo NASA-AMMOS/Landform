@@ -188,6 +188,13 @@ namespace OPS.Pipeline
                     return false;
                 }
             }
+            
+            //ISSUE #353: need to validate that alignment works across cameras with non-linearized images.
+            // so not allowing non-aligned images to be used when other aligned images are being used.
+            if(id.Geometry != RoverProductGeometry.Linearized)
+            {
+                return false;
+            }
             return true;
         }
 
