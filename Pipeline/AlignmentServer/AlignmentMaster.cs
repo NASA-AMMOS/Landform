@@ -117,6 +117,7 @@ namespace OPS.Pipeline.AlignmentServer
                     {
                         if (ValidGuid(res.Observation.FeaturesGuid) && !Master.Options.RedoFeatures)
                         {
+                            //skip feature detection
                             Master.Cloud.MasterQueue.Enqueue(new FeaturesDetectedMessage()
                             {
                                 Image = obsRef,
@@ -127,6 +128,7 @@ namespace OPS.Pipeline.AlignmentServer
                         }
                         else
                         {
+                            //skip mask generation
                             Master.Cloud.MasterQueue.Enqueue(new MaskCreatedMessage()
                             {
                                 Image = obsRef,
@@ -146,7 +148,7 @@ namespace OPS.Pipeline.AlignmentServer
                 }
             });
 
-            Logger.Info("Observations created, doing masks & features");
+            Logger.Info(IngestionRequested.Count() + " observations created, doing masks & features");
         }
 
         public ConcurrentBag<ImageRef> IngestionRequested;
@@ -159,12 +161,26 @@ namespace OPS.Pipeline.AlignmentServer
             state.Observation.MaskGuid = state.MaskGuid;
             state.Observation.Save(Master.DynamoContext);
 
-            Master.Cloud.WorkerQueue.Enqueue(new DetectFeaturesMessage()
+            if (state.Observation.ObservationType == ObservationType.Image.ToString())
             {
-                Image = obj.Image,
-                Project = obj.Project,
-                MaskGuid = obj.MaskGuid
-            });
+                Master.Cloud.WorkerQueue.Enqueue(new DetectFeaturesMessage()
+                {
+                    Image = obj.Image,
+                    Project = obj.Project,
+                    MaskGuid = obj.MaskGuid
+                });
+            }
+            else
+            {
+                //skip feature detection
+                Master.Cloud.MasterQueue.Enqueue(new FeaturesDetectedMessage()
+                {
+                    Image = obj.Image,
+                    Project = obj.Project,
+                    MaskGuid = obj.MaskGuid,
+                    FeaturesGuid = Guid.Empty
+                });
+            }
         }
 
         private void FeaturesDone(FeaturesDetectedMessage obj)
@@ -352,6 +368,13 @@ namespace OPS.Pipeline.AlignmentServer
             Options.RedoFeatures |= Options.RedoMasks;
             ObservationStates = new ConcurrentDictionary<ImageRef, ImageState>();
 
+            //search objects will return 0 objects if slash is not postfixed
+            // not requesting recursively, which means it is using slash delimiter
+            if (!Options.InputPath.EndsWith("/"))
+            {
+                Options.InputPath = Options.InputPath + "/";
+            }
+
             //MSL specific: this project does not hold its images within the same s3 bucket as the project
             //future projects  are expected to be within the same bucket
             var config = TileServerConfig.Instance;
@@ -360,35 +383,22 @@ namespace OPS.Pipeline.AlignmentServer
             {
                 this.AddProfile(config.MSLICES3Url, config.MSLICEProfile);
             }
-
-            //optionally start the worker (useful for debugging)
-            if (options.StartWorker)
-            {
-                workerTask = new Task(() =>
-                {
-                    try
-                    {
-                        StartWorkerOptions opts = new StartWorkerOptions();
-                        opts.SingleThreaded = true;
-                        new StartWorker(opts).Run();
-                    }
-                    catch (Exception e)
-                    {
-                        Logger.ErrorFormat("error in worker task ({0}): {1}", e.GetType().FullName, e.Message);
-                        Logger.Error(e.StackTrace);
-                    }
-                });
-                workerTask.Start();
-            }
         }
 
         private const int DequeReceiveThrottlingMS = 50;
 
         public int Run()
         {
+            //ensure resources exist
             Cloud = new TileServerCloud(this);
-            
             Project = Project.FindOrCreate(DynamoContext, Options.ProjectName, Options.ProductPath, Options.InputPath);
+
+            //optionally start the worker (useful for debugging)
+            if (Options.StartWorker)
+            {
+                workerTask = CreateWorker();
+            }
+
             CurrentStage = new IngestStage(this);
             CurrentStage.Run();
 
@@ -413,11 +423,26 @@ namespace OPS.Pipeline.AlignmentServer
 
                 Thread.Sleep(DequeReceiveThrottlingMS);
             }
+        }
 
-            if (workerTask != null)
+        private Task CreateWorker()
+        {
+            Task workerTask = new Task(() =>
             {
-                workerTask.Wait();
-            }
+                try
+                {
+                    StartWorkerOptions opts = new StartWorkerOptions();
+                    new StartWorker(opts).Run();
+                }
+                catch (Exception e)
+                {
+                    Logger.ErrorFormat("error in worker task ({0}): {1}", e.GetType().FullName, e.Message);
+                    Logger.Error(e.StackTrace);
+                }
+            });
+
+            workerTask.Start();
+            return workerTask;
         }
     }
 }
