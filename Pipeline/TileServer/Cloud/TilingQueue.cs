@@ -54,7 +54,7 @@ namespace OPS.Pipeline.TileServer
 
     public class TilingQueue
     {
-        public const int DEF_TIMEOUT_SEC = 20;
+        public const int DEF_TIMEOUT_SEC = 60;
 
         public string Name { get; private set; }
         public int TimeoutSec { get; private set; }
