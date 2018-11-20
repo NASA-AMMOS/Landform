@@ -50,13 +50,13 @@ namespace OPS.Pipeline.TileServer
 
         public int Run()
         {
-            new TileServerCloud(this).EnsureTablesExist();
+            var cloud = new TileServerCloud(this, quiet: true); //ensures queues and tables exist
 
             var project = TilingProject.Find(DynamoContext, options.ProjectName);
 
             if (project == null)
             {
-                Logger.Error("No project by that name found: " + options.ProjectName);
+                Logger.ErrorFormat("project \"{0}\" not found", options.ProjectName);
                 return 1; //argument error
             }
 
@@ -73,7 +73,7 @@ namespace OPS.Pipeline.TileServer
                     var sanitizedInput = new SanitizedInput {
                         Name = input.Name,
                         MeshUrl = TileServerConfig.ConvertUrlToHttps(input.MeshUrl),
-                        ImageUrl = TileServerConfig.ConvertUrlToHttps(input.MeshUrl),
+                        ImageUrl = TileServerConfig.ConvertUrlToHttps(input.ImageUrl),
                         Processed = input.Chunked
                     };
                     if (input.Chunked)
@@ -89,7 +89,7 @@ namespace OPS.Pipeline.TileServer
 
             if (project.TilesDefined)
             {
-                var nodes = TilingNode.Find(DynamoContext, project).ToList();
+                var nodes = TilingNode.Find(this, project).ToList();
                 md.NumNodes = nodes.Count;
 
                 int numProcessed = 0;
@@ -106,7 +106,7 @@ namespace OPS.Pipeline.TileServer
 
             md.OutputUrl = TileServerConfig.Instance.WWWUrl(project.Name, "tileset.json", https: true);
 
-            var ignore = new string[] { "TilingProject.NodeIds", "TilingProject.InputNames" };
+            var ignore = new string[] { "TilingProject.NodeIdsUrl", "TilingProject.InputNames" };
             Console.WriteLine(JsonHelper.ToJson(md, indent: true, autoTypes: false, ignoreProperties: ignore));
 
             return 0;

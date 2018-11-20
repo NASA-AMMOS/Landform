@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Amazon.DynamoDBv2.DataModel;
+using Amazon.DynamoDBv2.DocumentModel;
 
 namespace OPS.Cloud
 {
@@ -14,8 +15,8 @@ namespace OPS.Cloud
     /// Fresh Creates, or Saves with missing values, will not overwrite existing values. 
     /// </summary>
     [DynamoDBTable("Observations")]
-    [DynamoDBReadCapacity(5, 50)]
-    [DynamoDBWriteCapacity(5, 50)]
+    [DynamoDBReadCapacity(50, 100)]
+    [DynamoDBWriteCapacity(50, 100)]
     public class Observation
     {
         [DynamoDBRangeKey]
@@ -130,25 +131,21 @@ namespace OPS.Cloud
 
         public static IEnumerable<Observation> Find(DynamoDBContext context, string projectName)
         {
-            return context.Scan<Observation>(
-                new ScanCondition("ProjectName", Amazon.DynamoDBv2.DocumentModel.ScanOperator.Equal, projectName)
-                );
+            return DBUtil.Scan<Observation>(context, new ScanCondition("ProjectName", ScanOperator.Equal, projectName));
         }
 
         public static IEnumerable<Observation> Find(DynamoDBContext context, Frame frame)
         {
-            return context.Scan<Observation>(
-                new ScanCondition("ProjectName", Amazon.DynamoDBv2.DocumentModel.ScanOperator.Equal, frame.ProjectName),
-                new ScanCondition("FrameName", Amazon.DynamoDBv2.DocumentModel.ScanOperator.Equal, frame.Name)
-                );
+            return DBUtil.Scan<Observation>(context,
+                                            new ScanCondition("ProjectName", ScanOperator.Equal, frame.ProjectName),
+                                            new ScanCondition("FrameName", ScanOperator.Equal, frame.Name));
         }
 
         public static IEnumerable<Observation> FindByType(DynamoDBContext context, string projectName, string observationType)
         {
-            return context.Scan<Observation>(
-                new ScanCondition("ProjectName", Amazon.DynamoDBv2.DocumentModel.ScanOperator.Equal, projectName),
-                new ScanCondition("ObservationType", Amazon.DynamoDBv2.DocumentModel.ScanOperator.Equal, observationType)
-                );
+            return DBUtil.Scan<Observation>(context,
+                                            new ScanCondition("ProjectName", ScanOperator.Equal, projectName),
+                                            new ScanCondition("ObservationType", ScanOperator.Equal, observationType));
         }
     }
 }

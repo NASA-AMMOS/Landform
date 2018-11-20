@@ -63,7 +63,6 @@ namespace OPS.Alignment
 
                 if (!node.HasComponent<NodeConvexHull>())
                 {
-                    var chc = node.AddComponent<NodeConvexHull>();
                     List<ConvexHull> childHulls = new List<ConvexHull>();
                     foreach (var child in node.Children)
                     {
@@ -73,8 +72,16 @@ namespace OPS.Alignment
                             var ut = child.GetOrAddComponent<NodeUncertainTransform>();
                             childHulls.Add(ConvexHull.Transformed(hull.Hull, ut.UncertainTransform));
                         }
+                        else
+                        {
+                            Debug.Write("no hulls");
+                        }
                     }
-                    chc.Hull = ConvexHull.Union(childHulls.ToArray());
+                    if (childHulls.Count > 0)
+                    {
+                        var chc = node.AddComponent<NodeConvexHull>();
+                        chc.Hull = ConvexHull.Union(childHulls.ToArray());
+                    }
                 }
             };
             collect(scene.Root);
@@ -110,6 +117,8 @@ namespace OPS.Alignment
 
             Func<SceneNode, SceneNode, bool> overlaps = (node, other) =>
             {
+                if (!node.HasComponent<NodeConvexHull>()) return false;
+                if (!other.HasComponent<NodeConvexHull>()) return false;
                 var nodeHull = node.GetComponent<NodeConvexHull>().Hull;
                 var otherHull = other.GetComponent<NodeConvexHull>().Hull;
 

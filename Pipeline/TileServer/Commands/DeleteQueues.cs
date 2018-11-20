@@ -24,15 +24,14 @@ namespace OPS.Pipeline.TileServer
 
         public int Run()
         {
-            var cloud = new TileServerCloud(this);
-            string queues = cloud.MasterQueue.Name + ", " + cloud.WorkerQueue.Name;
+            var cloud = new TileServerCloud(this, initQueues: false, initTables: false, quiet: true);
             if (!options.Force)
             {
-                Console.WriteLine("delete queues " + queues + " (yes/no)?");
+                Console.WriteLine("delete queues in venue " + TileServerConfig.Instance.VenueName + " (yes/no)?");
                 var response = Console.ReadLine();
                 if (response.ToLower() != "yes") return 1;
             }
-            Logger.Info("deleting queues: " + queues);
+            Logger.Info("deleting queues");
             cloud.DeleteQueues();
             return 0;
         }

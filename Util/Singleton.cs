@@ -6,7 +6,6 @@ using System.Threading.Tasks;
 
 namespace OPS.Util
 {
-
     public abstract class Singleton<T> where T : Singleton<T>, new()
     {
         private static T instance;
@@ -14,7 +13,7 @@ namespace OPS.Util
         {
             get
             {
-                if(instance == null)
+                if (instance == null)
                 {
                     instance = new T();
                 }

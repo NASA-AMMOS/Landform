@@ -42,8 +42,6 @@ if (!fs.pathExistsSync(cfgFile)) {
 
 const testCfg = readJson(cfgFile);
 
-const stamp = timeStamp();
-
 function parseJsonResponse(ex) {
   if (ex.response && Buffer.isBuffer(ex.response.stream)) {
     try { ex.response.json = JSON.parse(ex.response.stream.toString('utf8')); }
@@ -55,6 +53,7 @@ function parseJsonResponse(ex) {
 function runTest(projDir) {
   return new Promise(resolve => {
 
+    const stamp = timeStamp();
     let projName = projDir, maxMS = 0; //will be updated after we read project config file
     const fullPath = path.join(testDir, projDir);
     const start = Date.now(), elapsed = () => Date.now() - start;
@@ -66,11 +65,26 @@ function runTest(projDir) {
     };
 
     const error = e => {
-      const msg = `error running ${projName} in ${fullPath}: ${e.message || e}`;
+      const coll = e.collectionName ? `-${e.collectionName}` : '';
+      let msg = `error running ${projName}${coll} in ${fullPath}: (${e.name || 'unknown'}) ${e.message || e}`;
+      if (e.firstError) msg += `: ${e.firstError}`;
       console.error(msg);
       const info = { error: msg };
-      fs.writeJsonSync(`log-${projName}-${stamp}-fail.txt`, info, { spaces: 2 }); //if no projDir will be in testDir
+      fs.writeJsonSync(`log-${projName}-${stamp}${coll}-fail.txt`, info, { spaces: 2 });
       done(); //move on to next test even if this one errored
+    };
+
+    const getFirstErrorMessage = summary => {
+      let msg = '';
+      if (summary.run && summary.run.failures && summary.run.failures.length > 0) {
+        const id = summary.run.failures[0].source ? summary.run.failures[0].source.id : null;
+        if (id && summary.run.executions) {
+          const ex = summary.run.executions.find(e => e.item && e.item.id === id);
+          if (ex.item.name) msg += `error in ${ex.item.name}`;
+          if (ex.response && ex.response.json) msg += `: ${ex.response.json.error}`;
+        }
+      }
+      return msg;
     };
 
     const run = opts => { //run Postman collection
@@ -84,26 +98,28 @@ function runTest(projDir) {
       return new Promise((_resolve, reject) => {
         const _done = (err, summary) => {
 
+          if (summary.run && summary.run.executions) {
+            if (opts.omitExecutions) delete summary.run.executions;
+            else summary.run.executions = summary.run.executions.map(parseJsonResponse);
+          }
+
+          fs.writeJsonSync(`log-${projName}-${stamp}-${coll}.txt`, summary, { spaces: 2 });
+
           err = err || summary.error;
           if (err) {
+            err.collectionName = coll; err.firstError = getFirstErrorMessage(summary);
             if (opts.bail || opts.abortOnError || opts.abortOnFailure) { reject(err); return; }
-            console.warn(`ignoring error: ${err.message || err}`);
+            console.warn(`ignoring error: ${err.message || err}${err.firstError ? (': ' + err.firstError) : ''}`);
           }
 
           if (summary.run && summary.run.failures && summary.run.failures.length > 0) {
-            err = summary.run.failures[0].error || 'unknown test assertion failure';
+            err = summary.run.failures[0].error || new Error('unknown test assertion failure');
             if (err) {
+              err.collectionName = coll; err.firstError = getFirstErrorMessage(summary);
               if (opts.bail || opts.abortOnFailure) { reject(err); return; }
-              console.warn(`ignoring error: ${err.message || err}`);
+              console.warn(`ignoring error: ${err.message || err}${err.firstError ? (': ' + err.firstError) : ''}`);
             }
           }
-
-          if (summary.run && summary.run.executions) {
-            if (opts.omitExecutions) delete summary.run.executions;
-            else summary.run.executions = summary.run.executions.map(ex => parseJsonResponse(ex));
-          }
-
-          fs.writeJsonSync(`log-${projName}-${coll}-${stamp}.txt`, summary, { spaces: 2 });
 
           _resolve();
         };
@@ -146,7 +162,7 @@ function runTest(projDir) {
         item.request.body.formdata.find(d => d.key === 'texture').src = texture;
         if (options) {
           item.event.find(e => e.listen === 'prerequest').script.exec = [
-            `pm.environment.set(\\"UPLOAD_OPTIONS\\", \\"${options}\\");`,
+            `pm.environment.set("UPLOAD_OPTIONS", "${options}");`,
           ];
         }
       }
@@ -174,13 +190,10 @@ function runTest(projDir) {
   });
 }
 
-checkTTY('runTests') //ctrl-c doesn't work right in cygwin
-  .then(ok => {
-    if (ok) {
-      console.log(`${stamp}: running ${testCfg.testDirs.length} projects in ${testDir}`);
-      console.log(`server: ${testCfg.serverUrl}`);
-      if (dryRun) console.log('dry run');
-      testCfg.testDirs.reduce((promise, dir) => promise.then(() => runTest(dir)), Promise.resolve());
-    }
-  });
-
+//if you run this from a Cygwin terminal, don't expect ctrl-c to work right
+//we could try to detect that and warn
+//but let's not - it's more important that this be runnable from non-tty contexts (like from cron)
+console.log(`${timeStamp()}: running ${testCfg.testDirs.length} projects in ${testDir}`);
+console.log(`server: ${testCfg.serverUrl}`);
+if (dryRun) console.log('dry run');
+testCfg.testDirs.reduce((promise, dir) => promise.then(() => runTest(dir)), Promise.resolve());

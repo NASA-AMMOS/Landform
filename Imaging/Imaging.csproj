@@ -105,7 +105,7 @@
     <Compile Include="Serializers\GDALSeralizer.cs" />
     <Compile Include="Serializers\GDALWriteOptions.cs" />
     <Compile Include="Serializers\IImageConverter.cs" />
-    <Compile Include="Serializers\ImageSeralizer.cs" />
+    <Compile Include="Serializers\ImageSerializer.cs" />
     <Compile Include="Serializers\ImageConverters.cs" />
     <Compile Include="Serializers\ImageSerializationException.cs" />
     <Compile Include="Serializers\ImageSerializers.cs" />

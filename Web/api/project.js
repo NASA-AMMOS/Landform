@@ -16,11 +16,13 @@ async function createProject(req, res) {
 
     const args = parseArgs(req, {
       tilingscheme: { type: 'enum', options: ['Bin', 'QuadX', 'QuadY', 'QuadZ', 'Oct', 'UserDefined'] },
-      skirtmode: { type: 'enum', options: ['None', 'X', 'Y', 'Z'] },
+      skirtmode: { type: 'enum', options: ['None', 'Normal', 'X', 'Y', 'Z'] },
       reconmethod: { type: 'enum', options: ['Poisson', 'FSSR'] },
       facespertile: { type: 'int' },
       tileresolution: { type: 'int' },
       projecttype: { type: 'enum', options: ['GenericTiling', 'MSL'] },
+      exportmeshformat: { type: 'enum', options: ['', 'obj', 'ply', 'stl'] },
+      exportimageformat: { type: 'enum', options: ['', 'tif', 'png', 'jpg'] },
     }, { commandLine: true });
 
     const task = await tilingTask('createproject', [req.params.name, ...args]);

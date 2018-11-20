@@ -122,7 +122,11 @@ namespace OPS.Pipeline.MeshWorker
                 leafPair.Image.ApplyInPlace(0, x => { return 1.0f; });
 
                 //upload the mesh/texture pair and update the tiling node
-                ThroughputManager.Run(() => TilingNode.Find(pipeline.DynamoContext, project.Name, leaf.Id).SaveMesh(leafPair, pipeline, 0));
+                ThroughputManager.Run(() =>
+                {
+                    var node = TilingNode.Find(pipeline.DynamoContext, project.Name, leaf.Id);
+                    node.SaveMesh(leafPair, pipeline, 0, project.ExportMeshFormat, project.ExportImageFormat);
+                });
 
                 //notify the tiling server that a tile is ready for building into parent tiles
                 cloud.MasterQueue.Enqueue(new TileCompletedMessage(project.Name, leaf.Id));                

@@ -250,6 +250,23 @@ namespace OPS.Cloud
             //This works if there is a default profile (on a user machine) or an IAM role (an EC2 instance)
         }
 
+        public static AmazonS3Client MakeClient(string profile = null, string url = null)
+        {
+            var cfg = new AmazonS3Config();
+            if (string.IsNullOrEmpty(url))
+            {
+                cfg.RegionEndpoint = Amazon.RegionEndpoint.USWest1;
+            }
+            else
+            {
+                cfg.ServiceURL = url;
+                cfg.ForcePathStyle = true;
+                cfg.SignatureVersion = "2";
+            }
+            var creds = profile != null ? Credentials.Get(profile) : null;
+            return creds != null ? new AmazonS3Client(creds, cfg) : new AmazonS3Client(cfg);
+        }
+
         //Use default credentials (or, for EC2 workers, their IAM role) if credentials are not provided 
         private AmazonS3Client GetClient(RegionEndpoint region)
         {

@@ -45,7 +45,7 @@ namespace OPS.Pipeline.TileServer
             this.pipeline = pipeline;
             this.workerQueue = workerQueue;
             this.projectName = projectName;
-            projectCache = new ProjectCache(pipeline.DynamoContext, projectName, pipeline.Logger);
+            projectCache = new ProjectCache(pipeline, projectName, pipeline.Logger);
             InitDispatcher();
         }
 
@@ -81,7 +81,8 @@ namespace OPS.Pipeline.TileServer
             {
                 LogInfo("creating project");
                 TilingProject.Create(pipeline.DynamoContext, projectName, m.TilingScheme, m.SkirtMode, m.ReconMethod,
-                                     m.FacesPerTile, m.TileResolution, m.ProjectType);
+                                     m.FacesPerTile, m.TileResolution, m.ProjectType,
+                                     m.ExportMeshFormat, m.ExportImageFormat);
             }
             else
             {
@@ -228,7 +229,7 @@ namespace OPS.Pipeline.TileServer
 
         virtual protected void BuildNodes(TilingProject project)
         {
-            SceneNode root = TilingNode.BuildTreeFromDatabase(pipeline.DynamoContext, project);
+            SceneNode root = TilingNode.BuildTreeFromDatabase(pipeline, project);
 
             List<List<SceneNode>> leafGroups = new List<List<SceneNode>>();
             CollectLeafGroups(root, leafGroups);
@@ -356,6 +357,8 @@ namespace OPS.Pipeline.TileServer
         public int FacesPerTile;
         public int TileResolution;
         public string ProjectType;
+        public string ExportMeshFormat;
+        public string ExportImageFormat;
 
         public CreateProjectMessage() { }
         public CreateProjectMessage(string projectName) : base(projectName) { }

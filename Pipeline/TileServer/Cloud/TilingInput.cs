@@ -1,4 +1,5 @@
 ﻿using Amazon.DynamoDBv2.DataModel;
+using Amazon.DynamoDBv2.DocumentModel;
 using OPS.Cloud;
 using System;
 using System.Collections.Generic;
@@ -82,7 +83,7 @@ namespace OPS.Pipeline.TileServer
             return context.Load<TilingInput>(name, projectName);
         }
 
-        public static IEnumerable<TilingInput> Find(DynamoDBContext context, TilingProject project)
+        public static IEnumerable<TilingInput> Find(DynamoDBContext context, TilingProject project, ILog logger = null)
         {
             if (project.InputNames != null)
             {
@@ -101,9 +102,8 @@ namespace OPS.Pipeline.TileServer
             {
                 //fall back to scanning for all records that match the project name
                 //e.g. for legacy projects or if the project record is not well formed
-                return context.Scan<TilingInput>(new ScanCondition("ProjectName",
-                                                                   Amazon.DynamoDBv2.DocumentModel.ScanOperator.Equal,
-                                                                   project.Name));
+                return DBUtil.Scan<TilingInput>(context, logger,
+                                                new ScanCondition("ProjectName", ScanOperator.Equal, project.Name));
             }
         }
 

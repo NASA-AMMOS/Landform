@@ -154,9 +154,7 @@ namespace OPS.Cloud
 
         public static IEnumerable<Overlap> Find(DynamoDBContext context, string projectName)
         {
-            return context.Scan<Overlap>(
-                new ScanCondition("ProjectName", Amazon.DynamoDBv2.DocumentModel.ScanOperator.Equal, projectName)
-                );
+            return DBUtil.Scan<Overlap>(context, new ScanCondition("ProjectName", ScanOperator.Equal, projectName));
         }
 
         /// <summary>

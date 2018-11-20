@@ -130,7 +130,7 @@ namespace OPS.Pipeline.AlignmentServer
                 ModelImage = model,
                 DataImage = data,
                 OverlapIndex = Message.OverlapIndex,
-                CorrespondenceGuid = result.Guid
+                CorrespondenceGuid = guid
             });
         }
     }

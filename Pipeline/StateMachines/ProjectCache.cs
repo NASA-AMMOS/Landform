@@ -9,7 +9,7 @@ namespace OPS.Pipeline.TileServer
 {
     public class ProjectCache
     {
-        private DynamoDBContext context;
+        PipelineCore pipeline;
         private string projectName;
         private ILog logger;
 
@@ -23,9 +23,9 @@ namespace OPS.Pipeline.TileServer
         private HashSet<string> enqued;
         private HashSet<string> inputsToChunk;
 
-        public ProjectCache(DynamoDBContext context, string projectName, ILog logger)
+        public ProjectCache(PipelineCore pipeline, string projectName, ILog logger)
         {
-            this.context = context;
+            this.pipeline = pipeline;
             this.projectName = projectName;
             this.logger = logger;
             Reset();
@@ -58,14 +58,14 @@ namespace OPS.Pipeline.TileServer
             Stopwatch sw = new Stopwatch();
             sw.Start();
 
-            var project = TilingProject.Find(context, projectName);
+            var project = TilingProject.Find(pipeline.DynamoContext, projectName);
             if (project == null || !project.TilesDefined)
             {
                 throw new System.Exception("cannot initialize cache for " + projectName +
                                            ": project not found or tiles not defined yet");
             }
 
-            var nodes = TilingNode.Find(context, project).ToList();
+            var nodes = TilingNode.Find(pipeline, project).ToList();
             foreach (var n in nodes)
             {
                 ids.Add(n.Id);

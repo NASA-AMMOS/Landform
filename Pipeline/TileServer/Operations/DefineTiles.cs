@@ -176,9 +176,10 @@ namespace OPS.Pipeline.TileServer
                                                    dependencies.DependsOn(node.Name),
                                                    dependencies.DependedOnBy(node.Name),
                                                    node.GetComponent<NodeBounds>().Bounds);
-                if(node.IsLeaf && node.HasComponent<MeshImagePair>())
+                if (node.IsLeaf && node.HasComponent<MeshImagePair>())
                 {
-                    tilingNode.SaveMesh(node.GetComponent<MeshImagePair>(), pipeline, 0);
+                    tilingNode.SaveMesh(node.GetComponent<MeshImagePair>(), pipeline, 0,
+                                        project.ExportMeshFormat, project.ExportImageFormat);
                 }
                 Thread.Sleep(10); //throttle to reduce chance of exponential backoff
                 if (++n % 500 == 0)
@@ -186,7 +187,7 @@ namespace OPS.Pipeline.TileServer
                     LogInfo("created " + n + " nodes");
                 }
             }                            
-            project.NodeIds = ids;
+            project.SaveNodeIds(ids, pipeline);
             project.TilesDefined = true;
             project.Save(pipeline.DynamoContext);
             cloud.MasterQueue.Enqueue(message);

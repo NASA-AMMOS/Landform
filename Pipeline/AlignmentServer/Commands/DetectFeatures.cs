@@ -64,7 +64,8 @@ namespace OPS.Pipeline.AlignmentServer
             {
                 Image = Message.Image,
                 Project = Message.Project,
-                MaskGuid = res.Guid
+                MaskGuid = Message.MaskGuid,
+                FeaturesGuid = res.Guid
             });
         }
     }

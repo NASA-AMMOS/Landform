@@ -48,9 +48,9 @@ namespace OPS.Cloud
 
         public IEnumerable<Frame> GetChildren(DynamoDBContext context)
         {
-            return context.Scan<Frame>(
-                new ScanCondition("ProjectName", ScanOperator.Equal, ProjectName),
-                new ScanCondition("ParentName", ScanOperator.Equal, Name));
+            return DBUtil.Scan<Frame>(context,
+                                      new ScanCondition("ProjectName", ScanOperator.Equal, ProjectName),
+                                      new ScanCondition("ParentName", ScanOperator.Equal, Name));
         }
 
         public Frame GetParent(DynamoDBContext context)
