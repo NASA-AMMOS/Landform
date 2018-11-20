@@ -122,7 +122,7 @@ namespace OPS.Pipeline.TileServer
                     Thread.Sleep(SLEEP_MS);
                     project = TilingProject.Find(DynamoContext, options.ProjectName);
                 }
-                while (!project.InputNames.Contains(name));
+                while (project.InputNames == null || !project.InputNames.Contains(name));
                 Logger.Info("intput has been added to project");
             }
 
