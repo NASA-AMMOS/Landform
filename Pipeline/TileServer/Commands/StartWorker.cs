@@ -359,7 +359,7 @@ namespace OPS.Pipeline.TileServer
                                             logger: Logger, numImagesLRUCache: WORKER_IMAGELRUCACHESIZE); //all threads share the same logger which is MT safe
 
             //MSL specific
-            OPS.Pipeline.Rover.MSLCloud.AddMSLICEProfile(this);
+            OPS.Pipeline.Rover.MSLCloud.AddMSLICEProfile(pipeline);
 
             var cloud = new TileServerCloud(pipeline, initQueues: true, initTables: false, quiet: true);
             var workerQueue = cloud.WorkerQueue;
