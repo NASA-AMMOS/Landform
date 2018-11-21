@@ -346,6 +346,9 @@ namespace OPS.Pipeline.AlignmentServer
             Options = options;
             Options.RedoFeatures |= Options.RedoMasks;
             ObservationStates = new ConcurrentDictionary<ImageRef, ImageState>();
+
+            //MSL Specific
+            OPS.Pipeline.Rover.MSLCloud.AddMSLICEProfile(this);
         }
 
         private const int DequeReceiveThrottlingMS = 50;

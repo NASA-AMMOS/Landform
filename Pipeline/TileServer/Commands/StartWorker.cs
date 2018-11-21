@@ -365,6 +365,9 @@ namespace OPS.Pipeline.TileServer
             var pipeline = new PipelineCore(options,
                                             TileServerConfig.Instance.VenueName, TileServerConfig.Instance.Profile,
                                             logger: Logger); //all threads share the same logger which is MT safe
+                                                             //MSL specific
+            OPS.Pipeline.Rover.MSLCloud.AddMSLICEProfile(this);
+
             var cloud = new TileServerCloud(pipeline, initQueues: true, initTables: false, quiet: true);
             var workerQueue = cloud.WorkerQueue;
 
