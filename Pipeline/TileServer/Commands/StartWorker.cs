@@ -358,14 +358,8 @@ namespace OPS.Pipeline.TileServer
                                             TileServerConfig.Instance.VenueName, TileServerConfig.Instance.Profile,
                                             logger: Logger, numImagesLRUCache: WORKER_IMAGELRUCACHESIZE); //all threads share the same logger which is MT safe
 
-            //MSL specific: this project does not hold its images within the same s3 bucket as the project
-            //future projects  are expected to be within the same bucket
-            var config = TileServerConfig.Instance;
-            if (!string.IsNullOrEmpty(config.MSLICEProfile) && !string.IsNullOrEmpty(config.MSLICES3Url) &&
-                OPS.Cloud.Credentials.Exists(config.MSLICEProfile))
-            {
-                pipeline.AddProfile(config.MSLICES3Url, config.MSLICEProfile);
-            }
+            //MSL specific
+            OPS.Pipeline.Rover.MSLCloud.AddMSLICEProfile(this);
 
             var cloud = new TileServerCloud(pipeline, initQueues: true, initTables: false, quiet: true);
             var workerQueue = cloud.WorkerQueue;

@@ -375,14 +375,8 @@ namespace OPS.Pipeline.AlignmentServer
                 Options.InputPath = Options.InputPath + "/";
             }
 
-            //MSL specific: this project does not hold its images within the same s3 bucket as the project
-            //future projects  are expected to be within the same bucket
-            var config = TileServerConfig.Instance;
-            if (!string.IsNullOrEmpty(config.MSLICEProfile) && !string.IsNullOrEmpty(config.MSLICES3Url) &&
-                OPS.Cloud.Credentials.Exists(config.MSLICEProfile))
-            {
-                this.AddProfile(config.MSLICES3Url, config.MSLICEProfile);
-            }
+            //MSL Specific
+            OPS.Pipeline.Rover.MSLCloud.AddMSLICEProfile(this);
         }
 
         private const int DequeReceiveThrottlingMS = 50;
