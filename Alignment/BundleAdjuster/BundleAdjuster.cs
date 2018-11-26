@@ -1,4 +1,5 @@
-﻿using System;
+﻿using log4net;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -16,10 +17,11 @@ namespace OPS.Alignment
 {
     public class BundleAdjuster : PipelineRoutine
     {
-        public BundleAdjuster(PipelineCore pipeline) : base(pipeline)
+        private ILog Logger = null;
+        public BundleAdjuster(PipelineCore pipeline, ILog logger) : base(pipeline)
         {
+            Logger = logger;
         }
-
 
         class FeatureIndex
         {
@@ -74,9 +76,10 @@ namespace OPS.Alignment
             // AdjustedNodes are present on all frames to adjust
             // Mean transform will be assumed for all frames above adjusted nodes
 
-
             BundleAdjusterProblem problem = new BundleAdjusterProblem();
             List<AdjustedNode> toAdjust = scene.Root.GetComponentsInTree<AdjustedNode>().ToList();
+
+            Logger.Info("Setting up bundle adjust of " + toAdjust.Count() + " images");
 
             Matrix worldToRoot = scene.Root.Transform.WorldToLocal;
             Memoizer<Imaging.CameraModel, int> cameraModels = new Memoizer<Imaging.CameraModel, int>(problem.AddCameraModel);
@@ -209,8 +212,12 @@ namespace OPS.Alignment
                 tracks.Remove(two);
             };
 
+            int idxCurCorrespondence = 0;
+            int numCorrespondences = scene.Correspondences.Count();
             foreach (var corr in scene.Correspondences)
             {
+                Logger.Info("Processing correspondence " + idxCurCorrespondence++ + " of " + numCorrespondences);
+
                 var model = corr.Value.ModelImage;
                 var data = corr.Value.DataImage;
                 var modelModel = problem.CameraModels[imageToCamera[model]];
@@ -265,8 +272,12 @@ namespace OPS.Alignment
             }
 
             // assign projections to tracks
+            int numTracks = tracks.Values.Count;
+            int idxTrack = 0;
             foreach (var track in tracks.Values)
             {
+                Logger.Info("Processing track " + idxTrack++ + " of " + numTracks);
+
                 if (track.features.Count < 2) continue;
                 
                 computeMinErr(track, null, true);
@@ -289,6 +300,8 @@ namespace OPS.Alignment
 
             for (int iter = 0; iter < 2; iter++)
             {
+                Logger.Info("Running Ceres iteration: " + iter);
+
                 BundleAdjusterProblem result = null;
                 TemporaryFile.GetAndDelete(".bin", inputFile =>
                 {
@@ -315,7 +328,7 @@ namespace OPS.Alignment
                     });
                 });
 
-                Console.WriteLine("Got result");
+                Logger.Info("Got ceres result");
                 for (int i = 0; i < result.Transforms.Count; i++)
                 {
                     var transform = result.Transforms[i];
@@ -329,6 +342,7 @@ namespace OPS.Alignment
 
                 if(debugOutputDirectory != null)
                 {
+                    Logger.Info("Writing bundler debug data");
                     Mesh m = new Mesh(capacity: result.Points.Count);
                     for (int i = 0; i < result.Points.Count; i++)
                     {
@@ -366,6 +380,9 @@ namespace OPS.Alignment
                         }
                     }
                 }
+
+                Logger.Info("Identified " + badProjections.Count + " bad points " + " on " + badTracks.Count() + " tracks");
+
                 Dictionary<int, int> projOldToNew = new Dictionary<int, int>();
                 int newNumProjections = 0;
                 for (int i = 0; i < problem.Projections.Count; i++)
@@ -391,6 +408,8 @@ namespace OPS.Alignment
                     }
                     track.projections = newProjs;
                 }
+
+                Logger.Info("Completed trimming bad points from tracks");
             }
 
         }

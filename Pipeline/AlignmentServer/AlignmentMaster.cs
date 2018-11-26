@@ -295,7 +295,8 @@ namespace OPS.Pipeline.AlignmentServer
             if (computedOverlaps >= AllOverlaps.Count)
             {
                 Logger.Info("Matching done!");
-                
+
+                Logger.Info("Building scene graph for bundle adjustment");
                 var bsg = new BuildSceneGraph(Master);
                 Frame frame = Frame.Find(Master.DynamoContext, Master.Project.Name, MSLProject.ROOT_FRAME_NAME);
                 AlignmentScene scene = bsg.Build(frame, new BuildSceneGraph.Options
@@ -306,9 +307,13 @@ namespace OPS.Pipeline.AlignmentServer
                 {
                     node.Parent.GetOrAddComponent<AdjustedNode>();
                 }
-                new BundleAdjuster(Master).Adjust(scene, Master.Options.DebugOutputFolder);
+                new BundleAdjuster(Master, Logger).Adjust(scene, Master.Options.DebugOutputFolder);
+
+                int curPairIdx = 0;
+                int numImagePairs = scene.ImageToNode.Count;
                 foreach (var pair in scene.ImageToNode)
                 {
+                    Logger.Info("Saving transform " + curPairIdx++ + " of " + numImagePairs + " adjusted image pairs");
                     var imgRef = pair.Key;
                     var node = pair.Value;
                     var f = Frame.Find(Master.DynamoContext, Master.Project.Name, ((ObservationImageRef)imgRef).Observation.FrameName);
