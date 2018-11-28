@@ -410,7 +410,7 @@ namespace OPS.Pipeline.AlignmentServer
                     {
                         CurrentStage.OnMessageReceived(m);
                     }
-                    catch (Exception ex) {
+                    catch (Exception) {
 #if DEBUG
                         throw;
 #else

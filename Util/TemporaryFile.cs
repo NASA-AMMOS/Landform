@@ -102,7 +102,7 @@ namespace OPS.Util
                 //rather than introduce a lock here or do a race-prone existence check
                 //let's try this https://stackoverflow.com/a/38372760
                 //flags 11 = MOVEFILE_COPY_ALLOWED (2) | MOVEFILE_REPLACE_EXISTING (1) | MOVEFILE_WRITE_THROUGH (8)
-                Directory.CreateDirectory(Path.GetDirectoryName(realFilename)); //OK if exists, creates parents
+                Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(realFilename))); //OK if exists, creates parents
                 MoveFileEx(tempFile, realFilename, 11);
             }
         }
