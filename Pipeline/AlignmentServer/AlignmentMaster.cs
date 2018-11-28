@@ -410,12 +410,9 @@ namespace OPS.Pipeline.AlignmentServer
                     {
                         CurrentStage.OnMessageReceived(m);
                     }
-                    catch (Exception) {
-#if DEBUG
-                        throw;
-#else
+                    catch (Exception ex)
+                    {
                         Logger.Error("Failed processing message of type " + m.GetType().Name, ex);
-#endif
                     }
                     Cloud.MasterQueue.DeleteMessage(m);
                 }
