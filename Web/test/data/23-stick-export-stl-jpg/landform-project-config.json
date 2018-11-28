@@ -1,0 +1,8 @@
+{
+  "name": "23-stick-export-stl-jpg",
+  "options": "exportmeshformat=stl&exportimageformat=jpg",
+  "inputs": [
+    { "mesh": "stick.obj", "texture": "stick.jpg" }
+  ],
+  "maxTime": "1h"
+}

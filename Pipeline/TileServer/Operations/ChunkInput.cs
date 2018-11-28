@@ -29,8 +29,6 @@ namespace OPS.Pipeline.TileServer
 
     public class ChunkInput : TileServerOperation
     {
-        static ILog logger = LogManager.GetLogger(typeof(ChunkInput));
-
         public const string MESH_EXT =  ".ply";
         public const string IMAGE_EXT = ".tif";
         public const int CHUNK_RESOLUTION = 2048;
@@ -39,7 +37,7 @@ namespace OPS.Pipeline.TileServer
         private ChunkInputMessage message;
 
         public ChunkInput(ChunkInputMessage message, PipelineCore pipeline, TileServerCloud cloud)
-            : base(message.ProjectName, pipeline, cloud, logger)
+            : base(message, pipeline, cloud)
         {
             this.message = message;
         }
@@ -122,8 +120,7 @@ namespace OPS.Pipeline.TileServer
                     TilingInputChunk record = TilingInputChunk.Create(pipeline.DynamoContext, id, project,
                                                                       meshUrl, imageBaseUrl, m.Bounds());
                     chunkIds.Add(id);
-                    LogInfo(string.Format("generated chunk {0}/{1} for input {2}",
-                                          chunkIds.Count(), leaves.Count, message.InputName));
+                    LogInfo("generated chunk {0}/{1} for input {2}", chunkIds.Count(), leaves.Count, message.InputName);
                 });
             });
             input.ChunkIds = chunkIds.ToList();

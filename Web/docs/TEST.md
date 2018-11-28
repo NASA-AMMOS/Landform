@@ -21,7 +21,7 @@ Three methods are supported for running [REST API](../docs/API.md) tests:
 Details are given below for `curl` on the Windows 10 command prompt.  To use another compatible command prompt you may need to modify the syntax slightly.  For example, in `bash` style command prompts variable substitution syntax is `$VARIABLE` instead of `%VARIABLE%`.
 
 To use Postman
-1. download and import this [Postman collection](../test/Landform-test.postman_collection.json)
+1. download and import this [Postman collection](../test/Landform-run.postman_collection.json)
 2. define variables
    1. ellipsis menu for collection -> Edit -> Variables
    4. set the "current value" for each variable following the Setup procedure below
@@ -43,82 +43,64 @@ To use Postman
 
    `set PROJECT_NAME=testN`
 
+4. Select a mesh and texture file for the test project.  Several test datasets are available at https://landlords-dev.s3.amazonaws.com/landformweb-test-data/shared.zip.
+
+   `set MESH_FILE=shared/stick/stick.ply`
+   `set TEXTURE_FILE=shared/stick/stick.jpg`
+
  Perform the remaining steps of this procedure in the same command window where these variables were set.
-
-4. Select a mesh and texture file for the test project from the following:
-  * mesh: `inputMeshSmall.ply`, texture: `inputImage.png`
-  * TODO
-
-  Note: test data is available at TODO.
 
 ### Test Sequence
 1. Create project:
 
-       curl -sS --request POST \
-            --url http://%SERVER_URL%/api/projects/%PROJECT_NAME% \
-            --header "x-landform-token: %API_TOKEN%"
+       curl -sS --request POST --url "%SERVER_URL%/api/projects/%PROJECT_NAME%" --header "x-landform-token: %API_TOKEN%"
 
    Validation: check that the response code is HTTP 200 (ok), the content type is `application/json`, and the response body is a valid JSON object with `success=true`.
 
 1. List projects:
 
-       curl -sS --request GET \
-            --url http://%SERVER_URL%/api/projects \
-            --header "x-landform-token: %API_TOKEN%"
+       curl -sS --request GET --url "%SERVER_URL%/api/projects" --header "x-landform-token: %API_TOKEN%"
 
    Validation: check that the response code is HTTP 200 (ok), the content type is `application/json`, and the response body is a valid JSON array of strings containing `%PROJECT_NAME%`.
 
 1. Upload input files:
 
-       curl -sS --request POST \
-            --url http://%SERVER_URL%/api/projects/%PROJECT_NAME%/upload \
-            --header "x-landform-token: %API_TOKEN%" \
-            --header "content-type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW" \
-            --form mesh=(mesh filename) \
-            --form texture=(texture filename)
+       curl -sS --request POST --url "%SERVER_URL%/api/projects/%PROJECT_NAME%/upload" --header "x-landform-token: %API_TOKEN%" --form "mesh=@%MESH_FILE%" --form "texture=@%TEXTURE_FILE%"
 
-   use the mesh and texture filenames you selected during setup.  If using Postman select the "upload data" request, then click Body, then Choose Files.
+   If using Postman select the "upload data" request, then click Body, then Choose Files.
 
    Validation: check that the response code is HTTP 200 (ok), the content type is `application/json`, and the response body is a valid JSON object with `success=true`.
 
 1. Run project:
 
-       curl -sS --request POST \
-            --url http://%SERVER_URL%/api/projects/%PROJECT_NAME%/run \
-            --header "x-landform-token: %API_TOKEN%"
+       curl -sS --request POST --url "%SERVER_URL%/api/projects/%PROJECT_NAME%/run" --header "x-landform-token: %API_TOKEN%"
 
    Validation: check that the response code is HTTP 200 (ok), the content type is `application/json`, and the response body is a valid JSON object with `success=true`.
 
 1. Get project metadata:
 
-       curl -sS --request GET \
-            --url http://%SERVER_URL%/api/projects/%PROJECT_NAME% \
-            --header "x-landform-token: %API_TOKEN%"
+       curl -sS --request GET --url "%SERVER_URL%/api/projects/%PROJECT_NAME%" --header "x-landform-token: %API_TOKEN%"
 
    Validation: check that the response code is HTTP 200 (ok), the content type is `application/json`, and the response body is a valid JSON object.
 
+1. Poll project metadata about every 10 seconds until `Project.FinishedRunning` is `true`.
+
 1. Get project result URL:
 
-       curl -sS --request GET \
-            --url http://%SERVER_URL%/api/projects/%PROJECT_NAME%/result?redirect=false \
-            --header "x-landform-token: %API_TOKEN%"
+       curl -sS --request GET --url "%SERVER_URL%/api/projects/%PROJECT_NAME%/result?redirect=false" --header "x-landform-token: %API_TOKEN%"
 
    Validation: check that the response code is HTTP 200 (ok), the content type is `application/json`, and the response body is a valid URL.
 
 1. Get project viewer URL:
 
-       curl -sS --request GET \
-            --url http://%SERVER_URL%/api/projects/%PROJECT_NAME%/view?redirect=false \
-            --header "x-landform-token: %API_TOKEN%"
+       curl -sS --request GET --url "%SERVER_URL%/api/projects/%PROJECT_NAME%/view?redirect=false" --header "x-landform-token: %API_TOKEN%"
 
    Validation: check that the response code is HTTP 200 (ok), the content type is `application/json`, and the response body is a valid URL.
 
-   To visually inspect the dataset, copy the returned URL to the system clipboard and then load it in a Chrome browser.
+1. Load the project viewer URL in a Chrome browser to visually inspect the result.
 
 1. Delete project:
 
-       curl -sS --request DELETE \
-            --url http://%SERVER_URL%/api/projects/%PROJECT_NAME% \
-            --header "x-landform-token: %API_TOKEN%"
+       curl -sS --request DELETE --url "%SERVER_URL%/api/projects/%PROJECT_NAME%" --header "x-landform-token: %API_TOKEN%"
 
    Validation: check that the response code is HTTP 200 (ok), the content type is `application/json`, and the response body is a valid JSON object with `success=true`.

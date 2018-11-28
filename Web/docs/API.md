@@ -7,11 +7,13 @@ Create the named project.  Implements the [task API](#task-api).
 
 Accepts the following arugments:
 * *tilingscheme*: tiling scheme; one of `Bin`, `QuadX`, `QuadY`, `QuadZ`, `Oct`, or `UserDefined`; default `Bin`
-* *skirtmode*: skirt mode; one of `None`, `X`, `Y`, `Z`; default `None`
+* *skirtmode*: skirt mode; one of `X`, `Y`, `Z`, `None`, `Normal`; default `None`
 * *reconmethod*: reconstruction method; one of `Poisson`, `FSSR`; default `Poisson`
 * *facespertile*: target maximum faces per tile; default 2000
 * *tileresolution*: maximum image resolution per tile; default 256
 * *projecttype*: project type; one of `GenericTiling` or `MSL`, default `GenericTiling`.
+* *exportmeshformat*: additional mesh format to write, one of `obj`, `ply`, `stl`, or ``; default `` (none)
+* *exportimageformat*: additional image format to write, one of `tif`, `png`, `jpg`, or ``; default `` (none)
 
 Fails with HTTP status 400 (bad request) if a project with the same name already exists.
 

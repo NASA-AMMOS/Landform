@@ -9,9 +9,15 @@ using log4net;
 
 namespace OPS.Pipeline.TileServer
 {
-    abstract class PipelineStateMachine
+    public abstract class PipelineStateMachine
     {
-        private static ILog logger = LogManager.GetLogger(typeof(PipelineStateMachine));
+        public enum ProjectType { GenericTiling, MSL };
+
+        public static Dictionary<ProjectType, Type> StateMachines = new Dictionary<ProjectType, Type>()
+        {
+            { ProjectType.GenericTiling, typeof(GenericTilingStateMachine) },
+            { ProjectType.MSL, typeof(MSLStateMachine) },
+        };
 
         protected PipelineCore pipeline;
         protected TilingQueue workerQueue;
@@ -19,14 +25,19 @@ namespace OPS.Pipeline.TileServer
         protected string projectName;
         protected TypeDispatcher dispatcher;
 
-        protected void LogInfo(string msg)
+        protected void LogInfo(string msg, params Object[] args)
         {
-            logger.Info(string.Format("[{0}] {1}", projectName, msg));
+            pipeline.LogInfo("[{0}] ({1}) {2}", projectName, GetType().Name, string.Format(msg, args));
         }
 
-        protected void LogError(string msg)
+        protected void LogWarn(string msg, params Object[] args)
         {
-            logger.Error(string.Format("[{0}] {1}", projectName, msg));
+            pipeline.LogWarn("[{0}] ({1}) {2}", projectName, GetType().Name, string.Format(msg, args));
+        }
+
+        protected void LogError(string msg, params Object[] args)
+        {
+            pipeline.LogError("[{0}] ({1}) {2}", projectName, GetType().Name, string.Format(msg, args));
         }
 
         public PipelineStateMachine(PipelineCore pipeline, TilingQueue workerQueue, string projectName)
@@ -34,7 +45,7 @@ namespace OPS.Pipeline.TileServer
             this.pipeline = pipeline;
             this.workerQueue = workerQueue;
             this.projectName = projectName;
-            projectCache = new ProjectCache(pipeline.DynamoContext, projectName);
+            projectCache = new ProjectCache(pipeline, projectName, pipeline.Logger);
             InitDispatcher();
         }
 
@@ -49,7 +60,7 @@ namespace OPS.Pipeline.TileServer
                 .Case((ChunkInputMessage m) => InputChunked(m.InputName))
                 .Case((TileCompletedMessage m) => TileCompleted(m.TileId))
                 .Case((BuildTilesetJsonMessage m) => TilesetCompleted());
-            dispatcher.Unhandled = (t, x) => logger.Error("unknown message type: " + t);
+            dispatcher.Unhandled = (t, x) => pipeline.Logger.Error("unknown message type: " + t);
             return dispatcher;
         }
 
@@ -70,7 +81,8 @@ namespace OPS.Pipeline.TileServer
             {
                 LogInfo("creating project");
                 TilingProject.Create(pipeline.DynamoContext, projectName, m.TilingScheme, m.SkirtMode, m.ReconMethod,
-                                     m.FacesPerTile, m.TileResolution, m.ProjectType);
+                                     m.FacesPerTile, m.TileResolution, m.ProjectType,
+                                     m.ExportMeshFormat, m.ExportImageFormat);
             }
             else
             {
@@ -87,7 +99,7 @@ namespace OPS.Pipeline.TileServer
                 if (!project.StartedRunning || project.FinishedRunning)
                 {
                     LogInfo("deleting project");
-                    project.Delete(pipeline, true /* ignoreErrors */, logger); //can take a little while
+                    project.Delete(pipeline, ignoreErrors: true); //can take a little while
                     LogInfo("project deleted");
                 }
                 else
@@ -217,7 +229,7 @@ namespace OPS.Pipeline.TileServer
 
         virtual protected void BuildNodes(TilingProject project)
         {
-            SceneNode root = TilingNode.BuildTreeFromDatabase(pipeline.DynamoContext, project);
+            SceneNode root = TilingNode.BuildTreeFromDatabase(pipeline, project);
 
             List<List<SceneNode>> leafGroups = new List<List<SceneNode>>();
             CollectLeafGroups(root, leafGroups);
@@ -345,6 +357,8 @@ namespace OPS.Pipeline.TileServer
         public int FacesPerTile;
         public int TileResolution;
         public string ProjectType;
+        public string ExportMeshFormat;
+        public string ExportImageFormat;
 
         public CreateProjectMessage() { }
         public CreateProjectMessage(string projectName) : base(projectName) { }

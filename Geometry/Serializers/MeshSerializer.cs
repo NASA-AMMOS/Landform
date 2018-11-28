@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using OPS.Util;
 
 namespace OPS.Geometry
 {
@@ -31,9 +32,14 @@ namespace OPS.Geometry
         /// <summary>
         /// Register this serializer's extension with the MeshSerializers class
         /// </summary>
+        public void Register(MeshSerializers map)
+        {
+            map.Register(GetExtension(), this);
+        }
+
         public void Register()
         {
-            MeshSerializers.Register(GetExtension(), this);
-        }
+            Register(MeshSerializers.Instance);
+        } 
     }
 }

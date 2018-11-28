@@ -13,7 +13,7 @@ using System.Diagnostics;
 namespace OPS.Pipeline.TileServer
 {
     [Verb("uploadinput", HelpText = "Uploads an input dataset to be tiled")]
-    public class UploadInputOptions
+    public class UploadInputOptions : PipelineCoreOptions
     {       
         [Value(0, Required = true, HelpText = "Project Name")]
         public string ProjectName { get; set; }
@@ -24,56 +24,55 @@ namespace OPS.Pipeline.TileServer
         [Value(2, Required = false, HelpText = "Texture input file")]
         public string ImageFilepath { get; set; }
 
-        [Option(HelpText = "Leaf tile ID if this input dataset represents a pretiled input.  This is only valid for projects using a user defined tiling scheme", Default = null)]
+        [Option(Default = null, HelpText = "Leaf tile ID if this input dataset represents a pretiled input.  This is only valid for projects using a user defined tiling scheme")]
         public string TileId { get; set; }
 
-        [Option(HelpText = "Wait until input has been uploaded to project", Default = true)]
-        public bool Wait { get; set; }
+        [Option(Default = false, HelpText = "Do not wait until input has been uploaded to project")]
+        public bool NoWait { get; set; }
     }
 
     public class UploadInput : PipelineCore
     {
-        static ILog logger = LogManager.GetLogger(typeof(UploadInput));
-
         const int MAX_WAIT_MS = 60 * 1000;
         const int SLEEP_MS = 500;
         
-        UploadInputOptions options;
+        private UploadInputOptions options;
 
         public UploadInput(UploadInputOptions options)
-            : base(dynamoPrefix: TileServerConfig.Instance.VenueName, profile: TileServerConfig.Instance.Profile)
+            : base(options, TileServerConfig.Instance.VenueName, TileServerConfig.Instance.Profile)
         {
             this.options = options;
         }
 
         public int Run()
         {
-            var cloud = new TileServerCloud(this);
-            cloud.EnsureTablesExist();
+            var cloud = new TileServerCloud(this, quiet: true);
 
             var project = TilingProject.Find(DynamoContext, options.ProjectName);
 
             if (project == null)
             {
-                logger.Error("No project by that name found: " + options.ProjectName);
+                Logger.ErrorFormat("project \"{0}\" not found", options.ProjectName);
                 return 1; //argument error
             }
 
             if (project.StartedRunning)
             {
-                logger.Error("Cannot add input to project " + options.ProjectName + " that is already run");
+                Logger.ErrorFormat("cannot add input to project \"{0}\", project already run", options.ProjectName);
                 return 1; //argument error
             }
 
             if(project.GetTilingScheme() == TilingScheme.UserDefined && options.TileId == null)
             {
-                logger.Error("Projects with user defined tiling scheme require that input datasets define a tile id to infer tree structure");
+                Logger.ErrorFormat("project \"{0}\" has user defined tiling - input datasets must define tile id",
+                                   options.ProjectName);
                 return 1; //argument error
             }
 
             if (project.GetTilingScheme() != TilingScheme.UserDefined && options.TileId != null)
             {
-                logger.Error("Tile ids can only be defined on input datasets when using a user defined tiling scheme");
+                Logger.ErrorFormat("project \"{0}\" does not have user defined tiling - " +
+                                   "input datasets must not define tile id", options.ProjectName);
                 return 1; //argument error
             }
 
@@ -87,18 +86,22 @@ namespace OPS.Pipeline.TileServer
 
             string meshUrl = TileServerConfig.Instance.InputUrl(options.ProjectName,
                                                                 Path.GetFileName(options.MeshFilepath));
-            logger.Info("Uploading " + options.MeshFilepath);
+            Logger.InfoFormat("uploading input mesh \"{0}\" for project \"{1}\"",
+                              options.MeshFilepath, options.ProjectName);
             Storage(meshUrl).UploadFile(options.MeshFilepath, meshUrl);
-            logger.Info("Upload complete: " + options.MeshFilepath);
+            Logger.InfoFormat("upload input mesh \"{0}\" for project \"{1}\" complete",
+                              options.MeshFilepath, options.ProjectName);
 
             string imageUrl = null;
             if (options.ImageFilepath != null)
             {
                 imageUrl = TileServerConfig.Instance.InputUrl(options.ProjectName,
                                                               Path.GetFileName(options.ImageFilepath));
-                logger.Info("Uploading " + options.ImageFilepath);
+                Logger.InfoFormat("uploading input image \"{0}\" for project \"{1}\"",
+                                  options.ImageFilepath, options.ProjectName);
                 Storage(imageUrl).UploadFile(options.ImageFilepath, imageUrl);
-                logger.Info("Upload complete: " + options.ImageFilepath);
+                Logger.InfoFormat("uploading input image \"{0}\" for project \"{1}\" complete",
+                                  options.ImageFilepath, options.ProjectName);
             }
 
             cloud.MasterQueue.Enqueue(new AddInputMessage(options.ProjectName)
@@ -109,23 +112,24 @@ namespace OPS.Pipeline.TileServer
                                           TileId = options.TileId
                                       });
 
-            if (options.Wait)
+            if (!options.NoWait)
             {
-                logger.Info("waiting for intput to be added to project");
+                Logger.Info("waiting for intput to be added to project");
                 var sw = new Stopwatch();
                 sw.Start();
                 do
                 {
                     if (sw.ElapsedMilliseconds > MAX_WAIT_MS)
                     {
-                        logger.Error("upload still not added to project in " + MAX_WAIT_MS + "ms");
+                        Logger.ErrorFormat("upload \"{0}\" still not added to project \"{1}\" in {2}ms",
+                                           name, options.ProjectName, MAX_WAIT_MS);
                         return 2; //internal error
                     }
                     Thread.Sleep(SLEEP_MS);
                     project = TilingProject.Find(DynamoContext, options.ProjectName);
                 }
-                while (!project.InputNames.Contains(name));
-                logger.Info("intput has been added to project");
+                while (project.InputNames == null || !project.InputNames.Contains(name));
+                Logger.InfoFormat("intput \"{0}\" has been added to project \"{1}\"", name, options.ProjectName);
             }
 
             return 0;

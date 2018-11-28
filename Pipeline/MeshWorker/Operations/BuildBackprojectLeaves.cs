@@ -31,8 +31,6 @@ namespace OPS.Pipeline.MeshWorker
 
     public class BuildBackprojectLeaves : TileServerOperation
     {
-        static ILog logger = LogManager.GetLogger(typeof(BuildBackprojectLeaves));
-
         private BuildBackprojectLeavesMessage message;
 
         private Options options;
@@ -43,7 +41,7 @@ namespace OPS.Pipeline.MeshWorker
         }
 
         public BuildBackprojectLeaves(BuildBackprojectLeavesMessage message, PipelineCore pipeline, TileServerCloud cloud)
-            : base(message.ProjectName, pipeline, cloud, logger)
+            : base(message, pipeline, cloud)
         {
             this.message = message;
 
@@ -124,7 +122,11 @@ namespace OPS.Pipeline.MeshWorker
                 leafPair.Image.ApplyInPlace(0, x => { return 1.0f; });
 
                 //upload the mesh/texture pair and update the tiling node
-                ThroughputManager.Run(() => TilingNode.Find(pipeline.DynamoContext, project.Name, leaf.Id).SaveMesh(leafPair, pipeline, 0));
+                ThroughputManager.Run(() =>
+                {
+                    var node = TilingNode.Find(pipeline.DynamoContext, project.Name, leaf.Id);
+                    node.SaveMesh(leafPair, pipeline, 0, project.ExportMeshFormat, project.ExportImageFormat);
+                });
 
                 //notify the tiling server that a tile is ready for building into parent tiles
                 cloud.MasterQueue.Enqueue(new TileCompletedMessage(project.Name, leaf.Id));                

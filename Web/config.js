@@ -61,6 +61,10 @@ const development = {
   },
 };
 
+//work with Mark Nastri to update SSO configuration
+//mark.a.nastri@jpl.nasa.gov
+//https://wiki.jpl.nasa.gov/pages/viewpage.action?pageId=186145545
+
 // override select values for integration
 const integration = JSON.parse(JSON.stringify(development)); //deep copy
 integration.app.deployEnvironment = env.EB_DEPLOY_ENV || 'landformweb-dev';

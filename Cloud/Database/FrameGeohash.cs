@@ -51,9 +51,9 @@ namespace OPS.Cloud
         /// </summary>
         public static IEnumerable<FrameGeohash> Find(DynamoDBContext context, Frame frame)
         {
-            return context.Scan<FrameGeohash>(
-                new ScanCondition("ProjectName", ScanOperator.Equal, frame.ProjectName),
-                new ScanCondition("FrameName", ScanOperator.Equal, frame.Name));
+            return DBUtil.Scan<FrameGeohash>(context,
+                                             new ScanCondition("ProjectName", ScanOperator.Equal, frame.ProjectName),
+                                             new ScanCondition("FrameName", ScanOperator.Equal, frame.Name));
         }
 
         /// <summary>
@@ -61,10 +61,10 @@ namespace OPS.Cloud
         /// </summary>
         public static IEnumerable<FrameGeohash> Find(DynamoDBContext context, SpatialIndex index, Frame frame)
         {
-            return context.Scan<FrameGeohash>(
-                new ScanCondition("ProjectName", ScanOperator.Equal, frame.ProjectName),
-                new ScanCondition("SpatialIndexId", ScanOperator.Equal, index.Id),
-                new ScanCondition("FrameName", ScanOperator.Equal, frame.Name));
+            return DBUtil.Scan<FrameGeohash>(context,
+                                             new ScanCondition("ProjectName", ScanOperator.Equal, frame.ProjectName),
+                                             new ScanCondition("SpatialIndexId", ScanOperator.Equal, index.Id),
+                                             new ScanCondition("FrameName", ScanOperator.Equal, frame.Name));
         }
 
         /// <summary>
@@ -78,9 +78,10 @@ namespace OPS.Cloud
         {
             foreach (var prefix in index.Geohash.Overlapping(bounds.Min.ToDoubleArray(), bounds.Max.ToDoubleArray(), index.MaxPrecision))
             {
-                foreach (var geohash in context.Scan<FrameGeohash>(
-                    new ScanCondition("SpatialIndexId", ScanOperator.Equal, index.Id), 
-                    new ScanCondition("Geohash", ScanOperator.BeginsWith, prefix)))
+                foreach (var geohash in
+                         DBUtil.Scan<FrameGeohash>(context,
+                                                   new ScanCondition("SpatialIndexId", ScanOperator.Equal, index.Id), 
+                                                   new ScanCondition("Geohash", ScanOperator.BeginsWith, prefix)))
                 {
                     yield return geohash;
                 }

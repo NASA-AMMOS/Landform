@@ -29,12 +29,10 @@ namespace OPS.Pipeline.TileServer
 
     public class BuildBakedLeaves : TileServerOperation
     {
-        static ILog logger = LogManager.GetLogger(typeof(BuildBakedLeaves));
-
         private BuildBakedLeavesMessage message;
 
         public BuildBakedLeaves(BuildBakedLeavesMessage message, PipelineCore pipeline, TileServerCloud cloud)
-            : base(message.ProjectName, pipeline, cloud, logger)
+            : base(message, pipeline, cloud)
         {
             this.message = message;
         }
@@ -131,12 +129,11 @@ namespace OPS.Pipeline.TileServer
                 {
                     pair = bakeClipper.BakeTexture(m, project.TileResolution);
                 }
-                leaf.SaveMesh(pair, pipeline, 0);
+                leaf.SaveMesh(pair, pipeline, 0, project.ExportMeshFormat, project.ExportImageFormat);
                 processed.Add(leaf);
                 cloud.MasterQueue.Enqueue(new TileCompletedMessage(project.Name, leaf.Id));
-                LogInfo(string.Format("generating leaf {0} from {1} chunks ({2}/{3})",
-                                      leaf.Id, inputGroups.SelectMany(g => g.Chunks).Count(),
-                                      processed.Count(), leaves.Count));
+                LogInfo("generating leaf {0} from {1} chunks ({2}/{3})",
+                        leaf.Id, inputGroups.SelectMany(g => g.Chunks).Count(), processed.Count(), leaves.Count);
             });
             LogInfo("batch completed, generated " + processed.Count() + " leaf tiles");
         }

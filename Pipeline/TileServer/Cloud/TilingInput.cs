@@ -1,4 +1,5 @@
 ﻿using Amazon.DynamoDBv2.DataModel;
+using Amazon.DynamoDBv2.DocumentModel;
 using OPS.Cloud;
 using System;
 using System.Collections.Generic;
@@ -82,7 +83,7 @@ namespace OPS.Pipeline.TileServer
             return context.Load<TilingInput>(name, projectName);
         }
 
-        public static IEnumerable<TilingInput> Find(DynamoDBContext context, TilingProject project)
+        public static IEnumerable<TilingInput> Find(DynamoDBContext context, TilingProject project, ILog logger = null)
         {
             if (project.InputNames != null)
             {
@@ -92,16 +93,17 @@ namespace OPS.Pipeline.TileServer
                 List<TilingInput> inputs = new List<TilingInput>();
                 foreach (var name in project.InputNames)
                 {
-                    inputs.Add(Find(context, project.Name, name));
+                    var input = Find(context, project.Name, name);
+                    if (input != null) inputs.Add(input);
                 }
                 return inputs;
             }
             else
             {
-                //for legacy projects fall back to scanning for all input records that match the project name
-                return context.Scan<TilingInput>(new ScanCondition("ProjectName",
-                                                                   Amazon.DynamoDBv2.DocumentModel.ScanOperator.Equal,
-                                                                   project.Name));
+                //fall back to scanning for all records that match the project name
+                //e.g. for legacy projects or if the project record is not well formed
+                return DBUtil.Scan<TilingInput>(context, logger,
+                                                new ScanCondition("ProjectName", ScanOperator.Equal, project.Name));
             }
         }
 
@@ -111,27 +113,27 @@ namespace OPS.Pipeline.TileServer
             context.Save(this);
         }
 
-        public void Delete(PipelineCore pipeline, bool ignoreErrors = true, ILog logger = null)
+        public void Delete(PipelineCore pipeline, bool ignoreErrors = true)
         {
             if (ChunkIds != null)
             {
                 foreach (var chunkId in ChunkIds)
                 {
-                    TilingInputChunk.Find(pipeline.DynamoContext, chunkId).Delete(pipeline, ignoreErrors, logger);
+                    TilingInputChunk.Find(pipeline.DynamoContext, chunkId).Delete(pipeline, ignoreErrors);
                 }
             }
 
             if (!string.IsNullOrEmpty(MeshUrl))
             {
-                pipeline.Storage(MeshUrl).DeleteObject(MeshUrl, ignoreErrors: ignoreErrors, logger: logger);
+                pipeline.Storage(MeshUrl).DeleteObject(MeshUrl, ignoreErrors: ignoreErrors, logger: pipeline.Logger);
             }
 
             if (!string.IsNullOrEmpty(ImageUrl))
             {
-                pipeline.Storage(ImageUrl).DeleteObject(ImageUrl, ignoreErrors: ignoreErrors, logger: logger);
+                pipeline.Storage(ImageUrl).DeleteObject(ImageUrl, ignoreErrors: ignoreErrors, logger: pipeline.Logger);
             }
 
-            pipeline.DeleteDynamoItem(this, ignoreErrors, logger);
+            pipeline.DeleteDynamoItem(this, ignoreErrors);
         }
 
         private void IsValid()

@@ -13,68 +13,65 @@ using System.Diagnostics;
 namespace OPS.Pipeline.TileServer
 {
     [Verb("deleteproject", HelpText = "Delete project")]
-    public class DeleteProjectOptions
+    public class DeleteProjectOptions : PipelineCoreOptions
     {       
         [Value(0, Required = true, HelpText = "Project Name")]
         public string ProjectName { get; set; }
 
-        [Option(HelpText = "Wait until input has been uploaded to project", Default = true)]
-        public bool Wait { get; set; }
+        [Option(Default = false, HelpText = "Do not wait until project has been deleted")]
+        public bool NoWait { get; set; }
     }
 
     public class DeleteProject : PipelineCore
     {
-        static ILog logger = LogManager.GetLogger(typeof(DeleteProject));
-
-        const int MAX_WAIT_MS = 60 * 1000;
+        const int MAX_WAIT_MS = 30 * 60 * 1000; //it can take a while to delete a big project
         const int SLEEP_MS = 500;
 
-        DeleteProjectOptions options;
+        private DeleteProjectOptions options;
 
         public DeleteProject(DeleteProjectOptions options)
-            : base(dynamoPrefix: TileServerConfig.Instance.VenueName, profile: TileServerConfig.Instance.Profile)
+            : base(options, TileServerConfig.Instance.VenueName, TileServerConfig.Instance.Profile)
         {
             this.options = options;
         }
 
         public int Run()
         {
-            var cloud = new TileServerCloud(this);
-            cloud.EnsureTablesExist();
+            var cloud = new TileServerCloud(this, quiet: true);
 
             var project = TilingProject.Find(DynamoContext, options.ProjectName);
 
             if (project == null)
             {
-                logger.Error("No project by that name found: " + options.ProjectName);
+                Logger.ErrorFormat("project \"{0}\" not found", options.ProjectName);
                 return 1; //argument error
             }
 
             if (project.StartedRunning && !project.FinishedRunning)
             {
-                logger.Error("Cannot delete project " + options.ProjectName + " that is currently running");
+                Logger.ErrorFormat("cannot delete project \"{0}\", project currently running",options.ProjectName);
                 return 1; //argument error
             }
 
             cloud.MasterQueue.Enqueue(new DeleteProjectMessage(options.ProjectName));
 
-            if (options.Wait)
+            if (!options.NoWait)
             {
-                logger.Info("waiting for project to be deleted");
+                Logger.InfoFormat("waiting for project \"{0}\" to be deleted", options.ProjectName);
                 var sw = new Stopwatch();
                 sw.Start();
                 do
                 {
                     if (sw.ElapsedMilliseconds > MAX_WAIT_MS)
                     {
-                        logger.Error("project not deleted in " + MAX_WAIT_MS + "ms");
+                        Logger.ErrorFormat("project \"{0}\" not deleted in {1}ms", options.ProjectName, MAX_WAIT_MS);
                         return 2; //internal error
                     }
                     Thread.Sleep(SLEEP_MS);
                     project = TilingProject.Find(DynamoContext, options.ProjectName);
                 }
                 while (project != null);
-                logger.Info("project has been deleted");
+                Logger.InfoFormat("project \"{0}\" has been deleted", options.ProjectName);
             }
 
             return 0;

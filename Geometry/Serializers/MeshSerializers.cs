@@ -1,59 +1,33 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using OPS.Util;
 
 namespace OPS.Geometry
 {
-    /// <summary>
-    /// Stores a mapping of supported mesh extensions to serializers
-    /// </summary>
-    static class MeshSerializers
+    public class MeshSerializers : SerializerMap<MeshSerializer>
     {
-        static Dictionary<string, MeshSerializer> serializers;
-
-        static MeshSerializers()
+        //it is surprisingly hairy to "just" inherit from Singleton in this class hierarchy
+        private static MeshSerializers instance;
+        public static MeshSerializers Instance
         {
-            serializers = new Dictionary<string, MeshSerializer>();
-            new OBJSerializer().Register();
-            new PLYSerializer().Register();
-            new GLTFSerializer().Register();
-            new GLBSerializer().Register();
-            new B3DMSerializer().Register();
-            new BOBSerializer().Register();
-            new STLSerializer().Register();
-            new PNTSSerializer().Register();
-        }
-
-        /// <summary>
-        /// Registers a handler for a file extension
-        /// Extensions should be lower case and include the .
-        /// </summary>
-        /// <param name="ext"></param>
-        /// <param name="serializer"></param>
-        public static void Register(string ext, MeshSerializer serializer)
-        {
-            if(!serializers.ContainsKey(ext))
+            get
             {
-                serializers.Add(ext, serializer);
+                if (instance == null)
+                {
+                    instance = new MeshSerializers();
+                }
+                return instance;
             }
         }
 
-        /// <summary>
-        /// Gets a serializer for a given extension (including the .)
-        /// </summary>
-        /// <param name="extension"></param>
-        /// <returns></returns>
-        public static MeshSerializer GetSerializer(string extension)
+        protected override void RegisterSerializers()
         {
-            if(!serializers.ContainsKey(extension))
-            {
-                return null;
-            }
-            return serializers[extension];
+            new OBJSerializer().Register(this);
+            new PLYSerializer().Register(this);
+            new GLTFSerializer().Register(this);
+            new GLBSerializer().Register(this);
+            new B3DMSerializer().Register(this);
+            new BOBSerializer().Register(this);
+            new STLSerializer().Register(this);
+            new PNTSSerializer().Register(this);
         }
-
-
     }
 }

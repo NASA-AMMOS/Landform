@@ -8,6 +8,7 @@ using System.Collections.Concurrent;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using OPS.Imaging;
 using Newtonsoft.Json;
@@ -25,8 +26,6 @@ namespace OPS.Pipeline.TileServer
 
     public class DefineTiles : TileServerOperation
     {
-        static ILog logger = LogManager.GetLogger(typeof(DefineTiles));
-
         private DefineTilesMessage message;
 
         class TileDependencyMapping
@@ -70,7 +69,7 @@ namespace OPS.Pipeline.TileServer
         }
 
         public DefineTiles(DefineTilesMessage message, PipelineCore pipeline, TileServerCloud cloud)
-            : base(message.ProjectName, pipeline, cloud, logger)
+            : base(message, pipeline, cloud)
         {
             this.message = message;
         }
@@ -151,8 +150,10 @@ namespace OPS.Pipeline.TileServer
             }
 
             var dependencies = new TileDependencyMapping();
+            int nn = 0, n = 0;
             foreach (var node in root.DepthFirstTraverse())
             {
+                nn++;
                 if (!node.IsLeaf)
                 {
                     foreach (var d in node.FindNodesRequiredForParent(root))
@@ -162,7 +163,7 @@ namespace OPS.Pipeline.TileServer
                 }
             }
 
-            LogInfo("saving tile tree");
+            LogInfo("saving tile tree, " + nn + " nodes");
             List<string> ids = new List<string>();
             foreach (var node in root.DepthFirstTraverse())
             {
@@ -175,12 +176,18 @@ namespace OPS.Pipeline.TileServer
                                                    dependencies.DependsOn(node.Name),
                                                    dependencies.DependedOnBy(node.Name),
                                                    node.GetComponent<NodeBounds>().Bounds);
-                if(node.IsLeaf && node.HasComponent<MeshImagePair>())
+                if (node.IsLeaf && node.HasComponent<MeshImagePair>())
                 {
-                    tilingNode.SaveMesh(node.GetComponent<MeshImagePair>(), pipeline, 0);
+                    tilingNode.SaveMesh(node.GetComponent<MeshImagePair>(), pipeline, 0,
+                                        project.ExportMeshFormat, project.ExportImageFormat);
+                }
+                Thread.Sleep(10); //throttle to reduce chance of exponential backoff
+                if (++n % 500 == 0)
+                {
+                    LogInfo("created " + n + " nodes");
                 }
             }                            
-            project.NodeIds = ids;
+            project.SaveNodeIds(ids, pipeline);
             project.TilesDefined = true;
             project.Save(pipeline.DynamoContext);
             cloud.MasterQueue.Enqueue(message);

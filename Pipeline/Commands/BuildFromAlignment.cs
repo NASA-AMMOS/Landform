@@ -20,7 +20,7 @@ using OPS.Util;
 namespace OPS.Pipeline
 {
     [Verb("buildfromalignment", HelpText = "Reads an alignment solution in the database and builds a pointcloud")]
-    public class BuildFromAlignmentOptions
+    public class BuildFromAlignmentOptions : PipelineCoreOptions
     {
         [Value(0, Required = true, HelpText = "Name of project to use")]
         public string ProjectName { get; set; }
@@ -43,11 +43,10 @@ namespace OPS.Pipeline
     {
         BuildFromAlignmentOptions options;
 
-        static ILog logger = LogManager.GetLogger(typeof(BuildFromAlignment));
         const int MIN_MATCHES = 20;
         public static ASIFTDetector detector = new ASIFTDetector(maxSimulatedDimension: 1024);
 
-        public BuildFromAlignment(BuildFromAlignmentOptions options) : base(dynamoPrefix: options.DynamoDBPrefix)
+        public BuildFromAlignment(BuildFromAlignmentOptions options) : base(options, options.DynamoDBPrefix)
         {
             this.AddProfile("s3://landlords-dev/", options.LandformProfile);
             this.AddProfile("s3://red-product/", options.MSliceProfile);
@@ -157,10 +156,10 @@ namespace OPS.Pipeline
             {
                 if (!rngObs.UseForReconstruction)
                 {
-                    logger.Info("Skipping observation: " + rngObs.Name);
+                    Logger.Info("Skipping observation: " + rngObs.Name);
                     return;
                 }
-                logger.Info("Processing observation: " + rngObs.Name);
+                Logger.Info("Processing observation: " + rngObs.Name);
                 var transform = ObservationToRoot(DynamoContext, rngObs, cache);
                 var frame = cache.GetFrame(rngObs.FrameName);
 

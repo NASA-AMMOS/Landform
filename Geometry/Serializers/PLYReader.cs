@@ -76,6 +76,18 @@ namespace OPS.Geometry
                 {
                     return br.ReadByte();
                 }
+                if(p.Type == typeof(sbyte))
+                {
+                    return br.ReadSByte();
+                }
+                if (p.Type == typeof(short))
+                {
+                    return br.ReadInt16();
+                }
+                if (p.Type == typeof(ushort))
+                {
+                    return br.ReadUInt16();
+                }
                 if (p.Type == typeof(int))
                 {
                     return br.ReadInt32();
@@ -342,11 +354,28 @@ namespace OPS.Geometry
                 }
 
                 Dictionary<string, Type> typeLookup = new Dictionary<string, Type>();
-                typeLookup.Add("double", typeof(double));
-                typeLookup.Add("float", typeof(float));
+
+                //https://cs.nyu.edu/~yap/classes/visual/data/ply/ply/PLY_FILES.txt
+                //https://web.archive.org/web/20161204152348/http://www.dcs.ed.ac.uk/teaching/cs4/www/graphics/Web/ply.html
+                typeLookup.Add("char", typeof(sbyte));
                 typeLookup.Add("uchar", typeof(byte));
+                typeLookup.Add("int8", typeof(sbyte));
+                typeLookup.Add("uint8", typeof(byte));
+
+                typeLookup.Add("short", typeof(short));
+                typeLookup.Add("ushort", typeof(ushort));
+                typeLookup.Add("int16", typeof(short));
+                typeLookup.Add("uint16", typeof(ushort));
+
                 typeLookup.Add("int", typeof(int));
                 typeLookup.Add("uint", typeof(uint));
+                typeLookup.Add("int32", typeof(int));
+                typeLookup.Add("uint32", typeof(uint));
+
+                typeLookup.Add("float", typeof(float));
+                typeLookup.Add("double", typeof(double));
+                typeLookup.Add("float32", typeof(float));
+                typeLookup.Add("float64", typeof(double));
 
                 while (true)
                 {
@@ -419,20 +448,24 @@ namespace OPS.Geometry
                     }
                     else if (line.Contains("property list") && section == Section.Face)
                     {
-                        if(line.Contains("uchar int vertex_indices"))
+                        if (line.Contains("uchar int vertex_indices") ||
+                            line.Contains("uint8 int32 vertex_indices"))
                         {
                             faceIndexProperty = new Property(typeof(int));
                         }
-                        else if (line.Contains("uchar uint vertex_indices"))
+                        else if (line.Contains("uchar uint vertex_indices") ||
+                                 line.Contains("uint8 uint32 vertex_indices"))
                         {
                             faceIndexProperty = new Property(typeof(uint));
                         }
-                        else if(line.Contains("property list uchar float texcoord"))
+                        else if (line.Contains("property list uchar float texcoord") ||
+                                 line.Contains("property list uint8 float32 texcoord"))
                         {
                             result.HasUVs = true;
                             faceUVProperty = new Property(typeof(float));
                         }
-                        else if (line.Contains("property list uchar double texcoord"))
+                        else if (line.Contains("property list uchar double texcoord") ||
+                                 line.Contains("property list uint8 float64 texcoord"))
                         {
                             result.HasUVs = true;
                             faceUVProperty = new Property(typeof(double));

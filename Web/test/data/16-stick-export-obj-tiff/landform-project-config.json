@@ -1,0 +1,8 @@
+{
+  "name": "16-stick-export-obj-tiff",
+  "options": "exportmeshformat=obj&exportimageformat=tif",
+  "inputs": [
+    { "mesh": "stick.obj", "texture": "stick.jpg" }
+  ],
+  "maxTime": "1h"
+}

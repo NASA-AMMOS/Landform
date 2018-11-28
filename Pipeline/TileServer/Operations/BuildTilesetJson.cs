@@ -20,12 +20,10 @@ namespace OPS.Pipeline.TileServer
 
     public class BuildTilesetJson : TileServerOperation
     {
-        static ILog logger = LogManager.GetLogger(typeof(BuildTilesetJson));
-
         private BuildTilesetJsonMessage message;
 
         public BuildTilesetJson(BuildTilesetJsonMessage message, PipelineCore pipeline, TileServerCloud cloud)
-            : base(message.ProjectName, pipeline, cloud, logger)
+            : base(message, pipeline, cloud)
         {
             this.message = message;
         }
@@ -35,7 +33,7 @@ namespace OPS.Pipeline.TileServer
             LogInfo("started");
             var project = TilingProject.Find(pipeline.DynamoContext, message.ProjectName);
             LogInfo("building json");
-            var root = TilingNode.BuildTreeFromDatabase(pipeline.DynamoContext, project);
+            var root = TilingNode.BuildTreeFromDatabase(pipeline, project);
             // Only nodes with mesh image pairs will be marked as having content in the tile builder so add them
             // The meshes and images aren't actually used so we don't need to load them
             foreach(var n in root.DepthFirstTraverse())

@@ -29,12 +29,10 @@ namespace OPS.Pipeline.TileServer
 
     public class BuildParent : TileServerOperation
     {
-        static ILog logger = LogManager.GetLogger(typeof(BuildParent));
-
         private BuildParentMessage message;
 
         public BuildParent(BuildParentMessage message, PipelineCore pipeline, TileServerCloud cloud)
-            : base(message.ProjectName, pipeline, cloud, logger)
+            : base(message, pipeline, cloud)
         {
             this.message = message;
         }
@@ -76,7 +74,8 @@ namespace OPS.Pipeline.TileServer
             parentSceneNode.BuildGeometryFromChildren(parentSceneNode, project.GetReconMethod(), project.FacesPerTile,
                                                       project.TileResolution, project.GetSkirtMode());
             var pair = parentSceneNode.GetComponent<MeshImagePair>();
-            parent.SaveMesh(pair, pipeline, parentSceneNode.GetComponent<NodeGeometricError>().Error);
+            parent.SaveMesh(pair, pipeline, parentSceneNode.GetComponent<NodeGeometricError>().Error,
+                            project.ExportMeshFormat, project.ExportImageFormat);
             cloud.MasterQueue.Enqueue(new TileCompletedMessage(project.Name, parent.Id));
             LogInfo("completed building parent " + message.TileId);
         }

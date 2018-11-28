@@ -71,9 +71,8 @@
       <HintPath>..\packages\ColorMine.1.2.0\lib\net45\ColorMine.dll</HintPath>
       <Private>True</Private>
     </Reference>
-    <Reference Include="CommandLine, Version=2.2.1.0, Culture=neutral, PublicKeyToken=de6f01bd326f8c32, processorArchitecture=MSIL">
-      <HintPath>..\packages\CommandLineParser.2.2.1\lib\net45\CommandLine.dll</HintPath>
-      <Private>True</Private>
+    <Reference Include="CommandLine, Version=2.3.0.0, Culture=neutral, PublicKeyToken=de6f01bd326f8c32, processorArchitecture=MSIL">
+      <HintPath>..\packages\CommandLineParser.2.3.0\lib\net45\CommandLine.dll</HintPath>
     </Reference>
     <Reference Include="Emgu.CV.UI, Version=3.4.3.3016, Culture=neutral, PublicKeyToken=7281126722ab4438, processorArchitecture=MSIL">
       <HintPath>..\packages\EMGU.CV.3.4.3.3016\lib\net35\Emgu.CV.UI.dll</HintPath>
@@ -164,6 +163,11 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="AlignmentServer\AlignmentMaster.cs" />
+    <Compile Include="AlignmentServer\Commands\CreateMask.cs" />
+    <Compile Include="AlignmentServer\Commands\DetectFeatures.cs" />
+    <Compile Include="AlignmentServer\Commands\MatchImages.cs" />
+    <Compile Include="AlignmentServer\Messages.cs" />
     <Compile Include="Alignment\BuildSceneGraph.cs" />
     <Compile Include="Alignment\DetectFeatures.cs" />
     <Compile Include="Alignment\DetectOverlaps.cs" />
@@ -171,15 +175,13 @@
     <Compile Include="Alignment\IngestPDSImage.cs" />
     <Compile Include="Commands\AlignScene.cs" />
     <Compile Include="Commands\BenchmarkS3.cs" />
-    <Compile Include="Commands\AlignmentWorker.cs" />
     <Compile Include="Commands\BuildFromAlignment.cs" />
-    <Compile Include="Commands\CuriosityAlign.cs" />
     <Compile Include="Commands\LegacyToTile3D.cs" />
-    <Compile Include="Commands\CreateCloudTemplates.cs" />
     <Compile Include="Commands\TileLocalMesh.cs" />
     <Compile Include="MeshWorker\Commands\TextureMeshCommand.cs" />
     <Compile Include="MeshWorker\Operations\BuildBackprojectLeaves.cs" />
     <Compile Include="MeshWorker\Operations\BuildTilingInput.cs" />
+    <Compile Include="Rover\MSLCloud.cs" />
     <Compile Include="StateMachines\GenericTilingStateMachine.cs" />
     <Compile Include="StateMachines\MSLStateMachine.cs" />
     <Compile Include="StateMachines\PipelineStateMachine.cs" />
@@ -301,10 +303,6 @@
     <ProjectReference Include="..\Alignment\Alignment.csproj">
       <Project>{ae1b74cc-7cbb-4aaf-9be6-68534d61d264}</Project>
       <Name>Alignment</Name>
-    </ProjectReference>
-    <ProjectReference Include="..\CloudMessages\CloudMessagesFramework\CloudMessagesFramework.csproj">
-      <Project>{08bf655a-97f2-4027-bcc0-b990cb8588cf}</Project>
-      <Name>CloudMessagesFramework</Name>
     </ProjectReference>
     <ProjectReference Include="..\Cloud\Cloud.csproj">
       <Project>{52a91b3e-1d95-4715-a7ad-2840b2f9c6ac}</Project>

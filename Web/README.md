@@ -24,7 +24,7 @@ This will generate temporary AWS credentials in `$HOME/.aws/credentials`.  Note 
 * If you have specialized your `HOME` environment variable to be different from `USERPROFILE` then you will need to create a symlink `USERPROFILE/.aws` -> `HOME/.aws`.  Unfortunately on Windows NPM brutally replaces any custom setting for `HOME` with the value of `USERPROFILE`, which breaks resolution of AWS credentials for commands run as NPM scripts (e.g. `npm start`, `npm run deploy`).  To create a symlink on Windows first enable developer mode in Windows settings.  Then use [mklink](https://blogs.windows.com/buildingapps/2016/12/02/symlinks-windows-10) to create the link.  For example, in Windows `cmd` prompt: `mklink /d %USERPROFILE%\.aws %HOME%\.aws`.
 
 ## TilingServer
-The backend node.js server will run the .NET tiling server (`../TilingServer`) as a subprocess.  Thus, most development and deployment tasks require that you first use VisualStudio to build the `TilingServer` subproject.
+The node.js web server will run the .NET tiling server (`../TilingServer`) as a subprocess.  Thus, most development and deployment tasks require that you first use VisualStudio to build the `TilingServer` subproject.
 
 During local development (environment variable `NODE_ENV=development`) the tiling server binary will be found at `../TilingServer/bin/Release/TilingServer.exe`.  To use the debug build of `TilingServer.exe` instead of the release version, set the environment variable `DEBUG_TILING_SERVER=true`.
 
@@ -33,7 +33,7 @@ In a deployed context (`NODE_ENV=production` or `NODE_ENV=integration`) the tili
 ## Tiling Worker
 In order to run projects you will also need at least one running tiling worker connected to the same AWS venue.  For development one option is to run the tiling worker locally:
 1. `npm run show-config` - the server will connect to live AWS services for that venue
-2. `npm run start-worker` or `npm run start-worker -- venue-name` to use a different venue.
+2. `npm run worker` or `npm run worker -- venue-name` to use a different venue.
 
 For production or integration testing the worker is [deployed to an EC2 autoscale group](#deploy-worker-to-ec2).
 
@@ -43,7 +43,7 @@ For production or integration testing the worker is [deployed to an EC2 autoscal
 ---
 
 ## Development Workflow
-First install latest [node.js](https://nodejs.org) 8.x.x, acquire [AWS credentials](#aws-credentials), and build `TilingServer.exe` with Visual Studio as explained above.
+First install latest [node.js](https://nodejs.org) 8.x.x, acquire [AWS credentials](#aws-credentials), and build `TilingServer.exe` with Visual Studio as explained [above](#tilingserver).  To run projects locally you will also need to start an instance of the [tiling worker](#tiling-worker).
 
 1. `npm install`
 1. `npm run show-config` - the server will connect to live AWS services for that venue.
@@ -75,21 +75,19 @@ This will require a local installation of [Docker](https://www.docker.com) host.
 
 1. `npm run show-config` - the server will connect to live AWS services for that venue.
    1. The `venueName` that will be used is determined by the `NODE_ENV` environment variable in the shell where the `local-deploy` script is run, even though in the container `NODE_ENV=production` always.  This enables testing a local deployment connected to a private AWS venue.
-1. Make sure a [tiling worker](#tiling-worker) is running in that venue.
 1. `npm run local-deploy -- [-f|--force] [-i|--interactive] [-d|--debug]` to re-build the Docker container and run it locally.  The name of the docker container is given by the value of `deployEnvironment` from `config.js`, using the value of `NODE_ENV` in the shell where the `local-deploy` script runs.  Typically `deployEnvironment=landformweb-dev`, which is appropriate for testing.
 1. Options:
     * `--force`: use existing `landformweb.zip` even if it might be outdated
     * `--interactive`: drop into a shell in the Docker container instead of running the server.  Note: if using git bash run `winpty node tools/localDeploy.js -i ...` instead.
     * `--debug`: set `LOG_LEVEL=silly` in the Docker container
 1. You can now access the server at http://localhost:8081.
-1. Run through the [test procedures](docs/TEST.md).
+1. Make sure a [tiling worker](#tiling-worker) is running in that venue, then run through the [test procedures](docs/TEST.md).
 
 ### 3. Deploy Master Server to Elastic Beanstalk
 It is also possible to manually deploy the release bundle using the AWS Elastic Beanstalk web console, as documented in the [AWS setup](docs/SETUP.md) instructions.
 
-1. Check `deployEnvironment` in `config.js` - the server will be deployed to this Elastic Beanstalk environment.  The `deployEnvironment` that will be used is determined by the `NODE_ENV` environment variable in the shell where the `deploy` script is run, even though in the deployment the value of `NODE_ENV` is typically configured in the Elastic Beanstalk environment as `NODE_ENV=production`.
-1. The `venueName` that will be used in the deployment typically depends on the `NODE_ENV` configured in the Elastic Beanstalk environment.  Typically the environment `landform-dev` has `NODE_ENV=integration` and the environment `landform` has `NODE_ENV=production`.  It is also possible to override `TILE_SERVER_VENUE_NAME` directly in the environment configuration.
-1. Make sure a [tiling worker](#tiling-worker) is running in that venue.
+1. Check `deployEnvironment` in `config.js` - the server will be deployed to this Elastic Beanstalk environment unless a different environment is explicitly named on the command line as explained below.  The `deployEnvironment` that will be used is determined by the `NODE_ENV` environment variable in the shell where the `deploy` script is run.
+1. The `venueName` that will be used in the deployment typically depends on the `NODE_ENV` configured in the Elastic Beanstalk environment.  Typically the environment `landformweb-dev` has `NODE_ENV=integration` and the environment `landformweb` has `NODE_ENV=production`.  It is also possible to override `TILE_SERVER_VENUE_NAME` directly in the environment configuration.
 1. `npm run deploy -- [environment-name] [-f|--force] [--profile=foo]`.
 1. Options:
     * `environment-name`: Upload to this Elastic Beanstalk environment instead of the default from `config.js`
@@ -98,13 +96,52 @@ It is also possible to manually deploy the release bundle using the AWS Elastic 
 1. The deployment process will take a few minutes.
   1. You can also watch the deployment progress by logging in to the [AWS web console](http://goto.jpl.nasa.gov/awsconsole).
 1. Once the deployment is complete the site will be live at https://landform-dev.hi.jpl.nasa.gov (omit `-dev` for production).  Note, if using VPN full tunnel is required because we restrict access to JPL IP addresses.
-1. Run through the [test procedures](docs/TEST.md).
+1. Make sure a [tiling worker](#tiling-worker) is running in the venue, then run through the [test procedures](docs/TEST.md).
 
 ### Deploy Worker to EC2
 First install latest [node.js](https://nodejs.org) 8.x.x, acquire [AWS credentials](#aws-credentials), and build `TilingServer.exe` with Visual Studio as explained above.
-`
-1. `npm run show-config` - the server will connect to live AWS services for that venue by default.
+
 1. `npm run configure-backend -- [venue-name]` - this will generate a customized `ec2userdata.txt`.  This file will be used to configure instances in an EC2 autoscale group.
-  1. NOTE: This command runs `TileServer.exe configure` with parameters taken from `config.js` according to the current value of `NODE_ENV`.  A side effect is that a `$USERPROFILE/.landform/tileserver.json` file will also be written with that config, and any subsequent runs of `TileServer.exe` (by the same user on the same machine) will run with those options as defaults.  Normally this is OK as commands like `npm start` and `npm run worker` override the defaults with fresh values based on `config.js`.
 1. `npm run bundle-worker` - this will generate `landformweb-worker.zip` containing the binaries the instances in the autoscale group will run.
 1. Deploy the worker using the AWS EC2 web console as documented in the [AWS setup](docs/SETUP.md) instructions.
+
+
+## Nightly Test
+`landform-test.hi.jpl.nasa.gov` is a `t3.small` EC2 instance running Ubuntu Server 18.04 LTS.  It runs the tests defined in [test/data/landform-test-config.json](test/data/landform-test-config.json) nightly using the [tools/runTests.js](toosl/runTests.js) script.  The landform sever it connects to is also specified in the test config file.  It reads the test data from S3 at `/landlords-dev/landformweb-test-data` using [s3fs-fuse](https://github.com/s3fs-fuse/s3fs-fuse) and writes timestamped log files back to the same directory tree in S3.  The tests are run serially in order starting at 7am UTC (11pm Pacific standard time, 12am Pacific daylight time).  If a test fails then one of the timestamped log files written to its directory will be named like `log-*-fail.txt`.  Failure of a test does not disable running subsequent tests.
+
+The test projects may be visualized by logging in to the landform server, e.g. https://landform.hi.jpl.nasa.gov, and then going to a URL like https://landform.hi.jpl.nasa.gov/api/projects/PROJECT_NAME/view where `PROJECT_NAME` is the name of one of the test projects, e.g. `00-stick`.  The test results are available until the next round of tests are run.
+
+The EC2 instance for running tests is created from an EC2 launch configuration named `landformweb-test` in the `landlords` account.  The userdata startup script is [test/data/ec2userdata-ubuntu-18.04.sh](test/data/ec2userdata-ubuntu-18.04.sh).  The DNS registration for `landform-test.hi.jpl.nasa.gov` is manually managed with Amazon Route 53.  See the [AWS setup](docs/SETUP.md) for info on that.  For maintenance you can ssh into the instance using the `landform-ec2` key pair like this:
+
+    ssh -i path/to/landform-ec2 ubuntu@landform-test.hi.jpl.nasa.gov
+
+(If you get an error about permissions on the key file then run `chmod 400 path/to/landform-ec2`.)  The instance has a firewall configured to allow SSH access only from JPL IP addresses - if you are remoted in over VPN then use full tunnel.
+
+In order for `landform-test.hi.jpl.nasa.gov` to connect to a landform web server, e.g. `landform.hi.jpl.nasa.gov`, the latter must allow inbound HTTPS traffic from the former.  In our typical setup this means that the EC2 security group used by Elastic Beanstalk for the landform web server must have an entry manually added to it with `Type=HTTPS, Protocol=TCP, Port Range=443, Source=ADDR/32, Description=landform-test.hi.jpl.nasa.gov` where `ADDR` is the IP address of landform-test.hi.jpl.nasa.gov. Normally the security group is configured to allow incoming connections only from JPL IP addresses.  See the [AWS setup](docs/SETUP.md#5-restrict-to-jpl-ips) docs for more info.
+
+### Running the Test Projects Locally
+The nightly tests run against our deployed venue at `landform.hi.jpl.nasa.gov`.  It is possible to run the same set of tests locally against a local venue (or any other venue).  You may want to do this to check for regressions against current master, for example.
+
+1. Download and unzip https://landlords-dev.s3.amazonaws.com/landformweb-test-data/landform-test-data.zip
+2. The venue to be tested is defined by `serverUrl` in `landform-test-data/landform-test-config.json`.  It defaults to `http://localhost:8081`, which is for a local venue. If you do want to test a local build then start up the landform master and worker locally e.g. following the [development workflow](#development-workflow) above.
+3. Run `npm run tests /path/to/landform-test-data`.
+
+TLDR:
+
+    # install node.js 8.x 
+
+    # in terminal 1
+    cd Landform/Web
+    npm install
+    npm run server
+
+    # in terminal 2
+    cd Landform/Web
+    npm run worker
+
+    # in terminal 3
+    cd Landform/Web
+    curl -O https://landlords-dev.s3.amazonaws.com/landformweb-test-data/landform-test-data.zip
+    unzip landform-test-data.zip
+    npm run tests landform-test-data
+

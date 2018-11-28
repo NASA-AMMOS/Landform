@@ -12,13 +12,10 @@ using System.Threading.Tasks;
 namespace OPS.Pipeline.TileServer
 {
     [Verb("projectmetadata", HelpText = "Get project metadata")]
-    public class ProjectMetadataOptions
+    public class ProjectMetadataOptions : PipelineCoreOptions
     {       
         [Value(0, Required = true, HelpText = "Project Name")]
         public string ProjectName { get; set; }
-
-        [Option(Required = false, Default = false, HelpText = "suppress non-essential output")]
-        public bool Quiet { get; set; }
     }
 
     class SanitizedInput
@@ -43,31 +40,23 @@ namespace OPS.Pipeline.TileServer
 
     public class ProjectMetadata : PipelineCore
     {
-        static ILog logger = LogManager.GetLogger(typeof(ProjectMetadata));
-
-        ProjectMetadataOptions options;
+        private ProjectMetadataOptions options;
 
         public ProjectMetadata(ProjectMetadataOptions options)
-            : base(dynamoPrefix: TileServerConfig.Instance.VenueName, profile: TileServerConfig.Instance.Profile)
+            : base(options, TileServerConfig.Instance.VenueName, TileServerConfig.Instance.Profile)
         {
             this.options = options;
         }
 
         public int Run()
         {
-            //https://stackoverflow.com/questions/4094032/how-to-switch-on-off-logging-using-log4net
-            if (options.Quiet)
-            {
-                LogManager.GetRepository().ResetConfiguration();
-            }
-
-            new TileServerCloud(this).EnsureTablesExist();
+            var cloud = new TileServerCloud(this, quiet: true); //ensures queues and tables exist
 
             var project = TilingProject.Find(DynamoContext, options.ProjectName);
 
             if (project == null)
             {
-                logger.Error("No project by that name found: " + options.ProjectName);
+                Logger.ErrorFormat("project \"{0}\" not found", options.ProjectName);
                 return 1; //argument error
             }
 
@@ -84,7 +73,7 @@ namespace OPS.Pipeline.TileServer
                     var sanitizedInput = new SanitizedInput {
                         Name = input.Name,
                         MeshUrl = TileServerConfig.ConvertUrlToHttps(input.MeshUrl),
-                        ImageUrl = TileServerConfig.ConvertUrlToHttps(input.MeshUrl),
+                        ImageUrl = TileServerConfig.ConvertUrlToHttps(input.ImageUrl),
                         Processed = input.Chunked
                     };
                     if (input.Chunked)
@@ -100,7 +89,7 @@ namespace OPS.Pipeline.TileServer
 
             if (project.TilesDefined)
             {
-                var nodes = TilingNode.Find(DynamoContext, project).ToList();
+                var nodes = TilingNode.Find(this, project).ToList();
                 md.NumNodes = nodes.Count;
 
                 int numProcessed = 0;
@@ -117,7 +106,7 @@ namespace OPS.Pipeline.TileServer
 
             md.OutputUrl = TileServerConfig.Instance.WWWUrl(project.Name, "tileset.json", https: true);
 
-            var ignore = new string[] { "TilingProject.NodeIds", "TilingProject.InputNames" };
+            var ignore = new string[] { "TilingProject.NodeIdsUrl", "TilingProject.InputNames" };
             Console.WriteLine(JsonHelper.ToJson(md, indent: true, autoTypes: false, ignoreProperties: ignore));
 
             return 0;

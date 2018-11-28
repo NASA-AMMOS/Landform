@@ -5,6 +5,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using OPS.Pipeline.MeshWorker;
+using OPS.Pipeline.AlignmentServer;
 
 namespace OPS.Pipeline
 {
@@ -23,20 +24,17 @@ namespace OPS.Pipeline
                                                              PDSImageConverterOptions,
                                                              ConvertBaselineMeshesOptions,
                                                              TileBaselineMeshOptions,
-                                                             AlignmentWorkerOptions,
                                                              TileBaselineMeshesOptions,
                                                              BenchmarkS3Options,
                                                              LegacyToWebVROptions,
                                                              LegacyToTile3DOptions,
                                                              AlignSceneOptions,
-                                                             CreateCloudTemplatesOptions,
-                                                             TileLocalMeshOptions,                                                             
-                                                             CuriosityAlignOptions,
+                                                             TileLocalMeshOptions,
                                                              BuildFromAlignmentOptions,
-                                                             TextureMeshOptions
+                                                             TextureMeshOptions,
+                                                             StartAlignMasterOptions
                                                              >(args)
               .MapResult(
-                (AlignmentWorkerOptions opts) => new AlignmentWorker().Run(),
                 (ConvertBaselineMeshOptions opts) => new ConvertBaselineMesh(opts).Run(),
                 (ConvertBaselineMeshesOptions opts) => new ConvertBaselineMeshes(opts).Run(),
                 (TileBaselineMeshOptions opts) => new TileBaselineMesh(opts).Run(),
@@ -46,11 +44,10 @@ namespace OPS.Pipeline
                 (LegacyToWebVROptions opts) => new LegacyToWebVR(opts).Run(),
                 (LegacyToTile3DOptions opts) => new LegacyToTile3D(opts).Run(),
                 (AlignSceneOptions opts) => new AlignScene(opts).Run(),
-                (CreateCloudTemplatesOptions opts) => new CreateCloudTemplates(opts).Run(),
                 (TileLocalMeshOptions opts) => new TileLocalMesh(opts).Run(),
-                (CuriosityAlignOptions opts) => new CuriosityAlign(opts).Run(),
                 (BuildFromAlignmentOptions opts) => new BuildFromAlignment(opts).Run(),
                 (TextureMeshOptions opts) => new TextureMeshCommand(opts).Run(),
+                (StartAlignMasterOptions opts) => new AlignmentMaster(opts).Run(),
                 errs => 1);
         }
     }

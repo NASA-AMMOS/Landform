@@ -12,59 +12,65 @@ using System.Linq;
 using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using log4net;
+using CommandLine;
 
 namespace OPS.Plumbing
 {
+    public class PipelineCoreOptions
+    {
+        [Option(Default = false, HelpText = "Suppress non-essential output")]
+        public bool Quiet { get; set; }
+
+        [Option(Default = false, HelpText = "Log debug info")]
+        public bool Debug { get; set; }
+
+        [Option(Default = null, HelpText = "Override default log filename")]
+        public string LogFile { get; set; }
+    }
+
     public class PipelineCore
     {
-        public PipelineCore(bool enableS3 = true, bool enableDynamo = true,
-                            string dynamoPrefix = "", string s3Url = "", string dynamoUrl = "", string profile = null)
-        {
-            storageSelecter = new Dictionary<string, StorageHelper>();
-            if (enableS3)
-            {
-                var opts = new AmazonS3Config();
-                if (s3Url == "")
-                {
-                    opts.RegionEndpoint = Amazon.RegionEndpoint.USWest1;
-                }
-                else
-                {
-                    opts.ServiceURL = s3Url;
-                    opts.ForcePathStyle = true;
-                    opts.SignatureVersion = "2";
-                }
-                s3Client = new AmazonS3Client(opts);
+        public string DownloadCache { get; private set; }
+        public string Profile { get; private set; }
+        public IAmazonDynamoDB DynamoClient { get; private set; }
+        public DynamoDBContext DynamoContext { get; private set; }
+        public IAmazonS3 S3Client { get; private set; }
 
-                defaultStorage = new StorageHelper(profile, "us-west-1");
+        public ILog Logger { get; private set; }
+
+        private StorageHelper defaultStorage;
+        private Dictionary<string, StorageHelper> storageSelecter = new Dictionary<string, StorageHelper>();
+
+        public PipelineCore(PipelineCoreOptions options, string dynamoPrefix = "", string awsProfile = null,
+                            bool enableS3 = true, bool enableDynamo = true,
+                            string s3Url = "", string dynamoUrl = "", ILog logger = null)
+        {
+            Profile = awsProfile;
+
+            if (logger != null)
+            {
+                Logger = logger;
             }
             else
             {
-                s3Client = null;
+                Logging.ConfigureLogging(options.Quiet, options.Debug, options.LogFile);
+                Logger = LogManager.GetLogger(GetType());
+            }
+
+            if (enableS3)
+            {
+                S3Client = StorageHelper.MakeClient(awsProfile, s3Url);
+                defaultStorage = new StorageHelper(awsProfile, "us-west-1");
             }
 
             if (enableDynamo)
             {
-                AmazonDynamoDBConfig config = new AmazonDynamoDBConfig();
-                if (dynamoUrl == "")
-                {
-                    config.RegionEndpoint = Amazon.RegionEndpoint.USWest1;
-                }
-                else
-                {
-                    config.ServiceURL = dynamoUrl;
-                }
-                ddbClient = new AmazonDynamoDBClient(config);
-                context = new DynamoDBContext(ddbClient, new DynamoDBContextConfig { TableNamePrefix = dynamoPrefix });
+                DynamoContext = DBUtil.MakeContext(dynamoPrefix, awsProfile, dynamoUrl);
+                DynamoClient = DBUtil.GetClientForContext(DynamoContext);
             }
-            else
-            {
-                ddbClient = null;
-                context = null;
-            }
-            this.Profile = profile;
 
             //use a different download cache dir for every PipelineCore instance
             //i.e. different for every thread and every run
@@ -81,18 +87,6 @@ namespace OPS.Plumbing
             DeleteDownloadCache();
         }
 
-        public string DownloadCache { get; private set; }
-
-        private AmazonS3Client s3Client;
-        private AmazonDynamoDBClient ddbClient;
-        private DynamoDBContext context;
-        private StorageHelper defaultStorage;
-        private Dictionary<string, StorageHelper> storageSelecter;
-
-        public string Profile { get; private set; }
-        public IAmazonDynamoDB DynamoDB { get { return ddbClient; } }
-        public DynamoDBContext DynamoContext { get { return context; } }
-        public IAmazonS3 S3Client { get { return s3Client; } }
         public StorageHelper Storage(string url) {
             while (url != null && url.Length > 0)
             {
@@ -291,27 +285,27 @@ namespace OPS.Plumbing
             }
         }
 
-        public void DeleteDynamoItem<T>(T obj, bool ignoreErrors = true, ILog logger = null)
+        public void DeleteDynamoItem<T>(T obj, bool ignoreErrors = true)
         {
-            try
-            {
-                DynamoContext.Delete(obj);
-            }
-            catch (Exception e)
-            {
-                if (!ignoreErrors)
-                {
-                    throw e;
-                }
-
-                if (logger != null)
-                {
-                    logger.Warn(string.Format("error deleting DynamoDB object: {0}", e.Message));
-                }
-            }
+            DBUtil.DeleteItem(DynamoContext, obj, ignoreErrors, Logger);
         }
 
-        internal string CachePath(string project, string filename)
+        public void LogInfo(string msg, params Object[] args)
+        {
+            Logger.InfoFormat(msg, args);
+        }
+
+        public void LogWarn(string msg, params Object[] args)
+        {
+            Logger.WarnFormat(msg, args);
+        }
+
+        public void LogError(string msg, params Object[] args)
+        {
+            Logger.ErrorFormat(msg, args);
+        }
+
+        private string CachePath(string project, string filename)
         {
             return Path.Combine(DownloadCache, project, filename);
         }

@@ -110,6 +110,14 @@ This step creates the Elastic Beanstalk application and environment into which t
         1. Load balancer subnets: `us-west-1c subnet-148d7971 172.31.16.0/20`
         1. Instance subnets: same as load balancer
 1. Create Environment - it takes a few minutes
+1. Increase elastic load balancer timeout to avoid 504 gateway timeout errors.
+    1. http://goto.jpl.nasa.gov/awsconsole
+    1. Log in as `landords/account_owner` (internal Landform use only, otherwise use your own AWS account)
+    1. Select region `us-west-1` (North California)
+    1. Services -> Compute -> EC2
+    1. Load Balancing -> Load Balancers
+    1. Select the load balancer corresponding to the elastic beanstalk environment - on the "Instances" tab you should see an instance with the same  name as the elastic beanstalk environment.
+    1. On the "Description" tab for the load balancer, click "Edit idle timeout" and set it to 1800 seconds.
 
 ## 3: Configure DNS
 This step is optional.  It configures a public DNS entry to redirect to the Elastic Beanstalk environment configured above.  The Landform team uses the Amazon Route 53 DNS service, but any DNS provider that supports CNAME records should work.
@@ -276,6 +284,13 @@ The following instructions assume you have a `landformweb-VERSION.zip` bundle.
 1. Version Label: VERSION
 1. Deploy - it takes a few minutes
 
+Once the server is deployed it will be live.  To shut it down, either terminate the corresponding Elastic Beanstalk environment or set its autoscale group to max 0 instances.  The latter may be more convenient because terminating the environment seems to loose its configuration.  One way to reduce the autoscale group to 0 instances is to us the Python `eb` command line tool.  Using Python 3:
+
+    pip install awsebcli
+    eb scale 0 ENVIRONMENT --profile=PROFILE
+    
+where `ENVIRONMENT` is the Elastic Beanstalk environment name, e.g. `landformweb[-dev]`, and PROFILE is the AWS profile to use.
+
 ## 8: Deploy Landform Worker to EC2 Auto Scale Group
 The following instructions assume you have a `landformweb-worker-VERSION.zip` bundle and an `ec2userdata.txt` file.
 
@@ -316,6 +331,11 @@ These instructions only need to be run once for a new venue or when the venue co
     * select the most recent version of the previous template in "Source Template Version"
     * the new template will be pre-populated with values from the old template
     * most likely the only field you'll need to replace is "User Data"
+    * after saving the new version
+      * select the template in the list
+      * Actions -> Set default version
+      * select the newest version
+      * click set as default version
   * Launch Template Name: `landformweb[-dev]-workers` (recommended, but can be any name)
   * AMI ID: `ami-0df605282263fb1c9` (Microsoft Windows Server 2016 Base 64-bit)
   * Instance Type: `t2.2xlarge` recommended, other [instance types](https://aws.amazon.com/ec2/instance-types) can be chosen for different [price](https://aws.amazon.com/ec2/pricing/on-demand)/performance tradeoffs 
@@ -323,11 +343,6 @@ These instructions only need to be run once for a new venue or when the venue co
   * Network Type: `classic`
   * Availability Zone: `us-west-1c`
   * Security Groups: `RDP Only` (or whatever security group you selected above)
-  * Storage Volumes -> Add New Volume
-    * Volume Type: `ephemeral0`
-    * Device Name: `xvda Windows`
-    * Size: `100 GiB`
-    * IOPS: `2000`
   * Tags -> Add Tag
     * Key: `Name` - note this must be capitalized exactly as shown
     * Value: `landformweb[-dev]-worker` (recommended, but can be any name) - this will identify the EC2 instances in the group
@@ -360,7 +375,7 @@ These instructions only needs to be run when the Landform worker version changes
 1. Services -> Compute -> EC2
 1. Auto Scaling -> Auto Scaling Groups -> Create Auto Scaling Group
 1. Launch Template
-1. select the launch template you just created
+1. select the launch template you created bove, e.g. `landformweb[-dev]-workers`
 1. Next Step
   * Group Name: `landformweb[-dev]-workers` (recommended, but can be any name)
   * Subnet: `172.31.16.0/20 | Default in us-west-1c`
@@ -390,6 +405,6 @@ These instructions only needs to be run when the Landform worker version changes
 1. Double click RDP file to open remote desktop
 1. Username: `admin`, password as above
 1. The Landform tiling server should be located in `C:\tileserver`.
-  * You can tail the Landform tileserver log by running `Get-Content c:\tileserver\log.txt -Wait -Tail 30` in PowerShell.
+  * You can tail the Landform tileserver log by running `Get-Content c:\tileserver\log\log-tilingserver-startworker*.txt -Wait -Tail 30` in PowerShell.
 1. The [EC2Launch](https://docs.aws.amazon.com/AWSEC2/latest/WindowsGuide/ec2-windows-user-data.html) log for the user data script should be at `C:\ProgramData\Amazon\EC2-Windows\Launch\Log\UserdataExecution`.
   * You may need to [show hidden files and folders](https://support.microsoft.com/en-us/help/14201/windows-show-hidden-files) to see `C:\ProgramData`.

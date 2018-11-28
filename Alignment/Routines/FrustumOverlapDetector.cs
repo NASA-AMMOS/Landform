@@ -63,7 +63,6 @@ namespace OPS.Alignment
 
                 if (!node.HasComponent<NodeConvexHull>())
                 {
-                    var chc = node.AddComponent<NodeConvexHull>();
                     List<ConvexHull> childHulls = new List<ConvexHull>();
                     foreach (var child in node.Children)
                     {
@@ -73,14 +72,22 @@ namespace OPS.Alignment
                             var ut = child.GetOrAddComponent<NodeUncertainTransform>();
                             childHulls.Add(ConvexHull.Transformed(hull.Hull, ut.UncertainTransform));
                         }
+                        else
+                        {
+                            Debug.Write("no hulls");
+                        }
                     }
-                    chc.Hull = ConvexHull.Union(childHulls.ToArray());
+                    if (childHulls.Count > 0)
+                    {
+                        var chc = node.AddComponent<NodeConvexHull>();
+                        chc.Hull = ConvexHull.Union(childHulls.ToArray());
+                    }
                 }
             };
             collect(scene.Root);
         }
         
-        public void Detect(AlignmentScene scene)
+        public void Detect(AlignmentScene scene, bool allowInternalOverlaps=true)
         {
             // Initialize - make sure ImageToNode is up to date and all nodes have hulls
             MakeHulls(scene);
@@ -110,6 +117,8 @@ namespace OPS.Alignment
 
             Func<SceneNode, SceneNode, bool> overlaps = (node, other) =>
             {
+                if (!node.HasComponent<NodeConvexHull>()) return false;
+                if (!other.HasComponent<NodeConvexHull>()) return false;
                 var nodeHull = node.GetComponent<NodeConvexHull>().Hull;
                 var otherHull = other.GetComponent<NodeConvexHull>().Hull;
 
@@ -118,60 +127,65 @@ namespace OPS.Alignment
                 return thisInOther.Intersects(otherHull);
             };
 
-            Dictionary<SceneNode, HashSet<SceneNode>> nodeOverlaps = new Dictionary<SceneNode, HashSet<SceneNode>>();
-            Action<SceneNode, SceneNode> addOverlap = (one, two) =>
-            {
-                if (!nodeOverlaps.ContainsKey(one)) nodeOverlaps[one] = new HashSet<SceneNode>();
-                if (!nodeOverlaps.ContainsKey(two)) nodeOverlaps[two] = new HashSet<SceneNode>();
-                nodeOverlaps[one].Add(two);
-                nodeOverlaps[two].Add(one);
-            };
-
             HashSet<UnorderedImagePair> unique = new HashSet<UnorderedImagePair>();
-            foreach (var node in scene.ImageToNode.Values)
+            void processPairwise(SceneNode one, SceneNode two)
             {
-                var imgRef = node.GetComponent<NodeImageReference>().Reference;
-                var nodeHull = node.GetComponent<NodeConvexHull>().Hull;
+                // Debug.Assert(overlaps(ci, cj));
 
-                Queue<SceneNode> toConsider = new Queue<SceneNode>();
-                toConsider.Enqueue(scene.Root);
-
-                while (toConsider.Count > 0)
+                if (one.HasComponent<NodeImageReference>() && two.HasComponent<NodeImageReference>())
                 {
-                    var other = toConsider.Dequeue();
+                    unique.Add(new UnorderedImagePair(one.GetComponent<NodeImageReference>().Reference, two.GetComponent<NodeImageReference>().Reference));
+                }
 
-                    if (false && other == node.Parent)
+                if (!one.IsLeaf)
+                {
+                    SceneNode[] children = one.Children.ToArray();
+                    for (int i = 0; i < children.Length; i++)
                     {
-                        // HACK - don't align within SD
-                        continue;
+                        if (!overlaps(children[i], two)) continue;
+                        processPairwise(children[i], two);
                     }
-
-                    if (nodeOverlaps.ContainsKey(node) && nodeOverlaps[node].Contains(other))
+                }
+                else if (!two.IsLeaf)
+                {
+                    // this could be processPairwise(two, one) but could double
+                    // stack size in the worst case
+                    SceneNode[] children = two.Children.ToArray();
+                    for (int i = 0; i < children.Length; i++)
                     {
-                        // already been done
-                        continue;
+                        if (!overlaps(children[i], one)) continue;
+                        processPairwise(children[i], one);
                     }
-
-                    if (!ancestors[node].Contains(other) && !overlaps(node, other))
-                    {
-                        continue;
-                    }
-
-                    addOverlap(node, other);
-
-                    var imgRefC = other.GetComponent<NodeImageReference>();
-                    if (imgRefC != null && imgRefC.Reference != imgRef)
-                    {
-                        unique.Add(new UnorderedImagePair(imgRef, imgRefC.Reference));
-                    }
-
-                    foreach (var child in other.Children)
-                    {
-                        toConsider.Enqueue(child);
-                    }                
-                }                
+                }
+                // else if (one.IsLeaf && two.IsLeaf) {}
             }
+
+            void processNode(SceneNode node)
+            {
+                SceneNode[] children = node.Children.ToArray();
+                for (int i = 0; i < children.Length; i++)
+                {
+                    var ci = children[i];
+                    for (int j = i + 1; j < children.Length; j++)
+                    {
+                        var cj = children[j];
+                        if (!overlaps(ci, cj)) continue;
+                        processPairwise(ci, cj);
+                    }
+
+                    if (allowInternalOverlaps)
+                    {
+                        processNode(ci);
+                    }
+                }
+            }
+            processNode(scene.Root);
             scene.Overlaps = unique;
+        }
+
+        public void Detect(AlignmentScene scene)
+        {
+            Detect(scene, true);
         }
     }
 }

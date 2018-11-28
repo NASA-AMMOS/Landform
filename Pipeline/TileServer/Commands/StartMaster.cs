@@ -6,37 +6,37 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using System.Collections.Concurrent;
 using System.Threading;
+using System.Diagnostics;
 
 namespace OPS.Pipeline.TileServer
 {
     [Verb("startmaster", HelpText = "Runs a tiling workflow")]
-    public class StartMasterOptions
+    public class StartMasterOptions : PipelineCoreOptions
     {
-
     }
 
     public class StartMaster : PipelineCore
     {
-        static ILog logger = LogManager.GetLogger(typeof(StartMaster));
+        private StartMasterOptions options;
 
-        StartMasterOptions options;
+        private TileServerCloud cloud;
 
-        private static Dictionary<string,Type> registeredStateMachines = new Dictionary<string, Type>();
-        private static ConcurrentDictionary<string, PipelineStateMachine> projectNameToStateMachine = new ConcurrentDictionary<string, PipelineStateMachine>();
+        private Dictionary<string, PipelineStateMachine> projectNameToStateMachine =
+            new Dictionary<string, PipelineStateMachine>();
 
-        public StartMaster(StartMasterOptions options) : base(dynamoPrefix: TileServerConfig.Instance.VenueName, profile: TileServerConfig.Instance.Profile)
+        public StartMaster(StartMasterOptions options)
+            : base(options, TileServerConfig.Instance.VenueName, TileServerConfig.Instance.Profile)
         {
             this.options = options;
-
-            RegisterStateMachine(GenericTilingStateMachine.ProjectType(), typeof(GenericTilingStateMachine));
-            RegisterStateMachine(MSLStateMachine.ProjectType(), typeof(MSLStateMachine));
         }
 
         public int Run()
         {
-            TileServerConfig.Instance.Dump(logger);
+            TileServerConfig.Instance.Dump(Logger);
+
+            cloud = new TileServerCloud(this);
+
             while (true)
             {
                 try
@@ -45,8 +45,8 @@ namespace OPS.Pipeline.TileServer
                 }
                 catch (Exception e)
                 {
-                    logger.Error("error in master task: " + e.Message);
-                    logger.Error(e.StackTrace);
+                    Logger.ErrorFormat("error in master task ({0}): {1}", e.GetType().FullName, e.Message);
+                    Logger.Error(e.StackTrace);
                     // Introduce a sleep here to limit debug spew just in case a misconfiguration is causing this error
                     Thread.Sleep(2000);  
                 }
@@ -56,20 +56,26 @@ namespace OPS.Pipeline.TileServer
 #pragma warning restore 0162
         }
 
-        void RunMaster()
+        const int FAILED_MESSAGE_TIMEOUT_SEC = 3;
+        const int DEQUEUE_THROTTLE_MS = 50;
+        private void RunMaster()
         {
-            var cloud = new TileServerCloud(this);
-
+            var masterQueue = cloud.MasterQueue;
             while (true)
             {
-                foreach (var m in cloud.MasterQueue.Dequeue()) 
+                //only take one message at a time when we are ready to process it
+                var m = masterQueue.DequeueOne();
+                Stopwatch sw = new Stopwatch();
+                sw.Start();
+                if (m != null)
                 {
                     try
                     {
+                        bool projectDeleted = false;
                         if (!projectNameToStateMachine.ContainsKey(m.ProjectName))
                         {
                             string projectType = null;
-                            if (m.GetType() == typeof(CreateProjectMessage))
+                            if (m is CreateProjectMessage)
                             {
                                 projectType = ((CreateProjectMessage)m).ProjectType;
                             }
@@ -80,39 +86,66 @@ namespace OPS.Pipeline.TileServer
                                 {
                                     projectType = project.ProjectType;
                                 }
+                                else if (m is DeleteProjectMessage)
+                                {
+                                    projectDeleted = true;
+                                }
                             }
-                            if (string.IsNullOrEmpty(projectType) || !registeredStateMachines.ContainsKey(projectType))
+                            if (!projectDeleted)
                             {
-                                throw new Exception("could not create state machine for project " + m.ProjectName +
-                                                    " of type \"" + projectType + "\"");
+                                PipelineStateMachine.ProjectType pt;
+                                if (string.IsNullOrEmpty(projectType) ||
+                                    !Enum.TryParse(projectType, /* ignoreCase */ true, out pt) ||
+                                    !PipelineStateMachine.StateMachines.ContainsKey(pt))
+                                {
+                                    throw new Exception("could not create state machine for project " + m.ProjectName +
+                                                        " of type \"" + projectType + "\"");
+                                }
+                                
+                                var smt = PipelineStateMachine.StateMachines[pt];
+                                var sm = (PipelineStateMachine)Activator.CreateInstance(smt, this, cloud.WorkerQueue,
+                                                                                        m.ProjectName);
+                                projectNameToStateMachine.Add(m.ProjectName, sm);
                             }
-
-                            var smt = registeredStateMachines[projectType];
-                            var sm = (PipelineStateMachine)Activator.CreateInstance(smt, this, cloud.WorkerQueue,
-                                                                                    m.ProjectName);
-                            projectNameToStateMachine.TryAdd(m.ProjectName, sm);
                         }
 
-                        projectNameToStateMachine[m.ProjectName].ProcessMessage(m);
+                        if (!projectDeleted)
+                        {
+                            projectNameToStateMachine[m.ProjectName].ProcessMessage(m);
+                        }
 
-                        cloud.MasterQueue.DeleteMessage(m);
+                        masterQueue.DeleteMessage(m);
                     }
                     catch (Exception e)
                     {
-                        logger.Error(e.Message);
-                        logger.Error(e.StackTrace);
+                        Logger.ErrorFormat("{0}: processing error ({1}): {2}",
+                                           m.Info(), e.GetType().FullName, e.Message);
+                        Logger.Error(e.StackTrace);
+
+                        try
+                        {
+                            //try to make the message available in our queue again soon
+                            masterQueue.UpdateTimeout(m, FAILED_MESSAGE_TIMEOUT_SEC);
+                        }
+                        catch (Exception e2)
+                        {
+                            Logger.ErrorFormat("{0}: error resetting visibility timeout ({1}): {2}",
+                                               m.Info(), e2.GetType().FullName, e2.Message);
+                        }
+                    }
+                    double totalSec = 0.001 * sw.ElapsedMilliseconds;
+                    if (totalSec > masterQueue.TimeoutSec)
+                    {
+                        Logger.ErrorFormat("{0}: took {1}s, but max processing time is {2}s",
+                                           m.Info(), totalSec, masterQueue.TimeoutSec);
                     }
                 }
+                int sleepMS = (int)(DEQUEUE_THROTTLE_MS - sw.ElapsedMilliseconds);
+                if (sleepMS > 0)
+                {
+                    Thread.Sleep(sleepMS);
+                }
             }
-        }
-
-        private void RegisterStateMachine(string projectType, Type stateMachine)
-        {
-            if (registeredStateMachines.ContainsKey(projectType))
-            {
-                throw new ArgumentException("state machine for project type " + projectType + " already registered");
-            }
-            registeredStateMachines.Add(projectType, stateMachine);
         }
     }
 }

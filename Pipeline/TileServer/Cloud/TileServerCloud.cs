@@ -1,6 +1,7 @@
 ﻿using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.Model;
 using log4net;
+using OPS.Cloud;
 using OPS.Plumbing;
 using System;
 using System.Collections.Generic;
@@ -13,104 +14,77 @@ namespace OPS.Pipeline.TileServer
 {
     public class TileServerCloud
     {
+        const int WORKER_QUEUE_TIMEOUT_SEC = 60;
+        const int MASTER_QUEUE_TIMEOUT_SEC = 30 * 60;
+
         Type[] tableTypes = new Type[]
             {
                 typeof(TilingProject),
                 typeof(TilingInput),
                 typeof(TilingNode),
-                typeof(TilingInputChunk)
+                typeof(TilingInputChunk),
+                typeof(Project),
+                typeof(FrameTransform),
+                typeof(Frame),
+                typeof(Observation),
+                typeof(Overlap),
+                typeof(TransformPrior)
             };
 
-        PipelineCore pipeline;
+        private PipelineCore pipeline;
 
-        static ILog logger = LogManager.GetLogger(typeof(TileServerCloud));
-
-        public TileServerCloud(PipelineCore pipelineCore)
+        public TileServerCloud(PipelineCore pipelineCore, bool initQueues = true, bool initTables = true,
+                               bool quiet = false)
         {
             this.pipeline = pipelineCore;
-        }
-
-        private TilingQueue _workerQueue;
-        public TilingQueue WorkerQueue
-        {
-            get
+            if (initQueues)
             {
-                if (_workerQueue == null)
-                {
-                    _workerQueue = new TilingQueue(TileServerConfig.Instance.VenueName + "_worker", pipeline.Profile);
-                }
-                return _workerQueue;
+                InitializeQueues(quiet);
+            }
+            if (initTables)
+            {
+                InitializeTables(quiet);
             }
         }
 
-        private TilingQueue _masterQueue;
-        public TilingQueue MasterQueue
+        public TilingQueue WorkerQueue { get; private set; }
+        public TilingQueue MasterQueue { get; private set; }
+
+        public void InitializeQueues(bool quiet = false)
         {
-            get
+            var prefix = TileServerConfig.Instance.VenueName;
+            MasterQueue = new TilingQueue(prefix + "_master", pipeline.Profile, MASTER_QUEUE_TIMEOUT_SEC,
+                                          logger: pipeline.Logger, quiet: quiet);
+            WorkerQueue = new TilingQueue(prefix + "_worker", pipeline.Profile, WORKER_QUEUE_TIMEOUT_SEC,
+                                          logger: pipeline.Logger, quiet: quiet);
+            if (!quiet)
             {
-                if (_masterQueue == null)
-                {
-                    _masterQueue = new TilingQueue(TileServerConfig.Instance.VenueName + "_master", pipeline.Profile);
-                }
-                return _masterQueue;
+                pipeline.Logger.Info("queues initialized");
             }
         }
 
         public void DeleteQueues()
         {
-            WorkerQueue.Delete();
-            MasterQueue.Delete();
+            var prefix = TileServerConfig.Instance.VenueName;
+            var client = TilingQueue.GetClient(pipeline.Profile);
+            TilingQueue.DeleteQueue(client, prefix + "_master");
+            TilingQueue.DeleteQueue(client, prefix + "_worker");
         }
 
-        public void EnsureTablesExist()
+        public void InitializeTables(bool quiet = false)
         {
-            // make sure tables exist
+            var prefix = TileServerConfig.Instance.VenueName;
             foreach (var t in tableTypes)
             {
-                var tn = TileServerConfig.Instance.VenueName + CreateCloudTemplates.TableName(t);
-
-                try
-                {
-                    pipeline.DynamoDB.DescribeTable(new DescribeTableRequest(tn));
-                }
-                catch (ResourceNotFoundException)
-                {
-                    logger.InfoFormat("Table {0}: creating", tn);
-                    pipeline.DynamoDB.CreateTable(CreateCloudTemplates.CreateTable(t, TileServerConfig.Instance.VenueName));
-                    continue;
-                }
-                logger.InfoFormat("Table {0}: exists", tn);
+                DBUtil.CreateOrUpdateTable(pipeline.DynamoClient, t, prefix, quiet ? null : pipeline.Logger);
             }
-
-            WaitForTables();
-        }
-
-        private void WaitForTables()
-        {
             foreach (var t in tableTypes)
             {
-                var tn = TileServerConfig.Instance.VenueName + CreateCloudTemplates.TableName(t);
-                string tableStatus = "";
-                bool firstTime = true;
-                while (tableStatus != "ACTIVE")
-                {
-                    logger.Info("Waiting for table: " + tn);
-                    try
-                    {
-                        var tableResponse = this.pipeline.DynamoDB.DescribeTable(new DescribeTableRequest(tn));
-                        tableStatus = tableResponse.Table.TableStatus;
-                    }
-                    catch (ResourceNotFoundException)
-                    {
-                        //Wait for table
-                        
-                    }
-                    if (!firstTime)
-                    {
-                        System.Threading.Thread.Sleep(3000);
-                    }
-                    firstTime = false;
-                }
+                DBUtil.WaitForTable(pipeline.DynamoClient, t, prefix, logger: quiet ? null : pipeline.Logger);
+            }
+            if (!quiet)
+            {
+                pipeline.Logger.Info("tables initialized");
             }
         }
     }

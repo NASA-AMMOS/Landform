@@ -2,14 +2,16 @@
 using System.Collections.Generic;
 using System.Linq;
 using Amazon.DynamoDBv2.DataModel;
+using log4net;
+using System.Diagnostics;
 
 namespace OPS.Pipeline.TileServer
 {
-    class ProjectCache
+    public class ProjectCache
     {
-
-        private DynamoDBContext context;
+        PipelineCore pipeline;
         private string projectName;
+        private ILog logger;
 
         private bool initialized;
 
@@ -21,10 +23,11 @@ namespace OPS.Pipeline.TileServer
         private HashSet<string> enqued;
         private HashSet<string> inputsToChunk;
 
-        public ProjectCache(DynamoDBContext context, string projectName)
+        public ProjectCache(PipelineCore pipeline, string projectName, ILog logger)
         {
-            this.context = context;
+            this.pipeline = pipeline;
             this.projectName = projectName;
+            this.logger = logger;
             Reset();
         }
 
@@ -47,14 +50,22 @@ namespace OPS.Pipeline.TileServer
                 return;
             }
 
-            var project = TilingProject.Find(context, projectName);
+            if (logger != null)
+            {
+                logger.InfoFormat("[{0}] initializing project cache", projectName);
+            }
+
+            Stopwatch sw = new Stopwatch();
+            sw.Start();
+
+            var project = TilingProject.Find(pipeline.DynamoContext, projectName);
             if (project == null || !project.TilesDefined)
             {
                 throw new System.Exception("cannot initialize cache for " + projectName +
                                            ": project not found or tiles not defined yet");
             }
 
-            var nodes = TilingNode.Find(context, project).ToList();
+            var nodes = TilingNode.Find(pipeline, project).ToList();
             foreach (var n in nodes)
             {
                 ids.Add(n.Id);
@@ -77,6 +88,12 @@ namespace OPS.Pipeline.TileServer
                 {
                     rootId = n.Id;
                 }
+            }
+
+            if (logger != null)
+            {
+                logger.InfoFormat("[{0}] initialized project cache in {1}s",
+                                  projectName, 0.001 * sw.ElapsedMilliseconds);
             }
 
             initialized = true;

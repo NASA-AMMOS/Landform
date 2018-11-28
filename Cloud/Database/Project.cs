@@ -50,6 +50,24 @@ namespace OPS.Cloud
             this.IsValid();
         }
 
+        public static Project FindOrCreate(DynamoDBContext context, string name, string productPath, string inputPath)
+        {
+            Project project = Find(context, name);
+            if(project != null)
+            {
+                return project;
+            }
+
+            project = Create(context, name, productPath, inputPath);
+            if (project != null)
+            {
+                return project;
+            }
+
+            // may have been created by someone else inbetween the query and the create
+            return Find(context, name);
+        }
+
         /// <summary>
         /// Creates a project and saves it in the database.  Returns a project object with a valid id.
         /// Returns null if a project with this name already exists in the database.

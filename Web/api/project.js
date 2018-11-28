@@ -16,11 +16,13 @@ async function createProject(req, res) {
 
     const args = parseArgs(req, {
       tilingscheme: { type: 'enum', options: ['Bin', 'QuadX', 'QuadY', 'QuadZ', 'Oct', 'UserDefined'] },
-      skirtmode: { type: 'enum', options: ['None', 'X', 'Y', 'Z'] },
+      skirtmode: { type: 'enum', options: ['None', 'Normal', 'X', 'Y', 'Z'] },
       reconmethod: { type: 'enum', options: ['Poisson', 'FSSR'] },
       facespertile: { type: 'int' },
       tileresolution: { type: 'int' },
       projecttype: { type: 'enum', options: ['GenericTiling', 'MSL'] },
+      exportmeshformat: { type: 'enum', options: ['', 'obj', 'ply', 'stl'] },
+      exportimageformat: { type: 'enum', options: ['', 'tif', 'png', 'jpg'] },
     }, { commandLine: true });
 
     const task = await tilingTask('createproject', [req.params.name, ...args]);
@@ -33,6 +35,10 @@ router.post('/:name', createProject);
 
 async function deleteProject(req, res) {
   try {
+    //default timeout seems to be 2 min
+    //https://github.com/expressjs/express/issues/3330
+    //the c# commandlet implementation, in this case TileServer.DeleteProject, also has a corresponding timeout
+    req.setTimeout(30 * 60 * 1000); //it can take a while to delete a big project
     const task = await tilingTask('deleteproject', [req.params.name]);
     await taskHandler(req, res, task, { errorStatus });
   } catch (e) { abortRoute(res, 'error deleting project', e); }

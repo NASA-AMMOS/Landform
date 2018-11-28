@@ -116,24 +116,24 @@ namespace OPS.Util
         [DllImport("kernel32.dll", SetLastError=true, CharSet=CharSet.Unicode)]
         static extern bool MoveFileEx(string existingFileName, string newFileName, int flags);
 
-        private static void DeleteWithRetry(string tempFile)
+        public static void DeleteWithRetry(string file)
         {
-            if (File.Exists(tempFile))
+            if (File.Exists(file))
             {
                 try
                 {
-                    File.Delete(tempFile);
+                    File.Delete(file);
                 }
                 catch (Exception)
                 {
-                    logger.Warn("error deleting \"" + tempFile + "\", trying again in 5s");
+                    logger.Warn("error deleting \"" + file + "\", trying again in 5s");
                     Task.Run(async () =>
                             {
                                 await Task.Delay(5000);
                                 try
                                 {
-                                    File.Delete(tempFile);
-                                    logger.Info("deleted \"" + tempFile + "\"");
+                                    File.Delete(file);
+                                    logger.Info("deleted \"" + file + "\"");
                                 }
                                 catch (Exception e2)
                                 {
