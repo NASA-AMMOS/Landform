@@ -46,7 +46,7 @@ namespace OPS.Plumbing
 
         public PipelineCore(PipelineCoreOptions options, string dynamoPrefix = "", string awsProfile = null,
                             bool enableS3 = true, bool enableDynamo = true,
-                            string s3Url = "", string dynamoUrl = "", ILog logger = null)
+                            string s3Url = "", string dynamoUrl = "", ILog logger = null, int numImagesLRUCache = 100)
         {
             Profile = awsProfile;
 
@@ -78,6 +78,9 @@ namespace OPS.Plumbing
 
             //share the download cache dir across different instances
             DownloadCache = TemporaryFile.GetTempDirectory("downloads");
+
+            //in memory cache is configurable
+            imageCache = new LRUCache<ImageRef, Image>(numImagesLRUCache);
         }
 
         //delete the download cache if we cleanly exit
@@ -184,7 +187,7 @@ namespace OPS.Plumbing
         {
             return Load(imgRef, true);
         }
-        private LRUCache<ImageRef, Image> imageCache = new LRUCache<ImageRef, Image>(100);
+        private LRUCache<ImageRef, Image> imageCache = null;
 
         /// <summary>
         /// Get a project by name.

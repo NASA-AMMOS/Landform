@@ -229,7 +229,7 @@ namespace OPS.Cloud
             }
         }
 
-        public const double DEF_MAX_TABLE_WAIT_SEC = 30;
+        public const double DEF_MAX_TABLE_WAIT_SEC = 60;
         public const int TABLE_WAIT_SLEEP_MS = 3000;
 
         public static void WaitForTable(IAmazonDynamoDB client, Type type, string prefix="",

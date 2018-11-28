@@ -353,7 +353,7 @@ namespace OPS.Pipeline
             {
                 kvp.Value.AddComponent<AdjustedNode>();
             }
-            BundleAdjuster ba = new BundleAdjuster(pipeline);
+            BundleAdjuster ba = new BundleAdjuster(pipeline,logger);
             ba.Adjust(scene);
             logger.Info("Done.");
 

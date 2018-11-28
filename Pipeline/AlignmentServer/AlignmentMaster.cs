@@ -38,6 +38,9 @@ namespace OPS.Pipeline.AlignmentServer
 
         [Option(HelpText = "Recompute all image features", Default = false)]
         public bool RedoFeatures { get; set; }
+
+        [Option(HelpText = "Start a worker in the same process (useful for debugging)", Default = false)]
+        public bool StartWorker { get; set; }
     }
 
     public abstract class Stage
@@ -114,6 +117,7 @@ namespace OPS.Pipeline.AlignmentServer
                     {
                         if (ValidGuid(res.Observation.FeaturesGuid) && !Master.Options.RedoFeatures)
                         {
+                            //skip feature detection
                             Master.Cloud.MasterQueue.Enqueue(new FeaturesDetectedMessage()
                             {
                                 Image = obsRef,
@@ -124,6 +128,7 @@ namespace OPS.Pipeline.AlignmentServer
                         }
                         else
                         {
+                            //skip mask generation
                             Master.Cloud.MasterQueue.Enqueue(new MaskCreatedMessage()
                             {
                                 Image = obsRef,
@@ -143,7 +148,7 @@ namespace OPS.Pipeline.AlignmentServer
                 }
             });
 
-            Logger.Info("Observations created, doing masks & features");
+            Logger.Info(IngestionRequested.Count() + " observations created, doing masks & features");
         }
 
         public ConcurrentBag<ImageRef> IngestionRequested;
@@ -156,12 +161,26 @@ namespace OPS.Pipeline.AlignmentServer
             state.Observation.MaskGuid = state.MaskGuid;
             state.Observation.Save(Master.DynamoContext);
 
-            Master.Cloud.WorkerQueue.Enqueue(new DetectFeaturesMessage()
+            if (state.Observation.ObservationType == ObservationType.Image.ToString())
             {
-                Image = obj.Image,
-                Project = obj.Project,
-                MaskGuid = obj.MaskGuid
-            });
+                Master.Cloud.WorkerQueue.Enqueue(new DetectFeaturesMessage()
+                {
+                    Image = obj.Image,
+                    Project = obj.Project,
+                    MaskGuid = obj.MaskGuid
+                });
+            }
+            else
+            {
+                //skip feature detection
+                Master.Cloud.MasterQueue.Enqueue(new FeaturesDetectedMessage()
+                {
+                    Image = obj.Image,
+                    Project = obj.Project,
+                    MaskGuid = obj.MaskGuid,
+                    FeaturesGuid = Guid.Empty
+                });
+            }
         }
 
         private void FeaturesDone(FeaturesDetectedMessage obj)
@@ -276,7 +295,8 @@ namespace OPS.Pipeline.AlignmentServer
             if (computedOverlaps >= AllOverlaps.Count)
             {
                 Logger.Info("Matching done!");
-                
+
+                Logger.Info("Building scene graph for bundle adjustment");
                 var bsg = new BuildSceneGraph(Master);
                 Frame frame = Frame.Find(Master.DynamoContext, Master.Project.Name, MSLProject.ROOT_FRAME_NAME);
                 AlignmentScene scene = bsg.Build(frame, new BuildSceneGraph.Options
@@ -287,9 +307,13 @@ namespace OPS.Pipeline.AlignmentServer
                 {
                     node.Parent.GetOrAddComponent<AdjustedNode>();
                 }
-                new BundleAdjuster(Master).Adjust(scene, Master.Options.DebugOutputFolder);
+                new BundleAdjuster(Master, Logger).Adjust(scene, Master.Options.DebugOutputFolder);
+
+                int curPairIdx = 0;
+                int numImagePairs = scene.ImageToNode.Count;
                 foreach (var pair in scene.ImageToNode)
                 {
+                    Logger.Info("Saving transform " + curPairIdx++ + " of " + numImagePairs + " adjusted image pairs");
                     var imgRef = pair.Key;
                     var node = pair.Value;
                     var f = Frame.Find(Master.DynamoContext, Master.Project.Name, ((ObservationImageRef)imgRef).Observation.FrameName);
@@ -340,12 +364,21 @@ namespace OPS.Pipeline.AlignmentServer
        
         internal Project Project { get; private set; }
 
+        private Task workerTask = null;
+
         public AlignmentMaster(StartAlignMasterOptions options)
             : base(options, TileServerConfig.Instance.VenueName, TileServerConfig.Instance.Profile)
         {
             Options = options;
             Options.RedoFeatures |= Options.RedoMasks;
             ObservationStates = new ConcurrentDictionary<ImageRef, ImageState>();
+
+            //search objects will return 0 objects if slash is not postfixed
+            // not requesting recursively, which means it is using slash delimiter
+            if (!Options.InputPath.EndsWith("/"))
+            {
+                Options.InputPath = Options.InputPath + "/";
+            }
 
             //MSL Specific
             OPS.Pipeline.Rover.MSLCloud.AddMSLICEProfile(this);
@@ -355,9 +388,16 @@ namespace OPS.Pipeline.AlignmentServer
 
         public int Run()
         {
+            //ensure resources exist
             Cloud = new TileServerCloud(this);
-            
             Project = Project.FindOrCreate(DynamoContext, Options.ProjectName, Options.ProductPath, Options.InputPath);
+
+            //optionally start the worker (useful for debugging)
+            if (Options.StartWorker)
+            {
+                workerTask = CreateWorker();
+            }
+
             CurrentStage = new IngestStage(this);
             CurrentStage.Run();
 
@@ -382,6 +422,26 @@ namespace OPS.Pipeline.AlignmentServer
 
                 Thread.Sleep(DequeReceiveThrottlingMS);
             }
+        }
+
+        private Task CreateWorker()
+        {
+            Task workerTask = new Task(() =>
+            {
+                try
+                {
+                    StartWorkerOptions opts = new StartWorkerOptions();
+                    new StartWorker(opts).Run();
+                }
+                catch (Exception e)
+                {
+                    Logger.ErrorFormat("error in worker task ({0}): {1}", e.GetType().FullName, e.Message);
+                    Logger.Error(e.StackTrace);
+                }
+            });
+
+            workerTask.Start();
+            return workerTask;
         }
     }
 }
