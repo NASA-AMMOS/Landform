@@ -100,8 +100,14 @@ namespace OPS.Pipeline.MeshWorker
                         (int)(100 * idx / (float)pointCloudObservations.Count),
                         pointCloudObservations[idx].PointsObs.FrameName);
 
-                PointCloudInput pcImgs = GetPointCloudInput(pointCloudObservations[idx]);
-                Mesh pointCloud = BuildPointCloudMesh(pcImgs, frameCache, obsCache);
+                PointCloudInput? pcImgs = GetPointCloudInput(pointCloudObservations[idx]);
+                if( pcImgs == null)
+                {
+                    LogWarn("Failed to get pointcloud input for " + pointCloudObservations[idx].PointsObs.FrameName);
+                    continue;
+                }
+
+                Mesh pointCloud = BuildPointCloudMesh(pcImgs.Value, frameCache, obsCache);
                 if (pointCloud != null)
                 {
                     aggregatePointCloud.MergeWith(new Mesh[] { pointCloud }, false);
@@ -164,7 +170,7 @@ namespace OPS.Pipeline.MeshWorker
         ///     the pds mission product for the observation (or one with consistent metadata)
         ///     a generated product: the many varieties of source data formats transformed into a single expected format with a validity mask
         /// </returns>
-        private PointCloudInput GetPointCloudInput(PointCloudObservations pointCloudObservations)
+        private PointCloudInput? GetPointCloudInput(PointCloudObservations pointCloudObservations)
         {
             PointCloudInput pct = new PointCloudInput();
 
@@ -172,6 +178,12 @@ namespace OPS.Pipeline.MeshWorker
             pct.Points.Obs = pointCloudObservations.PointsObs;
             pct.Points.PDSImage = GetObservationImage(pointCloudObservations.PointsObs, RoverProductType.Range);
             pct.Points.GeneratedImage = ConvertRNGToXYR(pct.Points.PDSImage);
+
+            if(pct.Points.GeneratedImage == null)
+            {
+                LogWarn("failed to generate XYR data");
+                return null;
+            }
 
             pct.Normals.Obs = pointCloudObservations.NormalObs;
             pct.Normals.PDSImage = GetObservationImage(pointCloudObservations.NormalObs, RoverProductType.NormalMap);
@@ -188,7 +200,8 @@ namespace OPS.Pipeline.MeshWorker
             if ((pct.Points.GeneratedImage.Width != pct.Normals.GeneratedImage.Width) ||
                 (pct.Points.GeneratedImage.Height != pct.Normals.GeneratedImage.Height))
             {
-                throw new ArgumentException("mismatched resolutions across points and normals");
+                LogWarn("mismatched resolutions across points and normals");
+                return null;
             }
 
             return pct;
@@ -304,25 +317,34 @@ namespace OPS.Pipeline.MeshWorker
         /// this converts the range products into an image similar to the XYR products
         /// a position in the rover frame, until mission XYZ/XYR products are available
         /// </summary>
-        static public Image ConvertRNGToXYR(Image img)
+        public Image ConvertRNGToXYR(Image img)
         {
             //validate assumptions about input data for rng images
             PDSParser rangePDR = new PDSParser((PDSMetadata)img.Metadata);
             if (rangePDR.DerivedImageRefFrame != PDSParser.ReferenceCoordinateFrame.RoverNav)
             {
                 if (rangePDR.CameraModelRefFrame != PDSParser.ReferenceCoordinateFrame.RoverNav)
-                    throw new NotImplementedException("non-rover frame camera model not supported yet");
-            
+                {
+                    LogWarn("non-rover frame camera model not supported yet");
+                    return null;
+                }
+
                 CAHV cahv = img.CameraModel as CAHV;
                 if (cahv == null)
-                    throw new NotImplementedException("only cahv, cahvor, cahvore camera models handled currently");
+                {
+                    LogWarn("only cahv, cahvor, cahvore camera models handled currently");
+                    return null;
+                }
 
                 // find the range data's origin in rover frame
                 Vector3 cameraPosRover = Vector3.Transform(rangePDR.RangeOrigin, RoverCoordinateSystem.SiteToRover(rangePDR.RoverOriginRotation, rangePDR.OriginOffset));
 
                 //verify we can use the camera model's position as the origin for the range data
                 if (!Vector3.AlmostEqual(cameraPosRover, cahv.C, 0.0005))
-                    throw new NotImplementedException("only expecting range maps from the camera's location");
+                {
+                    LogWarn("only expecting range maps from the camera's location");
+                    return null;
+                }
             }
 
             Image xyr = new Image(3, img.Metadata.Width, img.Metadata.Height);
