@@ -347,6 +347,18 @@ namespace OPS.Pipeline.MeshWorker
             return xyr;
         }
 
+        private Matrix ObservationToRoot(Observation obs, FrameCache frameCache)
+        {
+            Frame obsFrame = frameCache.GetFrame(obs.FrameName);
+            Frame sitedriveFrame = frameCache.GetFrame(obsFrame.ParentName);
+
+            UncertainRigidTransform obsToSiteDrive = FrameTransform.Find(pipeline.DynamoContext, obsFrame).Transform;
+            UncertainRigidTransform siteDriveToRoot = FrameTransform.Find(pipeline.DynamoContext, sitedriveFrame).Transform;
+     
+            UncertainRigidTransform transform = obsToSiteDrive * siteDriveToRoot;
+            return transform.Mean;
+        }
+
         /// <summary>
         /// creates a point cloud mesh from a set of pointcloud input textures
         /// normals are scaled by confidence as the poisson reconstruction tool 
@@ -386,7 +398,7 @@ namespace OPS.Pipeline.MeshWorker
                 return null;
             }
 
-            Matrix observationToRoot = BuildFromAlignment.ObservationToRoot(pipeline.DynamoContext, pcInput.Points.Obs, frameCache).Mean;
+            Matrix observationToRoot = ObservationToRoot(pcInput.Points.Obs, frameCache);
             return Mesh.Transformed(ptsRoverFrame, observationToRoot);
         }
 
