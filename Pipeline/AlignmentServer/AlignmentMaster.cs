@@ -318,12 +318,11 @@ namespace OPS.Pipeline.AlignmentServer
 
                 int curPairIdx = 0;
                 int numImagePairs = scene.ImageToNode.Count;
-                foreach (var pair in scene.ImageToNode)
+
+                foreach (var adjNode in scene.Root.GetComponentsInTree<AdjustedNode>())
                 {
                     Logger.Info("Saving transform " + curPairIdx++ + " of " + numImagePairs + " adjusted image pairs");
-                    var imgRef = pair.Key;
-                    var node = pair.Value;
-                    var f = Frame.Find(Master.DynamoContext, Master.Project.Name, ((ObservationImageRef)imgRef).Observation.FrameName);
+                    var f = Frame.Find(Master.DynamoContext, Master.Project.Name, adjNode.Node.Name);
                     FrameTransform ft = FrameTransform.Find(Master.DynamoContext, f);
                     ft.Transform = node.GetComponent<NodeUncertainTransform>().UncertainTransform;
                     Master.DynamoContext.Save(ft);
