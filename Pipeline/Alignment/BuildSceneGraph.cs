@@ -72,6 +72,11 @@ namespace OPS.Pipeline
             return new UncertainRigidTransform(transform.Transform.Mean, CreateMatrix.Dense<double>(6,6));
         }
 
+        static bool ValidGuid(Guid g)
+        {
+            return g != null && g != Guid.Empty;
+        }
+
         public AlignmentScene Build(Frame root, Options options)
         {
             // Initialize default options
@@ -100,7 +105,7 @@ namespace OPS.Pipeline
 
                 DetectedFeatures feat = null;
 
-                if (obs.FeaturesGuid != null && obs.FeaturesGuid != Guid.Empty)
+                if (ValidGuid(obs.FeaturesGuid))
                 {
                     feat = Get<DetectedFeatures>(obs.ProjectName, obs.FeaturesGuid);
                     scene.DetectedFeatures[imgRef] = feat.Features;
@@ -187,7 +192,7 @@ namespace OPS.Pipeline
                     var pair = new UnorderedImagePair(imgOne, imgTwo);
                     scene.Overlaps.Add(pair);
 
-                    if (overlap.MatchGuid != null && overlap.MatchGuid != Guid.Empty)
+                    if (ValidGuid(overlap.MatchGuid))
                     {
                         var match = Get<ComputedCorrespondence>(overlap.ProjectName, overlap.MatchGuid);
                         if (match != null)
