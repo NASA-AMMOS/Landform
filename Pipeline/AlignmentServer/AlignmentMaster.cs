@@ -238,10 +238,12 @@ namespace OPS.Pipeline.AlignmentServer
             Logger.Info("Detecting overlaps");
             var fod = new FrustumOverlapDetector(Master);
             var sb = new BuildSceneGraph(Master);
+
+            //BUGBUG: may cause non-image frames to keep a bad pose?!
             var scene = sb.Build(Frame.Find(Master.DynamoContext, Master.Options.ProjectName, "root"), new BuildSceneGraph.Options()
             {
                 GetTransform = sb.StandardFrameTransform,
-                IncludeObservation = (obs, _) => Master.ObservationStates.ContainsKey(new ObservationImageRef(obs)),
+                IncludeObservation = (obs, _) => Master.ObservationStates.ContainsKey(new ObservationImageRef(obs)) && obs.ObservationType == ObservationType.Image.ToString()
             });
             fod.Detect(scene);
 
@@ -300,9 +302,13 @@ namespace OPS.Pipeline.AlignmentServer
                 Logger.Info("Building scene graph for bundle adjustment");
                 var bsg = new BuildSceneGraph(Master);
                 Frame frame = Frame.Find(Master.DynamoContext, Master.Project.Name, MSLProject.ROOT_FRAME_NAME);
+
+                //BUGBUG: may cause non-images to have bad pose in frames?
                 AlignmentScene scene = bsg.Build(frame, new BuildSceneGraph.Options
                 {
-                    GetTransform = bsg.StandardFrameTransform
+                    GetTransform = bsg.StandardFrameTransform,
+                    IncludeObservation = (obs, _) => Master.ObservationStates.ContainsKey(new ObservationImageRef(obs)) && obs.ObservationType == ObservationType.Image.ToString()
+
                 });
                 foreach (var node in scene.ImageToNode.Values)
                 {
