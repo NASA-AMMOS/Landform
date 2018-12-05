@@ -233,8 +233,9 @@ namespace OPS.Pipeline.AlignmentServer
 
         public override void Run()
         {
-            Logger.Info("Preparing matching image messages");
+            Logger.Info("Running Matching Stage");
 
+            Logger.Info("Detecting overlaps");
             var fod = new FrustumOverlapDetector(Master);
             var sb = new BuildSceneGraph(Master);
             var scene = sb.Build(Frame.Find(Master.DynamoContext, Master.Options.ProjectName, "root"), new BuildSceneGraph.Options()
