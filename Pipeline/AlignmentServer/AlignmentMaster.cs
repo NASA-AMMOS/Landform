@@ -324,7 +324,11 @@ namespace OPS.Pipeline.AlignmentServer
                     Logger.Info("Saving transform " + curPairIdx++ + " of " + numImagePairs + " adjusted image pairs");
                     var f = Frame.Find(Master.DynamoContext, Master.Project.Name, adjNode.Node.Name);
                     FrameTransform ft = FrameTransform.Find(Master.DynamoContext, f);
-                    ft.Transform = node.GetComponent<NodeUncertainTransform>().UncertainTransform;
+                    Microsoft.Xna.Framework.Matrix bundleResult = adjNode.Node.Transform.Matrix;
+                    if (ft.Transform.Mean != bundleResult)
+                    {
+                        ft.Transform = new UncertainRigidTransform(bundleResult, CreateMatrix.Dense<double>(6, 6)); ;
+                    }
                     Master.DynamoContext.Save(ft);
                 }
 
