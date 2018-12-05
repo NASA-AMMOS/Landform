@@ -131,9 +131,10 @@ namespace OPS.Pipeline
                     var res = new SceneNode(frame.Name, parent?.Transform);
                     var ut = options.GetTransform(frame, parent);
                     if (ut == null) return null;
+                    res.GetOrAddComponent<NodeUncertainTransform>().UncertainTransform = ut; //adds transforms for parents, so they bet bundle adjusted
 
-                // Add any observations to the node
-                var obs = ThroughputManager.Run(() => Observation.Find(DynamoDB, frame)).Where(o => options.IncludeObservation(o, res)).ToArray();
+                    // Add any observations to the node
+                    var obs = ThroughputManager.Run(() => Observation.Find(DynamoDB, frame)).Where(o => options.IncludeObservation(o, res)).ToArray();
                     observations.AddRange(obs);
                     foreach (var o in obs)
                     {
