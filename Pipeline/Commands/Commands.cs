@@ -29,7 +29,6 @@ namespace OPS.Pipeline
                                                              LegacyToWebVROptions,
                                                              LegacyToTile3DOptions,
                                                              TileLocalMeshOptions,
-                                                             BuildFromAlignmentOptions,
                                                              TextureMeshOptions,
                                                              StartAlignMasterOptions
                                                              >(args)
@@ -43,7 +42,6 @@ namespace OPS.Pipeline
                 (LegacyToWebVROptions opts) => new LegacyToWebVR(opts).Run(),
                 (LegacyToTile3DOptions opts) => new LegacyToTile3D(opts).Run(),
                 (TileLocalMeshOptions opts) => new TileLocalMesh(opts).Run(),
-                (BuildFromAlignmentOptions opts) => new BuildFromAlignment(opts).Run(),
                 (TextureMeshOptions opts) => new TextureMeshCommand(opts).Run(),
                 (StartAlignMasterOptions opts) => new AlignmentMaster(opts).Run(),
                 errs => 1);

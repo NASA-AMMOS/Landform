@@ -178,7 +178,6 @@
     <Compile Include="Alignment\IngestImage.cs" />
     <Compile Include="Alignment\IngestPDSImage.cs" />
     <Compile Include="Commands\BenchmarkS3.cs" />
-    <Compile Include="Commands\BuildFromAlignment.cs" />
     <Compile Include="Commands\LegacyToTile3D.cs" />
     <Compile Include="Commands\TileLocalMesh.cs" />
     <Compile Include="MeshWorker\Commands\TextureMeshCommand.cs" />
