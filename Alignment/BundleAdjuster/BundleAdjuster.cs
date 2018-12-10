@@ -398,13 +398,13 @@ namespace OPS.Alignment
                 foreach (var track in tracks.Values)
                 {
                     HashSet<int> newProjs = new HashSet<int>();
-                    foreach (var projIdx in track.projections)
+                    foreach (var oldProjIdx in track.projections)
                     {
-                        if (!projOldToNew.ContainsKey(projIdx))
+                        if (!projOldToNew.ContainsKey(oldProjIdx))
                         {
                             continue;
                         }
-                        newProjs.Add(projOldToNew[projIdx]);
+                        newProjs.Add(projOldToNew[oldProjIdx]);
                     }
                     track.projections = newProjs;
                 }
