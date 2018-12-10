@@ -323,6 +323,10 @@ namespace OPS.Pipeline
             productTypeToObservationType.TryAdd(RoverProductType.RoverMask, ObservationType.RoverMask);
         }
 
+        private double quarterDegSqr = Math.Pow(0.25 * Math.PI / 180, 2);
+        private double halfDegSqr = Math.Pow(0.5 * Math.PI / 180, 2);
+        private double degSqr = Math.Pow(Math.PI / 180, 2);
+
         public override Result Ingest(S3ImageRef imgRef)
         {
             if (imgRef is ObservationImageRef)
@@ -385,8 +389,6 @@ namespace OPS.Pipeline
             if (FrameTransform.Find(DynamoDB, observationFrame) == null)
             {
                 // TODO: examine values here
-                double quarterDegSqr = Math.Pow(0.25 * Math.PI / 180, 2);
-                double halfDegSqr = Math.Pow(0.5 * Math.PI / 180, 2);
                 var covariance = CreateMatrix.Diagonal<double>(new double[] { 0.01, 0.01, 0.01, quarterDegSqr, quarterDegSqr, halfDegSqr });
 
                 // Create a transform that goes from observation frame (aka rover) to site drive frame (aka local level)
@@ -404,8 +406,6 @@ namespace OPS.Pipeline
             if (loc != null && FrameTransform.Find(DynamoDB, siteDriveFrame) == null)
             {
                 // TODO: examine values here
-                double halfDegSqr = Math.Pow(0.5 * Math.PI / 180, 2);
-                double degSqr = Math.Pow(1.0 * Math.PI / 180, 2);
                 var covariance = CreateMatrix.Diagonal<double>(new double[] { 0.25, 0.25, 0.25, halfDegSqr, halfDegSqr, degSqr });
                 UncertainRigidTransform transform = new UncertainRigidTransform(Matrix.CreateTranslation(loc.Position), covariance);
                 FrameTransform siteDriveToRoot = FrameTransform.Create(DynamoDB, siteDriveFrame, transform);
