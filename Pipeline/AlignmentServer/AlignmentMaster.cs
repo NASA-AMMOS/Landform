@@ -327,7 +327,7 @@ namespace OPS.Pipeline.AlignmentServer
                     Microsoft.Xna.Framework.Matrix bundleResult = adjNode.Node.Transform.Matrix;
                     if (ft.Transform.Mean != bundleResult)
                     {
-                        ft.Transform = new UncertainRigidTransform(bundleResult, CreateMatrix.Dense<double>(6, 6)); ;
+                        ft.Transform = new UncertainRigidTransform(bundleResult, ft.Transform.Distribution.Covariance); 
                     }
                     Master.DynamoContext.Save(ft);
                 }
