@@ -411,7 +411,7 @@ namespace OPS.Pipeline
             if (FrameTransform.Find(DynamoDB, siteDriveFrame) == null)
             {
                 // TODO: examine values here
-                var covariance = CreateMatrix.Diagonal<double>(new double[] { 0.25, 0.25, 0.25, halfDegSqr, halfDegSqr, degSqr });
+                var covariance = CreateMatrix.Diagonal<double>(new double[] { 5, 5, 8, 5 * degSqr, 5 * degSqr, 5 * degSqr });
                 UncertainRigidTransform transform = new UncertainRigidTransform(Matrix.CreateTranslation(loc.Position), covariance);
                 FrameTransform siteDriveToRoot = FrameTransform.Create(DynamoDB, siteDriveFrame, transform);
                 TransformPrior sd2rP = TransformPrior.Create(DynamoDB, siteDriveFrame, transform);
