@@ -403,7 +403,12 @@ namespace OPS.Pipeline
             // Create a transform that goes from site drive frame to root frame
 
             var loc = locations.Location(new SiteDrive(parser.SiteDrive));
-            if (loc != null && FrameTransform.Find(DynamoDB, siteDriveFrame) == null)
+            if (loc == null)
+            {
+                throw new Exception("site drive transform does not exist");
+            }
+
+            if (FrameTransform.Find(DynamoDB, siteDriveFrame) == null)
             {
                 // TODO: examine values here
                 var covariance = CreateMatrix.Diagonal<double>(new double[] { 0.25, 0.25, 0.25, halfDegSqr, halfDegSqr, degSqr });
