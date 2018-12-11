@@ -91,30 +91,7 @@ namespace OPS.Alignment
         {
             // Initialize - make sure ImageToNode is up to date and all nodes have hulls
             MakeHulls(scene);
-
-            // get ancestry information
-            Dictionary<SceneNode, HashSet<SceneNode>> ancestors = new Dictionary<SceneNode, HashSet<SceneNode>>();
-            Action<SceneNode> collect = null;
-            collect = (node) =>
-            {
-                ancestors[node] = new HashSet<SceneNode>();
-                if (node.Parent != null)
-                {
-                    ancestors[node].Add(node.Parent);
-                    foreach (var a in ancestors[node.Parent])
-                    {
-                        ancestors[node].Add(a);
-                    }
-                }
-
-                foreach (var child in node.Children)
-                {
-                    collect(child);
-                }
-
-            };
-            collect(scene.Root);
-
+           
             Func<SceneNode, SceneNode, bool> overlaps = (node, other) =>
             {
                 if (!node.HasComponent<NodeConvexHull>()) return false;
