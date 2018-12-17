@@ -271,8 +271,8 @@ namespace OPS.Pipeline
                 }
 
                 ImageFeature[] features;
-                var img = pipeline.Load(imgRef);
-                var mask = masks[imgRef];
+                OPS.Imaging.Image img = pipeline.Load(imgRef);
+                OPS.Imaging.Image mask = masks[imgRef];
                 if (asift)
                 {
                     lock (detector)
