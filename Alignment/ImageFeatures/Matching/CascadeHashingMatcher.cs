@@ -74,6 +74,11 @@ namespace OPS.Alignment
         private DescriptorHashes[] ComputeHashes(AlignmentScene scene, ImageRef imgRef, Vector<float> featureMean)
         {
             var features = scene.DetectedFeatures[imgRef];
+            return ComputeHashes(features, featureMean);
+        }
+
+        private DescriptorHashes[] ComputeHashes(ImageFeature[] features, Vector<float> featureMean)
+        {
             DescriptorHashes[] res = new DescriptorHashes[features.Length];
             Parallel.For(0, features.Length, i =>
             {
@@ -99,11 +104,19 @@ namespace OPS.Alignment
             var data = pair.Two;
             var modelFeat = scene.DetectedFeatures[model];
             var dataFeat = scene.DetectedFeatures[data];
-            var meanDescriptor = FeatureMean(scene, pair);
+
+            return Match(model, data, modelFeat, dataFeat);
+        }
+
+
+        public ImagePairCorrespondence Match(ImageRef model, ImageRef data,
+                                             ImageFeature[] modelFeat, ImageFeature[] dataFeat)
+        {
+            var meanDescriptor = FeatureMean(modelFeat, dataFeat);
 
             // Compute hashes
-            DescriptorHashes[] modelHashes = ComputeHashes(scene, model, meanDescriptor);
-            DescriptorHashes[] dataHashes = ComputeHashes(scene, data, meanDescriptor);
+            DescriptorHashes[] modelHashes = ComputeHashes(modelFeat, meanDescriptor);
+            DescriptorHashes[] dataHashes = ComputeHashes(dataFeat, meanDescriptor);
 
             // Put model features in buckets
             Dictionary<HashCode, List<int>>[] buckets = new Dictionary<HashCode, List<int>>[BucketCount];
@@ -209,33 +222,39 @@ namespace OPS.Alignment
 
             return new ImagePairCorrespondence(model, data, goodD2m);
         }
-
         /// <summary>
         /// Compute the mean descriptor value between both images in a pair.
         /// </summary>
         private Vector<float> FeatureMean(AlignmentScene scene, UnorderedImagePair pair)
         {
-            Vector<float> res = CreateVector.Dense(DescriptorSize, 0.0f);
-            int count = 0;
-            foreach (var imgRef in new[] { pair.One, pair.Two })
+            return FeatureMean(scene.DetectedFeatures[pair.One], scene.DetectedFeatures[pair.Two]);
+        }
+
+        private void AccumulateFeatures(ImageFeature[] features, ref int count, Vector<float> res)
+        {
+            foreach (var feat in features)
             {
-                var feats = scene.DetectedFeatures[imgRef];
-                foreach (var feat in feats)
-                {
 #if DEBUG
-                    if (feat.Descriptor.Length != DescriptorSize)
-                    {
-                        throw new Exception("Descriptor size mismatch");
-                    }
-#endif
-                    byte[] data = ((FeatureDescriptor<byte>)feat.Descriptor).Data;
-                    for (int i = 0; i < DescriptorSize; i++)
-                    {
-                        res[i] += data[i];
-                    }
-                    count++;
+                if (feat.Descriptor.Length != DescriptorSize)
+                {
+                    throw new Exception("Descriptor size mismatch");
                 }
+#endif
+                byte[] data = ((FeatureDescriptor<byte>)feat.Descriptor).Data;
+                for (int i = 0; i < DescriptorSize; i++)
+                {
+                    res[i] += data[i];
+                }
+                count++;
             }
+        }
+
+        private Vector<float> FeatureMean(ImageFeature[] featuresOne, ImageFeature[] featuresTwo)
+        {
+            int count = 0;
+            Vector<float> res = CreateVector.Dense(DescriptorSize, 0.0f);
+            AccumulateFeatures(featuresOne, ref count, res);
+            AccumulateFeatures(featuresTwo, ref count, res);
             return res / count;
         }
 

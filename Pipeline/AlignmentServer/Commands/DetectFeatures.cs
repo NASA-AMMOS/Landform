@@ -39,7 +39,30 @@ namespace OPS.Pipeline.AlignmentServer
                 mask = Pipeline.Get<PngDataProduct>(Message.Project, Message.MaskGuid).Image;
             }
 
+            ImageFeature[] features = FindFeatures(Message.Image.DisplayName, img, mask);
+            if (features == null)
+                return;
+            
+            var res = new DetectedFeatures
+            {
+                Features = features,
+                ObservationName = Message.Image.DisplayName
+            };
+            Pipeline.Save(Message.Project, res);
+
+            Cloud.MasterQueue.Enqueue(new FeaturesDetectedMessage()
+            {
+                Image = Message.Image,
+                Project = Message.Project,
+                MaskGuid = Message.MaskGuid,
+                FeaturesGuid = res.Guid
+            });
+        }
+
+        public static ImageFeature[] FindFeatures(string imgName, Imaging.Image img, Imaging.Image mask)
+        {
             ImageFeature[] features;
+
             lock (detector)
             {
                 try
@@ -48,25 +71,12 @@ namespace OPS.Pipeline.AlignmentServer
                 }
                 catch (Emgu.CV.Util.CvException ex)
                 {
-                    logger.Error("failed to detect for " + Message.Image.DisplayName, ex);
-                    return;
+                    logger.Error("failed to detect for " + imgName, ex);
+                    return null;
                 }
             }
-            features = features.OrderByDescending(f => ((SIFTFeature)f).Response).Take(10000).ToArray();
-            var res = new DetectedFeatures
-            {
-                Features = features,
-                ObservationName = Message.Image.DisplayName
-            };
-            Pipeline.Save(Message.Project, res);
-            
-            Cloud.MasterQueue.Enqueue(new FeaturesDetectedMessage()
-            {
-                Image = Message.Image,
-                Project = Message.Project,
-                MaskGuid = Message.MaskGuid,
-                FeaturesGuid = res.Guid
-            });
+
+            return features.OrderByDescending(f => ((SIFTFeature)f).Response).Take(10000).ToArray();
         }
     }
 }
