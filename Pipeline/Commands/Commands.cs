@@ -28,9 +28,7 @@ namespace OPS.Pipeline
                                                              BenchmarkS3Options,
                                                              LegacyToWebVROptions,
                                                              LegacyToTile3DOptions,
-                                                             AlignSceneOptions,
                                                              TileLocalMeshOptions,
-                                                             BuildFromAlignmentOptions,
                                                              TextureMeshOptions,
                                                              StartAlignMasterOptions
                                                              >(args)
@@ -43,9 +41,7 @@ namespace OPS.Pipeline
                 (PDSImageConverterOptions opts) => new PDSImageConverter(opts).Run(),
                 (LegacyToWebVROptions opts) => new LegacyToWebVR(opts).Run(),
                 (LegacyToTile3DOptions opts) => new LegacyToTile3D(opts).Run(),
-                (AlignSceneOptions opts) => new AlignScene(opts).Run(),
                 (TileLocalMeshOptions opts) => new TileLocalMesh(opts).Run(),
-                (BuildFromAlignmentOptions opts) => new BuildFromAlignment(opts).Run(),
                 (TextureMeshOptions opts) => new TextureMeshCommand(opts).Run(),
                 (StartAlignMasterOptions opts) => new AlignmentMaster(opts).Run(),
                 errs => 1);
