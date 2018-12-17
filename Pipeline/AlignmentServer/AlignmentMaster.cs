@@ -233,14 +233,17 @@ namespace OPS.Pipeline.AlignmentServer
 
         public override void Run()
         {
-            Logger.Info("Preparing matching image messages");
+            Logger.Info("Running Matching Stage");
 
+            Logger.Info("Detecting overlaps");
             var fod = new FrustumOverlapDetector(Master);
             var sb = new BuildSceneGraph(Master);
+
+            //BUGBUG: may cause non-image frames to keep a bad pose?!
             var scene = sb.Build(Frame.Find(Master.DynamoContext, Master.Options.ProjectName, "root"), new BuildSceneGraph.Options()
             {
                 GetTransform = sb.StandardFrameTransform,
-                IncludeObservation = (obs, _) => Master.ObservationStates.ContainsKey(new ObservationImageRef(obs)),
+                IncludeObservation = (obs, _) => Master.ObservationStates.ContainsKey(new ObservationImageRef(obs)) && obs.ObservationType == ObservationType.Image.ToString()
             });
             fod.Detect(scene);
 
@@ -299,9 +302,13 @@ namespace OPS.Pipeline.AlignmentServer
                 Logger.Info("Building scene graph for bundle adjustment");
                 var bsg = new BuildSceneGraph(Master);
                 Frame frame = Frame.Find(Master.DynamoContext, Master.Project.Name, MSLProject.ROOT_FRAME_NAME);
+
+                //BUGBUG: may cause non-images to have bad pose in frames?
                 AlignmentScene scene = bsg.Build(frame, new BuildSceneGraph.Options
                 {
-                    GetTransform = bsg.StandardFrameTransform
+                    GetTransform = bsg.StandardFrameTransform,
+                    IncludeObservation = (obs, _) => Master.ObservationStates.ContainsKey(new ObservationImageRef(obs)) && obs.ObservationType == ObservationType.Image.ToString()
+
                 });
                 foreach (var node in scene.ImageToNode.Values)
                 {
@@ -311,14 +318,17 @@ namespace OPS.Pipeline.AlignmentServer
 
                 int curPairIdx = 0;
                 int numImagePairs = scene.ImageToNode.Count;
-                foreach (var pair in scene.ImageToNode)
+
+                foreach (var adjNode in scene.Root.GetComponentsInTree<AdjustedNode>())
                 {
                     Logger.Info("Saving transform " + curPairIdx++ + " of " + numImagePairs + " adjusted image pairs");
-                    var imgRef = pair.Key;
-                    var node = pair.Value;
-                    var f = Frame.Find(Master.DynamoContext, Master.Project.Name, ((ObservationImageRef)imgRef).Observation.FrameName);
+                    var f = Frame.Find(Master.DynamoContext, Master.Project.Name, adjNode.Node.Name);
                     FrameTransform ft = FrameTransform.Find(Master.DynamoContext, f);
-                    ft.Transform = node.GetComponent<NodeUncertainTransform>().UncertainTransform;
+                    Microsoft.Xna.Framework.Matrix bundleResult = adjNode.Node.Transform.Matrix;
+                    if (ft.Transform.Mean != bundleResult)
+                    {
+                        ft.Transform = new UncertainRigidTransform(bundleResult, ft.Transform.Distribution.Covariance); 
+                    }
                     Master.DynamoContext.Save(ft);
                 }
 
