@@ -19,11 +19,8 @@ namespace OPS.Alignment
 
     public class ASIFTDetector : IFeatureDetector
     {
-        public ASIFTDetector(int maxSimulatedDimension=512)
-        {
-            this.MaxSimulatedDimension = maxSimulatedDimension;
-        }
-        public int MaxSimulatedDimension;
+        public ASIFTDetector()
+        { }
 
         public IEnumerable<ImageFeature> Detect(Image image, Image mask = null)
         {
@@ -154,18 +151,6 @@ namespace OPS.Alignment
                     feat.Descriptor
                     );
             }
-
-            if (MaxSimulatedDimension > 0 && image.Width > MaxSimulatedDimension || image.Height > MaxSimulatedDimension)
-            {
-                scale = ((double)MaxSimulatedDimension) / Math.Max(image.Width, image.Height);
-                image = image.Resize(scale, Inter.Lanczos4);
-                if (mask != null)
-                {
-                    mask = mask.Resize(scale, Inter.Nearest);
-                }
-            }
-
-            // TODO: run full res on good ones
 
             // formula for generating tilt/phi values from ASIFT paper
             int tiltIdx, phiIdx;

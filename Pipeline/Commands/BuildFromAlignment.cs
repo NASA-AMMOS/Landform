@@ -44,7 +44,7 @@ namespace OPS.Pipeline
         BuildFromAlignmentOptions options;
 
         const int MIN_MATCHES = 20;
-        public static ASIFTDetector detector = new ASIFTDetector(maxSimulatedDimension: 1024);
+        public static ASIFTDetector detector = new ASIFTDetector();
 
         public BuildFromAlignment(BuildFromAlignmentOptions options) : base(options, options.DynamoDBPrefix)
         {
