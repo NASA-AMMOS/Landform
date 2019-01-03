@@ -32,7 +32,8 @@ namespace OPS.Pipeline
         [Option(Required = false, Default = null, HelpText = "")]
         public string WorkingDir { get; set; }
 
-
+        [Option(Required = false, Default = null, HelpText = "If set, meshes will be decimated by this amount before tiling.  Valid range [0-1]")]
+        public double? DecimationRatio { get; set; }
 
     }
 
@@ -117,12 +118,16 @@ namespace OPS.Pipeline
         class MeshRecord
         {
             public string IV;
-            public string RGB;
-
             public string OBJ;
+
+            public string RGB;
             public string IMG;
             public string VIC;
             public string PNG;
+
+            public string IMG_RIGHT;
+            public string VIC_RIGHT;
+            public string PNG_RIGHT;
 
             public MeshRecord(string ivLocation, EmtToScene emtToScene)
             {
@@ -130,11 +135,19 @@ namespace OPS.Pipeline
                 RGB = emtToScene.GetFile(ivLocation.Replace(".iv", ".rgb"));
                 PNG = emtToScene.GetFile(ivLocation.Replace(".iv", ".png"));
                 var objLocation = (ivLocation.Replace("mesh/wedge2", "ncam")).Replace(".iv", ".obj");
-                Console.WriteLine("objLocation: " + objLocation);
                 OBJ = emtToScene.GetFile(objLocation);
                 IMG = emtToScene.GetFile(objLocation.Replace(".obj", ".IMG"));
                 VIC = emtToScene.GetFile(objLocation.Replace(".obj", ".VIC"));
-                
+
+                string vicname = ivLocation.Replace(".iv", ".VIC");
+                if(Path.GetFileName(vicname).StartsWith("NL"))
+                {
+                    string rightVicname = Path.Combine(Path.GetDirectoryName(vicname), Path.GetFileName(vicname).Replace("NL", "NR").Replace(".iv", ".VIC")).Replace("\\", "/").Replace("s3:/", "s3://");
+
+                    VIC_RIGHT = emtToScene.GetFile(rightVicname);
+                    PNG_RIGHT = emtToScene.GetFile(rightVicname.Replace(".VIC", ".png"));
+                    IMG_RIGHT = emtToScene.GetFile(rightVicname.Replace(".VIC", ".IMG"));
+                }
             }
         }
 
@@ -155,7 +168,7 @@ namespace OPS.Pipeline
                 var m = Mesh.Load(rec.OBJ);
                 return m.Vertices.Count > 0 && m.Faces.Count > 0;
             }).ToList();
-            LegacySceneManfiest.BuildFromDirectory(options.WorkingDir);
+            LegacySceneManfiest.BuildFromDirectory(options.WorkingDir, options.DecimationRatio);
             var createOptions = new CreateProjectOptions()
             {
                 ProjectName = options.TilingProjectName,

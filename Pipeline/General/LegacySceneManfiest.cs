@@ -256,7 +256,7 @@ namespace OPS.Pipeline
         }
 
 
-        public static void BuildFromDirectory(string dir)
+        public static void BuildFromDirectory(string dir, double? decimationRatio = null)
         {
             string indir = dir;
             string sceneDir = Path.Combine(indir, "scene");
@@ -305,6 +305,12 @@ namespace OPS.Pipeline
                     if(!m.HasNormals)
                     {
                         m.GenerateVertexNormals();
+                    }
+                    if(decimationRatio.HasValue)
+                    {
+                        int targetFaces = (int)(m.Faces.Count * decimationRatio.Value);
+                        m = EdgeCollapse.QuadricEdgeCollapse(m, targetFaces);
+                        m = BaselineAtlaser.AtlasSiteFrameMesh(m, Image.Load(f.Replace(".obj", ".VIC")));
                     }
                     Console.WriteLine("Origin Offset: " + p.OriginOffset);
                     m.Translate(-p.OriginOffset);

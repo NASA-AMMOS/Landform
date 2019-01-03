@@ -73,5 +73,20 @@ namespace OPS.Pipeline
             result.RemoveVertices(verticesToRemove);
             return result;
         }
+
+        /// <summary>
+        /// Helper method to generate an atlas for a baseline mesh in site frame given a valid PDS image in rover frame
+        /// </summary>
+        /// <param name="m">A mesh in site frame</param>
+        /// <param name="image">An image with a valid PDSMetadata object and camera model in rover frame</param>
+        /// <returns></returns>
+        public static Mesh AtlasSiteFrameMesh(Mesh m, Image image)
+        {
+            PDSMetadata metadata = (PDSMetadata)image.Metadata;
+            var parser = new PDSParser(metadata);
+            Matrix siteFrameMeshToLocalLevelImage = RoverCoordinateSystem.SiteToRover(parser.RoverOriginRotation, parser.OriginOffset);
+            var atlaser = new BaselineAtlaser(siteFrameMeshToLocalLevelImage, image);
+            return atlaser.GenerateAtlas(m);
+        }
     }
 }
