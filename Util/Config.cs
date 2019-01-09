@@ -115,6 +115,10 @@ namespace OPS.Util
                         {
                             prop.SetValue(this, short.Parse(str));
                         }
+                        else if (prop.PropertyType == typeof(long))
+                        {
+                            prop.SetValue(this, long.Parse(str));
+                        }
                         else if (prop.PropertyType == typeof(uint))
                         {
                             prop.SetValue(this, uint.Parse(str));
@@ -122,6 +126,10 @@ namespace OPS.Util
                         else if (prop.PropertyType == typeof(ushort))
                         {
                             prop.SetValue(this, ushort.Parse(str));
+                        }
+                        else if (prop.PropertyType == typeof(ulong))
+                        {
+                            prop.SetValue(this, ulong.Parse(str));
                         }
                         else if (prop.PropertyType == typeof(float))
                         {
