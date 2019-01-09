@@ -60,8 +60,6 @@ namespace OPS.Plumbing
                 Logger = LogManager.GetLogger(GetType());
             }
 
-            TemporaryFile.Logger = Logger;
-
             if (enableS3)
             {
                 S3Client = StorageHelper.MakeClient(awsProfile, s3Url);

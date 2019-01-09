@@ -37,7 +37,7 @@ namespace OPS.Util
             set { config.Dir = Path.GetFullPath(value); }
         }
 
-        public static ILog Logger = LogManager.GetLogger(typeof(TemporaryFile));
+        private static ILog logger = LogManager.GetLogger(typeof(TemporaryFile));
 
         static TemporaryFile()
         {
@@ -120,18 +120,18 @@ namespace OPS.Util
                 }
                 catch (Exception)
                 {
-                    Logger.Warn("error deleting \"" + file + "\", trying again in 5s");
+                    logger.Warn("error deleting \"" + file + "\", trying again in 5s");
                     Task.Run(async () =>
                             {
                                 await Task.Delay(5000);
                                 try
                                 {
                                     File.Delete(file);
-                                    Logger.Info("deleted \"" + file + "\"");
+                                    logger.Info("deleted \"" + file + "\"");
                                 }
                                 catch (Exception e2)
                                 {
-                                    Logger.Error(e2);
+                                    logger.Error(e2);
                                 }
                             });
                 }
@@ -328,7 +328,7 @@ namespace OPS.Util
                 }
                 catch (Exception ex)
                 {
-                    Logger.WarnFormat("error deleting temp file {0}: {1}", f.FullName, ex.Message);
+                    logger.WarnFormat("error deleting temp file {0}: {1}", f.FullName, ex.Message);
                     ne++;
                     return false;
                 }
@@ -376,7 +376,7 @@ namespace OPS.Util
                         }
                         catch (Exception ex)
                         {
-                            Logger.WarnFormat("error deleting empty directory {0}: {1}", d.FullName, ex.Message);
+                            logger.WarnFormat("error deleting empty directory {0}: {1}", d.FullName, ex.Message);
                         }
                     }
                 }
@@ -385,7 +385,7 @@ namespace OPS.Util
             if (nd > 0 || ne > 0 || wasTooBig)
             {
                 double gb = 1024.0 * 1024.0 * 1024.0;
-                Logger.InfoFormat("cleaned up temp dir {0}, deleted {1}/{2} files, {3} errors, " +
+                logger.InfoFormat("cleaned up temp dir {0}, deleted {1}/{2} files, {3} errors, " +
                                   "{4:F3}G before, {5:F3}G after",
                                   dir, nd, nf, ne, diskUsageBefore/gb, totalDiskUsage/gb);
             }
