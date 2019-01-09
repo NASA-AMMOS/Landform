@@ -2,7 +2,7 @@ const fs = require('fs-extra');
 const path = require('path');
 const newman = require('newman');
 const { parseSec, timeStamp, timeFmt } = require('../timeUtil');
-const { hasFlag, deepCopy, checkTTY, readJson } = require('./toolUtil');
+const { hasFlag, deepCopy, readJson } = require('./toolUtil');
 
 const deleteCollection = require('../test/Landform-delete.postman_collection.json');
 const runCollection = require('../test/Landform-run.postman_collection.json');

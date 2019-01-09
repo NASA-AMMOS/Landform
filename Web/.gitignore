@@ -1,4 +1,3 @@
-landform*.zip
 ec2userdata*.txt
 node_modules/
 tmp/
@@ -6,3 +5,5 @@ upload/
 log/
 landform-test-data/
 docs/*.pdf
+zip/
+*.zip
