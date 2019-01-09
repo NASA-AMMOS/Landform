@@ -13,7 +13,7 @@ namespace OPS.Util
     /// Use this attribute on properties in subclasses of Config to indicate
     /// that they can be read from environmental variables
     /// </summary>
-    [AttributeUsage(AttributeTargets.Property)]
+    [AttributeUsage(AttributeTargets.Property | AttributeTargets.Field)]
     public class ConfigEnvironmentVariable : System.Attribute
     {
         public readonly string EnvironmentalVariableName;
