@@ -26,6 +26,8 @@ namespace OPS.Imaging
         static Dictionary<string, Tuple<string, bool>> extensionToGdalDriver;
         static Dictionary<Type, DataType> systemTypeToGdalType;
 
+        private static ILog logger = LogManager.GetLogger(typeof(GDALSerializer));
+
         static GDALSerializer()
         {
             lock(gdalLockObj)
@@ -204,11 +206,6 @@ namespace OPS.Imaging
             }
             // Get the gdal driver settings for this extension
             Tuple<string, bool> driverSettings = extensionToGdalDriver[fileExt];
-            if (driverSettings.Item1 == "JPEG" && image.Bands > 3)
-            {
-                // GDAL will try to write a 4 band image out to JPG, but the results are color shifted blech
-                throw new ImageSerializationException("JPEG not supported with more than 3 bands");
-            }
             if ((driverSettings.Item1 == "JPEG" || driverSettings.Item1 == "BMP") && typeof(T) != typeof(byte))
             {
                 // Not sure if gdal JPEG only supports bytes 
@@ -222,15 +219,36 @@ namespace OPS.Imaging
 
             Image convertedImage = converter.Convert<T>(image);
 
+            int bands = convertedImage.Bands;
+
+            if (driverSettings.Item1 == "JPEG" && bands > 3)
+            {
+                //GDAL will try to write a 4 band image out to JPG, but the results are color shifted blech
+
+                //one case where we can have a 4 band image here is RGBA - the alpha channel is *probably* the 4th band
+                //as far as I can tell that's not guaranteed
+                //but could potentially be verified by calling GDALRasterBand::GetColorInterpretation()
+
+                //for now we issue a warning and just write out the first 3 bands
+                //because most likely the 4th band is an alpha channel
+                //and jpeg doesn't support more than 3 bands anyway
+                //https://github.jpl.nasa.gov/OnSight/Landform/issues/346
+                //throw new ImageSerializationException("JPEG not supported with more than 3 bands");
+
+                logger.WarnFormat("JPEG with {0} bands not supported, saving first 3 bands", bands);
+                bands = 3;
+            }
+
             lock (gdalLockObj)
             {
-                using (Dataset dataset = driver.Create(filename, convertedImage.Width, convertedImage.Height, convertedImage.Bands, systemTypeToGdalType[typeof(T)], driverOptions))
+                using (Dataset dataset = driver.Create(filename, convertedImage.Width, convertedImage.Height, bands,
+                                                       systemTypeToGdalType[typeof(T)], driverOptions))
                 {
                     if (fillValue != null && convertedImage.HasMask)
                     {
                         convertedImage.SetValuesForMaskedData(fillValue);                       
                     }
-                    for (int b = 0; b < convertedImage.Bands; b++)
+                    for (int b = 0; b < bands; b++)
                     {
                         using (Band band = dataset.GetRasterBand(b + 1))
                         {
