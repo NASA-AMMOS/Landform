@@ -60,6 +60,8 @@ namespace OPS.Plumbing
                 Logger = LogManager.GetLogger(GetType());
             }
 
+            TemporaryFile.Logger = Logger;
+
             if (enableS3)
             {
                 S3Client = StorageHelper.MakeClient(awsProfile, s3Url);
@@ -74,10 +76,10 @@ namespace OPS.Plumbing
 
             //use a different download cache dir for every PipelineCore instance
             //i.e. different for every thread and every run
-            //DownloadCache = TemporaryFile.GetTempDirectory();
+            //DownloadCache = TemporaryFile.GetTempSubdir();
 
             //share the download cache dir across different instances
-            DownloadCache = TemporaryFile.GetTempDirectory("downloads");
+            DownloadCache = TemporaryFile.GetTempSubdir("downloads");
 
             //in memory cache is configurable
             imageCache = new LRUCache<ImageRef, Image>(numImagesLRUCache);
@@ -308,9 +310,19 @@ namespace OPS.Plumbing
             Logger.ErrorFormat(msg, args);
         }
 
+        public bool EnableCleanupTempDir = true;
+        public void CleanupTempDir()
+        {
+            if (EnableCleanupTempDir)
+            {
+                TemporaryFile.CleanupTempDirectoryLRU(alwaysDelete: f => !f.StartsWith(DownloadCache));
+            }
+        }
+
         private string CachePath(string project, string filename)
         {
             return Path.Combine(DownloadCache, project, filename);
         }
     }
 }
+        
