@@ -20,9 +20,9 @@ namespace OPS.Imaging
 
         protected override void RegisterSerializers()
         {
-            new PDSSeralizer().Register(this);
+            new PDSSerializer().Register(this);
             new DDSSerializer().Register(this);
-            new GDALSeralizer().Register(this);
+            new GDALSerializer().Register(this);
             new FITSSerializer().Register(this);
             new RGBSerializer().Register(this);
         }

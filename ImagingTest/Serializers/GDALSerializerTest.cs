@@ -31,71 +31,71 @@ namespace ImagingTest
         [TestMethod]       
         public void GDALTestReadPattern()
         {
-            Image pattern = new GDALSeralizer().Read(Path.Combine("TestData", "img", "testPattern.png"), ImageConverters.PassThrough);
+            Image pattern = new GDALSerializer().Read(Path.Combine("TestData", "img", "testPattern.png"), ImageConverters.PassThrough);
             TestPatternColors(pattern, false);
         }
 
         [TestMethod]
         public void GDALTestReadPatternScaled()
         {
-            Image pattern = new GDALSeralizer().Read(Path.Combine("TestData", "img", "testPattern.png"), ImageConverters.ValueRangeToNormalizedImage);
+            Image pattern = new GDALSerializer().Read(Path.Combine("TestData", "img", "testPattern.png"), ImageConverters.ValueRangeToNormalizedImage);
             TestPatternColors(pattern, true);
         }
 
         [TestMethod]
         public void GDALTestReadWriteTiff()
         {
-            Image pattern = new GDALSeralizer().Read(Path.Combine("TestData", "img", "testPattern.png"), ImageConverters.ValueRangeToNormalizedImage);
+            Image pattern = new GDALSerializer().Read(Path.Combine("TestData", "img", "testPattern.png"), ImageConverters.ValueRangeToNormalizedImage);
 
-            new GDALSeralizer().Write<byte>("gdalTestWriteByte.tif", pattern, ImageConverters.NormalizedImageToValueRange);
-            TestPatternColors(new GDALSeralizer().Read("gdalTestWriteByte.tif", ImageConverters.ValueRangeToNormalizedImage), true);
+            new GDALSerializer().Write<byte>("gdalTestWriteByte.tif", pattern, ImageConverters.NormalizedImageToValueRange);
+            TestPatternColors(new GDALSerializer().Read("gdalTestWriteByte.tif", ImageConverters.ValueRangeToNormalizedImage), true);
 
-            new GDALSeralizer().Write<ushort>("gdalTestWriteUshort.tif", pattern, ImageConverters.NormalizedImageToValueRange);
-            TestPatternColors(new GDALSeralizer().Read("gdalTestWriteUshort.tif", ImageConverters.ValueRangeToNormalizedImage), true);
+            new GDALSerializer().Write<ushort>("gdalTestWriteUshort.tif", pattern, ImageConverters.NormalizedImageToValueRange);
+            TestPatternColors(new GDALSerializer().Read("gdalTestWriteUshort.tif", ImageConverters.ValueRangeToNormalizedImage), true);
 
-            new GDALSeralizer().Write<float>("gdalTestWriteFloat.tif", pattern, ImageConverters.NormalizedImageToValueRange);
-            TestPatternColors(new GDALSeralizer().Read("gdalTestWriteFloat.tif", ImageConverters.ValueRangeToNormalizedImage), true);
+            new GDALSerializer().Write<float>("gdalTestWriteFloat.tif", pattern, ImageConverters.NormalizedImageToValueRange);
+            TestPatternColors(new GDALSerializer().Read("gdalTestWriteFloat.tif", ImageConverters.ValueRangeToNormalizedImage), true);
 
-            new GDALSeralizer().Write<double>("gdalTestWriteDouble.tif", pattern, ImageConverters.NormalizedImageToValueRange);
-            TestPatternColors(new GDALSeralizer().Read("gdalTestWriteDouble.tif", ImageConverters.ValueRangeToNormalizedImage), true);
+            new GDALSerializer().Write<double>("gdalTestWriteDouble.tif", pattern, ImageConverters.NormalizedImageToValueRange);
+            TestPatternColors(new GDALSerializer().Read("gdalTestWriteDouble.tif", ImageConverters.ValueRangeToNormalizedImage), true);
         }
 
         [TestMethod]
         public void GDALTestReadWritePNG()
         {
-            Image pattern = new GDALSeralizer().Read(Path.Combine("TestData", "img", "testPattern.png"), ImageConverters.ValueRangeToNormalizedImage);
+            Image pattern = new GDALSerializer().Read(Path.Combine("TestData", "img", "testPattern.png"), ImageConverters.ValueRangeToNormalizedImage);
 
-            new GDALSeralizer().Write<byte>("gdalTestWriteByte.png", pattern, ImageConverters.NormalizedImageToValueRange);
-            TestPatternColors(new GDALSeralizer().Read("gdalTestWriteByte.png", ImageConverters.ValueRangeToNormalizedImage), true);
+            new GDALSerializer().Write<byte>("gdalTestWriteByte.png", pattern, ImageConverters.NormalizedImageToValueRange);
+            TestPatternColors(new GDALSerializer().Read("gdalTestWriteByte.png", ImageConverters.ValueRangeToNormalizedImage), true);
 
-            new GDALSeralizer().Write<ushort>("gdalTestWriteUshort.png", pattern, ImageConverters.NormalizedImageToValueRange);
-            TestPatternColors(new GDALSeralizer().Read("gdalTestWriteUshort.png", ImageConverters.ValueRangeToNormalizedImage), true);                      
+            new GDALSerializer().Write<ushort>("gdalTestWriteUshort.png", pattern, ImageConverters.NormalizedImageToValueRange);
+            TestPatternColors(new GDALSerializer().Read("gdalTestWriteUshort.png", ImageConverters.ValueRangeToNormalizedImage), true);                      
         }
 
         [TestMethod]
         public void GDALTestReadWriteJPG()
         {
-            Image pattern = new GDALSeralizer().Read(Path.Combine("TestData", "img", "testPattern.png"), ImageConverters.ValueRangeToNormalizedImage);
+            Image pattern = new GDALSerializer().Read(Path.Combine("TestData", "img", "testPattern.png"), ImageConverters.ValueRangeToNormalizedImage);
 
             GDALWriteOptions writeOptions = new GDALJPGWriteOptions(jpgQuality: 100);
-            new GDALSeralizer(writeOptions).Write<byte>("gdalTestWriteByte.jpg", pattern, ImageConverters.NormalizedImageToValueRange);
-            TestPatternColors(new GDALSeralizer().Read("gdalTestWriteByte.jpg", ImageConverters.ValueRangeToNormalizedImage), true, 0.15);
+            new GDALSerializer(writeOptions).Write<byte>("gdalTestWriteByte.jpg", pattern, ImageConverters.NormalizedImageToValueRange);
+            TestPatternColors(new GDALSerializer().Read("gdalTestWriteByte.jpg", ImageConverters.ValueRangeToNormalizedImage), true, 0.15);
         }
 
         [TestMethod]
         public void GDALTestReadWriteBMP()
         {
-            Image pattern = new GDALSeralizer().Read(Path.Combine("TestData", "img", "testPattern.png"), ImageConverters.ValueRangeToNormalizedImage);
+            Image pattern = new GDALSerializer().Read(Path.Combine("TestData", "img", "testPattern.png"), ImageConverters.ValueRangeToNormalizedImage);
 
-            new GDALSeralizer().Write<byte>("gdalTestWriteByte.bmp", pattern, ImageConverters.NormalizedImageToValueRange);
-            TestPatternColors(new GDALSeralizer().Read("gdalTestWriteByte.bmp", ImageConverters.ValueRangeToNormalizedImage), true);
+            new GDALSerializer().Write<byte>("gdalTestWriteByte.bmp", pattern, ImageConverters.NormalizedImageToValueRange);
+            TestPatternColors(new GDALSerializer().Read("gdalTestWriteByte.bmp", ImageConverters.ValueRangeToNormalizedImage), true);
         }
 
 
         [TestMethod]
         public void GDALTestFillValue()
         {
-            Image pattern = new GDALSeralizer().Read(Path.Combine("TestData", "img", "testPattern.png"), ImageConverters.ValueRangeToNormalizedImage);
+            Image pattern = new GDALSerializer().Read(Path.Combine("TestData", "img", "testPattern.png"), ImageConverters.ValueRangeToNormalizedImage);
             pattern.CreateMask();
             for (int r = 30; r < 100; r++)
             {
@@ -105,8 +105,8 @@ namespace ImagingTest
                 }
             }
 
-            new GDALSeralizer().Write<byte>("gdalTestFillValue.tif", pattern, ImageConverters.NormalizedImageToValueRange, new float[] { 2, 255, 1 });
-            Image maskedImg = new GDALSeralizer().Read("gdalTestFillValue.tif", ImageConverters.ValueRangeToNormalizedImage, new float[] { 2, 255, 1 });
+            new GDALSerializer().Write<byte>("gdalTestFillValue.tif", pattern, ImageConverters.NormalizedImageToValueRange, new float[] { 2, 255, 1 });
+            Image maskedImg = new GDALSerializer().Read("gdalTestFillValue.tif", ImageConverters.ValueRangeToNormalizedImage, new float[] { 2, 255, 1 });
             for (int r = 0; r < pattern.Height; r++)
             {
                 for (int c = 0; c < pattern.Width; c++)
@@ -117,7 +117,7 @@ namespace ImagingTest
                 }
             }
 
-            Image nonMaskedImg = new GDALSeralizer().Read("gdalTestFillValue.tif", ImageConverters.ValueRangeToNormalizedImage);
+            Image nonMaskedImg = new GDALSerializer().Read("gdalTestFillValue.tif", ImageConverters.ValueRangeToNormalizedImage);
             for (int r = 0; r < pattern.Height; r++)
             {
                 for (int c = 0; c < pattern.Width; c++)

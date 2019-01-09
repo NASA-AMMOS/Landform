@@ -7,13 +7,14 @@ using System.Threading;
 using OSGeo.GDAL;
 using System.IO;
 using OPS.MathExtensions;
+using log4net;
 
 namespace OPS.Imaging
 {    
     /// <summary>
     /// Reads all image types supported by GDAL
     /// </summary>
-    public class GDALSeralizer : ImageSerializer
+    public class GDALSerializer : ImageSerializer
     {
 
         public GDALWriteOptions WriteOptions
@@ -25,7 +26,7 @@ namespace OPS.Imaging
         static Dictionary<string, Tuple<string, bool>> extensionToGdalDriver;
         static Dictionary<Type, DataType> systemTypeToGdalType;
 
-        static GDALSeralizer()
+        static GDALSerializer()
         {
             lock(gdalLockObj)
             {
@@ -56,7 +57,7 @@ namespace OPS.Imaging
             }
         }
 
-        public GDALSeralizer(GDALWriteOptions options = null)
+        public GDALSerializer(GDALWriteOptions options = null)
         {
             if(options == null)
             {
