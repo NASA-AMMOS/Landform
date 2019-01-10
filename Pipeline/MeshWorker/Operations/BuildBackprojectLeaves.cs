@@ -125,7 +125,8 @@ namespace OPS.Pipeline.MeshWorker
                 ThroughputManager.Run(() =>
                 {
                     var node = TilingNode.Find(pipeline.DynamoContext, project.Name, leaf.Id);
-                    node.SaveMesh(leafPair, pipeline, 0, project.ExportMeshFormat, project.ExportImageFormat);
+                    node.SaveMesh(leafPair, pipeline, 0, project.ExportMeshFormat, project.ExportImageFormat,
+                                  project.GetSkirtMode());
                 });
 
                 //notify the tiling server that a tile is ready for building into parent tiles

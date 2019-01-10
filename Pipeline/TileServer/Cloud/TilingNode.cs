@@ -35,6 +35,7 @@ namespace OPS.Pipeline.TileServer
         public List<string> DependsOn { get; set; }
         public List<string> DependedOnBy { get; set; }
         public string Bounds { get; set; }
+        public string BoundsWithSkirt { get; set; }
         public double? GeometricError { get; set; }
 
         public TilingNode()
@@ -48,7 +49,7 @@ namespace OPS.Pipeline.TileServer
         /// <param name="name">Project names in the database must be unique</param>
         protected TilingNode(string id, TilingProject project, string meshUrl, string imageUrl, string parentId,
                              List<string> childIds, List<string> dependsOn, List<String> dependedOnBy,
-                             BoundingBox bounds)
+                             BoundingBox bounds, BoundingBox? boundsWithSkirt = null)
         {
             Id = id;
             ProjectName = project.Name;
@@ -59,6 +60,7 @@ namespace OPS.Pipeline.TileServer
             DependsOn = dependsOn;
             DependedOnBy = dependedOnBy;
             Bounds = JsonHelper.ToJson(bounds);
+            BoundsWithSkirt = boundsWithSkirt.HasValue ? JsonHelper.ToJson(boundsWithSkirt) : "";
         }
 
 
@@ -134,19 +136,31 @@ namespace OPS.Pipeline.TileServer
             return (BoundingBox)JsonHelper.FromJson(Bounds);
         }
 
+        public BoundingBox? GetBoundsWithSkirt()
+        {
+            BoundingBox? ret = null;
+            if (!string.IsNullOrEmpty(BoundsWithSkirt))
+            {
+                ret = (BoundingBox)JsonHelper.FromJson(BoundsWithSkirt);
+            }
+            return ret;
+        }
+
         /// <summary>
         /// Assigns a mesh and possibly a corresponding texture image to this node.
-        /// Sets MeshUrl, ImageUrl, and GeometricError, and saves the node metadata back to DynamoDB.
+        /// Sets MeshUrl, ImageUrl, BoundsWithSkirt, and GeometricError, and saves the node metadata back to DynamoDB.
         /// Also uploads the mesh and image (if any) to S3.
         /// Up to three copies of each are uploaded:
         /// 1. in the tile folder for our internal use, in our internal formats (ply, tif)
         /// 2. in the www folder for runtime visualization use, in b3dm format
-        //  3. optionally copies of the mesh and/or image are also uploaded to www in the specified export formats
+        //  3. optionally the mesh and/or image are also uploaded to www in the export formats
         /// </summary>
         /// <param name="exportMeshFormat">if not null or empty then also save mesh to www dir in this format</param>
         /// <param name="exportImageFormat">if not null or empty then also save image to www dir in this format</param>
+        /// <param name="skirtMode">if SkirtMode.None then add a skirt to the b3dm mesh (but not other formats)</param>
         public void SaveMesh(MeshImagePair pair, PipelineCore pipeline, double geometricError = 0,
-                             string exportMeshFormat = null, string exportImageFormat = null)
+                             string exportMeshFormat = null, string exportImageFormat = null,
+                             SkirtMode skirtMode = SkirtMode.None)
         {
             if (pair.Mesh == null)
             {
@@ -282,9 +296,20 @@ namespace OPS.Pipeline.TileServer
                     {
                         tmpImage =  null;
                     }
+                    var mesh = pair.Mesh;
+                    if (mesh.HasFaces && skirtMode != SkirtMode.None)
+                    {
+                        mesh = new Mesh(mesh);
+                        mesh.AddSkirt(skirtMode);
+                        BoundsWithSkirt = JsonHelper.ToJson(BoundingBoxExtensions.Union(GetBounds(), mesh.Bounds()));
+                    }
+                    else
+                    {
+                        BoundsWithSkirt = "";
+                    }
                     //for b3dm this reads the image data if any and embeds it into the mesh file
                     //for pnts the image data is ignored
-                    pair.Mesh.Save(tmpMesh, tmpImage);
+                    mesh.Save(tmpMesh, tmpImage);
                     upload(tmpMesh, tileUrl);
                     if (tileMeshExt == exMeshExt)
                     {
@@ -373,14 +398,21 @@ namespace OPS.Pipeline.TileServer
             return false;
         }
 
-        public static SceneNode BuildTreeFromDatabase(PipelineCore pipeline, TilingProject project)
+        public static SceneNode BuildTreeFromDatabase(PipelineCore pipeline, TilingProject project,
+                                                      bool useBoundsWithSkirt = false)
         {
             var nodes = Find(pipeline, project).ToList();
             Dictionary<string, SceneNode> idToNode = new Dictionary<string, SceneNode>();
             // Create all nodes
             foreach (var n in nodes)
             {
-                idToNode.Add(n.Id, n.GetSceneNode());
+                var sn = n.GetSceneNode();
+                var sb = n.GetBoundsWithSkirt();
+                if (useBoundsWithSkirt && sb.HasValue)
+                {
+                    sn.GetOrAddComponent<NodeBounds>().Bounds = sb.Value;
+                }
+                idToNode.Add(n.Id, sn);
             }
             // Connect parents and children
             SceneNode root = null;
