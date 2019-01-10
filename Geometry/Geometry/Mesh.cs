@@ -1173,19 +1173,31 @@ namespace OPS.Geometry
             foreach (Vertex v in Vertices)
             {
                 double[] pos = v.Position.ToDoubleArray();
-                if (pos[a1] + pos[a2] < lowerLeft.Position.ToDoubleArray()[a1] + lowerLeft.Position.ToDoubleArray()[a2])
+                double[] ll = lowerLeft.Position.ToDoubleArray();
+                double[] lr = lowerRight.Position.ToDoubleArray();
+                double[] ul = upperLeft.Position.ToDoubleArray();
+                double[] ur = upperRight.Position.ToDoubleArray();
+
+                //pos.dot(-1, -1) > ll.dot(-1, -1)
+                if (-pos[a1] -pos[a2] > -ll[a1] -ll[a2])
                 {
                     lowerLeft = v;
                 }
-                if (-1 * pos[a1] + pos[a2] < -1 * lowerRight.Position.ToDoubleArray()[a1] + lowerRight.Position.ToDoubleArray()[a2])
+
+                //pos.dot(1, -1) > lr.dot(1, -1)
+                if (pos[a1] -pos[a2] > lr[a1] -lr[a2])
                 {
                     lowerRight = v;
                 }
-                if (pos[a1] - pos[a2] < upperLeft.Position.ToDoubleArray()[a1] - upperLeft.Position.ToDoubleArray()[a2])
+
+                //pos.dot(-1, 1) > ul.dot(-1, 1)
+                if (-pos[a1] +pos[a2] > -ul[a1] +ul[a2])
                 {
                     upperLeft = v;
                 }
-                if (-1 * pos[a1] - pos[a2] < -1 * upperRight.Position.ToDoubleArray()[a1] - upperRight.Position.ToDoubleArray()[a2])
+
+                //pos.dot(1, 1) > ur.dot(1, 1)
+                if (pos[a1] +pos[a2] > ur[a1] +ur[a2])
                 {
                     upperRight = v;
                 }
