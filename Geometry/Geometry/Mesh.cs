@@ -1144,7 +1144,7 @@ namespace OPS.Geometry
 
         /// <summary>
         /// Assumes mesh with axis-aligned rectangular convex hull when projected onto the plane defined by upAxis.
-        /// Returns the vertex posisitions of the 3 corners.
+        /// Returns the vertex posisitions of the 4 corners.
         /// </summary>
         /// <param name="upAxis">"up" axis of mesh (given as vector3 with single non-zero component) </param>
         /// <returns></returns>
@@ -1173,7 +1173,7 @@ namespace OPS.Geometry
             foreach (Vertex v in Vertices)
             {
                 double[] pos = v.Position.ToDoubleArray();
-                if (pos[a1] + pos[a2] < lowerLeft.Position.X + lowerLeft.Position.ToDoubleArray()[a2])
+                if (pos[a1] + pos[a2] < lowerLeft.Position.ToDoubleArray()[a1] + lowerLeft.Position.ToDoubleArray()[a2])
                 {
                     lowerLeft = v;
                 }
