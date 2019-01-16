@@ -157,7 +157,7 @@ namespace OPS.Pipeline.TileServer
         /// </summary>
         /// <param name="exportMeshFormat">if not null or empty then also save mesh to www dir in this format</param>
         /// <param name="exportImageFormat">if not null or empty then also save image to www dir in this format</param>
-        /// <param name="skirtMode">if SkirtMode.None then add a skirt to the b3dm mesh (but not other formats)</param>
+        /// <param name="skirtMode">if !SkirtMode.None add a skirt to the b3dm mesh (but not other formats)</param>
         public void SaveMesh(MeshImagePair pair, PipelineCore pipeline, double geometricError = 0,
                              string exportMeshFormat = null, string exportImageFormat = null,
                              SkirtMode skirtMode = SkirtMode.None)
