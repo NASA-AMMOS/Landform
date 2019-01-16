@@ -13,7 +13,7 @@
     ,"04-stick"
     ,"05-stick"
     ,"06-multi-input"
-    //,"07-position-only" //https://github.jpl.nasa.gov/OnSight/Landform/issues/332
+    ,"07-position-only"
     ,"08-large-texture"
     ,"09-large-mesh"
     //,"10-large-export" //https://github.jpl.nasa.gov/OnSight/Landform/issues/98
