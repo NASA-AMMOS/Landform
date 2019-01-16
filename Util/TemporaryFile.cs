@@ -59,13 +59,14 @@ namespace OPS.Util
             {
                 func(file);
             }
-            catch (Exception e)
+            catch (Exception)
             {
-                ex = e;
+                DeleteWithRetry(file);
+                throw;
             }
-            if (File.Exists(file))
+            finally
             {
-                if (ex == null)
+                if (File.Exists(file))
                 {
                     //this is not atomic and is an MT race
                     //if (File.Exists(destination))
@@ -90,14 +91,6 @@ namespace OPS.Util
                     Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(destination)));
                     MoveFileEx(file, destination, 11);
                 }
-                else
-                {
-                    DeleteWithRetry(file);
-                }
-            }
-            if (ex != null)
-            {
-                throw ex;
             }
         }
 
@@ -147,19 +140,13 @@ namespace OPS.Util
         public static void GetAndDelete(string extension, FilenameDelegate func)
         {
             string file = GetTempName(extension);
-            Exception ex = null;
             try
             {
                 func(file);
             }
-            catch (Exception e)
+            finally
             {
-                ex = e;
-            }
-            DeleteWithRetry(file);
-            if (ex != null)
-            {
-                throw ex;
+                DeleteWithRetry(file);
             }
         }
 
@@ -170,19 +157,13 @@ namespace OPS.Util
         public static void GetAndDeleteDirectory(DirectoryDelegate func)
         {
             string dir = GetTempSubdir();
-            Exception ex = null;
             try
             {
                 func(dir);
             }
-            catch (Exception e)
+            finally
             {
-                ex = e;
-            }
-            Directory.Delete(dir, true);
-            if (ex != null)
-            {
-                throw ex;
+                Directory.Delete(dir, true);
             } 
         }
 
@@ -199,22 +180,16 @@ namespace OPS.Util
             {
                 tmpFiles[i] = GetTempName(extension);
             }
-            Exception ex = null;
             try
             {
                 func(tmpFiles);
             }
-            catch (Exception e)
+            finally
             {
-                ex = e;
-            }
-            for (int i = 0; i < tmpFiles.Length; i++)
-            {
-                DeleteWithRetry(tmpFiles[i]);
-            }
-            if (ex != null)
-            {
-                throw ex;
+                for (int i = 0; i < tmpFiles.Length; i++)
+                {
+                    DeleteWithRetry(tmpFiles[i]);
+                }
             }
         }
 
@@ -230,22 +205,16 @@ namespace OPS.Util
             {
                 tmpFiles[i] = GetTempName(extensions[i]);
             }
-            Exception ex = null;
             try
             {
                 func(tmpFiles);
             }
-            catch (Exception e)
+            finally
             {
-                ex = e;
-            }
-            for (int i = 0; i < tmpFiles.Length; i++)
-            {
-                DeleteWithRetry(tmpFiles[i]);
-            }
-            if (ex != null)
-            {
-                throw ex;
+                for (int i = 0; i < tmpFiles.Length; i++)
+                {
+                    DeleteWithRetry(tmpFiles[i]);
+                }
             }
         }
 
@@ -334,6 +303,9 @@ namespace OPS.Util
                 }
             };
 
+            //if we have an alwaysDelete predicate then go through all the files
+            //and try to delete the ones that match it
+            //the ones that remain are the ones that don't match it or that failed to delete
             if (alwaysDelete != null)
             {
                 var remaining = new List<FileInfo>();
