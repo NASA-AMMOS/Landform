@@ -332,6 +332,8 @@ namespace OPS.Pipeline.AlignmentServer
                     Master.DynamoContext.Save(ft);
                 }
 
+                Master.CleanupTempDir();
+
                 Logger.Info("Everything done!");
             }
         }

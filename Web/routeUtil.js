@@ -8,11 +8,11 @@ function isInt(n) { return isNum(n) && parseInt(n) === parseFloat(n); }
 
 function isStr(n) { return typeof n === 'string' || n instanceof String; }
 
-//accepts REST endpoint argument descriptors and attempts to parse them from req.query or req.body
+//accepts argument descriptors and attempts to parse them from req.query or req.body
 //
 //if an arg is both in req.query and req.body then the value from req.query will be used
 //
-//the descriptors are passed as a dictionary argName -> argDescriptor
+//the descriptors are passed as a dictionary name -> descriptor
 //
 //the descriptor objects can have the following fields:
 //type: optional, one of 'enum', 'int', 'float', 'bool', 'string'

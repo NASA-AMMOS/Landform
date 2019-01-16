@@ -84,7 +84,9 @@ namespace OPS.Pipeline.TileServer
                     try
                     {
                         StartMasterOptions opts = new StartMasterOptions();
-                        new StartMaster(opts).Run();
+                        var master = new StartMaster(opts);
+                        master.EnableCleanupTempDir = false;
+                        master.Run();
                     }
                     catch (Exception e)
                     {
@@ -318,27 +320,48 @@ namespace OPS.Pipeline.TileServer
             return true;
         }
 
-        private MessageRec FinishedProcessing(TilingQueueMessage m)
+        private MessageRec FinishedProcessing(TilingQueueMessage m, PipelineCore pipeline)
         {
             MessageRec rec = null;
             double now = UTCTime.Now(), totalSec = -1;
             int ne = 0, nh = 0;
-            if (!options.SingleThreaded)
+            if (options.SingleThreaded)
             {
+                pipeline.CleanupTempDir();
+            }
+            else
+            {
+                Exception ex = null;
                 lock (messagesInFlight)
                 {
                     if (!messagesInFlight.TryGetValue(m.MessageId, out rec))
                     {
-                        throw new Exception("message not found");
+                        ex = new Exception("message not found");
                     }
-                    rec.Done = true; //in case heartbeat task is already iterating over a copy of messagesInFlight
-                    totalSec = now - rec.StartSec;
-                    ne = rec.NumErrors;
-                    nh = rec.NumHeartbeats;
-                    if (!messagesInFlight.Remove(m.MessageId))
+
+                    if (rec != null && ex == null)
                     {
-                        throw new Exception("failed to remove message");
+                        rec.Done = true; //in case heartbeat task is already iterating over a copy of messagesInFlight
+                        totalSec = now - rec.StartSec;
+                        ne = rec.NumErrors;
+                        nh = rec.NumHeartbeats;
+                        if (!messagesInFlight.Remove(m.MessageId))
+                        {
+                            ex = new Exception("failed to remove message");
+                        }
                     }
+
+                    if (messagesInFlight.Count == 0)
+                    {
+                        //all threads of this worker are now idle
+                        //take this opportunity to clean up the temp dir to help constrain disk usage
+                        //holding the lock on messagesInFlight so that any new messages are held until we're done
+                        pipeline.CleanupTempDir();
+                    }
+                }
+                if (ex != null)
+                {
+                    throw ex;
                 }
             }
             Logger.InfoFormat("{0}: finished processing at {1:F3}{2}{3}",
@@ -354,9 +377,10 @@ namespace OPS.Pipeline.TileServer
         {
             //each worker thread has its own cloud instance
             //this avoids the need for synchronization
+            //all threads share the same logger which is MT safe
             var pipeline = new PipelineCore(options,
                                             TileServerConfig.Instance.VenueName, TileServerConfig.Instance.Profile,
-                                            logger: Logger, numImagesLRUCache: WORKER_IMAGELRUCACHESIZE); //all threads share the same logger which is MT safe
+                                            logger: Logger, numImagesLRUCache: WORKER_IMAGELRUCACHESIZE);
 
             //MSL specific
             OPS.Pipeline.Rover.MSLCloud.AddMSLICEProfile(pipeline);
@@ -407,7 +431,7 @@ namespace OPS.Pipeline.TileServer
                             MessageRec rec = null;
                             try
                             {
-                                rec = FinishedProcessing(m);
+                                rec = FinishedProcessing(m, pipeline);
                             }
                             catch (Exception e)
                             {

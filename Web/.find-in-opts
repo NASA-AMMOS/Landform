@@ -4,3 +4,4 @@
 -a -not -regex .*tmp.*
 -a -not -regex .*upload.*
 -a -not -regex .*log.*
+-a -not -regex .*zip.*
