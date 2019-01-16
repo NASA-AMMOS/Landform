@@ -14,22 +14,22 @@ namespace ImagingTest
         [TestMethod]
         public void PDSTestRead()
         {
-            Image img = new PDSSeralizer().Read(Path.Combine("TestData", "img", "FLB_509619692RAS_T0530000FHAZ00323M_.IMG"), ImageConverters.PDSBitMaskValueRangeToNormalizedImage);
+            Image img = new PDSSerializer().Read(Path.Combine("TestData", "img", "FLB_509619692RAS_T0530000FHAZ00323M_.IMG"), ImageConverters.PDSBitMaskValueRangeToNormalizedImage);
             Assert.IsFalse(img.HasMask);
             Assert.AreEqual(1, img.Data.Length);
             Assert.AreEqual(img.Width * img.Height, img.Data[0].Length);
 
-            Image imgMasked = new PDSSeralizer().Read(Path.Combine("TestData", "img", "FLB_509619692RAS_T0530000FHAZ00323M_.IMG"), ImageConverters.PDSBitMaskValueRangeToNormalizedImage, new float[] { 0 });
+            Image imgMasked = new PDSSerializer().Read(Path.Combine("TestData", "img", "FLB_509619692RAS_T0530000FHAZ00323M_.IMG"), ImageConverters.PDSBitMaskValueRangeToNormalizedImage, new float[] { 0 });
             Assert.IsTrue(imgMasked.HasMask);
             Assert.IsTrue(imgMasked.IsInvalid(4, 6));
             Assert.IsFalse(imgMasked.IsInvalid(5, 6));
 
-            Image mastcam = new PDSSeralizer().Read(Path.Combine("TestData", "img", "ML0_451292526RCX_S0311094MCAM02555M1.IMG"), ImageConverters.PDSBitMaskValueRangeToNormalizedImage, new float[] { 0, 0, 0 });
+            Image mastcam = new PDSSerializer().Read(Path.Combine("TestData", "img", "ML0_451292526RCX_S0311094MCAM02555M1.IMG"), ImageConverters.PDSBitMaskValueRangeToNormalizedImage, new float[] { 0, 0, 0 });
             Assert.IsTrue(mastcam.HasMask);
             Assert.AreEqual(3, mastcam.Data.Length);
             Assert.AreEqual(1408 * 1200, mastcam.Data[0].Length);
 
-            Image range = new PDSSeralizer().Read(Path.Combine("TestData", "img", "NLB_451649560RNGLF0311330NCAM12813M1.IMG"), ImageConverters.PassThrough, new float[] { 0 });
+            Image range = new PDSSerializer().Read(Path.Combine("TestData", "img", "NLB_451649560RNGLF0311330NCAM12813M1.IMG"), ImageConverters.PassThrough, new float[] { 0 });
             Assert.IsTrue(range.HasMask);
             double total = 0;
             foreach (double d in range)
@@ -37,17 +37,17 @@ namespace ImagingTest
                 total += d;
             }
             AssertE.AreSimilar(5184855.197033, total, 0.0001);
-            Image arm = new PDSSeralizer().Read(Path.Combine("TestData", "img", "NLB_451025090ARMLF0311052NCAM00493M1.IMG"), ImageConverters.PassThrough);
+            Image arm = new PDSSerializer().Read(Path.Combine("TestData", "img", "NLB_451025090ARMLF0311052NCAM00493M1.IMG"), ImageConverters.PassThrough);
             Assert.AreEqual(5, arm.Bands);
 
-            Image msss = new PDSSeralizer().Read(Path.Combine("TestData", "img", "0608ML0025660260301542E01_DRCX.IMG"), ImageConverters.PDSBitMaskValueRangeToNormalizedImage);
+            Image msss = new PDSSerializer().Read(Path.Combine("TestData", "img", "0608ML0025660260301542E01_DRCX.IMG"), ImageConverters.PDSBitMaskValueRangeToNormalizedImage);
             Assert.AreEqual(3, msss.Bands);
         }
 
         [TestMethod]
         public void PDSTestWrite()
         {
-            Image img = new PDSSeralizer().Read(Path.Combine("TestData", "img", "FLB_509619692RAS_T0530000FHAZ00323M_.IMG"), ImageConverters.PDSBitMaskValueRangeToNormalizedImage);
+            Image img = new PDSSerializer().Read(Path.Combine("TestData", "img", "FLB_509619692RAS_T0530000FHAZ00323M_.IMG"), ImageConverters.PDSBitMaskValueRangeToNormalizedImage);
             img.Save<byte>("pds_write_byte.IMG");
             Image other = Image.Load("pds_write_byte.IMG");
             foreach(ImageCoordinate coord in img.Coordinates(false))

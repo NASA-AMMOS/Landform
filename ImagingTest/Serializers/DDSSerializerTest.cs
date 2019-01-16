@@ -13,10 +13,10 @@ namespace ImagingTest.Serializers
     [DeploymentItem("gdal", "gdal")]
     [DeploymentItem("ExternalApps", "ExternalApps")]
     [DeploymentItem("TestData", "TestData")]
-    public class DDSSeralizerTest
+    public class DDSSerializerTest
     {
         [TestMethod]
-        public void DDSSeralizerWrite()
+        public void DDSSerializerWrite()
         {
             Image pattern = Image.Load(Path.Combine("TestData", "img", "testPattern.png"));
             pattern.Save<byte>("ddsTest.dds");
@@ -26,7 +26,7 @@ namespace ImagingTest.Serializers
         }
 
         [TestMethod]
-        public void DDSSeralizerWriteAlpha()
+        public void DDSSerializerWriteAlpha()
         {
             Image pattern = Image.Load(Path.Combine("TestData", "img", "testPattern.png"));
             Image alpha = new Image(4, pattern.Width, pattern.Height);
@@ -47,7 +47,7 @@ namespace ImagingTest.Serializers
         }
 
         [TestMethod]
-        public void DDSSeralizerWriteSingleBand()
+        public void DDSSerializerWriteSingleBand()
         {
             Image pattern = Image.Load(Path.Combine("TestData", "img", "testPattern.png"));
             Image singleBand = new Image(1, pattern.Width, pattern.Height);
@@ -65,7 +65,7 @@ namespace ImagingTest.Serializers
 
 
         [TestMethod]
-        public void DDSSeralizerWriteSingleBandAlpha()
+        public void DDSSerializerWriteSingleBandAlpha()
         {
             Image pattern = Image.Load(Path.Combine("TestData", "img", "testPattern.png"));
             Image singleBandAlpha = new Image(2, pattern.Width, pattern.Height);
@@ -83,7 +83,7 @@ namespace ImagingTest.Serializers
         }
 
         [TestMethod]
-        public void DDSSeralizerCRNWrite()
+        public void DDSSerializerCRNWrite()
         {
             Image pattern = Image.Load(Path.Combine("TestData", "img", "testPattern.png"));
             pattern.Save<byte>("crnTest.crn");

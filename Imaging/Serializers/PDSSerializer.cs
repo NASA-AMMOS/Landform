@@ -10,7 +10,7 @@ namespace OPS.Imaging
     /// <summary>
     /// Reads PDSImages.  
     /// </summary>
-    public class PDSSeralizer : ImageSerializer
+    public class PDSSerializer : ImageSerializer
     {
 
         /// <summary>
