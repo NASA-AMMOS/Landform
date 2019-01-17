@@ -54,7 +54,6 @@ namespace OPS.Util
         public static void GetAndMove(string destination, FilenameDelegate func)
         {
             string file = GetTempName(destination);
-            Exception ex = null;
             try
             {
                 func(file);
