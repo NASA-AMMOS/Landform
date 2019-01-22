@@ -114,7 +114,7 @@ namespace OPS.Alignment
         /// <param name="numFeatures">Maximum number of features to return</param>
         /// <param name="numOctaves">Number of SIFT octaves</param>
         /// <returns></returns>
-        static IEnumerable<SIFTFeature> DetectSIFT(Image<Gray, byte> image, Image<Gray, byte> mask, int numFeatures = 1000, int numOctaves = 4, int borderIgnore = 100)
+        static IEnumerable<SIFTFeature> DetectSIFT(Image<Gray, byte> image, Image<Gray, byte> mask, int numFeatures = 1000, int numOctaves = 4)
         {
             using (Emgu.CV.XFeatures2D.SIFT sift = new Emgu.CV.XFeatures2D.SIFT(numFeatures, numOctaves))
             {
