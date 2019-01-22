@@ -102,14 +102,14 @@
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Serializers\DDSSerializer.cs" />
     <Compile Include="Serializers\FITSSerializer.cs" />
-    <Compile Include="Serializers\GDALSeralizer.cs" />
+    <Compile Include="Serializers\GDALSerializer.cs" />
     <Compile Include="Serializers\GDALWriteOptions.cs" />
     <Compile Include="Serializers\IImageConverter.cs" />
     <Compile Include="Serializers\ImageSerializer.cs" />
     <Compile Include="Serializers\ImageConverters.cs" />
     <Compile Include="Serializers\ImageSerializationException.cs" />
     <Compile Include="Serializers\ImageSerializers.cs" />
-    <Compile Include="Serializers\PDSSeralizer.cs" />
+    <Compile Include="Serializers\PDSSerializer.cs" />
     <Compile Include="Serializers\RGBSerializer.cs" />
     <Compile Include="SparseImage.cs" />
   </ItemGroup>

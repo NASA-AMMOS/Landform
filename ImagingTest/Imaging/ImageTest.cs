@@ -46,7 +46,7 @@ namespace ImageTest
             {
                 Assert.Fail();
             }
-            Image imgRead = Image.Load("load.png", new GDALSeralizer(), ImageConverters.ValueRangeToNormalizedImage);
+            Image imgRead = Image.Load("load.png", new GDALSerializer(), ImageConverters.ValueRangeToNormalizedImage);
             Assert.AreEqual(imgOrig.Bands, imgRead.Bands);
             Assert.AreEqual(imgOrig.Width, imgRead.Width);
             Assert.AreEqual(imgOrig.Height, imgRead.Height);
@@ -63,7 +63,7 @@ namespace ImageTest
             imgOrig[0, 0, 3] = (maxValue - 1) / maxValue;
 
             imgOrig.Save<T>("roundOff.tif");
-            Image imgRead = Image.Load("roundOff.tif", new GDALSeralizer(), ImageConverters.PassThrough);
+            Image imgRead = Image.Load("roundOff.tif", new GDALSerializer(), ImageConverters.PassThrough);
 
             Assert.AreEqual(0, imgRead[0, 0, 0]);
             Assert.AreEqual(Math.Floor(maxValue / 2), imgRead[0, 0, 1]);

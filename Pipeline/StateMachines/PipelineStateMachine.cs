@@ -346,6 +346,7 @@ namespace OPS.Pipeline.TileServer
             project.Save(pipeline.DynamoContext);
             LogInfo("finished running");
             projectCache.Reset();
+            pipeline.CleanupTempDir();
         }
     }
 

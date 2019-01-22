@@ -144,7 +144,7 @@ namespace OPS
             var totalLeafCount = root.Leaves().Count();
             Parallel.ForEach(root.Leaves(), (node, pls, index) =>
             {
-                logger.Info(string.Format("Leaf: {0} ({1}/{2})", node.Name, index, totalLeafCount));
+                logger.InfoFormat("Leaf: {0} ({1}/{2})", node.Name, index, totalLeafCount);
                 Mesh m = multiMeshClipper.Clip(node.GetComponent<NodeBounds>().Bounds);
                 Image img = null;
                 if(options.InputTexture != null)
@@ -163,7 +163,8 @@ namespace OPS
                 }
                 node.AddComponent(new MeshImagePair(m, img));
                 node.AddComponent(new NodeGeometricError(0));
-                node.SaveMesh(options.OutputDirectory, meshExtension:  options.MeshExtension, imageExtension: options.ImageExtension);
+                node.SaveMesh(options.OutputDirectory,
+                              meshExtension:  options.MeshExtension, imageExtension: options.ImageExtension);
             });
         }
 
@@ -176,14 +177,24 @@ namespace OPS
             {
                 Parallel.ForEach(group, (node, pls, index) =>
                 {
-                    // Check to see all children have meshes, otherwise defere processing
+                    // Check to see all children have meshes, otherwise defer processing
                     if (!node.AllChildrenHaveMeshes())
                     {
                         return;
                     }
-                    logger.Info(string.Format("Parent: {0} ({1}/{2})", node.Name, index + groupCountOffset, totalParentCount));
-                    node.BuildGeometryFromChildren(root, MeshReconMethod.Poisson, options.TargetFacesPerTile, options.MaxResolutionPerTile, options.SkirtAxis);
-                    node.SaveMesh(options.OutputDirectory, meshExtension: options.MeshExtension, imageExtension: options.ImageExtension);
+                    logger.InfoFormat("Parent: {0} ({1}/{2})", node.Name, index + groupCountOffset, totalParentCount);
+                    node.BuildGeometryFromChildren(root, MeshReconMethod.Poisson,
+                                                   options.TargetFacesPerTile, options.MaxResolutionPerTile,
+                                                   options.SkirtAxis);
+                    if (SkirtsEnabled)
+                    {
+                        var m = node.GetComponent<MeshImagePair>().Mesh;
+                        m.AddSkirt(options.SkirtAxis);
+                        var nb = node.GetComponent<NodeBounds>();
+                        nb.Bounds = BoundingBoxExtensions.Union(nb.Bounds, m.Bounds());
+                    }
+                    node.SaveMesh(options.OutputDirectory,
+                                  meshExtension: options.MeshExtension, imageExtension: options.ImageExtension);
                     logger.Info(node.GetComponent<MeshImagePair>().Mesh.Faces.Count);
                 });
                 groupCountOffset += group.Count();

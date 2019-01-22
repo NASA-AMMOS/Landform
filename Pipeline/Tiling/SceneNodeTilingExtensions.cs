@@ -141,18 +141,9 @@ namespace OPS.Pipeline
             BoundingBox searchBounds;
             var childNodes = FindNodesRequiredForParent(node, root, out searchBounds, childBoundSearchRatio);
             var pairs = childNodes.Select(n => n.GetComponent<MeshImagePair>());
-            var childMeshesWithoutSkirts = pairs.Select(p =>
-            {
-                var tmp = new Mesh(p.Mesh);
-                if (skirtAxis.HasValue)
-                {
-                    // TODO remove skirt stuff
-                    tmp.RemoveSkirt(skirtAxis.Value);
-                }
-                return tmp;
-            }).ToArray();
+            var childMeshes = pairs.Select(p => p.Mesh);
 
-            Mesh combinedFull = Mesh.MergeWithCommonAttributes(childMeshesWithoutSkirts);
+            Mesh combinedFull = Mesh.MergeWithCommonAttributes(childMeshes.ToArray());
             if (!combinedFull.HasNormals)
             {
                 combinedFull.GenerateVertexNormals();
@@ -171,7 +162,6 @@ namespace OPS.Pipeline
             }
             else
             { 
-                // Minimum bounds is a tight fitting bounding box around the child meshes with skirts
                 Vector3? cornerDirection = null;
                 if (skirtAxis.HasValue)
                 {
@@ -188,7 +178,9 @@ namespace OPS.Pipeline
                         cornerDirection = Vector3.UnitZ;
                     }
                 }
-                combinedDecimated = combinedFull.ResampleDecimation(reconstructionMethod, maxFaceCountTarget, clippingBounds: minimumBounds, cornerDirection: cornerDirection);
+                combinedDecimated = combinedFull.ResampleDecimation(reconstructionMethod, maxFaceCountTarget,
+                                                                    clippingBounds: minimumBounds,
+                                                                    cornerDirection: cornerDirection);
             }
             combinedDecimated.Clean();
             NodeGeometricError geoError = node.GetOrAddComponent<NodeGeometricError>();
@@ -202,22 +194,22 @@ namespace OPS.Pipeline
             {               
                 combinedDecimated = UVAtlas.Atlas(combinedDecimated, size, size);
                 img = TextureBaker.BakeTexture(pairs.ToArray(), combinedDecimated, size, size);
-                // Estimate the size of a pixel for this texture.  If this is greater than the geometric error use it instead
+                // Estimate the size of a pixel for this texture
+                // If this is greater than the geometric error use it instead
                 var ext = minimumBounds.Extent();
                 double sizePerPixel = new Vector2(ext.X, ext.Z).Length() / new Vector2(size / 2, size / 2).Length();
                 geoError.Error = Math.Max(geoError.Error, sizePerPixel);
             }
+
             if (!combinedDecimated.HasNormals)
             {
                 combinedDecimated.GenerateVertexNormals();
             }
-            if (skirtAxis.HasValue)
-            {
-                combinedDecimated.AddSkirt(skirtAxis.Value);
-            }
+
             // We need to combine bounds here because decimated bounds may be smaller than the child bounds
             var bounds = BoundingBox.CreateMerged(combinedDecimated.Bounds(), minimumBounds);
             node.GetComponent<NodeBounds>().Bounds = bounds;
+
             // Add new mesh and image to parent
             node.AddComponent(new MeshImagePair(combinedDecimated, img));
 
@@ -288,10 +280,13 @@ namespace OPS.Pipeline
                 HashSet<SceneNode> nextParents = new HashSet<SceneNode>();
                 foreach (var p in curParents)
                 {
-                    p.GetOrAddComponent<NodeBounds>().Bounds = BoundingBoxExtensions.Union(p.Children.Select(c => c.GetOrAddComponent<NodeBounds>().Bounds).ToArray());
-                    if(p.HasComponent<MeshImagePair>() && p.GetComponent<MeshImagePair>().Mesh != null)
+                    p.GetOrAddComponent<NodeBounds>().Bounds =
+                        BoundingBoxExtensions.Union(p.Children.Select(c => c.GetOrAddComponent<NodeBounds>().Bounds).ToArray());
+                    if (p.HasComponent<MeshImagePair>() && p.GetComponent<MeshImagePair>().Mesh != null)
                     {
-                        p.GetComponent<NodeBounds>().Bounds = BoundingBoxExtensions.Union(p.GetComponent<MeshImagePair>().Mesh.Bounds(), p.GetComponent<NodeBounds>().Bounds);
+                        p.GetComponent<NodeBounds>().Bounds =
+                            BoundingBoxExtensions.Union(p.GetComponent<MeshImagePair>().Mesh.Bounds(),
+                                                        p.GetComponent<NodeBounds>().Bounds);
                     }
                     if (p.Parent != null)
                     {

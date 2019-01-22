@@ -75,7 +75,7 @@ namespace OPS.Pipeline.TileServer
                                                       project.TileResolution, project.GetSkirtMode());
             var pair = parentSceneNode.GetComponent<MeshImagePair>();
             parent.SaveMesh(pair, pipeline, parentSceneNode.GetComponent<NodeGeometricError>().Error,
-                            project.ExportMeshFormat, project.ExportImageFormat);
+                            project.ExportMeshFormat, project.ExportImageFormat, project.GetSkirtMode());
             cloud.MasterQueue.Enqueue(new TileCompletedMessage(project.Name, parent.Id));
             LogInfo("completed building parent " + message.TileId);
         }

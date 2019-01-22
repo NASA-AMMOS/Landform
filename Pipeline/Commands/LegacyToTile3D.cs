@@ -38,6 +38,9 @@ namespace OPS.Pipeline
 
         [Option(Required = false, Default = "jpg", HelpText = "Export format for textures (examples: jpg or png (dds or crn)")]
         public string ImageFormat { get; set; }
+
+        [Option(Required = false, Default = SkirtMode.Y, HelpText = "Axis to use as up in quad tree tiling")]
+        public SkirtMode SkirtAxis { get; set; }
     }
 
     /// <summary>
@@ -119,7 +122,7 @@ namespace OPS.Pipeline
                 {
                     var pair = node.GetComponent<MeshImagePair>();
                     pair.Mesh.Clean();
-                    pair.Mesh.RemoveSkirt(SkirtMode.Y);
+                    pair.Mesh.RemoveSkirt(options.SkirtAxis);
                     if (!pair.Mesh.HasNormals)
                     {                        
                         pair.Mesh.GenerateVertexNormals();
@@ -166,14 +169,21 @@ namespace OPS.Pipeline
             {
                 var mesh = node.GetComponent<MeshImagePair>().Mesh;
                 mesh.GenerateVertexNormals();
-                mesh.AddSkirt(SkirtMode.Y);
+                if (options.SkirtAxis != SkirtMode.None)
+                {
+                    mesh.AddSkirt(options.SkirtAxis);
+                }
                 // Important, bounds include skirts
-                node.AddComponent(new NodeBounds(node.GetComponent<MeshImagePair>().Mesh.Bounds()));
+                node.AddComponent(new NodeBounds(mesh.Bounds()));
                 node.AddComponent(new NodeGeometricError(0));
                 SaveNode(node, options.ImageFormat);
             });
 
-            var depthGroups = terrainRoot.DepthFirstTraverse().Where(n => !n.IsLeaf).GroupBy(n => n.Transform.Depth()).OrderBy(g => -g.Key);
+            var depthGroups = terrainRoot.DepthFirstTraverse()
+                .Where(n => !n.IsLeaf)
+                .GroupBy(n => n.Transform.Depth())
+                .OrderBy(g => -g.Key);
+
             logger.Info("Generate bounds");
             foreach (var group in depthGroups)
             {
@@ -190,18 +200,27 @@ namespace OPS.Pipeline
             int parentsCompleted = 0;
             foreach (var group in depthGroups)
             {
-                Parallel.ForEach(group, new ParallelOptions() { MaxDegreeOfParallelism = Environment.ProcessorCount }, node =>
+                Parallel.ForEach(group, new ParallelOptions() { MaxDegreeOfParallelism = Environment.ProcessorCount },
+                                 node =>
                 {
                     Interlocked.Increment(ref parentsCompleted);
                     int percentDone = (int)((parentsCompleted / (float)totalParents) * 100);
                     logger.Info("Creating parent data:" + node.Name + " (" + percentDone + "%)");
-                    // Check to see all children have meshes, otherwise defere processing
+                    // Check to see all children have meshes, otherwise defer processing
                     bool canMakeMesh = node.Children.All(n => n.HasComponent<MeshImagePair>());
                     if (!canMakeMesh)
                     {
                         return;
                     }
-                    node.BuildGeometryFromChildren(terrainRoot, MeshReconMethod.Poisson, options.MaxFacesPerTile, options.MaxTextureSize, SkirtMode.Y);
+                    node.BuildGeometryFromChildren(terrainRoot, MeshReconMethod.Poisson,
+                                                   options.MaxFacesPerTile, options.MaxTextureSize, options.SkirtAxis);
+                    if (options.SkirtAxis != SkirtMode.None)
+                    {
+                        var m = node.GetComponent<MeshImagePair>().Mesh;
+                        m.AddSkirt(options.SkirtAxis);
+                        var nb = node.GetComponent<NodeBounds>();
+                        nb.Bounds = BoundingBoxExtensions.Union(nb.Bounds, m.Bounds());
+                    }
                     SaveNode(node, options.ImageFormat);
                 });
             }
