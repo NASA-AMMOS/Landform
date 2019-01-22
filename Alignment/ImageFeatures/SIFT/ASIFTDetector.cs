@@ -1,16 +1,14 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using Emgu.CV;
 using Emgu.CV.Structure;
 using Emgu.CV.CvEnum;
 using Microsoft.Xna.Framework;
-using Emgu.CV.XFeatures2D;
 using Emgu.CV.Util;
 using OPS.Imaging;
 using OPS.Imaging.Emgu;
+using System.Drawing;
 
 namespace OPS.Alignment
 {
@@ -19,13 +17,10 @@ namespace OPS.Alignment
 
     public class ASIFTDetector : IFeatureDetector
     {
-        public ASIFTDetector(int maxSimulatedDimension=512)
-        {
-            this.MaxSimulatedDimension = maxSimulatedDimension;
-        }
-        public int MaxSimulatedDimension;
+        public ASIFTDetector()
+        { }
 
-        public IEnumerable<ImageFeature> Detect(Image image, Image mask = null)
+        public IEnumerable<ImageFeature> Detect(OPS.Imaging.Image image, OPS.Imaging.Image mask = null)
         {
             var emguImg = image.ToEmguGrayscale();
             var emguMask = (mask != null) ? mask.ToEmguGrayscale() : null;
@@ -56,39 +51,57 @@ namespace OPS.Alignment
             }
 
             A = new Matrix<float>(new float[,] { { 1, 0, 0 }, { 0, 1, 0 } });
-            bool anyChange = false;
+            
             if (Math.Abs(phi) > 1e-6)
             {
-                anyChange = true;
-                double sin = Math.Sin(phi),
-                       cos = Math.Cos(phi);
-                Vector2[] corners = new Vector2[] { new Vector2(0, 0), new Vector2(width, 0), new Vector2(width, height), new Vector2(0, height) };
-                Vector2[] newCorners = corners.Select(c => Rotate(c, phi)).ToArray();
-                double x0 = newCorners.Select(c => c.X).Min(),
-                       y0 = newCorners.Select(c => c.Y).Min(),
-                       x1 = newCorners.Select(c => c.X).Max(),
-                       y1 = newCorners.Select(c => c.Y).Max();
-                width = (int)Math.Ceiling(x1 - x0);
-                height = (int)Math.Ceiling(y1 - y0);
-                A = new Matrix<float>(new float[,] { { (float)cos, (float)-sin, (float)-x0 }, { (float)sin, (float)cos, (float)-y0 } });
+                //get rotation matrix about the center of the image (positive angle is counter-clockwise, right handed)
+                System.Drawing.PointF center = new System.Drawing.PointF(width / 2.0f, height / 2.0f);
+                Emgu.CV.CvInvoke.GetRotationMatrix2D(center, MathHelper.ToDegrees(phi), 1, A);
+
+                //calculate the size of image required for rotated rect
+                Emgu.CV.Util.VectorOfPointF corners = new VectorOfPointF();
+                Emgu.CV.Util.VectorOfPointF cornersRotated = new VectorOfPointF();
+                corners.Push(new System.Drawing.PointF[] { new System.Drawing.PointF(0, 0), new System.Drawing.PointF(width, 0), new System.Drawing.PointF(width, height), new System.Drawing.PointF(0, height) });
+                Emgu.CV.CvInvoke.Transform(corners, cornersRotated, A);
+                var cornersRotatedX = cornersRotated.ToArray().Select(c => c.X);
+                var cornersRotatedY = cornersRotated.ToArray().Select(c => c.Y);
+                float minX = cornersRotatedX.Min();
+                float maxX = cornersRotatedX.Max();
+                float minY = cornersRotatedY.Min();
+                float maxY = cornersRotatedY.Max();
+                width = (int)Math.Ceiling(maxX - minX);
+                height = (int)Math.Ceiling(maxY - minY);
+
+                //calculate the offset to keep the image centered in the new larger image
+                System.Drawing.PointF newCenter = new System.Drawing.PointF(width / 2.0f, height / 2.0f);
+                A[0, 2] += newCenter.X - center.X;
+                A[1, 2] += newCenter.Y - center.Y;
+
+                //rotate the image and the mask
                 image = image.WarpAffine(A.Mat, width, height, Inter.Linear, Warp.Default, BorderType.Constant, new Gray(0));
+                mask = mask.WarpAffine(A.Mat, width, height, Inter.Linear, Warp.Default, BorderType.Constant, new Gray(0));
             }
+
             if (Math.Abs(tilt) > 1e-6)
             {
-                anyChange = true;
+                // paper recommends antialising filter in the direction of the t (tilt). 
+                // gaussian filter with std dev c*sqrt(t*t-1). recommend c = 0.8 used by Lowe in SIFT
                 double sigma = 0.8 * Math.Sqrt(tilt * tilt - 1);
                 image = image.SmoothGaussian(0, 0, sigma, 0.01);
+
+                // resize the image using nearest neighbor sampling
                 image = image.Resize((int)(width / tilt), height, Inter.Nearest, false);
+                mask = mask.Resize((int)(width / tilt), height, Inter.Nearest, false);
+
+                // capture this scaling in the A matrix, so that inverting it can return the features to full 
+                // resolution. equivalent to scale in x only matrix * A
                 A[0, 0] /= (float)tilt;
                 A[0, 1] /= (float)tilt;
                 A[0, 2] /= (float)tilt;
             }
-            if (anyChange)
-            {
-                width = image.Width;
-                height = image.Height;
-                mask = mask.WarpAffine(A.Mat, width, height, Inter.Nearest, Warp.Default, BorderType.Constant, new Gray(0));
-            }
+
+            width = image.Width;
+            height = image.Height;
             outImage = image;
             outMask = mask;
         }
@@ -111,15 +124,24 @@ namespace OPS.Alignment
                 using (Matrix<float> descriptors = new Matrix<float>(keypoints.Length, 128))
                 {
                     sift.Compute(image, new VectorOfKeyPoint(keypoints), descriptors);
-
+                  
                     int i;
                     for (i = 0; i < keypoints.Length; i++)
                     {
+                        //opencv only honors mask pixel as center points of features, not that the feature doesn't sample masked pixels
+                        // this code tests all pixels within the size of the feature to ensure they are valid
+                        if (mask != null)
+                        {
+                            if (!TestValidFeature(mask, keypoints[i].Point, keypoints[i].Size))
+                                continue;
+                        }
+
                         byte[] desc = new byte[128];
                         for (int j = 0; j < 128; j++)
                         {
                             desc[j] = (byte)descriptors[i, j];
-                        }
+                        } 
+
                         yield return new SIFTFeature(
                             new Vector2(keypoints[i].Point.X, keypoints[i].Point.Y),
                             keypoints[i].Size,
@@ -133,6 +155,63 @@ namespace OPS.Alignment
             }
         }
 
+        private static bool TestValidFeature(Image<Gray, byte> mask, PointF point, float size)
+        {
+
+            if (!TestValidPixel(mask, point))
+                return false;
+
+            int halfDiameter = (int)Math.Ceiling(size / 2.0f);
+            int minCol = (int)(point.X - halfDiameter);
+            int maxCol = (int)Math.Ceiling(point.X + halfDiameter);
+            int minRow = (int)(point.Y - halfDiameter);
+            int maxRow = (int)Math.Ceiling(point.Y + halfDiameter);
+
+            for (int idxRow = minRow; idxRow <= maxRow; idxRow++)
+            {
+                for (int idxCol = minCol; idxCol <= maxCol; idxCol++)
+                {
+                    if (!TestValidPixel(mask, new Point(idxCol,idxRow)))
+                        return false;
+                }
+            }
+
+            return true;
+        }
+
+        private static bool TestValidPixel(Image<Gray, byte> mask, Point point)
+        {
+            if ((point.X < 0) || (point.Y < 0) || (point.X > mask.Width - 1) || (point.Y > mask.Height - 1))
+                return false;
+
+            if (mask[point.Y, point.X].Intensity == 0)
+                return false;
+
+            return true;
+        }
+
+        private static bool TestValidPixel(Image<Gray, byte> mask, PointF point)
+        {
+            int minCol = (int)(point.X);
+            int maxCol = (int)Math.Ceiling(point.X);
+            int minRow = (int)(point.Y);
+            int maxRow = (int)Math.Ceiling(point.Y);
+
+            if((minCol < 0) || (minRow < 0) || (maxCol > mask.Width-1) || (maxRow > mask.Height-1))
+                return false;
+           
+            if (mask[minRow, minCol].Intensity == 0)
+                return false;
+            else if (mask[minRow, maxCol].Intensity == 0)
+                return false;
+            else if (mask[maxRow, minCol].Intensity == 0)
+                return false;
+            else if (mask[maxRow, maxCol].Intensity == 0)
+                return false;
+
+            return true;
+        }
+
         /// <summary>
         /// Detect ASIFT features in an image.
         /// </summary>
@@ -141,13 +220,11 @@ namespace OPS.Alignment
         /// <returns>Enumerable of all detected features</returns>
         public IEnumerable<ImageFeature> Detect(Image<Gray, byte> image, Image<Gray, byte> mask)
         {
-            double scale = 1;
-
             foreach (SIFTFeature feat in DetectSIFT(image, mask))
             {
                 yield return new SIFTFeature(
-                    feat.Location / scale,
-                    feat.Size / scale,
+                    feat.Location,
+                    feat.Size,
                     feat.Angle,
                     feat.Octave,
                     feat.Response,
@@ -155,35 +232,29 @@ namespace OPS.Alignment
                     );
             }
 
-            if (MaxSimulatedDimension > 0 && image.Width > MaxSimulatedDimension || image.Height > MaxSimulatedDimension)
-            {
-                scale = ((double)MaxSimulatedDimension) / Math.Max(image.Width, image.Height);
-                image = image.Resize(scale, Inter.Lanczos4);
-                if (mask != null)
-                {
-                    mask = mask.Resize(scale, Inter.Nearest);
-                }
-            }
-
-            // TODO: run full res on good ones
-
             // formula for generating tilt/phi values from ASIFT paper
             int tiltIdx, phiIdx;
             for (tiltIdx = 1; tiltIdx < 6; tiltIdx++)
             {
-                double tilt = Math.Pow(2, tiltIdx / 2.0);
-                double deltaPhi = 72.0 / tilt;
-                int numPhiSteps = (int)Math.Ceiling(180 / deltaPhi);
+                // paper suggests latitude sampling such that the tilts follow a geometric series:
+                // 1,a, a^2, a^3 ... a^n. they recommend a = sqrt(2)
+                double tilt = Math.Pow(2, tiltIdx / 2.0);                   //paper: t
+
+                // paper suggests phi follow an arithmetic series 0, b/t, .... kb/t
+                // where b = 72degrees and k is the last integer such that kb/t < 180 deg
+                double deltaPhiDegrees = 72.0 / tilt;                       //paper: b/t
+                int numPhiSteps = Math.Max(1,(int)(179 / deltaPhiDegrees)); //paper: k
+
                 for (phiIdx = 0; phiIdx < numPhiSteps; phiIdx++)
                 {
-                    double phi = phiIdx * deltaPhi;
-
-                    Image<Gray, byte> skewImage, skewMask;
+                    double phiDegrees = phiIdx * deltaPhiDegrees;
+                    
                     Matrix<float> A;
-                    AffineSkew(tilt, phi * Math.PI / 180, image, mask, out skewImage, out skewMask, out A);
-
-                    float det = A[0, 0] * A[1, 1] - A[0, 1] * A[1, 0];
-                    Matrix<float> Ai = InvertAffine(A);
+                    Image<Gray, byte> skewImage, skewMask;
+                    AffineSkew(tilt, MathHelper.ToRadians(phiDegrees), image, mask, out skewImage, out skewMask, out A);
+                    
+                    Matrix<float> Ai = new Matrix<float>(2, 3);
+                    Emgu.CV.CvInvoke.InvertAffineTransform(A, Ai);
 
                     foreach (SIFTFeature feat in DetectSIFT(skewImage, skewMask))
                     {
@@ -191,13 +262,13 @@ namespace OPS.Alignment
                         double fy = feat.Location.Y;
                         double newX = fx * Ai[0, 0] + fy * Ai[0, 1] + Ai[0, 2];
                         double newY = fx * Ai[1, 0] + fy * Ai[1, 1] + Ai[1, 2];
-                        if (newX < 0 || newY < 0)
-                        {
+
+                        if (!TestValidFeature(mask, new PointF((float)newX, (float)newY), (float)feat.Size))
                             continue;
-                        }
+
                         yield return new SIFTFeature(
-                            new Vector2(newX, newY) / scale,
-                            feat.Size / scale,
+                            new Vector2(newX, newY),
+                            feat.Size,
                             feat.Angle,
                             feat.Octave,
                             feat.Response,
@@ -207,50 +278,5 @@ namespace OPS.Alignment
                 }
             }
         }
-
-        #region Internal helpers
-        static Vector2 Rotate(Vector2 pt, double theta)
-        {
-            double sin = Math.Sin(theta),
-                   cos = Math.Cos(theta);
-            return new Vector2(
-                cos * pt.X - sin * pt.Y,
-                sin * pt.X + cos * pt.Y
-                );
-        }
-
-        static Matrix<float> InvertAffine(Matrix<float> A)
-        {
-            Matrix<float> bigger = new Matrix<float>(3, 3);
-            int i, j;
-            for (i = 0; i < 2; i++)
-            {
-                for (j = 0; j < 3; j++)
-                {
-                    bigger[i, j] = A[i, j];
-                }
-            }
-            bigger[2, 2] = 1;
-            Matrix<float> inv = new Matrix<float>(3, 3);
-            CvInvoke.Invert(bigger, inv, DecompMethod.Svd);
-            Matrix<float> res = new Matrix<float>(2, 3);
-            for (i = 0; i < 2; i++)
-            {
-                for (j = 0; j < 3; j++)
-                {
-                    res[i, j] = inv[i, j];
-                }
-            }
-            return res;
-        }
-
-        Vector2 ApplyAffine(Vector2 pt, Matrix<float> A)
-        {
-            return new Vector2(
-                pt.X * A[0, 0] + pt.Y * A[0, 1] + A[0, 2],
-                pt.Y * A[1, 0] + pt.Y * A[1, 1] + A[1, 2]
-                );
-        }
-        #endregion
     }
 }
