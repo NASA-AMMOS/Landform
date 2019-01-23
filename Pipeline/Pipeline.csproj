@@ -176,13 +176,13 @@
     <Compile Include="Alignment\DetectFeatures.cs" />
     <Compile Include="Alignment\DetectOverlaps.cs" />
     <Compile Include="Alignment\IngestImage.cs" />
-    <Compile Include="Alignment\IngestPDSImage.cs" />
     <Compile Include="Commands\BenchmarkS3.cs" />
     <Compile Include="Commands\LegacyToTile3D.cs" />
     <Compile Include="Commands\TileLocalMesh.cs" />
     <Compile Include="MeshWorker\Commands\TextureMeshCommand.cs" />
     <Compile Include="MeshWorker\Operations\BuildBackprojectLeaves.cs" />
     <Compile Include="MeshWorker\Operations\BuildTilingInput.cs" />
+    <Compile Include="Rover\IngestPDSImage.cs" />
     <Compile Include="Rover\MSLCloud.cs" />
     <Compile Include="StateMachines\GenericTilingStateMachine.cs" />
     <Compile Include="StateMachines\MSLStateMachine.cs" />
