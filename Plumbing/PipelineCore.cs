@@ -43,6 +43,7 @@ namespace OPS.Plumbing
 
         private StorageHelper defaultStorage;
         private Dictionary<string, StorageHelper> storageSelecter = new Dictionary<string, StorageHelper>();
+        private LRUCache<ImageRef, Image> imageCache = null;
 
         public PipelineCore(PipelineCoreOptions options, string dynamoPrefix = "", string awsProfile = null,
                             bool enableS3 = true, bool enableDynamo = true,
@@ -187,7 +188,26 @@ namespace OPS.Plumbing
         {
             return Load(imgRef, true);
         }
-        private LRUCache<ImageRef, Image> imageCache = null;
+
+        public void GetStream(ImageRef imgRef, StorageHelper.StreamHandler handler)
+        {
+            if (imgRef is S3ImageRef)
+            {
+                var url = (imgRef as S3ImageRef).Url;
+                Storage(url).GetStorageStream(url, handler);
+            }
+            else if (imgRef is DiskImageRef)
+            {
+                using (FileStream fs = File.OpenRead((imgRef as DiskImageRef).Path))
+                {
+                    handler(fs);
+                }
+            }
+            else
+            {
+                throw new Exception(string.Format("unhandled image ref type {0}", imgRef.GetType().Name));
+            }
+        }
 
         /// <summary>
         /// Get a project by name.

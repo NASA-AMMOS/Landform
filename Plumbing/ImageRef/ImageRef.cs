@@ -10,6 +10,7 @@ namespace OPS.Plumbing
 {
     public abstract class ImageRef
     {
+        public string Url { get; protected set; }
         public abstract string DisplayName { get; }
         public abstract Image Load(PipelineCore pipeline);
         public abstract Image Load(PipelineCore pipeline, IImageConverter imageConverter);

@@ -15,11 +15,6 @@ namespace OPS.Plumbing
             Url = url;
         }
 
-        /// <summary>
-        /// S3 URL containing the image.
-        /// </summary>
-        public readonly string Url;
-
         Image image;
         public override Image Load(PipelineCore pipeline)
         {

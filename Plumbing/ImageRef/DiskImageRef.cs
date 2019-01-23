@@ -16,6 +16,7 @@ namespace OPS.Plumbing
         internal readonly int PathHashCode;
         public DiskImageRef(string path)
         {
+            Url = "file://" + path;
             Path = path;
             PathHashCode = Path.GetHashCode();
         }

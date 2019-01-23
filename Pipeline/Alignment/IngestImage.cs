@@ -42,6 +42,6 @@ namespace OPS.Pipeline
             }
         }
 
-        public abstract Result Ingest(S3ImageRef imgRef);
+        public abstract Result Ingest(ImageRef imgRef);
     }
 }

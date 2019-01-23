@@ -14,7 +14,7 @@ namespace OPS.Pipeline
     public class IngestPDSImage : IngestImage
     {
         public readonly string projectName;
-        MSLLocations locations;
+        private MSLLocations locations;
 
         public IngestPDSImage(PipelineCore pipeline, MSLLocations locations, string projectName) : base(pipeline)
         {
@@ -73,11 +73,11 @@ namespace OPS.Pipeline
         }
 
         /// <summary>
-        /// Mostly just confirms what ShouldDownloadHeader did using metadata instead of the filename
+        /// Mostly just confirms what CheckFilename did using metadata instead of the filename
         /// </summary>
         /// <param name="parser"></param>
         /// <returns></returns>
-        bool ShouldIndexBasedOnMetadata(PDSParser parser)
+        bool CheckMetadata(PDSParser parser)
         {
             return productTypeToObservationType.ContainsKey(parser.DerivedImageType) &&
                     parser.ImageSizeType == RoverProductSize.Regular;
@@ -201,7 +201,7 @@ namespace OPS.Pipeline
         private double halfDegSqr = Math.Pow(0.5 * Math.PI / 180, 2);
         private double degSqr = Math.Pow(Math.PI / 180, 2);
 
-        public override Result Ingest(S3ImageRef imgRef)
+        public override Result Ingest(ImageRef imgRef)
         {
             if (imgRef is ObservationImageRef)
             {
@@ -216,18 +216,15 @@ namespace OPS.Pipeline
 
             // Fetch image and check metadata
             PDSMetadata metadata = null;
-            this.Pipeline.Storage(imgRef.Url).GetStorageStream(imgRef.Url, stream =>
-            {
-                metadata = new PDSMetadata(stream);
-            });
-
+            Pipeline.GetStream(imgRef, stream => { metadata = new PDSMetadata(stream); });
+            
             if (metadata == null)
             {
                 return new Result(Status.Failed, null);
             }
 
             PDSParser parser = new PDSParser(metadata);
-            if (!ShouldIndexBasedOnMetadata(parser))
+            if (!CheckMetadata(parser))
             {
                 return new Result(Status.Skipped, null);
             }
@@ -241,8 +238,6 @@ namespace OPS.Pipeline
             {
                 return new Result(Status.Skipped, null);
             }
-
-            bool useForReconstruction = UseForReconstruction(parser, metadata);
 
             // Create database entries
             Project project = Project.Find(Pipeline.DynamoContext, projectName);
