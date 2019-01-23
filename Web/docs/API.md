@@ -16,6 +16,7 @@ Accepts the following arugments:
 * *projecttype*: project type; one of `GenericTiling` or `MSL`, default `GenericTiling`.
 * *exportmeshformat*: additional mesh format to write, one of `obj`, `ply`, `stl`, or none; default none
 * *exportimageformat*: additional image format to write, one of `tif`, `png`, `jpg`, or none; default none
+* *maxleafgroupsize*: maximum number of leaves to process as a group; default 32
 
 Fails with HTTP status 400 (bad request) if a project with the same name already exists.
 
