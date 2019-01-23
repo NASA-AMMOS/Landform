@@ -13,13 +13,13 @@ namespace OPS.Pipeline
 {
     public class IngestPDSImage : IngestImage
     {
-        public readonly string project_name;
+        public readonly string projectName;
         MSLLocations locations;
 
-        public IngestPDSImage(PipelineCore output_pipeline, string project_name = "MSL") : base(output_pipeline)
+        public IngestPDSImage(PipelineCore pipeline, MSLLocations locations, string projectName) : base(pipeline)
         {
-            locations = new MSLLocations();
-            this.project_name = project_name;
+            this.locations = locations;
+            this.projectName = projectName;
         }
 
         /// <summary>
@@ -245,7 +245,7 @@ namespace OPS.Pipeline
             bool useForReconstruction = UseForReconstruction(parser, metadata);
 
             // Create database entries
-            Project project = Project.Find(Pipeline.DynamoContext, project_name);
+            Project project = Project.Find(Pipeline.DynamoContext, projectName);
             if (project == null)
             {
                 throw new CloudException("Project does not exist");

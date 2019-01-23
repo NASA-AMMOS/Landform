@@ -77,7 +77,7 @@ namespace PairViewer
             InitializeComponent();
             Pipeline = new PipelineCore(new PipelineCoreOptions(), enableS3: false, enableDynamo: false, s3Url: "");
 
-            Locations = new MSLLocations();
+            Locations = MSLLocations.LoadFromUrl();
             Scene = new AlignmentScene();
             ModelView = new ImageView(ModelPictureBox);
             DataView = new ImageView(DataPictureBox);

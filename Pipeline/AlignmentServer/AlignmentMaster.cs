@@ -91,7 +91,7 @@ namespace OPS.Pipeline.AlignmentServer
                 )));
 
             var inFolder = Master.Project.InputPath;
-            IngestPDSImage ingester = new IngestPDSImage(Master, Master.Options.ProjectName);
+            IngestPDSImage ingester = new IngestPDSImage(Master, MSLLocations.LoadFromUrl(), Master.Options.ProjectName);
             Parallel.ForEach(Master.Storage(inFolder).SearchObjects(inFolder, "*.IMG", false), url =>
             {
                 var res = ingester.Ingest(new S3ImageRef(url));
