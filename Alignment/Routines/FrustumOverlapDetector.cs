@@ -49,7 +49,7 @@ namespace OPS.Alignment
                         }
                         catch
                         {
-                            var img = GetImage(imgRef);
+                            var img = Pipeline.Load(imgRef);
                             chc.Hull = ConvexHull.FromImage(img);
                         }
                     }

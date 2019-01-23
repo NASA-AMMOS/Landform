@@ -10,35 +10,11 @@ namespace OPS.Plumbing
 {
     public class PipelineRoutine
     {
-        public PipelineCore Pipeline;
+        public readonly PipelineCore Pipeline;
+
         public PipelineRoutine(PipelineCore pipeline)
         {
             Pipeline = pipeline;
-        }
-
-        public Image GetImage(ImageRef image)
-        {
-            return Pipeline.Load(image);
-        }
-        public ImageMetadata GetMetadata(ImageRef image)
-        {
-            return GetImage(image).Metadata;
-        }
-
-        public T Get<T>(string project, Guid guid, bool useCache = true) where T : DataProduct, new()
-        {
-            return Pipeline.Get<T>(project, guid, useCache);
-        }
-
-
-        public void Save(string project, DataProduct product, bool useCache = true)
-        {
-            Pipeline.Save(project, product, useCache);
-        }
-
-        public DynamoDBContext DynamoDB
-        {
-            get { return Pipeline.DynamoContext; }
         }
     }
 }

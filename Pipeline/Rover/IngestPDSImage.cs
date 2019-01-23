@@ -245,22 +245,22 @@ namespace OPS.Pipeline
             bool useForReconstruction = UseForReconstruction(parser, metadata);
 
             // Create database entries
-            Project project = Project.Find(DynamoDB, project_name);
+            Project project = Project.Find(Pipeline.DynamoContext, project_name);
             if (project == null)
             {
                 throw new CloudException("Project does not exist");
             }
 
             // Create frames for this observation if necessary
-            Frame rootFrame = Frame.Find(DynamoDB, project.Name, MSLProject.ROOT_FRAME_NAME);
+            Frame rootFrame = Frame.Find(Pipeline.DynamoContext, project.Name, MSLProject.ROOT_FRAME_NAME);
             if (rootFrame == null)
             {
                 throw new Exception("Root frame does not exist");
             }
-            Frame siteDriveFrame = Frame.FindOrCreate(DynamoDB, project, SiteDriveFrameName(parser), rootFrame);
-            Frame observationFrame = Frame.FindOrCreate(DynamoDB, project, ObservationFrameName(parser), siteDriveFrame);
+            Frame siteDriveFrame = Frame.FindOrCreate(Pipeline.DynamoContext, project, SiteDriveFrameName(parser), rootFrame);
+            Frame observationFrame = Frame.FindOrCreate(Pipeline.DynamoContext, project, ObservationFrameName(parser), siteDriveFrame);
 
-            if (FrameTransform.Find(DynamoDB, observationFrame) == null)
+            if (FrameTransform.Find(Pipeline.DynamoContext, observationFrame) == null)
             {
                 // TODO: examine values here
                 var covariance = CreateMatrix.Diagonal<double>(new double[] { 0.01, 0.01, 0.01, quarterDegSqr, quarterDegSqr, halfDegSqr });
@@ -268,11 +268,11 @@ namespace OPS.Pipeline
                 // Create a transform that goes from observation frame (aka rover) to site drive frame (aka local level)
                 Quaternion roverToLocalLevel = parser.RoverOriginRotation;
                 UncertainRigidTransform observationToSiteDriveTransform = new UncertainRigidTransform(Matrix.CreateFromQuaternion(roverToLocalLevel), covariance);
-                FrameTransform observationToSiteDrive = FrameTransform.Create(DynamoDB, observationFrame, observationToSiteDriveTransform);
+                FrameTransform observationToSiteDrive = FrameTransform.Create(Pipeline.DynamoContext, observationFrame, observationToSiteDriveTransform);
 
-                TransformPrior o2sdP = TransformPrior.Create(DynamoDB, observationFrame, observationToSiteDriveTransform);
+                TransformPrior o2sdP = TransformPrior.Create(Pipeline.DynamoContext, observationFrame, observationToSiteDriveTransform);
                 observationFrame.PriorIds.Add(o2sdP.Id);
-                observationFrame.Save(DynamoDB);
+                observationFrame.Save(Pipeline.DynamoContext);
             }
             // Create a transform that goes from site drive frame to root frame
 
@@ -282,24 +282,24 @@ namespace OPS.Pipeline
                 throw new Exception("site drive transform does not exist");
             }
 
-            if (FrameTransform.Find(DynamoDB, siteDriveFrame) == null)
+            if (FrameTransform.Find(Pipeline.DynamoContext, siteDriveFrame) == null)
             {
                 // TODO: examine values here
                 var covariance = CreateMatrix.Diagonal<double>(new double[] { 8, 8, 8, 5 * degSqr, 5 * degSqr, 5 * degSqr });
                 UncertainRigidTransform transform = new UncertainRigidTransform(Matrix.CreateTranslation(loc.Position), covariance);
-                FrameTransform siteDriveToRoot = FrameTransform.Create(DynamoDB, siteDriveFrame, transform);
-                TransformPrior sd2rP = TransformPrior.Create(DynamoDB, siteDriveFrame, transform);
+                FrameTransform siteDriveToRoot = FrameTransform.Create(Pipeline.DynamoContext, siteDriveFrame, transform);
+                TransformPrior sd2rP = TransformPrior.Create(Pipeline.DynamoContext, siteDriveFrame, transform);
                 siteDriveFrame.PriorIds.Add(sd2rP.Id);
-                siteDriveFrame.Save(DynamoDB);
+                siteDriveFrame.Save(Pipeline.DynamoContext);
             }
 
             string observationName = ObservationName(parser);
-            Observation observation = RoverObservation.Find(DynamoDB, project.Name, observationName);
+            Observation observation = RoverObservation.Find(Pipeline.DynamoContext, project.Name, observationName);
             if (observation == null)
             {
                 string cameraModel = JsonHelper.ToJson(metadata.CameraModel);
                 string url = imgRef.Url;
-                observation = RoverObservation.Create(DynamoDB, observationFrame, observationName, url, productTypeToObservationType[parser.DerivedImageType].ToString(), cameraModel, UseForReconstruction(parser, metadata), parser.Site, parser.Drive, parser.ProductId.Version, parser.Camera.ToString(), parser.ImageSizeType.ToString(), parser.ProducingInstitution.ToString(), metadata.Width, metadata.Height);
+                observation = RoverObservation.Create(Pipeline.DynamoContext, observationFrame, observationName, url, productTypeToObservationType[parser.DerivedImageType].ToString(), cameraModel, UseForReconstruction(parser, metadata), parser.Site, parser.Drive, parser.ProductId.Version, parser.Camera.ToString(), parser.ImageSizeType.ToString(), parser.ProducingInstitution.ToString(), metadata.Width, metadata.Height);
                 if (observation != null) {
                     return new Result(Status.Added, observation);
                 }

@@ -46,8 +46,8 @@ namespace OPS.Alignment
                 dataRef = pair.One;
             }
 
-            Image model = GetImage(modelRef);
-            Image data = GetImage(dataRef);
+            Image model = Pipeline.Load(modelRef);
+            Image data = Pipeline.Load(dataRef);
 
             ImageFeature[] modelFeatures = scene.DetectedFeatures[modelRef];
             ImageFeature[] dataFeatures = scene.DetectedFeatures[dataRef];

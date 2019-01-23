@@ -61,7 +61,7 @@ namespace OPS.Pipeline
             // Find real root
             while (rootFrame.ParentName != null && frameToNode.ContainsKey(rootFrame.ParentName))
             {
-                rootFrame = Frame.Find(DynamoDB, project, rootFrame.ParentName);
+                rootFrame = Frame.Find(Pipeline.DynamoContext, project, rootFrame.ParentName);
             }
             scene.Root = frameToNode[rootFrame.Name];
 

@@ -47,7 +47,7 @@ namespace OPS.Pipeline
         {
             ImageFeature[] features;
 
-            Imaging.Image img = GetImage(new ObservationImageRef(obs));
+            Imaging.Image img = Pipeline.Load(new ObservationImageRef(obs));
             Imaging.Image mask = null; //(obs.MaskGuid != Guid.Empty) ? Pipeline.Get<ImageDataProduct>(obs.ProjectName, obs.MaskGuid).Image : null;
 
             if (Detector == FeatureDetector.PCASIFT)

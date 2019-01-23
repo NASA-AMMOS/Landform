@@ -75,8 +75,8 @@ namespace OPS.Alignment
             var dataToModelOld = dataToWorld.TimesInverse(modelToWorld);
             UncertainRigidTransform dataToModel = dataNode.GetOrAddComponent<NodeUncertainTransform>().To(modelNode);
 
-            var modelImg = GetImage(matches.ModelImage);
-            var dataImg = GetImage(matches.DataImage);
+            var modelImg = Pipeline.Load(matches.ModelImage);
+            var dataImg = Pipeline.Load(matches.DataImage);
             var modelCam = modelImg.CameraModel;
             var dataCam = dataImg.CameraModel;
 
