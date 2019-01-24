@@ -21,13 +21,13 @@ namespace OPS.Pipeline.AlignmentServer
     [Verb("start-align-master", HelpText = "Runs an alignment workflow")]
     public class StartAlignMasterOptions : PipelineCoreOptions
     {
-        [Value(0, Required = true, HelpText = "Name of project to create")]
+        [Value(0, Required = true, HelpText = "Name of project")]
         public string ProjectName { get; set; }
 
-        [Value(1, Required = true, HelpText = "Input path")]
+        [Option(HelpText = "Input path", Default = null)]
         public string InputPath { get; set; }
 
-        [Value(2, Required = true, HelpText = "Product path")]
+        [Option(HelpText = "Product path", Default = null)]
         public string ProductPath { get; set; }
 
         [Option(HelpText = "Optional directory to save debug output files to", Default = null)]
@@ -90,8 +90,16 @@ namespace OPS.Pipeline.AlignmentServer
                 CreateVector.Dense<double>(6), CreateMatrix.Dense<double>(6, 6)
                 )));
 
-            var inFolder = Master.Project.InputPath;
             IngestPDSImage ingester = new IngestPDSImage(Master, MSLLocations.LoadFromUrl(), Master.Options.ProjectName);
+
+            var inFolder = Master.Project.InputPath;
+            //search objects will return 0 objects if slash is not postfixed
+            // not requesting recursively, which means it is using slash delimiter
+            if (!inFolder.EndsWith("/"))
+            {
+                inFolder += "/";
+            }
+
             Parallel.ForEach(Master.SearchFiles(inFolder, "*.IMG", false), url =>
             {
                 var res = ingester.Ingest(new S3ImageRef(url));
@@ -378,6 +386,9 @@ namespace OPS.Pipeline.AlignmentServer
 
         private Task workerTask = null;
 
+        //TODO for now use the more developed config implementation from TileServer
+        //https://github.jpl.nasa.gov/OnSight/Landform/issues/292
+
         public AlignmentMaster(StartAlignMasterOptions options)
             : base(options, TileServerConfig.Instance.VenueName, TileServerConfig.Instance.Profile)
         {
@@ -385,11 +396,14 @@ namespace OPS.Pipeline.AlignmentServer
             Options.RedoFeatures |= Options.RedoMasks;
             ObservationStates = new ConcurrentDictionary<ImageRef, ImageState>();
 
-            //search objects will return 0 objects if slash is not postfixed
-            // not requesting recursively, which means it is using slash delimiter
-            if (!Options.InputPath.EndsWith("/"))
+            if (string.IsNullOrEmpty(options.InputPath))
             {
-                Options.InputPath = Options.InputPath + "/";
+                options.InputPath = TileServerConfig.Instance.GetUrl("alignment/images", options.ProjectName);
+            }
+
+            if (string.IsNullOrEmpty(options.ProductPath))
+            {
+                options.ProductPath = TileServerConfig.Instance.GetUrl("alignment/products", options.ProjectName);
             }
 
             //MSL Specific
