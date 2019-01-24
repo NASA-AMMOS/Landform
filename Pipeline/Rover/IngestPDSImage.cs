@@ -204,11 +204,6 @@ namespace OPS.Pipeline
 
         public override Result Ingest(ImageRef imgRef)
         {
-            if (imgRef is ObservationImageRef)
-            {
-                throw new InvalidOperationException("hey now, let's not get *too* weird");
-            }
-
             // Parse the filename to quickly rule out data products we know we don't care about.
             if (!CheckFilename(imgRef.DisplayName))
             {
