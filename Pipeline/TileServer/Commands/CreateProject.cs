@@ -46,6 +46,9 @@ namespace OPS.Pipeline.TileServer
 
         [Option(Default = false, HelpText = "do not wait until project has been created")]
         public bool NoWait { get; set; }
+
+        [Option(Default = 32, HelpText = "maximum number of leaves to process as a group")]
+        public int MaxLeafGroupSize { get; set; }
     }
 
     public class CreateProject : PipelineCore
@@ -136,9 +139,10 @@ namespace OPS.Pipeline.TileServer
                                           TileResolution = options.TileResolution,
                                           ProjectType = options.ProjectType.ToString(),
                                           ExportMeshFormat = exMeshFmt,
-                                          ExportImageFormat = exImageFmt 
+                                          ExportImageFormat = exImageFmt,
+                                          MaxLeafGroupSize = options.MaxLeafGroupSize
                                       });
-
+            
             if (!options.NoWait)
             {
                 Logger.InfoFormat("waiting for project \"{0}\" to be created", options.ProjectName);

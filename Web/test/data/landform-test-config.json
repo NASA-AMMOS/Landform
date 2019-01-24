@@ -16,7 +16,7 @@
     ,"07-position-only"
     ,"08-large-texture"
     ,"09-large-mesh"
-    //,"10-large-export" //https://github.jpl.nasa.gov/OnSight/Landform/issues/98
+    ,"10-large-export"
     ,"11-small"
     ,"12-x4"
     //,"13-x" //https://github.jpl.nasa.gov/OnSight/Landform/issues/{337,338,339}
