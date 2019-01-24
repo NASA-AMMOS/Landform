@@ -154,10 +154,7 @@ namespace OPS.Pipeline.AlignmentServer
 
         public static IEnumerable<Overlap> Find(PipelineCore pipeline, string projectName)
         {
-            return pipeline.ScanDatabase<Overlap>(new Dictionary<string, string>()
-                                                  {
-                                                      { "ProjectName", projectName }
-                                                  });
+            return pipeline.ScanDatabase<Overlap>("ProjectName", projectName);
         }
 
         /// <summary>

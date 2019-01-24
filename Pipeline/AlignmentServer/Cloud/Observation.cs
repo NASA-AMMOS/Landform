@@ -132,28 +132,17 @@ namespace OPS.Pipeline.AlignmentServer
 
         public static IEnumerable<Observation> Find(PipelineCore pipeline, string projectName)
         {
-            return pipeline.ScanDatabase<Observation>(new Dictionary<string, string>()
-                                                      {
-                                                          { "ProjectName", projectName }
-                                                      });
+            return pipeline.ScanDatabase<Observation>("ProjectName", projectName);
         }
 
         public static IEnumerable<Observation> Find(PipelineCore pipeline, Frame frame)
         {
-            return pipeline.ScanDatabase<Observation>(new Dictionary<string, string>()
-                                                      {
-                                                          { "ProjectName", frame.ProjectName},
-                                                          { "FrameName", frame.Name}
-                                                      });
+            return pipeline.ScanDatabase<Observation>("ProjectName", frame.ProjectName, "FrameName", frame.Name);
         }
 
         public static IEnumerable<Observation> FindByType(PipelineCore pipeline, string projectName, string observationType)
         {
-            return pipeline.ScanDatabase<Observation>(new Dictionary<string, string>()
-                                                      {
-                                                          { "ProjectName", projectName },
-                                                          { "ObservationType", observationType }
-                                                      });
+            return pipeline.ScanDatabase<Observation>("ProjectName", projectName, "ObservationType", observationType); 
         }
     }
 }

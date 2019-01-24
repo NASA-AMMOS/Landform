@@ -50,11 +50,7 @@ namespace OPS.Pipeline.AlignmentServer
         /// </summary>
         public static IEnumerable<FrameGeohash> Find(PipelineCore pipeline, Frame frame)
         {
-            return pipeline.ScanDatabase<FrameGeohash>(new Dictionary<string, string>()
-                                                       {
-                                                           { "ProjectName", frame.ProjectName },
-                                                           { "FrameName", frame.Name }
-                                                       });
+            return pipeline.ScanDatabase<FrameGeohash>("ProjectName", frame.ProjectName, "FrameName", frame.Name);
         }
 
         /// <summary>
@@ -62,12 +58,8 @@ namespace OPS.Pipeline.AlignmentServer
         /// </summary>
         public static IEnumerable<FrameGeohash> Find(PipelineCore pipeline, SpatialIndex index, Frame frame)
         {
-            return pipeline.ScanDatabase<FrameGeohash>(new Dictionary<string, string>()
-                                                       {
-                                                           { "ProjectName", frame.ProjectName },
-                                                           { "SpatialIndexId", index.Id },
-                                                           { "FrameName", frame.Name }
-                                                       });
+            return pipeline.ScanDatabase<FrameGeohash>("ProjectName", frame.ProjectName, "SpatialIndexId", index.Id,
+                                                       "FrameName", frame.Name);
         }
 
         /// <summary>
@@ -81,12 +73,8 @@ namespace OPS.Pipeline.AlignmentServer
         {
             foreach (var prefix in index.Geohash.Overlapping(bounds.Min.ToDoubleArray(), bounds.Max.ToDoubleArray(), index.MaxPrecision))
             {
-                foreach (var geohash in
-                         pipeline.ScanDatabase<FrameGeohash>(new Dictionary<string, string>()
-                                                             {
-                                                                 { "SpatialIndexId", index.Id },
-                                                                 { "Geohash", "^" + prefix }
-                                                             }))
+                var res = pipeline.ScanDatabase<FrameGeohash>("SpatialIndexId", index.Id, "Geohash", "^"+prefix);
+                foreach (var geohash in res)
                 {
                     yield return geohash;
                 }

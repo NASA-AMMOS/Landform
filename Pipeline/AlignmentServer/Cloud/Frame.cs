@@ -47,11 +47,7 @@ namespace OPS.Pipeline.AlignmentServer
 
         public IEnumerable<Frame> GetChildren(PipelineCore pipeline)
         {
-            return pipeline.ScanDatabase<Frame>(new Dictionary<string, string>()
-                                                {
-                                                    { "ProjectName", ProjectName },
-                                                    { "ParentName", Name }
-                                                });
+            return pipeline.ScanDatabase<Frame>("ProjectName", ProjectName, "ParentName", Name);
         }
 
         public Frame GetParent(PipelineCore pipeline)

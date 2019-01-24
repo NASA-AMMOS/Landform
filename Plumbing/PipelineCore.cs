@@ -185,6 +185,22 @@ namespace OPS.Plumbing
 
         public abstract IEnumerable<T> ScanDatabase<T>(Dictionary<string, string> conditions = null, string indexName = null);
 
+        public IEnumerable<T> ScanDatabase<T>(params string[] conditions)
+        {
+            if (conditions.Length%2 != 0)
+            {
+                throw new Exception("scan conditions must be key-value pairs");
+            }
+
+            Dictionary<string, string> dict = new Dictionary<string, string>();
+            for (int i = 0; i < conditions.Length/2; i++)
+            {
+                dict.Add(conditions[2*i + 0], conditions[2*i + 1]);
+            }
+
+            return ScanDatabase<T>(dict);
+        }
+
         //****************** Logging API *****************
 
         public void LogInfo(string msg, params Object[] args)

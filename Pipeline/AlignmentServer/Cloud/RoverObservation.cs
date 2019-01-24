@@ -94,19 +94,12 @@ namespace OPS.Pipeline.AlignmentServer
 
         new public static IEnumerable<RoverObservation> Find(PipelineCore pipeline, string projectName)
         {
-            return pipeline.ScanDatabase<RoverObservation>(new Dictionary<string, string>()
-                                                           {
-                                                               { "ProjectName", projectName }
-                                                           });
+            return pipeline.ScanDatabase<RoverObservation>("ProjectName", projectName);
         }
 
         new public static IEnumerable<RoverObservation> Find(PipelineCore pipeline, Frame frame)
         {
-            return pipeline.ScanDatabase<RoverObservation>(new Dictionary<string, string>()
-                                                           {
-                                                               { "ProjectName", frame.ProjectName },
-                                                               { "FrameName", frame.Name }
-                                                           });
+            return pipeline.ScanDatabase<RoverObservation>("ProjectName", frame.ProjectName, "FrameName", frame.Name);
         }
     }
 }

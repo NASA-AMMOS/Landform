@@ -102,10 +102,7 @@ namespace OPS.Pipeline.TileServer
             {
                 //fall back to scanning for all records that match the project name
                 //e.g. for legacy projects or if the project record is not well formed
-                return pipeline.ScanDatabase<TilingInput>(new Dictionary<string, string>()
-                                                          {
-                                                              { "ProjectName", project.Name }
-                                                          });
+                return pipeline.ScanDatabase<TilingInput>("ProjectName", project.Name);
             }
         }
 
