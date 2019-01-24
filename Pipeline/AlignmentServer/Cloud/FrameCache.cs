@@ -5,8 +5,9 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using OPS.Cloud;
 
-namespace OPS.Cloud
+namespace OPS.Pipeline.AlignmentServer
 {
     /// <summary>
     /// Caches frames keyed on name upon load from dynamodb if enabled (never deletes frames)

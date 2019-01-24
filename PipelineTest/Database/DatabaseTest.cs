@@ -11,13 +11,15 @@ using Amazon.DynamoDBv2.DocumentModel;
 using Amazon.DynamoDBv2.Model;
 using Amazon.DynamoDBv2;
 using Amazon;
+using OPS.Pipeline.AlignmentServer;
+using OPS.Plumbing;
 using OPS.Cloud;
 
 using Microsoft.Xna.Framework;
 
 using log4net;
 
-namespace CloudTest
+namespace PipelineTest
 {
     //This isn't intended to run with all the tests, since it requires a database connection
     //and won't clean up after itself. (it tries, but won't if it fails)

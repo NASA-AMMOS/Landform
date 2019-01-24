@@ -5,8 +5,9 @@ using System.Text;
 using System.Threading.Tasks;
 using Amazon.DynamoDBv2.DataModel;
 using Amazon.DynamoDBv2.DocumentModel;
+using OPS.Cloud;
 
-namespace OPS.Cloud
+namespace OPS.Pipeline.AlignmentServer
 {
     /// <summary>
     /// Represents an image or 3D shape measurement of the environment

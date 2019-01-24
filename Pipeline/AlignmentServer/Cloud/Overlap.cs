@@ -1,12 +1,13 @@
 ﻿using System;
 using System.Collections.Generic;
+using OPS.Cloud;
 
 using Amazon.DynamoDBv2.Model;
 using Amazon.DynamoDBv2.DataModel;
 using Amazon.DynamoDBv2.DocumentModel;
 using System.Linq;
 
-namespace OPS.Cloud
+namespace OPS.Pipeline.AlignmentServer
 {
     class OverlapName
     {

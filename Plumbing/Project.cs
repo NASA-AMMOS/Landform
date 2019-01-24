@@ -3,11 +3,12 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using OPS.Cloud;
 
 using Amazon.DynamoDBv2.DataModel;
 using Amazon.DynamoDBv2;
 
-namespace OPS.Cloud
+namespace OPS.Plumbing
 {
     /// <summary>
     /// A project specifies a container for a 3D reconstruction consiting of mutliple observations

@@ -2,6 +2,8 @@
 using OPS.Imaging;
 using OPS.Plumbing;
 using OPS.Util;
+using OPS.Alignment;
+using OPS.Pipeline.AlignmentServer;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -9,7 +11,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace OPS.Alignment
+namespace OPS.Pipeline
 {
     public class FrustumOverlapDetector : PipelineRoutine, IOverlapDetector
     {

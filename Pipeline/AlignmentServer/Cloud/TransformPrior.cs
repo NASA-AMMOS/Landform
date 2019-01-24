@@ -7,7 +7,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace OPS.Cloud
+namespace OPS.Pipeline.AlignmentServer
 {
     [DynamoDBTable("FrameTransformPriors")]
     public class TransformPrior

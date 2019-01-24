@@ -1,5 +1,5 @@
-﻿using OPS.Cloud;
-using OPS.Imaging;
+﻿using OPS.Imaging;
+using OPS.Plumbing;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -7,7 +7,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace OPS.Plumbing
+namespace OPS.Pipeline.AlignmentServer
 {
     public class ObservationImageRef : S3ImageRef
     {

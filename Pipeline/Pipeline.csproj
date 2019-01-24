@@ -168,6 +168,20 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="AlignmentServer\AlignmentMaster.cs" />
+    <Compile Include="AlignmentServer\Cloud\Frame.cs" />
+    <Compile Include="AlignmentServer\Cloud\FrameCache.cs" />
+    <Compile Include="AlignmentServer\Cloud\FrameGeohash.cs" />
+    <Compile Include="AlignmentServer\Cloud\FrameTransform.cs" />
+    <Compile Include="AlignmentServer\Cloud\Observation.cs" />
+    <Compile Include="AlignmentServer\Cloud\ObservationImageRef.cs" />
+    <Compile Include="AlignmentServer\Cloud\Overlap.cs" />
+    <Compile Include="AlignmentServer\Cloud\RoverObservation.cs" />
+    <Compile Include="AlignmentServer\Cloud\RoverObservationCache.cs" />
+    <Compile Include="AlignmentServer\Cloud\SpatialIndex.cs" />
+    <Compile Include="AlignmentServer\Cloud\SquareMatrixConverter.cs" />
+    <Compile Include="AlignmentServer\Cloud\TransformPrior.cs" />
+    <Compile Include="AlignmentServer\Cloud\Vector3Converter.cs" />
+    <Compile Include="AlignmentServer\Cloud\VectorNConverter.cs" />
     <Compile Include="AlignmentServer\Commands\CreateMask.cs" />
     <Compile Include="AlignmentServer\Commands\DetectFeatures.cs" />
     <Compile Include="AlignmentServer\Commands\MatchImages.cs" />
@@ -175,9 +189,11 @@
     <Compile Include="Alignment\BuildSceneGraph.cs" />
     <Compile Include="Alignment\DetectFeatures.cs" />
     <Compile Include="Alignment\DetectOverlaps.cs" />
+    <Compile Include="Alignment\FrustumOverlapDetector.cs" />
     <Compile Include="Alignment\IngestImage.cs" />
     <Compile Include="Commands\BenchmarkS3.cs" />
     <Compile Include="Commands\LegacyToTile3D.cs" />
+    <Compile Include="Commands\LocalIngest.cs" />
     <Compile Include="Commands\TileLocalMesh.cs" />
     <Compile Include="MeshWorker\Commands\TextureMeshCommand.cs" />
     <Compile Include="MeshWorker\Operations\BuildBackprojectLeaves.cs" />

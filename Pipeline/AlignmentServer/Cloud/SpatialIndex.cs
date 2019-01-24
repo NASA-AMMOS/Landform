@@ -7,9 +7,11 @@ using System.Threading.Tasks;
 using Amazon.DynamoDBv2.DataModel;
 using Amazon.DynamoDBv2.Model;
 using Microsoft.Xna.Framework;
+using OPS.Cloud;
+using OPS.Plumbing;
 using OPS.Geometry;
 
-namespace OPS.Cloud
+namespace OPS.Pipeline.AlignmentServer
 {
     [DynamoDBTable("SpatialIndex")]
     public class SpatialIndex

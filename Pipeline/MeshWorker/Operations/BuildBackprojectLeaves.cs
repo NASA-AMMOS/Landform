@@ -6,6 +6,7 @@ using System.Threading;
 using System.IO;
 using OPS.Pipeline;
 using OPS.Pipeline.TileServer;
+using OPS.Pipeline.AlignmentServer;
 using OPS.Geometry;
 using OPS.Plumbing;
 using OPS.Cloud;

@@ -5,6 +5,7 @@ using OPS.Geometry;
 using OPS.Imaging;
 using OPS.Plumbing;
 using OPS.Util;
+using OPS.Pipeline.AlignmentServer;
 using System;
 using System.Collections.Concurrent;
 using System.Linq;

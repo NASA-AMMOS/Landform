@@ -3,7 +3,7 @@ using Amazon.DynamoDBv2.DocumentModel;
 using MathNet.Numerics.LinearAlgebra;
 using Newtonsoft.Json;
 
-namespace OPS.Cloud
+namespace OPS.Pipeline.AlignmentServer
 {
     public class VectorNConverter : IPropertyConverter
     {

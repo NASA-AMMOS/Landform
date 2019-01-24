@@ -10,8 +10,9 @@ using Amazon.DynamoDBv2.Model;
 using Amazon.DynamoDBv2;
 using MathNet.Numerics.LinearAlgebra;
 using OPS.Geometry;
+using OPS.Cloud;
 
-namespace OPS.Cloud
+namespace OPS.Pipeline.AlignmentServer
 {
     public static class TransformSource
     {

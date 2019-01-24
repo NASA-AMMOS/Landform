@@ -8,7 +8,7 @@ using Amazon.DynamoDBv2.DataModel;
 using System.Runtime.InteropServices;
 using System.Threading;
 
-namespace OPS.Cloud
+namespace OPS.Pipeline.AlignmentServer
 {
     /// <summary>
     /// queries rover observations one by one with an overly safe throttling (assumes the actual read takes zero time)

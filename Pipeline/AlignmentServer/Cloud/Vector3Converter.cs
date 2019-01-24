@@ -10,7 +10,7 @@ using Amazon.DynamoDBv2.Model;
 using Microsoft.Xna.Framework;
 using Newtonsoft.Json;
 
-namespace OPS.Cloud
+namespace OPS.Pipeline.AlignmentServer
 {
     public class Vector3Converter : IPropertyConverter
     {

@@ -72,6 +72,7 @@
     <Compile Include="Geometry\BarycentricPoint.cs" />
     <Compile Include="Geometry\BoundingBoxExtensions.cs" />
     <Compile Include="Geometry\ConvexHull.cs" />
+    <Compile Include="Geometry\Geohash.cs" />
     <Compile Include="Geometry\MeshException.cs" />
     <Compile Include="Geometry\QuadricEdgeCollapse\Edge.cs" />
     <Compile Include="Geometry\QuadricEdgeCollapse\EdgeCollapse.cs" />

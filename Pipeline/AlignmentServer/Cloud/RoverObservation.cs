@@ -7,7 +7,9 @@ using System.Threading.Tasks;
 using Amazon.DynamoDBv2.DataModel;
 using Amazon.DynamoDBv2.DocumentModel;
 
-namespace OPS.Cloud
+using OPS.Cloud;
+
+namespace OPS.Pipeline.AlignmentServer
 {
     /// <summary>
     /// An observation with extra metadata specific to Mars rovers

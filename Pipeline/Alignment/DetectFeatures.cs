@@ -6,7 +6,7 @@ using System.Linq;
 using Amazon.EC2.Model;
 using System.Text;
 using System.Threading.Tasks;
-using OPS.Cloud;
+using OPS.Pipeline.AlignmentServer;
 
 namespace OPS.Pipeline
 {

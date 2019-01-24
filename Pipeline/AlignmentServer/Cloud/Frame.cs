@@ -3,12 +3,14 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using OPS.Cloud;
+using OPS.Plumbing;
 
 using Amazon.DynamoDBv2.DataModel;
 using Amazon.DynamoDBv2.Model;
 using Amazon.DynamoDBv2.DocumentModel;
 
-namespace OPS.Cloud
+namespace OPS.Pipeline.AlignmentServer
 {
 
     /// <summary>
