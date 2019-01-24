@@ -1,6 +1,7 @@
 ﻿using Amazon.DynamoDBv2.DataModel;
 using MathNet.Numerics.LinearAlgebra;
 using OPS.Geometry;
+using OPS.Plumbing;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -59,17 +60,16 @@ namespace OPS.Pipeline.AlignmentServer
             this.Transform = transform;
         }
         
-        public static TransformPrior Create(DynamoDBContext context, Frame frame, UncertainRigidTransform transform)
+        public static TransformPrior Create(PipelineCore pipeline, Frame frame, UncertainRigidTransform transform)
         {
             TransformPrior ft = new TransformPrior(Guid.NewGuid().ToString(), frame, transform);
-            context.Save(ft);
-
+            pipeline.DynamoContext.Save(ft);
             return ft;
         }
 
-        public static TransformPrior Find(DynamoDBContext context, string project, string id)
+        public static TransformPrior Find(PipelineCore pipeline, string project, string id)
         {
-            return context.Load<TransformPrior>(id, project);
+            return pipeline.DynamoContext.Load<TransformPrior>(id, project);
         }
     }
 }

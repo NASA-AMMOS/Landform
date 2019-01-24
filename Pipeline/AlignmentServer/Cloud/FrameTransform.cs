@@ -11,6 +11,7 @@ using Amazon.DynamoDBv2;
 using MathNet.Numerics.LinearAlgebra;
 using OPS.Geometry;
 using OPS.Cloud;
+using OPS.Plumbing;
 
 namespace OPS.Pipeline.AlignmentServer
 {
@@ -80,38 +81,47 @@ namespace OPS.Pipeline.AlignmentServer
             this.Covariance = transform.Distribution.Covariance;
         }
         
-        public static FrameTransform Create(DynamoDBContext context, Frame frame, UncertainRigidTransform transform)
+        public static FrameTransform Create(PipelineCore pipeline, Frame frame, UncertainRigidTransform transform)
         {
             //Now that the id has been saved to the lookup table, we are free to add the transform itself 
             FrameTransform ft = new FrameTransform(frame, transform);
-            context.Save(ft);
+            pipeline.DynamoContext.Save(ft);
 
             return ft;
         }
 
+        /// <summary>
+        /// Save this transform without overwriting any values it may be missing
+        /// </summary>
+        /// <param name=""></param>
+        public void Save(PipelineCore pipeline)
+        {
+            pipeline.DynamoContext.Save(this, new DynamoDBOperationConfig { IgnoreNullValues = true });
+        }
 
-        public static FrameTransform FindOrCreate(DynamoDBContext context, Frame frame, UncertainRigidTransform transform)
+
+        public static FrameTransform FindOrCreate(PipelineCore pipeline, Frame frame, UncertainRigidTransform transform)
         {
             // Try to find this project
-            FrameTransform frameTransform = Find(context, frame);
+            FrameTransform frameTransform = Find(pipeline, frame);
             if (frameTransform != null)
             {
                 return frameTransform;
             }
             // If it doesn't exist try to create it
-            frameTransform = Create(context, frame, transform);
+            frameTransform = Create(pipeline, frame, transform);
             if (frameTransform != null)
             {
                 return frameTransform;
             }
             // If our create failed someone else may have created one between our find and create calls
             // Look for it again.
-            return Find(context, frame);
+            return Find(pipeline, frame);
         }
 
-        public static FrameTransform Find(DynamoDBContext context, Frame frame)
+        public static FrameTransform Find(PipelineCore pipeline, Frame frame)
         {
-            return context.Load<FrameTransform>(frame.Name, frame.ProjectName);
+            return pipeline.DynamoContext.Load<FrameTransform>(frame.Name, frame.ProjectName);
         }
     }
 }

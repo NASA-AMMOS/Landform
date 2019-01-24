@@ -48,7 +48,7 @@ namespace OPS.Pipeline.TileServer
         {
             var cloud = new TileServerCloud(this, quiet: true);
 
-            var project = TilingProject.Find(DynamoContext, options.ProjectName);
+            var project = TilingProject.Find(this, options.ProjectName);
 
             if (project == null)
             {
@@ -126,7 +126,7 @@ namespace OPS.Pipeline.TileServer
                         return 2; //internal error
                     }
                     Thread.Sleep(SLEEP_MS);
-                    project = TilingProject.Find(DynamoContext, options.ProjectName);
+                    project = TilingProject.Find(this, options.ProjectName);
                 }
                 while (project.InputNames == null || !project.InputNames.Contains(name));
                 Logger.InfoFormat("intput \"{0}\" has been added to project \"{1}\"", name, options.ProjectName);

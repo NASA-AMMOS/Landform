@@ -46,12 +46,12 @@ namespace OPS.Pipeline.TileServer
         public void Process()
         {
             LogInfo("started batch of " + message.TileIds.Count + " leaf tiles");
-            var project = TilingProject.Find(pipeline.DynamoContext, message.ProjectName);
+            var project = TilingProject.Find(pipeline, message.ProjectName);
 
             List<TilingNode> leaves = new List<TilingNode>();
             foreach(var id in message.TileIds)
             {
-                leaves.Add(TilingNode.Find(pipeline.DynamoContext, project.Name, id));
+                leaves.Add(TilingNode.Find(pipeline, project.Name, id));
             }
             // Send completion messages for leaves that are already done
             foreach (var n in leaves)
@@ -70,14 +70,14 @@ namespace OPS.Pipeline.TileServer
                 return;
             }
             // Get a list of all chunks that overlap with a leaf tile
-            var inputs = TilingInput.Find(pipeline.DynamoContext, project).ToList();
+            var inputs = TilingInput.Find(pipeline, project).ToList();
             List<InputChunkGroup> inputGroups = new List<InputChunkGroup>();
             foreach (var input in inputs)
             {
                 var group = new InputChunkGroup() { Input = input };
                 foreach (var chunkId in input.ChunkIds)
                 {
-                    TilingInputChunk chunk = TilingInputChunk.Find(pipeline.DynamoContext, chunkId);
+                    TilingInputChunk chunk = TilingInputChunk.Find(pipeline, chunkId);
                     bool anyIntersect = leaves.Any(leaf => leaf.GetBounds().Intersects(chunk.GetBounds()));
                     if (anyIntersect)
                     {

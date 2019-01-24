@@ -40,8 +40,8 @@ namespace OPS.Pipeline.TileServer
         public void Process()
         {
             LogInfo("started building parent " + message.TileId);
-            var project = TilingProject.Find(pipeline.DynamoContext, message.ProjectName);
-            TilingNode parent = TilingNode.Find(pipeline.DynamoContext, project.Name, message.TileId);
+            var project = TilingProject.Find(pipeline, message.ProjectName);
+            TilingNode parent = TilingNode.Find(pipeline, project.Name, message.TileId);
             if (parent.MeshUrl != null)
             {
                 LogInfo("parent " + parent.Id + " already complete, skipping");
@@ -49,8 +49,7 @@ namespace OPS.Pipeline.TileServer
                 return;
             }
             ConcurrentDictionary<string, SceneNode> idToNode = new ConcurrentDictionary<string, SceneNode>();
-            var dependsOnTilingNodes = parent.DependsOn.Select(cid => TilingNode.Find(pipeline.DynamoContext,
-                                                                                      project.Name, cid));
+            var dependsOnTilingNodes = parent.DependsOn.Select(cid => TilingNode.Find(pipeline, project.Name, cid));
             Serial.ForEach(dependsOnTilingNodes, n =>
             {
                 SceneNode node = n.GetSceneNode();

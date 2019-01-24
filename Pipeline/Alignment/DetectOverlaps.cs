@@ -33,18 +33,18 @@ namespace OPS.Pipeline
             {
                 var first = toConsider.First();
                 project = first.ProjectName;
-                rootFrame = Frame.Find(Pipeline.DynamoContext, project, first.FrameName);
+                rootFrame = Frame.Find(Pipeline, project, first.FrameName);
             }
 
             Memoizer<string, SceneNode> frameToNode = null;
             frameToNode = new Memoizer<string, SceneNode>((fn) =>
             {
-                Frame f = Frame.Find(Pipeline.DynamoContext, project, fn);
+                Frame f = Frame.Find(Pipeline, project, fn);
                 NodeTransform parent = null;
                 if (f.ParentName != null) parent = frameToNode[f.ParentName].Transform;
                 SceneNode res = new SceneNode(f.Name, parent);
 
-                FrameTransform transform = FrameTransform.Find(Pipeline.DynamoContext, f);
+                FrameTransform transform = FrameTransform.Find(Pipeline, f);
                 NodeUncertainTransform nut = res.AddComponent<NodeUncertainTransform>();
                 nut.UncertainTransform = transform.Transform;
                 return res;
@@ -62,7 +62,7 @@ namespace OPS.Pipeline
             // Find real root
             while (rootFrame.ParentName != null && frameToNode.ContainsKey(rootFrame.ParentName))
             {
-                rootFrame = Frame.Find(Pipeline.DynamoContext, project, rootFrame.ParentName);
+                rootFrame = Frame.Find(Pipeline, project, rootFrame.ParentName);
             }
             scene.Root = frameToNode[rootFrame.Name];
 
@@ -76,7 +76,7 @@ namespace OPS.Pipeline
             {
                 var one = refToObservation[overlap.One];
                 var two = refToObservation[overlap.Two];
-                var steve = ThroughputManager.Run(() => Overlap.Create(Pipeline.DynamoContext, one, two));
+                var steve = ThroughputManager.Run(() => Overlap.Create(Pipeline, one, two));
                 if(steve != null)
                 {
                     yield return steve;

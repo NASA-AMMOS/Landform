@@ -34,7 +34,7 @@ namespace OPS.Pipeline.TileServer
         {
             var cloud = new TileServerCloud(this, quiet: true);
 
-            var project = TilingProject.Find(DynamoContext, options.ProjectName);
+            var project = TilingProject.Find(this, options.ProjectName);
             if (project == null)
             {
                 Logger.ErrorFormat("project \"{0}\" not found", options.ProjectName);

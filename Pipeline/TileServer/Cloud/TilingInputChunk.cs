@@ -41,17 +41,17 @@ namespace OPS.Pipeline.TileServer
         }
 
 
-        public static TilingInputChunk Create(DynamoDBContext context, string id, TilingProject project,
+        public static TilingInputChunk Create(PipelineCore pipeline, string id, TilingProject project,
                                               string meshUrl, string imageUrl, BoundingBox bounds)
         {
             TilingInputChunk chunk = new TilingInputChunk(id, meshUrl, imageUrl, bounds);
-            context.Save(chunk);
+            pipeline.DynamoContext.Save(chunk);
             return chunk;
         }
 
-        public static TilingInputChunk Find(DynamoDBContext context, string id)
+        public static TilingInputChunk Find(PipelineCore pipeline, string id)
         {
-            return context.Load<TilingInputChunk>(id);
+            return pipeline.DynamoContext.Load<TilingInputChunk>(id);
         }
 
         public void Delete(PipelineCore pipeline, bool ignoreErrors = true)

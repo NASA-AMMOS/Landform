@@ -216,7 +216,7 @@ namespace OPS.Plumbing
         /// <returns></returns>
         public Project GetProject(string name)
         {
-            return Project.Find(DynamoContext, name);
+            return Project.Find(this, name);
         }
 
         /// <summary>

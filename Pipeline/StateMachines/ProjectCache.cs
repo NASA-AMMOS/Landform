@@ -58,7 +58,7 @@ namespace OPS.Pipeline.TileServer
             Stopwatch sw = new Stopwatch();
             sw.Start();
 
-            var project = TilingProject.Find(pipeline.DynamoContext, projectName);
+            var project = TilingProject.Find(pipeline, projectName);
             if (project == null || !project.TilesDefined)
             {
                 throw new System.Exception("cannot initialize cache for " + projectName +

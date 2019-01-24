@@ -7,6 +7,7 @@ using System.Collections.Concurrent;
 using Amazon.DynamoDBv2.DataModel;
 using System.Runtime.InteropServices;
 using System.Threading;
+using OPS.Plumbing;
 
 namespace OPS.Pipeline.AlignmentServer
 {
@@ -17,13 +18,13 @@ namespace OPS.Pipeline.AlignmentServer
     {
         Dictionary<string, List<RoverObservation>> obsByFrame = new Dictionary<string, List<RoverObservation>>();
         
-        DynamoDBContext dynamoContext;
+        PipelineCore pipeline;
         string projectName;
         int sleepThrottleMS;
 
-        public RoverObservationCache(DynamoDBContext dynamoContext, string projectName, int estimatedItemSizeBytes, int tableReadCapacity)
+        public RoverObservationCache(PipelineCore pipeline, string projectName, int estimatedItemSizeBytes, int tableReadCapacity)
         {
-            this.dynamoContext = dynamoContext;
+            this.pipeline = pipeline;
             this.projectName = projectName;
             
             sleepThrottleMS = GetThrottleMS(estimatedItemSizeBytes, tableReadCapacity);
@@ -31,7 +32,7 @@ namespace OPS.Pipeline.AlignmentServer
 
         public void FillCache(bool onlyReconstructionObs)
         {
-            IEnumerable<RoverObservation> observations = RoverObservation.Find(this.dynamoContext, projectName);
+            IEnumerable<RoverObservation> observations = RoverObservation.Find(pipeline, projectName);
             foreach(var observation in observations)
             {
                 if(!onlyReconstructionObs || observation.UseForReconstruction)

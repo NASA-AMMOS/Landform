@@ -85,8 +85,8 @@ namespace OPS.Pipeline.AlignmentServer
         {
             Logger.Info("Preparing ingestion messages");
 
-            var rootFrame = Frame.FindOrCreate(Master.DynamoContext, Master.Project, MSLProject.ROOT_FRAME_NAME);
-            var rootTransform = FrameTransform.FindOrCreate(Master.DynamoContext, rootFrame, new UncertainRigidTransform(new MathExtensions.GaussianND(
+            var rootFrame = Frame.FindOrCreate(Master, Master.Project, MSLProject.ROOT_FRAME_NAME);
+            var rootTransform = FrameTransform.FindOrCreate(Master, rootFrame, new UncertainRigidTransform(new MathExtensions.GaussianND(
                 CreateVector.Dense<double>(6), CreateMatrix.Dense<double>(6, 6)
                 )));
 
@@ -159,7 +159,7 @@ namespace OPS.Pipeline.AlignmentServer
             var state = Master.ObservationStates[obj.Image];
             state.MaskGuid = obj.MaskGuid;
             state.Observation.MaskGuid = state.MaskGuid;
-            state.Observation.Save(Master.DynamoContext);
+            state.Observation.Save(Master);
 
             if (state.Observation.ObservationType == ObservationType.Image.ToString())
             {
@@ -189,7 +189,7 @@ namespace OPS.Pipeline.AlignmentServer
             state.FeaturesGuid = obj.FeaturesGuid;
             state.Observation.FeaturesGuid = state.FeaturesGuid;
             state.Observation.MaskGuid = state.MaskGuid;
-            state.Observation.Save(Master.DynamoContext);
+            state.Observation.Save(Master);
 
             IngestionCompleted.Add(obj.Image);
 
@@ -240,7 +240,7 @@ namespace OPS.Pipeline.AlignmentServer
             var sb = new BuildSceneGraph(Master);
 
             //BUGBUG: may cause non-image frames to keep a bad pose?!
-            var scene = sb.Build(Frame.Find(Master.DynamoContext, Master.Options.ProjectName, "root"), new BuildSceneGraph.Options()
+            var scene = sb.Build(Frame.Find(Master, Master.Options.ProjectName, "root"), new BuildSceneGraph.Options()
             {
                 GetTransform = sb.StandardFrameTransform,
                 IncludeObservation = (obs, _) => Master.ObservationStates.ContainsKey(new ObservationImageRef(obs)) && obs.ObservationType == ObservationType.Image.ToString()
@@ -286,12 +286,12 @@ namespace OPS.Pipeline.AlignmentServer
             state.Pair = new UnorderedImagePair(obj.ModelImage, obj.DataImage);
 
             // create db entry once all of the work is done - natural rate limiting
-            var dbOverlap = Overlap.Create(Master.DynamoContext, Master.ObservationStates[obj.ModelImage].Observation, Master.ObservationStates[obj.DataImage].Observation);
+            var dbOverlap = Overlap.Create(Master, Master.ObservationStates[obj.ModelImage].Observation, Master.ObservationStates[obj.DataImage].Observation);
             if (dbOverlap != null)
             {
                 dbOverlap.Status = (obj.CorrespondenceGuid != Guid.Empty) ? Overlap.StatusType.Matched : Overlap.StatusType.Rejected;
                 dbOverlap.MatchGuid = state.CorrespondenceGuid;
-                dbOverlap.TrySave(Master.DynamoContext);
+                dbOverlap.TrySave(Master);
             }
 
             computedOverlaps++;
@@ -301,7 +301,7 @@ namespace OPS.Pipeline.AlignmentServer
 
                 Logger.Info("Building scene graph for bundle adjustment");
                 var bsg = new BuildSceneGraph(Master);
-                Frame frame = Frame.Find(Master.DynamoContext, Master.Project.Name, MSLProject.ROOT_FRAME_NAME);
+                Frame frame = Frame.Find(Master, Master.Project.Name, MSLProject.ROOT_FRAME_NAME);
 
                 //BUGBUG: may cause non-images to have bad pose in frames?
                 AlignmentScene scene = bsg.Build(frame, new BuildSceneGraph.Options
@@ -322,14 +322,14 @@ namespace OPS.Pipeline.AlignmentServer
                 foreach (var adjNode in scene.Root.GetComponentsInTree<AdjustedNode>())
                 {
                     Logger.Info("Saving transform " + curPairIdx++ + " of " + numImagePairs + " adjusted image pairs");
-                    var f = Frame.Find(Master.DynamoContext, Master.Project.Name, adjNode.Node.Name);
-                    FrameTransform ft = FrameTransform.Find(Master.DynamoContext, f);
+                    var f = Frame.Find(Master, Master.Project.Name, adjNode.Node.Name);
+                    FrameTransform ft = FrameTransform.Find(Master, f);
                     Microsoft.Xna.Framework.Matrix bundleResult = adjNode.Node.Transform.Matrix;
                     if (ft.Transform.Mean != bundleResult)
                     {
                         ft.Transform = new UncertainRigidTransform(bundleResult, ft.Transform.Distribution.Covariance); 
                     }
-                    Master.DynamoContext.Save(ft);
+                    ft.Save(Master);
                 }
 
                 Master.CleanupTempDir();
@@ -402,7 +402,7 @@ namespace OPS.Pipeline.AlignmentServer
         {
             //ensure resources exist
             Cloud = new TileServerCloud(this);
-            Project = Project.FindOrCreate(DynamoContext, Options.ProjectName, Options.ProductPath, Options.InputPath);
+            Project = Project.FindOrCreate(this, Options.ProjectName, Options.ProductPath, Options.InputPath);
 
             //optionally start the worker (useful for debugging)
             if (Options.StartWorker)

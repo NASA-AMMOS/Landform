@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using Amazon.DynamoDBv2.DataModel;
 using Amazon.DynamoDBv2.DocumentModel;
 using OPS.Cloud;
+using OPS.Plumbing;
 
 namespace OPS.Pipeline.AlignmentServer
 {
@@ -95,17 +96,17 @@ namespace OPS.Pipeline.AlignmentServer
         /// Creates a new observation and saves it to the database.  Returned observation has a valid id.
         /// Names must be unique within a project.
         /// </summary>
-        /// <param name="context"></param>
+        /// <param name="pipeline"></param>
         /// <param name="frame"></param>
         /// <param name="name"></param>
         /// <param name="url"></param>
         /// <param name="observationType"></param>
         /// <param name="cameraModel"></param>
         /// <returns></returns>
-        public static Observation Create(DynamoDBContext context, Frame frame, string name, string url, string observationType, string cameraModel, bool useForReconstruction, int width, int height)
+        public static Observation Create(PipelineCore pipeline, Frame frame, string name, string url, string observationType, string cameraModel, bool useForReconstruction, int width, int height)
         {
             Observation obs = new Observation(frame, name, url, observationType, cameraModel, useForReconstruction, width, height);
-            context.Save(obs, new DynamoDBOperationConfig { IgnoreNullValues = true });
+            pipeline.DynamoContext.Save(obs, new DynamoDBOperationConfig { IgnoreNullValues = true });
             return obs;
         }
 
@@ -113,38 +114,38 @@ namespace OPS.Pipeline.AlignmentServer
         /// Save this observation without overwriting any values it may be missing
         /// </summary>
         /// <param name=""></param>
-        public void Save(DynamoDBContext context)
+        public void Save(PipelineCore pipeline)
         {
-            context.Save(this, new DynamoDBOperationConfig { IgnoreNullValues = true });
+            pipeline.DynamoContext.Save(this, new DynamoDBOperationConfig { IgnoreNullValues = true });
         }
 
         /// <summary>
         /// Finds an observation based on its name and project
         /// Return null if observation cannot be found
         /// </summary>
-        /// <param name="context"></param>
+        /// <param name="pipeline"></param>
         /// <param name="imageId"></param>
         /// <returns></returns>
-        public static Observation Find(DynamoDBContext context, string projectName, string name)
+        public static Observation Find(PipelineCore pipeline, string projectName, string name)
         {
-            return context.Load<Observation>(name, projectName);
+            return pipeline.DynamoContext.Load<Observation>(name, projectName);
         }
 
-        public static IEnumerable<Observation> Find(DynamoDBContext context, string projectName)
+        public static IEnumerable<Observation> Find(PipelineCore pipeline, string projectName)
         {
-            return DBUtil.Scan<Observation>(context, new ScanCondition("ProjectName", ScanOperator.Equal, projectName));
+            return DBUtil.Scan<Observation>(pipeline.DynamoContext, new ScanCondition("ProjectName", ScanOperator.Equal, projectName));
         }
 
-        public static IEnumerable<Observation> Find(DynamoDBContext context, Frame frame)
+        public static IEnumerable<Observation> Find(PipelineCore pipeline, Frame frame)
         {
-            return DBUtil.Scan<Observation>(context,
+            return DBUtil.Scan<Observation>(pipeline.DynamoContext,
                                             new ScanCondition("ProjectName", ScanOperator.Equal, frame.ProjectName),
                                             new ScanCondition("FrameName", ScanOperator.Equal, frame.Name));
         }
 
-        public static IEnumerable<Observation> FindByType(DynamoDBContext context, string projectName, string observationType)
+        public static IEnumerable<Observation> FindByType(PipelineCore pipeline, string projectName, string observationType)
         {
-            return DBUtil.Scan<Observation>(context,
+            return DBUtil.Scan<Observation>(pipeline.DynamoContext,
                                             new ScanCondition("ProjectName", ScanOperator.Equal, projectName),
                                             new ScanCondition("ObservationType", ScanOperator.Equal, observationType));
         }

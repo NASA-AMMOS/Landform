@@ -74,19 +74,19 @@ namespace OPS.Pipeline.TileServer
         }
 
 
-        public static TilingProject Create(DynamoDBContext context, string name, TilingScheme tilingScheme,
+        public static TilingProject Create(PipelineCore pipeline, string name, TilingScheme tilingScheme,
                                            SkirtMode skirtMode, MeshReconMethod reconMethod, int faces, int resolution,
                                            string projectType, string exportMeshFormat, string exportImageFormat)
         {
             TilingProject project = new TilingProject(name, tilingScheme, skirtMode, reconMethod, faces, resolution,
                                                       projectType, exportMeshFormat, exportImageFormat);
-            project.Save(context);
+            project.Save(pipeline);
             return project;
         }
 
-        public static TilingProject Find(DynamoDBContext context, string name)
+        public static TilingProject Find(PipelineCore pipeline, string name)
         {
-            TilingProject project = context.Load<TilingProject>(name);
+            TilingProject project = pipeline.DynamoContext.Load<TilingProject>(name);
             if (project != null)
             {
                 project.IsValid();
@@ -94,15 +94,15 @@ namespace OPS.Pipeline.TileServer
             return project;
         }
 
-        public static IEnumerable<TilingProject> FindAll(DynamoDBContext context, ILog logger = null)
+        public static IEnumerable<TilingProject> FindAll(PipelineCore pipeline, ILog logger = null)
         {
-            return DBUtil.Scan<TilingProject>(context, logger);
+            return DBUtil.Scan<TilingProject>(pipeline.DynamoContext, logger);
         }
 
-        public void Save(DynamoDBContext context)
+        public void Save(PipelineCore pipeline)
         {
             IsValid();
-            context.Save(this);
+            pipeline.DynamoContext.Save(this);
         }
 
         public const int SLEEP_BETWEEN_NODE_DELETES_MS = 10;
@@ -129,7 +129,7 @@ namespace OPS.Pipeline.TileServer
                 pipeline.Logger.Info("deleting 0 nodes - project never run");
             }
 
-            var inputs = TilingInput.Find(pipeline.DynamoContext, this, pipeline.Logger);
+            var inputs = TilingInput.Find(pipeline, this, pipeline.Logger);
             pipeline.Logger.Info("deleting " + inputs.Count() + " inputs");
             foreach (var input in inputs)
             {

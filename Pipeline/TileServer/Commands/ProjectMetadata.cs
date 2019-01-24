@@ -52,7 +52,7 @@ namespace OPS.Pipeline.TileServer
         {
             var cloud = new TileServerCloud(this, quiet: true); //ensures queues and tables exist
 
-            var project = TilingProject.Find(DynamoContext, options.ProjectName);
+            var project = TilingProject.Find(this, options.ProjectName);
 
             if (project == null)
             {
@@ -63,7 +63,7 @@ namespace OPS.Pipeline.TileServer
             var md = new Metadata();
             md.Project = project;
 
-            var inputs = TilingInput.Find(DynamoContext, project).ToList();
+            var inputs = TilingInput.Find(this, project).ToList();
             var sanitizedInputs = new List<SanitizedInput>();
             foreach (var input in inputs)
             {

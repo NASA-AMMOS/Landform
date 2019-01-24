@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using OPS.Cloud;
+using OPS.Plumbing;
 
 using Amazon.DynamoDBv2.Model;
 using Amazon.DynamoDBv2.DataModel;
@@ -98,17 +99,17 @@ namespace OPS.Pipeline.AlignmentServer
         /// Returns null if an observation is already in the database. 
         /// Guaranteed that two workers cannot both create the same overlap 
         /// </summary>
-        /// <param name="context"></param>
+        /// <param name="pipeline"></param>
         /// <param name="observationName1">Order of observations does not matter</param>
         /// <param name="observationName2"></param>
         /// <returns></returns>
-        public static Overlap Create(DynamoDBContext context, Observation observation1, Observation observation2)
+        public static Overlap Create(PipelineCore pipeline, Observation observation1, Observation observation2)
         {
             //create an overlap without setting Uploaded
             Overlap newOverlap = new Overlap(observation1.Name, observation2.Name, observation1.ProjectName);
             try
             {
-                context.Save(newOverlap);
+                pipeline.DynamoContext.Save(newOverlap);
             }
             catch(ConditionalCheckFailedException)//if create fails another worker has already uploaded and updated this overlap
             {
@@ -119,7 +120,7 @@ namespace OPS.Pipeline.AlignmentServer
             newOverlap.Uploaded = true;
             try
             {
-                context.Save(newOverlap);
+                pipeline.DynamoContext.Save(newOverlap);
             }
             catch (ConditionalCheckFailedException)//Another worker updated this overlap before we could
             {
@@ -127,18 +128,18 @@ namespace OPS.Pipeline.AlignmentServer
             }
 
             //if save was successful, return Overlap with most recent version number so it can be saved
-            return context.Load<Overlap>(newOverlap.CombinedName, newOverlap.ProjectName, new DynamoDBOperationConfig { ConsistentRead = true});
+            return pipeline.DynamoContext.Load<Overlap>(newOverlap.CombinedName, newOverlap.ProjectName, new DynamoDBOperationConfig { ConsistentRead = true});
         }
 
         /// <summary>
         /// Save only if most recent version is being edited. If not, return false 
         /// </summary>
-        /// <param name="context"></param>
-        public bool TrySave(DynamoDBContext context)
+        /// <param name="pipeline"></param>
+        public bool TrySave(PipelineCore pipeline)
         {
             try
             {
-                context.Save(this);
+                pipeline.DynamoContext.Save(this);
             }
             catch (ConditionalCheckFailedException)
             {
@@ -147,27 +148,27 @@ namespace OPS.Pipeline.AlignmentServer
             return true;
         }
 
-        public static Overlap Find(DynamoDBContext context, string observationName1, string observationName2, string projectName)
+        public static Overlap Find(PipelineCore pipeline, string observationName1, string observationName2, string projectName)
         {
             var name = new OverlapName(observationName1, observationName2);
-            return context.Load<Overlap>(name.CombinedName, projectName);
+            return pipeline.DynamoContext.Load<Overlap>(name.CombinedName, projectName);
         }
 
-        public static IEnumerable<Overlap> Find(DynamoDBContext context, string projectName)
+        public static IEnumerable<Overlap> Find(PipelineCore pipeline, string projectName)
         {
-            return DBUtil.Scan<Overlap>(context, new ScanCondition("ProjectName", ScanOperator.Equal, projectName));
+            return DBUtil.Scan<Overlap>(pipeline.DynamoContext, new ScanCondition("ProjectName", ScanOperator.Equal, projectName));
         }
 
         /// <summary>
         /// Find all overlaps featuring an observation
         /// </summary>
-        public static IEnumerable<Overlap> Find(DynamoDBContext context, Observation observation)
+        public static IEnumerable<Overlap> Find(PipelineCore pipeline, Observation observation)
         {
             foreach (var prop in new[] { "ObservationNameOne", "ObservationNameTwo" })
             {
                 var filt = new QueryFilter(prop, QueryOperator.Equal, observation.Name);
                 filt.AddCondition("ProjectName", QueryOperator.Equal, observation.ProjectName);
-                var entries = context.FromQuery<Overlap>(new QueryOperationConfig()
+                var entries = pipeline.DynamoContext.FromQuery<Overlap>(new QueryOperationConfig()
                 {
                     IndexName = "Overlap" + prop + "Index",
                     Filter = filt

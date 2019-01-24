@@ -1,11 +1,11 @@
-﻿using Amazon.DynamoDBv2.DataModel;
-using System;
+﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using OPS.Cloud;
+using OPS.Plumbing;
 
 namespace OPS.Pipeline.AlignmentServer
 {
@@ -16,12 +16,12 @@ namespace OPS.Pipeline.AlignmentServer
     {
         ConcurrentDictionary<string, Frame> frames = new ConcurrentDictionary<string, Frame>();
 
-        DynamoDBContext dynamoContext;
+        PipelineCore pipeline;
         string projectName;
 
-        public FrameCache(DynamoDBContext dynamoContext, string projectName)
+        public FrameCache(PipelineCore pipeline, string projectName)
         {
-            this.dynamoContext = dynamoContext;
+            this.pipeline = pipeline;
             this.projectName = projectName;
         }
 
@@ -29,7 +29,7 @@ namespace OPS.Pipeline.AlignmentServer
         {
             if (!frames.ContainsKey(name))
             {
-                var frame = ThroughputManager.Run(() => Frame.Find(dynamoContext, projectName, name));
+                var frame = ThroughputManager.Run(() => Frame.Find(pipeline, projectName, name));
                 if (frame == null)
                 {
                     return null;

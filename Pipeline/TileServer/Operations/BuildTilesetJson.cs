@@ -32,7 +32,7 @@ namespace OPS.Pipeline.TileServer
         public void Process()
         {
             LogInfo("started");
-            var project = TilingProject.Find(pipeline.DynamoContext, message.ProjectName);
+            var project = TilingProject.Find(pipeline, message.ProjectName);
             LogInfo("building json");
             var root = TilingNode.BuildTreeFromDatabase(pipeline, project,
                                                         useBoundsWithSkirt: project.GetSkirtMode() != SkirtMode.None);

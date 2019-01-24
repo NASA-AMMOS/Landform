@@ -79,8 +79,8 @@ namespace OPS.Pipeline.MeshWorker
             LogInfo("started");
 
             //cache data needed to build pointcloud
-            FrameCache frameCache = new FrameCache(pipeline.DynamoContext, options.AlignmentProjectName);
-            RoverObservationCache obsCache = new RoverObservationCache(pipeline.DynamoContext, options.AlignmentProjectName, options.EstimatedItemSizeBytes, options.TableReadCapacity);
+            FrameCache frameCache = new FrameCache(pipeline, options.AlignmentProjectName);
+            RoverObservationCache obsCache = new RoverObservationCache(pipeline, options.AlignmentProjectName, options.EstimatedItemSizeBytes, options.TableReadCapacity);
             obsCache.FillCache(onlyReconstructionObs: true);
 
             //find the best observations to use for each point cloud
@@ -149,8 +149,8 @@ namespace OPS.Pipeline.MeshWorker
             });
 
             //create a tiling input
-            TilingProject tilingProject = TilingProject.Find(pipeline.DynamoContext, message.ProjectName);
-            TilingInput.Create(pipeline.DynamoContext, meshName, tilingProject, s3MeshOutputUrl, null, null);
+            TilingProject tilingProject = TilingProject.Find(pipeline, message.ProjectName);
+            TilingInput.Create(pipeline, meshName, tilingProject, s3MeshOutputUrl, null, null);
             
             //indicate successs to the tiling server master
             cloud.MasterQueue.Enqueue(new BuildTilingInputMessage(message.ProjectName));
@@ -374,8 +374,8 @@ namespace OPS.Pipeline.MeshWorker
             Frame obsFrame = frameCache.GetFrame(obs.FrameName);
             Frame sitedriveFrame = frameCache.GetFrame(obsFrame.ParentName);
 
-            UncertainRigidTransform obsToSiteDrive = FrameTransform.Find(pipeline.DynamoContext, obsFrame).Transform;
-            UncertainRigidTransform siteDriveToRoot = FrameTransform.Find(pipeline.DynamoContext, sitedriveFrame).Transform;
+            UncertainRigidTransform obsToSiteDrive = FrameTransform.Find(pipeline, obsFrame).Transform;
+            UncertainRigidTransform siteDriveToRoot = FrameTransform.Find(pipeline, sitedriveFrame).Transform;
      
             UncertainRigidTransform transform = obsToSiteDrive * siteDriveToRoot;
             return transform.Mean;

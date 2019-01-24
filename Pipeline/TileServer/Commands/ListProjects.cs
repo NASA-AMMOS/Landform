@@ -30,7 +30,7 @@ namespace OPS.Pipeline.TileServer
         {
             var cloud = new TileServerCloud(this, quiet: true); //ensures queues and tables exist
 
-            var projects = TilingProject.FindAll(DynamoContext);
+            var projects = TilingProject.FindAll(this);
             var projectNames = projects.Select(project => project.Name).ToList();
 
             Console.WriteLine(JsonHelper.ToJson(projectNames, indent: true, autoTypes: false));

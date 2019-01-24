@@ -57,8 +57,8 @@ namespace OPS.Pipeline.TileServer
         public void Process()
         {
             LogInfo("started chunking input " + message.InputName);
-            var project = TilingProject.Find(pipeline.DynamoContext, message.ProjectName);
-            var input = TilingInput.Find(pipeline.DynamoContext, project.Name, message.InputName);
+            var project = TilingProject.Find(pipeline, message.ProjectName);
+            var input = TilingInput.Find(pipeline, project.Name, message.InputName);
             if (input.Chunked)
             {
                 LogInfo("input " + message.InputName + " has already been chunked, skipping");
@@ -117,7 +117,7 @@ namespace OPS.Pipeline.TileServer
                     m.Save(f);
                     string meshUrl = TileServerConfig.Instance.ChunkUrl(project.Name, id + MESH_EXT);
                     pipeline.Storage(meshUrl).UploadFile(f, meshUrl);
-                    TilingInputChunk record = TilingInputChunk.Create(pipeline.DynamoContext, id, project,
+                    TilingInputChunk record = TilingInputChunk.Create(pipeline, id, project,
                                                                       meshUrl, imageBaseUrl, m.Bounds());
                     chunkIds.Add(id);
                     LogInfo("generated chunk {0}/{1} for input {2}", chunkIds.Count(), leaves.Count, message.InputName);
@@ -125,7 +125,7 @@ namespace OPS.Pipeline.TileServer
             });
             input.ChunkIds = chunkIds.ToList();
             input.Chunked = true;
-            input.Save(pipeline.DynamoContext);
+            input.Save(pipeline);
             cloud.MasterQueue.Enqueue(message);
             LogInfo("completed chunking input " + message.InputName);
         }

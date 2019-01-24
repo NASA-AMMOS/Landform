@@ -81,7 +81,7 @@ namespace OPS.Pipeline.TileServer
                             }
                             else
                             {
-                                TilingProject project = TilingProject.Find(this.DynamoContext, m.ProjectName);
+                                TilingProject project = TilingProject.Find(this, m.ProjectName);
                                 if (project != null)
                                 {
                                     projectType = project.ProjectType;

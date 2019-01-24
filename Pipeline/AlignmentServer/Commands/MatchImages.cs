@@ -40,10 +40,10 @@ namespace OPS.Pipeline.AlignmentServer
                 {
                     if (f.Name == "root" && (f.ParentName == null || f.ParentName == "")) { return scene.Root; }
                     if (f.PriorIds.Count < 1) return null;
-                    var prior = TransformPrior.Find(Pipeline.DynamoContext, f.ProjectName, f.PriorIds[0]);
+                    var prior = TransformPrior.Find(Pipeline, f.ProjectName, f.PriorIds[0]);
 
                     NodeTransform parent = scene.Root.Transform;
-                    if (f.ParentName != null && f.ParentName != "") parent = frameNodes[Frame.Find(Pipeline.DynamoContext, f.ProjectName, f.ParentName)].Transform;
+                    if (f.ParentName != null && f.ParentName != "") parent = frameNodes[Frame.Find(Pipeline, f.ProjectName, f.ParentName)].Transform;
                     var node = new SceneNode(f.Name, parent);
                     node.GetOrAddComponent<NodeUncertainTransform>().UncertainTransform = prior.Transform;
                     return node;
@@ -54,8 +54,8 @@ namespace OPS.Pipeline.AlignmentServer
                     scene.ImageToNode[imgRef] = frameNodes[frame];
                     frameNodes[frame].AddComponent<NodeImageReference>().Reference = imgRef;
                 };
-                addRef(Message.ModelImage, Frame.Find(Pipeline.DynamoContext, Message.Project, Message.ModelFrameName));
-                addRef(Message.DataImage, Frame.Find(Pipeline.DynamoContext, Message.Project, Message.DataFrameName));
+                addRef(Message.ModelImage, Frame.Find(Pipeline, Message.Project, Message.ModelFrameName));
+                addRef(Message.DataImage, Frame.Find(Pipeline, Message.Project, Message.DataFrameName));
             }
 
             var model = Message.ModelImage;

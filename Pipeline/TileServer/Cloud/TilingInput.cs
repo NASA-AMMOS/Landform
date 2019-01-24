@@ -56,11 +56,11 @@ namespace OPS.Pipeline.TileServer
             this.IsValid();
         }
 
-        public static TilingInput Create(DynamoDBContext context, string name, TilingProject project,
+        public static TilingInput Create(PipelineCore pipeline, string name, TilingProject project,
                                          string meshUrl, string imageUrl, string id)
         {
             TilingInput input = new TilingInput(name, project.Name, meshUrl, imageUrl, id);
-            input.Save(context);
+            input.Save(pipeline);
 
             if (project.InputNames == null)
             {
@@ -72,18 +72,18 @@ namespace OPS.Pipeline.TileServer
             if (!project.InputNames.Contains(name))
             {
                 project.InputNames.Add(name);
-                context.Save(project);
+                pipeline.DynamoContext.Save(project);
             }
             
             return input;
         }
 
-        public static TilingInput Find(DynamoDBContext context, string projectName, string name)
+        public static TilingInput Find(PipelineCore pipeline, string projectName, string name)
         {
-            return context.Load<TilingInput>(name, projectName);
+            return pipeline.DynamoContext.Load<TilingInput>(name, projectName);
         }
 
-        public static IEnumerable<TilingInput> Find(DynamoDBContext context, TilingProject project, ILog logger = null)
+        public static IEnumerable<TilingInput> Find(PipelineCore pipeline, TilingProject project, ILog logger = null)
         {
             if (project.InputNames != null)
             {
@@ -93,7 +93,7 @@ namespace OPS.Pipeline.TileServer
                 List<TilingInput> inputs = new List<TilingInput>();
                 foreach (var name in project.InputNames)
                 {
-                    var input = Find(context, project.Name, name);
+                    var input = Find(pipeline, project.Name, name);
                     if (input != null) inputs.Add(input);
                 }
                 return inputs;
@@ -102,15 +102,15 @@ namespace OPS.Pipeline.TileServer
             {
                 //fall back to scanning for all records that match the project name
                 //e.g. for legacy projects or if the project record is not well formed
-                return DBUtil.Scan<TilingInput>(context, logger,
+                return DBUtil.Scan<TilingInput>(pipeline.DynamoContext, logger,
                                                 new ScanCondition("ProjectName", ScanOperator.Equal, project.Name));
             }
         }
 
-        public void Save(DynamoDBContext context)
+        public void Save(PipelineCore pipeline)
         {
             this.IsValid();
-            context.Save(this);
+            pipeline.DynamoContext.Save(this);
         }
 
         public void Delete(PipelineCore pipeline, bool ignoreErrors = true)
@@ -119,7 +119,7 @@ namespace OPS.Pipeline.TileServer
             {
                 foreach (var chunkId in ChunkIds)
                 {
-                    TilingInputChunk.Find(pipeline.DynamoContext, chunkId).Delete(pipeline, ignoreErrors);
+                    TilingInputChunk.Find(pipeline, chunkId).Delete(pipeline, ignoreErrors);
                 }
             }
 

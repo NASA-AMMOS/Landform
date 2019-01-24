@@ -76,11 +76,11 @@ namespace OPS.Pipeline.TileServer
         
         virtual protected void CreateProject(CreateProjectMessage m)
         {
-            var project = TilingProject.Find(pipeline.DynamoContext, projectName);
+            var project = TilingProject.Find(pipeline, projectName);
             if (project == null)
             {
                 LogInfo("creating project");
-                TilingProject.Create(pipeline.DynamoContext, projectName, m.TilingScheme, m.SkirtMode, m.ReconMethod,
+                TilingProject.Create(pipeline, projectName, m.TilingScheme, m.SkirtMode, m.ReconMethod,
                                      m.FacesPerTile, m.TileResolution, m.ProjectType,
                                      m.ExportMeshFormat, m.ExportImageFormat);
             }
@@ -93,7 +93,7 @@ namespace OPS.Pipeline.TileServer
 
         virtual protected void DeleteProject()
         {
-            var project = TilingProject.Find(pipeline.DynamoContext, projectName);
+            var project = TilingProject.Find(pipeline, projectName);
             if (project != null)
             {
                 if (!project.StartedRunning || project.FinishedRunning)
@@ -117,14 +117,14 @@ namespace OPS.Pipeline.TileServer
 
         virtual protected void AddInput(AddInputMessage m)
         {
-            var project = TilingProject.Find(pipeline.DynamoContext, projectName);
+            var project = TilingProject.Find(pipeline, projectName);
             if (project != null)
             {
                 if (!project.StartedRunning)
                 {
                     //it's not an error to upload an input with the same name again - the last upload wins
                     LogInfo("adding/updating input " + m.Name);
-                    TilingInput.Create(pipeline.DynamoContext, m.Name, project, m.MeshUrl, m.ImageUrl, m.TileId);
+                    TilingInput.Create(pipeline, m.Name, project, m.MeshUrl, m.ImageUrl, m.TileId);
                 }
                 else
                 {
@@ -149,12 +149,12 @@ namespace OPS.Pipeline.TileServer
         virtual protected void RunProject(TilingQueueMessage nextMessage)
         {
             projectCache.Reset();
-            var project = TilingProject.Find(pipeline.DynamoContext, projectName);
+            var project = TilingProject.Find(pipeline, projectName);
             if (project != null)
             {
                 LogInfo("running project");
                 project.StartedRunning = true;
-                project.Save(pipeline.DynamoContext);
+                project.Save(pipeline);
                 workerQueue.Enqueue(nextMessage);
             }
             else
@@ -167,7 +167,7 @@ namespace OPS.Pipeline.TileServer
         virtual protected void TilesDefined()
         {
             LogInfo("tiles defined");
-            var project = TilingProject.Find(pipeline.DynamoContext, projectName);
+            var project = TilingProject.Find(pipeline, projectName);
             if (SkipChunking(project))
             {
                 LogInfo("input chunking skipped");
@@ -197,7 +197,7 @@ namespace OPS.Pipeline.TileServer
             bool allChunked = true;
             foreach (var inputName in project.InputNames)
             {
-                var input = TilingInput.Find(pipeline.DynamoContext, projectName, inputName);
+                var input = TilingInput.Find(pipeline, projectName, inputName);
                 if (!input.Chunked)
                 {
                     allChunked = false;
@@ -220,7 +220,7 @@ namespace OPS.Pipeline.TileServer
             if (allChunked)
             {
                 LogInfo("all inputs chunked");
-                var project = TilingProject.Find(pipeline.DynamoContext, projectName);
+                var project = TilingProject.Find(pipeline, projectName);
                 BuildNodes(project);
             }
         }
@@ -341,9 +341,9 @@ namespace OPS.Pipeline.TileServer
 
         virtual protected void TilesetCompleted()
         {
-            var project = TilingProject.Find(pipeline.DynamoContext, projectName);
+            var project = TilingProject.Find(pipeline, projectName);
             project.FinishedRunning = true;
-            project.Save(pipeline.DynamoContext);
+            project.Save(pipeline);
             LogInfo("finished running");
             projectCache.Reset();
             pipeline.CleanupTempDir();

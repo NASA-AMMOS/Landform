@@ -64,20 +64,20 @@ namespace OPS.Pipeline.TileServer
         }
 
 
-        public static TilingNode Create(DynamoDBContext context, string id, TilingProject project,
+        public static TilingNode Create(PipelineCore pipeline, string id, TilingProject project,
                                         string meshUrl, string imageUrl, string parentId, List<string> childIds,
                                         List<string> dependsOn, List<String> dependedOnBy, BoundingBox bounds)
         {
             TilingNode node = new TilingNode(id, project, meshUrl, imageUrl, parentId, childIds, dependsOn,
                                              dependedOnBy, bounds);
-            node.Save(context);
+            node.Save(pipeline);
             return node;
         }
 
 
-        public static TilingNode Find(DynamoDBContext context, string projectName, string id)
+        public static TilingNode Find(PipelineCore pipeline, string projectName, string id)
         {
-            return context.Load<TilingNode>(id, projectName);
+            return pipeline.DynamoContext.Load<TilingNode>(id, projectName);
         }
 
 
@@ -92,7 +92,7 @@ namespace OPS.Pipeline.TileServer
                 List<TilingNode> nodes = new List<TilingNode>();
                 foreach (var id in ids)
                 {
-                    var node = Find(pipeline.DynamoContext, project.Name, id);
+                    var node = Find(pipeline, project.Name, id);
                     if (node != null) nodes.Add(node);
                 }
                 return nodes;
@@ -106,9 +106,9 @@ namespace OPS.Pipeline.TileServer
             }
         }
 
-        public void Save(DynamoDBContext context)
+        public void Save(PipelineCore pipeline)
         {
-            DBUtil.ExponentialBackoff(() => context.Save(this));
+            DBUtil.ExponentialBackoff(() => pipeline.DynamoContext.Save(this));
         }
 
         public void Delete(PipelineCore pipeline, bool ignoreErrors = true)
@@ -343,7 +343,7 @@ namespace OPS.Pipeline.TileServer
 
             GeometricError = geometricError;
 
-            Save(pipeline.DynamoContext);
+            Save(pipeline);
         }
 
         public SceneNode GetSceneNode()

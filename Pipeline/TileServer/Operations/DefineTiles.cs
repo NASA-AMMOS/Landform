@@ -77,7 +77,7 @@ namespace OPS.Pipeline.TileServer
         public void Process()
         {
             LogInfo("started");
-            var project = TilingProject.Find(pipeline.DynamoContext, message.ProjectName);
+            var project = TilingProject.Find(pipeline, message.ProjectName);
             if(project == null)
             {
                 LogError("project not found");
@@ -94,7 +94,7 @@ namespace OPS.Pipeline.TileServer
             if (project.GetTilingScheme() == TilingScheme.UserDefined)
             {
                 // Build a tree based on existing tile ids
-                var inputs = TilingInput.Find(pipeline.DynamoContext, project).ToList();
+                var inputs = TilingInput.Find(pipeline, project).ToList();
                 LogInfo("user-defined tiling scheme, " + inputs.Count + " inputs");
                 ConcurrentBag<SceneNode> nodes = new ConcurrentBag<SceneNode>();
                 Parallel.ForEach(inputs, new ParallelOptions() { MaxDegreeOfParallelism = 8 }, input =>
@@ -116,7 +116,7 @@ namespace OPS.Pipeline.TileServer
             else
             {
                 // Buid a tree using input datasets
-                var inputs = TilingInput.Find(pipeline.DynamoContext, project).ToList();
+                var inputs = TilingInput.Find(pipeline, project).ToList();
                 LogInfo(inputs.Count + " inputs");
                 var multiClipper = new MultiMeshClipper();
                 foreach (var input in inputs)
@@ -170,7 +170,7 @@ namespace OPS.Pipeline.TileServer
                 ids.Add(node.Name);
                 string parentId = node.Parent == null ? null : node.Parent.Name;
                 List<string> childIds = node.Children.Select(c => c.Name).ToList();
-                var tilingNode = TilingNode.Create(pipeline.DynamoContext, node.Name, project,
+                var tilingNode = TilingNode.Create(pipeline, node.Name, project,
                                                    null /* meshUrl */, null /* imageUrl */,
                                                    parentId, childIds,
                                                    dependencies.DependsOn(node.Name),
@@ -189,7 +189,7 @@ namespace OPS.Pipeline.TileServer
             }                            
             project.SaveNodeIds(ids, pipeline);
             project.TilesDefined = true;
-            project.Save(pipeline.DynamoContext);
+            project.Save(pipeline);
             cloud.MasterQueue.Enqueue(message);
             LogInfo("complete");
         }

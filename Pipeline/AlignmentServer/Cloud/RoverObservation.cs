@@ -8,6 +8,7 @@ using Amazon.DynamoDBv2.DataModel;
 using Amazon.DynamoDBv2.DocumentModel;
 
 using OPS.Cloud;
+using OPS.Plumbing;
 
 namespace OPS.Pipeline.AlignmentServer
 {
@@ -43,7 +44,7 @@ namespace OPS.Pipeline.AlignmentServer
         /// <summary>
         /// Prevent possible bugs from calling the default Observation.Create method.
         /// </summary>
-        /// <param name="context"></param>
+        /// <param name="pipeline"></param>
         /// <param name="frame"></param>
         /// <param name="name"></param>
         /// <param name="url"></param>
@@ -51,7 +52,7 @@ namespace OPS.Pipeline.AlignmentServer
         /// <param name="cameraModel"></param>
         /// <param name="useForReconstruction"></param>
         /// <returns></returns>
-        public static Observation Create(DynamoDBContext context, Frame frame, string name, string url, string observationType, string cameraModel, bool useForReconstruction)
+        public static Observation Create(PipelineCore pipeline, Frame frame, string name, string url, string observationType, string cameraModel, bool useForReconstruction)
         {
             throw new NotImplementedException("Call the other version of RoverObservation.Create with rover specific arguments");
         }
@@ -61,21 +62,21 @@ namespace OPS.Pipeline.AlignmentServer
         /// Names must be unique within a project.
         /// Project is infered from frame.
         /// </summary>
-        /// <param name="context"></param>
+        /// <param name="pipeline"></param>
         /// <param name="frame"></param>
         /// <param name="name"></param>
         /// <param name="url"></param>
         /// <param name="observationType"></param>
         /// <param name="cameraModel"></param>
         /// <returns></returns>
-        public static RoverObservation Create(DynamoDBContext context, Frame frame, string name, string url, string observationType, string cameraModel, bool useForReconstruction, int site, int drive, string version, string sensor, string imageFrameSize, string producer, int width, int height)
+        public static RoverObservation Create(PipelineCore pipeline, Frame frame, string name, string url, string observationType, string cameraModel, bool useForReconstruction, int site, int drive, string version, string sensor, string imageFrameSize, string producer, int width, int height)
         {
-            if (Observation.Find(context, frame.ProjectName, name) != null)
+            if (Observation.Find(pipeline, frame.ProjectName, name) != null)
             {
                 return null; //An observation with this name and project already exists 
             }
             RoverObservation ro = new RoverObservation(frame, name, url, observationType, cameraModel, useForReconstruction, site, drive, version, sensor, imageFrameSize, producer, width, height);
-            context.Save(ro);
+            pipeline.DynamoContext.Save(ro);
             return ro;
         }
 
@@ -83,23 +84,23 @@ namespace OPS.Pipeline.AlignmentServer
         /// Finds an observation based on its name and project
         /// Return null if observation cannot be found
         /// </summary>
-        /// <param name="context"></param>
+        /// <param name="pipeline"></param>
         /// <param name="imageId"></param>
         /// <returns></returns>
-        new public static RoverObservation Find(DynamoDBContext context, string projectName, string name)
+        new public static RoverObservation Find(PipelineCore pipeline, string projectName, string name)
         {
-            return context.Load<RoverObservation>(name, projectName);
+            return pipeline.DynamoContext.Load<RoverObservation>(name, projectName);
         }
 
-        new public static IEnumerable<RoverObservation> Find(DynamoDBContext context, string projectName)
+        new public static IEnumerable<RoverObservation> Find(PipelineCore pipeline, string projectName)
         {
-            return DBUtil.Scan<RoverObservation>(context,
+            return DBUtil.Scan<RoverObservation>(pipeline.DynamoContext,
                                                  new ScanCondition("ProjectName", ScanOperator.Equal, projectName));
         }
 
-        new public static IEnumerable<RoverObservation> Find(DynamoDBContext context, Frame frame)
+        new public static IEnumerable<RoverObservation> Find(PipelineCore pipeline, Frame frame)
         {
-            return DBUtil.Scan<RoverObservation>(context,
+            return DBUtil.Scan<RoverObservation>(pipeline.DynamoContext,
                                                  new ScanCondition("ProjectName", ScanOperator.Equal, frame.ProjectName),
                                                  new ScanCondition("FrameName", ScanOperator.Equal, frame.Name));
         }

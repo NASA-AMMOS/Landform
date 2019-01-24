@@ -63,20 +63,20 @@ namespace OPS.Pipeline.AlignmentServer
             Bounds = bounds;
         }
 
-        public static SpatialIndex Create(DynamoDBContext context, Project p, BoundingBox bounds)
+        public static SpatialIndex Create(PipelineCore pipeline, Project p, BoundingBox bounds)
         {
             SpatialIndex si = new SpatialIndex(Guid.NewGuid().ToString(), p.Name, bounds);
-            si.Save(context);
+            si.Save(pipeline);
             return si;
         }
-        public void Save(DynamoDBContext context)
+        public void Save(PipelineCore pipeline)
         {
-            context.Save(this, new DynamoDBOperationConfig { IgnoreNullValues = true });
+            pipeline.DynamoContext.Save(this, new DynamoDBOperationConfig { IgnoreNullValues = true });
         }
 
-        public static SpatialIndex Find(DynamoDBContext context, string projectName, string id)
+        public static SpatialIndex Find(PipelineCore pipeline, string projectName, string id)
         {
-            return context.Load<SpatialIndex>(id, projectName);
+            return pipeline.DynamoContext.Load<SpatialIndex>(id, projectName);
         }
     }
 }

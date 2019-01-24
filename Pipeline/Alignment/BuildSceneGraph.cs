@@ -54,7 +54,7 @@ namespace OPS.Pipeline
 
         public UncertainRigidTransform StandardFrameTransform(Frame frame, SceneNode parent)
         {
-            var transform = FrameTransform.Find(Pipeline.DynamoContext, frame);
+            var transform = FrameTransform.Find(Pipeline, frame);
             if (transform == null)
             {
                 logger.Error("No transform found for frame " + frame.Name);
@@ -64,7 +64,7 @@ namespace OPS.Pipeline
         }
         public UncertainRigidTransform CertainFrameTransform(Frame frame, SceneNode parent)
         {
-            var transform = FrameTransform.Find(Pipeline.DynamoContext, frame);
+            var transform = FrameTransform.Find(Pipeline, frame);
             if (transform == null)
             {
                 logger.Error("No transform found for frame " + frame.Name);
@@ -125,7 +125,7 @@ namespace OPS.Pipeline
             Func<Frame, SceneNode, SceneNode> spawn = null;
 
             {
-                FrameCache frameCache = new FrameCache(Pipeline.DynamoContext, root.ProjectName);
+                FrameCache frameCache = new FrameCache(Pipeline, root.ProjectName);
 
                 spawn = (frame, parent) =>
                 {
@@ -135,7 +135,7 @@ namespace OPS.Pipeline
                     res.GetOrAddComponent<NodeUncertainTransform>().UncertainTransform = ut; //adds transforms for parents, so they bet bundle adjusted
 
                     // Add any observations to the node
-                    var obs = ThroughputManager.Run(() => Observation.Find(Pipeline.DynamoContext, frame)).Where(o => options.IncludeObservation(o, res)).ToArray();
+                    var obs = ThroughputManager.Run(() => Observation.Find(Pipeline, frame)).Where(o => options.IncludeObservation(o, res)).ToArray();
                     observations.AddRange(obs);
                     foreach (var o in obs)
                     {
@@ -159,7 +159,7 @@ namespace OPS.Pipeline
                     }
 
                 // Add child frames
-                var frames = ThroughputManager.Run(() => frame.GetChildren(Pipeline.DynamoContext)).ToList();
+                var frames = ThroughputManager.Run(() => frame.GetChildren(Pipeline)).ToList();
                     foreach (var childFrame in frames)
                     {
                         if (!options.IncludeFrame(childFrame, res))
@@ -179,7 +179,7 @@ namespace OPS.Pipeline
             // Add all overlaps and computed correspondences
             foreach (var obs in observations)
             {
-                foreach (var overlap in Overlap.Find(Pipeline.DynamoContext, obs))
+                foreach (var overlap in Overlap.Find(Pipeline, obs))
                 {
                     var o1 = overlap.ObservationNameOne;
                     var o2 = overlap.ObservationNameTwo;
@@ -189,8 +189,8 @@ namespace OPS.Pipeline
                         continue;
                     }
 
-                    var imgOne = new ObservationImageRef(Observation.Find(Pipeline.DynamoContext, overlap.ProjectName, o1));
-                    var imgTwo = new ObservationImageRef(Observation.Find(Pipeline.DynamoContext, overlap.ProjectName, o2));
+                    var imgOne = new ObservationImageRef(Observation.Find(Pipeline, overlap.ProjectName, o1));
+                    var imgTwo = new ObservationImageRef(Observation.Find(Pipeline, overlap.ProjectName, o2));
                     var pair = new UnorderedImagePair(imgOne, imgTwo);
                     scene.Overlaps.Add(pair);
 

@@ -120,7 +120,7 @@ namespace OPS.Pipeline.TileServer
                 }
             }
 
-            var project = TilingProject.Find(this.DynamoContext, options.ProjectName);
+            var project = TilingProject.Find(this, options.ProjectName);
             if (project != null)
             {
                 Logger.ErrorFormat("project \"{0}\" already exists", options.ProjectName);
@@ -152,7 +152,7 @@ namespace OPS.Pipeline.TileServer
                         return 2; //internal error
                     }
                     Thread.Sleep(SLEEP_MS);
-                    project = TilingProject.Find(DynamoContext, options.ProjectName);
+                    project = TilingProject.Find(this, options.ProjectName);
                 }
                 while (project == null);
                 Logger.InfoFormat("project \"{0}\" has been created", options.ProjectName);

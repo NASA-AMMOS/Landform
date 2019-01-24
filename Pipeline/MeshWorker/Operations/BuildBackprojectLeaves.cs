@@ -64,7 +64,7 @@ namespace OPS.Pipeline.MeshWorker
         {
             LogInfo("started batch of " + message.TileIds.Count + " leaf tiles");
             LogInfo("collecting tiling information");
-            TilingProject project = TilingProject.Find(pipeline.DynamoContext, message.ProjectName);
+            TilingProject project = TilingProject.Find(pipeline, message.ProjectName);
             List<TilingNode> leaves = GetLeavesToProcess(project);
 
             LogInfo("downloading full mesh");
@@ -77,7 +77,7 @@ namespace OPS.Pipeline.MeshWorker
             sc.Build();
 
             LogInfo("building scene graph");
-            Frame rootFrame = Frame.Find(pipeline.DynamoContext, options.AlignmentProjectName, MSLProject.ROOT_FRAME_NAME);
+            Frame rootFrame = Frame.Find(pipeline, options.AlignmentProjectName, MSLProject.ROOT_FRAME_NAME);
 
             if (rootFrame == null)
             {
@@ -125,7 +125,7 @@ namespace OPS.Pipeline.MeshWorker
                 //upload the mesh/texture pair and update the tiling node
                 ThroughputManager.Run(() =>
                 {
-                    var node = TilingNode.Find(pipeline.DynamoContext, project.Name, leaf.Id);
+                    var node = TilingNode.Find(pipeline, project.Name, leaf.Id);
                     node.SaveMesh(leafPair, pipeline, 0, project.ExportMeshFormat, project.ExportImageFormat,
                                   project.GetSkirtMode());
                 });
@@ -163,7 +163,7 @@ namespace OPS.Pipeline.MeshWorker
                     List<RoverObservation> robs = new List<RoverObservation>();
                     foreach(var ob in group)
                     {
-                        RoverObservation rob = ThroughputManager.Run(() => RoverObservation.Find(pipeline.DynamoContext, options.AlignmentProjectName, ob.Name));
+                        RoverObservation rob = ThroughputManager.Run(() => RoverObservation.Find(pipeline, options.AlignmentProjectName, ob.Name));
                         if (rob != null)
                         {
                             robs.Add(rob);
@@ -257,13 +257,13 @@ namespace OPS.Pipeline.MeshWorker
         private Mesh GetFullMesh(TilingProject project)
         {
             Mesh fullMesh;
-            var inputs = TilingInput.Find(pipeline.DynamoContext, project).ToList();
+            var inputs = TilingInput.Find(pipeline, project).ToList();
             InputChunkGroup bigMeshGroup = new InputChunkGroup();
             foreach (var input in inputs)
             {
                 foreach (var chunkId in input.ChunkIds)
                 {
-                    TilingInputChunk chunk = TilingInputChunk.Find(pipeline.DynamoContext, chunkId);
+                    TilingInputChunk chunk = TilingInputChunk.Find(pipeline, chunkId);
                     bigMeshGroup.Chunks.Add(chunk); 
                 }
             }
@@ -295,7 +295,7 @@ namespace OPS.Pipeline.MeshWorker
 
             foreach (var id in this.message.TileIds)
             {
-                leaves.Add(TilingNode.Find(pipeline.DynamoContext, project.Name, id));
+                leaves.Add(TilingNode.Find(pipeline, project.Name, id));
             }
 
             // Send completion messages for leaves that are already done

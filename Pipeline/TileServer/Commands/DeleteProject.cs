@@ -39,7 +39,7 @@ namespace OPS.Pipeline.TileServer
         {
             var cloud = new TileServerCloud(this, quiet: true);
 
-            var project = TilingProject.Find(DynamoContext, options.ProjectName);
+            var project = TilingProject.Find(this, options.ProjectName);
 
             if (project == null)
             {
@@ -68,7 +68,7 @@ namespace OPS.Pipeline.TileServer
                         return 2; //internal error
                     }
                     Thread.Sleep(SLEEP_MS);
-                    project = TilingProject.Find(DynamoContext, options.ProjectName);
+                    project = TilingProject.Find(this, options.ProjectName);
                 }
                 while (project != null);
                 Logger.InfoFormat("project \"{0}\" has been deleted", options.ProjectName);

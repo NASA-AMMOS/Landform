@@ -43,17 +43,17 @@ namespace OPS.Pipeline.AlignmentServer
             Geohash = geohash;
         }
 
-        public static FrameGeohash Find(DynamoDBContext context, string projectName, string id)
+        public static FrameGeohash Find(PipelineCore pipeline, string projectName, string id)
         {
-            return context.Load<FrameGeohash>(id, projectName);
+            return pipeline.DynamoContext.Load<FrameGeohash>(id, projectName);
         }
 
         /// <summary>
         /// Find all geohashes associated with a frame.
         /// </summary>
-        public static IEnumerable<FrameGeohash> Find(DynamoDBContext context, Frame frame)
+        public static IEnumerable<FrameGeohash> Find(PipelineCore pipeline, Frame frame)
         {
-            return DBUtil.Scan<FrameGeohash>(context,
+            return DBUtil.Scan<FrameGeohash>(pipeline.DynamoContext,
                                              new ScanCondition("ProjectName", ScanOperator.Equal, frame.ProjectName),
                                              new ScanCondition("FrameName", ScanOperator.Equal, frame.Name));
         }
@@ -61,9 +61,9 @@ namespace OPS.Pipeline.AlignmentServer
         /// <summary>
         /// Find all geohashes associated with a frame on a specific index.
         /// </summary>
-        public static IEnumerable<FrameGeohash> Find(DynamoDBContext context, SpatialIndex index, Frame frame)
+        public static IEnumerable<FrameGeohash> Find(PipelineCore pipeline, SpatialIndex index, Frame frame)
         {
-            return DBUtil.Scan<FrameGeohash>(context,
+            return DBUtil.Scan<FrameGeohash>(pipeline.DynamoContext,
                                              new ScanCondition("ProjectName", ScanOperator.Equal, frame.ProjectName),
                                              new ScanCondition("SpatialIndexId", ScanOperator.Equal, index.Id),
                                              new ScanCondition("FrameName", ScanOperator.Equal, frame.Name));
@@ -72,16 +72,16 @@ namespace OPS.Pipeline.AlignmentServer
         /// <summary>
         /// Return all geohashes on an index that overlap a bounding box.
         /// </summary>
-        /// <param name="context"></param>
+        /// <param name="pipeline"></param>
         /// <param name="index"></param>
         /// <param name="bounds"></param>
         /// <returns></returns>
-        public static IEnumerable<FrameGeohash> FindOverlapping(DynamoDBContext context, SpatialIndex index, BoundingBox bounds)
+        public static IEnumerable<FrameGeohash> FindOverlapping(PipelineCore pipeline, SpatialIndex index, BoundingBox bounds)
         {
             foreach (var prefix in index.Geohash.Overlapping(bounds.Min.ToDoubleArray(), bounds.Max.ToDoubleArray(), index.MaxPrecision))
             {
                 foreach (var geohash in
-                         DBUtil.Scan<FrameGeohash>(context,
+                         DBUtil.Scan<FrameGeohash>(pipeline.DynamoContext,
                                                    new ScanCondition("SpatialIndexId", ScanOperator.Equal, index.Id), 
                                                    new ScanCondition("Geohash", ScanOperator.BeginsWith, prefix)))
                 {
@@ -90,15 +90,15 @@ namespace OPS.Pipeline.AlignmentServer
             }
         }
 
-        public void Save(DynamoDBContext context)
+        public void Save(PipelineCore pipeline)
         {
-            context.Save(this, new DynamoDBOperationConfig { IgnoreNullValues = true });
+            pipeline.DynamoContext.Save(this, new DynamoDBOperationConfig { IgnoreNullValues = true });
         }
 
-        public static FrameGeohash Create(DynamoDBContext context, Project project, SpatialIndex index, Frame frame, string geohash)
+        public static FrameGeohash Create(PipelineCore pipeline, Project project, SpatialIndex index, Frame frame, string geohash)
         {
             var res = new FrameGeohash(Guid.NewGuid().ToString(), project, index, frame, geohash);
-            res.Save(context);
+            res.Save(pipeline);
             return res;
         }
     }
