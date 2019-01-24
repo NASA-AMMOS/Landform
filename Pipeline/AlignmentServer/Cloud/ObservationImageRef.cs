@@ -56,14 +56,9 @@ namespace OPS.Pipeline.AlignmentServer
             }
         }
 
-        public override Image Load(PipelineCore pipeline)
+        public override Image Load(PipelineCore pipeline, IImageConverter converter = null)
         {
-            return this.ImageRef.Load(pipeline);
-        }
-
-        public override Image Load(PipelineCore pipeline, IImageConverter imageConverter)
-        {
-            return this.ImageRef.Load(pipeline, imageConverter);
+            return this.ImageRef.Load(pipeline, converter);
         }
 
         public override int GetHashCode()

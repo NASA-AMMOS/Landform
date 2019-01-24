@@ -12,7 +12,6 @@ namespace OPS.Plumbing
     {
         public string Url { get; protected set; }
         public abstract string DisplayName { get; }
-        public abstract Image Load(PipelineCore pipeline);
-        public abstract Image Load(PipelineCore pipeline, IImageConverter imageConverter);
+        public abstract Image Load(PipelineCore pipeline, IImageConverter imageConverter = null);
     }
 }

@@ -27,8 +27,7 @@ namespace OPS.Pipeline.AlignmentServer
 
         public void Process()
         {
-            var imgRef = Message.Image;
-            var img = Pipeline.Load(imgRef);
+            var img = Pipeline.LoadImage(Message.Image);
             Imaging.Image mask = MakeMask(img);
             var maskProd = new PngDataProduct(mask);
             var project = Project.Find(Pipeline, Message.Project);

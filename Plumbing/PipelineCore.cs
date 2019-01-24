@@ -62,47 +62,31 @@ namespace OPS.Plumbing
             DeleteDownloadCache();
         }
 
+        //****************** Image Fetch API *****************
+
         /// <summary>
-        /// Convenience function to allow pipeline.Load(x) instead of x.Load(pipeline).
+        /// Convenience function to allow pipeline.LoadImage(x) instead of x.Load(pipeline).
         /// </summary>
-        public Image Load(ImageRef imgRef, bool memoryCache)
+        public Image LoadImage(ImageRef imgRef, bool memoryCache = true, IImageConverter converter = null)
         {
             if (memoryCache)
             {
                 if (!imageCache.ContainsKey(imgRef))
                 {
-                    imageCache[imgRef] = imgRef.Load(this);
+                    imageCache[imgRef] = imgRef.Load(this, converter);
                 }
                 return imageCache[imgRef];
             }
-
-            return imgRef.Load(this);
-        }
-
-        /// <summary>
-        /// Convenience function to allow pipeline.Load(x) instead of x.Load(pipeline).
-        /// </summary>
-        public Image Load(ImageRef imgRef, bool memoryCache, IImageConverter imageConverter)
-        {
-            if (memoryCache)
+            else
             {
-                if (!imageCache.ContainsKey(imgRef))
-                {
-                    imageCache[imgRef] = imgRef.Load(this,imageConverter);
-                }
-                return imageCache[imgRef];
+                return imgRef.Load(this, converter);
             }
-
-            return imgRef.Load(this, imageConverter);
-        }
-
-        public Image Load(ImageRef imgRef)
-        {
-            return Load(imgRef, true);
         }
 
         public abstract void GetStream(ImageRef imgRef, Action<Stream> handler);
         
+        //****************** File Manipulation API *****************
+
         public abstract void GetFile(string url, Action<string> func);
         
         /// <summary>
@@ -189,6 +173,8 @@ namespace OPS.Plumbing
             }
         }
 
+        //****************** Database API *****************
+
         public abstract void InitializeDatabaseTables(Type[] tableTypes, bool quiet = false);
         
         public abstract void SaveDatabaseItem<T>(T obj);
@@ -198,6 +184,8 @@ namespace OPS.Plumbing
         public abstract void DeleteDatabaseItem<T>(T obj, bool ignoreErrors = true);
 
         public abstract IEnumerable<T> ScanDatabase<T>(Dictionary<string, string> conditions = null, string indexName = null);
+
+        //****************** Logging API *****************
 
         public void LogInfo(string msg, params Object[] args)
         {
@@ -213,6 +201,8 @@ namespace OPS.Plumbing
         {
             Logger.ErrorFormat(msg, args);
         }
+
+        //****************** Disk Cache API *****************
 
         public bool EnableCleanupTempDir = true;
         public void CleanupTempDir()

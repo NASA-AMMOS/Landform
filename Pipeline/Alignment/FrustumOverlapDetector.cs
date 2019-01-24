@@ -51,7 +51,7 @@ namespace OPS.Pipeline
                         }
                         catch
                         {
-                            var img = Pipeline.Load(imgRef);
+                            var img = Pipeline.LoadImage(imgRef);
                             chc.Hull = ConvexHull.FromImage(img);
                         }
                     }

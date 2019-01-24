@@ -37,8 +37,8 @@ namespace OPS.Alignment
             {
                 return matches;
             }
-            var modelImg = Pipeline.Load(matches.ModelImage);
-            var dataImg = Pipeline.Load(matches.DataImage);
+            var modelImg = Pipeline.LoadImage(matches.ModelImage);
+            var dataImg = Pipeline.LoadImage(matches.DataImage);
             ImageFeature[] modelFeatures = scene.DetectedFeatures[matches.ModelImage];
             ImageFeature[] dataFeatures = scene.DetectedFeatures[matches.DataImage];
 

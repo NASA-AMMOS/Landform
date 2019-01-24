@@ -190,16 +190,27 @@ namespace OPS.Pipeline.MeshWorker
 
             foreach ( SceneNode node in scene.Root.DepthFirstTraverse())
             {
-                NodeImageReference imgRef = node.GetComponent<NodeImageReference>();
-                if (imgRef == null)
-                    continue;
+                NodeImageReference nir = node.GetComponent<NodeImageReference>();
 
-                Observation obs = ((ObservationImageRef)(imgRef.Reference)).Observation;
-                if (obs.UseForReconstruction == false)
+                if (nir == null)
+                {
                     continue;
+                }
+
+                var imgRef = nir.Reference as ObservationImageRef;
+
+                if (imgRef == null)
+                {
+                    continue;
+                }
+
+                if (imgRef.Observation.UseForReconstruction == false)
+                {
+                    continue;
+                }
 
                 //download image
-                Image img = pipeline.Load(imgRef.Reference, false);
+                Image img = pipeline.LoadImage(imgRef, false);
                
                 //validate image has a supported config
                 PDSMetadata md = img.Metadata as PDSMetadata;

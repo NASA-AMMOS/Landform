@@ -12,18 +12,14 @@ namespace OPS.Plumbing
     /// </summary>
     public class TransientImageRef : ImageRef
     {
+        private Image image;
+
         public TransientImageRef(Image image)
         {
             this.image = image;
         }
 
-        readonly Image image;
-        public override Image Load(PipelineCore pipeline)
-        {
-            return image;
-        }
-
-        public override Image Load(PipelineCore pipeline, IImageConverter imageConverter)
+        public override Image Load(PipelineCore pipeline, IImageConverter converter = null)
         {
             return image;
         }

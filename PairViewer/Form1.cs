@@ -96,7 +96,7 @@ namespace PairViewer
             if (dialog.ShowDialog() == DialogResult.OK)
             {
                 var imgRef = new DiskImageRef(dialog.FileName);
-                var res = Pipeline.Load(imgRef);
+                var res = Pipeline.LoadImage(imgRef);
                 string stem = Path.GetFileNameWithoutExtension(dialog.FileName);
                 if (res.Metadata is PDSMetadata)
                 {

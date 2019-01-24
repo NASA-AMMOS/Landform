@@ -207,13 +207,9 @@ namespace OPS.Pipeline.MeshWorker
             return pct;
         }
 
-        /// <summary>
-        /// pulls down the image for an observation from S3 and does basic validation
-        /// </summary>
         private Image GetObservationImage(RoverObservation obs, params RoverProductType[] expectedProductTypes)
         {
-            S3ImageRef s3ref = new S3ImageRef(obs.Url);
-            Image img = pipeline.Load(s3ref, false, ImageConverters.PassThrough);
+            Image img = pipeline.LoadImage(new ObservationImageRef(obs), false, ImageConverters.PassThrough);
             PDSParser parser = new PDSParser((PDSMetadata)img.Metadata);
 
             if (parser.ProductId.Producer != RoverProductProducer.OPGS)

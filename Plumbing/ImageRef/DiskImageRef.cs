@@ -13,7 +13,8 @@ namespace OPS.Plumbing
     public class DiskImageRef : ImageRef
     {
         public readonly string Path;
-        internal readonly int PathHashCode;
+        private readonly int PathHashCode;
+        private Image image;
 
         public DiskImageRef(string pathOrUrl)
         {
@@ -34,21 +35,11 @@ namespace OPS.Plumbing
             PathHashCode = Path.GetHashCode();
         }
 
-        internal Image image;
-        public override Image Load(PipelineCore pipeline)
+        public override Image Load(PipelineCore pipeline, IImageConverter converter = null)
         {
             if (image == null)
             {
-                image = Image.Load(Path);
-            }
-            return image;
-        }
-
-        public override Image Load(PipelineCore pipeline, IImageConverter imageConverter)
-        {
-            if (image == null)
-            {
-                image = Image.Load(Path, imageConverter);
+                image = converter != null ? Image.Load(Path, converter) : Image.Load(Path);
             }
             return image;
         }

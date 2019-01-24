@@ -28,8 +28,8 @@ namespace OPS.Pipeline.AlignmentServer
         static ASIFTDetector detector = new ASIFTDetector();
         public void Process()
         {
-            var img = Pipeline.Load(Message.Image);
             var project = Project.Find(Pipeline, Message.Project);
+            var img = Pipeline.LoadImage(Message.Image);
             Imaging.Image mask = null;
             if (Message.MaskGuid == Guid.Empty)
             {

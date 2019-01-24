@@ -102,7 +102,7 @@ namespace OPS.Alignment
             // collect images
             foreach (var imgRefC in scene.Root.GetComponentsInTree<NodeImageReference>())
             {
-                var cmod = Pipeline.Load(imgRefC.Reference).CameraModel;
+                var cmod = Pipeline.LoadImage(imgRefC.Reference).CameraModel;
                 int cameraIdx = cameraModels[(Imaging.CameraModel)cmod];
                 imageToCamera[imgRefC.Reference] = cameraIdx;
 
@@ -138,7 +138,7 @@ namespace OPS.Alignment
                 {
                     var feat = scene.DetectedFeatures[projection.Image][projection.Index];
 
-                    var cameraSpace = Pipeline.Load(projection.Image).CameraModel.Unproject(feat.Location);
+                    var cameraSpace = Pipeline.LoadImage(projection.Image).CameraModel.Unproject(feat.Location);
                     var cameraToWorld = scene.ImageToNode[projection.Image].Transform.LocalToWorld * worldToRoot;
                     var r = new Ray(Vector3.Transform(cameraSpace.Position, cameraToWorld), Vector3.TransformNormal(cameraSpace.Direction, cameraToWorld));
 

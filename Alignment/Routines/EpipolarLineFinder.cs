@@ -74,8 +74,8 @@ namespace OPS.Alignment
                 PerpendicularDistance = double.NaN
             };
 
-            var modelCmod = Pipeline.Load(model).CameraModel;
-            var dataCmod = Pipeline.Load(data).CameraModel;
+            var modelCmod = Pipeline.LoadImage(model).CameraModel;
+            var dataCmod = Pipeline.LoadImage(data).CameraModel;
 
             var dataRay = dataCmod.Unproject(dataFeat.Location);
             var dataRayInModel = RayExtensions.Transform(dataRay, dataToModel);
