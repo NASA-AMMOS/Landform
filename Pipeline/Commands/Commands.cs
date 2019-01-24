@@ -30,7 +30,8 @@ namespace OPS.Pipeline
                                                              LegacyToTile3DOptions,
                                                              TileLocalMeshOptions,
                                                              TextureMeshOptions,
-                                                             StartAlignMasterOptions
+                                                             StartAlignMasterOptions,
+                                                             LocalIngestOptions
                                                              >(args)
               .MapResult(
                 (ConvertBaselineMeshOptions opts) => new ConvertBaselineMesh(opts).Run(),
@@ -44,6 +45,7 @@ namespace OPS.Pipeline
                 (TileLocalMeshOptions opts) => new TileLocalMesh(opts).Run(),
                 (TextureMeshOptions opts) => new TextureMeshCommand(opts).Run(),
                 (StartAlignMasterOptions opts) => new AlignmentMaster(opts).Run(),
+                (LocalIngestOptions opts) => new LocalIngest(opts).Run(),
                 errs => 1);
         }
     }
