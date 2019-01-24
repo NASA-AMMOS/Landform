@@ -72,7 +72,7 @@ namespace OPS.Pipeline.TileServer
             if (!project.InputNames.Contains(name))
             {
                 project.InputNames.Add(name);
-                pipeline.DynamoContext.Save(project);
+                pipeline.SaveDatabaseItem(project);
             }
             
             return input;
@@ -80,7 +80,7 @@ namespace OPS.Pipeline.TileServer
 
         public static TilingInput Find(PipelineCore pipeline, string projectName, string name)
         {
-            return pipeline.DynamoContext.Load<TilingInput>(name, projectName);
+            return pipeline.LoadDatabaseItem<TilingInput>(name, projectName);
         }
 
         public static IEnumerable<TilingInput> Find(PipelineCore pipeline, TilingProject project, ILog logger = null)
@@ -102,15 +102,17 @@ namespace OPS.Pipeline.TileServer
             {
                 //fall back to scanning for all records that match the project name
                 //e.g. for legacy projects or if the project record is not well formed
-                return DBUtil.Scan<TilingInput>(pipeline.DynamoContext, logger,
-                                                new ScanCondition("ProjectName", ScanOperator.Equal, project.Name));
+                return pipeline.ScanDatabase<TilingInput>(new Dictionary<string, string>()
+                                                          {
+                                                              { "ProjectName", project.Name }
+                                                          });
             }
         }
 
         public void Save(PipelineCore pipeline)
         {
             this.IsValid();
-            pipeline.DynamoContext.Save(this);
+            pipeline.SaveDatabaseItem(this);
         }
 
         public void Delete(PipelineCore pipeline, bool ignoreErrors = true)
@@ -125,15 +127,15 @@ namespace OPS.Pipeline.TileServer
 
             if (!string.IsNullOrEmpty(MeshUrl))
             {
-                pipeline.Storage(MeshUrl).DeleteObject(MeshUrl, ignoreErrors: ignoreErrors, logger: pipeline.Logger);
+                pipeline.DeleteFile(MeshUrl, ignoreErrors);
             }
 
             if (!string.IsNullOrEmpty(ImageUrl))
             {
-                pipeline.Storage(ImageUrl).DeleteObject(ImageUrl, ignoreErrors: ignoreErrors, logger: pipeline.Logger);
+                pipeline.DeleteFile(ImageUrl, ignoreErrors);
             }
 
-            pipeline.DeleteDynamoItem(this, ignoreErrors);
+            pipeline.DeleteDatabaseItem(this, ignoreErrors);
         }
 
         private void IsValid()

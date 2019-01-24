@@ -78,12 +78,14 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="CloudPipeline.cs" />
     <Compile Include="Interfaces\IProductStorage.cs" />
     <Compile Include="DataProduct\DataProduct.cs" />
     <Compile Include="ImageRef\DiskImageRef.cs" />
     <Compile Include="DataProduct\PngDataProduct.cs" />
     <Compile Include="ImageRef\ImageRef.cs" />
     <Compile Include="DataProduct\JsonDataProduct.cs" />
+    <Compile Include="LocalPipeline.cs" />
     <Compile Include="PipelineCore.cs" />
     <Compile Include="PipelineRoutine.cs" />
     <Compile Include="Project.cs" />

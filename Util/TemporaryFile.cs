@@ -54,7 +54,6 @@ namespace OPS.Util
         public static void GetAndMove(string destination, FilenameDelegate func)
         {
             string file = GetTempName(destination);
-            Exception ex = null;
             try
             {
                 func(file);
@@ -273,12 +272,8 @@ namespace OPS.Util
 
             var dir = !string.IsNullOrEmpty(subdir) ? Path.Combine(TemporaryDirectory, subdir) : TemporaryDirectory;
 
-            var opt = recursive ? SearchOption.AllDirectories : SearchOption.TopDirectoryOnly;
-
-            IEnumerable<FileInfo> files = new DirectoryInfo(dir).GetFileSystemInfos("*", opt)
-                .Where(i => i is FileInfo) //keep only FileInfo not DirectoryInfo
-                .Select(i => i as FileInfo) //cast to IEnumerable<FileInfo>
-                .OrderBy(i => i.LastAccessTime); //sort oldest first
+            IEnumerable<FileInfo> files =
+                PathHelper.ListDirectory(dir, recursive: recursive).OrderBy(i => i.LastAccessTime); //sort oldest first
 
             long totalDiskUsage = files.Aggregate(0L, (n, f) => n + f.Length), diskUsageBefore = totalDiskUsage;
             bool wasTooBig = maxDiskBytes > 0 && totalDiskUsage > maxDiskBytes;
@@ -333,6 +328,7 @@ namespace OPS.Util
 
             if (recursive && deleteEmptySubdirs)
             {
+                var opt = recursive ? SearchOption.AllDirectories : SearchOption.TopDirectoryOnly;
                 IEnumerable<DirectoryInfo> dirs = new DirectoryInfo(dir).GetFileSystemInfos("*", opt)
                     .Where(i => i is DirectoryInfo)
                     .Select(i => i as DirectoryInfo)

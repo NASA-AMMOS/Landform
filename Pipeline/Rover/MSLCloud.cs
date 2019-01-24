@@ -10,7 +10,7 @@ namespace OPS.Pipeline.Rover
 {
     class MSLCloud
     {
-        public static void AddMSLICEProfile(PipelineCore pipeline)
+        public static void AddMSLICEProfile(CloudPipeline pipeline)
         {
             //MSL specific: this project does not hold its images within the same s3 bucket as the project
             //future projects  are expected to be within the same bucket
@@ -18,7 +18,7 @@ namespace OPS.Pipeline.Rover
             if (!string.IsNullOrEmpty(config.MSLICEProfile) && !string.IsNullOrEmpty(config.MSLICES3Url) &&
                 OPS.Cloud.Credentials.Exists(config.MSLICEProfile))
             {
-                pipeline.AddProfile(config.MSLICES3Url, config.MSLICEProfile);
+                pipeline.AddAWSProfile(config.MSLICES3Url, config.MSLICEProfile);
             }
         }
     }

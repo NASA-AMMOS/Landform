@@ -63,13 +63,13 @@ namespace OPS.Pipeline.AlignmentServer
         public static TransformPrior Create(PipelineCore pipeline, Frame frame, UncertainRigidTransform transform)
         {
             TransformPrior ft = new TransformPrior(Guid.NewGuid().ToString(), frame, transform);
-            pipeline.DynamoContext.Save(ft);
+            pipeline.SaveDatabaseItem(ft);
             return ft;
         }
 
         public static TransformPrior Find(PipelineCore pipeline, string project, string id)
         {
-            return pipeline.DynamoContext.Load<TransformPrior>(id, project);
+            return pipeline.LoadDatabaseItem<TransformPrior>(id, project);
         }
     }
 }

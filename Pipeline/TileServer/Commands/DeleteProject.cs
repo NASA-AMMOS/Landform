@@ -22,7 +22,7 @@ namespace OPS.Pipeline.TileServer
         public bool NoWait { get; set; }
     }
 
-    public class DeleteProject : PipelineCore
+    public class DeleteProject : CloudPipeline
     {
         const int MAX_WAIT_MS = 30 * 60 * 1000; //it can take a while to delete a big project
         const int SLEEP_MS = 500;

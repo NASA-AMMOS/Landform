@@ -68,9 +68,8 @@ namespace OPS.Pipeline.TileServer
 
             LogInfo("downloading " + input.MeshUrl);
             Mesh mesh = null;
-            TemporaryFile.GetAndDelete(Path.GetExtension(input.MeshUrl), f =>
+            pipeline.GetFile(input.MeshUrl, f =>
             {
-                pipeline.Storage(input.MeshUrl).DownloadFile(input.MeshUrl, f);
                 mesh = Mesh.Load(f);
                 mesh.RemoveInvalidFaces();
                 mesh.Clean();
@@ -80,11 +79,7 @@ namespace OPS.Pipeline.TileServer
             if (input.ImageUrl != null)
             {
                 LogInfo("downloading " + input.ImageUrl);
-                TemporaryFile.GetAndDelete(Path.GetExtension(input.ImageUrl), f =>
-                {
-                    pipeline.Storage(input.ImageUrl).DownloadFile(input.ImageUrl, f);
-                    image = Image.Load(f);
-                });
+                pipeline.GetFile(input.ImageUrl, f => image = Image.Load(f));
                 input.ImageBands = image.Bands;
                 input.ImageWidth = image.Width;
                 input.ImageHeight = image.Height;
@@ -116,7 +111,7 @@ namespace OPS.Pipeline.TileServer
                     Mesh m = multiClipper.Clip(bounds, true);
                     m.Save(f);
                     string meshUrl = TileServerConfig.Instance.ChunkUrl(project.Name, id + MESH_EXT);
-                    pipeline.Storage(meshUrl).UploadFile(f, meshUrl);
+                    pipeline.SaveFile(f, meshUrl);
                     TilingInputChunk record = TilingInputChunk.Create(pipeline, id, project,
                                                                       meshUrl, imageBaseUrl, m.Bounds());
                     chunkIds.Add(id);

@@ -196,11 +196,9 @@ namespace OPS.Pipeline.TileServer
 
         MeshImagePair DownloadInput(TilingInput input)
         {
-            LogInfo("downloading " + input.MeshUrl);
             Mesh mesh = null;
-            TemporaryFile.GetAndDelete(Path.GetExtension(input.MeshUrl), f =>
+            pipeline.GetFile(input.MeshUrl, f =>
             {
-                pipeline.Storage(input.MeshUrl).DownloadFile(input.MeshUrl, f);
                 mesh = Mesh.Load(f);
                 mesh.RemoveInvalidFaces();
                 mesh.Clean();
@@ -208,12 +206,7 @@ namespace OPS.Pipeline.TileServer
             Image image = null;
             if (input.ImageUrl != null)
             {
-                LogInfo("downloading " + input.ImageUrl);
-                TemporaryFile.GetAndDelete(Path.GetExtension(input.ImageUrl), f =>
-                {
-                    pipeline.Storage(input.ImageUrl).DownloadFile(input.ImageUrl, f);
-                    image = Image.Load(f);
-                });
+                pipeline.GetFile(input.ImageUrl, f => image = Image.Load(f));
             }
             return new MeshImagePair(mesh, image);
         }

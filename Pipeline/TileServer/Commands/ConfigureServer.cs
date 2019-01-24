@@ -39,7 +39,7 @@ namespace OPS.Pipeline.TileServer
         public bool NoUserData { get; set; }
     }
 
-    public class ConfigureServer : PipelineCore
+    public class ConfigureServer : CloudPipeline
     {
         private ConfigureServerOptions options;
 

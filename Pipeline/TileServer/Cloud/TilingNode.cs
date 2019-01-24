@@ -77,7 +77,7 @@ namespace OPS.Pipeline.TileServer
 
         public static TilingNode Find(PipelineCore pipeline, string projectName, string id)
         {
-            return pipeline.DynamoContext.Load<TilingNode>(id, projectName);
+            return pipeline.LoadDatabaseItem<TilingNode>(id, projectName);
         }
 
 
@@ -101,29 +101,31 @@ namespace OPS.Pipeline.TileServer
             {
                 //fall back to scanning for all records that match the project name
                 //e.g. for legacy projects or if the project record is not well formed
-                return DBUtil.Scan<TilingNode>(pipeline.DynamoContext, logger,
-                                               new ScanCondition("ProjectName", ScanOperator.Equal, project.Name));
+                return pipeline.ScanDatabase<TilingNode>(new Dictionary<string, string>()
+                                                         {
+                                                             { "ProjectName", project.Name }
+                                                         });
             }
         }
 
         public void Save(PipelineCore pipeline)
         {
-            DBUtil.ExponentialBackoff(() => pipeline.DynamoContext.Save(this));
+            DBUtil.ExponentialBackoff(() => pipeline.SaveDatabaseItem(this));
         }
 
         public void Delete(PipelineCore pipeline, bool ignoreErrors = true)
         {
             if (!string.IsNullOrEmpty(MeshUrl))
             {
-                pipeline.Storage(MeshUrl).DeleteObject(MeshUrl, ignoreErrors: ignoreErrors, logger: pipeline.Logger);
+                pipeline.DeleteFile(MeshUrl, ignoreErrors);
             }
 
             if (!string.IsNullOrEmpty(ImageUrl))
             {
-                pipeline.Storage(ImageUrl).DeleteObject(ImageUrl, ignoreErrors: ignoreErrors, logger: pipeline.Logger);
+                pipeline.DeleteFile(ImageUrl, ignoreErrors);
             }
 
-            pipeline.DeleteDynamoItem(this, ignoreErrors);
+            pipeline.DeleteDatabaseItem(this, ignoreErrors);
         }
 
         public bool IsLeaf()
@@ -205,7 +207,7 @@ namespace OPS.Pipeline.TileServer
 
             Action<string, string> upload = (file, url) =>
             {
-                pipeline.Storage(url).UploadFile(file, url);
+                pipeline.SaveFile(file, url);
                 //this could be useful for debugging in the future
                 //pipeline.Logger.InfoFormat("uploaded {0}", url);
             };
@@ -362,20 +364,9 @@ namespace OPS.Pipeline.TileServer
             if (MeshUrl != null)
             {
                 Mesh m = null;
-                TemporaryFile.GetAndDelete(Path.GetExtension(MeshUrl), f =>
-                {
-                    pipeline.Storage(MeshUrl).DownloadFile(MeshUrl, f);
-                    m = Mesh.Load(f);
-                });
+                pipeline.GetFile(MeshUrl, f => m = Mesh.Load(f));
                 Image img = null;
-                if (ImageUrl != null)
-                {
-                    TemporaryFile.GetAndDelete(Path.GetExtension(ImageUrl), f =>
-                    {
-                        pipeline.Storage(ImageUrl).DownloadFile(ImageUrl, f);
-                        img = Image.Load(f);
-                    });
-                }
+                pipeline.GetFile(ImageUrl, f => img = Image.Load(f));
                 if(m == null)
                 {
                     throw new Exception("Error loading tiling node mesh");

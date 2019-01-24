@@ -75,7 +75,7 @@ namespace PairViewer
         public PairViewerForm()
         {
             InitializeComponent();
-            Pipeline = new PipelineCore(new PipelineCoreOptions(), enableS3: false, enableDynamo: false, s3Url: "");
+            Pipeline = new CloudPipeline(new PipelineCoreOptions(), enableS3: false, enableDynamo: false);
 
             Locations = MSLLocations.LoadFromUrl();
             Scene = new AlignmentScene();

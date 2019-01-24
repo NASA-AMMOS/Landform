@@ -12,7 +12,7 @@ namespace OPS.Pipeline.TileServer
         public bool Force { get; set; }
     }
 
-    public class DeleteCache : PipelineCore
+    public class DeleteCache : CloudPipeline
     {
         private DeleteCacheOptions options;
 

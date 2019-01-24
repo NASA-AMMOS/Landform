@@ -76,7 +76,7 @@ namespace OPS.Pipeline.AlignmentServer
                 return null; //An observation with this name and project already exists 
             }
             RoverObservation ro = new RoverObservation(frame, name, url, observationType, cameraModel, useForReconstruction, site, drive, version, sensor, imageFrameSize, producer, width, height);
-            pipeline.DynamoContext.Save(ro);
+            pipeline.SaveDatabaseItem(ro);
             return ro;
         }
 
@@ -89,20 +89,24 @@ namespace OPS.Pipeline.AlignmentServer
         /// <returns></returns>
         new public static RoverObservation Find(PipelineCore pipeline, string projectName, string name)
         {
-            return pipeline.DynamoContext.Load<RoverObservation>(name, projectName);
+            return pipeline.LoadDatabaseItem<RoverObservation>(name, projectName);
         }
 
         new public static IEnumerable<RoverObservation> Find(PipelineCore pipeline, string projectName)
         {
-            return DBUtil.Scan<RoverObservation>(pipeline.DynamoContext,
-                                                 new ScanCondition("ProjectName", ScanOperator.Equal, projectName));
+            return pipeline.ScanDatabase<RoverObservation>(new Dictionary<string, string>()
+                                                           {
+                                                               { "ProjectName", projectName }
+                                                           });
         }
 
         new public static IEnumerable<RoverObservation> Find(PipelineCore pipeline, Frame frame)
         {
-            return DBUtil.Scan<RoverObservation>(pipeline.DynamoContext,
-                                                 new ScanCondition("ProjectName", ScanOperator.Equal, frame.ProjectName),
-                                                 new ScanCondition("FrameName", ScanOperator.Equal, frame.Name));
+            return pipeline.ScanDatabase<RoverObservation>(new Dictionary<string, string>()
+                                                           {
+                                                               { "ProjectName", frame.ProjectName },
+                                                               { "FrameName", frame.Name }
+                                                           });
         }
     }
 }

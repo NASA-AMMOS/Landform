@@ -48,7 +48,7 @@ namespace OPS.Pipeline.TileServer
         public bool NoWait { get; set; }
     }
 
-    public class CreateProject : PipelineCore
+    public class CreateProject : CloudPipeline
     {
         const int MAX_WAIT_MS = 60 * 1000;
         const int SLEEP_MS = 500;

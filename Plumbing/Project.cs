@@ -79,7 +79,7 @@ namespace OPS.Plumbing
         public static Project Create(PipelineCore pipeline, string name, string productPath, string inputPath)
         {
             Project project = new Project(name, productPath, inputPath);
-            pipeline.DynamoContext.Save(project, new DynamoDBOperationConfig() { IgnoreNullValues = true });
+            pipeline.SaveDatabaseItem(project);
             return project;
         }
 
@@ -91,7 +91,7 @@ namespace OPS.Plumbing
         public void Save(PipelineCore pipeline)
         {
             this.IsValid();
-            pipeline.DynamoContext.Save(this, new DynamoDBOperationConfig() { IgnoreNullValues = true });
+            pipeline.SaveDatabaseItem(this);
         }
 
         /// <summary>
@@ -103,7 +103,7 @@ namespace OPS.Plumbing
         /// <returns></returns>
         public static Project Find(PipelineCore pipeline, string name)
         {
-            Project project = pipeline.DynamoContext.Load<Project>(name);
+            Project project = pipeline.LoadDatabaseItem<Project>(name);
             if (project != null)
             {
                 project.IsValid();

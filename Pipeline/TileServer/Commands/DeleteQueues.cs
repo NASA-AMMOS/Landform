@@ -12,7 +12,7 @@ namespace OPS.Pipeline.TileServer
         public bool Force { get; set; }
     }
 
-    public class DeleteQueues : PipelineCore
+    public class DeleteQueues : CloudPipeline
     {
         private DeleteQueuesOptions options;
 

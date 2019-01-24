@@ -18,12 +18,21 @@ namespace OPS.Pipeline.TileServer
         const int WORKER_QUEUE_TIMEOUT_SEC = 60;
         const int MASTER_QUEUE_TIMEOUT_SEC = 30 * 60;
 
-        Type[] tableTypes = new Type[]
+        private CloudPipeline pipeline;
+
+        private Type[] tableTypes = new Type[]
             {
                 typeof(TilingProject),
                 typeof(TilingInput),
                 typeof(TilingNode),
                 typeof(TilingInputChunk),
+
+                //TODO: these are only for alignment projects
+                //ultimately TileServerCloud should get merged with CloudPipeline and this should all go there
+                //but this will require some refactoring to avoid circular dependencies
+                //between the Pipeline and Plumbing subprojects
+                //it is not clear to me why they are separate subprojects anyway, so maybe merging them is the solution
+                //https://github.jpl.nasa.gov/OnSight/Landform/issues/292
                 typeof(Project),
                 typeof(FrameTransform),
                 typeof(Frame),
@@ -32,19 +41,16 @@ namespace OPS.Pipeline.TileServer
                 typeof(TransformPrior)
             };
 
-        private PipelineCore pipeline;
-
-        public TileServerCloud(PipelineCore pipelineCore, bool initQueues = true, bool initTables = true,
-                               bool quiet = false)
+        public TileServerCloud(CloudPipeline pipeline, bool initQueues = true, bool initTables = true, bool quiet = false)
         {
-            this.pipeline = pipelineCore;
+            this.pipeline = pipeline;
             if (initQueues)
             {
                 InitializeQueues(quiet);
             }
             if (initTables)
             {
-                InitializeTables(quiet);
+                pipeline.InitializeDatabaseTables(tableTypes, quiet);
             }
         }
 
@@ -54,9 +60,9 @@ namespace OPS.Pipeline.TileServer
         public void InitializeQueues(bool quiet = false)
         {
             var prefix = TileServerConfig.Instance.VenueName;
-            MasterQueue = new TilingQueue(prefix + "_master", pipeline.Profile, MASTER_QUEUE_TIMEOUT_SEC,
+            MasterQueue = new TilingQueue(prefix + "_master", pipeline.AWSProfile, MASTER_QUEUE_TIMEOUT_SEC,
                                           logger: pipeline.Logger, quiet: quiet);
-            WorkerQueue = new TilingQueue(prefix + "_worker", pipeline.Profile, WORKER_QUEUE_TIMEOUT_SEC,
+            WorkerQueue = new TilingQueue(prefix + "_worker", pipeline.AWSProfile, WORKER_QUEUE_TIMEOUT_SEC,
                                           logger: pipeline.Logger, quiet: quiet);
             if (!quiet)
             {
@@ -67,26 +73,9 @@ namespace OPS.Pipeline.TileServer
         public void DeleteQueues()
         {
             var prefix = TileServerConfig.Instance.VenueName;
-            var client = TilingQueue.GetClient(pipeline.Profile);
+            var client = TilingQueue.GetClient(pipeline.AWSProfile);
             TilingQueue.DeleteQueue(client, prefix + "_master");
             TilingQueue.DeleteQueue(client, prefix + "_worker");
-        }
-
-        public void InitializeTables(bool quiet = false)
-        {
-            var prefix = TileServerConfig.Instance.VenueName;
-            foreach (var t in tableTypes)
-            {
-                DBUtil.CreateOrUpdateTable(pipeline.DynamoClient, t, prefix, quiet ? null : pipeline.Logger);
-            }
-            foreach (var t in tableTypes)
-            {
-                DBUtil.WaitForTable(pipeline.DynamoClient, t, prefix, logger: quiet ? null : pipeline.Logger);
-            }
-            if (!quiet)
-            {
-                pipeline.Logger.Info("tables initialized");
-            }
         }
     }
 }

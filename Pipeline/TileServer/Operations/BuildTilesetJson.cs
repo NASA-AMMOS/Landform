@@ -52,7 +52,7 @@ namespace OPS.Pipeline.TileServer
             {
                 File.WriteAllText(f, jsonData);
                 string url = TileServerConfig.Instance.WWWUrl(project.Name, "tileset.json");
-                pipeline.Storage(url).UploadFile(f, url);
+                pipeline.SaveFile(f, url);
             });
             cloud.MasterQueue.Enqueue(this.message);
             LogInfo("completed");

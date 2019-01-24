@@ -20,7 +20,7 @@ namespace OPS.Plumbing
         {
             if (image == null)
             {
-                string fn = pipeline.DownloadCached(Url, "images");
+                string fn = (pipeline as CloudPipeline).DownloadCached(Url, "images");
                 image = Image.Load(fn);
             }
             return image;
@@ -30,7 +30,7 @@ namespace OPS.Plumbing
         {
             if (image == null)
             {
-                string fn = pipeline.DownloadCached(Url, "images");
+                string fn = (pipeline as CloudPipeline).DownloadCached(Url, "images");
                 image = Image.Load(fn, imageConverter);
             }
             return image;

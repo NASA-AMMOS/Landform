@@ -28,7 +28,7 @@ namespace OPS.Pipeline.TileServer
         public bool SingleThreaded { get; set; }
     }
 
-    public class StartWorker : PipelineCore
+    public class StartWorker : CloudPipeline
     {
         public const int MAX_PROCESSING_SEC = 6 * 60 * 60; //6h
         public const double HEARTBEAT_PERIOD_REL = 0.333;
@@ -378,9 +378,9 @@ namespace OPS.Pipeline.TileServer
             //each worker thread has its own cloud instance
             //this avoids the need for synchronization
             //all threads share the same logger which is MT safe
-            var pipeline = new PipelineCore(options,
-                                            TileServerConfig.Instance.VenueName, TileServerConfig.Instance.Profile,
-                                            logger: Logger, numImagesLRUCache: WORKER_IMAGELRUCACHESIZE);
+            var pipeline = new CloudPipeline(options, TileServerConfig.Instance.VenueName,
+                                             TileServerConfig.Instance.Profile, logger: Logger,
+                                             lruCache: WORKER_IMAGELRUCACHESIZE);
 
             //MSL specific
             OPS.Pipeline.Rover.MSLCloud.AddMSLICEProfile(pipeline);

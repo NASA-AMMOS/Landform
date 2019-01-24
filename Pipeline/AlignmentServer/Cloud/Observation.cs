@@ -3,10 +3,9 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using Amazon.DynamoDBv2.DataModel;
-using Amazon.DynamoDBv2.DocumentModel;
 using OPS.Cloud;
 using OPS.Plumbing;
+using Amazon.DynamoDBv2.DataModel;
 
 namespace OPS.Pipeline.AlignmentServer
 {
@@ -106,7 +105,7 @@ namespace OPS.Pipeline.AlignmentServer
         public static Observation Create(PipelineCore pipeline, Frame frame, string name, string url, string observationType, string cameraModel, bool useForReconstruction, int width, int height)
         {
             Observation obs = new Observation(frame, name, url, observationType, cameraModel, useForReconstruction, width, height);
-            pipeline.DynamoContext.Save(obs, new DynamoDBOperationConfig { IgnoreNullValues = true });
+            pipeline.SaveDatabaseItem(obs);
             return obs;
         }
 
@@ -116,7 +115,7 @@ namespace OPS.Pipeline.AlignmentServer
         /// <param name=""></param>
         public void Save(PipelineCore pipeline)
         {
-            pipeline.DynamoContext.Save(this, new DynamoDBOperationConfig { IgnoreNullValues = true });
+            pipeline.SaveDatabaseItem(this);
         }
 
         /// <summary>
@@ -128,26 +127,33 @@ namespace OPS.Pipeline.AlignmentServer
         /// <returns></returns>
         public static Observation Find(PipelineCore pipeline, string projectName, string name)
         {
-            return pipeline.DynamoContext.Load<Observation>(name, projectName);
+            return pipeline.LoadDatabaseItem<Observation>(name, projectName);
         }
 
         public static IEnumerable<Observation> Find(PipelineCore pipeline, string projectName)
         {
-            return DBUtil.Scan<Observation>(pipeline.DynamoContext, new ScanCondition("ProjectName", ScanOperator.Equal, projectName));
+            return pipeline.ScanDatabase<Observation>(new Dictionary<string, string>()
+                                                      {
+                                                          { "ProjectName", projectName }
+                                                      });
         }
 
         public static IEnumerable<Observation> Find(PipelineCore pipeline, Frame frame)
         {
-            return DBUtil.Scan<Observation>(pipeline.DynamoContext,
-                                            new ScanCondition("ProjectName", ScanOperator.Equal, frame.ProjectName),
-                                            new ScanCondition("FrameName", ScanOperator.Equal, frame.Name));
+            return pipeline.ScanDatabase<Observation>(new Dictionary<string, string>()
+                                                      {
+                                                          { "ProjectName", frame.ProjectName},
+                                                          { "FrameName", frame.Name}
+                                                      });
         }
 
         public static IEnumerable<Observation> FindByType(PipelineCore pipeline, string projectName, string observationType)
         {
-            return DBUtil.Scan<Observation>(pipeline.DynamoContext,
-                                            new ScanCondition("ProjectName", ScanOperator.Equal, projectName),
-                                            new ScanCondition("ObservationType", ScanOperator.Equal, observationType));
+            return pipeline.ScanDatabase<Observation>(new Dictionary<string, string>()
+                                                      {
+                                                          { "ProjectName", projectName },
+                                                          { "ObservationType", observationType }
+                                                      });
         }
     }
 }

@@ -5,10 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 using OPS.Cloud;
 using OPS.Plumbing;
-
 using Amazon.DynamoDBv2.DataModel;
-using Amazon.DynamoDBv2.Model;
-using Amazon.DynamoDBv2.DocumentModel;
 
 namespace OPS.Pipeline.AlignmentServer
 {
@@ -50,9 +47,11 @@ namespace OPS.Pipeline.AlignmentServer
 
         public IEnumerable<Frame> GetChildren(PipelineCore pipeline)
         {
-            return DBUtil.Scan<Frame>(pipeline.DynamoContext,
-                                      new ScanCondition("ProjectName", ScanOperator.Equal, ProjectName),
-                                      new ScanCondition("ParentName", ScanOperator.Equal, Name));
+            return pipeline.ScanDatabase<Frame>(new Dictionary<string, string>()
+                                                {
+                                                    { "ProjectName", ProjectName },
+                                                    { "ParentName", ParentName }
+                                                });
         }
 
         public Frame GetParent(PipelineCore pipeline)
@@ -96,7 +95,7 @@ namespace OPS.Pipeline.AlignmentServer
                 name = Guid.NewGuid().ToString();
             }
             Frame f = new Frame(p, name, parent);
-            pipeline.DynamoContext.Save<Frame>(f, new DynamoDBOperationConfig { IgnoreNullValues = true});
+            pipeline.SaveDatabaseItem<Frame>(f);
             return f;
         }
 
@@ -106,7 +105,7 @@ namespace OPS.Pipeline.AlignmentServer
         /// <param name=""></param>
         public void Save(PipelineCore pipeline)
         {
-            pipeline.DynamoContext.Save(this, new DynamoDBOperationConfig { IgnoreNullValues = true });
+            pipeline.SaveDatabaseItem(this);
         }
 
         /// <summary>
@@ -146,7 +145,7 @@ namespace OPS.Pipeline.AlignmentServer
         /// <returns></returns>
         public static Frame Find(PipelineCore pipeline, string projectName, string name)
         {
-            return pipeline.DynamoContext.Load<Frame>(name, projectName);
+            return pipeline.LoadDatabaseItem<Frame>(name, projectName);
         }
     }   
 }

@@ -31,7 +31,7 @@ namespace OPS.Pipeline.TileServer
         public bool NoWait { get; set; }
     }
 
-    public class UploadInput : PipelineCore
+    public class UploadInput : CloudPipeline
     {
         const int MAX_WAIT_MS = 60 * 1000;
         const int SLEEP_MS = 500;
@@ -88,7 +88,7 @@ namespace OPS.Pipeline.TileServer
                                                                 Path.GetFileName(options.MeshFilepath));
             Logger.InfoFormat("uploading input mesh \"{0}\" for project \"{1}\"",
                               options.MeshFilepath, options.ProjectName);
-            Storage(meshUrl).UploadFile(options.MeshFilepath, meshUrl);
+            SaveFile(options.MeshFilepath, meshUrl);
             Logger.InfoFormat("upload input mesh \"{0}\" for project \"{1}\" complete",
                               options.MeshFilepath, options.ProjectName);
 
@@ -99,7 +99,7 @@ namespace OPS.Pipeline.TileServer
                                                               Path.GetFileName(options.ImageFilepath));
                 Logger.InfoFormat("uploading input image \"{0}\" for project \"{1}\"",
                                   options.ImageFilepath, options.ProjectName);
-                Storage(imageUrl).UploadFile(options.ImageFilepath, imageUrl);
+                SaveFile(options.ImageFilepath, imageUrl);
                 Logger.InfoFormat("uploading input image \"{0}\" for project \"{1}\" complete",
                                   options.ImageFilepath, options.ProjectName);
             }

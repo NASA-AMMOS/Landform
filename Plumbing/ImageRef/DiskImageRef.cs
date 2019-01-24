@@ -14,10 +14,23 @@ namespace OPS.Plumbing
     {
         public readonly string Path;
         internal readonly int PathHashCode;
-        public DiskImageRef(string path)
+
+        public DiskImageRef(string pathOrUrl)
         {
-            Url = "file://" + path;
-            Path = path;
+            if (pathOrUrl.ToLower().StartsWith("file://"))
+            {
+                Url = pathOrUrl;
+                Path = pathOrUrl.Substring(7);
+            }
+            else if (!pathOrUrl.Contains("://"))
+            {
+                Url = "file://" + pathOrUrl;
+                Path = pathOrUrl;
+            }
+            else
+            {
+                throw new Exception("unhandled protocol: " + pathOrUrl);
+            }
             PathHashCode = Path.GetHashCode();
         }
 

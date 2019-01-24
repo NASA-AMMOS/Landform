@@ -97,11 +97,7 @@ namespace OPS.Pipeline.TileServer
                 var meshes = group.Chunks.Select(c =>
                 {
                     Mesh m = null;
-                    TemporaryFile.GetAndDelete(Path.GetExtension(c.MeshUrl), f =>
-                    {
-                        pipeline.Storage(c.MeshUrl).DownloadFile(c.MeshUrl, f);
-                        m = Mesh.Load(f);
-                    });
+                    pipeline.GetFile(c.MeshUrl, f => m = Mesh.Load(f));
                     return m;
                 });
                 var mergedMesh = Mesh.Merge(meshes.ToArray());

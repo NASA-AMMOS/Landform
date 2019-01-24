@@ -2,11 +2,9 @@
 using System.Collections.Generic;
 using OPS.Cloud;
 using OPS.Plumbing;
-
+using System.Linq;
 using Amazon.DynamoDBv2.Model;
 using Amazon.DynamoDBv2.DataModel;
-using Amazon.DynamoDBv2.DocumentModel;
-using System.Linq;
 
 namespace OPS.Pipeline.AlignmentServer
 {
@@ -109,7 +107,7 @@ namespace OPS.Pipeline.AlignmentServer
             Overlap newOverlap = new Overlap(observation1.Name, observation2.Name, observation1.ProjectName);
             try
             {
-                pipeline.DynamoContext.Save(newOverlap);
+                pipeline.SaveDatabaseItem(newOverlap);
             }
             catch(ConditionalCheckFailedException)//if create fails another worker has already uploaded and updated this overlap
             {
@@ -120,7 +118,7 @@ namespace OPS.Pipeline.AlignmentServer
             newOverlap.Uploaded = true;
             try
             {
-                pipeline.DynamoContext.Save(newOverlap);
+                pipeline.SaveDatabaseItem(newOverlap);
             }
             catch (ConditionalCheckFailedException)//Another worker updated this overlap before we could
             {
@@ -128,7 +126,7 @@ namespace OPS.Pipeline.AlignmentServer
             }
 
             //if save was successful, return Overlap with most recent version number so it can be saved
-            return pipeline.DynamoContext.Load<Overlap>(newOverlap.CombinedName, newOverlap.ProjectName, new DynamoDBOperationConfig { ConsistentRead = true});
+            return pipeline.LoadDatabaseItem<Overlap>(newOverlap.CombinedName, newOverlap.ProjectName, consistent: true);
         }
 
         /// <summary>
@@ -139,7 +137,7 @@ namespace OPS.Pipeline.AlignmentServer
         {
             try
             {
-                pipeline.DynamoContext.Save(this);
+                pipeline.SaveDatabaseItem(this);
             }
             catch (ConditionalCheckFailedException)
             {
@@ -151,12 +149,15 @@ namespace OPS.Pipeline.AlignmentServer
         public static Overlap Find(PipelineCore pipeline, string observationName1, string observationName2, string projectName)
         {
             var name = new OverlapName(observationName1, observationName2);
-            return pipeline.DynamoContext.Load<Overlap>(name.CombinedName, projectName);
+            return pipeline.LoadDatabaseItem<Overlap>(name.CombinedName, projectName);
         }
 
         public static IEnumerable<Overlap> Find(PipelineCore pipeline, string projectName)
         {
-            return DBUtil.Scan<Overlap>(pipeline.DynamoContext, new ScanCondition("ProjectName", ScanOperator.Equal, projectName));
+            return pipeline.ScanDatabase<Overlap>(new Dictionary<string, string>()
+                                                  {
+                                                      { "ProjectName", projectName }
+                                                  });
         }
 
         /// <summary>
@@ -166,13 +167,12 @@ namespace OPS.Pipeline.AlignmentServer
         {
             foreach (var prop in new[] { "ObservationNameOne", "ObservationNameTwo" })
             {
-                var filt = new QueryFilter(prop, QueryOperator.Equal, observation.Name);
-                filt.AddCondition("ProjectName", QueryOperator.Equal, observation.ProjectName);
-                var entries = pipeline.DynamoContext.FromQuery<Overlap>(new QueryOperationConfig()
-                {
-                    IndexName = "Overlap" + prop + "Index",
-                    Filter = filt
-                });
+                var entries = pipeline.ScanDatabase<Overlap>(new Dictionary<string, string>()
+                                                             {
+                                                                 { prop, observation.Name },
+                                                                 { "ProjectName", observation.ProjectName }
+                                                             },
+                                                             indexName: "Overlap" + prop + "Index");
                 foreach (var o in entries)
                 {
                     yield return o;

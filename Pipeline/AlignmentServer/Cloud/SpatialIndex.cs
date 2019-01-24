@@ -71,12 +71,12 @@ namespace OPS.Pipeline.AlignmentServer
         }
         public void Save(PipelineCore pipeline)
         {
-            pipeline.DynamoContext.Save(this, new DynamoDBOperationConfig { IgnoreNullValues = true });
+            pipeline.SaveDatabaseItem(this);
         }
 
         public static SpatialIndex Find(PipelineCore pipeline, string projectName, string id)
         {
-            return pipeline.DynamoContext.Load<SpatialIndex>(id, projectName);
+            return pipeline.LoadDatabaseItem<SpatialIndex>(id, projectName);
         }
     }
 }

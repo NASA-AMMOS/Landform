@@ -16,7 +16,7 @@ namespace OPS.Pipeline.TileServer
     {
     }
 
-    public class StartMaster : PipelineCore
+    public class StartMaster : CloudPipeline
     {
         private StartMasterOptions options;
 

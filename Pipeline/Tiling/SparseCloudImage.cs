@@ -32,7 +32,7 @@ namespace OPS.Pipeline
         {         
             TemporaryFile.GetAndDelete(Path.GetExtension(url), f => {
                 base.SaveChunk<T>(img, f);
-                pipeline.Storage(url).UploadFile(f, url);
+                pipeline.SaveFile(f, url);
 
             });
         }

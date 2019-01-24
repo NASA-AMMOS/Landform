@@ -120,7 +120,7 @@ namespace OPS.Pipeline
                 return false;
             }
 
-            if(parser.IsHazcam)
+            if (parser.IsHazcam)
             {
                 return false;
             }
@@ -130,6 +130,7 @@ namespace OPS.Pipeline
             {
                 return false;
             }
+
             if (parser.IsMastcam)
             {
                 // Skip mastcam taken with color filters
@@ -139,7 +140,8 @@ namespace OPS.Pipeline
                     {
                         return false;
                     }
-                } catch
+                }
+                catch
                 {
                     return false;
                 }
@@ -150,10 +152,12 @@ namespace OPS.Pipeline
                     return false;
                 }
             }
+
             if (parser.IsNavcam && parser.IsDownsampled)
             {
                 return false;
             }
+
             return true;
         }
 
@@ -290,8 +294,15 @@ namespace OPS.Pipeline
             {
                 string cameraModel = JsonHelper.ToJson(metadata.CameraModel);
                 string url = imgRef.Url;
-                observation = RoverObservation.Create(Pipeline, observationFrame, observationName, url, productTypeToObservationType[parser.DerivedImageType].ToString(), cameraModel, UseForReconstruction(parser, metadata), parser.Site, parser.Drive, parser.ProductId.Version, parser.Camera.ToString(), parser.ImageSizeType.ToString(), parser.ProducingInstitution.ToString(), metadata.Width, metadata.Height);
-                if (observation != null) {
+                observation = RoverObservation.Create(Pipeline, observationFrame, observationName, url,
+                                                      productTypeToObservationType[parser.DerivedImageType].ToString(),
+                                                      cameraModel, UseForReconstruction(parser, metadata),
+                                                      parser.Site, parser.Drive, parser.ProductId.Version,
+                                                      parser.Camera.ToString(), parser.ImageSizeType.ToString(),
+                                                      parser.ProducingInstitution.ToString(),
+                                                      metadata.Width, metadata.Height);
+                if (observation != null)
+                {
                     return new Result(Status.Added, observation);
                 }
                 else

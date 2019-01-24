@@ -5,10 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 using OPS.Cloud;
 using OPS.Plumbing;
-
-using Amazon.DynamoDBv2.DocumentModel;
 using Amazon.DynamoDBv2.DataModel;
-using Amazon.DynamoDBv2.Model;
 using Microsoft.Xna.Framework;
 
 namespace OPS.Pipeline.AlignmentServer
@@ -45,7 +42,7 @@ namespace OPS.Pipeline.AlignmentServer
 
         public static FrameGeohash Find(PipelineCore pipeline, string projectName, string id)
         {
-            return pipeline.DynamoContext.Load<FrameGeohash>(id, projectName);
+            return pipeline.LoadDatabaseItem<FrameGeohash>(id, projectName);
         }
 
         /// <summary>
@@ -53,9 +50,11 @@ namespace OPS.Pipeline.AlignmentServer
         /// </summary>
         public static IEnumerable<FrameGeohash> Find(PipelineCore pipeline, Frame frame)
         {
-            return DBUtil.Scan<FrameGeohash>(pipeline.DynamoContext,
-                                             new ScanCondition("ProjectName", ScanOperator.Equal, frame.ProjectName),
-                                             new ScanCondition("FrameName", ScanOperator.Equal, frame.Name));
+            return pipeline.ScanDatabase<FrameGeohash>(new Dictionary<string, string>()
+                                                       {
+                                                           { "ProjectName", frame.ProjectName },
+                                                           { "FrameName", frame.Name }
+                                                       });
         }
 
         /// <summary>
@@ -63,10 +62,12 @@ namespace OPS.Pipeline.AlignmentServer
         /// </summary>
         public static IEnumerable<FrameGeohash> Find(PipelineCore pipeline, SpatialIndex index, Frame frame)
         {
-            return DBUtil.Scan<FrameGeohash>(pipeline.DynamoContext,
-                                             new ScanCondition("ProjectName", ScanOperator.Equal, frame.ProjectName),
-                                             new ScanCondition("SpatialIndexId", ScanOperator.Equal, index.Id),
-                                             new ScanCondition("FrameName", ScanOperator.Equal, frame.Name));
+            return pipeline.ScanDatabase<FrameGeohash>(new Dictionary<string, string>()
+                                                       {
+                                                           { "ProjectName", frame.ProjectName },
+                                                           { "SpatialIndexId", index.Id },
+                                                           { "FrameName", frame.Name }
+                                                       });
         }
 
         /// <summary>
@@ -81,9 +82,11 @@ namespace OPS.Pipeline.AlignmentServer
             foreach (var prefix in index.Geohash.Overlapping(bounds.Min.ToDoubleArray(), bounds.Max.ToDoubleArray(), index.MaxPrecision))
             {
                 foreach (var geohash in
-                         DBUtil.Scan<FrameGeohash>(pipeline.DynamoContext,
-                                                   new ScanCondition("SpatialIndexId", ScanOperator.Equal, index.Id), 
-                                                   new ScanCondition("Geohash", ScanOperator.BeginsWith, prefix)))
+                         pipeline.ScanDatabase<FrameGeohash>(new Dictionary<string, string>()
+                                                             {
+                                                                 { "SpatialIndexId", index.Id },
+                                                                 { "Geohash", "^" + prefix }
+                                                             }))
                 {
                     yield return geohash;
                 }
@@ -92,7 +95,7 @@ namespace OPS.Pipeline.AlignmentServer
 
         public void Save(PipelineCore pipeline)
         {
-            pipeline.DynamoContext.Save(this, new DynamoDBOperationConfig { IgnoreNullValues = true });
+            pipeline.SaveDatabaseItem(this);
         }
 
         public static FrameGeohash Create(PipelineCore pipeline, Project project, SpatialIndex index, Frame frame, string geohash)

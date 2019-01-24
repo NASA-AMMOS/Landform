@@ -16,7 +16,7 @@ namespace OPS.Pipeline.TileServer
     {       
     }
 
-    public class ListProjects : PipelineCore
+    public class ListProjects : CloudPipeline
     {
         private ListProjectsOptions options;
 

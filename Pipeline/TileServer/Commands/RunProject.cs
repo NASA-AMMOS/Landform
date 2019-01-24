@@ -20,7 +20,7 @@ namespace OPS.Pipeline.TileServer
         public string ProjectName { get; set; }
     }
 
-    public class RunProject : PipelineCore
+    public class RunProject : CloudPipeline
     {
         private RunProjectOptions options;
 

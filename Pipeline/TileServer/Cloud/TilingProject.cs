@@ -86,7 +86,7 @@ namespace OPS.Pipeline.TileServer
 
         public static TilingProject Find(PipelineCore pipeline, string name)
         {
-            TilingProject project = pipeline.DynamoContext.Load<TilingProject>(name);
+            TilingProject project = pipeline.LoadDatabaseItem<TilingProject>(name);
             if (project != null)
             {
                 project.IsValid();
@@ -96,13 +96,13 @@ namespace OPS.Pipeline.TileServer
 
         public static IEnumerable<TilingProject> FindAll(PipelineCore pipeline, ILog logger = null)
         {
-            return DBUtil.Scan<TilingProject>(pipeline.DynamoContext, logger);
+            return pipeline.ScanDatabase<TilingProject>();
         }
 
         public void Save(PipelineCore pipeline)
         {
             IsValid();
-            pipeline.DynamoContext.Save(this);
+            pipeline.SaveDatabaseItem(this);
         }
 
         public const int SLEEP_BETWEEN_NODE_DELETES_MS = 10;
@@ -139,14 +139,14 @@ namespace OPS.Pipeline.TileServer
             pipeline.DeleteProjectCache(Name);
 
             string wwwS3Url = TileServerConfig.Instance.WWWUrl(Name);
-            pipeline.Storage(wwwS3Url).DeleteObjects(wwwS3Url, ignoreErrors: ignoreErrors, logger: pipeline.Logger);
+            pipeline.DeleteFiles(wwwS3Url, "*", ignoreErrors);
 
             if (!string.IsNullOrEmpty(NodeIdsUrl))
             {
-                pipeline.Storage(NodeIdsUrl).DeleteObjects(NodeIdsUrl, ignoreErrors: ignoreErrors, logger: pipeline.Logger);
+                pipeline.DeleteFile(NodeIdsUrl, ignoreErrors);
             }
 
-            pipeline.DeleteDynamoItem(this, ignoreErrors);
+            pipeline.DeleteDatabaseItem(this, ignoreErrors);
         }
 
         private void IsValid()
@@ -177,12 +177,10 @@ namespace OPS.Pipeline.TileServer
             List<string> ids = null;
             if (!string.IsNullOrEmpty(NodeIdsUrl))
             {
-                TemporaryFile.GetAndDelete(".json", tmpJson =>
-                        {
-                            pipeline.Storage(NodeIdsUrl).DownloadFile(NodeIdsUrl, tmpJson);
-                            var json = File.ReadAllText(tmpJson);
-                            ids = ((JArray)JsonHelper.FromJson(json, autoTypes: false)).ToObject<List<string>>();
-                        });
+                pipeline.GetFile(NodeIdsUrl, f =>
+                {
+                    ids = ((JArray)JsonHelper.FromJson(File.ReadAllText(f), autoTypes: false)).ToObject<List<string>>();
+                });
             }
             return ids;
         }
@@ -194,7 +192,7 @@ namespace OPS.Pipeline.TileServer
             {
                 var json = JsonHelper.ToJson(ids, autoTypes: false);
                 File.WriteAllText(tmpJson, json);
-                pipeline.Storage(url).UploadFile(tmpJson, url);
+                pipeline.SaveFile(tmpJson, url);
             });
             NodeIdsUrl = url;
             return url;

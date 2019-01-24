@@ -85,7 +85,7 @@ namespace OPS.Pipeline.AlignmentServer
         {
             //Now that the id has been saved to the lookup table, we are free to add the transform itself 
             FrameTransform ft = new FrameTransform(frame, transform);
-            pipeline.DynamoContext.Save(ft);
+            pipeline.SaveDatabaseItem(ft);
 
             return ft;
         }
@@ -96,7 +96,7 @@ namespace OPS.Pipeline.AlignmentServer
         /// <param name=""></param>
         public void Save(PipelineCore pipeline)
         {
-            pipeline.DynamoContext.Save(this, new DynamoDBOperationConfig { IgnoreNullValues = true });
+            pipeline.SaveDatabaseItem(this);
         }
 
 
@@ -121,7 +121,7 @@ namespace OPS.Pipeline.AlignmentServer
 
         public static FrameTransform Find(PipelineCore pipeline, Frame frame)
         {
-            return pipeline.DynamoContext.Load<FrameTransform>(frame.Name, frame.ProjectName);
+            return pipeline.LoadDatabaseItem<FrameTransform>(frame.Name, frame.ProjectName);
         }
     }
 }

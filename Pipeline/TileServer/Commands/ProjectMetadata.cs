@@ -38,7 +38,7 @@ namespace OPS.Pipeline.TileServer
         public string OutputUrl;
     }
 
-    public class ProjectMetadata : PipelineCore
+    public class ProjectMetadata : CloudPipeline
     {
         private ProjectMetadataOptions options;
 

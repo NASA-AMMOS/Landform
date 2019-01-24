@@ -145,7 +145,7 @@ namespace OPS.Pipeline.MeshWorker
             {
                 LogInfo("uploading mesh " + s3MeshOutputUrl);
                 surfacedMesh.Save(tempFile);
-                pipeline.Storage(s3MeshOutputUrl).UploadFile(tempFile, s3MeshOutputUrl);
+                pipeline.SaveFile(tempFile, s3MeshOutputUrl);
             });
 
             //create a tiling input
