@@ -118,7 +118,7 @@ namespace OPS.Pipeline.TileServer
             return GetUrl("tile", projectName, filename, https);
         }
 
-        string GetUrl(string folder, string projectName, string filename, bool https=false)
+        public string GetUrl(string folder = "", string projectName = "", string filename = "", bool https=false)
         {
             string baseUrl = S3Url;
             if (https)
@@ -126,6 +126,8 @@ namespace OPS.Pipeline.TileServer
                 string bucketName = new Uri(S3Url).Host;
                 baseUrl = "https://" + bucketName + ".s3.amazonaws.com";
             }
+
+            //empty strings are ignored
             return new Uri(Path.Combine(baseUrl, VenueName, folder, projectName, filename).Replace('\\','/')).ToString();
         }
 

@@ -31,7 +31,8 @@ namespace OPS.Pipeline.AlignmentServer
             var img = Pipeline.Load(imgRef);
             Imaging.Image mask = MakeMask(img);
             var maskProd = new PngDataProduct(mask);
-            Pipeline.Save(Message.Project, maskProd);
+            var project = Project.Find(Pipeline, Message.Project);
+            Pipeline.SaveDataProduct(project.ProductPath, maskProd, project.Name);
 
             Cloud.MasterQueue.Enqueue(new MaskCreatedMessage()
             {

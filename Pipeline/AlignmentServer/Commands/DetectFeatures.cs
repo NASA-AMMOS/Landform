@@ -29,6 +29,7 @@ namespace OPS.Pipeline.AlignmentServer
         public void Process()
         {
             var img = Pipeline.Load(Message.Image);
+            var project = Project.Find(Pipeline, Message.Project);
             Imaging.Image mask = null;
             if (Message.MaskGuid == Guid.Empty)
             {
@@ -36,7 +37,7 @@ namespace OPS.Pipeline.AlignmentServer
             }
             else
             {
-                mask = Pipeline.Get<PngDataProduct>(Message.Project, Message.MaskGuid).Image;
+                mask = Pipeline.GetDataProduct<PngDataProduct>(project.ProductPath, Message.MaskGuid, project.Name).Image;
             }
 
             ImageFeature[] features = FindFeatures(Message.Image.DisplayName, img, mask);
@@ -48,7 +49,7 @@ namespace OPS.Pipeline.AlignmentServer
                 Features = features,
                 ObservationName = Message.Image.DisplayName
             };
-            Pipeline.Save(Message.Project, res);
+            Pipeline.SaveDataProduct(project.ProductPath, res, project.Name);
 
             Cloud.MasterQueue.Enqueue(new FeaturesDetectedMessage()
             {

@@ -18,6 +18,11 @@ namespace OPS.Plumbing
         }
 
         public Image Image;
+
+        //TODO: add Image serialization APIs that read/write streams
+        //https://github.jpl.nasa.gov/OnSight/Landform/issues/392
+        //for now use temp files
+
         public override void Deserialize(byte[] data)
         {
             TemporaryFile.GetAndDelete(".png", (fn) =>

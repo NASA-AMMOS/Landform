@@ -9,7 +9,6 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
 using log4net;
@@ -113,6 +112,23 @@ namespace OPS.Plumbing
                     });
         }
 
+        public override string GetFileCached(string url, string cacheFolder, string filename = null)
+        {
+            if (filename == null)
+            {
+                var hash = SHA1.Create().ComputeHash(Encoding.UTF8.GetBytes(url));
+                filename = new Guid(hash.Take(16).ToArray()).ToString() + Path.GetExtension(url);
+            }
+
+            string cachedFile = CachePath(cacheFolder, filename);
+            if (!File.Exists(cachedFile))
+            {
+                TemporaryFile.GetAndMove(cachedFile, tmpFile => Storage(url).DownloadFile(url, tmpFile));
+            }
+
+            return cachedFile;
+        }
+
         public override void SaveFile(string file, string url)
         {
             CheckUrl(url);
@@ -137,87 +153,6 @@ namespace OPS.Plumbing
             Storage(url).DeleteObjects(url, pattern, recursive, ignoreErrors, Logger);
         }
             
-        public override T Get<T>(string project, Guid guid, bool useCache = true)
-        {
-            string s3Url = GetProject(project).ProductPath + guid.ToString();
-
-            T res = null;
-            if (useCache)
-            {
-                string cachePath = DownloadCached(s3Url, project, guid.ToString());
-                res = DataProduct.Load<T>(File.ReadAllBytes(cachePath));
-            }
-            else
-            {
-                TemporaryFile.GetAndDelete("", tempFile =>
-                {
-                    Storage(s3Url).DownloadFile(s3Url, tempFile);
-                    res = DataProduct.Load<T>(File.ReadAllBytes(tempFile));
-                });
-            }
-            return res;
-        }
-
-        /// <summary>
-        /// Download a file from S3, using an on-disk cache.
-        /// </summary>
-        /// <param name="s3Url">S3 URL</param>
-        /// <param name="subfolder">Cache subfolder (ex. project name)</param>
-        /// <param name="filename">Filename in cache, or null to compute from path SHA1</param>
-        /// <returns>Path on disk</returns>
-        public string DownloadCached(string s3Url, string subfolder, string filename = null)
-        {
-            if (filename == null)
-            {
-                var hash = SHA1.Create().ComputeHash(Encoding.UTF8.GetBytes(s3Url));
-                filename = new Guid(hash.Take(16).ToArray()).ToString() + Path.GetExtension(s3Url);
-            }
-            string cachePath = CachePath(subfolder, filename);
-            if (!File.Exists(cachePath))
-            {
-                TemporaryFile.GetAndMove(cachePath, tmpFile => Storage(s3Url).DownloadFile(s3Url, tmpFile));
-            }
-            return cachePath;
-        }
-
-        public override void Save(string project, DataProduct product, bool waitForResponse = false, bool useCache = true)
-        {
-            if (product.Guid == Guid.Empty)
-            {
-                product.UpdateGuid();
-            }
-
-            Project p = GetProject(project);
-            TemporaryFile.FilenameDelegate writeAndUpload = (filePath) =>
-            {
-                string dir = Path.GetDirectoryName(filePath);
-                if (!Directory.Exists(dir))
-                {
-                    Directory.CreateDirectory(dir);
-                }
-                File.WriteAllBytes(filePath, product.Serialize());
-                Storage(filePath).UploadFile(filePath, p.ProductPath + product.Guid.ToString());
-            };
-
-            if (useCache)
-            {
-                writeAndUpload(CachePath(project, product.Guid.ToString()));
-            }
-            else
-            {
-                TemporaryFile.GetAndDelete("", writeAndUpload);
-            }
-
-            if (waitForResponse) {
-                Type t = product.GetType();
-                MethodInfo DynamicGet = GetType().GetMethod("Get").MakeGenericMethod(new Type[] {t});
-                while (DynamicGet.Invoke(this, new object[] { project, product.Guid, false }) == null)
-                {
-                    System.Threading.Thread.Sleep(1000);
-                }
-            }
-        }
-
         public override void InitializeDatabaseTables(Type[] tableTypes, bool quiet = false)
         {
             foreach (var t in tableTypes)

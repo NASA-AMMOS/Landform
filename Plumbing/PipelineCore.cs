@@ -105,6 +105,15 @@ namespace OPS.Plumbing
         
         public abstract void GetFile(string url, Action<string> func);
         
+        /// <summary>
+        /// Get a file using an on-disk cache.
+        /// </summary>
+        /// <param name="url">source URL</param>
+        /// <param name="cacheFolder">cache subfolder (ex. project name)</param>
+        /// <param name="filename">filename to use in cache, or null to compute from url SHA1</param>
+        /// <returns>Path on disk</returns>
+        public abstract string GetFileCached(string url, string cacheFolder, string filename = null);
+
         public abstract void SaveFile(string file, string url);
 
         public abstract void DeleteFile(string url, bool ignoreErrors = true);
@@ -113,47 +122,70 @@ namespace OPS.Plumbing
 
         public abstract void DeleteFiles(string url, string pattern = "*", bool recursive = true, bool ignoreErrors = true);
         
-        /// <summary>
-        /// Get a project by name.
-        /// </summary>
-        /// <param name="name"></param>
-        /// <returns></returns>
-        public Project GetProject(string name)
-        {
-            return Project.Find(this, name);
-        }
+        //****************** Data Product API *****************
 
         /// <summary>
         /// Fetch a data product given a project name and product GUID.
         /// </summary>
         /// <typeparam name="T">Type of data product</typeparam>
-        /// <param name="project">Project name</param>
-        /// <param name="guid">Data product GUID</param>
-        /// <param name="useCache">If true, use on-disk cache</param>
-        public abstract T Get<T>(string project, Guid guid, bool useCache = true) where T : DataProduct, new();
+        /// <param name="path">path to product collection</param>
+        /// <param name="guid">data product GUID</param>
+        /// <param name="cacheFolder">if nonempty then use local disk cache</param>
+        public T GetDataProduct<T>(string path, string guid, string cacheFolder = null) where T : DataProduct, new()
+        {
+            string url = new Uri(Path.Combine(path, guid).Replace('\\','/')).ToString();
+            
+            T res = null;
+            if (!string.IsNullOrEmpty(cacheFolder))
+            {
+                res = DataProduct.Load<T>(File.ReadAllBytes(GetFileCached(url, cacheFolder, guid)));
+            }
+            else
+            {
+                GetFile(url, f => res = DataProduct.Load<T>(File.ReadAllBytes(f)));
+            }
+            return res;
+        }
+
+        public T GetDataProduct<T>(string path, Guid guid, string cacheFolder = null) where T : DataProduct, new()
+        {
+            return GetDataProduct<T>(path, guid.ToString(), cacheFolder);
+        }
 
         /// <summary>
         /// Save a data product.
         /// </summary>
-        /// <param name="project">Project name</param>
+        /// <param name="path">path to product collection</param>
         /// <param name="product">DataProduct object</param>
-        /// <param name="useCache">Enable on-disk cache</param>
-        public abstract void Save(string project, DataProduct product, bool waitForResponse = false, bool useCache = true);
-        
-        public void DeleteProjectCache(string project)
+        /// <param name="cacheFolder">if non-empty then also save to local disk cache</param>
+        public void SaveDataProduct(string path, DataProduct product, string cacheFolder = null)
         {
-            var projectCache = Path.Combine(DownloadCache, project);
-            if (Directory.Exists(projectCache))
+            if (product.Guid == Guid.Empty)
             {
-                Directory.Delete(projectCache, true);
+                product.UpdateGuid();
             }
-        }
+            string guid = product.Guid.ToString();
 
-        public void DeleteDownloadCache()
-        {
-            if (Directory.Exists(DownloadCache))
+            string url = new Uri(Path.Combine(path, guid).Replace('\\','/')).ToString();
+
+            TemporaryFile.FilenameDelegate writeAndUpload = file =>
             {
-                Directory.Delete(DownloadCache, true);
+                string dir = Path.GetDirectoryName(file);
+                if (!Directory.Exists(dir))
+                {
+                    Directory.CreateDirectory(dir);
+                }
+                File.WriteAllBytes(file, product.Serialize());
+                SaveFile(file, url);
+            };
+
+            if (cacheFolder != null)
+            {
+                writeAndUpload(CachePath(cacheFolder, guid));
+            }
+            else
+            {
+                TemporaryFile.GetAndDelete("", writeAndUpload);
             }
         }
 
@@ -188,6 +220,23 @@ namespace OPS.Plumbing
             if (EnableCleanupTempDir)
             {
                 TemporaryFile.CleanupTempDirectoryLRU(alwaysDelete: f => !f.StartsWith(DownloadCache));
+            }
+        }
+
+        public void DeleteProjectCache(string project)
+        {
+            var projectCache = Path.Combine(DownloadCache, project);
+            if (Directory.Exists(projectCache))
+            {
+                Directory.Delete(projectCache, true);
+            }
+        }
+
+        public void DeleteDownloadCache()
+        {
+            if (Directory.Exists(DownloadCache))
+            {
+                Directory.Delete(DownloadCache, true);
             }
         }
 

@@ -30,11 +30,15 @@ namespace OPS.Pipeline.AlignmentServer
 
         ComputedCorrespondence DoCorrespondence()
         {
+            var project = Project.Find(Pipeline, Message.Project);
+
             AlignmentScene scene = new AlignmentScene();
             // Initialize scene
             {
-                scene.DetectedFeatures[Message.ModelImage] = Pipeline.Get<DetectedFeatures>(Message.Project, Message.ModelFeaturesGuid).Features;
-                scene.DetectedFeatures[Message.DataImage] = Pipeline.Get<DetectedFeatures>(Message.Project, Message.DataFeaturesGuid).Features;
+                scene.DetectedFeatures[Message.ModelImage] =
+                    Pipeline.GetDataProduct<DetectedFeatures>(project.ProductPath, Message.ModelFeaturesGuid, project.Name).Features;
+                scene.DetectedFeatures[Message.DataImage] =
+                    Pipeline.GetDataProduct<DetectedFeatures>(project.ProductPath, Message.DataFeaturesGuid, project.Name).Features;
 
                 Memoizer<Frame, SceneNode> frameNodes = null; frameNodes = new Memoizer<Frame, SceneNode>((f) =>
                 {
@@ -107,7 +111,7 @@ namespace OPS.Pipeline.AlignmentServer
                 DataFeaturesGuid = Message.DataFeaturesGuid,
                 Correspondence = matches
             };
-            Pipeline.Save(Message.Project, res);
+            Pipeline.SaveDataProduct(project.ProductPath, res, project.Name);
             return res;
         }
 

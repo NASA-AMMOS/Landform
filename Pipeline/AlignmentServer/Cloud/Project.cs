@@ -4,16 +4,13 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using OPS.Cloud;
-
+using OPS.Plumbing;
 using Amazon.DynamoDBv2.DataModel;
-using Amazon.DynamoDBv2;
 
-namespace OPS.Plumbing
+namespace OPS.Pipeline.AlignmentServer
 {
     /// <summary>
     /// A project specifies a container for a 3D reconstruction consiting of mutliple observations
-    /// Projects are not versioned, so Creates and Saves will always succeed but will not overwrite existing values. 
-    /// Projects are not versioned, so FindOrCreate is not implemented (it implies certainty, but these are non-versioned ops)
     /// </summary>
     [DynamoDBTable("Projects")]
     [DynamoDBReadCapacity(5, 50)]
@@ -36,7 +33,6 @@ namespace OPS.Plumbing
         //This constructor must be public for DynamoDb but should not be used
         public Project()
         {
-
         }
 
         /// <summary>
@@ -54,7 +50,7 @@ namespace OPS.Plumbing
         public static Project FindOrCreate(PipelineCore pipeline, string name, string productPath, string inputPath)
         {
             Project project = Find(pipeline, name);
-            if(project != null)
+            if (project != null)
             {
                 return project;
             }
@@ -70,8 +66,7 @@ namespace OPS.Plumbing
         }
 
         /// <summary>
-        /// Creates a project and saves it in the database.  Returns a project object with a valid id.
-        /// Returns null if a project with this name already exists in the database.
+        /// Creates a project and saves it in the database.
         /// </summary>
         /// <param name="pipeline"></param>
         /// <param name="name">Project names in the database must be unique</param>
@@ -84,8 +79,6 @@ namespace OPS.Plumbing
         }
 
         /// <summary>
-        /// Because this is non-versioned, Save will always succeed but will not overwrite any values
-        /// except those specified in this Project. 
         /// </summary>
         /// <returns></returns>
         public void Save(PipelineCore pipeline)

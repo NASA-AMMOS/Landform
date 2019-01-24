@@ -79,7 +79,6 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="CloudPipeline.cs" />
-    <Compile Include="Interfaces\IProductStorage.cs" />
     <Compile Include="DataProduct\DataProduct.cs" />
     <Compile Include="ImageRef\DiskImageRef.cs" />
     <Compile Include="DataProduct\PngDataProduct.cs" />
@@ -88,7 +87,6 @@
     <Compile Include="LocalPipeline.cs" />
     <Compile Include="PipelineCore.cs" />
     <Compile Include="PipelineRoutine.cs" />
-    <Compile Include="Project.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="ImageRef\S3ImageRef.cs" />
     <Compile Include="ImageRef\TransientImageRef.cs" />

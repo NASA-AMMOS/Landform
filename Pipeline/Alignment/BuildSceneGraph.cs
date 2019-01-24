@@ -100,6 +100,8 @@ namespace OPS.Pipeline
 
             AlignmentScene scene = new AlignmentScene();
 
+            var project = Project.Find(Pipeline, root.ProjectName);
+
             Action<Observation, SceneNode> addObservation = (obs, node) =>
             {
                 var imgRef = new ObservationImageRef(obs);
@@ -108,7 +110,7 @@ namespace OPS.Pipeline
 
                 if (ValidGuid(obs.FeaturesGuid))
                 {
-                    feat = Pipeline.Get<DetectedFeatures>(obs.ProjectName, obs.FeaturesGuid);
+                    feat = Pipeline.GetDataProduct<DetectedFeatures>(project.ProductPath, obs.FeaturesGuid, project.Name);
                     scene.DetectedFeatures[imgRef] = feat.Features;
                 }
                 else if (options.RequireFeaturesForImageReferences.Value == true)
@@ -196,7 +198,7 @@ namespace OPS.Pipeline
 
                     if (ValidGuid(overlap.MatchGuid))
                     {
-                        var match = Pipeline.Get<ComputedCorrespondence>(overlap.ProjectName, overlap.MatchGuid);
+                        var match = Pipeline.GetDataProduct<ComputedCorrespondence>(project.ProductPath, overlap.MatchGuid, project.Name);
                         if (match != null)
                         {
                             scene.Correspondences[pair] = match.Correspondence;

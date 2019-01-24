@@ -46,6 +46,12 @@ namespace OPS.Plumbing
             func(url.Substring(7));
         }
 
+        public override string GetFileCached(string url, string cacheFolder, string filename = null)
+        {
+            CheckUrl(url);
+            return url.Substring(7);
+        }
+
         public override void SaveFile(string file, string url)
         {
             CheckUrl(url);
@@ -140,24 +146,6 @@ namespace OPS.Plumbing
                     Logger.Warn("error listing files under " + url);
                 }
             }
-        }
-
-        public override T Get<T>(string project, Guid guid, bool useCache = true)
-        {
-            T res = null;
-            //TODO
-            return res;
-        }
-
-        /// <summary>
-        /// Save a data product to S3 (and disk cache, if enabled)
-        /// </summary>
-        /// <param name="project">Project name</param>
-        /// <param name="product">DataProduct object</param>
-        /// <param name="useCache">Enable on-disk cache</param>
-        public override void Save(string project, DataProduct product, bool waitForResponse = false, bool useCache = true)
-        {
-            //TODO
         }
 
         public override void InitializeDatabaseTables(Type[] tableTypes, bool quiet = false)
