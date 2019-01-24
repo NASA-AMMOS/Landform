@@ -50,7 +50,7 @@ namespace OPS.Pipeline.AlignmentServer
             return pipeline.ScanDatabase<Frame>(new Dictionary<string, string>()
                                                 {
                                                     { "ProjectName", ProjectName },
-                                                    { "ParentName", ParentName }
+                                                    { "ParentName", Name }
                                                 });
         }
 
