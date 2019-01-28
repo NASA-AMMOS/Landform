@@ -118,7 +118,12 @@ namespace OPS.Alignment
             }
 
             result.Draw(new Rectangle(0, 0, 490, 70), new Bgr(255, 50, 50), -1);
-            result.Draw("matches: " + kp0.Size, new Point(5, 55), Emgu.CV.CvEnum.FontFace.HersheySimplex, 2, new Bgr(255, 255, 255), 2);
+            result.Draw("matches: " + matches.Size, new Point(5, 55), Emgu.CV.CvEnum.FontFace.HersheySimplex, 2, new Bgr(255, 255, 255), 2);
+
+            if (pointNum != matches.Size)
+            {
+                result.Draw("matches (unmasked): " + pointNum, new Point(5, 115), Emgu.CV.CvEnum.FontFace.HersheySimplex, 2, new Bgr(255, 255, 255), 2);
+            }
 
             if (time != null)
             {
