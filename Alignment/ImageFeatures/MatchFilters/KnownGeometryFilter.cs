@@ -208,9 +208,19 @@ namespace OPS.Alignment
                             rejectedInvalid++;
                             continue;
                         }
-                        if (epi.ModelT < -0.01
-                            || epi.DataT < -0.01
-                            || Math.Abs(epi.SignedDistance(modelFeature.Location)) > FixedErrorThreshold)
+                        if (epi.ModelT < -0.01 || epi.DataT < -0.01 || Math.Abs(epi.SignedDistance(modelFeature.Location)) > FixedErrorThreshold)
+                        {
+                            rejectedError++;
+                            continue;
+                        }
+
+                        epi = epiFinder.Find(dataImg.CameraModel, modelImg.CameraModel, modelToData.Mean, modelFeature, dataFeature);
+                        if (!epi.Success)
+                        {
+                            rejectedInvalid++;
+                            continue;
+                        }
+                        if (epi.ModelT < -0.01 || epi.DataT < -0.01 || Math.Abs(epi.SignedDistance(dataFeature.Location)) > FixedErrorThreshold)
                         {
                             rejectedError++;
                             continue;
