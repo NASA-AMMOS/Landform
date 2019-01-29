@@ -93,8 +93,7 @@ It is also possible to manually deploy the release bundle using the AWS Elastic 
     * `environment-name`: Upload to this Elastic Beanstalk environment instead of the default from `config.js`
     * `--force`: use existing landformweb.zip even if it might be outdated
     * `--profile=foo`: use AWS credentials profile `foo` instead of `default`
-1. The deployment process will take a few minutes.
-  1. You can also watch the deployment progress by logging in to the [AWS web console](http://goto.jpl.nasa.gov/awsconsole).
+1. The deployment process will take a few minutes. You can watch the deployment progress by logging in to the [AWS web console](http://goto.jpl.nasa.gov/awsconsole).
 1. Once the deployment is complete the site will be live at https://landform-dev.hi.jpl.nasa.gov (omit `-dev` for production).  Note, if using VPN full tunnel is required because we restrict access to JPL IP addresses.
 1. Make sure a [tiling worker](#tiling-worker) is running in the venue, then run through the [test procedures](docs/TEST.md).
 
