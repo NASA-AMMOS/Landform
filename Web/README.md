@@ -82,6 +82,7 @@ This will require a local installation of [Docker](https://www.docker.com) host.
     * `--debug`: set `LOG_LEVEL=silly` in the Docker container
 1. You can now access the server at http://localhost:8081.
 1. Make sure a [tiling worker](#tiling-worker) is running in that venue, then run through the [test procedures](docs/TEST.md).
+1. To kill the docker container, run `docker ps` to get its name and then run `docker kill NAME`.
 
 ### 3. Deploy Master Server to Elastic Beanstalk
 It is also possible to manually deploy the release bundle using the AWS Elastic Beanstalk web console, as documented in the [AWS setup](docs/SETUP.md) instructions.
