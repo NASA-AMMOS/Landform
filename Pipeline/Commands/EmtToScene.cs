@@ -2,6 +2,7 @@
 using log4net;
 using System;
 using System.Collections.Generic;
+using System.Collections.Concurrent;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -10,6 +11,8 @@ using OPS.Util;
 using System.IO;
 using OPS.Pipeline.TileServer;
 using OPS.Geometry;
+using OPS.Imaging;
+using Microsoft.Xna.Framework;
 
 namespace OPS.Pipeline
 {
@@ -17,11 +20,11 @@ namespace OPS.Pipeline
     [Verb("emttoscene", HelpText = "Convert emt data into an ASTTRO scene")]
     public class EmtToSceneOptions
     {
-        [Value(0, Required = true, HelpText = "Input iv directory path or S3 location")]
-        public string InputIVFile { get; set; }
+        [Value(0, Required = true, HelpText = "Tiling project name")]
+        public string ProjectName { get; set; }
 
-        [Value(1, Required = true, HelpText = "Project name for tiling server")]
-        public string TilingProjectName { get; set; }
+        [Value(1, Required = true, HelpText = "List of S3 locations to search for data")]
+        public IEnumerable<string> SearchLocations { get; set; }
         
         [Option(Required = false, Default = "menzies_m2020_gov", HelpText = "")]
         public string InputAWSProfile { get; set; }
@@ -35,6 +38,15 @@ namespace OPS.Pipeline
         [Option(Required = false, Default = null, HelpText = "If set, meshes will be decimated by this amount before tiling.  Valid range [0-1]")]
         public double? DecimationRatio { get; set; }
 
+        [Option(Required = false, Default = null, HelpText = "If set, this file can be used to filter what products IDs should be used.  Each line should contain a product ID")]
+        public string FilterFile { get; set; }
+
+        [Option(Required = false, Default = 16, HelpText = "Control the number of concurrent downloads")]
+        public int ConcurrentDownloads { get; set; }
+
+        [Option(Required = false, Default = 4, HelpText = "Control the number of concurrent mesh operations")]
+        public int ConcurrentMeshOps { get; set; }
+        
     }
 
     public class EmtToScene
@@ -43,12 +55,270 @@ namespace OPS.Pipeline
 
         private static readonly ILog logger = LogManager.GetLogger(typeof(EmtToScene));
 
+        public class FileRecord
+        {
+            public string FilenameBase { get; private set; }
+            public string IV, OBJ, MTL, IMG, VIC, PNG, RGB, JPG;
+
+            public static string GetFilenameBase(string filename)
+            {
+                return Path.GetFileNameWithoutExtension(filename);
+            }
+
+            public FileRecord(string filename)
+            {
+                this.FilenameBase = GetFilenameBase(filename);
+                AddFile(filename);
+            }
+
+            public FileRecord(FileRecord other)
+            {
+                this.FilenameBase = other.FilenameBase;
+                this.IV = other.IV;
+                this.OBJ = other.OBJ;
+                this.MTL = other.MTL;
+                this.IMG = other.IMG;
+                this.VIC = other.VIC;
+                this.PNG = other.PNG;
+                this.RGB = other.RGB;
+                this.JPG = other.JPG;
+            }
+
+            public void ChangePath(string basePath)
+            {
+                if(this.IV!= null)
+                {
+                    this.IV = PathHelper.ChangeDirectory(this.IV, basePath);
+                }
+                if (this.OBJ != null)
+                {
+                    this.OBJ = PathHelper.ChangeDirectory(this.OBJ, basePath);
+                }
+                if (this.MTL != null)
+                {
+                    this.MTL = PathHelper.ChangeDirectory(this.MTL, basePath);
+                }
+                if (this.IMG != null)
+                {
+                    this.IMG = PathHelper.ChangeDirectory(this.IMG, basePath);
+                }
+                if (this.VIC != null)
+                {
+                    this.VIC = PathHelper.ChangeDirectory(this.VIC, basePath);
+                }
+                if (this.PNG != null)
+                {
+                    this.PNG = PathHelper.ChangeDirectory(this.PNG, basePath);
+                }
+                if (this.RGB != null)
+                {
+                    this.RGB = PathHelper.ChangeDirectory(this.RGB, basePath);
+                }
+                if (this.JPG != null)
+                {
+                    this.JPG = PathHelper.ChangeDirectory(this.JPG, basePath);
+                }
+            }
+
+            public bool RASL
+            {
+                get
+                {
+                    return this.FilenameBase.Contains("RASL");
+                }
+            }
+
+            public bool RAS
+            {
+                get
+                {
+                    return this.FilenameBase.Contains("RAS_");
+                }
+            }
+
+            public string RASLBaseName
+            {
+                get
+                {
+                    return this.FilenameBase.Replace("RAS_", "RASL");
+                }
+            }
+
+            public string RASBaseName
+            {
+                get
+                {
+                    return this.FilenameBase.Replace("RASL", "RAS_");
+                }
+            }
+
+            public bool Thumbnail
+            {
+                get
+                {
+                    return this.FilenameBase.Contains("RASLT") || this.FilenameBase.Contains("RAS_T");
+                }
+            }
+
+            public bool IsLeft
+            {
+                get
+                {
+                    return this.FilenameBase[1] == 'L';
+                }
+            }
+
+            public string PreferedMesh
+            {
+                get
+                {
+                    if(this.OBJ != null)
+                    {
+                        return this.OBJ;
+                    }
+                    else if (this.IV != null)
+                    {
+                        return this.IV;
+                    }
+                    return null;
+                }
+            }
+
+            public string PreferedImage
+            {
+                get
+                {
+                    if (this.PNG != null)
+                    {
+                        return this.PNG;
+                    }
+                    else if (this.RGB != null)
+                    {
+                        return this.RGB;
+                    }
+                    else if (this.IMG != null)
+                    {
+                        return this.IMG;
+                    }
+                    else if (this.VIC != null)
+                    {
+                        return this.VIC;
+                    }
+                    else if (this.JPG != null)
+                    {
+                        return this.JPG;
+                    }
+                    return null;
+                }
+            }
+
+            public string PreferedMetadataImage
+            {
+                get
+                {
+                    if (this.IMG != null)
+                    {
+                        return this.IMG;
+                    }
+                    else if (this.VIC != null)
+                    {
+                        return this.VIC;
+                    }
+                    return null;
+                }
+            }
+
+            public bool HasImage
+            {
+                get
+                {
+                    return PreferedImage != null;
+                }
+            }
+
+            public bool HasMetadata
+            {
+                get
+                {
+                    return PreferedMetadataImage != null;
+                }
+            }
+
+
+            public bool HasMesh
+            {
+                get
+                {
+                    return PreferedMesh != null;
+                }
+            }
+
+            public void AddFile(string filename)
+            {
+                if(GetFilenameBase(filename) != this.FilenameBase)
+                {
+                    throw new Exception("New file does not match records FilenameBase");
+                }
+                string ext = Path.GetExtension(filename).ToLower();
+                switch (ext)
+                {
+                    case ".iv":
+                        this.IV = filename;
+                        break;
+                    case ".obj":
+                        this.OBJ = filename;
+                        break;
+                    case ".mtl":
+                        this.MTL = filename;
+                        break;
+                    case ".img":
+                        this.IMG = filename;
+                        break;
+                    case ".png":
+                        this.PNG = filename;
+                        break;
+                    case ".rgb":
+                        this.RGB = filename;
+                        break;
+                    case ".vic":
+                        this.VIC = filename;
+                        break;
+                    case ".jpg":
+                        this.JPG = filename;
+                        break;
+                    default:
+                        break;
+                }
+            }
+        }
+
+        public IEnumerable<FileRecord> IndexFiles(IEnumerable<string> searchDirectories)
+        {
+            Dictionary<string, FileRecord> results = new Dictionary<string, FileRecord>();
+            foreach (var searchDir in searchDirectories)
+            {
+                logger.Info("Searching " + searchDir);
+                var inputStorageHelper = new StorageHelper(options.InputAWSProfile, options.InputAWSRegion);
+                var paths = inputStorageHelper.SearchObjects(searchDir).ToList();
+                foreach (var path in paths)
+                {
+                    var fbase = FileRecord.GetFilenameBase(path);
+                    if (!results.ContainsKey(fbase))
+                    {
+                        results.Add(fbase, new FileRecord(path));
+                    }
+                    var rec = results[fbase];
+                    rec.AddFile(path);
+                }
+            }
+            return results.Values.ToList();
+        }
+
 
         public EmtToScene(EmtToSceneOptions opts)
         {
             options = opts;
         }
-
 
         string GetFile(string location)
         {
@@ -68,87 +338,191 @@ namespace OPS.Pipeline
             }
             return path;
         }
-
-
-        public List<string> GetMeshLocationList()
+        
+        void DownloadFile(string s3Location, string localPath)
         {
-            if (options.InputIVFile.EndsWith(".iv"))
+            if(!File.Exists(localPath))
             {
-                // Use the files listed in the master iv file
-                var lines = File.ReadAllLines(GetFile(options.InputIVFile));
-                List<string> results = new List<string>();
-                foreach (var line in lines)
+                TemporaryFile.GetAndMove(localPath, f =>
                 {
-                    if (!line.Contains(".iv"))
-                    {
-                        continue;
-                    }
-                    int start = line.IndexOf("\"") + 1;
-                    int end = line.LastIndexOf("\"");
-                    var relativeFile = line.Substring(start, end - start);
-                    if (relativeFile.StartsWith("."))
-                    {
-                        relativeFile = relativeFile.Substring(1, relativeFile.Length - 1);
-                    }
-                    string absFile;
-                    if (options.InputIVFile.StartsWith("s3://"))
-                    {
-                        var root = S3GetDirectory(options.InputIVFile);
-                        absFile = root + relativeFile;
-                    }
-                    else
-                    {
-                        absFile = Path.Combine(Path.GetDirectoryName(options.InputIVFile), relativeFile);
-                    }
-
-                    results.Add(absFile);
-                }
-                return results;
-            }
-            else
-            {
-                // Assume the input is a directory and use all iv files in it
-                var inputStorageHelper = new StorageHelper(options.InputAWSProfile, options.InputAWSRegion);
-                var results = inputStorageHelper.SearchObjects(options.InputIVFile, "*.iv").ToList();
-                return results;
+                    var inputStorageHelper = new StorageHelper(options.InputAWSProfile, options.InputAWSRegion);
+                    inputStorageHelper.DownloadFile(s3Location, f);
+                });
+                logger.Info("Downloaded: " + Path.GetFileName(localPath));
             }
         }
 
-
-        class MeshRecord
+        IEnumerable<FileRecord> DownloadAndConvertToLocal(IEnumerable<FileRecord> records, string destination, bool imagesOnly = false)
         {
-            public string IV;
-            public string OBJ;
-
-            public string RGB;
-            public string IMG;
-            public string VIC;
-            public string PNG;
-
-            public string IMG_RIGHT;
-            public string VIC_RIGHT;
-            public string PNG_RIGHT;
-
-            public MeshRecord(string ivLocation, EmtToScene emtToScene)
-            {
-                IV = emtToScene.GetFile(ivLocation);
-                RGB = emtToScene.GetFile(ivLocation.Replace(".iv", ".rgb"));
-                PNG = emtToScene.GetFile(ivLocation.Replace(".iv", ".png"));
-                var objLocation = (ivLocation.Replace("mesh/wedge2", "ncam")).Replace(".iv", ".obj");
-                OBJ = emtToScene.GetFile(objLocation);
-                IMG = emtToScene.GetFile(objLocation.Replace(".obj", ".IMG"));
-                VIC = emtToScene.GetFile(objLocation.Replace(".obj", ".VIC"));
-
-                string vicname = ivLocation.Replace(".iv", ".VIC");
-                if(Path.GetFileName(vicname).StartsWith("NL"))
+            ConcurrentBag<FileRecord> results = new ConcurrentBag<FileRecord>();
+            var po = new ParallelOptions() { MaxDegreeOfParallelism = options.ConcurrentDownloads};
+            Parallel.ForEach(records, po, r => 
+            {            
+                var localRec = new FileRecord(r);
+                localRec.ChangePath(destination);
+                if (r.HasImage)
                 {
-                    string rightVicname = Path.Combine(Path.GetDirectoryName(vicname), Path.GetFileName(vicname).Replace("NL", "NR").Replace(".iv", ".VIC")).Replace("\\", "/").Replace("s3:/", "s3://");
-
-                    VIC_RIGHT = emtToScene.GetFile(rightVicname);
-                    PNG_RIGHT = emtToScene.GetFile(rightVicname.Replace(".VIC", ".png"));
-                    IMG_RIGHT = emtToScene.GetFile(rightVicname.Replace(".VIC", ".IMG"));
+                    DownloadFile(r.PreferedImage, localRec.PreferedImage);
                 }
+                if (r.HasMetadata)
+                {
+                    DownloadFile(r.PreferedMetadataImage, localRec.PreferedMetadataImage);
+                }
+                if (r.HasMesh && !imagesOnly)
+                {
+                    DownloadFile(r.PreferedMesh, localRec.PreferedMesh);
+                    if(r.MTL != null && Path.GetExtension(r.PreferedMesh).ToLower() == ".obj")
+                    {
+                        DownloadFile(r.MTL, localRec.MTL);
+                    }
+                }   
+                results.Add(localRec);
+            });
+            return results.ToList();
+        }
+
+        IEnumerable<FileRecord> ProcessMeshes(IEnumerable<FileRecord> localFileRecords, string destination, double? decimationRatio)
+        {
+            ConcurrentBag<FileRecord> results = new ConcurrentBag<FileRecord>();
+            ConcurrentBag<FileRecord> empty = new ConcurrentBag<FileRecord>();
+            var po = new ParallelOptions() { MaxDegreeOfParallelism = options.ConcurrentMeshOps };
+
+            Parallel.ForEach(localFileRecords, po, localRecord =>
+            {
+                var processedRecord = new FileRecord(Path.Combine(destination, Path.GetFileName(localRecord.OBJ)));
+                processedRecord.AddFile(Path.Combine(destination, processedRecord.FilenameBase + ".png"));
+                results.Add(processedRecord);
+
+                if(File.Exists(processedRecord.PreferedMesh) && File.Exists(processedRecord.PreferedImage))
+                {
+                    return;
+                }
+                logger.Info("Processing: " + Path.GetFileName(localRecord.PreferedMesh));
+                Mesh m = Mesh.Load(localRecord.PreferedMesh);
+                if(m.Faces.Count == 0)
+                {
+                    empty.Add(processedRecord);
+                    return;
+                }
+                var parser = new PDSParser(new PDSMetadata(localRecord.PreferedMetadataImage));
+
+                if (!m.HasNormals)
+                {
+                    m.GenerateVertexNormals();
+                }
+                if (decimationRatio.HasValue)
+                {
+                    int targetFaces = (int)(m.Faces.Count * decimationRatio.Value);
+                    //logger.Info("Decimating: " + m.Faces.Count + " down to " + targetFaces);
+                    m = EdgeCollapse.QuadricEdgeCollapse(m, targetFaces);
+                    m = BaselineAtlaser.AtlasSiteFrameMesh(m, Image.Load(localRecord.PreferedMetadataImage));
+                    //var m2 = BaselineAtlaser.AtlasSiteFrameMesh(m, Image.Load(localRecord.PreferedMetadataImage));
+                    //int missCounter = 0;
+                    //OPS.MathExtensions.RunningAverage avgU = new OPS.MathExtensions.RunningAverage();
+                    //OPS.MathExtensions.RunningAverage avgV = new OPS.MathExtensions.RunningAverage();
+
+                    //for (int i = 0; i < m.Vertices.Count; i++)
+                    //{
+
+                    //    m2.Vertices[i].Color = new Microsoft.Xna.Framework.Vector4(0, 0, 1, 1);
+                    //    var dist = (m.Vertices[i].UV - m2.Vertices[i].UV);
+                    //    avgU.Push(dist.U);
+                    //    avgV.Push(dist.V);
+
+                    //    //if (dist > 0.001)
+                    //    //{
+                    //    //    //m2.Vertices[i].Color = new Microsoft.Xna.Framework.Vector4(1, 0, 0, 1);
+
+                    //    //    //Console.WriteLine(m.Vertices[i].Position);
+                    //    //    //Console.WriteLine(m2.Vertices[i].Position);
+                    //    //    //Console.WriteLine(m.Vertices[i].UV);
+                    //    //    //Console.WriteLine(m2.Vertices[i].UV);
+                    //    //    //Console.WriteLine(m.Vertices[i].UV - m2.Vertices[i].UV);
+                    //    //    //Console.WriteLine(" -- ");
+                    //    //    missCounter++;
+                    //    //}
+
+                    //}
+                    //m = m2;
+                    //Console.WriteLine("Misses: " + missCounter + " / " + m.Vertices.Count);
+                    //Console.WriteLine("AvgU: " + avgU.Mean);
+                    //Console.WriteLine("MaxU: " + avgU.Max);
+                    //Console.WriteLine("MinU: " + avgU.Min);
+                    //Console.WriteLine("AvgV: " + avgV.Mean);
+                    //Console.WriteLine("MaxV: " + avgV.Max);
+                    //Console.WriteLine("MinV: " + avgV.Min);
+
+                }
+                m.Translate(-parser.OriginOffset);
+                ConvertMeshToYUp(m);
+                Image img = Image.Load(localRecord.PreferedImage);
+                TemporaryFile.GetAndMove(processedRecord.PreferedImage, tmp =>
+                {
+                    img.Save<ushort>(tmp);
+                });  
+                m.Save(processedRecord.PreferedMesh, processedRecord.PreferedImage);
+      
+            });
+            //Filter empty meshes
+            return results.Where(r => !empty.Contains(r)).ToList();
+        }
+
+        HashSet<string> ReadFilterFile(string path)
+        {
+            var lines = File.ReadAllLines(path).Select(line => line.Trim()).Where(line => !string.IsNullOrEmpty(line));
+            return new HashSet<string>(lines);
+        }
+
+        void CreateLegacyScene(IEnumerable<FileRecord> localFileRecords)
+        {
+            string sceneDir = Path.Combine(options.WorkingDir, "Scene");
+            string imagesDir = Path.Combine(sceneDir, "images");
+            PathHelper.EnsureExists(imagesDir);
+
+
+            ConcurrentBag<LegacySceneManfiest.ImageData> imageDatas = new ConcurrentBag<LegacySceneManfiest.ImageData>();
+            Parallel.ForEach(localFileRecords, rec =>
+            {
+                var imageData = new LegacySceneManfiest.ImageData()
+                {
+                    FileId = rec.FilenameBase,
+                    Metadata = new PDSMetadata(rec.PreferedMetadataImage)
+                };
+                imageDatas.Add(imageData);
+            });
+            var groupedImageData = imageDatas.GroupBy(id => new PDSParser(id.Metadata).SiteDrive.ToString());
+            var primarySiteDrive = groupedImageData.Select(g => g.Key).OrderBy(x => x).Last();
+            logger.Info("Converting images for scene");
+            Parallel.ForEach(localFileRecords, rec => 
+            { 
+                string siteImageDir = Path.Combine(imagesDir, primarySiteDrive);
+                PathHelper.EnsureExists(siteImageDir);
+                var outfile = Path.Combine(siteImageDir, rec.FilenameBase + ".IMG.jpg");
+                if (File.Exists(outfile))
+                {
+                    return;
+                }
+                Image.Load(rec.PreferedImage).Save<byte>(outfile);
+            });
+            var manifest = new LegacySceneManfiest();
+            foreach (var group in groupedImageData)
+            {
+                var sd = new LegacySceneManfiest.SiteDriveData()
+                {
+                    SiteDrive = new SiteDrive(group.Key),
+                    Transform = Matrix.Identity,
+                    Images = group.ToList(),
+                    Primary = group.Key == primarySiteDrive
+                };                
+                manifest.AddSiteDrive(sd);
             }
+            string content = manifest.Create();
+            string sceneSiteDriveFolder = Path.Combine(sceneDir, Path.Combine("ds" + primarySiteDrive, "201801010000"));
+            PathHelper.EnsureExists(sceneSiteDriveFolder);
+            File.WriteAllText(Path.Combine(sceneSiteDriveFolder, "manifest.xml"), content);
+            string tileDir = Path.Combine(sceneSiteDriveFolder, "tile3d_2.0");
+            PathHelper.EnsureExists(tileDir);
+            File.WriteAllText(Path.Combine(tileDir, "tilesetSky.json"), LegacySceneManfiest.SkyTilesetContent);
         }
 
         public int Run()
@@ -159,19 +533,49 @@ namespace OPS.Pipeline
                 options.WorkingDir = TemporaryFile.GetTempDirectory();
             }
 
-            int r;
-            var meshLocations = GetMeshLocationList();
-            var records = meshLocations.Select(f => new MeshRecord(f, this)).ToList();
-            // Filter empty meshes
-            records = records.Where(rec =>
+            var fileRecords = IndexFiles(options.SearchLocations);
+            logger.Info("Total files found: " + fileRecords.Count());
+
+            if(options.FilterFile != null)
             {
-                var m = Mesh.Load(rec.OBJ);
-                return m.Vertices.Count > 0 && m.Faces.Count > 0;
-            }).ToList();
-            LegacySceneManfiest.BuildFromDirectory(options.WorkingDir, options.DecimationRatio);
+                var productIds = ReadFilterFile(options.FilterFile);
+                fileRecords = fileRecords.Where(rec => productIds.Contains(rec.FilenameBase));
+                logger.Info("Filtered down to: " + fileRecords.Count());
+            }
+
+            var imageRecords = fileRecords.Where(rec => rec.HasImage && rec.HasMetadata && (rec.RAS || rec.RASL) && !rec.Thumbnail);
+            logger.Info("Total Image files found: " + imageRecords.Count());
+            HashSet<string> raslRecords = new HashSet<string>(imageRecords.Where(rec => rec.RASL).Select(rec => rec.FilenameBase));
+            imageRecords = imageRecords.Where(rec => rec.RASL || (rec.RAS && !raslRecords.Contains(rec.RASLBaseName)));
+            logger.Info("Images after linear filter: " + imageRecords.Count());
+            var meshRecords = fileRecords.Where(rec => rec.RASL && rec.HasMesh && rec.IsLeft && rec.HasImage && rec.HasMetadata);
+            logger.Info("Total Mesh files found: " + meshRecords.Count());
+
+            logger.Info("Downloading Files");
+            var downloadDirectory = Path.Combine(options.WorkingDir, "Download");
+            PathHelper.EnsureExists(downloadDirectory);
+
+            var downloadedRASLRecords = DownloadAndConvertToLocal(imageRecords, downloadDirectory, imagesOnly: true);
+            var downloadedMeshRecords = DownloadAndConvertToLocal(meshRecords, downloadDirectory);
+
+            logger.Info("Creating legacy scene");
+            CreateLegacyScene(downloadedRASLRecords);
+
+            logger.Info("Processing Meshes");
+            var processedDirectory = Path.Combine(options.WorkingDir, "Processed");
+            PathHelper.EnsureExists(processedDirectory);
+            var processedRecords = ProcessMeshes(downloadedMeshRecords, processedDirectory, options.DecimationRatio);
+
+
+
+            string projectName = options.ProjectName;// + "_" + rec.FilenameBase;
+            logger.Info("Creating tiling Project: " + projectName);
+
+
+            int r;
             var createOptions = new CreateProjectOptions()
             {
-                ProjectName = options.TilingProjectName,
+                ProjectName = projectName,
                 TilingScheme = TilingScheme.QuadY,
                 SkirtMode = Geometry.SkirtMode.None,
                 ReconMethod = Geometry.MeshReconMethod.FSSR,
@@ -183,27 +587,24 @@ namespace OPS.Pipeline
 
             r = new CreateProject(createOptions).Run();
 
-            foreach (var f in Directory.EnumerateFiles(Path.Combine(options.WorkingDir, "preprocessed"), "*.obj"))
+            foreach (var rec in processedRecords)
             {
-                string img = f.Replace(".obj", ".jpg");
                 var uploadOptions = new UploadInputOptions()
                 {
-                    ProjectName = options.TilingProjectName,
-                    MeshFilepath = f,
-                    ImageFilepath = img,
+                    ProjectName = projectName,
+                    MeshFilepath = rec.PreferedMesh,
+                    ImageFilepath = rec.PreferedImage,
                     TileId = null,
                     NoWait = false
                 };
-                r = new UploadInput(uploadOptions).Run();
+                r = new UploadInput(uploadOptions).Run();               
             }
-
             var runOptions = new RunProjectOptions()
             {
-                ProjectName = options.TilingProjectName
+                ProjectName = projectName
             };
             r = new RunProject(runOptions).Run();
-
-            var tilesetUrl = TileServerConfig.Instance.WWWUrl(options.TilingProjectName);
+            var tilesetUrl = TileServerConfig.Instance.WWWUrl(projectName);
             logger.Info("Building tileset.  When done copy data from " + tilesetUrl + " to tile3d_2.0 directory");
             return 0;
         }
@@ -211,6 +612,23 @@ namespace OPS.Pipeline
         public string S3GetDirectory(string path)
         {
             return path.Substring(0, path.LastIndexOf("/"));
+        }
+
+        /// <summary>
+        /// Convert a mesh 
+        /// From: Right-handed Z down
+        /// To: Right-handed Y up with a 90 degree rotation
+        /// This is more unity like but is still right handed
+        /// </summary>
+        /// <param name="mesh"></param>
+        public static void ConvertMeshToYUp(Mesh mesh)
+        {
+            foreach (var v in mesh.Vertices)
+            {
+                var p = v.Position;
+                //v.Position = new Vector3(p.X, -p.Z, p.Y);
+                v.Position = new Vector3(-p.Y, -p.Z, p.X);
+            }
         }
 
         class CopyDir
@@ -242,5 +660,6 @@ namespace OPS.Pipeline
                 }
             }
         }
+        
     }
 }

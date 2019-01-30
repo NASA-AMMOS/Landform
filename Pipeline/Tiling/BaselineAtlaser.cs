@@ -32,6 +32,12 @@ namespace OPS.Pipeline
             this.image = image;
         }
 
+
+        public Mesh GenerateAtlas(Mesh mesh)
+        {
+            return GenerateAtlas(mesh, true);
+        }
+
         /// <summary>
         /// Return a copy of the provided mesh but UVed according to our provided image
         /// Any vertices (and referencing faces) outside the view of the camera will be removed
@@ -39,7 +45,7 @@ namespace OPS.Pipeline
         /// </summary>
         /// <param name="mesh"></param>
         /// <returns></returns>
-        public Mesh GenerateAtlas(Mesh mesh)
+        public Mesh GenerateAtlas(Mesh mesh, bool removeVertsOutsideView)
         {
             Mesh result = new Mesh(mesh);
             result.HasUVs = true;
@@ -65,12 +71,18 @@ namespace OPS.Pipeline
                         throw new Exception("Unexpected range value");
                     }
                     // Convert the pixel coordinate to UV
+                    // TODO: review this half pixel offset
+                    //v.UV =  new Vector2((pixel.X - 0.5) / (image.Width+1), 1 - ((pixel.Y - 0.5) / (image.Height+1)));
+
                     v.UV = image.PixelToUV(pixel);
                     v.UV = Vector2.Clamp(v.UV, Vector2.Zero, Vector2.One);
                 }
             });
             // Remove any verts that were outside our field of view
-            result.RemoveVertices(verticesToRemove);
+            if (removeVertsOutsideView)
+            {
+                result.RemoveVertices(verticesToRemove);
+            }
             return result;
         }
 
@@ -80,13 +92,13 @@ namespace OPS.Pipeline
         /// <param name="m">A mesh in site frame</param>
         /// <param name="image">An image with a valid PDSMetadata object and camera model in rover frame</param>
         /// <returns></returns>
-        public static Mesh AtlasSiteFrameMesh(Mesh m, Image image)
+        public static Mesh AtlasSiteFrameMesh(Mesh m, Image image, bool removeVertsOutsideView = true)
         {
             PDSMetadata metadata = (PDSMetadata)image.Metadata;
             var parser = new PDSParser(metadata);
             Matrix siteFrameMeshToLocalLevelImage = RoverCoordinateSystem.SiteToRover(parser.RoverOriginRotation, parser.OriginOffset);
             var atlaser = new BaselineAtlaser(siteFrameMeshToLocalLevelImage, image);
-            return atlaser.GenerateAtlas(m);
+            return atlaser.GenerateAtlas(m, removeVertsOutsideView);
         }
     }
 }

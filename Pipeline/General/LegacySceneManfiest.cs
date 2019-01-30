@@ -223,7 +223,13 @@ namespace OPS.Pipeline
             {
                 XmlElement camModelEl = CAHVToXml(doc, (CAHV)cm);
                 imageEl.AppendChild(camModelEl);
-            } else
+            }
+            else if(cm.GetType() == typeof(CAHVOR))
+            {
+                XmlElement camModelEl = CAHVToXml(doc, (CAHVOR)cm);
+                imageEl.AppendChild(camModelEl);
+            }
+            else
             {
                 throw new Exception("Not enough cameramodels");
             }
@@ -248,6 +254,28 @@ namespace OPS.Pipeline
             return camModel;
         }
 
+        public XmlElement CAHVORToXml(XmlDocument doc, CAHVOR model)
+        {
+            XmlElement camModel = doc.CreateElement("camera_model");
+            camModel.SetAttribute("type", "CAHVOR");
+
+            XmlElement cEl = CreateVectorElement(doc, model.C, "c");
+            XmlElement aEl = CreateVectorElement(doc, model.A, "a");
+            XmlElement hEl = CreateVectorElement(doc, model.H, "h");
+            XmlElement vEl = CreateVectorElement(doc, model.V, "v");
+            XmlElement oEl = CreateVectorElement(doc, model.O, "o");
+            XmlElement rEl = CreateVectorElement(doc, model.R, "r");
+
+            camModel.AppendChild(cEl);
+            camModel.AppendChild(aEl);
+            camModel.AppendChild(hEl);
+            camModel.AppendChild(vEl);
+            camModel.AppendChild(oEl);
+            camModel.AppendChild(rEl);
+
+            return camModel;
+        }
+
         protected XmlElement CreateVectorElement(XmlDocument doc, Vector3 vec, string elementName)
         {
             XmlElement el = doc.CreateElement(elementName);
@@ -256,91 +284,91 @@ namespace OPS.Pipeline
         }
 
 
-        public static void BuildFromDirectory(string dir, double? decimationRatio = null)
-        {
-            string indir = dir;
-            string sceneDir = Path.Combine(indir, "scene");
-            string imagesDir = Path.Combine(sceneDir, "images");
-            string preprocessedDir = Path.Combine(indir, "preprocessed");
-            PathHelper.EnsureExists(sceneDir);
-            PathHelper.EnsureExists(imagesDir);
-            PathHelper.EnsureExists(preprocessedDir);
+        //public static void BuildFromDirectory(string dir, double? decimationRatio = null)
+        //{
+        //    string indir = dir;
+        //    string sceneDir = Path.Combine(indir, "scene");
+        //    string imagesDir = Path.Combine(sceneDir, "images");
+        //    string preprocessedDir = Path.Combine(indir, "preprocessed");
+        //    PathHelper.EnsureExists(sceneDir);
+        //    PathHelper.EnsureExists(imagesDir);
+        //    PathHelper.EnsureExists(preprocessedDir);
 
-            var manifest = new LegacySceneManfiest();
-            Dictionary<string, LegacySceneManfiest.SiteDriveData> siteDriveLookup = new Dictionary<string, LegacySceneManfiest.SiteDriveData>();
+        //    var manifest = new LegacySceneManfiest();
+        //    Dictionary<string, LegacySceneManfiest.SiteDriveData> siteDriveLookup = new Dictionary<string, LegacySceneManfiest.SiteDriveData>();
 
-            Serial.ForEach(System.IO.Directory.EnumerateFiles(indir, "*.obj"), f =>
-            {
-                // Make metadata
-                var vicname = f.Replace(".obj", ".vic");
-                var meta = new PDSMetadata(vicname);
-                var p = new PDSParser(meta);
-                {
-                    if (!siteDriveLookup.ContainsKey(p.SiteDrive))
-                    {
-                        var sd = new LegacySceneManfiest.SiteDriveData()
-                        {
-                            SiteDrive = new SiteDrive(p.SiteDrive),
-                            Transform = Matrix.Identity,
-                            Images = new List<LegacySceneManfiest.ImageData>()
-                        };
-                        siteDriveLookup.Add(p.SiteDrive, sd);
-                        manifest.AddSiteDrive(sd);
-                    }
-                    var imageData = new LegacySceneManfiest.ImageData()
-                    {
-                        FileId = Path.GetFileNameWithoutExtension(vicname),
-                        Metadata = meta
-                    };
-                    siteDriveLookup[p.SiteDrive].Images.Add(imageData);
+        //    Serial.ForEach(System.IO.Directory.EnumerateFiles(indir, "*.obj"), f =>
+        //    {
+        //        // Make metadata
+        //        var vicname = f.Replace(".obj", ".vic");
+        //        var meta = new PDSMetadata(vicname);
+        //        var p = new PDSParser(meta);
+        //        {
+        //            if (!siteDriveLookup.ContainsKey(p.SiteDrive))
+        //            {
+        //                var sd = new LegacySceneManfiest.SiteDriveData()
+        //                {
+        //                    SiteDrive = new SiteDrive(p.SiteDrive),
+        //                    Transform = Matrix.Identity,
+        //                    Images = new List<LegacySceneManfiest.ImageData>()
+        //                };
+        //                siteDriveLookup.Add(p.SiteDrive, sd);
+        //                manifest.AddSiteDrive(sd);
+        //            }
+        //            var imageData = new LegacySceneManfiest.ImageData()
+        //            {
+        //                FileId = Path.GetFileNameWithoutExtension(vicname),
+        //                Metadata = meta
+        //            };
+        //            siteDriveLookup[p.SiteDrive].Images.Add(imageData);
 
-                }
+        //        }
 
-                //Make meshes
-                {
-                    //var imgname = f.Replace(".obj", ".rgb");
-                    var imgname = f.Replace(".obj", ".png");
-                    string destRoot = Path.Combine(preprocessedDir, Path.GetFileNameWithoutExtension(f));
-                    Mesh m = Mesh.Load(f);
-                    if(!m.HasNormals)
-                    {
-                        m.GenerateVertexNormals();
-                    }
-                    if(decimationRatio.HasValue)
-                    {
-                        int targetFaces = (int)(m.Faces.Count * decimationRatio.Value);
-                        m = EdgeCollapse.QuadricEdgeCollapse(m, targetFaces);
-                        m = BaselineAtlaser.AtlasSiteFrameMesh(m, Image.Load(f.Replace(".obj", ".VIC")));
-                    }
-                    Console.WriteLine("Origin Offset: " + p.OriginOffset);
-                    m.Translate(-p.OriginOffset);
-                    ConvertMeshToYUp(m);
-                    Console.WriteLine("Normals: " + m.HasNormals);
-                    Image img = Image.Load(imgname);
-                    Console.WriteLine("Bands: " + img.Bands);
-                    img.Save<byte>(destRoot + ".jpg");
+        //        //Make meshes
+        //        {
+        //            //var imgname = f.Replace(".obj", ".rgb");
+        //            //var imgname = f.Replace(".obj", ".png");
+        //            //string destRoot = Path.Combine(preprocessedDir, Path.GetFileNameWithoutExtension(f));
+        //            //Mesh m = Mesh.Load(f);
+        //            //if(!m.HasNormals)
+        //            //{
+        //            //    m.GenerateVertexNormals();
+        //            //}
+        //            //if(decimationRatio.HasValue)
+        //            //{
+        //            //    int targetFaces = (int)(m.Faces.Count * decimationRatio.Value);
+        //            //    m = EdgeCollapse.QuadricEdgeCollapse(m, targetFaces);
+        //            //    m = BaselineAtlaser.AtlasSiteFrameMesh(m, Image.Load(f.Replace(".obj", ".VIC")));
+        //            //}
+        //            //Console.WriteLine("Origin Offset: " + p.OriginOffset);
+        //            //m.Translate(-p.OriginOffset);
+        //            //ConvertMeshToYUp(m);
+        //            //Console.WriteLine("Normals: " + m.HasNormals);
+        //            //Image img = Image.Load(imgname);
+        //            //Console.WriteLine("Bands: " + img.Bands);
+        //            //img.Save<byte>(destRoot + ".jpg");
 
-                    PDSMetadata metadata = new PDSMetadata(f.Replace(".obj", ".VIC"));
-                    string subDest = Path.Combine(imagesDir, new PDSParser(metadata).SiteDrive, Path.GetFileNameWithoutExtension(f) + ".IMG.jpg");
-                    PathHelper.EnsureExists(Path.GetDirectoryName(subDest));
-                    img.Save<byte>(subDest);
+        //            //PDSMetadata metadata = new PDSMetadata(f.Replace(".obj", ".VIC"));
+        //            //string subDest = Path.Combine(imagesDir, new PDSParser(metadata).SiteDrive, Path.GetFileNameWithoutExtension(f) + ".IMG.jpg");
+        //            //PathHelper.EnsureExists(Path.GetDirectoryName(subDest));
+        //            //img.Save<byte>(subDest);
 
-                    m.Save(destRoot + ".obj", destRoot + ".jpg");
-                }
-            });
-            var primarySiteDrive = siteDriveLookup.Keys.OrderBy(x => x).Last();
-            siteDriveLookup[primarySiteDrive].Primary = true;
-            string content = manifest.Create();
-            string sceneSiteDriveFolder = Path.Combine(sceneDir, Path.Combine("ds" + primarySiteDrive, "201801010000"));
-            PathHelper.EnsureExists(sceneSiteDriveFolder);
-            File.WriteAllText(Path.Combine(sceneSiteDriveFolder, "manifest.xml"), content);
-            string tileDir = Path.Combine(sceneSiteDriveFolder, "tile3d_2.0");
-            PathHelper.EnsureExists(tileDir);
-            File.WriteAllText(Path.Combine(tileDir, "tilesetSky.json"), SkyTilesetContent);
+        //            //m.Save(destRoot + ".obj", destRoot + ".jpg");
+        //        }
+        //    });
+        //    var primarySiteDrive = siteDriveLookup.Keys.OrderBy(x => x).Last();
+        //    siteDriveLookup[primarySiteDrive].Primary = true;
+        //    string content = manifest.Create();
+        //    string sceneSiteDriveFolder = Path.Combine(sceneDir, Path.Combine("ds" + primarySiteDrive, "201801010000"));
+        //    PathHelper.EnsureExists(sceneSiteDriveFolder);
+        //    File.WriteAllText(Path.Combine(sceneSiteDriveFolder, "manifest.xml"), content);
+        //    string tileDir = Path.Combine(sceneSiteDriveFolder, "tile3d_2.0");
+        //    PathHelper.EnsureExists(tileDir);
+        //    File.WriteAllText(Path.Combine(tileDir, "tilesetSky.json"), SkyTilesetContent);
 
-        }
+        //}
 
-        const string SkyTilesetContent = @"{
+        public const string SkyTilesetContent = @"{
   ""asset"": {
     ""version"": ""1.0"",
     ""gltfUpAxis"": ""Z""
@@ -387,21 +415,6 @@ namespace OPS.Pipeline
   ""geometricError"": 16384
 }";
 
-        /// <summary>
-        /// Convert a mesh 
-        /// From: Right-handed Z down
-        /// To: Right-handed Y up with a 90 degree rotation
-        /// This is more unity like but is still right handed
-        /// </summary>
-        /// <param name="mesh"></param>
-        public static void ConvertMeshToYUp(Mesh mesh)
-        {
-            foreach(var v in mesh.Vertices)
-            {
-                var p = v.Position;
-                //v.Position = new Vector3(p.X, -p.Z, p.Y);
-                v.Position = new Vector3(-p.Y, -p.Z, p.X);
-            }
-        }
+
     }
 }
