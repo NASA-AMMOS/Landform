@@ -70,27 +70,32 @@ namespace OPS.Alignment
 
             if (modelNode == null || dataNode == null) return matches;
 
-            var dataToWorld = dataNode.GetOrAddComponent<NodeUncertainTransform>().LocalToWorld;
-            var modelToWorld = modelNode.GetOrAddComponent<NodeUncertainTransform>().LocalToWorld;
-            var dataToModelOld = dataToWorld.TimesInverse(modelToWorld);
             UncertainRigidTransform dataToModel = dataNode.GetOrAddComponent<NodeUncertainTransform>().To(modelNode);
+            UncertainRigidTransform modelToData = modelNode.GetOrAddComponent<NodeUncertainTransform>().To(dataNode);
 
-            var modelImg = GetImage(matches.ModelImage);
+ 			var modelImg = GetImage(matches.ModelImage);
             var dataImg = GetImage(matches.DataImage);
             var modelCam = modelImg.CameraModel;
             var dataCam = dataImg.CameraModel;
 
             // if 'data' node has a convex hull, compute it (uncertainty-inflated) in model space
             ConvexHull dataHullInModel = null;
-            var ch = dataNode.GetComponent<NodeConvexHull>();
-            if (ch != null)
+            ConvexHull modelHullInData = null;
+            var modelHull = modelNode.GetComponent<NodeConvexHull>();
+            var dataHull = dataNode.GetComponent<NodeConvexHull>();
+            if (dataHull != null)
             {
-                dataHullInModel = ConvexHull.Transformed(ch.Hull, dataToModel);
+                dataHullInModel = ConvexHull.Transformed(dataHull.Hull, dataToModel);
+            }
+            if (modelHull != null)
+            {
+                modelHullInData= ConvexHull.Transformed(modelHull.Hull, modelToData);
             }
 
             // Cache result of model ray -> data frustum intersection, because model rays
             // can be repeated
             Dictionary<int, bool> modelRayIntersects = new Dictionary<int, bool>();
+            Dictionary<int, bool> dataRayIntersects = new Dictionary<int, bool>();
             List<KeyValuePair<int, int>> goodMatches = new List<KeyValuePair<int, int>>();
 
             int rejectedHull = 0;
@@ -117,12 +122,28 @@ namespace OPS.Alignment
                         bool intersects = dataHullInModel.Intersects(modelRay);
                         modelRayIntersects[pair.Value] = intersects;
                     }
+
                     if (!modelRayIntersects[pair.Value])
                     {
                         rejectedHull++;
                         continue;
                     }
                 }
+                if (modelHullInData != null)
+                {
+                    if (!dataRayIntersects.ContainsKey(pair.Key))
+                    {
+                        bool intersects = modelHullInData.Intersects(dataRay);
+                        dataRayIntersects[pair.Key] = intersects;
+                    }
+
+                    if (!dataRayIntersects[pair.Key])
+                    {
+                        rejectedHull++;
+                        continue;
+                    }
+                }
+
 
                 if (dataToModel.Uncertain)
                 {
@@ -187,9 +208,19 @@ namespace OPS.Alignment
                             rejectedInvalid++;
                             continue;
                         }
-                        if (epi.ModelT < -0.01
-                            || epi.DataT < -0.01
-                            || Math.Abs(epi.SignedDistance(modelFeature.Location)) > FixedErrorThreshold)
+                        if (epi.ModelT < -0.01 || epi.DataT < -0.01 || Math.Abs(epi.SignedDistance(modelFeature.Location)) > FixedErrorThreshold)
+                        {
+                            rejectedError++;
+                            continue;
+                        }
+
+                        epi = epiFinder.Find(dataImg.CameraModel, modelImg.CameraModel, modelToData.Mean, modelFeature, dataFeature);
+                        if (!epi.Success)
+                        {
+                            rejectedInvalid++;
+                            continue;
+                        }
+                        if (epi.ModelT < -0.01 || epi.DataT < -0.01 || Math.Abs(epi.SignedDistance(dataFeature.Location)) > FixedErrorThreshold)
                         {
                             rejectedError++;
                             continue;
