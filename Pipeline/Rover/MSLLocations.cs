@@ -76,6 +76,21 @@ namespace OPS.Pipeline
             }
         }
 
+        public int MaxSite
+        {
+            get { return locations.Keys.Select(x => x.Site).Max();  }
+        }
+
+        public int MaxDrive(int site)
+        {
+            return locations.Keys.Where(x => x.Site == site).Select(x => x.Drive).Max(); 
+        }
+
+        public int MinDrive(int site)
+        {
+            return locations.Keys.Where(x => x.Site == site).Select(x => x.Drive).Min();
+        }
+
         /// <summary>
         /// Look up a location for this site drive.  Return null if it doesn't exist
         /// </summary>
