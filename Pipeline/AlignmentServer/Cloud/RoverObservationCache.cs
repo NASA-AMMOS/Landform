@@ -7,27 +7,21 @@ using System.Collections.Concurrent;
 using Amazon.DynamoDBv2.DataModel;
 using System.Runtime.InteropServices;
 using System.Threading;
-using OPS.Plumbing;
 
 namespace OPS.Pipeline.AlignmentServer
 {
-    /// <summary>
-    /// queries rover observations one by one with an overly safe throttling (assumes the actual read takes zero time)
-    /// </summary>
     public class RoverObservationCache
     {
-        Dictionary<string, List<RoverObservation>> obsByFrame = new Dictionary<string, List<RoverObservation>>();
+        private Dictionary<string, List<RoverObservation>> obsByFrame =
+            new Dictionary<string, List<RoverObservation>>();
         
-        PipelineCore pipeline;
-        string projectName;
-        int sleepThrottleMS;
+        private readonly PipelineCore pipeline;
+        private readonly string projectName;
 
-        public RoverObservationCache(PipelineCore pipeline, string projectName, int estimatedItemSizeBytes, int tableReadCapacity)
+        public RoverObservationCache(PipelineCore pipeline, string projectName)
         {
             this.pipeline = pipeline;
             this.projectName = projectName;
-            
-            sleepThrottleMS = GetThrottleMS(estimatedItemSizeBytes, tableReadCapacity);
         }
 
         public void FillCache(bool onlyReconstructionObs)
@@ -44,7 +38,6 @@ namespace OPS.Pipeline.AlignmentServer
 
                     obsByFrame[observation.FrameName].Add(observation);
                 }
-                Thread.Sleep(sleepThrottleMS);
             }
         }
 
@@ -59,14 +52,6 @@ namespace OPS.Pipeline.AlignmentServer
         public List<string> GetFrameNamesWithObservations()
         {
             return obsByFrame.Keys.ToList();
-        }
-
-        int GetThrottleMS(int estimatedItemSizeBytes, int tableReadCapacity)
-        {
-            const int dynamoPageSizeBytes = 4000;
-            int dynamoBytesPerSec = dynamoPageSizeBytes * tableReadCapacity;
-            int obsReadsPerSec = dynamoBytesPerSec / estimatedItemSizeBytes;
-            return 1000 / obsReadsPerSec;
         }
     }
 }

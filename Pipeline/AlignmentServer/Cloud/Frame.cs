@@ -4,7 +4,6 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using OPS.Cloud;
-using OPS.Plumbing;
 using Amazon.DynamoDBv2.DataModel;
 
 namespace OPS.Pipeline.AlignmentServer
@@ -61,16 +60,16 @@ namespace OPS.Pipeline.AlignmentServer
         /// until it is saved to the database.
         /// Frame names must be unique within a project.  If no name is specified a random GUID will used.
         /// </summary>
-        /// <param name="project">Project with a valid id (has been saved to database)</param>
+        /// <param name="projectName"></param>
         /// <param name="name"></param>
-        protected Frame(Project project, string name = null, Frame parent = null)
+        protected Frame(string projectName, string name = null, Frame parent = null)
         {
             if (name == null)
             {
                 name = Guid.NewGuid().ToString();
             }
             this.Name = name;
-            this.ProjectName = project.Name;
+            this.ProjectName = projectName;
             this.ParentName = (parent != null) ? parent.Name : null;
             this.PriorIds = new List<string>();
         }
@@ -81,16 +80,16 @@ namespace OPS.Pipeline.AlignmentServer
         /// Saves the frame the the database and returns an object with a valid id.
         /// </summary>
         /// <param name="pipeline"></param>
-        /// <param name="p">Project with a valid id (has been saved to database)</param>
+        /// <param name="projectName"></param>
         /// <param name="name"></param>
         /// <returns></returns>
-        public static Frame Create(PipelineCore pipeline, Project p, string name = null, Frame parent = null)
+        public static Frame Create(PipelineCore pipeline, string projectName, string name = null, Frame parent = null)
         {
             if (name == null)
             {
                 name = Guid.NewGuid().ToString();
             }
-            Frame f = new Frame(p, name, parent);
+            Frame f = new Frame(projectName, name, parent);
             pipeline.SaveDatabaseItem<Frame>(f);
             return f;
         }
@@ -110,26 +109,26 @@ namespace OPS.Pipeline.AlignmentServer
         /// Returned frame is saved in the database and has a valid id.
         /// </summary>
         /// <param name="pipeline"></param>
-        /// <param name="p">Project with a valid id (has been saved to database)</param>
+        /// <param name="projectName"></param>
         /// <param name="name"></param>
         /// <returns></returns>
-        public static Frame FindOrCreate(PipelineCore pipeline, Project p, string name, Frame parent = null)
+        public static Frame FindOrCreate(PipelineCore pipeline, string projectName, string name, Frame parent = null)
         {
             // Try to find this project
-            Frame frame = Find(pipeline, p.Name, name);
+            Frame frame = Find(pipeline, projectName, name);
             if (frame != null)
             {
                 return frame;
             }
             // If it doesn't exist try to create it
-            frame = Create(pipeline, p, name, parent);
+            frame = Create(pipeline, projectName, name, parent);
             if (frame != null)
             {
                 return frame;
             }
             // If our create failed someone else may have created one between our find and create calls
             // Look for it again.
-            return Find(pipeline, p.Name, name);
+            return Find(pipeline, projectName, name);
         }
 
         /// <summary>

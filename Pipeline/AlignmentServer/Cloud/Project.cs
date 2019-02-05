@@ -4,7 +4,6 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using OPS.Cloud;
-using OPS.Plumbing;
 using Amazon.DynamoDBv2.DataModel;
 
 namespace OPS.Pipeline.AlignmentServer
@@ -108,7 +107,7 @@ namespace OPS.Pipeline.AlignmentServer
         {
             if (!(Name != null && ProductPath != null && InputPath != null))
             {
-                throw new CloudException("Project is missing a required field");
+                throw new Exception("Project is missing a required field");
             }
         }
     }

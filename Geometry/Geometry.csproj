@@ -98,6 +98,7 @@
     <Compile Include="Scene\NodeConvexHull.cs" />
     <Compile Include="Scene\NodeComponent.cs" />
     <Compile Include="Scene\NodeGeometricError.cs" />
+    <Compile Include="Scene\NodeImageUrl.cs" />
     <Compile Include="Scene\NodeTransform.cs" />
     <Compile Include="Scene\NodeUncertainTransform.cs" />
     <Compile Include="Scene\SceneNode.cs" />

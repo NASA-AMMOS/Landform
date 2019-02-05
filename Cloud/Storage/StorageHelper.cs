@@ -221,7 +221,7 @@ namespace OPS.Cloud
         /// Use the given profile name to create a storage helper
         /// Profiles can be defined in the ~/.aws/credentials file
         /// If an endpoint name such as "us-west-1" is provided that endpoint will be used for all connections
-        /// Otherwise methods will attempt to determine the region for buckets based on the bucket name in the url string
+        /// Otherwise methods will attempt to determine the region for buckets based on the bucket name in the url
         /// Note that s3:GetBucketLocation must be enabled for automatic bucket determination to work.
         /// </summary>
         /// <param name="awsProfileName"></param>

@@ -2,55 +2,32 @@
 using System.Collections.Generic;
 using System.Linq;
 using log4net;
-using OPS.Pipeline.TileServer;
-using OPS.Pipeline.AlignmentServer;
+using Microsoft.Xna.Framework;
+using OPS.Util;
+using OPS.Cloud;
 using OPS.Geometry;
 using OPS.Imaging;
-using OPS.Plumbing;
-using OPS.Util;
-using Microsoft.Xna.Framework;
+using OPS.Pipeline.TileServer;
+using OPS.Pipeline.AlignmentServer;
 
 namespace OPS.Pipeline.MeshWorker
 {
-    /// <summary>
-    /// message sent to create a large mesh from input data 
-    /// and upload it as the tiling input
-    /// </summary>
-    public class BuildTilingInputMessage : TilingQueueMessage
+    public class BuildTilingInputMessage : QueueMessage
     {
         public BuildTilingInputMessage() { }
-
-        public BuildTilingInputMessage(string projectName) : base(projectName)
-        {
-        }
+        public BuildTilingInputMessage(string projectName) : base(projectName) { }
     }
 
     /// <summary>
     /// create a large mesh from input data and uploads it as the tiling input
     /// </summary>
-    public class BuildTilingInput : TileServerOperation
+    public class BuildTilingInput : CloudPipelineOperation
     {
-        private BuildTilingInputMessage message;
+        private readonly BuildTilingInputMessage message;
 
-        private Options options;
-
-        struct Options
-        {
-            public string AlignmentProjectName; //the project name that contains the alignment data to be used with this tiling project (code sets to tiling project name, hardcode locally to use previous alignment project)
-            public int EstimatedItemSizeBytes;  //dynamo throttling: estimated item size (table size/ num items)
-            public int TableReadCapacity;       //dynamo throttling: provisioned read capacity
-        }
-
-        public BuildTilingInput(BuildTilingInputMessage message, PipelineCore pipeline, TileServerCloud cloud)
-            : base(message, pipeline, cloud)
+        public BuildTilingInput(CloudPipeline pipeline, BuildTilingInputMessage message) : base(pipeline, message)
         {
             this.message = message;
-
-            options.AlignmentProjectName = message.ProjectName;
-
-            //Issue #268: query/build these values from AWS apis
-            options.EstimatedItemSizeBytes = 820;
-            options.TableReadCapacity = 50;
         }
 
         struct PointCloudObservations
@@ -79,8 +56,8 @@ namespace OPS.Pipeline.MeshWorker
             LogInfo("started");
 
             //cache data needed to build pointcloud
-            FrameCache frameCache = new FrameCache(pipeline, options.AlignmentProjectName);
-            RoverObservationCache obsCache = new RoverObservationCache(pipeline, options.AlignmentProjectName, options.EstimatedItemSizeBytes, options.TableReadCapacity);
+            FrameCache frameCache = new FrameCache(pipeline, projectName);
+            RoverObservationCache obsCache = new RoverObservationCache(pipeline, projectName);
             obsCache.FillCache(onlyReconstructionObs: true);
 
             //find the best observations to use for each point cloud
@@ -140,7 +117,7 @@ namespace OPS.Pipeline.MeshWorker
 
             //upload mesh
             string meshName = "FullMesh";
-            string s3MeshOutputUrl = TileServerConfig.Instance.InputUrl(message.ProjectName, meshName + ".ply");
+            string s3MeshOutputUrl = pipeline.GetStorageUrl("input", projectName, meshName + ".ply");
             TemporaryFile.GetAndDelete(".ply", tempFile =>
             {
                 LogInfo("uploading mesh " + s3MeshOutputUrl);
@@ -149,11 +126,11 @@ namespace OPS.Pipeline.MeshWorker
             });
 
             //create a tiling input
-            TilingProject tilingProject = TilingProject.Find(pipeline, message.ProjectName);
+            TilingProject tilingProject = TilingProject.Find(pipeline, projectName);
             TilingInput.Create(pipeline, meshName, tilingProject, s3MeshOutputUrl, null, null);
             
             //indicate successs to the tiling server master
-            cloud.MasterQueue.Enqueue(new BuildTilingInputMessage(message.ProjectName));
+            pipeline.MasterQueue.Enqueue(new BuildTilingInputMessage(projectName));
 
             LogInfo("complete");
 
@@ -209,7 +186,11 @@ namespace OPS.Pipeline.MeshWorker
 
         private Image GetObservationImage(RoverObservation obs, params RoverProductType[] expectedProductTypes)
         {
-            Image img = pipeline.LoadImage(new ObservationImageRef(obs), false, ImageConverters.PassThrough);
+            Image img = pipeline.LoadImage(obs.Url);
+
+            //don't mutate cached image
+            img = (Image)img.Clone();
+
             PDSParser parser = new PDSParser((PDSMetadata)img.Metadata);
 
             if (parser.ProductId.Producer != RoverProductProducer.OPGS)

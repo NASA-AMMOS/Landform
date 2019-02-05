@@ -1,6 +1,5 @@
 using CommandLine;
 using log4net;
-using OPS.Plumbing;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -29,49 +28,47 @@ namespace OPS.Pipeline.TileServer
 
         private DeleteProjectOptions options;
 
-        public DeleteProject(DeleteProjectOptions options)
-            : base(options, TileServerConfig.Instance.VenueName, TileServerConfig.Instance.Profile)
+        public DeleteProject(DeleteProjectOptions options) : base(options)
         {
             this.options = options;
         }
 
         public int Run()
         {
-            var cloud = new TileServerCloud(this, quiet: true);
-
             var project = TilingProject.Find(this, options.ProjectName);
 
             if (project == null)
             {
-                Logger.ErrorFormat("project \"{0}\" not found", options.ProjectName);
+                LogError("project \"{0}\" not found", options.ProjectName);
                 return 1; //argument error
             }
 
             if (project.StartedRunning && !project.FinishedRunning)
             {
-                Logger.ErrorFormat("cannot delete project \"{0}\", project currently running",options.ProjectName);
+                LogError("cannot delete project \"{0}\", project currently running", options.ProjectName);
                 return 1; //argument error
             }
 
-            cloud.MasterQueue.Enqueue(new DeleteProjectMessage(options.ProjectName));
+            MasterQueue.Enqueue(new DeleteProjectMessage(options.ProjectName));
 
             if (!options.NoWait)
             {
-                Logger.InfoFormat("waiting for project \"{0}\" to be deleted", options.ProjectName);
+                LogInfo("waiting for project \"{0}\" to be deleted", options.ProjectName);
                 var sw = new Stopwatch();
                 sw.Start();
                 do
                 {
                     if (sw.ElapsedMilliseconds > MAX_WAIT_MS)
                     {
-                        Logger.ErrorFormat("project \"{0}\" not deleted in {1}ms", options.ProjectName, MAX_WAIT_MS);
+                        LogError("project \"{0}\" not deleted in {1}ms", options.ProjectName, MAX_WAIT_MS);
                         return 2; //internal error
                     }
                     Thread.Sleep(SLEEP_MS);
                     project = TilingProject.Find(this, options.ProjectName);
                 }
                 while (project != null);
-                Logger.InfoFormat("project \"{0}\" has been deleted", options.ProjectName);
+
+                LogInfo("project \"{0}\" deleted", options.ProjectName);
             }
 
             return 0;

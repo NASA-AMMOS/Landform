@@ -232,7 +232,7 @@ namespace OPS.Cloud
         public const double DEF_MAX_TABLE_WAIT_SEC = 60;
         public const int TABLE_WAIT_SLEEP_MS = 3000;
 
-        public static void WaitForTable(IAmazonDynamoDB client, Type type, string prefix="",
+        public static void WaitForTable(IAmazonDynamoDB client, Type type, string prefix = "",
                                         double maxWaitSec = DEF_MAX_TABLE_WAIT_SEC, ILog logger = null)
         {
             var sw = new Stopwatch();
@@ -281,11 +281,11 @@ namespace OPS.Cloud
                     func();
                     break;
                 }
-                catch (ProvisionedThroughputExceededException e)
+                catch (ProvisionedThroughputExceededException)
                 {
                     if (backoff > maxMS)
                     {
-                        throw e;
+                        throw;
                     }
                     else
                     {
@@ -301,7 +301,59 @@ namespace OPS.Cloud
             return nb;
         }
 
-        public static void DeleteItem<T>(DynamoDBContext context, T obj, bool ignoreErrors = true, ILog logger = null)
+        public static void SaveItem<T>(DynamoDBContext context, T obj, bool ignoreNulls = true,
+                                       bool ignoreErrors = false, ILog logger = null)
+        {
+            try
+            {
+                var cfg = new DynamoDBOperationConfig() { IgnoreNullValues = ignoreNulls };
+                ExponentialBackoff(() => context.Save(obj, cfg));
+            }
+            catch (Exception e)
+            {
+                if (logger != null)
+                {
+                    logger.WarnFormat("error saving DynamoDB object ({0}): {1}", e.GetType().FullName, e.Message);
+                }
+                if (!ignoreErrors)
+                {
+                    throw;
+                }
+            }
+        }
+
+        public static T LoadItem<T>(DynamoDBContext context, string key, string secondaryKey = null,
+                                    bool consistent = false, bool ignoreErrors = false,
+                                    ILog logger = null) where T : class
+        {
+            T ret = null;
+            try
+            {
+                var cfg = new DynamoDBOperationConfig { ConsistentRead = consistent };
+                if (secondaryKey == null)
+                {
+                    ExponentialBackoff(() => ret = context.Load<T>(key, cfg));
+                }
+                else
+                {
+                    ExponentialBackoff(() => ret = context.Load<T>(key, secondaryKey, cfg));
+                }
+            }
+            catch (Exception e)
+            {
+                if (logger != null)
+                {
+                    logger.WarnFormat("error loading DynamoDB object ({0}): {1}", e.GetType().FullName, e.Message);
+                }
+                if (!ignoreErrors)
+                {
+                    throw;
+                }
+            }
+            return ret;
+        }
+
+        public static void DeleteItem<T>(DynamoDBContext context, T obj, bool ignoreErrors = false, ILog logger = null)
         {
             try
             {
@@ -315,7 +367,7 @@ namespace OPS.Cloud
                 }
                 if (!ignoreErrors)
                 {
-                    throw e;
+                    throw;
                 }
             }
         }

@@ -4,7 +4,6 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using OPS.Cloud;
-using OPS.Plumbing;
 using Amazon.DynamoDBv2.DataModel;
 
 namespace OPS.Pipeline.AlignmentServer
@@ -55,7 +54,7 @@ namespace OPS.Pipeline.AlignmentServer
                 Name != null &&
                 ObservationType != null))
             {
-                throw new CloudException("Missing required property in Observation");
+                throw new Exception("Missing required property in Observation");
             }
         }
 

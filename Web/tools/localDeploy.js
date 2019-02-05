@@ -54,7 +54,7 @@ checkDeploy('local-deploy')
 
     runArgs.push('--env', `AWS_PROFILE=${config.app.awsProfile}`);
     runArgs.push('--env', 'WITHOUT_HTTPS=true');
-    runArgs.push('--env', `TILE_SERVER_VENUE_NAME=${config.app.venueName}`);
+    runArgs.push('--env', `LANDFORM_VENUE_NAME=${config.app.venue}`);
 
     runArgs.push('-p', `${config.app.port}:${config.app.port}`);
 

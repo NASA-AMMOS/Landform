@@ -1,20 +1,19 @@
-﻿using MathNet.Numerics.LinearAlgebra;
-using Microsoft.Xna.Framework;
-using OPS.Cloud;
-using OPS.Geometry;
-using OPS.Imaging;
-using OPS.Plumbing;
-using OPS.Util;
-using OPS.Pipeline.AlignmentServer;
-using System;
+﻿using System;
+using System.IO;
 using System.Collections.Concurrent;
 using System.Linq;
+using MathNet.Numerics.LinearAlgebra;
+using Microsoft.Xna.Framework;
+using OPS.Util;
+using OPS.Geometry;
+using OPS.Imaging;
+using OPS.Pipeline.AlignmentServer;
 
 namespace OPS.Pipeline
 {
     public class IngestPDSImage : IngestImage
     {
-        public readonly string projectName;
+        private string projectName;
         private MSLLocations locations;
 
         public IngestPDSImage(PipelineCore pipeline, MSLLocations locations, string projectName) : base(pipeline)
@@ -192,7 +191,9 @@ namespace OPS.Pipeline
             return parser.ProductIdString;
         }
         
-        static ConcurrentDictionary<RoverProductType, ObservationType> productTypeToObservationType = new ConcurrentDictionary<RoverProductType, ObservationType>();
+        private static ConcurrentDictionary<RoverProductType, ObservationType> productTypeToObservationType =
+            new ConcurrentDictionary<RoverProductType, ObservationType>();
+
         static IngestPDSImage()
         {
             productTypeToObservationType.TryAdd(RoverProductType.Image, ObservationType.Image);
@@ -206,17 +207,16 @@ namespace OPS.Pipeline
         private double halfDegSqr = Math.Pow(0.5 * Math.PI / 180, 2);
         private double degSqr = Math.Pow(Math.PI / 180, 2);
 
-        public override Result Ingest(ImageRef imgRef)
+        public override Result Ingest(string imgUrl)
         {
             // Parse the filename to quickly rule out data products we know we don't care about.
-            if (!CheckFilename(imgRef.DisplayName))
+            if (!CheckFilename(Path.GetFileNameWithoutExtension(imgUrl)))
             {
                 return new Result(Status.Skipped, null);
             }
 
             // Fetch image and check metadata
-            PDSMetadata metadata = null;
-            Pipeline.GetStream(imgRef, stream => { metadata = new PDSMetadata(stream); });
+            PDSMetadata metadata = new PDSMetadata(pipeline.GetImageFile(imgUrl));
             
             if (metadata == null)
             {
@@ -240,34 +240,37 @@ namespace OPS.Pipeline
             }
 
             // Create database entries
-            Project project = Project.Find(Pipeline, projectName);
+            Project project = Project.Find(pipeline, projectName);
             if (project == null)
             {
-                throw new CloudException("Project does not exist");
+                throw new Exception("Project does not exist");
             }
 
             // Create frames for this observation if necessary
-            Frame rootFrame = Frame.Find(Pipeline, project.Name, MSLProject.ROOT_FRAME_NAME);
+            Frame rootFrame = Frame.Find(pipeline, projectName, MSLProject.ROOT_FRAME_NAME);
             if (rootFrame == null)
             {
                 throw new Exception("Root frame does not exist");
             }
-            Frame siteDriveFrame = Frame.FindOrCreate(Pipeline, project, SiteDriveFrameName(parser), rootFrame);
-            Frame observationFrame = Frame.FindOrCreate(Pipeline, project, ObservationFrameName(parser), siteDriveFrame);
+            Frame siteDriveFrame = Frame.FindOrCreate(pipeline, projectName, SiteDriveFrameName(parser), rootFrame);
+            Frame observationFrame = Frame.FindOrCreate(pipeline, projectName, ObservationFrameName(parser), siteDriveFrame);
 
-            if (FrameTransform.Find(Pipeline, observationFrame) == null)
+            if (FrameTransform.Find(pipeline, observationFrame) == null)
             {
                 // TODO: examine values here
-                var covariance = CreateMatrix.Diagonal<double>(new double[] { 0.01, 0.01, 0.01, quarterDegSqr, quarterDegSqr, halfDegSqr });
+                var covariance = CreateMatrix
+                    .Diagonal<double>(new double[] { 0.01, 0.01, 0.01, quarterDegSqr, quarterDegSqr, halfDegSqr });
 
                 // Create a transform that goes from observation frame (aka rover) to site drive frame (aka local level)
                 Quaternion roverToLocalLevel = parser.RoverOriginRotation;
-                UncertainRigidTransform observationToSiteDriveTransform = new UncertainRigidTransform(Matrix.CreateFromQuaternion(roverToLocalLevel), covariance);
-                FrameTransform observationToSiteDrive = FrameTransform.Create(Pipeline, observationFrame, observationToSiteDriveTransform);
+                UncertainRigidTransform observationToSiteDriveTransform =
+                    new UncertainRigidTransform(Matrix.CreateFromQuaternion(roverToLocalLevel), covariance);
+                FrameTransform observationToSiteDrive =
+                    FrameTransform.Create(pipeline, observationFrame, observationToSiteDriveTransform);
 
-                TransformPrior o2sdP = TransformPrior.Create(Pipeline, observationFrame, observationToSiteDriveTransform);
+                TransformPrior o2sdP = TransformPrior.Create(pipeline, observationFrame, observationToSiteDriveTransform);
                 observationFrame.PriorIds.Add(o2sdP.Id);
-                observationFrame.Save(Pipeline);
+                observationFrame.Save(pipeline);
             }
             // Create a transform that goes from site drive frame to root frame
 
@@ -277,24 +280,25 @@ namespace OPS.Pipeline
                 throw new Exception("site drive transform does not exist");
             }
 
-            if (FrameTransform.Find(Pipeline, siteDriveFrame) == null)
+            if (FrameTransform.Find(pipeline, siteDriveFrame) == null)
             {
                 // TODO: examine values here
-                var covariance = CreateMatrix.Diagonal<double>(new double[] { 8, 8, 8, 5 * degSqr, 5 * degSqr, 5 * degSqr });
-                UncertainRigidTransform transform = new UncertainRigidTransform(Matrix.CreateTranslation(loc.Position), covariance);
-                FrameTransform siteDriveToRoot = FrameTransform.Create(Pipeline, siteDriveFrame, transform);
-                TransformPrior sd2rP = TransformPrior.Create(Pipeline, siteDriveFrame, transform);
+                var covariance =
+                    CreateMatrix.Diagonal<double>(new double[] { 8, 8, 8, 5 * degSqr, 5 * degSqr, 5 * degSqr });
+                UncertainRigidTransform transform =
+                    new UncertainRigidTransform(Matrix.CreateTranslation(loc.Position), covariance);
+                FrameTransform siteDriveToRoot = FrameTransform.Create(pipeline, siteDriveFrame, transform);
+                TransformPrior sd2rP = TransformPrior.Create(pipeline, siteDriveFrame, transform);
                 siteDriveFrame.PriorIds.Add(sd2rP.Id);
-                siteDriveFrame.Save(Pipeline);
+                siteDriveFrame.Save(pipeline);
             }
 
             string observationName = ObservationName(parser);
-            Observation observation = RoverObservation.Find(Pipeline, project.Name, observationName);
+            Observation observation = RoverObservation.Find(pipeline, projectName, observationName);
             if (observation == null)
             {
                 string cameraModel = JsonHelper.ToJson(metadata.CameraModel);
-                string url = imgRef.Url;
-                observation = RoverObservation.Create(Pipeline, observationFrame, observationName, url,
+                observation = RoverObservation.Create(pipeline, observationFrame, observationName, imgUrl,
                                                       productTypeToObservationType[parser.DerivedImageType].ToString(),
                                                       cameraModel, UseForReconstruction(parser, metadata),
                                                       parser.Site, parser.Drive, parser.ProductId.Version,

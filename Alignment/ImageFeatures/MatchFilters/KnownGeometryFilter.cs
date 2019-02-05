@@ -1,16 +1,15 @@
-﻿using OPS.Geometry;
-using OPS.Imaging;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Microsoft.Xna.Framework;
-using OPS.MathExtensions;
 using MathNet.Numerics.LinearAlgebra;
 using log4net;
-using OPS.Plumbing;
+using OPS.Geometry;
+using OPS.Imaging;
 using OPS.Imaging.Emgu;
+using OPS.MathExtensions;
 
 namespace OPS.Alignment
 {
@@ -18,19 +17,19 @@ namespace OPS.Alignment
     /// Filter for pruning feature matches based on a priori known geometry of a scene. 
     /// Takes as input a scene graph with (optional) uncertainty information on transforms.
     /// </summary>
-    public class KnownGeometryFilter : PipelineRoutine, IMatchFilter
+    public class KnownGeometryFilter : IMatchFilter
     {
         private static readonly ILog logger = LogManager.GetLogger(typeof(KnownGeometryFilter));
 
-        public delegate SceneNode ImageNodeDelegate(ImageRef image);
+        public delegate SceneNode ImageNodeDelegate(string imageUrl);
 
         /// <summary>
         /// Construct with a function mapping image references to nodes.
         /// </summary>
         /// <param name="imageToNode">Should return the scene node associated with a given image</param>
-        public KnownGeometryFilter(PipelineCore pipeline, ImageNodeDelegate imageToNode)
-            : base(pipeline)
+        public KnownGeometryFilter(IImageLoader loader, ImageNodeDelegate imageToNode)
         {
+            this.loader = loader;
             ImageToNode = imageToNode;
             ParallelProjectionDistance = 1000;
             MaxBadProjections = 3;
@@ -38,6 +37,8 @@ namespace OPS.Alignment
             FixedErrorThreshold = 20;
             MajorAxisThreshold = 100;
         }
+
+        private IImageLoader loader;
         private ImageNodeDelegate ImageToNode;
 
         /// <summary>
@@ -63,10 +64,10 @@ namespace OPS.Alignment
 
         public ImagePairCorrespondence Filter(AlignmentScene scene, ImagePairCorrespondence matches)
         {
-            SceneNode modelNode = ImageToNode(matches.ModelImage);
-            SceneNode dataNode = ImageToNode(matches.DataImage);
-            ImageFeature[] modelFeatures = scene.DetectedFeatures[matches.ModelImage];
-            ImageFeature[] dataFeatures = scene.DetectedFeatures[matches.DataImage];
+            SceneNode modelNode = ImageToNode(matches.ModelImageUrl);
+            SceneNode dataNode = ImageToNode(matches.DataImageUrl);
+            ImageFeature[] modelFeatures = scene.DetectedFeatures[matches.ModelImageUrl];
+            ImageFeature[] dataFeatures = scene.DetectedFeatures[matches.DataImageUrl];
 
             if (modelNode == null || dataNode == null) return matches;
 
@@ -75,10 +76,8 @@ namespace OPS.Alignment
             var dataToModelOld = dataToWorld.TimesInverse(modelToWorld);
             UncertainRigidTransform dataToModel = dataNode.GetOrAddComponent<NodeUncertainTransform>().To(modelNode);
 
-            var modelImg = Pipeline.LoadImage(matches.ModelImage);
-            var dataImg = Pipeline.LoadImage(matches.DataImage);
-            var modelCam = modelImg.CameraModel;
-            var dataCam = dataImg.CameraModel;
+            var modelCam = loader.LoadImage(matches.ModelImageUrl).CameraModel;
+            var dataCam = loader.LoadImage(matches.DataImageUrl).CameraModel;
 
             // if 'data' node has a convex hull, compute it (uncertainty-inflated) in model space
             ConvexHull dataHullInModel = null;
@@ -98,7 +97,7 @@ namespace OPS.Alignment
             int rejectedInvalid = 0;
             int rejectedError = 0;
 
-            var epiFinder = new EpipolarLineFinder(Pipeline);
+            var epiFinder = new EpipolarLineFinder();
             epiFinder.ParallelProjectionDistance = ParallelProjectionDistance;
 
             foreach (var pair in matches.DataToModel)
@@ -139,7 +138,7 @@ namespace OPS.Alignment
 
                         totalPoints++;
                         // Find epipolar line in model image corresponding to data point
-                        var epi = epiFinder.Find(matches.ModelImage, matches.DataImage, d2m, dataFeature, modelFeature);
+                        var epi = epiFinder.Find(modelCam, dataCam, d2m, dataFeature, modelFeature);
 
                         if (!epi.Success)
                         {
@@ -181,7 +180,7 @@ namespace OPS.Alignment
                     // Transform is exact-ish, just make sure it's close
                     try
                     {
-                        var epi = epiFinder.Find(matches.ModelImage, matches.DataImage, dataToModel.Mean, dataFeature, modelFeature);
+                        var epi = epiFinder.Find(modelCam, dataCam, dataToModel.Mean, dataFeature, modelFeature);
                         if (!epi.Success)
                         {
                             rejectedInvalid++;
@@ -212,7 +211,9 @@ namespace OPS.Alignment
             {
                 return ImagePairCorrespondence.Empty;
             }
-            return new ImagePairCorrespondence(matches.ModelImage, matches.DataImage, goodMatches, matches.FundamentalMatrix, matches.BestTransformEstimate);
+
+            return new ImagePairCorrespondence(matches.ModelImageUrl, matches.DataImageUrl, goodMatches,
+                                               matches.FundamentalMatrix, matches.BestTransformEstimate);
         }
     }
 }

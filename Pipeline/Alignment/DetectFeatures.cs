@@ -1,11 +1,10 @@
-﻿using OPS.Alignment;
-using OPS.Plumbing;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using Amazon.EC2.Model;
 using System.Text;
 using System.Threading.Tasks;
+using Amazon.EC2.Model;
+using OPS.Alignment;
 using OPS.Pipeline.AlignmentServer;
 
 namespace OPS.Pipeline
@@ -47,8 +46,8 @@ namespace OPS.Pipeline
         {
             ImageFeature[] features;
 
-            Imaging.Image img = Pipeline.LoadImage(new ObservationImageRef(obs));
-            Imaging.Image mask = null; //(obs.MaskGuid != Guid.Empty) ? Pipeline.Get<ImageDataProduct>(obs.ProjectName, obs.MaskGuid).Image : null;
+            Imaging.Image img = pipeline.LoadImage(obs.Url);
+            Imaging.Image mask = null; //(obs.MaskGuid != Guid.Empty) ? pipeline.Get<ImageDataProduct>(obs.ProjectName, obs.MaskGuid).Image : null;
 
             if (Detector == FeatureDetector.PCASIFT)
             {
@@ -67,12 +66,7 @@ namespace OPS.Pipeline
                 throw new NotImplementedException();
             }
 
-            DetectedFeatures detected = new DetectedFeatures
-            {
-                Features = features,
-                ObservationName = obs.Name
-            };
-            return detected;
+            return new DetectedFeatures() { ImageUrl = obs.Url, Features = features };
         }
     }
 }

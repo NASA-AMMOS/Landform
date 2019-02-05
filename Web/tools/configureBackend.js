@@ -3,7 +3,7 @@ const path = require('path');
 const config = require('../config');
 const { spawnSync, hasFlag } = require('./toolUtil');
 
-//npm run configure-backend -- [venue-name] [--persist]
+//npm run configure-backend -- [venue] [--persist]
 
 const argv = process.argv;
 let venue = config.app.venueName;
@@ -12,12 +12,12 @@ if (argv.length > 2 && !argv[2].startsWith('-')) venue = argv[2];
 const cfgFile = 'ec2userdata.txt';
 
 const args = [
-  `--venuename=${venue}`,
+  `--venue=${venue}`,
   `--s3url=${config.app.s3Url}`,
-  `--region=${config.app.awsRegion}`,
-  `--profile=${config.app.awsProfile}`,
-  `--msliceprofile=${config.app.awsMSLICEProfile}`,
-  `--mslices3url=${config.app.awsMSLICES3Url}`,
+  `--awsregion=${config.app.awsRegion}`,
+  `--awsprofile=${config.app.awsProfile}`,
+  `--msliceawsprofile=${config.app.MSLICEAWSProfile}`,
+  `--mslices3url=${config.app.MSLICES3Url}`,
 ];
 
 if (!hasFlag('persist')) args.push('--nopersist');

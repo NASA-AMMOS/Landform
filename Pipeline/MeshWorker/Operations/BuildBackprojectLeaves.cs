@@ -8,7 +8,6 @@ using OPS.Pipeline;
 using OPS.Pipeline.TileServer;
 using OPS.Pipeline.AlignmentServer;
 using OPS.Geometry;
-using OPS.Plumbing;
 using OPS.Cloud;
 using OPS.Imaging;
 using OPS.Util;
@@ -18,35 +17,21 @@ using System;
 
 namespace OPS.Pipeline.MeshWorker
 {
-    public class BuildBackprojectLeavesMessage : TilingQueueMessage
+    public class BuildBackprojectLeavesMessage : QueueMessage
     {
-        public List<string> TileIds { get; set; }
-
+        public List<string> TileIds;
         public BuildBackprojectLeavesMessage() { }
-
-        public BuildBackprojectLeavesMessage(string projectName, List<string> tileIds) : base(projectName)
-        {
-            this.TileIds = tileIds;
-        }
+        public BuildBackprojectLeavesMessage(string projectName) : base(projectName) { }
     }
 
-    public class BuildBackprojectLeaves : TileServerOperation
+    public class BuildBackprojectLeaves : CloudPipelineOperation
     {
-        private BuildBackprojectLeavesMessage message;
+        private readonly BuildBackprojectLeavesMessage message;
 
-        private Options options;
-
-        struct Options
-        {
-            public string AlignmentProjectName; //the project name that contains the alignment data to be used with this tiling project
-        }
-
-        public BuildBackprojectLeaves(BuildBackprojectLeavesMessage message, PipelineCore pipeline, TileServerCloud cloud)
-            : base(message, pipeline, cloud)
+        public BuildBackprojectLeaves(CloudPipeline pipeline, BuildBackprojectLeavesMessage message)
+            : base(pipeline, message)
         {
             this.message = message;
-
-            options.AlignmentProjectName = message.ProjectName;
         }
 
         class InputChunkGroup
@@ -63,9 +48,8 @@ namespace OPS.Pipeline.MeshWorker
         public int Process()
         {
             LogInfo("started batch of " + message.TileIds.Count + " leaf tiles");
-            LogInfo("collecting tiling information");
-            TilingProject project = TilingProject.Find(pipeline, message.ProjectName);
-            List<TilingNode> leaves = GetLeavesToProcess(project);
+
+            TilingProject project = TilingProject.Find(pipeline, projectName);
 
             LogInfo("downloading full mesh");
             Mesh fullMesh = GetFullMesh(project);
@@ -77,24 +61,26 @@ namespace OPS.Pipeline.MeshWorker
             sc.Build();
 
             LogInfo("building scene graph");
-            Frame rootFrame = Frame.Find(pipeline, options.AlignmentProjectName, MSLProject.ROOT_FRAME_NAME);
+            Frame rootFrame = Frame.Find(pipeline, projectName, MSLProject.ROOT_FRAME_NAME);
 
             if (rootFrame == null)
             {
-                LogError("alignment project " + options.AlignmentProjectName + " not found");
+                LogError("alignment project " + projectName + " not found");
                 return 1;
             }
 
             BuildSceneGraph builder = new BuildSceneGraph(pipeline);
             BuildSceneGraph.Options opts = new BuildSceneGraph.Options
             {
-                IncludeObservation = (o, p) => o.UseForReconstruction && o.ObservationType == ObservationType.Image.ToString(),
-                RequireFeaturesForImageReferences = false
+                IncludeObservation =
+                (o, p) => o.UseForReconstruction && o.ObservationType == ObservationType.Image.ToString(),
+                RequireFeaturesForImageURLs = false
             };
             AlignmentScene scene = builder.Build(rootFrame, opts);
 
             // generate leaf tile data
             int tiledMeshes = 0;
+            List<TilingNode> leaves = GetLeavesToProcess();
             int numLeafTileNodes = leaves.Count();
             Serial.ForEach(leaves, leaf =>
             {
@@ -123,15 +109,12 @@ namespace OPS.Pipeline.MeshWorker
                 leafPair.Image.ApplyInPlace(0, x => { return 1.0f; });
 
                 //upload the mesh/texture pair and update the tiling node
-                ThroughputManager.Run(() =>
-                {
-                    var node = TilingNode.Find(pipeline, project.Name, leaf.Id);
-                    node.SaveMesh(leafPair, pipeline, 0, project.ExportMeshFormat, project.ExportImageFormat,
-                                  project.GetSkirtMode());
-                });
+                var node = TilingNode.Find(pipeline, projectName, leaf.Id);
+                node.SaveMesh(leafPair, pipeline, 0, project.ExportMeshFormat, project.ExportImageFormat,
+                              project.GetSkirtMode());
 
                 //notify the tiling server that a tile is ready for building into parent tiles
-                cloud.MasterQueue.Enqueue(new TileCompletedMessage(project.Name, leaf.Id));                
+                pipeline.MasterQueue.Enqueue(new TileCompletedMessage(projectName) { TileId = leaf.Id});                
             });
 
             LogInfo("batch completed, generated " + tiledMeshes + " leaf tiles");
@@ -149,21 +132,27 @@ namespace OPS.Pipeline.MeshWorker
             foreach (SceneNode node in scene.Root.DepthFirstTraverse())
             {
                 if (node.IsLeaf)
+                {
                     continue;
+                }
 
-                var imgRefs = node.Children.Where(n => n.HasComponent<NodeImageReference>()).Select(n => n.GetComponent<NodeImageReference>().Reference);
-                var obs = imgRefs.Select(n => ((ObservationImageRef)n).Observation);
+                var obs = node.Children
+                    .Where(n => n.HasComponent<NodeObservation>())
+                    .Select(n => n.GetComponent<NodeObservation>().observation);
+
                 var groups = obs.GroupBy(ob => ob.FrameName);
 
                 foreach (var group in groups)
                 {
                     if (group.Count() == 1)
+                    {
                         continue;
+                    }
                      
                     List<RoverObservation> robs = new List<RoverObservation>();
-                    foreach(var ob in group)
+                    foreach (var ob in group)
                     {
-                        RoverObservation rob = ThroughputManager.Run(() => RoverObservation.Find(pipeline, options.AlignmentProjectName, ob.Name));
+                        RoverObservation rob = RoverObservation.Find(pipeline, projectName, ob.Name);
                         if (rob != null)
                         {
                             robs.Add(rob);
@@ -172,9 +161,9 @@ namespace OPS.Pipeline.MeshWorker
                    
                     RoverObservation best = MSLProject.FindBestImage(robs);
 
-                    foreach(var ob in group)
+                    foreach (var ob in group)
                     {
-                        if(ob.Name != best.Name)
+                        if (ob.Name != best.Name)
                         {
                             ob.UseForReconstruction = false;
                         }
@@ -184,42 +173,35 @@ namespace OPS.Pipeline.MeshWorker
         }
 
         // assumes mesh is built with the origin at the origin at the root frame the scene graph was built with
-        private List<BackprojectContext> GetPossibleObservations(AlignmentScene scene, BoundingBox tileBounds, ConvexHull tileHull)
+        private List<BackprojectContext> GetPossibleObservations(AlignmentScene scene, BoundingBox tileBounds,
+                                                                 ConvexHull tileHull)
         {
             List<BackprojectContext> results = new List<BackprojectContext>();
 
-            foreach ( SceneNode node in scene.Root.DepthFirstTraverse())
+            foreach (SceneNode node in scene.Root.DepthFirstTraverse())
             {
-                NodeImageReference nir = node.GetComponent<NodeImageReference>();
-
-                if (nir == null)
+                if (!node.HasComponent<NodeObservation>())
                 {
                     continue;
                 }
 
-                var imgRef = nir.Reference as ObservationImageRef;
+                var obs = node.GetComponent<NodeObservation>().observation;
 
-                if (imgRef == null)
+                if (!obs.UseForReconstruction)
                 {
                     continue;
                 }
 
-                if (imgRef.Observation.UseForReconstruction == false)
-                {
-                    continue;
-                }
-
-                //download image
-                Image img = pipeline.LoadImage(imgRef, false);
-               
                 //validate image has a supported config
-                PDSMetadata md = img.Metadata as PDSMetadata;
+                PDSMetadata md = pipeline.LoadImage(obs.Url).Metadata as PDSMetadata;
                 PDSParser parser = new PDSParser(md);
               
                 //coarse frustum cull: does this mesh's hull intersect the cameras
                 Matrix imgToWorld = node.GetComponent<NodeUncertainTransform>().To(scene.Root).Mean;
                 Matrix worldToImg = Matrix.Invert(imgToWorld);
-                ConvexHull focusedImageHull = CreateImageHullForMesh(tileBounds, md.CameraModel, md.Width, md.Height, imgToWorld, worldToImg, parser.MinimumFocusDistance);
+                ConvexHull focusedImageHull =
+                    CreateImageHullForMesh(tileBounds, md.CameraModel, md.Width, md.Height, imgToWorld, worldToImg,
+                                           parser.MinimumFocusDistance);
                 if (!tileHull.Intersects(focusedImageHull))
                     continue;
 
@@ -296,13 +278,13 @@ namespace OPS.Pipeline.MeshWorker
         /// </summary>
         /// <param name="project"></param>
         /// <returns></returns>
-        private List<TilingNode> GetLeavesToProcess(TilingProject project)
+        private List<TilingNode> GetLeavesToProcess()
         {
             List<TilingNode> leaves = new List<TilingNode>();
 
-            foreach (var id in this.message.TileIds)
+            foreach (var id in message.TileIds)
             {
-                leaves.Add(TilingNode.Find(pipeline, project.Name, id));
+                leaves.Add(TilingNode.Find(pipeline, projectName, id));
             }
 
             // Send completion messages for leaves that are already done
@@ -311,7 +293,7 @@ namespace OPS.Pipeline.MeshWorker
                 if (n.MeshUrl != null)
                 {
                     LogInfo("leaf " + n.Id + " already complete, skipping");
-                    cloud.MasterQueue.Enqueue(new TileCompletedMessage(project.Name, n.Id));
+                    pipeline.MasterQueue.Enqueue(new TileCompletedMessage(projectName) { TileId = n.Id });
                 }
             }
 

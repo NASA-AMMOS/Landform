@@ -1,11 +1,11 @@
-﻿using OPS.Cloud;
-using OPS.Plumbing;
-using OPS.Pipeline.AlignmentServer;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using OPS.Imaging;
+using OPS.Cloud;
+using OPS.Pipeline.AlignmentServer;
 
 namespace OPS.Pipeline
 {
@@ -43,6 +43,6 @@ namespace OPS.Pipeline
             }
         }
 
-        public abstract Result Ingest(ImageRef imgRef);
+        public abstract Result Ingest(string imgUrl);
     }
 }

@@ -1,14 +1,16 @@
 ﻿using System;
 using System.Linq;
 using System.Collections.Generic;
+using log4net;
 using OPS.Util;
-using OPS.Plumbing;
+using OPS.Cloud;
 using OPS.Geometry;
 using OPS.Pipeline.TileServer;
-using log4net;
 
-namespace OPS.Pipeline.TileServer
+namespace OPS.Pipeline
 {
+    //https://github.jpl.nasa.gov/ProtoSpace/ps-pipeline/issues/159
+    //TODO this needs to get refactored to be a generic base class for all Landform workflows, not just tiling
     public abstract class PipelineStateMachine
     {
         public enum ProjectType { GenericTiling, MSL };
@@ -19,8 +21,7 @@ namespace OPS.Pipeline.TileServer
             { ProjectType.MSL, typeof(MSLStateMachine) },
         };
 
-        protected PipelineCore pipeline;
-        protected TilingQueue workerQueue;
+        protected CloudPipeline pipeline;
         protected ProjectCache projectCache;
         protected string projectName;
         protected TypeDispatcher dispatcher;
@@ -40,10 +41,9 @@ namespace OPS.Pipeline.TileServer
             pipeline.LogError("[{0}] ({1}) {2}", projectName, GetType().Name, string.Format(msg, args));
         }
 
-        public PipelineStateMachine(PipelineCore pipeline, TilingQueue workerQueue, string projectName)
+        public PipelineStateMachine(CloudPipeline pipeline, string projectName)
         {
             this.pipeline = pipeline;
-            this.workerQueue = workerQueue;
             this.projectName = projectName;
             projectCache = new ProjectCache(pipeline, projectName, pipeline.Logger);
             InitDispatcher();
@@ -60,11 +60,11 @@ namespace OPS.Pipeline.TileServer
                 .Case((ChunkInputMessage m) => InputChunked(m.InputName))
                 .Case((TileCompletedMessage m) => TileCompleted(m.TileId))
                 .Case((BuildTilesetJsonMessage m) => TilesetCompleted());
-            dispatcher.Unhandled = (t, x) => pipeline.Logger.Error("unknown message type: " + t);
+            dispatcher.Unhandled = (t, x) => pipeline.LogError("unknown message type: " + t);
             return dispatcher;
         }
 
-        virtual public void ProcessMessage(TilingQueueMessage m)
+        virtual public void ProcessMessage(QueueMessage m)
         {
             if (m.ProjectName != projectName)
             {
@@ -146,7 +146,7 @@ namespace OPS.Pipeline.TileServer
             RunProject(new DefineTilesMessage(projectName));
         }
 
-        virtual protected void RunProject(TilingQueueMessage nextMessage)
+        virtual protected void RunProject(QueueMessage nextMessage)
         {
             projectCache.Reset();
             var project = TilingProject.Find(pipeline, projectName);
@@ -155,7 +155,7 @@ namespace OPS.Pipeline.TileServer
                 LogInfo("running project");
                 project.StartedRunning = true;
                 project.Save(pipeline);
-                workerQueue.Enqueue(nextMessage);
+                pipeline.WorkerQueue.Enqueue(nextMessage);
             }
             else
             {
@@ -203,7 +203,7 @@ namespace OPS.Pipeline.TileServer
                     allChunked = false;
                     LogInfo("chunking input " + inputName);
                     projectCache.AddInputToChunk(inputName);
-                    workerQueue.Enqueue(new ChunkInputMessage(projectName, inputName));
+                    pipeline.WorkerQueue.Enqueue(new ChunkInputMessage(projectName) { InputName = inputName });
                 }
                 else
                 {
@@ -225,7 +225,7 @@ namespace OPS.Pipeline.TileServer
             }
         }
 
-        abstract protected TilingQueueMessage MakeLeafJobMessage(List<string> leaves);
+        abstract protected QueueMessage MakeLeafJobMessage(List<string> leaves);
 
         virtual protected void BuildNodes(TilingProject project)
         {
@@ -241,7 +241,7 @@ namespace OPS.Pipeline.TileServer
                 if (names.Count > 0)
                 {
                     leafJobs++;
-                    workerQueue.Enqueue(MakeLeafJobMessage(names));
+                    pipeline.WorkerQueue.Enqueue(MakeLeafJobMessage(names));
                     foreach (var name in names)
                     {
                         unprocessedLeaves++;
@@ -261,7 +261,7 @@ namespace OPS.Pipeline.TileServer
                 if (projectCache.ShouldRun(name))
                 {
                     readyParents++;
-                    workerQueue.Enqueue(new BuildParentMessage(projectName, name));
+                    pipeline.WorkerQueue.Enqueue(new BuildParentMessage(projectName) { TileId = name});
                     projectCache.MarkEnqueued(name);
                 }
             }
@@ -326,7 +326,7 @@ namespace OPS.Pipeline.TileServer
                 {
                     n++;
                     LogInfo("building parent " + pid);
-                    workerQueue.Enqueue(new BuildParentMessage(projectName, pid));
+                    pipeline.WorkerQueue.Enqueue(new BuildParentMessage(projectName) { TileId = pid });
                     projectCache.MarkEnqueued(pid);
                 }
                 LogInfo("tile " + tileId + " completed, enqueued " + n + " parents");
@@ -336,7 +336,7 @@ namespace OPS.Pipeline.TileServer
         virtual protected void RootCompleted()
         {
             LogInfo("root tile completed, building tileset JSON");
-            workerQueue.Enqueue(new BuildTilesetJsonMessage(projectName));
+            pipeline.WorkerQueue.Enqueue(new BuildTilesetJsonMessage(projectName));
         }
 
         virtual protected void TilesetCompleted()
@@ -350,7 +350,7 @@ namespace OPS.Pipeline.TileServer
         }
     }
 
-    public class CreateProjectMessage : TilingQueueMessage
+    public class CreateProjectMessage : QueueMessage
     {
         public TilingScheme TilingScheme;
         public SkirtMode SkirtMode;
@@ -360,41 +360,35 @@ namespace OPS.Pipeline.TileServer
         public string ProjectType;
         public string ExportMeshFormat;
         public string ExportImageFormat;
-
         public CreateProjectMessage() { }
         public CreateProjectMessage(string projectName) : base(projectName) { }
     }
 
-    public class DeleteProjectMessage : TilingQueueMessage
+    public class DeleteProjectMessage : QueueMessage
     {
         public DeleteProjectMessage() { }
         public DeleteProjectMessage(string projectName) : base(projectName) { }
     }
 
-    public class AddInputMessage : TilingQueueMessage
+    public class AddInputMessage : QueueMessage
     {
         public string Name;
         public string MeshUrl;
         public string ImageUrl;
         public string TileId;
-
         public AddInputMessage() { }
         public AddInputMessage(string projectName) : base(projectName) { }
     }
 
-    public class RunProjectMessage : TilingQueueMessage
+    public class RunProjectMessage : QueueMessage
     {
         public RunProjectMessage() { }
         public RunProjectMessage(string projectName) : base(projectName) { }
     }
 
-    public class TileCompletedMessage : TilingQueueMessage
+    public class TileCompletedMessage : QueueMessage
     {
         public string TileId;
-
-        public TileCompletedMessage(string projectName, string id) : base(projectName)
-        {
-            this.TileId = id;
-        }
+        public TileCompletedMessage(string projectName) : base(projectName) { }
     }
 }

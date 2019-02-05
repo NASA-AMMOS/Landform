@@ -8,7 +8,6 @@ using Amazon.DynamoDBv2.DataModel;
 using Amazon.DynamoDBv2.Model;
 using Microsoft.Xna.Framework;
 using OPS.Cloud;
-using OPS.Plumbing;
 using OPS.Geometry;
 
 namespace OPS.Pipeline.AlignmentServer

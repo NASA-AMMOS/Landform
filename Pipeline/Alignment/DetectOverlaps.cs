@@ -1,15 +1,15 @@
 ﻿using log4net;
-using OPS.Alignment;
-using OPS.Cloud;
-using OPS.Geometry;
-using OPS.Plumbing;
-using OPS.Util;
-using OPS.Pipeline.AlignmentServer;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using OPS.Util;
+using OPS.Imaging;
+using OPS.Cloud;
+using OPS.Geometry;
+using OPS.Alignment;
+using OPS.Pipeline.AlignmentServer;
 
 namespace OPS.Pipeline
 {
@@ -17,7 +17,6 @@ namespace OPS.Pipeline
     {
         public DetectOverlaps(PipelineCore pipeline) : base(pipeline)
         {
-
         }
 
         public IEnumerable<Overlap> Run(List<Observation> toConsider, ILog logger = null)
@@ -33,54 +32,47 @@ namespace OPS.Pipeline
             {
                 var first = toConsider.First();
                 project = first.ProjectName;
-                rootFrame = Frame.Find(Pipeline, project, first.FrameName);
+                rootFrame = Frame.Find(pipeline, project, first.FrameName);
             }
 
             Memoizer<string, SceneNode> frameToNode = null;
             frameToNode = new Memoizer<string, SceneNode>((fn) =>
             {
-                Frame f = Frame.Find(Pipeline, project, fn);
+                Frame f = Frame.Find(pipeline, project, fn);
                 NodeTransform parent = null;
                 if (f.ParentName != null) parent = frameToNode[f.ParentName].Transform;
                 SceneNode res = new SceneNode(f.Name, parent);
 
-                FrameTransform transform = FrameTransform.Find(Pipeline, f);
+                FrameTransform transform = FrameTransform.Find(pipeline, f);
                 NodeUncertainTransform nut = res.AddComponent<NodeUncertainTransform>();
                 nut.UncertainTransform = transform.Transform;
                 return res;
             });
 
-            Dictionary<ImageRef, Observation> refToObservation = new Dictionary<ImageRef, Observation>();
+            Dictionary<string, Observation> imgfToObservation = new Dictionary<string, Observation>();
             foreach (var obs in toConsider)
             {
                 var node = frameToNode[obs.FrameName];
-                var imgRef = new ObservationImageRef(obs);
-                node.AddComponent<NodeImageReference>().Reference = imgRef;
-                refToObservation[imgRef] = obs;
+                node.AddComponent<NodeImageUrl>().Url = obs.Url;
+                imgfToObservation[obs.Url] = obs;
             }
 
             // Find real root
             while (rootFrame.ParentName != null && frameToNode.ContainsKey(rootFrame.ParentName))
             {
-                rootFrame = Frame.Find(Pipeline, project, rootFrame.ParentName);
+                rootFrame = Frame.Find(pipeline, project, rootFrame.ParentName);
             }
             scene.Root = frameToNode[rootFrame.Name];
 
             // Step 2: do the thing
-            FrustumOverlapDetector fod = new FrustumOverlapDetector(Pipeline);
+            FrustumOverlapDetector fod = new FrustumOverlapDetector(pipeline);
             fod.Detect(scene);
 
             logger.Info("Found overlaps: " + scene.Overlaps.Count);
 
             foreach(var overlap in scene.Overlaps)
             {
-                var one = refToObservation[overlap.One];
-                var two = refToObservation[overlap.Two];
-                var steve = ThroughputManager.Run(() => Overlap.Create(Pipeline, one, two));
-                if(steve != null)
-                {
-                    yield return steve;
-                }
+                yield return Overlap.Create(pipeline, imgfToObservation[overlap.One], imgfToObservation[overlap.Two]);
             }
         }
     }

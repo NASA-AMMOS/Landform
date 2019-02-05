@@ -9,7 +9,6 @@ using Amazon.DynamoDBv2.DataModel;
 using OPS.Cloud;
 using OPS.Util;
 using OPS.Geometry;
-using OPS.Plumbing;
 using log4net;
 using Newtonsoft.Json.Linq;
 
@@ -113,24 +112,24 @@ namespace OPS.Pipeline.TileServer
                 var nodes = TilingNode.Find(pipeline, this, pipeline.Logger);
                 int nn = nodes.Count();
                 int n = 0; 
-                pipeline.Logger.Info("deleting " + nn + " nodes");
+                pipeline.LogInfo("deleting {0} nodes", nn);
                 foreach (var node in nodes)
                 {
                     node.Delete(pipeline, ignoreErrors);
                     Thread.Sleep(SLEEP_BETWEEN_NODE_DELETES_MS); //throttle to reduce chance of exponential backoff
                     if (++n % 500 == 0)
                     {
-                        pipeline.Logger.Info("deleted " + n + " nodes");
+                        pipeline.LogInfo("deleted {0} nodes", n);
                     }
                 }
             }
             else
             {
-                pipeline.Logger.Info("deleting 0 nodes - project never run");
+                pipeline.LogInfo("deleting 0 nodes - project never run");
             }
 
             var inputs = TilingInput.Find(pipeline, this, pipeline.Logger);
-            pipeline.Logger.Info("deleting " + inputs.Count() + " inputs");
+            pipeline.LogInfo("deleting {0} inputs", inputs.Count());
             foreach (var input in inputs)
             {
                 input.Delete(pipeline, ignoreErrors);
@@ -138,8 +137,7 @@ namespace OPS.Pipeline.TileServer
 
             pipeline.DeleteProjectCache(Name);
 
-            string wwwS3Url = TileServerConfig.Instance.WWWUrl(Name);
-            pipeline.DeleteFiles(wwwS3Url, "*", ignoreErrors);
+            pipeline.DeleteFiles(pipeline.GetStorageUrl("www", Name), "*", ignoreErrors);
 
             if (!string.IsNullOrEmpty(NodeIdsUrl))
             {
@@ -153,7 +151,7 @@ namespace OPS.Pipeline.TileServer
         {
             if (!(Name != null && TilingScheme != null && SkirtMode != null))
             {
-                throw new CloudException("TilingProject is missing a required field");
+                throw new Exception("TilingProject is missing a required field");
             }
         }
 
@@ -187,7 +185,7 @@ namespace OPS.Pipeline.TileServer
 
         public string SaveNodeIds(List<string> ids, PipelineCore pipeline)
         {
-            var url = TileServerConfig.Instance.TileUrl(Name, "nodeids.json");
+            var url = pipeline.GetStorageUrl("tile", Name, "nodeids.json");
             TemporaryFile.GetAndDelete(".json", tmpJson =>
             {
                 var json = JsonHelper.ToJson(ids, autoTypes: false);

@@ -11,7 +11,6 @@ using System.Text;
 using System.Threading.Tasks;
 using OPS.Imaging;
 using System.IO;
-using OPS.Plumbing;
 using log4net;
 
 namespace OPS.Pipeline.TileServer
@@ -47,12 +46,12 @@ namespace OPS.Pipeline.TileServer
         /// Creates Project object locally.  
         /// </summary>
         /// <param name="name">Project names in the database must be unique</param>
-        protected TilingNode(string id, TilingProject project, string meshUrl, string imageUrl, string parentId,
+        protected TilingNode(string id, string projectName, string meshUrl, string imageUrl, string parentId,
                              List<string> childIds, List<string> dependsOn, List<String> dependedOnBy,
                              BoundingBox bounds, BoundingBox? boundsWithSkirt = null)
         {
             Id = id;
-            ProjectName = project.Name;
+            ProjectName = projectName;
             MeshUrl = meshUrl;
             ImageUrl = imageUrl;
             ParentId = parentId;
@@ -64,11 +63,11 @@ namespace OPS.Pipeline.TileServer
         }
 
 
-        public static TilingNode Create(PipelineCore pipeline, string id, TilingProject project,
+        public static TilingNode Create(PipelineCore pipeline, string id, string projectName,
                                         string meshUrl, string imageUrl, string parentId, List<string> childIds,
                                         List<string> dependsOn, List<String> dependedOnBy, BoundingBox bounds)
         {
-            TilingNode node = new TilingNode(id, project, meshUrl, imageUrl, parentId, childIds, dependsOn,
+            TilingNode node = new TilingNode(id, projectName, meshUrl, imageUrl, parentId, childIds, dependsOn,
                                              dependedOnBy, bounds);
             node.Save(pipeline);
             return node;
@@ -176,8 +175,6 @@ namespace OPS.Pipeline.TileServer
                 throw new Exception("attempting to save tiling node mesh with image but no UVs");
             }
 
-            var cfg = TileServerConfig.Instance;
-
             string exMeshExt = null;
             string exMeshFile = null;
             string exMeshUrl = null;
@@ -187,8 +184,8 @@ namespace OPS.Pipeline.TileServer
             {
                 exMeshExt = "." + exportMeshFormat.ToLower();
                 exMeshFile = Id + exMeshExt;
-                exMeshUrl = cfg.WWWUrl(ProjectName, exMeshFile);
-                exMeshMtlUrl = cfg.WWWUrl(ProjectName, Id + ".mtl");
+                exMeshUrl = pipeline.GetStorageUrl("www", ProjectName, exMeshFile);
+                exMeshMtlUrl = pipeline.GetStorageUrl("www", ProjectName, Id + ".mtl");
             }
 
             string exImageExt = null;
@@ -199,14 +196,14 @@ namespace OPS.Pipeline.TileServer
             {
                 exImageExt = "." + exportImageFormat.ToLower();
                 exImageFile = Id + exImageExt;
-                exImageUrl = cfg.WWWUrl(ProjectName, exImageFile);
+                exImageUrl = pipeline.GetStorageUrl("www", ProjectName, exImageFile);
             }
 
             Action<string, string> upload = (file, url) =>
             {
                 pipeline.SaveFile(file, url);
-                //this could be useful for debugging in the future
-                //pipeline.Logger.InfoFormat("uploaded {0}", url);
+                //this could be useful for debugging
+                //pipeline.LogInfo("uploaded {0}", url);
             };
 
             Action<string, string> uploadAndDeleteMtl = (mesh, img) => 
@@ -229,7 +226,7 @@ namespace OPS.Pipeline.TileServer
             //also saves export image to S3 iff it is the same format as our internal format
             string imageExt = ".tif";
             string imageFile = Id + imageExt;
-            ImageUrl = cfg.TileUrl(ProjectName, imageFile);
+            ImageUrl = pipeline.GetStorageUrl("tile", ProjectName, imageFile);
             if (pair.Image != null)
             {
                 TemporaryFile.GetAndDelete(imageExt, tmpImage => 
@@ -253,7 +250,7 @@ namespace OPS.Pipeline.TileServer
             //also saves export mesh to S3 iff it and the export image are the same format as our internal formats
             string meshExt = ".ply";
             string meshFile = Id + meshExt;
-            MeshUrl = cfg.TileUrl(ProjectName, meshFile);
+            MeshUrl = pipeline.GetStorageUrl("tile", ProjectName, meshFile);
             TemporaryFile.GetAndDelete(meshExt, tmpMesh =>
             {
                 //here imageFile is used to embed a reference to the texture image in the mesh file
@@ -277,7 +274,7 @@ namespace OPS.Pipeline.TileServer
             //also saves export image to S3 iff it hasn't been uploaded already and is the same format as for 3D tiles
             string tileMeshExt = pair.Mesh.HasFaces ? ".b3dm" : ".pnts";
             string tileImageExt = ".jpg"; //could be jpg or png, will be embedded in the b3dm file
-            string tileUrl = cfg.WWWUrl(ProjectName, Id + tileMeshExt);
+            string tileUrl = pipeline.GetStorageUrl("www", ProjectName, Id + tileMeshExt);
             TemporaryFile.GetAndDelete(tileMeshExt, tmpMesh =>
             {
                 TemporaryFile.GetAndDelete(tileImageExt, tmpImage =>

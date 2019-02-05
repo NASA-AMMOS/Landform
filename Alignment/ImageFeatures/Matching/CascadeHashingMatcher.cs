@@ -1,10 +1,10 @@
 ﻿using MathNet.Numerics.LinearAlgebra;
-using OPS.Plumbing;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using OPS.Util;
 
 namespace OPS.Alignment
 {
@@ -71,10 +71,9 @@ namespace OPS.Alignment
         /// <summary>
         /// Compute all hashes for an image's features
         /// </summary>
-        private DescriptorHashes[] ComputeHashes(AlignmentScene scene, ImageRef imgRef, Vector<float> featureMean)
+        private DescriptorHashes[] ComputeHashes(AlignmentScene scene, string imgUrl, Vector<float> featureMean)
         {
-            var features = scene.DetectedFeatures[imgRef];
-            return ComputeHashes(features, featureMean);
+            return ComputeHashes(scene.DetectedFeatures[imgUrl], featureMean);
         }
 
         private DescriptorHashes[] ComputeHashes(ImageFeature[] features, Vector<float> featureMean)
@@ -98,20 +97,13 @@ namespace OPS.Alignment
             return res;
         }
 
-        public ImagePairCorrespondence Match(AlignmentScene scene, UnorderedImagePair pair)
+        public ImagePairCorrespondence Match(AlignmentScene scene, URLPair pair)
         {
-            var model = pair.One;
-            var data = pair.Two;
-            var modelFeat = scene.DetectedFeatures[model];
-            var dataFeat = scene.DetectedFeatures[data];
+            var modelUrl = pair.One;
+            var dataUrl = pair.Two;
+            var modelFeat = scene.DetectedFeatures[modelUrl]; 
+            var dataFeat = scene.DetectedFeatures[dataUrl];
 
-            return Match(model, data, modelFeat, dataFeat);
-        }
-
-
-        public ImagePairCorrespondence Match(ImageRef model, ImageRef data,
-                                             ImageFeature[] modelFeat, ImageFeature[] dataFeat)
-        {
             var meanDescriptor = FeatureMean(modelFeat, dataFeat);
 
             // Compute hashes
@@ -220,12 +212,13 @@ namespace OPS.Alignment
                 goodD2m.Add(new KeyValuePair<int, int>(i, d2m[i]));
             }
 
-            return new ImagePairCorrespondence(model, data, goodD2m);
+            return new ImagePairCorrespondence(modelUrl, dataUrl, goodD2m);
         }
+
         /// <summary>
         /// Compute the mean descriptor value between both images in a pair.
         /// </summary>
-        private Vector<float> FeatureMean(AlignmentScene scene, UnorderedImagePair pair)
+        private Vector<float> FeatureMean(AlignmentScene scene, URLPair pair)
         {
             return FeatureMean(scene.DetectedFeatures[pair.One], scene.DetectedFeatures[pair.Two]);
         }

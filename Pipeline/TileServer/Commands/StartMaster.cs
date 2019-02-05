@@ -1,6 +1,5 @@
 ﻿using CommandLine;
 using log4net;
-using OPS.Plumbing;
 using OPS.Util;
 using System;
 using System.Collections.Generic;
@@ -16,26 +15,24 @@ namespace OPS.Pipeline.TileServer
     {
     }
 
+    //https://github.jpl.nasa.gov/ProtoSpace/ps-pipeline/issues/159
+    //TODO this needs to get refactored as the master task for all Landform pipeline workflows
+    //for now it only handles tiling workflows
     public class StartMaster : CloudPipeline
     {
         private StartMasterOptions options;
 
-        private TileServerCloud cloud;
-
         private Dictionary<string, PipelineStateMachine> projectNameToStateMachine =
             new Dictionary<string, PipelineStateMachine>();
 
-        public StartMaster(StartMasterOptions options)
-            : base(options, TileServerConfig.Instance.VenueName, TileServerConfig.Instance.Profile)
+        public StartMaster(StartMasterOptions options) : base(options)
         {
             this.options = options;
         }
 
         public int Run()
         {
-            TileServerConfig.Instance.Dump(Logger);
-
-            cloud = new TileServerCloud(this);
+            DumpConfig();
 
             while (true)
             {
@@ -45,8 +42,8 @@ namespace OPS.Pipeline.TileServer
                 }
                 catch (Exception e)
                 {
-                    Logger.ErrorFormat("error in master task ({0}): {1}", e.GetType().FullName, e.Message);
-                    Logger.Error(e.StackTrace);
+                    LogError("error in master task ({0}): {1}", e.GetType().FullName, e.Message);
+                    LogError(e.StackTrace);
                     // Introduce a sleep here to limit debug spew just in case a misconfiguration is causing this error
                     Thread.Sleep(2000);  
                 }
@@ -60,11 +57,10 @@ namespace OPS.Pipeline.TileServer
         const int DEQUEUE_THROTTLE_MS = 50;
         private void RunMaster()
         {
-            var masterQueue = cloud.MasterQueue;
             while (true)
             {
                 //only take one message at a time when we are ready to process it
-                var m = masterQueue.DequeueOne();
+                var m = MasterQueue.DequeueOne();
                 Stopwatch sw = new Stopwatch();
                 sw.Start();
                 if (m != null)
@@ -103,8 +99,7 @@ namespace OPS.Pipeline.TileServer
                                 }
                                 
                                 var smt = PipelineStateMachine.StateMachines[pt];
-                                var sm = (PipelineStateMachine)Activator.CreateInstance(smt, this, cloud.WorkerQueue,
-                                                                                        m.ProjectName);
+                                var sm = (PipelineStateMachine)Activator.CreateInstance(smt, this, m.ProjectName);
                                 projectNameToStateMachine.Add(m.ProjectName, sm);
                             }
                         }
@@ -114,30 +109,29 @@ namespace OPS.Pipeline.TileServer
                             projectNameToStateMachine[m.ProjectName].ProcessMessage(m);
                         }
 
-                        masterQueue.DeleteMessage(m);
+                        MasterQueue.DeleteMessage(m);
                     }
                     catch (Exception e)
                     {
-                        Logger.ErrorFormat("{0}: processing error ({1}): {2}",
-                                           m.Info(), e.GetType().FullName, e.Message);
-                        Logger.Error(e.StackTrace);
+                        LogError("{0}: processing error ({1}): {2}", m.Info(), e.GetType().FullName, e.Message);
+                        LogError(e.StackTrace);
 
                         try
                         {
                             //try to make the message available in our queue again soon
-                            masterQueue.UpdateTimeout(m, FAILED_MESSAGE_TIMEOUT_SEC);
+                            MasterQueue.UpdateTimeout(m, FAILED_MESSAGE_TIMEOUT_SEC);
                         }
                         catch (Exception e2)
                         {
-                            Logger.ErrorFormat("{0}: error resetting visibility timeout ({1}): {2}",
-                                               m.Info(), e2.GetType().FullName, e2.Message);
+                            LogError("{0}: error resetting visibility timeout ({1}): {2}",
+                                     m.Info(), e2.GetType().FullName, e2.Message);
                         }
                     }
                     double totalSec = 0.001 * sw.ElapsedMilliseconds;
-                    if (totalSec > masterQueue.TimeoutSec)
+                    if (totalSec > MasterQueue.TimeoutSec)
                     {
-                        Logger.ErrorFormat("{0}: took {1}s, but max processing time is {2}s",
-                                           m.Info(), totalSec, masterQueue.TimeoutSec);
+                        LogError("{0}: took {1}s, but max processing time is {2}s",
+                                 m.Info(), totalSec, MasterQueue.TimeoutSec);
                     }
                 }
                 int sleepMS = (int)(DEQUEUE_THROTTLE_MS - sw.ElapsedMilliseconds);

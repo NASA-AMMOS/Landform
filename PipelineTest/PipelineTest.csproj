@@ -150,10 +150,6 @@
       <Project>{c45f0cd6-c998-47ec-b67c-ad77196b06a0}</Project>
       <Name>Pipeline</Name>
     </ProjectReference>
-    <ProjectReference Include="..\Plumbing\Plumbing.csproj">
-      <Project>{2F63D586-130F-42EB-BA25-76D31BC26283}</Project>
-      <Name>Plumbing</Name>
-    </ProjectReference>
     <ProjectReference Include="..\RayTrace\RayTrace.csproj">
       <Project>{0e8c60bb-4a68-480f-895a-2b326aec002c}</Project>
       <Name>RayTrace</Name>
@@ -161,6 +157,10 @@
     <ProjectReference Include="..\TestData\TestData.csproj">
       <Project>{42298ee4-6937-4b4c-a8b8-89effbc40e80}</Project>
       <Name>TestData</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\Util\Util.csproj">
+      <Project>{8145aa65-ba61-4e27-81ff-b64217b49929}</Project>
+      <Name>Util</Name>
     </ProjectReference>
     <ProjectReference Include="..\Xna\Xna.csproj">
       <Project>{46759719-42d9-473b-a8ad-0848a33bdac6}</Project>

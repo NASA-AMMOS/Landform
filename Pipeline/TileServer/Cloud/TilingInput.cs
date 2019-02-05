@@ -6,7 +6,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using OPS.Plumbing;
 using log4net;
 
 namespace OPS.Pipeline.TileServer
@@ -139,7 +138,7 @@ namespace OPS.Pipeline.TileServer
         {
             if (!(Name != null && ProjectName != null && MeshUrl != null))
             {
-                throw new CloudException("TilingInput is missing a required field");
+                throw new Exception("TilingInput is missing a required field");
             }
         }
     }

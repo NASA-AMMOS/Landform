@@ -1,24 +1,20 @@
-﻿using OPS.Geometry;
-using OPS.Imaging;
-using OPS.Plumbing;
-using OPS.Util;
-using OPS.Alignment;
-using OPS.Pipeline.AlignmentServer;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using OPS.Util;
+using OPS.Imaging;
+using OPS.Geometry;
+using OPS.Alignment;
+using OPS.Pipeline.AlignmentServer;
 
 namespace OPS.Pipeline
 {
     public class FrustumOverlapDetector : PipelineRoutine, IOverlapDetector
     {
-        public FrustumOverlapDetector(PipelineCore pipeline)
-            : base(pipeline)
-        {
-        }
+        public FrustumOverlapDetector(PipelineCore pipeline) : base(pipeline) { }
 
         public void MakeHulls(AlignmentScene scene)
         {
@@ -26,33 +22,38 @@ namespace OPS.Pipeline
             Action<SceneNode> collect = null;
             collect = (node) =>
             {
-                // Node has an image
-                if (node.HasComponent<NodeImageReference>())
+                if (node.HasComponent<NodeImageUrl>())
                 {
                     if (node.ChildCount > 0)
                     {
                         throw new Exception("FrustumOverlapDetector expects image references on leaves only");
                     }
 
-                    var imgRef = node.GetComponent<NodeImageReference>().Reference;
+                    var imgUrl = node.GetComponent<NodeImageUrl>().Url;
 
-                    if (!scene.ImageToNode.ContainsKey(imgRef))
+                    if (!scene.ImageToNode.ContainsKey(imgUrl))
                     {
-                        scene.ImageToNode[imgRef] = node;
+                        scene.ImageToNode[imgUrl] = node;
                     }
 
                     if (!node.HasComponent<NodeConvexHull>())
                     {
                         var chc = node.AddComponent<NodeConvexHull>();
+                        bool added = false;
                         try
                         {
-                            var imgObs = ((ObservationImageRef)imgRef).Observation;
-                            chc.Hull = ConvexHull.FromParams((CameraModel)JsonHelper.FromJson(imgObs.CameraModel), imgObs.Width, imgObs.Height);
+                            if (node.HasComponent<NodeObservation>())
+                            {
+                                var obs = node.GetComponent<NodeObservation>().observation;
+                                chc.Hull = ConvexHull.FromParams((CameraModel)JsonHelper.FromJson(obs.CameraModel),
+                                                                 obs.Width, obs.Height);
+                                added = true;
+                            }
                         }
-                        catch
+                        catch { }
+                        if (!added)
                         {
-                            var img = Pipeline.LoadImage(imgRef);
-                            chc.Hull = ConvexHull.FromImage(img);
+                            chc.Hull = ConvexHull.FromImage(pipeline.LoadImage(imgUrl));
                         }
                     }
                     return;
@@ -106,14 +107,14 @@ namespace OPS.Pipeline
                 return thisInOther.Intersects(otherHull);
             };
 
-            HashSet<UnorderedImagePair> unique = new HashSet<UnorderedImagePair>();
+            HashSet<URLPair> unique = new HashSet<URLPair>();
             void processPairwise(SceneNode one, SceneNode two)
             {
                 // Debug.Assert(overlaps(ci, cj));
 
-                if (one.HasComponent<NodeImageReference>() && two.HasComponent<NodeImageReference>())
+                if (one.HasComponent<NodeImageUrl>() && two.HasComponent<NodeImageUrl>())
                 {
-                    unique.Add(new UnorderedImagePair(one.GetComponent<NodeImageReference>().Reference, two.GetComponent<NodeImageReference>().Reference));
+                    unique.Add(new URLPair(one.GetComponent<NodeImageUrl>().Url, two.GetComponent<NodeImageUrl>().Url));
                 }
 
                 if (!one.IsLeaf)

@@ -16,10 +16,7 @@ namespace OPS.Imaging
 
 
         //Default constructor for JSOn deserialization
-        public CAHV()
-        {
-
-        }
+        public CAHV() { }
 
         public override bool Linear
         {

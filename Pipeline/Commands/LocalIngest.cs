@@ -4,9 +4,8 @@ using System.IO;
 using CommandLine;
 using log4net;
 using OPS.Util;
-using OPS.Plumbing;
 
-namespace OPS
+namespace OPS.Pipeline
 {
     [Verb("localingest", HelpText = "ingest mission data from local files")]
     public class LocalIngestOptions : PipelineCoreOptions

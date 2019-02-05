@@ -1,27 +1,19 @@
-﻿using MathNet.Numerics.LinearAlgebra;
-using Microsoft.Xna.Framework;
-using OPS.Geometry;
-using OPS.Imaging;
-using OPS.MathExtensions;
-using OPS.Plumbing;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using MathNet.Numerics.LinearAlgebra;
+using Microsoft.Xna.Framework;
+using OPS.Util;
+using OPS.Imaging;
+using OPS.Geometry;
+using OPS.MathExtensions;
 
 namespace OPS.Alignment
 {
-    public class KnownGeometryMatcher : PipelineRoutine, IFeatureMatcher
+    public class KnownGeometryMatcher : IFeatureMatcher
     {
-        public KnownGeometryMatcher(PipelineCore pipeline)
-            : base(pipeline)
-        {
-            EpiFinder = new EpipolarLineFinder(pipeline);
-        }
-        public EpipolarLineFinder EpiFinder;
-
-
         /// <summary>
         /// When two camera rays are parallel, try backprojecting from this distance.
         /// </summary>
@@ -31,29 +23,30 @@ namespace OPS.Alignment
         /// </summary>
         public double BadProjectionRatio;
 
-        public ImagePairCorrespondence Match(AlignmentScene scene, UnorderedImagePair pair)
+        private IImageLoader loader;
+
+        public KnownGeometryMatcher(IImageLoader loader)
         {
-            bool oneIsModel = (scene.DetectedFeatures[pair.One].Length > scene.DetectedFeatures[pair.Two].Length);
-            ImageRef modelRef, dataRef;
-            if (oneIsModel)
+            this.loader = loader;
+        }
+
+        public ImagePairCorrespondence Match(AlignmentScene scene, URLPair pair)
+        {
+            string modelUrl = pair.One;
+            string dataUrl = pair.Two; 
+
+            bool oneIsModel = (scene.DetectedFeatures[modelUrl].Length > scene.DetectedFeatures[dataUrl].Length);
+            if (!oneIsModel)
             {
-                modelRef = pair.One;
-                dataRef = pair.Two;
-            }
-            else
-            {
-                modelRef = pair.Two;
-                dataRef = pair.One;
+                modelUrl = pair.Two;
+                dataUrl = pair.One;
             }
 
-            Image model = Pipeline.LoadImage(modelRef);
-            Image data = Pipeline.LoadImage(dataRef);
+            ImageFeature[] modelFeatures = scene.DetectedFeatures[modelUrl];
+            ImageFeature[] dataFeatures = scene.DetectedFeatures[dataUrl];
 
-            ImageFeature[] modelFeatures = scene.DetectedFeatures[modelRef];
-            ImageFeature[] dataFeatures = scene.DetectedFeatures[dataRef];
-
-            var dataNode = scene.ImageToNode[dataRef];
-            var modelNode = scene.ImageToNode[modelRef];
+            var dataNode = scene.ImageToNode[dataUrl];
+            var modelNode = scene.ImageToNode[modelUrl];
             var dataToModel = dataNode.GetOrAddComponent<NodeUncertainTransform>().To(modelNode);
             var modelToData = modelNode.GetOrAddComponent<NodeUncertainTransform>().To(dataNode);
 
@@ -67,19 +60,24 @@ namespace OPS.Alignment
 
             ImagePairCorrespondence res = new ImagePairCorrespondence
             {
-                ModelImage = modelRef,
-                DataImage = dataRef
+                ModelImageUrl = modelUrl,
+                DataImageUrl = dataUrl
             };
+
+            var epiFinder = new EpipolarLineFinder();
 
             List<KeyValuePair<int, int>> matches = new List<KeyValuePair<int, int>>();
             for (int i = 0; i < dataFeatures.Length; i++)
             {
+                var modelCam = loader.LoadImage(modelUrl).CameraModel;
+                var dataCam = loader.LoadImage(dataUrl).CameraModel;
+
                 var dataFeat = dataFeatures[i];
-                var dataRay = data.CameraModel.Unproject(dataFeat.Location);
+                var dataRay = dataCam.Unproject(dataFeat.Location);
 
                 if (!modelHullInData.Intersects(dataRay)) continue;
                 
-                var epiLine = EpiFinder.Find(modelRef, dataRef, dataToModel.Mean, dataFeat);
+                var epiLine = epiFinder.Find(modelCam, dataCam, dataToModel.Mean, dataFeat);
 
                 List<int> candidates = new List<int>();
                 for (int j = 0; j < modelFeatures.Length; j++)
@@ -92,7 +90,9 @@ namespace OPS.Alignment
                 if (candidates.Count > 0)
                 {
                     BruteForceMatcher bfm = new BruteForceMatcher();
-                    var submatch = bfm.Match(modelRef, dataRef, candidates.Select(idx => modelFeatures[idx]).ToArray(), new[] { dataFeat });
+                    var submatch = bfm.Match(modelUrl, dataUrl,
+                                             candidates.Select(idx => modelFeatures[idx]).ToArray(),
+                                             new[] { dataFeat });
                     if (submatch == null) continue;
                     foreach (var match in submatch.DataToModel)
                     {

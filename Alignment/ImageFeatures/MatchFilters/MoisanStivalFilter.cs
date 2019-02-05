@@ -6,12 +6,11 @@ using System.Threading.Tasks;
 using OPS.Imaging;
 using Microsoft.Xna.Framework;
 using log4net;
-using OPS.Plumbing;
 using OPS.Geometry;
 
 namespace OPS.Alignment
 {
-    public class MoisanStivalFilter : PipelineRoutine, IMatchFilter
+    public class MoisanStivalFilter : IMatchFilter
     {
         private static readonly ILog logger = LogManager.GetLogger(typeof(MoisanStivalFilter));
 
@@ -21,26 +20,32 @@ namespace OPS.Alignment
         public int MaxIterations;
         public bool RefineStep;
         public bool VirtualLinearCoordinates;
-        public MoisanStivalFilter(PipelineCore pipeline, int maxIterations = 5000, bool refineStep = true, bool virtualLinearCoordinates = true)
-            : base(pipeline)
+
+        public EpipolarMatrix LastEpipolarTransform;
+        public Matrix LastBestTransform;
+
+        private IImageLoader loader;
+
+        public MoisanStivalFilter(IImageLoader loader, int maxIterations = 5000, bool refineStep = true,
+                                  bool virtualLinearCoordinates = true)
         {
+            this.loader = loader;
             this.MaxIterations = maxIterations;
             this.RefineStep = refineStep;
             this.VirtualLinearCoordinates = virtualLinearCoordinates;
         }
 
-        public EpipolarMatrix LastEpipolarTransform;
-        public Matrix LastBestTransform;
         public ImagePairCorrespondence Filter(AlignmentScene scene, ImagePairCorrespondence matches)
         {
             if (matches.DataToModel.Length < MIN_MATCHES)
             {
                 return matches;
             }
-            var modelImg = Pipeline.LoadImage(matches.ModelImage);
-            var dataImg = Pipeline.LoadImage(matches.DataImage);
-            ImageFeature[] modelFeatures = scene.DetectedFeatures[matches.ModelImage];
-            ImageFeature[] dataFeatures = scene.DetectedFeatures[matches.DataImage];
+
+            var modelImg = loader.LoadImage(matches.ModelImageUrl);
+            var dataImg = loader.LoadImage(matches.DataImageUrl);
+            ImageFeature[] modelFeatures = scene.DetectedFeatures[matches.ModelImageUrl];
+            ImageFeature[] dataFeatures = scene.DetectedFeatures[matches.DataImageUrl];
 
             if (VirtualLinearCoordinates && modelImg.CameraModel != null && dataImg.CameraModel != null)
             {
@@ -52,11 +57,9 @@ namespace OPS.Alignment
             Vector2[] dataPoints = matches.DataToModel.Select(pair => dataFeatures[pair.Key].Location).ToArray();
             Vector2[] modelPoints = matches.DataToModel.Select(pair => modelFeatures[pair.Value].Location).ToArray();
             
-            MoisanStivalEpipolar mso = new MoisanStivalEpipolar(
-                modelPoints, dataPoints,
-                new Vector2(modelImg.Width, modelImg.Height),
-                new Vector2(dataImg.Width, dataImg.Height)
-                );
+            MoisanStivalEpipolar mso = new MoisanStivalEpipolar(modelPoints, dataPoints,
+                                                                new Vector2(modelImg.Width, modelImg.Height),
+                                                                new Vector2(dataImg.Width, dataImg.Height));
 
             mso.Run(MaxIterations, RefineStep);
             if (!mso.Meaningful) return ImagePairCorrespondence.Empty;
@@ -73,9 +76,8 @@ namespace OPS.Alignment
 
             LastBestTransform = mso.BestTransform;
             logger.Info("Number of residual matches: " + goodMatches.Count);
-            return new ImagePairCorrespondence(
-                matches.ModelImage, matches.DataImage,
-                goodMatches, mso.FundamentalMatrix, mso.BestTransform);
+            return new ImagePairCorrespondence(matches.ModelImageUrl, matches.DataImageUrl,
+                                               goodMatches, mso.FundamentalMatrix, mso.BestTransform);
         }
     }
 }

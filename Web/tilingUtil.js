@@ -10,12 +10,12 @@ function setTilingEnv(env) {
 
   //if any of these vars are not set then set them from the indicated key in config.app
   const vars = {
-    TILE_SERVER_REGION: 'awsRegion',
-    TILE_SERVER_PROFILE: 'awsProfile',
-    TILE_SERVER_VENUE_NAME: 'venueName',
-    TILE_SERVER_S3_URL: 's3Url',
-    TILE_SERVER_MSLICE_PROFILE: 'awsMSLICEProfile',
-    TILE_SERVER_MSLICE_S3_URL: 'awsMSLICES3Url',
+    LANDFORM_VENUE: 'venue',
+    LANDFORM_AWS_REGION: 'awsRegion',
+    LANDFORM_AWS_PROFILE: 'awsProfile',
+    LANDFORM_S3_URL: 's3Url',
+    LANDFORM_MSLICE_AWS_PROFILE: 'MSLICEAWSProfile',
+    LANDFORM_MSLICE_S3_URL: 'MSLICES3Url',
   };
   Object.entries(vars).forEach(([varName, cfgKey]) => { if (!(varName in env)) env[varName] = config.app[cfgKey]; });
 

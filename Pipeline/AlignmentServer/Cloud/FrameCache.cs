@@ -5,7 +5,6 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using OPS.Cloud;
-using OPS.Plumbing;
 
 namespace OPS.Pipeline.AlignmentServer
 {
@@ -29,7 +28,7 @@ namespace OPS.Pipeline.AlignmentServer
         {
             if (!frames.ContainsKey(name))
             {
-                var frame = ThroughputManager.Run(() => Frame.Find(pipeline, projectName, name));
+                Frame frame = Frame.Find(pipeline, projectName, name);
                 if (frame == null)
                 {
                     return null;

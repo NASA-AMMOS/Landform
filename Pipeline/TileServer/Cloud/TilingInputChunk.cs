@@ -7,7 +7,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using OPS.Plumbing;
 using log4net;
 
 namespace OPS.Pipeline.TileServer
@@ -41,8 +40,8 @@ namespace OPS.Pipeline.TileServer
         }
 
 
-        public static TilingInputChunk Create(PipelineCore pipeline, string id, TilingProject project,
-                                              string meshUrl, string imageUrl, BoundingBox bounds)
+        public static TilingInputChunk Create(PipelineCore pipeline, string id, string meshUrl, string imageUrl,
+                                              BoundingBox bounds)
         {
             TilingInputChunk chunk = new TilingInputChunk(id, meshUrl, imageUrl, bounds);
             pipeline.SaveDatabaseItem(chunk);

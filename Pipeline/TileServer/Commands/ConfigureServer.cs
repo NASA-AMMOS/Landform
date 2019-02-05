@@ -7,27 +7,26 @@ using System.Text;
 using System.Threading.Tasks;
 using System.IO;
 using OPS.Cloud;
-using OPS.Plumbing;
 
 namespace OPS.Pipeline.TileServer
 {
-    [Verb("configure", HelpText = "Configures a venue")]
+    [Verb("configure", HelpText = "Configures a Landform server venue")]
     public class ConfigureServerOptions : PipelineCoreOptions
     {
         [Option(Default = null, HelpText = "Venue Name")]
-        public string VenueName { get; set; }
+        public string Venue { get; set; }
         
         [Option(Default = null, HelpText = "S3 Url")]
         public string S3Url { get; set; }
 
         [Option(Default = null, HelpText = "AWS Region")]
-        public string Region { get; set; }
+        public string AWSRegion { get; set; }
 
         [Option(Default = null, HelpText = "AWS Profile")]
-        public string Profile { get; set; }
+        public string AWSProfile { get; set; }
 
         [Option(Default = "mslice", HelpText = "MSLICE Profile")]
-        public string MSLICEProfile { get; set; }
+        public string MSLICEAWSProfile { get; set; }
 
         [Option(Default = "s3://red-product/", HelpText = "MSLICE S3 Url")]
         public string MSLICES3Url { get; set; }
@@ -39,51 +38,51 @@ namespace OPS.Pipeline.TileServer
         public bool NoUserData { get; set; }
     }
 
-    public class ConfigureServer : CloudPipeline
+    public class ConfigureServer
     {
         private ConfigureServerOptions options;
+        private static ILog logger = LogManager.GetLogger(typeof(ConfigureServer));
 
         public ConfigureServer(ConfigureServerOptions options)
-            : base(options, options.VenueName, options.Profile, enableS3: false, enableDynamo: false)
         {
             this.options = options;
         }
 
         public int Run()
         {
-            var config = new TileServerConfig();
-            config.VenueName = ReadProperty("Venue Name", options.VenueName, config.VenueName);
+            CloudPipelineConfig config = new CloudPipelineConfig();
+
+            config.Venue = ReadProperty("Venue Name", options.Venue, config.Venue);
             config.S3Url = ReadProperty("S3 Url", options.S3Url, config.S3Url);
-            config.Region = ReadProperty("AWS Region", options.Region, config.Region);
-            config.Profile = ReadProperty("AWS Profile", options.Profile, config.Profile);
-            config.MSLICEProfile = ReadProperty("MSLICE Profile", options.MSLICEProfile, config.MSLICEProfile);
+            config.AWSRegion = ReadProperty("AWS Region", options.AWSRegion, config.AWSRegion);
+            config.AWSProfile = ReadProperty("AWS Profile", options.AWSProfile, config.AWSProfile);
+            config.MSLICEAWSProfile = ReadProperty("MSLICE AWS Profile", options.MSLICEAWSProfile, config.MSLICEAWSProfile);
             config.MSLICES3Url = ReadProperty("MSLICE S3 Url", options.MSLICES3Url, config.MSLICES3Url);
-            config.Dump(Logger);
+
             var cfgPath = config.ConfigFilepath();
             if (!options.NoPersist)
             {
-                Logger.Info("persisting config to " + cfgPath);
+                logger.Info("persisting config to " + cfgPath);
                 config.Save();
             }
             else
             {
-                Logger.Info("not persisting config to " + cfgPath);
+                logger.Info("not persisting config to " + cfgPath);
             }
             string userDataPath = Path.GetFullPath("ec2userdata.txt");
             if (!options.NoUserData)
             {
-                Logger.Info("saving EC2 user data script to " + userDataPath);
+                logger.Info("saving EC2 user data script to " + userDataPath);
                 File.WriteAllText(userDataPath, BuildEC2UserDataScript(config));
             }
             else
             {
-                Logger.Info("not saving EC2 user data script to " + userDataPath);
+                logger.Info("not saving EC2 user data script to " + userDataPath);
             }
             return 0;
         }
 
-
-        string BuildEC2UserDataScript(TileServerConfig config)
+        string BuildEC2UserDataScript(CloudPipelineConfig config)
         {
 
             string template = @"<powershell>
@@ -104,13 +103,13 @@ powershell.exe -Command Read-S3Object -BucketName {2} -Key {0}{3}/app/tileserver
 Remove-Item c:\tileserver -Force -Recurse -ErrorAction SilentlyContinue
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 [System.IO.Compression.ZipFile]::ExtractToDirectory(""C:\temp\tileserver.zip"", ""c:\tileserver"")
-c:\tileserver\TilingServer.exe configure --venuename={0} --s3url={1} --region={4} --profile=null --nouserdata
+c:\tileserver\TilingServer.exe configure --venue={0} --s3url={1} --awsregion={4} --awsprofile=null --nouserdata
 Start-Process -WorkingDirectory c:\tileserver c:\tileserver\TilingServer.exe startworker
 </powershell>
 <persist>true</persist>";
             S3Url url = new S3Url(config.S3Url);
             //                             0                 1             2               3           4
-            return string.Format(template, config.VenueName, config.S3Url, url.BucketName, url.Prefix, config.Region);
+            return string.Format(template, config.Venue, config.S3Url, url.BucketName, url.Prefix, config.AWSRegion);
 
         }
 

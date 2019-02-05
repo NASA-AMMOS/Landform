@@ -1,6 +1,5 @@
 using CommandLine;
 using log4net;
-using OPS.Plumbing;
 using System;
 
 namespace OPS.Pipeline.TileServer
@@ -16,8 +15,7 @@ namespace OPS.Pipeline.TileServer
     {
         private DeleteCacheOptions options;
 
-        public DeleteCache(DeleteCacheOptions options)
-            : base(options, TileServerConfig.Instance.VenueName, TileServerConfig.Instance.Profile)
+        public DeleteCache(DeleteCacheOptions options) : base(options)
         {
             this.options = options;
         }
@@ -30,7 +28,7 @@ namespace OPS.Pipeline.TileServer
                 var response = Console.ReadLine();
                 if (response.ToLower() != "yes") return 1;
             }
-            Logger.Info("deleting download cache: " + DownloadCache);
+            LogInfo("deleting download cache: " + DownloadCache);
             DeleteDownloadCache();
             return 0;
         }
