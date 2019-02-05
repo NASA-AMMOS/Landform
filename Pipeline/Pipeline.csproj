@@ -191,7 +191,6 @@
     <Compile Include="Alignment\FrustumOverlapDetector.cs" />
     <Compile Include="Alignment\IngestImage.cs" />
     <Compile Include="Alignment\NodeObservation.cs" />
-    <Compile Include="CachedImageRef.cs" />
     <Compile Include="CloudPipeline.cs" />
     <Compile Include="CloudPipelineConfig.cs" />
     <Compile Include="CloudPipelineOperation.cs" />

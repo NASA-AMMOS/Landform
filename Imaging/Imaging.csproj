@@ -91,9 +91,6 @@
     <Compile Include="Imaging\ImageCoordinate.cs" />
     <Compile Include="Imaging\ImageException.cs" />
     <Compile Include="Imaging\ImageMetadata.cs" />
-    <Compile Include="Imaging\ImageRef\DiskImageRef.cs" />
-    <Compile Include="Imaging\ImageRef\ImageRef.cs" />
-    <Compile Include="Imaging\ImageRef\TransientImageRef.cs" />
     <Compile Include="Imaging\ImageStatistics.cs" />
     <Compile Include="Imaging\LimberDMG.cs" />
     <Compile Include="Imaging\Operations\Blur.cs" />
