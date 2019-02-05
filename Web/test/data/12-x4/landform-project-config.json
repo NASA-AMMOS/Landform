@@ -4,5 +4,5 @@
   "inputs": [
     { "mesh": "x4.obj", "texture": "x.lin.png" }
   ],
-  "maxTime": "6h"
+  "maxTime": "1h"
 }

@@ -23,6 +23,7 @@ async function createProject(req, res) {
       projecttype: { type: 'enum', options: ['GenericTiling', 'MSL'] },
       exportmeshformat: { type: 'enum', options: ['', 'obj', 'ply', 'stl'] },
       exportimageformat: { type: 'enum', options: ['', 'tif', 'png', 'jpg'] },
+      maxleafgroupsize: { type: 'int' },
     }, { commandLine: true });
 
     const task = await tilingTask('createproject', [req.params.name, ...args]);

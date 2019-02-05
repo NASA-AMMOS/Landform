@@ -47,6 +47,8 @@ namespace OPS.Pipeline.TileServer
 
         public string ExportImageFormat { get; set; }
 
+        public int MaxLeafGroupSize { get; set; }
+
         public TilingProject()
         {
         }
@@ -57,7 +59,7 @@ namespace OPS.Pipeline.TileServer
         /// <param name="name">Project names in the database must be unique</param>
         protected TilingProject(string name, TilingScheme tilingScheme, SkirtMode skirtMode,
                                 MeshReconMethod reconMethod, int faces, int resolution, string projectType,
-                                string exportMeshFormat, string exportImageFormat)
+                                string exportMeshFormat, string exportImageFormat, int maxLeafGroupSize)
         {
             Name = name;
             TilingScheme = tilingScheme.ToString();
@@ -69,16 +71,19 @@ namespace OPS.Pipeline.TileServer
             TilesDefined = false;
             ExportMeshFormat = exportMeshFormat;
             ExportImageFormat = exportImageFormat;
+            MaxLeafGroupSize = maxLeafGroupSize;
             IsValid();
         }
 
 
         public static TilingProject Create(PipelineCore pipeline, string name, TilingScheme tilingScheme,
                                            SkirtMode skirtMode, MeshReconMethod reconMethod, int faces, int resolution,
-                                           string projectType, string exportMeshFormat, string exportImageFormat)
+                                           string projectType, string exportMeshFormat, string exportImageFormat,
+                                           int maxLeafGroupSize)
         {
             TilingProject project = new TilingProject(name, tilingScheme, skirtMode, reconMethod, faces, resolution,
-                                                      projectType, exportMeshFormat, exportImageFormat);
+                                                      projectType, exportMeshFormat, exportImageFormat,
+                                                      maxLeafGroupSize);
             project.Save(pipeline);
             return project;
         }

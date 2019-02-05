@@ -82,7 +82,7 @@ namespace OPS.Pipeline
                 LogInfo("creating project");
                 TilingProject.Create(pipeline, projectName, m.TilingScheme, m.SkirtMode, m.ReconMethod,
                                      m.FacesPerTile, m.TileResolution, m.ProjectType,
-                                     m.ExportMeshFormat, m.ExportImageFormat);
+                                     m.ExportMeshFormat, m.ExportImageFormat, m.MaxLeafGroupSize);
             }
             else
             {
@@ -232,7 +232,7 @@ namespace OPS.Pipeline
             SceneNode root = TilingNode.BuildTreeFromDatabase(pipeline, project);
 
             List<List<SceneNode>> leafGroups = new List<List<SceneNode>>();
-            CollectLeafGroups(root, leafGroups);
+            CollectLeafGroups(root, leafGroups, project.MaxLeafGroupSize);
             int totalLeaves = 0, leafJobs = 0, unprocessedLeaves = 0;
             foreach (var group in leafGroups)
             {
@@ -279,7 +279,7 @@ namespace OPS.Pipeline
         /// uses tree topology as a proxy for spatial proximity
         /// </summary>
         virtual protected Queue<SceneNode> CollectLeafGroups(SceneNode node, List<List<SceneNode>> groups,
-                                                             int maxGroupSize = 32)
+                                                             int maxGroupSize)
         {
             var result = new Queue<SceneNode>();
             if (node.IsLeaf)
@@ -360,6 +360,7 @@ namespace OPS.Pipeline
         public string ProjectType;
         public string ExportMeshFormat;
         public string ExportImageFormat;
+        public int MaxLeafGroupSize;
         public CreateProjectMessage() { }
         public CreateProjectMessage(string projectName) : base(projectName) { }
     }
