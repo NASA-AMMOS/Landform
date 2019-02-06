@@ -31,7 +31,9 @@ namespace OPS.Pipeline
                                                              TileLocalMeshOptions,
                                                              TextureMeshOptions,
                                                              StartAlignMasterOptions,
-                                                             LocalIngestOptions
+                                                             LocalIngestOptions,
+                                                             ConfigureCloudOptions,
+                                                             ConfigureLocalOptions
                                                              >(args)
               .MapResult(
                 (ConvertBaselineMeshOptions opts) => new ConvertBaselineMesh(opts).Run(),
@@ -46,6 +48,8 @@ namespace OPS.Pipeline
                 (TextureMeshOptions opts) => new TextureMeshCommand(opts).Run(),
                 (StartAlignMasterOptions opts) => new AlignmentMaster(opts).Run(),
                 (LocalIngestOptions opts) => new LocalIngest(opts).Run(),
+                (ConfigureCloudOptions opts) => new ConfigureCloud(opts).Run(),
+                (ConfigureLocalOptions opts) => new ConfigureLocal(opts).Run(),
                 errs => 1);
         }
     }

@@ -65,7 +65,7 @@ namespace OPS.Pipeline.TileServer
 
         private StartWorkerOptions options;
 
-        public StartWorker(StartWorkerOptions options) : base(options)
+        public StartWorker(StartWorkerOptions options) : base(options, queuePrefix: "tiling")
         {
             this.options = options;
         }
@@ -378,7 +378,7 @@ namespace OPS.Pipeline.TileServer
             //this avoids the need for synchronization
             //all threads share the same logger which is MT safe
             var pipeline = new CloudPipeline(options, logger: Logger, lruCache: IMAGE_CACHE_SIZE,
-                                             initQueues: true, initTables: false, quiet: true);
+                                             initQueues: true, initTables: false, quiet: true, queuePrefix: "tiling");
 
             var dispatcher = new TypeDispatcher()
                 .Case((DefineTilesMessage m) => new DefineTiles(pipeline, m).Process())

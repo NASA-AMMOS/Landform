@@ -23,7 +23,7 @@ namespace OPS.Pipeline.TileServer
     {
         private RunProjectOptions options;
 
-        public RunProject(RunProjectOptions options) : base(options)
+        public RunProject(RunProjectOptions options) : base(options, queuePrefix: "tiling")
         {
             this.options = options;
         }

@@ -15,7 +15,7 @@ namespace OPS.Pipeline.TileServer
     {
         private DeleteQueuesOptions options;
 
-        public DeleteQueues(DeleteQueuesOptions options) : base(options)
+        public DeleteQueues(DeleteQueuesOptions options) : base(options, queuePrefix: "tiling")
         {
             this.options = options;
         }

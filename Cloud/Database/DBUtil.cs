@@ -39,7 +39,7 @@ namespace OPS.Cloud
             var ta = type.GetCustomAttribute<DynamoDBTableAttribute>();
             if (ta == null)
             {
-                throw new ArgumentException("Not a table");
+                throw new ArgumentException("no DynamoDBTableAttribute on " + type.FullName);
             }
             return ta.TableName;
         }
@@ -61,14 +61,128 @@ namespace OPS.Cloud
             var cap = type.GetCustomAttribute<DynamoDBWriteCapacityAttribute>();
             return cap != null ? (cap.Fixed ? cap.FixedCapacity : cap.MinCapacity) : DEFAULT_WRITE_CAPACITY;
         }
-
-        public static CreateTableRequest MakeCreateTableRequest(Type type, string prefix="")
+        
+        public static bool IsHashKeyField(PropertyInfo field)
         {
-            var ta = type.GetCustomAttribute<DynamoDBTableAttribute>();
-            if (ta == null)
+            return field.GetCustomAttributes<DynamoDBHashKeyAttribute>()
+                .Where(a => a.GetType() == typeof(DynamoDBHashKeyAttribute))
+                .Any();
+        }
+        
+        public static bool IsRangeKeyField(PropertyInfo field)
+        {
+            return field.GetCustomAttributes<DynamoDBRangeKeyAttribute>()
+                .Where(a => a.GetType() == typeof(DynamoDBRangeKeyAttribute))
+                .Any();
+        }
+
+        public static string GetDynamoDBPropertyName(PropertyInfo field)
+        {
+            var fieldName = field.Name;
             {
-                throw new ArgumentException("Not a table");
+                foreach (var pa in field.GetCustomAttributes<DynamoDBPropertyAttribute>())
+                {
+                    if (pa != null && pa.AttributeName != null)
+                    {
+                        fieldName = pa.AttributeName;
+                        break;
+                    }
+                }
             }
+            return fieldName;
+        }
+
+        /// <summary>
+        /// Get the properties that would be serialized to Dynamo for items of this type.
+        /// <param name="checkForAttribute">whether to restrict to only properties marked with DynamoDBPropertyAttribute</param>
+        /// <returns>mapping from actual property name to Dynamo property name</returns>
+        /// </summary>
+        public static Dictionary<string, string> GetDynamoDBFieldMap(Type type, bool checkForAttribute = false)
+        {
+            Dictionary<string, string> ret = new Dictionary<string, string>();
+            foreach (var field in type.GetProperties(BindingFlags.Public | BindingFlags.Instance))
+            {
+                bool hasAttrib = false;
+                string name = field.Name;
+                foreach (var pa in field.GetCustomAttributes<DynamoDBPropertyAttribute>())
+                {
+                    if (pa != null)
+                    {
+                        hasAttrib = true;
+                        if (pa.AttributeName != null)
+                        {
+                            name = pa.AttributeName;
+                            break;
+                        }
+                    }
+                }
+                if (!checkForAttribute || hasAttrib)
+                {
+                    ret[field.Name] = name;
+                }
+            }
+            return ret;
+        }
+
+        public static IEnumerable<PropertyInfo> GetDynamoDBFields(Type type, bool checkForAttribute = false)
+        {
+            foreach (var field in type.GetProperties(BindingFlags.Public | BindingFlags.Instance))
+            {
+                bool hasAttrib = false;
+                foreach (var pa in field.GetCustomAttributes<DynamoDBPropertyAttribute>())
+                {
+                    if (pa != null)
+                    {
+                        hasAttrib = true;
+                        break;
+                    }
+                }
+                if (!checkForAttribute || hasAttrib)
+                {
+                    yield return field;
+                }
+            }
+        }
+
+        public static void GetNameAndKeys(Type type, out string tableName, out string hashKey, out string rangeKey,
+                                          bool useDynamoDBPropertyNames = true)
+        {
+            tableName = GetTableName(type);
+            hashKey = rangeKey = null;
+            foreach (var field in type.GetProperties(BindingFlags.Public | BindingFlags.Instance))
+            {
+                var fieldName = useDynamoDBPropertyNames ? GetDynamoDBPropertyName(field) : field.Name;
+                if (IsHashKeyField(field))
+                {
+                    hashKey = fieldName;
+                }
+                else if (IsRangeKeyField(field))
+                {
+                    rangeKey = fieldName;
+                }
+            }
+        }
+
+        public static void GetKeyValues(Object obj, out string hashValue, out string rangeValue)
+        {
+            hashValue = rangeValue = null;
+            foreach (var field in obj.GetType().GetProperties(BindingFlags.Public | BindingFlags.Instance))
+            {
+                if (IsHashKeyField(field))
+                {
+                    hashValue = field.GetValue(obj).ToString();
+                }
+                else if (IsRangeKeyField(field))
+                {
+                    rangeValue = field.GetValue(obj).ToString();
+                }
+            }
+        }
+
+        public static CreateTableRequest MakeCreateTableRequest(Type type, string prefix = "")
+        {
+            //do this first as it verifies that this type is even marked as a DynamoDBTable
+            var tableName = GetTableName(type);
 
             string rangeKey = null;
             string hashKey = null;
@@ -77,30 +191,22 @@ namespace OPS.Cloud
 
             foreach (var field in type.GetProperties(BindingFlags.Public | BindingFlags.Instance))
             {
-                // get name of corresponding DynamoDB field
-                var fieldName = field.Name;
-                {
-                    foreach (var pa in field.GetCustomAttributes<DynamoDBPropertyAttribute>())
-                    {
-                        if (pa != null && pa.AttributeName != null)
-                        {
-                            fieldName = pa.AttributeName;
-                            break;
-                        }
-                    }
-                }
+                var fieldName = GetDynamoDBPropertyName(field);
 
                 // get field properties
-                bool isNum = field.GetType() == typeof(int) || field.GetType() == typeof(float) || field.GetType() == typeof(double);
-                allProps[fieldName] = new AttributeDefinition(fieldName, isNum ? ScalarAttributeType.N : ScalarAttributeType.S);
+                var fieldType = field.GetType();
+                bool isNum = fieldType == typeof(int) || fieldType == typeof(float) || fieldType == typeof(double);
+                allProps[fieldName] = new AttributeDefinition(fieldName,
+                                                              isNum ? ScalarAttributeType.N : ScalarAttributeType.S);
 
-                // get hash and range key, if defined
-                // DynamoDBGlobalSecondaryIndex[Hash,Range]KeyAttribute are subclasses of DynamoDB[Hash,Range]KeyAttribute, make sure not to use those
-                if (field.GetCustomAttributes<DynamoDBHashKeyAttribute>().Where(a => a.GetType() == typeof(DynamoDBHashKeyAttribute)).Any())
+                //get hash and range key, if defined
+                //DynamoDBGlobalSecondaryIndex[Hash,Range]KeyAttribute are subclasses of
+                //DynamoDB[Hash,Range]KeyAttribute, make sure not to use those
+                if (IsHashKeyField(field))
                 {
                     hashKey = fieldName;
                 }
-                if (field.GetCustomAttributes<DynamoDBRangeKeyAttribute>().Where(a => a.GetType() == typeof(DynamoDBRangeKeyAttribute)).Any())
+                if (IsRangeKeyField(field))
                 {
                     rangeKey = fieldName;
                 }
@@ -132,7 +238,7 @@ namespace OPS.Cloud
                 }
             }
 
-            var createRequest = new CreateTableRequest(prefix + ta.TableName,
+            var createRequest = new CreateTableRequest(prefix + tableName,
                                                        new List<KeySchemaElement>(),
                                                        new List<AttributeDefinition>(),
                                                        new ProvisionedThroughput(GetReadCapacity(type),
@@ -180,7 +286,7 @@ namespace OPS.Cloud
             return createRequest;
         }
 
-        public static void CreateOrUpdateTable(IAmazonDynamoDB client, Type type, string prefix="",
+        public static void CreateOrUpdateTable(IAmazonDynamoDB client, Type type, string prefix = "",
                                                ILog logger = null)
         {
             var tn = prefix + GetTableName(type);
@@ -323,13 +429,13 @@ namespace OPS.Cloud
         }
 
         public static T LoadItem<T>(DynamoDBContext context, string key, string secondaryKey = null,
-                                    bool consistent = false, bool ignoreErrors = false,
-                                    ILog logger = null) where T : class
+                                    bool ignoreNulls = true, bool ignoreErrors = false,
+                                    bool consistent = false, ILog logger = null) where T : class
         {
             T ret = null;
             try
             {
-                var cfg = new DynamoDBOperationConfig { ConsistentRead = consistent };
+                var cfg = new DynamoDBOperationConfig { IgnoreNullValues = ignoreNulls, ConsistentRead = consistent };
                 if (secondaryKey == null)
                 {
                     ExponentialBackoff(() => ret = context.Load<T>(key, cfg));
@@ -353,7 +459,8 @@ namespace OPS.Cloud
             return ret;
         }
 
-        public static void DeleteItem<T>(DynamoDBContext context, T obj, bool ignoreErrors = false, ILog logger = null)
+        public static void DeleteItem(DynamoDBContext context, object obj, bool ignoreErrors = false,
+                                      ILog logger = null)
         {
             try
             {

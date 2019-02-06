@@ -134,7 +134,7 @@ namespace OPS.Util
         /// Execute a delegate with a temporary filename, and delete the temp file when
         /// the delegate completes.
         /// </summary>
-        /// <param name="tmpBasename">Base name for the temporary file.</param>
+        /// <param name="extension">filename extension for the temporary file, must include a ".", and only the part starting with the last "." will be used</param>
         /// <param name="func">Delegate to execute.</param>
         public static void GetAndDelete(string extension, FilenameDelegate func)
         {
@@ -273,7 +273,7 @@ namespace OPS.Util
             var dir = !string.IsNullOrEmpty(subdir) ? Path.Combine(TemporaryDirectory, subdir) : TemporaryDirectory;
 
             IEnumerable<FileInfo> files =
-                PathHelper.ListDirectory(dir, recursive: recursive).OrderBy(i => i.LastAccessTime); //sort oldest first
+                PathHelper.ListFiles(dir, recursive: recursive).OrderBy(i => i.LastAccessTime); //sort oldest first
 
             long totalDiskUsage = files.Aggregate(0L, (n, f) => n + f.Length), diskUsageBefore = totalDiskUsage;
             bool wasTooBig = maxDiskBytes > 0 && totalDiskUsage > maxDiskBytes;

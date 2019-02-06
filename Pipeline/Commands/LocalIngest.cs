@@ -7,14 +7,14 @@ using OPS.Util;
 
 namespace OPS.Pipeline
 {
-    [Verb("localingest", HelpText = "ingest mission data from local files")]
+    [Verb("localingest", HelpText = "ingest mission data locally")]
     public class LocalIngestOptions : PipelineCoreOptions
     {
-        [Value(0, Required = true, HelpText = "input directory", Default = null)]
-        public string InputDirectory { get; set; }
+        [Value(0, Required = true, HelpText = "project name", Default = null)]
+        public string ProjectName { get; set; }
 
-        [Value(1, Required = true, HelpText = "output directory", Default = null)]
-        public string OutputDirectory { get; set; }
+        [Value(1, Required = true, HelpText = "input directory", Default = null)]
+        public string InputDirectory { get; set; }
     }
 
     public class LocalIngest : LocalPipeline
@@ -35,13 +35,16 @@ namespace OPS.Pipeline
                 throw new Exception(string.Format("input directory {0} not found", options.InputDirectory));
             }
 
-            //TODO gather inputs
+            var productUrl = GetStorageUrl("alignment/products", options.ProjectName);
+            var inputUrl = StringHelper.EnsureProtocol("file://", options.InputDirectory);
 
-            //TODO exit if no inputs
+            var initializer = new InitializeAlignmentProject(this);
+            var project = initializer.Initialize(options.ProjectName, productUrl, inputUrl);
 
-            PathHelper.EnsureExists(options.OutputDirectory);
+            var mslLocations = MSLLocations.LoadFromFile(Path.Combine(options.InputDirectory, "locations.xml"));
 
-            //TODO write outputs
+            var ingester = new IngestAlignmentInputs(this);
+            ingester.Ingest(project, mslLocations);
 
             return 0;
         }

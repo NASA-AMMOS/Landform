@@ -9,4 +9,4 @@ if (process.argv.length > 2) env.LANDFORM_VENUE_NAME = process.argv[2];
 const venue = env.LANDFORM_VENUE_NAME;
 
 console.log(`deleting queues in venue ${venue}`);
-spawn('TilingServer.exe', ['deletequeues'], { cwd: config.app.binDir, env });
+spawn(config.exe, ['deletequeues'], { cwd: config.app.binDir, env });

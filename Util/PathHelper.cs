@@ -55,12 +55,20 @@ namespace OPS.Util
             return p;
         }
 
-        public static IEnumerable<FileInfo> ListDirectory(string dir, string globPattern = "*", bool recursive = false)
+        public static IEnumerable<FileInfo> ListFiles(string dir, string globPattern = "*", bool recursive = false)
         {
             var opt = recursive ? SearchOption.AllDirectories : SearchOption.TopDirectoryOnly;
             return new DirectoryInfo(dir).GetFileSystemInfos(globPattern, opt)
-                .Where(i => i is FileInfo) //keep only FileInfo not DirectoryInfo
-                .Select(i => i as FileInfo); //cast to IEnumerable<FileInfo>
+                .Where(i => i is FileInfo)
+                .Select(i => i as FileInfo);
+        }
+
+        public static IEnumerable<DirectoryInfo> ListSubdirs(string dir, string globPattern = "*")
+        {
+            var opt = SearchOption.TopDirectoryOnly;
+            return new DirectoryInfo(dir).GetFileSystemInfos(globPattern, opt)
+                .Where(i => i is DirectoryInfo)
+                .Select(i => i as DirectoryInfo);
         }
     }
 }

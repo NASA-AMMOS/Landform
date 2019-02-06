@@ -265,14 +265,16 @@ This step configures the Elastic Beanstalk environment with specifics of your de
     * `TOKEN_SECRET`: any private string
     * `SAML_ENTRY_POINT`: for internal Landform use SSO should already be properly configured.  Otherwise you will need to contact JPL IT to set up SSO for your deployment.  Typically this field will have a form like `https://SSO_HOST.jpl.nasa.gov/oamfed/idp/initiatesso?providerid=LANDFORM_URL` where `SSO_HOST` is `ssoint` for integration testing and `sso1` for production, and `LANDFORM_URL` is the URL to your Landform master server.
     * `SAML_CERT`: for internal Landform use SSO should already be properly configured depending on `NODE_ENV`.  Otherwise typically copy the X509Certificate field from `https://SSO_HOST.jpl.nasa.gov/oamfed/idp/metadata`.
-    * `TILE_SERVER_REGION`: `us-west-1`
-    * `TILE_SERVER_VENUE_NAME`: `landformweb[-dev]` (recommended, but can be any name) - this is the Landform venue name for the deployment; it must match the venue name in the Landform worker configuration.
-    * `TILE_SERVER_S3_URL`: `s3://landlords-dev` (internal landform use only, otherwise use your own S3 bucket)
-    * `TILE_SERVER_LDAP_GROUP`: `landform` (internal landform use only, otherwise use your own LDAP group)
+    * `LANDFORM_AWS_REGION`: `us-west-1`
+    * `LANDFORM_AWS_PROFILE`: `default`
+    * `LANDFORM_VENUE`: `landformweb[-dev]` (recommended, but can be any name) - this is the Landform venue name for the deployment; it must match the venue name in the Landform worker configuration.
+    * `LANDFORM_S3_URL`: `s3://landlords-dev` (internal landform use only, otherwise use your own S3 bucket)
+    * `LANDFORM_MSLICE_S3_URL`: `s3://red-product`
+    * `LANDFORM_LDAP_GROUP`: `landform` (internal landform use only, otherwise use your own LDAP group)
 1. Apply
 
 ## 7: Deploy Landform Master Server Release
-The following instructions assume you have a `landformweb-VERSION.zip` bundle.
+The following instructions assume you have a `landform-master[-VERSION].zip` bundle.
 
 1. http://goto.jpl.nasa.gov/awsconsole
 1. Log in as `landords/account_owner` (internal Landform use only, otherwise use your own AWS account)
@@ -280,7 +282,7 @@ The following instructions assume you have a `landformweb-VERSION.zip` bundle.
 1. Services -> Compute -> Elastic Beanstalk
 1. Navigate into the Elastic Beanstalk application and environment you configured above
 1. Upload and Deploy
-1. Choose File: `landformweb-VERSION.zip`
+1. Choose File: `landform-master[-VERSION].zip`
 1. Version Label: VERSION
 1. Deploy - it takes a few minutes
 
@@ -292,7 +294,7 @@ Once the server is deployed it will be live.  To shut it down, either terminate 
 where `ENVIRONMENT` is the Elastic Beanstalk environment name, e.g. `landformweb[-dev]`, and PROFILE is the AWS profile to use.
 
 ## 8: Deploy Landform Worker to EC2 Auto Scale Group
-The following instructions assume you have a `landformweb-worker-VERSION.zip` bundle and an `ec2userdata.txt` file.
+The following instructions assume you have a `landform-worker[-VERSION].zip` bundle and an `ec2userdata.txt` file.
 
 You must already have deployed the Landform master server on Elastic Beanstalk in the same venue following the instructions above.
 
@@ -352,7 +354,7 @@ These instructions only need to be run once for a new venue or when the venue co
 1. Create Launch Tempate
 
 ### 3. Upload New Worker
-These instructions only needs to be run when the Landform worker version changes (`landform-worker-VERSION.zip`).
+These instructions only needs to be run when the Landform worker version changes (`landform-worker[-VERSION].zip`).
 
 1. http://goto.jpl.nasa.gov/awsconsole
 1. Log in as `landords/account_owner` (internal Landform use only, otherwise use your own AWS account)
@@ -362,9 +364,9 @@ These instructions only needs to be run when the Landform worker version changes
 1. select the subfolder matching your venue name (e.g. `landformweb[-dev]`)
 1. create subfolder `app` if it doesn't already exist
 1. select subfolder `app`
-1. if `landformweb-worker.zip` exists, delete it
-1. upload `landformweb-worker-VERSION.zip`
-1. right click on `landformweb-worker-VERSION.zip` and rename to `tileserver.zip`
+1. if `landform-worker[-VERSION].zip` exists, delete it
+1. upload `landform-worker[-VERSION].zip`
+1. right click on `landform-worker[-VERSION].zip` and rename to `landform-worker.zip`
 1. you will need to restart all EC2 instances in the autoscale group to pick up the changes
   1. one way to do that is to delete any existing auto scaling group and then re-create following the instructions below
 

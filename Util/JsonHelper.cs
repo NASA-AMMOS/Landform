@@ -32,23 +32,41 @@ namespace OPS.Util
 
     public class JsonHelper
     {
+        public static JsonSerializerSettings Settings(bool autoTypes = true, string[] ignoreProperties = null,
+                                                      bool ignoreNulls = false)
+        {
+            var settings = new JsonSerializerSettings();
+            if (autoTypes) settings.TypeNameHandling = TypeNameHandling.Auto;
+            if (ignoreNulls) settings.NullValueHandling = NullValueHandling.Ignore;
+            if (ignoreProperties != null) settings.ContractResolver = new IgnorePropertiesResolver(ignoreProperties);
+            return settings;
+        }
+
         public static string ToJson(Object o, bool indent = false, bool autoTypes = true,
-                                    string[] ignoreProperties = null)
+                                    string[] ignoreProperties = null, bool ignoreNulls = false)
         {
-            var settings = new JsonSerializerSettings();
-            if (autoTypes) settings.TypeNameHandling = TypeNameHandling.Auto;
-            if (ignoreProperties != null) settings.ContractResolver = new IgnorePropertiesResolver(ignoreProperties);
             Formatting formatting = indent ? Formatting.Indented : Formatting.None;
-            return JsonConvert.SerializeObject(o, typeof(object), formatting, settings);
+            return JsonConvert.SerializeObject(o, typeof(object), formatting,
+                                               Settings(autoTypes, ignoreProperties, ignoreNulls));
         }
 
-        public static object FromJson(string json, bool autoTypes = true, string[] ignoreProperties = null)
+        public static object FromJson(string json, bool autoTypes = true, string[] ignoreProperties = null,
+                                      bool ignoreNulls = false)
         {
-            var settings = new JsonSerializerSettings();
-            if (autoTypes) settings.TypeNameHandling = TypeNameHandling.Auto;
-            if (ignoreProperties != null) settings.ContractResolver = new IgnorePropertiesResolver(ignoreProperties);
-            return JsonConvert.DeserializeObject(json, settings);
+            return JsonConvert.DeserializeObject(json, Settings(autoTypes, ignoreProperties, ignoreNulls));
         }
 
+        public static T FromJson<T>(string json, bool autoTypes = true, string[] ignoreProperties = null,
+                                    bool ignoreNulls = false)
+        {
+            return JsonConvert.DeserializeObject<T>(json, Settings(autoTypes, ignoreProperties, ignoreNulls));
+        }
+
+        public static object FromJson(string json, object obj, bool autoTypes = true, string[] ignoreProperties = null,
+                                      bool ignoreNulls = false)
+        {
+            JsonConvert.PopulateObject(json, obj, Settings(autoTypes, ignoreProperties, ignoreNulls));
+            return obj;
+        }
     }
 }

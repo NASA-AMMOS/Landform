@@ -25,7 +25,7 @@ namespace OPS.Pipeline.TileServer
         private Dictionary<string, PipelineStateMachine> projectNameToStateMachine =
             new Dictionary<string, PipelineStateMachine>();
 
-        public StartMaster(StartMasterOptions options) : base(options)
+        public StartMaster(StartMasterOptions options) : base(options, queuePrefix: "tiling")
         {
             this.options = options;
         }

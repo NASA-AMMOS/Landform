@@ -71,7 +71,7 @@ namespace OPS.Pipeline.AlignmentServer
         private const int DequeReceiveThrottlingMS = 50;
         private Task workerTask = null;
 
-        public AlignmentMaster(StartAlignMasterOptions options) : base(options)
+        public AlignmentMaster(StartAlignMasterOptions options) : base(options, queuePrefix: "alignment")
         {
             options.RedoFeatures |= options.RedoMasks;
 
@@ -193,73 +193,46 @@ namespace OPS.Pipeline.AlignmentServer
         {
             var projectName = options.ProjectName;
 
-            Project.FindOrCreate(pipeline, projectName, options.ProductPath, options.InputPath);
+            var initializer = new InitializeAlignmentProject(pipeline);
+            var project = initializer.Initialize(projectName, options.ProductPath, options.InputPath);
 
-            pipeline.LogInfo("Preparing ingestion messages");
+            var mslLocations = MSLLocations.LoadFromUrl();
 
-            var rootFrame = Frame.FindOrCreate(pipeline, projectName, MSLProject.ROOT_FRAME_NAME);
-            var transform = new UncertainRigidTransform(new MathExtensions.GaussianND
-                                                        (CreateVector.Dense<double>(6),
-                                                         CreateMatrix.Dense<double>(6, 6)));
-            var rootTransform = FrameTransform.FindOrCreate(pipeline, rootFrame, transform);
+            var ingester = new IngestAlignmentInputs(pipeline);
+            ingester.Ingest(project, mslLocations, ingestionResult => {
+                    
+                    var obs = ingestionResult.Observation;
+                    var obsUrl = obs.Url;
+                    
+                    var newState = new ImageState() { Observation = obs, Overlaps = new List<OverlapState>() };
 
-            IngestPDSImage ingester = new IngestPDSImage(pipeline, MSLLocations.LoadFromUrl(), projectName);
-
-            var inFolder = options.InputPath;
-            //search objects will return 0 objects if slash is not postfixed
-            // not requesting recursively, which means it is using slash delimiter
-            if (!inFolder.EndsWith("/"))
-            {
-                inFolder += "/";
-            }
-
-            Parallel.ForEach(pipeline.SearchFiles(inFolder, "*.IMG", false), url =>
-            {
-                var res = ingester.Ingest(url);
-                if (res.Status == IngestImage.Status.Added || res.Status == IngestImage.Status.Duplicate) //TODO??
-                {
-                    var obsUrl = res.Observation.Url;
-                    var newState = new ImageState()
-                    {
-                        Observation = res.Observation,
-                        Overlaps = new List<OverlapState>()
-                    };
                     if (!observationStates.TryAdd(obsUrl, newState))
                     {
-                        pipeline.LogError("Failed to insert new observation state for " + obsUrl);
-                        return;
+                        throw new Exception("failed to insert new observation state for " + obsUrl);
                     }
 
                     ingestionRequested.Add(obsUrl);
 
-                    if (ValidGuid(res.Observation.MaskGuid) && !options.RedoMasks)
+                    if (ValidGuid(obs.MaskGuid) && !options.RedoMasks)
                     {
-                        if (ValidGuid(res.Observation.FeaturesGuid) && !options.RedoFeatures)
+                        if (ValidGuid(obs.FeaturesGuid) && !options.RedoFeatures)
                         {
                             //skip feature detection
                             pipeline.MasterQueue.Enqueue(new FeaturesDetectedMessage(projectName)
-                            {
-                                ImageUrl = obsUrl,
-                                MaskGuid = res.Observation.MaskGuid,
-                                FeaturesGuid = res.Observation.FeaturesGuid
-                            });
+                            { ImageUrl = obsUrl, MaskGuid = obs.MaskGuid, FeaturesGuid = obs.FeaturesGuid });
                         }
                         else
                         {
                             //skip mask generation
                             pipeline.MasterQueue.Enqueue(new MaskCreatedMessage(projectName)
-                            {
-                                ImageUrl = obsUrl,
-                                MaskGuid = res.Observation.MaskGuid
-                            });
+                            { ImageUrl = obsUrl, MaskGuid = obs.MaskGuid });
                         }
                     }
                     else
                     {
                         pipeline.WorkerQueue.Enqueue(new CreateMaskMessage(projectName) { ImageUrl = obsUrl });
                     }
-                }
-            });
+                });
 
             pipeline.LogInfo(ingestionRequested.Count() + " observations created, doing masks & features");
         }

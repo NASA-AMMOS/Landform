@@ -18,11 +18,12 @@ const args = [
   `--awsprofile=${config.app.awsProfile}`,
   `--msliceawsprofile=${config.app.MSLICEAWSProfile}`,
   `--mslices3url=${config.app.MSLICES3Url}`,
+  `--workerexecutable=${config.workerExe}`,
 ];
 
 if (!hasFlag('persist')) args.push('--nopersist');
 
-spawnSync('TilingServer.exe', ['configure', ...args], { cwd: config.app.binDir });
+spawnSync(config.exe, ['configure-cloud', ...args], { cwd: config.app.binDir });
 
 const src = path.join(config.app.binDir, cfgFile);
 const dst = cfgFile;

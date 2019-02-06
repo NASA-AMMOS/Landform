@@ -41,7 +41,7 @@ namespace OPS.Pipeline.TileServer
     {
         private ProjectMetadataOptions options;
 
-        public ProjectMetadata(ProjectMetadataOptions options) : base(options)
+        public ProjectMetadata(ProjectMetadataOptions options) : base(options, queuePrefix: "tiling")
         {
             this.options = options;
         }

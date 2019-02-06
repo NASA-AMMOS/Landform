@@ -14,7 +14,6 @@ using Newtonsoft.Json.Linq;
 
 namespace OPS.Pipeline.TileServer
 {
-
     [DynamoDBTable("TilingProjects")]
     [DynamoDBReadCapacity(5, 50)]
     [DynamoDBWriteCapacity(5, 50)]
@@ -49,9 +48,7 @@ namespace OPS.Pipeline.TileServer
 
         public int MaxLeafGroupSize { get; set; }
 
-        public TilingProject()
-        {
-        }
+        public TilingProject() { }
 
         /// <summary>
         /// Creates Project object locally.  

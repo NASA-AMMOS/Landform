@@ -19,7 +19,7 @@ namespace OPS.Pipeline.TileServer
     {
         private ListProjectsOptions options;
 
-        public ListProjects(ListProjectsOptions options) : base(options)
+        public ListProjects(ListProjectsOptions options) : base(options, queuePrefix: "tiling")
         {
             this.options = options;
         }

@@ -57,7 +57,7 @@ namespace OPS.Pipeline.TileServer
 
         private CreateProjectOptions options;
 
-        public CreateProject(CreateProjectOptions options) : base(options)
+        public CreateProject(CreateProjectOptions options) : base(options, queuePrefix: "tiling")
         {
             this.options = options;
         }

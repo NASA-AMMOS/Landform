@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using CommandLine;
+using OPS.Pipeline;
 
 namespace OPS.Pipeline.TileServer
 {
@@ -23,7 +24,7 @@ namespace OPS.Pipeline.TileServer
                                                              RunProjectOptions,
                                                              StartWorkerOptions,
                                                              StartMasterOptions,
-                                                             ConfigureServerOptions,
+                                                             ConfigureCloudOptions,
                                                              ProjectMetadataOptions,
                                                              ListProjectsOptions,
                                                              DeleteProjectOptions,
@@ -36,7 +37,7 @@ namespace OPS.Pipeline.TileServer
                 (RunProjectOptions opts) => new RunProject(opts).Run(),
                 (StartWorkerOptions opts) => new StartWorker(opts).Run(),
                 (StartMasterOptions opts) => new StartMaster(opts).Run(),
-                (ConfigureServerOptions opts) => new ConfigureServer(opts).Run(),
+                (ConfigureCloudOptions opts) => new ConfigureCloud(opts).Run(),
                 (ProjectMetadataOptions opts) => new ProjectMetadata(opts).Run(),
                 (ListProjectsOptions opts) => new ListProjects(opts).Run(),
                 (DeleteProjectOptions opts) => new DeleteProject(opts).Run(),

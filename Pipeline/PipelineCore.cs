@@ -7,6 +7,8 @@ using log4net;
 using CommandLine;
 using OPS.Util;
 using OPS.Imaging;
+using OPS.Pipeline.AlignmentServer;
+using OPS.Pipeline.TileServer;
 
 namespace OPS.Pipeline
 {
@@ -60,8 +62,24 @@ namespace OPS.Pipeline
 
         protected bool quiet;
 
-        private string storageUrl;
+        protected readonly string storageUrl;
+        protected readonly string storageUrlWithVenue;
+
         private LRUCache<string, Image> imageCache; //indexed by URL
+
+        protected readonly Type[] tableTypes = new Type[]
+            {
+                typeof(Project),
+                typeof(FrameTransform),
+                typeof(Frame),
+                typeof(Observation),
+                typeof(Overlap),
+                typeof(TransformPrior),
+                typeof(TilingProject),
+                typeof(TilingInput),
+                typeof(TilingNode),
+                typeof(TilingInputChunk),
+            };
 
         public PipelineCore(PipelineCoreOptions options, Config config, string storageUrl, string venue,
                             ILog logger = null, int lruCache = 100, bool quiet = true)
@@ -72,10 +90,12 @@ namespace OPS.Pipeline
             this.quiet = quiet || options.Quiet;
 
             if (string.IsNullOrEmpty(storageUrl)) throw new Exception("storage URL must be specified");
-            this.storageUrl = storageUrl;
+            this.storageUrl = storageUrl.ToLower().Replace('\\','/').Trim().TrimEnd(new char[] {'/'});
 
             if (string.IsNullOrEmpty(venue)) throw new Exception("venue must be specified");
-            this.Venue = venue;
+            this.Venue = venue.ToLower().Replace('\\','/').Trim().Trim(new char[] {'/'});
+
+            storageUrlWithVenue = this.storageUrl + "/" + this.Venue;
 
             if (logger != null)
             {
@@ -130,41 +150,77 @@ namespace OPS.Pipeline
 
         //****************** Storage API *****************
 
+        protected void CheckStorageUrl(string url, bool withVenue = true)
+        {
+            string prefix = withVenue ? storageUrlWithVenue : storageUrl;
+            if (string.IsNullOrEmpty(url) || !url.ToLower().StartsWith(prefix))
+            {
+                throw new Exception(string.Format("storage URL {0} does not start with {1}", url, prefix));
+            }
+        }
+
         public string GetStorageUrl(string folder = "", string project = "", string file = "")
         {
             //empty strings are ignored
-            return new Uri(Path.Combine(storageUrl, Venue, folder, project, file).Replace('\\','/')).ToString();
+            return Path.Combine(storageUrlWithVenue, folder, project, file).Replace('\\','/');
         }
 
         /// <summary>
         /// Get a file, downloading it to a local temp file if necessary.
         /// If a temp file is created it will be automatically deleted when the callback is finished.
         /// </summary>
-        /// <param name="url">source URL</param>
+        /// <param name="url">source URL, if constrainToStorage = true must start with storageURL/Venue</param>
         /// <param name="func">callback receiving path to file on disk</param>
-        public abstract void GetFile(string url, Action<string> func);
+        public abstract void GetFile(string url, Action<string> func, bool constrainToStorage = false);
         
         /// <summary>
         /// Get a file, downloading it if necessary, using an on-disk cache.
         /// </summary>
-        /// <param name="url">source URL</param>
+        /// <param name="url">source URL, if constrainToStorage = true must start with storageURL/Venue</param>
         /// <param name="cacheFolder">cache subfolder (ex. project name)</param>
         /// <param name="filename">filename to use in cache, or null to compute from url SHA1</param>
         /// <returns>path on disk</returns>
-        public abstract string GetFileCached(string url, string cacheFolder, string filename = null);
+        public abstract string GetFileCached(string url, string cacheFolder = null, string filename = null,
+                                             bool constrainToStorage = false);
 
         /// <summary>
         /// Persist a file, uploading it if necessary.
         /// </summary>
         /// <param name="file">path to file on disk</param>
-        /// <param name="url">destination URL</param>
+        /// <param name="url">destination URL, must start with storageURL/Venue</param>
         public abstract void SaveFile(string file, string url);
 
+        /// <summary>
+        /// Delete a persisted file.
+        /// </summary>
+        /// <param name="url">URL of file to delete, must start with storageURL/Venue</param>
         public abstract void DeleteFile(string url, bool ignoreErrors = true);
 
-        public abstract void DeleteFiles(string url, string pattern = "*", bool recursive = true, bool ignoreErrors = true);
+        /// <summary>
+        /// Delete persisted files.
+        ///
+        /// See SearchFiles() for semantics of url, globPattern, and recursive.
+        /// </summary>
+        /// <param name="url">base URL of files to delete, must start with storageURL/Venue</param>
+        public abstract void DeleteFiles(string url, string globPattern = "*", bool recursive = true,
+                                         bool ignoreErrors = true);
 
-        public abstract IEnumerable<string> SearchFiles(string url, string pattern = "*", bool recursive = true);
+        /// <summary>
+        /// Search persisted files.
+        ///
+        /// If url ends with "/" then it's taken to be a directory name and the search returns all matching files within
+        /// or below that directory.
+        ///
+        /// Otherwise the last path segment of url is taken to be a stem name, and is prefixed onto the glob pattern.
+        /// The search directory is the url without its last path segment.
+        ///
+        /// The glob pattern is always applied as a filter to the full path portion of the returned URLs. i.e. each
+        /// returned URL is broken up as PROTOCOL://HOST/PATH and if PATH doesn't match globPattern it is not returned.
+        ///
+        /// </summary>
+        /// <param name="url">base URL to search, if constrainToStorage = true must start with storageURL/Venue</param>
+        public abstract IEnumerable<string> SearchFiles(string url, string globPattern = "*", bool recursive = true,
+                                                        bool constrainToStorage = false);
         
         //****************** Data Product API *****************
 
@@ -172,12 +228,13 @@ namespace OPS.Pipeline
         /// Fetch a data product given a project name and product GUID.
         /// </summary>
         /// <typeparam name="T">Type of data product</typeparam>
-        /// <param name="path">path to product collection</param>
+        /// <param name="path">path to product collection, must start with storageURL/Venue</param>
         /// <param name="guid">data product GUID</param>
         /// <param name="cacheFolder">if nonempty then use local disk cache</param>
         public T GetDataProduct<T>(string path, string guid, string cacheFolder = null) where T : DataProduct, new()
         {
-            string url = new Uri(Path.Combine(path, guid).Replace('\\','/')).ToString();
+            string url = Path.Combine(path, guid).Replace('\\','/');
+            CheckStorageUrl(url);
             
             T res = null;
             if (!string.IsNullOrEmpty(cacheFolder))
@@ -199,7 +256,7 @@ namespace OPS.Pipeline
         /// <summary>
         /// Save a data product.
         /// </summary>
-        /// <param name="path">path to product collection</param>
+        /// <param name="path">path to product collection, must start with storageURL/Venue</param>
         /// <param name="product">DataProduct object</param>
         /// <param name="cacheFolder">if non-empty then also save to local disk cache</param>
         public void SaveDataProduct(string path, DataProduct product, string cacheFolder = null)
@@ -210,15 +267,12 @@ namespace OPS.Pipeline
             }
             string guid = product.Guid.ToString();
 
-            string url = new Uri(Path.Combine(path, guid).Replace('\\','/')).ToString();
+            string url = Path.Combine(path, guid).Replace('\\','/');
+            CheckStorageUrl(url);
 
             TemporaryFile.FilenameDelegate writeAndUpload = file =>
             {
-                string dir = Path.GetDirectoryName(file);
-                if (!Directory.Exists(dir))
-                {
-                    Directory.CreateDirectory(dir);
-                }
+                PathHelper.EnsureExists(Path.GetDirectoryName(file));
                 File.WriteAllBytes(file, product.Serialize());
                 SaveFile(file, url);
             };
@@ -235,12 +289,14 @@ namespace OPS.Pipeline
 
         //****************** Database API *****************
 
+        protected abstract void InitializeDatabase();
+
         public abstract void SaveDatabaseItem<T>(T obj, bool ignoreNulls = true, bool ignoreErrors = false);
 
-        public abstract T LoadDatabaseItem<T>(string key, string secondaryKey = null, bool consistent = false,
-                                              bool ignoreErrors = false) where T : class;
+        public abstract T LoadDatabaseItem<T>(string key, string secondaryKey = null, bool ignoreNulls = true,
+                                              bool ignoreErrors = false, bool consistent = false) where T : class;
 
-        public abstract void DeleteDatabaseItem<T>(T obj, bool ignoreErrors = false);
+        public abstract void DeleteDatabaseItem(object obj, bool ignoreErrors = false);
 
         public abstract IEnumerable<T> ScanDatabase<T>(Dictionary<string, string> conditions = null,
                                                        string indexName = null);
@@ -319,7 +375,7 @@ namespace OPS.Pipeline
 
         protected string DownloadCachePath(string project, string filename)
         {
-            return Path.Combine(DownloadCache, project, filename);
+            return Path.Combine(DownloadCache, project ?? "", filename ?? ""); //ignores empty components
         }
     }
 }

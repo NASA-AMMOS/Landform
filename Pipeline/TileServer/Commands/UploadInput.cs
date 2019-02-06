@@ -37,7 +37,7 @@ namespace OPS.Pipeline.TileServer
         
         private UploadInputOptions options;
 
-        public UploadInput(UploadInputOptions options) : base(options)
+        public UploadInput(UploadInputOptions options) : base(options, queuePrefix: "tiling")
         {
             this.options = options;
         }

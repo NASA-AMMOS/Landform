@@ -13,8 +13,6 @@ using Amazon.S3;
 using OPS.Util;
 using OPS.Cloud;
 using OPS.Imaging;
-using OPS.Pipeline.AlignmentServer;
-using OPS.Pipeline.TileServer;
 
 namespace OPS.Pipeline
 {
@@ -23,33 +21,20 @@ namespace OPS.Pipeline
         public const int WORKER_QUEUE_TIMEOUT_SEC = 60;
         public const int MASTER_QUEUE_TIMEOUT_SEC = 30 * 60;
 
-        private Type[] tableTypes = new Type[]
-            {
-                typeof(Project),
-                typeof(FrameTransform),
-                typeof(Frame),
-                typeof(Observation),
-                typeof(Overlap),
-                typeof(TransformPrior),
-                typeof(TilingProject),
-                typeof(TilingInput),
-                typeof(TilingNode),
-                typeof(TilingInputChunk),
-            };
-
         private readonly string awsProfile;
         private readonly IAmazonDynamoDB dynamoClient;
         private readonly DynamoDBContext dynamoContext;
+        private readonly string queuePrefix;
 
         private readonly StorageHelper defaultStorage;
         private readonly Dictionary<string, StorageHelper> storageSelect = new Dictionary<string, StorageHelper>();
 
         public CloudPipeline(PipelineCoreOptions options, ILog logger = null, int lruCache = 100, bool quiet = false,
                              bool enableS3 = true, bool enableDynamo = true,
-                             bool initQueues = true, bool initTables = true)
+                             bool initQueues = true, bool initTables = true, string queuePrefix = null)
             : base(options, CloudPipelineConfig.Instance,
-                   CloudPipelineConfig.Instance.S3Url, CloudPipelineConfig.Instance.Venue,
-                   logger, lruCache, quiet)
+                   StringHelper.EnsureProtocol("s3://", CloudPipelineConfig.Instance.S3Url).Replace('\\','/'),
+                   CloudPipelineConfig.Instance.Venue, logger, lruCache, quiet)
         {
             var cloudConfig = (CloudPipelineConfig)Config;
 
@@ -75,7 +60,7 @@ namespace OPS.Pipeline
                 dynamoClient = DBUtil.GetClientForContext(dynamoContext);
                 if (initTables)
                 {
-                    InitializeDatabaseTables();
+                    InitializeDatabase();
                     LogInfo("tables initialized");
                 }
             }
@@ -85,6 +70,15 @@ namespace OPS.Pipeline
                 InitializeQueues();
                 LogInfo("queues initialized");
             }
+            if (queuePrefix == null)
+            {
+                queuePrefix = "";
+            }
+            if (!queuePrefix.EndsWith("-"))
+            {
+                queuePrefix += "-";
+            }
+            this.queuePrefix = queuePrefix;
 
             //TODO MSL specific
             string msliceAWSProfile = cloudConfig.MSLICEAWSProfile;
@@ -109,7 +103,7 @@ namespace OPS.Pipeline
             Logger.Info("MSLICE S3 URL: " + cloudConfig.MSLICES3Url);
         }
 
-        private StorageHelper Storage(string url) {
+        private StorageHelper GetStorageHelper(string url) {
             while (url != null && url.Length > 0)
             {
                 if (storageSelect.ContainsKey(url))
@@ -121,12 +115,18 @@ namespace OPS.Pipeline
             return defaultStorage;
         }
 
-        private void CheckUrl(string url)
+        protected string CheckUrl(string url, bool constrainToStorage = true)
         {
-            if (!url.ToLower().StartsWith("s3://"))
+            url = StringHelper.EnsureProtocol("s3://", url).Replace('\\','/');
+            if (constrainToStorage)
             {
-                throw new Exception("expected S3 url");
+                CheckStorageUrl(url);
             }
+            else if (!url.ToLower().StartsWith("s3://"))
+            {
+                throw new Exception(string.Format("storage URL \"{0}\" does not start with s3://", url));
+            }
+            return url;
         }
 
         public static string ConvertS3UrlToHttps(string url)
@@ -139,18 +139,20 @@ namespace OPS.Pipeline
             return (new Uri("https://" + uri.Host + ".s3.amazonaws.com" + uri.AbsolutePath)).ToString();
         }
 
-        public override void GetFile(string url, Action<string> func)
+        public override void GetFile(string url, Action<string> func, bool constrainToStorage = false)
         {
-            CheckUrl(url);
+            url = CheckUrl(url, constrainToStorage);
             TemporaryFile.GetAndDelete(Path.GetExtension(url), f =>
                     {
-                        Storage(url).DownloadFile(url, f);
+                        GetStorageHelper(url).DownloadFile(url, f);
                         func(f);
                     });
         }
 
-        public override string GetFileCached(string url, string cacheFolder, string filename = null)
+        public override string GetFileCached(string url, string cacheFolder = null, string filename = null,
+                                             bool constrainToStorage = false)
         {
+            url = CheckUrl(url, constrainToStorage);
             if (filename == null)
             {
                 var hash = SHA1.Create().ComputeHash(Encoding.UTF8.GetBytes(url));
@@ -160,7 +162,7 @@ namespace OPS.Pipeline
             string cachedFile = DownloadCachePath(cacheFolder, filename);
             if (!File.Exists(cachedFile))
             {
-                TemporaryFile.GetAndMove(cachedFile, tmpFile => Storage(url).DownloadFile(url, tmpFile));
+                TemporaryFile.GetAndMove(cachedFile, tmpFile => GetStorageHelper(url).DownloadFile(url, tmpFile));
             }
 
             return cachedFile;
@@ -168,30 +170,31 @@ namespace OPS.Pipeline
 
         public override void SaveFile(string file, string url)
         {
-            CheckUrl(url);
-            Storage(url).UploadFile(file, url);
+            url = CheckUrl(url);
+            GetStorageHelper(url).UploadFile(file, url);
         }
 
         public override void DeleteFile(string url, bool ignoreErrors = true)
         {
-            CheckUrl(url);
-            Storage(url).DeleteObject(url, ignoreErrors, Logger);
+            url = CheckUrl(url);
+            GetStorageHelper(url).DeleteObject(url, ignoreErrors, Logger);
         }
 
-        public override void DeleteFiles(string url, string pattern = "*", bool recursive = true,
+        public override void DeleteFiles(string url, string globPattern = "*", bool recursive = true,
                                          bool ignoreErrors = true)
         {
-            CheckUrl(url);
-            Storage(url).DeleteObjects(url, pattern, recursive, ignoreErrors, Logger);
+            url = CheckUrl(url);
+            GetStorageHelper(url).DeleteObjects(url, globPattern, recursive, ignoreErrors, Logger);
         }
             
-        public override IEnumerable<string> SearchFiles(string url, string pattern = "*", bool recursive = true)
+        public override IEnumerable<string> SearchFiles(string url, string globPattern = "*", bool recursive = true,
+                                                        bool constrainToStorage = false)
         {
-            CheckUrl(url);
-            return Storage(url).SearchObjects(url, pattern, recursive);
+            url = CheckUrl(url, constrainToStorage);
+            return GetStorageHelper(url).SearchObjects(url, globPattern, recursive);
         }
 
-        private void InitializeDatabaseTables()
+        protected override void InitializeDatabase()
         {
             foreach (var t in tableTypes)
             {
@@ -208,13 +211,14 @@ namespace OPS.Pipeline
             DBUtil.SaveItem(dynamoContext, obj, ignoreNulls, ignoreErrors, Logger);
         }
 
-        public override T LoadDatabaseItem<T>(string key, string secondaryKey = null, bool consistent = false,
-                                              bool ignoreErrors = false)
+        public override T LoadDatabaseItem<T>(string key, string secondaryKey = null, bool ignoreNulls = true,
+                                              bool ignoreErrors = false, bool consistent = false)
         {
-            return DBUtil.LoadItem<T>(dynamoContext, key, secondaryKey, consistent, ignoreErrors, Logger);
+            return DBUtil.LoadItem<T>(dynamoContext, key, secondaryKey, ignoreNulls: ignoreNulls,
+                                      ignoreErrors: ignoreErrors, consistent: consistent, logger: Logger);
         }
 
-        public override void DeleteDatabaseItem<T>(T obj, bool ignoreErrors = false)
+        public override void DeleteDatabaseItem(object obj, bool ignoreErrors = false)
         {
             DBUtil.DeleteItem(dynamoContext, obj, ignoreErrors, Logger);
         }
@@ -267,19 +271,23 @@ namespace OPS.Pipeline
         public MessageQueue WorkerQueue { get; private set; }
         public MessageQueue MasterQueue { get; private set; }
 
+        private string QueueName(string name)
+        {
+            return "landform-" + Venue + "-" + queuePrefix + name;
+        }
         private void InitializeQueues()
         {
-            MasterQueue = new MessageQueue(Venue + "_master", awsProfile, MASTER_QUEUE_TIMEOUT_SEC,
-                                          logger: Logger, quiet: quiet);
-            WorkerQueue = new MessageQueue(Venue + "_worker", awsProfile, WORKER_QUEUE_TIMEOUT_SEC,
-                                          logger: Logger, quiet: quiet);
+            MasterQueue = new MessageQueue(QueueName("master"), awsProfile, MASTER_QUEUE_TIMEOUT_SEC,
+                                           logger: Logger, quiet: quiet);
+            WorkerQueue = new MessageQueue(QueueName("worker"), awsProfile, WORKER_QUEUE_TIMEOUT_SEC,
+                                           logger: Logger, quiet: quiet);
         }
 
         public void DeleteQueues()
         {
             var client = MessageQueue.GetClient(awsProfile);
-            MessageQueue.DeleteQueue(client, Venue + "_master");
-            MessageQueue.DeleteQueue(client, Venue + "_worker");
+            MessageQueue.DeleteQueue(client, QueueName("master"));
+            MessageQueue.DeleteQueue(client, QueueName("worker"));
         }
     }
 }

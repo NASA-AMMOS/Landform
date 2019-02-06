@@ -15,7 +15,7 @@ namespace OPS.Pipeline.TileServer
     {
         private DeleteCacheOptions options;
 
-        public DeleteCache(DeleteCacheOptions options) : base(options)
+        public DeleteCache(DeleteCacheOptions options) : base(options, queuePrefix: "tiling")
         {
             this.options = options;
         }
