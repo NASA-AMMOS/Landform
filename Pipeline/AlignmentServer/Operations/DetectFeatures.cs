@@ -30,9 +30,8 @@ namespace OPS.Pipeline.AlignmentServer
 
     public class DetectFeatures : CloudPipelineOperation
     {
-        private static ASIFTDetector detector = new ASIFTDetector();
-
         private DetectFeaturesMessage message;
+        private FeatureDetector detector = new FeatureDetector(FeatureDetector.DetectorType.ASIFT);
 
         public DetectFeatures(CloudPipeline pipeline, DetectFeaturesMessage message) : base(pipeline, message)
         {
@@ -42,53 +41,17 @@ namespace OPS.Pipeline.AlignmentServer
         public void Process()
         {
             var project = Project.Find(pipeline, projectName);
-            var img = pipeline.LoadImage(message.ImageUrl);
-
-            Imaging.Image mask = null;
-            if (message.MaskGuid == Guid.Empty)
+            var res = detector.Detect(pipeline, message.ImageUrl, message.MaskGuid, projectName, project.ProductPath);
+            if (res != null)
             {
-                pipeline.LogWarn("No mask for {0}", message.ImageUrl);
+                pipeline.SaveDataProduct(project.ProductPath, res, projectName);
+                pipeline.MasterQueue.Enqueue(new FeaturesDetectedMessage()
+                                             {
+                                                 ImageUrl = message.ImageUrl,
+                                                 MaskGuid = message.MaskGuid,
+                                                 FeaturesGuid = res.Guid
+                                             });
             }
-            else
-            {
-                mask = pipeline.GetDataProduct<PngDataProduct>(project.ProductPath, message.MaskGuid, projectName).Image;
-            }
-
-            ImageFeature[] features = FindFeatures(message.ImageUrl, img, mask);
-            if (features == null)
-            {
-                return;
-            }
-            
-            var res = new DetectedFeatures() { ImageUrl = message.ImageUrl, Features = features };
-            pipeline.SaveDataProduct(project.ProductPath, res, projectName);
-
-            pipeline.MasterQueue.Enqueue(new FeaturesDetectedMessage()
-            {
-                ImageUrl = message.ImageUrl,
-                MaskGuid = message.MaskGuid,
-                FeaturesGuid = res.Guid
-            });
-        }
-
-        public ImageFeature[] FindFeatures(string imgName, Imaging.Image img, Imaging.Image mask)
-        {
-            ImageFeature[] features;
-
-            lock (detector)
-            {
-                try
-                {
-                    features = detector.Detect(img, mask).ToArray();
-                }
-                catch (Emgu.CV.Util.CvException ex)
-                {
-                    LogError("failed to detect for " + imgName, ex);
-                    return null;
-                }
-            }
-
-            return features.OrderByDescending(f => ((SIFTFeature)f).Response).Take(10000).ToArray();
         }
     }
 }

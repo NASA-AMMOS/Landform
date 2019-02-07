@@ -1,5 +1,6 @@
 ﻿using System;
 using System.IO;
+using System.Collections.Generic;
 using System.Collections.Concurrent;
 using System.Linq;
 using MathNet.Numerics.LinearAlgebra;
@@ -13,13 +14,18 @@ namespace OPS.Pipeline
 {
     public class IngestPDSImage : IngestImage
     {
-        private string projectName;
+        private Project project;
         private MSLLocations locations;
+        private bool recreateExistingObservations;
+        private bool resetTransforms;
 
-        public IngestPDSImage(PipelineCore pipeline, MSLLocations locations, string projectName) : base(pipeline)
+        public IngestPDSImage(PipelineCore pipeline, Project project, MSLLocations locations,
+                              bool recreateExistingObservations = false, bool resetTransforms = false) : base(pipeline)
         {
+            this.project = project;
             this.locations = locations;
-            this.projectName = projectName;
+            this.recreateExistingObservations = recreateExistingObservations;
+            this.resetTransforms = resetTransforms;
         }
 
         /// <summary>
@@ -80,7 +86,7 @@ namespace OPS.Pipeline
         bool CheckMetadata(PDSParser parser)
         {
             return productTypeToObservationType.ContainsKey(parser.DerivedImageType) &&
-                    parser.ImageSizeType == RoverProductSize.Regular;
+                parser.ImageSizeType == RoverProductSize.Regular;
         }
 
         /// <summary>
@@ -203,16 +209,12 @@ namespace OPS.Pipeline
             productTypeToObservationType.TryAdd(RoverProductType.RoverMask, ObservationType.RoverMask);
         }
 
-        private double quarterDegSqr = Math.Pow(0.25 * Math.PI / 180, 2);
-        private double halfDegSqr = Math.Pow(0.5 * Math.PI / 180, 2);
-        private double degSqr = Math.Pow(Math.PI / 180, 2);
-
         public override Result Ingest(string imgUrl)
         {
             // Parse the filename to quickly rule out data products we know we don't care about.
             if (!CheckFilename(Path.GetFileNameWithoutExtension(imgUrl)))
             {
-                return new Result(Status.Skipped, null);
+                return new Result(imgUrl, Status.Skipped, null);
             }
 
             // Fetch image and check metadata
@@ -220,13 +222,13 @@ namespace OPS.Pipeline
             
             if (metadata == null)
             {
-                return new Result(Status.Failed, null);
+                return new Result(imgUrl, Status.Failed, null);
             }
 
             PDSParser parser = new PDSParser(metadata);
             if (!CheckMetadata(parser))
             {
-                return new Result(Status.Skipped, null);
+                return new Result(imgUrl, Status.Skipped, null);
             }
 
             // Filter images with invalid camera models
@@ -236,88 +238,122 @@ namespace OPS.Pipeline
             }
             catch
             {
-                return new Result(Status.Skipped, null);
+                return new Result(imgUrl, Status.Skipped, null);
             }
 
             // Create database entries
-            Project project = Project.Find(pipeline, projectName);
-            if (project == null)
-            {
-                throw new Exception("Project does not exist");
-            }
 
-            // Create frames for this observation if necessary
-            Frame rootFrame = Frame.Find(pipeline, projectName, MSLProject.ROOT_FRAME_NAME);
+            Frame rootFrame = Frame.Find(pipeline, project.Name, project.RootFrame);
             if (rootFrame == null)
             {
-                throw new Exception("Root frame does not exist");
-            }
-            Frame siteDriveFrame = Frame.FindOrCreate(pipeline, projectName, SiteDriveFrameName(parser), rootFrame);
-            Frame observationFrame = Frame.FindOrCreate(pipeline, projectName, ObservationFrameName(parser), siteDriveFrame);
-
-            if (FrameTransform.Find(pipeline, observationFrame) == null)
-            {
-                // TODO: examine values here
-                var covariance = CreateMatrix
-                    .Diagonal<double>(new double[] { 0.01, 0.01, 0.01, quarterDegSqr, quarterDegSqr, halfDegSqr });
-
-                // Create a transform that goes from observation frame (aka rover) to site drive frame (aka local level)
-                Quaternion roverToLocalLevel = parser.RoverOriginRotation;
-                UncertainRigidTransform observationToSiteDriveTransform =
-                    new UncertainRigidTransform(Matrix.CreateFromQuaternion(roverToLocalLevel), covariance);
-                FrameTransform observationToSiteDrive =
-                    FrameTransform.Create(pipeline, observationFrame, observationToSiteDriveTransform);
-
-                TransformPrior o2sdP = TransformPrior.Create(pipeline, observationFrame, observationToSiteDriveTransform);
-                observationFrame.PriorIds.Add(o2sdP.Id);
-                observationFrame.Save(pipeline);
-            }
-            // Create a transform that goes from site drive frame to root frame
-
-            var loc = locations.Location(new SiteDrive(parser.SiteDrive));
-            if (loc == null)
-            {
-                throw new Exception("site drive transform does not exist");
+                throw new Exception(string.Format("root frame {0} does not exist", project.RootFrame));
             }
 
-            if (FrameTransform.Find(pipeline, siteDriveFrame) == null)
-            {
-                // TODO: examine values here
-                var covariance =
-                    CreateMatrix.Diagonal<double>(new double[] { 8, 8, 8, 5 * degSqr, 5 * degSqr, 5 * degSqr });
-                UncertainRigidTransform transform =
-                    new UncertainRigidTransform(Matrix.CreateTranslation(loc.Position), covariance);
-                FrameTransform siteDriveToRoot = FrameTransform.Create(pipeline, siteDriveFrame, transform);
-                TransformPrior sd2rP = TransformPrior.Create(pipeline, siteDriveFrame, transform);
-                siteDriveFrame.PriorIds.Add(sd2rP.Id);
-                siteDriveFrame.Save(pipeline);
-            }
+            // site drive frame -> root frame
+            var siteDriveFrame = FindOrCreateFrame(SiteDriveFrameName(parser), rootFrame,
+                                                   () => GetDefaultSiteDriveTransform(parser.SiteDrive));
+
+            // observation (aka rover) frame -> site drive (aka local level) frame
+            var observationFrame = FindOrCreateFrame(ObservationFrameName(parser), siteDriveFrame,
+                                                     () => GetDefaultObservationTransform(parser.RoverOriginRotation));
 
             string observationName = ObservationName(parser);
-            Observation observation = RoverObservation.Find(pipeline, projectName, observationName);
-            if (observation == null)
+            Observation observation = RoverObservation.Find(pipeline, project.Name, observationName);
+            if (observation != null)
             {
-                string cameraModel = JsonHelper.ToJson(metadata.CameraModel);
-                observation = RoverObservation.Create(pipeline, observationFrame, observationName, imgUrl,
-                                                      productTypeToObservationType[parser.DerivedImageType].ToString(),
-                                                      cameraModel, UseForReconstruction(parser, metadata),
-                                                      parser.Site, parser.Drive, parser.ProductId.Version,
-                                                      parser.Camera.ToString(), parser.ImageSizeType.ToString(),
-                                                      parser.ProducingInstitution.ToString(),
-                                                      metadata.Width, metadata.Height);
-                if (observation != null)
+                if (recreateExistingObservations)
                 {
-                    return new Result(Status.Added, observation);
+                    pipeline.LogVerbose("recreating existing observation {0}", observationName);
+                    pipeline.DeleteDatabaseItem(observation);
                 }
                 else
                 {
-                    return new Result(Status.Failed, null);
+                    pipeline.LogVerbose("not recreating existing observation {0}", observationName);
+                    return new Result(imgUrl, Status.Duplicate, observation);
                 }
+            }
+
+            observation = RoverObservation.Create(pipeline, observationFrame, observationName, imgUrl,
+                                                  productTypeToObservationType[parser.DerivedImageType].ToString(),
+                                                  JsonHelper.ToJson(metadata.CameraModel),
+                                                  UseForReconstruction(parser, metadata),
+                                                  parser.Site, parser.Drive, parser.ProductId.Version,
+                                                  parser.Camera.ToString(), parser.ImageSizeType.ToString(),
+                                                  parser.ProducingInstitution.ToString(),
+                                                  metadata.Width, metadata.Height);
+            if (observation != null)
+            {
+                pipeline.LogVerbose("created observation {0}", observationName);
+                return new Result(imgUrl, Status.Added, observation);
             }
             else
             {
-                return new Result(Status.Duplicate, observation);
+                pipeline.LogVerbose("failed to create observation {0}", observationName);
+                return new Result(imgUrl, Status.Failed, null);
             }
+        }
+
+        private double quarterDegSqr = Math.Pow(0.25 * Math.PI / 180, 2);
+        private double halfDegSqr = Math.Pow(0.5 * Math.PI / 180, 2);
+        private double degSqr = Math.Pow(Math.PI / 180, 2);
+
+        private UncertainRigidTransform GetDefaultSiteDriveTransform(string siteDrive)
+        {
+            var loc = locations.Location(new SiteDrive(siteDrive));
+            if (loc == null)
+            {
+                throw new Exception(string.Format("no MSL location for site drive {0}", siteDrive));
+            }
+            
+            // TODO: examine values here
+            var covariance = CreateMatrix
+                .Diagonal<double>(new double[] { 8, 8, 8, 5 * degSqr, 5 * degSqr, 5 * degSqr });
+            
+            return new UncertainRigidTransform(Matrix.CreateTranslation(loc.Position), covariance);
+        }
+
+        private UncertainRigidTransform GetDefaultObservationTransform(Quaternion roverToLocalLevel)
+        {
+            // TODO: examine values here
+            var covariance = CreateMatrix
+                .Diagonal<double>(new double[] { 0.01, 0.01, 0.01, quarterDegSqr, quarterDegSqr, halfDegSqr });
+
+            return new UncertainRigidTransform(Matrix.CreateFromQuaternion(roverToLocalLevel), covariance);
+        }
+
+        private ConcurrentDictionary<string, bool> alreadyResetTransforms = new ConcurrentDictionary<string, bool>();
+
+        private Frame FindOrCreateFrame(string name, Frame parent, Func<UncertainRigidTransform> defTransform)
+        {
+            var frame = Frame.FindOrCreate(pipeline, project.Name, name, parent);
+            var frameTransform = FrameTransform.Find(pipeline, frame);
+            if (frameTransform == null)
+            {
+                pipeline.LogVerbose("creating transform for frame {0}", name);
+                var transform = defTransform();
+                frameTransform = FrameTransform.Create(pipeline, frame, transform);
+                var prior = TransformPrior.Create(pipeline, frame, transform);
+                frame.PriorIds.Add(prior.Id);
+                frame.Save(pipeline);
+            }
+            else if (resetTransforms && !alreadyResetTransforms.ContainsKey(name))
+            {
+                pipeline.LogVerbose("resetting transform for frame {0}", name);
+                var transform = defTransform();
+                frameTransform.Transform = transform;
+                frameTransform.Save(pipeline);
+                foreach (var id in frame.PriorIds)
+                {
+                    var prior = TransformPrior.Find(pipeline, project.Name, id);
+                    if (prior != null && prior.FrameName == name)
+                    {
+                        prior.Transform = transform;
+                        prior.Save(pipeline);
+                    }
+                }
+                alreadyResetTransforms.TryAdd(name, true);
+            }
+            return frame;
         }
     }
 }

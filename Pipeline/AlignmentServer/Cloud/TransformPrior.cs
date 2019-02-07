@@ -1,11 +1,9 @@
-﻿using Amazon.DynamoDBv2.DataModel;
-using MathNet.Numerics.LinearAlgebra;
-using OPS.Geometry;
-using System;
+﻿using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+using Amazon.DynamoDBv2.DataModel;
+using MathNet.Numerics.LinearAlgebra;
+using Newtonsoft.Json;
+using OPS.Geometry;
 
 namespace OPS.Pipeline.AlignmentServer
 {
@@ -24,11 +22,15 @@ namespace OPS.Pipeline.AlignmentServer
         public string FrameName { get; set; }
 
         [DynamoDBProperty("Mean", typeof(VectorNConverter))]
+        [JsonConverter(typeof(VectorNConverter))]
         public Vector<double> Mean { get; set; }
+
         [DynamoDBProperty("Covariance", typeof(SquareMatrixConverter))]
+        [JsonConverter(typeof(SquareMatrixConverter))]
         public Matrix<double> Covariance { get; set; }
 
         [DynamoDBIgnore]
+        [JsonIgnore]
         public UncertainRigidTransform Transform
         {
             get
@@ -43,10 +45,7 @@ namespace OPS.Pipeline.AlignmentServer
         }
 
         //This constructor must be public for DynamoDb but should not be used
-        public TransformPrior()
-        {
-
-        }
+        public TransformPrior() { }
 
         /// <summary>
         /// Creates a new prior on the value of a transform
@@ -69,6 +68,11 @@ namespace OPS.Pipeline.AlignmentServer
         public static TransformPrior Find(PipelineCore pipeline, string project, string id)
         {
             return pipeline.LoadDatabaseItem<TransformPrior>(id, project);
+        }
+
+        public void Save(PipelineCore pipeline)
+        {
+            pipeline.SaveDatabaseItem(this);
         }
     }
 }

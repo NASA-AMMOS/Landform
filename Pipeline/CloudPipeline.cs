@@ -25,15 +25,17 @@ namespace OPS.Pipeline
         private readonly IAmazonDynamoDB dynamoClient;
         private readonly DynamoDBContext dynamoContext;
         private readonly string queuePrefix;
+        private readonly string tablePrefix;
 
         private readonly StorageHelper defaultStorage;
         private readonly Dictionary<string, StorageHelper> storageSelect = new Dictionary<string, StorageHelper>();
 
         public CloudPipeline(PipelineCoreOptions options, ILog logger = null, int lruCache = 100, bool quiet = false,
                              bool enableS3 = true, bool enableDynamo = true,
-                             bool initQueues = true, bool initTables = true, string queuePrefix = null)
+                             bool initQueues = true, bool initTables = true,
+                             string queuePrefix = null, string tablePrefix = null)
             : base(options, CloudPipelineConfig.Instance,
-                   StringHelper.EnsureProtocol("s3://", CloudPipelineConfig.Instance.S3Url).Replace('\\','/'),
+                   StringHelper.NormalizeUrl(CloudPipelineConfig.Instance.S3Url, "s3://"),
                    CloudPipelineConfig.Instance.Venue, logger, lruCache, quiet)
         {
             var cloudConfig = (CloudPipelineConfig)Config;
@@ -49,36 +51,39 @@ namespace OPS.Pipeline
                 defaultStorage = new StorageHelper(awsProfile, "us-west-1");
             }
 
+            Func<string, string> makePrefix = (pfx) => {
+                if (string.IsNullOrEmpty(pfx))
+                {
+                    pfx = "";
+                }
+                else if (!pfx.EndsWith("-"))
+                {
+                    pfx += "-";
+                }
+                return "landform-" + Venue + "-" + pfx;
+            };
+
             if (enableDynamo)
             {
+                this.tablePrefix = makePrefix(tablePrefix);
                 string dynamoUrl = cloudConfig.DynamoUrl;
                 if (dynamoUrl == null || dynamoUrl == "null")
                 {
                     dynamoUrl = "";
                 }
-                dynamoContext = DBUtil.MakeContext(Venue, awsProfile, dynamoUrl);
+                dynamoContext = DBUtil.MakeContext(this.tablePrefix, awsProfile, dynamoUrl);
                 dynamoClient = DBUtil.GetClientForContext(dynamoContext);
                 if (initTables)
                 {
                     InitializeDatabase();
-                    LogInfo("tables initialized");
                 }
             }
 
             if (initQueues)
             {
+                this.queuePrefix = makePrefix(queuePrefix);
                 InitializeQueues();
-                LogInfo("queues initialized");
             }
-            if (queuePrefix == null)
-            {
-                queuePrefix = "";
-            }
-            if (!queuePrefix.EndsWith("-"))
-            {
-                queuePrefix += "-";
-            }
-            this.queuePrefix = queuePrefix;
 
             //TODO MSL specific
             string msliceAWSProfile = cloudConfig.MSLICEAWSProfile;
@@ -117,7 +122,7 @@ namespace OPS.Pipeline
 
         protected string CheckUrl(string url, bool constrainToStorage = true)
         {
-            url = StringHelper.EnsureProtocol("s3://", url).Replace('\\','/');
+            url = StringHelper.NormalizeUrl(url, "s3://");
             if (constrainToStorage)
             {
                 CheckStorageUrl(url);
@@ -194,16 +199,19 @@ namespace OPS.Pipeline
             return GetStorageHelper(url).SearchObjects(url, globPattern, recursive);
         }
 
-        protected override void InitializeDatabase()
+        private void InitializeDatabase()
         {
+            int n = 0;
             foreach (var t in tableTypes)
             {
-                DBUtil.CreateOrUpdateTable(dynamoClient, t, Venue, quiet ? null : Logger);
+                DBUtil.CreateOrUpdateTable(dynamoClient, t, tablePrefix, quiet ? null : Logger);
+                n++;
             }
             foreach (var t in tableTypes)
             {
-                DBUtil.WaitForTable(dynamoClient, t, Venue, logger: quiet ? null : Logger);
+                DBUtil.WaitForTable(dynamoClient, t, tablePrefix, logger: quiet ? null : Logger);
             }
+            LogInfo("{0} tables initialized", n);
         }
 
         public override void SaveDatabaseItem<T>(T obj, bool ignoreNulls = true, bool ignoreErrors = false )
@@ -271,23 +279,20 @@ namespace OPS.Pipeline
         public MessageQueue WorkerQueue { get; private set; }
         public MessageQueue MasterQueue { get; private set; }
 
-        private string QueueName(string name)
-        {
-            return "landform-" + Venue + "-" + queuePrefix + name;
-        }
         private void InitializeQueues()
         {
-            MasterQueue = new MessageQueue(QueueName("master"), awsProfile, MASTER_QUEUE_TIMEOUT_SEC,
+            MasterQueue = new MessageQueue(queuePrefix + "master", awsProfile, MASTER_QUEUE_TIMEOUT_SEC,
                                            logger: Logger, quiet: quiet);
-            WorkerQueue = new MessageQueue(QueueName("worker"), awsProfile, WORKER_QUEUE_TIMEOUT_SEC,
+            WorkerQueue = new MessageQueue(queuePrefix + "worker", awsProfile, WORKER_QUEUE_TIMEOUT_SEC,
                                            logger: Logger, quiet: quiet);
+            LogInfo("queues initialized");
         }
 
         public void DeleteQueues()
         {
             var client = MessageQueue.GetClient(awsProfile);
-            MessageQueue.DeleteQueue(client, QueueName("master"));
-            MessageQueue.DeleteQueue(client, QueueName("worker"));
+            MessageQueue.DeleteQueue(client, queuePrefix + "master");
+            MessageQueue.DeleteQueue(client, queuePrefix + "worker");
         }
     }
 }

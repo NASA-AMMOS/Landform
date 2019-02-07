@@ -34,6 +34,15 @@ namespace OPS.Pipeline.AlignmentServer
         [Option(HelpText = "Optional directory to save debug output files to", Default = null)]
         public string DebugOutputFolder { get; set; }
 
+        [Option(HelpText = "Recreate project if it already exists", Default = false)]
+        public bool RedoProject { get; set; }
+
+        [Option(HelpText = "Recreate observations that already exist", Default = false)]
+        public bool RedoObservations { get; set; }
+
+        [Option(HelpText = "Recreate transform priors that already exist", Default = false)]
+        public bool RedoPriors { get; set; }
+
         [Option(HelpText = "Recompute all masks (implies --RedoFeatures)", Default = false)]
         public bool RedoMasks { get; set; }
 
@@ -142,16 +151,16 @@ namespace OPS.Pipeline.AlignmentServer
     {
         protected CloudPipeline pipeline;
         protected StartAlignMasterOptions options;
-        protected ConcurrentDictionary<string, ImageState> observationStates; //indexed by image URL
+        protected ConcurrentDictionary<string, ImageState> imageStates; //indexed by image URL
 
         protected TypeDispatcher dispatcher;
 
         public Stage(CloudPipeline pipeline, StartAlignMasterOptions options,
-                     ConcurrentDictionary<string, ImageState> observationStates)
+                     ConcurrentDictionary<string, ImageState> imageStates)
         {
             this.pipeline = pipeline;
             this.options = options;
-            this.observationStates = observationStates;
+            this.imageStates = imageStates;
         }
 
         public abstract void Run();
@@ -176,8 +185,8 @@ namespace OPS.Pipeline.AlignmentServer
         private ConcurrentBag<string> ingestionCompleted; //image URLs
 
         public IngestStage(CloudPipeline pipeline, StartAlignMasterOptions options,
-                           ConcurrentDictionary<string, ImageState> observationStates)
-            : base(pipeline, options, observationStates)
+                           ConcurrentDictionary<string, ImageState> imageStates)
+            : base(pipeline, options, imageStates)
         {
             dispatcher = new TypeDispatcher()
                 .Case<MaskCreatedMessage>(MaskDone)
@@ -194,57 +203,64 @@ namespace OPS.Pipeline.AlignmentServer
             var projectName = options.ProjectName;
 
             var initializer = new InitializeAlignmentProject(pipeline);
-            var project = initializer.Initialize(projectName, options.ProductPath, options.InputPath);
+            var productUrl = StringHelper.NormalizeSlashes(options.ProductPath);
+            var inputUrl = StringHelper.NormalizeSlashes(options.InputPath);
+            var project = initializer.Initialize(projectName, productUrl, inputUrl, options.RedoProject);
 
-            var mslLocations = MSLLocations.LoadFromUrl();
-
-            var ingester = new IngestAlignmentInputs(pipeline);
-            ingester.Ingest(project, mslLocations, ingestionResult => {
-                    
-                    var obs = ingestionResult.Observation;
-                    var obsUrl = obs.Url;
-                    
+            Action<IngestImage.Result> handler = res => {
+                
+                var obs = res.Observation;
+                
+                if (obs.ObservationType == ObservationType.Image.ToString())
+                {
                     var newState = new ImageState() { Observation = obs, Overlaps = new List<OverlapState>() };
-
-                    if (!observationStates.TryAdd(obsUrl, newState))
+                    
+                    if (!imageStates.TryAdd(obs.Url, newState))
                     {
-                        throw new Exception("failed to insert new observation state for " + obsUrl);
+                        throw new Exception("failed to insert new observation state for " + obs.Url);
                     }
-
-                    ingestionRequested.Add(obsUrl);
-
+                    
+                    ingestionRequested.Add(obs.Url);
+                    
                     if (ValidGuid(obs.MaskGuid) && !options.RedoMasks)
                     {
-                        if (ValidGuid(obs.FeaturesGuid) && !options.RedoFeatures)
-                        {
-                            //skip feature detection
-                            pipeline.MasterQueue.Enqueue(new FeaturesDetectedMessage(projectName)
-                            { ImageUrl = obsUrl, MaskGuid = obs.MaskGuid, FeaturesGuid = obs.FeaturesGuid });
-                        }
-                        else
-                        {
-                            //skip mask generation
-                            pipeline.MasterQueue.Enqueue(new MaskCreatedMessage(projectName)
-                            { ImageUrl = obsUrl, MaskGuid = obs.MaskGuid });
-                        }
+                        //skip mask generation
+                        pipeline.MasterQueue.Enqueue(new MaskCreatedMessage(projectName)
+                                                     { ImageUrl = obs.Url, MaskGuid = obs.MaskGuid });
                     }
                     else
                     {
-                        pipeline.WorkerQueue.Enqueue(new CreateMaskMessage(projectName) { ImageUrl = obsUrl });
+                        pipeline.WorkerQueue.Enqueue(new CreateMaskMessage(projectName) { ImageUrl = obs.Url });
                     }
-                });
+                }
+            };
 
+            var mslLocations = MSLLocations.LoadFromUrl();
+            var ingester = new IngestAlignmentInputs(pipeline, project, mslLocations, options.RedoObservations,
+                                                     options.RedoPriors);
+            ingester.Ingest(handler, recursive: false);
+            
             pipeline.LogInfo(ingestionRequested.Count() + " observations created, doing masks & features");
         }
         
         private void MaskDone(MaskCreatedMessage message)
         {
-            var state = observationStates[message.ImageUrl];
-            state.MaskGuid = message.MaskGuid;
-            state.Observation.MaskGuid = state.MaskGuid;
-            state.Observation.Save(pipeline);
+            var state = imageStates[message.ImageUrl];
+            var obs = state.Observation;
+            obs.MaskGuid = state.MaskGuid = message.MaskGuid;
+            obs.Save(pipeline);
 
-            if (state.Observation.ObservationType == ObservationType.Image.ToString())
+            if (ValidGuid(obs.FeaturesGuid) && !options.RedoFeatures)
+            {
+                //skip feature detection
+                pipeline.MasterQueue.Enqueue(new FeaturesDetectedMessage(message.ProjectName)
+                {
+                    ImageUrl = message.ImageUrl,
+                    MaskGuid = message.MaskGuid,
+                    FeaturesGuid = obs.FeaturesGuid
+                });
+            }
+            else
             {
                 pipeline.WorkerQueue.Enqueue(new DetectFeaturesMessage(message.ProjectName)
                 {
@@ -252,33 +268,22 @@ namespace OPS.Pipeline.AlignmentServer
                     MaskGuid = message.MaskGuid
                 });
             }
-            else
-            {
-                //skip feature detection
-                pipeline.MasterQueue.Enqueue(new FeaturesDetectedMessage(message.ProjectName)
-                {
-                    ImageUrl = message.ImageUrl,
-                    MaskGuid = message.MaskGuid,
-                    FeaturesGuid = Guid.Empty
-                });
-            }
         }
 
         private void FeaturesDone(FeaturesDetectedMessage message)
         {
-            var state = observationStates[message.ImageUrl];
-            state.FeaturesGuid = message.FeaturesGuid;
-            state.Observation.FeaturesGuid = state.FeaturesGuid;
-            state.Observation.MaskGuid = state.MaskGuid;
-            state.Observation.Save(pipeline);
+            var state = imageStates[message.ImageUrl];
+            var obs = state.Observation;
+            obs.FeaturesGuid = state.FeaturesGuid = message.FeaturesGuid;
+            obs.Save(pipeline);
 
             ingestionCompleted.Add(message.ImageUrl);
 
             if (ingestionCompleted.Count == ingestionRequested.Count)
             {
-                var matchStage = new MatchStage(pipeline, options, observationStates);
-                ((AlignmentMaster)pipeline).CurrentStage = matchStage;
-                matchStage.Run();
+                var am = pipeline as AlignmentMaster;
+                am.CurrentStage = new MatchStage(pipeline, options, imageStates);
+                am.CurrentStage.Run();
             }
         }
     }
@@ -289,8 +294,8 @@ namespace OPS.Pipeline.AlignmentServer
         private int computedOverlaps;
 
         public MatchStage(CloudPipeline pipeline, StartAlignMasterOptions options,
-                          ConcurrentDictionary<string, ImageState> observationStates)
-            : base(pipeline, options, observationStates)
+                          ConcurrentDictionary<string, ImageState> imageStates)
+            : base(pipeline, options, imageStates)
         {
             dispatcher = new TypeDispatcher()
                 .Case<ImagesMatchedMessage>(MatchDone);
@@ -315,8 +320,7 @@ namespace OPS.Pipeline.AlignmentServer
             var scene = sb.Build(Frame.Find(pipeline, projectName, "root"), new BuildSceneGraph.Options()
             {
                 GetTransform = sb.StandardFrameTransform,
-                IncludeObservation = (obs, _) =>
-                observationStates.ContainsKey(obs.Url) && obs.ObservationType == ObservationType.Image.ToString()
+                IncludeObservation = (obs, _) => imageStates.ContainsKey(obs.Url)
             });
             fod.Detect(scene);
 
@@ -328,11 +332,11 @@ namespace OPS.Pipeline.AlignmentServer
 
                 int idx = allOverlaps.Count;
                 allOverlaps.Add(os);
-                observationStates[modelUrl].Overlaps.Add(os);
-                observationStates[dataUrl].Overlaps.Add(os);
+                imageStates[modelUrl].Overlaps.Add(os);
+                imageStates[dataUrl].Overlaps.Add(os);
 
-                var modelState = observationStates[modelUrl];
-                var dataState = observationStates[dataUrl];
+                var modelState = imageStates[modelUrl];
+                var dataState = imageStates[dataUrl];
 
                 pipeline.WorkerQueue.Enqueue(new MatchImagesMessage(projectName)
                 {
@@ -359,9 +363,7 @@ namespace OPS.Pipeline.AlignmentServer
             state.Pair = new URLPair(modelUrl, dataUrl);
 
             // create db entry once all of the work is done - natural rate limiting
-            var dbOverlap = Overlap.Create(pipeline,
-                                           observationStates[modelUrl].Observation,
-                                           observationStates[dataUrl].Observation);
+            var dbOverlap = Overlap.Create(pipeline, imageStates[modelUrl].Observation, imageStates[dataUrl].Observation);
             if (dbOverlap != null)
             {
                 dbOverlap.Status =
@@ -383,8 +385,7 @@ namespace OPS.Pipeline.AlignmentServer
                 AlignmentScene scene = bsg.Build(frame, new BuildSceneGraph.Options
                 {
                     GetTransform = bsg.StandardFrameTransform,
-                    IncludeObservation = (obs, _) =>
-                    observationStates.ContainsKey(obs.Url) && obs.ObservationType == ObservationType.Image.ToString()
+                    IncludeObservation = (obs, _) => imageStates.ContainsKey(obs.Url)
 
                 });
                 foreach (var node in scene.ImageToNode.Values)

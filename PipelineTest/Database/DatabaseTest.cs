@@ -44,8 +44,8 @@ namespace PipelineTest
                 new CloudPipeline(new PipelineCoreOptions { Quiet = false, Debug = false }, enableS3: false);
 
             //set up project, some frames 
-            p = Project.Create(pipeline, project, "url", "url2");
-            p2 = Project.Create(pipeline, project2, "url", "url2");
+            p = Project.Create(pipeline, project, "url", "url2", "root");
+            p2 = Project.Create(pipeline, project2, "url", "url2", "root");
             f1 = Frame.Create(pipeline, project, frame); 
             f2 = Frame.Create(pipeline, project, frame2);
             f1p2 = Frame.Create(pipeline, project2, frame); //frame in other project

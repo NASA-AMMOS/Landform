@@ -20,7 +20,7 @@ namespace OPS.Pipeline
         public LocalPipeline(PipelineCoreOptions options, ILog logger = null, int lruCache = 100, bool quiet = false,
                              bool initTables = true)
             : base(options, LocalPipelineConfig.Instance,
-                   StringHelper.EnsureProtocol("file://", LocalPipelineConfig.Instance.StorageDir).Replace('\\','/'),
+                   StringHelper.NormalizeUrl(LocalPipelineConfig.Instance.StorageDir, "file://"),
                    LocalPipelineConfig.Instance.Venue, logger, lruCache, quiet)
         {
             if (initTables)
@@ -37,9 +37,9 @@ namespace OPS.Pipeline
             Logger.Info("storage directory: " + localConfig.StorageDir);
         }
 
-        private string CheckUrl(string url, bool constrainToStorage = true)
+        private string CheckUrl(string url, bool constrainToStorage = true, bool preserveTrailingSlash = false)
         {
-            url = StringHelper.EnsureProtocol("file://", url).Replace('\\','/');
+            url = StringHelper.NormalizeUrl(url, "file://", preserveTrailingSlash);
             if (constrainToStorage)
             {
                 CheckStorageUrl(url);
@@ -69,7 +69,7 @@ namespace OPS.Pipeline
             url = CheckUrl(url);
             string dest = url.Substring(7);
             PathHelper.EnsureExists(Path.GetDirectoryName(dest));
-            File.Copy(file, dest);
+            File.Copy(file, dest, overwrite: true);
         }
 
         public override void DeleteFile(string url, bool ignoreErrors = true)
@@ -96,7 +96,7 @@ namespace OPS.Pipeline
         public override void DeleteFiles(string url, string globPattern = "*", bool recursive = true,
                                          bool ignoreErrors = true)
         {
-            url = CheckUrl(url);
+            url = CheckUrl(url, constrainToStorage: true, preserveTrailingSlash: true);
             try
             {
                 foreach (var u in SearchFiles(url, globPattern, recursive, constrainToStorage: true))
@@ -135,7 +135,8 @@ namespace OPS.Pipeline
         public override IEnumerable<string> SearchFiles(string url, string globPattern = "*", bool recursive = true,
                                                         bool constrainToStorage = false)
         {
-            url = CheckUrl(url, constrainToStorage); //ensures url starts with "file://", replaces backslashes
+            //ensures url starts with "file://", replaces backslashes
+            url = CheckUrl(url, constrainToStorage, preserveTrailingSlash: true);
             int sep = url.LastIndexOf('/');
             string dir = null, stem = null;
             if (sep == 6 || sep == url.Length-1)
@@ -153,22 +154,26 @@ namespace OPS.Pipeline
                     CheckStorageUrl(dir);
                 }
             }
-            List<string> files = new List<string>();
-            dir = Path.GetFullPath(url.Substring(7)); //strip "file://"
+            dir = Path.GetFullPath(dir.Substring(7)).Replace('\\', '/'); //strip "file://"
             if (!Directory.Exists(dir))
             {
-                return files;
+                yield break;
             }
-            var regex = StringHelper.WildCardToRegularExression(dir + "/" + stem + globPattern);
+            dir = StringHelper.EnsureTrailingSlash(dir);
+            var regex = StringHelper.WildCardToRegularExression(dir + stem + globPattern);
+            //LogDebug("SearchFiles dir={0}, stem={1}, globPattern={2}, recursive={3}, regex={4}",
+            //         dir, stem, globPattern, recursive, regex);
             foreach (var f in PathHelper.ListFiles(dir, recursive: recursive))
             {
                 var fn = f.FullName.Replace('\\', '/');
+                //LogDebug(fn);
                 if (regex.IsMatch(fn))
                 {
-                    files.Add("file://" + fn);
+                    var ret = "file://" + fn;
+                    //LogDebug(ret);
+                    yield return ret;
                 }
             }
-            return files;
         }
 
         private static readonly char[] invalidChars = new char[] {'/', '\\' };
@@ -180,59 +185,48 @@ namespace OPS.Pipeline
             public readonly string HashKey;
             public readonly string RangeKey;
 
-            public readonly Dictionary<string, string> JSONFieldToDBField, DBFieldToJSONField;
+            public readonly Dictionary<string, DBUtil.PropInfo> JSONPropToDBProp;
+            public readonly Dictionary<string, string> DBPropToJSONProp;
 
-            public TableInfo(string typeName, string name, string hashKey, string rangeKey,
-                             Dictionary<string, string> jsonFieldToDBField = null)
+            private void Check(string field, string value, bool nullOk)
             {
-                Action<string, string, bool> check = (field, value, nullOK) => {
-                    if (string.IsNullOrEmpty(value))
+                if (string.IsNullOrEmpty(value))
+                {
+                    if (!nullOk)
                     {
-                        if (!nullOK)
-                        {
-                            throw new Exception(string.Format("missing database {0} for type {1}",
-                                                              field, typeName));
-                        }
+                        throw new Exception(string.Format("{0} cannot be null or empty for {1}", field, TypeName));
                     }
-                    else if (value.IndexOfAny(invalidChars) >= 0)
-                    {
-                        throw new Exception(string.Format("invalid database {0} for type {1}: \"{2}\"",
-                                                          field, typeName, name));
-                    }
-                };
-                check("table name", name, false);
-                check("hash key", hashKey, false);
-                check("range key", rangeKey, true);
+                }
+                else if (value.IndexOfAny(invalidChars) >= 0)
+                {
+                    throw new Exception(string.Format("invalid {0} \"{1}\" for {2}", field, value, TypeName));
+                }
+            }
 
-                this.TypeName = name;
+            public TableInfo(Type type, string name, string hashKey, string rangeKey)
+            {
+                this.TypeName = type.FullName;
+
+                Check("table name", name, false);
+                Check("hash key", hashKey, false);
+                Check("range key", rangeKey, true);
+
                 this.Name = name;
                 this.HashKey = hashKey;
                 this.RangeKey = rangeKey;
-                if (jsonFieldToDBField != null)
+
+                JSONPropToDBProp = DBUtil.GetDynamoDBPropMap(type);
+                DBPropToJSONProp = new Dictionary<string, string>();
+                foreach (var entry in JSONPropToDBProp)
                 {
-                    this.JSONFieldToDBField = jsonFieldToDBField;
-                    this.DBFieldToJSONField = new Dictionary<string, string>();
-                    foreach (var entry in jsonFieldToDBField)
-                    {
-                        this.DBFieldToJSONField.Add(entry.Value, entry.Key);
-                    }
-                }
-                else
-                {
-                    this.JSONFieldToDBField = this.DBFieldToJSONField = new Dictionary<string, string>();
+                    DBPropToJSONProp.Add(entry.Value.DynamoDBPropName, entry.Key);
                 }
             }
 
             public string MakeKey(string hashValue, string rangeValue)
             {
-                Action<string, string> check = (field, value) => {
-                    if (value.IndexOfAny(invalidChars) >= 0)
-                    {
-                        throw new ArgumentException(string.Format("database {0} value \"{1}\" invalid", field, value));
-                    }
-                };
-                check("hash key", hashValue);
-                check("range key", rangeValue);
+                Check("hash key", hashValue, false);
+                Check("range key", rangeValue, RangeKey == null);
                 return Name + "/" + hashValue + (!string.IsNullOrEmpty(RangeKey) ? ("/" + rangeValue) : "");
             }
 
@@ -246,32 +240,33 @@ namespace OPS.Pipeline
 
         private ConcurrentDictionary<Type, TableInfo> dbInfo = new ConcurrentDictionary<Type, TableInfo>();
 
-        //tableName/haskHey[/rangeKey] -> JSON
-        //corresponding file on disk is storageUrlWithVenue/db/tableName/hashKey[-rangeKey].json
-        private ConcurrentDictionary<string, string> dbCache = new ConcurrentDictionary<string, string>();
-
         private TableInfo GetTableInfo(Type type)
         {
             return dbInfo.GetOrAdd(type, _ => {
                     string name = null, hashKey = null, rangeKey = null;
                     DBUtil.GetNameAndKeys(type, out name, out hashKey, out rangeKey, useDynamoDBPropertyNames: false);
-                    return new TableInfo(type.FullName, name, hashKey, rangeKey, DBUtil.GetDynamoDBFieldMap(type));
+                    return new TableInfo(type, name, hashKey, rangeKey);
                 });
         }
 
-        private static string ToJson(object obj, bool ignoreNulls)
+        private static string ToJson(object obj, bool ignoreNulls = true, bool indent = true)
         {
-            return JsonHelper.ToJson(obj, indent: true, autoTypes: false, ignoreNulls: ignoreNulls);
+            return JsonHelper.ToJson(obj, indent: indent, autoTypes: false, ignoreNulls: ignoreNulls);
         }
 
-        private static T FromJson<T>(string json, bool ignoreNulls)
+        private static T FromJson<T>(string json, bool ignoreNulls = true)
         {
             return JsonHelper.FromJson<T>(json, autoTypes: false, ignoreNulls: ignoreNulls);
         }
 
-        private static object FromJson(string json, object obj, bool ignoreNulls)
+        private static object FromJson(string json, object obj, bool ignoreNulls = true)
         {
             return JsonHelper.FromJson(json, obj, autoTypes: false, ignoreNulls: ignoreNulls);
+        }
+
+        private static object FromJson(string json, Type type, bool ignoreNulls = true)
+        {
+            return FromJson(json, Activator.CreateInstance(type), ignoreNulls);
         }
 
         private string GetDatabaseTableUrl(TableInfo ti)
@@ -286,26 +281,40 @@ namespace OPS.Pipeline
             return GetDatabaseTableUrl(ti) + hash + (!string.IsNullOrEmpty(range) ? "-" + range : "") + ".json";
         }
 
-        protected override void InitializeDatabase()
+        //indexed by tableName/haskHey[/rangeKey]
+        //corresponding file on disk is storageUrlWithVenue/db/tableName/hashKey[-rangeKey].json
+        private ConcurrentDictionary<string, object> dbCache = new ConcurrentDictionary<string, object>();
+
+        private void InitializeDatabase()
         {
+            int nt = 0, ni = 0;
             foreach (var t in tableTypes)
             {
+                nt++;
                 var ti = GetTableInfo(t);
                 var baseUrl = GetDatabaseTableUrl(ti);
+                int nti = 0;
                 foreach (var url in SearchFiles(baseUrl, recursive: true, constrainToStorage: true))
                 {
                     if (url.ToLower().EndsWith(".json"))
                     {
+                        ni++;
+                        nti++;
                         string file = GetFileCached(url);
-                        string key = Path.GetFileNameWithoutExtension(file);
-                        string json = File.ReadAllText(file);
-                        dbCache.AddOrUpdate(key, _ => json, (_, __) => json);
+                        object obj = FromJson(File.ReadAllText(file), t);
+                        string key = ti.MakeKey(obj);
+                        LogDebug("{0} -> \"{1}\" -> {2} {3}", file, key, t.FullName, ToJson(obj, indent: false));
+                        dbCache.AddOrUpdate(key, _ => obj, (_, __) => obj);
                     }
                 }
+                LogVerbose("initialized table {0} of {1} {2} from {3}, hashKey={4}, rangeKey={5}",
+                        ti.Name, nti, ti.TypeName, baseUrl, ti.HashKey, ti.RangeKey);
             }
+            LogVerbose("initialized {0} database tables, {1} total items", nt, ni);
         }
 
-        private T CheckDatabaseOperation<T>(string what, bool ignoreErrors, Func<T> op) where T : class
+        private T CheckDatabaseOperation<T>(string what, TableInfo ti, string key, bool ignoreErrors, Func<T> op)
+            where T : class
         {
             T ret = null;
             try
@@ -314,7 +323,7 @@ namespace OPS.Pipeline
             }
             catch (Exception e)
             {
-                LogWarn("error {0} database object ({1}): {2}", what, e.GetType().FullName, e.Message);
+                LogWarn("error {0} database object {1} ({2}): {3}", what, key, e.GetType().FullName, e.Message);
                 if (!ignoreErrors)
                 {
                     throw;
@@ -323,23 +332,30 @@ namespace OPS.Pipeline
             return ret;
         }
 
+        private object dbDiskLock = new object();
+
         public override void SaveDatabaseItem<T>(T obj, bool ignoreNulls = true, bool ignoreErrors = false)
         {
-            CheckDatabaseOperation<object>("saving", ignoreErrors, () => {
-                    var ti = GetTableInfo(typeof(T));
-                    string key = ti.MakeKey(obj);
-                    string json = dbCache.AddOrUpdate(key,
-                                                      _ => ToJson(obj, ignoreNulls), //add new item
-                                                      (_, existingJson) => { //update existing item
-                                                          T existingObject = FromJson<T>(existingJson, ignoreNulls);
-                                                          string newJson = ToJson(obj, ignoreNulls);
-                                                          FromJson(newJson, existingObject, ignoreNulls);
-                                                          return ToJson(existingObject, ignoreNulls);
-                                                      });
+            var ti = GetTableInfo(typeof(T));
+            var key = ti.MakeKey(obj);
+
+            CheckDatabaseOperation<object>("saving", ti, key, ignoreErrors, () => {
+
+                    obj = (T) dbCache.AddOrUpdate
+                    (key,
+                     (_) => ignoreNulls ? FromJson(ToJson(obj, ignoreNulls: true), typeof(T), true) : obj,
+                     (_, old) => ignoreNulls ? FromJson(ToJson(obj, ignoreNulls: true), old, true) : obj);
+                     
+                    LogDebug("SaveDatabaseItem key={0}, obj={1}", key, ToJson(obj, indent: false));
+
                     TemporaryFile.GetAndDelete(".json", file => {
-                            File.WriteAllText(file, json);
-                            SaveFile(GetDatabaseItemUrl(ti, obj), file);
+                            File.WriteAllText(file, ToJson(obj, ignoreNulls: false));
+                            lock (dbDiskLock)
+                            {
+                                SaveFile(file, GetDatabaseItemUrl(ti, obj));
+                            }
                         });
+
                     return null;
                 });
         }
@@ -347,28 +363,31 @@ namespace OPS.Pipeline
         public override T LoadDatabaseItem<T>(string key, string secondaryKey = null, bool ignoreNulls = true,
                                               bool ignoreErrors = false, bool consistent = false)
         {
-            return CheckDatabaseOperation<T>("loading", ignoreErrors, () => {
-                    var ti = GetTableInfo(typeof(T));
-                    string json = null;
-                    if (!dbCache.TryGetValue(ti.MakeKey(key, secondaryKey), out json))
-                    {
-                        return null;
-                    }
-                    return FromJson<T>(json, ignoreNulls);
+            var ti = GetTableInfo(typeof(T));
+            key = ti.MakeKey(key, secondaryKey);
+            return CheckDatabaseOperation<T>("loading", ti, key, ignoreErrors, () => {
+                    object obj = null;
+                    dbCache.TryGetValue(key, out obj);
+                    LogDebug("LoadDatabaseItem key={0}, obj={1}", key, ToJson(obj, indent: false));
+                    return (T) obj;
                 });
         }
 
         public override void DeleteDatabaseItem(object obj, bool ignoreErrors = false)
         {
-            CheckDatabaseOperation<object>("deleting", ignoreErrors, () => {
-                    var ti = GetTableInfo(obj.GetType());
-                    string key = ti.MakeKey(obj);
-                    string dummy = null;
+            var ti = GetTableInfo(obj.GetType());
+            var key = ti.MakeKey(obj);
+            CheckDatabaseOperation<object>("deleting", ti, key, ignoreErrors, () => {
+                    object dummy = null;
                     if (!dbCache.TryRemove(key, out dummy))
                     {
-                        throw new Exception("failed to remove item from memory cache");
+                        throw new Exception("failed to remove database item from memory cache");
                     }
-                    DeleteFile(GetDatabaseItemUrl(ti, obj), ignoreErrors);
+                    LogDebug("DeleteDatabaseItem key={0}, obj={1}", key, ToJson(obj, indent: false));
+                    lock (dbDiskLock)
+                    {
+                        DeleteFile(GetDatabaseItemUrl(ti, obj), ignoreErrors);
+                    }
                     return null;
                 });
         }
@@ -376,15 +395,14 @@ namespace OPS.Pipeline
         public override IEnumerable<T> ScanDatabase<T>(Dictionary<string, string> conditions = null,
                                                        string indexName = null)
         {
-            List<T> ret = new List<T>();
             var ti = GetTableInfo(typeof(T));
             Regex hashRegex = new Regex(".*");
             Regex rangeRegex = new Regex(".*");
-            Dictionary<string, Regex> fieldRegex = new Dictionary<string, Regex>();
+            Dictionary<MemberInfo, Regex> fieldRegex = new Dictionary<MemberInfo, Regex>();
             foreach (var entry in conditions ?? new Dictionary<string, string>())
             {
-                string jsonFieldName = null;
-                if (!ti.DBFieldToJSONField.TryGetValue(entry.Key, out jsonFieldName))
+                string jsonPropName = null;
+                if (!ti.DBPropToJSONProp.TryGetValue(entry.Key, out jsonPropName))
                 {
                     throw new ArgumentException(string.Format("database entry field \"{0}\" not found in type \"{1}\"",
                                                               entry.Key, ti.TypeName));
@@ -394,58 +412,65 @@ namespace OPS.Pipeline
                     val.StartsWith("^")
                     ? new Regex("^" + Regex.Escape(val.Substring(1)))
                     : new Regex("^" + Regex.Escape(val) + "$");
-                if (jsonFieldName == ti.HashKey)
+                if (jsonPropName == ti.HashKey)
                 {
                     hashRegex = regex;
                 }
-                else if (jsonFieldName == ti.RangeKey)
+                else if (jsonPropName == ti.RangeKey)
                 {
                     rangeRegex = regex;
                 } 
                 else
                 {
-                    fieldRegex[jsonFieldName] = regex;
+                    fieldRegex[ti.JSONPropToDBProp[jsonPropName].Info] = regex;
                 }
             }
+            LogDebug("ScanDatabase hashRegex={0}, rangeRegex={1}, {2}", hashRegex, rangeRegex,
+                     fieldRegex.ToList().Aggregate("", (a, v) => a + v.Key.Name + "Regex=" + v.Value.ToString() + ", "));
             foreach (var entry in dbCache)
             {
+                LogDebug(entry.Key);
                 int firstSlash = entry.Key.IndexOf('/');
                 int lastSlash = entry.Key.LastIndexOf('/');
-                if (firstSlash <= 0)
+                if (firstSlash <= 0 || lastSlash <= firstSlash)
                 {
                     continue;
                 }
-                string hashKey = entry.Key.Substring(0, firstSlash);
+                string tableName = entry.Key.Substring(0, firstSlash);
+                if (tableName != ti.Name)
+                {
+                    continue;
+                }
+                string hashKey = entry.Key.Substring(firstSlash + 1, lastSlash - firstSlash - 1);
                 if (!hashRegex.IsMatch(hashKey))
                 {
                     continue;
                 }
-                if (!string.IsNullOrEmpty(ti.RangeKey) && lastSlash > firstSlash && lastSlash < entry.Key.Length - 1)
+                string rangeKey = null;
+                if (!string.IsNullOrEmpty(ti.RangeKey) && lastSlash < entry.Key.Length - 1)
                 {
-                    string rangeKey = entry.Key.Substring(lastSlash + 1);
+                    rangeKey = entry.Key.Substring(lastSlash + 1);
                     if (!rangeRegex.IsMatch(rangeKey))
                     {
                         continue;
                     }
                 }
-                T obj = FromJson<T>(entry.Value, ignoreNulls: true);
-                if (fieldRegex.Count > 0)
+                LogDebug("{0} matches hashKey={1} and rangeKey={2}", entry.Key, hashKey, rangeKey);
+                foreach (var cond in fieldRegex)
                 {
-                    foreach (var field in DBUtil.GetDynamoDBFields(typeof(T)))
+                    if (!cond.Value.IsMatch(DBUtil.GetMemberValueAsString(cond.Key, entry.Value)))
                     {
-                        if (fieldRegex.ContainsKey(field.Name))
-                        {
-                            object val = field.GetValue(obj);
-                            if (!fieldRegex[field.Name].IsMatch(val.ToString()))
-                            {
-                                continue;
-                            }
-                        }
+                        continue;
                     }
                 }
-                ret.Add(obj);
+                if (entry.Value.GetType() != typeof(T))
+                {
+                    LogWarn("object of type {0} in table {1}", entry.Value.GetType().FullName, ti.Name);
+                    continue;
+                }
+                LogDebug("{0} matches all conditions", entry.Key);
+                yield return (T) entry.Value;
             }
-            return ret;
         }
     }
 }

@@ -9,6 +9,7 @@ using Amazon.DynamoDBv2.DataModel;
 using Amazon.DynamoDBv2.Model;
 using Amazon.DynamoDBv2;
 using MathNet.Numerics.LinearAlgebra;
+using Newtonsoft.Json;
 using OPS.Geometry;
 using OPS.Cloud;
 
@@ -39,11 +40,15 @@ namespace OPS.Pipeline.AlignmentServer
         public string FrameName { get; set; }
 
         [DynamoDBProperty("Mean", typeof(VectorNConverter))]
+        [JsonConverter(typeof(VectorNConverter))]
         public Vector<double> Mean { get; set; }
+
         [DynamoDBProperty("Covariance", typeof(SquareMatrixConverter))]
+        [JsonConverter(typeof(SquareMatrixConverter))]
         public Matrix<double> Covariance { get; set; }
 
         [DynamoDBIgnore]
+        [JsonIgnore]
         public UncertainRigidTransform Transform
         {
             get
@@ -97,7 +102,6 @@ namespace OPS.Pipeline.AlignmentServer
         {
             pipeline.SaveDatabaseItem(this);
         }
-
 
         public static FrameTransform FindOrCreate(PipelineCore pipeline, Frame frame, UncertainRigidTransform transform)
         {

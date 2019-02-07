@@ -1,12 +1,8 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
 using Amazon.DynamoDBv2.DataModel;
 using Amazon.DynamoDBv2.Model;
 using Microsoft.Xna.Framework;
+using Newtonsoft.Json;
 using OPS.Cloud;
 using OPS.Geometry;
 
@@ -24,14 +20,18 @@ namespace OPS.Pipeline.AlignmentServer
         public string ProjectName { get; set; }
         
         [DynamoDBProperty(Converter = typeof(Vector3Converter))]
+        [JsonConverter(typeof(Vector3Converter))]
         public Vector3 Center { get; set; }
+
         [DynamoDBProperty(Converter = typeof(Vector3Converter))]
+        [JsonConverter(typeof(Vector3Converter))]
         public Vector3 Size { get; set; }
         
         [DynamoDBProperty]
         public int MaxPrecision { get; set; }
 
         [DynamoDBIgnore]
+        [JsonIgnore]
         public BoundingBox Bounds
         {
             get
@@ -46,6 +46,7 @@ namespace OPS.Pipeline.AlignmentServer
         }
 
         [DynamoDBIgnore]
+        [JsonIgnore]
         public Geohash Geohash
         {
             get

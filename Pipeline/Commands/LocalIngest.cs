@@ -4,10 +4,11 @@ using System.IO;
 using CommandLine;
 using log4net;
 using OPS.Util;
+using OPS.Pipeline.AlignmentServer;
 
 namespace OPS.Pipeline
 {
-    [Verb("localingest", HelpText = "ingest mission data locally")]
+    [Verb("local-ingest", HelpText = "ingest mission data locally")]
     public class LocalIngestOptions : PipelineCoreOptions
     {
         [Value(0, Required = true, HelpText = "project name", Default = null)]
@@ -15,6 +16,18 @@ namespace OPS.Pipeline
 
         [Value(1, Required = true, HelpText = "input directory", Default = null)]
         public string InputDirectory { get; set; }
+
+        [Option(HelpText = "Search for inputs recursively", Default = true)]
+        public bool RecursiveSearch { get; set; }
+
+        [Option(HelpText = "Recreate project if it already exists", Default = false)]
+        public bool RedoProject { get; set; }
+
+        [Option(HelpText = "Recreate observations that already exist", Default = false)]
+        public bool RedoObservations { get; set; }
+
+        [Option(HelpText = "Recreate transform priors that already exist", Default = false)]
+        public bool RedoPriors { get; set; }
     }
 
     public class LocalIngest : LocalPipeline
@@ -36,15 +49,49 @@ namespace OPS.Pipeline
             }
 
             var productUrl = GetStorageUrl("alignment/products", options.ProjectName);
-            var inputUrl = StringHelper.EnsureProtocol("file://", options.InputDirectory);
+
+            var inputUrl = StringHelper.NormalizeUrl(options.InputDirectory, "file://");
 
             var initializer = new InitializeAlignmentProject(this);
-            var project = initializer.Initialize(options.ProjectName, productUrl, inputUrl);
+            var project = initializer.Initialize(options.ProjectName, productUrl, inputUrl, options.RedoProject);
 
             var mslLocations = MSLLocations.LoadFromFile(Path.Combine(options.InputDirectory, "locations.xml"));
 
-            var ingester = new IngestAlignmentInputs(this);
-            ingester.Ingest(project, mslLocations);
+            var ingester = new IngestAlignmentInputs(this, project, mslLocations, options.RedoObservations,
+                                                     options.RedoPriors);
+            Action<IngestImage.Result> handler = res => {
+
+                var imageUrl = res.ImageUrl;
+
+                if (imageUrl.StartsWith(ingester.BaseUrl))
+                {
+                    imageUrl = imageUrl.Substring(ingester.BaseUrl.Length);
+                }
+
+                if (res.Status == IngestImage.Status.Skipped)
+                {
+                    LogInfo("{0} ({1})", imageUrl, res.Status);
+                }
+                else if (res.Observation is RoverObservation)
+                {
+                    var obs = res.Observation as RoverObservation;
+                    LogInfo("{0} ({1}) {2}x{3} {4} site={5} drive={6} -> observation {7}",
+                            imageUrl, res.Status, obs.Width, obs.Height, obs.ObservationType, obs.Site, obs.Drive,
+                            obs.Name);
+                }
+                else if (res.Observation != null)
+                {
+                    var obs = res.Observation;
+                    LogInfo("{0} ({1}) {2}x{3} {4} -> observation {5}",
+                            imageUrl, res.Status, obs.Width, obs.Height, obs.ObservationType, obs.Name);
+                }
+                else
+                {
+                    LogInfo("{0} ({1}) -> observation NULL", imageUrl, res.Status);
+                }
+            };
+
+            ingester.Ingest(handler, recursive: options.RecursiveSearch);
 
             return 0;
         }

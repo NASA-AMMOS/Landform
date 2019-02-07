@@ -4,30 +4,34 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using OPS.Util;
 using OPS.Pipeline.AlignmentServer;
 
 namespace OPS.Pipeline
 {
     public class IngestAlignmentInputs : PipelineRoutine
     {
-        public IngestAlignmentInputs(PipelineCore pipeline) : base(pipeline) { }
+        public string BaseUrl;
+        private Project project;
+        private IngestImage ingester;
 
-        public int Ingest(Project project, MSLLocations mslLocations, Action<IngestImage.Result> func = null)
+        public IngestAlignmentInputs(PipelineCore pipeline, Project project, MSLLocations mslLocations,
+                                     bool recreateExistingObservations = false, bool resetExistingTransforms = false)
+            : base(pipeline)
         {
-            string baseUrl = project.InputPath;
-            if (!baseUrl.EndsWith("/"))
-            {
-                //search will return 0 objects if slash is not postfixed
-                // not requesting recursively, which means it is using slash delimiter
-                baseUrl += "/";
-            }
+            BaseUrl = StringHelper.EnsureTrailingSlash(project.InputPath);
+            this.project = project;
+            ingester = new IngestPDSImage(pipeline, project, mslLocations, recreateExistingObservations,
+                                          resetExistingTransforms);
+        }
 
-            pipeline.LogInfo("ingesting input files from {0} for alignment project {1}", baseUrl, project.Name);
-
-            IngestPDSImage ingester = new IngestPDSImage(pipeline, mslLocations, project.Name);
-
+        public int Ingest(Action<IngestImage.Result> func = null, bool recursive = true)
+        {
+            
+            pipeline.LogInfo("ingesting input files from {0} for alignment project {1}", BaseUrl, project.Name);
+        
             int n = 0;
-            Parallel.ForEach(pipeline.SearchFiles(baseUrl, "*.IMG", false), url =>
+            Parallel.ForEach(pipeline.SearchFiles(BaseUrl, "*.IMG", recursive: recursive), url =>
             {
                 var res = ingester.Ingest(url);
                 if (res.Status == IngestImage.Status.Added || res.Status == IngestImage.Status.Duplicate) //TODO??

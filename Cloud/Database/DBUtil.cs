@@ -62,86 +62,78 @@ namespace OPS.Cloud
             return cap != null ? (cap.Fixed ? cap.FixedCapacity : cap.MinCapacity) : DEFAULT_WRITE_CAPACITY;
         }
         
-        public static bool IsHashKeyField(PropertyInfo field)
+        public static bool IsHashKeyProp(MemberInfo prop)
         {
-            return field.GetCustomAttributes<DynamoDBHashKeyAttribute>()
+            return prop.GetCustomAttributes<DynamoDBHashKeyAttribute>()
                 .Where(a => a.GetType() == typeof(DynamoDBHashKeyAttribute))
                 .Any();
         }
         
-        public static bool IsRangeKeyField(PropertyInfo field)
+        public static bool IsRangeKeyProp(MemberInfo prop)
         {
-            return field.GetCustomAttributes<DynamoDBRangeKeyAttribute>()
+            return prop.GetCustomAttributes<DynamoDBRangeKeyAttribute>()
                 .Where(a => a.GetType() == typeof(DynamoDBRangeKeyAttribute))
                 .Any();
         }
 
-        public static string GetDynamoDBPropertyName(PropertyInfo field)
+        public static string GetDynamoDBPropName(MemberInfo prop)
         {
-            var fieldName = field.Name;
+            var name = prop.Name;
+            foreach (var a in prop.GetCustomAttributes<DynamoDBPropertyAttribute>())
             {
-                foreach (var pa in field.GetCustomAttributes<DynamoDBPropertyAttribute>())
+                if (a != null && a.AttributeName != null)
                 {
-                    if (pa != null && pa.AttributeName != null)
-                    {
-                        fieldName = pa.AttributeName;
-                        break;
-                    }
+                    name = a.AttributeName;
+                    break;
                 }
             }
-            return fieldName;
+            return name;
+        }
+
+        private static MemberInfo[] GetPublicFieldsAndProperties(Type type)
+        {
+            var flags = BindingFlags.Public | BindingFlags.Instance;
+            var fields = type.GetFields(flags);
+            var props = type.GetProperties(flags);
+            return fields.Cast<MemberInfo>().Concat(props.Cast<MemberInfo>()).ToArray();
+        }
+
+        public class PropInfo
+        {
+            public MemberInfo Info;
+            public string DynamoDBPropName;
         }
 
         /// <summary>
         /// Get the properties that would be serialized to Dynamo for items of this type.
         /// <param name="checkForAttribute">whether to restrict to only properties marked with DynamoDBPropertyAttribute</param>
-        /// <returns>mapping from actual property name to Dynamo property name</returns>
+        /// <returns>mapping from actual property name to FieldInfo</returns>
         /// </summary>
-        public static Dictionary<string, string> GetDynamoDBFieldMap(Type type, bool checkForAttribute = false)
+        public static Dictionary<string, PropInfo> GetDynamoDBPropMap(Type type, bool checkForAttribute = false)
         {
-            Dictionary<string, string> ret = new Dictionary<string, string>();
-            foreach (var field in type.GetProperties(BindingFlags.Public | BindingFlags.Instance))
+            Dictionary<string, PropInfo> ret = new Dictionary<string, PropInfo>();
+            foreach (var member in GetPublicFieldsAndProperties(type))
             {
                 bool hasAttrib = false;
-                string name = field.Name;
-                foreach (var pa in field.GetCustomAttributes<DynamoDBPropertyAttribute>())
+                string name = member.Name;
+                foreach (var a in member.GetCustomAttributes<DynamoDBPropertyAttribute>())
                 {
-                    if (pa != null)
+                    if (a != null)
                     {
                         hasAttrib = true;
-                        if (pa.AttributeName != null)
+                        if (a.AttributeName != null)
                         {
-                            name = pa.AttributeName;
+                            name = a.AttributeName;
                             break;
                         }
                     }
                 }
                 if (!checkForAttribute || hasAttrib)
                 {
-                    ret[field.Name] = name;
+                    ret[member.Name] = new PropInfo() { Info = member, DynamoDBPropName = name };
                 }
             }
             return ret;
-        }
-
-        public static IEnumerable<PropertyInfo> GetDynamoDBFields(Type type, bool checkForAttribute = false)
-        {
-            foreach (var field in type.GetProperties(BindingFlags.Public | BindingFlags.Instance))
-            {
-                bool hasAttrib = false;
-                foreach (var pa in field.GetCustomAttributes<DynamoDBPropertyAttribute>())
-                {
-                    if (pa != null)
-                    {
-                        hasAttrib = true;
-                        break;
-                    }
-                }
-                if (!checkForAttribute || hasAttrib)
-                {
-                    yield return field;
-                }
-            }
         }
 
         public static void GetNameAndKeys(Type type, out string tableName, out string hashKey, out string rangeKey,
@@ -149,32 +141,45 @@ namespace OPS.Cloud
         {
             tableName = GetTableName(type);
             hashKey = rangeKey = null;
-            foreach (var field in type.GetProperties(BindingFlags.Public | BindingFlags.Instance))
+            foreach (var member in GetPublicFieldsAndProperties(type))
             {
-                var fieldName = useDynamoDBPropertyNames ? GetDynamoDBPropertyName(field) : field.Name;
-                if (IsHashKeyField(field))
+                var name = useDynamoDBPropertyNames ? GetDynamoDBPropName(member) : member.Name;
+                if (IsHashKeyProp(member))
                 {
-                    hashKey = fieldName;
+                    hashKey = name;
                 }
-                else if (IsRangeKeyField(field))
+                else if (IsRangeKeyProp(member))
                 {
-                    rangeKey = fieldName;
+                    rangeKey = name;
                 }
             }
+        }
+
+        public static string GetMemberValueAsString(MemberInfo member, object obj)
+        {
+            if (member is FieldInfo)
+            {
+                return (member as FieldInfo).GetValue(obj).ToString();
+            }
+            else if (member is PropertyInfo)
+            {
+                return (member as PropertyInfo).GetValue(obj).ToString();
+            }
+            return  null;
         }
 
         public static void GetKeyValues(Object obj, out string hashValue, out string rangeValue)
         {
             hashValue = rangeValue = null;
-            foreach (var field in obj.GetType().GetProperties(BindingFlags.Public | BindingFlags.Instance))
+            foreach (var member in GetPublicFieldsAndProperties(obj.GetType()))
             {
-                if (IsHashKeyField(field))
+                if (IsHashKeyProp(member))
                 {
-                    hashValue = field.GetValue(obj).ToString();
+                    hashValue = GetMemberValueAsString(member, obj).ToString();
                 }
-                else if (IsRangeKeyField(field))
+                else if (IsRangeKeyProp(member))
                 {
-                    rangeValue = field.GetValue(obj).ToString();
+                    rangeValue = GetMemberValueAsString(member, obj).ToString();
                 }
             }
         }
@@ -189,26 +194,24 @@ namespace OPS.Cloud
             Dictionary<string, AttributeDefinition> allProps = new Dictionary<string, AttributeDefinition>();
             Dictionary<string, SecondaryGlobalIndex> secondaryIndices = new Dictionary<string, SecondaryGlobalIndex>();
 
-            foreach (var field in type.GetProperties(BindingFlags.Public | BindingFlags.Instance))
+            foreach (var member in GetPublicFieldsAndProperties(type))
             {
-                var fieldName = GetDynamoDBPropertyName(field);
+                var propName = GetDynamoDBPropName(member);
 
-                // get field properties
-                var fieldType = field.GetType();
-                bool isNum = fieldType == typeof(int) || fieldType == typeof(float) || fieldType == typeof(double);
-                allProps[fieldName] = new AttributeDefinition(fieldName,
-                                                              isNum ? ScalarAttributeType.N : ScalarAttributeType.S);
+                var t = member.GetType();
+                bool isNum = t == typeof(int) || t == typeof(float) || t == typeof(double);
+                allProps[propName] = new AttributeDefinition(propName, isNum ? ScalarAttributeType.N : ScalarAttributeType.S);
 
                 //get hash and range key, if defined
                 //DynamoDBGlobalSecondaryIndex[Hash,Range]KeyAttribute are subclasses of
                 //DynamoDB[Hash,Range]KeyAttribute, make sure not to use those
-                if (IsHashKeyField(field))
+                if (IsHashKeyProp(member))
                 {
-                    hashKey = fieldName;
+                    hashKey = propName;
                 }
-                if (IsRangeKeyField(field))
+                if (IsRangeKeyProp(member))
                 {
-                    rangeKey = fieldName;
+                    rangeKey = propName;
                 }
 
                 // create any secondary indices and connect them to hash and range keys
@@ -220,20 +223,20 @@ namespace OPS.Cloud
                     }
                     return secondaryIndices[indexName];
                 };
-                var sihka = field.GetCustomAttribute<DynamoDBGlobalSecondaryIndexHashKeyAttribute>();
+                var sihka = member.GetCustomAttribute<DynamoDBGlobalSecondaryIndexHashKeyAttribute>();
                 if (sihka != null)
                 {
                     foreach (var indexName in sihka.IndexNames)
                     {
-                        getIndex(indexName).HashKey = fieldName;
+                        getIndex(indexName).HashKey = propName;
                     }
                 }
-                var sirka = field.GetCustomAttribute<DynamoDBGlobalSecondaryIndexRangeKeyAttribute>();
+                var sirka = member.GetCustomAttribute<DynamoDBGlobalSecondaryIndexRangeKeyAttribute>();
                 if (sirka != null)
                 {
                     foreach (var indexName in sirka.IndexNames)
                     {
-                        getIndex(indexName).RangeKey = fieldName;
+                        getIndex(indexName).RangeKey = propName;
                     }
                 }
             }

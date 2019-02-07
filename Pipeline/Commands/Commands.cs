@@ -32,6 +32,8 @@ namespace OPS.Pipeline
                                                              TextureMeshOptions,
                                                              StartAlignMasterOptions,
                                                              LocalIngestOptions,
+                                                             LocalMasksOptions,
+                                                             LocalFeaturesOptions,
                                                              ConfigureCloudOptions,
                                                              ConfigureLocalOptions
                                                              >(args)
@@ -48,6 +50,8 @@ namespace OPS.Pipeline
                 (TextureMeshOptions opts) => new TextureMeshCommand(opts).Run(),
                 (StartAlignMasterOptions opts) => new AlignmentMaster(opts).Run(),
                 (LocalIngestOptions opts) => new LocalIngest(opts).Run(),
+                (LocalMasksOptions opts) => new LocalMasks(opts).Run(),
+                (LocalFeaturesOptions opts) => new LocalFeatures(opts).Run(),
                 (ConfigureCloudOptions opts) => new ConfigureCloud(opts).Run(),
                 (ConfigureLocalOptions opts) => new ConfigureLocal(opts).Run(),
                 errs => 1);

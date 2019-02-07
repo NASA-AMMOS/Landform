@@ -24,7 +24,18 @@ namespace OPS.Util
             return new Regex(WildCardToRegularExressionString(value));
         }
 
-        public static string EnsureProtocol(string protocol, string url)
+        public static string EnsureTrailingSlash(string str)
+        {
+            return str.EndsWith("/") ? str : (str + "/");
+        }
+
+        public static string NormalizeSlashes(string str, bool preserveTrailingSlash = false)
+        {
+            str = str.Replace('\\', '/');
+            return preserveTrailingSlash ? str : str.TrimEnd(new char[] { '/' });
+        }
+
+        public static string EnsureProtocol(string url, string protocol)
         {
             if (!protocol.EndsWith("://"))
             {
@@ -46,6 +57,12 @@ namespace OPS.Util
             }
 
             return url;
+        }
+
+        public static string NormalizeUrl(string url, string protocol = null, bool preserveTrailingSlash = false)
+        {
+            url = NormalizeSlashes(url, preserveTrailingSlash);
+            return !string.IsNullOrEmpty(protocol) ? EnsureProtocol(url, protocol) : url;
         }
     }
 

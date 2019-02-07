@@ -20,6 +20,9 @@ namespace OPS.Pipeline
         [Option(Default = false, HelpText = "Suppress non-essential output")]
         public bool Quiet { get; set; }
 
+        [Option(Default = false, HelpText = "Log verbose info")]
+        public bool Verbose { get; set; }
+
         [Option(Default = false, HelpText = "Log debug info")]
         public bool Debug { get; set; }
 
@@ -60,19 +63,32 @@ namespace OPS.Pipeline
         public readonly string DownloadCache;
         public readonly ILog Logger;
 
-        protected bool quiet;
+        protected bool quiet, verbose, debug;
 
         protected readonly string storageUrl;
         protected readonly string storageUrlWithVenue;
 
         private LRUCache<string, Image> imageCache; //indexed by URL
 
+        //these are generally used to initialize the database
+        //
+        //though what that involves depends on what database implementation is in use (cloud vs local)
+        //
+        //at present it's important that the objects stored in a table are of the specific type listed here
+        //specifically for the local pipeline database implementation
+        //which is why we specify RoverObservation instead of just Observation here
+        //
+        //if this constraint ever becomes undesirable it could be worked around in several ways
+        //e.g. use Json.NET autoTypes in the local database implementation
+        //or make this table be a mapping to the actual item type
+        //or add an annotation on e.g. the Observation class that specifies the item type as e.g. RoverObservation
         protected readonly Type[] tableTypes = new Type[]
             {
                 typeof(Project),
                 typeof(FrameTransform),
                 typeof(Frame),
-                typeof(Observation),
+                //typeof(Observation),
+                typeof(RoverObservation), //TODO msl specific
                 typeof(Overlap),
                 typeof(TransformPrior),
                 typeof(TilingProject),
@@ -88,6 +104,8 @@ namespace OPS.Pipeline
             this.Config = config;
 
             this.quiet = quiet || options.Quiet;
+            this.verbose = options.Verbose;
+            this.debug = options.Debug;
 
             if (string.IsNullOrEmpty(storageUrl)) throw new Exception("storage URL must be specified");
             this.storageUrl = storageUrl.ToLower().Replace('\\','/').Trim().TrimEnd(new char[] {'/'});
@@ -162,7 +180,7 @@ namespace OPS.Pipeline
         public string GetStorageUrl(string folder = "", string project = "", string file = "")
         {
             //empty strings are ignored
-            return Path.Combine(storageUrlWithVenue, folder, project, file).Replace('\\','/');
+            return StringHelper.NormalizeSlashes(Path.Combine(storageUrlWithVenue, folder, project, file));
         }
 
         /// <summary>
@@ -289,8 +307,6 @@ namespace OPS.Pipeline
 
         //****************** Database API *****************
 
-        protected abstract void InitializeDatabase();
-
         public abstract void SaveDatabaseItem<T>(T obj, bool ignoreNulls = true, bool ignoreErrors = false);
 
         public abstract T LoadDatabaseItem<T>(string key, string secondaryKey = null, bool ignoreNulls = true,
@@ -319,19 +335,27 @@ namespace OPS.Pipeline
 
         //****************** Logging API *****************
 
-        public void LogDebug(string msg, params Object[] args)
-        {
-            if (!quiet)
-            {
-                Logger.DebugFormat(msg, args);
-            }
-        }
-
         public void LogInfo(string msg, params Object[] args)
         {
             if (!quiet)
             {
                 Logger.InfoFormat(msg, args);
+            }
+        }
+
+        public void LogVerbose(string msg, params Object[] args)
+        {
+            if (verbose && !quiet)
+            {
+                Logger.InfoFormat(msg, args);
+            }
+        }
+
+        public void LogDebug(string msg, params Object[] args)
+        {
+            if (debug && !quiet)
+            {
+                Logger.DebugFormat(msg, args);
             }
         }
 

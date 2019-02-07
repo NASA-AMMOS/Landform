@@ -18,35 +18,38 @@ namespace OPS.Pipeline.AlignmentServer
     {
         [DynamoDBHashKey] //Partition key
         [DynamoDBProperty()]
-        public string Name { get; set; }
+        public string Name;
 
         /// <summary>
         /// Prefix of s3 URL where derived products should be saved. Format s3://<bucketname>/<prefix>/
         /// </summary>
-        public string ProductPath { get; set; }
+        public string ProductPath;
+
         /// <summary>
         /// Prefix of s3 URL where input data is stored. Format s3://<bucketname>/<prefix>/
         /// </summary>
-        public string InputPath { get; set; }
+        public string InputPath;
+
+        public string RootFrame;
 
         //This constructor must be public for DynamoDb but should not be used
-        public Project()
-        {
-        }
+        public Project() { }
 
         /// <summary>
         /// Creates Project object locally.  
         /// </summary>
         /// <param name="name">Project names in the database must be unique</param>
-        protected Project(string name, string productPath, string inputPath)
+        protected Project(string name, string productPath, string inputPath, string rootFrameName)
         {
             Name = name;
             ProductPath = productPath;
             InputPath = inputPath;
+            RootFrame = rootFrameName;
             this.IsValid();
         }
 
-        public static Project FindOrCreate(PipelineCore pipeline, string name, string productPath, string inputPath)
+        public static Project FindOrCreate(PipelineCore pipeline, string name, string productPath, string inputPath,
+                                           string rootFrameName)
         {
             Project project = Find(pipeline, name);
             if (project != null)
@@ -54,7 +57,7 @@ namespace OPS.Pipeline.AlignmentServer
                 return project;
             }
 
-            project = Create(pipeline, name, productPath, inputPath);
+            project = Create(pipeline, name, productPath, inputPath, rootFrameName);
             if (project != null)
             {
                 return project;
@@ -70,9 +73,10 @@ namespace OPS.Pipeline.AlignmentServer
         /// <param name="pipeline"></param>
         /// <param name="name">Project names in the database must be unique</param>
         /// <returns></returns>
-        public static Project Create(PipelineCore pipeline, string name, string productPath, string inputPath)
+        public static Project Create(PipelineCore pipeline, string name, string productPath, string inputPath,
+                                     string rootFrameName)
         {
-            Project project = new Project(name, productPath, inputPath);
+            Project project = new Project(name, productPath, inputPath, rootFrameName);
             pipeline.SaveDatabaseItem(project);
             return project;
         }
@@ -105,7 +109,7 @@ namespace OPS.Pipeline.AlignmentServer
 
         private void IsValid()
         {
-            if (!(Name != null && ProductPath != null && InputPath != null))
+            if (!(Name != null && ProductPath != null && InputPath != null && RootFrame != null))
             {
                 throw new Exception("Project is missing a required field");
             }

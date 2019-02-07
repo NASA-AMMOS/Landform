@@ -59,10 +59,7 @@ namespace OPS.Pipeline.AlignmentServer
         }
 
         //This constructor must be public for DynamoDb but should not be used
-        public Observation()
-        {
-            
-        }
+        public Observation() { }
 
         /// <summary>
         /// Creates a new local observation object.  
@@ -87,8 +84,6 @@ namespace OPS.Pipeline.AlignmentServer
             this.Height = height;
             IsValid();
         }
-
-
 
         /// <summary>
         /// Creates a new observation and saves it to the database.  Returned observation has a valid id.

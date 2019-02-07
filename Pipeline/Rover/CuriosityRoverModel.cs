@@ -1,9 +1,11 @@
 ﻿using System;
+using System.IO;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Microsoft.Xna.Framework;
+using OPS.Util;
 using OPS.Geometry;
 
 namespace OPS.Pipeline
@@ -13,16 +15,16 @@ namespace OPS.Pipeline
     /// </summary>
     public class CuriosityRoverModel
     {
-        private readonly string ROVER_BODY_FILE = "Rover\\Resources\\CuriosityMaskGeometry\\Body.obj";
-        private readonly string LEFT_ROCKER_FILE = "Rover\\Resources\\CuriosityMaskGeometry\\LeftRocker.obj";
-        private readonly string RIGHT_ROCKER_FILE = "Rover\\Resources\\CuriosityMaskGeometry\\RightRocker.obj";
-        private readonly string LEFT_BOGIE_FILE = "Rover\\Resources\\CuriosityMaskGeometry\\LeftBogie.obj";
-        private readonly string RIGHT_BOGIE_FILE = "Rover\\Resources\\CuriosityMaskGeometry\\RightBogie.obj";
-        private readonly string ARM1_FILE = "Rover\\Resources\\CuriosityMaskGeometry\\Arm01.obj";
-        private readonly string ARM2_FILE = "Rover\\Resources\\CuriosityMaskGeometry\\Arm02.obj";
-        private readonly string ARM3_FILE = "Rover\\Resources\\CuriosityMaskGeometry\\Arm03.obj";
-        private readonly string ARM4_FILE = "Rover\\Resources\\CuriosityMaskGeometry\\Arm04.obj";
-        private readonly string ARM5_FILE = "Rover\\Resources\\CuriosityMaskGeometry\\Arm05.obj";
+        private readonly string ROVER_BODY_FILE = "Rover/Resources/CuriosityMaskGeometry/Body.obj";
+        private readonly string LEFT_ROCKER_FILE = "Rover/Resources/CuriosityMaskGeometry/LeftRocker.obj";
+        private readonly string RIGHT_ROCKER_FILE = "Rover/Resources/CuriosityMaskGeometry/RightRocker.obj";
+        private readonly string LEFT_BOGIE_FILE = "Rover/Resources/CuriosityMaskGeometry/LeftBogie.obj";
+        private readonly string RIGHT_BOGIE_FILE = "Rover/Resources/CuriosityMaskGeometry/RightBogie.obj";
+        private readonly string ARM1_FILE = "Rover/Resources/CuriosityMaskGeometry/Arm01.obj";
+        private readonly string ARM2_FILE = "Rover/Resources/CuriosityMaskGeometry/Arm02.obj";
+        private readonly string ARM3_FILE = "Rover/Resources/CuriosityMaskGeometry/Arm03.obj";
+        private readonly string ARM4_FILE = "Rover/Resources/CuriosityMaskGeometry/Arm04.obj";
+        private readonly string ARM5_FILE = "Rover/Resources/CuriosityMaskGeometry/Arm05.obj";
 
         private readonly Mesh Body;
         private readonly Mesh LeftRocker;
@@ -37,16 +39,17 @@ namespace OPS.Pipeline
 
         public CuriosityRoverModel()
         {
-            Body = OBJSerializer.Read(ROVER_BODY_FILE);
-            LeftRocker = OBJSerializer.Read(LEFT_ROCKER_FILE);
-            RightRocker = OBJSerializer.Read(RIGHT_ROCKER_FILE);
-            LeftBogie = OBJSerializer.Read(LEFT_BOGIE_FILE);
-            RightBogie = OBJSerializer.Read(RIGHT_BOGIE_FILE);
-            Arm1 = OBJSerializer.Read(ARM1_FILE);
-            Arm2 = OBJSerializer.Read(ARM2_FILE);
-            Arm3 = OBJSerializer.Read(ARM3_FILE);
-            Arm4 = OBJSerializer.Read(ARM4_FILE);
-            Arm5 = OBJSerializer.Read(ARM5_FILE);
+            var ap = PathHelper.GetApplicationPath();
+            Body = OBJSerializer.Read(Path.Combine(ap, ROVER_BODY_FILE));
+            LeftRocker = OBJSerializer.Read(Path.Combine(ap, LEFT_ROCKER_FILE));
+            RightRocker = OBJSerializer.Read(Path.Combine(ap, RIGHT_ROCKER_FILE));
+            LeftBogie = OBJSerializer.Read(Path.Combine(ap, LEFT_BOGIE_FILE));
+            RightBogie = OBJSerializer.Read(Path.Combine(ap, RIGHT_BOGIE_FILE));
+            Arm1 = OBJSerializer.Read(Path.Combine(ap, ARM1_FILE));
+            Arm2 = OBJSerializer.Read(Path.Combine(ap, ARM2_FILE));
+            Arm3 = OBJSerializer.Read(Path.Combine(ap, ARM3_FILE));
+            Arm4 = OBJSerializer.Read(Path.Combine(ap, ARM4_FILE));
+            Arm5 = OBJSerializer.Read(Path.Combine(ap, ARM5_FILE));
         }
 
         public Mesh BuildMesh(RoverArticulation pose, bool includeBody = true)

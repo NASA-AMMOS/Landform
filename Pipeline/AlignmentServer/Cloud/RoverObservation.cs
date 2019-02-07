@@ -14,6 +14,9 @@ namespace OPS.Pipeline.AlignmentServer
     /// <summary>
     /// An observation with extra metadata specific to Mars rovers
     /// </summary>
+    [DynamoDBTable("Observations")]
+    [DynamoDBReadCapacity(50, 100)]
+    [DynamoDBWriteCapacity(50, 100)]
     public class RoverObservation : Observation
     {
         public int Site { get; set; }
@@ -24,10 +27,7 @@ namespace OPS.Pipeline.AlignmentServer
         public string Producer { get; set; }
 
         //This constructor must be public for DynamoDb but should not be used
-        public RoverObservation()
-        {
-           
-        }
+        public RoverObservation() { }
 
         protected RoverObservation(Frame frame, string name, string url, string observationType, string cameraModel, bool useForReconstruction, int site, int drive, string version, string sensor, string imageFrameSize, string producer, int width, int height) :
             base(frame, name, url, observationType, cameraModel, useForReconstruction, width, height)
