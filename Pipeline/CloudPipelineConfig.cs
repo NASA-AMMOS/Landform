@@ -12,27 +12,27 @@ namespace OPS.Pipeline
 {
     public class CloudPipelineConfig : SingletonConfig<CloudPipelineConfig>
     {
-        [ConfigEnvironmentVariable("LANDFORM_VENUE")] //was TILE_SERVER_VENUE_NAME
-        public string Venue; //was VenueName
+        [ConfigEnvironmentVariable("LANDFORM_VENUE")]
+        public string Venue;
 
-        [ConfigEnvironmentVariable("LANDFORM_AWS_REGION")] //was TILE_SERVER_REGION
-        public string AWSRegion; //was Region
+        [ConfigEnvironmentVariable("LANDFORM_AWS_REGION")]
+        public string AWSRegion;
 
-        [ConfigEnvironmentVariable("LANDFORM_AWS_PROFILE")] //was TILE_SERVER_PROFILE
-        public string AWSProfile; //was Profile
+        [ConfigEnvironmentVariable("LANDFORM_AWS_PROFILE")]
+        public string AWSProfile;
 
-        [ConfigEnvironmentVariable("LANDFORM_S3_URL")] //was TILE_SERVER_S3_URL
+        [ConfigEnvironmentVariable("LANDFORM_S3_URL")]
         public string S3Url;
 
-        [ConfigEnvironmentVariable("LANDFORM_DYNAMO_URL")] //was absent
-        public string DynamoUrl; //was absent
+        [ConfigEnvironmentVariable("LANDFORM_DYNAMO_URL")]
+        public string DynamoUrl;
 
         //TODO MSL specific
-        [ConfigEnvironmentVariable("LANDFORM_MSLICE_AWS_PROFILE")] //was TILE_SERVER_MSLICE_PROFILE
-        public string MSLICEAWSProfile; //was MSLICEProfile
+        [ConfigEnvironmentVariable("LANDFORM_MSLICE_AWS_PROFILE")]
+        public string MSLICEAWSProfile;
 
         //TODO MSL specific
-        [ConfigEnvironmentVariable("LANDFORM_MSLICE_S3_URL")] //was TILE_SERVER_MSLICE_S3_URL
+        [ConfigEnvironmentVariable("LANDFORM_MSLICE_S3_URL")]
         public string MSLICES3Url;
 
         protected override string ConfigFilename()

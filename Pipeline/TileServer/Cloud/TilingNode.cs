@@ -202,8 +202,7 @@ namespace OPS.Pipeline.TileServer
             Action<string, string> upload = (file, url) =>
             {
                 pipeline.SaveFile(file, url);
-                //this could be useful for debugging
-                //pipeline.LogInfo("uploaded {0}", url);
+                pipeline.LogVerbose("uploaded {0}", url);
             };
 
             Action<string, string> uploadAndDeleteMtl = (mesh, img) => 
@@ -360,7 +359,10 @@ namespace OPS.Pipeline.TileServer
                 Mesh m = null;
                 pipeline.GetFile(MeshUrl, f => m = Mesh.Load(f));
                 Image img = null;
-                pipeline.GetFile(ImageUrl, f => img = Image.Load(f));
+                if (ImageUrl != null)
+                {
+                    pipeline.GetFile(ImageUrl, f => img = Image.Load(f));
+                }
                 if(m == null)
                 {
                     throw new Exception("Error loading tiling node mesh");

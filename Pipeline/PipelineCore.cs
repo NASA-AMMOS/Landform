@@ -108,7 +108,7 @@ namespace OPS.Pipeline
             this.debug = options.Debug;
 
             if (string.IsNullOrEmpty(storageUrl)) throw new Exception("storage URL must be specified");
-            this.storageUrl = storageUrl.ToLower().Replace('\\','/').Trim().TrimEnd(new char[] {'/'});
+            this.storageUrl = StringHelper.NormalizeUrl(storageUrl.ToLower().Trim());
 
             if (string.IsNullOrEmpty(venue)) throw new Exception("venue must be specified");
             this.Venue = venue.ToLower().Replace('\\','/').Trim().Trim(new char[] {'/'});

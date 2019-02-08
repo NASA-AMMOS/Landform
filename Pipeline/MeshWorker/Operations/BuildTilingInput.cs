@@ -117,17 +117,17 @@ namespace OPS.Pipeline.MeshWorker
 
             //upload mesh
             string meshName = "FullMesh";
-            string s3MeshOutputUrl = pipeline.GetStorageUrl("input", projectName, meshName + ".ply");
+            string meshOutputUrl = pipeline.GetStorageUrl("input", projectName, meshName + ".ply");
             TemporaryFile.GetAndDelete(".ply", tempFile =>
             {
-                LogInfo("uploading mesh " + s3MeshOutputUrl);
+                LogInfo("uploading mesh " + meshOutputUrl);
                 surfacedMesh.Save(tempFile);
-                pipeline.SaveFile(tempFile, s3MeshOutputUrl);
+                pipeline.SaveFile(tempFile, meshOutputUrl);
             });
 
             //create a tiling input
             TilingProject tilingProject = TilingProject.Find(pipeline, projectName);
-            TilingInput.Create(pipeline, meshName, tilingProject, s3MeshOutputUrl, null, null);
+            TilingInput.Create(pipeline, meshName, tilingProject, meshOutputUrl, null, null);
             
             //indicate successs to the tiling server master
             pipeline.MasterQueue.Enqueue(new BuildTilingInputMessage(projectName));
@@ -255,7 +255,7 @@ namespace OPS.Pipeline.MeshWorker
         }
 
         /// <summary>
-        /// until mission products giving useful error estimates are available in s3
+        /// until mission products giving useful error estimates are available
         /// this code generates a confidence that is inversely proportional to range
         /// </summary>
         private Image GenerateConfidenceImage(Image pdsImage)

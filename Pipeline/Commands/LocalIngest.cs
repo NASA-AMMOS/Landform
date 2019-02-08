@@ -1,5 +1,8 @@
 using System;
 using System.Linq;
+using System.Collections;
+using System.Collections.Generic;
+using System.Collections.Concurrent;
 using System.IO;
 using CommandLine;
 using log4net;
@@ -59,6 +62,10 @@ namespace OPS.Pipeline
 
             var ingester = new IngestAlignmentInputs(this, project, mslLocations, options.RedoObservations,
                                                      options.RedoPriors);
+
+            ConcurrentDictionary<SiteDrive, ConcurrentDictionary<string, int>> stats =
+                new ConcurrentDictionary<SiteDrive, ConcurrentDictionary<string, int>>();
+
             Action<IngestImage.Result> handler = res => {
 
                 var imageUrl = res.ImageUrl;
@@ -75,9 +82,11 @@ namespace OPS.Pipeline
                 else if (res.Observation is RoverObservation)
                 {
                     var obs = res.Observation as RoverObservation;
-                    LogInfo("{0} ({1}) {2}x{3} {4} site={5} drive={6} -> observation {7}",
-                            imageUrl, res.Status, obs.Width, obs.Height, obs.ObservationType, obs.Site, obs.Drive,
-                            obs.Name);
+                    var sd = new SiteDrive(obs.Site, obs.Drive);
+                    var sds = stats.GetOrAdd(sd, _ => new ConcurrentDictionary<string, int>());
+                    sds.AddOrUpdate(obs.ObservationType, _ => 1, (_, n) => n+1);
+                    LogInfo("{0} ({1}) {2}x{3} {4} sitedrive={5} -> observation {6}",
+                            imageUrl, res.Status, obs.Width, obs.Height, obs.ObservationType, sd, obs.Name);
                 }
                 else if (res.Observation != null)
                 {
@@ -92,6 +101,12 @@ namespace OPS.Pipeline
             };
 
             ingester.Ingest(handler, recursive: options.RecursiveSearch);
+
+            foreach (var sds in stats)
+            {
+                LogInfo("sitedrive {0}: {1}", sds.Key,
+                        string.Join(", ", sds.Value.Select(s => s.Value + " " + s.Key + " observations").ToArray()));
+            }
 
             return 0;
         }

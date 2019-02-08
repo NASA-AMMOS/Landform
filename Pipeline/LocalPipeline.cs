@@ -44,38 +44,35 @@ namespace OPS.Pipeline
             {
                 CheckStorageUrl(url);
             }
-            else if (!url.ToLower().StartsWith("file://"))
-            {
-                throw new Exception(string.Format("storage URL \"{0}\" does not start with file://", url));
-            }
             return url;
+        }
+
+        private string UrlToFile(string url)
+        {
+            return url.Substring(7);
         }
 
         public override void GetFile(string url, Action<string> func, bool constrainToStorage = false)
         {
-            url = CheckUrl(url, constrainToStorage);
-            func(url.Substring(7));
+            func(UrlToFile(CheckUrl(url, constrainToStorage)));
         }
 
         public override string GetFileCached(string url, string cacheFolder = null, string filename = null,
                                              bool constrainToStorage = false)
         {
-            url = CheckUrl(url, constrainToStorage);
-            return url.Substring(7);
+            return UrlToFile(CheckUrl(url, constrainToStorage));
         }
 
         public override void SaveFile(string file, string url)
         {
-            url = CheckUrl(url);
-            string dest = url.Substring(7);
+            string dest = UrlToFile(CheckUrl(url));
             PathHelper.EnsureExists(Path.GetDirectoryName(dest));
             File.Copy(file, dest, overwrite: true);
         }
 
         public override void DeleteFile(string url, bool ignoreErrors = true)
         {
-            url = CheckUrl(url);
-            string file = url.Substring(7);
+            string file = UrlToFile(CheckUrl(url));
             try
             {
                 File.Delete(file);
@@ -101,7 +98,7 @@ namespace OPS.Pipeline
             {
                 foreach (var u in SearchFiles(url, globPattern, recursive, constrainToStorage: true))
                 {
-                    var f = u.Substring(7);
+                    var f = UrlToFile(u);
                     try
                     {
                         File.Delete(f);
@@ -154,7 +151,7 @@ namespace OPS.Pipeline
                     CheckStorageUrl(dir);
                 }
             }
-            dir = Path.GetFullPath(dir.Substring(7)).Replace('\\', '/'); //strip "file://"
+            dir = Path.GetFullPath(UrlToFile(dir)).Replace('\\', '/');
             if (!Directory.Exists(dir))
             {
                 yield break;
@@ -426,7 +423,8 @@ namespace OPS.Pipeline
                 }
             }
             LogDebug("ScanDatabase hashRegex={0}, rangeRegex={1}, {2}", hashRegex, rangeRegex,
-                     fieldRegex.ToList().Aggregate("", (a, v) => a + v.Key.Name + "Regex=" + v.Value.ToString() + ", "));
+                     string.Join(", ", fieldRegex.Select(v => v.Key.Name + "Regex=" + v.Value.ToString()).ToArray()));
+
             foreach (var entry in dbCache)
             {
                 LogDebug(entry.Key);

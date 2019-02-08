@@ -120,16 +120,12 @@ namespace OPS.Pipeline
             return defaultStorage;
         }
 
-        protected string CheckUrl(string url, bool constrainToStorage = true)
+        protected string CheckUrl(string url, bool constrainToStorage = true, bool preserveTrailingSlash = false)
         {
-            url = StringHelper.NormalizeUrl(url, "s3://");
+            url = StringHelper.NormalizeUrl(url, "s3://", preserveTrailingSlash);
             if (constrainToStorage)
             {
                 CheckStorageUrl(url);
-            }
-            else if (!url.ToLower().StartsWith("s3://"))
-            {
-                throw new Exception(string.Format("storage URL \"{0}\" does not start with s3://", url));
             }
             return url;
         }
@@ -188,14 +184,14 @@ namespace OPS.Pipeline
         public override void DeleteFiles(string url, string globPattern = "*", bool recursive = true,
                                          bool ignoreErrors = true)
         {
-            url = CheckUrl(url);
+            url = CheckUrl(url, preserveTrailingSlash: true);
             GetStorageHelper(url).DeleteObjects(url, globPattern, recursive, ignoreErrors, Logger);
         }
             
         public override IEnumerable<string> SearchFiles(string url, string globPattern = "*", bool recursive = true,
                                                         bool constrainToStorage = false)
         {
-            url = CheckUrl(url, constrainToStorage);
+            url = CheckUrl(url, constrainToStorage, preserveTrailingSlash: true);
             return GetStorageHelper(url).SearchObjects(url, globPattern, recursive);
         }
 
@@ -222,8 +218,7 @@ namespace OPS.Pipeline
         public override T LoadDatabaseItem<T>(string key, string secondaryKey = null, bool ignoreNulls = true,
                                               bool ignoreErrors = false, bool consistent = false)
         {
-            return DBUtil.LoadItem<T>(dynamoContext, key, secondaryKey, ignoreNulls: ignoreNulls,
-                                      ignoreErrors: ignoreErrors, consistent: consistent, logger: Logger);
+            return DBUtil.LoadItem<T>(dynamoContext, key, secondaryKey, ignoreNulls, ignoreErrors, consistent, Logger);
         }
 
         public override void DeleteDatabaseItem(object obj, bool ignoreErrors = false)

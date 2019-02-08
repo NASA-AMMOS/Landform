@@ -212,24 +212,22 @@ namespace OPS.Pipeline
         public override Result Ingest(string imgUrl)
         {
             // Parse the filename to quickly rule out data products we know we don't care about.
-            if (!CheckFilename(Path.GetFileNameWithoutExtension(imgUrl)))
+            if (!CheckFilename(StringHelper.GetLastUrlPathSegment(imgUrl, stripExtension: true)))
             {
+                pipeline.LogVerbose("rejected {0} by filename", imgUrl);
                 return new Result(imgUrl, Status.Skipped, null);
             }
 
             // Fetch image and check metadata
             PDSMetadata metadata = new PDSMetadata(pipeline.GetImageFile(imgUrl));
-            
-            if (metadata == null)
-            {
-                return new Result(imgUrl, Status.Failed, null);
-            }
-
             PDSParser parser = new PDSParser(metadata);
             if (!CheckMetadata(parser))
             {
+                pipeline.LogVerbose("rejected {0} by metadata", imgUrl);
                 return new Result(imgUrl, Status.Skipped, null);
             }
+
+            string observationName = ObservationName(parser);
 
             // Filter images with invalid camera models
             try
@@ -238,6 +236,7 @@ namespace OPS.Pipeline
             }
             catch
             {
+                pipeline.LogVerbose("invalid camera model for {0}", observationName);
                 return new Result(imgUrl, Status.Skipped, null);
             }
 
@@ -257,7 +256,6 @@ namespace OPS.Pipeline
             var observationFrame = FindOrCreateFrame(ObservationFrameName(parser), siteDriveFrame,
                                                      () => GetDefaultObservationTransform(parser.RoverOriginRotation));
 
-            string observationName = ObservationName(parser);
             Observation observation = RoverObservation.Find(pipeline, project.Name, observationName);
             if (observation != null)
             {

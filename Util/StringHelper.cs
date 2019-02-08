@@ -64,6 +64,32 @@ namespace OPS.Util
             url = NormalizeSlashes(url, preserveTrailingSlash);
             return !string.IsNullOrEmpty(protocol) ? EnsureProtocol(url, protocol) : url;
         }
-    }
 
+        public static string GetLastUrlPathSegment(string url, bool stripExtension = false)
+        {
+            if (string.IsNullOrEmpty(url))
+            {
+                return url;
+            }
+            int lastSlash = url.LastIndexOf('/'); 
+            if (lastSlash < 0)
+            {
+                return url;
+            }
+            if (lastSlash == url.Length - 1)
+            {
+                return "";
+            }
+            string ret = url.Substring(lastSlash + 1);
+            if (!stripExtension)
+            {
+                return ret;
+            }
+            else
+            {
+                int lastDot = ret.LastIndexOf('.');
+                return lastDot < 0 ? ret : ret.Substring(0, lastDot);
+            }
+        }
+    }
 }

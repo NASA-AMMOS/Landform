@@ -24,7 +24,6 @@ namespace PairViewer
         public ImageView ModelView;
         public ImageView DataView;
         public MSLLocations Locations;
-        public PipelineCore Pipeline;
 
         public AlignmentScene Scene;
         Dictionary<string, SceneNode> siteDriveToNode;
@@ -74,8 +73,6 @@ namespace PairViewer
         public PairViewerForm()
         {
             InitializeComponent();
-            Pipeline = new CloudPipeline(new PipelineCoreOptions(), enableS3: false, enableDynamo: false);
-
             Locations = MSLLocations.LoadFromUrl();
             Scene = new AlignmentScene();
             ModelView = new ImageView(ModelPictureBox);
