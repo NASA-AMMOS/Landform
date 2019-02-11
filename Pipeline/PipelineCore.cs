@@ -359,8 +359,12 @@ namespace OPS.Pipeline
 
         public abstract void DeleteDatabaseItem<T>(T obj, bool ignoreErrors = false, bool quiet = false);
 
+        /// <summary>
+        /// table name is usually inferred from an annotation on type T  
+        /// </summary>
         public abstract IEnumerable<T> ScanDatabase<T>(Dictionary<string, string> conditions = null,
-                                                       string indexName = null, bool quiet = false);
+                                                       string indexName = null, bool quiet = false,
+                                                       string tableName = null);
 
         public IEnumerable<T> ScanDatabase<T>(params string[] conditions)
         {

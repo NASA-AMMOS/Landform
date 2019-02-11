@@ -21,6 +21,8 @@ namespace OPS.Pipeline
         public const int WORKER_QUEUE_TIMEOUT_SEC = 60;
         public const int MASTER_QUEUE_TIMEOUT_SEC = 30 * 60;
 
+        public override bool LegacyCompat { get { return (Config as CloudPipelineConfig).LegacyCompat; } }
+
         private readonly string awsProfile;
         private readonly IAmazonDynamoDB dynamoClient;
         private readonly DynamoDBContext dynamoContext;
@@ -248,6 +250,10 @@ namespace OPS.Pipeline
         public override void SaveDatabaseItem<T>(T obj, bool ignoreNulls = true, bool ignoreErrors = false,
                                                  bool quiet = false)
         {
+            if (LegacyCompat)
+            {
+                throw new NotImplementedException("cannot save to cloud database with legacy compatibility enabled");
+            }
             DBUtil.SaveItem(dynamoContext, obj, ignoreNulls, ignoreErrors, quiet ? null : Logger);
         }
 
@@ -274,7 +280,8 @@ namespace OPS.Pipeline
         }
 
         public override IEnumerable<T> ScanDatabase<T>(Dictionary<string, string> conditions = null,
-                                                       string indexName = null, bool quiet = false)
+                                                       string indexName = null, bool quiet = false,
+                                                       string tableName = null)
         {
             if (conditions != null)
             {
@@ -299,12 +306,12 @@ namespace OPS.Pipeline
                         var op = ParseScanValue(ref val);
                         scs.Add(new ScanCondition(cond.Key, op, val));
                     }
-                    return DBUtil.Scan<T>(dynamoContext, scs.ToArray());
+                    return DBUtil.Scan<T>(dynamoContext, scs.ToArray(), tableName: tableName);
                 }
             }
             else
             {
-                return DBUtil.Scan<T>(dynamoContext);
+                return DBUtil.Scan<T>(dynamoContext, tableName: tableName);
             }
         }
 

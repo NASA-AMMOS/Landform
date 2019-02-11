@@ -479,9 +479,14 @@ namespace OPS.Pipeline
         }
 
         public override IEnumerable<T> ScanDatabase<T>(Dictionary<string, string> conditions = null,
-                                                       string indexName = null, bool quiet = false)
+                                                       string indexName = null, bool quiet = false,
+                                                       string tableName = null)
         {
             var ti = GetTableInfo(typeof(T));
+            if (!string.IsNullOrEmpty(tableName) && tableName != ti.Name)
+            {
+                throw new NotImplementedException("LocalPipeline.ScanDatabase() table name must match type annotation");
+            }
             Regex hashRegex = new Regex(".*");
             Regex rangeRegex = new Regex(".*");
             List<Regex> fieldRegex = new List<Regex>();
