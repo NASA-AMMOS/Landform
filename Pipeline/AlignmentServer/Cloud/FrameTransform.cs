@@ -15,12 +15,6 @@ using OPS.Cloud;
 
 namespace OPS.Pipeline.AlignmentServer
 {
-    public static class TransformSource
-    {
-        public const string Prior = "prior";
-        public const string Derived = "derived";
-    }
-
     /// <summary>
     /// Represents the rotation and translation between two frames
     /// Frame transforms are not versioned, so two workers can edit and save them at the same time. 
