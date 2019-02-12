@@ -25,7 +25,7 @@ namespace OPS.Pipeline.AlignmentServer
         [Value(0, Required = true, HelpText = "Name of project")]
         public string ProjectName { get; set; }
 
-        [Option(HelpText = "Input path", Default = null)]
+        [Option(HelpText = "Input path, ending /** for recursive, or .txt or .json array of paths", Default = null)]
         public string InputPath { get; set; }
 
         [Option(HelpText = "Product path", Default = null)]
@@ -235,10 +235,8 @@ namespace OPS.Pipeline.AlignmentServer
                 }
             };
 
-            var mslLocations = MSLLocations.LoadFromUrl();
-            var ingester = new IngestAlignmentInputs(pipeline, project, mslLocations, options.RedoObservations,
-                                                     options.RedoPriors);
-            ingester.Ingest(handler, recursive: false);
+            var ingester = new IngestAlignmentInputs(pipeline, project, options.RedoObservations, options.RedoPriors);
+            ingester.Ingest(MSLLocations.LoadFromUrl(), handler);
             
             pipeline.LogInfo(ingestionRequested.Count() + " observations created, doing masks & features");
         }

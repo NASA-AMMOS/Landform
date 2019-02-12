@@ -15,15 +15,15 @@ namespace OPS.Pipeline
     public class IngestPDSImage : IngestImage
     {
         private Project project;
-        private MSLLocations locations;
         private bool recreateExistingObservations;
         private bool resetTransforms;
 
-        public IngestPDSImage(PipelineCore pipeline, Project project, MSLLocations locations,
-                              bool recreateExistingObservations = false, bool resetTransforms = false) : base(pipeline)
+        public MSLLocations Locations;
+
+        public IngestPDSImage(PipelineCore pipeline, Project project, bool recreateExistingObservations = false,
+                              bool resetTransforms = false) : base(pipeline)
         {
             this.project = project;
-            this.locations = locations;
             this.recreateExistingObservations = recreateExistingObservations;
             this.resetTransforms = resetTransforms;
         }
@@ -297,7 +297,7 @@ namespace OPS.Pipeline
 
         private UncertainRigidTransform GetDefaultSiteDriveTransform(string siteDrive)
         {
-            var loc = locations.Location(new SiteDrive(siteDrive));
+            var loc = Locations.Location(new SiteDrive(siteDrive));
             if (loc == null)
             {
                 throw new Exception(string.Format("no MSL location for site drive {0}", siteDrive));

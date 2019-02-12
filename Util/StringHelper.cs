@@ -59,6 +59,32 @@ namespace OPS.Util
             return url;
         }
 
+        public static string StripProtocol(string url, string protocol)
+        {
+            if (!protocol.EndsWith("://"))
+            {
+                protocol += "://";
+            }
+
+            if (url == null)
+            {
+                url = "";
+            }
+                
+            if (!url.Contains("://"))
+            {
+                return url;
+            }
+            else if (url.ToLower().StartsWith(protocol))
+            {
+                return url.Substring(protocol.Length);
+            }
+            else
+            {
+                return url;
+            }
+        }
+
         public static string NormalizeUrl(string url, string protocol = null, bool preserveTrailingSlash = false)
         {
             url = NormalizeSlashes(url, preserveTrailingSlash);

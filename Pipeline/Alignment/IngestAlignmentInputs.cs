@@ -1,6 +1,8 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using System.IO;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -11,36 +13,93 @@ namespace OPS.Pipeline
 {
     public class IngestAlignmentInputs : PipelineRoutine
     {
-        public string BaseUrl;
-        private Project project;
-        private IngestImage ingester;
+        public class BaseUrl
+        {
+            public readonly string Url;
+            public readonly bool Recursive;
+            public BaseUrl(string url)
+            {
+                if (url.EndsWith("/**"))
+                {
+                    Url = url.Substring(0, url.Length - 2); //leave trailing slash
+                    Recursive = true;
+                }
+                else
+                {
+                    Url = StringHelper.EnsureTrailingSlash(url);
+                    Recursive = false;
+                }
+            }
+        }
+        public readonly List<BaseUrl> BaseUrls = new List<BaseUrl>();
 
-        public IngestAlignmentInputs(PipelineCore pipeline, Project project, MSLLocations mslLocations,
-                                     bool recreateExistingObservations = false, bool resetExistingTransforms = false)
+        private Project project;
+        private IngestPDSImage ingester;
+
+        public IngestAlignmentInputs(PipelineCore pipeline, Project project, bool recreateExistingObservations = false,
+                                     bool resetExistingTransforms = false)
             : base(pipeline)
         {
-            BaseUrl = StringHelper.EnsureTrailingSlash(project.InputPath);
+            if (string.IsNullOrEmpty(project.InputPath))
+            {
+                throw new ArgumentException("input path not set for project " + project.Name);
+            }
+
+            if (project.InputPath.ToLower().EndsWith(".txt"))
+            {
+                pipeline.GetFile(project.InputPath, file => {
+                        foreach (var line in File.ReadAllLines(file))
+                        {
+                            var url = line.Trim();
+                            if (url != "")
+                            {
+                                BaseUrls.Add(new BaseUrl(url));
+                            }
+                        }
+                    });
+            }
+            else if (project.InputPath.EndsWith(".json"))
+            {
+                pipeline.GetFile(project.InputPath, file => {
+                        foreach (var url in JsonHelper.FromJson<List<string>>(File.ReadAllText(file), autoTypes: false))
+                        {
+                            BaseUrls.Add(new BaseUrl(url));
+                        }
+                    });
+            }
+            else
+            {
+                BaseUrls.Add(new BaseUrl(project.InputPath));
+            }
+
             this.project = project;
-            ingester = new IngestPDSImage(pipeline, project, mslLocations, recreateExistingObservations,
-                                          resetExistingTransforms);
+
+            ingester = new IngestPDSImage(pipeline, project, recreateExistingObservations, resetExistingTransforms);
         }
 
-        public int Ingest(Action<IngestImage.Result> func = null, bool recursive = true)
+        public int Ingest(MSLLocations locations, Action<IngestImage.Result> func = null)
         {
-            
-            pipeline.LogInfo("ingesting input files from {0} for alignment project {1}", BaseUrl, project.Name);
-        
+            ingester.Locations = locations;
             int n = 0;
-            Parallel.ForEach(pipeline.SearchFiles(BaseUrl, "*.IMG", recursive: recursive), url =>
+            foreach (var entry in BaseUrls)
             {
-                var res = ingester.Ingest(url);
-                if (res.Status == IngestImage.Status.Added || res.Status == IngestImage.Status.Duplicate) //TODO??
-                {
-                    Interlocked.Increment(ref n);
-                    if (func != null) func(res);
-                }
-            });
+                pipeline.LogInfo("{0}ingesting input files from {1} for alignment project {2}",
+                                 entry.Recursive ? "recursively " : "", entry.Url, project.Name);
+        
+                Parallel.ForEach(pipeline.SearchFiles(entry.Url, "*.IMG", recursive: entry.Recursive), url => {
 
+                        var res = ingester.Ingest(url);
+                        res.BaseUrl = entry.Url;
+                        //TODO why do we care about duplicates?
+                        //https://github.jpl.nasa.gov/OnSight/Landform/issues/408
+                        if (res.Status == IngestImage.Status.Added || res.Status == IngestImage.Status.Duplicate)
+                        {
+                            Interlocked.Increment(ref n);
+                            if (func != null) func(res);
+                        }
+                    });
+            }
+                
             pipeline.LogInfo("ingested {0} input files for alignment project {1}", n, project.Name);
 
             return n;

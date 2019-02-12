@@ -17,11 +17,11 @@ namespace OPS.Pipeline
         [Value(0, Required = true, HelpText = "project name", Default = null)]
         public string ProjectName { get; set; }
 
-        [Value(1, Required = true, HelpText = "input directory", Default = null)]
-        public string InputDirectory { get; set; }
+        [Value(1, Required = true, HelpText = "input path, ending /** for recursive, or .txt or .json array of paths")]
+        public string InputPath { get; set; }
 
-        [Option(HelpText = "Search for inputs recursively", Default = true)]
-        public bool RecursiveSearch { get; set; }
+        [Option(HelpText = "path to locations.xml, or omit to check input path(s)", Default = null)]
+        public string LocationsXML { get; set; }
 
         [Option(HelpText = "Recreate project if it already exists", Default = false)]
         public bool RedoProject { get; set; }
@@ -46,22 +46,40 @@ namespace OPS.Pipeline
 
         public int Run()
         {
-            if (!Directory.Exists(options.InputDirectory))
-            {
-                throw new Exception(string.Format("input directory {0} not found", options.InputDirectory));
-            }
-
             var productUrl = GetStorageUrl("alignment/products", options.ProjectName);
 
-            var inputUrl = StringHelper.NormalizeUrl(options.InputDirectory, "file://");
+            var inputUrl = StringHelper.NormalizeUrl(options.InputPath, "file://");
 
             var initializer = new InitializeAlignmentProject(this);
             var project = initializer.Initialize(options.ProjectName, productUrl, inputUrl, options.RedoProject);
 
-            var mslLocations = MSLLocations.LoadFromFile(Path.Combine(options.InputDirectory, "locations.xml"));
+            var ingester = new IngestAlignmentInputs(this, project, options.RedoObservations, options.RedoPriors);
 
-            var ingester = new IngestAlignmentInputs(this, project, mslLocations, options.RedoObservations,
-                                                     options.RedoPriors);
+            string locationsFile = options.LocationsXML;
+            if (string.IsNullOrEmpty(locationsFile))
+            {
+                foreach (var entry in ingester.BaseUrls)
+                {
+                    var dir = StringHelper.EnsureTrailingSlash(StringHelper.StripProtocol(entry.Url, "file://"));
+                    var file = dir + "locations.xml";
+                    if (File.Exists(file))
+                    {
+                        locationsFile = file;
+                        break;
+                    }
+                }
+            }
+
+            if (string.IsNullOrEmpty(locationsFile))
+            {
+                LogError("could not find locations.xml");
+                return 1;
+            }
+            else
+            {
+                LogInfo("location {0}", locationsFile);
+            }
+            MSLLocations locations = MSLLocations.LoadFromFile(locationsFile);
 
             ConcurrentDictionary<SiteDrive, ConcurrentDictionary<string, int>> stats =
                 new ConcurrentDictionary<SiteDrive, ConcurrentDictionary<string, int>>();
@@ -70,9 +88,9 @@ namespace OPS.Pipeline
 
                 var imageUrl = res.ImageUrl;
 
-                if (imageUrl.StartsWith(ingester.BaseUrl))
+                if (imageUrl.StartsWith(res.BaseUrl))
                 {
-                    imageUrl = imageUrl.Substring(ingester.BaseUrl.Length);
+                    imageUrl = imageUrl.Substring(res.BaseUrl.Length);
                 }
 
                 if (res.Status == IngestImage.Status.Skipped)
@@ -100,7 +118,7 @@ namespace OPS.Pipeline
                 }
             };
 
-            ingester.Ingest(handler, recursive: options.RecursiveSearch);
+            ingester.Ingest(locations, handler);
 
             foreach (var sds in stats)
             {
