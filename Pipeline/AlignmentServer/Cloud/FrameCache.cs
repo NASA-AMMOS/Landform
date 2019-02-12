@@ -9,7 +9,7 @@ using OPS.Cloud;
 namespace OPS.Pipeline.AlignmentServer
 {
     /// <summary>
-    /// Caches frames keyed on name upon load from dynamodb if enabled (never deletes frames)
+    /// Caches frames from database keyed on name (never deletes frames)
     /// </summary>
     public class FrameCache
     {
