@@ -221,7 +221,7 @@ namespace OPS.Pipeline
             return DBUtil.LoadItem<T>(dynamoContext, key, secondaryKey, ignoreNulls, ignoreErrors, consistent, Logger);
         }
 
-        public override void DeleteDatabaseItem(object obj, bool ignoreErrors = false)
+        public override void DeleteDatabaseItem<T>(T obj, bool ignoreErrors = false)
         {
             DBUtil.DeleteItem(dynamoContext, obj, ignoreErrors, Logger);
         }

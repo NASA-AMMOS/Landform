@@ -462,8 +462,7 @@ namespace OPS.Cloud
             return ret;
         }
 
-        public static void DeleteItem(DynamoDBContext context, object obj, bool ignoreErrors = false,
-                                      ILog logger = null)
+        public static void DeleteItem<T>(DynamoDBContext context, T obj, bool ignoreErrors = false, ILog logger = null)
         {
             try
             {

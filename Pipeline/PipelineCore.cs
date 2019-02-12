@@ -329,7 +329,7 @@ namespace OPS.Pipeline
         public abstract T LoadDatabaseItem<T>(string key, string secondaryKey = null, bool ignoreNulls = true,
                                               bool ignoreErrors = false, bool consistent = false) where T : class;
 
-        public abstract void DeleteDatabaseItem(object obj, bool ignoreErrors = false);
+        public abstract void DeleteDatabaseItem<T>(T obj, bool ignoreErrors = false);
 
         public abstract IEnumerable<T> ScanDatabase<T>(Dictionary<string, string> conditions = null,
                                                        string indexName = null);

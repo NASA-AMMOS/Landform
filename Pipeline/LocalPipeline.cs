@@ -370,9 +370,9 @@ namespace OPS.Pipeline
                 });
         }
 
-        public override void DeleteDatabaseItem(object obj, bool ignoreErrors = false)
+        public override void DeleteDatabaseItem<T>(T obj, bool ignoreErrors = false)
         {
-            var ti = GetTableInfo(obj.GetType());
+            var ti = GetTableInfo(typeof(T));
             var key = ti.MakeKey(obj);
             CheckDatabaseOperation<object>("deleting", ti, key, ignoreErrors, () => {
                     object dummy = null;
