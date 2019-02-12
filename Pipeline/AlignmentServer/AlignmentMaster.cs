@@ -56,15 +56,15 @@ namespace OPS.Pipeline.AlignmentServer
     public class OverlapState
     {
         public URLPair Pair;
-        public Guid CorrespondenceGuid;
+        public Guid CorrespondenceGuid = Guid.Empty;
     }
 
     public class ImageState
     {
         public bool UseForAlignment;
         public Observation Observation;
-        public Guid MaskGuid;
-        public Guid FeaturesGuid;
+        public Guid MaskGuid = Guid.Empty;
+        public Guid FeaturesGuid = Guid.Empty;
         public List<OverlapState> Overlaps;
     }
 
@@ -111,7 +111,7 @@ namespace OPS.Pipeline.AlignmentServer
                 workerTask = CreateWorker();
             }
 
-            CurrentStage = new IngestStage(this, alignmentOptions, new ConcurrentDictionary<string, ImageState>());
+            CurrentStage = new IngestStage(this, alignmentOptions, new Dictionary<string, ImageState>());
             CurrentStage.Run();
 
             while (true)
@@ -139,7 +139,7 @@ namespace OPS.Pipeline.AlignmentServer
             {
                 try
                 {
-                    new StartWorker(new StartWorkerOptions()).Run();
+                    new StartWorker(new StartWorkerOptions(), "alignment").Run();
                 }
                 catch (Exception e)
                 {
@@ -157,12 +157,12 @@ namespace OPS.Pipeline.AlignmentServer
     {
         protected CloudPipeline pipeline;
         protected StartAlignMasterOptions options;
-        protected ConcurrentDictionary<string, ImageState> imageStates; //indexed by image URL
+        protected Dictionary<string, ImageState> imageStates; //indexed by image URL
 
         protected TypeDispatcher dispatcher;
 
         public Stage(CloudPipeline pipeline, StartAlignMasterOptions options,
-                     ConcurrentDictionary<string, ImageState> imageStates)
+                     Dictionary<string, ImageState> imageStates)
         {
             this.pipeline = pipeline;
             this.options = options;
@@ -187,26 +187,23 @@ namespace OPS.Pipeline.AlignmentServer
 
     public class IngestStage : Stage
     {
-        private ConcurrentBag<string> ingestionRequested; //image URLs
-        private ConcurrentBag<string> ingestionCompleted; //image URLs
+        private HashSet<string> ingestionRequested = new HashSet<string>(); //image URLs
+        private HashSet<string> ingestionCompleted = new HashSet<string>(); //image URLs
 
         public IngestStage(CloudPipeline pipeline, StartAlignMasterOptions options,
-                           ConcurrentDictionary<string, ImageState> imageStates)
+                           Dictionary<string, ImageState> imageStates)
             : base(pipeline, options, imageStates)
         {
             dispatcher = new TypeDispatcher()
                 .Case<MaskCreatedMessage>(MaskDone)
                 .Case<FeaturesDetectedMessage>(FeaturesDone);
-
-            ingestionRequested = new ConcurrentBag<string>();
-            ingestionCompleted = new ConcurrentBag<string>();
-
-            pipeline.LogInfo("Beginning ingestion stage");
         }
 
         public override void Run()
         {
             var projectName = options.ProjectName;
+
+            pipeline.LogInfo("beginning ingestion stage for project {0}", projectName);
 
             var initializer = new InitializeAlignmentProject(pipeline);
             var productUrl = StringHelper.NormalizeSlashes(options.ProductPath);
@@ -219,23 +216,22 @@ namespace OPS.Pipeline.AlignmentServer
                 
                 if (obs.ObservationType == ObservationType.Image.ToString())
                 {
-                    var newState = new ImageState() { Observation = obs, Overlaps = new List<OverlapState>() };
-                    
-                    if (!imageStates.TryAdd(obs.Url, newState))
-                    {
-                        throw new Exception("failed to insert new observation state for " + obs.Url);
-                    }
+                    var state = new ImageState() { Observation = obs, Overlaps = new List<OverlapState>() };
+
+                    imageStates[obs.Url] = state;
                     
                     ingestionRequested.Add(obs.Url);
                     
                     if (ValidGuid(obs.MaskGuid) && !options.RedoMasks)
                     {
-                        //skip mask generation
+                        state.MaskGuid = obs.MaskGuid;
+                        pipeline.LogInfo("using existing mask for observation {0}", obs.Name);
                         pipeline.MasterQueue.Enqueue(new MaskCreatedMessage(projectName)
                                                      { ImageUrl = obs.Url, MaskGuid = obs.MaskGuid });
                     }
                     else
                     {
+                        pipeline.LogInfo("requesting mask creation for observation {0}", obs.Name);
                         pipeline.WorkerQueue.Enqueue(new CreateMaskMessage(projectName) { ImageUrl = obs.Url });
                     }
                 }
@@ -244,19 +240,29 @@ namespace OPS.Pipeline.AlignmentServer
             var ingester = new IngestAlignmentInputs(pipeline, project, options.RedoObservations, options.RedoPriors);
             ingester.Ingest(MSLLocations.LoadFromUrl(), handler);
             
-            pipeline.LogInfo(ingestionRequested.Count() + " observations created, doing masks & features");
+            pipeline.LogInfo(ingestionRequested.Count() + " observations created, waiting for masks & features");
         }
         
         private void MaskDone(MaskCreatedMessage message)
         {
             var state = imageStates[message.ImageUrl];
             var obs = state.Observation;
+
+            if (ValidGuid(state.MaskGuid))
+            {
+                pipeline.LogInfo("duplicate mask created message for observation {0}", obs.Name);
+                return;
+            }
+
+            pipeline.LogInfo("got mask for observation {0}", obs.Name);
+
             obs.MaskGuid = state.MaskGuid = message.MaskGuid;
             obs.Save(pipeline);
 
             if (ValidGuid(obs.FeaturesGuid) && !options.RedoFeatures)
             {
-                //skip feature detection
+                state.FeaturesGuid = obs.FeaturesGuid;
+                pipeline.LogInfo("using existing features for observation {0}", obs.Name);
                 pipeline.MasterQueue.Enqueue(new FeaturesDetectedMessage(message.ProjectName)
                 {
                     ImageUrl = message.ImageUrl,
@@ -266,6 +272,7 @@ namespace OPS.Pipeline.AlignmentServer
             }
             else
             {
+                pipeline.LogInfo("requesting feature detection for observation {0}", obs.Name);
                 pipeline.WorkerQueue.Enqueue(new DetectFeaturesMessage(message.ProjectName)
                 {
                     ImageUrl = message.ImageUrl,
@@ -278,6 +285,15 @@ namespace OPS.Pipeline.AlignmentServer
         {
             var state = imageStates[message.ImageUrl];
             var obs = state.Observation;
+
+            if (ValidGuid(state.FeaturesGuid))
+            {
+                pipeline.LogInfo("duplicate features created message for observation {0}", obs.Name);
+                return;
+            }
+
+            pipeline.LogInfo("got features for observation {0}", obs.Name);
+
             obs.FeaturesGuid = state.FeaturesGuid = message.FeaturesGuid;
             obs.Save(pipeline);
 
@@ -285,6 +301,7 @@ namespace OPS.Pipeline.AlignmentServer
 
             if (ingestionCompleted.Count == ingestionRequested.Count)
             {
+                pipeline.LogInfo("completed ingestion stage for project {0}", options.ProjectName);
                 var am = pipeline as AlignmentMaster;
                 am.CurrentStage = new MatchStage(pipeline, options, imageStates);
                 am.CurrentStage.Run();
@@ -294,38 +311,35 @@ namespace OPS.Pipeline.AlignmentServer
 
     public class MatchStage : Stage
     {
-        private List<OverlapState> allOverlaps;
-        private int computedOverlaps;
+        private List<OverlapState> allOverlaps = new List<OverlapState>();
+        private int computedOverlaps = 0;
 
         public MatchStage(CloudPipeline pipeline, StartAlignMasterOptions options,
-                          ConcurrentDictionary<string, ImageState> imageStates)
+                          Dictionary<string, ImageState> imageStates)
             : base(pipeline, options, imageStates)
         {
             dispatcher = new TypeDispatcher()
                 .Case<ImagesMatchedMessage>(MatchDone);
-
-            allOverlaps = new List<OverlapState>();
-            computedOverlaps = 0;
-
-            pipeline.LogInfo("Beginning matching stage");
         }
 
         public override void Run()
         {
             var projectName = options.ProjectName;
 
-            pipeline.LogInfo("Running Matching Stage");
+            pipeline.LogInfo("beginning matching stage for project {0}", projectName);
 
-            pipeline.LogInfo("Detecting overlaps");
             var fod = new FrustumOverlapDetector(pipeline);
             var sb = new BuildSceneGraph(pipeline);
 
             //BUGBUG: may cause non-image frames to keep a bad pose?!
+            pipeline.LogInfo("building scene graph for image matching");
             var scene = sb.Build(Frame.Find(pipeline, projectName, "root"), new BuildSceneGraph.Options()
             {
                 GetTransform = sb.StandardFrameTransform,
                 IncludeObservation = (obs, _) => imageStates.ContainsKey(obs.Url)
             });
+
+            pipeline.LogInfo("detecting overlaps");
             fod.Detect(scene);
 
             foreach (var pair in scene.Overlaps)
@@ -341,6 +355,10 @@ namespace OPS.Pipeline.AlignmentServer
 
                 var modelState = imageStates[modelUrl];
                 var dataState = imageStates[dataUrl];
+
+                pipeline.LogInfo("requesting feature match for overlapping image pair ({0}, {1})",
+                                 StringHelper.GetLastUrlPathSegment(modelUrl),
+                                 StringHelper.GetLastUrlPathSegment(dataUrl));
 
                 pipeline.WorkerQueue.Enqueue(new MatchImagesMessage(projectName)
                 {
@@ -363,6 +381,18 @@ namespace OPS.Pipeline.AlignmentServer
             var modelUrl = message.ModelImageUrl;
             var dataUrl = message.DataImageUrl;
 
+            if (ValidGuid(state.CorrespondenceGuid))
+            {
+                pipeline.LogInfo("duplicate features matched message for image piair ({0}, {1})",
+                                 StringHelper.GetLastUrlPathSegment(modelUrl),
+                                 StringHelper.GetLastUrlPathSegment(dataUrl));
+                return;
+            }
+
+            pipeline.LogInfo("got feature match for image pair ({0}, {1})",
+                             StringHelper.GetLastUrlPathSegment(modelUrl),
+                             StringHelper.GetLastUrlPathSegment(dataUrl));
+
             state.CorrespondenceGuid = message.CorrespondenceGuid;
             state.Pair = new URLPair(modelUrl, dataUrl);
 
@@ -379,9 +409,8 @@ namespace OPS.Pipeline.AlignmentServer
             computedOverlaps++;
             if (computedOverlaps >= allOverlaps.Count)
             {
-                pipeline.LogInfo("Matching done!");
+                pipeline.LogInfo("building scene graph for bundle adjustment");
 
-                pipeline.LogInfo("Building scene graph for bundle adjustment");
                 var bsg = new BuildSceneGraph(pipeline);
                 Frame frame = Frame.Find(pipeline, message.ProjectName, MSLProject.ROOT_FRAME_NAME);
 
@@ -396,14 +425,17 @@ namespace OPS.Pipeline.AlignmentServer
                 {
                     node.Parent.GetOrAddComponent<AdjustedNode>();
                 }
-                new BundleAdjuster(pipeline, pipeline.Logger).Adjust(scene, options.DebugOutputFolder);
+
+                pipeline.LogInfo("running bundle adjuster");
+                var ba = new BundleAdjuster(pipeline, pipeline.Logger);
+                ba.Adjust(scene, options.DebugOutputFolder);
 
                 int curPairIdx = 0;
                 int numImagePairs = scene.ImageToNode.Count;
 
                 foreach (var adjNode in scene.Root.GetComponentsInTree<AdjustedNode>())
                 {
-                    pipeline.LogInfo("Saving transform {0} of {1} adjusted image pairs", curPairIdx++, numImagePairs);
+                    pipeline.LogInfo("saving transform {0} of {1} adjusted image pairs", curPairIdx++, numImagePairs);
                     var f = Frame.Find(pipeline, message.ProjectName, adjNode.Node.Name);
                     FrameTransform ft = FrameTransform.Find(pipeline, f);
                     Microsoft.Xna.Framework.Matrix bundleResult = adjNode.Node.Transform.Matrix;
@@ -416,7 +448,7 @@ namespace OPS.Pipeline.AlignmentServer
 
                 pipeline.CleanupTempDir();
 
-                pipeline.LogInfo("Everything done!");
+                pipeline.LogInfo("everything done");
             }
         }
     }

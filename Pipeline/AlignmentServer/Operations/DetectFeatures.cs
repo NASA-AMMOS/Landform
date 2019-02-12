@@ -4,8 +4,9 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using log4net;
-using OPS.Imaging;
+using OPS.Util;
 using OPS.Cloud;
+using OPS.Imaging;
 using OPS.Pipeline;
 using OPS.Alignment;
 
@@ -41,16 +42,25 @@ namespace OPS.Pipeline.AlignmentServer
         public void Process()
         {
             var project = Project.Find(pipeline, projectName);
+            pipeline.LogInfo("detecting features for image {0} in project {1}",
+                             StringHelper.GetLastUrlPathSegment(message.ImageUrl), project.Name);
             var res = detector.Detect(pipeline, message.ImageUrl, message.MaskGuid, projectName, project.ProductPath);
             if (res != null)
             {
                 pipeline.SaveDataProduct(project.ProductPath, res, projectName);
+                pipeline.LogInfo("detected features for image {0} in project {1}",
+                                 StringHelper.GetLastUrlPathSegment(message.ImageUrl), project.Name);
                 pipeline.MasterQueue.Enqueue(new FeaturesDetectedMessage()
                                              {
                                                  ImageUrl = message.ImageUrl,
                                                  MaskGuid = message.MaskGuid,
                                                  FeaturesGuid = res.Guid
                                              });
+            }
+            else
+            {
+                pipeline.LogError("failed to detedt features for image {0} in project {1}",
+                                  StringHelper.GetLastUrlPathSegment(message.ImageUrl), project.Name);
             }
         }
     }
