@@ -35,8 +35,6 @@ namespace OPS.Pipeline
 
     public class LocalIngest : LocalPipeline
     {
-        private static readonly ILog logger = LogManager.GetLogger(typeof(LocalIngest));
-
         private LocalIngestOptions options;
 
         public LocalIngest(LocalIngestOptions options) : base(options)

@@ -24,8 +24,6 @@ namespace OPS.Pipeline
 
     public class LocalFeatures : LocalPipeline
     {
-        private static readonly ILog logger = LogManager.GetLogger(typeof(LocalIngest));
-
         private LocalFeaturesOptions options;
 
         public LocalFeatures(LocalFeaturesOptions options) : base(options)

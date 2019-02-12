@@ -21,8 +21,6 @@ namespace OPS.Pipeline
 
     public class LocalMasks : LocalPipeline
     {
-        private static readonly ILog logger = LogManager.GetLogger(typeof(LocalIngest));
-
         private LocalMasksOptions options;
 
         public LocalMasks(LocalMasksOptions options) : base(options)
