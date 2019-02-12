@@ -6,6 +6,7 @@ using CommandLine;
 using log4net;
 using OPS.Util;
 using OPS.Pipeline.AlignmentServer;
+using OPS.Geometry;
 
 namespace OPS.Pipeline
 {
@@ -30,11 +31,51 @@ namespace OPS.Pipeline
         public int Run()
         {
             var project = Project.Find(this, options.ProjectName);
-
             if (project == null)
             {
                 LogError("project \"{0}\" not found", options.ProjectName);
                 return 1;
+            }
+
+            var fod = new FrustumOverlapDetector(this);
+            var sb = new BuildSceneGraph(this);
+
+            var scene = sb.Build(Frame.Find(this, options.ProjectName, "root"), new BuildSceneGraph.Options()
+            {
+                GetTransform = sb.StandardFrameTransform
+                //TODO: missing IncludeObservation code, recorded whether observation was ingested or not
+            });
+            fod.Detect(scene);
+
+            foreach (var pair in scene.Overlaps)
+            {
+                string modelUrl = pair.One;
+                string dataUrl = pair.Two;
+
+                SceneNode modelNode = scene.ImageToNode[modelUrl];
+                SceneNode dataNode = scene.ImageToNode[dataUrl];
+
+                RoverObservation modelObs = modelNode.GetComponent<NodeObservation>().observation as RoverObservation;
+                RoverObservation dataObs = dataNode.GetComponent<NodeObservation>().observation as RoverObservation;
+
+                ComputedCorrespondence result = MatchImages.DoCorrespondence(this, project,
+                        modelUrl, dataUrl, modelObs.FeaturesGuid, dataObs.FeaturesGuid, modelObs.FrameName, dataObs.FrameName);
+
+                var dbOverlap = Overlap.Create(this, modelObs, dataObs);
+                if (dbOverlap != null)
+                {
+                    if (result != null && result.Correspondence != null)
+                    {
+                        dbOverlap.Status = Overlap.StatusType.Matched;
+                        dbOverlap.MatchGuid = result.Guid;
+                    }
+                    else
+                    {
+                        dbOverlap.Status = Overlap.StatusType.Rejected;
+                        dbOverlap.MatchGuid = Guid.Empty;
+                    }
+                    dbOverlap.TrySave(this);
+                }
             }
 
             return 0;
