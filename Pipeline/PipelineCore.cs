@@ -63,10 +63,10 @@ namespace OPS.Pipeline
         public readonly string DownloadCache;
         public readonly ILog Logger;
 
-        protected bool quiet, verbose, debug;
+        public readonly string StorageUrl;
+        public readonly string StorageUrlWithVenue;
 
-        protected readonly string storageUrl;
-        protected readonly string storageUrlWithVenue;
+        protected bool quiet, verbose, debug;
 
         private LRUCache<string, Image> imageCache; //indexed by URL
 
@@ -108,12 +108,12 @@ namespace OPS.Pipeline
             this.debug = options.Debug;
 
             if (string.IsNullOrEmpty(storageUrl)) throw new Exception("storage URL must be specified");
-            this.storageUrl = StringHelper.NormalizeUrl(storageUrl.ToLower().Trim());
+            this.StorageUrl = StringHelper.NormalizeUrl(storageUrl.ToLower().Trim());
 
             if (string.IsNullOrEmpty(venue)) throw new Exception("venue must be specified");
             this.Venue = venue.ToLower().Replace('\\','/').Trim().Trim(new char[] {'/'});
 
-            storageUrlWithVenue = this.storageUrl + "/" + this.Venue;
+            this.StorageUrlWithVenue = this.StorageUrl + "/" + this.Venue;
 
             if (logger != null)
             {
@@ -147,7 +147,7 @@ namespace OPS.Pipeline
             //not using LogInfo() to print even if quiet = true
             Logger.Info("Architecture: " + (IntPtr.Size == 4 ? "x86" : "x64"));
             Logger.Info("Venue: " + Venue);
-            Logger.Info("Storage URL: " + storageUrl);
+            Logger.Info("Storage URL: " + StorageUrl);
         }
 
         //****************** Image Fetch API *****************
@@ -170,7 +170,7 @@ namespace OPS.Pipeline
 
         protected void CheckStorageUrl(string url, bool withVenue = true)
         {
-            string prefix = withVenue ? storageUrlWithVenue : storageUrl;
+            string prefix = withVenue ? StorageUrlWithVenue : StorageUrl;
             if (string.IsNullOrEmpty(url) || !url.ToLower().StartsWith(prefix))
             {
                 throw new Exception(string.Format("storage URL {0} does not start with {1}", url, prefix));
@@ -180,21 +180,21 @@ namespace OPS.Pipeline
         public string GetStorageUrl(string folder = "", string project = "", string file = "")
         {
             //empty strings are ignored
-            return StringHelper.NormalizeSlashes(Path.Combine(storageUrlWithVenue, folder, project, file));
+            return StringHelper.NormalizeSlashes(Path.Combine(StorageUrlWithVenue, folder, project, file));
         }
 
         /// <summary>
         /// Get a file, downloading it to a local temp file if necessary.
         /// If a temp file is created it will be automatically deleted when the callback is finished.
         /// </summary>
-        /// <param name="url">source URL, if constrainToStorage = true must start with storageURL/Venue</param>
+        /// <param name="url">source URL, if constrainToStorage = true must start with StorageURL/Venue</param>
         /// <param name="func">callback receiving path to file on disk</param>
         public abstract void GetFile(string url, Action<string> func, bool constrainToStorage = false);
         
         /// <summary>
         /// Get a file, downloading it if necessary, using an on-disk cache.
         /// </summary>
-        /// <param name="url">source URL, if constrainToStorage = true must start with storageURL/Venue</param>
+        /// <param name="url">source URL, if constrainToStorage = true must start with StorageURL/Venue</param>
         /// <param name="cacheFolder">cache subfolder (ex. project name)</param>
         /// <param name="filename">filename to use in cache, or null to compute from url SHA1</param>
         /// <returns>path on disk</returns>
@@ -205,13 +205,13 @@ namespace OPS.Pipeline
         /// Persist a file, uploading it if necessary.
         /// </summary>
         /// <param name="file">path to file on disk</param>
-        /// <param name="url">destination URL, must start with storageURL/Venue</param>
+        /// <param name="url">destination URL, must start with StorageURL/Venue</param>
         public abstract void SaveFile(string file, string url);
 
         /// <summary>
         /// Delete a persisted file.
         /// </summary>
-        /// <param name="url">URL of file to delete, must start with storageURL/Venue</param>
+        /// <param name="url">URL of file to delete, must start with StorageURL/Venue</param>
         public abstract void DeleteFile(string url, bool ignoreErrors = true);
 
         /// <summary>
@@ -219,7 +219,7 @@ namespace OPS.Pipeline
         ///
         /// See SearchFiles() for semantics of url, globPattern, and recursive.
         /// </summary>
-        /// <param name="url">base URL of files to delete, must start with storageURL/Venue</param>
+        /// <param name="url">base URL of files to delete, must start with StorageURL/Venue</param>
         public abstract void DeleteFiles(string url, string globPattern = "*", bool recursive = true,
                                          bool ignoreErrors = true);
 
@@ -236,7 +236,7 @@ namespace OPS.Pipeline
         /// returned URL is broken up as PROTOCOL://HOST/PATH and if PATH doesn't match globPattern it is not returned.
         ///
         /// </summary>
-        /// <param name="url">base URL to search, if constrainToStorage = true must start with storageURL/Venue</param>
+        /// <param name="url">base URL to search, if constrainToStorage = true must start with StorageURL/Venue</param>
         public abstract IEnumerable<string> SearchFiles(string url, string globPattern = "*", bool recursive = true,
                                                         bool constrainToStorage = false);
         
@@ -248,7 +248,7 @@ namespace OPS.Pipeline
         /// Fetch a data product given a project name and product GUID.
         /// </summary>
         /// <typeparam name="T">Type of data product</typeparam>
-        /// <param name="path">path to product collection, must start with storageURL/Venue</param>
+        /// <param name="path">path to product collection, must start with StorageURL/Venue</param>
         /// <param name="guid">data product GUID</param>
         /// <param name="cacheFolder">if nonempty then use local disk cache</param>
         public T GetDataProduct<T>(string path, string guid, string cacheFolder = null) where T : DataProduct, new()
@@ -284,7 +284,7 @@ namespace OPS.Pipeline
         /// <summary>
         /// Save a data product.
         /// </summary>
-        /// <param name="path">path to product collection, must start with storageURL/Venue</param>
+        /// <param name="path">path to product collection, must start with StorageURL/Venue</param>
         /// <param name="product">DataProduct object</param>
         /// <param name="cacheFolder">if non-empty then also save to local disk cache</param>
         public void SaveDataProduct(string path, DataProduct product, string cacheFolder = null)

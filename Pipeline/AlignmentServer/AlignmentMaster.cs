@@ -88,10 +88,16 @@ namespace OPS.Pipeline.AlignmentServer
             {
                 options.InputPath = GetStorageUrl("alignment/images", options.ProjectName);
             }
+            //input path does not need to be within venue storage
 
             if (string.IsNullOrEmpty(options.ProductPath))
             {
                 options.ProductPath = GetStorageUrl("alignment/products", options.ProjectName);
+            }
+            else if (!options.ProductPath.ToLower().StartsWith(StorageUrlWithVenue))
+            {
+                throw new Exception(string.Format("product path \"{0}\" does not start with \"{1}\"",
+                                                  options.ProductPath, StorageUrlWithVenue));
             }
         }
 

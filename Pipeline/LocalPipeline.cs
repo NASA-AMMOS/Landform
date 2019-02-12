@@ -268,7 +268,7 @@ namespace OPS.Pipeline
 
         private string GetDatabaseTableUrl(TableInfo ti)
         {
-            return storageUrlWithVenue + "/db/" + ti.Name + "/";
+            return StorageUrlWithVenue + "/db/" + ti.Name + "/";
         }
 
         private string GetDatabaseItemUrl(TableInfo ti, object obj)
@@ -279,7 +279,7 @@ namespace OPS.Pipeline
         }
 
         //indexed by tableName/haskHey[/rangeKey]
-        //corresponding file on disk is storageUrlWithVenue/db/tableName/hashKey[-rangeKey].json
+        //corresponding file on disk is StorageUrlWithVenue/db/tableName/hashKey[-rangeKey].json
         private ConcurrentDictionary<string, object> dbCache = new ConcurrentDictionary<string, object>();
 
         private void InitializeDatabase()
