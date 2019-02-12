@@ -26,7 +26,6 @@ namespace OPS.Pipeline
         /// </summary>
         public class Result
         {
-            public string BaseUrl;
             public string ImageUrl;
             public Status Status;
             public Observation Observation;

@@ -77,54 +77,10 @@ namespace OPS.Pipeline
             }
             else
             {
-                LogInfo("location {0}", locationsFile);
+                LogInfo("loading locations from {0}", locationsFile);
             }
-            MSLLocations locations = MSLLocations.LoadFromFile(locationsFile);
 
-            ConcurrentDictionary<SiteDrive, ConcurrentDictionary<string, int>> stats =
-                new ConcurrentDictionary<SiteDrive, ConcurrentDictionary<string, int>>();
-
-            Action<IngestImage.Result> handler = res => {
-
-                var imageUrl = res.ImageUrl;
-
-                if (imageUrl.StartsWith(res.BaseUrl))
-                {
-                    imageUrl = imageUrl.Substring(res.BaseUrl.Length);
-                }
-
-                if (res.Status == IngestImage.Status.Skipped)
-                {
-                    LogInfo("{0} ({1})", imageUrl, res.Status);
-                }
-                else if (res.Observation is RoverObservation)
-                {
-                    var obs = res.Observation as RoverObservation;
-                    var sd = new SiteDrive(obs.Site, obs.Drive);
-                    var sds = stats.GetOrAdd(sd, _ => new ConcurrentDictionary<string, int>());
-                    sds.AddOrUpdate(obs.ObservationType, _ => 1, (_, n) => n+1);
-                    LogInfo("{0} ({1}) {2}x{3} {4} sitedrive={5} -> observation {6}",
-                            imageUrl, res.Status, obs.Width, obs.Height, obs.ObservationType, sd, obs.Name);
-                }
-                else if (res.Observation != null)
-                {
-                    var obs = res.Observation;
-                    LogInfo("{0} ({1}) {2}x{3} {4} -> observation {5}",
-                            imageUrl, res.Status, obs.Width, obs.Height, obs.ObservationType, obs.Name);
-                }
-                else
-                {
-                    LogInfo("{0} ({1}) -> observation NULL", imageUrl, res.Status);
-                }
-            };
-
-            ingester.Ingest(locations, handler);
-
-            foreach (var sds in stats)
-            {
-                LogInfo("sitedrive {0}: {1}", sds.Key,
-                        string.Join(", ", sds.Value.Select(s => s.Value + " " + s.Key + " observations").ToArray()));
-            }
+            ingester.Ingest(MSLLocations.LoadFromFile(locationsFile));
 
             return 0;
         }

@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Collections.Concurrent;
 using System.Linq;
 using System.IO;
 using System.Text;
@@ -81,6 +82,8 @@ namespace OPS.Pipeline
         {
             ingester.Locations = locations;
             int n = 0;
+            ConcurrentDictionary<SiteDrive, ConcurrentDictionary<string, int>> stats =
+                new ConcurrentDictionary<SiteDrive, ConcurrentDictionary<string, int>>();
             foreach (var entry in BaseUrls)
             {
                 pipeline.LogInfo("{0}ingesting input files from {1} for alignment project {2}",
@@ -89,18 +92,49 @@ namespace OPS.Pipeline
                 Parallel.ForEach(pipeline.SearchFiles(entry.Url, "*.IMG", recursive: entry.Recursive), url => {
 
                         var res = ingester.Ingest(url);
-                        res.BaseUrl = entry.Url;
+
                         //TODO why do we care about duplicates?
                         //https://github.jpl.nasa.gov/OnSight/Landform/issues/408
                         if (res.Status == IngestImage.Status.Added || res.Status == IngestImage.Status.Duplicate)
                         {
                             Interlocked.Increment(ref n);
+
+                            if (res.Status == IngestImage.Status.Skipped)
+                            {
+                                pipeline.LogInfo("{0} ({1})", res.ImageUrl, res.Status);
+                            }
+                            else if (res.Observation is RoverObservation)
+                            {
+                                var obs = res.Observation as RoverObservation;
+                                var sd = new SiteDrive(obs.Site, obs.Drive);
+                                var sds = stats.GetOrAdd(sd, _ => new ConcurrentDictionary<string, int>());
+                                sds.AddOrUpdate(obs.ObservationType, _ => 1, (_, m) => m + 1);
+                                pipeline.LogInfo("{0} ({1}) {2}x{3} {4} sitedrive={5} -> observation {6}", res.ImageUrl,
+                                                 res.Status, obs.Width, obs.Height, obs.ObservationType, sd, obs.Name);
+                            }
+                            else if (res.Observation != null)
+                            {
+                                var obs = res.Observation;
+                                pipeline.LogInfo("{0} ({1}) {2}x{3} {4} -> observation {5}", res.ImageUrl,
+                                                 res.Status, obs.Width, obs.Height, obs.ObservationType, obs.Name);
+                            }
+                            else
+                            {
+                                pipeline.LogInfo("{0} ({1}) -> observation NULL", res.ImageUrl, res.Status);
+                            }
+
                             if (func != null) func(res);
                         }
                     });
             }
                 
             pipeline.LogInfo("ingested {0} input files for alignment project {1}", n, project.Name);
+            foreach (var sds in stats)
+            {
+                pipeline.LogInfo("sitedrive {0}: {1}", sds.Key,
+                                 string.Join(", ",
+                                             sds.Value.Select(s => s.Value + " " + s.Key + " observations").ToArray()));
+            }
 
             return n;
         }
