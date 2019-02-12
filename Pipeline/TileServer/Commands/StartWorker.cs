@@ -63,11 +63,14 @@ namespace OPS.Pipeline.TileServer
         //indexed by message ID
         private Dictionary<string, MessageRec> messagesInFlight = new Dictionary<string, MessageRec>();
 
-        private StartWorkerOptions options;
+        private readonly StartWorkerOptions options;
+        private readonly string queuePrefix;
 
-        public StartWorker(StartWorkerOptions options) : base(options, queuePrefix: "tiling")
+        public StartWorker(StartWorkerOptions options, string queuePrefix = "tiling")
+            : base(options, queuePrefix: queuePrefix)
         {
             this.options = options;
+            this.queuePrefix = queuePrefix;
         }
 
         public int Run()
@@ -103,7 +106,7 @@ namespace OPS.Pipeline.TileServer
 
             if (options.SingleThreaded)
             {
-                RunWorker();
+                RunWorker(queuePrefix);
             }
             else
             {
@@ -117,7 +120,7 @@ namespace OPS.Pipeline.TileServer
                         {   
                             try
                             {
-                                RunWorker();
+                                RunWorker(queuePrefix);
                             }
                             catch (Exception e)
                             {
@@ -372,13 +375,14 @@ namespace OPS.Pipeline.TileServer
             return rec;
         }
 
-        private void RunWorker()
+        private void RunWorker(string queuePrefix)
         {
             //each worker thread has its own pipeline instance
             //this avoids the need for synchronization
             //all threads share the same logger which is MT safe
             var pipeline = new CloudPipeline(options, logger: Logger, lruCache: IMAGE_CACHE_SIZE,
-                                             initQueues: true, initTables: false, quiet: true, queuePrefix: "tiling");
+                                             initQueues: true, initTables: false, quiet: true,
+                                             queuePrefix: queuePrefix);
 
             var dispatcher = new TypeDispatcher()
                 .Case((DefineTilesMessage m) => new DefineTiles(pipeline, m).Process())
@@ -389,7 +393,7 @@ namespace OPS.Pipeline.TileServer
                 .Case((BuildTilesetJsonMessage m) => new BuildTilesetJson(pipeline, m).Process())
                 .Case((BuildTilingInputMessage m) => new BuildTilingInput(pipeline, m).Process())
                 .Case((CreateMaskMessage m) => new CreateMask(pipeline, m).Process())
-                .Case((DetectFeaturesMessage m) => new OPS.Pipeline.AlignmentServer.DetectFeatures(pipeline, m).Process())
+                .Case((DetectFeaturesMessage m) => new DetectFeatures(pipeline, m).Process())
                 .Case((MatchImagesMessage m) => new MatchImages(pipeline, m).Process());
             dispatcher.Unhandled = (t, x) => LogError("Unknown message type: " + t);
 

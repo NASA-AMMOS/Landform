@@ -60,7 +60,12 @@ namespace OPS.Pipeline
                 {
                     pfx += "-";
                 }
-                return "landform-" + Venue + "-" + pfx;
+                pfx = Venue + "-" + pfx;
+                if (!pfx.ToLower().StartsWith("landform-"))
+                {
+                    pfx = "landform-" + pfx;
+                }
+                return pfx;
             };
 
             if (enableDynamo)

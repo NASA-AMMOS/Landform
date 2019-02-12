@@ -62,12 +62,23 @@ namespace OPS.Cloud
         private string url;
         private AmazonSQSClient client;
 
-        public MessageQueue(string prefix, string awsProfileName, int timeoutSec = DEF_TIMEOUT_SEC,
+        public MessageQueue(string name, string awsProfileName, int timeoutSec = DEF_TIMEOUT_SEC,
                             string endpointName = "us-west-1", ILog logger = null, bool quiet = false)
         {
             this.logger = logger != null ? logger : LogManager.GetLogger(typeof(MessageQueue));
-                
-            Name = "LandformMessageQueue" + prefix;
+
+            if (string.IsNullOrEmpty(name))
+            {
+                throw new ArgumentException("queue name cannot be empty");
+            }
+
+            if (!name.ToLower().StartsWith("landform-"))
+            {
+                name = "landform-" + name;
+            }
+
+            Name = name;
+
             TimeoutSec = timeoutSec;
 
             client = GetClient(awsProfileName, endpointName);
