@@ -242,6 +242,8 @@ namespace OPS.Pipeline
         
         //****************** Data Product API *****************
 
+        private static object dataCacheLock = new object();
+
         /// <summary>
         /// Fetch a data product given a project name and product GUID.
         /// </summary>
@@ -257,7 +259,15 @@ namespace OPS.Pipeline
             T res = null;
             if (!string.IsNullOrEmpty(cacheFolder))
             {
-                res = DataProduct.Load<T>(File.ReadAllBytes(GetFileCached(url, cacheFolder, guid)));
+                var file = DownloadCachePath(cacheFolder, guid);
+                lock (dataCacheLock)
+                {
+                    if (!File.Exists(file))
+                    {
+                        file = GetFileCached(url, cacheFolder, guid);
+                    }
+                    res = DataProduct.Load<T>(File.ReadAllBytes(file));
+                }
             }
             else
             {
@@ -290,14 +300,21 @@ namespace OPS.Pipeline
 
             TemporaryFile.FilenameDelegate writeAndUpload = file =>
             {
-                PathHelper.EnsureExists(Path.GetDirectoryName(file));
                 File.WriteAllBytes(file, product.Serialize());
                 SaveFile(file, url);
             };
 
             if (cacheFolder != null)
             {
-                writeAndUpload(DownloadCachePath(cacheFolder, guid));
+                var file = DownloadCachePath(cacheFolder, guid);
+                lock (dataCacheLock)
+                {
+                    if (!File.Exists(file))
+                    {
+                        PathHelper.EnsureExists(Path.GetDirectoryName(file));
+                        writeAndUpload(file);
+                    }
+                }
             }
             else
             {
