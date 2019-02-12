@@ -1,5 +1,17 @@
 #!/bin/sh
 
+# run this script from a sh or bash command prompt, e.g. on Windows use git bash, cygwin, or WSL
+#
+# 1) install latest python3
+#
+# 2) pip install awscli --upgrade --user
+#
+# 3) your PATH environment variable must include
+#
+#    Windows: %USERPROFILE%\AppData\Roaming\Python\Python??\Scripts
+#    Linux: ~/.local/bin
+#    MacOS: ~/Library/Python/?.?/bin
+
 if [ $# -lt 2 ]; then
     echo "Usage: fetch-msl.sh destination [locations] sol0 sol1 ..."
     exit 1
