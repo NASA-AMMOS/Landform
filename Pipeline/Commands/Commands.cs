@@ -34,6 +34,7 @@ namespace OPS.Pipeline
                                                              LocalIngestOptions,
                                                              LocalMasksOptions,
                                                              LocalFeaturesOptions,
+                                                             LocalMatchingOptions,
                                                              ConfigureCloudOptions,
                                                              ConfigureLocalOptions
                                                              >(args)
@@ -52,6 +53,7 @@ namespace OPS.Pipeline
                 (LocalIngestOptions opts) => new LocalIngest(opts).Run(),
                 (LocalMasksOptions opts) => new LocalMasks(opts).Run(),
                 (LocalFeaturesOptions opts) => new LocalFeatures(opts).Run(),
+                (LocalMatchingOptions opts) => new LocalMatching(opts).Run(),
                 (ConfigureCloudOptions opts) => new ConfigureCloud(opts).Run(),
                 (ConfigureLocalOptions opts) => new ConfigureLocal(opts).Run(),
                 errs => 1);

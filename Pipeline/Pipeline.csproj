@@ -203,6 +203,7 @@
     <Compile Include="Commands\LocalFeatures.cs" />
     <Compile Include="Commands\LocalIngest.cs" />
     <Compile Include="Commands\LocalMasks.cs" />
+    <Compile Include="Commands\LocalMatching.cs" />
     <Compile Include="Commands\TileLocalMesh.cs" />
     <Compile Include="DataProducts\DataProduct.cs" />
     <Compile Include="DataProducts\JsonDataProduct.cs" />
