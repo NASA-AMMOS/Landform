@@ -24,10 +24,10 @@ namespace OPS.Pipeline
         [Option(Default = null, HelpText = "AWS profile")]
         public string AWSProfile { get; set; }
 
-        [Option(Default = "mslice", HelpText = "MSLICE profile")]
+        [Option(Default = null, HelpText = "MSLICE profile")]
         public string MSLICEAWSProfile { get; set; }
 
-        [Option(Default = "s3://red-product/", HelpText = "MSLICE S3 url")]
+        [Option(Default = null, HelpText = "MSLICE S3 url")]
         public string MSLICES3Url { get; set; }
 
         [Option(Default = false, HelpText = "Do not persist config")]
@@ -57,7 +57,8 @@ namespace OPS.Pipeline
             if (string.IsNullOrEmpty(config.Venue))
             {
                 //default unless overridden by command line option or console input
-                config.Venue = string.Format("landform-dev-{0}-{1}", Environment.UserName, Environment.MachineName);
+                config.Venue = string.Format("landform-dev-{0}-{1}",
+                                             Environment.UserName.ToLower(), Environment.MachineName.ToLower());
             }
 
             config.Venue = ConsoleHelper.Prompt("Venue name", options.Venue, config.Venue);
