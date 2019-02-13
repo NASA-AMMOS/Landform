@@ -1,13 +1,14 @@
-﻿using log4net;
-using System;
+﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text;
-using System.Threading.Tasks;
 using System.Threading;
-using System.Runtime.InteropServices;
+using System.Threading.Tasks;
+using System.Reflection;
+using log4net;
 
 namespace OPS.Util
 {
@@ -51,7 +52,8 @@ namespace OPS.Util
         /// </summary>
         /// <param name="destination">Temp file will be moved to this path when the delegate completes.</param>
         /// <param name="func">Delegate to execute.</param>
-        public static void GetAndMove(string destination, FilenameDelegate func)
+        public static void GetAndMove(string destination, FilenameDelegate func, bool replaceExisting = true,
+                                      object moveLock = null)
         {
             string file = GetTempName(destination);
             try
@@ -60,72 +62,34 @@ namespace OPS.Util
             }
             catch (Exception)
             {
-                DeleteWithRetry(file);
+                PathHelper.DeleteWithRetry(file, logger);
                 throw;
             }
             finally
             {
                 if (File.Exists(file))
                 {
-                    //this is not atomic and is an MT race
-                    //if (File.Exists(destination))
-                    //{
-                    //    File.Delete(destination);
-                    //}
-                    //File.Move(file, destination);
-                    
-                    //there is a fighting chance that this is atomic
-                    //https://docs.microsoft.com/en-us/windows/desktop/FileIO/deprecation-of-txf#applications-updating-a-single-file-with-document-like-data
-                    //unfortunately it doesn't work when the destination file doesn't already exist
-                    //File.Replace(file, destination, null);
-                    
-                    //this is also supposed to be atomic
-                    //but it doesn't work if the destination exists
-                    //File.Move(file, destination);
-                    
-                    //rather than introduce a lock here or do a race-prone existence check
-                    //let's try this https://stackoverflow.com/a/38372760
-                    //flags 11 = MOVEFILE_COPY_ALLOWED (2) | MOVEFILE_REPLACE_EXISTING (1) | MOVEFILE_WRITE_THROUGH (8)
-                    //OK if exists, creates parents
-                    Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(destination)));
-                    MoveFileEx(file, destination, 11);
-                }
-            }
-        }
+                    if (replaceExisting || !File.Exists(destination))
+                    {
+                        //OK if exists, creates parents
+                        Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(destination)));
 
-        //this seems to be the most palatable option to try to atomically move a file
-        //whether or not the destination already exists
-        //https://stackoverflow.com/a/38372760
-        //and yes, it's kernel32.dll even on 64 bit windows
-        //https://stackoverflow.com/a/1364762
-        [return: MarshalAs(UnmanagedType.Bool)]
-        [DllImport("kernel32.dll", SetLastError=true, CharSet=CharSet.Unicode)]
-        static extern bool MoveFileEx(string existingFileName, string newFileName, int flags);
-
-        public static void DeleteWithRetry(string file)
-        {
-            if (File.Exists(file))
-            {
-                try
-                {
-                    File.Delete(file);
-                }
-                catch (Exception)
-                {
-                    logger.Warn("error deleting \"" + file + "\", trying again in 5s");
-                    Task.Run(async () =>
+                        if (moveLock != null)
+                        {
+                            lock (moveLock)
                             {
-                                await Task.Delay(5000);
-                                try
+                                //re-do existence check now that we hold the lock
+                                if (replaceExisting || !File.Exists(destination))
                                 {
-                                    File.Delete(file);
-                                    logger.Info("deleted \"" + file + "\"");
+                                    PathHelper.MoveFileAtomic(file, destination);
                                 }
-                                catch (Exception e2)
-                                {
-                                    logger.Error(e2);
-                                }
-                            });
+                            }
+                        }
+                        else
+                        {
+                            PathHelper.MoveFileAtomic(file, destination);
+                        }
+                    }
                 }
             }
         }
@@ -145,7 +109,7 @@ namespace OPS.Util
             }
             finally
             {
-                DeleteWithRetry(file);
+                PathHelper.DeleteWithRetry(file, logger);
             }
         }
 
@@ -187,7 +151,7 @@ namespace OPS.Util
             {
                 for (int i = 0; i < tmpFiles.Length; i++)
                 {
-                    DeleteWithRetry(tmpFiles[i]);
+                    PathHelper.DeleteWithRetry(tmpFiles[i], logger);
                 }
             }
         }
@@ -212,7 +176,7 @@ namespace OPS.Util
             {
                 for (int i = 0; i < tmpFiles.Length; i++)
                 {
-                    DeleteWithRetry(tmpFiles[i]);
+                    PathHelper.DeleteWithRetry(tmpFiles[i], logger);
                 }
             }
         }

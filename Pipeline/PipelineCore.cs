@@ -260,14 +260,21 @@ namespace OPS.Pipeline
             if (!string.IsNullOrEmpty(cacheFolder))
             {
                 var file = DownloadCachePath(cacheFolder, guid);
-                lock (dataCacheLock)
+                if (!File.Exists(file))
                 {
-                    if (!File.Exists(file))
-                    {
-                        file = GetFileCached(url, cacheFolder, guid);
-                    }
-                    res = DataProduct.Load<T>(File.ReadAllBytes(file));
+                    GetFile(url, tmpFile => {
+                            lock (dataCacheLock)
+                            {
+                                if (!File.Exists(file))
+                                {
+                                    //OK if exists, creates parents
+                                    Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(file)));
+                                    File.Move(tmpFile, file);
+                                }
+                            }
+                        });
                 }
+                res = DataProduct.Load<T>(File.ReadAllBytes(file));
             }
             else
             {
@@ -307,13 +314,13 @@ namespace OPS.Pipeline
             if (cacheFolder != null)
             {
                 var file = DownloadCachePath(cacheFolder, guid);
-                lock (dataCacheLock)
+                if (!File.Exists(file))
                 {
-                    if (!File.Exists(file))
-                    {
-                        PathHelper.EnsureExists(Path.GetDirectoryName(file));
-                        writeAndUpload(file);
-                    }
+                    //it is possible for multiple threads to get here for the same data product
+                    //in that case we are relying on the atomicity of GetAndMove()
+                    //and also that SaveFile() is OK with multiple threads uploading to the same dest
+                    TemporaryFile.GetAndMove(file, tmpFile => writeAndUpload(tmpFile),
+                                             replaceExisting: false, moveLock: dataCacheLock);
                 }
             }
             else

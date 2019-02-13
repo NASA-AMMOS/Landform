@@ -1,10 +1,14 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Reflection;
+using System.Runtime.InteropServices;
+using log4net;
 
 namespace OPS.Util
 {
@@ -69,6 +73,68 @@ namespace OPS.Util
             return new DirectoryInfo(dir).GetFileSystemInfos(globPattern, opt)
                 .Where(i => i is DirectoryInfo)
                 .Select(i => i as DirectoryInfo);
+        }
+
+        public static void MoveFileAtomic(string src, string dst)
+        {
+            //there is a fighting chance that this is atomic
+            //https://docs.microsoft.com/en-us/windows/desktop/FileIO/deprecation-of-txf#applications-updating-a-single-file-with-document-like-data
+            //unfortunately it doesn't work when the destination file doesn't already exist
+            //File.Replace(src, dst, null);
+            
+            //this is also supposed to be atomic but it doesn't work if the destination exists
+            //File.Move(src, dst);
+            
+            //rather than introduce a lock here or do a race-prone existence check
+            //let's try this https://stackoverflow.com/a/38372760
+            //flags 11 = MOVEFILE_COPY_ALLOWED (2) | MOVEFILE_REPLACE_EXISTING (1) | MOVEFILE_WRITE_THROUGH (8)
+            MoveFileEx(src, dst, 11);
+        }
+
+        //this seems to be the most palatable option to try to atomically move a file
+        //whether or not the destination already exists
+        //https://stackoverflow.com/a/38372760
+        //and yes, it's kernel32.dll even on 64 bit windows
+        //https://stackoverflow.com/a/1364762
+        [return: MarshalAs(UnmanagedType.Bool)]
+        [DllImport("kernel32.dll", SetLastError=true, CharSet=CharSet.Unicode)]
+        private static extern bool MoveFileEx(string existingFileName, string newFileName, int flags);
+
+        public static void DeleteWithRetry(string file, ILog logger = null)
+        {
+            if (File.Exists(file))
+            {
+                try
+                {
+                    File.Delete(file);
+                }
+                catch (Exception)
+                {
+                    if (logger != null)
+                    {
+                        logger.Warn("error deleting \"" + file + "\", trying again in 5s");
+                    }
+                    Task.Run(async () =>
+                            {
+                                await Task.Delay(5000);
+                                try
+                                {
+                                    File.Delete(file);
+                                    if (logger != null)
+                                    {
+                                        logger.Info("deleted \"" + file + "\"");
+                                    }
+                                }
+                                catch (Exception e2)
+                                {
+                                    if (logger != null)
+                                    {
+                                        logger.Error(e2);
+                                    }
+                                }
+                            });
+                }
+            }
         }
     }
 }

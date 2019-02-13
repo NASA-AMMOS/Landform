@@ -214,7 +214,7 @@ namespace OPS.Pipeline.TileServer
                     if (File.Exists(mtl))
                     {
                         upload(mtl, exMeshMtlUrl);
-                        TemporaryFile.DeleteWithRetry(mtl);
+                        PathHelper.DeleteWithRetry(mtl, pipeline.Logger);
                     }
                 }
             };
