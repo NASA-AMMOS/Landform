@@ -59,7 +59,7 @@ namespace OPS.Pipeline.AlignmentServer
             }
             else
             {
-                pipeline.LogError("failed to detedt features for image {0} in project {1}",
+                pipeline.LogError("failed to detect features for image {0} in project {1}",
                                   StringHelper.GetLastUrlPathSegment(message.ImageUrl), project.Name);
             }
         }
