@@ -124,7 +124,7 @@ namespace OPS.Pipeline.AlignmentServer
                     }
                     catch (Exception ex)
                     {
-                        LogError("Failed processing message of type " + m.GetType().Name, ex);
+                        LogError("failed processing message of type {0}: {1}", m.GetType().Name, ex.Message);
                     }
                     MasterQueue.DeleteMessage(m);
                 }
@@ -211,72 +211,75 @@ namespace OPS.Pipeline.AlignmentServer
             var project = initializer.Initialize(projectName, productUrl, inputUrl, options.RedoProject);
 
             Action<IngestImage.Result> handler = res => {
-                
                 var obs = res.Observation;
-                
                 if (obs.ObservationType == ObservationType.Image.ToString())
                 {
                     var state = new ImageState() { Observation = obs, Overlaps = new List<OverlapState>() };
-
                     imageStates[obs.Url] = state;
-                    
                     ingestionRequested.Add(obs.Url);
-                    
-                    if (ValidGuid(obs.MaskGuid) && !options.RedoMasks)
-                    {
-                        state.MaskGuid = obs.MaskGuid;
-                        pipeline.LogInfo("using existing mask for observation {0}", obs.Name);
-                        pipeline.MasterQueue.Enqueue(new MaskCreatedMessage(projectName)
-                                                     { ImageUrl = obs.Url, MaskGuid = obs.MaskGuid });
-                    }
-                    else
-                    {
-                        pipeline.LogInfo("requesting mask creation for observation {0}", obs.Name);
-                        pipeline.WorkerQueue.Enqueue(new CreateMaskMessage(projectName) { ImageUrl = obs.Url });
-                    }
                 }
             };
 
             var ingester = new IngestAlignmentInputs(pipeline, project, options.RedoObservations, options.RedoPriors);
             ingester.Ingest(MSLLocations.LoadFromUrl(), handler);
-            
+
+            foreach (var url in ingestionRequested)
+            {
+                RequestMaskMaybe(url);
+            }
+
             pipeline.LogInfo(ingestionRequested.Count() + " observations created, waiting for masks & features");
         }
-        
+
+        private void RequestMaskMaybe(string imageUrl)
+        {
+            var state = imageStates[imageUrl];
+            var obs = state.Observation;
+            if (ValidGuid(obs.MaskGuid) && !options.RedoMasks)
+            {
+                state.MaskGuid = obs.MaskGuid;
+                pipeline.LogInfo("using existing mask for observation {0}", obs.Name);
+                RequestFeaturesMaybe(imageUrl);
+            }
+            else
+            {
+                pipeline.LogInfo("requesting mask creation for observation {0}", obs.Name);
+                pipeline.WorkerQueue.Enqueue(new CreateMaskMessage(options.ProjectName) { ImageUrl = obs.Url });
+            }
+        }
+
         private void MaskDone(MaskCreatedMessage message)
         {
             var state = imageStates[message.ImageUrl];
             var obs = state.Observation;
-
             if (ValidGuid(state.MaskGuid))
             {
                 pipeline.LogInfo("duplicate mask created message for observation {0}", obs.Name);
                 return;
             }
-
             pipeline.LogInfo("got mask for observation {0}", obs.Name);
-
             obs.MaskGuid = state.MaskGuid = message.MaskGuid;
             obs.Save(pipeline);
+            RequestFeaturesMaybe(message.ImageUrl);
+        }
 
+        private void RequestFeaturesMaybe(string imageUrl)
+        {
+            var state = imageStates[imageUrl];
+            var obs = state.Observation;
             if (ValidGuid(obs.FeaturesGuid) && !options.RedoFeatures)
             {
                 state.FeaturesGuid = obs.FeaturesGuid;
                 pipeline.LogInfo("using existing features for observation {0}", obs.Name);
-                pipeline.MasterQueue.Enqueue(new FeaturesDetectedMessage(message.ProjectName)
-                {
-                    ImageUrl = message.ImageUrl,
-                    MaskGuid = message.MaskGuid,
-                    FeaturesGuid = obs.FeaturesGuid
-                });
+                IngestionCompleted(imageUrl);
             }
             else
             {
                 pipeline.LogInfo("requesting feature detection for observation {0}", obs.Name);
-                pipeline.WorkerQueue.Enqueue(new DetectFeaturesMessage(message.ProjectName)
+                pipeline.WorkerQueue.Enqueue(new DetectFeaturesMessage(options.ProjectName)
                 {
-                    ImageUrl = message.ImageUrl,
-                    MaskGuid = message.MaskGuid
+                    ImageUrl = imageUrl,
+                    MaskGuid = state.MaskGuid
                 });
             }
         }
@@ -285,20 +288,20 @@ namespace OPS.Pipeline.AlignmentServer
         {
             var state = imageStates[message.ImageUrl];
             var obs = state.Observation;
-
             if (ValidGuid(state.FeaturesGuid))
             {
                 pipeline.LogInfo("duplicate features created message for observation {0}", obs.Name);
                 return;
             }
-
             pipeline.LogInfo("got features for observation {0}", obs.Name);
-
             obs.FeaturesGuid = state.FeaturesGuid = message.FeaturesGuid;
             obs.Save(pipeline);
+            IngestionCompleted(message.ImageUrl);
+        }
 
-            ingestionCompleted.Add(message.ImageUrl);
-
+        private void IngestionCompleted(string imageUrl)
+        {
+            ingestionCompleted.Add(imageUrl);
             if (ingestionCompleted.Count == ingestionRequested.Count)
             {
                 pipeline.LogInfo("completed ingestion stage for project {0}", options.ProjectName);
@@ -336,7 +339,9 @@ namespace OPS.Pipeline.AlignmentServer
             var scene = sb.Build(Frame.Find(pipeline, projectName, "root"), new BuildSceneGraph.Options()
             {
                 GetTransform = sb.StandardFrameTransform,
-                IncludeObservation = (obs, _) => imageStates.ContainsKey(obs.Url)
+                IncludeObservation = (obs, _) => imageStates.ContainsKey(obs.Url),
+                LoadDetectedFeatures = false,
+                LoadCorrespondences = false
             });
 
             pipeline.LogInfo("detecting overlaps");
@@ -350,6 +355,7 @@ namespace OPS.Pipeline.AlignmentServer
 
                 int idx = allOverlaps.Count;
                 allOverlaps.Add(os);
+
                 imageStates[modelUrl].Overlaps.Add(os);
                 imageStates[dataUrl].Overlaps.Add(os);
 
@@ -381,17 +387,17 @@ namespace OPS.Pipeline.AlignmentServer
             var modelUrl = message.ModelImageUrl;
             var dataUrl = message.DataImageUrl;
 
+            var pair = string.Format("({0}, {1})", 
+                                     StringHelper.GetLastUrlPathSegment(modelUrl),
+                                     StringHelper.GetLastUrlPathSegment(dataUrl));
+
             if (ValidGuid(state.CorrespondenceGuid))
             {
-                pipeline.LogInfo("duplicate features matched message for image piair ({0}, {1})",
-                                 StringHelper.GetLastUrlPathSegment(modelUrl),
-                                 StringHelper.GetLastUrlPathSegment(dataUrl));
+                pipeline.LogInfo("duplicate features matched message for image piair {0}", pair);
                 return;
             }
 
-            pipeline.LogInfo("got feature match for image pair ({0}, {1})",
-                             StringHelper.GetLastUrlPathSegment(modelUrl),
-                             StringHelper.GetLastUrlPathSegment(dataUrl));
+            pipeline.LogInfo("got feature match for image pair {0}", pair);
 
             state.CorrespondenceGuid = message.CorrespondenceGuid;
             state.Pair = new URLPair(modelUrl, dataUrl);
