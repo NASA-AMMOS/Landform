@@ -9,10 +9,10 @@ const development = {
 
     name: 'Landform',
 
-    exe: 'TilingServer.exe',
+    masterExe: 'TilingServer.exe',
     workerExe: 'TilingServer.exe',
 
-    bundle: 'landform-master.zip',
+    masterBundle: 'landform-master.zip',
     workerBundle: 'landform-worker.zip',
     deployEnvironment: env.EB_DEPLOY_ENV || 'landformweb-dev',
 
@@ -36,7 +36,8 @@ const development = {
     logDir: env.LOG_DIR || path.join(cwd, 'log'),
     tmpDir: env.TMP_DIR || path.join(cwd, 'tmp'),
 
-    venue: env.LANDFORM_VENUE || `landformweb-dev-${os.userInfo().username}-${os.hostname()}`,
+    //default venue name same as in ConfigureCloud.cs
+    venue: env.LANDFORM_VENUE || `landform-dev-${os.userInfo().username}-${os.hostname()}`,
     s3Url: env.LANDFORM_S3_URL || 's3://landlords-dev',
     awsRegion: env.LANDFORM_AWS_REGION || env.AWS_DEFAULT_REGION || 'us-west-1',
     awsProfile: env.LANDFORM_AWS_PROFILE || env.AWS_PROFILE || 'default',

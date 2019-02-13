@@ -4,7 +4,7 @@ const readline = require('readline');
 const parseJson = require('json-parse-better-errors');
 const stripJsonComments = require('strip-json-comments');
 
-const bundle = require('../config').app.bundle;
+const bundle = require('../config').app.masterBundle;
 
 //checks if v is "--name", "--name=true", or "-n"
 function boolArg(v, name) {

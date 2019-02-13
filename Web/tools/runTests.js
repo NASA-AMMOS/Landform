@@ -44,8 +44,10 @@ const testCfg = readJson(cfgFile);
 
 function parseJsonResponse(ex) {
   if (ex.response && Buffer.isBuffer(ex.response.stream)) {
-    try { ex.response.json = JSON.parse(ex.response.stream.toString('utf8')); }
-    catch (e) { ex.response.json = `error parsing response stream as JSON: ${e.message || e}`; }
+    try {
+      ex.response.text = ex.response.stream.toString('utf8');
+      ex.response.json = JSON.parse(ex.response.text);
+    } catch (e) { ex.response.json = `error parsing response stream as JSON: ${e.message || e}`; }
   }
   return ex;
 }

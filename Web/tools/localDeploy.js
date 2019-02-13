@@ -25,9 +25,9 @@ checkDeploy('local-deploy')
     const awsDir = fs.realpathSync(path.join(process.env.HOME, '.aws'));
 
     try {
-      const zip = new Zip(config.app.bundle);
+      const zip = new Zip(config.app.masterBundle);
 
-      console.log(`extracting ${config.app.bundle} to ${tmpDir}`);
+      console.log(`extracting ${config.app.masterBundle} to ${tmpDir}`);
       zip.extractAllTo(tmpDir);
 
       fs.copySync(awsDir, path.join(tmpDir, '.aws'), { overwrite: true });

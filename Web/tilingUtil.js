@@ -32,7 +32,7 @@ async function tilingTask(verb, args, opts) {
   args.unshift(verb);
   opts = opts || {};
   if (!opts.defaultLog) args.push(`--logfile=${log}`);
-  return launchTask('TilingServer', args, { cwd: config.app.tmpDir, env: setTilingEnv() });
+  return launchTask(config.app.masterExe, args, { cwd: config.app.tmpDir, env: setTilingEnv() });
 }
 
 let masterTask = null;
@@ -43,7 +43,7 @@ async function tilingMaster() {
   function abort(err) {
     //make sure spew gets to log even when log level is < debug, as in production
     if (logger.levels[logger.level] < logger.levels.debug) logger.error(masterTask.log.join('\n'));
-    logger.error(`aborting, error launching 'TilingServer startmaster': ${err.message}`);
+    logger.error(`aborting, error launching '${config.app.masterExe} startmaster': ${err.message}`);
     logger.exception(err);
     process.exit(1);
   }

@@ -98,12 +98,12 @@ namespace OPS.Pipeline
             };
 
         public PipelineCore(PipelineCoreOptions options, Config config, string storageUrl, string venue,
-                            ILog logger = null, int lruCache = 100, bool quiet = true)
+                            ILog logger = null, int lruCache = 100, bool quiet = false)
         {
             this.Options = options;
             this.Config = config;
 
-            this.quiet = quiet || options.Quiet;
+            this.quiet = quiet = quiet || options.Quiet;
             this.verbose = options.Verbose;
             this.debug = options.Debug;
 
@@ -121,7 +121,7 @@ namespace OPS.Pipeline
             }
             else
             {
-                Logging.ConfigureLogging(quiet, options.Debug, options.LogFile);
+                Logging.ConfigureLogging(this.quiet, options.Debug, options.LogFile);
                 this.Logger = LogManager.GetLogger(GetType());
             }
 

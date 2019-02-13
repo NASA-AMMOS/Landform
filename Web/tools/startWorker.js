@@ -9,4 +9,4 @@ if (process.argv.length > 2) env.LANDFORM_VENUE_NAME = process.argv[2];
 const venue = env.LANDFORM_VENUE_NAME;
 
 console.log(`starting worker in venue ${venue}`);
-spawn(config.workerExe, ['startworker'], { cwd: config.app.binDir, env });
+spawn(config.app.workerExe, ['startworker'], { cwd: config.app.binDir, env });
