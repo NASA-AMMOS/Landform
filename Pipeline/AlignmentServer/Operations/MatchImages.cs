@@ -120,6 +120,7 @@ namespace OPS.Pipeline.AlignmentServer
 
             if (modelUrl.ToLower() == dataUrl.ToLower())
             {
+                pipeline.LogWarn("match images model URL same as data URL: {0}", modelUrl);
                 var tmp = message.ModelFeaturesGuid;
                 message.ModelFeaturesGuid = message.DataFeaturesGuid;
                 message.DataFeaturesGuid = tmp;
@@ -139,15 +140,31 @@ namespace OPS.Pipeline.AlignmentServer
 
         public void Process()
         {
-            var result = DoCorrespondence();
             var modelUrl = message.ModelImageUrl;
             var dataUrl = message.DataImageUrl;
+
+            var pair = string.Format("({0}, {1})", 
+                                     StringHelper.GetLastUrlPathSegment(modelUrl),
+                                     StringHelper.GetLastUrlPathSegment(dataUrl));
+
+            pipeline.LogInfo("matching features for image pair {0} in project {1}", pair, projectName);
+
+            var result = DoCorrespondence();
+
             Guid guid = Guid.Empty;
+
             if (result != null && result.Correspondence != null)
             {
+                pipeline.LogInfo("matched features for image pair {0} in project {1}", pair, projectName);
+
+                //some matchers may swap model and data images, but why?
                 modelUrl = result.Correspondence.ModelImageUrl;
                 dataUrl = result.Correspondence.DataImageUrl;
                 guid = result.Guid;
+            }
+            else
+            {
+                pipeline.LogError("failed to match features for image pair {0} in project {1}", pair, projectName);
             }
 
             pipeline.MasterQueue.Enqueue(new ImagesMatchedMessage(projectName)
