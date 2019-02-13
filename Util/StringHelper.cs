@@ -123,5 +123,19 @@ namespace OPS.Util
             //https://stackoverflow.com/a/40568888
             return Regex.Replace(str, @"\p{C}+", string.Empty);
         }
+
+        public static int? ParseIntSafe(string str)
+        {
+            if (string.IsNullOrEmpty(str))
+            {
+                return null;
+            }
+            int ret = 0;
+            if (Int32.TryParse(str, out ret))
+            {
+                return ret;
+            }
+            return null;
+        }
     }
 }

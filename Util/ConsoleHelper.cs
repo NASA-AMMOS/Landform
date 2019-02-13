@@ -28,5 +28,27 @@ namespace OPS.Util
             }
             return ret;
         }
+
+        public static int Prompt(string prompt, int? fixedValue, int? defaultValue)
+        {
+            string fv = fixedValue.HasValue ? fixedValue.ToString() : null;
+            string dv = defaultValue.HasValue ? defaultValue.ToString() : null;
+            int? ret = null;
+            while (!ret.HasValue)
+            {
+                ret = StringHelper.ParseIntSafe(Prompt(prompt, fv, dv));
+            }
+            return ret.Value;
+        }
+
+        public static int Prompt(string prompt, string fixedValue, int? defaultValue)
+        {
+            return Prompt(prompt, StringHelper.ParseIntSafe(fixedValue), defaultValue);
+        }
+
+        public static int Prompt(string prompt, int? fixedValue, string defaultValue)
+        {
+            return Prompt(prompt, fixedValue, StringHelper.ParseIntSafe(defaultValue));
+        }
     }
 }
