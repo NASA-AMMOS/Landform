@@ -57,7 +57,7 @@ namespace OPS.Pipeline
 
             double startSec = UTCTime.Now();
             int nc = 0, np = 0, ne = 0, nr = 0, ns = 0;
-            Parallel.ForEach(scene.Overlaps, pair => {
+            CoreLimitedParallel.ForEach(scene.Overlaps, pair => {
                 string pairName = pair.ToStringShort();
                 var modelUrl = pair.One;
                 var dataUrl = pair.Two;

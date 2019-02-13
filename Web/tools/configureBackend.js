@@ -19,6 +19,7 @@ const args = [
   `--msliceawsprofile=${config.app.MSLICEAWSProfile}`,
   `--mslices3url=${config.app.MSLICES3Url}`,
   `--workerexecutable=${config.app.workerExe}`,
+  '--maxcores=0',
 ];
 
 if (!hasFlag('persist')) args.push('--nopersist');

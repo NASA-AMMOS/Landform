@@ -21,7 +21,8 @@ namespace OPS.Pipeline
                              bool quietInit = false, bool initTables = true)
             : base(options, LocalPipelineConfig.Instance,
                    StringHelper.NormalizeUrl(LocalPipelineConfig.Instance.StorageDir, "file://"),
-                   LocalPipelineConfig.Instance.Venue, logger, lruCache, quietInit)
+                   LocalPipelineConfig.Instance.Venue, logger, lruCache, quietInit,
+                   LocalPipelineConfig.Instance.MaxCores)
         {
             if (initTables)
             {

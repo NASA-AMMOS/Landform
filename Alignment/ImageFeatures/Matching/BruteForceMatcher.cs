@@ -89,7 +89,7 @@ namespace OPS.Alignment
             int descriptorLength = modelDescr[0].Length;
 
             // Compute distance matrix
-            Parallel.For(0, modelDescr.Length, i =>
+            CoreLimitedParallel.For(0, modelDescr.Length, i =>
             {
                 for (int j = 0; j < dataDescr.Length; j++)
                 {
@@ -107,7 +107,7 @@ namespace OPS.Alignment
 
             var taskA = Task.Run(() =>
             {
-                Parallel.For(0, dist.Length, i =>
+                CoreLimitedParallel.For(0, dist.Length, i =>
                 {
                     double minval = double.MaxValue;
                     double minval2 = double.MaxValue;
@@ -139,7 +139,7 @@ namespace OPS.Alignment
 
             var taskB = Task.Run(() =>
             {
-                Parallel.For(0, dist[0].Length, i =>
+                CoreLimitedParallel.For(0, dist[0].Length, i =>
                 {
                     double minval = double.MaxValue;
                     double minval2 = double.MaxValue;

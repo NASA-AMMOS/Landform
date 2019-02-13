@@ -92,11 +92,11 @@ namespace OPS.Pipeline
             {
                 pipeline.LogInfo("{0}ingesting input files from {1} for alignment project {2}",
                                  entry.Recursive ? "recursively " : "", entry.Url, project.Name);
-        
-                Parallel.ForEach(pipeline.SearchFiles(entry.Url, "*.IMG", recursive: entry.Recursive), url => {
+
+                var images = pipeline.SearchFiles(entry.Url, "*.IMG", recursive: entry.Recursive);
+                CoreLimitedParallel.ForEach(images, url => {
 
                         Interlocked.Increment(ref ni);
-
                         var res = ingester.Ingest(url);
 
                         if (res.Status == IngestImage.Status.Skipped)

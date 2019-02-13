@@ -110,7 +110,7 @@ namespace OPS.Pipeline.TileServer
             }
             else
             {
-                int numWorkers = Environment.ProcessorCount;
+                int numWorkers = CoreLimitedParallel.GetMaxCores();
                 LogInfo("starting {0} workers", numWorkers);
                 Task[] tasks = new Task[numWorkers];
                 for (int i = 0; i < tasks.Length; i++)

@@ -95,7 +95,7 @@ namespace OPS.Pipeline.TileServer
                 var inputs = TilingInput.Find(pipeline, project).ToList();
                 pipeline.LogInfo("user-defined tiling scheme, " + inputs.Count + " inputs");
                 ConcurrentBag<SceneNode> nodes = new ConcurrentBag<SceneNode>();
-                Parallel.ForEach(inputs, new ParallelOptions() { MaxDegreeOfParallelism = 8 }, input =>
+                CoreLimitedParallel.ForEach(inputs, input =>
                 {
                     var pair = DownloadInput(input);
                     if(!pair.Mesh.HasNormals)

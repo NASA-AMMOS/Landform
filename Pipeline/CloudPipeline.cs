@@ -37,7 +37,8 @@ namespace OPS.Pipeline
                              string queuePrefix = null, string tablePrefix = null)
             : base(options, CloudPipelineConfig.Instance,
                    StringHelper.NormalizeUrl(CloudPipelineConfig.Instance.S3Url, "s3://"),
-                   CloudPipelineConfig.Instance.Venue, logger, lruCache, quietInit)
+                   CloudPipelineConfig.Instance.Venue, logger, lruCache, quietInit,
+                   CloudPipelineConfig.Instance.MaxCores)
         {
             var cloudConfig = (CloudPipelineConfig)Config;
 

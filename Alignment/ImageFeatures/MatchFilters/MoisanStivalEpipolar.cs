@@ -100,7 +100,7 @@ namespace OPS.Alignment
             foreach (Matrix<float> F in ComputeEpipolarMatrix(randomPoints))
             {
                 // Compute epipolar error and sort points by it
-                Parallel.For(0, ModelPoints.Length, idx =>
+                CoreLimitedParallel.For(0, ModelPoints.Length, idx =>
                 {
                     epipolarError[idx] = EpipolarError(ModelPoints[idx], F, DataPoints[idx]);
                 });

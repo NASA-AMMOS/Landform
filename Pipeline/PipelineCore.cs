@@ -100,7 +100,7 @@ namespace OPS.Pipeline
             };
 
         public PipelineCore(PipelineCoreOptions options, Config config, string storageUrl, string venue,
-                            ILog logger = null, int lruCache = 100, bool quietInit = false)
+                            ILog logger = null, int lruCache = 100, bool quietInit = false, int maxCores = 0)
         {
             this.Options = options;
             this.Config = config;
@@ -142,6 +142,11 @@ namespace OPS.Pipeline
 
             //in memory cache is configurable
             imageCache = new LRUCache<string, Image>(lruCache);
+
+            CoreLimitedParallel.SetMaxCores(maxCores);
+
+            LogInfo("using {0} of {1} CPU cores",
+                    CoreLimitedParallel.GetMaxCores(), CoreLimitedParallel.GetAvailableCores());
         }
 
         public virtual void DumpConfig()
