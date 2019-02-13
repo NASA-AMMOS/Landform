@@ -5,6 +5,7 @@ using System.IO;
 using log4net;
 using log4net.Appender;
 using log4net.Layout;
+using log4net.Core;
 
 namespace OPS.Util
 {
@@ -32,9 +33,13 @@ namespace OPS.Util
                 didConfig = true;
             }
 
+            var h = (log4net.Repository.Hierarchy.Hierarchy) LogManager.GetRepository();
+
+            h.Root.Level = debug ? Level.Debug : Level.Info;
+            h.RaiseConfigurationChanged(EventArgs.Empty);
+
             //it is fairly tricky to change log filename at runtime
             //https://stackoverflow.com/a/6963420
-            var h = (log4net.Repository.Hierarchy.Hierarchy) LogManager.GetRepository();
             foreach (IAppender a in h.Root.Appenders)
             {
                 if (a is FileAppender)

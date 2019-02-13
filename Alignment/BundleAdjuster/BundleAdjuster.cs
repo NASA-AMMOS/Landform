@@ -221,7 +221,7 @@ namespace OPS.Alignment
             int numCorrespondences = scene.Correspondences.Count();
             foreach (var corr in scene.Correspondences)
             {
-                logger.InfoFormat("Processing correspondence {0} of {1}", idxCurCorrespondence++, numCorrespondences);
+                logger.DebugFormat("Processing correspondence {0} of {1}", idxCurCorrespondence++, numCorrespondences);
 
                 var modelUrl = corr.Value.ModelImageUrl;
                 var dataUrl = corr.Value.DataImageUrl;
@@ -275,13 +275,14 @@ namespace OPS.Alignment
                     }
                 }
             }
+            logger.InfoFormat("processed {0} correspondences", numCorrespondences);
 
             // assign projections to tracks
             int numTracks = tracks.Values.Count;
             int idxTrack = 0;
             foreach (var track in tracks.Values)
             {
-                logger.InfoFormat("Processing track {0} of {1}", idxTrack++, numTracks);
+                logger.DebugFormat("Processing track {0} of {1}", idxTrack++, numTracks);
 
                 if (track.features.Count < 2) continue;
                 
@@ -301,6 +302,7 @@ namespace OPS.Alignment
                                                                 track.pointIdx, feat.Location));
                 }
             }
+            logger.InfoFormat("processed {0} tracks", numTracks);
 
             HashSet<int> badPoints = new HashSet<int>();
 
