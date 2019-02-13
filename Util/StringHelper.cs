@@ -117,5 +117,11 @@ namespace OPS.Util
                 return lastDot < 0 ? ret : ret.Substring(0, lastDot);
             }
         }
+
+        public static string StripNonPrintable(string str)
+        {
+            //https://stackoverflow.com/a/40568888
+            return Regex.Replace(str, @"\p{C}+", string.Empty);
+        }
     }
 }

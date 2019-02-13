@@ -19,7 +19,8 @@ namespace OPS.Util
             while (string.IsNullOrEmpty(ret))
             {
                 Console.Write(prompt + (defaultValue != null ? " [" + defaultValue + "]" : "") + ": ");
-                ret = Console.ReadLine().Trim();
+                //sometimes a cut and paste will include control chars
+                ret = StringHelper.StripNonPrintable(Console.ReadLine().Trim());
                 if (string.IsNullOrEmpty(ret) && defaultValue != null)
                 {
                     ret = defaultValue;
