@@ -42,8 +42,8 @@ namespace OPS.Pipeline
 
             var scene = sb.Build(Frame.Find(this, options.ProjectName, "root"), new BuildSceneGraph.Options()
             {
-                GetTransform = sb.StandardFrameTransform
-                //TODO: missing IncludeObservation code, recorded whether observation was ingested or not
+                GetTransform = sb.StandardFrameTransform,
+                IncludeObservation = (obs, _) => obs.UseForReconstruction
             });
             fod.Detect(scene);
 
