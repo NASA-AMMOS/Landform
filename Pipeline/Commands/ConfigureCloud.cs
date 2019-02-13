@@ -12,6 +12,15 @@ namespace OPS.Pipeline
     [Verb("configure-cloud", HelpText = "Configures Landform cloud")]
     public class ConfigureCloudOptions : PipelineCoreOptions
     {
+        //NOTE: any non-null default values for options will short circuit the Prompt() functionality
+        //because it can't differentiate an option that got its value as a default
+        //vs an option that was explicitly specified on the command line
+        //and the Prompt() function is designed to not take interactive input for options that are specified on cmd line
+        //among other things, it's done that way so that scripts (e.g. Web/tools/configureBackend.js)
+        //can run this subcommand non-interactively
+        //
+        //instead of specifying non-null defaults here, please note them in docs/cloud-pipeline.md
+
         [Option(Default = null, HelpText = "Venue name")]
         public string Venue { get; set; }
         

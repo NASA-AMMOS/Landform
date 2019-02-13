@@ -75,7 +75,6 @@ namespace OPS.Pipeline
                 });
             double totalSec = UTCTime.Now() - startSec;
 
-            
             LogInfo("processed {0} observations in {1:F3} sec, {2} images, {3} had existing masks, computed {4} masks",
                     no, totalSec, nio, ne, nm);
 

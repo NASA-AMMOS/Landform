@@ -93,8 +93,7 @@ namespace OPS.Pipeline
 
                         var res = ingester.Ingest(url);
 
-                        //TODO why do we care about duplicates?
-                        //https://github.jpl.nasa.gov/OnSight/Landform/issues/408
+                        //duplicates are OK here to handle the case where ingestion is being re-run on an existing proj
                         if (res.Status == IngestImage.Status.Added || res.Status == IngestImage.Status.Duplicate)
                         {
                             Interlocked.Increment(ref n);
