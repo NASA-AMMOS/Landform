@@ -17,7 +17,7 @@ namespace OPS.Pipeline
         [Value(0, Required = true, HelpText = "project name", Default = null)]
         public string ProjectName { get; set; }
 
-        [Value(1, Required = true, HelpText = "input path, ending /** for recursive, or .txt or .json array of paths")]
+        [Option(HelpText = "input path, ending /** for recursive, or .txt or .json array of paths", Default = null)]
         public string InputPath { get; set; }
 
         [Option(HelpText = "path to locations.xml, or omit to check input path(s)", Default = null)]
@@ -46,7 +46,11 @@ namespace OPS.Pipeline
         {
             var productUrl = GetStorageUrl("alignment/products", options.ProjectName);
 
-            var inputUrl = StringHelper.NormalizeUrl(options.InputPath, "file://");
+            var inputUrl = options.InputPath;
+            if (!string.IsNullOrEmpty(inputUrl))
+            {
+                inputUrl = StringHelper.NormalizeUrl(options.InputPath, "file://");
+            }
 
             var initializer = new InitializeAlignmentProject(this);
             var project = initializer.Initialize(options.ProjectName, productUrl, inputUrl, options.RedoProject);

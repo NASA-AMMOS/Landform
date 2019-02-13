@@ -18,6 +18,11 @@ namespace OPS.Pipeline
         {
             var project = Project.Find(pipeline, projectName);
 
+            if ((project == null || recreateIfExists) && string.IsNullOrEmpty(inputPath))
+            {
+                throw new ArgumentException("input path must be specified to (re)create project");
+            }
+
             if (project == null)
             {
                 pipeline.LogInfo("creating alignment project {0}", projectName);
