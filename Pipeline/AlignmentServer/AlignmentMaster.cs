@@ -66,6 +66,7 @@ namespace OPS.Pipeline.AlignmentServer
     {
         public URLPair Pair;
         public Guid CorrespondenceGuid = Guid.Empty;
+        public bool received;
     }
 
     public class ImageState
@@ -373,7 +374,7 @@ namespace OPS.Pipeline.AlignmentServer
 
             foreach (var pair in scene.Overlaps)
             {
-                var os = new OverlapState() { Pair = pair, CorrespondenceGuid = Guid.Empty };
+                var os = new OverlapState() { Pair = pair, CorrespondenceGuid = Guid.Empty, received = false };
                 var modelUrl = pair.One;
                 var dataUrl = pair.Two;
 
@@ -415,7 +416,7 @@ namespace OPS.Pipeline.AlignmentServer
                                      StringHelper.GetLastUrlPathSegment(modelUrl),
                                      StringHelper.GetLastUrlPathSegment(dataUrl));
 
-            if (ValidGuid(state.CorrespondenceGuid))
+            if (state.received)
             {
                 pipeline.LogInfo("duplicate features matched message for image pair {0}", pair);
                 return;
@@ -424,6 +425,7 @@ namespace OPS.Pipeline.AlignmentServer
             pipeline.LogInfo("got feature match for image pair {0}", pair);
 
             state.CorrespondenceGuid = message.CorrespondenceGuid;
+            state.received = true;
 
             // create db entry once all of the work is done - natural rate limiting
             var overlap = Overlap.Create(pipeline, imageStates[modelUrl].Observation, imageStates[dataUrl].Observation);
