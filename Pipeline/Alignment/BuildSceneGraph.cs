@@ -85,6 +85,8 @@ namespace OPS.Pipeline
             public bool LoadDetectedFeatures = true;
 
             public bool LoadCorrespondences = true;
+
+            public bool OnlyCrossSiteDriveOverlaps = false;
         }
 
         public AlignmentScene Build(Frame root, Options options)
@@ -113,6 +115,7 @@ namespace OPS.Pipeline
 
             var project = Project.Find(pipeline, root.ProjectName);
 
+            int numFeatures = 0;
             Action<Observation, SceneNode> addObservation = (obs, node) =>
             {
                 var imgUrl = obs.Url;
@@ -124,6 +127,7 @@ namespace OPS.Pipeline
                         var feat = pipeline.GetDataProduct<DetectedFeatures>(project.ProductPath, obs.FeaturesGuid,
                                                                              project.Name);
                         scene.DetectedFeatures[imgUrl] = feat.Features;
+                        numFeatures++;
                     }
                     else if (options.RequireFeaturesForObservations)
                     {
@@ -183,7 +187,8 @@ namespace OPS.Pipeline
                 double now = UTCTime.Now();
                 if (now - lastSpew > 10)
                 {
-                    pipeline.LogInfo("spawned {0} nodes, {1} observations", numNodes, numObs);
+                    pipeline.LogInfo("spawned {0} nodes, {1} observations, {2} feature products",
+                                     numNodes, numObs, numFeatures);
                     lastSpew = now;
                 }
 
@@ -202,12 +207,16 @@ namespace OPS.Pipeline
             }
             scene.Root = spawn(root, null);
 
-            pipeline.LogInfo("built scene graph: spawned {0} nodes, {1} observations", numNodes, numObs);
+            pipeline.LogInfo("built scene graph: spawned {0} nodes, {1} observations, {2} feature products",
+                             numNodes, numObs, numFeatures);
 
-            pipeline.LogInfo("adding overlaps{0} to scene",
-                             options.LoadCorrespondences ? " and computed correspondences" : "");
+            pipeline.LogInfo("adding overlaps{0} to scene{1}",
+                             options.LoadCorrespondences ? " and computed correspondences" : "",
+                             options.OnlyCrossSiteDriveOverlaps ? ", only overlaps between different site-drives" : "");
+
+
             lastSpew = UTCTime.Now();
-            int numOverlaps = 0, numProcessed = 0;
+            int numOverlaps = 0, numProcessed = 0, numSkipped = 0, numCorrespondences = 0;
             foreach (var obs in observations)
             {
                 foreach (var overlap in Overlap.Find(pipeline, obs))
@@ -221,12 +230,24 @@ namespace OPS.Pipeline
                         continue;
                     }
 
-                    numOverlaps++;
-
                     var o1 = observationCache.GetObservation(n1);
                     var o2 = observationCache.GetObservation(n2);
-                    var pair = new URLPair(o1.Url, o2.Url);
 
+                    if (options.OnlyCrossSiteDriveOverlaps && o1 is RoverObservation && o2 is RoverObservation)
+                    {
+                        var ro1 = o1 as RoverObservation;
+                        var ro2 = o2 as RoverObservation;
+                        var sd1 = new SiteDrive(ro1.Site, ro1.Drive);
+                        var sd2 = new SiteDrive(ro2.Site, ro2.Drive);
+                        if (sd1 == sd2)
+                        {
+                            numSkipped++;
+                            continue;
+                        }
+                    }
+
+                    numOverlaps++;
+                    var pair = new URLPair(o1.Url, o2.Url);
                     scene.Overlaps.Add(pair);
 
                     if (options.LoadCorrespondences)
@@ -239,25 +260,29 @@ namespace OPS.Pipeline
                             if (match != null)
                             {
                                 scene.Correspondences[pair] = match.Correspondence;
+                                numCorrespondences++;
                             }
                         }
                     }
                 }
+
                 numProcessed++;
+
                 double now = UTCTime.Now();
                 if (now - lastSpew > 10)
                 {
-                    pipeline.LogInfo("processed {0}/{1} observations, added {2} overlaps",
-                                     numProcessed, numObs, numOverlaps);
+                    pipeline.LogInfo("processed {0}/{1} observations, "
+                                     + "added {2} overlaps, {3} skipped, {4} correspondence products",
+                                     numProcessed, numObs, numOverlaps, numCorrespondences);
                     lastSpew = now;
                 }
             }
 
-            pipeline.LogInfo("done adding overlaps: processed {0}/{1} observations, added {2} overlaps",
-                             numProcessed, numObs, numOverlaps);
+            pipeline.LogInfo("done adding overlaps: processed {0}/{1} observations, "
+                             + "added {2} overlaps, {3} skipped, {4} correspondence products",
+                             numProcessed, numObs, numOverlaps, numSkipped, numCorrespondences);
 
             frameCache = null;
-            observationCache = null;
 
             return scene;
         }

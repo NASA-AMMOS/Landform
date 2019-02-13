@@ -51,6 +51,15 @@ namespace OPS.Pipeline.AlignmentServer
 
         [Option(HelpText = "Start a worker in the same process (useful for debugging)", Default = false)]
         public bool StartWorker { get; set; }
+
+        [Option(HelpText = "Skip image matching, use matches that already exist in database", Default = false)]
+        public bool SkipMatching { get; set; }
+
+        [Option(HelpText = "Skip bundle adjust", Default = false)]
+        public bool SkipBundleAdjust { get; set; }
+
+        [Option(HelpText = "Only use cross-site-drive overlaps", Default = false)]
+        public bool OnlyCrossSiteDriveOverlaps { get; set; }
     }
 
     public class OverlapState
@@ -201,14 +210,12 @@ namespace OPS.Pipeline.AlignmentServer
 
         public override void Run()
         {
-            var projectName = options.ProjectName;
-
-            pipeline.LogInfo("beginning ingestion stage for project {0}", projectName);
+            pipeline.LogInfo("beginning ingestion stage for project {0}", options.ProjectName);
 
             var initializer = new InitializeAlignmentProject(pipeline);
             var productUrl = StringHelper.NormalizeSlashes(options.ProductPath);
             var inputUrl = StringHelper.NormalizeSlashes(options.InputPath);
-            var project = initializer.Initialize(projectName, productUrl, inputUrl, options.RedoProject);
+            var project = initializer.Initialize(options.ProjectName, productUrl, inputUrl, options.RedoProject);
 
             Action<IngestImage.Result> handler = res => {
                 var obs = res.Observation;
@@ -227,8 +234,6 @@ namespace OPS.Pipeline.AlignmentServer
             {
                 RequestMaskMaybe(url);
             }
-
-            pipeline.LogInfo(ingestionRequested.Count() + " observations created, waiting for masks & features");
         }
 
         private void RequestMaskMaybe(string imageUrl)
@@ -327,16 +332,35 @@ namespace OPS.Pipeline.AlignmentServer
 
         public override void Run()
         {
-            var projectName = options.ProjectName;
+            pipeline.LogInfo("beginning matching stage for project {0}", options.ProjectName);
 
-            pipeline.LogInfo("beginning matching stage for project {0}", projectName);
+            if (!options.SkipMatching)
+            {
+                MatchImages();
+            }
+            else
+            {
+                pipeline.LogInfo("skipping image matching");
+                if (!options.SkipBundleAdjust)
+                {
+                    BundleAdjust();
+                }
+                else
+                {
+                    pipeline.LogInfo("skipping bundle adjust");
+                    AllDone();
+                }
+            }
+        }
 
+        private void MatchImages()
+        {
             var fod = new FrustumOverlapDetector(pipeline);
             var sb = new BuildSceneGraph(pipeline);
 
             //BUGBUG: may cause non-image frames to keep a bad pose?!
             pipeline.LogInfo("building scene graph for image matching");
-            var scene = sb.Build(Frame.Find(pipeline, projectName, "root"), new BuildSceneGraph.Options()
+            var scene = sb.Build(Frame.Find(pipeline, options.ProjectName, "root"), new BuildSceneGraph.Options()
             {
                 GetTransform = sb.StandardFrameTransform,
                 IncludeObservation = (obs, _) => imageStates.ContainsKey(obs.Url),
@@ -366,7 +390,7 @@ namespace OPS.Pipeline.AlignmentServer
                                  StringHelper.GetLastUrlPathSegment(modelUrl),
                                  StringHelper.GetLastUrlPathSegment(dataUrl));
 
-                pipeline.WorkerQueue.Enqueue(new MatchImagesMessage(projectName)
+                pipeline.WorkerQueue.Enqueue(new MatchImagesMessage(options.ProjectName)
                 {
                     ModelImageUrl = modelUrl,
                     ModelFeaturesGuid = modelState.FeaturesGuid,
@@ -393,69 +417,85 @@ namespace OPS.Pipeline.AlignmentServer
 
             if (ValidGuid(state.CorrespondenceGuid))
             {
-                pipeline.LogInfo("duplicate features matched message for image piair {0}", pair);
+                pipeline.LogInfo("duplicate features matched message for image pair {0}", pair);
                 return;
             }
 
             pipeline.LogInfo("got feature match for image pair {0}", pair);
 
             state.CorrespondenceGuid = message.CorrespondenceGuid;
-            state.Pair = new URLPair(modelUrl, dataUrl);
 
             // create db entry once all of the work is done - natural rate limiting
-            var dbOverlap = Overlap.Create(pipeline, imageStates[modelUrl].Observation, imageStates[dataUrl].Observation);
-            if (dbOverlap != null)
+            var overlap = Overlap.Create(pipeline, imageStates[modelUrl].Observation, imageStates[dataUrl].Observation);
+            if (overlap != null)
             {
-                dbOverlap.Status =
-                    (message.CorrespondenceGuid != Guid.Empty) ? Overlap.StatusType.Matched : Overlap.StatusType.Rejected;
-                dbOverlap.MatchGuid = state.CorrespondenceGuid;
-                dbOverlap.TrySave(pipeline);
+                overlap.Status = (message.CorrespondenceGuid != Guid.Empty) ? Overlap.StatusType.Matched : Overlap.StatusType.Rejected;
+                overlap.MatchGuid = state.CorrespondenceGuid;
+                overlap.TrySave(pipeline);
             }
 
             computedOverlaps++;
             if (computedOverlaps >= allOverlaps.Count)
             {
-                pipeline.LogInfo("building scene graph for bundle adjustment");
-
-                var bsg = new BuildSceneGraph(pipeline);
-                Frame frame = Frame.Find(pipeline, message.ProjectName, MSLProject.ROOT_FRAME_NAME);
-
-                //BUGBUG: may cause non-images to have bad pose in frames?
-                AlignmentScene scene = bsg.Build(frame, new BuildSceneGraph.Options
+                if (!options.SkipBundleAdjust)
                 {
-                    GetTransform = bsg.StandardFrameTransform,
-                    IncludeObservation = (obs, _) => imageStates.ContainsKey(obs.Url)
-
-                });
-                foreach (var node in scene.ImageToNode.Values)
-                {
-                    node.Parent.GetOrAddComponent<AdjustedNode>();
+                    BundleAdjust();
                 }
-
-                pipeline.LogInfo("running bundle adjuster");
-                var ba = new BundleAdjuster(pipeline, pipeline.Logger);
-                ba.Adjust(scene, options.DebugOutputFolder);
-
-                int curPairIdx = 0;
-                int numImagePairs = scene.ImageToNode.Count;
-
-                foreach (var adjNode in scene.Root.GetComponentsInTree<AdjustedNode>())
+                else
                 {
-                    pipeline.LogInfo("saving transform {0} of {1} adjusted image pairs", curPairIdx++, numImagePairs);
-                    var f = Frame.Find(pipeline, message.ProjectName, adjNode.Node.Name);
-                    FrameTransform ft = FrameTransform.Find(pipeline, f);
-                    Microsoft.Xna.Framework.Matrix bundleResult = adjNode.Node.Transform.Matrix;
-                    if (ft.Transform.Mean != bundleResult)
-                    {
-                        ft.Transform = new UncertainRigidTransform(bundleResult, ft.Transform.Distribution.Covariance); 
-                    }
-                    ft.Save(pipeline);
+                    pipeline.LogInfo("skipping bundle adjust");
+                    AllDone();
                 }
-
-                pipeline.CleanupTempDir();
-
-                pipeline.LogInfo("everything done");
             }
+        }
+
+        private void BundleAdjust()
+        {
+            pipeline.LogInfo("building scene graph for bundle adjustment");
+            
+            var bsg = new BuildSceneGraph(pipeline);
+            var project = Project.Find(pipeline, options.ProjectName);
+            Frame root = Frame.Find(pipeline, project.Name, project.RootFrame);
+            
+            //BUGBUG: may cause non-images to have bad pose in frames?
+            AlignmentScene scene = bsg.Build(root, new BuildSceneGraph.Options {
+                    GetTransform = bsg.StandardFrameTransform,
+                    IncludeObservation = (obs, _) => imageStates.ContainsKey(obs.Url),
+                    OnlyCrossSiteDriveOverlaps = options.OnlyCrossSiteDriveOverlaps
+                });
+
+            foreach (var node in scene.ImageToNode.Values)
+            {
+                node.Parent.GetOrAddComponent<AdjustedNode>();
+            }
+            
+            pipeline.LogInfo("running bundle adjuster");
+            var ba = new BundleAdjuster(pipeline, pipeline.Logger);
+            ba.Adjust(scene, options.DebugOutputFolder);
+            
+            int curPairIdx = 0;
+            int numImagePairs = scene.ImageToNode.Count;
+            
+            foreach (var adjNode in scene.Root.GetComponentsInTree<AdjustedNode>())
+            {
+                pipeline.LogInfo("saving transform {0} of {1} adjusted image pairs", curPairIdx++, numImagePairs);
+                var f = Frame.Find(pipeline, options.ProjectName, adjNode.Node.Name);
+                FrameTransform ft = FrameTransform.Find(pipeline, f);
+                Microsoft.Xna.Framework.Matrix bundleResult = adjNode.Node.Transform.Matrix;
+                if (ft.Transform.Mean != bundleResult)
+                {
+                    ft.Transform = new UncertainRigidTransform(bundleResult, ft.Transform.Distribution.Covariance); 
+                }
+                ft.Save(pipeline);
+            }
+
+            AllDone();
+        }
+
+        private void AllDone()
+        {
+            pipeline.CleanupTempDir();
+            pipeline.LogInfo("everything done");
         }
     }
 }

@@ -99,9 +99,7 @@ namespace OPS.Pipeline.AlignmentServer
 
         public Frame GetFrame(string name)
         {
-            var frame = frames.GetOrAdd(name, _ => Frame.Find(pipeline, projectName, name));
-            AddChild(frame);
-            return frame;
+            return frames.GetOrAdd(name, _ => Frame.Find(pipeline, projectName, name));
         }
 
         public FrameTransform GetTransform(string name)

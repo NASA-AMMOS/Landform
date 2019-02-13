@@ -43,7 +43,7 @@ namespace OPS.Pipeline.AlignmentServer
         public int Preload()
         {
             int n = 0;
-            foreach (var obs in Observation.Find(pipeline, projectName))
+            foreach (var obs in RoverObservation.Find(pipeline, projectName))
             {
                 observations.TryAdd(obs.Name, obs);
                 AddForFrame(obs);
@@ -63,7 +63,7 @@ namespace OPS.Pipeline.AlignmentServer
             else
             {
                 bag = obsForFrame.GetOrAdd(frame.Name, _ => new ConcurrentBag<Observation>());
-                foreach (var obs in Observation.Find(pipeline, frame))
+                foreach (var obs in RoverObservation.Find(pipeline, frame))
                 {
                     AddForFrame(obs);
                 }
@@ -74,9 +74,7 @@ namespace OPS.Pipeline.AlignmentServer
 
         public Observation GetObservation(string name)
         {
-            var obs = observations.GetOrAdd(name, _ => Observation.Find(pipeline, projectName, name));
-            AddForFrame(obs);
-            return obs;
+            return observations.GetOrAdd(name, _ => RoverObservation.Find(pipeline, projectName, name));
         }
     }
 }
