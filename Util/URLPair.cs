@@ -11,35 +11,44 @@ namespace OPS.Util
     /// </summary>
     public class URLPair
     {
-        public string One, Two;
+        //these preserve case, they are exactly what was passed to the constructor
+        //though the order of these may not be the same as the order of the constructor args
+        public readonly string One, Two;
+
+        //these are lowercased and are used internally for object identity
+        private readonly string lc1, lc2;
 
         public URLPair(string a, string b)
         {
-            a = a.ToLower();
-            b = b.ToLower();
+            var lca = a.ToLower();
+            var lcb = b.ToLower();
             
-            if (b.CompareTo(a) < 0)
+            if (lcb.CompareTo(lca) < 0)
             {
                 One = b;
                 Two = a;
+                lc1 = lcb;
+                lc2 = lca;
             }
             else
             {
                 One = a;
                 Two = b;
+                lc1 = lca;
+                lc2 = lcb;
             }
         }
 
         public override int GetHashCode()
         {
-            return One.GetHashCode() ^ Two.GetHashCode();
+            return lc1.GetHashCode() ^ lc2.GetHashCode();
         }
 
         public static bool operator ==(URLPair lhs, URLPair rhs)
         {
             //one & two are sorted so there is no order dependency
             //they are also already lowercased
-            return lhs.One == rhs.One && lhs.Two == rhs.Two;
+            return lhs.lc1 == rhs.lc1 && lhs.lc2 == rhs.lc2;
         }
 
         public static bool operator !=(URLPair lhs, URLPair rhs)
