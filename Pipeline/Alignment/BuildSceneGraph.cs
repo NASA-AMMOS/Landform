@@ -93,6 +93,7 @@ namespace OPS.Pipeline
         {
             frameCache = new FrameCache(pipeline, root.ProjectName);
             var observationCache = new ObservationCache(pipeline, root.ProjectName);
+            var overlapCache = new OverlapCache(pipeline, root.ProjectName);
 
             if (options.GetTransform == null)
             {
@@ -214,12 +215,15 @@ namespace OPS.Pipeline
                              options.LoadCorrespondences ? " and computed correspondences" : "",
                              options.OnlyCrossSiteDriveOverlaps ? ", only overlaps between different site-drives" : "");
 
+            pipeline.LogInfo("preloading overlap cache for project {0}", root.ProjectName);
+            numPreloaded = overlapCache.Preload();
+            pipeline.LogInfo("preloaded {0} overlaps for project {1}", numPreloaded, root.ProjectName);
 
             lastSpew = UTCTime.Now();
             int numOverlaps = 0, numProcessed = 0, numSkipped = 0, numCorrespondences = 0;
             foreach (var obs in observations)
             {
-                foreach (var overlap in Overlap.Find(pipeline, obs))
+                foreach (var overlap in overlapCache.GetAllOverlapsForObservation(obs))
                 {
                     var n1 = overlap.ObservationNameOne;
                     var n2 = overlap.ObservationNameTwo;

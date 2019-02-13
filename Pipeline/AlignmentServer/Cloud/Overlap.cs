@@ -108,23 +108,25 @@ namespace OPS.Pipeline.AlignmentServer
             {
                 pipeline.SaveDatabaseItem(newOverlap);
             }
-            catch(ConditionalCheckFailedException)//if create fails another worker has already uploaded and updated this overlap
+            catch (ConditionalCheckFailedException)
             {
+                //another worker has already uploaded and updated this overlap
                 return null;
             }
 
-            //set Uploaded=true and save updated Overlap
             newOverlap.Uploaded = true;
+
             try
             {
                 pipeline.SaveDatabaseItem(newOverlap);
             }
-            catch (ConditionalCheckFailedException)//Another worker updated this overlap before we could
+            catch (ConditionalCheckFailedException)
             {
+                //another worker updated this overlap before we could
                 return null;
             }
 
-            //if save was successful, return Overlap with most recent version number so it can be saved
+            //return Overlap with most recent version number
             return pipeline.LoadDatabaseItem<Overlap>(newOverlap.CombinedName, newOverlap.ProjectName, consistent: true);
         }
 
@@ -145,10 +147,14 @@ namespace OPS.Pipeline.AlignmentServer
             return true;
         }
 
-        public static Overlap Find(PipelineCore pipeline, string observationName1, string observationName2, string projectName)
+        public static Overlap Find(PipelineCore pipeline, string projectName, string obsOne, string obsTwo)
         {
-            var name = new OverlapName(observationName1, observationName2);
-            return pipeline.LoadDatabaseItem<Overlap>(name.CombinedName, projectName);
+            return Find(pipeline, projectName, new OverlapName(obsOne, obsTwo).CombinedName);
+        }
+
+        public static Overlap Find(PipelineCore pipeline, string projectName, string combinedName)
+        {
+            return pipeline.LoadDatabaseItem<Overlap>(combinedName, projectName);
         }
 
         public static IEnumerable<Overlap> Find(PipelineCore pipeline, string projectName)
