@@ -74,7 +74,7 @@ namespace OPS.Pipeline.MeshWorker
             {
                 IncludeObservation =
                 (o, p) => o.UseForReconstruction && o.ObservationType == ObservationType.Image.ToString(),
-                RequireFeaturesForImageURLs = false
+                RequireFeaturesForObservations = false
             };
             AlignmentScene scene = builder.Build(rootFrame, opts);
 

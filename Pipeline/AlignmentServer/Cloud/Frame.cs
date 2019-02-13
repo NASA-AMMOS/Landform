@@ -142,5 +142,10 @@ namespace OPS.Pipeline.AlignmentServer
         {
             return pipeline.LoadDatabaseItem<Frame>(name, projectName);
         }
+
+        public static IEnumerable<Frame> Find(PipelineCore pipeline, string projectName)
+        {
+            return pipeline.ScanDatabase<Frame>("ProjectName", projectName);
+        }
     }   
 }

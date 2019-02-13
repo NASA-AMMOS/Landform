@@ -173,6 +173,7 @@
     <Compile Include="AlignmentServer\Cloud\FrameGeohash.cs" />
     <Compile Include="AlignmentServer\Cloud\FrameTransform.cs" />
     <Compile Include="AlignmentServer\Cloud\Observation.cs" />
+    <Compile Include="AlignmentServer\Cloud\ObservationCache.cs" />
     <Compile Include="AlignmentServer\Cloud\Overlap.cs" />
     <Compile Include="AlignmentServer\Cloud\Project.cs" />
     <Compile Include="AlignmentServer\Cloud\RoverObservation.cs" />
