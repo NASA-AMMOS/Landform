@@ -1,7 +1,6 @@
 using CommandLine;
 using log4net;
 using OPS.Util;
-using OPS.Plumbing;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -38,32 +37,29 @@ namespace OPS.Pipeline.TileServer
         public string OutputUrl;
     }
 
-    public class ProjectMetadata : PipelineCore
+    public class ProjectMetadata : CloudPipeline
     {
         private ProjectMetadataOptions options;
 
-        public ProjectMetadata(ProjectMetadataOptions options)
-            : base(options, TileServerConfig.Instance.VenueName, TileServerConfig.Instance.Profile)
+        public ProjectMetadata(ProjectMetadataOptions options) : base(options, queuePrefix: "tiling")
         {
             this.options = options;
         }
 
         public int Run()
         {
-            var cloud = new TileServerCloud(this, quiet: true); //ensures queues and tables exist
-
-            var project = TilingProject.Find(DynamoContext, options.ProjectName);
+            var project = TilingProject.Find(this, options.ProjectName);
 
             if (project == null)
             {
-                Logger.ErrorFormat("project \"{0}\" not found", options.ProjectName);
+                LogError("project \"{0}\" not found", options.ProjectName);
                 return 1; //argument error
             }
 
             var md = new Metadata();
             md.Project = project;
 
-            var inputs = TilingInput.Find(DynamoContext, project).ToList();
+            var inputs = TilingInput.Find(this, project).ToList();
             var sanitizedInputs = new List<SanitizedInput>();
             foreach (var input in inputs)
             {
@@ -72,8 +68,8 @@ namespace OPS.Pipeline.TileServer
                 {
                     var sanitizedInput = new SanitizedInput {
                         Name = input.Name,
-                        MeshUrl = TileServerConfig.ConvertUrlToHttps(input.MeshUrl),
-                        ImageUrl = TileServerConfig.ConvertUrlToHttps(input.ImageUrl),
+                        MeshUrl = ConvertS3UrlToHttps(input.MeshUrl),
+                        ImageUrl = ConvertS3UrlToHttps(input.ImageUrl),
                         Processed = input.Chunked
                     };
                     if (input.Chunked)
@@ -104,7 +100,7 @@ namespace OPS.Pipeline.TileServer
                 md.NumProcessedNodes = numProcessed;
             }
 
-            md.OutputUrl = TileServerConfig.Instance.WWWUrl(project.Name, "tileset.json", https: true);
+            md.OutputUrl = ConvertS3UrlToHttps(GetStorageUrl("www", project.Name, "tileset.json"));
 
             var ignore = new string[] { "TilingProject.NodeIdsUrl", "TilingProject.InputNames" };
             Console.WriteLine(JsonHelper.ToJson(md, indent: true, autoTypes: false, ignoreProperties: ignore));

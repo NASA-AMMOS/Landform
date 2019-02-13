@@ -151,8 +151,7 @@ namespace OPS.Pipeline
                 bool anglesVeryDifferent = Math.Abs(resolverAngle - encoderAngle) > MathHelper.ToRadians(resolverToleranceDegrees);
                 if (anglesVeryDifferent && IsValidArmAngle(encoderAngle))
                 {
-                    //logger.Warn("Resolver and encoder angles more than " + resolverToleranceDegrees + " degrees different. " +
-                    //    "Using encoder angle. (" + Path.GetFileName(Filename) + ")");
+                    //logger.Warn("Resolver and encoder angles more than " + resolverToleranceDegrees + " degrees");
                     return encoderAngle;
                 }
                 return resolverAngle;

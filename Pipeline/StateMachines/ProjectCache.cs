@@ -1,5 +1,4 @@
-﻿using OPS.Plumbing;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Linq;
 using Amazon.DynamoDBv2.DataModel;
 using log4net;
@@ -58,7 +57,7 @@ namespace OPS.Pipeline.TileServer
             Stopwatch sw = new Stopwatch();
             sw.Start();
 
-            var project = TilingProject.Find(pipeline.DynamoContext, projectName);
+            var project = TilingProject.Find(pipeline, projectName);
             if (project == null || !project.TilesDefined)
             {
                 throw new System.Exception("cannot initialize cache for " + projectName +

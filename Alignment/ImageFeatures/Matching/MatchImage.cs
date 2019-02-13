@@ -1,13 +1,13 @@
-﻿using Emgu.CV.Util;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Drawing;
+using Emgu.CV;
+using Emgu.CV.Util;
 using Emgu.CV.Structure;
 using Emgu.CV.Features2D;
-using Emgu.CV;
-using System.Drawing;
+using OPS.Imaging;
 using OPS.Imaging.Emgu;
-using OPS.Plumbing;
 
 namespace OPS.Alignment
 {
@@ -16,12 +16,12 @@ namespace OPS.Alignment
     /// </summary>
     public class MatchImage
     {
-        public static Imaging.Image Create(PipelineCore pipeline, ImagePairCorrespondence matches, ImageFeature[] modelFeatures, ImageFeature[] dataFeatures, string time = null)
+        public static Imaging.Image Create(IImageLoader loader, ImagePairCorrespondence matches,
+                                           ImageFeature[] modelFeatures, ImageFeature[] dataFeatures,
+                                           string time = null)
         {
-            Imaging.Image model = matches.ModelImage.Load(pipeline);
-            Imaging.Image data = matches.DataImage.Load(pipeline);
-            Image<Gray, byte> modelImage = model.ToEmguGrayscale();
-            Image<Gray, byte> dataImage = data.ToEmguGrayscale();
+            Image<Gray, byte> modelImage = loader.LoadImage(matches.ModelImageUrl).ToEmguGrayscale();
+            Image<Gray, byte> dataImage = loader.LoadImage(matches.DataImageUrl).ToEmguGrayscale();
             
             ImageFeature[] feat0;
             ImageFeature[] feat1;
@@ -49,9 +49,11 @@ namespace OPS.Alignment
             return result.ToOPSImage();
         }
 
-        public static void WriteMatchImage(PipelineCore pipeline, ImagePairCorrespondence matches, ImageFeature[] modelFeatures, ImageFeature[] dataFeatures, string outFile, string time = null)
+        public static void WriteMatchImage(IImageLoader loader, ImagePairCorrespondence matches,
+                                           ImageFeature[] modelFeatures, ImageFeature[] dataFeatures,
+                                           string outFile, string time = null)
         {
-            var img = Create(pipeline, matches, modelFeatures, dataFeatures, time);
+            var img = Create(loader, matches, modelFeatures, dataFeatures, time);
             img.Save<byte>(outFile);
         }
 
@@ -85,7 +87,10 @@ namespace OPS.Alignment
             return res;
         }
 
-        private static Image<Bgr, byte> CreateMatchImage(VectorOfKeyPoint kp0, VectorOfKeyPoint kp1, Image<Gray, byte> modelImage, Image<Gray, byte> dataImage, VectorOfVectorOfDMatch matches, Matrix<byte> mask, int nonZero, string time = null)
+        private static Image<Bgr, byte> CreateMatchImage(VectorOfKeyPoint kp0, VectorOfKeyPoint kp1,
+                                                         Image<Gray, byte> modelImage, Image<Gray, byte> dataImage,
+                                                         VectorOfVectorOfDMatch matches, Matrix<byte> mask, int nonZero,
+                                                         string time = null)
         {
             int i;
 
@@ -96,12 +101,14 @@ namespace OPS.Alignment
             }
             Image<Bgr, byte> bgrColors = hsvColors.Convert<Bgr, byte>();
 
-            Image<Bgr, byte> result = new Image<Bgr, byte>(modelImage.Width + dataImage.Width, Math.Max(modelImage.Height, dataImage.Height));
+            Image<Bgr, byte> result = new Image<Bgr, byte>(modelImage.Width + dataImage.Width,
+                                                           Math.Max(modelImage.Height, dataImage.Height));
             result.ROI = new Rectangle(0, 0, modelImage.Width, modelImage.Height);
             modelImage.Convert<Bgr, byte>().CopyTo(result);
             result.ROI = new Rectangle(modelImage.Width, 0, dataImage.Width, dataImage.Height);
             dataImage.Convert<Bgr, byte>().CopyTo(result);
-            result.ROI = new Rectangle(0, 0, modelImage.Width + dataImage.Width, Math.Max(modelImage.Height, dataImage.Height));
+            result.ROI = new Rectangle(0, 0, modelImage.Width + dataImage.Width,
+                                       Math.Max(modelImage.Height, dataImage.Height));
 
             int pointNum = 0;
             for (i = 0; i < matches.Size; i++)
@@ -113,11 +120,13 @@ namespace OPS.Alignment
                 result.Draw(new CircleF(modelPoint, 5.0f), new Bgr(0, 255, 0), 2);
                 result.Draw(new CircleF(dataPoint + new SizeF(modelImage.Width, 0), 5.0f), new Bgr(0, 255, 0), 2);
 
-                result.Draw(new LineSegment2DF(modelPoint, dataPoint + new SizeF(modelImage.Width, 0)), bgrColors[pointNum, 0], 1);
+                result.Draw(new LineSegment2DF(modelPoint, dataPoint + new SizeF(modelImage.Width, 0)),
+                            bgrColors[pointNum, 0], 1);
                 pointNum++;
             }
 
             result.Draw(new Rectangle(0, 0, 490, 70), new Bgr(255, 50, 50), -1);
+
             result.Draw("matches: " + matches.Size, new Point(5, 55), Emgu.CV.CvEnum.FontFace.HersheySimplex, 2, new Bgr(255, 255, 255), 2);
 
             if (pointNum != matches.Size)
@@ -128,7 +137,8 @@ namespace OPS.Alignment
             if (time != null)
             {
                 result.Draw(new Rectangle(0, 70, 490, 70), new Bgr(255, 50, 50), -1);
-                result.Draw("time: " + time, new Point(5, 125), Emgu.CV.CvEnum.FontFace.HersheySimplex, 2, new Bgr(255, 255, 255), 2);
+                result.Draw("time: " + time, new Point(5, 125), Emgu.CV.CvEnum.FontFace.HersheySimplex, 2,
+                            new Bgr(255, 255, 255), 2);
             }
 
             return result;

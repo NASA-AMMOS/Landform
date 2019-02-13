@@ -14,7 +14,6 @@ using OPS.Alignment;
 using Microsoft.Xna.Framework;
 using MathNet.Numerics.LinearAlgebra;
 using System.IO;
-using OPS.Plumbing;
 using Newtonsoft.Json;
 using log4net;
 
@@ -25,7 +24,6 @@ namespace PairViewer
         public ImageView ModelView;
         public ImageView DataView;
         public MSLLocations Locations;
-        public PipelineCore Pipeline;
 
         public AlignmentScene Scene;
         Dictionary<string, SceneNode> siteDriveToNode;
@@ -42,8 +40,8 @@ namespace PairViewer
                         return null;
                     }
 
-                    var dataNode = Scene.ImageToNode[DataView.ImageRef];
-                    var modelNode = Scene.ImageToNode[ModelView.ImageRef];
+                    var dataNode = Scene.ImageToNode[DataView.ImageUrl];
+                    var modelNode = Scene.ImageToNode[ModelView.ImageUrl];
                     dataToModel = dataNode.GetOrAddComponent<NodeUncertainTransform>().To(modelNode);
                 }
 
@@ -63,8 +61,8 @@ namespace PairViewer
                         return null;
                     }
 
-                    var dataNode = Scene.ImageToNode[DataView.ImageRef];
-                    var modelNode = Scene.ImageToNode[ModelView.ImageRef];
+                    var dataNode = Scene.ImageToNode[DataView.ImageUrl];
+                    var modelNode = Scene.ImageToNode[ModelView.ImageUrl];
                     modelToData = modelNode.GetOrAddComponent<NodeUncertainTransform>().To(dataNode);
                 }
 
@@ -75,9 +73,7 @@ namespace PairViewer
         public PairViewerForm()
         {
             InitializeComponent();
-            Pipeline = new PipelineCore(new PipelineCoreOptions(), enableS3: false, enableDynamo: false, s3Url: "");
-
-            Locations = new MSLLocations();
+            Locations = MSLLocations.LoadFromUrl();
             Scene = new AlignmentScene();
             ModelView = new ImageView(ModelPictureBox);
             DataView = new ImageView(DataPictureBox);
@@ -95,8 +91,8 @@ namespace PairViewer
             dialog.Filter = "All supported (*.img, *.fits)|*.img;*.fit|)pds images (*.img)|*.img|FITS images (*.fit)|*.fit|All files (*.*)|*.*";
             if (dialog.ShowDialog() == DialogResult.OK)
             {
-                var imgRef = new DiskImageRef(dialog.FileName);
-                var res = Pipeline.Load(imgRef);
+                string imgUrl = "file://" + dialog.FileName;
+                var res = OPS.Imaging.Image.Load(dialog.FileName);
                 string stem = Path.GetFileNameWithoutExtension(dialog.FileName);
                 if (res.Metadata is PDSMetadata)
                 {
@@ -131,12 +127,13 @@ namespace PairViewer
                         uncertainty.Covariance = CreateMatrix.Diagonal(new double[] { posCov, posCov, posCov, fifthDegSqr, fifthDegSqr, fifthDegSqr });
                     }
 
-                    imgNode.AddComponent<NodeImageReference>().Reference = imgRef;
-                    Scene.ImageToNode[imgRef] = imgNode;
+                    imgNode.AddComponent<NodeImageUrl>().Url = imgUrl;
+                    Scene.ImageToNode[imgUrl] = imgNode;
                 }
 
                 view.Image = res;
-                view.ImageRef = imgRef;
+                view.ImageFile = dialog.FileName;
+                view.ImageUrl = imgUrl;
                 dataToModel = modelToData = null;
             }
         }
@@ -168,9 +165,10 @@ namespace PairViewer
             }
         }
 
-        private void DrawEpiLines(ImageView model, ImageView data, UncertainRigidTransform dataToModel, Vector2 dataPoint, Vector2 modelPoint, bool clear)
+        private void DrawEpiLines(ImageView model, ImageView data, UncertainRigidTransform dataToModel,
+                                  Vector2 dataPoint, Vector2 modelPoint, bool clear)
         {
-            EpipolarLineFinder finder = new EpipolarLineFinder(Pipeline);
+            EpipolarLineFinder finder = new EpipolarLineFinder();
 
             if (clear)
             {
@@ -187,7 +185,11 @@ namespace PairViewer
             var modelFeat = (modelPoint != Vector2.Zero) ? new ImageFeature(modelPoint, null) : null;
             var dataFeat = (dataPoint != Vector2.Zero) ? new ImageFeature(dataPoint, null) : null;
 
-            var epi = finder.Find(model.ImageRef, data.ImageRef, dataToModel.Mean, dataFeat, modelFeat);
+            var modelCam = OPS.Imaging.Image.Load(model.ImageFile).CameraModel;
+            var dataCam = OPS.Imaging.Image.Load(data.ImageFile).CameraModel;
+
+            var epi = finder.Find(modelCam, dataCam, dataToModel.Mean, dataFeat, modelFeat);
+
             using (var g = Graphics.FromImage(model.Overlay))
             {
                 DrawEpiLine(model, g, epi);
@@ -197,7 +199,7 @@ namespace PairViewer
                     // calculate dist of epipolar error
                     var errDist = dataToModel.UnscentedTransform(d2m =>
                     {
-                        var epiPrime = finder.Find(model.ImageRef, data.ImageRef, d2m, dataFeat, modelFeat);
+                        var epiPrime = finder.Find(modelCam, dataCam, d2m, dataFeat, modelFeat);
                         if (!epiPrime.Success)
                         {
                             return CreateVector.DenseOfArray(new[] { 100.0 });

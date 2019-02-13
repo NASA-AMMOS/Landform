@@ -70,12 +70,12 @@ if (nodeEnv === 'development') app.use('/', express.static(path.join(__dirname, 
 
 logger.info(`NODE_ENV: ${app.get('env')}`);
 logger.info(`LDAP group: ${config.app.ldapGroup}`);
-logger.info(`Landform venue: ${config.app.venueName}`);
+logger.info(`Landform venue: ${config.app.venue}`);
 logger.info(`S3 URL: ${config.app.s3Url}`);
-logger.info(`AWS Region: ${config.app.awsRegion}`);
-logger.info(`AWS Profile: ${config.app.awsProfile}`);
-logger.info(`AWS MSLICE Profile: ${config.app.awsMSLICEProfile}`);
-logger.info(`AWS MSLICE S3 URL: ${config.app.awsMSLICES3Url}`);
+logger.info(`AWS region: ${config.app.awsRegion}`);
+logger.info(`AWS profile: ${config.app.awsProfile}`);
+logger.info(`MSLICE AWS profile: ${config.app.MSLICEAWSProfile}`);
+logger.info(`MSLICE S3 URL: ${config.app.MSLICES3Url}`);
 
 tilingMaster().then(() => {
   logger.info('launched TilingServer master');

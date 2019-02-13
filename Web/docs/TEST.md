@@ -5,7 +5,7 @@ These instructions detail how to test a deployment of LandformWeb.
 1. Note this will only work on https://landform.hi.jpl.nasa.gov because that is the domain SSO is configured to use.
 1. Click `API Token` and confirm the response is `not authenticated`.
 1. Click `Login (SSO)`.
-1. Enter credentials for a JPL user identity that is a member of the `TILE_SERVER_LDAP_GROUP` configured when the Landform master server was deployed.  For test and production deployments managed by the Landform team, this is `landform`.
+1. Enter credentials for a JPL user identity that is a member of the LDAP group configured when the Landform master server was deployed.  For test and production deployments managed by the Landform team, this is `landform`.
 1. Click `API Token` and confirm the response is a web token - copy the token ID for later.
 1. Click `Logout`.
 1. Click `API Token` and confirm the response is `not authenticated`.

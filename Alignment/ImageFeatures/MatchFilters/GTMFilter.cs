@@ -4,8 +4,9 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using OPS.MathExtensions;
 using System.Collections;
+using OPS.Imaging;
+using OPS.MathExtensions;
 
 namespace OPS.Alignment
 {
@@ -370,8 +371,8 @@ namespace OPS.Alignment
         public ImagePairCorrespondence Filter(AlignmentScene scene, ImagePairCorrespondence matches)
         {
             // Construct graph
-            ImageFeature[] modelFeat = scene.DetectedFeatures[matches.ModelImage];
-            ImageFeature[] dataFeat = scene.DetectedFeatures[matches.DataImage];
+            ImageFeature[] modelFeat = scene.DetectedFeatures[matches.ModelImageUrl];
+            ImageFeature[] dataFeat = scene.DetectedFeatures[matches.DataImageUrl];
 
             // Create data and model verts and add to graphs           
             List<GTMNode> modelNodes = new List<GTMNode>();
@@ -404,7 +405,8 @@ namespace OPS.Alignment
                 modelGraph.OrderedFeatureIndices(),
                 (dataIdx, modelIdx) => new KeyValuePair<int,int>(dataIdx, modelIdx)
             );
-            return new ImagePairCorrespondence(matches.ModelImage, matches.DataImage, dataToModel, matches.FundamentalMatrix, matches.BestTransformEstimate);
+            return new ImagePairCorrespondence(matches.ModelImageUrl, matches.DataImageUrl, dataToModel,
+                                               matches.FundamentalMatrix, matches.BestTransformEstimate);
         }
     }
 }

@@ -1,151 +1,31 @@
-﻿using MathNet.Numerics.LinearAlgebra;
+﻿using System;
+using System.IO;
+using System.Collections.Generic;
+using System.Collections.Concurrent;
+using System.Linq;
+using MathNet.Numerics.LinearAlgebra;
 using Microsoft.Xna.Framework;
-using OPS.Cloud;
+using OPS.Util;
 using OPS.Geometry;
 using OPS.Imaging;
-using OPS.Plumbing;
-using OPS.Util;
-using System;
-using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+using OPS.Pipeline.AlignmentServer;
 
 namespace OPS.Pipeline
 {
-
-    public class MSLProject
-    {
-        public const string ROOT_FRAME_NAME = "root";
-
-        //constants for cutoffs
-        public const int MIN_NAV_HAZ_EXPOSURE = 80;
-        public const int MIN_MASTCAM_FOCUS_CUTOFF = 3;
-        public const int MAX_MASTCAM_WIDTH = 1344;
-
-        public static RoverObservation FindBestImage(IEnumerable<RoverObservation> frameObservations)
-        {
-            var list = frameObservations.Where(ob => ob.UseForReconstruction).ToList();
-            if (list.Count > 0)
-            {
-                list.Sort(RoverObservationComparison);
-                return list.First();
-            }
-            return null;
-        }
-
-        public static ImagePointPair FindBestPair(IEnumerable<RoverObservation> frameObservations)
-        {
-            var list = frameObservations.Where(ob => ob.UseForReconstruction).ToList();
-
-            list.Sort(RoverObservationComparison);
-            var imageList = list.Where(ob => ob.ObservationType == ObservationType.Image.ToString()).ToList();
-            var pointList = list.Where(ob => ob.ObservationType == ObservationType.Points.ToString()).ToList();
-            if (pointList.Count > 0)
-            {
-                foreach (var imageObs in imageList)
-                {
-                    bool linear = IsLinear(imageObs);
-                    foreach (var pointObs in pointList)
-                    {
-                        if (linear == IsLinear(pointObs) && imageObs.Width == pointObs.Width && imageObs.Height == pointObs.Height)
-                        {
-                            return new ImagePointPair(imageObs, pointObs);
-                        }
-                    }
-                }
-            }
-            // If we didn't find any range products to match our image products than just return the first image
-            if (imageList.Count > 0)
-            {
-                return new ImagePointPair(imageList.First(), null);
-            }
-            return null;
-        }
-
-        public static IEnumerable<ImagePointPair> FindBestPairs(IEnumerable<RoverObservation> observations)
-        {
-            List<ImagePointPair> results = new List<ImagePointPair>();
-            // Filter any that should not be used for observation
-            observations = observations.Where(ob => ob.UseForReconstruction);
-            var frameGroups = observations.GroupBy(ob => ob.FrameName);
-            foreach (var frameGroup in frameGroups)
-            {
-                var r = FindBestPair(frameGroup);
-                if (r != null)
-                {
-                    results.Add(r);
-                }
-            }
-            return results;
-        }
-        
-        public class ImagePointPair
-        {
-            public Observation Image;
-            public Observation Point;
-
-            public ImagePointPair() { }
-
-            public ImagePointPair(Observation img, Observation pnt)
-            {
-                Image = img;
-                Point = pnt;
-            }
-        }
-
-        /// <summary>
-        /// Return -1 if a < b
-        /// return 1 if  a > b
-        /// return 0 if equal
-        /// </summary>
-        /// <param name="a"></param>
-        /// <param name="b"></param>
-        /// <returns></returns>
-        public static int RoverObservationComparison(RoverObservation a, RoverObservation b)
-        {
-            // sort first by producer
-            if (a.Producer == RoverProductProducer.MSSS.ToString() && b.Producer == RoverProductProducer.OPGS.ToString())
-            {
-                return -1;
-            }
-            if (a.Producer == RoverProductProducer.OPGS.ToString() && b.Producer == RoverProductProducer.MSSS.ToString())
-            {
-                return 1;
-            }
-            // sort second by linear-ness
-            var linearA = IsLinear(a);
-            var linearB = IsLinear(b);
-            if (!linearA && linearB)
-            {
-                return -1;
-            }
-            if (linearA && !linearB)
-            {
-                return 1;
-            }
-
-            // versions go numeric 1 to 9, A-Z, _ (opgs) and numeric 0 to 9, A-Z (msss)
-            return (int)b.Version[0] - (int)a.Version[0];
-        }
-        
-        public static bool IsLinear(RoverObservation observation)
-        {
-            return ((CameraModel)JsonHelper.FromJson(observation.CameraModel)).Linear;
-        }
-    }
-
     public class IngestPDSImage : IngestImage
     {
-        public readonly string project_name;
-        MSLLocations locations;
+        private Project project;
+        private bool recreateExistingObservations;
+        private bool resetTransforms;
 
-        public IngestPDSImage(PipelineCore output_pipeline, string project_name = "MSL") : base(output_pipeline)
+        public MSLLocations Locations;
+
+        public IngestPDSImage(PipelineCore pipeline, Project project, bool recreateExistingObservations = false,
+                              bool resetTransforms = false) : base(pipeline)
         {
-            locations = new MSLLocations();
-            this.project_name = project_name;
+            this.project = project;
+            this.recreateExistingObservations = recreateExistingObservations;
+            this.resetTransforms = resetTransforms;
         }
 
         /// <summary>
@@ -199,14 +79,14 @@ namespace OPS.Pipeline
         }
 
         /// <summary>
-        /// Mostly just confirms what ShouldDownloadHeader did using metadata instead of the filename
+        /// Mostly just confirms what CheckFilename did using metadata instead of the filename
         /// </summary>
         /// <param name="parser"></param>
         /// <returns></returns>
-        bool ShouldIndexBasedOnMetadata(PDSParser parser)
+        bool CheckMetadata(PDSParser parser)
         {
             return productTypeToObservationType.ContainsKey(parser.DerivedImageType) &&
-                    parser.ImageSizeType == RoverProductSize.Regular;
+                parser.ImageSizeType == RoverProductSize.Regular;
         }
 
         /// <summary>
@@ -245,7 +125,7 @@ namespace OPS.Pipeline
                 return false;
             }
 
-            if(parser.IsHazcam)
+            if (parser.IsHazcam)
             {
                 return false;
             }
@@ -255,6 +135,7 @@ namespace OPS.Pipeline
             {
                 return false;
             }
+
             if (parser.IsMastcam)
             {
                 // Skip mastcam taken with color filters
@@ -264,7 +145,8 @@ namespace OPS.Pipeline
                     {
                         return false;
                     }
-                } catch
+                }
+                catch
                 {
                     return false;
                 }
@@ -275,10 +157,12 @@ namespace OPS.Pipeline
                     return false;
                 }
             }
+
             if (parser.IsNavcam && parser.IsDownsampled)
             {
                 return false;
             }
+
             return true;
         }
 
@@ -313,7 +197,9 @@ namespace OPS.Pipeline
             return parser.ProductIdString;
         }
         
-        static ConcurrentDictionary<RoverProductType, ObservationType> productTypeToObservationType = new ConcurrentDictionary<RoverProductType, ObservationType>();
+        private static ConcurrentDictionary<RoverProductType, ObservationType> productTypeToObservationType =
+            new ConcurrentDictionary<RoverProductType, ObservationType>();
+
         static IngestPDSImage()
         {
             productTypeToObservationType.TryAdd(RoverProductType.Image, ObservationType.Image);
@@ -323,40 +209,25 @@ namespace OPS.Pipeline
             productTypeToObservationType.TryAdd(RoverProductType.RoverMask, ObservationType.RoverMask);
         }
 
-        private double quarterDegSqr = Math.Pow(0.25 * Math.PI / 180, 2);
-        private double halfDegSqr = Math.Pow(0.5 * Math.PI / 180, 2);
-        private double degSqr = Math.Pow(Math.PI / 180, 2);
-
-        public override Result Ingest(S3ImageRef imgRef)
+        public override Result Ingest(string imgUrl)
         {
-            if (imgRef is ObservationImageRef)
-            {
-                throw new InvalidOperationException("hey now, let's not get *too* weird");
-            }
-
             // Parse the filename to quickly rule out data products we know we don't care about.
-            if (!CheckFilename(imgRef.DisplayName))
+            if (!CheckFilename(StringHelper.GetLastUrlPathSegment(imgUrl, stripExtension: true)))
             {
-                return new Result(Status.Skipped, null);
+                pipeline.LogVerbose("rejected {0} by filename", imgUrl);
+                return new Result(imgUrl, Status.Skipped, null);
             }
 
             // Fetch image and check metadata
-            PDSMetadata metadata = null;
-            this.Pipeline.Storage(imgRef.Url).GetStorageStream(imgRef.Url, stream =>
-            {
-                metadata = new PDSMetadata(stream);
-            });
-
-            if (metadata == null)
-            {
-                return new Result(Status.Failed, null);
-            }
-
+            PDSMetadata metadata = new PDSMetadata(pipeline.GetImageFile(imgUrl));
             PDSParser parser = new PDSParser(metadata);
-            if (!ShouldIndexBasedOnMetadata(parser))
+            if (!CheckMetadata(parser))
             {
-                return new Result(Status.Skipped, null);
+                pipeline.LogVerbose("rejected {0} by metadata", imgUrl);
+                return new Result(imgUrl, Status.Skipped, null);
             }
+
+            string observationName = ObservationName(parser);
 
             // Filter images with invalid camera models
             try
@@ -365,79 +236,122 @@ namespace OPS.Pipeline
             }
             catch
             {
-                return new Result(Status.Skipped, null);
+                pipeline.LogVerbose("invalid camera model for {0}", observationName);
+                return new Result(imgUrl, Status.Skipped, null);
             }
-
-            bool useForReconstruction = UseForReconstruction(parser, metadata);
 
             // Create database entries
-            Project project = Project.Find(DynamoDB, project_name);
-            if (project == null)
-            {
-                throw new CloudException("Project does not exist");
-            }
 
-            // Create frames for this observation if necessary
-            Frame rootFrame = Frame.Find(DynamoDB, project.Name, MSLProject.ROOT_FRAME_NAME);
+            Frame rootFrame = Frame.Find(pipeline, project.Name, project.RootFrame);
             if (rootFrame == null)
             {
-                throw new Exception("Root frame does not exist");
-            }
-            Frame siteDriveFrame = Frame.FindOrCreate(DynamoDB, project, SiteDriveFrameName(parser), rootFrame);
-            Frame observationFrame = Frame.FindOrCreate(DynamoDB, project, ObservationFrameName(parser), siteDriveFrame);
-
-            if (FrameTransform.Find(DynamoDB, observationFrame) == null)
-            {
-                // TODO: examine values here
-                var covariance = CreateMatrix.Diagonal<double>(new double[] { 0.01, 0.01, 0.01, quarterDegSqr, quarterDegSqr, halfDegSqr });
-
-                // Create a transform that goes from observation frame (aka rover) to site drive frame (aka local level)
-                Quaternion roverToLocalLevel = parser.RoverOriginRotation;
-                UncertainRigidTransform observationToSiteDriveTransform = new UncertainRigidTransform(Matrix.CreateFromQuaternion(roverToLocalLevel), covariance);
-                FrameTransform observationToSiteDrive = FrameTransform.Create(DynamoDB, observationFrame, observationToSiteDriveTransform);
-
-                TransformPrior o2sdP = TransformPrior.Create(DynamoDB, observationFrame, observationToSiteDriveTransform);
-                observationFrame.PriorIds.Add(o2sdP.Id);
-                observationFrame.Save(DynamoDB);
-            }
-            // Create a transform that goes from site drive frame to root frame
-
-            var loc = locations.Location(new SiteDrive(parser.SiteDrive));
-            if (loc == null)
-            {
-                throw new Exception("site drive transform does not exist");
+                throw new Exception(string.Format("root frame {0} does not exist", project.RootFrame));
             }
 
-            if (FrameTransform.Find(DynamoDB, siteDriveFrame) == null)
-            {
-                // TODO: examine values here
-                var covariance = CreateMatrix.Diagonal<double>(new double[] { 8, 8, 8, 5 * degSqr, 5 * degSqr, 5 * degSqr });
-                UncertainRigidTransform transform = new UncertainRigidTransform(Matrix.CreateTranslation(loc.Position), covariance);
-                FrameTransform siteDriveToRoot = FrameTransform.Create(DynamoDB, siteDriveFrame, transform);
-                TransformPrior sd2rP = TransformPrior.Create(DynamoDB, siteDriveFrame, transform);
-                siteDriveFrame.PriorIds.Add(sd2rP.Id);
-                siteDriveFrame.Save(DynamoDB);
-            }
+            // site drive frame -> root frame
+            var siteDriveFrame = FindOrCreateFrame(SiteDriveFrameName(parser), rootFrame,
+                                                   () => GetDefaultSiteDriveTransform(parser.SiteDrive));
 
-            string observationName = ObservationName(parser);
-            Observation observation = RoverObservation.Find(DynamoDB, project.Name, observationName);
-            if (observation == null)
+            // observation (aka rover) frame -> site drive (aka local level) frame
+            var observationFrame = FindOrCreateFrame(ObservationFrameName(parser), siteDriveFrame,
+                                                     () => GetDefaultObservationTransform(parser.RoverOriginRotation));
+
+            Observation observation = RoverObservation.Find(pipeline, project.Name, observationName);
+            if (observation != null)
             {
-                string cameraModel = JsonHelper.ToJson(metadata.CameraModel);
-                string url = imgRef.Url;
-                observation = RoverObservation.Create(DynamoDB, observationFrame, observationName, url, productTypeToObservationType[parser.DerivedImageType].ToString(), cameraModel, UseForReconstruction(parser, metadata), parser.Site, parser.Drive, parser.ProductId.Version, parser.Camera.ToString(), parser.ImageSizeType.ToString(), parser.ProducingInstitution.ToString(), metadata.Width, metadata.Height);
-                if (observation != null) {
-                    return new Result(Status.Added, observation);
+                if (recreateExistingObservations)
+                {
+                    pipeline.LogVerbose("recreating existing observation {0}", observationName);
+                    pipeline.DeleteDatabaseItem(observation);
                 }
                 else
                 {
-                    return new Result(Status.Failed, null);
+                    pipeline.LogVerbose("not recreating existing observation {0}", observationName);
+                    return new Result(imgUrl, Status.Duplicate, observation);
                 }
+            }
+
+            observation = RoverObservation.Create(pipeline, observationFrame, observationName, imgUrl,
+                                                  productTypeToObservationType[parser.DerivedImageType].ToString(),
+                                                  JsonHelper.ToJson(metadata.CameraModel),
+                                                  UseForReconstruction(parser, metadata),
+                                                  parser.Site, parser.Drive, parser.ProductId.Version,
+                                                  parser.Camera.ToString(), parser.ImageSizeType.ToString(),
+                                                  parser.ProducingInstitution.ToString(),
+                                                  metadata.Width, metadata.Height);
+            if (observation != null)
+            {
+                pipeline.LogVerbose("created observation {0}", observationName);
+                return new Result(imgUrl, Status.Added, observation);
             }
             else
             {
-                return new Result(Status.Duplicate, observation);
+                pipeline.LogVerbose("failed to create observation {0}", observationName);
+                return new Result(imgUrl, Status.Failed, null);
             }
+        }
+
+        private double quarterDegSqr = Math.Pow(0.25 * Math.PI / 180, 2);
+        private double halfDegSqr = Math.Pow(0.5 * Math.PI / 180, 2);
+        private double degSqr = Math.Pow(Math.PI / 180, 2);
+
+        private UncertainRigidTransform GetDefaultSiteDriveTransform(string siteDrive)
+        {
+            var loc = Locations.Location(new SiteDrive(siteDrive));
+            if (loc == null)
+            {
+                throw new Exception(string.Format("no MSL location for site drive {0}", siteDrive));
+            }
+            
+            // TODO: examine values here
+            var covariance = CreateMatrix
+                .Diagonal<double>(new double[] { 8, 8, 8, 5 * degSqr, 5 * degSqr, 5 * degSqr });
+            
+            return new UncertainRigidTransform(Matrix.CreateTranslation(loc.Position), covariance);
+        }
+
+        private UncertainRigidTransform GetDefaultObservationTransform(Quaternion roverToLocalLevel)
+        {
+            // TODO: examine values here
+            var covariance = CreateMatrix
+                .Diagonal<double>(new double[] { 0.01, 0.01, 0.01, quarterDegSqr, quarterDegSqr, halfDegSqr });
+
+            return new UncertainRigidTransform(Matrix.CreateFromQuaternion(roverToLocalLevel), covariance);
+        }
+
+        private ConcurrentDictionary<string, bool> alreadyResetTransforms = new ConcurrentDictionary<string, bool>();
+
+        private Frame FindOrCreateFrame(string name, Frame parent, Func<UncertainRigidTransform> defTransform)
+        {
+            var frame = Frame.FindOrCreate(pipeline, project.Name, name, parent);
+            var frameTransform = FrameTransform.Find(pipeline, frame);
+            if (frameTransform == null)
+            {
+                pipeline.LogVerbose("creating transform for frame {0}", name);
+                var transform = defTransform();
+                frameTransform = FrameTransform.Create(pipeline, frame, transform);
+                var prior = TransformPrior.Create(pipeline, frame, transform);
+                frame.PriorIds.Add(prior.Id);
+                frame.Save(pipeline);
+            }
+            else if (resetTransforms && !alreadyResetTransforms.ContainsKey(name))
+            {
+                pipeline.LogVerbose("resetting transform for frame {0}", name);
+                var transform = defTransform();
+                frameTransform.Transform = transform;
+                frameTransform.Save(pipeline);
+                foreach (var id in frame.PriorIds)
+                {
+                    var prior = TransformPrior.Find(pipeline, project.Name, id);
+                    if (prior != null && prior.FrameName == name)
+                    {
+                        prior.Transform = transform;
+                        prior.Save(pipeline);
+                    }
+                }
+                alreadyResetTransforms.TryAdd(name, true);
+            }
+            return frame;
         }
     }
 }

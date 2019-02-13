@@ -60,12 +60,12 @@ First install latest [node.js](https://nodejs.org) 8.x.x, acquire [AWS credentia
 First install latest [node.js](https://nodejs.org) 8.x.x, acquire [AWS credentials](#aws-credentials), and build `TilingServer.exe` with Visual Studio as explained above.
 
 ### 1. Generate Release Bundle
-Run `npm run build` to generate `landformweb.zip`.
+Run `npm run build` to generate `landform-master.zip`.
 
 This is sugar for `npm install && npm run build-client && npm run bundle`.
 * `npm install` installs `node_modules` and `client/node_modules`
 * `npm run build-client` runs `npm run build` to webpack `client/build`
-* `npm run bundle` creates `landformweb.zip` containing
+* `npm run bundle` creates `landform-master.zip` containing
     * full archive of current git HEAD for the `Web` subtree
     * current `client/build` subtree
     * required binaries from `../TilingServer/bin/Release` under `bin`
@@ -77,7 +77,7 @@ This will require a local installation of [Docker](https://www.docker.com) host.
    1. The `venueName` that will be used is determined by the `NODE_ENV` environment variable in the shell where the `local-deploy` script is run, even though in the container `NODE_ENV=production` always.  This enables testing a local deployment connected to a private AWS venue.
 1. `npm run local-deploy -- [-f|--force] [-i|--interactive] [-d|--debug]` to re-build the Docker container and run it locally.  The name of the docker container is given by the value of `deployEnvironment` from `config.js`, using the value of `NODE_ENV` in the shell where the `local-deploy` script runs.  Typically `deployEnvironment=landformweb-dev`, which is appropriate for testing.
 1. Options:
-    * `--force`: use existing `landformweb.zip` even if it might be outdated
+    * `--force`: use existing `landform-master.zip` even if it might be outdated
     * `--interactive`: drop into a shell in the Docker container instead of running the server.  Note: if using git bash run `winpty node tools/localDeploy.js -i ...` instead.
     * `--debug`: set `LOG_LEVEL=silly` in the Docker container
 1. You can now access the server at http://localhost:8081.
@@ -88,11 +88,11 @@ This will require a local installation of [Docker](https://www.docker.com) host.
 It is also possible to manually deploy the release bundle using the AWS Elastic Beanstalk web console, as documented in the [AWS setup](docs/SETUP.md) instructions.
 
 1. Check `deployEnvironment` in `config.js` - the server will be deployed to this Elastic Beanstalk environment unless a different environment is explicitly named on the command line as explained below.  The `deployEnvironment` that will be used is determined by the `NODE_ENV` environment variable in the shell where the `deploy` script is run.
-1. The `venueName` that will be used in the deployment typically depends on the `NODE_ENV` configured in the Elastic Beanstalk environment.  Typically the environment `landformweb-dev` has `NODE_ENV=integration` and the environment `landformweb` has `NODE_ENV=production`.  It is also possible to override `TILE_SERVER_VENUE_NAME` directly in the environment configuration.
+1. The `venueName` that will be used in the deployment typically depends on the `NODE_ENV` configured in the Elastic Beanstalk environment.  Typically the environment `landformweb-dev` has `NODE_ENV=integration` and the environment `landformweb` has `NODE_ENV=production`.  It is also possible to override `LANDFORM_VENUE` directly in the environment configuration.
 1. `npm run deploy -- [environment-name] [-f|--force] [--profile=foo]`.
 1. Options:
     * `environment-name`: Upload to this Elastic Beanstalk environment instead of the default from `config.js`
-    * `--force`: use existing landformweb.zip even if it might be outdated
+    * `--force`: use existing landform-master.zip even if it might be outdated
     * `--profile=foo`: use AWS credentials profile `foo` instead of `default`
 1. The deployment process will take a few minutes. You can watch the deployment progress by logging in to the [AWS web console](http://goto.jpl.nasa.gov/awsconsole).
 1. Once the deployment is complete the site will be live at https://landform-dev.hi.jpl.nasa.gov (omit `-dev` for production).  Note, if using VPN full tunnel is required because we restrict access to JPL IP addresses.
@@ -102,7 +102,7 @@ It is also possible to manually deploy the release bundle using the AWS Elastic 
 First install latest [node.js](https://nodejs.org) 8.x.x, acquire [AWS credentials](#aws-credentials), and build `TilingServer.exe` with Visual Studio as explained above.
 
 1. `npm run configure-backend -- [venue-name]` - this will generate a customized `ec2userdata.txt`.  This file will be used to configure instances in an EC2 autoscale group.
-1. `npm run bundle-worker` - this will generate `landformweb-worker.zip` containing the binaries the instances in the autoscale group will run.
+1. `npm run bundle-worker` - this will generate `landform-worker.zip` containing the binaries the instances in the autoscale group will run.
 1. Deploy the worker using the AWS EC2 web console as documented in the [AWS setup](docs/SETUP.md) instructions.
 
 

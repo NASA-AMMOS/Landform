@@ -11,7 +11,6 @@ using System.Text;
 using System.Threading.Tasks;
 using OPS.Imaging;
 using System.IO;
-using OPS.Plumbing;
 using log4net;
 
 namespace OPS.Pipeline.TileServer
@@ -47,12 +46,12 @@ namespace OPS.Pipeline.TileServer
         /// Creates Project object locally.  
         /// </summary>
         /// <param name="name">Project names in the database must be unique</param>
-        protected TilingNode(string id, TilingProject project, string meshUrl, string imageUrl, string parentId,
+        protected TilingNode(string id, string projectName, string meshUrl, string imageUrl, string parentId,
                              List<string> childIds, List<string> dependsOn, List<String> dependedOnBy,
                              BoundingBox bounds, BoundingBox? boundsWithSkirt = null)
         {
             Id = id;
-            ProjectName = project.Name;
+            ProjectName = projectName;
             MeshUrl = meshUrl;
             ImageUrl = imageUrl;
             ParentId = parentId;
@@ -64,20 +63,20 @@ namespace OPS.Pipeline.TileServer
         }
 
 
-        public static TilingNode Create(DynamoDBContext context, string id, TilingProject project,
+        public static TilingNode Create(PipelineCore pipeline, string id, string projectName,
                                         string meshUrl, string imageUrl, string parentId, List<string> childIds,
                                         List<string> dependsOn, List<String> dependedOnBy, BoundingBox bounds)
         {
-            TilingNode node = new TilingNode(id, project, meshUrl, imageUrl, parentId, childIds, dependsOn,
+            TilingNode node = new TilingNode(id, projectName, meshUrl, imageUrl, parentId, childIds, dependsOn,
                                              dependedOnBy, bounds);
-            node.Save(context);
+            node.Save(pipeline);
             return node;
         }
 
 
-        public static TilingNode Find(DynamoDBContext context, string projectName, string id)
+        public static TilingNode Find(PipelineCore pipeline, string projectName, string id)
         {
-            return context.Load<TilingNode>(id, projectName);
+            return pipeline.LoadDatabaseItem<TilingNode>(id, projectName);
         }
 
 
@@ -92,7 +91,7 @@ namespace OPS.Pipeline.TileServer
                 List<TilingNode> nodes = new List<TilingNode>();
                 foreach (var id in ids)
                 {
-                    var node = Find(pipeline.DynamoContext, project.Name, id);
+                    var node = Find(pipeline, project.Name, id);
                     if (node != null) nodes.Add(node);
                 }
                 return nodes;
@@ -101,29 +100,28 @@ namespace OPS.Pipeline.TileServer
             {
                 //fall back to scanning for all records that match the project name
                 //e.g. for legacy projects or if the project record is not well formed
-                return DBUtil.Scan<TilingNode>(pipeline.DynamoContext, logger,
-                                               new ScanCondition("ProjectName", ScanOperator.Equal, project.Name));
+                return pipeline.ScanDatabase<TilingNode>("ProjectName", project.Name);
             }
         }
 
-        public void Save(DynamoDBContext context)
+        public void Save(PipelineCore pipeline)
         {
-            DBUtil.ExponentialBackoff(() => context.Save(this));
+            DBUtil.ExponentialBackoff(() => pipeline.SaveDatabaseItem(this));
         }
 
         public void Delete(PipelineCore pipeline, bool ignoreErrors = true)
         {
             if (!string.IsNullOrEmpty(MeshUrl))
             {
-                pipeline.Storage(MeshUrl).DeleteObject(MeshUrl, ignoreErrors: ignoreErrors, logger: pipeline.Logger);
+                pipeline.DeleteFile(MeshUrl, ignoreErrors);
             }
 
             if (!string.IsNullOrEmpty(ImageUrl))
             {
-                pipeline.Storage(ImageUrl).DeleteObject(ImageUrl, ignoreErrors: ignoreErrors, logger: pipeline.Logger);
+                pipeline.DeleteFile(ImageUrl, ignoreErrors);
             }
 
-            pipeline.DeleteDynamoItem(this, ignoreErrors);
+            pipeline.DeleteDatabaseItem(this, ignoreErrors);
         }
 
         public bool IsLeaf()
@@ -177,8 +175,6 @@ namespace OPS.Pipeline.TileServer
                 throw new Exception("attempting to save tiling node mesh with image but no UVs");
             }
 
-            var cfg = TileServerConfig.Instance;
-
             string exMeshExt = null;
             string exMeshFile = null;
             string exMeshUrl = null;
@@ -188,8 +184,8 @@ namespace OPS.Pipeline.TileServer
             {
                 exMeshExt = "." + exportMeshFormat.ToLower();
                 exMeshFile = Id + exMeshExt;
-                exMeshUrl = cfg.WWWUrl(ProjectName, exMeshFile);
-                exMeshMtlUrl = cfg.WWWUrl(ProjectName, Id + ".mtl");
+                exMeshUrl = pipeline.GetStorageUrl("www", ProjectName, exMeshFile);
+                exMeshMtlUrl = pipeline.GetStorageUrl("www", ProjectName, Id + ".mtl");
             }
 
             string exImageExt = null;
@@ -200,14 +196,13 @@ namespace OPS.Pipeline.TileServer
             {
                 exImageExt = "." + exportImageFormat.ToLower();
                 exImageFile = Id + exImageExt;
-                exImageUrl = cfg.WWWUrl(ProjectName, exImageFile);
+                exImageUrl = pipeline.GetStorageUrl("www", ProjectName, exImageFile);
             }
 
             Action<string, string> upload = (file, url) =>
             {
-                pipeline.Storage(url).UploadFile(file, url);
-                //this could be useful for debugging in the future
-                //pipeline.Logger.InfoFormat("uploaded {0}", url);
+                pipeline.SaveFile(file, url);
+                pipeline.LogVerbose("uploaded {0}", url);
             };
 
             Action<string, string> uploadAndDeleteMtl = (mesh, img) => 
@@ -219,7 +214,7 @@ namespace OPS.Pipeline.TileServer
                     if (File.Exists(mtl))
                     {
                         upload(mtl, exMeshMtlUrl);
-                        TemporaryFile.DeleteWithRetry(mtl);
+                        PathHelper.DeleteWithRetry(mtl, pipeline.Logger);
                     }
                 }
             };
@@ -230,7 +225,7 @@ namespace OPS.Pipeline.TileServer
             //also saves export image to S3 iff it is the same format as our internal format
             string imageExt = ".tif";
             string imageFile = Id + imageExt;
-            ImageUrl = cfg.TileUrl(ProjectName, imageFile);
+            ImageUrl = pipeline.GetStorageUrl("tile", ProjectName, imageFile);
             if (pair.Image != null)
             {
                 TemporaryFile.GetAndDelete(imageExt, tmpImage => 
@@ -254,7 +249,7 @@ namespace OPS.Pipeline.TileServer
             //also saves export mesh to S3 iff it and the export image are the same format as our internal formats
             string meshExt = ".ply";
             string meshFile = Id + meshExt;
-            MeshUrl = cfg.TileUrl(ProjectName, meshFile);
+            MeshUrl = pipeline.GetStorageUrl("tile", ProjectName, meshFile);
             TemporaryFile.GetAndDelete(meshExt, tmpMesh =>
             {
                 //here imageFile is used to embed a reference to the texture image in the mesh file
@@ -278,7 +273,7 @@ namespace OPS.Pipeline.TileServer
             //also saves export image to S3 iff it hasn't been uploaded already and is the same format as for 3D tiles
             string tileMeshExt = pair.Mesh.HasFaces ? ".b3dm" : ".pnts";
             string tileImageExt = ".jpg"; //could be jpg or png, will be embedded in the b3dm file
-            string tileUrl = cfg.WWWUrl(ProjectName, Id + tileMeshExt);
+            string tileUrl = pipeline.GetStorageUrl("www", ProjectName, Id + tileMeshExt);
             TemporaryFile.GetAndDelete(tileMeshExt, tmpMesh =>
             {
                 TemporaryFile.GetAndDelete(tileImageExt, tmpImage =>
@@ -343,7 +338,7 @@ namespace OPS.Pipeline.TileServer
 
             GeometricError = geometricError;
 
-            Save(pipeline.DynamoContext);
+            Save(pipeline);
         }
 
         public SceneNode GetSceneNode()
@@ -362,19 +357,11 @@ namespace OPS.Pipeline.TileServer
             if (MeshUrl != null)
             {
                 Mesh m = null;
-                TemporaryFile.GetAndDelete(Path.GetExtension(MeshUrl), f =>
-                {
-                    pipeline.Storage(MeshUrl).DownloadFile(MeshUrl, f);
-                    m = Mesh.Load(f);
-                });
+                pipeline.GetFile(MeshUrl, f => m = Mesh.Load(f));
                 Image img = null;
                 if (ImageUrl != null)
                 {
-                    TemporaryFile.GetAndDelete(Path.GetExtension(ImageUrl), f =>
-                    {
-                        pipeline.Storage(ImageUrl).DownloadFile(ImageUrl, f);
-                        img = Image.Load(f);
-                    });
+                    pipeline.GetFile(ImageUrl, f => img = Image.Load(f));
                 }
                 if(m == null)
                 {

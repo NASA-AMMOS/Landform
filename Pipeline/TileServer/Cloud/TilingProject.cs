@@ -9,13 +9,11 @@ using Amazon.DynamoDBv2.DataModel;
 using OPS.Cloud;
 using OPS.Util;
 using OPS.Geometry;
-using OPS.Plumbing;
 using log4net;
 using Newtonsoft.Json.Linq;
 
 namespace OPS.Pipeline.TileServer
 {
-
     [DynamoDBTable("TilingProjects")]
     [DynamoDBReadCapacity(5, 50)]
     [DynamoDBWriteCapacity(5, 50)]
@@ -50,9 +48,7 @@ namespace OPS.Pipeline.TileServer
 
         public int MaxLeafGroupSize { get; set; }
 
-        public TilingProject()
-        {
-        }
+        public TilingProject() { }
 
         /// <summary>
         /// Creates Project object locally.  
@@ -77,7 +73,7 @@ namespace OPS.Pipeline.TileServer
         }
 
 
-        public static TilingProject Create(DynamoDBContext context, string name, TilingScheme tilingScheme,
+        public static TilingProject Create(PipelineCore pipeline, string name, TilingScheme tilingScheme,
                                            SkirtMode skirtMode, MeshReconMethod reconMethod, int faces, int resolution,
                                            string projectType, string exportMeshFormat, string exportImageFormat,
                                            int maxLeafGroupSize)
@@ -85,13 +81,13 @@ namespace OPS.Pipeline.TileServer
             TilingProject project = new TilingProject(name, tilingScheme, skirtMode, reconMethod, faces, resolution,
                                                       projectType, exportMeshFormat, exportImageFormat,
                                                       maxLeafGroupSize);
-            project.Save(context);
+            project.Save(pipeline);
             return project;
         }
 
-        public static TilingProject Find(DynamoDBContext context, string name)
+        public static TilingProject Find(PipelineCore pipeline, string name)
         {
-            TilingProject project = context.Load<TilingProject>(name);
+            TilingProject project = pipeline.LoadDatabaseItem<TilingProject>(name);
             if (project != null)
             {
                 project.IsValid();
@@ -99,15 +95,15 @@ namespace OPS.Pipeline.TileServer
             return project;
         }
 
-        public static IEnumerable<TilingProject> FindAll(DynamoDBContext context, ILog logger = null)
+        public static IEnumerable<TilingProject> FindAll(PipelineCore pipeline, ILog logger = null)
         {
-            return DBUtil.Scan<TilingProject>(context, logger);
+            return pipeline.ScanDatabase<TilingProject>();
         }
 
-        public void Save(DynamoDBContext context)
+        public void Save(PipelineCore pipeline)
         {
             IsValid();
-            context.Save(this);
+            pipeline.SaveDatabaseItem(this);
         }
 
         public const int SLEEP_BETWEEN_NODE_DELETES_MS = 10;
@@ -118,24 +114,24 @@ namespace OPS.Pipeline.TileServer
                 var nodes = TilingNode.Find(pipeline, this, pipeline.Logger);
                 int nn = nodes.Count();
                 int n = 0; 
-                pipeline.Logger.Info("deleting " + nn + " nodes");
+                pipeline.LogInfo("deleting {0} nodes", nn);
                 foreach (var node in nodes)
                 {
                     node.Delete(pipeline, ignoreErrors);
                     Thread.Sleep(SLEEP_BETWEEN_NODE_DELETES_MS); //throttle to reduce chance of exponential backoff
                     if (++n % 500 == 0)
                     {
-                        pipeline.Logger.Info("deleted " + n + " nodes");
+                        pipeline.LogInfo("deleted {0} nodes", n);
                     }
                 }
             }
             else
             {
-                pipeline.Logger.Info("deleting 0 nodes - project never run");
+                pipeline.LogInfo("deleting 0 nodes - project never run");
             }
 
-            var inputs = TilingInput.Find(pipeline.DynamoContext, this, pipeline.Logger);
-            pipeline.Logger.Info("deleting " + inputs.Count() + " inputs");
+            var inputs = TilingInput.Find(pipeline, this, pipeline.Logger);
+            pipeline.LogInfo("deleting {0} inputs", inputs.Count());
             foreach (var input in inputs)
             {
                 input.Delete(pipeline, ignoreErrors);
@@ -143,22 +139,21 @@ namespace OPS.Pipeline.TileServer
 
             pipeline.DeleteProjectCache(Name);
 
-            string wwwS3Url = TileServerConfig.Instance.WWWUrl(Name);
-            pipeline.Storage(wwwS3Url).DeleteObjects(wwwS3Url, ignoreErrors: ignoreErrors, logger: pipeline.Logger);
+            pipeline.DeleteFiles(pipeline.GetStorageUrl("www", Name), "*", ignoreErrors);
 
             if (!string.IsNullOrEmpty(NodeIdsUrl))
             {
-                pipeline.Storage(NodeIdsUrl).DeleteObjects(NodeIdsUrl, ignoreErrors: ignoreErrors, logger: pipeline.Logger);
+                pipeline.DeleteFile(NodeIdsUrl, ignoreErrors);
             }
 
-            pipeline.DeleteDynamoItem(this, ignoreErrors);
+            pipeline.DeleteDatabaseItem(this, ignoreErrors);
         }
 
         private void IsValid()
         {
             if (!(Name != null && TilingScheme != null && SkirtMode != null))
             {
-                throw new CloudException("TilingProject is missing a required field");
+                throw new Exception("TilingProject is missing a required field");
             }
         }
 
@@ -182,24 +177,22 @@ namespace OPS.Pipeline.TileServer
             List<string> ids = null;
             if (!string.IsNullOrEmpty(NodeIdsUrl))
             {
-                TemporaryFile.GetAndDelete(".json", tmpJson =>
-                        {
-                            pipeline.Storage(NodeIdsUrl).DownloadFile(NodeIdsUrl, tmpJson);
-                            var json = File.ReadAllText(tmpJson);
-                            ids = ((JArray)JsonHelper.FromJson(json, autoTypes: false)).ToObject<List<string>>();
-                        });
+                pipeline.GetFile(NodeIdsUrl, f =>
+                {
+                    ids = ((JArray)JsonHelper.FromJson(File.ReadAllText(f), autoTypes: false)).ToObject<List<string>>();
+                });
             }
             return ids;
         }
 
         public string SaveNodeIds(List<string> ids, PipelineCore pipeline)
         {
-            var url = TileServerConfig.Instance.TileUrl(Name, "nodeids.json");
+            var url = pipeline.GetStorageUrl("tile", Name, "nodeids.json");
             TemporaryFile.GetAndDelete(".json", tmpJson =>
             {
                 var json = JsonHelper.ToJson(ids, autoTypes: false);
                 File.WriteAllText(tmpJson, json);
-                pipeline.Storage(url).UploadFile(tmpJson, url);
+                pipeline.SaveFile(tmpJson, url);
             });
             NodeIdsUrl = url;
             return url;

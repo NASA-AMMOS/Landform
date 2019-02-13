@@ -1,20 +1,20 @@
-﻿using Microsoft.Xna.Framework;
-using OPS.Geometry;
-using OPS.Plumbing;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Microsoft.Xna.Framework;
+using OPS.Geometry;
+using OPS.Imaging;
 
 namespace OPS.Alignment
 {
     /// <summary>
     /// Class for finding epipolar lines in (potentially) non-linear images.
     /// </summary>
-    public class EpipolarLineFinder : PipelineRoutine
+    public class EpipolarLineFinder
     {
-        public EpipolarLineFinder(PipelineCore pipeline) : base(pipeline)
+        public EpipolarLineFinder()
         {
             ParallelProjectionDistance = 100;
             MinGuessDepth = 0.1;
@@ -58,13 +58,14 @@ namespace OPS.Alignment
         /// <summary>
         /// Find an epipolar line in 'model' corresponding to a feature in 'data'
         /// </summary>
-        /// <param name="model"></param>
-        /// <param name="data"></param>
+        /// <param name="modelCmod"></param>
+        /// <param name="dataCmod"></param>
         /// <param name="dataToModel"></param>
         /// <param name="modelFeat"></param>
         /// <param name="dataFeat"></param>
         /// <returns></returns>
-        public Result Find(ImageRef model, ImageRef data, Matrix dataToModel, ImageFeature dataFeat, ImageFeature modelFeat=null)
+        public Result Find(CameraModel modelCmod, CameraModel dataCmod, Matrix dataToModel, ImageFeature dataFeat,
+                           ImageFeature modelFeat = null)
         {
             Result res = new Result
             {
@@ -73,9 +74,6 @@ namespace OPS.Alignment
                 Direction = Vector2.Zero,
                 PerpendicularDistance = double.NaN
             };
-
-            var modelCmod = GetImage(model).CameraModel;
-            var dataCmod = GetImage(data).CameraModel;
 
             var dataRay = dataCmod.Unproject(dataFeat.Location);
             var dataRayInModel = RayExtensions.Transform(dataRay, dataToModel);
@@ -88,8 +86,7 @@ namespace OPS.Alignment
             {
                 var modelRay = modelCmod.Unproject(modelFeat.Location);
                 if (RayExtensions.ClosestIntersection(dataRayInModel, modelRay, out double modelT, out double dataT)
-                    && dataT >= 0
-                    && modelT >= 0)
+                    && dataT >= 0 && modelT >= 0)
                 {
                     res.HadIntersection = true;
                     candidates.Add(dataT);
@@ -112,12 +109,12 @@ namespace OPS.Alignment
                 var depth = candidates[i];
                 try
                 {
-                    Vector2 pos0 = modelCmod.Project(
-                        dataRayInModel.Position + dataRayInModel.Direction * depth,
-                        out double dataT0);
-                    Vector2 pos1 = modelCmod.Project(
-                        dataRayInModel.Position + dataRayInModel.Direction * (depth + 0.001),
-                        out double dataT1);
+                    Vector2 pos0 =
+                        modelCmod.Project(dataRayInModel.Position + dataRayInModel.Direction * depth,
+                                          out double dataT0);
+                    Vector2 pos1 =
+                        modelCmod.Project(dataRayInModel.Position + dataRayInModel.Direction * (depth + 0.001),
+                                          out double dataT1);
 
                     if (dataT0 < 0 || dataT1 < 0) continue;
 

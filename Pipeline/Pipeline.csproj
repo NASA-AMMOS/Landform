@@ -168,28 +168,61 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="AlignmentServer\AlignmentMaster.cs" />
-    <Compile Include="AlignmentServer\Commands\CreateMask.cs" />
-    <Compile Include="AlignmentServer\Commands\DetectFeatures.cs" />
-    <Compile Include="AlignmentServer\Commands\MatchImages.cs" />
-    <Compile Include="AlignmentServer\Messages.cs" />
+    <Compile Include="AlignmentServer\Cloud\Frame.cs" />
+    <Compile Include="AlignmentServer\Cloud\FrameCache.cs" />
+    <Compile Include="AlignmentServer\Cloud\FrameGeohash.cs" />
+    <Compile Include="AlignmentServer\Cloud\FrameTransform.cs" />
+    <Compile Include="AlignmentServer\Cloud\Observation.cs" />
+    <Compile Include="AlignmentServer\Cloud\ObservationCache.cs" />
+    <Compile Include="AlignmentServer\Cloud\Overlap.cs" />
+    <Compile Include="AlignmentServer\Cloud\OverlapCache.cs" />
+    <Compile Include="AlignmentServer\Cloud\Project.cs" />
+    <Compile Include="AlignmentServer\Cloud\RoverObservation.cs" />
+    <Compile Include="AlignmentServer\Cloud\RoverObservationCache.cs" />
+    <Compile Include="AlignmentServer\Cloud\SpatialIndex.cs" />
+    <Compile Include="AlignmentServer\Cloud\SquareMatrixConverter.cs" />
+    <Compile Include="AlignmentServer\Cloud\TransformPrior.cs" />
+    <Compile Include="AlignmentServer\Cloud\Vector3Converter.cs" />
+    <Compile Include="AlignmentServer\Cloud\VectorNConverter.cs" />
+    <Compile Include="AlignmentServer\Operations\CreateMask.cs" />
+    <Compile Include="AlignmentServer\Operations\DetectFeatures.cs" />
+    <Compile Include="AlignmentServer\Operations\MatchImages.cs" />
     <Compile Include="Alignment\BuildSceneGraph.cs" />
-    <Compile Include="Alignment\DetectFeatures.cs" />
     <Compile Include="Alignment\DetectOverlaps.cs" />
+    <Compile Include="Alignment\FeatureDetector.cs" />
+    <Compile Include="Alignment\FrustumOverlapDetector.cs" />
+    <Compile Include="Alignment\IngestAlignmentInputs.cs" />
     <Compile Include="Alignment\IngestImage.cs" />
     <Compile Include="Alignment\IngestPDSImage.cs" />
+    <Compile Include="Alignment\InitializeAlignmentProject.cs" />
+    <Compile Include="Alignment\NodeObservation.cs" />
+    <Compile Include="CloudPipeline.cs" />
+    <Compile Include="CloudPipelineConfig.cs" />
+    <Compile Include="CloudPipelineOperation.cs" />
     <Compile Include="Commands\BenchmarkS3.cs" />
+    <Compile Include="Commands\ConfigureCloud.cs" />
+    <Compile Include="Commands\ConfigureLocal.cs" />
     <Compile Include="Commands\LegacyToTile3D.cs" />
+    <Compile Include="Commands\LocalFeatures.cs" />
+    <Compile Include="Commands\LocalIngest.cs" />
+    <Compile Include="Commands\LocalMasks.cs" />
     <Compile Include="Commands\TileLocalMesh.cs" />
+    <Compile Include="DataProducts\DataProduct.cs" />
+    <Compile Include="DataProducts\JsonDataProduct.cs" />
+    <Compile Include="DataProducts\PngDataProduct.cs" />
+    <Compile Include="LocalPipeline.cs" />
+    <Compile Include="LocalPipelineConfig.cs" />
     <Compile Include="MeshWorker\Commands\TextureMeshCommand.cs" />
     <Compile Include="MeshWorker\Operations\BuildBackprojectLeaves.cs" />
     <Compile Include="MeshWorker\Operations\BuildTilingInput.cs" />
-    <Compile Include="Rover\MSLCloud.cs" />
+    <Compile Include="PipelineCore.cs" />
+    <Compile Include="PipelineRoutine.cs" />
+    <Compile Include="Rover\MSLProject.cs" />
     <Compile Include="StateMachines\GenericTilingStateMachine.cs" />
     <Compile Include="StateMachines\MSLStateMachine.cs" />
     <Compile Include="StateMachines\PipelineStateMachine.cs" />
     <Compile Include="StateMachines\ProjectCache.cs" />
     <Compile Include="TileServer\Cloud\TilingNode.cs" />
-    <Compile Include="TileServer\Commands\ConfigureServer.cs" />
     <Compile Include="TileServer\Commands\CreateProject.cs" />
     <Compile Include="TileServer\Commands\DeleteCache.cs" />
     <Compile Include="TileServer\Commands\DeleteProject.cs" />
@@ -200,18 +233,14 @@
     <Compile Include="TileServer\Commands\StartMaster.cs" />
     <Compile Include="TileServer\Commands\StartWorker.cs" />
     <Compile Include="TileServer\Commands\UploadInput.cs" />
-    <Compile Include="TileServer\Cloud\TileServerCloud.cs" />
     <Compile Include="TileServer\Cloud\TilingInput.cs" />
     <Compile Include="TileServer\Cloud\TilingProject.cs" />
-    <Compile Include="TileServer\Cloud\TilingQueue.cs" />
     <Compile Include="TileServer\Operations\BuildBakedLeaves.cs" />
     <Compile Include="TileServer\Operations\BuildParent.cs" />
     <Compile Include="TileServer\Operations\BuildTilesetJson.cs" />
     <Compile Include="TileServer\Operations\ChunkInput.cs" />
     <Compile Include="TileServer\Operations\DefineTiles.cs" />
     <Compile Include="TileServer\Cloud\TilingInputChunk.cs" />
-    <Compile Include="TileServer\Operations\TileServerOperation.cs" />
-    <Compile Include="TileServer\TileServerConfig.cs" />
     <Compile Include="TileServer\TilingScheme.cs" />
     <Compile Include="TileServer\Commands\TileServerCommands.cs" />
     <Compile Include="Commands\Commands.cs" />
@@ -329,10 +358,6 @@
     <ProjectReference Include="..\MathExtensions\MathExtensions.csproj">
       <Project>{8c7c8a71-0a4b-4d75-9cb2-32803bd8f86f}</Project>
       <Name>MathExtensions</Name>
-    </ProjectReference>
-    <ProjectReference Include="..\Plumbing\Plumbing.csproj">
-      <Project>{2F63D586-130F-42EB-BA25-76D31BC26283}</Project>
-      <Name>Plumbing</Name>
     </ProjectReference>
     <ProjectReference Include="..\RayTrace\RayTrace.csproj">
       <Project>{0e8c60bb-4a68-480f-895a-2b326aec002c}</Project>

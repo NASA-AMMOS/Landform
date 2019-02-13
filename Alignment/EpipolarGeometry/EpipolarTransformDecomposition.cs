@@ -123,8 +123,12 @@ namespace OPS.Alignment
                 throw new Exception("Match must have computed essential matrix");
             }
 
-            var modelPoints = match.DataToModel.Select(d2m => scene.DetectedFeatures[match.ModelImage][d2m.Value].Location).ToArray();
-            var dataFeatures = match.DataToModel.Select(d2m => scene.DetectedFeatures[match.DataImage][d2m.Key].Location).ToArray();
+            var modelPoints = match.DataToModel
+                .Select(d2m => scene.DetectedFeatures[match.ModelImageUrl][d2m.Value].Location)
+                .ToArray();
+            var dataFeatures = match.DataToModel
+                .Select(d2m => scene.DetectedFeatures[match.DataImageUrl][d2m.Key].Location)
+                .ToArray();
             return ExtractTransform(e, modelPoints, dataFeatures, out bool[] ignoredMask);
         }
     }

@@ -213,12 +213,6 @@ namespace OPS.Cloud
             }
         }
 
-        /// <summary>
-        /// Function prototype for processing downloaed streams
-        /// </summary>
-        /// <param name="stream"></param>
-        public delegate void StreamHandler(Stream stream);
-
         AWSCredentials awsCredentials;
         Amazon.RegionEndpoint awsRegion;
         ConcurrentDictionary<string, Amazon.RegionEndpoint> bucketToRegion = new ConcurrentDictionary<string, RegionEndpoint>();
@@ -227,7 +221,7 @@ namespace OPS.Cloud
         /// Use the given profile name to create a storage helper
         /// Profiles can be defined in the ~/.aws/credentials file
         /// If an endpoint name such as "us-west-1" is provided that endpoint will be used for all connections
-        /// Otherwise methods will attempt to determine the region for buckets based on the bucket name in the url string
+        /// Otherwise methods will attempt to determine the region for buckets based on the bucket name in the url
         /// Note that s3:GetBucketLocation must be enabled for automatic bucket determination to work.
         /// </summary>
         /// <param name="awsProfileName"></param>
@@ -490,7 +484,7 @@ namespace OPS.Cloud
         /// </summary>
         /// <param name="s3url"></param>
         /// <param name="streamHandler"></param>
-        public void GetStream(string s3url, StreamHandler streamHandler)
+        public void GetStream(string s3url, Action<Stream> streamHandler)
         {
             using (var client = GetClient(s3url))
             {
@@ -509,7 +503,7 @@ namespace OPS.Cloud
         /// </summary>
         /// <param name="s3url"></param>
         /// <param name="streamHandler"></param>
-        public void GetStorageStream(string s3url, StreamHandler streamHandler, long startPosition = 0, int bufferSize = 128*1024)
+        public void GetStorageStream(string s3url, Action<Stream> streamHandler, long startPosition = 0, int bufferSize = 128*1024)
         {
             using (var client = GetClient(s3url))
             {
@@ -538,12 +532,11 @@ namespace OPS.Cloud
             {
                 if (!ignoreErrors)
                 {
-                    throw e;
+                    throw;
                 }
-
-                if (logger != null)
+                else if (logger != null)
                 {
-                    logger.Warn(string.Format("error deleting object {0}: {1}", s3Url, e.Message));
+                    logger.Warn(string.Format("error deleting S3 object {0}: {1}", s3Url, e.Message));
                 }
             }
         }
@@ -592,10 +585,9 @@ namespace OPS.Cloud
             {
                 if (!ignoreErrors)
                 {
-                    throw e;
+                    throw;
                 }
-
-                if (logger != null)
+                else if (logger != null)
                 {
                     logger.Warn(string.Format("error searching objects with prefix {0}: {1}", s3Url, e.Message));
                 }

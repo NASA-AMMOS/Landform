@@ -2,7 +2,7 @@ const fs = require('fs-extra');
 const path = require('path');
 const Zip = require('@jpl/adm-zip');
 
-const bundle = require('../config').app.bundle;
+const bundle = require('../config').app.masterBundle;
 const { prompt, hasFlag } = require('./toolUtil');
 
 //the "bundle" script in package.json creates the app zip bundle as a git archive of HEAD

@@ -1,12 +1,11 @@
 ﻿using OPS.Alignment;
 using OPS.Cloud;
-using OPS.Plumbing;
 
 namespace OPS.Pipeline
 {
     public class DetectedFeatures : JsonDataProduct
     {
-        public string ObservationName;
+        public string ImageUrl;
         public ImageFeature[] Features;
     }
 }

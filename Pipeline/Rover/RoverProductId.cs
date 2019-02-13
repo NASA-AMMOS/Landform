@@ -74,7 +74,7 @@ namespace OPS.Pipeline
         public static RoverProductId ParseFromString(string productId)
         {
             RoverProductId result = OPGSProductId.ParseFromOPGSName(productId);
-            if(result == null)
+            if (result == null)
             {
                 result = MSSSProductId.ParseFromMSSS(productId);
             }
@@ -160,11 +160,11 @@ namespace OPS.Pipeline
 
         public static OPGSProductId ParseFromOPGSName(string productId)
         {
-            if(productId.EndsWith(".IMG"))
+            if (productId.EndsWith(".IMG"))
             {
-                productId= productId.Replace(".IMG", "");
+                productId = productId.Replace(".IMG", "");
             }
-            if(productId.Length != 36)
+            if (productId.Length != 36)
             {
                 return null;
             }

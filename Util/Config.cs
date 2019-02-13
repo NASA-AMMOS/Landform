@@ -67,7 +67,7 @@ namespace OPS.Util
 
         static string FullPathToConfig(string filename)
         {
-            if(ApplicationConfigFolder == null || filename == null)
+            if (ApplicationConfigFolder == null || filename == null)
             {
                 return null;
             }

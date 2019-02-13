@@ -10,12 +10,12 @@ function setTilingEnv(env) {
 
   //if any of these vars are not set then set them from the indicated key in config.app
   const vars = {
-    TILE_SERVER_REGION: 'awsRegion',
-    TILE_SERVER_PROFILE: 'awsProfile',
-    TILE_SERVER_VENUE_NAME: 'venueName',
-    TILE_SERVER_S3_URL: 's3Url',
-    TILE_SERVER_MSLICE_PROFILE: 'awsMSLICEProfile',
-    TILE_SERVER_MSLICE_S3_URL: 'awsMSLICES3Url',
+    LANDFORM_VENUE: 'venue',
+    LANDFORM_AWS_REGION: 'awsRegion',
+    LANDFORM_AWS_PROFILE: 'awsProfile',
+    LANDFORM_S3_URL: 's3Url',
+    LANDFORM_MSLICE_AWS_PROFILE: 'MSLICEAWSProfile',
+    LANDFORM_MSLICE_S3_URL: 'MSLICES3Url',
   };
   Object.entries(vars).forEach(([varName, cfgKey]) => { if (!(varName in env)) env[varName] = config.app[cfgKey]; });
 
@@ -32,7 +32,7 @@ async function tilingTask(verb, args, opts) {
   args.unshift(verb);
   opts = opts || {};
   if (!opts.defaultLog) args.push(`--logfile=${log}`);
-  return launchTask('TilingServer', args, { cwd: config.app.tmpDir, env: setTilingEnv() });
+  return launchTask(config.app.masterExe, args, { cwd: config.app.tmpDir, env: setTilingEnv() });
 }
 
 let masterTask = null;
@@ -43,7 +43,7 @@ async function tilingMaster() {
   function abort(err) {
     //make sure spew gets to log even when log level is < debug, as in production
     if (logger.levels[logger.level] < logger.levels.debug) logger.error(masterTask.log.join('\n'));
-    logger.error(`aborting, error launching 'TilingServer startmaster': ${err.message}`);
+    logger.error(`aborting, error launching '${config.app.masterExe} startmaster': ${err.message}`);
     logger.exception(err);
     process.exit(1);
   }

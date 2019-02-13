@@ -86,6 +86,7 @@
     <Compile Include="Imaging\FITSMetadata.cs" />
     <Compile Include="Imaging\GenericImage.cs" />
     <Compile Include="Imaging\CameraModels\GDALCameraModel.cs" />
+    <Compile Include="Imaging\IImageLoader.cs" />
     <Compile Include="Imaging\Image.cs" />
     <Compile Include="Imaging\ImageCoordinate.cs" />
     <Compile Include="Imaging\ImageException.cs" />
@@ -139,6 +140,7 @@
     </Content>
     <Content Include="GdalConfiguration.vb" />
   </ItemGroup>
+  <ItemGroup />
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <Import Project="..\packages\GDAL.Native.1.11.1\build\net40\GDAL.Native.targets" Condition="Exists('..\packages\GDAL.Native.1.11.1\build\net40\GDAL.Native.targets')" />
   <Target Name="EnsureNuGetPackageBuildImports" BeforeTargets="PrepareForBuild">

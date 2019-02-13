@@ -1,22 +1,26 @@
-﻿using Emgu.CV;
-using Emgu.CV.Cuda;
-using Emgu.CV.Features2D;
-using Emgu.CV.Structure;
-using Emgu.CV.Util;
-using OPS.Imaging;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Emgu.CV;
+using Emgu.CV.Cuda;
+using Emgu.CV.Features2D;
+using Emgu.CV.Structure;
+using Emgu.CV.Util;
+using OPS.Util;
 
 namespace OPS.Alignment
 {
     public class EmguSIFTMatcher : IFeatureMatcher
     {
-        public ImagePairCorrespondence Match(ImageRef model, ImageRef data,
-            IEnumerable<ImageFeature> modelFeat, IEnumerable<ImageFeature> dataFeat)
+        public ImagePairCorrespondence Match(AlignmentScene scene, URLPair pair)
         {
+            var modelUrl = pair.One;
+            var dataUrl = pair.Two;
+            var modelFeat = scene.DetectedFeatures[modelUrl];
+            var dataFeat = scene.DetectedFeatures[dataUrl];
+
             SIFTFeature[] feat0 = modelFeat.Cast<SIFTFeature>().ToArray();
             SIFTFeature[] feat1 = dataFeat.Cast<SIFTFeature>().ToArray();
 
@@ -66,9 +70,7 @@ namespace OPS.Alignment
                 }
             }
 
-            var res = new ImagePairCorrespondence(model, data, feat0, feat1, dataToModel);
-            res.Compact();
-            return res;
+            return new ImagePairCorrespondence(modelUrl, dataUrl, dataToModel);
         }
 
         static VectorOfKeyPoint ToVOKP(SIFTFeature[] kps)

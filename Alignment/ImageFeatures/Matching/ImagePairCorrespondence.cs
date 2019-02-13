@@ -1,6 +1,5 @@
 ﻿using OPS.Geometry;
 using OPS.Imaging;
-using OPS.Plumbing;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -14,7 +13,7 @@ namespace OPS.Alignment
     /// </summary>
     public class ImagePairCorrespondence
     {
-        public ImageRef ModelImage, DataImage;
+        public string ModelImageUrl, DataImageUrl;
         public KeyValuePair<int,int>[] DataToModel;
         public EpipolarMatrix FundamentalMatrix;
         public Matrix? BestTransformEstimate;
@@ -32,7 +31,7 @@ namespace OPS.Alignment
         /// <param name="df">Output array of data features</param>
         /// <param name="d2m">Output mapping from elements of df to mf</param>
         public void Flatten(ImageFeature[] modelFeatures, ImageFeature[] dataFeatures,
-            out ImageFeature[] mf, out ImageFeature[] df, out int[] d2m)
+                            out ImageFeature[] mf, out ImageFeature[] df, out int[] d2m)
         {
             List<ImageFeature> resModelFeatures = new List<ImageFeature>();
             List<ImageFeature> resDataFeatures = new List<ImageFeature>();
@@ -59,27 +58,31 @@ namespace OPS.Alignment
             d2m = resDataToModel.ToArray();
         }
 
-        public static ImagePairCorrespondence Empty = new ImagePairCorrespondence(null, null, new KeyValuePair<int, int>[] { });
+        public static ImagePairCorrespondence Empty =
+            new ImagePairCorrespondence(null, null, new KeyValuePair<int, int>[] { });
 
-        public ImagePairCorrespondence(ImageRef model, ImageRef data, IEnumerable<int> dataToModel, EpipolarMatrix fundamentalMat = null, Matrix? estimate = null)
+        public ImagePairCorrespondence(string modelUrl, string dataUrl, IEnumerable<int> dataToModel,
+                                       EpipolarMatrix fundamentalMat = null, Matrix? estimate = null)
         {
-            this.ModelImage = model;
-            this.DataImage = data;
+            this.ModelImageUrl = modelUrl;
+            this.DataImageUrl = dataUrl;
             int[] d2m = dataToModel.ToArray();
-            this.DataToModel = Enumerable.Range(0, d2m.Length).Zip(d2m,
-                (di, mi) => new KeyValuePair<int, int>(di, mi)).ToArray();
+            this.DataToModel =
+                Enumerable.Range(0, d2m.Length).Zip(d2m, (di, mi) => new KeyValuePair<int, int>(di, mi)).ToArray();
             this.FundamentalMatrix = fundamentalMat;
             this.BestTransformEstimate = estimate;
         }
-        public ImagePairCorrespondence(ImageRef model, ImageRef data,
-            IEnumerable<KeyValuePair<int, int>> dataToModel, EpipolarMatrix fundamentalMat = null, Matrix? estimate = null)
+
+        public ImagePairCorrespondence(string modelUrl, string dataUrl, IEnumerable<KeyValuePair<int, int>> dataToModel,
+                                       EpipolarMatrix fundamentalMat = null, Matrix? estimate = null)
         {
-            this.ModelImage = model;
-            this.DataImage = data;
+            this.ModelImageUrl = modelUrl;
+            this.DataImageUrl = dataUrl;
             this.DataToModel = dataToModel.ToArray();
             this.FundamentalMatrix = fundamentalMat;
             this.BestTransformEstimate = estimate;
         }
+
         public ImagePairCorrespondence() { }
     }
 }

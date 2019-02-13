@@ -1,18 +1,17 @@
 ﻿using System;
 using System.Linq;
 using System.Collections.Generic;
-using OPS.Util;
-using OPS.Plumbing;
-using OPS.Geometry;
-using OPS.Pipeline.MeshWorker;
 using log4net;
+using OPS.Util;
+using OPS.Cloud;
+using OPS.Pipeline.MeshWorker;
+using OPS.Pipeline.TileServer;
 
-namespace OPS.Pipeline.TileServer
+namespace OPS.Pipeline
 {
     class MSLStateMachine : PipelineStateMachine
     {
-        public MSLStateMachine(PipelineCore pipeline, TilingQueue workerQueue, string projectName)
-            : base(pipeline, workerQueue, projectName)
+        public MSLStateMachine(CloudPipeline pipeline, string projectName) : base(pipeline, projectName)
         {
         }
 
@@ -21,7 +20,7 @@ namespace OPS.Pipeline.TileServer
             return base.InitDispatcher()
                 .Case((BuildTilingInputMessage m) => {
                         LogInfo("tiling input built, defining tiles");
-                        workerQueue.Enqueue(new DefineTilesMessage(projectName));
+                        pipeline.WorkerQueue.Enqueue(new DefineTilesMessage(projectName));
                     });
         }
 
@@ -31,9 +30,9 @@ namespace OPS.Pipeline.TileServer
             RunProject(new BuildTilingInputMessage(projectName));
         }
 
-        protected override TilingQueueMessage MakeLeafJobMessage(List<string> leaves)
+        protected override QueueMessage MakeLeafJobMessage(List<string> leaves)
         {
-            return new BuildBackprojectLeavesMessage(projectName, leaves);
+            return new BuildBackprojectLeavesMessage(projectName) { TileIds = leaves};
         }
     }
 }

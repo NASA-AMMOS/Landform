@@ -1,18 +1,17 @@
-﻿using OPS.Cloud;
-using OPS.Plumbing;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using OPS.Imaging;
+using OPS.Cloud;
+using OPS.Pipeline.AlignmentServer;
 
 namespace OPS.Pipeline
 {
     public abstract class IngestImage : PipelineRoutine
     {
-        public IngestImage(PipelineCore pipeline) : base(pipeline)
-        {
-        }
+        public IngestImage(PipelineCore pipeline) : base(pipeline) { }
 
         public enum Status
         {
@@ -27,21 +26,23 @@ namespace OPS.Pipeline
         /// </summary>
         public class Result
         {
+            public string ImageUrl;
             public Status Status;
             public Observation Observation;
 
             public Result()
             {
                 Status = Status.Failed;
-                Observation = null;
             }
-            public Result(Status status, Observation obs)
+
+            public Result(string imageUrl, Status status, Observation obs)
             {
-                Status = status;
-                Observation = obs;
+                this.ImageUrl = imageUrl;
+                this.Status = status;
+                this.Observation = obs;
             }
         }
 
-        public abstract Result Ingest(S3ImageRef imgRef);
+        public abstract Result Ingest(string imgUrl);
     }
 }
