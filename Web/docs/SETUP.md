@@ -110,14 +110,40 @@ This step creates the Elastic Beanstalk application and environment into which t
         1. Load balancer subnets: `us-west-1c subnet-148d7971 172.31.16.0/20`
         1. Instance subnets: same as load balancer
 1. Create Environment - it takes a few minutes
-1. Increase elastic load balancer timeout to avoid 504 gateway timeout errors.
+1. Adjust elastic load balancer settings.
     1. http://goto.jpl.nasa.gov/awsconsole
     1. Log in as `landords/account_owner` (internal Landform use only, otherwise use your own AWS account)
     1. Select region `us-west-1` (North California)
     1. Services -> Compute -> EC2
     1. Load Balancing -> Load Balancers
-    1. Select the load balancer corresponding to the elastic beanstalk environment - on the "Instances" tab you should see an instance with the same  name as the elastic beanstalk environment.
-    1. On the "Description" tab for the load balancer, click "Edit idle timeout" and set it to 1800 seconds.
+    1. Select the load balancer corresponding to the elastic beanstalk environment - on the "Instances" tab you should see an instance with the same  name as the elastic beanstalk environment
+    1. On the "Description" tab for the load balancer, click "Edit idle timeout" and set it to 1800 seconds
+    1. On the "Listeners" tab, click "Edit", and then change cipher.
+        1. Choose "Custom Security Policy"
+        1. under SSL Protocols make sure TLSv1 is unchecked (TLSv1.1 and greater are OK)
+        1. under SSL Ciphers make sure only ones from the following [NASA approved list](https://jplsoc2.jpl.nasa.gov/jplsoc/compliance/ciphers/supported_ciphers.txt) are checked (the `TLS_` prefix may be missing)
+            * `TLS_DHE_RSA_WITH_AES_128_GCM_SHA256`
+            * `TLS_DHE_RSA_WITH_AES_256_GCM_SHA384`
+            * `TLS_DHE_DSS_WITH_AES_128_CBC_SHA`
+            * `TLS_DHE_DSS_WITH_AES_256_CBC_SHA`
+            * `TLS_DHE_DSS_WITH_AES_128_GCM_SHA256`
+            * `TLS_DHE_DSS_WITH_AES_256_CBC_SHA256`
+            * `TLS_DHE_DSS_WITH_AES_256_GCM_SHA384`
+            * `TLS_DHE_DSS_WITH_AES_128_CBC_SHA256`
+            * `TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA`
+            * `TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256`
+            * `TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256`
+            * `TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384`
+            * `TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384`
+            * `TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA`
+            * `TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256`
+            * `TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA`
+            * `TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA384`
+            * `TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256`
+            * `TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA`
+            * `TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384`
+        1. save the changes
+        1. you can check that you got them all by going to http://jplsoc2.jpl.nasa.gov/ciphers/ciphers_check.cfm and verifying that no ciphers are shown in red for `landform[-dev].hi.jpl.nasa.gov` (or the DNS name of your custom deployment)
 
 ## 3: Configure DNS
 This step is optional.  It configures a public DNS entry to redirect to the Elastic Beanstalk environment configured above.  The Landform team uses the Amazon Route 53 DNS service, but any DNS provider that supports CNAME records should work.
