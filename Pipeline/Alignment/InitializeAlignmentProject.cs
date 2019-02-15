@@ -70,6 +70,14 @@ namespace OPS.Pipeline
             var xform = new UncertainRigidTransform
                 (new MathExtensions.GaussianND(CreateVector.Dense<double>(6), CreateMatrix.Dense<double>(6, 6)));
 
+            if (rootFrame.PriorIds.Count == 0)
+            {
+                TransformPrior prior = TransformPrior.Create(pipeline, rootFrame, xform);
+
+                rootFrame.PriorIds.Add(prior.Id);
+                rootFrame.Save(pipeline);
+            }
+
             rootTransform = FrameTransform.FindOrCreate(pipeline, rootFrame, xform);
 
             return project;
