@@ -38,7 +38,7 @@ namespace OPS.Pipeline
                 return 1;
             }
 
-            int no = 0, nio = 0, ne = 0, nm = 0, np = 0;
+            int no = 0, nio = 0, ne = 0, nm = 0, np = 0, ns = 0;
             double startSec = UTCTime.Now();
             Parallel.ForEach(RoverObservation.Find(this, options.ProjectName), obs => {
                     Interlocked.Increment(ref no);
@@ -51,6 +51,7 @@ namespace OPS.Pipeline
                             if (!options.RedoMasks)
                             {
                                 LogInfo("not recomputing mask for observation {0}", obs.Name);
+                                Interlocked.Increment(ref ns);
                                 return;
                             }
                             else
@@ -75,8 +76,8 @@ namespace OPS.Pipeline
                 });
             double totalSec = UTCTime.Now() - startSec;
 
-            LogInfo("processed {0} observations in {1:F3} sec, {2} images, {3} had existing masks, computed {4} masks",
-                    no, totalSec, nio, ne, nm);
+            LogInfo("processed {0} observations in {1:F3} sec, {2} images, {3} had existing masks, " +
+                    "computed {4} masks, skipped {5}", no, totalSec, nio, ne, nm, ns);
 
             return 0;
         }

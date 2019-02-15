@@ -26,15 +26,17 @@ namespace OPS.Alignment
         {
             int numNodes = 0, paramsHulls = 0, imageHulls = 0, unionHulls = 0, emptyHulls = 0;
 
-            double lastSpew = UTCTime.Now();
+            double startTime = UTCTime.Now();
+            double lastSpew = startTime;
             void spewMaybe(bool force = false)
             {
                 double now = UTCTime.Now();
                 if (logger != null &&  (force || now - lastSpew > 10))
                 {
-                    logger.InfoFormat("processed {0} nodes, " +
-                                      "made {1} hulls from params, {2} from images, {3} from children, {4} empty",
-                                      numNodes, paramsHulls, imageHulls, unionHulls, emptyHulls);
+                    logger.InfoFormat("creating hulls: {0}s elapsed, processed {1} nodes, " +
+                                      "made {2} hulls from params, {3} from images, {4} from children, {5} empty",
+                                      UTCTime.Now() - startTime, numNodes,
+                                      paramsHulls, imageHulls, unionHulls, emptyHulls);
                     lastSpew = now;
                 }
             }
@@ -105,26 +107,28 @@ namespace OPS.Alignment
         
         public void Detect(AlignmentScene scene, bool allowInternalOverlaps = true)
         {
+            MakeHulls(scene);
+
             if (logger != null)
             {
                 logger.InfoFormat("detecting overlaps, {0}allowing internal overlaps",
                                  allowInternalOverlaps ? "" : "not ");
             }
 
-            MakeHulls(scene);
-
             HashSet<URLPair> unique = new HashSet<URLPair>();
 
-            double lastSpew = UTCTime.Now();
+            double startTime = UTCTime.Now();
+            double lastSpew = startTime;
             int overlapChecks = 0, processedPairs = 0, overlappingLeaves = 0, processedNodes = 0;
             void spewMaybe(bool force = false)
             {
                 double now = UTCTime.Now();
                 if (logger != null && (force || (now - lastSpew > 10)))
                 {
-                    logger.InfoFormat("found {0} unique overlaps ({1} checks), {2} overlapping leaf pairs, " +
-                                      "processed {3} pairs, {4} nodes",
-                                      unique.Count, overlapChecks, overlappingLeaves, processedPairs, processedNodes);
+                    logger.InfoFormat("detecting overlaps: found {0} unique overlaps ({1} checks) {2}s elapsed, " +
+                                      "{3} overlapping leaf pairs, processed {4} pairs, {5} nodes",
+                                      unique.Count, overlapChecks, UTCTime.Now() - startTime,
+                                      overlappingLeaves, processedPairs, processedNodes);
                     lastSpew = now;
                 }
             }
@@ -210,11 +214,6 @@ namespace OPS.Alignment
             processNode(scene.Root);
 
             spewMaybe(force: true);
-
-            if (logger != null)
-            {
-                logger.InfoFormat("done detecting overlaps, {0} unique overlaps", unique.Count);
-            }
 
             scene.Overlaps = unique;
         }

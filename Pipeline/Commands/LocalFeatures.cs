@@ -43,7 +43,7 @@ namespace OPS.Pipeline
 
             FeatureDetector detector = new FeatureDetector(options.DetectorType);
 
-            int no = 0, nio = 0, ne = 0, nf = 0, np = 0;
+            int no = 0, nio = 0, ne = 0, nf = 0, np = 0, ns = 0;
             double startSec = UTCTime.Now();
             Parallel.ForEach(RoverObservation.Find(this, options.ProjectName), obs => {
                     Interlocked.Increment(ref no);
@@ -56,6 +56,7 @@ namespace OPS.Pipeline
                             if (!options.RedoFeatures)
                             {
                                 LogInfo("not recomputing features for observation {0}", obs.Name);
+                                Interlocked.Increment(ref ns);
                                 return;
                             }
                             else
@@ -84,7 +85,7 @@ namespace OPS.Pipeline
             double totalSec = UTCTime.Now() - startSec;
             
             LogInfo("processed {0} observations in {1:F3} sec, {2} images, {3} had existing features, " +
-                    "computed features for {4} images", no, totalSec, nio, ne, nf);
+                    "computed features for {4} images, {5} skipped", no, totalSec, nio, ne, nf, ns);
 
             return 0;
         }
