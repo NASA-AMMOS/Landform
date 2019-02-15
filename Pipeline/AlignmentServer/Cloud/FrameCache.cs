@@ -69,7 +69,7 @@ namespace OPS.Pipeline.AlignmentServer
             {
                 GetFrame(name).GetChildren(pipeline).ToList().ForEach(child => Add(child));
             }
-            return children[name];
+            return children.ContainsKey(name) ? children[name] : Enumerable.Empty<Frame>();
         }
 
         public IEnumerable<Frame> GetChildren(Frame frame)
