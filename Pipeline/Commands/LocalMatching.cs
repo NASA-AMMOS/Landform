@@ -17,7 +17,7 @@ namespace OPS.Pipeline
         [Value(0, Required = true, HelpText = "project name", Default = null)]
         public string ProjectName { get; set; }
 
-        [Option(HelpText = "Recreate features that already exist", Default = false)]
+        [Option(HelpText = "Recreate matches that already exist", Default = false)]
         public bool RedoMatches { get; set; }
     }
 
