@@ -50,7 +50,7 @@ namespace OPS.Pipeline.AlignmentServer
             {
                 RoverObservation.Find(pipeline, frame).ToList().ForEach(obs => Add(obs));
             }
-            return forFrame[frame.Name];
+            return forFrame.ContainsKey(frame.Name) ? forFrame[frame.Name] : Enumerable.Empty<Observation>();
         }
 
         public Observation GetObservation(string name)
