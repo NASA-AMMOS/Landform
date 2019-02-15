@@ -159,13 +159,21 @@ namespace OPS.Cloud
         {
             if (member is FieldInfo)
             {
-                return (member as FieldInfo).GetValue(obj).ToString();
+                var val = (member as FieldInfo).GetValue(obj);
+                if (val != null)
+                {
+                    return val.ToString();
+                }
             }
             else if (member is PropertyInfo)
             {
-                return (member as PropertyInfo).GetValue(obj).ToString();
+                var val = (member as PropertyInfo).GetValue(obj);
+                if (val != null)
+                {
+                    return val.ToString();
+                }
             }
-            return  null;
+            return  string.Empty;
         }
 
         public static void GetKeyValues(Object obj, out string hashValue, out string rangeValue)
