@@ -91,7 +91,7 @@ namespace OPS.Pipeline
             var modelObs = modelNode.GetComponent<NodeObservation>().Observation;
             var dataObs = dataNode.GetComponent<NodeObservation>().Observation;
 
-            return SaveOverlap(pipeline, projectName, correspondence != null ? correspondence.Guid : Guid.Empty,
+            return SaveOverlap(pipeline, projectName, correspondence.Guid,
                                modelObs.Name, dataObs.Name);
         }
 

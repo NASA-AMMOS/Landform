@@ -17,7 +17,7 @@ namespace OPS.Pipeline
         [Value(0, Required = true, HelpText = "project name", Default = null)]
         public string ProjectName { get; set; }
 
-        [Option(HelpText = "Recreate features that already exist", Default = false)]
+        [Option(HelpText = "Recreate matches that already exist", Default = false)]
         public bool RedoMatches { get; set; }
     }
 
@@ -53,7 +53,7 @@ namespace OPS.Pipeline
 
             LogInfo("finding feature matches for {0} image pairs", scene.Overlaps.Count);
             double startSec = UTCTime.Now();
-            int no = 0, np = 0, nc = 0, ns = 0;
+            int no = 0, np = 0, nc = 0, ns = 0, ng = 0;
             Parallel.ForEach(scene.Overlaps, pair => {
                     var modelUrl = pair.One;
                     var dataUrl = pair.Two;
@@ -78,12 +78,14 @@ namespace OPS.Pipeline
                     {
                         Interlocked.Increment(ref nc);
                         SaveDataProduct(project.ProductPath, result, project.Name);
+                        ImageMatching.SaveOverlap(this, project.Name, scene, result);
+                        Interlocked.Increment(ref ng);
                     }
-                    bool saved = ImageMatching.SaveOverlap(this, project.Name, scene, result);
+
                     Interlocked.Decrement(ref np);
                 });
-            LogInfo("processed {0} image pairs in {1:F3} sec, computed {2} correspondences, skipped {3}",
-                    no, UTCTime.Now() - startSec, nc, ns);
+            LogInfo("processed {0} image pairs in {1:F3} sec, computed {2} correspondences, skipped {3}, good {4}",
+                    no, UTCTime.Now() - startSec, nc, ns, ng);
 
             return 0;
         }
