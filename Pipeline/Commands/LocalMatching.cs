@@ -78,8 +78,10 @@ namespace OPS.Pipeline
                     {
                         Interlocked.Increment(ref nc);
                         SaveDataProduct(project.ProductPath, result, project.Name);
+                        ImageMatching.SaveOverlap(this, project.Name, scene, result);
+                        Interlocked.Increment(ref ng);
                     }
-                    bool saved = ImageMatching.SaveOverlap(this, project.Name, scene, result);
+
                     Interlocked.Decrement(ref np);
                 });
             LogInfo("processed {0} image pairs in {1:F3} sec, computed {2} correspondences, skipped {3}",
