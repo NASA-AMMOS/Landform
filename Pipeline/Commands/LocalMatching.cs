@@ -5,8 +5,9 @@ using System.Threading.Tasks;
 using CommandLine;
 using log4net;
 using OPS.Util;
-using OPS.Pipeline.AlignmentServer;
 using OPS.Geometry;
+using OPS.Alignment;
+using OPS.Pipeline.AlignmentServer;
 
 namespace OPS.Pipeline
 {
@@ -15,12 +16,13 @@ namespace OPS.Pipeline
     {
         [Value(0, Required = true, HelpText = "project name", Default = null)]
         public string ProjectName { get; set; }
+
+        [Option(HelpText = "Recreate features that already exist", Default = false)]
+        public bool RedoMatches { get; set; }
     }
 
     public class LocalMatching : LocalPipeline
     {
-        private static readonly ILog logger = LogManager.GetLogger(typeof(LocalMatching));
-
         private LocalMatchingOptions options;
 
         public LocalMatching(LocalMatchingOptions options) : base(options)
@@ -37,47 +39,51 @@ namespace OPS.Pipeline
                 return 1;
             }
 
-            var fod = new FrustumOverlapDetector(this);
-            var sb = new BuildSceneGraph(this);
+            var sb = new BuildSceneGraph(this, options.ProjectName, new BuildSceneGraph.Options()
+                                         {
+                                             UseTransformPriors = true,
+                                             LoadFeatures = true,
+                                             OnlyKeepImagesWithFeatures = true,
+                                             OnlyKeepBestImages = true
+                                         });
+            var scene = sb.BuildTopDown(Frame.Find(this, project.Name, "root"));
 
-            var scene = sb.Build(Frame.Find(this, options.ProjectName, "root"), new BuildSceneGraph.Options()
-            {
-                GetTransform = sb.StandardFrameTransform,
-                IncludeObservation = (obs, _) => obs.UseForReconstruction && obs.ObservationType == ObservationType.Image.ToString(),
-                LoadCorrespondences = false
-            });
+            var fod = new FrustumOverlapDetector(this, Logger);
             fod.Detect(scene);
 
-            foreach (var pair in scene.Overlaps)
-            {
-                string modelUrl = pair.One;
-                string dataUrl = pair.Two;
-
-                SceneNode modelNode = scene.ImageToNode[modelUrl];
-                SceneNode dataNode = scene.ImageToNode[dataUrl];
-
-                RoverObservation modelObs = modelNode.GetComponent<NodeObservation>().observation as RoverObservation;
-                RoverObservation dataObs = dataNode.GetComponent<NodeObservation>().observation as RoverObservation;
-
-                ComputedCorrespondence result = MatchImages.DoCorrespondence(this, project,
-                        modelUrl, dataUrl, modelObs.FeaturesGuid, dataObs.FeaturesGuid, modelObs.FrameName, dataObs.FrameName);
-
-                var dbOverlap = Overlap.Create(this, modelObs, dataObs);
-                if (dbOverlap != null)
-                {
-                    if (result != null && result.Correspondence != null)
+            LogInfo("finding feature matches for {0} image pairs", scene.Overlaps.Count);
+            double startSec = UTCTime.Now();
+            int no = 0, np = 0, nc = 0, ns = 0;
+            Parallel.ForEach(scene.Overlaps, pair => {
+                    var modelUrl = pair.One;
+                    var dataUrl = pair.Two;
+                    var modelNode = scene.ObservationUrlToNode[modelUrl];
+                    var dataNode = scene.ObservationUrlToNode[dataUrl];
+                    var modelObs = modelNode.GetComponent<NodeObservation>().Observation.Name;
+                    var dataObs = dataNode.GetComponent<NodeObservation>().Observation.Name;
+                    Interlocked.Increment(ref no);
+                    if (!options.RedoMatches)
                     {
-                        dbOverlap.Status = Overlap.StatusType.Matched;
-                        dbOverlap.MatchGuid = result.Guid;
+                        var overlap = Overlap.Find(this, project.Name, modelObs, dataObs);
+                        if (overlap != null && overlap.Status == Overlap.StatusType.Matched)
+                        {
+                            LogInfo("not recomputing features matches for {0}", overlap.CombinedName);
+                            Interlocked.Increment(ref ns);
+                        }
                     }
-                    else
+                    Interlocked.Increment(ref np);
+                    LogVerbose("processing {0} image pairs in parallel", np);
+                    var result = ImageMatching.ComputeCorrespondence(this, scene, modelUrl, dataUrl);
+                    if (result != null)
                     {
-                        dbOverlap.Status = Overlap.StatusType.Rejected;
-                        dbOverlap.MatchGuid = Guid.Empty;
+                        Interlocked.Increment(ref nc);
+                        SaveDataProduct(project.ProductPath, result, project.Name);
                     }
-                    dbOverlap.TrySave(this);
-                }
-            }
+                    bool saved = ImageMatching.SaveOverlap(this, project.Name, scene, result);
+                    Interlocked.Decrement(ref np);
+                });
+            LogInfo("processed {0} image pairs in {1:F3} sec, computed {2} correspondences, skipped {3}",
+                    no, UTCTime.Now() - startSec, nc, ns);
 
             return 0;
         }

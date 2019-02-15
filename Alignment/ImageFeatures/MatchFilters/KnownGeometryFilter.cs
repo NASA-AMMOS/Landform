@@ -53,10 +53,10 @@ namespace OPS.Alignment
         /// Construct with a function mapping image references to nodes.
         /// </summary>
         /// <param name="imageToNode">Should return the scene node associated with a given image</param>
-        public KnownGeometryFilter(ImageNodeDelegate imageToNode = null, ILog logger = null)
+        public KnownGeometryFilter(ILog logger = null, ImageNodeDelegate imageToNode = null)
         {
-            this.imageToNode = imageToNode;
             this.logger = logger;
+            this.imageToNode = imageToNode;
         }
 
         public ImagePairCorrespondence Filter(AlignmentScene scene, ImagePairCorrespondence matches)

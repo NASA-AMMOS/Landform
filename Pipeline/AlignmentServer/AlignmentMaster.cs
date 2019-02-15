@@ -69,7 +69,6 @@ namespace OPS.Pipeline.AlignmentServer
     public class OverlapState
     {
         public URLPair Pair;
-        public Guid CorrespondenceGuid = Guid.Empty;
         public bool received;
     }
 
@@ -363,10 +362,11 @@ namespace OPS.Pipeline.AlignmentServer
             pipeline.LogInfo("building scene graph for image matching");
             var sb = new BuildSceneGraph(pipeline, options.ProjectName, new BuildSceneGraph.Options()
                                          {
+                                             UseTransformPriors = true,
                                              LoadObservations = true,
                                              OnlyKeepImagesWithFeatures = true,
-                                             IncludeObservation = obs => imageStates.ContainsKey(obs.Url),
-                                             OnlyKeepBestImages = true
+                                             OnlyKeepBestImages = true,
+                                             IncludeObservation = obs => imageStates.ContainsKey(obs.Url)
                                          });
             var scene = sb.BuildTopDown(Frame.Find(pipeline, options.ProjectName, "root"));
 
@@ -376,7 +376,7 @@ namespace OPS.Pipeline.AlignmentServer
 
             foreach (var pair in scene.Overlaps)
             {
-                var os = new OverlapState() { Pair = pair, CorrespondenceGuid = Guid.Empty, received = false };
+                var os = new OverlapState() { Pair = pair, received = false };
                 var modelUrl = pair.One;
                 var dataUrl = pair.Two;
 
@@ -426,19 +426,12 @@ namespace OPS.Pipeline.AlignmentServer
 
             pipeline.LogInfo("got feature match for image pair {0}", pair);
 
-            state.CorrespondenceGuid = message.CorrespondenceGuid;
             state.received = true;
 
             // create db entry once all of the work is done - natural rate limiting
-            var overlap = Overlap.Create(pipeline, message.ProjectName,
-                                         imageStates[modelUrl].Observation.Name, imageStates[dataUrl].Observation.Name);
-            if (overlap != null)
-            {
-                overlap.Status =
-                    (message.CorrespondenceGuid != Guid.Empty) ? Overlap.StatusType.Matched: Overlap.StatusType.Rejected;
-                overlap.MatchGuid = state.CorrespondenceGuid;
-                overlap.TrySave(pipeline);
-            }
+            var modelObs = imageStates[modelUrl].Observation.Name;
+            var dataObs = imageStates[dataUrl].Observation.Name;
+            ImageMatching.SaveOverlap(pipeline, message.ProjectName, message.CorrespondenceGuid, modelObs, dataObs);
 
             computedOverlaps++;
             if (computedOverlaps >= allOverlaps.Count)

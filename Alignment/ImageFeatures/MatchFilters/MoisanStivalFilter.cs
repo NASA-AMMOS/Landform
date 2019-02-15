@@ -27,10 +27,10 @@ namespace OPS.Alignment
         private readonly ImageNodeDelegate imageToNode;
         private readonly ILog logger;
 
-        public MoisanStivalFilter(ImageNodeDelegate imageToNode = null, ILog logger = null)
+        public MoisanStivalFilter(ILog logger = null, ImageNodeDelegate imageToNode = null)
         {
-            this.imageToNode = imageToNode;
             this.logger = logger;
+            this.imageToNode = imageToNode;
         }
 
         public ImagePairCorrespondence Filter(AlignmentScene scene, ImagePairCorrespondence matches)
