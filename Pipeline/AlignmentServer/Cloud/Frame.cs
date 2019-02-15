@@ -76,6 +76,7 @@ namespace OPS.Pipeline.AlignmentServer
             this.ProjectName = projectName;
             this.ParentName = (parent != null) ? parent.Name : null;
             this.PriorIds = new List<string>();
+            this.ObservationNames = new List<string>();
         }
 
 
