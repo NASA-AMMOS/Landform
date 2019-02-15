@@ -22,11 +22,14 @@ namespace OPS.Pipeline
                                                                    string modelUrl, string dataUrl,
                                                                    string modelFrameName, string dataFrameName)
         {
-            var modelFrame = Frame.Find(pipeline, projectName, modelFrameName);
-            var dataFrame = Frame.Find(pipeline, projectName, dataFrameName);
-            var opts = new BuildSceneGraph.Options() { UseTransformPriors = true, LoadFeatures = true };
+            //build a minimal scene graph containing these two frames and their ancestors
+            var opts = new BuildSceneGraph.Options() {
+                PreloadCaches = false, //in this situation it will in general be a loss to preload caches
+                UseTransformPriors = true, //we build the scene graph bottom-up so the frame cache doesn't scan
+                LoadFeatures = true //observation cache doesn't scan
+            };
             BuildSceneGraph builder = new BuildSceneGraph(pipeline, projectName, opts);
-            AlignmentScene scene = builder.BuildBottomUp(new Frame[] { modelFrame, dataFrame });
+            AlignmentScene scene = builder.BuildBottomUp(new[] { modelFrameName, dataFrameName });
             return ComputeCorrespondence(pipeline, scene, modelUrl, dataUrl);
         }
 

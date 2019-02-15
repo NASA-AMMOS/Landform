@@ -46,7 +46,7 @@ namespace OPS.Pipeline
                                              OnlyKeepImagesWithFeatures = true,
                                              OnlyKeepBestImages = true
                                          });
-            var scene = sb.BuildTopDown(Frame.Find(this, project.Name, "root"));
+            var scene = sb.BuildTopDown(project.RootFrame);
 
             var fod = new FrustumOverlapDetector(this, Logger);
             fod.Detect(scene);

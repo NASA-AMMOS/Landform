@@ -129,7 +129,11 @@ namespace OPS.Pipeline.AlignmentServer
 
         public static IEnumerable<Observation> Find(PipelineCore pipeline, Frame frame)
         {
-            return pipeline.ScanDatabase<Observation>("ProjectName", frame.ProjectName, "FrameName", frame.Name);
+            //return pipeline.ScanDatabase<Observation>("ProjectName", frame.ProjectName, "FrameName", frame.Name);
+            foreach (var obsName in frame.ObservationNames)
+            {
+                yield return Find(pipeline, frame.ProjectName, obsName);
+            }
         }
 
         public static IEnumerable<Observation> FindByType(PipelineCore pipeline, string projectName, string observationType)

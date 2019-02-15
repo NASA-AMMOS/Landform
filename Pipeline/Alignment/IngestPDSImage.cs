@@ -287,6 +287,8 @@ namespace OPS.Pipeline
                                                   metadata.Width, metadata.Height);
             if (observation != null)
             {
+                observationFrame.AddObservation(observationName);
+                observationFrame.Save(pipeline);
                 pipeline.LogVerbose("created observation {0}", observationName);
                 return new Result(imgUrl, Status.Added, observation);
             }
@@ -337,7 +339,7 @@ namespace OPS.Pipeline
                 var transform = defTransform();
                 frameTransform = FrameTransform.Create(pipeline, frame, transform);
                 var prior = TransformPrior.Create(pipeline, frame, transform);
-                frame.PriorIds.Add(prior.Id);
+                frame.AddPrior(prior.Id);
                 frame.Save(pipeline);
             }
             else if (resetTransforms && !alreadyResetTransforms.ContainsKey(name))

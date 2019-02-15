@@ -98,7 +98,11 @@ namespace OPS.Pipeline.AlignmentServer
 
         new public static IEnumerable<RoverObservation> Find(PipelineCore pipeline, Frame frame)
         {
-            return pipeline.ScanDatabase<RoverObservation>("ProjectName", frame.ProjectName, "FrameName", frame.Name);
+            //return pipeline.ScanDatabase<RoverObservation>("ProjectName", frame.ProjectName, "FrameName", frame.Name);
+            foreach (var obsName in frame.ObservationNames)
+            {
+                yield return Find(pipeline, frame.ProjectName, obsName);
+            }
         }
     }
 }

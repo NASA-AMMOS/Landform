@@ -67,12 +67,36 @@ namespace OPS.Pipeline
             return Build(BuildDirection.TopDown, new Frame[] { root });
         }
 
+        public AlignmentScene BuildTopDown(string rootName)
+        {
+            return Build(BuildDirection.TopDown, new string[] { rootName });
+        }
+
         public AlignmentScene BuildBottomUp(IEnumerable<Frame> leaves)
         {
             return Build(BuildDirection.BottomUp, leaves);
         }
 
-        public AlignmentScene Build(BuildDirection direction, IEnumerable<Frame> startFrames)
+        public AlignmentScene BuildBottomUp(IEnumerable<string> leafNames)
+        {
+            return Build(BuildDirection.BottomUp, leafNames);
+        }
+
+        public AlignmentScene Build(BuildDirection direction, IEnumerable<string> startFrames,
+                                    FrameCache frameCache = null, ObservationCache observationCache = null,
+                                    OverlapCache overlapCache = null)
+        {
+            if (frameCache == null)
+            {
+                frameCache = new FrameCache(pipeline, projectName);
+            }
+            return Build(direction, startFrames.Select(n => frameCache.GetFrame(n)),
+                         frameCache, observationCache, overlapCache);
+        }
+
+        public AlignmentScene Build(BuildDirection direction, IEnumerable<Frame> startFrames,
+                                    FrameCache frameCache = null, ObservationCache observationCache = null,
+                                    OverlapCache overlapCache = null)
         {
             if (options.LoadCorrespondences)
             {
@@ -97,7 +121,10 @@ namespace OPS.Pipeline
             double lastSpew = UTCTime.Now();
 
             var project = Project.Find(pipeline, projectName);
-            var frameCache = new FrameCache(pipeline, projectName);
+            if (frameCache == null)
+            {
+                frameCache = new FrameCache(pipeline, projectName);
+            }
             AlignmentScene scene = new AlignmentScene();
 
             if (options.PreloadCaches)
@@ -108,10 +135,12 @@ namespace OPS.Pipeline
                 pipeline.LogInfo("preloaded {0} frames for project {1}", numPreloaded, projectName);
             }
 
-            ObservationCache observationCache = null;
             if (options.LoadObservations)
             {
-                observationCache = new ObservationCache(pipeline, projectName);
+                if (observationCache == null)
+                {
+                    observationCache = new ObservationCache(pipeline, projectName);
+                }
                 if (options.PreloadCaches)
                 {
                     pipeline.LogInfo("preloading observation cache for project {0}", projectName);
@@ -154,6 +183,8 @@ namespace OPS.Pipeline
                 }
 
                 var node = new SceneNode(frame.Name);
+
+                node.AddComponent<NodeFrame>().Frame = frameCache.GetFrame(frame.Name);
 
                 UncertainRigidTransform ut = null;
                 if (options.UseTransformPriors)
@@ -276,20 +307,24 @@ namespace OPS.Pipeline
 
             if (options.LoadOverlaps)
             {
-                LoadOverlaps(project, scene, loadedObservations, observationCache);
+                LoadOverlaps(project, scene, loadedObservations, observationCache, overlapCache);
             }
 
             return scene;
         }
 
         private void LoadOverlaps(Project project, AlignmentScene scene,
-                                  Dictionary<string, Observation> loadedObservations, ObservationCache observationCache)
+                                  Dictionary<string, Observation> loadedObservations,
+                                  ObservationCache observationCache, OverlapCache overlapCache)
         {
             pipeline.LogInfo("adding overlaps{0} to scene{1}",
                              options.LoadCorrespondences ? " and computed correspondences" : "",
                              options.OnlyCrossSiteDriveOverlaps ? ", only overlaps between different site-drives" : "");
 
-            var overlapCache = new OverlapCache(pipeline, projectName);
+            if (overlapCache == null)
+            {
+                overlapCache = new OverlapCache(pipeline, projectName);
+            }
             if (options.PreloadCaches)
             {
                 pipeline.LogInfo("preloading overlap cache for project {0}", projectName);

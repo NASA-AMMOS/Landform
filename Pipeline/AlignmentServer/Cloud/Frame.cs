@@ -33,6 +33,9 @@ namespace OPS.Pipeline.AlignmentServer
         [DynamoDBProperty()]
         public List<string> PriorIds { get; set; }
 
+        [DynamoDBProperty()]
+        public List<string> ObservationNames { get; set; }
+
         public bool IsLocated(PipelineCore pipeline)
         {
             return FrameTransform.Find(pipeline, this) != null;
@@ -42,6 +45,7 @@ namespace OPS.Pipeline.AlignmentServer
         public Frame()
         {
             PriorIds = new List<string>();
+            ObservationNames = new List<string>();
         }
 
         public IEnumerable<Frame> GetChildren(PipelineCore pipeline)
@@ -146,6 +150,26 @@ namespace OPS.Pipeline.AlignmentServer
         public static IEnumerable<Frame> Find(PipelineCore pipeline, string projectName)
         {
             return pipeline.ScanDatabase<Frame>("ProjectName", projectName);
+        }
+
+        public bool AddPrior(string id)
+        {
+            if (PriorIds.Contains(id))
+            {
+                return false;
+            }
+            PriorIds.Add(id);
+            return true;
+        }
+
+        public bool AddObservation(string name)
+        {
+            if (ObservationNames.Contains(name))
+            {
+                return false;
+            }
+            ObservationNames.Add(name);
+            return true;
         }
     }   
 }

@@ -359,6 +359,8 @@ namespace OPS.Pipeline.AlignmentServer
 
         private void MatchImages()
         {
+            var project = Project.Find(pipeline, options.ProjectName);
+
             pipeline.LogInfo("building scene graph for image matching");
             var sb = new BuildSceneGraph(pipeline, options.ProjectName, new BuildSceneGraph.Options()
                                          {
@@ -368,7 +370,7 @@ namespace OPS.Pipeline.AlignmentServer
                                              OnlyKeepBestImages = true,
                                              IncludeObservation = obs => imageStates.ContainsKey(obs.Url)
                                          });
-            var scene = sb.BuildTopDown(Frame.Find(pipeline, options.ProjectName, "root"));
+            var scene = sb.BuildTopDown(project.RootFrame);
 
             pipeline.LogInfo("detecting overlaps");
             var fod = new FrustumOverlapDetector(pipeline, pipeline.Logger);
@@ -461,8 +463,7 @@ namespace OPS.Pipeline.AlignmentServer
                     OnlyCrossSiteDriveOverlaps = !options.AdjustWithinSiteDrives,
                     IncludeObservation = obs => imageStates.ContainsKey(obs.Url)
                 });
-            Frame root = Frame.Find(pipeline, project.Name, project.RootFrame);
-            AlignmentScene scene = bsg.BuildTopDown(root);
+            AlignmentScene scene = bsg.BuildTopDown(project.RootFrame);
 
             int numAdjustedNodes = 0, numImageNodes = 0;
             foreach (var siteDriveNode in scene.Root.Children)

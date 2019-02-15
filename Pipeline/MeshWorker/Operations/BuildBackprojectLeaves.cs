@@ -61,17 +61,10 @@ namespace OPS.Pipeline.MeshWorker
             sc.Build();
 
             LogInfo("building scene graph");
-            Frame rootFrame = Frame.Find(pipeline, projectName, MSLProject.ROOT_FRAME_NAME);
-
-            if (rootFrame == null)
-            {
-                LogError("alignment project " + projectName + " not found");
-                return 1;
-            }
-
+            Project alignmentProject = Project.Find(pipeline, projectName);
             BuildSceneGraph builder = new BuildSceneGraph(pipeline, projectName,
                                                           new BuildSceneGraph.Options() { OnlyKeepBestImages = true });
-            AlignmentScene scene = builder.BuildTopDown(rootFrame);
+            AlignmentScene scene = builder.BuildTopDown(alignmentProject.RootFrame);
 
             // generate leaf tile data
             int tiledMeshes = 0;
