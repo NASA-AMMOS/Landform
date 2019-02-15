@@ -13,7 +13,7 @@
 4.  `./Landform/bin/Release/Landform.exe local-ingest PROJ --inputpath=INPUT [--verbose] [--redoproject] [--redoobservations] [--redopriors]` where PROJ is a project name (e.g. `msl`) and INPUT is either a directory or a .txt or .json file containing an array of directories.  Directories ending in `/**` will be searched recursively.  For example, if you downloaded some data with `fetch-msl.sh` and you want to use all of it, you could specify `DIR/msl/**` as INPUT where DIR is the same directory you specified to `fetch-msl.sh`.
 5.  `./Landform/bin/Release/Landform.exe local-masks PROJ [--verbose] [--redomasks]`
 6.  `./Landform/bin/Release/Landform.exe local-features PROJ [--verbose] [--redofeatures] [--detectortype=ASIFT]`
+6.  `./Landform/bin/Release/Landform.exe local-matching PROJ [--verbose] [--redomatches]`
+6.  `./Landform/bin/Release/Landform.exe local-bundle-adjust PROJ [--verbose] [--adjustwithinsitedrives={true|false}] [--adjustacrosssitedrives={true|false}] [--debugoutputfolder=DBG]`
 
-Local versions of the remaining alignment pipeline stages are TODO at the time of this writing.
-
-On my machine this particular workflow takes about 10 minutes for sols 588, 589, 590.  There are 3688 navcam IMG files, 263 of which we recognize as "observations", and 91 of those are actual images that we do masks and feature detection on.
+On my machine this particular workflow takes about TODO minutes for sols 588, 589, 590.  There are 3688 navcam IMG files, 263 of which we recognize as observations, and TODO of those are actual images that we use for reconstruction.
