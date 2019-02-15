@@ -128,11 +128,24 @@ namespace OPS.Pipeline
             }
                 
             pipeline.LogInfo("ingested {0} input files for alignment project {1}", n, project.Name);
+            Dictionary<string, int> totalStats = new Dictionary<string, int>();
             foreach (var sds in stats)
             {
                 pipeline.LogInfo("sitedrive {0}: {1}", sds.Key,
                                  string.Join(", ",
                                              sds.Value.Select(s => s.Value + " " + s.Key + " observations").ToArray()));
+                foreach (var entry in sds.Value)
+                {
+                    if (!totalStats.ContainsKey(entry.Key))
+                    {
+                        totalStats[entry.Key] = 0;
+                    }
+                    totalStats[entry.Key] += entry.Value;
+                }
+            }
+            foreach (var entry in totalStats)
+            {
+                pipeline.LogInfo("total {0} {1} observations", entry.Value, entry.Key);
             }
 
             return n;

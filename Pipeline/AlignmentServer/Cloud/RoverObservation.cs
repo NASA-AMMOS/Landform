@@ -19,12 +19,17 @@ namespace OPS.Pipeline.AlignmentServer
     [DynamoDBWriteCapacity(50, 100)]
     public class RoverObservation : Observation
     {
-        public int Site { get; set; }
-        public int Drive { get; set; }
-        public string Version { get; set; }
-        public string Sensor { get; set; }
-        public string ImageFrameSize { get; set; }
-        public string Producer { get; set; }
+        public int Site;
+
+        public int Drive;
+
+        public string Version;
+
+        public string Sensor;
+
+        public string ImageFrameSize;
+
+        public string Producer;
 
         //This constructor must be public for DynamoDb but should not be used
         public RoverObservation() { }

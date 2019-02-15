@@ -70,7 +70,7 @@ namespace OPS.Pipeline.TileServer
             foreach (var input in inputs)
             {
                 var group = new InputChunkGroup() { Input = input };
-                foreach (var chunkId in input.ChunkIds)
+                foreach (var chunkId in input.GetChunks())
                 {
                     TilingInputChunk chunk = TilingInputChunk.Find(pipeline, chunkId);
                     bool anyIntersect = leaves.Any(leaf => leaf.GetBounds().Intersects(chunk.GetBounds()));

@@ -43,7 +43,8 @@ namespace OPS.Pipeline.TileServer
                 return;
             }
             ConcurrentDictionary<string, SceneNode> idToNode = new ConcurrentDictionary<string, SceneNode>();
-            var dependsOnTilingNodes = parent.DependsOn.Select(cid => TilingNode.Find(pipeline, projectName, cid));
+            var dependsOnIds = parent.GetDependsOn().ToArray();
+            var dependsOnTilingNodes = dependsOnIds.Select(cid => TilingNode.Find(pipeline, projectName, cid));
             Serial.ForEach(dependsOnTilingNodes, n =>
             {
                 SceneNode node = n.GetSceneNode();
@@ -54,7 +55,7 @@ namespace OPS.Pipeline.TileServer
             });
 
             SceneNode parentSceneNode = parent.GetSceneNode();
-            foreach (var childId in parent.DependsOn)
+            foreach (var childId in dependsOnIds)
             {
                 if (!idToNode.ContainsKey(childId))
                 {
@@ -63,7 +64,7 @@ namespace OPS.Pipeline.TileServer
                 }                
                 idToNode[childId].Transform.SetParent(parentSceneNode.Transform);
             }
-            LogInfo("generating parent " + message.TileId + " from " + parent.DependsOn.Count + " tiles");
+            LogInfo("generating parent {0} from {1} tiles", message.TileId, dependsOnIds.Length);
             parentSceneNode.BuildGeometryFromChildren(parentSceneNode, project.GetReconMethod(), project.FacesPerTile,
                                                       project.TileResolution, project.GetSkirtMode());
             var pair = parentSceneNode.GetComponent<MeshImagePair>();

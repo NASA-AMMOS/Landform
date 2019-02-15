@@ -118,7 +118,7 @@ namespace OPS.Pipeline.TileServer
                     Thread.Sleep(SLEEP_MS);
                     project = TilingProject.Find(this, options.ProjectName);
                 }
-                while (project.InputNames == null || !project.InputNames.Contains(name));
+                while (!project.HasInput(name));
                 LogInfo("intput \"{0}\" has been added to project \"{1}\"", name, options.ProjectName);
             }
 

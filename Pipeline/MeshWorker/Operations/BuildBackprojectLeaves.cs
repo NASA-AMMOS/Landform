@@ -186,7 +186,7 @@ namespace OPS.Pipeline.MeshWorker
             InputChunkGroup bigMeshGroup = new InputChunkGroup();
             foreach (var input in inputs)
             {
-                foreach (var chunkId in input.ChunkIds)
+                foreach (var chunkId in input.GetChunks())
                 {
                     TilingInputChunk chunk = TilingInputChunk.Find(pipeline, chunkId);
                     bigMeshGroup.Chunks.Add(chunk); 

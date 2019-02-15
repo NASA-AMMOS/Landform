@@ -1,17 +1,19 @@
-﻿using Amazon.DynamoDBv2.DataModel;
-using Amazon.DynamoDBv2.DocumentModel;
-using Microsoft.Xna.Framework;
-using OPS.Cloud;
-using OPS.Geometry;
-using OPS.Util;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
-using System.Threading.Tasks;
-using OPS.Imaging;
 using System.IO;
+using System.Threading.Tasks;
+using Newtonsoft.Json;
 using log4net;
+using Amazon.DynamoDBv2.DataModel;
+using Amazon.DynamoDBv2.DocumentModel;
+using Microsoft.Xna.Framework;
+using OPS.Util;
+using OPS.Cloud;
+using OPS.Imaging;
+using OPS.Geometry;
+using OPS.Pipeline.AlignmentServer;
 
 namespace OPS.Pipeline.TileServer
 {
@@ -20,26 +22,34 @@ namespace OPS.Pipeline.TileServer
     [DynamoDBWriteCapacity(15, 50)] //increased write capacity from 5 to 15 to reduce backoffs in node creation/deletion
     public class TilingNode
     {
-        [DynamoDBHashKey] //Partition key
-        [DynamoDBProperty()]
-        public string Id { get; set; }
+        [DynamoDBHashKey]
+        public string Id;
 
         [DynamoDBRangeKey]
-        public string ProjectName { get; set; }
+        public string ProjectName;
 
-        public string MeshUrl { get; set; }
-        public string ImageUrl { get; set; }
-        public string ParentId { get; set; }
-        public List<string> ChildIds { get; set; }
-        public List<string> DependsOn { get; set; }
-        public List<string> DependedOnBy { get; set; }
-        public string Bounds { get; set; }
-        public string BoundsWithSkirt { get; set; }
-        public double? GeometricError { get; set; }
+        public string MeshUrl;
+
+        public string ImageUrl;
+
+        public string ParentId;
+
+        [JsonConverter(typeof(SynchronizedConverter<List<string>>))]
+        public List<string> DependsOn;
+
+        [JsonConverter(typeof(SynchronizedConverter<List<string>>))]
+        public List<string> DependedOnBy;
+
+        public string Bounds;
+
+        public string BoundsWithSkirt;
+
+        public double? GeometricError;
 
         public TilingNode()
         {
-
+            DependsOn = new List<string>();
+            DependedOnBy = new List<string>();
         }
 
         /// <summary>
@@ -47,28 +57,29 @@ namespace OPS.Pipeline.TileServer
         /// </summary>
         /// <param name="name">Project names in the database must be unique</param>
         protected TilingNode(string id, string projectName, string meshUrl, string imageUrl, string parentId,
-                             List<string> childIds, List<string> dependsOn, List<String> dependedOnBy,
+                             IEnumerable<string> dependsOn, IEnumerable<String> dependedOnBy,
                              BoundingBox bounds, BoundingBox? boundsWithSkirt = null)
+            : this()
         {
             Id = id;
             ProjectName = projectName;
             MeshUrl = meshUrl;
             ImageUrl = imageUrl;
             ParentId = parentId;
-            ChildIds = childIds;
-            DependsOn = dependsOn;
-            DependedOnBy = dependedOnBy;
+            DependsOn.AddRange(dependsOn);
+            DependedOnBy.AddRange(dependedOnBy);
             Bounds = JsonHelper.ToJson(bounds);
             BoundsWithSkirt = boundsWithSkirt.HasValue ? JsonHelper.ToJson(boundsWithSkirt) : "";
         }
 
 
         public static TilingNode Create(PipelineCore pipeline, string id, string projectName,
-                                        string meshUrl, string imageUrl, string parentId, List<string> childIds,
-                                        List<string> dependsOn, List<String> dependedOnBy, BoundingBox bounds)
+                                        string meshUrl, string imageUrl, string parentId,
+                                        IEnumerable<string> dependsOn, IEnumerable<String> dependedOnBy,
+                                        BoundingBox bounds)
         {
-            TilingNode node = new TilingNode(id, projectName, meshUrl, imageUrl, parentId, childIds, dependsOn,
-                                             dependedOnBy, bounds);
+            TilingNode node = new TilingNode(id, projectName, meshUrl, imageUrl, parentId, dependsOn, dependedOnBy,
+                                             bounds);
             node.Save(pipeline);
             return node;
         }
@@ -122,11 +133,6 @@ namespace OPS.Pipeline.TileServer
             }
 
             pipeline.DeleteDatabaseItem(this, ignoreErrors);
-        }
-
-        public bool IsLeaf()
-        {
-            return ChildIds == null || ChildIds.Count == 0;
         }
 
         public BoundingBox GetBounds()
@@ -416,6 +422,48 @@ namespace OPS.Pipeline.TileServer
                 }
             }
             return root;
+        }
+
+        public bool AddDependsOn(string id)
+        {
+            lock (DependsOn)
+            {
+                if (DependsOn.Contains(id))
+                {
+                    return false;
+                }
+                DependsOn.Add(id);
+                return true;
+            }
+        }
+
+        public bool AddDependedOnBy(string id)
+        {
+            lock (DependedOnBy)
+            {
+                if (DependedOnBy.Contains(id))
+                {
+                    return false;
+                }
+                DependedOnBy.Add(id);
+                return true;
+            }
+        }
+
+        public IEnumerable<string> GetDependsOn()
+        {
+            lock (DependsOn)
+            {
+                return DependsOn.ToArray();
+            }
+        }
+
+        public IEnumerable<string> GetDependedOnBy()
+        {
+            lock (DependedOnBy)
+            {
+                return DependedOnBy.ToArray();
+            }
         }
     }
 }

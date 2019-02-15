@@ -25,6 +25,7 @@ namespace OPS.Pipeline.TileServer
     {
         private readonly DefineTilesMessage message;
 
+        //TODO it may be possible to re-use this code in ProjectCache
         private class TileDependencyMapping
         {
             Dictionary<string, HashSet<string>> dependsOn = new Dictionary<string, HashSet<string>>();
@@ -168,10 +169,9 @@ namespace OPS.Pipeline.TileServer
             {
                 ids.Add(node.Name);
                 string parentId = node.Parent == null ? null : node.Parent.Name;
-                List<string> childIds = node.Children.Select(c => c.Name).ToList();
                 var tilingNode = TilingNode.Create(pipeline, node.Name, projectName,
                                                    null /* meshUrl */, null /* imageUrl */,
-                                                   parentId, childIds,
+                                                   parentId,
                                                    dependencies.DependsOn(node.Name),
                                                    dependencies.DependedOnBy(node.Name),
                                                    node.GetComponent<NodeBounds>().Bounds);
