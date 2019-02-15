@@ -232,7 +232,14 @@ namespace OPS.Geometry
             }
             set
             {
-                Transform.SetParent(value.Transform, preserveWorldTransform: false);
+                if (value != null)
+                {
+                    Transform.SetParent(value.Transform, preserveWorldTransform: false);
+                }
+                else
+                {
+                    Transform.SetParent(null, preserveWorldTransform: false);
+                }
             }
         }
 
