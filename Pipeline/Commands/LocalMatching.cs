@@ -53,7 +53,7 @@ namespace OPS.Pipeline
 
             LogInfo("finding feature matches for {0} image pairs", scene.Overlaps.Count);
             double startSec = UTCTime.Now();
-            int no = 0, np = 0, nc = 0, ns = 0;
+            int no = 0, np = 0, nc = 0, ns = 0, ng = 0;
             Parallel.ForEach(scene.Overlaps, pair => {
                     var modelUrl = pair.One;
                     var dataUrl = pair.Two;
@@ -84,8 +84,8 @@ namespace OPS.Pipeline
 
                     Interlocked.Decrement(ref np);
                 });
-            LogInfo("processed {0} image pairs in {1:F3} sec, computed {2} correspondences, skipped {3}",
-                    no, UTCTime.Now() - startSec, nc, ns);
+            LogInfo("processed {0} image pairs in {1:F3} sec, computed {2} correspondences, skipped {3}, good {4}",
+                    no, UTCTime.Now() - startSec, nc, ns, ng);
 
             return 0;
         }
