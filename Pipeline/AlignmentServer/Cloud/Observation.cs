@@ -20,24 +20,24 @@ namespace OPS.Pipeline.AlignmentServer
     public class Observation
     {
         [DynamoDBRangeKey]
-        public string ProjectName { get; set; }
+        public string ProjectName;
 
         [DynamoDBHashKey]
-        public string Name { get; set; }
+        public string Name;
 
-        public string Url { get; set; }
+        public string Url;
 
-        public Guid FeaturesGuid { get; set; }
+        public Guid FeaturesGuid;
 
-        public Guid MaskGuid { get; set; }
+        public Guid MaskGuid;
 
-        public string FrameName { get; set; }
+        public string FrameName;
 
-        public string ObservationType { get; set; }
+        public string ObservationType;
 
-        public string CameraModel { get; set; }
+        public string CameraModel;
 
-        public bool UseForReconstruction { get; set; }
+        public bool UseForReconstruction;
 
         public int Width;
 

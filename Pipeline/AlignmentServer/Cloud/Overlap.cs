@@ -42,16 +42,16 @@ namespace OPS.Pipeline.AlignmentServer
     {
         [DynamoDBRangeKey]
         [DynamoDBGlobalSecondaryIndexRangeKey("OverlapObservationNameOneIndex", "OverlapObservationNameTwoIndex")]
-        public string ProjectName { get; set; }
+        public string ProjectName;
 
         [DynamoDBHashKey]
-        public string CombinedName { get; set; }
+        public string CombinedName;
 
         [DynamoDBGlobalSecondaryIndexHashKey("OverlapObservationNameOneIndex")]
-        public string ObservationNameOne { get; set; }
+        public string ObservationNameOne;
 
         [DynamoDBGlobalSecondaryIndexHashKey("OverlapObservationNameTwoIndex")]
-        public string ObservationNameTwo { get; set; }
+        public string ObservationNameTwo;
 
         public enum StatusType
         {
@@ -59,16 +59,16 @@ namespace OPS.Pipeline.AlignmentServer
             Matched,
             Rejected
         }
-        public StatusType Status { get; set; }
+        public StatusType Status;
 
-        //This is set during creation to verify that only one worker can successfully create a single overlap item in Dynamo
-        public bool Uploaded { get; set; }
+        //set during creation to verify that only one worker can successfully create a single overlap item in Dynamo
+        public bool Uploaded;
 
-        //This is set upon computing a successful match to cache the result; if empty, check status to determine whether to compute
-        public Guid MatchGuid { get; set; }
+        //set on computing a match to cache the result; if empty, check status to determine whether to compute
+        public Guid MatchGuid;
 
         [DynamoDBVersion]
-        public int? VersionNumber { get; set; }
+        public int? VersionNumber;
 
         //Constructor required by DynamoDb but should not be called otherwise
         public Overlap() { }

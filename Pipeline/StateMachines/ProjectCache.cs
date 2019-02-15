@@ -69,16 +69,8 @@ namespace OPS.Pipeline.TileServer
             {
                 ids.Add(n.Id);
                 
-                if (n.DependedOnBy == null)
-                {
-                    n.DependedOnBy = new List<string>();
-                }
-                if (n.DependsOn == null)
-                {
-                    n.DependsOn = new List<string>();
-                }
-                dependedOnBy.Add(n.Id, n.DependedOnBy);
-                dependsOn.Add(n.Id, n.DependsOn);
+                dependedOnBy.Add(n.Id, n.GetDependedOnBy().ToList());
+                dependsOn.Add(n.Id, n.GetDependsOn().ToList());
                 if (n.MeshUrl != null)
                 {
                     completed.Add(n.Id);

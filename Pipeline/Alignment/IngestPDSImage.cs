@@ -348,7 +348,7 @@ namespace OPS.Pipeline
                 var transform = defTransform();
                 frameTransform.Transform = transform;
                 frameTransform.Save(pipeline);
-                foreach (var id in frame.PriorIds)
+                foreach (var id in frame.GetPriors())
                 {
                     var prior = TransformPrior.Find(pipeline, project.Name, id);
                     if (prior != null && prior.FrameName == name)

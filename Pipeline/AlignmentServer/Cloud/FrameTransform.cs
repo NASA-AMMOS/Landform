@@ -18,7 +18,7 @@ namespace OPS.Pipeline.AlignmentServer
     /// <summary>
     /// Represents the rotation and translation between two frames
     /// Frame transforms are not versioned, so two workers can edit and save them at the same time. 
-    /// Frame transform lookups are versioned, but this is internal to the class and workers do not need to worry about it
+    /// Frame transform lookups are versioned, but this is internal to the class
     /// </summary>
     [DynamoDBTable("FrameTransforms")]
     [DynamoDBReadCapacity(5, 50)]
@@ -26,20 +26,18 @@ namespace OPS.Pipeline.AlignmentServer
     public class FrameTransform
     {
         [DynamoDBRangeKey]
-        [DynamoDBProperty()]
-        public string ProjectName { get; set; }
+        public string ProjectName;
 
-        [DynamoDBHashKey] //Partition key
-        [DynamoDBProperty()]
-        public string FrameName { get; set; }
+        [DynamoDBHashKey]
+        public string FrameName;
 
         [DynamoDBProperty("Mean", typeof(VectorNConverter))]
         [JsonConverter(typeof(VectorNConverter))]
-        public Vector<double> Mean { get; set; }
+        public Vector<double> Mean;
 
         [DynamoDBProperty("Covariance", typeof(SquareMatrixConverter))]
         [JsonConverter(typeof(SquareMatrixConverter))]
-        public Matrix<double> Covariance { get; set; }
+        public Matrix<double> Covariance;
 
         [DynamoDBIgnore]
         [JsonIgnore]
@@ -56,11 +54,8 @@ namespace OPS.Pipeline.AlignmentServer
             }
         }
 
-        //This constructor must be public for DynamoDb but should not be used
-        public FrameTransform()
-        {
-            
-        }
+        //This constructor must be public for DynamoDB but should not be used
+        public FrameTransform() { }
 
         /// <summary>
         /// Creates a new transform specifying the relationship between two frames

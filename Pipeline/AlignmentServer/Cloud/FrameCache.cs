@@ -102,13 +102,9 @@ namespace OPS.Pipeline.AlignmentServer
 
         public TransformPrior GetTransformPrior(Frame frame)
         {
-            if (frame.PriorIds.Count < 1)
-            {
-                return null;
-            }
             if (!priors.ContainsKey(frame.Name))
             {
-                priors[frame.Name] = TransformPrior.Find(pipeline, projectName, frame.PriorIds[0]);
+                priors[frame.Name] = frame.GetPrior(pipeline); //may be null
             }
             return priors[frame.Name];
         }

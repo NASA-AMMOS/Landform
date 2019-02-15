@@ -12,23 +12,20 @@ namespace OPS.Pipeline.AlignmentServer
     public class SpatialIndex
     {
         [DynamoDBHashKey]
-        [DynamoDBProperty]
-        public string Id { get; set; }
+        public string Id;
 
         [DynamoDBRangeKey]
-        [DynamoDBProperty]
-        public string ProjectName { get; set; }
+        public string ProjectName;
         
         [DynamoDBProperty(Converter = typeof(Vector3Converter))]
         [JsonConverter(typeof(Vector3Converter))]
-        public Vector3 Center { get; set; }
+        public Vector3 Center;
 
         [DynamoDBProperty(Converter = typeof(Vector3Converter))]
         [JsonConverter(typeof(Vector3Converter))]
-        public Vector3 Size { get; set; }
+        public Vector3 Size;
         
-        [DynamoDBProperty]
-        public int MaxPrecision { get; set; }
+        public int MaxPrecision;
 
         [DynamoDBIgnore]
         [JsonIgnore]
@@ -56,6 +53,7 @@ namespace OPS.Pipeline.AlignmentServer
         }
 
         public SpatialIndex() { }
+
         protected SpatialIndex(string id, string projectName, BoundingBox bounds)
         {
             Id = id;

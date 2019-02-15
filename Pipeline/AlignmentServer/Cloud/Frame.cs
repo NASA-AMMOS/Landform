@@ -3,8 +3,9 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using OPS.Cloud;
+using Newtonsoft.Json;
 using Amazon.DynamoDBv2.DataModel;
+using OPS.Cloud;
 
 namespace OPS.Pipeline.AlignmentServer
 {
@@ -20,43 +21,29 @@ namespace OPS.Pipeline.AlignmentServer
     public class Frame
     {
         [DynamoDBRangeKey]
-        [DynamoDBProperty()]
-        public string ProjectName { get; set; }
+        public string ProjectName;
 
-        [DynamoDBHashKey] //Partition key
-        [DynamoDBProperty("FrameName")]
-        public string Name { get; set; }
+        [DynamoDBHashKey]
+        public string Name;
 
-        [DynamoDBProperty()]
-        public string ParentName { get; set; }
+        public string ParentName;
 
-        [DynamoDBProperty()]
-        public List<string> PriorIds { get; set; }
+        [JsonConverter(typeof(SynchronizedConverter<List<string>>))]
+        public List<string> PriorIds;
 
-        [DynamoDBProperty()]
-        public List<string> ObservationNames { get; set; }
+        [JsonConverter(typeof(SynchronizedConverter<List<string>>))]
+        public List<string> ObservationNames;
 
         public bool IsLocated(PipelineCore pipeline)
         {
             return FrameTransform.Find(pipeline, this) != null;
         }
 
-        //This constructor must be public for DynamoDb but should not be used
+        //This constructor must be public for DynamoDB but should not be used
         public Frame()
         {
             PriorIds = new List<string>();
             ObservationNames = new List<string>();
-        }
-
-        public IEnumerable<Frame> GetChildren(PipelineCore pipeline)
-        {
-            return pipeline.ScanDatabase<Frame>("ProjectName", ProjectName, "ParentName", Name);
-        }
-
-        public Frame GetParent(PipelineCore pipeline)
-        {
-            if (ParentName == null) return null;
-            return Find(pipeline, ProjectName, ParentName);
         }
 
         /// <summary>
@@ -66,7 +53,7 @@ namespace OPS.Pipeline.AlignmentServer
         /// </summary>
         /// <param name="projectName"></param>
         /// <param name="name"></param>
-        protected Frame(string projectName, string name = null, Frame parent = null)
+        protected Frame(string projectName, string name = null, Frame parent = null) : this()
         {
             if (name == null)
             {
@@ -75,13 +62,12 @@ namespace OPS.Pipeline.AlignmentServer
             this.Name = name;
             this.ProjectName = projectName;
             this.ParentName = (parent != null) ? parent.Name : null;
-            this.PriorIds = new List<string>();
-            this.ObservationNames = new List<string>();
         }
 
 
         /// <summary>
-        /// Creates a frame for the given project with the given name.  If no name is specifed a random GUID will be used.
+        /// Creates a frame for the given project with the given name.
+        /// If no name is specifed a random GUID will be used.
         /// Saves the frame the the database and returns an object with a valid id.
         /// </summary>
         /// <param name="pipeline"></param>
@@ -155,22 +141,65 @@ namespace OPS.Pipeline.AlignmentServer
 
         public bool AddPrior(string id)
         {
-            if (PriorIds.Contains(id))
+            lock (PriorIds)
             {
-                return false;
+                if (PriorIds.Contains(id))
+                {
+                    return false;
+                }
+                PriorIds.Add(id);
+                return true;
             }
-            PriorIds.Add(id);
-            return true;
+        }
+
+        public TransformPrior GetPrior(PipelineCore pipeline)
+        {
+            string id = null;
+            lock (PriorIds)
+            {
+                if (PriorIds.Count > 0)
+                {
+                    id = PriorIds[0];
+                }
+            }
+            if (id == null)
+            {
+                return null;
+            }
+            return TransformPrior.Find(pipeline, ProjectName, id);
+        }
+
+        public IEnumerable<string> GetPriors()
+        {
+            lock (PriorIds)
+            {
+                return PriorIds.ToArray();
+            }
         }
 
         public bool AddObservation(string name)
         {
-            if (ObservationNames.Contains(name))
+            lock (ObservationNames)
             {
-                return false;
+                if (ObservationNames.Contains(name))
+                {
+                    return false;
+                }
+                ObservationNames.Add(name);
+                return true;
             }
-            ObservationNames.Add(name);
-            return true;
         }
+
+        public IEnumerable<Frame> GetChildren(PipelineCore pipeline)
+        {
+            return pipeline.ScanDatabase<Frame>("ProjectName", ProjectName, "ParentName", Name);
+        }
+
+        public Frame GetParent(PipelineCore pipeline)
+        {
+            if (ParentName == null) return null;
+            return Find(pipeline, ProjectName, ParentName);
+        }
+
     }   
 }
