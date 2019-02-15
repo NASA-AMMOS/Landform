@@ -452,70 +452,11 @@ namespace OPS.Pipeline.AlignmentServer
 
         private void BundleAdjust()
         {
-            var project = Project.Find(pipeline, options.ProjectName);
-
-            pipeline.LogInfo("building scene graph for bundle adjustment");
-            var bsg = new BuildSceneGraph(pipeline, project.Name, new BuildSceneGraph.Options {
-                    UseTransformPriors = true,
-                    LoadCorrespondences = true,
-                    OnlyKeepImagesWithFeatures = true,
-                    OnlyKeepBestImages = true,
-                    OnlyCrossSiteDriveOverlaps = !options.AdjustWithinSiteDrives,
-                    IncludeObservation = obs => imageStates.ContainsKey(obs.Url)
-                });
-            AlignmentScene scene = bsg.BuildTopDown(project.RootFrame);
-
-            int numAdjustedNodes = 0, numImageNodes = 0;
-            foreach (var siteDriveNode in scene.Root.Children)
-            {
-                Debug.Assert(!siteDriveNode.IsLeaf);
-                Debug.Assert(!siteDriveNode.HasComponent<NodeImage>());
-                if (options.AdjustAcrossSiteDrives)
-                {
-                    siteDriveNode.AddComponent<AdjustedNode>();
-                    numAdjustedNodes++;
-                }
-                foreach (var observationNode in siteDriveNode.Children)
-                {
-                    Debug.Assert(observationNode.IsLeaf);
-                    if (observationNode.HasComponent<NodeImage>())
-                    {
-                        numImageNodes++;
-                        if (options.AdjustWithinSiteDrives)
-                        {
-                            observationNode.AddComponent<AdjustedNode>();
-                            numAdjustedNodes++;
-                        }
-                    }
-                }
-            }
-
-            if (numAdjustedNodes >= 2)
-            {
-                pipeline.LogInfo("running bundle adjuster, adjusting {0} nodes, {1} total images",
-                                 numAdjustedNodes, numImageNodes);
-
-                var ba = new BundleAdjuster(pipeline.Logger);
-                ba.Adjust(scene, options.DebugOutputFolder);
-                
-                int n = 0;
-                foreach (var adjNode in scene.Root.GetComponentsInTree<AdjustedNode>())
-                {
-                    pipeline.LogInfo("saving transform {0} of {1} adjusted frames", n++, numAdjustedNodes);
-                    Microsoft.Xna.Framework.Matrix bundleResult = adjNode.Node.Transform.Matrix;
-                    FrameTransform ft = FrameTransform.Find(pipeline, options.ProjectName, adjNode.Node.Name);
-                    if (ft.Transform.Mean != bundleResult)
-                    {
-                        ft.Transform = new UncertainRigidTransform(bundleResult, ft.Transform.Distribution.Covariance); 
-                    }
-                    ft.Save(pipeline);
-                }
-            }
-            else
-            {
-                pipeline.LogInfo("skipping bundle adjust of only {0} nodes", numAdjustedNodes);
-            }
-
+            BundleAdjusting.BundleAdjust(pipeline, options.ProjectName,
+                                         options.AdjustWithinSiteDrives,
+                                         options.AdjustAcrossSiteDrives,
+                                         obs => imageStates.ContainsKey(obs.Url),
+                                         options.DebugOutputFolder);
             AllDone();
         }
 
