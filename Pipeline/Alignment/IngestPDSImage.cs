@@ -34,18 +34,22 @@ namespace OPS.Pipeline
         public static bool CheckFilename(string filename)
         {
             RoverProductId id = RoverProductId.ParseFromString(filename);
+
             if (id == null)
             {
                 return false;
             }
+
             if (id.Camera == RoverProductCamera.Unknown)
             {
                 return false;
             }
+
             if (id.ProductType == RoverProductType.Unknown)
             {
                 return false;
             }
+
             if (id.Producer == RoverProductProducer.OPGS)
             {
                 OPGSProductId opgsId = (OPGSProductId)id;
@@ -54,6 +58,7 @@ namespace OPS.Pipeline
                     return false;
                 }
             }
+
             if (id.Producer == RoverProductProducer.MSSS)
             {
                 // Check that this is a DCX file
@@ -71,10 +76,11 @@ namespace OPS.Pipeline
             
             //ISSUE #353: need to validate that alignment works across cameras with non-linearized images.
             // so not allowing non-aligned images to be used when other aligned images are being used.
-            if(id.Geometry != RoverProductGeometry.Linearized)
+            if (id.Geometry != RoverProductGeometry.Linearized)
             {
                 return false;
             }
+
             return true;
         }
 

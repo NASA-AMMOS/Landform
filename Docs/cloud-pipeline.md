@@ -17,7 +17,9 @@
     * AWS profile: `landlords`
     * MSLICE AWS profile: `mslice`
     * MSLICE S3 url: `s3://red-product`
-6. `Landform.exe start-align-master PROJ --inputpath=INPUT --debugoutputfolder=DBG --startworker [--verbose] [--redoproject] [--redoobservations] [--redopriors] [--redomasks] [--redofeatures] [--skipmatching] [--skipbundleadjust] [--onlycrosssitedriveoverlaps]` where
+6. `Landform.exe start-align-master PROJ --inputpath=INPUT --debugoutputfolder=DBG --startworker [--verbose] [--redoproject] [--redoobservations] [--redopriors] [--redomasks] [--redofeatures] [--skipmatching] [--skipbundleadjust] [--adjustwithinsitedrives={true|false}] [--adjustacrosssitedrives={true|false}]` where
    * PROJ is a project name, e.g. `align-test`
-   * INPUT is the path to your inputs file, e.g. `s3://landlords-dev/landform-USERNAME/align-test-inputs.txt`.  It can also be a literal path, e.g. `s3://red-product/proj/msl/redops/ods/surface/sol/00589/opgs/rdr/ncam`.  Paths ending in `/**` will be searched recursively.
-   * DBG is a local disk path to a folder for debug outputs.
+   * INPUT is the path to your inputs file, e.g. `s3://landlords-dev/landform-USERNAME/align-test-inputs.txt`.  It can also be a literal path, e.g. `s3://red-product/proj/msl/redops/ods/surface/sol/00589/opgs/rdr/ncam`.  Paths ending in `/**` will be searched recursively
+   * DBG is a local disk path to a folder for debug outputs
+   * adjust within site drives (adjust individual images) defaults to false
+   * adjust across site drives defaults to true

@@ -1,26 +1,20 @@
 ﻿using System;
-using System.Collections.Concurrent;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
-using System.Threading.Tasks;
-using OPS.Cloud;
 
 namespace OPS.Pipeline.AlignmentServer
 {
-    /// <summary>
-    /// Caches frames and transforms from database keyed on name
-    /// </summary>
     public class FrameCache
     {
-        ConcurrentDictionary<string, Frame> frames = new ConcurrentDictionary<string, Frame>();
-        ConcurrentDictionary<string, FrameTransform> transforms = new ConcurrentDictionary<string, FrameTransform>();
-        ConcurrentDictionary<string, ConcurrentBag<Frame>> children =
-            new ConcurrentDictionary<string, ConcurrentBag<Frame>>();
-        ConcurrentDictionary<string, bool> loadedChildren = new ConcurrentDictionary<string, bool>();
-
         private readonly PipelineCore pipeline;
         private readonly string projectName;
+
+        private readonly Dictionary<string, Frame> frames = new Dictionary<string, Frame>();
+        private readonly Dictionary<string, FrameTransform> transforms = new Dictionary<string, FrameTransform>();
+        private readonly Dictionary<string, TransformPrior> priors = new Dictionary<string, TransformPrior>();
+        private readonly Dictionary<string, List<Frame>> children = new Dictionary<string, List<Frame>>();
 
         public FrameCache(PipelineCore pipeline, string projectName)
         {
@@ -28,68 +22,54 @@ namespace OPS.Pipeline.AlignmentServer
             this.projectName = projectName;
         }
 
-        private void AddChild(Frame frame)
+        public void Add(Frame frame)
         {
-            var parentName = frame.ParentName;
-
-            if (parentName == null)
+            if (!frames.ContainsKey(frame.Name)) //ensure that children doesn't get duplicates
             {
-                parentName = ""; //parent of root
+                frames[frame.Name] = frame;
+                if (frame.ParentName != null)
+                {
+                    if (!children.ContainsKey(frame.ParentName))
+                    {
+                        children[frame.ParentName] = new List<Frame>();
+                    }
+                    children[frame.ParentName].Add(frame);
+                }
             }
-
-            children.AddOrUpdate(parentName, _ => {
-                    var bag = new ConcurrentBag<Frame>();
-                    bag.Add(frame);
-                    return bag;
-                },
-                (_, bag) => {
-                    bag.Add(frame);
-                    return bag;
-                });
         }
 
-        public int Preload()
+        public void Add(FrameTransform transform)
         {
-            int n = 0;
-            HashSet<string> all = new HashSet<string>();
-            HashSet<string> parents = new HashSet<string>();
-            foreach (var frame in Frame.Find(pipeline, projectName))
+            transforms[transform.FrameName] = transform;
+        }
+
+        public void Add(TransformPrior prior)
+        {
+            priors[prior.FrameName] = prior;
+        }
+
+            
+        public int Preload(bool loadTransforms = true, bool loadPriors = false)
+        {
+            Frame.Find(pipeline, projectName).ToList().ForEach(frame => Add(frame));
+            if (loadTransforms)
             {
-                all.Add(frame.Name);
-                parents.Add(frame.ParentName);
-                frames.TryAdd(frame.Name, frame);
-                AddChild(frame);
-                n++;
+                FrameTransform.Find(pipeline, projectName).ToList().ForEach(transform => Add(transform));
             }
-            foreach (var frame in all)
+            if (loadPriors)
             {
-                if (!parents.Contains(frame))
-                {
-                    //add empty bag of children for leaves
-                    children.TryAdd(frame, new ConcurrentBag<Frame>());
-                }
-                loadedChildren.TryAdd(frame, true);
+                TransformPrior.Find(pipeline, projectName).ToList().ForEach(prior => Add(prior));
             }
-            return n;
+            return frames.Count;
         }
 
         public IEnumerable<Frame> GetChildren(string name)
         {
-            ConcurrentBag<Frame> bag = null;
-            if (loadedChildren.ContainsKey(name))
+            if (!children.ContainsKey(name))
             {
-                children.TryGetValue(name, out bag);
+                GetFrame(name).GetChildren(pipeline).ToList().ForEach(child => Add(child));
             }
-            else
-            {
-                bag = children.GetOrAdd(name, _ => new ConcurrentBag<Frame>());
-                foreach (var child in GetFrame(name).GetChildren(pipeline))
-                {
-                    AddChild(child);
-                }
-                loadedChildren.TryAdd(name, true);
-            }
-            return bag;
+            return children[name];
         }
 
         public IEnumerable<Frame> GetChildren(Frame frame)
@@ -99,17 +79,38 @@ namespace OPS.Pipeline.AlignmentServer
 
         public Frame GetFrame(string name)
         {
-            return frames.GetOrAdd(name, _ => Frame.Find(pipeline, projectName, name));
+            if (!frames.ContainsKey(name))
+            {
+                Add(Frame.Find(pipeline, projectName, name));
+            }
+            return frames[name];
         }
 
         public FrameTransform GetTransform(string name)
         {
-            return transforms.GetOrAdd(name, _ => FrameTransform.Find(pipeline, GetFrame(name)));
+            if (!transforms.ContainsKey(name))
+            {
+                Add(FrameTransform.Find(pipeline, GetFrame(name)));
+            }
+            return transforms[name];
         }
 
         public FrameTransform GetTransform(Frame frame)
         {
             return GetTransform(frame.Name);
+        }
+
+        public TransformPrior GetTransformPrior(Frame frame)
+        {
+            if (frame.PriorIds.Count < 1)
+            {
+                return null;
+            }
+            if (!priors.ContainsKey(frame.Name))
+            {
+                priors[frame.Name] = TransformPrior.Find(pipeline, projectName, frame.PriorIds[0]);
+            }
+            return priors[frame.Name];
         }
     }
 }

@@ -69,14 +69,9 @@ namespace OPS.Pipeline.MeshWorker
                 return 1;
             }
 
-            BuildSceneGraph builder = new BuildSceneGraph(pipeline);
-            BuildSceneGraph.Options opts = new BuildSceneGraph.Options
-            {
-                IncludeObservation =
-                (o, p) => o.UseForReconstruction && o.ObservationType == ObservationType.Image.ToString(),
-                RequireFeaturesForObservations = false
-            };
-            AlignmentScene scene = builder.Build(rootFrame, opts);
+            BuildSceneGraph builder = new BuildSceneGraph(pipeline, projectName,
+                                                          new BuildSceneGraph.Options() { OnlyKeepBestImages = true });
+            AlignmentScene scene = builder.BuildTopDown(rootFrame);
 
             // generate leaf tile data
             int tiledMeshes = 0;
@@ -100,7 +95,6 @@ namespace OPS.Pipeline.MeshWorker
                 ConvexHull meshHull = new ConvexHull(leafPair.Mesh);
 
                 // backproject
-                MarkUndesiredObservations(scene);
                 List<BackprojectContext> observations = GetPossibleObservations(scene, leafPair.Mesh.Bounds(), meshHull);
                 //...backproject will take place here...
 
@@ -122,62 +116,12 @@ namespace OPS.Pipeline.MeshWorker
             return 0;
         }
 
-        /// <summary>
-        /// sweep through the alignment scene and mark any less desirable versions of the same image ans not for use in backproject
-        /// this prioritizes the images with the same code used during alignment (eg. preferring non-linearized versions, preferring the most current version, etc)
-        /// </summary>
-        /// <param name="scene"></param>
-        private void MarkUndesiredObservations(AlignmentScene scene)
-        {
-            foreach (SceneNode node in scene.Root.DepthFirstTraverse())
-            {
-                if (node.IsLeaf)
-                {
-                    continue;
-                }
-
-                var obs = node.Children
-                    .Where(n => n.HasComponent<NodeObservation>())
-                    .Select(n => n.GetComponent<NodeObservation>().observation);
-
-                var groups = obs.GroupBy(ob => ob.FrameName);
-
-                foreach (var group in groups)
-                {
-                    if (group.Count() == 1)
-                    {
-                        continue;
-                    }
-                     
-                    List<RoverObservation> robs = new List<RoverObservation>();
-                    foreach (var ob in group)
-                    {
-                        RoverObservation rob = RoverObservation.Find(pipeline, projectName, ob.Name);
-                        if (rob != null)
-                        {
-                            robs.Add(rob);
-                        }
-                    }
-                   
-                    RoverObservation best = MSLProject.FindBestImage(robs);
-
-                    foreach (var ob in group)
-                    {
-                        if (ob.Name != best.Name)
-                        {
-                            ob.UseForReconstruction = false;
-                        }
-                    }
-                }
-            }
-        }
 
         // assumes mesh is built with the origin at the origin at the root frame the scene graph was built with
         private List<BackprojectContext> GetPossibleObservations(AlignmentScene scene, BoundingBox tileBounds,
                                                                  ConvexHull tileHull)
         {
             List<BackprojectContext> results = new List<BackprojectContext>();
-
             foreach (SceneNode node in scene.Root.DepthFirstTraverse())
             {
                 if (!node.HasComponent<NodeObservation>())
@@ -185,12 +129,7 @@ namespace OPS.Pipeline.MeshWorker
                     continue;
                 }
 
-                var obs = node.GetComponent<NodeObservation>().observation;
-
-                if (!obs.UseForReconstruction)
-                {
-                    continue;
-                }
+                var obs = node.GetComponent<NodeObservation>().Observation;
 
                 //validate image has a supported config
                 PDSMetadata md = pipeline.LoadImage(obs.Url).Metadata as PDSMetadata;

@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
-using System.Threading.Tasks;
+using System.Diagnostics;
 using log4net;
 using OPS.Util;
 using OPS.Cloud;
@@ -50,68 +50,46 @@ namespace OPS.Pipeline.AlignmentServer
         private ComputedCorrespondence DoCorrespondence()
         {
             var project = Project.Find(pipeline, projectName);
+            var productPath = project.ProductPath;
+
             var modelUrl = message.ModelImageUrl;
             var dataUrl = message.DataImageUrl;
 
-            AlignmentScene scene = new AlignmentScene();
-            {
-                scene.DetectedFeatures[modelUrl] =
-                    pipeline.GetDataProduct<DetectedFeatures>
-                    (project.ProductPath, message.ModelFeaturesGuid, projectName).Features;
+            var modelFeatures =
+                pipeline.GetDataProduct<DetectedFeatures>(productPath, message.ModelFeaturesGuid, projectName).Features;
+            var dataFeatures =
+                pipeline.GetDataProduct<DetectedFeatures>(productPath, message.DataFeaturesGuid, projectName).Features;
 
-                scene.DetectedFeatures[dataUrl] =
-                    pipeline.GetDataProduct<DetectedFeatures>
-                    (project.ProductPath, message.DataFeaturesGuid, projectName).Features;
+            var modelFrame = Frame.Find(pipeline, projectName, message.ModelFrameName);
+            var dataFrame = Frame.Find(pipeline, projectName, message.DataFrameName);
+            BuildSceneGraph builder = new BuildSceneGraph(pipeline, projectName,
+                                                          new BuildSceneGraph.Options() { UseTransformPriors = true });
+            AlignmentScene scene = builder.BuildBottomUp(new Frame[] { modelFrame, dataFrame });
+            scene.DetectedFeatures[modelUrl] = modelFeatures;
+            scene.DetectedFeatures[dataUrl] = dataFeatures;
+            Debug.Assert(scene.ObservationUrlToNode.ContainsKey(modelUrl));
+            Debug.Assert(scene.ObservationUrlToNode.ContainsKey(dataUrl));
 
-                Memoizer<Frame, SceneNode> frameNodes = null; //avoid circular reference
-                frameNodes = new Memoizer<Frame, SceneNode>((f) =>
-                {
-                    if (f.Name == "root" && (f.ParentName == null || f.ParentName == ""))
-                    {
-                        return scene.Root;
-                    }
-                    if (f.PriorIds.Count < 1)
-                    {
-                        return null;
-                    }
-                    var prior = TransformPrior.Find(pipeline, f.ProjectName, f.PriorIds[0]);
-
-                    NodeTransform parent = scene.Root.Transform;
-                    if (f.ParentName != null && f.ParentName != "")
-                    {
-                        parent = frameNodes[Frame.Find(pipeline, f.ProjectName, f.ParentName)].Transform;
-                    }
-                    var node = new SceneNode(f.Name, parent);
-                    node.GetOrAddComponent<NodeUncertainTransform>().UncertainTransform = prior.Transform;
-                    return node;
-                });
-
-                Action<string, Frame> addRef = (imgUrl, frame) =>
-                {
-                    scene.ImageToNode[imgUrl] = frameNodes[frame];
-                    frameNodes[frame].AddComponent<NodeImageUrl>().Url = imgUrl;
-                };
-                addRef(modelUrl, Frame.Find(pipeline, projectName, message.ModelFrameName));
-                addRef(dataUrl, Frame.Find(pipeline, projectName, message.DataFrameName));
-            }
-
+            //IFeatureMatcher matcher = new EmguSIFTMatcher();
+            //IFeatureMatcher matcher = new KnownGeometryMatcher(url => scene.ObservationUrlToNode[url]);
+            //IFeatureMatcher matcher = new BruteForceMatcher();
             IFeatureMatcher matcher = new CascadeHashingMatcher();
-            var matches = matcher.Match(scene, new URLPair(modelUrl, dataUrl));
+            var matches = matcher.Match(modelFeatures, dataFeatures, modelUrl, dataUrl);
             if (matches.Count < MIN_MATCHES)
             {
                 return null;
             }
 
             List<IMatchFilter> filters = new List<IMatchFilter>();
-            filters.Add(new KnownGeometryFilter(pipeline, url => scene.ImageToNode[url]));
-            filters.Add(new MoisanStivalFilter(pipeline));
+            filters.Add(new KnownGeometryFilter(url => scene.ObservationUrlToNode[url], pipeline.Logger));
+            filters.Add(new MoisanStivalFilter(url => scene.ObservationUrlToNode[url], pipeline.Logger));
             //filters.Add(new GTMFilter());
 
             foreach (var filter in filters)
             {
                 int oldCount = matches.Count;
-                matches = filter.Filter(scene, matches);
-                pipeline.LogDebug("* {0}: {1} -> {2}", filter.GetType().Name, oldCount, matches.Count);
+                matches = filter.Filter(modelFeatures, dataFeatures, matches);
+                pipeline.LogVerbose("{0}: {1} -> {2}", filter.GetType().Name, oldCount, matches.Count);
                 if (matches.Count < MIN_MATCHES)
                 {
                     return null;
@@ -120,6 +98,7 @@ namespace OPS.Pipeline.AlignmentServer
 
             if (modelUrl.ToLower() == dataUrl.ToLower())
             {
+                //TODO ???
                 pipeline.LogWarn("match images model URL same as data URL: {0}", modelUrl);
                 var tmp = message.ModelFeaturesGuid;
                 message.ModelFeaturesGuid = message.DataFeaturesGuid;

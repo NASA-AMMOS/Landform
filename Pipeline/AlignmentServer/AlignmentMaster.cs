@@ -5,6 +5,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Threading;
+using System.Diagnostics;
 using CommandLine;
 using CommandLine.Text;
 using log4net;
@@ -58,8 +59,11 @@ namespace OPS.Pipeline.AlignmentServer
         [Option(HelpText = "Skip bundle adjust", Default = false)]
         public bool SkipBundleAdjust { get; set; }
 
-        [Option(HelpText = "Only use cross-site-drive overlaps", Default = false)]
-        public bool OnlyCrossSiteDriveOverlaps { get; set; }
+        [Option(HelpText = "Allow bundle adjust to change individual image poses", Default = false)]
+        public bool AdjustWithinSiteDrives { get; set; }
+
+        [Option(HelpText = "Allow bundle adjust to change site drive poses", Default = true)]
+        public bool AdjustAcrossSiteDrives { get; set; }
     }
 
     public class OverlapState
@@ -356,20 +360,18 @@ namespace OPS.Pipeline.AlignmentServer
 
         private void MatchImages()
         {
-            var fod = new FrustumOverlapDetector(pipeline);
-            var sb = new BuildSceneGraph(pipeline);
-
-            //BUGBUG: may cause non-image frames to keep a bad pose?!
             pipeline.LogInfo("building scene graph for image matching");
-            var scene = sb.Build(Frame.Find(pipeline, options.ProjectName, "root"), new BuildSceneGraph.Options()
-            {
-                GetTransform = sb.StandardFrameTransform,
-                IncludeObservation = (obs, _) => imageStates.ContainsKey(obs.Url),
-                LoadDetectedFeatures = false,
-                LoadCorrespondences = false
-            });
+            var sb = new BuildSceneGraph(pipeline, options.ProjectName, new BuildSceneGraph.Options()
+                                         {
+                                             LoadObservations = true,
+                                             OnlyKeepImagesWithFeatures = true,
+                                             IncludeObservation = obs => imageStates.ContainsKey(obs.Url),
+                                             OnlyKeepBestImages = true
+                                         });
+            var scene = sb.BuildTopDown(Frame.Find(pipeline, options.ProjectName, "root"));
 
             pipeline.LogInfo("detecting overlaps");
+            var fod = new FrustumOverlapDetector(pipeline, pipeline.Logger);
             fod.Detect(scene);
 
             foreach (var pair in scene.Overlaps)
@@ -428,10 +430,12 @@ namespace OPS.Pipeline.AlignmentServer
             state.received = true;
 
             // create db entry once all of the work is done - natural rate limiting
-            var overlap = Overlap.Create(pipeline, imageStates[modelUrl].Observation, imageStates[dataUrl].Observation);
+            var overlap = Overlap.Create(pipeline, message.ProjectName,
+                                         imageStates[modelUrl].Observation.Name, imageStates[dataUrl].Observation.Name);
             if (overlap != null)
             {
-                overlap.Status = (message.CorrespondenceGuid != Guid.Empty) ? Overlap.StatusType.Matched : Overlap.StatusType.Rejected;
+                overlap.Status =
+                    (message.CorrespondenceGuid != Guid.Empty) ? Overlap.StatusType.Matched: Overlap.StatusType.Rejected;
                 overlap.MatchGuid = state.CorrespondenceGuid;
                 overlap.TrySave(pipeline);
             }
@@ -439,7 +443,7 @@ namespace OPS.Pipeline.AlignmentServer
             computedOverlaps++;
             if (computedOverlaps >= allOverlaps.Count)
             {
-                if (!options.SkipBundleAdjust)
+                if (!options.SkipBundleAdjust && (options.AdjustWithinSiteDrives || options.AdjustAcrossSiteDrives))
                 {
                     BundleAdjust();
                 }
@@ -453,42 +457,69 @@ namespace OPS.Pipeline.AlignmentServer
 
         private void BundleAdjust()
         {
-            pipeline.LogInfo("building scene graph for bundle adjustment");
-            
-            var bsg = new BuildSceneGraph(pipeline);
             var project = Project.Find(pipeline, options.ProjectName);
-            Frame root = Frame.Find(pipeline, project.Name, project.RootFrame);
-            
-            //BUGBUG: may cause non-images to have bad pose in frames?
-            AlignmentScene scene = bsg.Build(root, new BuildSceneGraph.Options {
-                    GetTransform = bsg.StandardFrameTransform,
-                    IncludeObservation = (obs, _) => imageStates.ContainsKey(obs.Url),
-                    OnlyCrossSiteDriveOverlaps = options.OnlyCrossSiteDriveOverlaps
-                });
 
-            foreach (var node in scene.ImageToNode.Values)
+            pipeline.LogInfo("building scene graph for bundle adjustment");
+            var bsg = new BuildSceneGraph(pipeline, project.Name, new BuildSceneGraph.Options {
+                    UseTransformPriors = true,
+                    LoadCorrespondences = true,
+                    OnlyKeepImagesWithFeatures = true,
+                    OnlyKeepBestImages = true,
+                    OnlyCrossSiteDriveOverlaps = !options.AdjustWithinSiteDrives,
+                    IncludeObservation = obs => imageStates.ContainsKey(obs.Url)
+                });
+            Frame root = Frame.Find(pipeline, project.Name, project.RootFrame);
+            AlignmentScene scene = bsg.BuildTopDown(root);
+
+            int numAdjustedNodes = 0, numImageNodes = 0;
+            foreach (var siteDriveNode in scene.Root.Children)
             {
-                node.Parent.GetOrAddComponent<AdjustedNode>();
-            }
-            
-            pipeline.LogInfo("running bundle adjuster");
-            var ba = new BundleAdjuster(pipeline, pipeline.Logger);
-            ba.Adjust(scene, options.DebugOutputFolder);
-            
-            int curPairIdx = 0;
-            int numImagePairs = scene.ImageToNode.Count;
-            
-            foreach (var adjNode in scene.Root.GetComponentsInTree<AdjustedNode>())
-            {
-                pipeline.LogInfo("saving transform {0} of {1} adjusted image pairs", curPairIdx++, numImagePairs);
-                var f = Frame.Find(pipeline, options.ProjectName, adjNode.Node.Name);
-                FrameTransform ft = FrameTransform.Find(pipeline, f);
-                Microsoft.Xna.Framework.Matrix bundleResult = adjNode.Node.Transform.Matrix;
-                if (ft.Transform.Mean != bundleResult)
+                Debug.Assert(!siteDriveNode.IsLeaf);
+                Debug.Assert(!siteDriveNode.HasComponent<NodeImage>());
+                if (options.AdjustAcrossSiteDrives)
                 {
-                    ft.Transform = new UncertainRigidTransform(bundleResult, ft.Transform.Distribution.Covariance); 
+                    siteDriveNode.AddComponent<AdjustedNode>();
+                    numAdjustedNodes++;
                 }
-                ft.Save(pipeline);
+                foreach (var observationNode in siteDriveNode.Children)
+                {
+                    Debug.Assert(observationNode.IsLeaf);
+                    if (observationNode.HasComponent<NodeImage>())
+                    {
+                        numImageNodes++;
+                        if (options.AdjustWithinSiteDrives)
+                        {
+                            observationNode.AddComponent<AdjustedNode>();
+                            numAdjustedNodes++;
+                        }
+                    }
+                }
+            }
+
+            if (numAdjustedNodes >= 2)
+            {
+                pipeline.LogInfo("running bundle adjuster, adjusting {0} nodes, {1} total images",
+                                 numAdjustedNodes, numImageNodes);
+
+                var ba = new BundleAdjuster(pipeline.Logger);
+                ba.Adjust(scene, options.DebugOutputFolder);
+                
+                int n = 0;
+                foreach (var adjNode in scene.Root.GetComponentsInTree<AdjustedNode>())
+                {
+                    pipeline.LogInfo("saving transform {0} of {1} adjusted frames", n++, numAdjustedNodes);
+                    Microsoft.Xna.Framework.Matrix bundleResult = adjNode.Node.Transform.Matrix;
+                    FrameTransform ft = FrameTransform.Find(pipeline, options.ProjectName, adjNode.Node.Name);
+                    if (ft.Transform.Mean != bundleResult)
+                    {
+                        ft.Transform = new UncertainRigidTransform(bundleResult, ft.Transform.Distribution.Covariance); 
+                    }
+                    ft.Save(pipeline);
+                }
+            }
+            else
+            {
+                pipeline.LogInfo("skipping bundle adjust of only {0} nodes", numAdjustedNodes);
             }
 
             AllDone();

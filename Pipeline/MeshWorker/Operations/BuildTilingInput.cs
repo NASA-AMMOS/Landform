@@ -57,11 +57,11 @@ namespace OPS.Pipeline.MeshWorker
 
             //cache data needed to build pointcloud
             FrameCache frameCache = new FrameCache(pipeline, projectName);
-            RoverObservationCache obsCache = new RoverObservationCache(pipeline, projectName);
-            obsCache.FillCache(onlyReconstructionObs: true);
+            ObservationCache obsCache = new ObservationCache(pipeline, projectName);
+            obsCache.Preload(obs => obs.UseForReconstruction);
 
             //find the best observations to use for each point cloud
-            List<PointCloudObservations> pointCloudObservations = CollectPointCloudInputs(obsCache);
+            List<PointCloudObservations> pointCloudObservations = CollectPointCloudInputs(obsCache, frameCache);
             if (pointCloudObservations.Count == 0)
             {
                 LogError("no observations were found to build a point cloud");
@@ -364,7 +364,7 @@ namespace OPS.Pipeline.MeshWorker
         /// uses the magnitude of the normal to indicate confidence
         /// </summary>
         /// <returns>a point cloud mesh (position and normals) in the root frame of the alignment</returns>
-        private Mesh BuildPointCloudMesh(PointCloudInput pcInput, FrameCache frameCache, RoverObservationCache obsCache)
+        private Mesh BuildPointCloudMesh(PointCloudInput pcInput, FrameCache frameCache, ObservationCache obsCache)
         {
             Mesh ptsRoverFrame = new Mesh(hasNormals: true);
             int imgWidth = pcInput.Points.PDSImage.Metadata.Width;
@@ -406,16 +406,20 @@ namespace OPS.Pipeline.MeshWorker
         ///     and groups them into a struct by frame
         /// </summary>
         /// <returns></returns>
-        private static List<PointCloudObservations> CollectPointCloudInputs(RoverObservationCache obsCache)
+        private static List<PointCloudObservations> CollectPointCloudInputs(ObservationCache obsCache,
+                                                                            FrameCache frameCache)
         {
             // collect data to build point clouds
             List<PointCloudObservations> pointCloudInputs = new List<PointCloudObservations>();
             string obsTypePoints = ObservationType.Points.ToString();
             string obsTypeNormals = ObservationType.Normals.ToString();
             string obsTypeRoverMask = ObservationType.RoverMask.ToString();
-            foreach (string frameName in obsCache.GetFrameNamesWithObservations())
+            foreach (string frameName in obsCache.GetAllFramesWithObservations())
             {
-                List<RoverObservation> obsForFrame = obsCache.GetObsByFrame(frameName);
+                List<RoverObservation> obsForFrame =
+                    obsCache.GetAllObservationsForFrame(frameCache.GetFrame(frameName))
+                    .Cast<RoverObservation>()
+                    .ToList();
                 obsForFrame.Sort(MSLProject.RoverObservationComparison);
 
                 PointCloudObservations pcInput;

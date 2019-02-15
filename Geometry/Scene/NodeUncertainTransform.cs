@@ -74,12 +74,12 @@ namespace OPS.Geometry
         {
             if (_transform == null)
             {
-                // Initialize with perfect certainty (zero covariance matrix)
+                // Initialize from Node.Transform with perfect certainty (zero covariance matrix)
                 UncertainTransform = new UncertainRigidTransform(new NamedGaussian(Node.Guid, UncertainRigidTransform.ToVector(Node.Transform.Matrix), CreateMatrix.Dense<double>(6, 6)));
             }
             else
             {
-                // we were constructed with a transform - overwrite what's in NodeTransform
+                // we were constructed with a transform - overwrite what's in Node.Transform
                 Node.Transform.Matrix = UncertainTransform.Mean;
             }
         }

@@ -116,9 +116,19 @@ namespace OPS.Pipeline.AlignmentServer
             return Find(pipeline, frame);
         }
 
+        public static IEnumerable<FrameTransform> Find(PipelineCore pipeline, string projectName)
+        {
+            return pipeline.ScanDatabase<FrameTransform>("ProjectName", projectName);
+        }
+
+        public static FrameTransform Find(PipelineCore pipeline, string projectName, string frameName)
+        {
+            return pipeline.LoadDatabaseItem<FrameTransform>(frameName, projectName);
+        }
+
         public static FrameTransform Find(PipelineCore pipeline, Frame frame)
         {
-            return pipeline.LoadDatabaseItem<FrameTransform>(frame.Name, frame.ProjectName);
+            return Find(pipeline, frame.ProjectName, frame.Name);
         }
     }
 }

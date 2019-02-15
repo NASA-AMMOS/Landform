@@ -19,80 +19,106 @@ namespace OPS.Alignment
     /// </summary>
     public class KnownGeometryFilter : IMatchFilter
     {
-        private static readonly ILog logger = LogManager.GetLogger(typeof(KnownGeometryFilter));
+        /// <summary>
+        /// When two camera rays are parallel, try projecting from this distance.
+        /// </summary>
+        public double ParallelProjectionDistance = 1000;
+
+        /// <summary>
+        /// Number of bad projections to reject an uncertain match.
+        /// </summary>
+        public int MaxBadProjections = 3;
+
+        /// <summary>
+        /// Maximum Mahalanobis distance to accept. Conceptually similar to number of standard deviations.
+        /// </summary>
+        public double MahalanobisThreshold = 4;
+
+        /// <summary>
+        /// Error threshold (in pixels) for matches with no transform uncertainty information.
+        /// </summary>
+        public double FixedErrorThreshold = 20;
+
+        /// <summary>
+        /// Maximum uncertainty
+        /// </summary>
+        public double MajorAxisThreshold = 100;
 
         public delegate SceneNode ImageNodeDelegate(string imageUrl);
+
+        private readonly ImageNodeDelegate imageToNode;
+        private readonly ILog logger;
 
         /// <summary>
         /// Construct with a function mapping image references to nodes.
         /// </summary>
         /// <param name="imageToNode">Should return the scene node associated with a given image</param>
-        public KnownGeometryFilter(IImageLoader loader, ImageNodeDelegate imageToNode)
+        public KnownGeometryFilter(ImageNodeDelegate imageToNode = null, ILog logger = null)
         {
-            this.loader = loader;
-            ImageToNode = imageToNode;
-            ParallelProjectionDistance = 1000;
-            MaxBadProjections = 3;
-            MahalanobisThreshold = 4;
-            FixedErrorThreshold = 20;
-            MajorAxisThreshold = 100;
+            this.imageToNode = imageToNode;
+            this.logger = logger;
         }
-
-        private IImageLoader loader;
-        private ImageNodeDelegate ImageToNode;
-
-        /// <summary>
-        /// When two camera rays are parallel, try projecting from this distance.
-        /// </summary>
-        public double ParallelProjectionDistance;
-        /// <summary>
-        /// Number of bad projections to reject an uncertain match.
-        /// </summary>
-        public int MaxBadProjections;
-        /// <summary>
-        /// Maximum Mahalanobis distance to accept. Conceptually similar to number of standard deviations.
-        /// </summary>
-        public double MahalanobisThreshold;
-        /// <summary>
-        /// Error threshold (in pixels) for matches with no transform uncertainty information.
-        /// </summary>
-        public double FixedErrorThreshold;
-        /// <summary>
-        /// Maximum uncertainty
-        /// </summary>
-        public double MajorAxisThreshold;
 
         public ImagePairCorrespondence Filter(AlignmentScene scene, ImagePairCorrespondence matches)
         {
-            SceneNode modelNode = ImageToNode(matches.ModelImageUrl);
-            SceneNode dataNode = ImageToNode(matches.DataImageUrl);
-            ImageFeature[] modelFeatures = scene.DetectedFeatures[matches.ModelImageUrl];
-            ImageFeature[] dataFeatures = scene.DetectedFeatures[matches.DataImageUrl];
+            var modelUrl = matches.ModelImageUrl;
+            var dataUrl = matches.DataImageUrl;
+            var modelFeatures = scene.DetectedFeatures[modelUrl];
+            var dataFeatures = scene.DetectedFeatures[dataUrl];
+            var modelNode = scene.ObservationUrlToNode[modelUrl];
+            var dataNode = scene.ObservationUrlToNode[dataUrl];
+            return Filter(modelFeatures, dataFeatures, matches, modelNode, dataNode);
+        }
 
+        public ImagePairCorrespondence Filter(ImageFeature[] modelFeatures, ImageFeature[] dataFeatures,
+                                              ImagePairCorrespondence matches)
+        {
+            var modelNode = imageToNode(matches.ModelImageUrl);
+            var dataNode = imageToNode(matches.DataImageUrl);
+            return Filter(modelFeatures, dataFeatures, matches, modelNode, dataNode);
+        }
+
+        public ImagePairCorrespondence Filter(ImageFeature[] modelFeatures, ImageFeature[] dataFeatures,
+                                              ImagePairCorrespondence matches,
+                                              SceneNode modelNode, SceneNode dataNode)
+        {
             if (modelNode == null || dataNode == null) return matches;
 
             UncertainRigidTransform dataToModel = dataNode.GetOrAddComponent<NodeUncertainTransform>().To(modelNode);
             UncertainRigidTransform modelToData = modelNode.GetOrAddComponent<NodeUncertainTransform>().To(dataNode);
 
-            var modelCam = loader.LoadImage(matches.ModelImageUrl).CameraModel;
-            var dataCam = loader.LoadImage(matches.DataImageUrl).CameraModel;
+            var modelCam = modelNode.GetOrAddComponent<NodeImage>().CameraModel;
+            var dataCam = dataNode.GetOrAddComponent<NodeImage>().CameraModel;
 
-            // if 'data' node has a convex hull, compute it (uncertainty-inflated) in model space
-            ConvexHull dataHullInModel = null;
-            ConvexHull modelHullInData = null;
-            var modelHull = modelNode.GetComponent<NodeConvexHull>();
-            var dataHull = dataNode.GetComponent<NodeConvexHull>();
-            if (dataHull != null)
+            if (modelCam == null || dataCam == null)
             {
-                dataHullInModel = ConvexHull.Transformed(dataHull.Hull, dataToModel);
-            }
-            if (modelHull != null)
-            {
-                modelHullInData= ConvexHull.Transformed(modelHull.Hull, modelToData);
+                throw new ArgumentException("KnownGeometryFilter requires camera models");
             }
 
-            // Cache result of model ray -> data frustum intersection, because model rays
-            // can be repeated
+            // if node has a convex hull, compute it (uncertainty-inflated) in model space
+            ConvexHull dataHullInModel = dataNode.GetOrAddComponent<NodeConvexHull>().Hull;
+            if (dataHullInModel != null)
+            {
+                dataHullInModel = ConvexHull.Transformed(dataHullInModel, dataToModel);
+            }
+
+            ConvexHull modelHullInData = modelNode.GetOrAddComponent<NodeConvexHull>().Hull;
+            if (modelHullInData != null)
+            {
+                modelHullInData = ConvexHull.Transformed(modelHullInData, modelToData);
+            }
+
+            return Filter(modelFeatures, dataFeatures, matches, modelCam, dataCam, modelToData, dataToModel,
+                          modelHullInData, dataHullInModel);
+        }
+
+        public ImagePairCorrespondence Filter(ImageFeature[] modelFeatures, ImageFeature[] dataFeatures,
+                                              ImagePairCorrespondence matches,
+                                              CameraModel modelCam, CameraModel dataCam,
+                                              UncertainRigidTransform modelToData, UncertainRigidTransform dataToModel,
+                                              ConvexHull modelHullInData = null, ConvexHull dataHullInModel = null)
+        {
+            // Cache result of model ray -> data frustum intersection, because model rays can be repeated
             Dictionary<int, bool> modelRayIntersects = new Dictionary<int, bool>();
             Dictionary<int, bool> dataRayIntersects = new Dictionary<int, bool>();
             List<KeyValuePair<int, int>> goodMatches = new List<KeyValuePair<int, int>>();
@@ -128,6 +154,7 @@ namespace OPS.Alignment
                         continue;
                     }
                 }
+
                 if (modelHullInData != null)
                 {
                     if (!dataRayIntersects.ContainsKey(pair.Key))
@@ -207,7 +234,8 @@ namespace OPS.Alignment
                             rejectedInvalid++;
                             continue;
                         }
-                        if (epi.ModelT < -0.01 || epi.DataT < -0.01 || Math.Abs(epi.SignedDistance(modelFeature.Location)) > FixedErrorThreshold)
+                        if (epi.ModelT < -0.01 || epi.DataT < -0.01 ||
+                            Math.Abs(epi.SignedDistance(modelFeature.Location)) > FixedErrorThreshold)
                         {
                             rejectedError++;
                             continue;
@@ -219,7 +247,8 @@ namespace OPS.Alignment
                             rejectedInvalid++;
                             continue;
                         }
-                        if (epi.ModelT < -0.01 || epi.DataT < -0.01 || Math.Abs(epi.SignedDistance(dataFeature.Location)) > FixedErrorThreshold)
+                        if (epi.ModelT < -0.01 || epi.DataT < -0.01 ||
+                            Math.Abs(epi.SignedDistance(dataFeature.Location)) > FixedErrorThreshold)
                         {
                             rejectedError++;
                             continue;
@@ -236,7 +265,12 @@ namespace OPS.Alignment
                 goodMatches.Add(pair);
             }
 
-            logger.Debug(string.Format("Rejected: {0} for hull intersection, {1} for bad projection, {2} for sigma threshold, {3} for error", rejectedHull, rejectedInvalid, rejectedSigma, rejectedError));
+            if (logger != null)
+            {
+                logger.DebugFormat("KnownGeometryFilter: rejected {0} for hull intersection, {1} for bad projection, " +
+                                   " {2} for sigma threshold, {3} for error",
+                                   rejectedHull, rejectedInvalid, rejectedSigma, rejectedError);
+            }
 
             if (goodMatches.Count == 0)
             {

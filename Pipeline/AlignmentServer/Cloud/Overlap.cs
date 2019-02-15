@@ -79,13 +79,13 @@ namespace OPS.Pipeline.AlignmentServer
         /// <param name="obs1"></param>
         /// <param name="obs2"></param>
         /// <param name="projectName"></param>
-        protected Overlap(string obs1, string obs2, string projectName)
+        protected Overlap(string projectName, string obs1, string obs2)
         {
+            ProjectName = projectName;
             var name = new OverlapName(obs1, obs2);
             ObservationNameOne = name.ObservationNameOne;
             ObservationNameTwo = name.ObservationNameTwo;
             CombinedName = name.CombinedName;
-            ProjectName = projectName;
             Status = StatusType.Proposed;
         }
 
@@ -100,10 +100,10 @@ namespace OPS.Pipeline.AlignmentServer
         /// <param name="observationName1">Order of observations does not matter</param>
         /// <param name="observationName2"></param>
         /// <returns></returns>
-        public static Overlap Create(PipelineCore pipeline, Observation observation1, Observation observation2)
+        public static Overlap Create(PipelineCore pipeline, string projectName, string obs1, string obs2) 
         {
             //create an overlap without setting Uploaded
-            Overlap newOverlap = new Overlap(observation1.Name, observation2.Name, observation1.ProjectName);
+            Overlap newOverlap = new Overlap(projectName, obs1, obs2);
             try
             {
                 pipeline.SaveDatabaseItem(newOverlap);
@@ -127,7 +127,7 @@ namespace OPS.Pipeline.AlignmentServer
             }
 
             //return Overlap with most recent version number
-            return pipeline.LoadDatabaseItem<Overlap>(newOverlap.CombinedName, newOverlap.ProjectName, consistent: true);
+            return pipeline.LoadDatabaseItem<Overlap>(newOverlap.CombinedName, projectName, consistent: true);
         }
 
         /// <summary>
@@ -147,9 +147,9 @@ namespace OPS.Pipeline.AlignmentServer
             return true;
         }
 
-        public static Overlap Find(PipelineCore pipeline, string projectName, string obsOne, string obsTwo)
+        public static Overlap Find(PipelineCore pipeline, string projectName, string obs1, string obs2)
         {
-            return Find(pipeline, projectName, new OverlapName(obsOne, obsTwo).CombinedName);
+            return Find(pipeline, projectName, new OverlapName(obs1, obs2).CombinedName);
         }
 
         public static Overlap Find(PipelineCore pipeline, string projectName, string combinedName)
@@ -162,17 +162,15 @@ namespace OPS.Pipeline.AlignmentServer
             return pipeline.ScanDatabase<Overlap>("ProjectName", projectName);
         }
 
-        /// <summary>
-        /// Find all overlaps featuring an observation
-        /// </summary>
-        public static IEnumerable<Overlap> Find(PipelineCore pipeline, Observation observation)
+        public static IEnumerable<Overlap> FindAllForObservation(PipelineCore pipeline, string projectName,
+                                                                 string obsName)
         {
             foreach (var prop in new[] { "ObservationNameOne", "ObservationNameTwo" })
             {
                 var entries = pipeline.ScanDatabase<Overlap>(new Dictionary<string, string>()
                                                              {
-                                                                 { prop, observation.Name },
-                                                                 { "ProjectName", observation.ProjectName }
+                                                                 { "ProjectName", projectName },
+                                                                 { prop, obsName }
                                                              },
                                                              indexName: "Overlap" + prop + "Index");
                 foreach (var o in entries)

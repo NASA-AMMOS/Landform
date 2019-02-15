@@ -16,12 +16,10 @@ namespace OPS.Alignment
 {
     public class BundleAdjuster
     {
-        private IImageLoader loader;
         private ILog logger;
 
-        public BundleAdjuster(IImageLoader loader, ILog logger)
+        public BundleAdjuster(ILog logger)
         {
-            this.loader = loader;
             this.logger = logger;
         }
 
@@ -81,17 +79,24 @@ namespace OPS.Alignment
             BundleAdjusterProblem problem = new BundleAdjusterProblem();
             List<AdjustedNode> toAdjust = scene.Root.GetComponentsInTree<AdjustedNode>().ToList();
 
-            logger.InfoFormat("Setting up bundle adjust of {0} images", toAdjust.Count());
+            if (logger != null)
+            {
+                logger.InfoFormat("Setting up bundle adjust of {0} images", toAdjust.Count());
+            }
 
             Matrix worldToRoot = scene.Root.Transform.WorldToLocal;
-            Memoizer<Imaging.CameraModel, int> cameraModels = new Memoizer<Imaging.CameraModel, int>(problem.AddCameraModel);
+
+            Dictionary<string, Imaging.CameraModel> cameraModels = new Dictionary<string, Imaging.CameraModel>();
+            Memoizer<Imaging.CameraModel, int> cameraToIndex =
+                new Memoizer<Imaging.CameraModel, int>(problem.AddCameraModel);
             Dictionary<string, int> imageToCamera = new Dictionary<string, int>();
+
             Dictionary<int, SceneNode> transformToNode = new Dictionary<int, SceneNode>();
             Memoizer<SceneNode, int> nodeToTransform = new Memoizer<SceneNode, int>(node =>
             {
-                bool _fixed = !node.HasComponent<AdjustedNode>();
-                int idx = problem.AddTransform(node.Transform.Matrix, _fixed);
-                if (!_fixed && node.HasComponent<NodeUncertainTransform>())
+                bool adjust = node.HasComponent<AdjustedNode>();
+                int idx = problem.AddTransform(node.Transform.Matrix, !adjust);
+                if (adjust && node.HasComponent<NodeUncertainTransform>())
                 {
                     var nut = node.GetComponent<NodeUncertainTransform>();
                     problem.AddPrior(idx, nut.UncertainTransform);
@@ -102,22 +107,21 @@ namespace OPS.Alignment
             Dictionary<string, List<int>> imageTransformLists = new Dictionary<string, List<int>>();
             
             // collect images
-            foreach (var imgRefC in scene.Root.GetComponentsInTree<NodeImageUrl>())
+            foreach (var img in scene.Root.GetComponentsInTree<NodeImage>())
             {
-                var cmod = loader.LoadImage(imgRefC.Url).CameraModel;
-                int cameraIdx = cameraModels[(Imaging.CameraModel)cmod];
-                imageToCamera[imgRefC.Url] = cameraIdx;
+                cameraModels[img.Url] = img.CameraModel;
+                imageToCamera[img.Url] = cameraToIndex[img.CameraModel];
 
                 // build list of transforms to apply to get to root
                 List<int> transforms = new List<int>();
-                SceneNode curr = imgRefC.Node;
+                SceneNode curr = img.Node;
                 while (curr != null && curr != scene.Root)
                 {
                     transforms.Add(nodeToTransform[curr]);
                     curr = curr.Parent;
                 }
 
-                imageTransformLists[imgRefC.Url] = transforms;
+                imageTransformLists[img.Url] = transforms;
             }
 
             // collect tracks
@@ -140,9 +144,10 @@ namespace OPS.Alignment
                 {
                     var feat = scene.DetectedFeatures[projection.ImageUrl][projection.Index];
 
-                    var cameraModel = loader.LoadImage(projection.ImageUrl).CameraModel;
+                    var cameraModel = cameraModels[projection.ImageUrl];
                     var cameraSpace = cameraModel.Unproject(feat.Location);
-                    var cameraToWorld = scene.ImageToNode[projection.ImageUrl].Transform.LocalToWorld * worldToRoot;
+                    var cameraToWorld =
+                        scene.ObservationUrlToNode[projection.ImageUrl].Transform.LocalToWorld * worldToRoot;
                     var r = new Ray(Vector3.Transform(cameraSpace.Position, cameraToWorld),
                                     Vector3.TransformNormal(cameraSpace.Direction, cameraToWorld));
 
@@ -160,7 +165,6 @@ namespace OPS.Alignment
                     b += Vector4.Transform(new Vector4(r.Position, 0), nnt);
                 }
 
-
                 Matrix inv = Matrix.Invert(M);
                 Vector4 x = Vector4.Transform(b, inv);
                 if (!double.IsNaN(x.X))
@@ -170,14 +174,14 @@ namespace OPS.Alignment
                     foreach (var proj in track.features)
                     {
                         var feat = scene.DetectedFeatures[proj.ImageUrl][proj.Index];
-                        var cmod = problem.CameraModels[imageToCamera[proj.ImageUrl]];
+                        var cmod = cameraModels[proj.ImageUrl];
 
-                        var worldToCamera =
-                            Matrix.Invert(scene.ImageToNode[proj.ImageUrl].Transform.LocalToWorld * worldToRoot);
+                        var obsToWorld = scene.ObservationUrlToNode[proj.ImageUrl].Transform.LocalToWorld * worldToRoot;
+                        var worldToCamera = Matrix.Invert(obsToWorld);
                         var cameraPt = Vector3.Transform(pose, worldToCamera);
                         try
                         {
-                            var projected = cmod.Model.Project(cameraPt, out double range);
+                            var projected = cmod.Project(cameraPt, out double range);
                             error += (projected - feat.Location).LengthSquared();
                         }
                         catch (DivideByZeroException)
@@ -221,14 +225,18 @@ namespace OPS.Alignment
             int numCorrespondences = scene.Correspondences.Count();
             foreach (var corr in scene.Correspondences)
             {
-                logger.DebugFormat("Processing correspondence {0} of {1}", idxCurCorrespondence++, numCorrespondences);
+                if (logger != null)
+                {
+                    logger.DebugFormat("Processing correspondence {0} of {1}",
+                                       idxCurCorrespondence++, numCorrespondences);
+                }
 
                 var modelUrl = corr.Value.ModelImageUrl;
                 var dataUrl = corr.Value.DataImageUrl;
-                var modelModel = problem.CameraModels[imageToCamera[modelUrl]];
-                var dataModel = problem.CameraModels[imageToCamera[dataUrl]];
-                var modelToWorld = scene.ImageToNode[modelUrl].Transform.LocalToWorld * worldToRoot;
-                var dataToWorld = scene.ImageToNode[dataUrl].Transform.LocalToWorld * worldToRoot;
+                var modelCam = cameraModels[modelUrl];
+                var dataCam = cameraModels[dataUrl];
+                var modelToWorld = scene.ObservationUrlToNode[modelUrl].Transform.LocalToWorld * worldToRoot;
+                var dataToWorld = scene.ObservationUrlToNode[dataUrl].Transform.LocalToWorld * worldToRoot;
 
                 foreach (var pair in corr.Value.DataToModel)
                 {
@@ -243,7 +251,7 @@ namespace OPS.Alignment
 
                         var track = tracks[trackId] = new Track();
                         var feat = scene.DetectedFeatures[dataUrl][dataFeat.Index];
-                        track.position = Vector3.Transform(dataModel.Model.Unproject(feat.Location, 100), dataToWorld);
+                        track.position = Vector3.Transform(dataCam.Unproject(feat.Location, 100), dataToWorld);
                         track.error = 0;
                         track.features.Add(dataFeat);
                     }
@@ -254,7 +262,7 @@ namespace OPS.Alignment
 
                         var track = tracks[trackId] = new Track();
                         var feat = scene.DetectedFeatures[modelUrl][modelFeat.Index];
-                        track.position = Vector3.Transform(modelModel.Model.Unproject(feat.Location, 100), modelToWorld);
+                        track.position = Vector3.Transform(modelCam.Unproject(feat.Location, 100), modelToWorld);
                         track.error = 0;
                         track.features.Add(modelFeat);
                     }
@@ -275,14 +283,21 @@ namespace OPS.Alignment
                     }
                 }
             }
-            logger.InfoFormat("processed {0} correspondences", numCorrespondences);
+
+            if (logger != null)
+            {
+                logger.InfoFormat("processed {0} correspondences", numCorrespondences);
+            }
 
             // assign projections to tracks
             int numTracks = tracks.Values.Count;
             int idxTrack = 0;
             foreach (var track in tracks.Values)
             {
-                logger.DebugFormat("Processing track {0} of {1}", idxTrack++, numTracks);
+                if (logger != null)
+                {
+                    logger.DebugFormat("Processing track {0} of {1}", idxTrack++, numTracks);
+                }
 
                 if (track.features.Count < 2) continue;
                 
@@ -302,14 +317,21 @@ namespace OPS.Alignment
                                                                 track.pointIdx, feat.Location));
                 }
             }
-            logger.InfoFormat("processed {0} tracks", numTracks);
+            if (logger != null)
+            {
+                logger.InfoFormat("processed {0} tracks", numTracks);
+            }
 
             HashSet<int> badPoints = new HashSet<int>();
 
             for (int iter = 0; iter < 2; iter++)
             {
-                logger.InfoFormat("Running Ceres iteration: {0}", iter);
+                if (logger != null)
+                {
+                    logger.InfoFormat("running Ceres iteration: {0}", iter);
+                }
 
+                double startTime = UTCTime.Now();
                 BundleAdjusterProblem result = null;
                 TemporaryFile.GetAndDelete(".bin", inputFile =>
                 {
@@ -323,7 +345,8 @@ namespace OPS.Alignment
                     TemporaryFile.GetAndDelete(".bin", (outputFile) =>
                     {
                         string exePath = Path.Combine("ExternalApps", "CeresBundler.exe");
-                        ProgramRunner pr = new ProgramRunner(exePath, "\"" + inputFile + "\" \"" + outputFile + "\"", createNoWindow: false, useShellExecute: false);
+                        ProgramRunner pr = new ProgramRunner(exePath, "\"" + inputFile + "\" \"" + outputFile + "\"",
+                                                             createNoWindow: false, useShellExecute: false);
                         pr.Run();
 
                         using (FileStream fs = new FileStream(outputFile, FileMode.Open))
@@ -336,7 +359,11 @@ namespace OPS.Alignment
                     });
                 });
 
-                logger.Info("Got ceres result");
+                if (logger != null)
+                {
+                    logger.InfoFormat("got ceres result after {0}s", UTCTime.Now() - startTime);
+                }
+
                 for (int i = 0; i < result.Transforms.Count; i++)
                 {
                     var transform = result.Transforms[i];

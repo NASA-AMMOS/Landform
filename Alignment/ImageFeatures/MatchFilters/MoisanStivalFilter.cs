@@ -3,63 +3,97 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using OPS.Imaging;
 using Microsoft.Xna.Framework;
 using log4net;
+using OPS.Imaging;
 using OPS.Geometry;
 
 namespace OPS.Alignment
 {
     public class MoisanStivalFilter : IMatchFilter
     {
-        private static readonly ILog logger = LogManager.GetLogger(typeof(MoisanStivalFilter));
-
         //minimum number of matches this filter can process without crashing 
         private const int MIN_MATCHES = 8; 
 
-        public int MaxIterations;
-        public bool RefineStep;
-        public bool VirtualLinearCoordinates;
+        public int MaxIterations = 5000;
+        public bool RefineStep = true;
+        public bool VirtualLinearCoordinates = true;
 
         public EpipolarMatrix LastEpipolarTransform;
         public Matrix LastBestTransform;
 
-        private IImageLoader loader;
+        public delegate SceneNode ImageNodeDelegate(string imageUrl);
 
-        public MoisanStivalFilter(IImageLoader loader, int maxIterations = 5000, bool refineStep = true,
-                                  bool virtualLinearCoordinates = true)
+        private readonly ImageNodeDelegate imageToNode;
+        private readonly ILog logger;
+
+        public MoisanStivalFilter(ImageNodeDelegate imageToNode = null, ILog logger = null)
         {
-            this.loader = loader;
-            this.MaxIterations = maxIterations;
-            this.RefineStep = refineStep;
-            this.VirtualLinearCoordinates = virtualLinearCoordinates;
+            this.imageToNode = imageToNode;
+            this.logger = logger;
         }
 
         public ImagePairCorrespondence Filter(AlignmentScene scene, ImagePairCorrespondence matches)
+        {
+            var modelUrl = matches.ModelImageUrl;
+            var dataUrl = matches.DataImageUrl;
+            var modelFeatures = scene.DetectedFeatures[modelUrl];
+            var dataFeatures = scene.DetectedFeatures[dataUrl];
+            var modelNode = scene.ObservationUrlToNode[modelUrl];
+            var dataNode = scene.ObservationUrlToNode[dataUrl];
+            return Filter(modelFeatures, dataFeatures, matches, modelNode, dataNode);
+        }
+
+        public ImagePairCorrespondence Filter(ImageFeature[] modelFeatures, ImageFeature[] dataFeatures,
+                                              ImagePairCorrespondence matches)
+        {
+            var modelNode = imageToNode(matches.ModelImageUrl);
+            var dataNode = imageToNode(matches.DataImageUrl);
+            return Filter(modelFeatures, dataFeatures, matches, modelNode, dataNode);
+        }
+
+        public ImagePairCorrespondence Filter(ImageFeature[] modelFeatures, ImageFeature[] dataFeatures,
+                                              ImagePairCorrespondence matches,
+                                              SceneNode modelNode, SceneNode dataNode)
+        {
+            var modelImg = modelNode.GetOrAddComponent<NodeImage>();
+            var dataImg = dataNode.GetOrAddComponent<NodeImage>();
+
+            if (!modelImg.Size.HasValue || !dataImg.Size.HasValue)
+            {
+                throw new ArgumentException("MoisanStivalFilter requires image sizes");
+            }
+
+            if (VirtualLinearCoordinates && (modelImg.CameraModel == null || dataImg.CameraModel == null))
+            {
+                throw new ArgumentException("MoisanStivalFilter with VirtualLinearCoordinates requires camera models");
+            }
+
+            return Filter(modelFeatures, dataFeatures, matches, modelImg.CameraModel, dataImg.CameraModel,
+                          modelImg.Size.Value, dataImg.Size.Value);
+        }
+
+        public ImagePairCorrespondence Filter(ImageFeature[] modelFeatures, ImageFeature[] dataFeatures,
+                                              ImagePairCorrespondence matches,
+                                              CameraModel modelCam, CameraModel dataCam,
+                                              Vector2 modelSize, Vector2 dataSize)
         {
             if (matches.DataToModel.Length < MIN_MATCHES)
             {
                 return matches;
             }
-
-            var modelImg = loader.LoadImage(matches.ModelImageUrl);
-            var dataImg = loader.LoadImage(matches.DataImageUrl);
-            ImageFeature[] modelFeatures = scene.DetectedFeatures[matches.ModelImageUrl];
-            ImageFeature[] dataFeatures = scene.DetectedFeatures[matches.DataImageUrl];
-
-            if (VirtualLinearCoordinates && modelImg.CameraModel != null && dataImg.CameraModel != null)
+            
+            if (VirtualLinearCoordinates)
             {
                 FeatureLinearizer lin = new FeatureLinearizer();
-                modelFeatures = lin.Linearize(modelImg.CameraModel, modelFeatures);
-                dataFeatures = lin.Linearize(dataImg.CameraModel, dataFeatures);
+                modelFeatures = lin.Linearize(modelCam, modelFeatures);
+                dataFeatures = lin.Linearize(dataCam, dataFeatures);
             }
 
             Vector2[] dataPoints = matches.DataToModel.Select(pair => dataFeatures[pair.Key].Location).ToArray();
             Vector2[] modelPoints = matches.DataToModel.Select(pair => modelFeatures[pair.Value].Location).ToArray();
             
-            MoisanStivalEpipolar mso = new MoisanStivalEpipolar(modelPoints, dataPoints,
-                                                                new Vector2(modelImg.Width, modelImg.Height),
-                                                                new Vector2(dataImg.Width, dataImg.Height));
+            MoisanStivalEpipolar mso = new MoisanStivalEpipolar(modelPoints, dataPoints, modelSize, dataSize, logger);
 
             mso.Run(MaxIterations, RefineStep);
             if (!mso.Meaningful) return ImagePairCorrespondence.Empty;
@@ -75,7 +109,7 @@ namespace OPS.Alignment
             Vector2[] modelPointsAfter = goodMatches.Select(pair => modelFeatures[pair.Value].Location).ToArray();
 
             LastBestTransform = mso.BestTransform;
-            logger.Info("Number of residual matches: " + goodMatches.Count);
+
             return new ImagePairCorrespondence(matches.ModelImageUrl, matches.DataImageUrl,
                                                goodMatches, mso.FundamentalMatrix, mso.BestTransform);
         }

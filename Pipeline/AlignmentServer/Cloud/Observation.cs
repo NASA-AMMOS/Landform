@@ -31,8 +31,6 @@ namespace OPS.Pipeline.AlignmentServer
 
         public Guid MaskGuid { get; set; }
 
-        public string FeatureUrl { get; set; }
-
         public string FrameName { get; set; }
 
         public string ObservationType { get; set; }

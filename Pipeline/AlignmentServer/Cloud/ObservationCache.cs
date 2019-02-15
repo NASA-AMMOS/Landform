@@ -1,25 +1,18 @@
 using System;
-using System.Collections.Concurrent;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
-using System.Threading.Tasks;
-using OPS.Cloud;
 
 namespace OPS.Pipeline.AlignmentServer
 {
-    /// <summary>
-    /// Caches observations keyed on name
-    /// </summary>
     public class ObservationCache
     {
-        ConcurrentDictionary<string, Observation> observations = new ConcurrentDictionary<string, Observation>();
-        ConcurrentDictionary<string, ConcurrentBag<Observation>> obsForFrame =
-            new ConcurrentDictionary<string, ConcurrentBag<Observation>>();
-        ConcurrentDictionary<string, bool> loadedAllForFrame = new ConcurrentDictionary<string, bool>();
-
         private readonly PipelineCore pipeline;
         private readonly string projectName;
+
+        private readonly Dictionary<string, Observation> observations = new Dictionary<string, Observation>();
+        private readonly Dictionary<string, List<Observation>> forFrame = new Dictionary<string, List<Observation>>();
 
         public ObservationCache(PipelineCore pipeline, string projectName)
         {
@@ -27,54 +20,51 @@ namespace OPS.Pipeline.AlignmentServer
             this.projectName = projectName;
         }
 
-        private void AddForFrame(Observation obs)
+        public void Add(Observation obs)
         {
-            obsForFrame.AddOrUpdate(obs.FrameName, _ => {
-                    var bag = new ConcurrentBag<Observation>();
-                    bag.Add(obs);
-                    return bag;
-                },
-                (_, bag) => {
-                    bag.Add(obs);
-                    return bag;
-                });
+            if (!observations.ContainsKey(obs.Name)) //ensure that forFrame doesn't get duplicates
+            {
+                observations[obs.Name] = obs;
+                if (!forFrame.ContainsKey(obs.FrameName))
+                {
+                    forFrame[obs.FrameName] = new List<Observation>();
+                }
+                forFrame[obs.FrameName].Add(obs);
+            }
         }
 
-        public int Preload()
+        public int Preload(Func<Observation, bool> filter = null)
         {
-            int n = 0;
-            foreach (var obs in RoverObservation.Find(pipeline, projectName))
-            {
-                observations.TryAdd(obs.Name, obs);
-                AddForFrame(obs);
-                loadedAllForFrame.TryAdd(obs.FrameName, true);
-                n++;
-            }
-            return n;
+            RoverObservation.Find(pipeline, projectName).ToList().ForEach(obs => {
+                    if (filter == null || filter(obs))
+                    {
+                        Add(obs);
+                    }
+                });
+            return observations.Count;
         }
 
         public IEnumerable<Observation> GetAllObservationsForFrame(Frame frame)
         {
-            ConcurrentBag<Observation> bag = null;
-            if (loadedAllForFrame.ContainsKey(frame.Name))
+            if (!forFrame.ContainsKey(frame.Name))
             {
-                obsForFrame.TryGetValue(frame.Name, out bag);
+                RoverObservation.Find(pipeline, frame).ToList().ForEach(obs => Add(obs));
             }
-            else
-            {
-                bag = obsForFrame.GetOrAdd(frame.Name, _ => new ConcurrentBag<Observation>());
-                foreach (var obs in RoverObservation.Find(pipeline, frame))
-                {
-                    AddForFrame(obs);
-                }
-                loadedAllForFrame.TryAdd(frame.Name, true);
-            }
-            return bag;
+            return forFrame[frame.Name];
         }
 
         public Observation GetObservation(string name)
         {
-            return observations.GetOrAdd(name, _ => RoverObservation.Find(pipeline, projectName, name));
+            if (!observations.ContainsKey(name))
+            {
+                Add(RoverObservation.Find(pipeline, projectName, name));
+            }
+            return observations[name];
+        }
+
+        public IEnumerable<string> GetAllFramesWithObservations()
+        {
+            return forFrame.Keys;
         }
     }
 }

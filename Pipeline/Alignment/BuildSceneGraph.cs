@@ -1,13 +1,14 @@
-﻿using log4net;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Microsoft.Xna.Framework;
 using MathNet.Numerics.LinearAlgebra;
+using log4net;
 using OPS.Util;
 using OPS.Cloud;
+using OPS.Imaging;
 using OPS.Geometry;
 using OPS.Alignment;
 using OPS.Pipeline.AlignmentServer;
@@ -16,212 +17,289 @@ namespace OPS.Pipeline
 {
     public class BuildSceneGraph : PipelineRoutine
     {
-        private FrameCache frameCache = null;
+        public delegate bool IncludeFrameDelegate(Frame frame);
+        public delegate bool IncludeObservationDelegate(Observation observation);
 
-        public BuildSceneGraph(PipelineCore pipeline) : base(pipeline) { }
-
-        public delegate bool IncludeFrameDelegate(Frame frame, SceneNode parent);
-        public delegate bool IncludeObservationDelegate(Observation observation, SceneNode parent);
-        public delegate UncertainRigidTransform FrameTransformDelegate(Frame frame, SceneNode parent);
-
-        public UncertainRigidTransform StandardFrameTransform(Frame frame, SceneNode parent)
+        /// <summary>
+        /// By default only image observations marked UseForReconstruction are loaded.  
+        /// </summary>
+        public class Options
         {
-            var transform = frameCache.GetTransform(frame);
-            if (transform == null)
-            {
-                pipeline.LogError("no transform found for frame {0}", frame.Name);
-                return null;
-            }
-            return transform.Transform;
+            public bool UseTransformPriors = false;
+            public bool PreloadCaches = true;
+            public bool LoadObservations = true;
+            public bool LoadFeatures = false; //implies LoadObservations
+            public bool LoadOverlaps = false; //implies LoadFeatures
+            public bool LoadCorrespondences = false; //implies LoadOverlaps
+            public bool OnlyKeepImagesWithFeatures = false;
+            public bool OnlyKeepBestImages = false;
+            public bool OnlyLoadObservationsForReconstruction = true;
+            public bool OnlyLoadImageObservations = true;
+            public bool OnlyCrossSiteDriveOverlaps = false;
+            public IncludeFrameDelegate IncludeFrame = _ => true;
+            public IncludeObservationDelegate IncludeObservation = _ => true;
+        }
+        private readonly Options options;
+
+        private readonly string projectName;
+
+        public enum BuildDirection { TopDown, BottomUp }
+
+        public BuildSceneGraph(PipelineCore pipeline, string projectName, Options options = null) : base(pipeline)
+        {
+            this.projectName = projectName;
+            this.options = options ?? new Options();
         }
 
-        public UncertainRigidTransform CertainFrameTransform(Frame frame, SceneNode parent)
-        {
-            var transform = frameCache.GetTransform(frame);
-            if (transform == null)
-            {
-                pipeline.LogError("No transform found for frame {0}", frame.Name);
-                return null;
-            }
-            return new UncertainRigidTransform(transform.Transform.Mean, CreateMatrix.Dense<double>(6,6));
-        }
-
-        static bool ValidGuid(Guid g)
+        private static bool ValidGuid(Guid g)
         {
             return g != null && g != Guid.Empty;
         }
 
-        public class Options
+        private static readonly string imageObs = ObservationType.Image.ToString();
+        private static bool IsImage(Observation obs)
         {
-            /// <summary>
-            /// Return true if a given frame should be included in the graph.
-            /// 
-            /// Defaults to always true.
-            /// </summary>
-            public IncludeFrameDelegate IncludeFrame = (f, p) => true;
-
-            /// <summary>
-            /// Return true if a given observation should be included in the graph.
-            /// 
-            /// Defaults to always true.
-            /// </summary>
-            public IncludeObservationDelegate IncludeObservation = (f, p) => true;
-
-            /// <summary>
-            /// Return the uncertain transform associated with a frame.
-            /// 
-            /// Defaults to values in the FrameTransforms table.
-            /// </summary>
-            public FrameTransformDelegate GetTransform;
-
-            /// <summary>
-            /// If true, an observation requires features to have been detected to have its image URL
-            /// added to the scene graph nodes.
-            ///
-            /// Defaults true.
-            /// </summary>
-            public bool RequireFeaturesForObservations = true;
-
-            public bool LoadDetectedFeatures = true;
-
-            public bool LoadCorrespondences = true;
-
-            public bool OnlyCrossSiteDriveOverlaps = false;
+            return obs.ObservationType == imageObs;
         }
 
-        public AlignmentScene Build(Frame root, Options options)
+        public AlignmentScene BuildTopDown(Frame root)
         {
-            frameCache = new FrameCache(pipeline, root.ProjectName);
-            var observationCache = new ObservationCache(pipeline, root.ProjectName);
-            var overlapCache = new OverlapCache(pipeline, root.ProjectName);
+            return Build(BuildDirection.TopDown, new Frame[] { root });
+        }
 
-            if (options.GetTransform == null)
+        public AlignmentScene BuildBottomUp(IEnumerable<Frame> leaves)
+        {
+            return Build(BuildDirection.BottomUp, leaves);
+        }
+
+        public AlignmentScene Build(BuildDirection direction, IEnumerable<Frame> startFrames)
+        {
+            if (options.LoadCorrespondences)
             {
-                options.GetTransform = StandardFrameTransform;
+                options.LoadOverlaps = true;
             }
 
-            pipeline.LogInfo("building scene graph for project {0}, {1}loading features, {2}loading correspondences",
-                             root.ProjectName,
-                             options.LoadDetectedFeatures ? "" : "not ", options.LoadCorrespondences ? "" : "not ");
-
-            pipeline.LogInfo("preloading frame cache for project {0}", root.ProjectName);
-            int numPreloaded = frameCache.Preload();
-            pipeline.LogInfo("preloaded {0} frames for project {1}", numPreloaded, root.ProjectName);
-
-            pipeline.LogInfo("preloading observation cache for project {0}", root.ProjectName);
-            numPreloaded = observationCache.Preload();
-            pipeline.LogInfo("preloaded {0} observations for project {1}", numPreloaded, root.ProjectName);
-
-            AlignmentScene scene = new AlignmentScene();
-
-            var project = Project.Find(pipeline, root.ProjectName);
-
-            int numFeatures = 0;
-            Action<Observation, SceneNode> addObservation = (obs, node) =>
+            if (options.LoadOverlaps)
             {
-                var imgUrl = obs.Url;
+                options.LoadFeatures = true;
+            }
 
-                if (options.LoadDetectedFeatures)
-                {
-                    if (ValidGuid(obs.FeaturesGuid))
-                    {
-                        var feat = pipeline.GetDataProduct<DetectedFeatures>(project.ProductPath, obs.FeaturesGuid,
-                                                                             project.Name);
-                        scene.DetectedFeatures[imgUrl] = feat.Features;
-                        numFeatures++;
-                    }
-                    else if (options.RequireFeaturesForObservations)
-                    {
-                        return;
-                    }
-                }
+            if (options.LoadFeatures)
+            {
+                options.LoadObservations = true;
+            }
 
-                scene.ImageToNode[imgUrl] = node;
-                node.AddComponent<NodeImageUrl>().Url = imgUrl;
-                node.AddComponent<NodeObservation>().observation = obs;
-            };
-
-            List<Observation> observations = new List<Observation>();
-            HashSet<string> observationNames = new HashSet<string>();
+            pipeline.LogInfo("building scene graph for project {0}, {1}loading observations, {2}loading overlaps, "
+                             + "{3}loading features, {4}loading correspondences", projectName,
+                             options.LoadObservations ? "" : "not ", options.LoadOverlaps ? "" : "not ",
+                             options.LoadFeatures ? "" : "not ", options.LoadCorrespondences ? "" : "not ");
 
             double lastSpew = UTCTime.Now();
-            int numNodes = 0, numObs = 0;
-            SceneNode spawn(Frame frame, SceneNode parent)
+
+            var project = Project.Find(pipeline, projectName);
+            var frameCache = new FrameCache(pipeline, projectName);
+            AlignmentScene scene = new AlignmentScene();
+
+            if (options.PreloadCaches)
             {
-                var res = new SceneNode(frame.Name, parent?.Transform);
-                numNodes++;
+                pipeline.LogInfo("preloading frame cache for project {0}", projectName);
+                int numPreloaded = frameCache.Preload(loadTransforms: !options.UseTransformPriors,
+                                                      loadPriors: options.UseTransformPriors);
+                pipeline.LogInfo("preloaded {0} frames for project {1}", numPreloaded, projectName);
+            }
 
-                var ut = options.GetTransform(frame, parent);
-                if (ut == null) return null;
-                
-                //add transforms for parents so they get bundle adjusted
-                res.GetOrAddComponent<NodeUncertainTransform>().UncertainTransform = ut;
-                
-                // Add any observations to the node
-                var obs = observationCache.GetAllObservationsForFrame(frame)
-                    .Where(o => options.IncludeObservation(o, res))
-                    .ToArray();
-                numObs += obs.Length;
+            ObservationCache observationCache = null;
+            if (options.LoadObservations)
+            {
+                observationCache = new ObservationCache(pipeline, projectName);
+                if (options.PreloadCaches)
+                {
+                    pipeline.LogInfo("preloading observation cache for project {0}", projectName);
+                    Func<Observation, bool> filter =
+                        obs => !options.OnlyLoadObservationsForReconstruction || obs.UseForReconstruction;
+                    int numPreloaded = observationCache.Preload(filter);
+                    pipeline.LogInfo("preloaded {0} observations for project {1}", numPreloaded, projectName);
+                }
+            }
 
-                observations.AddRange(obs);
-                foreach (var o in obs)
+            int numFeatures = 0;
+            Dictionary<string, Observation> loadedObservations = new Dictionary<string, Observation>();
+            void addObservation(Observation obs, SceneNode node)
+            {
+                if (IsImage(obs))
                 {
-                    observationNames.Add(o.Name);
-                }
-                
-                if (obs.Length == 1)
-                {
-                    res.GetOrAddComponent<NodeUncertainTransform>().UncertainTransform = ut;
-                    addObservation(obs[0], res);
-                }
-                else if (obs.Length > 1)
-                {
-                    foreach (var o in obs)
+                    if (options.LoadFeatures && ValidGuid(obs.FeaturesGuid))
                     {
-                        var obsNode = new SceneNode(o.Name, res.Transform);
-                        obsNode.Transform.Matrix = Matrix.Identity;
-                        obsNode.GetOrAddComponent<NodeUncertainTransform>().UncertainTransform = ut;
-                        addObservation(o, obsNode);
+                        var feat = pipeline.GetDataProduct<DetectedFeatures>(project.ProductPath, obs.FeaturesGuid,
+                                                                             projectName);
+                        scene.DetectedFeatures[obs.Url] = feat.Features;
+                        numFeatures++;
+                    }
+                    var img = node.AddComponent<NodeImage>();
+                    img.CameraModel = (CameraModel)JsonHelper.FromJson(obs.CameraModel);
+                    img.Size = new Vector2(obs.Width, obs.Height);
+                    img.Url = obs.Url;
+                }
+                node.AddComponent<NodeObservation>().Observation = obs;
+                scene.ObservationUrlToNode[obs.Url] = node;
+                loadedObservations[obs.Name] = obs;
+            }
+
+            HashSet<string> loadedNodes = new HashSet<string>();
+            SceneNode addNode(Frame frame)
+            {
+                if (loadedNodes.Contains(frame.Name) || !options.IncludeFrame(frame))
+                {
+                    return null;
+                }
+
+                var node = new SceneNode(frame.Name);
+
+                UncertainRigidTransform ut = null;
+                if (options.UseTransformPriors)
+                {
+                    var tp = frameCache.GetTransformPrior(frame);
+                    if (tp == null)
+                    {
+                        throw new Exception("failed to get transform prior for frame " + frame.Name);
+                    }
+                    ut = tp.Transform;
+                }
+                else
+                {
+                    var ft = frameCache.GetTransform(frame);
+                    if (ft == null)
+                    {
+                        throw new Exception("failed to get transform for frame " + frame.Name);
+                    }
+                    ut = ft.Transform;
+                }
+                node.GetOrAddComponent<NodeUncertainTransform>().UncertainTransform = ut;
+
+                if (options.LoadObservations)
+                {
+                    var obsForFrame = observationCache.GetAllObservationsForFrame(frame)
+                        .Where(o => options.IncludeObservation(o))
+                        .Where(o => !options.OnlyLoadObservationsForReconstruction || o.UseForReconstruction)
+                        .Where(o => !options.OnlyLoadImageObservations || IsImage(o))
+                        .Where(o => !options.OnlyKeepImagesWithFeatures || !IsImage(o) || ValidGuid(o.FeaturesGuid))
+                        .Cast<RoverObservation>()
+                        .ToArray();
+
+                    if (options.OnlyKeepBestImages && obsForFrame.Length > 0)
+                    {
+                        obsForFrame = new RoverObservation[] { MSLProject.FindBestImage(obsForFrame) };
+                    }
+
+                    if (obsForFrame.Length == 1)
+                    {
+                        addObservation(obsForFrame[0], node);
+                    }
+                    else 
+                    {
+                        //a SceneNode can have only one component of each type
+                        //there are multiple Observations for this frame
+                        //so in this case we create a child to hold each Observation
+                        foreach (var obs in obsForFrame)
+                        {
+                            var obsNode = new SceneNode(obs.Name, node.Transform); //identity transform
+                            obsNode.AddComponent<NodeUncertainTransform>(); //no uncertainty
+                            addObservation(obs, obsNode);
+                        }
                     }
                 }
-                
+
+                loadedNodes.Add(node.Name);
+
                 double now = UTCTime.Now();
                 if (now - lastSpew > 10)
                 {
-                    pipeline.LogInfo("spawned {0} nodes, {1} observations, {2} feature products",
-                                     numNodes, numObs, numFeatures);
+                    pipeline.LogInfo("loaded {0} nodes, {1} observations, {2} feature products",
+                                     loadedNodes.Count, loadedObservations.Count, numFeatures);
                     lastSpew = now;
                 }
 
-                // Add child frames
-                foreach (var childFrame in frameCache.GetChildren(frame))
-                {
-                    if (!options.IncludeFrame(childFrame, res))
-                    {
-                        continue;
-                    }
-                    
-                    spawn(childFrame, res);
-                }
-
-                return res;
+                return node;
             }
-            scene.Root = spawn(root, null);
+
+            switch (direction)
+            {
+                case BuildDirection.TopDown:
+                {
+                    SceneNode spawn(Frame frame, SceneNode parent)
+                    {
+                        var node = addNode(frame);
+                        if (node != null)
+                        {
+                            node.Parent = parent;
+                            foreach (var child in frameCache.GetChildren(frame))
+                            {
+                                spawn(child, node);
+                            }
+                        }
+                        return node;
+                    }
+                    scene.Root = spawn(startFrames.First(), null);
+                    break;
+                }
+                case BuildDirection.BottomUp:
+                {
+                    void spawn(Frame frame, SceneNode child)
+                    {
+                        var node = addNode(frame);
+                        if (node != null)
+                        {
+                            if (child != null)
+                            {
+                                child.Parent = node;
+                            }
+                            if (!string.IsNullOrEmpty(frame.ParentName))
+                            {
+                                spawn(frameCache.GetFrame(frame.ParentName), node);
+                            }
+                            else
+                            {
+                                scene.Root = node;
+                            }
+                        }
+                    }
+                    foreach (var frame in startFrames)
+                    {
+                        spawn(frame, null);
+                    }
+                    break;
+                }
+            }
 
             pipeline.LogInfo("built scene graph: spawned {0} nodes, {1} observations, {2} feature products",
-                             numNodes, numObs, numFeatures);
+                             loadedNodes.Count, loadedObservations.Count, numFeatures);
 
+            if (options.LoadOverlaps)
+            {
+                LoadOverlaps(project, scene, loadedObservations, observationCache);
+            }
+
+            return scene;
+        }
+
+        private void LoadOverlaps(Project project, AlignmentScene scene,
+                                  Dictionary<string, Observation> loadedObservations, ObservationCache observationCache)
+        {
             pipeline.LogInfo("adding overlaps{0} to scene{1}",
                              options.LoadCorrespondences ? " and computed correspondences" : "",
                              options.OnlyCrossSiteDriveOverlaps ? ", only overlaps between different site-drives" : "");
 
-            pipeline.LogInfo("preloading overlap cache for project {0}", root.ProjectName);
-            numPreloaded = overlapCache.Preload();
-            pipeline.LogInfo("preloaded {0} overlaps for project {1}", numPreloaded, root.ProjectName);
+            var overlapCache = new OverlapCache(pipeline, projectName);
+            if (options.PreloadCaches)
+            {
+                pipeline.LogInfo("preloading overlap cache for project {0}", projectName);
+                int numPreloaded = overlapCache.Preload();
+                pipeline.LogInfo("preloaded {0} overlaps for project {1}", numPreloaded, projectName);
+            }
 
-            lastSpew = UTCTime.Now();
+            double lastSpew = UTCTime.Now();
             int numOverlaps = 0, numProcessed = 0, numSkipped = 0, numCorrespondences = 0;
-            foreach (var obs in observations)
+            foreach (var obs in loadedObservations.Values)
             {
                 foreach (var overlap in overlapCache.GetAllOverlapsForObservation(obs))
                 {
@@ -229,7 +307,7 @@ namespace OPS.Pipeline
                     var n2 = overlap.ObservationNameTwo;
 
                     // Skip any overlaps that involve an observation we didn't ingest
-                    if (!observationNames.Contains(n1) || !observationNames.Contains(n2))
+                    if (!loadedObservations.ContainsKey(n1) || !loadedObservations.ContainsKey(n2))
                     {
                         continue;
                     }
@@ -254,18 +332,15 @@ namespace OPS.Pipeline
                     var pair = new URLPair(o1.Url, o2.Url);
                     scene.Overlaps.Add(pair);
 
-                    if (options.LoadCorrespondences)
+                    if (options.LoadCorrespondences && ValidGuid(overlap.MatchGuid))
                     {
-                        if (ValidGuid(overlap.MatchGuid))
+                        var match = pipeline.GetDataProduct<ComputedCorrespondence>(project.ProductPath,
+                                                                                    overlap.MatchGuid,
+                                                                                    projectName);
+                        if (match != null)
                         {
-                            var match =
-                                pipeline.GetDataProduct<ComputedCorrespondence>(project.ProductPath, overlap.MatchGuid,
-                                                                                project.Name);
-                            if (match != null)
-                            {
-                                scene.Correspondences[pair] = match.Correspondence;
-                                numCorrespondences++;
-                            }
+                            scene.Correspondences[pair] = match.Correspondence;
+                            numCorrespondences++;
                         }
                     }
                 }
@@ -277,18 +352,14 @@ namespace OPS.Pipeline
                 {
                     pipeline.LogInfo("processed {0}/{1} observations, "
                                      + "added {2} overlaps, {3} skipped, {4} correspondence products",
-                                     numProcessed, numObs, numOverlaps, numCorrespondences);
+                                     numProcessed, loadedObservations.Count, numOverlaps, numCorrespondences);
                     lastSpew = now;
                 }
             }
 
             pipeline.LogInfo("done adding overlaps: processed {0}/{1} observations, "
                              + "added {2} overlaps, {3} skipped, {4} correspondence products",
-                             numProcessed, numObs, numOverlaps, numSkipped, numCorrespondences);
-
-            frameCache = null;
-
-            return scene;
+                             numProcessed, loadedObservations.Count, numOverlaps, numSkipped, numCorrespondences);
         }
     }
 }

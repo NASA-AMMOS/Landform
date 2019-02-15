@@ -17,24 +17,24 @@ namespace OPS.Alignment
     /// </summary>
     public class MoisanStivalEpipolar
     {
-        static ILog logger = LogManager.GetLogger(typeof(MoisanStivalEpipolar));
-
         public Vector2[] ModelPoints, DataPoints;
         public Vector2 ModelSize, DataSize;
 
-        List<int> bestPoints;
-        double[] epipolarError;
-        double logAlpha0;
-        Random random;
+        private List<int> bestPoints;
+        private double[] epipolarError;
+        private double logAlpha0;
+        private Random random;
 
-        double overallMinEps, overallMinAlpha;
-        int[] overallMinPoints;
-        Matrix<float> overallMinF;
+        private double overallMinEps, overallMinAlpha;
+        private int[] overallMinPoints;
+        private Matrix<float> overallMinF;
 
-        float[] log_cn, log_c7;
-        double log_e0;
+        private float[] log_cn, log_c7;
+        private double log_e0;
 
-        double modelNorm, dataNorm;
+        private double modelNorm, dataNorm;
+
+        private ILog logger;
 
         /// <summary>
         /// Initialize the procedure with a set of potentially corresponding points.
@@ -44,12 +44,14 @@ namespace OPS.Alignment
         /// <param name="dataPoints">Points in frame of "data" image</param>
         /// <param name="modelSize">Dimensions (in same units as modelPoints) of "model" image</param>
         /// <param name="dataSize">Dimensions (in same units as dataPoints) of "data" image</param>
-        public MoisanStivalEpipolar(Vector2[] modelPoints, Vector2[] dataPoints, Vector2 modelSize, Vector2 dataSize)
+        public MoisanStivalEpipolar(Vector2[] modelPoints, Vector2[] dataPoints, Vector2 modelSize, Vector2 dataSize,
+                                    ILog logger = null)
         {
             this.ModelPoints = modelPoints;
             this.DataPoints = dataPoints;
             this.ModelSize = modelSize;
             this.DataSize = dataSize;
+            this.logger = logger;
 
             log_cn = makelogcombi_n(modelPoints.Length);
             log_c7 = makelogcombi_k(7, modelPoints.Length);
@@ -289,7 +291,10 @@ namespace OPS.Alignment
                 CvInvoke.FindFundamentalMat(m1_cv, m2_cv, _F, Emgu.CV.CvEnum.FmType.SevenPoint);
             } catch(Exception e)
             {
-                logger.Error("Failed to find fundamental matrix", e);
+                if (logger != null)
+                {
+                    logger.Error("MoisanStivalEpipolar: failed to find fundamental matrix", e);
+                }
                 yield break;
             }
             int numMatrices = _F.Rows / 3;

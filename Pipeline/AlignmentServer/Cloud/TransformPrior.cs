@@ -70,6 +70,11 @@ namespace OPS.Pipeline.AlignmentServer
             return pipeline.LoadDatabaseItem<TransformPrior>(id, project);
         }
 
+        public static IEnumerable<TransformPrior> Find(PipelineCore pipeline, string projectName)
+        {
+            return pipeline.ScanDatabase<TransformPrior>("ProjectName", projectName);
+        }
+
         public void Save(PipelineCore pipeline)
         {
             pipeline.SaveDatabaseItem(this);
