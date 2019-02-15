@@ -65,37 +65,42 @@ namespace OPS.Pipeline
             double startSec = UTCTime.Now();
             int no = 0, np = 0, nc = 0, ns = 0, ng = 0;
             Parallel.ForEach(scene.Overlaps, pair => {
-                    var modelUrl = pair.One;
-                    var dataUrl = pair.Two;
-                    var modelNode = scene.ObservationUrlToNode[modelUrl];
-                    var dataNode = scene.ObservationUrlToNode[dataUrl];
-                    var modelObs = modelNode.GetComponent<NodeObservation>().Observation.Name;
-                    var dataObs = dataNode.GetComponent<NodeObservation>().Observation.Name;
-                    Interlocked.Increment(ref no);
-                    if (!options.RedoMatches)
+                string pairName = pair.ToStringShort();
+                var modelUrl = pair.One;
+                var dataUrl = pair.Two;
+                var modelNode = scene.ObservationUrlToNode[modelUrl];
+                var dataNode = scene.ObservationUrlToNode[dataUrl];
+                var modelObs = modelNode.GetComponent<NodeObservation>().Observation.Name;
+                var dataObs = dataNode.GetComponent<NodeObservation>().Observation.Name;
+                Interlocked.Increment(ref no);
+                if (!options.RedoMatches)
+                {
+                    //only hit the database if we need to
+                    var overlap = Overlap.Find(this, project.Name, modelObs, dataObs);
+                    if (overlap != null && overlap.Status == Overlap.StatusType.Matched)
                     {
-                        var overlap = Overlap.Find(this, project.Name, modelObs, dataObs);
-                        if (overlap != null && overlap.Status == Overlap.StatusType.Matched)
-                        {
-                            LogInfo("not recomputing feature matches for {0}", overlap.CombinedName);
-                            Interlocked.Increment(ref ns);
-                        }
+                        LogInfo("not recomputing feature matches for image pair {0}", pairName);
+                        Interlocked.Increment(ref ns);
+                        return;
                     }
-                    Interlocked.Increment(ref np);
-                    LogVerbose("processing {0} image pairs in parallel", np);
-                    var result = ImageMatching.ComputeCorrespondence(this, scene, modelUrl, dataUrl);
-                    if (result != null)
+                }
+                Interlocked.Increment(ref np);
+                LogVerbose("processing {0} image pairs in parallel", np);
+                LogVerbose("computing features matches for image pair {0}", pairName);
+                var result = ImageMatching.ComputeCorrespondence(this, scene, modelUrl, dataUrl);
+                if (result != null)
+                {
+                    Interlocked.Increment(ref nc);
+                    SaveDataProduct(project.ProductPath, result, project.Name);
+                    if (ImageMatching.SaveOverlap(this, project.Name, scene, result))
                     {
-                        Interlocked.Increment(ref nc);
-                        SaveDataProduct(project.ProductPath, result, project.Name);
-                        ImageMatching.SaveOverlap(this, project.Name, scene, result);
                         Interlocked.Increment(ref ng);
                     }
-
-                    Interlocked.Decrement(ref np);
-                });
-            LogInfo("processed {0} image pairs in {1:F3} sec, computed {2} correspondences, skipped {3}, good {4}",
-                    no, UTCTime.Now() - startSec, nc, ns, ng);
+                }
+                Interlocked.Decrement(ref np);
+            });
+            LogInfo("processed {0} image pairs in {1:F3} sec, computed {2} correspondences, saved {3}, skipped {4}",
+                    no, UTCTime.Now() - startSec, nc, ng, ns);
 
             return 0;
         }
