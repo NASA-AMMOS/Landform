@@ -28,15 +28,15 @@ namespace OPS.Alignment
 
             double startTime = UTCTime.Now();
             double lastSpew = startTime;
-            void spewMaybe(bool force = false)
+            void spewMaybe(bool final = false)
             {
                 double now = UTCTime.Now();
-                if (logger != null &&  (force || now - lastSpew > 10))
+                if (logger != null &&  (final || now - lastSpew > 5))
                 {
-                    logger.InfoFormat("creating hulls: {0}s elapsed, processed {1} nodes, " +
-                                      "made {2} hulls from params, {3} from images, {4} from children, {5} empty",
+                    logger.InfoFormat("creating hulls ({0:F3}s), processed {1} nodes, " +
+                                      "made {2} hulls from params, {3} from images, {4} from children, {5} empty{6}",
                                       UTCTime.Now() - startTime, numNodes,
-                                      paramsHulls, imageHulls, unionHulls, emptyHulls);
+                                      paramsHulls, imageHulls, unionHulls, emptyHulls, final ? "" : "...");
                     lastSpew = now;
                 }
             }
@@ -100,7 +100,7 @@ namespace OPS.Alignment
 
             make(scene.Root);
 
-            spewMaybe(force: true);
+            spewMaybe(final: true);
 
             return numNodes;
         }
@@ -119,15 +119,15 @@ namespace OPS.Alignment
             double startTime = UTCTime.Now();
             double lastSpew = startTime;
             int overlapChecks = 0, processedPairs = 0, overlappingLeaves = 0, processedNodes = 0;
-            void spewMaybe(bool force = false)
+            void spewMaybe(bool final = false)
             {
                 double now = UTCTime.Now();
-                if (logger != null && (force || (now - lastSpew > 10)))
+                if (logger != null && (final || now - lastSpew > 5))
                 {
-                    logger.InfoFormat("detecting overlaps: found {0} unique overlaps ({1} checks) {2}s elapsed, " +
-                                      "{3} overlapping leaf pairs, processed {4} pairs, {5} nodes",
-                                      unique.Count, overlapChecks, UTCTime.Now() - startTime,
-                                      overlappingLeaves, processedPairs, processedNodes);
+                    logger.InfoFormat("detecting overlaps ({0:F3}s): found {1} unique overlaps ({2} checks), " +
+                                      "{3} overlapping leaf pairs, processed {4} pairs, {5} nodes{6}",
+                                      UTCTime.Now() - startTime, unique.Count, overlapChecks,
+                                      overlappingLeaves, processedPairs, processedNodes, final ? "" : "...");
                     lastSpew = now;
                 }
             }
@@ -212,7 +212,7 @@ namespace OPS.Alignment
             }
             processNode(scene.Root);
 
-            spewMaybe(force: true);
+            spewMaybe(final: true);
 
             scene.Overlaps = unique;
         }

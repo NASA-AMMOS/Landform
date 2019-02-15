@@ -118,7 +118,8 @@ namespace OPS.Pipeline
                              options.LoadObservations ? "" : "not ", options.LoadOverlaps ? "" : "not ",
                              options.LoadFeatures ? "" : "not ", options.LoadCorrespondences ? "" : "not ");
 
-            double lastSpew = UTCTime.Now();
+            double startTime = UTCTime.Now();
+            double lastSpew = startTime;
 
             var project = Project.Find(pipeline, projectName);
             if (frameCache == null)
@@ -130,9 +131,11 @@ namespace OPS.Pipeline
             if (options.PreloadCaches)
             {
                 pipeline.LogInfo("preloading frame cache for project {0}", projectName);
+                double start = UTCTime.Now();
                 int numPreloaded = frameCache.Preload(loadTransforms: !options.UseTransformPriors,
                                                       loadPriors: options.UseTransformPriors);
-                pipeline.LogInfo("preloaded {0} frames for project {1}", numPreloaded, projectName);
+                pipeline.LogInfo("preloaded {0} frames for project {1} in {2:F3}s",
+                                 numPreloaded, projectName, UTCTime.Now() - start);
             }
 
             if (options.LoadObservations)
@@ -146,8 +149,10 @@ namespace OPS.Pipeline
                     pipeline.LogInfo("preloading observation cache for project {0}", projectName);
                     Func<Observation, bool> filter =
                         obs => !options.OnlyLoadObservationsForReconstruction || obs.UseForReconstruction;
+                    double start = UTCTime.Now();
                     int numPreloaded = observationCache.Preload(filter);
-                    pipeline.LogInfo("preloaded {0} observations for project {1}", numPreloaded, projectName);
+                    pipeline.LogInfo("preloaded {0} observations for project {1} in {2:F3}s",
+                                     numPreloaded, projectName, UTCTime.Now() - start);
                 }
             }
 
@@ -243,15 +248,17 @@ namespace OPS.Pipeline
                 loadedNodes.Add(node.Name);
 
                 double now = UTCTime.Now();
-                if (now - lastSpew > 10)
+                if (now - lastSpew > 5)
                 {
-                    pipeline.LogInfo("loaded {0} nodes, {1} observations, {2} feature products",
+                    pipeline.LogInfo("loaded {0} nodes, {1} observations, {2} feature products...",
                                      loadedNodes.Count, loadedObservations.Count, numFeatures);
                     lastSpew = now;
                 }
 
                 return node;
             }
+
+            pipeline.LogInfo("building scene graph {0}", direction);
 
             switch (direction)
             {
@@ -302,13 +309,15 @@ namespace OPS.Pipeline
                 }
             }
 
-            pipeline.LogInfo("built scene graph: spawned {0} nodes, {1} observations, {2} feature products",
-                             loadedNodes.Count, loadedObservations.Count, numFeatures);
-
             if (options.LoadOverlaps)
             {
                 LoadOverlaps(project, scene, loadedObservations, observationCache, overlapCache);
             }
+
+            pipeline.LogInfo("built scene graph ({0:F3}s): {1} nodes, {2} observations, " +
+                             "{3} feature products, {4} overlaps, {5} correspondences",
+                             UTCTime.Now() - startTime, loadedNodes.Count, loadedObservations.Count,
+                             numFeatures, scene.Overlaps.Count, scene.Correspondences.Count);
 
             return scene;
         }
@@ -328,8 +337,10 @@ namespace OPS.Pipeline
             if (options.PreloadCaches)
             {
                 pipeline.LogInfo("preloading overlap cache for project {0}", projectName);
+                double start = UTCTime.Now();
                 int numPreloaded = overlapCache.Preload();
-                pipeline.LogInfo("preloaded {0} overlaps for project {1}", numPreloaded, projectName);
+                pipeline.LogInfo("preloaded {0} overlaps for project {1} in {2:F3}s",
+                                 numPreloaded, projectName, UTCTime.Now() - start);
             }
 
             double lastSpew = UTCTime.Now();
@@ -383,10 +394,10 @@ namespace OPS.Pipeline
                 numProcessed++;
 
                 double now = UTCTime.Now();
-                if (now - lastSpew > 10)
+                if (now - lastSpew > 5)
                 {
                     pipeline.LogInfo("processed {0}/{1} observations, "
-                                     + "added {2} overlaps, {3} skipped, {4} correspondence products",
+                                     + "added {2} overlaps, {3} skipped, {4} correspondence products...",
                                      numProcessed, loadedObservations.Count, numOverlaps, numCorrespondences);
                     lastSpew = now;
                 }

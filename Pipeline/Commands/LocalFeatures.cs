@@ -55,18 +55,18 @@ namespace OPS.Pipeline
                             Interlocked.Increment(ref ne);
                             if (!options.RedoFeatures)
                             {
-                                LogInfo("not recomputing features for observation {0}", obs.Name);
+                                LogVerbose("not recomputing features for observation {0}", obs.Name);
                                 Interlocked.Increment(ref ns);
                                 return;
                             }
                             else
                             {
-                                LogInfo("recomputing features for observation {0}", obs.Name);
+                                LogVerbose("recomputing features for observation {0}", obs.Name);
                             }
                         }
                         else
                         {
-                            LogInfo("computing features for observation {0}", obs.Name);
+                            LogVerbose("computing features for observation {0}", obs.Name);
                         }
                         Interlocked.Increment(ref nf);
                         Interlocked.Increment(ref np);

@@ -366,23 +366,10 @@ namespace OPS.Pipeline.AlignmentServer
             var project = Project.Find(pipeline, options.ProjectName);
 
             var onlyCrossSite = !(options.AdjustWithinSiteDrives || options.MatchWithinSiteDrives);
-            pipeline.LogInfo("building scene graph for image matching");
-            var sb = new BuildSceneGraph(pipeline, options.ProjectName, new BuildSceneGraph.Options()
-                                         {
-                                             UseTransformPriors = true,
-                                             LoadObservations = true,
-                                             OnlyKeepImagesWithFeatures = true,
-                                             OnlyKeepBestImages = true,
-                                             OnlyCrossSiteDriveOverlaps = onlyCrossSite,
-                                             IncludeObservation = obs => imageStates.ContainsKey(obs.Url)
-                                         });
-            var scene = sb.BuildTopDown(project.RootFrame);
 
-            if (options.RedoOverlaps || scene.Overlaps.Count == 0)
-            {
-                var fod = new FrustumOverlapDetector(pipeline, pipeline.Logger);
-                fod.Detect(scene, onlyCrossSite);
-            }
+            var scene = ImageMatching.BuildSceneAndDetectOverlaps(pipeline, project,
+                                                                  options.RedoOverlaps, onlyCrossSite,
+                                                                  obs => imageStates.ContainsKey(obs.Url));
 
             pendingOverlaps.UnionWith(scene.Overlaps);
 

@@ -79,22 +79,6 @@ namespace OPS.Pipeline
             };
         }
 
-        public static bool SaveOverlap(PipelineCore pipeline, string projectName, AlignmentScene scene,
-                                       ComputedCorrespondence correspondence)
-        {
-            var modelUrl = correspondence.Correspondence.ModelImageUrl;
-            var dataUrl = correspondence.Correspondence.DataImageUrl;
-
-            var modelNode = scene.ObservationUrlToNode[modelUrl];
-            var dataNode = scene.ObservationUrlToNode[dataUrl];
-
-            var modelObs = modelNode.GetComponent<NodeObservation>().Observation;
-            var dataObs = dataNode.GetComponent<NodeObservation>().Observation;
-
-            return SaveOverlap(pipeline, projectName, correspondence.Guid,
-                               modelObs.Name, dataObs.Name);
-        }
-
         public static bool SaveOverlap(PipelineCore pipeline, string projectName, Guid matchGuid,
                                        string modelObsName, string dataObsName)
         {
@@ -106,6 +90,31 @@ namespace OPS.Pipeline
             dbOverlap.MatchGuid = matchGuid;
             dbOverlap.Status = matchGuid != Guid.Empty ? Overlap.StatusType.Matched : Overlap.StatusType.Rejected;
             return dbOverlap.TrySave(pipeline);
+        }
+
+        public static AlignmentScene BuildSceneAndDetectOverlaps(PipelineCore pipeline, Project project,
+                                                                 bool redoOverlaps = false, bool onlyCrossSite = true,
+                                                                 Func<Observation, bool> filter = null)
+        {
+            pipeline.LogInfo("building scene graph for image matching");
+            var sb = new BuildSceneGraph(pipeline, project.Name, new BuildSceneGraph.Options()
+                                         {
+                                             UseTransformPriors = true,
+                                             LoadFeatures = true,
+                                             LoadOverlaps = !redoOverlaps,
+                                             OnlyKeepImagesWithFeatures = true,
+                                             OnlyKeepBestImages = true,
+                                             OnlyCrossSiteDriveOverlaps = onlyCrossSite,
+                                             IncludeObservation = obs => filter == null || filter(obs)
+                                         });
+            var scene = sb.BuildTopDown(project.RootFrame);
+
+            if (scene.Overlaps.Count == 0)
+            {
+                var fod = new FrustumOverlapDetector(pipeline, pipeline.Logger);
+                fod.Detect(scene, onlyCrossSite);
+            }
+            return scene;
         }
     }
 }
