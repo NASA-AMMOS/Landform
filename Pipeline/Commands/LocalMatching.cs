@@ -43,7 +43,8 @@ namespace OPS.Pipeline
             var scene = sb.Build(Frame.Find(this, options.ProjectName, "root"), new BuildSceneGraph.Options()
             {
                 GetTransform = sb.StandardFrameTransform,
-                IncludeObservation = (obs, _) => obs.UseForReconstruction
+                IncludeObservation = (obs, _) => obs.UseForReconstruction && obs.ObservationType == ObservationType.Image.ToString(),
+                LoadCorrespondences = false
             });
             fod.Detect(scene);
 
