@@ -64,5 +64,15 @@ namespace OPS.Util
             }
             return this == (URLPair)obj;
         }
+
+        public override string ToString()
+        {
+            return "(" + One + ", " + Two + ")";
+        }
+
+        public string ToStringShort()
+        {
+            return "(" + StringHelper.GetLastUrlPathSegment(One) + ", " + StringHelper.GetLastUrlPathSegment(Two) + ")";
+        }
     }
 }

@@ -17,8 +17,14 @@ namespace OPS.Pipeline
         [Value(0, Required = true, HelpText = "project name", Default = null)]
         public string ProjectName { get; set; }
 
+        [Option(HelpText = "Recreate frustum overlaps that already exist", Default = false)]
+        public bool RedoOverlaps { get; set; }
+
         [Option(HelpText = "Recreate matches that already exist", Default = false)]
         public bool RedoMatches { get; set; }
+
+        [Option(HelpText = "Find feature matches for images within the same site drive", Default = false)]
+        public bool MatchWithinSiteDrives { get; set; }
     }
 
     public class LocalMatching : LocalPipeline
@@ -44,12 +50,16 @@ namespace OPS.Pipeline
                                              UseTransformPriors = true,
                                              LoadFeatures = true,
                                              OnlyKeepImagesWithFeatures = true,
-                                             OnlyKeepBestImages = true
+                                             OnlyKeepBestImages = true,
+                                             OnlyCrossSiteDriveOverlaps = !options.MatchWithinSiteDrives
                                          });
             var scene = sb.BuildTopDown(project.RootFrame);
 
-            var fod = new FrustumOverlapDetector(this, Logger);
-            fod.Detect(scene);
+            if (options.RedoOverlaps || scene.Overlaps.Count == 0)
+            {
+                var fod = new FrustumOverlapDetector(this, Logger);
+                fod.Detect(scene, !options.MatchWithinSiteDrives);
+            }
 
             LogInfo("finding feature matches for {0} image pairs", scene.Overlaps.Count);
             double startSec = UTCTime.Now();
@@ -67,7 +77,7 @@ namespace OPS.Pipeline
                         var overlap = Overlap.Find(this, project.Name, modelObs, dataObs);
                         if (overlap != null && overlap.Status == Overlap.StatusType.Matched)
                         {
-                            LogInfo("not recomputing features matches for {0}", overlap.CombinedName);
+                            LogInfo("not recomputing feature matches for {0}", overlap.CombinedName);
                             Interlocked.Increment(ref ns);
                         }
                     }

@@ -21,7 +21,6 @@ namespace OPS.Pipeline.AlignmentServer
         public string DataImageUrl;
         public string DataFrameName;
         public Guid DataFeaturesGuid;
-        public int OverlapIndex;
         public MatchImagesMessage() { }
         public MatchImagesMessage(string projectName) : base(projectName) { }
     }
@@ -30,7 +29,6 @@ namespace OPS.Pipeline.AlignmentServer
     {
         public string ModelImageUrl;
         public string DataImageUrl;
-        public int OverlapIndex;
         public Guid CorrespondenceGuid;
         public ImagesMatchedMessage() { }
         public ImagesMatchedMessage(string projectName) : base(projectName) { }
@@ -49,12 +47,9 @@ namespace OPS.Pipeline.AlignmentServer
         {
             var modelUrl = message.ModelImageUrl;
             var dataUrl = message.DataImageUrl;
+            var pairName = (new URLPair(modelUrl, dataUrl)).ToStringShort();
 
-            var pair = string.Format("({0}, {1})", 
-                                     StringHelper.GetLastUrlPathSegment(modelUrl),
-                                     StringHelper.GetLastUrlPathSegment(dataUrl));
-
-            pipeline.LogInfo("matching features for image pair {0} in project {1}", pair, projectName);
+            pipeline.LogInfo("matching features for image pair {0} in project {1}", pairName, projectName);
 
             var result = ImageMatching.ComputeCorrespondence(pipeline, projectName, modelUrl, dataUrl,
                                                              message.ModelFrameName, message.DataFrameName);
@@ -62,7 +57,7 @@ namespace OPS.Pipeline.AlignmentServer
             Guid guid = Guid.Empty;
             if (result != null && result.Correspondence != null)
             {
-                pipeline.LogInfo("matched features for image pair {0} in project {1}", pair, projectName);
+                pipeline.LogInfo("matched features for image pair {0} in project {1}", pairName, projectName);
 
                 var project = Project.Find(pipeline, projectName);
                 pipeline.SaveDataProduct(project.ProductPath, result, projectName);
@@ -74,14 +69,13 @@ namespace OPS.Pipeline.AlignmentServer
             }
             else
             {
-                pipeline.LogError("failed to match features for image pair {0} in project {1}", pair, projectName);
+                pipeline.LogError("failed to match features for image pair {0} in project {1}", pairName, projectName);
             }
 
             pipeline.MasterQueue.Enqueue(new ImagesMatchedMessage(projectName)
             {
                 ModelImageUrl = modelUrl,
                 DataImageUrl = dataUrl,
-                OverlapIndex = message.OverlapIndex,
                 CorrespondenceGuid = guid
             });
         }

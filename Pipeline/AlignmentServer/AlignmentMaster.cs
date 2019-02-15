@@ -50,8 +50,14 @@ namespace OPS.Pipeline.AlignmentServer
         [Option(HelpText = "Recompute all image features", Default = false)]
         public bool RedoFeatures { get; set; }
 
-        [Option(HelpText = "Start a worker in the same process (useful for debugging)", Default = false)]
-        public bool StartWorker { get; set; }
+        [Option(HelpText = "Recreate frustum overlaps that already exist", Default = false)]
+        public bool RedoOverlaps { get; set; }
+
+        [Option(HelpText = "Recreate matches that already exist", Default = false)]
+        public bool RedoMatches { get; set; }
+
+        [Option(HelpText = "Find feature matches for images within the same site drive", Default = false)]
+        public bool MatchWithinSiteDrives { get; set; }
 
         [Option(HelpText = "Skip image matching, use matches that already exist in database", Default = false)]
         public bool SkipMatching { get; set; }
@@ -64,21 +70,20 @@ namespace OPS.Pipeline.AlignmentServer
 
         [Option(HelpText = "Allow bundle adjust to change site drive poses", Default = true)]
         public bool AdjustAcrossSiteDrives { get; set; }
-    }
 
-    public class OverlapState
-    {
-        public URLPair Pair;
-        public bool received;
+        [Option(HelpText = "Start a worker in the same process (useful for debugging)", Default = false)]
+        public bool StartWorker { get; set; }
     }
 
     public class ImageState
     {
-        public bool UseForAlignment;
         public Observation Observation;
         public Guid MaskGuid = Guid.Empty;
         public Guid FeaturesGuid = Guid.Empty;
-        public List<OverlapState> Overlaps;
+        public ImageState(Observation obs)
+        {
+            this.Observation = obs;
+        }
     }
 
     //https://github.jpl.nasa.gov/ProtoSpace/ps-pipeline/issues/159
@@ -225,7 +230,7 @@ namespace OPS.Pipeline.AlignmentServer
                 var obs = res.Observation;
                 if (obs.ObservationType == ObservationType.Image.ToString())
                 {
-                    var state = new ImageState() { Observation = obs, Overlaps = new List<OverlapState>() };
+                    var state = new ImageState(obs);
                     imageStates[obs.Url] = state;
                     ingestionRequested.Add(obs.Url);
                 }
@@ -323,8 +328,7 @@ namespace OPS.Pipeline.AlignmentServer
 
     public class MatchStage : Stage
     {
-        private List<OverlapState> allOverlaps = new List<OverlapState>();
-        private int computedOverlaps = 0;
+        private HashSet<URLPair> pendingOverlaps = new HashSet<URLPair>();
 
         public MatchStage(CloudPipeline pipeline, StartAlignMasterOptions options,
                           Dictionary<string, ImageState> imageStates)
@@ -361,6 +365,7 @@ namespace OPS.Pipeline.AlignmentServer
         {
             var project = Project.Find(pipeline, options.ProjectName);
 
+            var onlyCrossSite = !(options.AdjustWithinSiteDrives || options.MatchWithinSiteDrives);
             pipeline.LogInfo("building scene graph for image matching");
             var sb = new BuildSceneGraph(pipeline, options.ProjectName, new BuildSceneGraph.Options()
                                          {
@@ -368,75 +373,87 @@ namespace OPS.Pipeline.AlignmentServer
                                              LoadObservations = true,
                                              OnlyKeepImagesWithFeatures = true,
                                              OnlyKeepBestImages = true,
+                                             OnlyCrossSiteDriveOverlaps = onlyCrossSite,
                                              IncludeObservation = obs => imageStates.ContainsKey(obs.Url)
                                          });
             var scene = sb.BuildTopDown(project.RootFrame);
 
-            pipeline.LogInfo("detecting overlaps");
-            var fod = new FrustumOverlapDetector(pipeline, pipeline.Logger);
-            fod.Detect(scene);
+            if (options.RedoOverlaps || scene.Overlaps.Count == 0)
+            {
+                var fod = new FrustumOverlapDetector(pipeline, pipeline.Logger);
+                fod.Detect(scene, onlyCrossSite);
+            }
+
+            pendingOverlaps.UnionWith(scene.Overlaps);
 
             foreach (var pair in scene.Overlaps)
             {
-                var os = new OverlapState() { Pair = pair, received = false };
+                var pairName = pair.ToStringShort();
                 var modelUrl = pair.One;
                 var dataUrl = pair.Two;
-
-                int idx = allOverlaps.Count;
-                allOverlaps.Add(os);
-
-                imageStates[modelUrl].Overlaps.Add(os);
-                imageStates[dataUrl].Overlaps.Add(os);
-
                 var modelState = imageStates[modelUrl];
                 var dataState = imageStates[dataUrl];
+                var modelObs = modelState.Observation.Name;
+                var dataObs = dataState.Observation.Name;
 
-                pipeline.LogInfo("requesting feature match for overlapping image pair ({0}, {1})",
-                                 StringHelper.GetLastUrlPathSegment(modelUrl),
-                                 StringHelper.GetLastUrlPathSegment(dataUrl));
-
-                pipeline.WorkerQueue.Enqueue(new MatchImagesMessage(options.ProjectName)
+                bool skip = false;
+                if (!options.RedoMatches)
                 {
-                    ModelImageUrl = modelUrl,
-                    ModelFeaturesGuid = modelState.FeaturesGuid,
-                    ModelFrameName = modelState.Observation.FrameName,
+                    var overlap = Overlap.Find(pipeline, options.ProjectName, modelObs, dataObs);
+                    if (overlap != null && overlap.Status == Overlap.StatusType.Matched)
+                    {
+                        pipeline.LogInfo("not recomputing feature matches for overlapping image pair {0}", pairName);
+                        skip = true;
+                    }
+                }
 
-                    DataImageUrl = dataUrl,
-                    DataFeaturesGuid = dataState.FeaturesGuid,
-                    DataFrameName = dataState.Observation.FrameName,
-
-                    OverlapIndex = idx
-                });
+                if (!skip)
+                {
+                    pipeline.LogInfo("requesting feature matches for overlapping image pair {0}", pairName);
+                    pipeline.WorkerQueue.Enqueue(new MatchImagesMessage(options.ProjectName)
+                    {
+                            ModelImageUrl = modelUrl,
+                            ModelFeaturesGuid = modelState.FeaturesGuid,
+                            ModelFrameName = modelState.Observation.FrameName,
+                            DataImageUrl = dataUrl,
+                            DataFeaturesGuid = dataState.FeaturesGuid,
+                            DataFrameName = dataState.Observation.FrameName,
+                    });
+                }
+                else
+                {
+                    MatchCompleted(pair);
+                }
             }
         }
 
         private void MatchDone(ImagesMatchedMessage message)
         {
-            var state = allOverlaps[message.OverlapIndex];
             var modelUrl = message.ModelImageUrl;
             var dataUrl = message.DataImageUrl;
+            var pair = new URLPair(modelUrl, dataUrl);
+            var pairName = pair.ToStringShort();
 
-            var pair = string.Format("({0}, {1})", 
-                                     StringHelper.GetLastUrlPathSegment(modelUrl),
-                                     StringHelper.GetLastUrlPathSegment(dataUrl));
-
-            if (state.received)
+            if (!pendingOverlaps.Contains(pair))
             {
-                pipeline.LogInfo("duplicate features matched message for image pair {0}", pair);
+                pipeline.LogInfo("duplicate features matched message for image pair {0}", pairName);
                 return;
             }
 
-            pipeline.LogInfo("got feature match for image pair {0}", pair);
-
-            state.received = true;
+            pipeline.LogInfo("got feature match for image pair {0}", pairName);
 
             // create db entry once all of the work is done - natural rate limiting
             var modelObs = imageStates[modelUrl].Observation.Name;
             var dataObs = imageStates[dataUrl].Observation.Name;
             ImageMatching.SaveOverlap(pipeline, message.ProjectName, message.CorrespondenceGuid, modelObs, dataObs);
 
-            computedOverlaps++;
-            if (computedOverlaps >= allOverlaps.Count)
+            MatchCompleted(pair);
+        }
+
+        private void MatchCompleted(URLPair pair)
+        {
+            pendingOverlaps.Remove(pair);
+            if (pendingOverlaps.Count == 0)
             {
                 if (!options.SkipBundleAdjust && (options.AdjustWithinSiteDrives || options.AdjustAcrossSiteDrives))
                 {

@@ -105,14 +105,13 @@ namespace OPS.Alignment
             return numNodes;
         }
         
-        public void Detect(AlignmentScene scene, bool allowInternalOverlaps = true)
+        public void Detect(AlignmentScene scene, bool onlyCrossSiteDriveOverlaps = false)
         {
             MakeHulls(scene);
 
             if (logger != null)
             {
-                logger.InfoFormat("detecting overlaps, {0}allowing internal overlaps",
-                                 allowInternalOverlaps ? "" : "not ");
+                logger.InfoFormat("detecting {0} overlaps", onlyCrossSiteDriveOverlaps ? "cross site drive" : "all");
             }
 
             HashSet<URLPair> unique = new HashSet<URLPair>();
@@ -205,7 +204,7 @@ namespace OPS.Alignment
                             processPairwise(child, children[j]);
                         }
                     }
-                    if (allowInternalOverlaps)
+                    if (!onlyCrossSiteDriveOverlaps)
                     {
                         processNode(child);
                     }
