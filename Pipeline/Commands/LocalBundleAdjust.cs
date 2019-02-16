@@ -21,8 +21,8 @@ namespace OPS.Pipeline
         [Option(HelpText = "Allow bundle adjust to change individual image poses", Default = false)]
         public bool AdjustWithinSiteDrives { get; set; }
 
-        [Option(HelpText = "Allow bundle adjust to change site drive poses", Default = true)]
-        public bool AdjustAcrossSiteDrives { get; set; }
+        [Option(HelpText = "Allow bundle adjust to change site drive poses", Default = false)]
+        public bool NoAdjustAcrossSiteDrives { get; set; }
 
         [Option(HelpText = "Number of rounds of bundle adjustment", Default = 2)]
         public int BundleAdjustRounds { get; set; }
@@ -41,7 +41,7 @@ namespace OPS.Pipeline
         {
             BundleAdjusting.BundleAdjust(this, options.ProjectName,
                                          options.AdjustWithinSiteDrives,
-                                         options.AdjustAcrossSiteDrives,
+                                         !options.NoAdjustAcrossSiteDrives,
                                          rounds: options.BundleAdjustRounds,
                                          debugOutputFolder: options.DebugOutputFolder);
             return 0;

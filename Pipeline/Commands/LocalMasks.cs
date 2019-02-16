@@ -18,8 +18,8 @@ namespace OPS.Pipeline
         [Option(HelpText = "Recreate masks that already exist", Default = false)]
         public bool RedoMasks { get; set; }
 
-        [Option(HelpText = "Show progress", Default = true)]
-        public bool Progress { get; set; }
+        [Option(HelpText = "Show progress", Default = false)]
+        public bool NoProgress { get; set; }
     }
 
     public class LocalMasks : LocalPipeline
@@ -71,7 +71,7 @@ namespace OPS.Pipeline
                     }
                     Interlocked.Increment(ref nm);
                     Interlocked.Increment(ref np);
-                    if (options.Progress)
+                    if (!options.NoProgress)
                     {
                         LogInfo("computing {0} masks in parallel, completed {1}/{2}", np, nc, no);
                     }

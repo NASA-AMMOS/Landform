@@ -26,8 +26,8 @@ namespace OPS.Pipeline
         [Option(HelpText = "Find feature matches for images within the same site drive", Default = false)]
         public bool MatchWithinSiteDrives { get; set; }
 
-        [Option(HelpText = "Show progress", Default = true)]
-        public bool Progress { get; set; }
+        [Option(HelpText = "Hide progress", Default = false)]
+        public bool NoProgress { get; set; }
     }
 
     public class LocalMatching : LocalPipeline
@@ -76,7 +76,7 @@ namespace OPS.Pipeline
                     }
                 }
                 Interlocked.Increment(ref np);
-                if (options.Progress)
+                if (!options.NoProgress)
                 {
                     LogInfo("processing {0} image pairs in parallel, completed {1}/{2}", np, nc, no);
                 }

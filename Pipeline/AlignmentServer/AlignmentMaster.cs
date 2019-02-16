@@ -68,8 +68,8 @@ namespace OPS.Pipeline.AlignmentServer
         [Option(HelpText = "Allow bundle adjust to change individual image poses", Default = false)]
         public bool AdjustWithinSiteDrives { get; set; }
 
-        [Option(HelpText = "Allow bundle adjust to change site drive poses", Default = true)]
-        public bool AdjustAcrossSiteDrives { get; set; }
+        [Option(HelpText = "Allow bundle adjust to change site drive poses", Default = false)]
+        public bool NoAdjustAcrossSiteDrives { get; set; }
 
         [Option(HelpText = "Number of rounds of bundle adjustment", Default = 2)]
         public int BundleAdjustRounds { get; set; }
@@ -445,7 +445,7 @@ namespace OPS.Pipeline.AlignmentServer
             pendingOverlaps.Remove(pair);
             if (pendingOverlaps.Count == 0)
             {
-                if (!options.SkipBundleAdjust && (options.AdjustWithinSiteDrives || options.AdjustAcrossSiteDrives))
+                if (!options.SkipBundleAdjust && (options.AdjustWithinSiteDrives || !options.NoAdjustAcrossSiteDrives))
                 {
                     BundleAdjust();
                 }
@@ -461,7 +461,7 @@ namespace OPS.Pipeline.AlignmentServer
         {
             BundleAdjusting.BundleAdjust(pipeline, options.ProjectName,
                                          options.AdjustWithinSiteDrives,
-                                         options.AdjustAcrossSiteDrives,
+                                         !options.NoAdjustAcrossSiteDrives,
                                          obs => imageStates.ContainsKey(obs.Url),
                                          options.BundleAdjustRounds,
                                          options.DebugOutputFolder);

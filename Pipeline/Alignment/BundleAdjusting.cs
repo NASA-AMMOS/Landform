@@ -36,7 +36,7 @@ namespace OPS.Pipeline
                 });
             AlignmentScene scene = bsg.BuildTopDown(project.RootFrame);
 
-            int numAdjustedNodes = 0, numImageNodes = 0;
+            int numAdjustedNodes = 0, numImageNodes = 0, nsd = 0, nobs = 0;
             foreach (var siteDriveNode in scene.Root.Children)
             {
                 Debug.Assert(!siteDriveNode.IsLeaf);
@@ -45,6 +45,7 @@ namespace OPS.Pipeline
                 {
                     siteDriveNode.AddComponent<AdjustedNode>();
                     numAdjustedNodes++;
+                    nsd++;
                 }
                 foreach (var observationNode in siteDriveNode.Children)
                 {
@@ -56,22 +57,27 @@ namespace OPS.Pipeline
                         {
                             observationNode.AddComponent<AdjustedNode>();
                             numAdjustedNodes++;
+                            nobs++;
                         }
                     }
                 }
             }
 
+            pipeline.LogInfo("adjusting across site drives: {0}", adjustAcrossSiteDrives);
+            pipeline.LogInfo("adjusting within site drives: {0}", adjustWithinSiteDrives);
+            pipeline.LogInfo("adjusting {0} nodes, {1} site drive frames, {2} observation frames", 
+                             numAdjustedNodes, nsd, nobs);
+
             if (numAdjustedNodes >= 2)
             {
-                pipeline.LogInfo("running bundle adjuster, adjusting {0} nodes, {1} total images, {2} rounds",
-                                 numAdjustedNodes, numImageNodes, rounds);
+                pipeline.LogInfo("running bundle adjuster, {0} total images, {1} rounds", numImageNodes, rounds);
 
                 double startTime = UTCTime.Now();
                 var ba = new BundleAdjuster(pipeline.Logger);
                 ba.Adjust(scene, rounds, debugOutputFolder);
                 pipeline.LogInfo("bundle adjust complete ({0:F3}s)", UTCTime.Now() - startTime);
                 
-                int n = 0;
+                int n = 1;
                 foreach (var adjNode in scene.Root.GetComponentsInTree<AdjustedNode>())
                 {
                     pipeline.LogInfo("saving transform {0} of {1} adjusted frames", n++, numAdjustedNodes);

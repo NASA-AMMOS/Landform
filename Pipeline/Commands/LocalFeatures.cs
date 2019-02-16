@@ -21,8 +21,8 @@ namespace OPS.Pipeline
         [Option(HelpText = "Recreate features that already exist", Default = false)]
         public bool RedoFeatures { get; set; }
 
-        [Option(HelpText = "Show progress", Default = true)]
-        public bool Progress { get; set; }
+        [Option(HelpText = "Hide progress", Default = false)]
+        public bool NoProgress { get; set; }
     }
 
     public class LocalFeatures : LocalPipeline
@@ -76,7 +76,7 @@ namespace OPS.Pipeline
                     }
                     Interlocked.Increment(ref nf);
                     Interlocked.Increment(ref np);
-                    if (options.Progress)
+                    if (!options.NoProgress)
                     {
                         LogInfo("computing features for {0} images in parallel, completed {1}/{2}", np, nc, no);
                     }
