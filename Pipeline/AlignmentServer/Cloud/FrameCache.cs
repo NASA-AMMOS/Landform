@@ -47,7 +47,6 @@ namespace OPS.Pipeline.AlignmentServer
         {
             priors[prior.FrameName] = prior;
         }
-
             
         public int Preload(bool loadTransforms = true, bool loadPriors = false)
         {

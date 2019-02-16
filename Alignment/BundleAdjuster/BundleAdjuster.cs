@@ -81,7 +81,7 @@ namespace OPS.Alignment
 
             if (logger != null)
             {
-                logger.InfoFormat("Setting up bundle adjust of {0} images", toAdjust.Count());
+                logger.InfoFormat("Setting up bundle adjust of {0} frames", toAdjust.Count());
             }
 
             Matrix worldToRoot = scene.Root.Transform.WorldToLocal;

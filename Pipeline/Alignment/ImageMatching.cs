@@ -96,7 +96,8 @@ namespace OPS.Pipeline
                                                                  bool redoOverlaps = false, bool onlyCrossSite = true,
                                                                  Func<Observation, bool> filter = null)
         {
-            pipeline.LogInfo("building scene graph for image matching");
+            pipeline.LogInfo("building scene graph for {0}image matching",
+                             onlyCrossSite ? "cross-site " : "");
             var sb = new BuildSceneGraph(pipeline, project.Name, new BuildSceneGraph.Options()
                                          {
                                              UseTransformPriors = true,
