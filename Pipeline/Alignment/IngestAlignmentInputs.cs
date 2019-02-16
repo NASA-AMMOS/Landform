@@ -81,8 +81,9 @@ namespace OPS.Pipeline
         public int Ingest(MSLLocations locations, Action<IngestImage.Result> func = null)
         {
             ingester.Locations = locations;
+            string imageObs = ObservationType.Image.ToString();
             double startTime = UTCTime.Now();
-            int n = 0;
+            int n = 0, nr = 0;
             ConcurrentDictionary<SiteDrive, ConcurrentDictionary<string, int>> stats =
                 new ConcurrentDictionary<SiteDrive, ConcurrentDictionary<string, int>>();
             foreach (var entry in BaseUrls)
@@ -112,6 +113,10 @@ namespace OPS.Pipeline
                                 pipeline.LogVerbose("{0} ({1}) {2}x{3} {4} sitedrive={5} -> observation {6}",
                                                     res.ImageUrl, res.Status, obs.Width, obs.Height,
                                                     obs.ObservationType, sd, obs.Name);
+                                if (obs.ObservationType == imageObs && obs.UseForReconstruction)
+                                {
+                                    Interlocked.Increment(ref nr);
+                                }
                             }
                             else if (res.Observation != null)
                             {
@@ -148,7 +153,8 @@ namespace OPS.Pipeline
             }
             foreach (var entry in totalStats)
             {
-                pipeline.LogInfo("total {0} {1} observations", entry.Value, entry.Key);
+                pipeline.LogInfo("total {0} {1} observations{2}", entry.Value, entry.Key,
+                                 entry.Key == imageObs ? (" (" + nr + " for reconstruction)") : "");
             }
 
             return n;

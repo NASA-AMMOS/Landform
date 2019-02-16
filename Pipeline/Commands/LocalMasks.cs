@@ -17,6 +17,9 @@ namespace OPS.Pipeline
 
         [Option(HelpText = "Recreate masks that already exist", Default = false)]
         public bool RedoMasks { get; set; }
+
+        [Option(HelpText = "Show progress", Default = true)]
+        public bool Progress { get; set; }
     }
 
     public class LocalMasks : LocalPipeline
@@ -38,46 +41,51 @@ namespace OPS.Pipeline
                 return 1;
             }
 
-            int no = 0, nio = 0, ne = 0, nm = 0, np = 0, ns = 0;
+            var observations = RoverObservation.Find(this, options.ProjectName)
+                .Where(o => o.ObservationType == ObservationType.Image.ToString())
+                .Where(o => o.UseForReconstruction)
+                .ToList();
+            int no = observations.Count;
+
+            LogInfo("computing masks for {0} reconstruction images", no);
+
             double startSec = UTCTime.Now();
-            Parallel.ForEach(RoverObservation.Find(this, options.ProjectName), obs => {
-                    Interlocked.Increment(ref no);
-                    if (obs.ObservationType == ObservationType.Image.ToString())
+            int nc = 0, ne = 0, nm = 0, np = 0;
+            Parallel.ForEach(observations, obs => {
+                    if (obs.MaskGuid != null && obs.MaskGuid != Guid.Empty)
                     {
-                        Interlocked.Increment(ref nio);
-                        if (obs.MaskGuid != null && obs.MaskGuid != Guid.Empty)
+                        Interlocked.Increment(ref ne);
+                        if (!options.RedoMasks)
                         {
-                            Interlocked.Increment(ref ne);
-                            if (!options.RedoMasks)
-                            {
-                                LogVerbose("not recomputing mask for observation {0}", obs.Name);
-                                Interlocked.Increment(ref ns);
-                                return;
-                            }
-                            else
-                            {
-                                LogVerbose("recomputing mask for observation {0}", obs.Name);
-                            }
+                            LogVerbose("not recomputing mask for observation {0}", obs.Name);
+                            return;
                         }
                         else
                         {
-                            LogVerbose("computing mask for observation {0}", obs.Name);
+                            LogVerbose("recomputing mask for observation {0}", obs.Name);
                         }
-                        Interlocked.Increment(ref nm);
-                        Interlocked.Increment(ref np);
-                        LogVerbose("computing {0} masks in parallel", np);
-                        var mask = new PngDataProduct(RoverMask.Build(LoadImage(obs.Url)));
-                        SaveDataProduct(project.ProductPath, mask, project.Name);
-                        obs.MaskGuid = mask.Guid;
-                        obs.Save(this);
-                        Interlocked.Decrement(ref np);
-                        
                     }
+                    else
+                    {
+                        LogVerbose("computing mask for observation {0}", obs.Name);
+                    }
+                    Interlocked.Increment(ref nm);
+                    Interlocked.Increment(ref np);
+                    if (options.Progress)
+                    {
+                        LogInfo("computing {0} masks in parallel, completed {1}/{2}", np, nc, no);
+                    }
+                    var mask = new PngDataProduct(RoverMask.Build(LoadImage(obs.Url)));
+                    SaveDataProduct(project.ProductPath, mask, project.Name);
+                    obs.MaskGuid = mask.Guid;
+                    obs.Save(this);
+                    Interlocked.Decrement(ref np);
+                    Interlocked.Increment(ref nc);
                 });
             double totalSec = UTCTime.Now() - startSec;
 
-            LogInfo("processed {0} observations ({1:F3}s), {2} images, {3} existing masks, " +
-                    "computed {4} masks, skipped {5}", no, totalSec, nio, ne, nm, ns);
+            LogInfo("processed {0} reconstruction images ({1:F3}s), computed {2} masks ({3} existing)",
+                    nc, totalSec, nm, ne);
 
             return 0;
         }

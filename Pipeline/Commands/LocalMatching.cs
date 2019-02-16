@@ -25,6 +25,9 @@ namespace OPS.Pipeline
 
         [Option(HelpText = "Find feature matches for images within the same site drive", Default = false)]
         public bool MatchWithinSiteDrives { get; set; }
+
+        [Option(HelpText = "Show progress", Default = true)]
+        public bool Progress { get; set; }
     }
 
     public class LocalMatching : LocalPipeline
@@ -47,10 +50,12 @@ namespace OPS.Pipeline
 
             var scene = ImageMatching.BuildSceneAndDetectOverlaps(this, project, options.RedoOverlaps,
                                                                   !options.MatchWithinSiteDrives);
+            int no = scene.Overlaps.Count;
 
-            LogInfo("finding feature matches for {0} image pairs", scene.Overlaps.Count);
+            LogInfo("finding feature matches for {0} image pairs", no);
+
             double startSec = UTCTime.Now();
-            int no = 0, np = 0, nc = 0, ns = 0, ng = 0;
+            int nc = 0, np = 0, ne = 0, nr = 0, ns = 0;
             Parallel.ForEach(scene.Overlaps, pair => {
                 string pairName = pair.ToStringShort();
                 var modelUrl = pair.One;
@@ -59,37 +64,41 @@ namespace OPS.Pipeline
                 var dataNode = scene.ObservationUrlToNode[dataUrl];
                 var modelObs = modelNode.GetComponent<NodeObservation>().Observation.Name;
                 var dataObs = dataNode.GetComponent<NodeObservation>().Observation.Name;
-                Interlocked.Increment(ref no);
                 if (!options.RedoMatches)
                 {
                     //only hit the database if we need to
                     var overlap = Overlap.Find(this, project.Name, modelObs, dataObs);
                     if (overlap != null)
                     {
+                        Interlocked.Increment(ref ne);
                         LogVerbose("not recomputing feature matches for image pair {0}", pairName);
-                        Interlocked.Increment(ref ns);
                         return;
                     }
                 }
                 Interlocked.Increment(ref np);
-                LogVerbose("processing {0} image pairs in parallel", np);
+                if (options.Progress)
+                {
+                    LogInfo("processing {0} image pairs in parallel, completed {1}/{2}", np, nc, no);
+                }
                 LogVerbose("computing features matches for image pair {0}", pairName);
                 var result = ImageMatching.ComputeCorrespondence(this, scene, modelUrl, dataUrl);
                 var guid = Guid.Empty;
                 if (result != null)
                 {
-                    Interlocked.Increment(ref nc);
+                    Interlocked.Increment(ref nr);
                     SaveDataProduct(project.ProductPath, result, project.Name);
                     guid = result.Guid;
                 }
                 if (ImageMatching.SaveOverlap(this, project.Name, guid, modelObs, dataObs))
                 {
-                    Interlocked.Increment(ref ng);
+                    Interlocked.Increment(ref ns);
                 }
                 Interlocked.Decrement(ref np);
+                Interlocked.Increment(ref nc);
             });
-            LogInfo("processed {0} image pairs ({1:F3}s), computed {2} correspondences, saved {3}, skipped {4}",
-                    no, UTCTime.Now() - startSec, nc, ng, ns);
+
+            LogInfo("processed {0} image pairs ({1:F3}s), computed {2} correspondences ({3} existing), saved {4}",
+                    nc, UTCTime.Now() - startSec, nr, ne, ns);
 
             return 0;
         }

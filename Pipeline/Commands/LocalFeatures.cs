@@ -20,6 +20,9 @@ namespace OPS.Pipeline
 
         [Option(HelpText = "Recreate features that already exist", Default = false)]
         public bool RedoFeatures { get; set; }
+
+        [Option(HelpText = "Show progress", Default = true)]
+        public bool Progress { get; set; }
     }
 
     public class LocalFeatures : LocalPipeline
@@ -41,51 +44,56 @@ namespace OPS.Pipeline
                 return 1;
             }
 
+            var observations = RoverObservation.Find(this, options.ProjectName)
+                .Where(o => o.ObservationType == ObservationType.Image.ToString())
+                .Where(o => o.UseForReconstruction)
+                .ToList();
+            int no = observations.Count;
+
+            LogInfo("computing {0} features for {1} reconstruction images", options.DetectorType, no);
+
             FeatureDetector detector = new FeatureDetector(options.DetectorType);
 
-            int no = 0, nio = 0, ne = 0, nf = 0, np = 0, ns = 0;
             double startSec = UTCTime.Now();
-            Parallel.ForEach(RoverObservation.Find(this, options.ProjectName), obs => {
-                    Interlocked.Increment(ref no);
-                    if (obs.ObservationType == ObservationType.Image.ToString())
+            int nc = 0, ne = 0, nf = 0, np = 0;
+            Parallel.ForEach(observations, obs => {
+                    if (obs.FeaturesGuid != null && obs.FeaturesGuid != Guid.Empty)
                     {
-                        Interlocked.Increment(ref nio);
-                        if (obs.FeaturesGuid != null && obs.FeaturesGuid != Guid.Empty)
+                        Interlocked.Increment(ref ne);
+                        if (!options.RedoFeatures)
                         {
-                            Interlocked.Increment(ref ne);
-                            if (!options.RedoFeatures)
-                            {
-                                LogVerbose("not recomputing features for observation {0}", obs.Name);
-                                Interlocked.Increment(ref ns);
-                                return;
-                            }
-                            else
-                            {
-                                LogVerbose("recomputing features for observation {0}", obs.Name);
-                            }
+                            LogVerbose("not recomputing features for observation {0}", obs.Name);
+                            return;
                         }
                         else
                         {
-                            LogVerbose("computing features for observation {0}", obs.Name);
+                            LogVerbose("recomputing features for observation {0}", obs.Name);
                         }
-                        Interlocked.Increment(ref nf);
-                        Interlocked.Increment(ref np);
-                        LogVerbose("computing features for {0} images in parallel", np);
-                        var features = detector.Detect(this, obs.Url, obs.MaskGuid, project.Name, project.ProductPath);
-                        if (features != null)
-                        {
-                            SaveDataProduct(project.ProductPath, features, project.Name);
-                            obs.FeaturesGuid = features.Guid;
-                            obs.Save(this);
-                        }
-                        Interlocked.Decrement(ref np);
-                        
                     }
+                    else
+                    {
+                        LogVerbose("computing features for observation {0}", obs.Name);
+                    }
+                    Interlocked.Increment(ref nf);
+                    Interlocked.Increment(ref np);
+                    if (options.Progress)
+                    {
+                        LogInfo("computing features for {0} images in parallel, completed {1}/{2}", np, nc, no);
+                    }
+                    var features = detector.Detect(this, obs.Url, obs.MaskGuid, project.Name, project.ProductPath);
+                    if (features != null)
+                    {
+                        SaveDataProduct(project.ProductPath, features, project.Name);
+                        obs.FeaturesGuid = features.Guid;
+                        obs.Save(this);
+                    }
+                    Interlocked.Decrement(ref np);
+                    Interlocked.Increment(ref nc);
                 });
             double totalSec = UTCTime.Now() - startSec;
             
-            LogInfo("processed {0} observations ({1:F3}s), {2} images, {3} had existing features, " +
-                    "computed features for {4} images, {5} skipped", no, totalSec, nio, ne, nf, ns);
+            LogInfo("processed {0} reconstruction images ({1:F3}s), computed features for {2} images ({3} existing)",
+                    nc, totalSec, nf, ne);
 
             return 0;
         }
