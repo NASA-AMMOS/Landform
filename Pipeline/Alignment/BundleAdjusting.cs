@@ -20,11 +20,12 @@ namespace OPS.Pipeline
                                                   bool adjustWithinSiteDrives = false,
                                                   bool adjustAcrossSiteDrives = true,
                                                   Func<Observation, bool> observationFilter = null,
+                                                  int rounds = 2,
                                                   string debugOutputFolder = null)
         {
             var project = Project.Find(pipeline, projectName);
 
-            pipeline.LogInfo("building scene graph for bundle adjustment");
+            pipeline.LogInfo("building scene graph for bundle adjustment, project {0}", projectName);
             var bsg = new BuildSceneGraph(pipeline, project.Name, new BuildSceneGraph.Options {
                     UseTransformPriors = true,
                     LoadCorrespondences = true,
@@ -62,11 +63,13 @@ namespace OPS.Pipeline
 
             if (numAdjustedNodes >= 2)
             {
-                pipeline.LogInfo("running bundle adjuster, adjusting {0} nodes, {1} total images",
-                                 numAdjustedNodes, numImageNodes);
+                pipeline.LogInfo("running bundle adjuster, adjusting {0} nodes, {1} total images, {2} rounds",
+                                 numAdjustedNodes, numImageNodes, rounds);
 
+                double startTime = UTCTime.Now();
                 var ba = new BundleAdjuster(pipeline.Logger);
-                ba.Adjust(scene, debugOutputFolder);
+                ba.Adjust(scene, rounds, debugOutputFolder);
+                pipeline.LogInfo("bundle adjust complete ({0:F3}s)", UTCTime.Now() - startTime);
                 
                 int n = 0;
                 foreach (var adjNode in scene.Root.GetComponentsInTree<AdjustedNode>())

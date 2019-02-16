@@ -23,6 +23,9 @@ namespace OPS.Pipeline
 
         [Option(HelpText = "Allow bundle adjust to change site drive poses", Default = true)]
         public bool AdjustAcrossSiteDrives { get; set; }
+
+        [Option(HelpText = "Number of rounds of bundle adjustment", Default = 2)]
+        public int BundleAdjustRounds { get; set; }
     }
 
     public class LocalBundleAdjust : LocalPipeline
@@ -36,12 +39,11 @@ namespace OPS.Pipeline
 
         public int Run()
         {
-            double startSec = UTCTime.Now();
             BundleAdjusting.BundleAdjust(this, options.ProjectName,
                                          options.AdjustWithinSiteDrives,
                                          options.AdjustAcrossSiteDrives,
+                                         rounds: options.BundleAdjustRounds,
                                          debugOutputFolder: options.DebugOutputFolder);
-            LogInfo("bundle adjusted in {1:F3} sec", UTCTime.Now() - startSec);
             return 0;
         }
     }

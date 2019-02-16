@@ -70,7 +70,7 @@ namespace OPS.Alignment
             }
         }
 
-        public void Adjust(AlignmentScene scene, string debugOutputDirectory = null)
+        public void Adjust(AlignmentScene scene, int rounds = 2, string debugOutputDirectory = null)
         {
             // scene.Root is the world coordinate system
             // AdjustedNodes are present on all frames to adjust
@@ -324,11 +324,11 @@ namespace OPS.Alignment
 
             HashSet<int> badPoints = new HashSet<int>();
 
-            for (int iter = 0; iter < 2; iter++)
+            for (int round = 0; round < rounds; round++)
             {
                 if (logger != null)
                 {
-                    logger.InfoFormat("running Ceres iteration: {0}", iter);
+                    logger.InfoFormat("running Ceres round {0}", round);
                 }
 
                 double startTime = UTCTime.Now();
@@ -446,7 +446,6 @@ namespace OPS.Alignment
 
                 logger.Info("Completed trimming bad points from tracks");
             }
-
         }
     }
 }

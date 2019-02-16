@@ -71,6 +71,9 @@ namespace OPS.Pipeline.AlignmentServer
         [Option(HelpText = "Allow bundle adjust to change site drive poses", Default = true)]
         public bool AdjustAcrossSiteDrives { get; set; }
 
+        [Option(HelpText = "Number of rounds of bundle adjustment", Default = 2)]
+        public int BundleAdjustRounds { get; set; }
+
         [Option(HelpText = "Start a worker in the same process (useful for debugging)", Default = false)]
         public bool StartWorker { get; set; }
     }
@@ -460,6 +463,7 @@ namespace OPS.Pipeline.AlignmentServer
                                          options.AdjustWithinSiteDrives,
                                          options.AdjustAcrossSiteDrives,
                                          obs => imageStates.ContainsKey(obs.Url),
+                                         options.BundleAdjustRounds,
                                          options.DebugOutputFolder);
             AllDone();
         }
