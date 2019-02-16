@@ -84,7 +84,7 @@ namespace OPS.Pipeline
                 });
             double totalSec = UTCTime.Now() - startSec;
             
-            LogInfo("processed {0} observations in {1:F3} sec, {2} images, {3} had existing features, " +
+            LogInfo("processed {0} observations ({1:F3}s), {2} images, {3} had existing features, " +
                     "computed features for {4} images, {5} skipped", no, totalSec, nio, ne, nf, ns);
 
             return 0;

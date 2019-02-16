@@ -220,7 +220,7 @@ namespace OPS.Pipeline
             // Parse the filename to quickly rule out data products we know we don't care about.
             if (!CheckFilename(StringHelper.GetLastUrlPathSegment(imgUrl, stripExtension: true)))
             {
-                pipeline.LogVerbose("rejected {0} by filename", imgUrl);
+                pipeline.LogDebug("rejected {0} by filename", imgUrl);
                 return new Result(imgUrl, Status.Skipped, null);
             }
 
@@ -229,7 +229,7 @@ namespace OPS.Pipeline
             PDSParser parser = new PDSParser(metadata);
             if (!CheckMetadata(parser))
             {
-                pipeline.LogVerbose("rejected {0} by metadata", imgUrl);
+                pipeline.LogDebug("rejected {0} by metadata", imgUrl);
                 return new Result(imgUrl, Status.Skipped, null);
             }
 
@@ -242,7 +242,7 @@ namespace OPS.Pipeline
             }
             catch
             {
-                pipeline.LogVerbose("invalid camera model for {0}", observationName);
+                pipeline.LogDebug("invalid camera model for {0}", observationName);
                 return new Result(imgUrl, Status.Skipped, null);
             }
 
@@ -267,12 +267,12 @@ namespace OPS.Pipeline
             {
                 if (recreateExistingObservations)
                 {
-                    pipeline.LogVerbose("recreating existing observation {0}", observationName);
+                    pipeline.LogDebug("recreating existing observation {0}", observationName);
                     pipeline.DeleteDatabaseItem(observation);
                 }
                 else
                 {
-                    pipeline.LogVerbose("not recreating existing observation {0}", observationName);
+                    pipeline.LogDebug("not recreating existing observation {0}", observationName);
                     return new Result(imgUrl, Status.Duplicate, observation);
                 }
             }
@@ -289,12 +289,12 @@ namespace OPS.Pipeline
             {
                 observationFrame.AddObservation(observationName);
                 observationFrame.Save(pipeline);
-                pipeline.LogVerbose("created observation {0}", observationName);
+                pipeline.LogDebug("created observation {0}", observationName);
                 return new Result(imgUrl, Status.Added, observation);
             }
             else
             {
-                pipeline.LogVerbose("failed to create observation {0}", observationName);
+                pipeline.LogDebug("failed to create observation {0}", observationName);
                 return new Result(imgUrl, Status.Failed, null);
             }
         }
@@ -335,7 +335,7 @@ namespace OPS.Pipeline
             var frameTransform = FrameTransform.Find(pipeline, frame);
             if (frameTransform == null)
             {
-                pipeline.LogVerbose("creating transform for frame {0}", name);
+                pipeline.LogDebug("creating transform for frame {0}", name);
                 var transform = defTransform();
                 frameTransform = FrameTransform.Create(pipeline, frame, transform);
                 var prior = TransformPrior.Create(pipeline, frame, transform);
@@ -344,7 +344,7 @@ namespace OPS.Pipeline
             }
             else if (resetTransforms && !alreadyResetTransforms.ContainsKey(name))
             {
-                pipeline.LogVerbose("resetting transform for frame {0}", name);
+                pipeline.LogDebug("resetting transform for frame {0}", name);
                 var transform = defTransform();
                 frameTransform.Transform = transform;
                 frameTransform.Save(pipeline);

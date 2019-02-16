@@ -81,6 +81,7 @@ namespace OPS.Pipeline
         public int Ingest(MSLLocations locations, Action<IngestImage.Result> func = null)
         {
             ingester.Locations = locations;
+            double startTime = UTCTime.Now();
             int n = 0;
             ConcurrentDictionary<SiteDrive, ConcurrentDictionary<string, int>> stats =
                 new ConcurrentDictionary<SiteDrive, ConcurrentDictionary<string, int>>();
@@ -100,7 +101,7 @@ namespace OPS.Pipeline
 
                             if (res.Status == IngestImage.Status.Skipped)
                             {
-                                pipeline.LogInfo("{0} ({1})", res.ImageUrl, res.Status);
+                                pipeline.LogVerbose("{0} ({1})", res.ImageUrl, res.Status);
                             }
                             else if (res.Observation is RoverObservation)
                             {
@@ -108,18 +109,19 @@ namespace OPS.Pipeline
                                 var sd = new SiteDrive(obs.Site, obs.Drive);
                                 var sds = stats.GetOrAdd(sd, _ => new ConcurrentDictionary<string, int>());
                                 sds.AddOrUpdate(obs.ObservationType, _ => 1, (_, m) => m + 1);
-                                pipeline.LogInfo("{0} ({1}) {2}x{3} {4} sitedrive={5} -> observation {6}", res.ImageUrl,
-                                                 res.Status, obs.Width, obs.Height, obs.ObservationType, sd, obs.Name);
+                                pipeline.LogVerbose("{0} ({1}) {2}x{3} {4} sitedrive={5} -> observation {6}",
+                                                    res.ImageUrl, res.Status, obs.Width, obs.Height,
+                                                    obs.ObservationType, sd, obs.Name);
                             }
                             else if (res.Observation != null)
                             {
                                 var obs = res.Observation;
-                                pipeline.LogInfo("{0} ({1}) {2}x{3} {4} -> observation {5}", res.ImageUrl,
-                                                 res.Status, obs.Width, obs.Height, obs.ObservationType, obs.Name);
+                                pipeline.LogVerbose("{0} ({1}) {2}x{3} {4} -> observation {5}", res.ImageUrl,
+                                                    res.Status, obs.Width, obs.Height, obs.ObservationType, obs.Name);
                             }
                             else
                             {
-                                pipeline.LogInfo("{0} ({1}) -> observation NULL", res.ImageUrl, res.Status);
+                                pipeline.LogVerbose("{0} ({1}) -> observation NULL", res.ImageUrl, res.Status);
                             }
 
                             if (func != null) func(res);
@@ -127,7 +129,8 @@ namespace OPS.Pipeline
                     });
             }
                 
-            pipeline.LogInfo("ingested {0} input files for alignment project {1}", n, project.Name);
+            pipeline.LogInfo("ingested {0} input files {1:F3}s", n, UTCTime.Now() - startTime);
+
             Dictionary<string, int> totalStats = new Dictionary<string, int>();
             foreach (var sds in stats)
             {

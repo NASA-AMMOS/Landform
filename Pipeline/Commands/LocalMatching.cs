@@ -88,7 +88,7 @@ namespace OPS.Pipeline
                 }
                 Interlocked.Decrement(ref np);
             });
-            LogInfo("processed {0} image pairs in {1:F3} sec, computed {2} correspondences, saved {3}, skipped {4}",
+            LogInfo("processed {0} image pairs ({1:F3}s), computed {2} correspondences, saved {3}, skipped {4}",
                     no, UTCTime.Now() - startSec, nc, ng, ns);
 
             return 0;

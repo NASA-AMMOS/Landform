@@ -50,18 +50,18 @@ namespace OPS.Pipeline
                             Interlocked.Increment(ref ne);
                             if (!options.RedoMasks)
                             {
-                                LogInfo("not recomputing mask for observation {0}", obs.Name);
+                                LogVerbose("not recomputing mask for observation {0}", obs.Name);
                                 Interlocked.Increment(ref ns);
                                 return;
                             }
                             else
                             {
-                                LogInfo("recomputing mask for observation {0}", obs.Name);
+                                LogVerbose("recomputing mask for observation {0}", obs.Name);
                             }
                         }
                         else
                         {
-                            LogInfo("computing mask for observation {0}", obs.Name);
+                            LogVerbose("computing mask for observation {0}", obs.Name);
                         }
                         Interlocked.Increment(ref nm);
                         Interlocked.Increment(ref np);
@@ -76,7 +76,7 @@ namespace OPS.Pipeline
                 });
             double totalSec = UTCTime.Now() - startSec;
 
-            LogInfo("processed {0} observations in {1:F3} sec, {2} images, {3} had existing masks, " +
+            LogInfo("processed {0} observations ({1:F3}s), {2} images, {3} existing masks, " +
                     "computed {4} masks, skipped {5}", no, totalSec, nio, ne, nm, ns);
 
             return 0;
