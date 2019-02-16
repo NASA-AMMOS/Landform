@@ -12,7 +12,7 @@ namespace OPS.Pipeline.AlignmentServer
         private readonly string projectName;
 
         private readonly Dictionary<string, Overlap> overlaps = new Dictionary<string, Overlap>();
-        private readonly Dictionary<string, List<Overlap>> forObservation = new Dictionary<string, List<Overlap>>();
+        private readonly Dictionary<string, List<Overlap>> forObs = new Dictionary<string, List<Overlap>>();
 
         public OverlapCache(PipelineCore pipeline, string projectName)
         {
@@ -32,11 +32,11 @@ namespace OPS.Pipeline.AlignmentServer
 
         private void AddForObs(Overlap overlap, string observationName)
         {
-            if (!forObservation.ContainsKey(observationName))
+            if (!forObs.ContainsKey(observationName))
             {
-                forObservation[observationName] = new List<Overlap>();
+                forObs[observationName] = new List<Overlap>();
             }
-            forObservation[observationName].Add(overlap);
+            forObs[observationName].Add(overlap);
         }
 
         public int Preload()
@@ -47,13 +47,13 @@ namespace OPS.Pipeline.AlignmentServer
 
         public IEnumerable<Overlap> GetAllOverlapsForObservation(Observation observation)
         {
-            if (!forObservation.ContainsKey(observation.Name))
+            if (!forObs.ContainsKey(observation.Name))
             {
                 Overlap.FindAllForObservation(pipeline, observation.ProjectName, observation.Name)
                     .ToList()
                     .ForEach(overlap => Add(overlap));
             }
-            return forObservation[observation.Name];
+            return forObs.ContainsKey(observation.Name) ? forObs[observation.Name] : Enumerable.Empty<Overlap>();
         }
 
         public Overlap GetOverlap(string name)
