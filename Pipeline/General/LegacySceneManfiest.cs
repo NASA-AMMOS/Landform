@@ -2,9 +2,10 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Text;
+using System.Textr1
 using System.Threading.Tasks;
 using System.Xml;
+using log4net;
 using Microsoft.Xna.Framework;
 using OPS.Geometry;
 using OPS.Imaging;
@@ -14,6 +15,9 @@ namespace OPS.Pipeline
 {
     public class LegacySceneManfiest
     {
+
+        static ILog logger = LogManager.GetLogger(typeof(LegacySceneManfiest));
+
         public class ImageData
         {
             public string FileId;
@@ -185,7 +189,20 @@ namespace OPS.Pipeline
 
             XmlElement dimEl = doc.CreateElement("dimensions");
             XmlElement originEl = doc.CreateElement("origin");
-            originEl.InnerText = p.FirstLine + "," + p.FirstSample;
+            // Assume 1,1 as a fall back in cases where this isn't defined
+            var firstLine = 1;
+            var firstSample = 1;
+            try
+            {
+                firstLine = p.FirstLine;
+                firstSample = p.FirstSample;
+            }
+            catch
+            {
+                logger.Warn("Missing first line and sample in metadata, assuming 1,1");
+            }
+
+            originEl.InnerText = firstLine + "," + firstSample;
             XmlElement widthEl = doc.CreateElement("width");
             XmlElement heightEl = doc.CreateElement("height");
             XmlElement firstLineEl = doc.CreateElement("first_line");
@@ -198,8 +215,8 @@ namespace OPS.Pipeline
             XmlElement sitedrive = doc.CreateElement("sitedrive");
             widthEl.InnerText = imageData.Metadata.Width.ToString();
             heightEl.InnerText = imageData.Metadata.Height.ToString();
-            firstLineEl.InnerText = p.FirstLine.ToString();
-            firstLineSampleEl.InnerText = p.FirstSample.ToString();
+            firstLineEl.InnerText = firstLine.ToString();
+            firstLineSampleEl.InnerText = firstSample.ToString();
             dimEl.AppendChild(widthEl);
             dimEl.AppendChild(heightEl);
             dimEl.AppendChild(firstLineEl);
@@ -211,7 +228,20 @@ namespace OPS.Pipeline
             rotationQuaternion.InnerText = string.Format("{0} {1} {2} {3}", qvals.W, qvals.X, qvals.Y, qvals.Z);
             imageEl.AppendChild(rotationQuaternion);
 
-            fov.InnerText = string.Format("{0}", p.HorizontalFOV);
+            // Compute from camera model in cases where this isn't defined
+            double hfov = 0;
+            try
+            {
+                hfov =  p.HorizontalFOV;
+            }
+            catch
+            {
+                logger.Warn("Missing hfov in metadata, estimating based on camera model");
+                var r1 = imageData.Metadata.CameraModel.Unproject(new Vector2(0, imageData.Metadata.Height / 2));
+                var r2 = imageData.Metadata.CameraModel.Unproject(new Vector2(imageData.Metadata.Width, imageData.Metadata.Height / 2));
+                hfov = EdgeCollapse.Angle(r1.Direction, r2.Direction); // 0.411114050636516 was hardcoded for M2020 ROASTT;
+            }
+            fov.InnerText = string.Format("{0}", hfov);
             sitedrive.InnerText = siteData.SiteDrive.ToString();
             
             imageEl.AppendChild(dimEl);
