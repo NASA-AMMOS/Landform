@@ -38,15 +38,29 @@ namespace OPS.Pipeline
         [Option(Required = false, Default = null, HelpText = "If set, meshes will be decimated by this amount before tiling.  Valid range [0-1]")]
         public double? DecimationRatio { get; set; }
 
-        [Option(Required = false, Default = null, HelpText = "If set, this file can be used to filter what products IDs should be used.  Each line should contain a product ID")]
-        public string FilterFile { get; set; }
+        [Option(Required = false, Default = null, HelpText = "If set, this file can be used to filter what products IDs should be used.  Each line should contain a product ID to include, all others will be excluded")]
+        public string MeshInclude { get; set; }
+
+        [Option(Required = false, Default = null, HelpText = "If set, this file can be used to filter what products IDs should be used.  Each line should contain a product ID to exclude, all others will be included")]
+        public string MeshExclude { get; set; }
+
+        [Option(Required = false, Default = null, HelpText = "Should mastcam meshes be used")]
+        public bool MeshMastcam { get; set; }
+
+        [Option(Required = false, Default = null, HelpText = "Should hazcam meshes be used")]
+        public bool MeshHazcam{ get; set; }
 
         [Option(Required = false, Default = 16, HelpText = "Control the number of concurrent downloads")]
         public int ConcurrentDownloads { get; set; }
 
         [Option(Required = false, Default = 4, HelpText = "Control the number of concurrent mesh operations")]
         public int ConcurrentMeshOps { get; set; }
-        
+
+        [Option(Required = false, Default = false, HelpText = "Start a tiling server within this process")]
+        public bool RunTilingServer { get; set; }
+
+        [Option(Required = false, Default = false, HelpText = "Force recalculating normals using meshlab at the begining")]
+        public bool ForceNormalComputation { get; set; }
     }
 
     public class EmtToScene
@@ -117,6 +131,30 @@ namespace OPS.Pipeline
                 if (this.JPG != null)
                 {
                     this.JPG = PathHelper.ChangeDirectory(this.JPG, basePath);
+                }
+            }
+
+            public bool Nav
+            {
+                get
+                {
+                    return FilenameBase.StartsWith("N");
+                }
+            }
+
+            public bool Mast
+            {
+                get
+                {
+                    return FilenameBase.StartsWith("M");
+                }
+            }
+
+            public bool Haz
+            {
+                get
+                {
+                    return FilenameBase.StartsWith("F") || FilenameBase.StartsWith("R");
                 }
             }
 
@@ -410,6 +448,12 @@ namespace OPS.Pipeline
                 {
                     m.GenerateVertexNormals();
                 }
+                // In the ROASTT, we saw some issues with normals and  dataset has some backwards normals
+                if (options.ForceNormalComputation)
+                {
+                    logger.Info("Forcing normal recomputation with meshlab");
+                    m = MeshLab.ComputeNormals(m);
+                }
                 if (decimationRatio.HasValue)
                 {
                     int targetFaces = (int)(m.Faces.Count * decimationRatio.Value);
@@ -490,6 +534,7 @@ namespace OPS.Pipeline
                 };
                 imageDatas.Add(imageData);
             });
+            imageDatas = new ConcurrentBag<LegacySceneManfiest.ImageData>(imageDatas.Where(id => new PDSParser(id.Metadata).SiteDrive != null));
             var groupedImageData = imageDatas.GroupBy(id => new PDSParser(id.Metadata).SiteDrive.ToString());
             var primarySiteDrive = groupedImageData.Select(g => g.Key).OrderBy(x => x).Last();
             logger.Info("Converting images for scene");
@@ -527,6 +572,21 @@ namespace OPS.Pipeline
 
         public int Run()
         {
+            Task tilingTask = null;
+            if (options.RunTilingServer)
+            {
+                tilingTask = new Task(() =>
+                {
+                    var opts = new StartWorkerOptions()
+                    {
+                        StartMaster = true,
+                        SingleThreaded = false
+                    };
+                    var worker = new StartWorker(opts);
+                    worker.Run();
+                });
+                tilingTask.Start();
+            }
 
             if (options.WorkingDir == null)
             {
@@ -534,21 +594,26 @@ namespace OPS.Pipeline
             }
 
             var fileRecords = IndexFiles(options.SearchLocations);
-            logger.Info("Total files found: " + fileRecords.Count());
-
-            if(options.FilterFile != null)
-            {
-                var productIds = ReadFilterFile(options.FilterFile);
-                fileRecords = fileRecords.Where(rec => productIds.Contains(rec.FilenameBase));
-                logger.Info("Filtered down to: " + fileRecords.Count());
-            }
+            logger.Info("Total files found: " + fileRecords.Count());           
 
             var imageRecords = fileRecords.Where(rec => rec.HasImage && rec.HasMetadata && (rec.RAS || rec.RASL) && !rec.Thumbnail);
             logger.Info("Total Image files found: " + imageRecords.Count());
             HashSet<string> raslRecords = new HashSet<string>(imageRecords.Where(rec => rec.RASL).Select(rec => rec.FilenameBase));
             imageRecords = imageRecords.Where(rec => rec.RASL || (rec.RAS && !raslRecords.Contains(rec.RASLBaseName)));
             logger.Info("Images after linear filter: " + imageRecords.Count());
-            var meshRecords = fileRecords.Where(rec => rec.RASL && rec.HasMesh && rec.IsLeft && rec.HasImage && rec.HasMetadata);
+            var meshRecords = fileRecords.Where(rec => rec.RASL && rec.HasMesh && rec.IsLeft && rec.HasImage && rec.HasMetadata && (rec.Nav || (options.MeshMastcam && rec.Mast) || (options.MeshHazcam && rec.Haz)));
+            if (options.MeshInclude != null)
+            {
+                var productIds = ReadFilterFile(options.MeshInclude);
+                meshRecords = meshRecords.Where(rec => productIds.Contains(rec.FilenameBase));
+                logger.Info("Filtered meshes down to: " + meshRecords.Count());
+            }
+            if (options.MeshExclude != null)
+            {
+                var productIds = ReadFilterFile(options.MeshExclude);
+                meshRecords = meshRecords.Where(rec => !productIds.Contains(rec.FilenameBase));
+                logger.Info("Filtered meshes down to: " + meshRecords.Count());
+            }
             logger.Info("Total Mesh files found: " + meshRecords.Count());
 
             logger.Info("Downloading Files");
@@ -606,6 +671,10 @@ namespace OPS.Pipeline
             r = new RunProject(runOptions).Run();
             var tilesetUrl = TileServerConfig.Instance.WWWUrl(projectName);
             logger.Info("Building tileset.  When done copy data from " + tilesetUrl + " to tile3d_2.0 directory");
+            if (tilingTask != null)
+            {
+                tilingTask.Wait();
+            }
             return 0;
         }
 
