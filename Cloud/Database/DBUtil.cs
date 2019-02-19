@@ -101,7 +101,14 @@ namespace OPS.Cloud
         public class PropInfo
         {
             public MemberInfo Info;
+            public Type Type;
             public string DynamoDBPropName;
+            public PropInfo(MemberInfo info, string name)
+            {
+                this.Info = info;
+                this.Type = info is PropertyInfo ? (info as PropertyInfo).PropertyType : (info as FieldInfo).FieldType;
+                this.DynamoDBPropName = name;
+            }
         }
 
         /// <summary>
@@ -130,7 +137,7 @@ namespace OPS.Cloud
                 }
                 if (!checkForAttribute || hasAttrib)
                 {
-                    ret[member.Name] = new PropInfo() { Info = member, DynamoDBPropName = name };
+                    ret[member.Name] = new PropInfo(member, name);
                 }
             }
             return ret;

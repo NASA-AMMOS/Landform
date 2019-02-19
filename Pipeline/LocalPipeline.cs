@@ -175,6 +175,48 @@ namespace OPS.Pipeline
 
         private static readonly char[] invalidChars = new char[] {'/', '\\' };
 
+        private class DBKey
+        {
+            public readonly string TableName;
+            public readonly string HashValue;
+            public readonly string RangeValue;
+
+            public DBKey(string tableName, string hashValue, string rangeValue)
+            {
+                this.TableName = tableName;
+                this.HashValue = hashValue;
+                this.RangeValue = rangeValue;
+            }
+
+            public override int GetHashCode()
+            {
+                int hash = HashCombiner.Combine(TableName, HashValue);
+                if (RangeValue != null)
+                {
+                    hash = HashCombiner.Combine(hash, RangeValue);
+                }
+                return hash;
+            }
+
+            public override bool Equals(object obj)
+            {
+                if (obj == null || !(obj is DBKey))
+                {
+                    return false;
+                }
+                DBKey other = obj as DBKey;
+                return TableName == other.TableName && HashValue == other.HashValue && RangeValue == other.RangeValue;
+            }
+
+            public override string ToString()
+            {
+                return TableName + "/" + HashValue + (RangeValue != null ? ("/" + RangeValue) : "");
+            }
+        }     
+        
+        //corresponding file on disk is StorageUrlWithVenue/db/tableName/hashKey[-rangeKey].json
+        private ConcurrentDictionary<DBKey, string> dbCache = new ConcurrentDictionary<DBKey, string>();
+
         private class TableInfo
         {
             public readonly string TypeName;
@@ -182,8 +224,8 @@ namespace OPS.Pipeline
             public readonly string HashKey;
             public readonly string RangeKey;
 
-            public readonly Dictionary<string, DBUtil.PropInfo> JSONPropToDBProp;
-            public readonly Dictionary<string, string> DBPropToJSONProp;
+            public readonly Dictionary<string, DBUtil.PropInfo> JsonPropToDBProp;
+            public readonly Dictionary<string, string> DBPropToJsonProp;
 
             private void Check(string field, string value, bool nullOk)
             {
@@ -212,22 +254,22 @@ namespace OPS.Pipeline
                 this.HashKey = hashKey;
                 this.RangeKey = rangeKey;
 
-                JSONPropToDBProp = DBUtil.GetDynamoDBPropMap(type);
-                DBPropToJSONProp = new Dictionary<string, string>();
-                foreach (var entry in JSONPropToDBProp)
+                JsonPropToDBProp = DBUtil.GetDynamoDBPropMap(type);
+                DBPropToJsonProp = new Dictionary<string, string>();
+                foreach (var entry in JsonPropToDBProp)
                 {
-                    DBPropToJSONProp.Add(entry.Value.DynamoDBPropName, entry.Key);
+                    DBPropToJsonProp.Add(entry.Value.DynamoDBPropName, entry.Key);
                 }
             }
 
-            public string MakeKey(string hashValue, string rangeValue)
+            public DBKey MakeKey(string hashValue, string rangeValue)
             {
                 Check("hash key", hashValue, false);
                 Check("range key", rangeValue, RangeKey == null);
-                return Name + "/" + hashValue + (!string.IsNullOrEmpty(RangeKey) ? ("/" + rangeValue) : "");
+                return new DBKey(Name, hashValue, !string.IsNullOrEmpty(RangeKey) ? rangeValue : null); 
             }
 
-            public string MakeKey(object obj)
+            public DBKey MakeKey(object obj)
             {
                 string hashValue = null, rangeValue = null;
                 DBUtil.GetKeyValues(obj, out hashValue, out rangeValue);
@@ -249,6 +291,14 @@ namespace OPS.Pipeline
         private static string ToJson(object obj, bool ignoreNulls = true, bool indent = true)
         {
             return JsonHelper.ToJson(obj, indent: indent, autoTypes: false, ignoreNulls: ignoreNulls);
+        }
+
+        private static string MergeJson<T>(string oldJson, object obj, bool indent = true)
+        {
+            T oldObj = FromJson<T>(oldJson, ignoreNulls: false);
+            string newJson = ToJson(obj, ignoreNulls: true, indent: false);
+            object mergedObj = FromJson(newJson, oldObj, ignoreNulls: true);
+            return ToJson(mergedObj, ignoreNulls: false, indent: indent);
         }
 
         private static T FromJson<T>(string json, bool ignoreNulls = true)
@@ -278,10 +328,6 @@ namespace OPS.Pipeline
             return GetDatabaseTableUrl(ti) + hash + (!string.IsNullOrEmpty(range) ? "-" + range : "") + ".json";
         }
 
-        //indexed by tableName/haskHey[/rangeKey]
-        //corresponding file on disk is StorageUrlWithVenue/db/tableName/hashKey[-rangeKey].json
-        private ConcurrentDictionary<string, object> dbCache = new ConcurrentDictionary<string, object>();
-
         private void InitializeDatabase()
         {
             int nt = 0, ni = 0;
@@ -298,19 +344,27 @@ namespace OPS.Pipeline
                         ni++;
                         nti++;
                         string file = GetFileCached(url);
-                        object obj = FromJson(File.ReadAllText(file), t);
-                        string key = ti.MakeKey(obj);
-                        LogDebug("{0} -> \"{1}\" -> {2} {3}", file, key, t.FullName, ToJson(obj, indent: false));
-                        dbCache.AddOrUpdate(key, _ => obj, (_, __) => obj);
+                        string json = File.ReadAllText(file);
+                        //we could probably scrape the hash and range keys from the json without rehydrating here
+                        //but it's easier to code this way for now, we can revisit if this is ever a perf problem
+                        //
+                        //unfortunately I don't see a good way to get the hash and range keys just from the filename
+                        //because it's hard to think of a "safe" separator (we currently use just a dash)
+                        //that would be guaranteed not to appear in either the keys themselves
+                        //though we could escape it in them, but again that would take some work
+                        object obj = FromJson(json, t);
+                        var key = ti.MakeKey(obj);
+                        LogDebug("{0} -> {1}[{2}]={3}", file, t.FullName, key, StringHelper.CollapseWhitespace(json));
+                        dbCache.AddOrUpdate(key, _ => json, (_, __) => json);
                     }
                 }
                 LogVerbose("initialized table {0} of {1} {2} from {3}, hashKey={4}, rangeKey={5}",
-                        ti.Name, nti, ti.TypeName, baseUrl, ti.HashKey, ti.RangeKey);
+                           ti.Name, nti, ti.TypeName, baseUrl, ti.HashKey, ti.RangeKey);
             }
             LogVerbose("initialized {0} database tables, {1} total items", nt, ni);
         }
 
-        private T CheckDatabaseOperation<T>(string what, TableInfo ti, string key, bool ignoreErrors, Func<T> op)
+        private T CheckDatabaseOperation<T>(string what, TableInfo ti, DBKey key, bool ignoreErrors, Func<T> op)
             where T : class
         {
             T ret = null;
@@ -335,18 +389,14 @@ namespace OPS.Pipeline
         {
             var ti = GetTableInfo(typeof(T));
             var key = ti.MakeKey(obj);
-
             CheckDatabaseOperation<object>("saving", ti, key, ignoreErrors, () => {
-
-                    obj = (T) dbCache.AddOrUpdate
+                    string newJson = dbCache.AddOrUpdate
                     (key,
-                     (_) => ignoreNulls ? FromJson(ToJson(obj, ignoreNulls: true), typeof(T), true) : obj,
-                     (_, old) => ignoreNulls ? FromJson(ToJson(obj, ignoreNulls: true), old, true) : obj);
-                     
-                    LogDebug("SaveDatabaseItem key={0}, obj={1}", key, ToJson(obj, indent: false));
-
+                     (_) => ToJson(obj, ignoreNulls),
+                     (_, oldJson) => ignoreNulls ? MergeJson<T>(oldJson, obj) : ToJson(obj, false));
+                    LogDebug("SaveDatabaseItem key={0} json={1}", key, StringHelper.CollapseWhitespace(newJson));
                     TemporaryFile.GetAndDelete(".json", file => {
-                            File.WriteAllText(file, ToJson(obj, ignoreNulls: false));
+                            File.WriteAllText(file, newJson);
                             lock (dbDiskLock)
                             {
                                 SaveFile(file, GetDatabaseItemUrl(ti, obj));
@@ -361,12 +411,12 @@ namespace OPS.Pipeline
                                               bool ignoreErrors = false, bool consistent = false)
         {
             var ti = GetTableInfo(typeof(T));
-            key = ti.MakeKey(key, secondaryKey);
-            return CheckDatabaseOperation<T>("loading", ti, key, ignoreErrors, () => {
-                    object obj = null;
-                    dbCache.TryGetValue(key, out obj);
-                    LogDebug("LoadDatabaseItem key={0}, obj={1}", key, ToJson(obj, indent: false));
-                    return (T) obj;
+            var dbKey = ti.MakeKey(key, secondaryKey);
+            return CheckDatabaseOperation<T>("loading", ti, dbKey, ignoreErrors, () => {
+                    string json = null;
+                    dbCache.TryGetValue(dbKey, out json);
+                    LogDebug("LoadDatabaseItem key={0} json={1}", dbKey, StringHelper.CollapseWhitespace(json));
+                    return json != null ? FromJson<T>(json, ignoreNulls) : null;
                 });
         }
 
@@ -375,12 +425,12 @@ namespace OPS.Pipeline
             var ti = GetTableInfo(typeof(T));
             var key = ti.MakeKey(obj);
             CheckDatabaseOperation<object>("deleting", ti, key, ignoreErrors, () => {
-                    object dummy = null;
-                    if (!dbCache.TryRemove(key, out dummy))
+                    string json = null;
+                    if (!dbCache.TryRemove(key, out json))
                     {
                         throw new Exception("failed to remove database item from memory cache");
                     }
-                    LogDebug("DeleteDatabaseItem key={0}, obj={1}", key, ToJson(obj, indent: false));
+                    LogDebug("DeleteDatabaseItem key={0}, json={1}", key, StringHelper.CollapseWhitespace(json));
                     lock (dbDiskLock)
                     {
                         DeleteFile(GetDatabaseItemUrl(ti, obj), ignoreErrors);
@@ -389,85 +439,81 @@ namespace OPS.Pipeline
                 });
         }
 
+        private Regex ScanConditionRegex(string value, string name = null, Type type = null)
+        {
+            bool isPrefix = value.StartsWith("^");
+            string escapedValue = isPrefix ? Regex.Escape(value.Substring(1)) : Regex.Escape(value);
+            if (name != null)
+            {
+                string quoteMaybe = type == typeof(string) ? "\"" : "";
+                return new Regex("\"" + Regex.Escape(name) + "\"\\s*:\\s*" +
+                                 quoteMaybe + escapedValue + (isPrefix ? "" : (quoteMaybe + "\\s*,")));
+            }
+            else
+            {
+                return new Regex("^" + escapedValue + (isPrefix ? "" : "$"));
+            }
+        }
+
         public override IEnumerable<T> ScanDatabase<T>(Dictionary<string, string> conditions = null,
                                                        string indexName = null)
         {
             var ti = GetTableInfo(typeof(T));
             Regex hashRegex = new Regex(".*");
             Regex rangeRegex = new Regex(".*");
-            Dictionary<MemberInfo, Regex> fieldRegex = new Dictionary<MemberInfo, Regex>();
+            List<Regex> fieldRegex = new List<Regex>();
             foreach (var entry in conditions ?? new Dictionary<string, string>())
             {
                 string jsonPropName = null;
-                if (!ti.DBPropToJSONProp.TryGetValue(entry.Key, out jsonPropName))
+                if (!ti.DBPropToJsonProp.TryGetValue(entry.Key, out jsonPropName))
                 {
                     throw new ArgumentException(string.Format("database entry field \"{0}\" not found in type \"{1}\"",
                                                               entry.Key, ti.TypeName));
                 }
-                var val = entry.Value;
-                Regex regex =
-                    val.StartsWith("^")
-                    ? new Regex("^" + Regex.Escape(val.Substring(1)))
-                    : new Regex("^" + Regex.Escape(val) + "$");
                 if (jsonPropName == ti.HashKey)
                 {
-                    hashRegex = regex;
+                    hashRegex = ScanConditionRegex(entry.Value);
                 }
                 else if (jsonPropName == ti.RangeKey)
                 {
-                    rangeRegex = regex;
+                    rangeRegex = ScanConditionRegex(entry.Value);
                 } 
                 else
                 {
-                    fieldRegex[ti.JSONPropToDBProp[jsonPropName].Info] = regex;
+                    fieldRegex.Add(ScanConditionRegex(entry.Value, jsonPropName,
+                                                      ti.JsonPropToDBProp[jsonPropName].Type));
                 }
             }
             LogDebug("ScanDatabase hashRegex={0}, rangeRegex={1}, {2}", hashRegex, rangeRegex,
-                     string.Join(", ", fieldRegex.Select(v => v.Key.Name + "Regex=" + v.Value.ToString()).ToArray()));
-
+                     string.Join(", ", fieldRegex.Select(v => v.ToString()).ToArray()));
             foreach (var entry in dbCache)
             {
-                LogDebug(entry.Key);
-                int firstSlash = entry.Key.IndexOf('/');
-                int lastSlash = entry.Key.LastIndexOf('/');
-                if (firstSlash <= 0 || lastSlash <= firstSlash)
+                LogDebug(entry.Key.ToString());
+                if (!hashRegex.IsMatch(entry.Key.HashValue))
                 {
                     continue;
                 }
-                string tableName = entry.Key.Substring(0, firstSlash);
-                if (tableName != ti.Name)
+                if (!string.IsNullOrEmpty(ti.RangeKey) && !rangeRegex.IsMatch(entry.Key.RangeValue))
                 {
                     continue;
                 }
-                string hashKey = entry.Key.Substring(firstSlash + 1, lastSlash - firstSlash - 1);
-                if (!hashRegex.IsMatch(hashKey))
+                LogDebug("{0} matches hashKey={1} and rangeKey={2}", entry.Key, hashRegex, rangeRegex);
+                bool ok = true;
+                var json = entry.Value;
+                foreach (var regex in fieldRegex)
                 {
-                    continue;
-                }
-                string rangeKey = null;
-                if (!string.IsNullOrEmpty(ti.RangeKey) && lastSlash < entry.Key.Length - 1)
-                {
-                    rangeKey = entry.Key.Substring(lastSlash + 1);
-                    if (!rangeRegex.IsMatch(rangeKey))
+                    if (!regex.IsMatch(json))
                     {
-                        continue;
+                        ok = false;
+                        break;
                     }
                 }
-                LogDebug("{0} matches hashKey={1} and rangeKey={2}", entry.Key, hashKey, rangeKey);
-                foreach (var cond in fieldRegex)
+                if (!ok)
                 {
-                    if (!cond.Value.IsMatch(DBUtil.GetMemberValueAsString(cond.Key, entry.Value)))
-                    {
-                        continue;
-                    }
-                }
-                if (entry.Value.GetType() != typeof(T))
-                {
-                    LogWarn("object of type {0} in table {1}", entry.Value.GetType().FullName, ti.Name);
                     continue;
                 }
                 LogDebug("{0} matches all conditions", entry.Key);
-                yield return (T) entry.Value;
+                yield return FromJson<T>(json, ignoreNulls: false);
             }
         }
     }

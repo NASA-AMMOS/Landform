@@ -180,7 +180,6 @@
     <Compile Include="AlignmentServer\Cloud\RoverObservation.cs" />
     <Compile Include="AlignmentServer\Cloud\SpatialIndex.cs" />
     <Compile Include="AlignmentServer\Cloud\SquareMatrixConverter.cs" />
-    <Compile Include="AlignmentServer\Cloud\SynchronizedConverter.cs" />
     <Compile Include="AlignmentServer\Cloud\TransformPrior.cs" />
     <Compile Include="AlignmentServer\Cloud\Vector3Converter.cs" />
     <Compile Include="AlignmentServer\Cloud\VectorNConverter.cs" />

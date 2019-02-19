@@ -28,10 +28,8 @@ namespace OPS.Pipeline.AlignmentServer
 
         public string ParentName;
 
-        [JsonConverter(typeof(SynchronizedConverter<List<string>>))]
         public List<string> PriorIds;
 
-        [JsonConverter(typeof(SynchronizedConverter<List<string>>))]
         public List<string> ObservationNames;
 
         public bool IsLocated(PipelineCore pipeline)
@@ -141,26 +139,20 @@ namespace OPS.Pipeline.AlignmentServer
 
         public bool AddPrior(string id)
         {
-            lock (PriorIds)
+            if (PriorIds.Contains(id))
             {
-                if (PriorIds.Contains(id))
-                {
-                    return false;
-                }
-                PriorIds.Add(id);
-                return true;
+                return false;
             }
+            PriorIds.Add(id);
+            return true;
         }
 
         public TransformPrior GetPrior(PipelineCore pipeline)
         {
             string id = null;
-            lock (PriorIds)
+            if (PriorIds.Count > 0)
             {
-                if (PriorIds.Count > 0)
-                {
-                    id = PriorIds[0];
-                }
+                id = PriorIds[0];
             }
             if (id == null)
             {
@@ -169,25 +161,14 @@ namespace OPS.Pipeline.AlignmentServer
             return TransformPrior.Find(pipeline, ProjectName, id);
         }
 
-        public IEnumerable<string> GetPriors()
-        {
-            lock (PriorIds)
-            {
-                return PriorIds.ToArray();
-            }
-        }
-
         public bool AddObservation(string name)
         {
-            lock (ObservationNames)
+            if (ObservationNames.Contains(name))
             {
-                if (ObservationNames.Contains(name))
-                {
-                    return false;
-                }
-                ObservationNames.Add(name);
-                return true;
+                return false;
             }
+            ObservationNames.Add(name);
+            return true;
         }
 
         public IEnumerable<Frame> GetChildren(PipelineCore pipeline)

@@ -43,7 +43,7 @@ namespace OPS.Pipeline
                     {
                         pipeline.DeleteDatabaseItem(rootTransform);
                     }
-                    foreach (var id in rootFrame.GetPriors())
+                    foreach (var id in rootFrame.PriorIds)
                     {
                         var prior = TransformPrior.Find(pipeline, projectName, id);
                         if (prior != null)

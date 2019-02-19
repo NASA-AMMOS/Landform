@@ -41,14 +41,14 @@ namespace OPS.Util
 
         public override int GetHashCode()
         {
-            return lc1.GetHashCode() ^ lc2.GetHashCode();
+            return HashCombiner.Combine(lc1, lc2);
         }
 
         public static bool operator ==(URLPair lhs, URLPair rhs)
         {
             //one & two are sorted so there is no order dependency
             //they are also already lowercased
-            return lhs.lc1 == rhs.lc1 && lhs.lc2 == rhs.lc2;
+            return lhs == null || rhs == null ? lhs == rhs : lhs.lc1 == rhs.lc1 && lhs.lc2 == rhs.lc2;
         }
 
         public static bool operator !=(URLPair lhs, URLPair rhs)
