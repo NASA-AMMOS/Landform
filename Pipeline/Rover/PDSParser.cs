@@ -356,7 +356,11 @@ namespace OPS.Pipeline
                 {
                     return metadata.ReadAsIntArray("IDENTIFICATION", "ROVER_MOTION_COUNTER");
                 }
-                return metadata.ReadAsIntArray("ROVER_MOTION_COUNTER");
+                if (metadata.HasKey("ROVER_MOTION_COUNTER"))
+                {
+                    return metadata.ReadAsIntArray("ROVER_MOTION_COUNTER");
+                }
+                return null;
             }
         }
 
@@ -365,6 +369,10 @@ namespace OPS.Pipeline
             get
             {
                 int[] mc = MotionCounter;
+                if(mc == null)
+                {
+                    return null;
+                }
                 return mc[0].ToString().PadLeft(5, '0') + mc[1].ToString().PadLeft(5, '0');
             }
         }
