@@ -157,9 +157,10 @@ namespace OPS.Pipeline
             {
                 combinedFull.GenerateVertexNormals();
             }
-            combinedFull = Mesh.Clip(combinedFull, searchBounds);
-            combinedFull.NormalizeNormals();
             BoundingBox minimumBounds = node.GetComponent<NodeBounds>().Bounds;
+            BoundingBox enlargedMinBounds = BoundingBoxExtensions.Scale(minimumBounds, childBoundSearchRatio);
+            combinedFull = Mesh.Clip(combinedFull, enlargedMinBounds);
+            combinedFull.NormalizeNormals();
 
             Mesh combinedDecimated = null;
             Mesh fullClipped = Mesh.Clip(combinedFull, minimumBounds);
