@@ -41,6 +41,13 @@ namespace OPS.Pipeline.AlignmentServer
                         Add(obs);
                     }
                 });
+            foreach (var obs in observations.Keys)
+            {
+                if (!forFrame.ContainsKey(obs))
+                {
+                    forFrame[obs] = new List<Observation>(); //frame has no observations
+                }
+            }
             return observations.Count;
         }
 
@@ -48,16 +55,22 @@ namespace OPS.Pipeline.AlignmentServer
         {
             if (!forFrame.ContainsKey(frame.Name))
             {
+                forFrame[frame.Name] = new List<Observation>(); //handles case there are none
                 RoverObservation.Find(pipeline, frame).ToList().ForEach(obs => Add(obs));
             }
-            return forFrame.ContainsKey(frame.Name) ? forFrame[frame.Name] : Enumerable.Empty<Observation>();
+            return forFrame[frame.Name];
         }
 
         public Observation GetObservation(string name)
         {
             if (!observations.ContainsKey(name))
             {
-                Add(RoverObservation.Find(pipeline, projectName, name));
+                observations[name] = null;
+                var obs = RoverObservation.Find(pipeline, projectName, name);
+                if (obs != null)
+                {
+                    Add(obs);
+                }
             }
             return observations[name];
         }

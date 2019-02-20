@@ -42,6 +42,13 @@ namespace OPS.Pipeline.AlignmentServer
         public int Preload()
         {
             Overlap.Find(pipeline, projectName).ToList().ForEach(overlap => Add(overlap));
+            foreach (var obs in overlaps.Keys)
+            {
+                if (!forObs.ContainsKey(obs))
+                {
+                    forObs[obs]  = new List<Overlap>(); //no overlaps for this observation
+                }
+            }
             return overlaps.Count;
         }
 
@@ -49,18 +56,24 @@ namespace OPS.Pipeline.AlignmentServer
         {
             if (!forObs.ContainsKey(observation.Name))
             {
+                forObs[observation.Name] = new List<Overlap>(); //handles case there are none
                 Overlap.FindAllForObservation(pipeline, observation.ProjectName, observation.Name)
                     .ToList()
-                    .ForEach(overlap => Add(overlap));
+                    .ForEach(o => Add(o));
             }
-            return forObs.ContainsKey(observation.Name) ? forObs[observation.Name] : Enumerable.Empty<Overlap>();
+            return forObs[observation.Name];
         }
 
         public Overlap GetOverlap(string name)
         {
             if (!overlaps.ContainsKey(name))
             {
-                Add(Overlap.Find(pipeline, projectName, name));
+                overlaps[name] = null;
+                var overlap = Overlap.Find(pipeline, projectName, name);
+                if (overlap != null)
+                {
+                    Add(overlap);
+                }
             }
             return overlaps[name];
         }

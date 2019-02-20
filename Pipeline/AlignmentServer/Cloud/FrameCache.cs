@@ -12,9 +12,9 @@ namespace OPS.Pipeline.AlignmentServer
         private readonly string projectName;
 
         private readonly Dictionary<string, Frame> frames = new Dictionary<string, Frame>();
+        private readonly Dictionary<string, List<Frame>> children = new Dictionary<string, List<Frame>>();
         private readonly Dictionary<string, FrameTransform> transforms = new Dictionary<string, FrameTransform>();
         private readonly Dictionary<string, TransformPrior> priors = new Dictionary<string, TransformPrior>();
-        private readonly Dictionary<string, List<Frame>> children = new Dictionary<string, List<Frame>>();
 
         public FrameCache(PipelineCore pipeline, string projectName)
         {
@@ -51,13 +51,34 @@ namespace OPS.Pipeline.AlignmentServer
         public int Preload(bool loadTransforms = true, bool loadPriors = false)
         {
             Frame.Find(pipeline, projectName).ToList().ForEach(frame => Add(frame));
+            foreach (var frame in frames.Keys)
+            {
+                if (!children.ContainsKey(frame))
+                {
+                    children[frame] = new List<Frame>(); //leaf node
+                }
+            }
             if (loadTransforms)
             {
                 FrameTransform.Find(pipeline, projectName).ToList().ForEach(transform => Add(transform));
+                foreach (var frame in frames.Keys)
+                {
+                    if (!transforms.ContainsKey(frame))
+                    {
+                        transforms[frame] = null;
+                    }
+                }
             }
             if (loadPriors)
             {
                 TransformPrior.Find(pipeline, projectName).ToList().ForEach(prior => Add(prior));
+                foreach (var frame in frames.Keys)
+                {
+                    if (!priors.ContainsKey(frame))
+                    {
+                        priors[frame] = null;
+                    }
+                }
             }
             return frames.Count;
         }
@@ -66,9 +87,10 @@ namespace OPS.Pipeline.AlignmentServer
         {
             if (!children.ContainsKey(name))
             {
+                children[name] = new List<Frame>(); //handles case there are none
                 GetFrame(name).GetChildren(pipeline).ToList().ForEach(child => Add(child));
             }
-            return children.ContainsKey(name) ? children[name] : Enumerable.Empty<Frame>();
+            return children[name];
         }
 
         public IEnumerable<Frame> GetChildren(Frame frame)
@@ -80,7 +102,12 @@ namespace OPS.Pipeline.AlignmentServer
         {
             if (!frames.ContainsKey(name))
             {
-                Add(Frame.Find(pipeline, projectName, name));
+                frames[name] = null;
+                var frame = Frame.Find(pipeline, projectName, name);
+                if (frame != null)
+                {
+                    Add(frame);
+                }
             }
             return frames[name];
         }
@@ -89,7 +116,7 @@ namespace OPS.Pipeline.AlignmentServer
         {
             if (!transforms.ContainsKey(name))
             {
-                Add(FrameTransform.Find(pipeline, GetFrame(name)));
+                transforms[name] = FrameTransform.Find(pipeline, GetFrame(name)); //may be null
             }
             return transforms[name];
         }
