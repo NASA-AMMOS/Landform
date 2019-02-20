@@ -44,7 +44,7 @@ namespace OPS.Pipeline.AlignmentServer
         public int Height;
 
         /// Add required fields here 
-        private void IsValid()
+        protected void IsValid()
         {
             if (!(Url != null &&
                 FrameName != null &&
@@ -105,7 +105,7 @@ namespace OPS.Pipeline.AlignmentServer
         /// Save this observation without overwriting any values it may be missing
         /// </summary>
         /// <param name=""></param>
-        public void Save(PipelineCore pipeline)
+        public virtual void Save(PipelineCore pipeline)
         {
             pipeline.SaveDatabaseItem(this);
         }

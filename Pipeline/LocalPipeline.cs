@@ -279,13 +279,15 @@ namespace OPS.Pipeline
 
         private ConcurrentDictionary<Type, TableInfo> dbInfo = new ConcurrentDictionary<Type, TableInfo>();
 
-        private TableInfo GetTableInfo(Type type)
+        private TableInfo GetTableInfo(Type type, bool expectExists = true)
         {
-            return dbInfo.GetOrAdd(type, _ => {
-                    string name = null, hashKey = null, rangeKey = null;
-                    DBUtil.GetNameAndKeys(type, out name, out hashKey, out rangeKey, useDynamoDBPropertyNames: false);
-                    return new TableInfo(type, name, hashKey, rangeKey);
-                });
+            string name = null, hashKey = null, rangeKey = null;
+            DBUtil.GetNameAndKeys(type, out name, out hashKey, out rangeKey, useDynamoDBPropertyNames: false);
+            if (expectExists && !dbInfo.ContainsKey(type))
+            {
+                throw new ArgumentException("no database table for type " + type.FullName);
+            }
+            return dbInfo.GetOrAdd(type, _ => new TableInfo(type, name, hashKey, rangeKey));
         }
 
         private static string ToJson(object obj, bool ignoreNulls = true, bool indent = true)
@@ -334,7 +336,7 @@ namespace OPS.Pipeline
             foreach (var t in tableTypes)
             {
                 nt++;
-                var ti = GetTableInfo(t);
+                var ti = GetTableInfo(t, expectExists: false);
                 var baseUrl = GetDatabaseTableUrl(ti);
                 int nti = 0;
                 foreach (var url in SearchFiles(baseUrl, recursive: true, constrainToStorage: true))
@@ -488,7 +490,10 @@ namespace OPS.Pipeline
                      string.Join(", ", fieldRegex.Select(v => v.ToString()).ToArray()));
             foreach (var entry in dbCache)
             {
-                LogDebug(entry.Key.ToString());
+                if (ti.Name != entry.Key.TableName)
+                {
+                    continue;
+                }
                 if (!hashRegex.IsMatch(entry.Key.HashValue))
                 {
                     continue;
@@ -497,13 +502,14 @@ namespace OPS.Pipeline
                 {
                     continue;
                 }
-                LogDebug("{0} matches hashKey={1} and rangeKey={2}", entry.Key, hashRegex, rangeRegex);
+                LogDebug("ScanDatabase: {0} matches hashKey={1} and rangeKey={2}", entry.Key, hashRegex, rangeRegex);
                 bool ok = true;
                 var json = entry.Value;
                 foreach (var regex in fieldRegex)
                 {
                     if (!regex.IsMatch(json))
                     {
+                        LogDebug("ScanDatabase: {0} does not match field regex {1}", entry.Key, regex);
                         ok = false;
                         break;
                     }
@@ -512,10 +518,9 @@ namespace OPS.Pipeline
                 {
                     continue;
                 }
-                LogDebug("{0} matches all conditions", entry.Key);
+                LogDebug("ScanDatabase: {0} matches all conditions", entry.Key);
                 yield return FromJson<T>(json, ignoreNulls: false);
             }
         }
     }
 }
-        

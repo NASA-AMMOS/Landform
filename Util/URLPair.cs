@@ -44,25 +44,15 @@ namespace OPS.Util
             return HashCombiner.Combine(lc1, lc2);
         }
 
-        public static bool operator ==(URLPair lhs, URLPair rhs)
-        {
-            //one & two are sorted so there is no order dependency
-            //they are also already lowercased
-            return lhs == null || rhs == null ? lhs == rhs : lhs.lc1 == rhs.lc1 && lhs.lc2 == rhs.lc2;
-        }
-
-        public static bool operator !=(URLPair lhs, URLPair rhs)
-        {
-            return !(lhs == rhs);
-        }
-
         public override bool Equals(object obj)
         {
             if (obj == null || !(obj is URLPair))
             {
                 return false;
             }
-            return this == (URLPair)obj;
+            //one & two are sorted so there is no order dependency
+            //they are also already lowercased
+            return this.lc1 == ((URLPair)obj).lc1 && this.lc2 == ((URLPair)obj).lc2;
         }
 
         public override string ToString()
