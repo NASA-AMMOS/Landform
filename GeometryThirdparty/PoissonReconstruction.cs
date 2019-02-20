@@ -10,17 +10,60 @@ using log4net;
 
 namespace OPS.Geometry
 {
+    class PoissonConfig : SingletonConfig<PoissonConfig>
+    {
+        //on some machines the default version of PoissonRecon.exe fails with "Illegal instruction"
+        //it is usually possible to workaround this, at least sufficient for dev purposes
+        //by setting the environment variable LANDFORM_POISSON_EXE_LEGACY=true
+
+        [ConfigEnvironmentVariable("LANDFORM_POISSON_EXE")]
+        public string PoissonExe { get; set; }
+
+        [ConfigEnvironmentVariable("LANDFORM_POISSON_EXE_LEGACY")]
+        public bool PoissonExeLegacy { get; set; }
+
+        public PoissonConfig()
+        {
+            if (string.IsNullOrEmpty(PoissonExe)) PoissonExe = "PoissonReconV10.02.exe"; //default
+            if (PoissonExeLegacy) PoissonExe = "PoissonRecon.exe";
+        }
+
+        public void Dump(ILog logger)
+        {
+            logger.Info("Poisson exe: " + PoissonExe + (PoissonExeLegacy ? " (legacy)" : ""));
+        }
+    }
+
     public class PoissonReconstruction
     {
         private static readonly ILog logger = LogManager.GetLogger(typeof(PoissonReconstruction));
+        public enum BoundaryTypes { Free = 1, Dirichlet = 2, Neumann = 3 };
+        private static bool dumpedConfig;
+
+        public class Options
+        {
+            public BoundaryTypes Boundary;          //exe defaults: Neumann
+            public float MinOctreeCellWidthMeters;  //exe defaults: doesn't use this parameter, uses --depth 8
+            public float MinOctreeSamplesPerCell;   //exe defaults: 1, recommends 1-5 clean data 15-20 noisy data
+            public int BSplineDegree;               //exe defaults: 1, supports 1-2
+            public bool UseNormalsForConfidence;    //exe defaults: no, if true magnitude of normal indicates confidence
+        };
 
         /// <summary>
         /// Creates a mesh from a point cloud
         /// </summary>
-        /// <param name="pointCloud"></param>
         /// <returns></returns>
-        public static Mesh Reconstruct(Mesh pointCloud)
+        public static Mesh Reconstruct(Mesh pointCloud, Options options=null)
         {
+            if (!dumpedConfig)
+            {
+                PoissonConfig.Instance.Dump(logger);
+                dumpedConfig = true;
+            }
+
+            var cfg = PoissonConfig.Instance;
+            string exe = Path.Combine(PathHelper.GetApplicationPath(), "ExternalApps", cfg.PoissonExe);
+
             if (pointCloud.Vertices.Count == 0)
             {
                 throw new MeshException("Empty point cloud passed into PoissonRecon");
@@ -33,56 +76,121 @@ namespace OPS.Geometry
             {
                 throw new MeshException("PoissonRecon meshes cannot have uvs");
             }
-            if (pointCloud.HasColors)
+            if (pointCloud.HasColors && cfg.PoissonExeLegacy)
             {
-                throw new MeshException("PoissonRecon meshes cannot have colors");
+                //throw new MeshException("PoissonRecon meshes cannot have colors");
+                logger.Warn("PoissionRecon (legacy) meshes cannot have colors - removing colors");
+                pointCloud = new Mesh(pointCloud);
+                pointCloud.ClearColors();
             }
             // Confirm all normals are non-zero
             if (pointCloud.ContainsZeroLengthNormals())
             {
                 throw new MeshException("PoissonRecon input mesh had invalid normals");
             }
-            int notNormalCount = 0;
-            foreach (var vert in pointCloud.Vertices)
+
+            //unless using normal magnitude for confidence
+            if (options != null && !options.UseNormalsForConfidence)
             {
-                double len = vert.Normal.Length();
-                if (Math.Abs(len - 1) > 1e-3)
+                int notNormalCount = 0;
+                foreach (var vert in pointCloud.Vertices)
                 {
-                    notNormalCount++;
+                    double len = vert.Normal.Length();
+                    if (Math.Abs(len - 1) > 1e-3)
+                    {
+                        notNormalCount++;
+                    }
+                }
+                if (notNormalCount > 0)
+                {
+                    logger.Warn("Found " + notNormalCount + " vertices with non unit length normals");
                 }
             }
-            if (notNormalCount > 0)
-            {
-                logger.Warn("Found " + notNormalCount  + " vertices with non unit length normals");
-            }
-            string poissonReconExe = Path.Combine(PathHelper.GetApplicationPath(), "ExternalApps", "PoissonReconV9.exe");
+
             Mesh result = null;
-            float scale = MathE.Max(pointCloud.Bounds().Size().ToFloatArray()) / (float)Math.Sqrt(pointCloud.Vertices.Count) * 2;
+            Exception ex = null;
+
             TemporaryFile.GetAndDelete(".ply", inputFile =>
             {
                 PLYSerializer.Write(pointCloud, inputFile, new PLYMaximumCompatibilityWriter(false));
                 TemporaryFile.GetAndDelete(".ply", outputFile =>
                 {
-                    ProgramRunner pr = new ProgramRunner(poissonReconExe, "--in " + inputFile + " --out " + outputFile /*+ " --scale 1"*/, captureOutput: true);
-                    pr.Run();
-                    if (!File.Exists(outputFile))
+                    TemporaryFile.GetAndDeleteDirectory(tmpDir =>
                     {
-                        logger.Error(pr.OutputText);
-                        logger.Error(pr.ErrorText);
-                    }
-                    int ouputVertCount = Mesh.Load(outputFile).Vertices.Count;
-                    if (ouputVertCount == 0)
-                    {
-                        logger.Error(pr.OutputText);
-                        logger.Error(pr.ErrorText);
-                    }
-                    result = Mesh.Load(outputFile);
-                    if (result.Vertices.Count == 0)
-                    {
-                        throw new MeshException("Failed to reconstruct mesh");
-                    }
+                        string arguments = "--in " + inputFile + " --out " + outputFile;
+
+                        if (!cfg.PoissonExeLegacy)
+                        {
+                            if (pointCloud.HasColors)
+                            {
+                                arguments += " --colors";
+                            }
+
+                            arguments += " --normals";
+                            arguments += " --tempDir " + tmpDir;
+                            
+                            if (options != null)
+                            {
+                                arguments +=
+                                    String.Format(" --bType {0} --width {1} --samplesPerNode {2} --degree {3} --confidence {4}",
+                                                  (int)options.Boundary, options.MinOctreeCellWidthMeters,
+                                                  options.MinOctreeSamplesPerCell, options.BSplineDegree,
+                                                  options.UseNormalsForConfidence ? 1 : 0);
+                            }
+
+                            //a workaround for running on powerful machines. without it there is an ERROR about not
+                            // being able to open a file (likely a bug in multithread buffered file reading)
+                            arguments += " --threads 1";
+                        }
+
+                        ProgramRunner pr = new ProgramRunner(exe, arguments, captureOutput: true);
+                        try
+                        {
+                            int exitCode = pr.Run();
+
+                            if (exitCode != 0)
+                            {
+                                throw new MeshException("exited with status " + exitCode);
+                            }
+
+                            //at least some legacy versions of PoissonRecon.exe can error out but still
+                            //have zero exit code and write a valid and nonempty output mesh
+                            //it seems the only way to detect that is like this
+                            if (cfg.PoissonExeLegacy && !string.IsNullOrEmpty(pr.ErrorText) &&
+                                !System.Text.RegularExpressions.Regex.Split(pr.ErrorText, "\r\n|\r|\n") //split lines
+                                .All(l => l.StartsWith("[WARNING]")))
+                            {
+                                throw new MeshException("nonempty error output");
+                            }
+
+                            if (!File.Exists(outputFile))
+                            {
+                                throw new MeshException("no output file");
+                            }
+
+                            result = Mesh.Load(outputFile);
+
+                            if (result.Vertices.Count == 0)
+                            {
+                                throw new MeshException("empty output");
+                            }
+                        }
+                        catch (Exception e)
+                        {
+                            logger.Error(pr.OutputText);
+                            logger.Error(pr.ErrorText);
+                            ex = new MeshException("Failed to run " + (cfg.PoissonExeLegacy ? "(legacy) " : "") +
+                                                   exe + " " + arguments + ": " + e.Message);
+                        }
+                    });
                 });
             });
+
+            if (ex != null)
+            {
+                throw ex;
+            }
+
             return result;
         }
     }

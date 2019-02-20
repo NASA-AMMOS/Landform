@@ -24,11 +24,32 @@ namespace OPS.Geometry
         /// The definition of rectangular intersection they are using will return true
         /// if a rectangle is fully contained within another.
         /// </summary>
-        RTree<Triangle> faceTree;
-        RTree<Vertex> vertexTree;
-        RTree<Triangle> uvFaceTree;
-        public List<Triangle> Triangles { get; private set; }
+        RTree<int> faceTree;
+        RTree<int> vertexTree;
+        RTree<int> uvFaceTree;
 
+        List<Triangle> triangles;
+        List<Vertex> vertices;
+
+        public List<Vertex> Vertices
+        {
+            get {
+                return new List<Vertex>(vertices);
+            }
+        }
+
+        public int CountVertices()
+        {
+            return vertices.Count;
+        }
+
+        public List<Triangle> Triangles
+        {
+            get
+            {
+                return new List<Triangle>(triangles);
+            }
+        }
 
         public bool HasUVs { get; private set; }
         public bool HasNormals { get; private set; }
@@ -49,32 +70,34 @@ namespace OPS.Geometry
         /// <param name="mesh"></param>
         public MeshOperator(Mesh mesh, bool buildFaceTree = true, bool buildVertexTree = true, bool buildUVFaceTree = true, int maxEntries = 10, int minEntries = 5)
         {
+
+            vertices = mesh.Vertices;
             HasUVs = mesh.HasUVs;
             HasNormals = mesh.HasNormals;
             HasColors = mesh.HasColors;
-            this.Triangles = mesh.Triangles();
+            this.triangles = mesh.Triangles();
             if (buildFaceTree)
             {
-                faceTree = new RTree<Triangle>(maxEntries, minEntries);               
-            	foreach(var t in Triangles)
+                faceTree = new RTree<int>(maxEntries, minEntries);               
+            	for(int i = 0; i < triangles.Count; i++)
                 {
-                    faceTree.Add(t.Bounds().ToRectangle(), t);
+                    faceTree.Add(triangles[i].Bounds().ToRectangle(), i);
                 }
             }
             if (buildVertexTree)
             {
-                vertexTree = new RTree<Vertex>(maxEntries, minEntries);
-                foreach (var v in mesh.Vertices)
+                vertexTree = new RTree<int>(maxEntries, minEntries);
+                for(int i = 0; i < vertices.Count; i++)
                 {
-                    vertexTree.Add(v.Bounds().ToRectangle(), v);
+                    vertexTree.Add(vertices[i].Bounds().ToRectangle(), i);
                 }
             }
             if(HasUVs && buildUVFaceTree)
             {
-                uvFaceTree = new RTree<Triangle>(maxEntries, minEntries);
-                foreach (var t in Triangles)
+                uvFaceTree = new RTree<int>(10, 5);
+                for(int i = 0; i < triangles.Count; i++)
                 {
-                    uvFaceTree.Add(t.UVBounds().ToRectangle(), t);
+                    uvFaceTree.Add(triangles[i].UVBounds().ToRectangle(), i);
                 }
             }
             this.HasFaces = mesh.Faces.Count > 0;
@@ -95,7 +118,7 @@ namespace OPS.Geometry
                 {
                     throw new Exception("MeshOperator must have a face tree in order to clip meshes");
                 }
-                List<Triangle> startingTriangles = faceTree.Intersects(box.ToRectangle());
+                List<Triangle> startingTriangles = faceTree.Intersects(box.ToRectangle()).Select(x => triangles[x]).ToList();
                 List<Triangle> resTriangles = new List<Triangle>();
                 foreach (Triangle t in startingTriangles)
                 {
@@ -116,15 +139,16 @@ namespace OPS.Geometry
                 {
                     throw new Exception("MeshOperator must have a vertex tree in order to clip meshes");
                 }
+
                 result = new Mesh(HasNormals, HasUVs, HasColors);
-                result.Vertices.AddRange(vertexTree.Intersects(box.ToRectangle()));                
+                result.Vertices.AddRange(vertexTree.Intersects(box.ToRectangle()).Select(x => vertices[x]).ToList());
             }
             if (!box.FuzzyContains(result.Bounds(), 1E-5) && !ragged)
             {
                 throw new Exception("Clipped mesh exceeds bounding box");
             }
             return result;
-        }
+        }   
 
         /// <summary>
         /// Return the number of faces that are contained within or intersect with the given box
@@ -155,6 +179,20 @@ namespace OPS.Geometry
         }
 
         /// <summary>
+        /// Return the vertices inside the given box
+        /// </summary>
+        /// <param name="box"></param>
+        /// <returns></returns>
+        public List<Vertex> VerticesIn(BoundingBox box)
+        {
+            if (vertexTree == null)
+            {
+                throw new Exception("MeshOperator must have a vertex tree in order to count vertices");
+            }
+            return vertexTree.Intersects(box.ToRectangle()).Select(i => vertices[i]).ToList();
+        }
+
+        /// <summary>
         /// A bounding box is empty if no it doesnt contain any vertices and no
         /// faces intersect it.  It is possible to have bounding box that contains
         /// no vertices but still intersects a face.
@@ -181,7 +219,7 @@ namespace OPS.Geometry
                     throw new Exception("MeshOperator must have a face tree in order to check for empty bounding box");
                 }
                 // Get a list of faces whose bounds intersect the box
-                List<Triangle> faces = faceTree.Intersects(box.ToRectangle());
+                List<Triangle> faces = faceTree.Intersects(box.ToRectangle()).Select(x => triangles[x]).ToList();
                 // Try to clip each face to the box
                 foreach (Triangle t in faces)
                 {
@@ -212,7 +250,7 @@ namespace OPS.Geometry
                 new Vector3(uv, 0));
 
             // get all intersected faces in r tree (based on face bounding boxes)
-            var triangleList = uvFaceTree.Intersects(box.ToRectangle());
+            var triangleList = uvFaceTree.Intersects(box.ToRectangle()).Select(x => triangles[x]).ToList();
 
             // position returned by attempt to locate uv in r tree triangle
             BarycentricPoint b;
@@ -228,7 +266,7 @@ namespace OPS.Geometry
 
         public List<Triangle> UVIntersects(BoundingBox box)
         {
-            return uvFaceTree.Intersects(box.ToRectangle());
+            return uvFaceTree.Intersects(box.ToRectangle()).Select(x => triangles[x]).ToList();
         }
     }
 

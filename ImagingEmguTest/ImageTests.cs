@@ -69,5 +69,16 @@ namespace ImagingEmguTest
                 }
             }
         }
+
+        [TestMethod]
+        public void PDSLoadFromLBL()
+        {
+            string filename = Path.Combine("TestData", "img", @"0606MR0025570000400933E01_DRCX.LBL");
+            var meta = new PDSMetadata(filename);
+            Assert.IsTrue(meta.DataPath != null);
+            var img = Image.Load(filename);
+            Assert.AreEqual(img.Width, 1344);
+            Assert.AreEqual(img.Height, 1200);
+        }
     }
 }

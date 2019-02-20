@@ -12,6 +12,8 @@
     <FileAlignment>512</FileAlignment>
     <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
     <TargetFrameworkProfile />
+    <NuGetPackageImportStamp>
+    </NuGetPackageImportStamp>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <PlatformTarget>AnyCPU</PlatformTarget>
@@ -33,9 +35,24 @@
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
   <ItemGroup>
+    <Reference Include="gdalconst_csharp, Version=1.0.5387.28601, Culture=neutral, PublicKeyToken=db5a52b08dc5b321, processorArchitecture=MSIL">
+      <HintPath>..\packages\GDAL.1.11.1\lib\net40\gdalconst_csharp.dll</HintPath>
+    </Reference>
+    <Reference Include="gdal_csharp, Version=1.0.5387.28601, Culture=neutral, PublicKeyToken=db5a52b08dc5b321, processorArchitecture=MSIL">
+      <HintPath>..\packages\GDAL.1.11.1\lib\net40\gdal_csharp.dll</HintPath>
+    </Reference>
+    <Reference Include="log4net, Version=2.0.8.0, Culture=neutral, PublicKeyToken=669e0ddf0bb1aa2a, processorArchitecture=MSIL">
+      <HintPath>..\packages\log4net.2.0.8\lib\net45-full\log4net.dll</HintPath>
+    </Reference>
     <Reference Include="MathNet.Numerics, Version=4.4.0.0, Culture=neutral, PublicKeyToken=null" />
     <Reference Include="Newtonsoft.Json, Version=11.0.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed, processorArchitecture=MSIL">
       <HintPath>..\packages\Newtonsoft.Json.11.0.2\lib\net45\Newtonsoft.Json.dll</HintPath>
+    </Reference>
+    <Reference Include="ogr_csharp, Version=1.0.5387.28600, Culture=neutral, PublicKeyToken=db5a52b08dc5b321, processorArchitecture=MSIL">
+      <HintPath>..\packages\GDAL.1.11.1\lib\net40\ogr_csharp.dll</HintPath>
+    </Reference>
+    <Reference Include="osr_csharp, Version=1.0.5387.28600, Culture=neutral, PublicKeyToken=db5a52b08dc5b321, processorArchitecture=MSIL">
+      <HintPath>..\packages\GDAL.1.11.1\lib\net40\osr_csharp.dll</HintPath>
     </Reference>
     <Reference Include="System" />
     <Reference Include="System.Core" />
@@ -56,6 +73,7 @@
     <Compile Include="Form1.Designer.cs">
       <DependentUpon>Form1.cs</DependentUpon>
     </Compile>
+    <Compile Include="GdalConfiguration.cs" />
     <Compile Include="ImageView.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
@@ -95,6 +113,10 @@
       <Project>{49a27854-2db1-4e1c-893a-f60bdf5f3c86}</Project>
       <Name>Geometry</Name>
     </ProjectReference>
+    <ProjectReference Include="..\ImagingEmgu\ImagingEmgu.csproj">
+      <Project>{9722c3b0-63d5-4b8a-9c4f-3381223bf3a2}</Project>
+      <Name>ImagingEmgu</Name>
+    </ProjectReference>
     <ProjectReference Include="..\Imaging\Imaging.csproj">
       <Project>{c3ec3ab5-8dfd-4daa-9833-246f0db6a805}</Project>
       <Name>Imaging</Name>
@@ -107,14 +129,20 @@
       <Project>{C45F0CD6-C998-47EC-B67C-AD77196B06A0}</Project>
       <Name>Pipeline</Name>
     </ProjectReference>
-    <ProjectReference Include="..\Plumbing\Plumbing.csproj">
-      <Project>{2F63D586-130F-42EB-BA25-76D31BC26283}</Project>
-      <Name>Plumbing</Name>
-    </ProjectReference>
     <ProjectReference Include="..\Xna\Xna.csproj">
       <Project>{46759719-42D9-473B-A8AD-0848A33BDAC6}</Project>
       <Name>Xna</Name>
     </ProjectReference>
   </ItemGroup>
+  <ItemGroup>
+    <Content Include="GdalConfiguration.vb" />
+  </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+  <Import Project="..\packages\GDAL.Native.1.11.1\build\net40\GDAL.Native.targets" Condition="Exists('..\packages\GDAL.Native.1.11.1\build\net40\GDAL.Native.targets')" />
+  <Target Name="EnsureNuGetPackageBuildImports" BeforeTargets="PrepareForBuild">
+    <PropertyGroup>
+      <ErrorText>This project references NuGet package(s) that are missing on this computer. Use NuGet Package Restore to download them.  For more information, see http://go.microsoft.com/fwlink/?LinkID=322105. The missing file is {0}.</ErrorText>
+    </PropertyGroup>
+    <Error Condition="!Exists('..\packages\GDAL.Native.1.11.1\build\net40\GDAL.Native.targets')" Text="$([System.String]::Format('$(ErrorText)', '..\packages\GDAL.Native.1.11.1\build\net40\GDAL.Native.targets'))" />
+  </Target>
 </Project>

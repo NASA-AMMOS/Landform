@@ -24,31 +24,48 @@ namespace OPS.Geometry
         /// </summary>
         public ConvexHull(IList<double[]> points)
         {
-            var hull = MIConvexHull.ConvexHull.Create(points);
-            var faces = hull.Faces.ToArray();
-            Mesh = new Mesh(true, false, false, faces.Length * 3);
-            Planes = new List<Plane>(faces.Length);
-            for (int i = 0; i < faces.Length; i++)
+            if (points.Count == 3)
             {
-                var f = faces[i];
-                var normal = Vector3.Normalize(new Vector3(f.Normal));
-                var pt0 = new Vector3(f.Vertices[0].Position);
-                Planes.Add(new Plane(normal, -normal.Dot(pt0)));
+                // a single triangle will fail in the convex hull library, build a mesh of the two windings
+                // of the same triangle
 
-                int baseIdx = Mesh.Vertices.Count;
-                for (int j = 0; j < f.Vertices.Length; j++)
+                int numFaces = 2;                
+                Mesh = new Mesh(true, false, false, numFaces * 3);
+
+                int numPlanes = 2 + 3; //one for each side of the triangle, 3 for the edges
+                Planes = new List<Plane>(numPlanes);
+
+                SingleTriangleHull(points);
+            }
+            else
+            {
+                var hull = MIConvexHull.ConvexHull.Create(points);
+                var faces = hull.Faces.ToArray();
+                Mesh = new Mesh(true, false, false, faces.Length * 3);
+                Planes = new List<Plane>(faces.Length);
+                for (int i = 0; i < faces.Length; i++)
                 {
-                    int idx = Mesh.Vertices.Count;
-                    Mesh.Vertices.Add(new Vertex(
-                        new Vector3(f.Vertices[j].Position),
-                        normal,
-                        Vector4.Zero,
-                        Vector2.Zero
-                        ));
+                    var f = faces[i];
+                    var normal = Vector3.Normalize(new Vector3(f.Normal));
+                    var pt0 = new Vector3(f.Vertices[0].Position);
+                    Planes.Add(new Plane(normal, -normal.Dot(pt0)));
+
+                    int baseIdx = Mesh.Vertices.Count;
+                    for (int j = 0; j < f.Vertices.Length; j++)
+                    {
+                        int idx = Mesh.Vertices.Count;
+                        Mesh.Vertices.Add(new Vertex(
+                            new Vector3(f.Vertices[j].Position),
+                            normal,
+                            Vector4.Zero,
+                            Vector2.Zero
+                            ));
+                    }
+                    Mesh.Faces.Add(new Face(Enumerable.Range(baseIdx, f.Vertices.Length).ToArray()));
                 }
-                Mesh.Faces.Add(new Face(Enumerable.Range(baseIdx, f.Vertices.Length).ToArray()));
             }
         }
+
         public ConvexHull(IEnumerable<Vector3> points)
             : this(points.Select(pt => pt.ToDoubleArray()).ToList()) { }
         public ConvexHull(Mesh mesh)
@@ -63,24 +80,36 @@ namespace OPS.Geometry
             return new ConvexHull(hulls.SelectMany(h => h.Vertices.Select(vtx => vtx.Position)));
         }
 
-        public static ConvexHull FromImage(Image img, double nearClip=0.1, double farClip=20)
+        public static ConvexHull FromImage(Image image, double nearClip = 0.1, double farClip = 20)
+        {
+            return FromParams(image.CameraModel, image.Width, image.Height, nearClip, farClip);
+        }
+
+        public static ConvexHull FromParams(CameraModel camera, int width, int height, double nearClip=0.1, double farClip=20)
         {
             // Get points - just corners for linear models, denser otherwise
             int subdiv = 2;
-            var camera = img.CameraModel;
             if (!camera.Linear) subdiv = 5;
 
             List<Vector3> pts = new List<Vector3>();
             for (int i = 0; i < subdiv; i++)
             {
-                double x = (img.Width - 1.0) * (i / (subdiv - 1.0));
+                double x = (width - 1.0) * (i / (subdiv - 1.0));
                 for (int j = 0; j < subdiv; j++)
                 {
-                    double y = (img.Height - 1.0) * (j / (subdiv - 1.0));
+                    double y = (height - 1.0) * (j / (subdiv - 1.0));
                     for (int k = 0; k < subdiv; k++)
                     {
-                        double z = (farClip - nearClip) * (k / (subdiv - 1.0)) + nearClip;
-                        pts.Add(camera.Unproject(new Vector2(x, y), z));
+                        Ray ray = camera.Unproject(new Vector2(x, y));
+                        
+                        Plane nearClipPlane = new Plane(-camera.ImagePlaneNormal, Vector3.Dot(camera.ImagePlaneNormal, ray.Position) + nearClip);
+                        Plane farClipPlane = new Plane(-camera.ImagePlaneNormal, Vector3.Dot(camera.ImagePlaneNormal, ray.Position) + farClip);
+
+                        double rayDistNear = ray.Intersects(nearClipPlane).Value;
+                        double rayDistFar = ray.Intersects(farClipPlane).Value;
+                        double rayDist = MathHelper.Lerp(rayDistNear, rayDistFar, k / (double)(subdiv - 1));
+
+                        pts.Add(ray.Position + rayDist * ray.Direction);
                     }
                 }
             }
@@ -95,7 +124,7 @@ namespace OPS.Geometry
         {
             return GJKIntersection.Intersects(Mesh, other.Mesh);
         }
-
+        
         /// <summary>
         /// Return true if <paramref name="ray"/> intersects this hull betwen <paramref name="minT"/> and <paramref name="maxT"/>.
         /// </summary>
@@ -123,6 +152,7 @@ namespace OPS.Geometry
 
                 if (minT > maxT) return false;
             }
+            
             return true;
         }
 
@@ -201,6 +231,47 @@ namespace OPS.Geometry
                 }
             }
             return new ConvexHull(pts);
+        }
+
+        private void SingleTriangleHull(IList<double[]> points)
+        {
+            if (points.Count != 3)
+                throw new ArgumentException("three points expected for triangle");
+
+            Vector3 pt0 = new Vector3(points[0]);
+            Vector3 pt1 = new Vector3(points[1]);
+            Vector3 pt2 = new Vector3(points[2]);
+
+            if (pt0 == pt1 || pt1 == pt2 || pt2 == pt0)
+                throw new ArgumentException("invalid triangle, coincident points");
+
+            Vector3 edge0 = pt1 - pt0;
+            Vector3 edge1 = pt2 - pt0;
+            Vector3 edge2 = pt2 - pt1;
+
+            //face normals/planes
+            Vector3 normal0 = Vector3.Normalize(Vector3.Cross(edge1, edge0)); //LH cross product
+            Vector3 normal1 = normal0 * -1;
+            Planes.Add(new Plane(normal0, -normal0.Dot(pt0)));
+            Planes.Add(new Plane(normal1, -normal1.Dot(pt0)));
+
+            //edge normals/planes
+            Vector3 edge0Normal = Vector3.Cross(edge0, normal1);
+            Vector3 edge1Normal = Vector3.Cross(normal1, edge1);
+            Vector3 edge2Normal = Vector3.Cross(edge2, normal1);
+            Planes.Add(new Plane(edge0Normal, -edge0Normal.Dot(pt0)));
+            Planes.Add(new Plane(edge1Normal, -edge1Normal.Dot(pt0)));
+            Planes.Add(new Plane(edge2Normal, -edge2Normal.Dot(pt2)));
+            
+            Mesh.Vertices.Add(new Vertex(pt0, normal0, Vector4.Zero, Vector2.Zero));
+            Mesh.Vertices.Add(new Vertex(pt1, normal0, Vector4.Zero, Vector2.Zero));
+            Mesh.Vertices.Add(new Vertex(pt2, normal0, Vector4.Zero, Vector2.Zero));
+            Mesh.Vertices.Add(new Vertex(pt0, normal1, Vector4.Zero, Vector2.Zero));
+            Mesh.Vertices.Add(new Vertex(pt1, normal1, Vector4.Zero, Vector2.Zero));
+            Mesh.Vertices.Add(new Vertex(pt2, normal1, Vector4.Zero, Vector2.Zero));
+
+            Mesh.Faces.Add(new Face(0, 1, 2));
+            Mesh.Faces.Add(new Face(3, 5, 4));
         }
     }
 }

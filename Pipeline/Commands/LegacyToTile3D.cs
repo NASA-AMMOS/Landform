@@ -13,6 +13,7 @@ using Microsoft.Xna.Framework;
 using Newtonsoft.Json;
 using System.IO;
 using OPS.Imaging;
+using System.Threading;
 
 namespace OPS.Pipeline
 {
@@ -37,6 +38,9 @@ namespace OPS.Pipeline
 
         [Option(Required = false, Default = "jpg", HelpText = "Export format for textures (examples: jpg or png (dds or crn)")]
         public string ImageFormat { get; set; }
+
+        [Option(Required = false, Default = SkirtMode.Y, HelpText = "Axis to use as up in quad tree tiling")]
+        public SkirtMode SkirtAxis { get; set; }
     }
 
     /// <summary>
@@ -118,7 +122,7 @@ namespace OPS.Pipeline
                 {
                     var pair = node.GetComponent<MeshImagePair>();
                     pair.Mesh.Clean();
-                    pair.Mesh.RemoveSkirt(SkirtMode.Y);
+                    pair.Mesh.RemoveSkirt(options.SkirtAxis);
                     if (!pair.Mesh.HasNormals)
                     {                        
                         pair.Mesh.GenerateVertexNormals();
@@ -142,7 +146,7 @@ namespace OPS.Pipeline
                         meshCopy.ClearNormals();
                         meshCopy.Clean();
                         MeshOperator mo = new MeshOperator(meshCopy);
-                        var tilingScheme = new QuadTreeTilingScheme(SkirtMode.Y);
+                        var tilingScheme = new QuadTreeTilingScheme(QuadTreeAxis.Y);
                         var boxes = tilingScheme.Split(mo, mo.Bounds);
                         int i = 0;
                         foreach (var box in boxes)
@@ -162,17 +166,24 @@ namespace OPS.Pipeline
             }
             logger.Info("Write leaves");
             Parallel.ForEach(terrainRoot.Leaves(), node =>
-            {                
+            {
                 var mesh = node.GetComponent<MeshImagePair>().Mesh;
                 mesh.GenerateVertexNormals();
-                mesh.AddSkirt(SkirtMode.Y);
+                if (options.SkirtAxis != SkirtMode.None)
+                {
+                    mesh.AddSkirt(options.SkirtAxis);
+                }
                 // Important, bounds include skirts
-                node.AddComponent(new NodeBounds(node.GetComponent<MeshImagePair>().Mesh.Bounds()));
+                node.AddComponent(new NodeBounds(mesh.Bounds()));
                 node.AddComponent(new NodeGeometricError(0));
                 SaveNode(node, options.ImageFormat);
             });
 
-            var depthGroups = terrainRoot.DepthFirstTraverse().Where(n => !n.IsLeaf).GroupBy(n => n.Transform.Depth()).OrderBy(g => -g.Key);
+            var depthGroups = terrainRoot.DepthFirstTraverse()
+                .Where(n => !n.IsLeaf)
+                .GroupBy(n => n.Transform.Depth())
+                .OrderBy(g => -g.Key);
+
             logger.Info("Generate bounds");
             foreach (var group in depthGroups)
             {
@@ -185,18 +196,31 @@ namespace OPS.Pipeline
             }
             
             logger.Info("Generate parents");
+            int totalParents = terrainRoot.DepthFirstTraverse().Where(n => !n.IsLeaf).Count();
+            int parentsCompleted = 0;
             foreach (var group in depthGroups)
             {
-                Parallel.ForEach(group, node =>
+                Parallel.ForEach(group, new ParallelOptions() { MaxDegreeOfParallelism = Environment.ProcessorCount },
+                                 node =>
                 {
-                    logger.Info("Creating parent data:" + node.Name);
-                    // Check to see all children have meshes, otherwise defere processing
+                    Interlocked.Increment(ref parentsCompleted);
+                    int percentDone = (int)((parentsCompleted / (float)totalParents) * 100);
+                    logger.Info("Creating parent data:" + node.Name + " (" + percentDone + "%)");
+                    // Check to see all children have meshes, otherwise defer processing
                     bool canMakeMesh = node.Children.All(n => n.HasComponent<MeshImagePair>());
                     if (!canMakeMesh)
                     {
                         return;
                     }
-                    node.BuildGeometryFromChildren(terrainRoot, MeshReconMethod.Poisson, options.MaxFacesPerTile, options.MaxTextureSize, SkirtMode.Y);
+                    node.BuildGeometryFromChildren(terrainRoot, MeshReconMethod.Poisson,
+                                                   options.MaxFacesPerTile, options.MaxTextureSize, options.SkirtAxis);
+                    if (options.SkirtAxis != SkirtMode.None)
+                    {
+                        var m = node.GetComponent<MeshImagePair>().Mesh;
+                        m.AddSkirt(options.SkirtAxis);
+                        var nb = node.GetComponent<NodeBounds>();
+                        nb.Bounds = BoundingBoxExtensions.Union(nb.Bounds, m.Bounds());
+                    }
                     SaveNode(node, options.ImageFormat);
                 });
             }

@@ -1,0 +1,430 @@
+﻿using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Security.Cryptography;
+using log4net;
+using CommandLine;
+using OPS.Util;
+using OPS.Imaging;
+using OPS.Pipeline.AlignmentServer;
+using OPS.Pipeline.TileServer;
+
+namespace OPS.Pipeline
+{
+    public class PipelineCoreOptions
+    {
+        [Option(Default = false, HelpText = "Clear download cache at startup")]
+        public bool ClearCache { get; set; }
+
+        [Option(Default = false, HelpText = "Suppress non-essential output")]
+        public bool Quiet { get; set; }
+
+        [Option(Default = false, HelpText = "Log verbose info")]
+        public bool Verbose { get; set; }
+
+        [Option(Default = false, HelpText = "Log debug info")]
+        public bool Debug { get; set; }
+
+        [Option(Default = null, HelpText = "Override default log filename")]
+        public string LogFile { get; set; }
+    }
+
+    /**
+     * PipelineCore abstracts system and AWS interaction APIs for use in Landform pipeline stages.
+     *
+     * Implementations include CloudPipeline and LocalPipeline.
+     *
+     * The following API surfaces are exposed:
+     *
+     * + Image Fetch API - load images. For CloudPipeline this is backed by S3. For LocalPipeline it's files on disk.
+     *
+     * + Storage API - load, store, scan, and delete files. For CloudPipeline this is backed by S3 and a local
+     * disk cache. For LocalPipeline it's files on disk.
+     * 
+     * + Data Product API - load and store GUID-tagged data products. For CloudPipeline this is backed by S3 and a local
+     * disk cache. For LocalPipeline it's files on disk.
+     *
+     * + Database API - load, store, and scan database tables. For CloudPipeline this uses DynamoDB under the hood. For
+     * LocalPipeline it's an in-memory threadsafe object database backed by json files on disk.
+     *
+     * + Logging API - logging functions
+     *
+     * + Disk Cache API - functions to interact with and clean up the disk cach
+     *
+     * + Message Queue API - interact with message queues (cloud only)
+     **/
+    public abstract class PipelineCore : IImageLoader
+    {
+        public readonly PipelineCoreOptions Options;
+        public readonly Config Config;
+
+        public readonly string Venue;
+        public readonly string DownloadCache;
+        public readonly ILog Logger;
+
+        public readonly string StorageUrl;
+        public readonly string StorageUrlWithVenue;
+
+        protected bool quiet, verbose, debug;
+
+        private LRUCache<string, Image> imageCache; //indexed by URL
+
+        //these are generally used to initialize the database
+        //
+        //though what that involves depends on what database implementation is in use (cloud vs local)
+        //
+        //at present it's important that the objects stored in a table are of the specific type listed here
+        //specifically for the local pipeline database implementation
+        //which is why we specify RoverObservation instead of just Observation here
+        //
+        //if this constraint ever becomes undesirable it could be worked around in several ways
+        //e.g. use Json.NET autoTypes in the local database implementation
+        //or make this table be a mapping to the actual item type
+        //or add an annotation on e.g. the Observation class that specifies the item type as e.g. RoverObservation
+        protected readonly Type[] tableTypes = new Type[]
+            {
+                typeof(Project),
+                typeof(FrameTransform),
+                typeof(Frame),
+                //typeof(Observation),
+                typeof(RoverObservation), //TODO msl specific
+                typeof(Overlap),
+                typeof(TransformPrior),
+                typeof(TilingProject),
+                typeof(TilingInput),
+                typeof(TilingNode),
+                typeof(TilingInputChunk),
+            };
+
+        public PipelineCore(PipelineCoreOptions options, Config config, string storageUrl, string venue,
+                            ILog logger = null, int lruCache = 100, bool quiet = false)
+        {
+            this.Options = options;
+            this.Config = config;
+
+            this.quiet = quiet = quiet || options.Quiet;
+            this.verbose = options.Verbose;
+            this.debug = options.Debug;
+
+            if (string.IsNullOrEmpty(storageUrl)) throw new Exception("storage URL must be specified");
+            this.StorageUrl = StringHelper.NormalizeUrl(storageUrl.ToLower().Trim());
+
+            if (string.IsNullOrEmpty(venue)) throw new Exception("venue must be specified");
+            this.Venue = venue.ToLower().Replace('\\','/').Trim().Trim(new char[] {'/'});
+
+            this.StorageUrlWithVenue = this.StorageUrl + "/" + this.Venue;
+
+            if (logger != null)
+            {
+                this.Logger = logger;
+            }
+            else
+            {
+                Logging.ConfigureLogging(this.quiet, options.Debug, options.LogFile);
+                this.Logger = LogManager.GetLogger(GetType());
+            }
+
+            //use a different download cache dir for every PipelineCore instance
+            //i.e. different for every thread and every run
+            //DownloadCache = TemporaryFile.GetTempSubdir();
+
+            //share the download cache dir across different instances
+            DownloadCache = TemporaryFile.GetTempSubdir("downloads");
+
+            if (options.ClearCache)
+            {
+                DeleteDownloadCache();
+                PathHelper.EnsureExists(Path.GetFullPath(DownloadCache));
+            }
+
+            //in memory cache is configurable
+            imageCache = new LRUCache<string, Image>(lruCache);
+        }
+
+        public virtual void DumpConfig()
+        {
+            //not using LogInfo() to print even if quiet = true
+            Logger.Info("Architecture: " + (IntPtr.Size == 4 ? "x86" : "x64"));
+            Logger.Info("Venue: " + Venue);
+            Logger.Info("Storage URL: " + StorageUrl);
+        }
+
+        //****************** Image Fetch API *****************
+
+        public Image LoadImage(string url, IImageConverter converter = null)
+        {
+            if (imageCache.ContainsKey(url)) return imageCache[url];
+            string f = GetImageFile(url);
+            var image = converter != null ? Image.Load(f, converter) : Image.Load(f);
+            imageCache[url] = image;
+            return image;
+        }
+
+        public string GetImageFile(string url)
+        {
+            return GetFileCached(url, "images");
+        }
+
+        //****************** Storage API *****************
+
+        protected void CheckStorageUrl(string url, bool withVenue = true)
+        {
+            string prefix = withVenue ? StorageUrlWithVenue : StorageUrl;
+            if (string.IsNullOrEmpty(url) || !url.ToLower().StartsWith(prefix))
+            {
+                throw new Exception(string.Format("storage URL {0} does not start with {1}", url, prefix));
+            }
+        }
+
+        public string GetStorageUrl(string folder = "", string project = "", string file = "")
+        {
+            //empty strings are ignored
+            return StringHelper.NormalizeSlashes(Path.Combine(StorageUrlWithVenue, folder, project, file));
+        }
+
+        /// <summary>
+        /// Get a file, downloading it to a local temp file if necessary.
+        /// If a temp file is created it will be automatically deleted when the callback is finished.
+        /// </summary>
+        /// <param name="url">source URL, if constrainToStorage = true must start with StorageURL/Venue</param>
+        /// <param name="func">callback receiving path to file on disk</param>
+        public abstract void GetFile(string url, Action<string> func, bool constrainToStorage = false);
+        
+        /// <summary>
+        /// Get a file, downloading it if necessary, using an on-disk cache.
+        /// </summary>
+        /// <param name="url">source URL, if constrainToStorage = true must start with StorageURL/Venue</param>
+        /// <param name="cacheFolder">cache subfolder (ex. project name)</param>
+        /// <param name="filename">filename to use in cache, or null to compute from url SHA1</param>
+        /// <returns>path on disk</returns>
+        public abstract string GetFileCached(string url, string cacheFolder = null, string filename = null,
+                                             bool constrainToStorage = false);
+
+        /// <summary>
+        /// Persist a file, uploading it if necessary.
+        /// </summary>
+        /// <param name="file">path to file on disk</param>
+        /// <param name="url">destination URL, must start with StorageURL/Venue</param>
+        public abstract void SaveFile(string file, string url);
+
+        /// <summary>
+        /// Delete a persisted file.
+        /// </summary>
+        /// <param name="url">URL of file to delete, must start with StorageURL/Venue</param>
+        public abstract void DeleteFile(string url, bool ignoreErrors = true);
+
+        /// <summary>
+        /// Delete persisted files.
+        ///
+        /// See SearchFiles() for semantics of url, globPattern, and recursive.
+        /// </summary>
+        /// <param name="url">base URL of files to delete, must start with StorageURL/Venue</param>
+        public abstract void DeleteFiles(string url, string globPattern = "*", bool recursive = true,
+                                         bool ignoreErrors = true);
+
+        /// <summary>
+        /// Search persisted files.
+        ///
+        /// If url ends with "/" then it's taken to be a directory name and the search returns all matching files within
+        /// or below that directory.
+        ///
+        /// Otherwise the last path segment of url is taken to be a stem name, and is prefixed onto the glob pattern.
+        /// The search directory is the url without its last path segment.
+        ///
+        /// The glob pattern is always applied as a filter to the full path portion of the returned URLs. i.e. each
+        /// returned URL is broken up as PROTOCOL://HOST/PATH and if PATH doesn't match globPattern it is not returned.
+        ///
+        /// </summary>
+        /// <param name="url">base URL to search, if constrainToStorage = true must start with StorageURL/Venue</param>
+        public abstract IEnumerable<string> SearchFiles(string url, string globPattern = "*", bool recursive = true,
+                                                        bool constrainToStorage = false);
+        
+        //****************** Data Product API *****************
+
+        private static object dataCacheLock = new object();
+
+        /// <summary>
+        /// Fetch a data product given a project name and product GUID.
+        /// </summary>
+        /// <typeparam name="T">Type of data product</typeparam>
+        /// <param name="path">path to product collection, must start with StorageURL/Venue</param>
+        /// <param name="guid">data product GUID</param>
+        /// <param name="cacheFolder">if nonempty then use local disk cache</param>
+        public T GetDataProduct<T>(string path, string guid, string cacheFolder = null) where T : DataProduct, new()
+        {
+            string url = Path.Combine(path, guid).Replace('\\','/');
+            CheckStorageUrl(url);
+            
+            T res = null;
+            if (!string.IsNullOrEmpty(cacheFolder))
+            {
+                var file = DownloadCachePath(cacheFolder, guid);
+                if (!File.Exists(file))
+                {
+                    GetFile(url, tmpFile => {
+                            lock (dataCacheLock)
+                            {
+                                if (!File.Exists(file))
+                                {
+                                    //OK if exists, creates parents
+                                    Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(file)));
+                                    File.Move(tmpFile, file);
+                                }
+                            }
+                        });
+                }
+                res = DataProduct.Load<T>(File.ReadAllBytes(file));
+            }
+            else
+            {
+                GetFile(url, f => res = DataProduct.Load<T>(File.ReadAllBytes(f)));
+            }
+            return res;
+        }
+
+        public T GetDataProduct<T>(string path, Guid guid, string cacheFolder = null) where T : DataProduct, new()
+        {
+            return GetDataProduct<T>(path, guid.ToString(), cacheFolder);
+        }
+
+        /// <summary>
+        /// Save a data product.
+        /// </summary>
+        /// <param name="path">path to product collection, must start with StorageURL/Venue</param>
+        /// <param name="product">DataProduct object</param>
+        /// <param name="cacheFolder">if non-empty then also save to local disk cache</param>
+        public void SaveDataProduct(string path, DataProduct product, string cacheFolder = null)
+        {
+            if (product.Guid == Guid.Empty)
+            {
+                product.UpdateGuid();
+            }
+            string guid = product.Guid.ToString();
+
+            string url = Path.Combine(path, guid).Replace('\\','/');
+            CheckStorageUrl(url);
+
+            TemporaryFile.FilenameDelegate writeAndUpload = file =>
+            {
+                File.WriteAllBytes(file, product.Serialize());
+                SaveFile(file, url);
+            };
+
+            if (cacheFolder != null)
+            {
+                var file = DownloadCachePath(cacheFolder, guid);
+                if (!File.Exists(file))
+                {
+                    //it is possible for multiple threads to get here for the same data product
+                    //in that case we are relying on the atomicity of GetAndMove()
+                    //and also that SaveFile() is OK with multiple threads uploading to the same dest
+                    TemporaryFile.GetAndMove(file, tmpFile => writeAndUpload(tmpFile),
+                                             replaceExisting: false, moveLock: dataCacheLock);
+                }
+            }
+            else
+            {
+                TemporaryFile.GetAndDelete("", writeAndUpload);
+            }
+        }
+
+        //****************** Database API *****************
+
+        public abstract void SaveDatabaseItem<T>(T obj, bool ignoreNulls = true, bool ignoreErrors = false);
+
+        public abstract T LoadDatabaseItem<T>(string key, string secondaryKey = null, bool ignoreNulls = true,
+                                              bool ignoreErrors = false, bool consistent = false) where T : class;
+
+        public abstract void DeleteDatabaseItem<T>(T obj, bool ignoreErrors = false);
+
+        public abstract IEnumerable<T> ScanDatabase<T>(Dictionary<string, string> conditions = null,
+                                                       string indexName = null);
+
+        public IEnumerable<T> ScanDatabase<T>(params string[] conditions)
+        {
+            if (conditions.Length%2 != 0)
+            {
+                throw new Exception("scan conditions must be key-value pairs");
+            }
+
+            Dictionary<string, string> dict = new Dictionary<string, string>();
+            for (int i = 0; i < conditions.Length/2; i++)
+            {
+                dict.Add(conditions[2*i + 0], conditions[2*i + 1]);
+            }
+
+            return ScanDatabase<T>(dict);
+        }
+
+        //****************** Logging API *****************
+
+        public void LogInfo(string msg, params Object[] args)
+        {
+            if (!quiet)
+            {
+                Logger.InfoFormat(msg, args);
+            }
+        }
+
+        public void LogVerbose(string msg, params Object[] args)
+        {
+            if (verbose && !quiet)
+            {
+                Logger.InfoFormat(msg, args);
+            }
+        }
+
+        public void LogDebug(string msg, params Object[] args)
+        {
+            if (debug && !quiet)
+            {
+                Logger.DebugFormat(msg, args);
+            }
+        }
+
+        public void LogWarn(string msg, params Object[] args)
+        {
+            Logger.WarnFormat(msg, args);
+        }
+
+        public void LogError(string msg, params Object[] args)
+        {
+            Logger.ErrorFormat(msg, args);
+        }
+
+        //****************** Disk Cache API *****************
+
+        public bool EnableCleanupTempDir = true;
+        public void CleanupTempDir()
+        {
+            if (EnableCleanupTempDir)
+            {
+                TemporaryFile.CleanupTempDirectoryLRU(alwaysDelete: f => !f.StartsWith(DownloadCache));
+            }
+        }
+
+        public void DeleteProjectCache(string project)
+        {
+            var projectCache = Path.Combine(DownloadCache, project);
+            if (Directory.Exists(projectCache))
+            {
+                Directory.Delete(projectCache, true);
+            }
+        }
+
+        public void DeleteDownloadCache()
+        {
+            if (Directory.Exists(DownloadCache))
+            {
+                Directory.Delete(DownloadCache, true);
+            }
+        }
+
+        protected string DownloadCachePath(string project, string filename)
+        {
+            return Path.Combine(DownloadCache, project ?? "", filename ?? ""); //ignores empty components
+        }
+    }
+}
+        

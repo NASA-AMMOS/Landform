@@ -47,7 +47,7 @@ namespace OPS.Imaging
         public static Image Load(string filename)
         {
             string ext = Path.GetExtension(filename);
-            ImageSerializer s = ImageSerializers.GetSerializer(ext);
+            ImageSerializer s = ImageSerializers.Instance.GetSerializer(ext);
             if (s == null)
             {
                 throw new ImageSerializationException("Image format not supported");
@@ -63,7 +63,7 @@ namespace OPS.Imaging
         public static Image Load(string filename, IImageConverter converter)
         {
             string ext = Path.GetExtension(filename);
-            ImageSerializer s = ImageSerializers.GetSerializer(ext);
+            ImageSerializer s = ImageSerializers.Instance.GetSerializer(ext);
             if (s == null)
             {
                 throw new ImageSerializationException("Image format not supported");
@@ -89,7 +89,7 @@ namespace OPS.Imaging
         public void Save<T>(string filename)
         {
             string ext = Path.GetExtension(filename);
-            ImageSerializer s = ImageSerializers.GetSerializer(ext);
+            ImageSerializer s = ImageSerializers.Instance.GetSerializer(ext);
             if (s == null)
             {
                 throw new ImageSerializationException("Image format not supported");
@@ -106,7 +106,7 @@ namespace OPS.Imaging
         public void Save<T>(string filename, IImageConverter converter)
         {
             string ext = Path.GetExtension(filename);
-            ImageSerializer s = ImageSerializers.GetSerializer(ext);
+            ImageSerializer s = ImageSerializers.Instance.GetSerializer(ext);
             if (s == null)
             {
                 throw new ImageSerializationException("Image format not supported");

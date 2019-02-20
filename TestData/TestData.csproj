@@ -49,6 +49,12 @@
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="TestData\img\0606MR0025570000400933E01_DRCX.IMG">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="TestData\img\0606MR0025570000400933E01_DRCX.LBL">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
     <None Include="TestData\img\0608ML0025660260301542E01_DRCX.IMG">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>

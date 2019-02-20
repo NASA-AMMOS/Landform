@@ -72,10 +72,11 @@
     <Compile Include="Geometry\BarycentricPoint.cs" />
     <Compile Include="Geometry\BoundingBoxExtensions.cs" />
     <Compile Include="Geometry\ConvexHull.cs" />
+    <Compile Include="Geometry\Geohash.cs" />
     <Compile Include="Geometry\MeshException.cs" />
     <Compile Include="Geometry\QuadricEdgeCollapse\Edge.cs" />
     <Compile Include="Geometry\QuadricEdgeCollapse\EdgeCollapse.cs" />
-    <Compile Include="Geometry\OctreeTriangleContent.cs" />
+    <Compile Include="Geometry\HausdorffTriangle.cs" />
     <Compile Include="Geometry\HausdorffDistance.cs" />
     <Compile Include="Geometry\QuadricEdgeCollapse\EdgeGraph.cs" />
     <Compile Include="Geometry\OctreeNode.cs" />
@@ -97,6 +98,7 @@
     <Compile Include="Scene\NodeConvexHull.cs" />
     <Compile Include="Scene\NodeComponent.cs" />
     <Compile Include="Scene\NodeGeometricError.cs" />
+    <Compile Include="Scene\NodeImageUrl.cs" />
     <Compile Include="Scene\NodeTransform.cs" />
     <Compile Include="Scene\NodeUncertainTransform.cs" />
     <Compile Include="Scene\SceneNode.cs" />

@@ -177,7 +177,6 @@ namespace OPS.Geometry
                 "Patricia", "Strongface", "The Danger", "George", "Donald",
                 "Flapjack", "Harry", "Ol' Hickory Ham Mike", "Nick", "Thom", "Watman",
                 "Yoko", "Mortality Itself", "Penny", "Jack", "Rocky", "Bill", "Ted", "Eve"
-            // TODO: expand
         };
 
         static readonly string[] SillyDescriptors = new string[]
@@ -187,7 +186,7 @@ namespace OPS.Geometry
 
         static readonly string[] LessSillyPlaces = new string[]
         {
-            "Flats", "Plains", "Highlands", "Desert", "Mountain", "Savannah", "Ocean", "Taiga", "Valley", "Tundra", "Mesa", "Canyon", "Ridge", "Cliff Face", "Riverbed", "Gorge", "Rock", "Swamp", "Adventure", "Slope", "Descent", "Erg",
+            "Flats", "Plains", "Butte", "Highlands", "Desert", "Mountain", "Savannah", "Ocean", "Taiga", "Valley", "Tundra", "Mesa", "Canyon", "Ridge", "Cliff Face", "Riverbed", "Gorge", "Rock", "Swamp", "Adventure", "Slope", "Descent", "Erg",
             "Barchan", "Dunes", "Dreikanter", "Ventifact", "Yardang", "Palsa", "Fjord", "Marsh", "Inselberg", "Gully", "Gulch", "Cuesta", "Hogback", "Hoodoos", "Arroyo", "Yazoo Stream", "Terrace", "Ravine", "Dome", "Crater", "Cryovolcano",
             "Bornhardt", "Karst Field"
         };
@@ -217,7 +216,7 @@ namespace OPS.Geometry
         /// </summary>
         public int ChildCount
         {
-            get { return this.Transform.ChildCount; }
+            get { return Transform.ChildCount; }
         }
 
         /// <summary>
@@ -227,11 +226,11 @@ namespace OPS.Geometry
         {
             get
             {
-                if (this.Transform.Parent == null)
+                if (Transform.Parent == null)
                 {
                     return null;
                 }
-                return this.Transform.Parent.Node;
+                return Transform.Parent.Node;
             }
         }
 
@@ -244,12 +243,24 @@ namespace OPS.Geometry
         }
 
         /// <summary>
-        /// Perform a breadth first traversal of leaf nodes starting at this node
+        /// Traverse all leaf nodes reachable from this node in depth first order
         /// </summary>
         /// <returns></returns>
         public IEnumerable<SceneNode> Leaves()
         {
-            foreach(NodeTransform t in this.Transform.Leaves())
+            foreach(NodeTransform t in Transform.Leaves())
+            {
+                yield return t.Node; 
+            }
+        }
+
+        /// <summary>
+        /// Traverse all non-leaf nodes reachable from this node in depth first order
+        /// </summary>
+        /// <returns></returns>
+        public IEnumerable<SceneNode> NonLeaves()
+        {
+            foreach(NodeTransform t in Transform.NonLeaves())
             {
                 yield return t.Node; 
             }
@@ -261,7 +272,7 @@ namespace OPS.Geometry
         /// <returns></returns>
         public IEnumerable<SceneNode> DepthFirstTraverse()
         {
-            foreach(NodeTransform t in this.Transform.DepthFirstTraverse())
+            foreach(NodeTransform t in Transform.DepthFirstTraverse())
             {
                 yield return t.Node;
             }

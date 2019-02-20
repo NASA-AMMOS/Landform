@@ -1,42 +1,39 @@
 ﻿using log4net;
 using Newtonsoft.Json;
-using OPS.Util;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using OPS.Util;
+using OPS.Cloud;
+using OPS.Geometry;
 
 namespace OPS.Pipeline.TileServer
 {
-    public class BuildTilesetJsonMessage : TilingQueueMessage
+    public class BuildTilesetJsonMessage : QueueMessage
     {
         public BuildTilesetJsonMessage() { }
-
         public BuildTilesetJsonMessage(string projectName) : base(projectName) { }
     }
 
-    public class BuildTilesetJson
+    public class BuildTilesetJson : CloudPipelineOperation
     {
+        private readonly BuildTilesetJsonMessage message;
 
-        static ILog logger = LogManager.GetLogger(typeof(BuildTilesetJson));
-
-        StartWorker pipeline;
-        BuildTilesetJsonMessage message;
-
-        public BuildTilesetJson(BuildTilesetJsonMessage message, StartWorker pipeline)
+        public BuildTilesetJson(CloudPipeline pipeline, BuildTilesetJsonMessage message) : base(pipeline, message)
         {
-            this.pipeline = pipeline;
             this.message = message;
         }
 
-
         public void Process()
         {
-            var project = TilingProject.Find(pipeline.DynamoContext, this.message.ProjectName);
-            logger.Info("Building json: " + project.Name);
-            var root = TilingNode.BuildTreeFromDatabase(pipeline.DynamoContext, project);
+            LogInfo("started");
+            var project = TilingProject.Find(pipeline, projectName);
+            LogInfo("building json");
+            var root = TilingNode.BuildTreeFromDatabase(pipeline, project,
+                                                        useBoundsWithSkirt: project.GetSkirtMode() != SkirtMode.None);
             // Only nodes with mesh image pairs will be marked as having content in the tile builder so add them
             // The meshes and images aren't actually used so we don't need to load them
             foreach(var n in root.DepthFirstTraverse())
@@ -44,17 +41,16 @@ namespace OPS.Pipeline.TileServer
                 n.AddComponent<MeshImagePair>();
             }
             var builder = new Tile3DBuilder(root);
-            builder.BuildTileset(n =>
-            {
-                return n.Name + ".b3dm";
-            });
+            builder.BuildTileset(n => n.Name + ".b3dm");
             string jsonData = JsonConvert.SerializeObject(builder.Tileset, Formatting.None);
             TemporaryFile.GetAndDelete(".json", f =>
             {
                 File.WriteAllText(f, jsonData);
-                pipeline.Storage.UploadFile(f, TileServerConfig.Instance.WWWUrl(project.Name, "tileset.json"));
+                string url = pipeline.GetStorageUrl("www", projectName, "tileset.json");
+                pipeline.SaveFile(f, url);
             });
-            pipeline.CompletionQueue.Enqueue(this.message);
+            pipeline.MasterQueue.Enqueue(this.message);
+            LogInfo("completed");
         }
     }
 }

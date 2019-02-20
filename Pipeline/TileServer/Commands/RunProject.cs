@@ -1,7 +1,6 @@
 ﻿using CommandLine;
 using log4net;
 using OPS.Geometry;
-using OPS.Plumbing;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -14,30 +13,33 @@ using Microsoft.Xna.Framework;
 namespace OPS.Pipeline.TileServer
 {
     [Verb("runproject", HelpText = "Runs a tiling workflow")]
-
-    public class RunProjectOptions
+    public class RunProjectOptions : PipelineCoreOptions
     {
         [Value(0, Required = true, HelpText = "Project Name")]
         public string ProjectName { get; set; }
     }
 
-    public class RunProject : PipelineCore
+    public class RunProject : CloudPipeline
     {
-        static ILog logger = LogManager.GetLogger(typeof(RunProject));
+        private RunProjectOptions options;
 
-        RunProjectOptions options;
-
-        public RunProject(RunProjectOptions options) : base(dynamoPrefix: TileServerConfig.Instance.VenueName, profile: TileServerConfig.Instance.Profile)
+        public RunProject(RunProjectOptions options) : base(options, queuePrefix: "tiling")
         {
             this.options = options;
         }
         
         public int Run()
         {
-            var workerQueue = new TileServerCloud(this).WorkerQueue;
-            var project = TilingProject.Find(this.DynamoContext, options.ProjectName);
-            logger.Info("Define tiles");
-            workerQueue.Enqueue(new DefineTilesMessage(options.ProjectName));
+            var project = TilingProject.Find(this, options.ProjectName);
+            if (project == null)
+            {
+                LogError("project \"{0}\" not found", options.ProjectName);
+                return 1; //argument error
+            }
+
+            LogInfo("running project \"{0}\"", options.ProjectName);
+            MasterQueue.Enqueue(new RunProjectMessage(options.ProjectName));
+
             return 0;
         }
     }

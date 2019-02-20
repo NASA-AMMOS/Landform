@@ -12,6 +12,7 @@ using System.Text.RegularExpressions;
 using System.IO;
 using OPS.Util;
 using System.Collections.Concurrent;
+using log4net;
 
 namespace OPS.Cloud
 {
@@ -212,12 +213,6 @@ namespace OPS.Cloud
             }
         }
 
-        /// <summary>
-        /// Function prototype for processing downloaed streams
-        /// </summary>
-        /// <param name="stream"></param>
-        public delegate void StreamHandler(Stream stream);
-
         AWSCredentials awsCredentials;
         Amazon.RegionEndpoint awsRegion;
         ConcurrentDictionary<string, Amazon.RegionEndpoint> bucketToRegion = new ConcurrentDictionary<string, RegionEndpoint>();
@@ -226,7 +221,7 @@ namespace OPS.Cloud
         /// Use the given profile name to create a storage helper
         /// Profiles can be defined in the ~/.aws/credentials file
         /// If an endpoint name such as "us-west-1" is provided that endpoint will be used for all connections
-        /// Otherwise methods will attempt to determine the region for buckets based on the bucket name in the url string
+        /// Otherwise methods will attempt to determine the region for buckets based on the bucket name in the url
         /// Note that s3:GetBucketLocation must be enabled for automatic bucket determination to work.
         /// </summary>
         /// <param name="awsProfileName"></param>
@@ -247,6 +242,23 @@ namespace OPS.Cloud
         {
             //leave all the things null 
             //This works if there is a default profile (on a user machine) or an IAM role (an EC2 instance)
+        }
+
+        public static AmazonS3Client MakeClient(string profile = null, string url = null)
+        {
+            var cfg = new AmazonS3Config();
+            if (string.IsNullOrEmpty(url))
+            {
+                cfg.RegionEndpoint = Amazon.RegionEndpoint.USWest1;
+            }
+            else
+            {
+                cfg.ServiceURL = url;
+                cfg.ForcePathStyle = true;
+                cfg.SignatureVersion = "2";
+            }
+            var creds = profile != null ? Credentials.Get(profile) : null;
+            return creds != null ? new AmazonS3Client(creds, cfg) : new AmazonS3Client(cfg);
         }
 
         //Use default credentials (or, for EC2 workers, their IAM role) if credentials are not provided 
@@ -347,7 +359,13 @@ namespace OPS.Cloud
                     // Process response.
                     foreach (string prefix in response.CommonPrefixes)
                     {
-                        if (regex.IsMatch(prefix))
+                        // Remove the location prefix from the returned results for the regex check
+                        var item = prefix;
+                        if (!string.IsNullOrEmpty(location.Prefix))
+                        {
+                            item = item.Replace(location.Prefix, "");
+                        }
+                        if (regex.IsMatch(item))
                         {
                             yield return new S3Url(location.BucketName, prefix).Url;
                         }
@@ -406,6 +424,23 @@ namespace OPS.Cloud
         }
 
         /// <summary>
+        /// Download a directory and save it to local disk
+        /// </summary>
+        /// <param name="s3url"></param>
+        /// <param name="filename"></param>
+        public void DownloadDirectory(string s3url, string directory)
+        {
+            using (var client = GetClient(s3url))
+            {
+                S3Url location = new S3Url(s3url);
+                using (TransferUtility tu = new TransferUtility(client))
+                {
+                    tu.DownloadDirectory(location.BucketName, location.Prefix, directory);
+                }
+            }
+        }
+
+        /// <summary>
         /// Upload a file from local disk
         /// </summary>
         /// <param name="s3url"></param>
@@ -449,7 +484,7 @@ namespace OPS.Cloud
         /// </summary>
         /// <param name="s3url"></param>
         /// <param name="streamHandler"></param>
-        public void GetStream(string s3url, StreamHandler streamHandler)
+        public void GetStream(string s3url, Action<Stream> streamHandler)
         {
             using (var client = GetClient(s3url))
             {
@@ -468,13 +503,93 @@ namespace OPS.Cloud
         /// </summary>
         /// <param name="s3url"></param>
         /// <param name="streamHandler"></param>
-        public void GetStorageStream(string s3url, StreamHandler streamHandler, long startPosition = 0, int bufferSize = 128*1024)
+        public void GetStorageStream(string s3url, Action<Stream> streamHandler, long startPosition = 0, int bufferSize = 128*1024)
         {
             using (var client = GetClient(s3url))
             {
                 using (var s = new StorageStream(client, s3url, startPosition, bufferSize))
                 {
                     streamHandler(s);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Delete an object
+        /// </summary>
+        /// <returns></returns>
+        public void DeleteObject(string s3Url, bool ignoreErrors = true, ILog logger = null)
+        {
+            try
+            {
+                using (var client = GetClient(s3Url))
+                {
+                    S3Url location = new S3Url(s3Url);
+                    client.DeleteObject(location.BucketName, location.Prefix);
+                }
+            }
+            catch (Exception e)
+            {
+                if (!ignoreErrors)
+                {
+                    throw;
+                }
+                else if (logger != null)
+                {
+                    logger.Warn(string.Format("error deleting S3 object {0}: {1}", s3Url, e.Message));
+                }
+            }
+        }
+
+        /// <summary>
+        /// Delete a set of objects
+        /// </summary>
+        /// <returns></returns>
+        public void DeleteObjects(string s3Url, string pattern = "*", bool recursive = true,
+                                  bool ignoreErrors = true, ILog logger = null)
+        {
+            try
+            {
+                IEnumerable<string> objects = SearchObjects(s3Url, pattern, recursive);
+
+                objects = objects.Where(obj => {
+                        if (obj.StartsWith(s3Url))
+                        {
+                            return true;
+                        }
+                        var msg = string.Format("suspicious glob result \"{0}\", should begin \"{1}\", not deleting",
+                                                obj, s3Url);
+                        if (!ignoreErrors)
+                        {
+                            throw new System.Exception(msg);
+                        }
+                        else if (logger != null)
+                        {
+                            logger.Warn(msg);
+                        }
+                        return false;
+                    });
+
+                DeleteObjectsRequest request = new DeleteObjectsRequest
+                {
+                    BucketName = (new S3Url(s3Url)).BucketName,
+                    Objects = objects.Select(obj => new KeyVersion{ Key = (new S3Url(obj)).Prefix }).ToList()
+                };
+                
+                using (var client = GetClient(s3Url))
+                {
+                    client.DeleteObjects(request);
+                }
+            }
+            catch (Exception e)
+            {
+                if (!ignoreErrors)
+                {
+                    throw;
+                }
+                else if (logger != null)
+                {
+                    logger.Warn(string.Format("error searching objects with prefix {0}: {1}", s3Url, e.Message));
                 }
             }
         }

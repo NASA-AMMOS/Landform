@@ -1,5 +1,4 @@
 ﻿using Microsoft.Xna.Framework;
-using OPS.Plumbing;
 using System;
 using System.Collections.Generic;
 using System.Drawing;
@@ -7,6 +6,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using OPS.Imaging;
 
 namespace PairViewer
 {
@@ -15,7 +15,8 @@ namespace PairViewer
         OPS.Imaging.Image image;
         Bitmap bitmap;
         public PictureBox Box;
-        public ImageRef ImageRef;
+        public string ImageFile;
+        public string ImageUrl;
 
         public Bitmap Overlay;
 

@@ -74,7 +74,7 @@ namespace OPS.Pipeline
         public static RoverProductId ParseFromString(string productId)
         {
             RoverProductId result = OPGSProductId.ParseFromOPGSName(productId);
-            if(result == null)
+            if (result == null)
             {
                 result = MSSSProductId.ParseFromMSSS(productId);
             }
@@ -103,6 +103,7 @@ namespace OPS.Pipeline
             prodToType.Add("RAS", RoverProductType.Image);
             prodToType.Add("RNG", RoverProductType.Range);
             prodToType.Add("XYZ", RoverProductType.XYZ);
+            prodToType.Add("UVW", RoverProductType.NormalMap);
         }
 
         public override RoverProductProducer Producer
@@ -159,11 +160,11 @@ namespace OPS.Pipeline
 
         public static OPGSProductId ParseFromOPGSName(string productId)
         {
-            if(productId.EndsWith(".IMG"))
+            if (productId.EndsWith(".IMG"))
             {
-                productId= productId.Replace(".IMG", "");
+                productId = productId.Replace(".IMG", "");
             }
-            if(productId.Length != 36)
+            if (productId.Length != 36)
             {
                 return null;
             }
@@ -184,6 +185,13 @@ namespace OPS.Pipeline
             id.version = productId.Substring(35, 1);
             return id;
         }
+    }
+
+    public enum MSSSProductType
+    {
+        JPEGGrayscale,
+        JPEGColor,
+        Unknown
     }
 
     public class MSSSProductId : RoverProductId
@@ -245,6 +253,23 @@ namespace OPS.Pipeline
             get
             {
                 return RoverProductType.Image;
+            }
+        }
+
+        public MSSSProductType MSSSProductType
+        {
+            get
+            {
+                string t = this.productType.ToUpper();
+                if (t == "D")
+                {
+                    return MSSSProductType.JPEGGrayscale;
+                }
+                else if (t=="E" || t == "F")
+                {
+                    return MSSSProductType.JPEGColor;
+                }
+                return MSSSProductType.Unknown;
             }
         }
 

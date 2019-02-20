@@ -1,0 +1,493 @@
+PDS_VERSION_ID                    = PDS3
+
+/* FILE DATA ELEMENTS */
+
+RECORD_TYPE                         = FIXED_LENGTH
+RECORD_BYTES                        = 1344
+FILE_RECORDS                        = 3600
+
+/* Pointers to Data Objects */
+
+^IMAGE = ("0606MR0025570000400933E01_DRCX.IMG")
+
+
+/* Identification Data Elements */
+
+MSL:ACTIVE_FLIGHT_STRING_ID         = "B"
+DATA_SET_ID                         = "MSL-M-MASTCAM-4-RDR-IMG-V1.0"
+DATA_SET_NAME                       = "MSL MARS MAST CAMERA 4 RDR IMAGE V1.0"
+COMMAND_SEQUENCE_NUMBER             = 0
+GEOMETRY_PROJECTION_TYPE            = RAW
+IMAGE_ID                            = "0606MR0025570000400933E01"
+IMAGE_TYPE                          = REGULAR
+MSL:IMAGE_ACQUIRE_MODE              = IMAGE
+INSTRUMENT_HOST_ID                  = MSL
+INSTRUMENT_HOST_NAME                = "MARS SCIENCE LABORATORY"
+INSTRUMENT_ID                       = MAST_RIGHT
+INSTRUMENT_NAME                     = "MAST CAMERA RIGHT"
+INSTRUMENT_SERIAL_NUMBER            = "3004"
+FLIGHT_SOFTWARE_VERSION_ID          = "1105031458"
+INSTRUMENT_TYPE                     = "IMAGING CAMERA"
+INSTRUMENT_VERSION_ID               = FM
+MSL:LOCAL_MEAN_SOLAR_TIME           = "Sol-00606M15:55:28.983"
+LOCAL_TRUE_SOLAR_TIME               = "16:18:53"
+MISSION_NAME                        = "MARS SCIENCE LABORATORY"
+MISSION_PHASE_NAME                  = "PRIMARY SURFACE MISSION"
+OBSERVATION_ID                      = "NULL"
+PLANET_DAY_NUMBER                   = 0606
+INSTITUTION_NAME                    = "MALIN SPACE SCIENCE SYSTEMS"
+PRODUCT_CREATION_TIME               = 2014-09-10T02:43:35.661
+PRODUCT_VERSION_ID                  = "V1.0"
+PRODUCT_ID                          = "0606MR0025570000400933E01_DRCX"
+SOURCE_PRODUCT_ID                   = "McamRImage_0451302637-00000-1"
+MSL:INPUT_PRODUCT_ID                = "0606MR0025570000400933E01_DXXX"
+MSL:CALIBRATION_FILE_NAME           = "N/A"
+RELEASE_ID                          = "0007"
+MSL:REQUEST_ID                      = "3002557000"
+MSL:CAMERA_PRODUCT_ID               = "933"
+MSL:CAMERA_PRODUCT_ID_COUNT         = 4
+ROVER_MOTION_COUNTER_NAME           = ("SITE", "DRIVE", "POSE", 
+                                       "ARM", "CHIMRA", "DRILL", 
+                                       "RSM", "HGA", 
+                                       "DRT", "IC")
+ROVER_MOTION_COUNTER                = (31, 1256, 
+                                       10, 0, 
+                                       0, 0, 
+                                       108, 0, 
+                                       0, 0 )
+SEQUENCE_ID                         = "mcam02557"
+SEQUENCE_VERSION_ID                 = "0"
+SOLAR_LONGITUDE                     = 119.290
+SPACECRAFT_CLOCK_CNT_PARTITION      = 1
+SPACECRAFT_CLOCK_START_COUNT        = "451302674.0000"
+SPACECRAFT_CLOCK_STOP_COUNT         = "451302674.0395"
+IMAGE_TIME                          = 2014-04-20T22:01:41.891
+START_TIME                          = 2014-04-20T22:01:41.891
+STOP_TIME                           = 2014-04-20T22:01:42.493
+TARGET_NAME                         = "MARS"
+TARGET_TYPE                         = "PLANET"
+
+/* Telemetry Data Elements */
+
+APPLICATION_PROCESS_ID              = 419
+APPLICATION_PROCESS_NAME            = McamRImage
+EARTH_RECEIVED_START_TIME           = 2014-04-21T10:50:40
+SPICE_FILE_NAME                     = "chronos.msl_gc120806_v3"
+TELEMETRY_PROVIDER_ID               = "NULL"
+MSL:TELEMETRY_SOURCE_HOST_NAME      = "NULL"
+TELEMETRY_SOURCE_NAME               = "McamRImage_0451302637-00000-1"
+TELEMETRY_SOURCE_TYPE               = "DATA PRODUCT"
+MSL:COMMUNICATION_SESSION_ID        = "36071"
+MSL:PRODUCT_COMPLETION_STATUS       = COMPLETE_CHECKSUM_PASS
+MSL:SEQUENCE_EXECUTION_COUNT        = 1
+MSL:TELEMETRY_SOURCE_START_TIME     = 2014-04-20T22:01:05
+MSL:TELEMETRY_SOURCE_SCLK_START     = "1/451302637-00000"
+
+
+/* History Data Elements */
+
+GROUP                               = PDS_HISTORY_PARMS
+ SOFTWARE_NAME                       = MMMRDRGEN
+ SOFTWARE_VERSION_ID                 = "pds6.0"
+ PROCESSING_HISTORY_TEXT             = "CODMAC LEVEL 1 to LEVEL 4 
+                                        CONVERSION VIA MSSS MMMRDRGEN"
+END_GROUP                           = PDS_HISTORY_PARMS
+
+/* Camera Model Data Elements */
+
+GROUP                              = GEOMETRIC_CAMERA_MODEL_PARMS
+ ^MODEL_DESC                         = "GEOMETRIC_CM.TXT"
+ FILTER_NAME                         = MASTCAM_R0_CLEAR
+ MODEL_TYPE                          = "CAHVOR"
+ MODEL_COMPONENT_ID                  = ("C", "A", "H", "V", "O", "R")
+ MODEL_COMPONENT_NAME                = ("CENTER", "AXIS", "HORIZONTAL",
+                                        "VERTICAL", "OPTICAL", "RADIAL")
+ MODEL_COMPONENT_1                   = ( 9.468865e-01, 5.891349e-01,
+-1.945973e+00 )
+ MODEL_COMPONENT_2                   = ( 6.858154e-01, -6.556740e-01,
+3.158024e-01 )
+ MODEL_COMPONENT_3                   = ( 9.718166e+03, 9.214789e+03,
+2.421290e+02 )
+ MODEL_COMPONENT_4                   = ( -2.701004e+03, 2.551517e+03,
+1.285499e+04 )
+ MODEL_COMPONENT_5                   = ( 6.787093e-01, -6.584357e-01,
+3.252673e-01 )
+ MODEL_COMPONENT_6                   = ( -1.060000e-04, 1.436779e+00,
+-6.858840e-01 )
+ REFERENCE_COORD_SYSTEM_NAME         = ROVER_NAV_FRAME
+ COORDINATE_SYSTEM_INDEX_NAME        = ("SITE", "DRIVE", "POSE",
+                                        "ARM", "CHIMRA", "DRILL",
+                                        "RSM", "HGA",
+                                        "DRT", "IC")
+ REFERENCE_COORD_SYSTEM_INDEX        = (31, 1256, 10, 
+                                        0, 0, 0, 
+                                        108, 0, 
+                                        0, 0 )
+END_GROUP                          = GEOMETRIC_CAMERA_MODEL_PARMS
+
+
+/* Coordinate System State: Rover */
+
+GROUP                              = ROVER_COORDINATE_SYSTEM_PARMS
+ MSL:SOLUTION_ID                     = telemetry
+ COORDINATE_SYSTEM_NAME              = ROVER_NAV_FRAME
+ COORDINATE_SYSTEM_INDEX_NAME        = ("SITE", "DRIVE", "POSE",
+                                        "ARM", "CHIMRA", "DRILL",
+                                        "RSM", "HGA",
+                                        "DRT", "IC")
+ COORDINATE_SYSTEM_INDEX             = (31, 1256, 10, 
+                                        0, 0, 0, 
+                                        108, 0, 
+                                        0, 0 )
+ ORIGIN_OFFSET_VECTOR                = (-86.509682, -57.647167, 1.966438)
+ ORIGIN_ROTATION_QUATERNION          = (0.9246033, 
+                                        0.0233355, 
+                                        0.0664593, 
+                                        -0.3743627)
+ POSITIVE_AZIMUTH_DIRECTION          = CLOCKWISE
+ POSITIVE_ELEVATION_DIRECTION        = UP
+ QUATERNION_MEASUREMENT_METHOD       = TILT_ONLY
+ REFERENCE_COORD_SYSTEM_NAME         = SITE_FRAME
+END_GROUP                          = ROVER_COORDINATE_SYSTEM_PARMS
+
+
+/* Coordinate System State: Remote Sensing Mast */
+
+GROUP                              = RSM_COORDINATE_SYSTEM_PARMS
+ MSL:SOLUTION_ID                     = telemetry
+ COORDINATE_SYSTEM_NAME              = RSM_HEAD_FRAME
+ COORDINATE_SYSTEM_INDEX_NAME        = ("SITE", "DRIVE", "POSE",
+                                        "ARM", "CHIMRA", "DRILL",
+                                        "RSM", "HGA",
+                                        "DRT", "IC")
+ COORDINATE_SYSTEM_INDEX             = (31, 1256, 10, 
+                                        0, 0, 0, 
+                                        108, 0, 
+                                        0, 0 )
+ ORIGIN_OFFSET_VECTOR                = (0.804397, 0.559517, -1.906076)
+ ORIGIN_ROTATION_QUATERNION          = ( 0.9197938,
+                                         -0.0578909,
+                                         -0.1516852,
+                                         -0.3572389)
+ POSITIVE_AZIMUTH_DIRECTION          = CLOCKWISE
+ POSITIVE_ELEVATION_DIRECTION        = UP
+ REFERENCE_COORD_SYSTEM_NAME         = ROVER_NAV_FRAME
+END_GROUP                          = RSM_COORDINATE_SYSTEM_PARMS
+
+/* Coordinate System State: Robotic Arm */
+
+GROUP                              = ARM_COORDINATE_SYSTEM_PARMS
+ MSL:SOLUTION_ID                     = telemetry
+ COORDINATE_SYSTEM_NAME              = ARM_DRILL_FRAME
+ COORDINATE_SYSTEM_INDEX_NAME        = ("SITE", "DRIVE", "POSE",
+                                        "ARM", "CHIMRA", "DRILL",
+                                        "RSM", "HGA",
+                                        "DRT", "IC")
+ COORDINATE_SYSTEM_INDEX             = (31, 1256, 10, 
+                                        0, 0, 0, 
+                                        108, 0, 0, 0 )
+ ORIGIN_OFFSET_VECTOR                = (1.239012, -0.475651, -0.243403)
+ ORIGIN_ROTATION_QUATERNION          = ( 0.9969088,
+                                         -0.0094246,
+                                         -0.0015267,
+                                         0.0779846)
+ POSITIVE_AZIMUTH_DIRECTION          = CLOCKWISE
+ POSITIVE_ELEVATION_DIRECTION        = UP
+ REFERENCE_COORD_SYSTEM_NAME         = ROVER_NAV_FRAME
+END_GROUP                          = ARM_COORDINATE_SYSTEM_PARMS
+
+/* Articulation Device State: Remote Sensing Mast */
+
+GROUP                              = RSM_ARTICULATION_STATE_PARMS
+ ARTICULATION_DEVICE_ID              = RSM
+ ARTICULATION_DEVICE_NAME            = "REMOTE SENSING MAST"
+ ARTICULATION_DEVICE_ANGLE_NAME      = ("AZIMUTH-MEASURED", 
+                                        "ELEVATION-MEASURED",
+                                        "AZIMUTH-REQUESTED", 
+                                        "ELEVATION-REQUESTED",
+                                        "AZIMUTH-INITIAL", 
+                                        "ELEVATION-INITIAL",
+                                        "AZIMUTH-FINAL", 
+                                        "ELEVATION-FINAL")
+ ARTICULATION_DEVICE_ANGLE           = ( 2.426546 <rad>, 1.261755 <rad>,
+                                         2.429047 <rad>, 1.265418 <rad>,
+                                         3.159003 <rad>, 0.750560 <rad>,
+                                         2.428995 <rad>, 1.265307 <rad> )
+ ARTICULATION_DEVICE_MODE            = DEPLOYED
+END_GROUP                          = RSM_ARTICULATION_STATE_PARMS
+
+
+/* Articulation Device State: Robotic Arm */
+
+GROUP                              = ARM_ARTICULATION_STATE_PARMS
+ ARTICULATION_DEVICE_ID              = ARM
+ ARTICULATION_DEVICE_NAME            = "SAMPLE ARM"
+ ARTICULATION_DEVICE_ANGLE_NAME      = ("JOINT 1 AZIMUTH-ENCODER",
+                                        "JOINT 2 ELEVATION-ENCODER",
+                                        "JOINT 3 ELBOW-ENCODER",
+                                        "JOINT 4 WRIST-ENCODER",
+                                        "JOINT 5 TURRET-ENCODER",
+                                        "JOINT 1 AZIMUTH-RESOLVER",
+                                        "JOINT 2 ELEVATION-RESOLVER",
+                                        "JOINT 3 ELBOW-RESOLVER",
+                                        "JOINT 4 WRIST-RESOLVER",
+                                        "JOINT 5 TURRET-RESOLVER")
+ ARTICULATION_DEVICE_ANGLE           = ( 1.572212 <rad>,
+                                         -0.277761 <rad>,
+                                         -2.816281 <rad>,
+                                         3.121088 <rad>,
+                                         0.593767 <rad>,
+                                         1.568154 <rad>,
+                                         -0.277720 <rad>,
+                                         -2.825491 <rad>,
+                                         3.116510 <rad>,
+                                         0.593527 <rad> )
+ ARTICULATION_DEVICE_MODE            = "FREE SPACE"
+ ARTICULATION_DEVICE_TEMP_NAME       = ("AZIMUTH JOINT",
+                                        "ELEVATION JOINT", 
+                                        "ELBOW JOINT", 
+                                        "WRIST JOINT", 
+                                        "TURRET JOINT")
+ ARTICULATION_DEVICE_TEMP            = ( -15.3927 <degC>, 
+                                         -17.4197 <degC>, 
+                                         -14.0176 <degC>, 
+                                         -13.7836 <degC>, 
+                                         -17.8304 <degC> )
+ CONTACT_SENSOR_STATE_NAME           = ( "MAHLI SWITCH 1", "MAHLI SWITCH 2",
+                                         "DRT SWITCH 1", "DRT SWITCH 2",
+                                         "DRILL SWITCH 1", "DRILL SWITCH 2",
+                                         "APXS DOOR SWITCH", "APXS CONTACT
+SWITCH" )
+ CONTACT_SENSOR_STATE                = ( "NO CONTACT","NO CONTACT","NO
+CONTACT","NO CONTACT","NO CONTACT","NO CONTACT","NO CONTACT","CLOSED" )
+
+ ARTICULATION_DEV_VECTOR            = ( -0.140369, -0.006608, 0.990077)
+ ARTICULATION_DEV_VECTOR_NAME        = "GRAVITY"
+ ARTICULATION_DEV_INSTRUMENT_ID      = "APXS"
+END_GROUP                         = ARM_ARTICULATION_STATE_PARMS
+
+/* Articulation Device State: Mobility Chassis */
+
+GROUP                              = CHASSIS_ARTICULATION_STATE_PARMS
+ ARTICULATION_DEVICE_ID              = CHASSIS
+ ARTICULATION_DEVICE_NAME            = "MOBILITY CHASSIS"
+ ARTICULATION_DEVICE_ANGLE_NAME      = ("LEFT FRONT WHEEL", 
+                                        "RIGHT FRONT WHEEL", 
+                                        "LEFT REAR WHEEL", 
+                                        "RIGHT REAR WHEEL", 
+                                        "LEFT BOGIE", 
+                                        "RIGHT BOGIE", 
+                                        "LEFT DIFFERENTIAL", 
+                                        "RIGHT DIFFERENTIAL")
+ ARTICULATION_DEVICE_ANGLE           = ( -0.000000 <rad>, 0.000043 <rad>,
+0.000043 <rad>, 0.000043 <rad>,
+                                         -0.021033 <rad>, 0.007730 <rad>,
+                                         -0.013007 <rad>, 0.011168 <rad> )
+ ARTICULATION_DEVICE_MODE            = DEPLOYED
+END_GROUP                          = CHASSIS_ARTICULATION_STATE_PARMS
+
+
+/* Articulation Device State: High Gain Antenna */
+
+GROUP                              = HGA_ARTICULATION_STATE_PARMS
+ ARTICULATION_DEVICE_ID              = HGA
+ ARTICULATION_DEVICE_NAME            = "HIGH GAIN ANTENNA"
+ ARTICULATION_DEVICE_ANGLE_NAME      = ("AZIMUTH", "ELEVATION")
+ ARTICULATION_DEVICE_ANGLE           = ( 0.000000 <rad>, -0.785009 <rad> )
+ ARTICULATION_DEVICE_MODE            = "DEPLOYED"
+END_GROUP                          = HGA_ARTICULATION_STATE_PARMS
+
+
+/* Coordinate System State: Site */
+
+GROUP                              = SITE_COORDINATE_SYSTEM_PARMS
+ COORDINATE_SYSTEM_NAME              = SITE_FRAME
+ COORDINATE_SYSTEM_INDEX_NAME        = ("SITE" )
+ COORDINATE_SYSTEM_INDEX             = (31 )
+ ORIGIN_OFFSET_VECTOR                = (-158.193497, 112.316025, -3.327696 )
+ ORIGIN_ROTATION_QUATERNION          = (1.0000000,
+                                        0.0000000,
+                                        0.0000000,
+                                        0.0000000 )
+ POSITIVE_AZIMUTH_DIRECTION          = CLOCKWISE
+ POSITIVE_ELEVATION_DIRECTION        = UP
+ REFERENCE_COORD_SYSTEM_NAME         = SITE_FRAME
+END_GROUP                          = SITE_COORDINATE_SYSTEM_PARMS
+
+
+/* Observation Request */
+
+GROUP                              = OBSERVATION_REQUEST_PARMS
+ COMMAND_INSTRUMENT_ID               = MAST_RIGHT
+ RATIONALE_DESC                      = "Document stratigraphy near the drill
+site"
+END_GROUP                          = OBSERVATION_REQUEST_PARMS
+
+
+/* Image Request */
+
+GROUP                              = IMAGE_REQUEST_PARMS
+ FIRST_LINE                          = 1
+ FIRST_LINE_SAMPLE                   = 161
+ LINES                               = 1200
+ LINE_SAMPLES                        = 1344
+ EXPOSURE_TYPE                       = AUTO
+ EXPOSURE_DURATION                   = "N/A"
+ INST_CMPRS_MODE                     = 3
+ INST_CMPRS_NAME                     = "JPEG DISCRETE COSINE TRANSFORM (DCT);
+HUFFMAN/QUALITY"
+ INST_CMPRS_QUALITY                  = 85
+ AUTO_EXPOSURE_DATA_CUT              = "NULL"
+ AUTO_EXPOSURE_PERCENT               = 010
+ AUTO_EXPOSURE_PIXEL_FRACTION        = 002
+ MAX_AUTO_EXPOS_ITERATION_COUNT      = 8
+ MSL:AUTO_FOCUS_ZSTACK_FLAG          = "NULL"
+ MSL:INSTRUMENT_FOCUS_POSITION_CNT   = "NULL"
+ MSL:INSTRUMENT_FOCUS_STEP_SIZE      = "NULL"
+ MSL:INSTRUMENT_FOCUS_STEPS          = "NULL"
+ FILTER_NAME                         = "MASTCAM_R0_CLEAR"
+ FILTER_NUMBER                       = "0"
+ MSL:INVERSE_LUT_FILE_NAME           = MMM_LUT0
+ FLAT_FIELD_CORRECTION_FLAG          = FALSE
+END_GROUP                          = IMAGE_REQUEST_PARMS
+
+
+/* Video Request */
+
+GROUP                              = VIDEO_REQUEST_PARMS
+ GROUP_APPLICABILITY_FLAG            = FALSE
+ MSL:COMMANDED_VIDEO_FRAMES          = "N/A"
+ INTERFRAME_DELAY                    = "N/A"
+END_GROUP                          = VIDEO_REQUEST_PARMS
+
+/* ZStack Request */
+
+GROUP                              = ZSTACK_REQUEST_PARMS
+ GROUP_APPLICABILITY_FLAG            = FALSE
+ MSL:ZSTACK_IMAGE_DEPTH               = "N/A"
+ MSL:IMAGE_BLENDING_FLAG              = "N/A"
+ MSL:IMAGE_REGISTRATION_FLAG          = "N/A"
+END_GROUP                          = ZSTACK_REQUEST_PARMS
+
+
+/* Instrument State Results */
+
+GROUP                              = INSTRUMENT_STATE_PARMS
+ HORIZONTAL_FOV                      = 5.6823
+ VERTICAL_FOV                        = 5.0743
+ DETECTOR_FIRST_LINE                 = 1
+ DETECTOR_LINES                      = 1200
+ MSL:DETECTOR_SAMPLES                = 1648
+ DETECTOR_TO_IMAGE_ROTATION          = 0.0
+ EXPOSURE_DURATION                   = 39.5 <ms>
+ FILTER_NAME                         = MASTCAM_R0_CLEAR
+ FILTER_NUMBER                       = "0"
+ CENTER_FILTER_WAVELENGTH            = 575 <nm> 
+ FLAT_FIELD_CORRECTION_FLAG          = FALSE
+ MSL:INSTRUMENT_CLOCK_START_COUNT    = "451302674.0000"
+ MSL:SENSOR_READOUT_RATE             = 10 <MHz>
+ INSTRUMENT_TEMPERATURE_NAME         = ( "DEA_TEMP", "FPA_TEMP",
+                                         "OPTICS_TEMP", "ELECTRONICS",
+                                         "ELECTRONICS_A", "ELECTRONICS_B" )
+ INSTRUMENT_TEMPERATURE              = ( 0.0000 <degC>, 
+                                         0.0000 <degC>, 
+                                         -17.2824 <degC>, 
+                                         -17.6115 <degC>,
+                                         "NULL",
+                                         "NULL" )
+ MSL:INSTRUMENT_TEMPERATURE_STATUS   = ( -42, 
+                                         -42, 
+                                         0, 
+                                         0,
+                                         "UNK", 
+                                         "UNK" )
+ SAMPLE_BIT_METHOD                   = "HARDWARE"
+ SAMPLE_BIT_MODE_ID                  = MMM_LUT0
+ MSL:FOCUS_POSITION_COUNT            = 2854
+ MSL:FILTER_POSITION_COUNT           = 0
+ MSL:COVER_HALL_SENSOR_FLAG          = "N/A"
+ MSL:FILTER_HALL_SENSOR_FLAG         = 0
+ MSL:FOCUS_HALL_SENSOR_FLAG          = 1
+ MSL:LED_STATE_NAME                  = ("VIS1", "VIS2", "UV")
+ MSL:LED_STATE_FLAG                  = ( "N/A", "N/A", "N/A" )
+ DETECTOR_ERASE_COUNT                = 4094
+END_GROUP                          = INSTRUMENT_STATE_PARMS
+
+
+/* Image Data Elements */
+
+GROUP                              = IMAGE_PARMS
+ INST_CMPRS_MODE                     = 3
+ INST_CMPRS_NAME                     = "JPEG DISCRETE COSINE TRANSFORM (DCT);
+HUFFMAN/QUALITY"
+ INST_CMPRS_QUALITY                  = 85
+ MSL:INVERSE_LUT_FILE_NAME           = MMM_LUT0
+ PIXEL_AVERAGING_HEIGHT              = 1
+ PIXEL_AVERAGING_WIDTH               = 1
+END_GROUP                          = IMAGE_PARMS
+
+/* Video Data Elements */
+
+GROUP                              = VIDEO_PARMS
+ GROUP_APPLICABILITY_FLAG            = FALSE
+ MSL:GOP_FRAME_INDEX                 = "N/A"
+ MSL:GOP_TOTAL_FRAMES                = "N/A"
+END_GROUP                          = VIDEO_PARMS
+
+
+/* Derived Data Elements */
+
+GROUP                              = DERIVED_IMAGE_PARMS
+ MSL:INFINITY_CONSTANT               = 999999
+ MSL:COVER_STATE_FLAG                = "N/A"
+ MSL:MINIMUM_FOCUS_DISTANCE          = 4.3 <m>
+ MSL:BEST_FOCUS_DISTANCE             = 4.848 <m>
+ MSL:MAXIMUM_FOCUS_DISTANCE          = 5.6 <m>
+ MSL:FRAME_RATE                      = "N/A"
+ FIXED_INSTRUMENT_AZIMUTH            = 273.8104
+ FIXED_INSTRUMENT_ELEVATION          = -13.1456
+ SOLAR_AZIMUTH                       = 296.0468
+ SOLAR_ELEVATION                     = 23.2654
+END_GROUP                          = DERIVED_IMAGE_PARMS
+
+/* Processing Data Elements */
+GROUP                             = PROCESSING_PARMS
+ DARK_LEVEL_CORRECTION               = 122.8
+ SHUTTER_EFFECT_CORRECTION_FLAG      = FALSE
+ RADIOMETRIC_CORRECTION_TYPE         = "N/A"
+ RADIANCE_OFFSET                     = ( 0.000e+00, 
+                                         0.000e+00, 
+                                         0.000e+00 )
+ RADIANCE_SCALING_FACTOR             = ( 5.736e-05, 
+                                         5.313e-05, 
+                                         4.957e-05 )
+ FLAT_FIELD_CORRECTION_FLAG          = TRUE
+END_GROUP                         = PROCESSING_PARMS
+
+/* PRIMARY DATA OBJECT */
+
+/* IMAGE DATA ELEMENTS */
+
+OBJECT                            = IMAGE
+  INTERCHANGE_FORMAT              = BINARY
+  LINES                           = 1200
+  LINE_SAMPLES                    = 1344
+  SAMPLE_TYPE                     = UNSIGNED_INTEGER
+  SAMPLE_BITS                     = 8
+  BANDS                           = 3
+  BAND_STORAGE_TYPE               = BAND_SEQUENTIAL
+  FIRST_LINE                      = 1
+  FIRST_LINE_SAMPLE               = 161
+  INVALID_CONSTANT                = 255
+  MINIMUM                         = "NULL"
+  MAXIMUM                         = "NULL"
+  MEAN                            = "NULL"
+  MEDIAN                          = "NULL"
+  STANDARD_DEVIATION              = "NULL"
+  MISSING_CONSTANT                = 255
+  SAMPLE_BIT_MASK                 = 2#11111111#
+  SAMPLE_BIT_MODE_ID              = MMM_LUT0
+  SAMPLE_BIT_METHOD               = "HARDWARE"
+END_OBJECT                        = IMAGE
+
+END

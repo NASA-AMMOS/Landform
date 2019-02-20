@@ -49,17 +49,25 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Config.cs" />
+    <Compile Include="ConsoleHelper.cs" />
     <Compile Include="JsonHelper.cs" />
+    <Compile Include="Logging.cs" />
     <Compile Include="LRUCache.cs" />
     <Compile Include="Memoizer.cs" />
+    <Compile Include="NumberHelper.cs" />
     <Compile Include="PathHelper.cs" />
     <Compile Include="ProgramRunner.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Serial.cs" />
+    <Compile Include="SerializerMap.cs" />
     <Compile Include="Singleton.cs" />
     <Compile Include="SingletonConfig.cs" />
     <Compile Include="TemporaryFile.cs" />
     <Compile Include="StringHelper.cs" />
+    <Compile Include="TypeDispatcher.cs" />
+    <Compile Include="URLPair.cs" />
+    <Compile Include="UTCTime.cs" />
+    <Compile Include="WeakDictionary.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />

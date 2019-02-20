@@ -1,3 +1,0 @@
--a -not -regex .*node_modules.*
--a -not -regex .*client/build.*
--a -not -regex .*uploads.*

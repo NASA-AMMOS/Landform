@@ -14,17 +14,23 @@ namespace OPS.Imaging
         public Vector3 H;
         public Vector3 V;
 
-        //Default constructor for JSOn deserialization
-        public CAHV()
-        {
 
-        }
+        //Default constructor for JSOn deserialization
+        public CAHV() { }
 
         public override bool Linear
         {
             get
             {
                 return true;
+            }
+        }
+
+        public override Vector3 ImagePlaneNormal
+        {
+            get
+            {
+                return A;
             }
         }
 
@@ -108,7 +114,9 @@ namespace OPS.Imaging
             uvec3 = Vector3.Cross(f, g);        //cross3(f, g, uvec3);
             magi = uvec3.Length();              //magi = mag3(uvec3);
             if (magi <= EPSILON)
+            {
                 throw new DivideByZeroException();
+            }
             magi = 1.0 / magi;
             uvec3 = uvec3 * magi;               //scale3(magi, uvec3, uvec3);
             t = Vector3.Cross(V, H);            //cross3(V, H, t);

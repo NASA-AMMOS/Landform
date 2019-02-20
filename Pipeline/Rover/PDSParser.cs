@@ -11,7 +11,7 @@ namespace OPS.Pipeline
     public class PDSParser
     {
 
-        PDSMetadata metadata;
+        public PDSMetadata metadata;
 
         public PDSParser(PDSMetadata metadata)
         {
@@ -31,6 +31,28 @@ namespace OPS.Pipeline
         public int FirstSample
         {
             get { return metadata.ReadAsInt("IMAGE", "FIRST_LINE_SAMPLE"); }
+        }
+
+        private const string Unknown = "UNK";
+
+        public bool HasMissingConstant
+        {
+            get { return metadata.HasKey("IMAGE", "MISSING_CONSTANT") && metadata.ReadAsString("IMAGE", "MISSING_CONSTANT") != Unknown; }
+        }
+
+        public double[] MissingConstant
+        {
+            get { return metadata.ReadAsDoubleArray("IMAGE", "MISSING_CONSTANT"); }
+        }
+
+        public bool HasInvalidConstant
+        {
+            get { return metadata.HasKey("IMAGE", "INVALID_CONSTANT") && metadata.ReadAsString("IMAGE", "INVALID_CONSTANT") != Unknown; }
+        }
+
+        public float InvalidConstant
+        {
+            get { return (float)metadata.ReadAsDouble("IMAGE", "INVALID_CONSTANT"); }
         }
 
         public RoverProductId ProductId
@@ -217,23 +239,67 @@ namespace OPS.Pipeline
         }
 
         // Mastcam only
-        public int FilterNumber
+        public int? FilterNumber
         {
             get
-            {    
-                 return metadata.ReadAsInt("IMAGE_REQUEST_PARMS", "FILTER_NUMBER");
+            {
+                if (metadata.HasKey("IMAGE_REQUEST_PARMS", "FILTER_NUMBER"))
+                {
+                    return metadata.ReadAsInt("IMAGE_REQUEST_PARMS", "FILTER_NUMBER");
+                }
+                if(metadata.HasKey("OBSERVATION_REQUEST_PARMS", "FILTER_NUMBER"))
+                {
+                    return metadata.ReadAsInt("OBSERVATION_REQUEST_PARMS", "FILTER_NUMBER");
+                }
+                if (metadata.HasKey("INSTRUMENT_STATE_PARMS", "FILTER_NUMBER"))
+                {
+                    return metadata.ReadAsInt("INSTRUMENT_STATE_PARMS", "FILTER_NUMBER");
+                }
+                if (metadata.HasKey("MINI_HEADER", "FILTER_NUMBER"))
+                {
+                    return metadata.ReadAsInt("MINI_HEADER", "FILTER_NUMBER");
+                }
+                return null;
             }
         }
 
         // Mastcam only
-        public double MaximumFocusDistance
+        public double? MaximumFocusDistance
         {
             get
             {
-                return metadata.ReadAsDouble("DERIVED_IMAGE_PARMS", "MSL:MAXIMUM_FOCUS_DISTANCE");
+                if (metadata.HasKey("DERIVED_IMAGE_PARMS", "MSL:MAXIMUM_FOCUS_DISTANCE"))
+                {
+                    return metadata.ReadAsDouble("DERIVED_IMAGE_PARMS", "MSL:MAXIMUM_FOCUS_DISTANCE");
+                }
+                return null;
             }
         }
 
+        public double MinimumFocusDistance
+        {
+            get
+            {
+                if (metadata.ReadAsString("INSTRUMENT_HOST_ID") == "MSL")
+                {
+                    if (metadata.HasKey("DERIVED_IMAGE_PARMS", "MSL:MINIMUM_FOCUS_DISTANCE"))
+                    {
+                        double nearFocus = metadata.ReadAsDouble("DERIVED_IMAGE_PARMS", "MSL:MINIMUM_FOCUS_DISTANCE");
+                 
+                        if (IsMAHLI)
+                            nearFocus /= 1000.0; //mahli is in millimeters
+
+                        return nearFocus;
+                    }
+                }
+                return 0;
+            }
+        }
+
+
+        /// <summary>
+        /// Rover to local level
+        /// </summary>
         public Quaternion RoverOriginRotation
         {
             get
@@ -336,7 +402,7 @@ namespace OPS.Pipeline
         {
             get
             {
-                return Camera == RoverProductCamera.MastcamLeft || Camera == RoverProductCamera.MastcamLeft;
+                return Camera == RoverProductCamera.MastcamLeft || Camera == RoverProductCamera.MastcamRight;
             }
         }
 
@@ -363,16 +429,39 @@ namespace OPS.Pipeline
             }
         }
 
+        public bool IsMAHLI
+        {
+            get
+            {
+                RoverProductCamera inst = Camera;
+                return inst == RoverProductCamera.MAHLI;
+            }
+        }
+
         public bool IsDownsampled
         {
             get
             {
-                if (metadata.ReadAsString("IMAGE_REQUEST_PARMS", "PIXEL_DOWNSAMPLE_OPTION") != "NONE")
+                if (metadata.HasKey("IMAGE_REQUEST_PARMS", "PIXEL_DOWNSAMPLE_OPTION"))
                 {
-                    int avgWidth = metadata.ReadAsInt("IMAGE_REQUEST_PARMS", "PIXEL_AVERAGING_WIDTH");
-                    int avgHeight = metadata.ReadAsInt("IMAGE_REQUEST_PARMS", "PIXEL_AVERAGING_HEIGHT");
-                    return avgWidth > 1 || avgHeight > 1;
-                      
+                    if (metadata.ReadAsString("IMAGE_REQUEST_PARMS", "PIXEL_DOWNSAMPLE_OPTION") != "NONE")
+                    {
+                        int avgWidth = 1;
+                        if (metadata.HasKey("IMAGE_REQUEST_PARMS", "PIXEL_AVERAGING_WIDTH") &&
+                            metadata.ReadAsString("IMAGE_REQUEST_PARMS", "PIXEL_AVERAGING_WIDTH") != Unknown)
+                        {
+                            avgWidth = metadata.ReadAsInt("IMAGE_REQUEST_PARMS", "PIXEL_AVERAGING_WIDTH");
+                        }
+
+                        int avgHeight = 1;
+                        if (metadata.HasKey("IMAGE_REQUEST_PARMS", "PIXEL_AVERAGING_HEIGHT") &&
+                            metadata.ReadAsString("IMAGE_REQUEST_PARMS", "PIXEL_AVERAGING_HEIGHT") != Unknown)
+                        {
+                            avgHeight = metadata.ReadAsInt("IMAGE_REQUEST_PARMS", "PIXEL_AVERAGING_HEIGHT");
+                        }
+
+                        return avgWidth > 1 || avgHeight > 1;
+                    }
                 }
                 return false;
             }
@@ -385,5 +474,51 @@ namespace OPS.Pipeline
                 return new PDSRoverArticulationParser(this.metadata).Parse();
             }
         }
+
+        public enum ReferenceCoordinateFrame
+        {
+            RoverNav,
+            LocalLevel,
+            Site
+        }
+
+        private ReferenceCoordinateFrame GetReferenceCoordinateFrame(string group)
+        {
+            if (metadata.ReadAsString(group, "REFERENCE_COORD_SYSTEM_NAME") == "ROVER_NAV_FRAME")
+                return ReferenceCoordinateFrame.RoverNav;
+            else if (metadata.ReadAsString(group, "REFERENCE_COORD_SYSTEM_NAME") == "SITE_FRAME")
+                return ReferenceCoordinateFrame.Site;
+            else if (metadata.ReadAsString(group, "REFERENCE_COORD_SYSTEM_NAME") == "LOCAL_LEVEL_FRAME")
+                return ReferenceCoordinateFrame.LocalLevel;
+            else
+                throw new PDSParserException("unknown reference coordinate system");
+        }
+
+        public ReferenceCoordinateFrame DerivedImageRefFrame
+        {
+            get
+            {
+                return GetReferenceCoordinateFrame("DERIVED_IMAGE_PARMS");
+            }
+        }
+
+
+        public ReferenceCoordinateFrame CameraModelRefFrame
+        {
+            get
+            {
+                return GetReferenceCoordinateFrame("GEOMETRIC_CAMERA_MODEL");
+            }
+        }
+        
+        public Vector3 RangeOrigin
+        {
+            get
+            {
+              double[] originVecv = metadata.ReadAsDoubleArray("DERIVED_IMAGE_PARMS", "RANGE_ORIGIN_VECTOR");
+              return new Vector3(originVecv);
+            } 
+        }
+    
     }
 }

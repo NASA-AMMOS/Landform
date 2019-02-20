@@ -111,6 +111,12 @@ namespace OPS.MathExtensions
                 }
             }
 
+            if (dimension == 0)
+            {
+                var res = thunk.Evaluate(context);
+                return new GaussianND(res, CreateMatrix.Dense<double>(res.Count, res.Count, 0.0));
+            }
+
             Matrix<double> cov = CreateMatrix.Sparse<double>(dimension, dimension);
             Vector<double> mean = CreateVector.Dense<double>(dimension);
             for (int i = 0; i < variables.Count; i++)

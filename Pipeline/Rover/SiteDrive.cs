@@ -50,5 +50,24 @@ namespace OPS.Pipeline
         {
             return Site * 10000 + Drive;
         }
+
+        public static bool operator ==(SiteDrive lhs, SiteDrive rhs)
+        {
+            return lhs.Site == rhs.Site && lhs.Drive == rhs.Drive;
+        }
+
+        public static bool operator !=(SiteDrive lhs, SiteDrive rhs)
+        {
+            return !(lhs == rhs);
+        }
+
+        public override bool Equals(object obj)
+        {
+            if (obj == null || !(obj is SiteDrive))
+            {
+                return false;
+            }
+            return this == (SiteDrive)obj;
+        }
     }
 }

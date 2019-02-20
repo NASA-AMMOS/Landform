@@ -1,0 +1,8 @@
+{
+  "name": "12-x4",
+  "options": "",
+  "inputs": [
+    { "mesh": "x4.obj", "texture": "x.lin.png" }
+  ],
+  "maxTime": "1h"
+}

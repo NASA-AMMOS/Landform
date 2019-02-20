@@ -86,6 +86,7 @@ namespace OPS.Geometry
 
         public UncertainRigidTransform To(SceneNode other)
         {
+            if (other == Node) return new UncertainRigidTransform(Matrix.Identity, CreateMatrix.DenseDiagonal<double>(6, 0));
             HashSet<SceneNode> myAncestors = new HashSet<SceneNode>();
             {
                 SceneNode current = Node;

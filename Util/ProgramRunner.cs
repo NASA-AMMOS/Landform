@@ -33,7 +33,7 @@ namespace OPS.Util
             this.workingDir = workingDir;
         }
 
-        public void Run()
+        public int Run()
         {
             ProcessStartInfo startInfo = new ProcessStartInfo();
             startInfo.FileName = this.cmd;
@@ -54,7 +54,9 @@ namespace OPS.Util
                 ErrorText = p.StandardError.ReadToEnd();
             }
             p.WaitForExit();
+            int code = p.ExitCode;
             p.Close();
+            return code;
         }
     }
 }

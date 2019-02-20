@@ -13,7 +13,7 @@ namespace OPS.Util
     /// Use this attribute on properties in subclasses of Config to indicate
     /// that they can be read from environmental variables
     /// </summary>
-    [AttributeUsage(AttributeTargets.Property)]
+    [AttributeUsage(AttributeTargets.Property | AttributeTargets.Field)]
     public class ConfigEnvironmentVariable : System.Attribute
     {
         public readonly string EnvironmentalVariableName;
@@ -42,6 +42,11 @@ namespace OPS.Util
             return null;
         }
 
+        public string ConfigFilepath()
+        {
+            return FullPathToConfig(ConfigFilename());
+        }
+
         /// <summary>
         /// Set the name of the application config folder
         /// Config files for this application should be stored in a folder of this name under the users home directory
@@ -50,9 +55,19 @@ namespace OPS.Util
         /// </summary>
         public static string ApplicationConfigFolder { get; set; }
 
+        public static string BaseCommand { get; set; }
+        public static string SubCommand { get; set; }
+        public static string FullCommand {
+            get
+            {
+                string sc = !string.IsNullOrEmpty(SubCommand) ? "-" + SubCommand : "";
+                return BaseCommand + sc;
+            }
+        }
+
         static string FullPathToConfig(string filename)
         {
-            if(ApplicationConfigFolder == null || filename == null)
+            if (ApplicationConfigFolder == null || filename == null)
             {
                 return null;
             }
@@ -61,7 +76,7 @@ namespace OPS.Util
 
         public void Save()
         {
-            string filename = FullPathToConfig(this.ConfigFilename());
+            string filename = ConfigFilepath();
             PathHelper.EnsureExists(Path.GetDirectoryName(filename));
             File.WriteAllText(filename, JsonConvert.SerializeObject(this, Formatting.Indented));
         }
@@ -69,7 +84,7 @@ namespace OPS.Util
         public Config()
         {
             // Read from config file
-            string filename = FullPathToConfig(this.ConfigFilename());
+            string filename = ConfigFilepath();
             if (filename != null && File.Exists(filename))
             {
                 JsonConvert.PopulateObject(File.ReadAllText(filename), this);
@@ -100,6 +115,10 @@ namespace OPS.Util
                         {
                             prop.SetValue(this, short.Parse(str));
                         }
+                        else if (prop.PropertyType == typeof(long))
+                        {
+                            prop.SetValue(this, long.Parse(str));
+                        }
                         else if (prop.PropertyType == typeof(uint))
                         {
                             prop.SetValue(this, uint.Parse(str));
@@ -108,6 +127,10 @@ namespace OPS.Util
                         {
                             prop.SetValue(this, ushort.Parse(str));
                         }
+                        else if (prop.PropertyType == typeof(ulong))
+                        {
+                            prop.SetValue(this, ulong.Parse(str));
+                        }
                         else if (prop.PropertyType == typeof(float))
                         {
                             prop.SetValue(this, float.Parse(str));
@@ -115,6 +138,10 @@ namespace OPS.Util
                         else if (prop.PropertyType == typeof(double))
                         {
                             prop.SetValue(this, double.Parse(str));
+                        }
+                        else if (prop.PropertyType == typeof(bool))
+                        {
+                            prop.SetValue(this, !string.IsNullOrEmpty(str));
                         }
                         else
                         {

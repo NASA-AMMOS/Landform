@@ -1,4 +1,4 @@
-#!python
+#!/usr/bin/env python
 
 # this script is compatible with python 2 and 3
 
@@ -7,18 +7,30 @@
 # 1) install latest python3
 #
 # 2) pip install boto beautifulsoup4 requests-ntlm
+#    pip install awscli --upgrade --user # if you want to use aws CLI
+#    pip install awsebcli --upgrade --user # if you want to use elastic beanstalk CLI
 #
-# 3) open windows command prompt (not git bash or cygwin) and run
+# 3) your PATH environment variable must include
+#
+#    Windows: %USERPROFILE%\AppData\Roaming\Python\Python??\Scripts
+#    Linux: ~/.local/bin
+#    MacOS: ~/Library/Python/?.?/bin
+#
+# 4) open windows command prompt (not git bash or cygwin) and run
 #
 #    aws-login.py
 #
-# 4) enter JPL username and password when prompted
+#    or in git bash run
+#
+#    winpty python aws-login.py
+#
+# 5) enter JPL username and password when prompted
 #
 #    NOTE: this will create %HOME%\.aws\credentials, which is correct
 #    even if you have specialized HOME to be different from %USERPROFILE%
 #    e.g. in my case HOME=c:\cygwin64\home\ME but USERPROFILE=c:\users\ME
-#
-# 5) pip install awscli
+#    however, watch out for programs such as NPM which ignore custom setting of HOME
+#    in that case, you may need to use mklink to create a symlink USERPROFILE/.aws -> HOME/.aws
 #
 # 6) try some stuff, e.g.
 #
@@ -82,6 +94,11 @@ idpentryurl = 'https://sso2.jpl.nasa.gov/adfs/ls/IdpInitiatedSignOn.aspx?loginTo
 # active directory / LDAP domain to prepend to username
 # empty for none
 ad_domain = 'JPL'
+
+# the credentials will be valid for this many seconds
+# this cannot exceed the maximum configured for the role
+#duration = 3600 # 1h
+duration = 14400 # 4h
 
 # Uncomment to enable low level debugging
 #logging.basicConfig(level=logging.DEBUG)
@@ -147,8 +164,7 @@ for inputtag in formsoup.find_all(re.compile('(FORM|form)')):
         idpauthformsubmiturl = parsedurl.scheme + '://' + parsedurl.netloc + action
 
 # Performs the submission of the IdP login form with the above post data
-response = session.post(
-    idpauthformsubmiturl, data=payload, verify=sslverification)
+response = session.post(idpauthformsubmiturl, data=payload, verify=sslverification)
 
 # Debug the response if needed
 #print(response.text)
@@ -170,9 +186,7 @@ assertion = ''
 # Look for the SAMLResponse attribute of the input tag (determined by
 # analyzing the debug print lines above)
 for inputtag in soup.find_all('input'):
-    print(inputtag.get('name'))
     if(inputtag.get('name') == 'SAMLResponse'):
-        print(inputtag.get('value'))
         assertion = inputtag.get('value')
 
 # Better error handling is required for production use.
@@ -229,7 +243,7 @@ else:
 
 # Use the assertion to get an AWS STS token using Assume Role with SAML
 conn = boto.sts.connect_to_region(region, anon=True)
-token = conn.assume_role_with_saml(role_arn, principal_arn, assertion)
+token = conn.assume_role_with_saml(role_arn, principal_arn, assertion, duration_seconds=duration)
 
 # Write the AWS STS token into the AWS credential file
 home = expanduser('~')
@@ -239,14 +253,7 @@ filename = home + awsconfigfile
 config = ConfigParser.RawConfigParser()
 config.read(filename)
 
-# make the default section name be 'default' not 'DEFAULT'
-ConfigParser.DEFAULTSECT = 'default'
-
-# ConfigParser doesn't allow us to create the default section
-# but if output_profile is not default we do need to make sure it's created
-if output_profile.lower() == ConfigParser.DEFAULTSECT.lower():
-    output_profile = ConfigParser.DEFAULTSECT
-elif not config.has_section(output_profile):
+if not config.has_section(output_profile) and not output_profile == ConfigParser.DEFAULTSECT:
     config.add_section(output_profile)
 
 config.set(output_profile, 'output', output_format)
@@ -273,9 +280,9 @@ print('----------------------------------------------------------------\n\n')
 
 # Use the AWS STS token to list all of the S3 buckets
 s3conn = boto.s3.connect_to_region(region,
-                     aws_access_key_id=token.credentials.access_key,
-                     aws_secret_access_key=token.credentials.secret_key,
-                     security_token=token.credentials.session_token)
+                                   aws_access_key_id=token.credentials.access_key,
+                                   aws_secret_access_key=token.credentials.secret_key,
+                                   security_token=token.credentials.session_token)
 
 buckets = s3conn.get_all_buckets()
 

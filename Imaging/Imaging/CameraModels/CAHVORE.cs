@@ -37,6 +37,11 @@ namespace OPS.Imaging
         public Vector3 E;
         public LinearityMode linearityMode;
 
+        public CAHVORE()
+        {
+
+        }
+
         public CAHVORE(Vector3 c, Vector3 a, Vector3 h, Vector3 v, Vector3 o, Vector3 r, Vector3 e, LinearityMode linearityMode)
             : base(c, a, h, v, o, r)
         {
@@ -55,6 +60,14 @@ namespace OPS.Imaging
             get
             {
                 return false;
+            }
+        }
+
+        public override Vector3 ImagePlaneNormal
+        {
+            get
+            {
+                return A;
             }
         }
 

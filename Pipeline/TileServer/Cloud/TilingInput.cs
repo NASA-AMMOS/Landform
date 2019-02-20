@@ -1,10 +1,12 @@
 ﻿using Amazon.DynamoDBv2.DataModel;
+using Amazon.DynamoDBv2.DocumentModel;
 using OPS.Cloud;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using log4net;
 
 namespace OPS.Pipeline.TileServer
 {
@@ -42,14 +44,10 @@ namespace OPS.Pipeline.TileServer
 
         }
 
-        /// <summary>
-        /// Creates Project object locally.  
-        /// </summary>
-        /// <param name="name">Project names in the database must be unique</param>
-        protected TilingInput(string name, TilingProject project, string meshUrl, string imageUrl, string id)
+        protected TilingInput(string name, string projectName, string meshUrl, string imageUrl, string id)
         {
             Name = name;
-            ProjectName = project.Name;
+            ProjectName = projectName;
             MeshUrl = meshUrl;
             ImageUrl = imageUrl;
             TileId = id;
@@ -57,37 +55,90 @@ namespace OPS.Pipeline.TileServer
             this.IsValid();
         }
 
-        public static TilingInput Create(DynamoDBContext context, string name, TilingProject project, string meshUrl, string imageUrl, string id)
+        public static TilingInput Create(PipelineCore pipeline, string name, TilingProject project,
+                                         string meshUrl, string imageUrl, string id)
         {
-            TilingInput input = new TilingInput(name, project, meshUrl, imageUrl, id);
-            context.Save(input, new DynamoDBOperationConfig() { IgnoreNullValues = true });
+            TilingInput input = new TilingInput(name, project.Name, meshUrl, imageUrl, id);
+            input.Save(pipeline);
+
+            if (project.InputNames == null)
+            {
+                project.InputNames = new List<string>();
+            }
+
+            //not necessarily an error if project.InputNames already contains this input name
+            //in that case the save() above will just update the TilingInput table with any changes
+            if (!project.InputNames.Contains(name))
+            {
+                project.InputNames.Add(name);
+                pipeline.SaveDatabaseItem(project);
+            }
+            
             return input;
         }
 
-        public static TilingInput Find(DynamoDBContext context, TilingProject project, string name)
+        public static TilingInput Find(PipelineCore pipeline, string projectName, string name)
         {
-            return context.Load<TilingInput>(name, project.Name);
+            return pipeline.LoadDatabaseItem<TilingInput>(name, projectName);
         }
 
-
-        public static IEnumerable<TilingInput> Find(DynamoDBContext context, TilingProject project)
+        public static IEnumerable<TilingInput> Find(PipelineCore pipeline, TilingProject project, ILog logger = null)
         {
-            return context.Scan<TilingInput>(
-                new ScanCondition("ProjectName", Amazon.DynamoDBv2.DocumentModel.ScanOperator.Equal, project.Name)
-                );
+            if (project.InputNames != null)
+            {
+                //DynamoDB Scan() can cause throughput exceptions
+                //https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/bp-query-scan.html
+                //for new projects we can avoid it here because we save the input names in the project record
+                List<TilingInput> inputs = new List<TilingInput>();
+                foreach (var name in project.InputNames)
+                {
+                    var input = Find(pipeline, project.Name, name);
+                    if (input != null) inputs.Add(input);
+                }
+                return inputs;
+            }
+            else
+            {
+                //fall back to scanning for all records that match the project name
+                //e.g. for legacy projects or if the project record is not well formed
+                return pipeline.ScanDatabase<TilingInput>("ProjectName", project.Name);
+            }
         }
 
-        public void Save(DynamoDBContext context)
+        public void Save(PipelineCore pipeline)
         {
             this.IsValid();
-            context.Save(this, new DynamoDBOperationConfig() { IgnoreNullValues = true });
+            pipeline.SaveDatabaseItem(this);
+        }
+
+        public void Delete(PipelineCore pipeline, bool ignoreErrors = true)
+        {
+            if (ChunkIds != null)
+            {
+                foreach (var chunkId in ChunkIds)
+                {
+                    TilingInputChunk.Find(pipeline, chunkId).Delete(pipeline, ignoreErrors);
+                }
+            }
+
+            if (!string.IsNullOrEmpty(MeshUrl))
+            {
+                pipeline.DeleteFile(MeshUrl, ignoreErrors);
+            }
+
+            if (!string.IsNullOrEmpty(ImageUrl))
+            {
+                pipeline.DeleteFile(ImageUrl, ignoreErrors);
+            }
+
+            pipeline.DeleteDatabaseItem(this, ignoreErrors);
         }
 
         private void IsValid()
         {
             if (!(Name != null && ProjectName != null && MeshUrl != null))
             {
-                throw new CloudException("TilingInput is missing a required field");
+                throw new Exception("TilingInput is missing a required field");
             }
         }
     }

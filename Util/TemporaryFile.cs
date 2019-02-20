@@ -1,12 +1,14 @@
-﻿using log4net;
-using System;
+﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text;
-using System.Threading.Tasks;
 using System.Threading;
+using System.Threading.Tasks;
+using System.Reflection;
+using log4net;
 
 namespace OPS.Util
 {
@@ -16,76 +18,79 @@ namespace OPS.Util
         class TempFileConfig : Config
         {
             [ConfigEnvironmentVariable("LANDFORM_TEMP")]
-            public string LandformTempDir { get ;  set; } 
-        }
+            public string Dir = "tmp";
 
-        static string tmpDirectory = "tmp";
+            [ConfigEnvironmentVariable("LANDFORM_TEMP_MAX_AGE_SEC")]
+            public long MaxAge = 24 * 60 * 60;
+
+            [ConfigEnvironmentVariable("LANDFORM_TEMP_MAX_DISK_BYTES")]
+            public long MaxDiskBytes = 10L * 1024L * 1024L * 1024L;
+        }
+        private static TempFileConfig config;
+
         public delegate void FilenameDelegate(string s);
+        public delegate void DirectoryDelegate(string s);
         public delegate void MultipleFilenameDelegate(string[] s);
 
-        private static readonly ILog logger = LogManager.GetLogger(typeof(TemporaryFile));
-        const string TEMP_ENVIRONMENT_VAR_NAME = "LANDFORM_TEMP";
+        public static string TemporaryDirectory
+        {
+            get { return config.Dir; }
+            set { config.Dir = Path.GetFullPath(value); }
+        }
+
+        private static ILog logger = LogManager.GetLogger(typeof(TemporaryFile));
 
         static TemporaryFile()
         {
-            string tmpLocation = new TempFileConfig().LandformTempDir;
-            if (tmpLocation != null)
-            {
-                logger.Info("Temporary directory specified by environmental variable");
-                TemporaryDirectory = tmpLocation;
-            }
-        }
-
-        //File name for non-static use
-        public string FilePath { get; private set; }
-
-        //Create a single temporary file 
-        public TemporaryFile(string extension)
-        {
-            FilePath = GetTempName(extension);
-        }
-
-        //Remove the created file 
-        public void Cleanup()
-        {
-            if (File.Exists(FilePath))
-            {
-                File.Delete(FilePath);
-            }
-        }
-
-        /// <summary>
-        /// Sets the temporary directory.  If relative it will be set in respect to the current working directory
-        /// </summary>
-        public static string TemporaryDirectory
-        {
-            set
-            {
-                tmpDirectory = value; 
-            }
-            get
-            {
-                return tmpDirectory;
-            }
+            config = new TempFileConfig();
+            TemporaryDirectory = config.Dir;
         }
 
         /// <summary>
         /// Execute a delegate with a temporary filename, and move the temp file to
         /// it's final location when the delegate completes.
         /// </summary>
-        /// <param name="realFilename">Temp file will be moved to this path when the delegate completes.</param>
+        /// <param name="destination">Temp file will be moved to this path when the delegate completes.</param>
         /// <param name="func">Delegate to execute.</param>
-        public static void GetAndMove(string realFilename, FilenameDelegate func)
+        public static void GetAndMove(string destination, FilenameDelegate func, bool replaceExisting = true,
+                                      object moveLock = null)
         {
-            string tempFile = GetTempName(Path.GetExtension(realFilename));
-            func(tempFile);
-            if (File.Exists(tempFile))
+            string file = GetTempName(destination);
+            try
             {
-                if (File.Exists(realFilename))
+                func(file);
+            }
+            catch (Exception)
+            {
+                PathHelper.DeleteWithRetry(file, logger);
+                throw;
+            }
+            finally
+            {
+                if (File.Exists(file))
                 {
-                    File.Delete(realFilename);
+                    if (replaceExisting || !File.Exists(destination))
+                    {
+                        //OK if exists, creates parents
+                        Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(destination)));
+
+                        if (moveLock != null)
+                        {
+                            lock (moveLock)
+                            {
+                                //re-do existence check now that we hold the lock
+                                if (replaceExisting || !File.Exists(destination))
+                                {
+                                    PathHelper.MoveFileAtomic(file, destination);
+                                }
+                            }
+                        }
+                        else
+                        {
+                            PathHelper.MoveFileAtomic(file, destination);
+                        }
+                    }
                 }
-                File.Move(tempFile, realFilename);
             }
         }
 
@@ -93,16 +98,36 @@ namespace OPS.Util
         /// Execute a delegate with a temporary filename, and delete the temp file when
         /// the delegate completes.
         /// </summary>
-        /// <param name="tmpBasename">Base name for the temporary file.</param>
+        /// <param name="extension">filename extension for the temporary file, must include a ".", and only the part starting with the last "." will be used</param>
         /// <param name="func">Delegate to execute.</param>
         public static void GetAndDelete(string extension, FilenameDelegate func)
         {
-            string tempFile = GetTempName(extension);
-            func(tempFile);
-            if (File.Exists(tempFile))
+            string file = GetTempName(extension);
+            try
             {
-                File.Delete(tempFile);
+                func(file);
             }
+            finally
+            {
+                PathHelper.DeleteWithRetry(file, logger);
+            }
+        }
+
+        /// <summary>
+        /// Execute a delegate with a temporary directory and delete the temp directory when the delegate completes
+        /// </summary>
+        /// <param name="func">Delegate to execute</param>
+        public static void GetAndDeleteDirectory(DirectoryDelegate func)
+        {
+            string dir = GetTempSubdir();
+            try
+            {
+                func(dir);
+            }
+            finally
+            {
+                Directory.Delete(dir, true);
+            } 
         }
 
         /// <summary>
@@ -118,12 +143,15 @@ namespace OPS.Util
             {
                 tmpFiles[i] = GetTempName(extension);
             }
-            func(tmpFiles);
-            for (int i = 0; i < tmpFiles.Length; i++)
+            try
             {
-                if (File.Exists(tmpFiles[i]))
+                func(tmpFiles);
+            }
+            finally
+            {
+                for (int i = 0; i < tmpFiles.Length; i++)
                 {
-                    File.Delete(tmpFiles[i]);
+                    PathHelper.DeleteWithRetry(tmpFiles[i], logger);
                 }
             }
         }
@@ -140,12 +168,15 @@ namespace OPS.Util
             {
                 tmpFiles[i] = GetTempName(extensions[i]);
             }
-            func(tmpFiles);
-            for (int i = 0; i < tmpFiles.Length; i++)
+            try
             {
-                if (File.Exists(tmpFiles[i]))
+                func(tmpFiles);
+            }
+            finally
+            {
+                for (int i = 0; i < tmpFiles.Length; i++)
                 {
-                    File.Delete(tmpFiles[i]);
+                    PathHelper.DeleteWithRetry(tmpFiles[i], logger);
                 }
             }
         }
@@ -153,35 +184,154 @@ namespace OPS.Util
         /// <summary>
         /// Provide a guid temp directory so caller can save specific file names at a unique path 
         /// </summary>
+        /// <param name="name">if not null or empty then get subdir with given name, else generate a random unique name</param>
         /// <returns></returns>
-        public static string GetTempDirectory()
+        public static string GetTempSubdir(string name = null)
         {
-            string tempDir = Guid.NewGuid().ToString();
-            string fullPathToTempDirectory = Path.GetFullPath(tmpDirectory) + tempDir;
-            PathHelper.EnsureExists(Path.GetFullPath(fullPathToTempDirectory));
-            return fullPathToTempDirectory;
+            if (string.IsNullOrEmpty(name))
+            {
+                name = Guid.NewGuid().ToString();
+            }
+            string p = Path.Combine(TemporaryDirectory, name);
+            PathHelper.EnsureExists(Path.GetFullPath(p));
+            return p;
         }
 
         /// <summary>
         /// Delete temp directory and all contents 
         /// </summary>
-        /// <param name="extension"></param>
         /// <returns></returns>
-        public static void DeleteTempDirectory(string tempDir)
+        public static void DeleteTempDirectory()
         {
-            Directory.Delete(tempDir, true);
+            if (File.Exists(TemporaryDirectory))
+            {
+                Directory.Delete(TemporaryDirectory, true);
+            }
         }
 
-        private static string GetTempName(string extension)
+        /// <summary>
+        /// Clean up contents of temp directory by deleting old files.
+        /// </summary>
+        /// <param name="subdir">subdirectory of temp dir to operate on, or whole temp dir if null or empty</param>
+        /// <param name="recursive">whether to operate recursively</param>
+        /// <param name="maxAge">if negative use config.MaxAge, if zero then ignore age, if positive then try to remove all files older than this age in seconds</param>
+        /// <param name="maxDiskBytes">if negative use config.MaxDiskBytes, if zero then ignore disk usage, if positive then try to remove old files until disk usage is less than this limit</param>
+        /// <param name="alwaysDelete">if non-null then always delete files matching this predicate</param>
+        /// <param name="deleteEmptySubdirs">if recursive then delete subdirs which are empty or became empty</param>
+        /// <returns></returns>
+        public static void CleanupTempDirectoryLRU(string subdir = null, bool recursive = true,
+                                                   long maxAge = -1, long maxDiskBytes = -1,
+                                                   Func<string, bool> alwaysDelete = null,
+                                                   bool deleteEmptySubdirs = true)
         {
-            string tempFilename = string.Format("{0}.tmp{1}", Guid.NewGuid(), Path.GetExtension(extension));
-            string fullPathToTempDirectory = Path.GetFullPath(tmpDirectory);
-            PathHelper.EnsureExists(fullPathToTempDirectory);
-            if (File.Exists(tempFilename))
+            if (maxAge < 0)
             {
-                File.Delete(tempFilename);
+                maxAge = config.MaxAge;
             }
-            return Path.Combine(fullPathToTempDirectory, tempFilename);
+
+            if (maxDiskBytes < 0)
+            {
+                maxDiskBytes = config.MaxDiskBytes;
+            }
+
+            var dir = !string.IsNullOrEmpty(subdir) ? Path.Combine(TemporaryDirectory, subdir) : TemporaryDirectory;
+
+            IEnumerable<FileInfo> files =
+                PathHelper.ListFiles(dir, recursive: recursive).OrderBy(i => i.LastAccessTime); //sort oldest first
+
+            long totalDiskUsage = files.Aggregate(0L, (n, f) => n + f.Length), diskUsageBefore = totalDiskUsage;
+            bool wasTooBig = maxDiskBytes > 0 && totalDiskUsage > maxDiskBytes;
+
+            int nf = files.Count(), nd = 0, ne = 0;
+
+            Func<FileInfo, bool> deleteFile = f =>
+            {
+                try
+                {
+                    var b = f.Length;
+                    File.Delete(f.FullName);
+                    totalDiskUsage -= b;
+                    nd++;
+                    return true;
+                }
+                catch (Exception ex)
+                {
+                    logger.WarnFormat("error deleting temp file {0}: {1}", f.FullName, ex.Message);
+                    ne++;
+                    return false;
+                }
+            };
+
+            //if we have an alwaysDelete predicate then go through all the files
+            //and try to delete the ones that match it
+            //the ones that remain are the ones that don't match it or that failed to delete
+            if (alwaysDelete != null)
+            {
+                var remaining = new List<FileInfo>();
+                foreach (var f in files)
+                {
+                    if (!alwaysDelete(f.FullName) || !deleteFile(f))
+                    {
+                        remaining.Add(f);
+                    }
+                }
+                files = (IEnumerable<FileInfo>)remaining;
+            }
+
+            var now = DateTime.Now;
+            foreach (var f in files)
+            {
+                bool tooBig = maxDiskBytes > 0 && totalDiskUsage > maxDiskBytes;
+                bool tooOld = maxAge > 0 && (now - f.LastAccessTime).TotalSeconds > maxAge;
+                if (!tooBig && !tooOld)
+                {
+                    break;
+                }
+                deleteFile(f);
+            }
+
+            if (recursive && deleteEmptySubdirs)
+            {
+                var opt = recursive ? SearchOption.AllDirectories : SearchOption.TopDirectoryOnly;
+                IEnumerable<DirectoryInfo> dirs = new DirectoryInfo(dir).GetFileSystemInfos("*", opt)
+                    .Where(i => i is DirectoryInfo)
+                    .Select(i => i as DirectoryInfo)
+                    .OrderByDescending(i => i.FullName.Length); //check children before parents
+
+                foreach (var d in dirs)
+                {
+                    if (!d.EnumerateFileSystemInfos().Any())
+                    {
+                        try
+                        {
+                            d.Delete();
+                        }
+                        catch (Exception ex)
+                        {
+                            logger.WarnFormat("error deleting empty directory {0}: {1}", d.FullName, ex.Message);
+                        }
+                    }
+                }
+            }
+
+            if (nd > 0 || ne > 0 || wasTooBig)
+            {
+                double gb = 1024.0 * 1024.0 * 1024.0;
+                logger.InfoFormat("cleaned up temp dir {0}, deleted {1}/{2} files, {3} errors, " +
+                                  "{4:F3}G before, {5:F3}G after",
+                                  dir, nd, nf, ne, diskUsageBefore/gb, totalDiskUsage/gb);
+            }
+        }
+
+        private static string GetTempName(string ext)
+        {
+            PathHelper.EnsureExists(TemporaryDirectory);
+            string f = Path.Combine(TemporaryDirectory, Guid.NewGuid() + Path.GetExtension(ext));
+            if (File.Exists(f))
+            {
+                File.Delete(f);
+            }
+            return Path.Combine(TemporaryDirectory, f);
         }
     }
 }

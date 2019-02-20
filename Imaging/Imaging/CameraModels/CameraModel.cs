@@ -9,10 +9,7 @@ namespace OPS.Imaging
 {
     public abstract class CameraModel : ICloneable
     {
-        protected CameraModel()
-        {
-
-        }
+        protected CameraModel() { }
 
         /// <summary>
         /// Fast reference based method projecting a ray.  Camera model classes
@@ -60,5 +57,11 @@ namespace OPS.Imaging
         public abstract bool Linear { get; }
 
         public abstract object Clone();
+
+        /// <summary>
+        /// the direction normal to the image plane and pointing outward.
+        /// This is not necessarily the direction through the middle pixel of your image.
+        /// </summary>
+        public abstract Vector3 ImagePlaneNormal { get; }
     }
 }
