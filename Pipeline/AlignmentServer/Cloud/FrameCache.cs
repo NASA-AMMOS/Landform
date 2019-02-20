@@ -102,11 +102,14 @@ namespace OPS.Pipeline.AlignmentServer
         {
             if (!frames.ContainsKey(name))
             {
-                frames[name] = null;
                 var frame = Frame.Find(pipeline, projectName, name);
                 if (frame != null)
                 {
                     Add(frame);
+                }
+                else
+                {
+                    frames[name] = null;
                 }
             }
             return frames[name];

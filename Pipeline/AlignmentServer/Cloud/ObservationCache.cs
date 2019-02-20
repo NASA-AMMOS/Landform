@@ -65,11 +65,14 @@ namespace OPS.Pipeline.AlignmentServer
         {
             if (!observations.ContainsKey(name))
             {
-                observations[name] = null;
                 var obs = RoverObservation.Find(pipeline, projectName, name);
                 if (obs != null)
                 {
                     Add(obs);
+                }
+                else
+                {
+                    observations[name] = null;
                 }
             }
             return observations[name];

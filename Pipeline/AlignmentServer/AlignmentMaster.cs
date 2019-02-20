@@ -96,10 +96,21 @@ namespace OPS.Pipeline.AlignmentServer
     //and TilingServer.StartMaster should be promoted to Pipeline.StartMaster and should handle all Landform workflows
     public class AlignmentMaster : CloudPipeline
     {
-        public Stage CurrentStage;
+        private StartAlignMasterOptions options;
 
-        private const int DequeReceiveThrottlingMS = 50;
+        private bool allDone = false;
         private Task workerTask = null;
+        private TypeDispatcher dispatcher;
+        private Dictionary<string, ImageState> imageStates = new Dictionary<string, ImageState>(); //by image URL
+        private HashSet<string> pendingIngestions = new HashSet<string>(); //image URLs
+        private HashSet<URLPair> pendingOverlaps = new HashSet<URLPair>();
+
+        const int DEQUEUE_THROTTLE_MS = 50;
+
+        private static bool ValidGuid(Guid g)
+        {
+            return g != null && g != Guid.Empty;
+        }
 
         public AlignmentMaster(StartAlignMasterOptions options) : base(options, queuePrefix: "alignment")
         {
@@ -120,129 +131,97 @@ namespace OPS.Pipeline.AlignmentServer
                 throw new Exception(string.Format("product path \"{0}\" does not start with \"{1}\"",
                                                   options.ProductPath, StorageUrlWithVenue));
             }
+
+            this.options = options;
+
+            dispatcher = new TypeDispatcher()
+                .Case<MaskCreatedMessage>(MaskDone)
+                .Case<FeaturesDetectedMessage>(FeaturesDone)
+                .Case<ImagesMatchedMessage>(MatchDone);
         }
 
         public int Run()
         {
-            var alignmentOptions = (StartAlignMasterOptions)Options;
-
-            //optionally start the worker (useful for debugging)
-            if (alignmentOptions.StartWorker)
+            if (options.StartWorker)
             {
-                workerTask = CreateWorker();
+                workerTask = new Task(() => {
+                        try
+                        {
+                            new StartWorker(new StartWorkerOptions(), "alignment").Run();
+                        }
+                        catch (Exception e)
+                        {
+                            LogError("error in worker task ({0}): {1}", e.GetType().FullName, e.Message);
+                            LogError(e.StackTrace);
+                        }
+                    });
+                workerTask.Start();
             }
 
-            CurrentStage = new IngestStage(this, alignmentOptions, new Dictionary<string, ImageState>());
-            CurrentStage.Run();
+            Ingest();
 
-            while (true)
+            while (!allDone)
             {
-                foreach (var m in MasterQueue.Dequeue())
+                var m = MasterQueue.DequeueOne();
+                Stopwatch sw = new Stopwatch();
+                sw.Start();
+                if (m != null)
                 {
                     try
                     {
-                        CurrentStage.OnMessageReceived(m);
+                        if (!dispatcher.Handle(m))
+                        {
+                            LogWarn("No handler for message {0}", m);
+                        }
                     }
                     catch (Exception ex)
                     {
                         LogError("failed processing message of type {0}: {1}", m.GetType().Name, ex.Message);
+                        LogError(ex.StackTrace);
                     }
                     MasterQueue.DeleteMessage(m);
                 }
-
-                Thread.Sleep(DequeReceiveThrottlingMS);
-            }
-        }
-
-        private Task CreateWorker()
-        {
-            Task workerTask = new Task(() =>
-            {
-                try
+                int sleepMS = (int)(DEQUEUE_THROTTLE_MS - sw.ElapsedMilliseconds);
+                if (sleepMS > 0)
                 {
-                    new StartWorker(new StartWorkerOptions(), "alignment").Run();
+                    Thread.Sleep(sleepMS);
                 }
-                catch (Exception e)
-                {
-                    LogError("error in worker task ({0}): {1}", e.GetType().FullName, e.Message);
-                    LogError(e.StackTrace);
-                }
-            });
-
-            workerTask.Start();
-            return workerTask;
-        }
-    }
-
-    public abstract class Stage
-    {
-        protected CloudPipeline pipeline;
-        protected StartAlignMasterOptions options;
-        protected Dictionary<string, ImageState> imageStates; //indexed by image URL
-
-        protected TypeDispatcher dispatcher;
-
-        public Stage(CloudPipeline pipeline, StartAlignMasterOptions options,
-                     Dictionary<string, ImageState> imageStates)
-        {
-            this.pipeline = pipeline;
-            this.options = options;
-            this.imageStates = imageStates;
-        }
-
-        public abstract void Run();
-
-        public void OnMessageReceived(QueueMessage message)
-        {
-            if (!dispatcher.Handle(message))
-            {
-                pipeline.LogWarn("No handler for message {0}", message);
             }
+
+            return 0;
         }
 
-        protected static bool ValidGuid(Guid g)
+        private void Ingest()
         {
-            return g != null && g != Guid.Empty;
-        }
-    }
+            LogInfo("ingesting inputs for project {0}", options.ProjectName);
 
-    public class IngestStage : Stage
-    {
-        private HashSet<string> ingestionRequested = new HashSet<string>(); //image URLs
-        private HashSet<string> ingestionCompleted = new HashSet<string>(); //image URLs
-
-        public IngestStage(CloudPipeline pipeline, StartAlignMasterOptions options,
-                           Dictionary<string, ImageState> imageStates)
-            : base(pipeline, options, imageStates)
-        {
-            dispatcher = new TypeDispatcher()
-                .Case<MaskCreatedMessage>(MaskDone)
-                .Case<FeaturesDetectedMessage>(FeaturesDone);
-        }
-
-        public override void Run()
-        {
-            pipeline.LogInfo("beginning ingestion stage for project {0}", options.ProjectName);
-
-            var initializer = new InitializeAlignmentProject(pipeline);
+            var initializer = new InitializeAlignmentProject(this);
             var productUrl = StringHelper.NormalizeSlashes(options.ProductPath);
             var inputUrl = StringHelper.NormalizeSlashes(options.InputPath);
             var project = initializer.Initialize(options.ProjectName, productUrl, inputUrl, options.RedoProject);
 
+            object ingestionLock = new object();
             Action<IngestImage.Result> handler = res => {
                 var obs = res.Observation;
-                if (obs.ObservationType == ObservationType.Image.ToString())
+                if (obs.ObservationType == ObservationType.Image.ToString() && obs.UseForReconstruction)
                 {
                     var state = new ImageState(obs);
-                    imageStates[obs.Url] = state;
-                    ingestionRequested.Add(obs.Url);
+                    lock (ingestionLock)
+                    {
+                        imageStates[obs.Url] = state;
+                        pendingIngestions.Add(obs.Url);
+                    }
                 }
             };
 
-            var ingester = new IngestAlignmentInputs(pipeline, project, options.RedoObservations, options.RedoPriors);
+            var ingester = new IngestAlignmentInputs(this, project, options.RedoObservations, options.RedoPriors);
             ingester.Ingest(MSLLocations.LoadFromUrl(), handler);
 
-            foreach (var url in ingestionRequested)
+            //iterate over a copy of pendingIngestions
+            //if mask and features are already done for an image
+            //then RequestMaskMaybe() will flow through to IngestionCompleted()
+            //which will remove the image from pendingIngestions
+            foreach (var url in pendingIngestions.ToList())
             {
                 RequestMaskMaybe(url);
             }
@@ -255,13 +234,13 @@ namespace OPS.Pipeline.AlignmentServer
             if (ValidGuid(obs.MaskGuid) && !options.RedoMasks)
             {
                 state.MaskGuid = obs.MaskGuid;
-                pipeline.LogInfo("using existing mask for observation {0}", obs.Name);
+                LogVerbose("using existing mask for observation {0}", obs.Name);
                 RequestFeaturesMaybe(imageUrl);
             }
             else
             {
-                pipeline.LogInfo("requesting mask creation for observation {0}", obs.Name);
-                pipeline.WorkerQueue.Enqueue(new CreateMaskMessage(options.ProjectName) { ImageUrl = obs.Url });
+                LogVerbose("requesting mask creation for observation {0}", obs.Name);
+                WorkerQueue.Enqueue(new CreateMaskMessage(options.ProjectName) { ImageUrl = obs.Url });
             }
         }
 
@@ -271,12 +250,12 @@ namespace OPS.Pipeline.AlignmentServer
             var obs = state.Observation;
             if (ValidGuid(state.MaskGuid))
             {
-                pipeline.LogInfo("duplicate mask created message for observation {0}", obs.Name);
+                LogWarn("duplicate mask created message for observation {0}", obs.Name);
                 return;
             }
-            pipeline.LogInfo("got mask for observation {0}", obs.Name);
+            LogVerbose("got mask for observation {0}", obs.Name);
             obs.MaskGuid = state.MaskGuid = message.MaskGuid;
-            obs.Save(pipeline);
+            obs.Save(this);
             RequestFeaturesMaybe(message.ImageUrl);
         }
 
@@ -287,13 +266,13 @@ namespace OPS.Pipeline.AlignmentServer
             if (ValidGuid(obs.FeaturesGuid) && !options.RedoFeatures)
             {
                 state.FeaturesGuid = obs.FeaturesGuid;
-                pipeline.LogInfo("using existing features for observation {0}", obs.Name);
+                LogVerbose("using existing features for observation {0}", obs.Name);
                 IngestionCompleted(imageUrl);
             }
             else
             {
-                pipeline.LogInfo("requesting feature detection for observation {0}", obs.Name);
-                pipeline.WorkerQueue.Enqueue(new DetectFeaturesMessage(options.ProjectName)
+                LogVerbose("requesting feature detection for observation {0}", obs.Name);
+                WorkerQueue.Enqueue(new DetectFeaturesMessage(options.ProjectName)
                 {
                     ImageUrl = imageUrl,
                     MaskGuid = state.MaskGuid
@@ -307,43 +286,28 @@ namespace OPS.Pipeline.AlignmentServer
             var obs = state.Observation;
             if (ValidGuid(state.FeaturesGuid))
             {
-                pipeline.LogInfo("duplicate features created message for observation {0}", obs.Name);
+                LogWarn("duplicate features created message for observation {0}", obs.Name);
                 return;
             }
-            pipeline.LogInfo("got features for observation {0}", obs.Name);
+            LogVerbose("got features for observation {0}", obs.Name);
             obs.FeaturesGuid = state.FeaturesGuid = message.FeaturesGuid;
-            obs.Save(pipeline);
+            obs.Save(this);
             IngestionCompleted(message.ImageUrl);
         }
 
         private void IngestionCompleted(string imageUrl)
         {
-            ingestionCompleted.Add(imageUrl);
-            if (ingestionCompleted.Count == ingestionRequested.Count)
+            pendingIngestions.Remove(imageUrl);
+            if (pendingIngestions.Count == 0)
             {
-                pipeline.LogInfo("completed ingestion stage for project {0}", options.ProjectName);
-                var am = pipeline as AlignmentMaster;
-                am.CurrentStage = new MatchStage(pipeline, options, imageStates);
-                am.CurrentStage.Run();
+                LogInfo("completed ingestion for project {0}", options.ProjectName);
+                Match();
             }
         }
-    }
 
-    public class MatchStage : Stage
-    {
-        private HashSet<URLPair> pendingOverlaps = new HashSet<URLPair>();
-
-        public MatchStage(CloudPipeline pipeline, StartAlignMasterOptions options,
-                          Dictionary<string, ImageState> imageStates)
-            : base(pipeline, options, imageStates)
+        private void Match()
         {
-            dispatcher = new TypeDispatcher()
-                .Case<ImagesMatchedMessage>(MatchDone);
-        }
-
-        public override void Run()
-        {
-            pipeline.LogInfo("beginning matching stage for project {0}", options.ProjectName);
+            LogInfo("beginning matching for project {0}", options.ProjectName);
 
             if (!options.SkipMatching)
             {
@@ -351,14 +315,14 @@ namespace OPS.Pipeline.AlignmentServer
             }
             else
             {
-                pipeline.LogInfo("skipping image matching");
+                LogInfo("skipping image matching");
                 if (!options.SkipBundleAdjust)
                 {
                     BundleAdjust();
                 }
                 else
                 {
-                    pipeline.LogInfo("skipping bundle adjust");
+                    LogInfo("skipping bundle adjust");
                     AllDone();
                 }
             }
@@ -366,16 +330,18 @@ namespace OPS.Pipeline.AlignmentServer
 
         private void MatchImages()
         {
-            var project = Project.Find(pipeline, options.ProjectName);
+            var project = Project.Find(this, options.ProjectName);
 
             var onlyCrossSite = !(options.AdjustWithinSiteDrives || options.MatchWithinSiteDrives);
 
-            var scene = ImageMatching.BuildSceneAndDetectOverlaps(pipeline, project,
-                                                                  options.RedoOverlaps, onlyCrossSite,
-                                                                  obs => imageStates.ContainsKey(obs.Url));
+            var scene = ImageMatching.BuildSceneAndDetectOverlaps(this, project, loadFeatures: false,
+                                                                  redoOverlaps: options.RedoOverlaps,
+                                                                  onlyCrossSite: onlyCrossSite,
+                                                                  filter: obs => imageStates.ContainsKey(obs.Url));
 
             pendingOverlaps.UnionWith(scene.Overlaps);
 
+            int nr = 0, ns = 0;
             foreach (var pair in scene.Overlaps)
             {
                 var pairName = pair.ToStringShort();
@@ -389,18 +355,19 @@ namespace OPS.Pipeline.AlignmentServer
                 bool skip = false;
                 if (!options.RedoMatches)
                 {
-                    var overlap = Overlap.Find(pipeline, options.ProjectName, modelObs, dataObs);
-                    if (overlap != null && overlap.Status == Overlap.StatusType.Matched)
+                    var overlap = Overlap.Find(this, options.ProjectName, modelObs, dataObs);
+                    if (overlap != null)
                     {
-                        pipeline.LogInfo("not recomputing feature matches for overlapping image pair {0}", pairName);
+                        LogVerbose("not recomputing feature matches for overlapping image pair {0}", pairName);
                         skip = true;
+                        ns++;
                     }
                 }
 
                 if (!skip)
                 {
-                    pipeline.LogInfo("requesting feature matches for overlapping image pair {0}", pairName);
-                    pipeline.WorkerQueue.Enqueue(new MatchImagesMessage(options.ProjectName)
+                    LogVerbose("requesting feature matches for overlapping image pair {0}", pairName);
+                    WorkerQueue.Enqueue(new MatchImagesMessage(options.ProjectName)
                     {
                             ModelImageUrl = modelUrl,
                             ModelFeaturesGuid = modelState.FeaturesGuid,
@@ -409,11 +376,19 @@ namespace OPS.Pipeline.AlignmentServer
                             DataFeaturesGuid = dataState.FeaturesGuid,
                             DataFrameName = dataState.Observation.FrameName,
                     });
+                    nr++;
                 }
                 else
                 {
-                    MatchCompleted(pair);
+                    pendingOverlaps.Remove(pair);
                 }
+            }
+
+            LogInfo("requested feature matches for {0} image pairs, skipped {1}", nr, ns);
+
+            if (pendingOverlaps.Count == 0)
+            {
+                MatchingDone();
             }
         }
 
@@ -426,40 +401,40 @@ namespace OPS.Pipeline.AlignmentServer
 
             if (!pendingOverlaps.Contains(pair))
             {
-                pipeline.LogInfo("duplicate features matched message for image pair {0}", pairName);
+                LogWarn("duplicate features matched message for image pair {0}", pairName);
                 return;
             }
 
-            pipeline.LogInfo("got feature match for image pair {0}", pairName);
+            LogVerbose("got feature match for image pair {0}", pairName);
 
             // create db entry once all of the work is done - natural rate limiting
             var modelObs = imageStates[modelUrl].Observation.Name;
             var dataObs = imageStates[dataUrl].Observation.Name;
-            ImageMatching.SaveOverlap(pipeline, message.ProjectName, message.CorrespondenceGuid, modelObs, dataObs);
+            ImageMatching.SaveOverlap(this, message.ProjectName, message.CorrespondenceGuid, modelObs, dataObs);
 
-            MatchCompleted(pair);
-        }
-
-        private void MatchCompleted(URLPair pair)
-        {
             pendingOverlaps.Remove(pair);
             if (pendingOverlaps.Count == 0)
             {
-                if (!options.SkipBundleAdjust && (options.AdjustWithinSiteDrives || !options.NoAdjustAcrossSiteDrives))
-                {
-                    BundleAdjust();
-                }
-                else
-                {
-                    pipeline.LogInfo("skipping bundle adjust");
-                    AllDone();
-                }
+                MatchingDone();
+            }
+        }
+
+        private void MatchingDone()
+        {
+            if (!options.SkipBundleAdjust && (options.AdjustWithinSiteDrives || !options.NoAdjustAcrossSiteDrives))
+            {
+                BundleAdjust();
+            }
+            else
+            {
+                LogInfo("skipping bundle adjust");
+                AllDone();
             }
         }
 
         private void BundleAdjust()
         {
-            BundleAdjusting.BundleAdjust(pipeline, options.ProjectName,
+            BundleAdjusting.BundleAdjust(this, options.ProjectName,
                                          options.AdjustWithinSiteDrives,
                                          !options.NoAdjustAcrossSiteDrives,
                                          obs => imageStates.ContainsKey(obs.Url),
@@ -470,8 +445,9 @@ namespace OPS.Pipeline.AlignmentServer
 
         private void AllDone()
         {
-            pipeline.CleanupTempDir();
-            pipeline.LogInfo("everything done");
+            CleanupTempDir();
+            LogInfo("everything done");
+            allDone = true;
         }
     }
 }

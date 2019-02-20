@@ -93,7 +93,8 @@ namespace OPS.Pipeline
         }
 
         public static AlignmentScene BuildSceneAndDetectOverlaps(PipelineCore pipeline, Project project,
-                                                                 bool redoOverlaps = false, bool onlyCrossSite = true,
+                                                                 bool loadFeatures = true, bool redoOverlaps = false,
+                                                                 bool onlyCrossSite = true,
                                                                  Func<Observation, bool> filter = null)
         {
             pipeline.LogInfo("building scene graph for {0}image matching",
@@ -101,7 +102,7 @@ namespace OPS.Pipeline
             var sb = new BuildSceneGraph(pipeline, project.Name, new BuildSceneGraph.Options()
                                          {
                                              UseTransformPriors = true,
-                                             LoadFeatures = true,
+                                             LoadFeatures = loadFeatures,
                                              LoadOverlaps = !redoOverlaps,
                                              OnlyKeepImagesWithFeatures = true,
                                              OnlyKeepBestImages = true,

@@ -68,11 +68,14 @@ namespace OPS.Pipeline.AlignmentServer
         {
             if (!overlaps.ContainsKey(name))
             {
-                overlaps[name] = null;
                 var overlap = Overlap.Find(pipeline, projectName, name);
                 if (overlap != null)
                 {
                     Add(overlap);
+                }
+                else
+                {
+                    overlaps[name] = null;
                 }
             }
             return overlaps[name];

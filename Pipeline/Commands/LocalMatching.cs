@@ -48,8 +48,9 @@ namespace OPS.Pipeline
                 return 1;
             }
 
-            var scene = ImageMatching.BuildSceneAndDetectOverlaps(this, project, options.RedoOverlaps,
-                                                                  !options.MatchWithinSiteDrives);
+            var scene = ImageMatching.BuildSceneAndDetectOverlaps(this, project, loadFeatures: true,
+                                                                  redoOverlaps: options.RedoOverlaps,
+                                                                  onlyCrossSite: !options.MatchWithinSiteDrives);
             int no = scene.Overlaps.Count;
 
             LogInfo("finding feature matches for {0} image pairs", no);

@@ -29,7 +29,7 @@ namespace OPS.Pipeline
             public bool PreloadCaches = true;
             public bool LoadObservations = true;
             public bool LoadFeatures = false; //implies LoadObservations
-            public bool LoadOverlaps = false; //implies LoadFeatures
+            public bool LoadOverlaps = false; //implies LoadObservations
             public bool LoadCorrespondences = false; //implies LoadOverlaps
             public bool OnlyKeepImagesWithFeatures = false;
             public bool OnlyKeepBestImages = false;
@@ -105,7 +105,7 @@ namespace OPS.Pipeline
 
             if (options.LoadOverlaps)
             {
-                options.LoadFeatures = true;
+                options.LoadObservations = true;
             }
 
             if (options.LoadFeatures)
@@ -119,7 +119,6 @@ namespace OPS.Pipeline
                              options.LoadFeatures ? "" : "not ", options.LoadCorrespondences ? "" : "not ");
 
             double startTime = UTCTime.Now();
-            double lastSpew = startTime;
 
             var project = Project.Find(pipeline, projectName);
             if (frameCache == null)
@@ -162,8 +161,11 @@ namespace OPS.Pipeline
             {
                 if (IsImage(obs))
                 {
+                    pipeline.LogDebug("adding image observation {0} to node {1}", obs.Url, node.Name);
                     if (options.LoadFeatures && ValidGuid(obs.FeaturesGuid))
                     {
+                        pipeline.LogDebug("adding detected features for image obseration {0} to node {1}",
+                                          obs.Url, node.Name);
                         var feat = pipeline.GetDataProduct<DetectedFeatures>(project.ProductPath, obs.FeaturesGuid,
                                                                              projectName);
                         scene.DetectedFeatures[obs.Url] = feat.Features;
@@ -179,15 +181,24 @@ namespace OPS.Pipeline
                 loadedObservations[obs.Name] = obs;
             }
 
-            HashSet<string> loadedNodes = new HashSet<string>();
-            SceneNode addNode(Frame frame)
+            pipeline.LogInfo("building scene graph {0}", direction);
+
+            double lastSpew = startTime;
+            Dictionary<string, SceneNode> loadedNodes = new Dictionary<string, SceneNode>();
+            SceneNode addOrGetNode(Frame frame)
             {
-                if (loadedNodes.Contains(frame.Name) || !options.IncludeFrame(frame))
+                if (!options.IncludeFrame(frame))
                 {
                     return null;
                 }
 
+                if (loadedNodes.ContainsKey(frame.Name))
+                {
+                    return loadedNodes[frame.Name];
+                } 
+
                 var node = new SceneNode(frame.Name);
+                loadedNodes[node.Name] = node;
 
                 node.AddComponent<NodeFrame>().Frame = frameCache.GetFrame(frame.Name);
 
@@ -222,6 +233,8 @@ namespace OPS.Pipeline
                         .Cast<RoverObservation>()
                         .ToArray();
 
+                    pipeline.LogDebug("kept {0} observations for frame {1}", obsForFrame.Length, frame.Name);
+
                     if (options.OnlyKeepBestImages && obsForFrame.Length > 0)
                     {
                         obsForFrame = new RoverObservation[] { MSLProject.FindBestImage(obsForFrame) };
@@ -239,13 +252,12 @@ namespace OPS.Pipeline
                         foreach (var obs in obsForFrame)
                         {
                             var obsNode = new SceneNode(obs.Name, node.Transform); //identity transform
+                            loadedNodes[obsNode.Name] = obsNode;
                             obsNode.AddComponent<NodeUncertainTransform>(); //no uncertainty
                             addObservation(obs, obsNode);
                         }
                     }
                 }
-
-                loadedNodes.Add(node.Name);
 
                 double now = UTCTime.Now();
                 if (now - lastSpew > 5)
@@ -258,15 +270,13 @@ namespace OPS.Pipeline
                 return node;
             }
 
-            pipeline.LogInfo("building scene graph {0}", direction);
-
             switch (direction)
             {
                 case BuildDirection.TopDown:
                 {
                     SceneNode spawn(Frame frame, SceneNode parent)
                     {
-                        var node = addNode(frame);
+                        var node = addOrGetNode(frame);
                         if (node != null)
                         {
                             node.Parent = parent;
@@ -282,9 +292,11 @@ namespace OPS.Pipeline
                 }
                 case BuildDirection.BottomUp:
                 {
+                    pipeline.LogDebug("start frames: {0}",
+                                      string.Join(", ", startFrames.Select(f => f != null ? f.Name : "null")));
                     void spawn(Frame frame, SceneNode child)
                     {
-                        var node = addNode(frame);
+                        var node = addOrGetNode(frame);
                         if (node != null)
                         {
                             if (child != null)
@@ -308,6 +320,9 @@ namespace OPS.Pipeline
                     break;
                 }
             }
+
+            pipeline.LogInfo("loaded {0} nodes, {1} observations, {2} feature products",
+                             loadedNodes.Count, loadedObservations.Count, numFeatures);
 
             if (options.LoadOverlaps)
             {

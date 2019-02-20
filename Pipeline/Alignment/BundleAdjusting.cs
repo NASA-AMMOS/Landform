@@ -28,6 +28,7 @@ namespace OPS.Pipeline
             pipeline.LogInfo("building scene graph for bundle adjustment, project {0}", projectName);
             var bsg = new BuildSceneGraph(pipeline, project.Name, new BuildSceneGraph.Options {
                     UseTransformPriors = true,
+                    LoadFeatures = true,
                     LoadCorrespondences = true,
                     OnlyKeepImagesWithFeatures = true,
                     OnlyKeepBestImages = true,

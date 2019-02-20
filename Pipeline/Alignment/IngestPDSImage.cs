@@ -221,7 +221,7 @@ namespace OPS.Pipeline
             if (!CheckFilename(StringHelper.GetLastUrlPathSegment(imgUrl, stripExtension: true)))
             {
                 pipeline.LogDebug("rejected {0} by filename", imgUrl);
-                return new Result(imgUrl, Status.Skipped, null);
+                return new Result(imgUrl, Status.Skipped);
             }
 
             // Fetch image and check metadata
@@ -230,7 +230,7 @@ namespace OPS.Pipeline
             if (!CheckMetadata(parser))
             {
                 pipeline.LogDebug("rejected {0} by metadata", imgUrl);
-                return new Result(imgUrl, Status.Skipped, null);
+                return new Result(imgUrl, Status.Skipped);
             }
 
             string observationName = ObservationName(parser);
@@ -243,7 +243,7 @@ namespace OPS.Pipeline
             catch
             {
                 pipeline.LogDebug("invalid camera model for {0}", observationName);
-                return new Result(imgUrl, Status.Skipped, null);
+                return new Result(imgUrl, Status.Skipped);
             }
 
             // Create database entries
@@ -273,7 +273,7 @@ namespace OPS.Pipeline
                 else
                 {
                     pipeline.LogDebug("not recreating existing observation {0}", observationName);
-                    return new Result(imgUrl, Status.Duplicate, observation);
+                    return new Result(imgUrl, Status.Duplicate, observation, observationFrame);
                 }
             }
 
@@ -287,15 +287,16 @@ namespace OPS.Pipeline
                                                   metadata.Width, metadata.Height);
             if (observation != null)
             {
-                observationFrame.AddObservation(observationName);
-                observationFrame.Save(pipeline);
+                //don't add observation to frame.ObservationNames here
+                //we ingest multiple images in parallel, possibly for the same frame
+                //so that would be a read-modify-write hazard
                 pipeline.LogDebug("created observation {0}", observationName);
-                return new Result(imgUrl, Status.Added, observation);
+                return new Result(imgUrl, Status.Added, observation, observationFrame);
             }
             else
             {
                 pipeline.LogDebug("failed to create observation {0}", observationName);
-                return new Result(imgUrl, Status.Failed, null);
+                return new Result(imgUrl, Status.Failed, null, observationFrame);
             }
         }
 
@@ -338,6 +339,11 @@ namespace OPS.Pipeline
                 pipeline.LogDebug("creating transform for frame {0}", name);
                 var transform = defTransform();
                 frameTransform = FrameTransform.Create(pipeline, frame, transform);
+                //TODO it's possible that orphan TransformPriors can get created here
+                //because we ingest multiple images in parallel, possibly for the same frame
+                //and each TransformPrior has a unique random GUID
+                //leaving for now as TransformPrior should be going away soon
+                //https://github.jpl.nasa.gov/OnSight/Landform/issues/405
                 var prior = TransformPrior.Create(pipeline, frame, transform);
                 frame.AddPrior(prior.Id);
                 frame.Save(pipeline);
