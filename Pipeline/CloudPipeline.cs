@@ -125,6 +125,32 @@ namespace OPS.Pipeline
             return defaultStorage;
         }
 
+        private void DownloadFile(string url, string file)
+        {
+            try
+            {
+                GetStorageHelper(url).DownloadFile(url, file);
+            }
+            catch (Exception ex)
+            {
+                LogError("error downloading file {0}: {1}", url, ex.Message);
+                throw;
+            }
+        }
+
+        private void UploadFile(string file, string url)
+        {
+            try
+            {
+                GetStorageHelper(url).UploadFile(file, url);
+            }
+            catch (Exception ex)
+            {
+                LogError("error uploading file {0}: {1}", url, ex.Message);
+                throw;
+            }
+        }
+
         protected string CheckUrl(string url, bool constrainToStorage = true, bool preserveTrailingSlash = false)
         {
             url = StringHelper.NormalizeUrl(url, "s3://", preserveTrailingSlash);
@@ -148,10 +174,10 @@ namespace OPS.Pipeline
         public override void GetFile(string url, Action<string> func, bool constrainToStorage = false)
         {
             url = CheckUrl(url, constrainToStorage);
-            TemporaryFile.GetAndDelete(Path.GetExtension(url), f =>
+            TemporaryFile.GetAndDelete(Path.GetExtension(url), tmpFile =>
                     {
-                        GetStorageHelper(url).DownloadFile(url, f);
-                        func(f);
+                        DownloadFile(url, tmpFile);
+                        func(tmpFile);
                     });
         }
 
@@ -168,7 +194,7 @@ namespace OPS.Pipeline
             string cachedFile = DownloadCachePath(cacheFolder, filename);
             if (!File.Exists(cachedFile))
             {
-                TemporaryFile.GetAndMove(cachedFile, tmpFile => GetStorageHelper(url).DownloadFile(url, tmpFile));
+                TemporaryFile.GetAndMove(cachedFile, tmpFile => DownloadFile(url, tmpFile));
             }
 
             return cachedFile;
@@ -176,8 +202,7 @@ namespace OPS.Pipeline
 
         public override void SaveFile(string file, string url)
         {
-            url = CheckUrl(url);
-            GetStorageHelper(url).UploadFile(file, url);
+            UploadFile(file, CheckUrl(url));
         }
 
         public override void DeleteFile(string url, bool ignoreErrors = true)
