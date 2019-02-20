@@ -381,8 +381,7 @@ namespace OPS.Pipeline.TileServer
             //this avoids the need for synchronization
             //all threads share the same logger which is MT safe
             var pipeline = new CloudPipeline(options, logger: Logger, lruCache: IMAGE_CACHE_SIZE,
-                                             initQueues: true, initTables: false, quiet: true,
-                                             queuePrefix: queuePrefix);
+                                             initQueues: true, initTables: false, queuePrefix: queuePrefix);
 
             var dispatcher = new TypeDispatcher()
                 .Case((DefineTilesMessage m) => new DefineTiles(pipeline, m).Process())
