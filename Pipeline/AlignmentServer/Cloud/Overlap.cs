@@ -106,7 +106,7 @@ namespace OPS.Pipeline.AlignmentServer
             Overlap newOverlap = new Overlap(projectName, obs1, obs2);
             try
             {
-                pipeline.SaveDatabaseItem(newOverlap);
+                pipeline.SaveDatabaseItem(newOverlap, quiet: true, ignoreErrors: false);
             }
             catch (ConditionalCheckFailedException)
             {
@@ -118,7 +118,7 @@ namespace OPS.Pipeline.AlignmentServer
 
             try
             {
-                pipeline.SaveDatabaseItem(newOverlap);
+                pipeline.SaveDatabaseItem(newOverlap, quiet: true, ignoreErrors: false);
             }
             catch (ConditionalCheckFailedException)
             {

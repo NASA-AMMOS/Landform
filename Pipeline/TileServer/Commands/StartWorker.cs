@@ -380,7 +380,7 @@ namespace OPS.Pipeline.TileServer
             //each worker thread has its own pipeline instance
             //this avoids the need for synchronization
             //all threads share the same logger which is MT safe
-            var pipeline = new CloudPipeline(options, logger: Logger, lruCache: IMAGE_CACHE_SIZE,
+            var pipeline = new CloudPipeline(options, logger: Logger, lruCache: IMAGE_CACHE_SIZE, quietInit: true,
                                              initQueues: true, initTables: false, queuePrefix: queuePrefix);
 
             var dispatcher = new TypeDispatcher()

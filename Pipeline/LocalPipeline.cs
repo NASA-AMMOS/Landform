@@ -17,15 +17,15 @@ namespace OPS.Pipeline
 {
     public class LocalPipeline : PipelineCore 
     {
-        public LocalPipeline(PipelineCoreOptions options, ILog logger = null, int lruCache = 100, bool quiet = false,
-                             bool initTables = true)
+        public LocalPipeline(PipelineCoreOptions options, ILog logger = null, int lruCache = 100,
+                             bool quietInit = false, bool initTables = true)
             : base(options, LocalPipelineConfig.Instance,
                    StringHelper.NormalizeUrl(LocalPipelineConfig.Instance.StorageDir, "file://"),
-                   LocalPipelineConfig.Instance.Venue, logger, lruCache, quiet)
+                   LocalPipelineConfig.Instance.Venue, logger, lruCache, quietInit)
         {
             if (initTables)
             {
-                InitializeDatabase();
+                InitializeDatabase(quiet || quietInit);
             }
         }
 
@@ -330,7 +330,7 @@ namespace OPS.Pipeline
             return GetDatabaseTableUrl(ti) + hash + (!string.IsNullOrEmpty(range) ? "-" + range : "") + ".json";
         }
 
-        private void InitializeDatabase()
+        private void InitializeDatabase(bool quiet = false)
         {
             int nt = 0, ni = 0;
             foreach (var t in tableTypes)
@@ -356,17 +356,27 @@ namespace OPS.Pipeline
                         //though we could escape it in them, but again that would take some work
                         object obj = FromJson(json, t);
                         var key = ti.MakeKey(obj);
-                        LogDebug("{0} -> {1}[{2}]={3}", file, t.FullName, key, StringHelper.CollapseWhitespace(json));
+                        if (!quiet)
+                        {
+                            LogDebug("{0} -> {1}[{2}]={3}", file, t.FullName, key, StringHelper.CollapseWhitespace(json));
+                        }
                         dbCache.AddOrUpdate(key, _ => json, (_, __) => json);
                     }
                 }
-                LogVerbose("initialized table {0} of {1} {2} from {3}, hashKey={4}, rangeKey={5}",
-                           ti.Name, nti, ti.TypeName, baseUrl, ti.HashKey, ti.RangeKey);
+                if (!quiet)
+                {
+                    LogVerbose("initialized table {0} of {1} {2} from {3}, hashKey={4}, rangeKey={5}",
+                               ti.Name, nti, ti.TypeName, baseUrl, ti.HashKey, ti.RangeKey);
+                }
             }
-            LogVerbose("initialized {0} database tables, {1} total items", nt, ni);
+            if (!quiet)
+            {
+                LogVerbose("initialized {0} database tables, {1} total items", nt, ni);
+            }
         }
 
-        private T CheckDatabaseOperation<T>(string what, TableInfo ti, DBKey key, bool ignoreErrors, Func<T> op)
+        private T CheckDatabaseOperation<T>(string what, TableInfo ti, DBKey key, bool ignoreErrors, bool quiet,
+                                            Func<T> op)
             where T : class
         {
             T ret = null;
@@ -387,16 +397,20 @@ namespace OPS.Pipeline
 
         private object dbDiskLock = new object();
 
-        public override void SaveDatabaseItem<T>(T obj, bool ignoreNulls = true, bool ignoreErrors = false)
+        public override void SaveDatabaseItem<T>(T obj, bool ignoreNulls = true, bool ignoreErrors = false,
+                                                 bool quiet = false)
         {
             var ti = GetTableInfo(typeof(T));
             var key = ti.MakeKey(obj);
-            CheckDatabaseOperation<object>("saving", ti, key, ignoreErrors, () => {
+            CheckDatabaseOperation<object>("saving", ti, key, ignoreErrors, quiet, () => {
                     string newJson = dbCache.AddOrUpdate
                     (key,
                      (_) => ToJson(obj, ignoreNulls),
                      (_, oldJson) => ignoreNulls ? MergeJson<T>(oldJson, obj) : ToJson(obj, false));
-                    LogDebug("SaveDatabaseItem key={0} json={1}", key, StringHelper.CollapseWhitespace(newJson));
+                    if (!quiet)
+                    {
+                        LogDebug("SaveDatabaseItem key={0} json={1}", key, StringHelper.CollapseWhitespace(newJson));
+                    }
                     TemporaryFile.GetAndDelete(".json", file => {
                             File.WriteAllText(file, newJson);
                             lock (dbDiskLock)
@@ -410,29 +424,35 @@ namespace OPS.Pipeline
         }
 
         public override T LoadDatabaseItem<T>(string key, string secondaryKey = null, bool ignoreNulls = true,
-                                              bool ignoreErrors = false, bool consistent = false)
+                                              bool ignoreErrors = false, bool quiet = false, bool consistent = false)
         {
             var ti = GetTableInfo(typeof(T));
             var dbKey = ti.MakeKey(key, secondaryKey);
-            return CheckDatabaseOperation<T>("loading", ti, dbKey, ignoreErrors, () => {
+            return CheckDatabaseOperation<T>("loading", ti, dbKey, ignoreErrors, quiet, () => {
                     string json = null;
                     dbCache.TryGetValue(dbKey, out json);
-                    LogDebug("LoadDatabaseItem key={0} json={1}", dbKey, StringHelper.CollapseWhitespace(json));
+                    if (!quiet)
+                    {
+                        LogDebug("LoadDatabaseItem key={0} json={1}", dbKey, StringHelper.CollapseWhitespace(json));
+                    }
                     return json != null ? FromJson<T>(json, ignoreNulls) : null;
                 });
         }
 
-        public override void DeleteDatabaseItem<T>(T obj, bool ignoreErrors = false)
+        public override void DeleteDatabaseItem<T>(T obj, bool ignoreErrors = false, bool quiet = false)
         {
             var ti = GetTableInfo(typeof(T));
             var key = ti.MakeKey(obj);
-            CheckDatabaseOperation<object>("deleting", ti, key, ignoreErrors, () => {
+            CheckDatabaseOperation<object>("deleting", ti, key, ignoreErrors, quiet, () => {
                     string json = null;
                     if (!dbCache.TryRemove(key, out json))
                     {
                         throw new Exception("failed to remove database item from memory cache");
                     }
-                    LogDebug("DeleteDatabaseItem key={0}, json={1}", key, StringHelper.CollapseWhitespace(json));
+                    if (!quiet)
+                    {
+                        LogDebug("DeleteDatabaseItem key={0}, json={1}", key, StringHelper.CollapseWhitespace(json));
+                    }
                     lock (dbDiskLock)
                     {
                         DeleteFile(GetDatabaseItemUrl(ti, obj), ignoreErrors);
@@ -458,7 +478,7 @@ namespace OPS.Pipeline
         }
 
         public override IEnumerable<T> ScanDatabase<T>(Dictionary<string, string> conditions = null,
-                                                       string indexName = null)
+                                                       string indexName = null, bool quiet = false)
         {
             var ti = GetTableInfo(typeof(T));
             Regex hashRegex = new Regex(".*");
@@ -486,8 +506,11 @@ namespace OPS.Pipeline
                                                       ti.JsonPropToDBProp[jsonPropName].Type));
                 }
             }
-            LogDebug("ScanDatabase hashRegex={0}, rangeRegex={1}, {2}", hashRegex, rangeRegex,
-                     string.Join(", ", fieldRegex.Select(v => v.ToString()).ToArray()));
+            if (!quiet)
+            {
+                LogDebug("ScanDatabase hashRegex={0}, rangeRegex={1}, {2}", hashRegex, rangeRegex,
+                         string.Join(", ", fieldRegex.Select(v => v.ToString()).ToArray()));
+            }
             foreach (var entry in dbCache)
             {
                 if (ti.Name != entry.Key.TableName)
@@ -502,14 +525,20 @@ namespace OPS.Pipeline
                 {
                     continue;
                 }
-                LogDebug("ScanDatabase: {0} matches hashKey={1} and rangeKey={2}", entry.Key, hashRegex, rangeRegex);
+                if (!quiet)
+                {
+                    LogDebug("ScanDatabase: {0} matches hashKey={1} and rangeKey={2}", entry.Key, hashRegex, rangeRegex);
+                }
                 bool ok = true;
                 var json = entry.Value;
                 foreach (var regex in fieldRegex)
                 {
                     if (!regex.IsMatch(json))
                     {
-                        LogDebug("ScanDatabase: {0} does not match field regex {1}", entry.Key, regex);
+                        if (!quiet)
+                        {
+                            LogDebug("ScanDatabase: {0} does not match field regex {1}", entry.Key, regex);
+                        }
                         ok = false;
                         break;
                     }
@@ -518,7 +547,10 @@ namespace OPS.Pipeline
                 {
                     continue;
                 }
-                LogDebug("ScanDatabase: {0} matches all conditions", entry.Key);
+                if (!quiet)
+                {
+                    LogDebug("ScanDatabase: {0} matches all conditions", entry.Key);
+                }
                 yield return FromJson<T>(json, ignoreNulls: false);
             }
         }

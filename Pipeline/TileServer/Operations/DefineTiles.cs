@@ -73,17 +73,17 @@ namespace OPS.Pipeline.TileServer
 
         public void Process()
         {
-            LogInfo("started");
+            pipeline.LogInfo("started");
             var project = TilingProject.Find(pipeline, projectName);
             if(project == null)
             {
-                LogError("project not found");
+                pipeline.LogError("project not found");
                 return;
             }
 
             if (project.TilesDefined)
             {
-                LogInfo("tiles already defined");
+                pipeline.LogInfo("tiles already defined");
                 pipeline.MasterQueue.Enqueue(message);
                 return;
             }
@@ -93,7 +93,7 @@ namespace OPS.Pipeline.TileServer
             {
                 // Build a tree based on existing tile ids
                 var inputs = TilingInput.Find(pipeline, project).ToList();
-                LogInfo("user-defined tiling scheme, " + inputs.Count + " inputs");
+                pipeline.LogInfo("user-defined tiling scheme, " + inputs.Count + " inputs");
                 ConcurrentBag<SceneNode> nodes = new ConcurrentBag<SceneNode>();
                 Parallel.ForEach(inputs, new ParallelOptions() { MaxDegreeOfParallelism = 8 }, input =>
                 {
@@ -115,12 +115,12 @@ namespace OPS.Pipeline.TileServer
             {
                 // Buid a tree using input datasets
                 var inputs = TilingInput.Find(pipeline, project).ToList();
-                LogInfo(inputs.Count + " inputs");
+                pipeline.LogInfo(inputs.Count + " inputs");
                 var multiClipper = new MultiMeshClipper();
                 foreach (var input in inputs)
                 {
                     var pair = DownloadInput(input);
-                    LogInfo("building acceleration structures");
+                    pipeline.LogInfo("building acceleration structures");
                     multiClipper.AddInput(new MultiMeshClipperInput(pair.Mesh, pair.Image));
                 }
                 var tilingScheme = project.GetTilingScheme();
@@ -145,7 +145,7 @@ namespace OPS.Pipeline.TileServer
                 }
                 ITileSplitCriteria splitCriteria = new FaceSplitCriteria(project.FacesPerTile);
 
-                LogInfo("computing tile tree");
+                pipeline.LogInfo("computing tile tree");
                 root = TileLocalMesh.BuildBoundsTree(multiClipper, scheme, splitCriteria);
             }
 
@@ -163,7 +163,7 @@ namespace OPS.Pipeline.TileServer
                 }
             }
 
-            LogInfo("saving tile tree, " + nn + " nodes");
+            pipeline.LogInfo("saving tile tree, " + nn + " nodes");
             List<string> ids = new List<string>();
             foreach (var node in root.DepthFirstTraverse())
             {
@@ -183,14 +183,14 @@ namespace OPS.Pipeline.TileServer
                 Thread.Sleep(10); //throttle to reduce chance of exponential backoff
                 if (++n % 500 == 0)
                 {
-                    LogInfo("created " + n + " nodes");
+                    pipeline.LogInfo("created " + n + " nodes");
                 }
             }                            
             project.SaveNodeIds(ids, pipeline);
             project.TilesDefined = true;
             project.Save(pipeline);
             pipeline.MasterQueue.Enqueue(message);
-            LogInfo("complete");
+            pipeline.LogInfo("complete");
         }
 
         private MeshImagePair DownloadInput(TilingInput input)

@@ -47,20 +47,20 @@ namespace OPS.Pipeline.MeshWorker
         /// <returns></returns>
         public int Process()
         {
-            LogInfo("started batch of " + message.TileIds.Count + " leaf tiles");
+            pipeline.LogInfo("started batch of " + message.TileIds.Count + " leaf tiles");
 
             TilingProject project = TilingProject.Find(pipeline, projectName);
 
-            LogInfo("downloading full mesh");
+            pipeline.LogInfo("downloading full mesh");
             Mesh fullMesh = GetFullMesh(project);
 
-            LogInfo("preparing full mesh");
+            pipeline.LogInfo("preparing full mesh");
             MeshOperator op = new MeshOperator(fullMesh);
             SceneCaster sc = new SceneCaster();
             sc.AddMesh(fullMesh, null, Matrix.Identity);
             sc.Build();
 
-            LogInfo("building scene graph");
+            pipeline.LogInfo("building scene graph");
             Project alignmentProject = Project.Find(pipeline, projectName);
             BuildSceneGraph builder = new BuildSceneGraph(pipeline, projectName,
                                                           new BuildSceneGraph.Options() { OnlyKeepBestImages = true });
@@ -73,7 +73,7 @@ namespace OPS.Pipeline.MeshWorker
             Serial.ForEach(leaves, leaf =>
             {
                 int curTileIndex = Interlocked.Increment(ref tiledMeshes);
-                LogInfo("generating tile mesh " + curTileIndex + "/" + numLeafTileNodes + " (" + (int)(curTileIndex / (float)numLeafTileNodes * 100) + "%): " + leaf.Id);
+                pipeline.LogInfo("generating tile mesh " + curTileIndex + "/" + numLeafTileNodes + " (" + (int)(curTileIndex / (float)numLeafTileNodes * 100) + "%): " + leaf.Id);
 
                 MeshImagePair leafPair = new MeshImagePair();
 
@@ -104,7 +104,7 @@ namespace OPS.Pipeline.MeshWorker
                 pipeline.MasterQueue.Enqueue(new TileCompletedMessage(projectName) { TileId = leaf.Id});                
             });
 
-            LogInfo("batch completed, generated " + tiledMeshes + " leaf tiles");
+            pipeline.LogInfo("batch completed, generated " + tiledMeshes + " leaf tiles");
                         
             return 0;
         }
@@ -224,7 +224,7 @@ namespace OPS.Pipeline.MeshWorker
             {
                 if (n.MeshUrl != null)
                 {
-                    LogInfo("leaf " + n.Id + " already complete, skipping");
+                    pipeline.LogInfo("leaf " + n.Id + " already complete, skipping");
                     pipeline.MasterQueue.Enqueue(new TileCompletedMessage(projectName) { TileId = n.Id });
                 }
             }

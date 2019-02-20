@@ -56,6 +56,8 @@ namespace OPS.Pipeline
      **/
     public abstract class PipelineCore : IImageLoader
     {
+        public string LogPrefix = "";
+
         public readonly PipelineCoreOptions Options;
         public readonly Config Config;
 
@@ -98,12 +100,12 @@ namespace OPS.Pipeline
             };
 
         public PipelineCore(PipelineCoreOptions options, Config config, string storageUrl, string venue,
-                            ILog logger = null, int lruCache = 100, bool quiet = false)
+                            ILog logger = null, int lruCache = 100, bool quietInit = false)
         {
             this.Options = options;
             this.Config = config;
 
-            this.quiet = quiet = quiet || options.Quiet;
+            this.quiet = options.Quiet;
             this.verbose = options.Verbose;
             this.debug = options.Debug;
 
@@ -121,7 +123,7 @@ namespace OPS.Pipeline
             }
             else
             {
-                Logging.ConfigureLogging(this.quiet, options.Debug, options.LogFile);
+                Logging.ConfigureLogging(quiet || quietInit, options.Debug, options.LogFile);
                 this.Logger = LogManager.GetLogger(GetType());
             }
 
@@ -331,15 +333,17 @@ namespace OPS.Pipeline
 
         //****************** Database API *****************
 
-        public abstract void SaveDatabaseItem<T>(T obj, bool ignoreNulls = true, bool ignoreErrors = false);
+        public abstract void SaveDatabaseItem<T>(T obj, bool ignoreNulls = true, bool ignoreErrors = false,
+                                                 bool quiet = false);
 
         public abstract T LoadDatabaseItem<T>(string key, string secondaryKey = null, bool ignoreNulls = true,
-                                              bool ignoreErrors = false, bool consistent = false) where T : class;
+                                              bool ignoreErrors = false, bool quiet = false, bool consistent = false)
+            where T : class;
 
-        public abstract void DeleteDatabaseItem<T>(T obj, bool ignoreErrors = false);
+        public abstract void DeleteDatabaseItem<T>(T obj, bool ignoreErrors = false, bool quiet = false);
 
         public abstract IEnumerable<T> ScanDatabase<T>(Dictionary<string, string> conditions = null,
-                                                       string indexName = null);
+                                                       string indexName = null, bool quiet = false);
 
         public IEnumerable<T> ScanDatabase<T>(params string[] conditions)
         {
@@ -363,7 +367,7 @@ namespace OPS.Pipeline
         {
             if (!quiet)
             {
-                Logger.InfoFormat(msg, args);
+                Logger.InfoFormat(LogPrefix + msg, args);
             }
         }
 
@@ -371,7 +375,7 @@ namespace OPS.Pipeline
         {
             if (verbose && !quiet)
             {
-                Logger.InfoFormat(msg, args);
+                Logger.InfoFormat(LogPrefix + msg, args);
             }
         }
 
@@ -379,18 +383,18 @@ namespace OPS.Pipeline
         {
             if (debug && !quiet)
             {
-                Logger.DebugFormat(msg, args);
+                Logger.DebugFormat(LogPrefix + msg, args);
             }
         }
 
         public void LogWarn(string msg, params Object[] args)
         {
-            Logger.WarnFormat(msg, args);
+            Logger.WarnFormat(LogPrefix + msg, args);
         }
 
         public void LogError(string msg, params Object[] args)
         {
-            Logger.ErrorFormat(msg, args);
+            Logger.ErrorFormat(LogPrefix + msg, args);
         }
 
         //****************** Disk Cache API *****************

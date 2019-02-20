@@ -435,12 +435,12 @@ namespace OPS.Cloud
             }
             catch (Exception e)
             {
-                if (logger != null)
-                {
-                    logger.WarnFormat("error saving DynamoDB object ({0}): {1}", e.GetType().FullName, e.Message);
-                }
                 if (!ignoreErrors)
                 {
+                    if (logger != null)
+                    {
+                        logger.WarnFormat("error saving DynamoDB object ({0}): {1}", e.GetType().FullName, e.Message);
+                    }
                     throw;
                 }
             }
@@ -465,12 +465,12 @@ namespace OPS.Cloud
             }
             catch (Exception e)
             {
-                if (logger != null)
-                {
-                    logger.WarnFormat("error loading DynamoDB object ({0}): {1}", e.GetType().FullName, e.Message);
-                }
                 if (!ignoreErrors)
                 {
+                    if (logger != null)
+                    {
+                        logger.WarnFormat("error loading DynamoDB object ({0}): {1}", e.GetType().FullName, e.Message);
+                    }
                     throw;
                 }
             }
@@ -485,12 +485,12 @@ namespace OPS.Cloud
             }
             catch (Exception e)
             {
-                if (logger != null)
-                {
-                    logger.WarnFormat("error deleting DynamoDB object ({0}): {1}", e.GetType().FullName, e.Message);
-                }
                 if (!ignoreErrors)
                 {
+                    if (logger != null)
+                    {
+                        logger.WarnFormat("error deleting DynamoDB object ({0}): {1}", e.GetType().FullName, e.Message);
+                    }
                     throw;
                 }
             }
