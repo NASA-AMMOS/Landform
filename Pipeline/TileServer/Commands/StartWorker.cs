@@ -91,6 +91,11 @@ namespace OPS.Pipeline.TileServer
                     try
                     {
                         StartMasterOptions opts = new StartMasterOptions();
+                        opts.Quiet = options.Quiet;
+                        opts.Verbose = options.Verbose;
+                        opts.Debug = options.Debug;
+                        opts.LogFile = options.LogFile;
+                        opts.SingleThreaded = options.SingleThreaded;
                         var master = new StartMaster(opts);
                         master.EnableCleanupTempDir = false;
                         master.Run();

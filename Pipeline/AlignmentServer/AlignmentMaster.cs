@@ -128,7 +128,15 @@ namespace OPS.Pipeline.AlignmentServer
                 workerTask = new Task(() => {
                         try
                         {
-                            new StartWorker(new StartWorkerOptions(), "alignment").Run();
+                            var opts = new StartWorkerOptions();
+                            opts.Quiet = options.Quiet;
+                            opts.Verbose = options.Verbose;
+                            opts.Debug = options.Debug;
+                            opts.LogFile = options.LogFile;
+                            opts.SingleThreaded = options.SingleThreaded;
+                            var worker = new StartWorker(opts, "alignment");
+                            worker.EnableCleanupTempDir = false;
+                            worker.Run();
                         }
                         catch (Exception e)
                         {
