@@ -9,7 +9,7 @@ namespace OPS.Util
     /// <summary>
     /// An unordered pair of URLs
     /// </summary>
-    public class URLPair
+    public struct URLPair
     {
         //these preserve case, they are exactly what was passed to the constructor
         //though the order of these may not be the same as the order of the constructor args
@@ -53,6 +53,16 @@ namespace OPS.Util
             //one & two are sorted so there is no order dependency
             //they are also already lowercased
             return this.lc1 == ((URLPair)obj).lc1 && this.lc2 == ((URLPair)obj).lc2;
+        }
+
+        public static bool operator ==(URLPair lhs, URLPair rhs)
+        {
+            return lhs.Equals(rhs); //don't need to worry about null as URLPair is a struct
+        }
+
+        public static bool operator !=(URLPair lhs, URLPair rhs)
+        {
+            return !lhs.Equals(rhs); //don't need to worry about null as URLPair is a struct
         }
 
         public override string ToString()
