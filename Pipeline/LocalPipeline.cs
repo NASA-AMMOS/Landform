@@ -18,11 +18,11 @@ namespace OPS.Pipeline
     public class LocalPipeline : PipelineCore 
     {
         public LocalPipeline(PipelineCoreOptions options, ILog logger = null, int lruCache = 100,
-                             bool quietInit = false, bool initTables = true)
+                             bool quietInit = false, bool initTables = true, int? maxCores = null)
             : base(options, LocalPipelineConfig.Instance,
                    StringHelper.NormalizeUrl(LocalPipelineConfig.Instance.StorageDir, "file://"),
                    LocalPipelineConfig.Instance.Venue, logger, lruCache, quietInit,
-                   LocalPipelineConfig.Instance.MaxCores)
+                   maxCores ?? LocalPipelineConfig.Instance.MaxCores)
         {
             if (initTables)
             {

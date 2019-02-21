@@ -28,6 +28,9 @@ namespace OPS.Pipeline
 
         [Option(Default = null, HelpText = "Override default log filename")]
         public string LogFile { get; set; }
+
+        [Option(Default = false, HelpText = "Disable parallism, e.g. for debugging")]
+        public bool SingleThreaded { get; set; }
     }
 
     /**
@@ -100,7 +103,7 @@ namespace OPS.Pipeline
             };
 
         public PipelineCore(PipelineCoreOptions options, Config config, string storageUrl, string venue,
-                            ILog logger = null, int lruCache = 100, bool quietInit = false, int maxCores = 0)
+                            ILog logger = null, int lruCache = 100, bool quietInit = false, int? maxCores = null)
         {
             this.Options = options;
             this.Config = config;
@@ -143,10 +146,12 @@ namespace OPS.Pipeline
             //in memory cache is configurable
             imageCache = new LRUCache<string, Image>(lruCache);
 
-            CoreLimitedParallel.SetMaxCores(maxCores);
-
-            LogInfo("using {0} of {1} CPU cores",
-                    CoreLimitedParallel.GetMaxCores(), CoreLimitedParallel.GetAvailableCores());
+            CoreLimitedParallel.SetMaxCores(maxCores ?? (options.SingleThreaded ? 1 : 0));
+            if (!quietInit)
+            {
+                LogInfo("using {0} of {1} CPU cores",
+                        CoreLimitedParallel.GetMaxCores(), CoreLimitedParallel.GetAvailableCores());
+            }
         }
 
         public virtual void DumpConfig()

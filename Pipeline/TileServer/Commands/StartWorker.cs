@@ -24,8 +24,8 @@ namespace OPS.Pipeline.TileServer
         [Option(Default = false, HelpText = "Also start the master server (e.g. for debugging)")]
         public bool StartMaster { get; set; }
 
-        [Option(Default = false, HelpText = "Run a single worker on the main thread (e.g. for debugging)")]
-        public bool SingleThreaded { get; set; }
+        [Option(Default = false, HelpText = "Limit multiple workers to one core each")]
+        public bool OneCorePerWorker { get; set; }
     }
 
     //https://github.jpl.nasa.gov/ProtoSpace/ps-pipeline/issues/159
@@ -131,6 +131,21 @@ namespace OPS.Pipeline.TileServer
                             }
                         }
                     });
+                }
+                //now that we've spawned the appropriate number of worker threads
+                //we might at least optionally want force them to individually only use one core each
+                //but with the current architecture of CoreLimitedParallel that would unfortunately also have the effect
+                //of disabling parallelism across the whole app
+                //and there are cases where we may not want that
+                //such as when the workers are spawned within the same process as a master
+                //
+                //also the master may not always evenly distribute work across workers
+                //i.e. for some workflows, and depending on the number of simultaneous users
+                //the master might issue just one or a few tasks for workers to do
+                //but those workers could still leverage more cores to execute them
+                if (options.OneCorePerWorker)
+                {
+                    CoreLimitedParallel.SetMaxCores(1);
                 }
 
                 //heartbeat to progressively update the visibility timeout for messages in flight

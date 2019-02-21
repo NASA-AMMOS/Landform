@@ -34,11 +34,11 @@ namespace OPS.Pipeline
                              bool quietInit = false,
                              bool enableS3 = true, bool enableDynamo = true,
                              bool initQueues = true, bool initTables = true,
-                             string queuePrefix = null, string tablePrefix = null)
+                             string queuePrefix = null, string tablePrefix = null, int? maxCores = null)
             : base(options, CloudPipelineConfig.Instance,
                    StringHelper.NormalizeUrl(CloudPipelineConfig.Instance.S3Url, "s3://"),
                    CloudPipelineConfig.Instance.Venue, logger, lruCache, quietInit,
-                   CloudPipelineConfig.Instance.MaxCores)
+                   maxCores ?? CloudPipelineConfig.Instance.MaxCores)
         {
             var cloudConfig = (CloudPipelineConfig)Config;
 
