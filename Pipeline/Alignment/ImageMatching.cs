@@ -39,6 +39,32 @@ namespace OPS.Pipeline
             Debug.Assert(scene.ObservationUrlToNode.ContainsKey(modelUrl));
             Debug.Assert(scene.ObservationUrlToNode.ContainsKey(dataUrl));
 
+            var modelNode = scene.ObservationUrlToNode[modelUrl];
+            var dataNode = scene.ObservationUrlToNode[dataUrl];
+
+            var modelObs = modelNode.GetComponent<NodeObservation>().Observation;
+            var dataObs = dataNode.GetComponent<NodeObservation>().Observation;
+
+            string msg = null;
+            if (modelObs is RoverObservation && dataObs is RoverObservation)
+            {
+                var mro = modelObs as RoverObservation;
+                var dro = dataObs as RoverObservation;
+                var msd = new SiteDrive(mro.Site, mro.Drive);
+                var dsd = new SiteDrive(dro.Site, dro.Drive);
+                msg = string.Format("correspondence between {0} (site drive {1}) and {2} (site drive {3})",
+                                    StringHelper.GetLastUrlPathSegment(modelUrl), msd.ToString(),
+                                    StringHelper.GetLastUrlPathSegment(dataUrl), dsd.ToString());
+            }
+            else
+            {
+                msg = string.Format("correspondence between {0} and {1}",
+                                    StringHelper.GetLastUrlPathSegment(modelUrl),
+                                    StringHelper.GetLastUrlPathSegment(dataUrl));
+            }
+
+            pipeline.LogVerbose("(re)computing {0}", msg);
+
             //IFeatureMatcher matcher = new EmguSIFTMatcher();
             //IFeatureMatcher matcher = new KnownGeometryMatcher();
             //IFeatureMatcher matcher = new BruteForceMatcher();
@@ -46,6 +72,8 @@ namespace OPS.Pipeline
             var matches = matcher.Match(scene, modelUrl, dataUrl);
             if (matches.Count < MIN_MATCHES)
             {
+                pipeline.LogVerbose("discarding {0}, {1} returned {2} < {3} matches",
+                                    msg, matcher.GetType().Name, matches.Count, MIN_MATCHES);
                 return null;
             }
 
@@ -58,18 +86,18 @@ namespace OPS.Pipeline
             {
                 int oldCount = matches.Count;
                 matches = filter.Filter(scene, matches);
-                pipeline.LogVerbose("{0}: {1} -> {2}", filter.GetType().Name, oldCount, matches.Count);
+                pipeline.LogVerbose("{0} {1}: {2} -> {3}", msg, filter.GetType().Name, oldCount, matches.Count);
                 if (matches.Count < MIN_MATCHES)
                 {
+                    pipeline.LogVerbose("discarding {0}, {1} resulted in {2} < {3} matches",
+                                        msg, filter.GetType().Name, matches.Count, MIN_MATCHES);
                     return null;
                 }
             }
 
-            var modelNode = scene.ObservationUrlToNode[modelUrl];
-            var dataNode = scene.ObservationUrlToNode[dataUrl];
-
-            var modelObs = modelNode.GetComponent<NodeObservation>().Observation;
-            var dataObs = dataNode.GetComponent<NodeObservation>().Observation;
+            pipeline.LogVerbose("computed {0} with {1} feature matches using {2} and {3}",
+                                msg, matches.Count, matcher.GetType().Name,
+                                string.Join(", ", filters.Select(f => f.GetType().Name)));
 
             return new ComputedCorrespondence()
             {

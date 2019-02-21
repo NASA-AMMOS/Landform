@@ -412,10 +412,12 @@ namespace OPS.Pipeline.TileServer
                             try
                             {
                                 dispatcher.Handle(m);
+                                LogPrefix = "";
                                 handled = true;
                             }
                             catch (Exception e)
                             {
+                                LogPrefix = "";
                                 LogError("{0}: processing error ({1}): {2}",
                                           m.Info(), e.GetType().FullName, e.Message);
                                 LogError(e.StackTrace);
