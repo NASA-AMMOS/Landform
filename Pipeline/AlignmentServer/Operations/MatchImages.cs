@@ -69,7 +69,7 @@ namespace OPS.Pipeline.AlignmentServer
             }
             else
             {
-                pipeline.LogError("failed to match features for image pair {0} in project {1}", pairName, projectName);
+                pipeline.LogInfo("insufficient feature match for image pair {0} in project {1}", pairName, projectName);
             }
 
             pipeline.MasterQueue.Enqueue(new ImagesMatchedMessage(projectName)
