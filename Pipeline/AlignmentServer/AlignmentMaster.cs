@@ -29,9 +29,6 @@ namespace OPS.Pipeline.AlignmentServer
         [Option(HelpText = "Input path, ending /** for recursive, or .txt or .json array of paths", Default = null)]
         public string InputPath { get; set; }
 
-        [Option(HelpText = "Product path", Default = null)]
-        public string ProductPath { get; set; }
-
         [Option(HelpText = "Optional directory to save debug output files to", Default = null)]
         public string DebugOutputFolder { get; set; }
 
@@ -116,22 +113,6 @@ namespace OPS.Pipeline.AlignmentServer
         {
             options.RedoFeatures |= options.RedoMasks;
 
-            if (string.IsNullOrEmpty(options.InputPath))
-            {
-                options.InputPath = GetStorageUrl("alignment/images", options.ProjectName);
-            }
-            //input path does not need to be within venue storage
-
-            if (string.IsNullOrEmpty(options.ProductPath))
-            {
-                options.ProductPath = GetStorageUrl("alignment/products", options.ProjectName);
-            }
-            else if (!options.ProductPath.ToLower().StartsWith(StorageUrlWithVenue))
-            {
-                throw new Exception(string.Format("product path \"{0}\" does not start with \"{1}\"",
-                                                  options.ProductPath, StorageUrlWithVenue));
-            }
-
             this.options = options;
 
             dispatcher = new TypeDispatcher()
@@ -195,9 +176,15 @@ namespace OPS.Pipeline.AlignmentServer
         {
             LogInfo("ingesting inputs for project {0}", options.ProjectName);
 
+            var productUrl = GetStorageUrl("alignment/products", options.ProjectName);
+
+            var inputUrl = options.InputPath;
+            if (!string.IsNullOrEmpty(inputUrl))
+            {
+                inputUrl = StringHelper.NormalizeUrl(options.InputPath, "s3://");
+            }
+
             var initializer = new InitializeAlignmentProject(this);
-            var productUrl = StringHelper.NormalizeSlashes(options.ProductPath);
-            var inputUrl = StringHelper.NormalizeSlashes(options.InputPath);
             var project = initializer.Initialize(options.ProjectName, productUrl, inputUrl, options.RedoProject);
 
             object ingestionLock = new object();
