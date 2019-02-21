@@ -6,6 +6,7 @@ using System.Text;
 using System.Threading.Tasks;
 using OPS.Pipeline.MeshWorker;
 using OPS.Pipeline.AlignmentServer;
+using OPS.Pipeline;
 
 namespace OPS.Pipeline
 {
@@ -26,8 +27,8 @@ namespace OPS.Pipeline
                                                              ConvertBaselineMeshesOptions,
                                                              TileBaselineMeshOptions,
                                                              TileBaselineMeshesOptions,
-                                                             LegacyToWebVROptions,
-                                                             LegacyToTile3DOptions,
+                                                             //LegacyToWebVROptions,
+                                                             //LegacyToTile3DOptions,
                                                              TileLocalMeshOptions,
                                                              //TextureMeshOptions,
                                                              StartAlignMasterOptions,
@@ -36,6 +37,7 @@ namespace OPS.Pipeline
                                                              LocalFeaturesOptions,
                                                              LocalMatchingOptions,
                                                              LocalBundleAdjustOptions,
+                                                             LocalAgisoftOptions,
                                                              ConfigureCloudOptions,
                                                              ConfigureLocalOptions
                                                              >(args)
@@ -45,8 +47,8 @@ namespace OPS.Pipeline
                 (TileBaselineMeshOptions opts) => new TileBaselineMesh(opts).Run(),
                 (TileBaselineMeshesOptions opts) => new TileBaselineMeshes(opts).Run(),
                 (PDSImageConverterOptions opts) => new PDSImageConverter(opts).Run(),
-                (LegacyToWebVROptions opts) => new LegacyToWebVR(opts).Run(),
-                (LegacyToTile3DOptions opts) => new LegacyToTile3D(opts).Run(),
+                //(LegacyToWebVROptions opts) => new LegacyToWebVR(opts).Run(),
+                //(LegacyToTile3DOptions opts) => new LegacyToTile3D(opts).Run(),
                 (TileLocalMeshOptions opts) => new TileLocalMesh(opts).Run(),
                 //(TextureMeshOptions opts) => new TextureMeshCommand(opts).Run(),
                 (StartAlignMasterOptions opts) => new AlignmentMaster(opts).Run(),
@@ -55,6 +57,7 @@ namespace OPS.Pipeline
                 (LocalFeaturesOptions opts) => new LocalFeatures(opts).Run(),
                 (LocalMatchingOptions opts) => new LocalMatching(opts).Run(),
                 (LocalBundleAdjustOptions opts) => new LocalBundleAdjust(opts).Run(),
+                (LocalAgisoftOptions opts) => new LocalAgisoft(opts).Run(),
                 (ConfigureCloudOptions opts) => new ConfigureCloud(opts).Run(),
                 (ConfigureLocalOptions opts) => new ConfigureLocal(opts).Run(),
                 errs => 1);
