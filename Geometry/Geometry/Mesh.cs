@@ -247,6 +247,24 @@ namespace OPS.Geometry
             }
             return false;
         }
+        
+        public void RemoveZeroLengthNormals()
+        {
+            if (this.Faces.Count > 0)
+            {
+                throw new Exception("Mesh.RemoveZeroLengthNormals is not supported in meshes that contain faces");
+            }
+            var newverts = new List<Vertex>();
+            foreach (var v in Vertices)
+            {
+                if (v.Normal.Length() < 1e-5)
+                {
+                    continue;
+                }
+                newverts.Add(v);
+            }
+            this.Vertices = newverts;
+        }
 
         /// <summary>
         /// Removes any invalid faces
