@@ -4,7 +4,7 @@ const Zip = require('@jpl/adm-zip');
 const config = require('../config');
 const { prompt, hasFlag, binFileFilter } = require('./toolUtil');
 
-const bundle = config.app.bundle;
+const bundle = config.app.masterBundle;
 const binDir = config.app.binDir;
 
 //the "bundle" script in package.json creates the app zip bundle as a git archive of HEAD

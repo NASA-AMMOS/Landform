@@ -590,7 +590,7 @@ namespace OPS.Pipeline
 
             if (options.WorkingDir == null)
             {
-                options.WorkingDir = TemporaryFile.GetTempDirectory();
+                options.WorkingDir = TemporaryFile.TemporaryDirectory;
             }
 
             var fileRecords = IndexFiles(options.SearchLocations);
@@ -650,7 +650,8 @@ namespace OPS.Pipeline
                 NoWait = false
             };
 
-            r = new CreateProject(createOptions).Run();
+            var createProject = new CreateProject(createOptions);
+            r = createProject.Run();
 
             foreach (var rec in processedRecords)
             {
@@ -669,7 +670,8 @@ namespace OPS.Pipeline
                 ProjectName = projectName
             };
             r = new RunProject(runOptions).Run();
-            var tilesetUrl = TileServerConfig.Instance.WWWUrl(projectName);
+            
+            var tilesetUrl = createProject.GetStorageUrl("www", projectName, "tileset.json");
             logger.Info("Building tileset.  When done copy data from " + tilesetUrl + " to tile3d_2.0 directory");
             if (tilingTask != null)
             {

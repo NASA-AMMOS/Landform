@@ -42,21 +42,28 @@ namespace OPS.Pipeline
 
         const string DEFAULT_URL = "http://mars.jpl.nasa.gov/msl-raw-images/locations.xml";
 
-        ConcurrentDictionary<SiteDrive, MSLLocation> locations; 
+        private ConcurrentDictionary<SiteDrive, MSLLocation> locations; 
       
-        public MSLLocations()
+        public static MSLLocations LoadFromUrl(string url = DEFAULT_URL)
         {
-            ParseXML();
-        }
-
-        void ParseXML()
-        {
-            logger.Info("Fetching locations");
-            this.locations = new ConcurrentDictionary<SiteDrive, MSLLocation>();
-            WebRequest req = WebRequest.Create("http://mars.jpl.nasa.gov/msl-raw-images/locations.xml");
+            logger.InfoFormat("fetching MSL locations from {0}", url);
+            WebRequest req = WebRequest.Create(url);
             WebResponse resp = req.GetResponse();
             XmlDocument doc = new XmlDocument();
             doc.Load(resp.GetResponseStream());
+            return new MSLLocations(doc);
+        }
+
+        public static MSLLocations LoadFromFile(string file)
+        {
+            XmlDocument doc = new XmlDocument();
+            doc.Load(file);
+            return new MSLLocations(doc);
+        }
+
+        private MSLLocations(XmlDocument doc)
+        {
+            this.locations = new ConcurrentDictionary<SiteDrive, MSLLocation>();
 
             XmlNodeList nodes = doc.SelectNodes("msl/location");
             foreach (XmlNode location in nodes)
@@ -74,6 +81,21 @@ namespace OPS.Pipeline
                 MSLLocation loc = new MSLLocation(new Vector3(x, y, z), new Vector2(lat, lon), sd, startSol, endSol);
                 if (!locations.TryAdd(sd, loc)) throw new Exception("MSLLocations creation found duplicate item"); 
             }
+        }
+
+        public int MaxSite
+        {
+            get { return locations.Keys.Select(x => x.Site).Max();  }
+        }
+
+        public int MaxDrive(int site)
+        {
+            return locations.Keys.Where(x => x.Site == site).Select(x => x.Drive).Max(); 
+        }
+
+        public int MinDrive(int site)
+        {
+            return locations.Keys.Where(x => x.Site == site).Select(x => x.Drive).Min();
         }
 
         /// <summary>

@@ -95,3 +95,5 @@ project.lock.json
 *.diagsession
 TilingServer/bin/
 TilingServer/obj/
+
+tmp/

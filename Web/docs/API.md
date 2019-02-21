@@ -1,6 +1,8 @@
 # LandformWeb REST API
 All API methods require an API token to be set as an `x-landform-token` HTTP header or `landform-token` cookie.
 
+Unless otherwise specified, all API arguments may be specified as either URL query parameters or as fields in a `application/json` or `application/x-www-form-urlencoded` HTTP request body.  If both the query parameter and body field are present the former takes precedence.
+
 
 ### Create Project: POST /api/projects/*name*
 Create the named project.  Implements the [task API](#task-api).
@@ -12,8 +14,9 @@ Accepts the following arugments:
 * *facespertile*: target maximum faces per tile; default 2000
 * *tileresolution*: maximum image resolution per tile; default 256
 * *projecttype*: project type; one of `GenericTiling` or `MSL`, default `GenericTiling`.
-* *exportmeshformat*: additional mesh format to write, one of `obj`, `ply`, `stl`, or ``; default `` (none)
-* *exportimageformat*: additional image format to write, one of `tif`, `png`, `jpg`, or ``; default `` (none)
+* *exportmeshformat*: additional mesh format to write, one of `obj`, `ply`, `stl`, or none; default none
+* *exportimageformat*: additional image format to write, one of `tif`, `png`, `jpg`, or none; default none
+* *maxleafgroupsize*: maximum number of leaves to process as a group; default 32
 
 Fails with HTTP status 400 (bad request) if a project with the same name already exists.
 
@@ -347,9 +350,6 @@ If the task was successfully launched (i.e. if a task `id` was returned):
 * The task metadata may be retrieved again via the /api/tasks/*id* API.
 
 The server will expire task metadata and logs after 24h has expired since the completion of the task, after which they will no longer be available.
-
-#### API Arguments as Query Parameters or Body Fields
-Unless otherwise specified, all API arguments may be specified as either URL query parameters or as fields in a `application/json` or `application/x-www-form-urlencoded` HTTP request body.  If both the query parameter and body field are present the former takes precedence.
 
 #### Asynchronous Task API
 If the caller prefers an asynchronous task interface the request may include the optional argument `async=true`.  In this case the server will respond with the task (or API error) metadata without waiting for the task to complete.  The HTTP status will be 200 if the task launched successfully, 400 if the API call was invalid, or 500 if the task failed to launch.

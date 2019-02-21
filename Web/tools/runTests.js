@@ -2,7 +2,7 @@ const fs = require('fs-extra');
 const path = require('path');
 const newman = require('newman');
 const { parseSec, timeStamp, timeFmt } = require('../timeUtil');
-const { hasFlag, deepCopy, checkTTY, readJson } = require('./toolUtil');
+const { hasFlag, deepCopy, readJson } = require('./toolUtil');
 
 const deleteCollection = require('../test/Landform-delete.postman_collection.json');
 const runCollection = require('../test/Landform-run.postman_collection.json');
@@ -44,8 +44,10 @@ const testCfg = readJson(cfgFile);
 
 function parseJsonResponse(ex) {
   if (ex.response && Buffer.isBuffer(ex.response.stream)) {
-    try { ex.response.json = JSON.parse(ex.response.stream.toString('utf8')); }
-    catch (e) { ex.response.json = `error parsing response stream as JSON: ${e.message || e}`; }
+    try {
+      ex.response.text = ex.response.stream.toString('utf8');
+      ex.response.json = JSON.parse(ex.response.text);
+    } catch (e) { ex.response.json = `error parsing response stream as JSON: ${e.message || e}`; }
   }
   return ex;
 }

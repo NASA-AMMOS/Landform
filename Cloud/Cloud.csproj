@@ -87,19 +87,7 @@
     <Compile Include="Credentials.cs" />
     <Compile Include="Database\DBUtil.cs" />
     <Compile Include="Database\DynamoDBMetadata.cs" />
-    <Compile Include="Database\Frame.cs" />
-    <Compile Include="Database\FrameCache.cs" />
-    <Compile Include="Database\Observation.cs" />
-    <Compile Include="Database\RoverObservationCache.cs" />
-    <Compile Include="Database\Overlap.cs" />
-    <Compile Include="Database\ThroughputManager.cs" />
-    <Compile Include="Database\TransformPrior.cs" />
-    <Compile Include="Database\Project.cs" />
-    <Compile Include="Database\FrameTransform.cs" />
-    <Compile Include="Database\RoverObservation.cs" />
-    <Compile Include="Database\SquareMatrixConverter.cs" />
-    <Compile Include="Database\Vector3Converter.cs" />
-    <Compile Include="Database\VectorNConverter.cs" />
+    <Compile Include="Messaging\MessageQueue.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Storage\S3Url.cs" />
     <Compile Include="Storage\StorageHelper.cs" />
@@ -147,6 +135,7 @@
   <ItemGroup>
     <Analyzer Include="..\packages\AWSSDK.S3.3.3.20.2\analyzers\dotnet\cs\AWSSDK.S3.CodeAnalysis.dll" />
   </ItemGroup>
+  <ItemGroup />
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
        Other similar extension points exist, see Microsoft.Common.targets.

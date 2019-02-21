@@ -63,9 +63,14 @@ namespace OPS.Imaging
                 {
                     var cur = (HeaderCard)((DictionaryEntry)current).Value;
 
-                    if ((cur.Key == "XTENSION") && (cur.Value != "IMAGE"))
-                        throw new NotImplementedException("only image extensions handled currently");
-
+                    if((cur.Key == "XTENSION"))
+                    {
+                        if (cur.Value == "TABLE")
+                            continue;
+                        else if(cur.Value != "IMAGE")
+                            throw new NotImplementedException("only image extensions handled currently");
+                    }
+                    
                     if ((subImageIdx >= 0) && (subImageIdx < ReadAsInt("IMAGE", "NSUBIMG")))
                     {
                         if (cur.Key.StartsWith("COMMENT"))

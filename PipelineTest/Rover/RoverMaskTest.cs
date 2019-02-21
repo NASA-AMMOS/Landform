@@ -2,7 +2,6 @@
 using Microsoft.Xna.Framework;
 using OPS.Imaging;
 using OPS.Pipeline;
-using OPS.Plumbing;
 using System;
 using System.Collections.Generic;
 using System.IO;

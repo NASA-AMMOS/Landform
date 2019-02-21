@@ -17,6 +17,8 @@ const logger = createLogger({
                              format.printf(info => `${info.timestamp} ${info.level}: ${info.message}`)),
       filename: path.join(config.app.logDir, `${config.app.name}-server-%DATE%.log`),
       localTime: true,
+      maxSize: '10m',
+      maxFiles: 10,
     }),
   ],
 });

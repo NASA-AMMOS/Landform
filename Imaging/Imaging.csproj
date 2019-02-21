@@ -86,6 +86,7 @@
     <Compile Include="Imaging\FITSMetadata.cs" />
     <Compile Include="Imaging\GenericImage.cs" />
     <Compile Include="Imaging\CameraModels\GDALCameraModel.cs" />
+    <Compile Include="Imaging\IImageLoader.cs" />
     <Compile Include="Imaging\Image.cs" />
     <Compile Include="Imaging\ImageCoordinate.cs" />
     <Compile Include="Imaging\ImageException.cs" />
@@ -102,14 +103,14 @@
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Serializers\DDSSerializer.cs" />
     <Compile Include="Serializers\FITSSerializer.cs" />
-    <Compile Include="Serializers\GDALSeralizer.cs" />
+    <Compile Include="Serializers\GDALSerializer.cs" />
     <Compile Include="Serializers\GDALWriteOptions.cs" />
     <Compile Include="Serializers\IImageConverter.cs" />
     <Compile Include="Serializers\ImageSerializer.cs" />
     <Compile Include="Serializers\ImageConverters.cs" />
     <Compile Include="Serializers\ImageSerializationException.cs" />
     <Compile Include="Serializers\ImageSerializers.cs" />
-    <Compile Include="Serializers\PDSSeralizer.cs" />
+    <Compile Include="Serializers\PDSSerializer.cs" />
     <Compile Include="Serializers\RGBSerializer.cs" />
     <Compile Include="SparseImage.cs" />
   </ItemGroup>
@@ -139,6 +140,7 @@
     </Content>
     <Content Include="GdalConfiguration.vb" />
   </ItemGroup>
+  <ItemGroup />
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <Import Project="..\packages\GDAL.Native.1.11.1\build\net40\GDAL.Native.targets" Condition="Exists('..\packages\GDAL.Native.1.11.1\build\net40\GDAL.Native.targets')" />
   <Target Name="EnsureNuGetPackageBuildImports" BeforeTargets="PrepareForBuild">

@@ -1,12 +1,11 @@
-﻿using OPS.Imaging;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using MathNet.Numerics.LinearAlgebra;
 using log4net;
-using OPS.Plumbing;
+using OPS.Util;
 
 namespace OPS.Alignment
 {
@@ -20,21 +19,15 @@ namespace OPS.Alignment
         private static readonly ILog logger = LogManager.GetLogger(typeof(BruteForceMatcher));
         const int K = 2;
 
-        public BruteForceMatcher()
-        {
-            
-        }
+        public BruteForceMatcher() { }
 
-        public ImagePairCorrespondence Match(AlignmentScene scene, UnorderedImagePair pair)
+        public ImagePairCorrespondence Match(AlignmentScene scene, URLPair pair)
         {
             return Match(pair.One, pair.Two, scene.DetectedFeatures[pair.One], scene.DetectedFeatures[pair.Two]);
         }
 
-        /// <summary>
-        /// Compute correspondences between two images
-        /// </summary>
-        public ImagePairCorrespondence Match(ImageRef model, ImageRef data, 
-            ImageFeature[] modelFeat, ImageFeature[] dataFeat)
+        public ImagePairCorrespondence Match(string modelUrl, string dataUrl, 
+                                             ImageFeature[] modelFeat, ImageFeature[] dataFeat)
         {
             if (modelFeat.Length < 1 || dataFeat.Length < 1) return ImagePairCorrespondence.Empty;
 
@@ -74,8 +67,10 @@ namespace OPS.Alignment
                 }
             }
 
-            logger.Info(string.Format("Model features: {0}, Data features: {1}, Matches: {2}", feat0.Length, feat1.Length, dataToModel.Count));
-            return new ImagePairCorrespondence(model, data, dataToModel);
+            logger.Info(string.Format("Model features: {0}, Data features: {1}, Matches: {2}",
+                                      feat0.Length, feat1.Length, dataToModel.Count));
+
+            return new ImagePairCorrespondence(modelUrl, dataUrl, dataToModel);
         }
 
 

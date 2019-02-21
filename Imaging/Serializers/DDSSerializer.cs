@@ -34,7 +34,7 @@ namespace OPS.Imaging
                     logger.Error(pr.ErrorText);
                     throw new Exception("Crunch failed to read DDS");
                 }
-                GDALSeralizer ser = new GDALSeralizer();
+                GDALSerializer ser = new GDALSerializer();
                 img = ser.Read(f, converter, fillValue);
             });
             return img;
@@ -71,7 +71,7 @@ namespace OPS.Imaging
             
             TemporaryFile.GetAndDelete(".png", inImage =>
             {
-                GDALSeralizer ser = new GDALSeralizer();
+                GDALSerializer ser = new GDALSerializer();
                 ser.Write<T>(inImage, image, converter, fillValue);
                 ProgramRunner pr = RunCruch(string.Format("-file \"{0}\" -fileformat {1} -{2} -out {3}", inImage, fileFormat, encoding, filename));
                 if (!File.Exists(filename))

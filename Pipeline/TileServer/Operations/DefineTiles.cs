@@ -1,7 +1,4 @@
 ﻿using log4net;
-using OPS.Geometry;
-using OPS.Plumbing;
-using OPS.Util;
 using System;
 using System.Collections.Generic;
 using System.Collections.Concurrent;
@@ -10,25 +7,25 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using OPS.Imaging;
 using Newtonsoft.Json;
+using OPS.Cloud;
+using OPS.Util;
+using OPS.Geometry;
+using OPS.Imaging;
 
 namespace OPS.Pipeline.TileServer
 {
-    public class DefineTilesMessage : TilingQueueMessage
+    public class DefineTilesMessage : QueueMessage
     {
         public DefineTilesMessage() { }
-
-        public DefineTilesMessage(string projectName) : base(projectName)
-        {
-        }
+        public DefineTilesMessage(string projectName) : base(projectName) { }
     }
 
-    public class DefineTiles : TileServerOperation
+    public class DefineTiles : CloudPipelineOperation
     {
-        private DefineTilesMessage message;
+        private readonly DefineTilesMessage message;
 
-        class TileDependencyMapping
+        private class TileDependencyMapping
         {
             Dictionary<string, HashSet<string>> dependsOn = new Dictionary<string, HashSet<string>>();
             Dictionary<string, HashSet<string>> dependedOnBy = new Dictionary<string, HashSet<string>>();
@@ -68,8 +65,7 @@ namespace OPS.Pipeline.TileServer
             }
         }
 
-        public DefineTiles(DefineTilesMessage message, PipelineCore pipeline, TileServerCloud cloud)
-            : base(message, pipeline, cloud)
+        public DefineTiles(CloudPipeline pipeline, DefineTilesMessage message) : base(pipeline, message)
         {
             this.message = message;
         }
@@ -77,16 +73,17 @@ namespace OPS.Pipeline.TileServer
         public void Process()
         {
             LogInfo("started");
-            var project = TilingProject.Find(pipeline.DynamoContext, message.ProjectName);
+            var project = TilingProject.Find(pipeline, projectName);
             if(project == null)
             {
                 LogError("project not found");
                 return;
             }
-            if(project.TilesDefined)
+
+            if (project.TilesDefined)
             {
                 LogInfo("tiles already defined");
-                cloud.MasterQueue.Enqueue(message);
+                pipeline.MasterQueue.Enqueue(message);
                 return;
             }
 
@@ -94,7 +91,7 @@ namespace OPS.Pipeline.TileServer
             if (project.GetTilingScheme() == TilingScheme.UserDefined)
             {
                 // Build a tree based on existing tile ids
-                var inputs = TilingInput.Find(pipeline.DynamoContext, project).ToList();
+                var inputs = TilingInput.Find(pipeline, project).ToList();
                 LogInfo("user-defined tiling scheme, " + inputs.Count + " inputs");
                 ConcurrentBag<SceneNode> nodes = new ConcurrentBag<SceneNode>();
                 Parallel.ForEach(inputs, new ParallelOptions() { MaxDegreeOfParallelism = 8 }, input =>
@@ -116,7 +113,7 @@ namespace OPS.Pipeline.TileServer
             else
             {
                 // Buid a tree using input datasets
-                var inputs = TilingInput.Find(pipeline.DynamoContext, project).ToList();
+                var inputs = TilingInput.Find(pipeline, project).ToList();
                 LogInfo(inputs.Count + " inputs");
                 var multiClipper = new MultiMeshClipper();
                 foreach (var input in inputs)
@@ -125,15 +122,17 @@ namespace OPS.Pipeline.TileServer
                     LogInfo("building acceleration structures");
                     multiClipper.AddInput(new MultiMeshClipperInput(pair.Mesh, pair.Image));
                 }
-                var projectScheme = project.GetTilingScheme();
+                var tilingScheme = project.GetTilingScheme();
                 ITilingScheme scheme;
-                if (projectScheme == TilingScheme.Bin)
+                if (tilingScheme == TilingScheme.Bin)
                 {
                     scheme = new BinaryTreeTilingScheme();
                 }
-                else if (projectScheme == TilingScheme.QuadX || projectScheme == TilingScheme.QuadY || projectScheme == TilingScheme.QuadZ)
+                else if (tilingScheme == TilingScheme.QuadX ||
+                         tilingScheme == TilingScheme.QuadY ||
+                         tilingScheme == TilingScheme.QuadZ)
                 {
-                    scheme = new QuadTreeTilingScheme(projectScheme);
+                    scheme = new QuadTreeTilingScheme(tilingScheme);
                 }
                 else if (project.GetTilingScheme() == TilingScheme.Oct)
                 {
@@ -170,7 +169,7 @@ namespace OPS.Pipeline.TileServer
                 ids.Add(node.Name);
                 string parentId = node.Parent == null ? null : node.Parent.Name;
                 List<string> childIds = node.Children.Select(c => c.Name).ToList();
-                var tilingNode = TilingNode.Create(pipeline.DynamoContext, node.Name, project,
+                var tilingNode = TilingNode.Create(pipeline, node.Name, projectName,
                                                    null /* meshUrl */, null /* imageUrl */,
                                                    parentId, childIds,
                                                    dependencies.DependsOn(node.Name),
@@ -189,18 +188,16 @@ namespace OPS.Pipeline.TileServer
             }                            
             project.SaveNodeIds(ids, pipeline);
             project.TilesDefined = true;
-            project.Save(pipeline.DynamoContext);
-            cloud.MasterQueue.Enqueue(message);
+            project.Save(pipeline);
+            pipeline.MasterQueue.Enqueue(message);
             LogInfo("complete");
         }
 
-        MeshImagePair DownloadInput(TilingInput input)
+        private MeshImagePair DownloadInput(TilingInput input)
         {
-            LogInfo("downloading " + input.MeshUrl);
             Mesh mesh = null;
-            TemporaryFile.GetAndDelete(Path.GetExtension(input.MeshUrl), f =>
+            pipeline.GetFile(input.MeshUrl, f =>
             {
-                pipeline.Storage(input.MeshUrl).DownloadFile(input.MeshUrl, f);
                 mesh = Mesh.Load(f);
                 mesh.RemoveInvalidFaces();
                 mesh.Clean();
@@ -208,12 +205,7 @@ namespace OPS.Pipeline.TileServer
             Image image = null;
             if (input.ImageUrl != null)
             {
-                LogInfo("downloading " + input.ImageUrl);
-                TemporaryFile.GetAndDelete(Path.GetExtension(input.ImageUrl), f =>
-                {
-                    pipeline.Storage(input.ImageUrl).DownloadFile(input.ImageUrl, f);
-                    image = Image.Load(f);
-                });
+                pipeline.GetFile(input.ImageUrl, f => image = Image.Load(f));
             }
             return new MeshImagePair(mesh, image);
         }

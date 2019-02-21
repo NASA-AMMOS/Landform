@@ -13,7 +13,7 @@ namespace OPS.Util
     /// Use this attribute on properties in subclasses of Config to indicate
     /// that they can be read from environmental variables
     /// </summary>
-    [AttributeUsage(AttributeTargets.Property)]
+    [AttributeUsage(AttributeTargets.Property | AttributeTargets.Field)]
     public class ConfigEnvironmentVariable : System.Attribute
     {
         public readonly string EnvironmentalVariableName;
@@ -67,7 +67,7 @@ namespace OPS.Util
 
         static string FullPathToConfig(string filename)
         {
-            if(ApplicationConfigFolder == null || filename == null)
+            if (ApplicationConfigFolder == null || filename == null)
             {
                 return null;
             }
@@ -115,6 +115,10 @@ namespace OPS.Util
                         {
                             prop.SetValue(this, short.Parse(str));
                         }
+                        else if (prop.PropertyType == typeof(long))
+                        {
+                            prop.SetValue(this, long.Parse(str));
+                        }
                         else if (prop.PropertyType == typeof(uint))
                         {
                             prop.SetValue(this, uint.Parse(str));
@@ -122,6 +126,10 @@ namespace OPS.Util
                         else if (prop.PropertyType == typeof(ushort))
                         {
                             prop.SetValue(this, ushort.Parse(str));
+                        }
+                        else if (prop.PropertyType == typeof(ulong))
+                        {
+                            prop.SetValue(this, ulong.Parse(str));
                         }
                         else if (prop.PropertyType == typeof(float))
                         {

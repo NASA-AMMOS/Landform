@@ -1,38 +1,32 @@
 ﻿using log4net;
-using OPS.Geometry;
-using OPS.Plumbing;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using OPS.Imaging;
 using OPS.Util;
+using OPS.Cloud;
+using OPS.Imaging;
+using OPS.Geometry;
 using Microsoft.Xna.Framework;
 using System.Collections.Concurrent;
 
 namespace OPS.Pipeline.TileServer
 {
 
-    public class BuildParentMessage : TilingQueueMessage
+    public class BuildParentMessage : QueueMessage
     {
         public string TileId;
-
         public BuildParentMessage() { }
-
-        public BuildParentMessage(string projectName,string parentId) : base(projectName)
-        {
-            this.TileId = parentId;
-        }
+        public BuildParentMessage(string projectName) : base(projectName) { }
     }
 
-    public class BuildParent : TileServerOperation
+    public class BuildParent : CloudPipelineOperation
     {
-        private BuildParentMessage message;
+        private readonly BuildParentMessage message;
 
-        public BuildParent(BuildParentMessage message, PipelineCore pipeline, TileServerCloud cloud)
-            : base(message, pipeline, cloud)
+        public BuildParent(CloudPipeline pipeline, BuildParentMessage message) : base(pipeline, message)
         {
             this.message = message;
         }
@@ -40,17 +34,16 @@ namespace OPS.Pipeline.TileServer
         public void Process()
         {
             LogInfo("started building parent " + message.TileId);
-            var project = TilingProject.Find(pipeline.DynamoContext, message.ProjectName);
-            TilingNode parent = TilingNode.Find(pipeline.DynamoContext, project.Name, message.TileId);
+            var project = TilingProject.Find(pipeline, projectName);
+            TilingNode parent = TilingNode.Find(pipeline, projectName, message.TileId);
             if (parent.MeshUrl != null)
             {
                 LogInfo("parent " + parent.Id + " already complete, skipping");
-                cloud.MasterQueue.Enqueue(new TileCompletedMessage(project.Name, parent.Id));
+                pipeline.MasterQueue.Enqueue(new TileCompletedMessage(projectName) { TileId = parent.Id });
                 return;
             }
             ConcurrentDictionary<string, SceneNode> idToNode = new ConcurrentDictionary<string, SceneNode>();
-            var dependsOnTilingNodes = parent.DependsOn.Select(cid => TilingNode.Find(pipeline.DynamoContext,
-                                                                                      project.Name, cid));
+            var dependsOnTilingNodes = parent.DependsOn.Select(cid => TilingNode.Find(pipeline, projectName, cid));
             Serial.ForEach(dependsOnTilingNodes, n =>
             {
                 SceneNode node = n.GetSceneNode();
@@ -75,8 +68,8 @@ namespace OPS.Pipeline.TileServer
                                                       project.TileResolution, project.GetSkirtMode());
             var pair = parentSceneNode.GetComponent<MeshImagePair>();
             parent.SaveMesh(pair, pipeline, parentSceneNode.GetComponent<NodeGeometricError>().Error,
-                            project.ExportMeshFormat, project.ExportImageFormat);
-            cloud.MasterQueue.Enqueue(new TileCompletedMessage(project.Name, parent.Id));
+                            project.ExportMeshFormat, project.ExportImageFormat, project.GetSkirtMode());
+            pipeline.MasterQueue.Enqueue(new TileCompletedMessage(projectName) { TileId = parent.Id });
             LogInfo("completed building parent " + message.TileId);
         }
     }

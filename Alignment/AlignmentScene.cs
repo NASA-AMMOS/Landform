@@ -1,14 +1,13 @@
-﻿using Microsoft.Xna.Framework;
-using Newtonsoft.Json;
-using OPS.Geometry;
-using OPS.Imaging;
-using OPS.Plumbing;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Microsoft.Xna.Framework;
+using Newtonsoft.Json;
+using OPS.Util;
+using OPS.Geometry;
 
 namespace OPS.Alignment
 {
@@ -16,18 +15,18 @@ namespace OPS.Alignment
     {
         public SceneNode Root;
 
-        public Dictionary<ImageRef, SceneNode> ImageToNode;
-        public Dictionary<ImageRef, ImageFeature[]> DetectedFeatures;
-        public Dictionary<UnorderedImagePair, ImagePairCorrespondence> Correspondences;
-        public HashSet<UnorderedImagePair> Overlaps;
+        public Dictionary<string, SceneNode> ImageToNode; //indexed by image URL
+        public Dictionary<string, ImageFeature[]> DetectedFeatures; //indexed by image URL
+        public Dictionary<URLPair, ImagePairCorrespondence> Correspondences;
+        public HashSet<URLPair> Overlaps;
 
         public AlignmentScene()
         {
             Root = new SceneNode();
-            ImageToNode = new Dictionary<ImageRef, SceneNode>();
-            DetectedFeatures = new Dictionary<ImageRef, ImageFeature[]>();
-            Correspondences = new Dictionary<UnorderedImagePair, ImagePairCorrespondence>();
-            Overlaps = new HashSet<UnorderedImagePair>();
+            ImageToNode = new Dictionary<string, SceneNode>();
+            DetectedFeatures = new Dictionary<string, ImageFeature[]>();
+            Correspondences = new Dictionary<URLPair, ImagePairCorrespondence>();
+            Overlaps = new HashSet<URLPair>();
         }
 
         public string DebugString()
@@ -62,11 +61,13 @@ namespace OPS.Alignment
             public JsonRay Ray;
             public string PointCloud;
         }
+
         class JsonRay
         {
             public Vector3 Center;
             public Vector3 Direction;
         }
+
         public void Save(string path)
         {
             Func<SceneNode, JsonNode> serialize = null;

@@ -9,10 +9,7 @@ namespace OPS.Imaging
 {
     public abstract class CameraModel : ICloneable
     {
-        protected CameraModel()
-        {
-
-        }
+        protected CameraModel() { }
 
         /// <summary>
         /// Fast reference based method projecting a ray.  Camera model classes

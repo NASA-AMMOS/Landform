@@ -1,8 +1,8 @@
 ﻿using CommandLine;
 using log4net;
 using OPS.Util;
+using OPS.Cloud;
 using OPS.Geometry;
-using OPS.Plumbing;
 using OPS.Pipeline.MeshWorker;
 using OPS.Pipeline.AlignmentServer;
 using System;
@@ -28,10 +28,17 @@ namespace OPS.Pipeline.TileServer
         public bool SingleThreaded { get; set; }
     }
 
-    public class StartWorker : PipelineCore
+    //https://github.jpl.nasa.gov/ProtoSpace/ps-pipeline/issues/159
+    //TODO: this actually handles all worker tasks for both alignment and tiling workflows
+    //which is fine, and in the future it should handle worker tasks for all Landform workflows
+    //but it should not be Pipeline namespace, not Pipeline.TileServer
+    //and it should be a subcommand of Landform.exe not TilingServer.exe
+    public class StartWorker : CloudPipeline
     {
         public const int MAX_PROCESSING_SEC = 6 * 60 * 60; //6h
         public const double HEARTBEAT_PERIOD_REL = 0.333;
+        const int DEQUEUE_THROTTLE_MS = 500;
+        const int IMAGE_CACHE_SIZE = 5;
 
         private class MessageRec
         {
@@ -44,7 +51,7 @@ namespace OPS.Pipeline.TileServer
             public int NumErrors;
             public double ApproxLastReceiveSec;
 
-            public MessageRec(TilingQueueMessage m)
+            public MessageRec(QueueMessage m)
             {
                 StartSec = UTCTime.Now();
                 ReceiptHandle = m.ReceiptHandle;
@@ -56,34 +63,25 @@ namespace OPS.Pipeline.TileServer
         //indexed by message ID
         private Dictionary<string, MessageRec> messagesInFlight = new Dictionary<string, MessageRec>();
 
-        private StartWorkerOptions options;
+        private readonly StartWorkerOptions options;
+        private readonly string queuePrefix;
 
-        public StartWorker(StartWorkerOptions options)
-            : base(options, TileServerConfig.Instance.VenueName, TileServerConfig.Instance.Profile)
+        public StartWorker(StartWorkerOptions options, string queuePrefix = "tiling")
+            : base(options, queuePrefix: queuePrefix)
         {
             this.options = options;
-
-            //MSL specific: this project does not hold its images within the same s3 bucket as the project
-            //future projects  are expected to be within the same bucket
-            var config = TileServerConfig.Instance;
-            if (!string.IsNullOrEmpty(config.MSLICEProfile) && !string.IsNullOrEmpty(config.MSLICES3Url) &&
-                OPS.Cloud.Credentials.Exists(config.MSLICEProfile))
-            {
-                this.AddProfile(config.MSLICES3Url, config.MSLICEProfile);
-            }
+            this.queuePrefix = queuePrefix;
         }
 
         public int Run()
         {
-            TileServerConfig.Instance.Dump(Logger);
+            DumpConfig();
 
             // Register filetype handlers
             new OpenInventorSerializer().Register();
             new DracoSerializer().Register();
             //Configure gdal
             GdalConfiguration.ConfigureGdal();
-
-            var cloud = new TileServerCloud(this);
 
             Task masterTask = null;
             if (options.StartMaster)
@@ -93,12 +91,14 @@ namespace OPS.Pipeline.TileServer
                     try
                     {
                         StartMasterOptions opts = new StartMasterOptions();
-                        new StartMaster(opts).Run();
+                        var master = new StartMaster(opts);
+                        master.EnableCleanupTempDir = false;
+                        master.Run();
                     }
                     catch (Exception e)
                     {
-                        Logger.ErrorFormat("error in master task ({0}): {1}", e.GetType().FullName, e.Message);
-                        Logger.Error(e.StackTrace);
+                        LogError("error in master task ({0}): {1}", e.GetType().FullName, e.Message);
+                        LogError(e.StackTrace);
                     }
                 });
                 masterTask.Start();
@@ -106,12 +106,12 @@ namespace OPS.Pipeline.TileServer
 
             if (options.SingleThreaded)
             {
-                RunWorker();
+                RunWorker(queuePrefix);
             }
             else
             {
                 int numWorkers = Environment.ProcessorCount;
-                Logger.InfoFormat("starting {0} workers", numWorkers);
+                LogInfo("starting {0} workers", numWorkers);
                 Task[] tasks = new Task[numWorkers];
                 for (int i = 0; i < tasks.Length; i++)
                 {
@@ -120,12 +120,12 @@ namespace OPS.Pipeline.TileServer
                         {   
                             try
                             {
-                                RunWorker();
+                                RunWorker(queuePrefix);
                             }
                             catch (Exception e)
                             {
-                                Logger.ErrorFormat("error in worker task ({0}): {1}", e.GetType().FullName, e.Message);
-                                Logger.Error(e.StackTrace);
+                                LogError("error in worker task ({0}): {1}", e.GetType().FullName, e.Message);
+                                LogError(e.StackTrace);
                                 // limit debug spew just in case a misconfiguration is causing this error
                                 Thread.Sleep(2000);
                             }
@@ -143,9 +143,8 @@ namespace OPS.Pipeline.TileServer
                 //FIFO queues impose a limit on the max transactions per second
                 //and also aren't available in us-west-1 region as of this writing
                 //(and they're a little more expensive)
-                var workerQueue = cloud.WorkerQueue;
                 double lastHeartbeat = -1;
-                double heartbeatPeriod = HEARTBEAT_PERIOD_REL * workerQueue.TimeoutSec;
+                double heartbeatPeriod = HEARTBEAT_PERIOD_REL * WorkerQueue.TimeoutSec;
                 while (true)
                 {
                     //in the current implementation the worker threads should never exit
@@ -176,8 +175,8 @@ namespace OPS.Pipeline.TileServer
 
                     if (inFlight.Count > 0)
                     {
-                        Logger.InfoFormat("{0} messages in flight, heartbeat period {1:F3}s",
-                                          inFlight.Count, start - lastHeartbeat);
+                        LogInfo("{0} messages in flight, heartbeat period {1:F3}s",
+                                inFlight.Count, start - lastHeartbeat);
                     }
 
                     var dead = new List<string>();
@@ -188,8 +187,8 @@ namespace OPS.Pipeline.TileServer
                         var totalSec = UTCTime.Now() - rec.StartSec;
                         if (totalSec > MAX_PROCESSING_SEC)
                         {
-                            Logger.ErrorFormat("{0} {1:F3}s processing > max {2:F3}s, stopping heartbeat",
-                                               rec.Info, totalSec, MAX_PROCESSING_SEC);
+                            LogError("{0} {1:F3}s processing > max {2:F3}s, stopping heartbeat",
+                                     rec.Info, totalSec, MAX_PROCESSING_SEC);
                             dead.Add(messageHandle);
                         }
                         else
@@ -197,7 +196,7 @@ namespace OPS.Pipeline.TileServer
                             try
                             {
                                 /* int nh =*/ Interlocked.Increment(ref rec.NumHeartbeats);
-                                workerQueue.UpdateTimeout(rec.ReceiptHandle, workerQueue.TimeoutSec);
+                                WorkerQueue.UpdateTimeout(rec.ReceiptHandle, WorkerQueue.TimeoutSec);
                             }
                             catch (Exception /*e*/)
                             {
@@ -221,15 +220,14 @@ namespace OPS.Pipeline.TileServer
 
                                     //commented out code here could be useful for future debugging
                                     /* int ne =*/ Interlocked.Increment(ref rec.NumErrors);
-                                    //Logger.ErrorFormat("{0}: in flight for {1:F3}s, max {2:F3}s, " +
-                                    //                   "latest receive time {3:F3}, " +
-                                    //                   "error {4}/{5} updating timeout ({6}): {7}{8}",
-                                    //                   rec.Info, totalSec, MAX_PROCESSING_SEC,
-                                    //                   rec.ApproxLastReceiveSec, ne, nh,
-                                    //                   e.GetType().FullName,
-                                    //                   e is AmazonSQSException ?
-                                    //                   (e as AmazonSQSException).ErrorCode + " ": "",
-                                    //                   e.Message);
+                                    //LogError("{0}: in flight for {1:F3}s, max {2:F3}s, " +
+                                    //         "latest receive time {3:F3}, " +
+                                    //         "error {4}/{5} updating timeout ({6}): {7}{8}",
+                                    //         rec.Info, totalSec, MAX_PROCESSING_SEC,
+                                    //         rec.ApproxLastReceiveSec, ne, nh,
+                                    //         e.GetType().FullName,
+                                    //         e is AmazonSQSException ? (e as AmazonSQSException).ErrorCode + " ": "",
+                                    //         e.Message);
                                 }
                                 //if rec.Done the message was deleted after we started this heartbeat iteration
                             }
@@ -249,10 +247,10 @@ namespace OPS.Pipeline.TileServer
                         //upper bound on time between visibility update of any in-flight message:
                         //end of this heartbeat - start of previous
                         double bound = UTCTime.Now() - lastHeartbeat;
-                        if (bound > workerQueue.TimeoutSec)
+                        if (bound > WorkerQueue.TimeoutSec)
                         {
-                            Logger.ErrorFormat("heartbeat cycle took {0:F3}s, but msg visibility timeout is {1:F3}s",
-                                               bound, workerQueue.TimeoutSec);
+                            LogError("heartbeat cycle took {0:F3}s, but msg visibility timeout is {1:F3}s",
+                                     bound, WorkerQueue.TimeoutSec);
                         }
                     }
 
@@ -268,7 +266,7 @@ namespace OPS.Pipeline.TileServer
             return 0;
         }
 
-        private bool StartedProcessing(TilingQueue queue, TilingQueueMessage m)
+        private bool StartedProcessing(MessageQueue queue, QueueMessage m)
         {
             if (!options.SingleThreaded)
             {
@@ -311,10 +309,10 @@ namespace OPS.Pipeline.TileServer
                     //we can safely detect and ignore multiple receipt here only for threads within this process
                     //it is possible that other worker processes exist in this venue, e.g. on other EC2 instances
                     //we cannot detect multiple recipt across such processes, so we need to just let that happen
-                    Logger.WarnFormat("{0}: already started processing at {1:F3}, total {2:F3}s, " +
-                                      "last receive time {3:F3}, ignoring multiple message receipt{4}",
-                                      m.Info(), existingStartSec, totalSec, rt,
-                                      ne > 0 ? string.Format(", {0}/{1} heartbeat errors", ne, nh) : "");
+                    LogWarn("{0}: already started processing at {1:F3}, total {2:F3}s, " +
+                            "last receive time {3:F3}, ignoring multiple message receipt{4}",
+                            m.Info(), existingStartSec, totalSec, rt,
+                            ne > 0 ? string.Format(", {0}/{1} heartbeat errors", ne, nh) : "");
 
                     return false;
                 }
@@ -323,75 +321,93 @@ namespace OPS.Pipeline.TileServer
             {
                 queue.UpdateTimeout(m, MAX_PROCESSING_SEC);
             }
-            Logger.InfoFormat("{0}: started processing at {1:F3}", m.Info(), UTCTime.Now());
+            LogInfo("{0}: started processing at {1:F3}", m.Info(), UTCTime.Now());
             return true;
         }
 
-        private MessageRec FinishedProcessing(TilingQueueMessage m)
+        private MessageRec FinishedProcessing(QueueMessage m, CloudPipeline pipeline)
         {
             MessageRec rec = null;
             double now = UTCTime.Now(), totalSec = -1;
             int ne = 0, nh = 0;
-            if (!options.SingleThreaded)
+            if (options.SingleThreaded)
             {
+                pipeline.CleanupTempDir();
+            }
+            else
+            {
+                Exception ex = null;
                 lock (messagesInFlight)
                 {
                     if (!messagesInFlight.TryGetValue(m.MessageId, out rec))
                     {
-                        throw new Exception("message not found");
+                        ex = new Exception("message not found");
                     }
-                    rec.Done = true; //in case heartbeat task is already iterating over a copy of messagesInFlight
-                    totalSec = now - rec.StartSec;
-                    ne = rec.NumErrors;
-                    nh = rec.NumHeartbeats;
-                    if (!messagesInFlight.Remove(m.MessageId))
+
+                    if (rec != null && ex == null)
                     {
-                        throw new Exception("failed to remove message");
+                        rec.Done = true; //in case heartbeat task is already iterating over a copy of messagesInFlight
+                        totalSec = now - rec.StartSec;
+                        ne = rec.NumErrors;
+                        nh = rec.NumHeartbeats;
+                        if (!messagesInFlight.Remove(m.MessageId))
+                        {
+                            ex = new Exception("failed to remove message");
+                        }
+                    }
+
+                    if (messagesInFlight.Count == 0)
+                    {
+                        //all threads of this worker are now idle
+                        //take this opportunity to clean up the temp dir to help constrain disk usage
+                        //holding the lock on messagesInFlight so that any new messages are held until we're done
+                        pipeline.CleanupTempDir();
                     }
                 }
+                if (ex != null)
+                {
+                    throw ex;
+                }
             }
-            Logger.InfoFormat("{0}: finished processing at {1:F3}{2}{3}",
-                              m.Info(), now,
-                              totalSec >= 0 ? string.Format(", total {0:F3}s", totalSec) : "",
-                              ne > 0 ? string.Format(", {0}/{1} heartbeat errors", ne, nh) : "");
+            LogInfo("{0}: finished processing at {1:F3}{2}{3}",
+                    m.Info(), now, totalSec >= 0 ? string.Format(", total {0:F3}s", totalSec) : "",
+                    ne > 0 ? string.Format(", {0}/{1} heartbeat errors", ne, nh) : "");
             return rec;
         }
 
-        const int DEQUEUE_THROTTLE_MS = 500;
-        private void RunWorker()
+        private void RunWorker(string queuePrefix)
         {
-            //each worker thread has its own cloud instance
+            //each worker thread has its own pipeline instance
             //this avoids the need for synchronization
-            var pipeline = new PipelineCore(options,
-                                            TileServerConfig.Instance.VenueName, TileServerConfig.Instance.Profile,
-                                            logger: Logger); //all threads share the same logger which is MT safe
-            var cloud = new TileServerCloud(pipeline, initQueues: true, initTables: false, quiet: true);
-            var workerQueue = cloud.WorkerQueue;
+            //all threads share the same logger which is MT safe
+            var pipeline = new CloudPipeline(options, logger: Logger, lruCache: IMAGE_CACHE_SIZE,
+                                             initQueues: true, initTables: false, quiet: true,
+                                             queuePrefix: queuePrefix);
 
             var dispatcher = new TypeDispatcher()
-                .Case((DefineTilesMessage m) => new DefineTiles(m, pipeline, cloud).Process())
-                .Case((ChunkInputMessage m) => new ChunkInput(m, pipeline, cloud).Process())
-                .Case((BuildBakedLeavesMessage m) => new BuildBakedLeaves(m, pipeline, cloud).Process())
-                .Case((BuildBackprojectLeavesMessage m) => new BuildBackprojectLeaves(m, pipeline, cloud).Process())
-                .Case((BuildParentMessage m) => new BuildParent(m, pipeline, cloud).Process())
-                .Case((BuildTilesetJsonMessage m) => new BuildTilesetJson(m, pipeline, cloud).Process())
-                .Case((BuildTilingInputMessage m) => new BuildTilingInput(m, pipeline, cloud).Process())
-                .Case((CreateMaskMessage m) => new CreateMask(m, pipeline, cloud).Process())
-                .Case((DetectFeaturesMessage m) => new AlignmentServer.DetectFeatures(m, pipeline, cloud).Process())
-                .Case((MatchImagesMessage m) => new MatchImages(m, pipeline, cloud).Process());
-            dispatcher.Unhandled = (t, x) => Logger.Error("Unknown message type: " + t);
+                .Case((DefineTilesMessage m) => new DefineTiles(pipeline, m).Process())
+                .Case((ChunkInputMessage m) => new ChunkInput(pipeline, m).Process())
+                .Case((BuildBakedLeavesMessage m) => new BuildBakedLeaves(pipeline, m).Process())
+                .Case((BuildBackprojectLeavesMessage m) => new BuildBackprojectLeaves(pipeline, m).Process())
+                .Case((BuildParentMessage m) => new BuildParent(pipeline, m).Process())
+                .Case((BuildTilesetJsonMessage m) => new BuildTilesetJson(pipeline, m).Process())
+                .Case((BuildTilingInputMessage m) => new BuildTilingInput(pipeline, m).Process())
+                .Case((CreateMaskMessage m) => new CreateMask(pipeline, m).Process())
+                .Case((DetectFeaturesMessage m) => new DetectFeatures(pipeline, m).Process())
+                .Case((MatchImagesMessage m) => new MatchImages(pipeline, m).Process());
+            dispatcher.Unhandled = (t, x) => LogError("Unknown message type: " + t);
 
             while (true)
             {
                 //only take one message at a time when we are ready to process it
-                var m = workerQueue.DequeueOne();
+                var m = pipeline.WorkerQueue.DequeueOne();
                 Stopwatch sw = new Stopwatch();
                 sw.Start();
                 if (m != null)
                 {
                     try
                     {
-                        if (StartedProcessing(cloud.WorkerQueue, m))
+                        if (StartedProcessing(pipeline.WorkerQueue, m))
                         {
                             bool handled = false;
                             try
@@ -401,9 +417,9 @@ namespace OPS.Pipeline.TileServer
                             }
                             catch (Exception e)
                             {
-                                Logger.ErrorFormat("{0}: processing error ({1}): {2}",
-                                                   m.Info(), e.GetType().FullName, e.Message);
-                                Logger.Error(e.StackTrace);
+                                LogError("{0}: processing error ({1}): {2}",
+                                          m.Info(), e.GetType().FullName, e.Message);
+                                LogError(e.StackTrace);
                             }
 
                             //always try to remove from messagesInFlight if we started processing
@@ -411,13 +427,13 @@ namespace OPS.Pipeline.TileServer
                             MessageRec rec = null;
                             try
                             {
-                                rec = FinishedProcessing(m);
+                                rec = FinishedProcessing(m, pipeline);
                             }
                             catch (Exception e)
                             {
-                                Logger.ErrorFormat("{0}: error removing message from heartbeat table ({1}): {2}",
-                                                   m.Info(), e.GetType().FullName, e.Message);
-                                Logger.Error(e.StackTrace);
+                                LogError("{0}: error removing message from heartbeat table ({1}): {2}",
+                                         m.Info(), e.GetType().FullName, e.Message);
+                                LogError(e.StackTrace);
                             }
 
                             //always try to delete message from SQS if we successfully processed it
@@ -432,32 +448,32 @@ namespace OPS.Pipeline.TileServer
                                     {
                                         //use latest receipt handle
                                         //https://stackoverflow.com/a/42000192
-                                        workerQueue.DeleteMessage(rec.ReceiptHandle);
+                                        pipeline.WorkerQueue.DeleteMessage(rec.ReceiptHandle);
                                     }
                                     else
                                     {
-                                        workerQueue.DeleteMessage(m);
+                                        pipeline.WorkerQueue.DeleteMessage(m);
                                     }
                                 }
                                 catch (Exception e)
                                 {
-                                    Logger.ErrorFormat("{0}: error removing message from SQS ({1}): {2}",
-                                                       m.Info(), e.GetType().FullName, e.Message);
+                                    LogError("{0}: error removing message from SQS ({1}): {2}",
+                                             m.Info(), e.GetType().FullName, e.Message);
                                 }
                             }
                         }
                         double totalSec = 0.001 * sw.ElapsedMilliseconds;
                         if (totalSec > MAX_PROCESSING_SEC)
                         {
-                            Logger.ErrorFormat("{0}: took {1:F3}s, but max processing time is {2:F3}s",
-                                               m.Info(), totalSec, MAX_PROCESSING_SEC);
+                            LogError("{0}: took {1:F3}s, but max processing time is {2:F3}s",
+                                     m.Info(), totalSec, MAX_PROCESSING_SEC);
                         }
                     }
                     catch (Exception e)
                     {
-                        Logger.ErrorFormat("{0}: error in message loop ({1}): {2}",
+                        LogError("{0}: error in message loop ({1}): {2}",
                                            m.Info(), e.GetType().FullName, e.Message);
-                        Logger.Error(e.StackTrace);
+                        LogError(e.StackTrace);
                     }
                 }
                 int sleepMS = (int)(DEQUEUE_THROTTLE_MS - sw.ElapsedMilliseconds);

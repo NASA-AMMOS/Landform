@@ -1,16 +1,15 @@
 ﻿using System;
 using System.Linq;
 using System.Collections.Generic;
-using OPS.Plumbing;
-using OPS.Geometry;
 using log4net;
+using OPS.Cloud;
+using OPS.Pipeline.TileServer;
 
-namespace OPS.Pipeline.TileServer
+namespace OPS.Pipeline
 {
     class GenericTilingStateMachine : PipelineStateMachine
     {
-        public GenericTilingStateMachine(PipelineCore pipeline, TilingQueue workerQueue, string projectName)
-            : base(pipeline, workerQueue, projectName)
+        public GenericTilingStateMachine(CloudPipeline pipeline, string projectName) : base(pipeline, projectName)
         {
         }
 
@@ -19,9 +18,9 @@ namespace OPS.Pipeline.TileServer
             return project.TilingScheme == TilingScheme.UserDefined.ToString();
         }
 
-        protected override TilingQueueMessage MakeLeafJobMessage(List<string> leaves)
+        protected override QueueMessage MakeLeafJobMessage(List<string> leaves)
         {
-            return new BuildBakedLeavesMessage(projectName, leaves);
+            return new BuildBakedLeavesMessage(projectName) { TileIds = leaves };
         }
     }
 }

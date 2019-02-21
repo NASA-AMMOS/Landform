@@ -2,55 +2,32 @@
 using System.Collections.Generic;
 using System.Linq;
 using log4net;
-using OPS.Pipeline.TileServer;
+using Microsoft.Xna.Framework;
+using OPS.Util;
 using OPS.Cloud;
 using OPS.Geometry;
 using OPS.Imaging;
-using OPS.Plumbing;
-using OPS.Util;
-using Microsoft.Xna.Framework;
+using OPS.Pipeline.TileServer;
+using OPS.Pipeline.AlignmentServer;
 
 namespace OPS.Pipeline.MeshWorker
 {
-    /// <summary>
-    /// message sent to create a large mesh from input data 
-    /// and upload it as the tiling input
-    /// </summary>
-    public class BuildTilingInputMessage : TilingQueueMessage
+    public class BuildTilingInputMessage : QueueMessage
     {
         public BuildTilingInputMessage() { }
-
-        public BuildTilingInputMessage(string projectName) : base(projectName)
-        {
-        }
+        public BuildTilingInputMessage(string projectName) : base(projectName) { }
     }
 
     /// <summary>
     /// create a large mesh from input data and uploads it as the tiling input
     /// </summary>
-    public class BuildTilingInput : TileServerOperation
+    public class BuildTilingInput : CloudPipelineOperation
     {
-        private BuildTilingInputMessage message;
+        private readonly BuildTilingInputMessage message;
 
-        private Options options;
-
-        struct Options
-        {
-            public string AlignmentProjectName; //the project name that contains the alignment data to be used with this tiling project (code sets to tiling project name, hardcode locally to use previous alignment project)
-            public int EstimatedItemSizeBytes;  //dynamo throttling: estimated item size (table size/ num items)
-            public int TableReadCapacity;       //dynamo throttling: provisioned read capacity
-        }
-
-        public BuildTilingInput(BuildTilingInputMessage message, PipelineCore pipeline, TileServerCloud cloud)
-            : base(message, pipeline, cloud)
+        public BuildTilingInput(CloudPipeline pipeline, BuildTilingInputMessage message) : base(pipeline, message)
         {
             this.message = message;
-
-            options.AlignmentProjectName = message.ProjectName;
-
-            //Issue #268: query/build these values from AWS apis
-            options.EstimatedItemSizeBytes = 820;
-            options.TableReadCapacity = 50;
         }
 
         struct PointCloudObservations
@@ -79,8 +56,8 @@ namespace OPS.Pipeline.MeshWorker
             LogInfo("started");
 
             //cache data needed to build pointcloud
-            FrameCache frameCache = new FrameCache(pipeline.DynamoContext, options.AlignmentProjectName);
-            RoverObservationCache obsCache = new RoverObservationCache(pipeline.DynamoContext, options.AlignmentProjectName, options.EstimatedItemSizeBytes, options.TableReadCapacity);
+            FrameCache frameCache = new FrameCache(pipeline, projectName);
+            RoverObservationCache obsCache = new RoverObservationCache(pipeline, projectName);
             obsCache.FillCache(onlyReconstructionObs: true);
 
             //find the best observations to use for each point cloud
@@ -100,8 +77,14 @@ namespace OPS.Pipeline.MeshWorker
                         (int)(100 * idx / (float)pointCloudObservations.Count),
                         pointCloudObservations[idx].PointsObs.FrameName);
 
-                PointCloudInput pcImgs = GetPointCloudInput(pointCloudObservations[idx]);
-                Mesh pointCloud = BuildPointCloudMesh(pcImgs, frameCache, obsCache);
+                PointCloudInput? pcImgs = GetPointCloudInput(pointCloudObservations[idx]);
+                if( pcImgs == null)
+                {
+                    LogWarn("Failed to get pointcloud input for " + pointCloudObservations[idx].PointsObs.FrameName);
+                    continue;
+                }
+
+                Mesh pointCloud = BuildPointCloudMesh(pcImgs.Value, frameCache, obsCache);
                 if (pointCloud != null)
                 {
                     aggregatePointCloud.MergeWith(new Mesh[] { pointCloud }, false);
@@ -134,20 +117,20 @@ namespace OPS.Pipeline.MeshWorker
 
             //upload mesh
             string meshName = "FullMesh";
-            string s3MeshOutputUrl = TileServerConfig.Instance.InputUrl(message.ProjectName, meshName + ".ply");
+            string meshOutputUrl = pipeline.GetStorageUrl("input", projectName, meshName + ".ply");
             TemporaryFile.GetAndDelete(".ply", tempFile =>
             {
-                LogInfo("uploading mesh " + s3MeshOutputUrl);
+                LogInfo("uploading mesh " + meshOutputUrl);
                 surfacedMesh.Save(tempFile);
-                pipeline.Storage(s3MeshOutputUrl).UploadFile(tempFile, s3MeshOutputUrl);
+                pipeline.SaveFile(tempFile, meshOutputUrl);
             });
 
             //create a tiling input
-            TilingProject tilingProject = TilingProject.Find(pipeline.DynamoContext, message.ProjectName);
-            TilingInput.Create(pipeline.DynamoContext, meshName, tilingProject, s3MeshOutputUrl, null, null);
+            TilingProject tilingProject = TilingProject.Find(pipeline, projectName);
+            TilingInput.Create(pipeline, meshName, tilingProject, meshOutputUrl, null, null);
             
             //indicate successs to the tiling server master
-            cloud.MasterQueue.Enqueue(new BuildTilingInputMessage(message.ProjectName));
+            pipeline.MasterQueue.Enqueue(new BuildTilingInputMessage(projectName));
 
             LogInfo("complete");
 
@@ -164,7 +147,7 @@ namespace OPS.Pipeline.MeshWorker
         ///     the pds mission product for the observation (or one with consistent metadata)
         ///     a generated product: the many varieties of source data formats transformed into a single expected format with a validity mask
         /// </returns>
-        private PointCloudInput GetPointCloudInput(PointCloudObservations pointCloudObservations)
+        private PointCloudInput? GetPointCloudInput(PointCloudObservations pointCloudObservations)
         {
             PointCloudInput pct = new PointCloudInput();
 
@@ -172,6 +155,12 @@ namespace OPS.Pipeline.MeshWorker
             pct.Points.Obs = pointCloudObservations.PointsObs;
             pct.Points.PDSImage = GetObservationImage(pointCloudObservations.PointsObs, RoverProductType.Range);
             pct.Points.GeneratedImage = ConvertRNGToXYR(pct.Points.PDSImage);
+
+            if(pct.Points.GeneratedImage == null)
+            {
+                LogWarn("failed to generate XYR data");
+                return null;
+            }
 
             pct.Normals.Obs = pointCloudObservations.NormalObs;
             pct.Normals.PDSImage = GetObservationImage(pointCloudObservations.NormalObs, RoverProductType.NormalMap);
@@ -188,19 +177,20 @@ namespace OPS.Pipeline.MeshWorker
             if ((pct.Points.GeneratedImage.Width != pct.Normals.GeneratedImage.Width) ||
                 (pct.Points.GeneratedImage.Height != pct.Normals.GeneratedImage.Height))
             {
-                throw new ArgumentException("mismatched resolutions across points and normals");
+                LogWarn("mismatched resolutions across points and normals");
+                return null;
             }
 
             return pct;
         }
 
-        /// <summary>
-        /// pulls down the image for an observation from S3 and does basic validation
-        /// </summary>
         private Image GetObservationImage(RoverObservation obs, params RoverProductType[] expectedProductTypes)
         {
-            S3ImageRef s3ref = new S3ImageRef(obs.Url);
-            Image img = pipeline.Load(s3ref, false, ImageConverters.PassThrough);
+            Image img = pipeline.LoadImage(obs.Url);
+
+            //don't mutate cached image
+            img = (Image)img.Clone();
+
             PDSParser parser = new PDSParser((PDSMetadata)img.Metadata);
 
             if (parser.ProductId.Producer != RoverProductProducer.OPGS)
@@ -265,7 +255,7 @@ namespace OPS.Pipeline.MeshWorker
         }
 
         /// <summary>
-        /// until mission products giving useful error estimates are available in s3
+        /// until mission products giving useful error estimates are available
         /// this code generates a confidence that is inversely proportional to range
         /// </summary>
         private Image GenerateConfidenceImage(Image pdsImage)
@@ -304,25 +294,34 @@ namespace OPS.Pipeline.MeshWorker
         /// this converts the range products into an image similar to the XYR products
         /// a position in the rover frame, until mission XYZ/XYR products are available
         /// </summary>
-        static public Image ConvertRNGToXYR(Image img)
+        public Image ConvertRNGToXYR(Image img)
         {
             //validate assumptions about input data for rng images
             PDSParser rangePDR = new PDSParser((PDSMetadata)img.Metadata);
             if (rangePDR.DerivedImageRefFrame != PDSParser.ReferenceCoordinateFrame.RoverNav)
             {
                 if (rangePDR.CameraModelRefFrame != PDSParser.ReferenceCoordinateFrame.RoverNav)
-                    throw new NotImplementedException("non-rover frame camera model not supported yet");
-            
+                {
+                    LogWarn("non-rover frame camera model not supported yet");
+                    return null;
+                }
+
                 CAHV cahv = img.CameraModel as CAHV;
                 if (cahv == null)
-                    throw new NotImplementedException("only cahv, cahvor, cahvore camera models handled currently");
+                {
+                    LogWarn("only cahv, cahvor, cahvore camera models handled currently");
+                    return null;
+                }
 
                 // find the range data's origin in rover frame
                 Vector3 cameraPosRover = Vector3.Transform(rangePDR.RangeOrigin, RoverCoordinateSystem.SiteToRover(rangePDR.RoverOriginRotation, rangePDR.OriginOffset));
 
                 //verify we can use the camera model's position as the origin for the range data
                 if (!Vector3.AlmostEqual(cameraPosRover, cahv.C, 0.0005))
-                    throw new NotImplementedException("only expecting range maps from the camera's location");
+                {
+                    LogWarn("only expecting range maps from the camera's location");
+                    return null;
+                }
             }
 
             Image xyr = new Image(3, img.Metadata.Width, img.Metadata.Height);
@@ -345,6 +344,18 @@ namespace OPS.Pipeline.MeshWorker
             }
 
             return xyr;
+        }
+
+        private Matrix ObservationToRoot(Observation obs, FrameCache frameCache)
+        {
+            Frame obsFrame = frameCache.GetFrame(obs.FrameName);
+            Frame sitedriveFrame = frameCache.GetFrame(obsFrame.ParentName);
+
+            UncertainRigidTransform obsToSiteDrive = FrameTransform.Find(pipeline, obsFrame).Transform;
+            UncertainRigidTransform siteDriveToRoot = FrameTransform.Find(pipeline, sitedriveFrame).Transform;
+     
+            UncertainRigidTransform transform = obsToSiteDrive * siteDriveToRoot;
+            return transform.Mean;
         }
 
         /// <summary>
@@ -386,7 +397,7 @@ namespace OPS.Pipeline.MeshWorker
                 return null;
             }
 
-            Matrix observationToRoot = BuildFromAlignment.ObservationToRoot(pipeline.DynamoContext, pcInput.Points.Obs, frameCache).Mean;
+            Matrix observationToRoot = ObservationToRoot(pcInput.Points.Obs, frameCache);
             return Mesh.Transformed(ptsRoverFrame, observationToRoot);
         }
 

@@ -25,9 +25,9 @@ checkDeploy('local-deploy')
     const awsDir = fs.realpathSync(path.join(process.env.HOME, '.aws'));
 
     try {
-      const zip = new Zip(config.app.bundle);
+      const zip = new Zip(config.app.masterBundle);
 
-      console.log(`extracting ${config.app.bundle} to ${tmpDir}`);
+      console.log(`extracting ${config.app.masterBundle} to ${tmpDir}`);
       zip.extractAllTo(tmpDir);
 
       fs.copySync(awsDir, path.join(tmpDir, '.aws'), { overwrite: true });
@@ -54,7 +54,7 @@ checkDeploy('local-deploy')
 
     runArgs.push('--env', `AWS_PROFILE=${config.app.awsProfile}`);
     runArgs.push('--env', 'WITHOUT_HTTPS=true');
-    runArgs.push('--env', `TILE_SERVER_VENUE_NAME=${config.app.venueName}`);
+    runArgs.push('--env', `LANDFORM_VENUE_NAME=${config.app.venue}`);
 
     runArgs.push('-p', `${config.app.port}:${config.app.port}`);
 
