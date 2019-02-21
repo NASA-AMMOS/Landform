@@ -417,7 +417,7 @@ namespace OPS.Pipeline
                 {
                     pipeline.LogInfo("processed {0}/{1} observations, "
                                      + "added {2} overlaps, {3} skipped, {4} correspondence products...",
-                                     numProcessed, loadedObservations.Count, numOverlaps, numCorrespondences);
+                                     numProcessed, loadedObservations.Count, numOverlaps, numSkipped, numCorrespondences);
                     lastSpew = now;
                 }
             }
