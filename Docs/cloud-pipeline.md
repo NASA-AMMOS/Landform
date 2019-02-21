@@ -21,3 +21,9 @@
    * PROJ is a project name, e.g. `align-test`
    * INPUT is the path to your inputs file, e.g. `s3://landlords-dev/landform-USERNAME/align-test-inputs.txt`.  It can also be a literal path, e.g. `s3://red-product/proj/msl/redops/ods/surface/sol/00589/opgs/rdr/ncam`.  Paths ending in `/**` will be searched recursively.  Input path is required when (re-)creating a project, but is optional if the project already exists (in that case it must match what the project was created with).
    * DBG is a local disk path to a folder for debug outputs
+
+On my 36 core machine this workflow takes about about 18 minutes for cross-site adjustment of sols 588, 589, 590.  This dataset has 3688 navcam IMG files, about 5GB total, 263 which we consider observations, 90 images that we actually use for reconstruction.
+* ingest: 1.5min
+* masks and features: 9min
+* matching: 6min
+* bundle adjust: 2.3s site-drive frames only (6 adjusted nodes)
