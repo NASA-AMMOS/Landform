@@ -395,7 +395,8 @@ namespace OPS.Pipeline
                     {
                         scene.Overlaps.Add(pair);
                         numOverlaps++;
-                        if (options.LoadCorrespondences && ValidGuid(overlap.MatchGuid))
+                        if (options.LoadCorrespondences && ValidGuid(overlap.MatchGuid) &&
+                            !scene.Correspondences.ContainsKey(pair))
                         {
                             var match = pipeline.GetDataProduct<ComputedCorrespondence>(project.ProductPath,
                                                                                         overlap.MatchGuid,
