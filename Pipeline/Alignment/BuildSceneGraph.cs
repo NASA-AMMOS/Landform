@@ -389,19 +389,22 @@ namespace OPS.Pipeline
                         }
                     }
 
-                    numOverlaps++;
                     var pair = new URLPair(o1.Url, o2.Url);
-                    scene.Overlaps.Add(pair);
 
-                    if (options.LoadCorrespondences && ValidGuid(overlap.MatchGuid))
+                    if (!scene.Overlaps.Contains(pair))
                     {
-                        var match = pipeline.GetDataProduct<ComputedCorrespondence>(project.ProductPath,
-                                                                                    overlap.MatchGuid,
-                                                                                    projectName);
-                        if (match != null)
+                        scene.Overlaps.Add(pair);
+                        numOverlaps++;
+                        if (options.LoadCorrespondences && ValidGuid(overlap.MatchGuid))
                         {
-                            scene.Correspondences[pair] = match.Correspondence;
-                            numCorrespondences++;
+                            var match = pipeline.GetDataProduct<ComputedCorrespondence>(project.ProductPath,
+                                                                                        overlap.MatchGuid,
+                                                                                        projectName);
+                            if (match != null)
+                            {
+                                scene.Correspondences[pair] = match.Correspondence;
+                                numCorrespondences++;
+                            }
                         }
                     }
                 }
