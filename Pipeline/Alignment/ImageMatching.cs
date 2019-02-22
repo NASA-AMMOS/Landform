@@ -30,6 +30,7 @@ namespace OPS.Pipeline
             };
             BuildSceneGraph builder = new BuildSceneGraph(pipeline, projectName, opts);
             AlignmentScene scene = builder.BuildBottomUp(new[] { modelFrameName, dataFrameName });
+            (new FrustumOverlapDetector(pipeline, pipeline)).MakeHulls(scene);
             return ComputeCorrespondence(pipeline, scene, modelUrl, dataUrl);
         }
 
