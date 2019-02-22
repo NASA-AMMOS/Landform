@@ -81,7 +81,6 @@ namespace OPS.Pipeline
                 {
                     LogInfo("processing {0} image pairs in parallel, completed {1}/{2}", np, nc, no);
                 }
-                LogVerbose("computing features matches for image pair {0}", pairName);
                 var result = ImageMatching.ComputeCorrespondence(this, scene, modelUrl, dataUrl);
                 var guid = Guid.Empty;
                 if (result != null)

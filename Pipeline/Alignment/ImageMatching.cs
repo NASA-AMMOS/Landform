@@ -38,6 +38,8 @@ namespace OPS.Pipeline
         {
             Debug.Assert(scene.ObservationUrlToNode.ContainsKey(modelUrl));
             Debug.Assert(scene.ObservationUrlToNode.ContainsKey(dataUrl));
+            Debug.Assert(scene.DetectedFeatures.ContainsKey(modelUrl));
+            Debug.Assert(scene.DetectedFeatures.ContainsKey(dataUrl));
 
             var modelNode = scene.ObservationUrlToNode[modelUrl];
             var dataNode = scene.ObservationUrlToNode[dataUrl];
@@ -45,25 +47,22 @@ namespace OPS.Pipeline
             var modelObs = modelNode.GetComponent<NodeObservation>().Observation;
             var dataObs = dataNode.GetComponent<NodeObservation>().Observation;
 
-            string msg = null;
+
+            string pairName = (new URLPair(modelUrl, dataUrl)).ToStringShort();
+            pipeline.LogVerbose("{0} ({1} features, {2} features): (re)computing feature matches",
+                                pairName,
+                                scene.DetectedFeatures[modelUrl].Length,
+                                scene.DetectedFeatures[dataUrl].Length);
+
             if (modelObs is RoverObservation && dataObs is RoverObservation)
             {
                 var mro = modelObs as RoverObservation;
                 var dro = dataObs as RoverObservation;
-                var msd = new SiteDrive(mro.Site, mro.Drive);
-                var dsd = new SiteDrive(dro.Site, dro.Drive);
-                msg = string.Format("correspondence between {0} (site drive {1}) and {2} (site drive {3})",
-                                    StringHelper.GetLastUrlPathSegment(modelUrl), msd.ToString(),
-                                    StringHelper.GetLastUrlPathSegment(dataUrl), dsd.ToString());
+                pipeline.LogVerbose("{0} SiteDrives: {1}, {2}",
+                                    pairName,
+                                    (new SiteDrive(mro.Site, mro.Drive)).ToString(),
+                                    (new SiteDrive(dro.Site, dro.Drive)).ToString());
             }
-            else
-            {
-                msg = string.Format("correspondence between {0} and {1}",
-                                    StringHelper.GetLastUrlPathSegment(modelUrl),
-                                    StringHelper.GetLastUrlPathSegment(dataUrl));
-            }
-
-            pipeline.LogVerbose("(re)computing {0}", msg);
 
             //IFeatureMatcher matcher = new EmguSIFTMatcher();
             //IFeatureMatcher matcher = new KnownGeometryMatcher();
@@ -72,32 +71,32 @@ namespace OPS.Pipeline
             var matches = matcher.Match(scene, modelUrl, dataUrl);
             if (matches.Count < MIN_MATCHES)
             {
-                pipeline.LogVerbose("discarding {0}, {1} returned {2} < {3} matches",
-                                    msg, matcher.GetType().Name, matches.Count, MIN_MATCHES);
+                pipeline.LogVerbose("{0} {1}: {2} < {3} matches, discarding", pairName, matcher.GetType().Name,
+                                    matches.Count, MIN_MATCHES);
                 return null;
             }
+            pipeline.LogVerbose("{0} {1}: {2} matches", pairName, matcher.GetType().Name, matches.Count);
 
             List<IMatchFilter> filters = new List<IMatchFilter>();
-            filters.Add(new KnownGeometryFilter(pipeline.Logger));
-            filters.Add(new MoisanStivalFilter(pipeline.Logger));
+            filters.Add(new KnownGeometryFilter(pipeline));
+            filters.Add(new MoisanStivalFilter(pipeline));
             //filters.Add(new GTMFilter());
 
             foreach (var filter in filters)
             {
                 int oldCount = matches.Count;
                 matches = filter.Filter(scene, matches);
-                pipeline.LogVerbose("{0} {1}: {2} -> {3}", msg, filter.GetType().Name, oldCount, matches.Count);
                 if (matches.Count < MIN_MATCHES)
                 {
-                    pipeline.LogVerbose("discarding {0}, {1} resulted in {2} < {3} matches",
-                                        msg, filter.GetType().Name, matches.Count, MIN_MATCHES);
+                    pipeline.LogVerbose("{0} {1}: {2} < {3} matches, discarding", pairName, filter.GetType().Name,
+                                        matches.Count, MIN_MATCHES);
                     return null;
                 }
+                pipeline.LogVerbose("{0} {1}: {2} -> {3}", pairName, filter.GetType().Name, oldCount, matches.Count);
             }
 
-            pipeline.LogVerbose("computed {0} with {1} feature matches using {2} and {3}",
-                                msg, matches.Count, matcher.GetType().Name,
-                                string.Join(", ", filters.Select(f => f.GetType().Name)));
+            pipeline.LogVerbose("{0} {1}: {2} -> {3} feature matches", pairName, matcher.GetType().Name,
+                                string.Join(", ", filters.Select(f => f.GetType().Name)), matches.Count);
 
             return new ComputedCorrespondence()
             {
@@ -141,7 +140,7 @@ namespace OPS.Pipeline
 
             if (scene.Overlaps.Count == 0)
             {
-                var fod = new FrustumOverlapDetector(pipeline, pipeline.Logger);
+                var fod = new FrustumOverlapDetector(pipeline, pipeline);
                 fod.Detect(scene, onlyCrossSite);
             }
             return scene;

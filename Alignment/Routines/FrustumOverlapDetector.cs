@@ -14,9 +14,9 @@ namespace OPS.Alignment
     public class FrustumOverlapDetector
     {
         private readonly IImageLoader loader;
-        private readonly ILog logger;
+        private readonly ILogger logger;
 
-        public FrustumOverlapDetector(IImageLoader loader = null, ILog logger = null)
+        public FrustumOverlapDetector(IImageLoader loader = null, ILogger logger = null)
         {
             this.loader = loader;
             this.logger = logger;
@@ -33,7 +33,7 @@ namespace OPS.Alignment
                 double now = UTCTime.Now();
                 if (logger != null &&  (final || now - lastSpew > 5))
                 {
-                    logger.InfoFormat("creating hulls ({0:F3}s), processed {1} nodes, " +
+                    logger.LogVerbose("creating hulls ({0:F3}s), processed {1} nodes, " +
                                       "made {2} hulls from params, {3} from images, {4} from children, {5} empty{6}",
                                       UTCTime.Now() - startTime, numNodes,
                                       paramsHulls, imageHulls, unionHulls, emptyHulls, final ? "" : "...");
@@ -111,7 +111,7 @@ namespace OPS.Alignment
 
             if (logger != null)
             {
-                logger.InfoFormat("detecting {0} overlaps", onlyCrossSiteDriveOverlaps ? "cross site drive" : "all");
+                logger.LogVerbose("detecting {0} overlaps", onlyCrossSiteDriveOverlaps ? "cross site drive" : "all");
             }
 
             HashSet<URLPair> unique = new HashSet<URLPair>();
@@ -124,7 +124,7 @@ namespace OPS.Alignment
                 double now = UTCTime.Now();
                 if (logger != null && (final || now - lastSpew > 5))
                 {
-                    logger.InfoFormat("detecting overlaps ({0:F3}s): found {1} unique overlaps ({2} checks), " +
+                    logger.LogVerbose("detecting overlaps ({0:F3}s): found {1} unique overlaps ({2} checks), " +
                                       "{3} overlapping leaf pairs, processed {4} pairs, {5} nodes{6}",
                                       UTCTime.Now() - startTime, unique.Count, overlapChecks,
                                       overlappingLeaves, processedPairs, processedNodes, final ? "" : "...");

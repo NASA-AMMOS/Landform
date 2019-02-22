@@ -49,7 +49,7 @@ namespace OPS.Pipeline.AlignmentServer
             var dataUrl = message.DataImageUrl;
             var pairName = (new URLPair(modelUrl, dataUrl)).ToStringShort();
 
-            pipeline.LogInfo("matching features for image pair {0} in project {1}", pairName, projectName);
+            pipeline.LogInfo("matching features for {0} in project {1}", pairName, projectName);
 
             var result = ImageMatching.ComputeCorrespondence(pipeline, projectName, modelUrl, dataUrl,
                                                              message.ModelFrameName, message.DataFrameName);
@@ -57,7 +57,7 @@ namespace OPS.Pipeline.AlignmentServer
             Guid guid = Guid.Empty;
             if (result != null && result.Correspondence != null)
             {
-                pipeline.LogInfo("matched features for image pair {0} in project {1}", pairName, projectName);
+                pipeline.LogInfo("matched features for {0} in project {1}", pairName, projectName);
 
                 var project = Project.Find(pipeline, projectName);
                 pipeline.SaveDataProduct(project.ProductPath, result, projectName);
@@ -69,7 +69,7 @@ namespace OPS.Pipeline.AlignmentServer
             }
             else
             {
-                pipeline.LogInfo("insufficient feature match for image pair {0} in project {1}", pairName, projectName);
+                pipeline.LogInfo("insufficient feature match for {0} in project {1}", pairName, projectName);
             }
 
             pipeline.MasterQueue.Enqueue(new ImagesMatchedMessage(projectName)

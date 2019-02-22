@@ -57,10 +57,8 @@ namespace OPS.Pipeline
      *
      * + Message Queue API - interact with message queues (cloud only)
      **/
-    public abstract class PipelineCore : IImageLoader
+    public abstract class PipelineCore : IImageLoader, ILogger
     {
-        public string LogPrefix = "";
-
         public readonly PipelineCoreOptions Options;
         public readonly Config Config;
 
@@ -372,6 +370,9 @@ namespace OPS.Pipeline
         }
 
         //****************** Logging API *****************
+
+        private string _logPrefix = "";
+        public string LogPrefix { get { return _logPrefix; } set { _logPrefix = value; } }
 
         public void LogInfo(string msg, params Object[] args)
         {

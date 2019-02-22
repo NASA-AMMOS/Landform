@@ -1,13 +1,13 @@
-﻿using Emgu.CV;
-using log4net;
-using Microsoft.Xna.Framework;
-using OPS.Geometry;
-using OPS.Util;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Emgu.CV;
+using log4net;
+using Microsoft.Xna.Framework;
+using OPS.Util;
+using OPS.Geometry;
 
 namespace OPS.Alignment
 {
@@ -34,7 +34,7 @@ namespace OPS.Alignment
 
         private double modelNorm, dataNorm;
 
-        private ILog logger;
+        private ILogger logger;
 
         /// <summary>
         /// Initialize the procedure with a set of potentially corresponding points.
@@ -45,7 +45,7 @@ namespace OPS.Alignment
         /// <param name="modelSize">Dimensions (in same units as modelPoints) of "model" image</param>
         /// <param name="dataSize">Dimensions (in same units as dataPoints) of "data" image</param>
         public MoisanStivalEpipolar(Vector2[] modelPoints, Vector2[] dataPoints, Vector2 modelSize, Vector2 dataSize,
-                                    ILog logger = null)
+                                    ILogger logger = null)
         {
             this.ModelPoints = modelPoints;
             this.DataPoints = dataPoints;
@@ -293,7 +293,7 @@ namespace OPS.Alignment
             {
                 if (logger != null)
                 {
-                    logger.Error("MoisanStivalEpipolar: failed to find fundamental matrix", e);
+                    logger.LogError("MoisanStivalEpipolar: failed to find fundamental matrix", e);
                 }
                 yield break;
             }
