@@ -21,9 +21,12 @@ namespace OPS.Pipeline
     {
         [Value(0, Required = true, HelpText = "project name", Default = null)]
         public string ProjectName { get; set; }
+
+        [Value(1, Required = false, HelpText = "path to the Agisoft Metashape Professional exe", Default = @"C:\Program Files\Agisoft\Metashape Pro\metashape.exe")]
+        public string MetaShapeExePath { get; set; }
     }
 
-    class LocalAgisoft : LocalPipeline
+    public class LocalAgisoft : LocalPipeline
     {
         private LocalAgisoftOptions options;
 
@@ -31,19 +34,158 @@ namespace OPS.Pipeline
         {
             this.options = options;
         }
-        private void AddAttributeXml(XmlNode node, string name, string value)
+
+        public int Run()
+        {
+            // collect project info for db queries
+            var project = Project.Find(this, options.ProjectName);
+            if (project == null)
+            {
+                LogError("project \"{0}\" not found", options.ProjectName);
+                return 1;
+            }
+
+            // prepare data directories
+            var imageDir = TemporaryFile.GetTempSubdir("agi_images");
+            var masksDir = TemporaryFile.GetTempSubdir("agi_masks");
+            var metaDir = TemporaryFile.GetTempSubdir("agi_meta");
+
+            // prepare metadata filenames
+            string calibXMLPath = Path.Combine(metaDir, "calibIn.xml");
+            string alignPythonPath = Path.Combine(metaDir, "imageAlign.py");
+            string debugAgiScene = Path.Combine(metaDir, "scene.psz");
+            string outputCamerasXMLPath = Path.Combine(metaDir, "camerasOut.xml");
+
+            //build scene graph from database tables for images and transforms heirarchy
+            this.LogInfo("building scene graph for bundle adjustment, project {0}", options.ProjectName);
+            var bsg = new BuildSceneGraph(this, project.Name, new BuildSceneGraph.Options
+            {
+                UseTransformPriors = true,
+                LoadCorrespondences = false,
+                OnlyKeepImagesWithFeatures = false,
+                OnlyKeepBestImages = true,
+                OnlyCrossSiteDriveOverlaps = false,
+                IncludeObservation = o => o.ObservationType == ObservationType.Image.ToString() && o.UseForReconstruction
+            });
+            AlignmentScene scene = bsg.BuildTopDown(project.RootFrame);
+
+            // prepare png versions of images and masks for agisoft
+            var observations = scene.Root.GetComponentsInTree<NodeObservation>().Select(no => no.Observation as RoverObservation);
+            this.LogInfo("generating pngs for " + observations.Count() + "images and masks");
+            foreach (var obs in observations)
+            {
+                Image img = this.LoadImage(obs.Url);
+                img.Save<byte>(Path.Combine(imageDir, obs.Name + ".png"));
+
+                Image mask = this.GetDataProduct<PngDataProduct>(project.ProductPath, obs.MaskGuid, project.Name).Image;
+                mask.Save<byte>(Path.Combine(masksDir, obs.Name + "_mask.png"));
+            }
+
+            this.LogInfo("preparing calibration information for agisoft");
+            AgisoftXML.WriteCalibrationXML(observations, scene.ObservationUrlToNode, calibXMLPath);
+
+            this.LogInfo("generating python script for agisoft to preform alignment");
+            AgisoftPython.WriteImageAlignScript(calibXMLPath, imageDir, masksDir, alignPythonPath, debugAgiScene, outputCamerasXMLPath);
+
+            this.LogInfo("running agisoft alignment");
+            string arguments = "-r \"" + alignPythonPath + "\"";
+            ProgramRunner pr = new ProgramRunner(options.MetaShapeExePath, arguments, captureOutput: true);
+            try
+            {
+                int exitCode = pr.Run();
+                if (exitCode != 0)
+                { 
+                    throw new InvalidProgramException("exited with status " + exitCode);
+                }
+               
+                if(!File.Exists(outputCamerasXMLPath))
+                {
+                    throw new InvalidProgramException("failed to create output cameras.xml file");
+                }
+
+                this.LogInfo("agisoft alignment complete");
+            }
+            catch (Exception)
+            {
+                this.LogError(pr.OutputText);
+                this.LogError(pr.ErrorText);
+            }
+            finally
+            {
+               Directory.Delete(imageDir, true);
+               Directory.Delete(masksDir, true);
+               Directory.Delete(metaDir, true);
+            }
+
+            return 0;
+        }
+    }
+
+    class AgisoftPython
+    {
+        static public void WriteImageAlignScript(string calibXMLPath, string imagesDir, string masksDir, string outputPythonFilePath, string outputAgiScenePath, string outputCamerasXMLPath)
+        {
+            //set up document
+            string fc = "import Metashape\n" +
+                        "doc = Metashape.app.document\n" +
+                        "chunk = doc.addChunk()\n";
+
+            //add images
+            string param = "[";
+            foreach (var path in Directory.EnumerateFiles(imagesDir, "*.png"))
+            {
+                param += "\"" + path.Replace(@"\", "/") + "\", ";
+            }
+            param.TrimEnd(new char[]{ ',',' '});
+            param += "]";
+            fc += "chunk.addPhotos(" + param + ")\n";
+
+            //load camera calibrations
+            fc += "chunk.importCameras(\"" + calibXMLPath.Replace(@"\", "/") + "\")\n";
+
+            //load our masks
+            fc += "chunk.importMasks(path = \"" + masksDir.Replace(@"\", "/") + "/{filename}_mask.png\", source = Metashape.MaskSourceFile, operation = Metashape.MaskOperationReplacement, tolerance = 10)\n";
+
+            //do alginment
+            fc += "chunk.matchPhotos(accuracy = Metashape.HighAccuracy, generic_preselection = True, reference_preselection = False)\n" +
+                  "chunk.alignCameras()\n";
+
+            //save debug scene for inspection
+            fc += "doc.save(path = \"" + outputAgiScenePath.Replace(@"\", "/") + "\", chunks = [doc.chunk])\n";
+            
+            //save the modified camera positions
+            fc += "chunk.exportCameras(\"" + outputCamerasXMLPath.Replace(@"\", "/") + "\", format = Metashape.CamerasFormatXML, export_points = False)\n";
+
+            //save out generated python
+            File.WriteAllText(outputPythonFilePath, fc);
+        }
+    }
+
+    class AgisoftXML
+    {
+        static private void AddCameraXml(XmlNode cameras, int cameraId, int sensorId, string name)
+        {
+            XmlNode cameraNode = cameras.OwnerDocument.CreateElement("camera");
+            cameras.AppendChild(cameraNode);
+            AddAttributeXml(cameraNode, "id", cameraId.ToString());
+            AddAttributeXml(cameraNode, "sensor_id", sensorId.ToString());
+            AddAttributeXml(cameraNode, "label", name);
+            AddAttributeXml(cameraNode, "enabled", "1");
+        }
+
+        static private void AddAttributeXml(XmlNode node, string name, string value)
         {
             XmlAttribute att = node.OwnerDocument.CreateAttribute(name);
             att.Value = value;
             node.Attributes.Append(att);
         }
 
-        private void AddSensorXml(XmlNode sensorsNode, int sensorId, RoverProductCamera roverProdCam, int widthPixels, int heightPixels)
+        static private void AddSensorXml(XmlNode sensorsNode, int sensorId, RoverProductCamera roverProdCam, int widthPixels, int heightPixels)
         {
             XmlNode sensorNode = sensorsNode.OwnerDocument.CreateElement("sensor");
             sensorsNode.AppendChild(sensorNode);
             AddAttributeXml(sensorNode, "id", sensorId.ToString());
-            AddAttributeXml(sensorNode, "label", roverProdCam.ToString()+ "_" + widthPixels + "_" + heightPixels);
+            AddAttributeXml(sensorNode, "label", roverProdCam.ToString() + "_" + widthPixels + "_" + heightPixels);
 
             if (roverProdCam.ToString().Contains("Hazcam"))
                 throw new NotImplementedException("hazcams may need a fisheye camera type set here");
@@ -111,38 +253,9 @@ namespace OPS.Pipeline
             sensitivityNode.InnerText = "1.0000000000000000e+000";
         }
 
-        public int Run()
+        static public void WriteCalibrationXML(IEnumerable<RoverObservation> observations, Dictionary<string, SceneNode> observationUrlToNode, string outputCalibXML)
         {
-           
-            var project = Project.Find(this, options.ProjectName);
-            if (project == null)
-            {
-                LogError("project \"{0}\" not found", options.ProjectName);
-                return 1;
-            }
-
-            var imageDir = TemporaryFile.GetTempSubdir("images");
-            var masksDir = TemporaryFile.GetTempSubdir("masks");
-            var agiScratch = TemporaryFile.GetTempSubdir("agiScratch");
-
-            //TODO: clear directories
-
-            this.LogInfo("building scene graph for bundle adjustment, project {0}", options.ProjectName);
-            var bsg = new BuildSceneGraph(this, project.Name, new BuildSceneGraph.Options
-            {
-                UseTransformPriors = true,
-                LoadCorrespondences = false,
-                OnlyKeepImagesWithFeatures = false,
-                OnlyKeepBestImages = true,
-                OnlyCrossSiteDriveOverlaps = false,
-                IncludeObservation = o => o.ObservationType == ObservationType.Image.ToString() && o.UseForReconstruction
-            });
-
-            AlignmentScene scene = bsg.BuildTopDown(project.RootFrame);
-         
-            var observations = scene.Root.GetComponentsInTree<NodeObservation>().Select(no => no.Observation as RoverObservation);
             var obsByCameraConfig = observations.GroupBy(o => new { o.Sensor, o.Width, o.Height });
-            var siteDrives = observations.Select(o => new SiteDrive(o.Site, o.Drive)).Distinct().OrderBy(sd => sd);
 
             //add xml fragmentes needed for cameras
             XmlDocument doc = new XmlDocument();
@@ -150,7 +263,7 @@ namespace OPS.Pipeline
             XmlNode docNode = doc.CreateElement("document");
             doc.AppendChild(docNode);
             AddAttributeXml(docNode, "version", "1.5.0");
-           
+
             XmlNode chunkNode = doc.CreateElement("chunk");
             docNode.AppendChild(chunkNode);
             AddAttributeXml(chunkNode, "label", "Chunk 1");
@@ -168,51 +281,22 @@ namespace OPS.Pipeline
             //add sensors and cameras
             int sensorId = 0;
             int cameraId = 0;
-            foreach(var cameraConfig in obsByCameraConfig)
+            foreach (var cameraConfig in obsByCameraConfig)
             {
-                RoverProductCamera roverProdCam = (RoverProductCamera)Enum.Parse(typeof(RoverProductCamera),cameraConfig.Key.Sensor);
+                RoverProductCamera roverProdCam = (RoverProductCamera)Enum.Parse(typeof(RoverProductCamera), cameraConfig.Key.Sensor);
                 AddSensorXml(sensorsNode, sensorId, roverProdCam, cameraConfig.Key.Width, cameraConfig.Key.Height);
-                          
+
                 foreach (var obs in cameraConfig)
                 {
-                    Image img = this.LoadImage(obs.Url);
-                    img.Save<byte>(Path.Combine(imageDir, obs.Name + ".png"));
-
-                    Image mask = this.GetDataProduct<PngDataProduct>(project.ProductPath, obs.MaskGuid, project.Name).Image;
-                    mask.Save<byte>(Path.Combine(masksDir, obs.Name + "_mask.png"));
-
-                    SceneNode node = scene.ObservationUrlToNode[obs.Url];
-                    Matrix cameraToRootRowVectorRightHanded = node.Transform.LocalToWorld;
-                    Matrix cameraToRootColVectorRightHanded = Matrix.Transpose(cameraToRootRowVectorRightHanded);
-                   
-                    AddCameraXml(camerasNode, cameraId, sensorId, obs.Name, cameraToRootColVectorRightHanded); //BUGBUG want inverse?
-
+                    AddCameraXml(camerasNode, cameraId, sensorId, obs.Name);
                     cameraId++;
                 }
-                
+
                 sensorId++;
             }
 
-            doc.Save(Path.Combine(agiScratch, "Cameras.xml"));
-
-            return 0;
+            doc.Save(outputCalibXML);
         }
 
-        private void AddCameraXml(XmlNode cameras, int cameraId, int sensorId, string name, Matrix cameraToRootColVec)
-        {
-            XmlNode cameraNode = cameras.OwnerDocument.CreateElement("camera");
-            cameras.AppendChild(cameraNode);
-            AddAttributeXml(cameraNode, "id", cameraId.ToString());
-            AddAttributeXml(cameraNode, "sensor_id", sensorId.ToString());
-            AddAttributeXml(cameraNode, "label", name);
-            AddAttributeXml(cameraNode, "enabled", "1");
-
-            XmlNode transformNode = cameras.OwnerDocument.CreateElement("transform");
-            cameraNode.AppendChild(transformNode);
-            transformNode.InnerText = cameraToRootColVec.M11.ToString("e16") + " " + cameraToRootColVec.M12.ToString("e16") + " " + cameraToRootColVec.M13.ToString("e16") + " " + cameraToRootColVec.M14.ToString("e16") + " " +
-                cameraToRootColVec.M21.ToString("e16") + " " + cameraToRootColVec.M22.ToString("e16") + " " + cameraToRootColVec.M23.ToString("e16") + " " + cameraToRootColVec.M24.ToString("e16") + " " +
-                cameraToRootColVec.M31.ToString("e16") + " " + cameraToRootColVec.M32.ToString("e16") + " " + cameraToRootColVec.M33.ToString("e16") + " " + cameraToRootColVec.M34.ToString("e16") + " " +
-                cameraToRootColVec.M41.ToString("e16") + " " + cameraToRootColVec.M42.ToString("e16") + " " + cameraToRootColVec.M43.ToString("e16") + " " + cameraToRootColVec.M44.ToString("e16");
-        }
     }
 }
