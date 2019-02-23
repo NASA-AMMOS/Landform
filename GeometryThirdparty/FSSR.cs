@@ -26,7 +26,7 @@ namespace OPS.Geometry
         /// </summary>
         /// <param name="pointCloud"></param>
         /// <returns></returns>
-        public static Mesh Reconstruct(Mesh pointCloud)
+        public static Mesh Reconstruct(Mesh pointCloud, float? scale = null)
         {
             if(pointCloud.Vertices.Count == 0)
             {
@@ -48,9 +48,12 @@ namespace OPS.Geometry
             string cleanExe = Path.Combine(PathHelper.GetApplicationPath(), "ExternalApps", "meshclean.exe");
 
             Mesh result = null;
-            float scale = MathE.Max(pointCloud.Bounds().Size().ToFloatArray()) / (float)Math.Sqrt(pointCloud.Vertices.Count) * 2;
+            if (!scale.HasValue)
+            {
+                scale = MathE.Max(pointCloud.Bounds().Size().ToFloatArray()) / (float)Math.Sqrt(pointCloud.Vertices.Count) * 2;
+            }
             TemporaryFile.GetAndDelete(".ply", inputFile => {
-                PLYSerializer.Write(pointCloud, inputFile, new FSSRPlyWriter(scale));
+                PLYSerializer.Write(pointCloud, inputFile, new FSSRPlyWriter(scale.Value));
                 TemporaryFile.GetAndDelete(".ply", outputFile => {
                     ProgramRunner pr = new ProgramRunner(fssrExe, inputFile + " " + outputFile, captureOutput: true);
                     pr.Run();

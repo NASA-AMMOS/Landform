@@ -27,7 +27,8 @@ namespace OPS.Geometry
                 m.GenerateVertexNormals();
             }
             m.NormalizeNormals();
-            Mesh pc = new SurfacePointSampler().GenerateSampledMesh(m, targetNumberOfFaces / m.SurfaceArea());
+            double density = (targetNumberOfFaces / m.SurfaceArea()) * 4;
+            Mesh pc = new SurfacePointSampler().GenerateSampledMesh(m, density);
             pc.HasUVs = false;
             // TODO: Why do we need to normalize here, issue with GenerateSampledMesh?
             pc.NormalizeNormals();

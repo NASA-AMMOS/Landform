@@ -115,6 +115,7 @@
     <Compile Include="Serializers\PLYSerializer.cs" />
     <Compile Include="Serializers\PLYWriter.cs" />
     <Compile Include="Serializers\PNTSSerializer.cs" />
+    <Compile Include="Serializers\PTXSerializer.cs" />
     <Compile Include="Serializers\STLSerializer.cs" />
   </ItemGroup>
   <ItemGroup>

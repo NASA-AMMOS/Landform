@@ -25,12 +25,27 @@ namespace OPS.Pipeline
 
         public int FirstLine
         {
-            get { return metadata.ReadAsInt("IMAGE", "FIRST_LINE"); }
+            get
+            {
+                if (metadata.HasKey("IMAGE", "FIRST_LINE"))
+                {
+                    return metadata.ReadAsInt("IMAGE", "FIRST_LINE");
+                }
+                return metadata.ReadAsInt("IMAGE_DATA", "FIRST_LINE");
+            }
         }
 
         public int FirstSample
         {
-            get { return metadata.ReadAsInt("IMAGE", "FIRST_LINE_SAMPLE"); }
+            get {
+
+                if (metadata.HasKey("IMAGE", "FIRST_LINE_SAMPLE"))
+                {
+                    return metadata.ReadAsInt("IMAGE", "FIRST_LINE_SAMPLE");
+                }
+                return metadata.ReadAsInt("IMAGE_DATA", "FIRST_LINE_SAMPLE");
+
+            }
         }
 
         private const string Unknown = "UNK";
@@ -377,7 +392,11 @@ namespace OPS.Pipeline
         {
             get
             {
-                return metadata.ReadAsIntArray("ROVER_MOTION_COUNTER");
+                if (metadata.HasKey("ROVER_MOTION_COUNTER"))
+                {
+                    return metadata.ReadAsIntArray("ROVER_MOTION_COUNTER");
+                }
+                return null;
             }
         }
 
@@ -386,6 +405,10 @@ namespace OPS.Pipeline
             get
             {
                 int[] mc = MotionCounter;
+                if(mc == null)
+                {
+                    return null;
+                }
                 return mc[0].ToString().PadLeft(5, '0') + mc[1].ToString().PadLeft(5, '0');
             }
         }
