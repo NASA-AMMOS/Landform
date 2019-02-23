@@ -65,11 +65,11 @@ namespace OPS.Geometry
                 this.Image = new Image(3, numCol, numRow);
                 this.Scalar = new Image(1, numCol, numRow);
 
-                ProgressReporter reporter = new ProgressReporter(10, x => Console.WriteLine(x + "%"));
+                //TODO: ProgressReporter reporter = new ProgressReporter(10, x => Console.WriteLine(x + "%"));
                 Console.WriteLine("Reading file");
                 for (int c = 0; c < numCol; c++)
                 {
-                    reporter.Update((int)((c / (float)numCol)*100));
+                    //TODO: reporter.Update((int)((c / (float)numCol)*100));
                     for (int r = 0; r < numRow; r++)
                     {
                         var parts = sr.ReadLine().Split();
@@ -96,7 +96,7 @@ namespace OPS.Geometry
                 this.Mesh = new Mesh(hasColors: true);
                 for (int c = 0; c < numCol; c++)
                 {
-                    reporter.Update((int)((c / (float)numCol) * 100));
+                    //TODO: reporter.Update((int)((c / (float)numCol) * 100));
                     for (int r = 0; r < numRow; r++)
                     {                        
                         var pos = new Vector3(this.XYZ[0, r, c], this.XYZ[1, r, c], this.XYZ[2, r, c]);
