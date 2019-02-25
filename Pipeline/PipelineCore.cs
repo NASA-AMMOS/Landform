@@ -88,12 +88,11 @@ namespace OPS.Pipeline
         protected readonly Type[] tableTypes = new Type[]
             {
                 typeof(Project),
-                typeof(FrameTransform),
                 typeof(Frame),
+                typeof(FrameTransform),
                 //typeof(Observation),
                 typeof(RoverObservation), //TODO msl specific
                 typeof(Overlap),
-                typeof(TransformPrior),
                 typeof(TilingProject),
                 typeof(TilingInput),
                 typeof(TilingNode),

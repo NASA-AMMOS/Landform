@@ -9,7 +9,6 @@ using OPS.Cloud;
 
 namespace OPS.Pipeline.AlignmentServer
 {
-
     /// <summary>
     /// Represents a coordinate frame in the database
     /// Coordinate frames can have one or more observations associated with them. 
@@ -28,19 +27,14 @@ namespace OPS.Pipeline.AlignmentServer
 
         public string ParentName;
 
-        public List<string> PriorIds;
+        public List<TransformSource> Transforms;
 
         public List<string> ObservationNames;
-
-        public bool IsLocated(PipelineCore pipeline)
-        {
-            return FrameTransform.Find(pipeline, this) != null;
-        }
 
         //This constructor must be public for DynamoDB but should not be used
         public Frame()
         {
-            PriorIds = new List<string>();
+            Transforms = new List<TransformSource>();
             ObservationNames = new List<string>();
         }
 
@@ -53,15 +47,10 @@ namespace OPS.Pipeline.AlignmentServer
         /// <param name="name"></param>
         protected Frame(string projectName, string name = null, Frame parent = null) : this()
         {
-            if (name == null)
-            {
-                name = Guid.NewGuid().ToString();
-            }
-            this.Name = name;
+            this.Name = name ?? Guid.NewGuid().ToString();
             this.ProjectName = projectName;
             this.ParentName = (parent != null) ? parent.Name : null;
         }
-
 
         /// <summary>
         /// Creates a frame for the given project with the given name.
@@ -74,10 +63,6 @@ namespace OPS.Pipeline.AlignmentServer
         /// <returns></returns>
         public static Frame Create(PipelineCore pipeline, string projectName, string name = null, Frame parent = null)
         {
-            if (name == null)
-            {
-                name = Guid.NewGuid().ToString();
-            }
             Frame f = new Frame(projectName, name, parent);
             pipeline.SaveDatabaseItem<Frame>(f);
             return f;
@@ -103,7 +88,6 @@ namespace OPS.Pipeline.AlignmentServer
         /// <returns></returns>
         public static Frame FindOrCreate(PipelineCore pipeline, string projectName, string name, Frame parent = null)
         {
-            // Try to find this project
             Frame frame = Find(pipeline, projectName, name);
             if (frame != null)
             {
@@ -123,10 +107,6 @@ namespace OPS.Pipeline.AlignmentServer
         /// <summary>
         /// Find a frame in the database with the specified project and name.  Returns null if none exists.
         /// </summary>
-        /// <param name="pipeline"></param>
-        /// <param name="p">Project with a valid id (has been saved to database)</param>
-        /// <param name="name"></param>
-        /// <returns></returns>
         public static Frame Find(PipelineCore pipeline, string projectName, string name)
         {
             return pipeline.LoadDatabaseItem<Frame>(name, projectName);
@@ -137,28 +117,14 @@ namespace OPS.Pipeline.AlignmentServer
             return pipeline.ScanDatabase<Frame>("ProjectName", projectName);
         }
 
-        public bool AddPrior(string id)
+        public bool AddTransform(FrameTransform transform)
         {
-            if (PriorIds.Contains(id))
+            if (Transforms.Contains(transform.Source))
             {
                 return false;
             }
-            PriorIds.Add(id);
+            Transforms.Add(transform.Source);
             return true;
-        }
-
-        public TransformPrior GetPrior(PipelineCore pipeline)
-        {
-            string id = null;
-            if (PriorIds.Count > 0)
-            {
-                id = PriorIds[0];
-            }
-            if (id == null)
-            {
-                return null;
-            }
-            return TransformPrior.Find(pipeline, ProjectName, id);
         }
 
         public bool AddObservation(string name)

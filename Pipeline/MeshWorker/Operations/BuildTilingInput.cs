@@ -351,8 +351,8 @@ namespace OPS.Pipeline.MeshWorker
             Frame obsFrame = frameCache.GetFrame(obs.FrameName);
             Frame sitedriveFrame = frameCache.GetFrame(obsFrame.ParentName);
 
-            UncertainRigidTransform obsToSiteDrive = FrameTransform.Find(pipeline, obsFrame).Transform;
-            UncertainRigidTransform siteDriveToRoot = FrameTransform.Find(pipeline, sitedriveFrame).Transform;
+            UncertainRigidTransform obsToSiteDrive = FrameTransform.FindBest(pipeline, obsFrame).Transform;
+            UncertainRigidTransform siteDriveToRoot = FrameTransform.FindBest(pipeline, sitedriveFrame).Transform;
      
             UncertainRigidTransform transform = obsToSiteDrive * siteDriveToRoot;
             return transform.Mean;

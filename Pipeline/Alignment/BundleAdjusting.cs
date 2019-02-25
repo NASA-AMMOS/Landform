@@ -5,6 +5,7 @@ using System.Text;
 using System.Diagnostics;
 using log4net;
 using Microsoft.Xna.Framework;
+using MathNet.Numerics.LinearAlgebra;
 using OPS.Util;
 using OPS.Cloud;
 using OPS.Imaging;
@@ -93,12 +94,17 @@ namespace OPS.Pipeline
                 {
                     pipeline.LogInfo("saving transform {0} of {1} adjusted frames", n++, numAdjustedNodes);
                     var bundleResult = adjNode.Node.Transform.Matrix;
-                    FrameTransform ft = FrameTransform.Find(pipeline, projectName, adjNode.Node.Name);
-                    if (ft.Transform.Mean != bundleResult)
-                    {
-                        ft.Transform = new UncertainRigidTransform(bundleResult, ft.Transform.Distribution.Covariance); 
-                    }
+                    var frame = adjNode.Node.GetComponent<NodeFrame>().Frame;
+                    //TODO propagate transform covariance out of ceres
+                    //https://github.jpl.nasa.gov/OnSight/Landform/issues/367
+                    var ut = new UncertainRigidTransform(bundleResult);
+                    FrameTransform ft = FrameTransform.FindOrCreate(pipeline, frame, TransformSource.Landform, ut);
+                    ft.Transform = ut;
                     ft.Save(pipeline);
+                    if (frame.AddTransform(ft))
+                    {
+                        frame.Save(pipeline);
+                    }
                 }
             }
             else
