@@ -6,27 +6,81 @@ using System.Threading.Tasks;
 
 namespace OPS.Util
 {
-    public class ProgressReporter
+
+    public abstract class ProgressReporterBase
     {
+        protected DateTime lastReport = new DateTime();
+        protected int reportInterval;
 
-        public delegate void Report(int v);
+    }
 
-        DateTime lastReport = new DateTime();
+    /// <summary>
+    /// Class for rate limited reporting
+    /// </summary>
+    public class ProgressReporter : ProgressReporterBase
+    {
+        public delegate void Report();
         Report ReportFunction;
-        int rate;
-        int? lastValue;
 
-        public ProgressReporter(int rate, Report f)
+        /// <summary>
+        /// Create a progress reporter that will call the block "f" at most once ever
+        /// "intervalInSeconds" regardless of how frequently "update" is called
+        /// </summary>
+        /// <param name="intervalInSeconds"></param>
+        /// <param name="f"></param>
+        public ProgressReporter(int intervalInSeconds, Report f)
         {
-            this.rate = rate;
+            this.reportInterval = intervalInSeconds;
             this.ReportFunction = f;
         }
 
-        public void Update(int value)
+        /// <summary>
+        /// Called every time an update should be considered for reporting.  Will trigger
+        /// reports at most once per reporting interval
+        /// </summary>
+        public void Update()
         {
-            if(lastValue == null || lastValue.Value != value)
+            if ((DateTime.Now - lastReport).TotalSeconds >= reportInterval)
             {
-                if((DateTime.Now - lastReport).TotalSeconds >= rate)
+                lastReport = DateTime.Now;
+                ReportFunction();
+            }
+        }
+    }
+
+    /// <summary>
+    /// Class for rate limited reporting with a value
+    /// </summary>
+    /// <typeparam name="T"></typeparam>
+    public class ProgressReporter<T> : ProgressReporterBase
+    {
+        public delegate void Report<TT>(TT v);
+
+        Report<T> ReportFunction;
+        T lastValue;
+        bool initialized = false;
+
+        /// <summary>
+        /// Create a progress reporter that will call the block "f" at most once ever
+        /// "intervalInSeconds" regardless of how frequently "update" is called
+        /// </summary>
+        public ProgressReporter(int intervalInSeconds, Report<T> f)
+        {
+            this.reportInterval = intervalInSeconds;
+            this.ReportFunction = f;
+        }
+
+        /// <summary>
+        /// Called every time an update should be considered for reporting.  Will trigger
+        /// reports at most once per reporting interval.  Additionally, will only report if
+        /// the new value is different from the last one reported
+        /// </summary>
+        public void Update(T value)
+        {
+            if(initialized == false || !lastValue.Equals(value))
+            {
+                initialized = true;
+                if ((DateTime.Now - lastReport).TotalSeconds >= reportInterval)
                 {
                     lastReport = DateTime.Now;
                     lastValue = value;
