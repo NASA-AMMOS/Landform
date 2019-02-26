@@ -74,6 +74,22 @@ namespace OPS.Pipeline.AlignmentServer
             return frames.Count;
         }
 
+        public IEnumerable<Frame> GetAllFrames()
+        {
+            return frames.Values;
+        }
+
+        public IEnumerable<FrameTransform> GetAllTransforms()
+        {
+            foreach (var forFrame in transforms.Values)
+            {
+                foreach (var transform in forFrame.Values)
+                {
+                    yield return transform;
+                }
+            }
+        }
+
         public IEnumerable<Frame> GetChildren(string name)
         {
             if (!children.ContainsKey(name))

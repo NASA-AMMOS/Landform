@@ -127,13 +127,13 @@ namespace OPS.Pipeline.AlignmentServer
             return true;
         }
 
-        public bool AddObservation(string name)
+        public bool AddObservation(Observation observation)
         {
-            if (ObservationNames.Contains(name))
+            if (ObservationNames.Contains(observation.Name))
             {
                 return false;
             }
-            ObservationNames.Add(name);
+            ObservationNames.Add(observation.Name);
             return true;
         }
 

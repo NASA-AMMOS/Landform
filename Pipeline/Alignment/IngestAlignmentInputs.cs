@@ -86,8 +86,6 @@ namespace OPS.Pipeline
             int ni = 0, na = 0, nf = 0, ns = 0, nr = 0;
             ConcurrentDictionary<SiteDrive, ConcurrentDictionary<string, int>> stats =
                 new ConcurrentDictionary<SiteDrive, ConcurrentDictionary<string, int>>();
-            ConcurrentDictionary<string, Tuple<Frame, ConcurrentBag<string>>> obsForFrame =
-                new ConcurrentDictionary<string, Tuple<Frame, ConcurrentBag<string>>>();
             foreach (var entry in BaseUrls)
             {
                 pipeline.LogInfo("{0}ingesting input files from {1} for alignment project {2}",
@@ -118,11 +116,6 @@ namespace OPS.Pipeline
                             var obs = res.Observation as RoverObservation;
                             var frame = res.ObservationFrame;
 
-                            var off = obsForFrame.GetOrAdd(frame.Name,
-                                                           _ => new Tuple<Frame, ConcurrentBag<string>>
-                                                           (frame, new ConcurrentBag<string>()));
-                            off.Item2.Add(obs.Name);
-
                             var sd = new SiteDrive(obs.Site, obs.Drive);
                             var sds = stats.GetOrAdd(sd, _ => new ConcurrentDictionary<string, int>());
                             sds.AddOrUpdate(obs.ObservationType, _ => 1, (_, m) => m + 1);
@@ -141,14 +134,23 @@ namespace OPS.Pipeline
                     });
             }
 
-            //populate frame.ObservationNames here to avoid read-modify-write MT hazard
-            foreach (var off in obsForFrame.Values)
+            //populate frame.ObservationNames and frame.Transforms here to avoid read-modify-write MT hazard
+            pipeline.LogInfo("adding observations and transforms to frames...");
+            var observationCache = new ObservationCache(pipeline, project.Name);
+            observationCache.Preload();
+            var frameCache = new FrameCache(pipeline, project.Name);
+            frameCache.Preload();
+            foreach (var observation in observationCache.GetAllObservations())
             {
-                foreach (var obs in off.Item2)
-                {
-                    off.Item1.AddObservation(obs); //ignores duplicates
-                }
-                off.Item1.Save(pipeline);
+                frameCache.GetFrame(observation.FrameName).AddObservation(observation);
+            }
+            foreach (var transform in frameCache.GetAllTransforms())
+            {
+                frameCache.GetFrame(transform.FrameName).AddTransform(transform);
+            }
+            foreach (var frame in frameCache.GetAllFrames())
+            {
+                frame.Save(pipeline);
             }
 
             pipeline.LogInfo("processed {0} files ({1:F3}s), {2} accepted, {3} failed, {4} skipped",

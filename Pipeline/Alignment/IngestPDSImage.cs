@@ -287,9 +287,10 @@ namespace OPS.Pipeline
                                                   metadata.Width, metadata.Height);
             if (observation != null)
             {
-                //don't add observation to frame.ObservationNames here
+                //don't add to frame.ObservationNames here
                 //we ingest multiple images in parallel, possibly for the same frame
                 //so that would be a read-modify-write hazard
+                //instead this is done later in IngestAlignmentInputs
                 pipeline.LogDebug("created observation {0}", observationName);
                 return new Result(imgUrl, Status.Added, observation, observationFrame);
             }
@@ -338,16 +339,16 @@ namespace OPS.Pipeline
             if (frameTransform == null)
             {
                 pipeline.LogDebug("creating {0} transform for frame {1}", source, name);
-                var transform = defTransform();
-                frameTransform = FrameTransform.Create(pipeline, frame, source, transform);
-                frame.AddTransform(frameTransform);
-                frame.Save(pipeline);
+                frameTransform = FrameTransform.Create(pipeline, frame, source, defTransform());
+                //don't add to frame.Transforms here
+                //we ingest multiple images in parallel, possibly for the same frame
+                //so that would be a read-modify-write hazard
+                //instead this is done later in IngestAlignmentInputs
             }
             else if (resetTransforms && !alreadyResetTransforms.ContainsKey(name))
             {
                 pipeline.LogDebug("resetting {0} transform for frame {1}", source, name);
-                var transform = defTransform();
-                frameTransform.Transform = transform;
+                frameTransform.Transform = defTransform();
                 frameTransform.Save(pipeline);
                 alreadyResetTransforms.TryAdd(name, true);
             }

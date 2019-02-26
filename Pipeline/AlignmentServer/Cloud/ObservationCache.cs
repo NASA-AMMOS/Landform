@@ -51,6 +51,11 @@ namespace OPS.Pipeline.AlignmentServer
             return observations.Count;
         }
 
+        public IEnumerable<Observation> GetAllObservations()
+        {
+            return observations.Values;
+        }
+
         public IEnumerable<Observation> GetAllObservationsForFrame(Frame frame)
         {
             if (!forFrame.ContainsKey(frame.Name))
