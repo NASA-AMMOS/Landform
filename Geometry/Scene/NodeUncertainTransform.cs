@@ -86,7 +86,7 @@ namespace OPS.Geometry
 
         public UncertainRigidTransform To(SceneNode other)
         {
-            if (other == Node) return new UncertainRigidTransform(); //identy, certain
+            if (other == Node) return new UncertainRigidTransform(); //identity, certain
 
             HashSet<SceneNode> myAncestors = new HashSet<SceneNode>();
             {

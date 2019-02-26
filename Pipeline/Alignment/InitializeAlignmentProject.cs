@@ -65,11 +65,8 @@ namespace OPS.Pipeline
             }
 
             var rootFrame = Frame.FindOrCreate(pipeline, projectName, rootName);
-
             var ut = new UncertainRigidTransform(); //identity, certain
-
             FrameTransform.FindOrCreate(pipeline, rootFrame, TransformSource.Prior, ut);
-            FrameTransform.FindOrCreate(pipeline, rootFrame, TransformSource.Adjusted, ut);
 
             return project;
         }
