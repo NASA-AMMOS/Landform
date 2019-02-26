@@ -134,10 +134,10 @@ namespace OPS.Pipeline.TileServer
 
         public int AddChunks(IEnumerable<string> ids)
         {
+            HashSet<string> unique = new HashSet<string>();
             lock (ChunkIds)
             {
                 int old = ChunkIds.Count;
-                HashSet<string> unique = new HashSet<string>();
                 unique.UnionWith(ChunkIds);
                 unique.UnionWith(ids);
                 ChunkIds.Clear();
