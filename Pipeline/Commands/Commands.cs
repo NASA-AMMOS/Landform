@@ -35,6 +35,7 @@ namespace OPS.Pipeline
                                                              LocalFeaturesOptions,
                                                              LocalMatchingOptions,
                                                              LocalBundleAdjustOptions,
+                                                             LocalObservationMeshesOptions,
                                                              ConfigureCloudOptions,
                                                              ConfigureLocalOptions
                                                              >(args)
@@ -53,6 +54,7 @@ namespace OPS.Pipeline
                 (LocalFeaturesOptions opts) => new LocalFeatures(opts).Run(),
                 (LocalMatchingOptions opts) => new LocalMatching(opts).Run(),
                 (LocalBundleAdjustOptions opts) => new LocalBundleAdjust(opts).Run(),
+                (LocalObservationMeshesOptions opts) => new LocalObservationMeshes(opts).Run(),
                 (ConfigureCloudOptions opts) => new ConfigureCloud(opts).Run(),
                 (ConfigureLocalOptions opts) => new ConfigureLocal(opts).Run(),
                 errs => 1);

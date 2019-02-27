@@ -50,52 +50,44 @@ namespace OPS.Pipeline
         public static MeshObservations CollectMeshObservationsForFrame(string frameName, FrameCache frameCache,
                                                                        ObservationCache observationCache,
                                                                        bool allowMastcam = false,
-                                                                       bool requireNormals = true)
+                                                                       bool requireNormals = true,
+                                                                       bool requireTextures = false)
         {
             var pointsType = ObservationType.Points.ToString();
             var normalsType = ObservationType.Normals.ToString();
             var maskType = ObservationType.RoverMask.ToString();
             var imageType = ObservationType.Image.ToString();
 
-            List<RoverObservation> obsForFrame =
+            var observations =
                 observationCache.GetAllObservationsForFrame(frameCache.GetFrame(frameName))
                 .Cast<RoverObservation>()
                 .Where(obs => allowMastcam || !IsMastcam(obs))
                 .ToList();
-
-            obsForFrame.Sort(MSLProject.RoverObservationComparison);
-
-            if (obsForFrame.Count == 0)
-            {
-                return null;
-            }
+            observations.Sort(MSLProject.RoverObservationComparison);
 
             var ret = new MeshObservations();
 
-            ret.Points = obsForFrame.Find(obs => obs.ObservationType == pointsType);
+            ret.Points = observations.Find(obs => obs.ObservationType == pointsType);
             if (ret.Points == null)
             {
                 return null;
             }
 
-            ret.Normals = obsForFrame.Find(obs => obs.ObservationType == normalsType);
-            if (ret.Normals != null &&
-                (ret.Normals.Width != ret.Points.Width || ret.Normals.Height != ret.Points.Height))
-            {
-                ret.Normals = null;
-            }
+            ret.Normals = observations.Find(obs => obs.ObservationType == normalsType &&
+                                            obs.Width == ret.Points.Width && obs.Height == ret.Points.Height);
             if (requireNormals && ret.Normals == null)
             {
                 return null;
             }
 
-            ret.Mask = obsForFrame.Find(obs => obs.ObservationType == maskType);
-            if (ret.Mask != null && (ret.Mask.Width != ret.Points.Width || ret.Mask.Height != ret.Points.Height))
-            {
-                ret.Mask = null;
-            }
+            ret.Mask = observations.Find(obs => obs.ObservationType == maskType &&
+                                         obs.Width == ret.Points.Width && obs.Height == ret.Points.Height);
 
-            ret.Texture = obsForFrame.Find(obs => obs.ObservationType == imageType);
+            ret.Texture = observations.Find(obs => obs.ObservationType == imageType);
+            if (requireTextures && ret.Texture == null)
+            {
+                return null;
+            }
 
             return ret;
         }
@@ -107,13 +99,14 @@ namespace OPS.Pipeline
         public static List<MeshObservations> CollectMeshObservations(FrameCache frameCache,
                                                                      ObservationCache observationCache,
                                                                      bool allowMastcam = false,
-                                                                     bool requireNormals = false)
+                                                                     bool requireNormals = true,
+                                                                     bool requireTextures = false)
         {
             List<MeshObservations> ret = new List<MeshObservations>();
             foreach (var frameName in observationCache.GetAllFramesWithObservations())
             {
                 var obs = CollectMeshObservationsForFrame(frameName, frameCache, observationCache,
-                                                          allowMastcam, requireNormals);
+                                                          allowMastcam, requireNormals, requireTextures);
                 if (obs != null)
                 {
                     ret.Add(obs);

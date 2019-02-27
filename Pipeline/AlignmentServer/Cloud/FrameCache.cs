@@ -50,9 +50,15 @@ namespace OPS.Pipeline.AlignmentServer
             }
         }
 
-        public int Preload(bool loadTransforms = true)
+        public int Preload(bool loadTransforms = true, Func<Frame, bool> frameFilter = null,
+                           Func<FrameTransform, bool> transformFilter =  null)
         {
-            Frame.Find(pipeline, projectName).ToList().ForEach(frame => Add(frame));
+            Frame.Find(pipeline, projectName).ToList().ForEach(frame => {
+                    if (frameFilter == null || frameFilter(frame))
+                    {
+                        Add(frame);
+                    }
+                });
             foreach (var frame in frames.Keys)
             {
                 if (!children.ContainsKey(frame))
@@ -62,7 +68,12 @@ namespace OPS.Pipeline.AlignmentServer
             }
             if (loadTransforms)
             {
-                FrameTransform.Find(pipeline, projectName).ToList().ForEach(transform => Add(transform));
+                FrameTransform.Find(pipeline, projectName).ToList().ForEach(transform => {
+                        if (transformFilter == null || transformFilter(transform))
+                        {
+                            Add(transform);
+                        }
+                    });
                 foreach (var frame in frames.Keys)
                 {
                     if (!transforms.ContainsKey(frame))
