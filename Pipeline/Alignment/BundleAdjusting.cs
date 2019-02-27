@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Diagnostics;
+using System.IO;
 using log4net;
 using Microsoft.Xna.Framework;
 using MathNet.Numerics.LinearAlgebra;
@@ -85,9 +86,23 @@ namespace OPS.Pipeline
                 pipeline.LogInfo("running bundle adjuster, {0} total images, {1} rounds", numImageNodes, rounds);
 
                 double startTime = UTCTime.Now();
+
                 var ba = new BundleAdjuster(pipeline.Logger);
-                ba.Adjust(scene, rounds, debugOutputFolder);
+                var result = ba.Adjust(scene, rounds);
                 pipeline.LogInfo("bundle adjust complete ({0:F3}s)", UTCTime.Now() - startTime);
+
+                if (debugOutputFolder != null)
+                {
+                    Mesh m = new Mesh(capacity: result.Points.Count);
+                    for (int i = 0; i < result.Points.Count; i++)
+                    {
+                        m.Vertices.Add(new Vertex(result.Points[i].Position));
+                    }
+                    var path = Path.Combine(debugOutputFolder, "bundlecloud.ply");
+                    pipeline.LogInfo("writing bundle adjust debug point cloud to {0}", path);
+                    PathHelper.EnsureExists(debugOutputFolder);
+                    m.Save(path);
+                }
                 
                 int n = 1;
                 foreach (var adjNode in scene.Root.GetComponentsInTree<AdjustedNode>())

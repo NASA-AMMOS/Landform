@@ -29,9 +29,6 @@ namespace OPS.Pipeline.AlignmentServer
         [Option(HelpText = "Input path, ending /** for recursive, or .txt or .json array of paths", Default = null)]
         public string InputPath { get; set; }
 
-        [Option(HelpText = "Optional directory to save debug output files to", Default = null)]
-        public string DebugOutputFolder { get; set; }
-
         [Option(HelpText = "Recreate project if it already exists", Default = false)]
         public bool RedoProject { get; set; }
 
@@ -67,6 +64,9 @@ namespace OPS.Pipeline.AlignmentServer
 
         [Option(HelpText = "Number of rounds of bundle adjustment", Default = 2)]
         public int BundleAdjustRounds { get; set; }
+
+        [Option(HelpText = "Optional directory to save bundle adjuster debug files to", Default = null)]
+        public string BundleAdjustDebugOutputFolder { get; set; }
 
         [Option(HelpText = "Start a worker in the same process (useful for debugging)", Default = false)]
         public bool StartWorker { get; set; }
@@ -372,7 +372,7 @@ namespace OPS.Pipeline.AlignmentServer
                                          options.AdjustWithinSiteDrives,
                                          !options.NoAdjustAcrossSiteDrives,
                                          options.BundleAdjustRounds,
-                                         options.DebugOutputFolder);
+                                         options.BundleAdjustDebugOutputFolder);
             AllDone();
         }
 
