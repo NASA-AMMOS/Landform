@@ -44,11 +44,14 @@ namespace OPS.Pipeline
                 return 1;
             }
 
-            var observations = RoverObservation.Find(this, options.ProjectName)
-                .Where(o => o.ObservationType == ObservationType.Image.ToString())
-                .Where(o => o.UseForReconstruction)
-                .ToList();
-            int no = observations.Count;
+            var imageType = ObservationType.Image.ToString();
+            var maskType = ObservationType.RoverMask.ToString();
+            
+            var frameCache = new FrameCache(this, options.ProjectName);
+            frameCache.Preload(loadTransforms: false);
+
+            var observationCache = new ObservationCache(this, options.ProjectName);
+            int no = observationCache.Preload(obs => obs.ObservationType == imageType && obs.UseForReconstruction);
 
             LogInfo("computing {0} features for {1} reconstruction images", options.DetectorType, no);
 
@@ -56,7 +59,7 @@ namespace OPS.Pipeline
 
             double startSec = UTCTime.Now();
             int nc = 0, ne = 0, nf = 0, np = 0;
-            CoreLimitedParallel.ForEach(observations, obs => {
+            CoreLimitedParallel.ForEach(observationCache.GetAllObservations(), obs => {
                     if (obs.FeaturesGuid != null && obs.FeaturesGuid != Guid.Empty)
                     {
                         Interlocked.Increment(ref ne);
@@ -76,17 +79,25 @@ namespace OPS.Pipeline
                     }
                     Interlocked.Increment(ref nf);
                     Interlocked.Increment(ref np);
+
                     if (!options.NoProgress)
                     {
                         LogInfo("computing features for {0} images in parallel, completed {1}/{2}", np, nc, no);
                     }
-                    var features = detector.Detect(this, obs.Url, obs.MaskGuid, project.Name, project.ProductPath);
+
+                    var maskUrl = observationCache.GetAllObservationsForFrame(frameCache.GetFrame(obs.FrameName))
+                        .Where(o => o.ObservationType == maskType)
+                        .Select(o => o.Url)
+                        .FirstOrDefault();
+
+                    var features = detector.Detect(this, obs.Url, maskUrl, project.Name, project.ProductPath);
                     if (features != null)
                     {
                         SaveDataProduct(project.ProductPath, features, project.Name);
                         obs.FeaturesGuid = features.Guid;
                         obs.Save(this);
                     }
+
                     Interlocked.Decrement(ref np);
                     Interlocked.Increment(ref nc);
                 });

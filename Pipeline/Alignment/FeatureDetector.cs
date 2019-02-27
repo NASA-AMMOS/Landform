@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using OPS.Util;
 using OPS.Imaging;
 using OPS.Alignment;
 
@@ -28,7 +29,7 @@ namespace OPS.Pipeline
         }
 
         private PCAKeypointProjector projector;
-        public ImageFeature[] DetectPCASIFT(Imaging.Image img, Imaging.Image mask)
+        public ImageFeature[] DetectPCASIFT(Image img, Image mask)
         {
             if (projector == null)
             {
@@ -53,19 +54,58 @@ namespace OPS.Pipeline
             return features.OrderByDescending(f => ((SIFTFeature)f).Response).Take(maxFeatures).ToArray();
         }
 
-        public DetectedFeatures Detect(PipelineCore pipeline, string imageUrl, Guid maskGuid, string projectName,
-                                       string productPath)
+        public DetectedFeatures Detect(PipelineCore pipeline, string imageUrl, string maskUrl, string projectName,
+                                       string productPath, int borderWidth = 10)
         {
             var img = pipeline.LoadImage(imageUrl);
 
-            Image mask = null;
-            if (maskGuid == Guid.Empty)
+            //do not mutate existing mask image
+            Image mask = !string.IsNullOrEmpty(maskUrl) ? ((Image)pipeline.LoadImage(imageUrl).Clone()) : null;
+
+            if (mask == null)
             {
-                pipeline.LogWarn("no mask for {0}", imageUrl);
+                pipeline.LogVerbose("generating synthetic rover mask for {0}",
+                                    StringHelper.GetLastUrlPathSegment(imageUrl));
+                mask = RoverMask.Build(img);
             }
-            else
+            
+            //propagate invalid pixels from img to mask
+            if (img.Metadata is PDSMetadata)
             {
-                mask = pipeline.GetDataProduct<PngDataProduct>(productPath, maskGuid, projectName).Image;
+                var parser = new PDSParser((PDSMetadata)img.Metadata);
+                if (parser.HasMissingConstant)
+                {
+                    float[] missingVal = parser.MissingConstant.Select(x => (float)x).ToArray();
+                    for (int idxRow = 0; idxRow < img.Height; idxRow++)
+                    {
+                        for (int idxCol = 0; idxCol < img.Width; idxCol++)
+                        {
+                            if (img.BandValuesEqual(idxRow, idxCol, missingVal))
+                            {
+                                mask[0, idxRow, idxCol] = 0;
+                            }
+                        }
+                    }
+                }
+            }
+
+            //add borders to mask
+            borderWidth = Math.Min(mask.Height / 2, Math.Min(mask.Width / 2, borderWidth));
+            for (int border = 0; border < borderWidth; border++)
+            {
+                //whole row
+                for(int idxCol=0; idxCol < mask.Width; idxCol++)
+                {
+                    mask[0, border, idxCol] = 0;
+                    mask[0, mask.Height - 1 - border, idxCol] = 0;
+                }
+
+                //whole column
+                for (int idxRow = 0; idxRow < mask.Height; idxRow++)
+                {
+                    mask[0, idxRow, border] = 0;
+                    mask[0, idxRow, mask.Width - 1 - border] = 0;
+                }
             }
 
             try

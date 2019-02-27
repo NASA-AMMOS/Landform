@@ -18,8 +18,8 @@ namespace OPS.Pipeline
     /// </summary>
     public class BaselineAtlaser : IMeshAtlaser
     {
-        Matrix meshToCameraModelFrame;
-        Image image;
+        private Matrix meshToCameraModelFrame;
+        private Image image;
 
         /// <summary>
         /// </summary>
@@ -33,6 +33,11 @@ namespace OPS.Pipeline
             this.image = image;
         }
 
+        public Mesh GenerateAtlas(Mesh mesh)
+        {
+            return GenerateAtlas(mesh, true, true);
+        }
+
         /// <summary>
         /// Return a copy of the provided mesh but UVed according to our provided image
         /// Any vertices (and referencing faces) outside the view of the camera will be removed
@@ -40,39 +45,26 @@ namespace OPS.Pipeline
         /// </summary>
         /// <param name="mesh"></param>
         /// <returns></returns>
-        public Mesh GenerateAtlas(Mesh mesh)
+        public Mesh GenerateAtlas(Mesh mesh, bool removeVertsOutsideView, bool processVertsInParallel)
         {
-            Mesh result = new Mesh(mesh);
-            result.HasUVs = true;
-            ConcurrentBag<Vertex> verticesToRemove = new ConcurrentBag<Vertex>();
-            CoreLimitedParallel.ForEach(result.Vertices, v => 
-            {
-                // Transform the mesh frame vertex into camera frame
-                Vector3 meshFramePoint = v.Position;
-                Vector3 cameraFramePoint = Vector3.Transform(meshFramePoint, meshToCameraModelFrame);
-                // Project point
-                double range;
-                Vector2 pixel = this.image.CameraModel.Project(cameraFramePoint, out range);
-                // Remove this vertex if it is outside the field of view of the camera
-                if (pixel.X < 0 || pixel.X > (this.image.Width - 1) || pixel.Y < 0 || pixel.Y > (this.image.Height - 1))
-                {
-                    verticesToRemove.Add(v);
-                }
-                else
-                {
-                    // Confirm that this point isn't behiend the camera
-                    if (range <= 0)
-                    {
-                        throw new Exception("Unexpected range value");
-                    }
-                    // Convert the pixel coordinate to UV
-                    v.UV = image.PixelToUV(pixel);
-                    v.UV = Vector2.Clamp(v.UV, Vector2.Zero, Vector2.One);
-                }
-            });
-            // Remove any verts that were outside our field of view
-            result.RemoveVertices(verticesToRemove);
-            return result;
+            return Meshing.AddUVs(new Mesh(mesh), image, meshToCameraModelFrame, removeVertsOutsideView,
+                                  processVertsInParallel);
+        }
+
+        /// <summary>
+        /// Helper method to generate an atlas for a baseline mesh in site frame given a valid PDS image in rover frame
+        /// </summary>
+        /// <param name="m">A mesh in site frame</param>
+        /// <param name="image">An image with a valid PDSMetadata object and camera model in rover frame</param>
+        /// <returns></returns>
+        public static Mesh AtlasSiteFrameMesh(Mesh m, Image image, bool removeVertsOutsideView = true,
+                                              bool processVertsInParallel = true)
+        {
+            PDSMetadata metadata = (PDSMetadata)image.Metadata;
+            var parser = new PDSParser(metadata);
+            Matrix siteFrameMeshToLocalLevelImage = RoverCoordinateSystem.SiteToRover(parser.RoverOriginRotation, parser.OriginOffset);
+            var atlaser = new BaselineAtlaser(siteFrameMeshToLocalLevelImage, image);
+            return atlaser.GenerateAtlas(m, removeVertsOutsideView, processVertsInParallel);
         }
     }
 }

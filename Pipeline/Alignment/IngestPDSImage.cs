@@ -256,11 +256,11 @@ namespace OPS.Pipeline
 
             // site drive frame -> root frame
             var siteDriveFrame = FindOrCreateFrame(SiteDriveFrameName(parser), rootFrame, TransformSource.LocationsDB,
-                                                   () => GetDefaultSiteDriveTransform(parser.SiteDrive));
+                                                   GetSiteDriveTransform(parser));
 
             // observation (aka rover) frame -> site drive (aka local level) frame
             var observationFrame = FindOrCreateFrame(ObservationFrameName(parser), siteDriveFrame, TransformSource.PDS,
-                                                     () => GetDefaultObservationTransform(parser.RoverOriginRotation));
+                                                     GetObservationTransform(parser));
 
             Observation observation = RoverObservation.Find(pipeline, project.Name, observationName);
             if (observation != null)
@@ -305,9 +305,10 @@ namespace OPS.Pipeline
         private double halfDegSqr = Math.Pow(0.5 * Math.PI / 180, 2);
         private double degSqr = Math.Pow(Math.PI / 180, 2);
 
-        private UncertainRigidTransform GetDefaultSiteDriveTransform(string siteDrive)
+        private UncertainRigidTransform GetSiteDriveTransform(PDSParser parser)
         {
-            var loc = Locations.Location(new SiteDrive(siteDrive));
+            var siteDrive = new SiteDrive(parser.SiteDrive);
+            var loc = Locations.Location(siteDrive);
             if (loc == null)
             {
                 throw new Exception(string.Format("no MSL location for site drive {0}", siteDrive));
@@ -320,26 +321,26 @@ namespace OPS.Pipeline
             return new UncertainRigidTransform(Matrix.CreateTranslation(loc.Position), covariance);
         }
 
-        private UncertainRigidTransform GetDefaultObservationTransform(Quaternion roverToLocalLevel)
+        private UncertainRigidTransform GetObservationTransform(PDSParser parser)
         {
             // TODO: examine values here
             var covariance = CreateMatrix
                 .Diagonal<double>(new double[] { 0.01, 0.01, 0.01, quarterDegSqr, quarterDegSqr, halfDegSqr });
 
-            return new UncertainRigidTransform(Matrix.CreateFromQuaternion(roverToLocalLevel), covariance);
+            return new UncertainRigidTransform(Matrix.CreateFromQuaternion(parser.RoverOriginRotation), covariance);
         }
 
         private ConcurrentDictionary<string, bool> alreadyResetTransforms = new ConcurrentDictionary<string, bool>();
 
         private Frame FindOrCreateFrame(string name, Frame parent, TransformSource source,
-                                        Func<UncertainRigidTransform> defTransform)
+                                        UncertainRigidTransform transform)
         {
             var frame = Frame.FindOrCreate(pipeline, project.Name, name, parent);
             var frameTransform = FrameTransform.Find(pipeline, frame, source);
             if (frameTransform == null)
             {
                 pipeline.LogDebug("creating {0} transform for frame {1}", source, name);
-                frameTransform = FrameTransform.Create(pipeline, frame, source, defTransform());
+                frameTransform = FrameTransform.Create(pipeline, frame, source, transform);
                 //don't add to frame.Transforms here
                 //we ingest multiple images in parallel, possibly for the same frame
                 //so that would be a read-modify-write hazard
@@ -348,7 +349,7 @@ namespace OPS.Pipeline
             else if (resetTransforms && !alreadyResetTransforms.ContainsKey(name))
             {
                 pipeline.LogDebug("resetting {0} transform for frame {1}", source, name);
-                frameTransform.Transform = defTransform();
+                frameTransform.Transform = transform;
                 frameTransform.Save(pipeline);
                 alreadyResetTransforms.TryAdd(name, true);
             }

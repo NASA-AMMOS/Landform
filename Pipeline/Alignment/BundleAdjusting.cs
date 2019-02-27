@@ -21,9 +21,9 @@ namespace OPS.Pipeline
         public static AlignmentScene BundleAdjust(PipelineCore pipeline, string projectName,
                                                   bool adjustWithinSiteDrives = false,
                                                   bool adjustAcrossSiteDrives = true,
-                                                  Func<Observation, bool> observationFilter = null,
                                                   int rounds = 2,
-                                                  string debugOutputFolder = null)
+                                                  string debugOutputFolder = null,
+                                                  Func<Observation, bool> observationFilter = null)
         {
             var project = Project.Find(pipeline, projectName);
 

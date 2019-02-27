@@ -15,7 +15,7 @@ namespace OPS.Pipeline.AlignmentServer
     public class DetectFeaturesMessage : QueueMessage
     {
         public string ImageUrl;
-        public Guid MaskGuid;
+        public string MaskUrl;
         public DetectFeaturesMessage() {}
         public DetectFeaturesMessage(string projectName) : base(projectName) {}
     }
@@ -23,7 +23,6 @@ namespace OPS.Pipeline.AlignmentServer
     public class FeaturesDetectedMessage : QueueMessage
     {
         public string ImageUrl;
-        public Guid MaskGuid;
         public Guid FeaturesGuid;
         public FeaturesDetectedMessage() {}
         public FeaturesDetectedMessage(string projectName) : base(projectName) {}
@@ -44,7 +43,7 @@ namespace OPS.Pipeline.AlignmentServer
             var project = Project.Find(pipeline, projectName);
             var shortUrl = StringHelper.GetLastUrlPathSegment(message.ImageUrl);
             pipeline.LogInfo("detecting features for image {0} in project {1}", shortUrl, project.Name);
-            var res = detector.Detect(pipeline, message.ImageUrl, message.MaskGuid, projectName, project.ProductPath);
+            var res = detector.Detect(pipeline, message.ImageUrl, message.MaskUrl, projectName, project.ProductPath);
             if (res != null)
             {
                 pipeline.SaveDataProduct(project.ProductPath, res, projectName);
@@ -52,7 +51,6 @@ namespace OPS.Pipeline.AlignmentServer
                 pipeline.MasterQueue.Enqueue(new FeaturesDetectedMessage()
                                              {
                                                  ImageUrl = message.ImageUrl,
-                                                 MaskGuid = message.MaskGuid,
                                                  FeaturesGuid = res.Guid
                                              });
             }

@@ -1,10 +1,11 @@
-﻿using Microsoft.Xna.Framework;
-using OPS.Geometry;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Microsoft.Xna.Framework;
+using OPS.Imaging;
+using OPS.Geometry;
 
 namespace OPS.Pipeline
 {
@@ -141,5 +142,29 @@ namespace OPS.Pipeline
         {
             localLevelMesh.Translate(originOffset);
         }
+
+        public static Matrix GetTransformToRoverFrame(Image img)
+        {
+            return GetTransformToRoverFrame((PDSMetadata)img.Metadata);
+        }
+
+        public static Matrix GetTransformToRoverFrame(PDSMetadata metadata)
+        {
+            return GetTransformToRoverFrame(new PDSParser(metadata));
+        }
+
+        public static Matrix GetTransformToRoverFrame(PDSParser parser)
+        {
+            var roverOriginRotation = parser.RoverOriginRotation;
+            var originOffset = parser.OriginOffset;
+            switch (parser.DerivedImageRefFrame)
+            {
+                case PDSParser.ReferenceCoordinateFrame.LocalLevel: return LocalLevelToRover(roverOriginRotation);
+                case PDSParser.ReferenceCoordinateFrame.Site: return SiteToRover(roverOriginRotation, originOffset);
+                case PDSParser.ReferenceCoordinateFrame.RoverNav: return Matrix.Identity;
+                default: throw new NotImplementedException("unknown reference frame: " + parser.DerivedImageRefFrame);
+            }
+        }
+
     }
 }
