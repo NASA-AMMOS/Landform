@@ -129,6 +129,8 @@ namespace OPS.Pipeline.AlignmentServer
 
         public static IEnumerable<Observation> Find(PipelineCore pipeline, Frame frame)
         {
+            //we could do a scan here, but it's better to avoid it
+            //because it will by definition iterate over every single Observation in the database
             //return pipeline.ScanDatabase<Observation>("ProjectName", frame.ProjectName, "FrameName", frame.Name);
             foreach (var obsName in frame.ObservationNames)
             {

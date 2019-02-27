@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Diagnostics;
 using log4net;
+using Microsoft.Xna.Framework;
 using OPS.Util;
 using OPS.Cloud;
 using OPS.Imaging;
@@ -40,8 +41,14 @@ namespace OPS.Pipeline
             int numAdjustedNodes = 0, numImageNodes = 0, nsd = 0, nobs = 0;
             foreach (var siteDriveNode in scene.Root.Children)
             {
-                Debug.Assert(!siteDriveNode.IsLeaf);
-                Debug.Assert(!siteDriveNode.HasComponent<NodeImage>());
+                if (siteDriveNode.IsLeaf)
+                {
+                    throw new Exception("site drive node should not be a leaf: " + siteDriveNode.Name);
+                }
+                if (siteDriveNode.HasComponent<NodeImage>())
+                {
+                    throw new Exception("site drive node should not have image component: " + siteDriveNode.Name);
+                }
                 if (adjustAcrossSiteDrives)
                 {
                     siteDriveNode.AddComponent<AdjustedNode>();
@@ -50,7 +57,10 @@ namespace OPS.Pipeline
                 }
                 foreach (var observationNode in siteDriveNode.Children)
                 {
-                    Debug.Assert(observationNode.IsLeaf);
+                    if (!observationNode.IsLeaf)
+                    {
+                        throw new Exception("observation node should be a leaf: " + observationNode.Name);
+                    }
                     if (observationNode.HasComponent<NodeImage>())
                     {
                         numImageNodes++;
@@ -82,7 +92,7 @@ namespace OPS.Pipeline
                 foreach (var adjNode in scene.Root.GetComponentsInTree<AdjustedNode>())
                 {
                     pipeline.LogInfo("saving transform {0} of {1} adjusted frames", n++, numAdjustedNodes);
-                    Microsoft.Xna.Framework.Matrix bundleResult = adjNode.Node.Transform.Matrix;
+                    var bundleResult = adjNode.Node.Transform.Matrix;
                     FrameTransform ft = FrameTransform.Find(pipeline, projectName, adjNode.Node.Name);
                     if (ft.Transform.Mean != bundleResult)
                     {
