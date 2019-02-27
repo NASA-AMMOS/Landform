@@ -3,12 +3,12 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using OPS.Cloud;
+using Newtonsoft.Json;
 using Amazon.DynamoDBv2.DataModel;
+using OPS.Cloud;
 
 namespace OPS.Pipeline.AlignmentServer
 {
-
     /// <summary>
     /// Represents a coordinate frame in the database
     /// Coordinate frames can have one or more observations associated with them. 
@@ -20,39 +20,22 @@ namespace OPS.Pipeline.AlignmentServer
     public class Frame
     {
         [DynamoDBRangeKey]
-        [DynamoDBProperty()]
-        public string ProjectName { get; set; }
+        public string ProjectName;
 
-        [DynamoDBHashKey] //Partition key
-        [DynamoDBProperty("FrameName")]
-        public string Name { get; set; }
+        [DynamoDBHashKey]
+        public string Name;
 
-        [DynamoDBProperty()]
-        public string ParentName { get; set; }
+        public string ParentName;
 
-        [DynamoDBProperty()]
-        public List<string> PriorIds { get; set; }
+        public List<TransformSource> Transforms;
 
-        public bool IsLocated(PipelineCore pipeline)
-        {
-            return FrameTransform.Find(pipeline, this) != null;
-        }
+        public List<string> ObservationNames;
 
-        //This constructor must be public for DynamoDb but should not be used
+        //This constructor must be public for DynamoDB but should not be used
         public Frame()
         {
-            PriorIds = new List<string>();
-        }
-
-        public IEnumerable<Frame> GetChildren(PipelineCore pipeline)
-        {
-            return pipeline.ScanDatabase<Frame>("ProjectName", ProjectName, "ParentName", Name);
-        }
-
-        public Frame GetParent(PipelineCore pipeline)
-        {
-            if (ParentName == null) return null;
-            return Find(pipeline, ProjectName, ParentName);
+            Transforms = new List<TransformSource>();
+            ObservationNames = new List<string>();
         }
 
         /// <summary>
@@ -62,21 +45,16 @@ namespace OPS.Pipeline.AlignmentServer
         /// </summary>
         /// <param name="projectName"></param>
         /// <param name="name"></param>
-        protected Frame(string projectName, string name = null, Frame parent = null)
+        protected Frame(string projectName, string name = null, Frame parent = null) : this()
         {
-            if (name == null)
-            {
-                name = Guid.NewGuid().ToString();
-            }
-            this.Name = name;
+            this.Name = name ?? Guid.NewGuid().ToString();
             this.ProjectName = projectName;
             this.ParentName = (parent != null) ? parent.Name : null;
-            this.PriorIds = new List<string>();
         }
 
-
         /// <summary>
-        /// Creates a frame for the given project with the given name.  If no name is specifed a random GUID will be used.
+        /// Creates a frame for the given project with the given name.
+        /// If no name is specifed a random GUID will be used.
         /// Saves the frame the the database and returns an object with a valid id.
         /// </summary>
         /// <param name="pipeline"></param>
@@ -85,10 +63,6 @@ namespace OPS.Pipeline.AlignmentServer
         /// <returns></returns>
         public static Frame Create(PipelineCore pipeline, string projectName, string name = null, Frame parent = null)
         {
-            if (name == null)
-            {
-                name = Guid.NewGuid().ToString();
-            }
             Frame f = new Frame(projectName, name, parent);
             pipeline.SaveDatabaseItem<Frame>(f);
             return f;
@@ -114,7 +88,6 @@ namespace OPS.Pipeline.AlignmentServer
         /// <returns></returns>
         public static Frame FindOrCreate(PipelineCore pipeline, string projectName, string name, Frame parent = null)
         {
-            // Try to find this project
             Frame frame = Find(pipeline, projectName, name);
             if (frame != null)
             {
@@ -134,10 +107,6 @@ namespace OPS.Pipeline.AlignmentServer
         /// <summary>
         /// Find a frame in the database with the specified project and name.  Returns null if none exists.
         /// </summary>
-        /// <param name="pipeline"></param>
-        /// <param name="p">Project with a valid id (has been saved to database)</param>
-        /// <param name="name"></param>
-        /// <returns></returns>
         public static Frame Find(PipelineCore pipeline, string projectName, string name)
         {
             return pipeline.LoadDatabaseItem<Frame>(name, projectName);
@@ -147,5 +116,37 @@ namespace OPS.Pipeline.AlignmentServer
         {
             return pipeline.ScanDatabase<Frame>("ProjectName", projectName);
         }
+
+        public bool AddTransform(FrameTransform transform)
+        {
+            if (Transforms.Contains(transform.Source))
+            {
+                return false;
+            }
+            Transforms.Add(transform.Source);
+            return true;
+        }
+
+        public bool AddObservation(Observation observation)
+        {
+            if (ObservationNames.Contains(observation.Name))
+            {
+                return false;
+            }
+            ObservationNames.Add(observation.Name);
+            return true;
+        }
+
+        public IEnumerable<Frame> GetChildren(PipelineCore pipeline)
+        {
+            return pipeline.ScanDatabase<Frame>("ProjectName", ProjectName, "ParentName", Name);
+        }
+
+        public Frame GetParent(PipelineCore pipeline)
+        {
+            if (ParentName == null) return null;
+            return Find(pipeline, ProjectName, ParentName);
+        }
+
     }   
 }

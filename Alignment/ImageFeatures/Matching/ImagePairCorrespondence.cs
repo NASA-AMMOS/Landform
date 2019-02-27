@@ -1,9 +1,9 @@
-﻿using OPS.Geometry;
-using OPS.Imaging;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using Microsoft.Xna.Framework;
+using OPS.Geometry;
+using OPS.Imaging;
 
 namespace OPS.Alignment
 {

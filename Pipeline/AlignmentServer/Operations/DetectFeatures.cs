@@ -42,14 +42,13 @@ namespace OPS.Pipeline.AlignmentServer
         public void Process()
         {
             var project = Project.Find(pipeline, projectName);
-            pipeline.LogInfo("detecting features for image {0} in project {1}",
-                             StringHelper.GetLastUrlPathSegment(message.ImageUrl), project.Name);
+            var shortUrl = StringHelper.GetLastUrlPathSegment(message.ImageUrl);
+            pipeline.LogInfo("detecting features for image {0} in project {1}", shortUrl, project.Name);
             var res = detector.Detect(pipeline, message.ImageUrl, message.MaskGuid, projectName, project.ProductPath);
             if (res != null)
             {
                 pipeline.SaveDataProduct(project.ProductPath, res, projectName);
-                pipeline.LogInfo("detected features for image {0} in project {1}",
-                                 StringHelper.GetLastUrlPathSegment(message.ImageUrl), project.Name);
+                pipeline.LogInfo("detected features for image {0} in project {1}", shortUrl, project.Name);
                 pipeline.MasterQueue.Enqueue(new FeaturesDetectedMessage()
                                              {
                                                  ImageUrl = message.ImageUrl,
@@ -59,8 +58,7 @@ namespace OPS.Pipeline.AlignmentServer
             }
             else
             {
-                pipeline.LogError("failed to detect features for image {0} in project {1}",
-                                  StringHelper.GetLastUrlPathSegment(message.ImageUrl), project.Name);
+                pipeline.LogError("failed to detect features for image {0} in project {1}", shortUrl, project.Name);
             }
         }
     }

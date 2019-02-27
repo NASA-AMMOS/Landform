@@ -28,8 +28,7 @@ namespace OPS.Geometry
         /// <summary>
         /// Create a new node with a given name and parent.
         /// </summary>
-        public SceneNode(string name, NodeTransform parent)
-                : this(name)
+        public SceneNode(string name, NodeTransform parent) : this(name)
         {
             this.Transform.Parent = parent;
         }
@@ -37,11 +36,8 @@ namespace OPS.Geometry
         /// <summary>
         /// Create a new node with a given name, parent, and local transform.
         /// </summary>
-        public SceneNode(string name, NodeTransform parent,
-            Vector3 translation,
-            Quaternion rotation,
-            Vector3 scale)
-                : this(name, parent)
+        public SceneNode(string name, NodeTransform parent, Vector3 translation, Quaternion rotation, Vector3 scale)
+            : this(name, parent)
         {
             this.Transform.Translation = translation;
             this.Transform.Rotation = rotation;
@@ -220,7 +216,9 @@ namespace OPS.Geometry
         }
 
         /// <summary>
-        /// Return this nodes parent
+        /// Get or set this node's parent.
+        /// When setting the parent, this node's world transform is not preserved, but its local transform is.
+        /// If you want the opposite, use Transform.SetParent().
         /// </summary>
         public SceneNode Parent
         {
@@ -231,6 +229,17 @@ namespace OPS.Geometry
                     return null;
                 }
                 return Transform.Parent.Node;
+            }
+            set
+            {
+                if (value != null)
+                {
+                    Transform.SetParent(value.Transform, preserveWorldTransform: false);
+                }
+                else
+                {
+                    Transform.SetParent(null, preserveWorldTransform: false);
+                }
             }
         }
 

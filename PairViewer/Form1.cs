@@ -40,8 +40,8 @@ namespace PairViewer
                         return null;
                     }
 
-                    var dataNode = Scene.ImageToNode[DataView.ImageUrl];
-                    var modelNode = Scene.ImageToNode[ModelView.ImageUrl];
+                    var dataNode = Scene.ObservationUrlToNode[DataView.ImageUrl];
+                    var modelNode = Scene.ObservationUrlToNode[ModelView.ImageUrl];
                     dataToModel = dataNode.GetOrAddComponent<NodeUncertainTransform>().To(modelNode);
                 }
 
@@ -61,8 +61,8 @@ namespace PairViewer
                         return null;
                     }
 
-                    var dataNode = Scene.ImageToNode[DataView.ImageUrl];
-                    var modelNode = Scene.ImageToNode[ModelView.ImageUrl];
+                    var dataNode = Scene.ObservationUrlToNode[DataView.ImageUrl];
+                    var modelNode = Scene.ObservationUrlToNode[ModelView.ImageUrl];
                     modelToData = modelNode.GetOrAddComponent<NodeUncertainTransform>().To(dataNode);
                 }
 
@@ -127,8 +127,7 @@ namespace PairViewer
                         uncertainty.Covariance = CreateMatrix.Diagonal(new double[] { posCov, posCov, posCov, fifthDegSqr, fifthDegSqr, fifthDegSqr });
                     }
 
-                    imgNode.AddComponent<NodeImageUrl>().Url = imgUrl;
-                    Scene.ImageToNode[imgUrl] = imgNode;
+                    Scene.ObservationUrlToNode[imgUrl] = imgNode;
                 }
 
                 view.Image = res;

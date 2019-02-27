@@ -1,0 +1,225 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using log4net;
+using OPS.Util;
+using OPS.Imaging;
+using OPS.Geometry;
+
+namespace OPS.Alignment
+{
+    public class FrustumOverlapDetector
+    {
+        private readonly IImageLoader loader;
+        private readonly ILogger logger;
+
+        public FrustumOverlapDetector(IImageLoader loader = null, ILogger logger = null)
+        {
+            this.loader = loader;
+            this.logger = logger;
+        }
+
+        public int MakeHulls(AlignmentScene scene)
+        {
+            int numNodes = 0, paramsHulls = 0, imageHulls = 0, unionHulls = 0, emptyHulls = 0;
+
+            double startTime = UTCTime.Now();
+            double lastSpew = startTime;
+            void spewMaybe(bool final = false)
+            {
+                double now = UTCTime.Now();
+                if (logger != null &&  (final || now - lastSpew > 5))
+                {
+                    logger.LogVerbose("creating hulls ({0:F3}s), processed {1} nodes, " +
+                                      "made {2} hulls from params, {3} from images, {4} from children, {5} empty{6}",
+                                      UTCTime.Now() - startTime, numNodes,
+                                      paramsHulls, imageHulls, unionHulls, emptyHulls, final ? "" : "...");
+                    lastSpew = now;
+                }
+            }
+                
+            void make(SceneNode node)
+            {
+                numNodes++;
+
+                if (node.IsLeaf && !node.HasComponent<NodeConvexHull>())
+                {
+                    var chc = node.AddComponent<NodeConvexHull>();
+                    if (node.HasComponent<NodeImage>())
+                    {
+                        var img = node.GetComponent<NodeImage>();
+                        if (img.CameraModel != null && img.Size.HasValue)
+                        {
+                            chc.Hull = ConvexHull.FromParams(img.CameraModel, img.Size.Value.X, img.Size.Value.Y);
+                            paramsHulls++;
+                        }
+                        else if (loader != null)
+                        {
+                            //TODO does this really happen?
+                            chc.Hull = ConvexHull.FromImage(loader.LoadImage(img.Url));
+                            imageHulls++;
+                        }
+                        else
+                        {
+                            throw new Exception("could not generate camra frustum hull for node " + node.Name);
+                        }
+                    }
+                    else
+                    {
+                        chc.Hull = new ConvexHull(); //empty
+                        emptyHulls++;
+                    }
+                }
+
+                spewMaybe();
+
+                if (!node.IsLeaf)
+                {
+                    foreach (var child in node.Children)
+                    {
+                        make(child);
+                    }
+                    
+                    if (!node.HasComponent<NodeConvexHull>())
+                    {
+                        List<ConvexHull> childHulls = new List<ConvexHull>();
+                        foreach (var child in node.Children)
+                        {
+                            var hull = child.GetComponent<NodeConvexHull>().Hull;
+                            var ut = child.GetOrAddComponent<NodeUncertainTransform>().UncertainTransform;
+                            childHulls.Add(ConvexHull.Transformed(hull, ut));
+                        }
+                        node.AddComponent<NodeConvexHull>().Hull = ConvexHull.Union(childHulls.ToArray());
+                        unionHulls++;
+                    }
+                }
+            }
+
+            make(scene.Root);
+
+            spewMaybe(final: true);
+
+            return numNodes;
+        }
+        
+        public void Detect(AlignmentScene scene, bool onlyCrossSiteDriveOverlaps = false)
+        {
+            MakeHulls(scene);
+
+            if (logger != null)
+            {
+                logger.LogVerbose("detecting {0} overlaps", onlyCrossSiteDriveOverlaps ? "cross site drive" : "all");
+            }
+
+            HashSet<URLPair> unique = new HashSet<URLPair>();
+
+            double startTime = UTCTime.Now();
+            double lastSpew = startTime;
+            int overlapChecks = 0, processedPairs = 0, overlappingLeaves = 0, processedNodes = 0;
+            void spewMaybe(bool final = false)
+            {
+                double now = UTCTime.Now();
+                if (logger != null && (final || now - lastSpew > 5))
+                {
+                    logger.LogVerbose("detecting overlaps ({0:F3}s): found {1} unique overlaps ({2} checks), " +
+                                      "{3} overlapping leaf pairs, processed {4} pairs, {5} nodes{6}",
+                                      UTCTime.Now() - startTime, unique.Count, overlapChecks,
+                                      overlappingLeaves, processedPairs, processedNodes, final ? "" : "...");
+                    lastSpew = now;
+                }
+            }
+
+            bool doesOverlap(SceneNode node, SceneNode other)
+            {
+                overlapChecks++;
+
+                if (!node.HasComponent<NodeConvexHull>()) return false;
+                if (!other.HasComponent<NodeConvexHull>()) return false;
+
+                var nodeHull = node.GetComponent<NodeConvexHull>().Hull;
+                var otherHull = other.GetComponent<NodeConvexHull>().Hull;
+
+                if (nodeHull.IsEmpty) return false;
+                if (otherHull.IsEmpty) return false;
+
+                var nodeToOther = node.GetOrAddComponent<NodeUncertainTransform>().To(other);
+                var thisInOther = ConvexHull.Transformed(nodeHull, nodeToOther);
+
+                return thisInOther.Intersects(otherHull);
+            }
+
+            void processPairwise(SceneNode one, SceneNode two)
+            {
+                processedPairs++;
+
+                if (one.HasComponent<NodeImage>() && two.HasComponent<NodeImage>())
+                {
+                    unique.Add(new URLPair(one.GetComponent<NodeImage>().Url, two.GetComponent<NodeImage>().Url));
+                    overlappingLeaves++;
+                }
+
+                spewMaybe();
+
+                if (!one.IsLeaf)
+                {
+                    SceneNode[] children = one.Children.ToArray();
+                    for (int i = 0; i < children.Length; i++)
+                    {
+                        if (doesOverlap(children[i], two))
+                        {
+                            processPairwise(children[i], two);
+                        }
+                    }
+                }
+                else if (!two.IsLeaf)
+                {
+                    // this could be processPairwise(two, one) but could double
+                    // stack size in the worst case
+                    SceneNode[] children = two.Children.ToArray();
+                    for (int i = 0; i < children.Length; i++)
+                    {
+                        if (doesOverlap(children[i], one))
+                        {
+                            processPairwise(children[i], one);
+                        }
+                    }
+                }
+            }
+
+            void processNode(SceneNode node)
+            {
+                processedNodes++;
+                spewMaybe();
+                SceneNode[] children = node.Children.ToArray();
+                for (int i = 0; i < children.Length; i++)
+                {
+                    var child = children[i];
+                    for (int j = i + 1; j < children.Length; j++)
+                    {
+                        if (doesOverlap(child, children[j]))
+                        {
+                            processPairwise(child, children[j]);
+                        }
+                    }
+                    if (!onlyCrossSiteDriveOverlaps)
+                    {
+                        processNode(child);
+                    }
+                }
+            }
+            processNode(scene.Root);
+
+            spewMaybe(final: true);
+
+            scene.Overlaps = unique;
+        }
+
+        public void Detect(AlignmentScene scene)
+        {
+            Detect(scene, true);
+        }
+    }
+}

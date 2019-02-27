@@ -9,7 +9,7 @@ namespace OPS.Util
     /// <summary>
     /// An unordered pair of URLs
     /// </summary>
-    public class URLPair
+    public struct URLPair
     {
         //these preserve case, they are exactly what was passed to the constructor
         //though the order of these may not be the same as the order of the constructor args
@@ -41,19 +41,7 @@ namespace OPS.Util
 
         public override int GetHashCode()
         {
-            return lc1.GetHashCode() ^ lc2.GetHashCode();
-        }
-
-        public static bool operator ==(URLPair lhs, URLPair rhs)
-        {
-            //one & two are sorted so there is no order dependency
-            //they are also already lowercased
-            return lhs.lc1 == rhs.lc1 && lhs.lc2 == rhs.lc2;
-        }
-
-        public static bool operator !=(URLPair lhs, URLPair rhs)
-        {
-            return !(lhs == rhs);
+            return HashCombiner.Combine(lc1, lc2);
         }
 
         public override bool Equals(object obj)
@@ -62,7 +50,29 @@ namespace OPS.Util
             {
                 return false;
             }
-            return this == (URLPair)obj;
+            //one & two are sorted so there is no order dependency
+            //they are also already lowercased
+            return this.lc1 == ((URLPair)obj).lc1 && this.lc2 == ((URLPair)obj).lc2;
+        }
+
+        public static bool operator ==(URLPair lhs, URLPair rhs)
+        {
+            return lhs.Equals(rhs); //don't need to worry about null as URLPair is a struct
+        }
+
+        public static bool operator !=(URLPair lhs, URLPair rhs)
+        {
+            return !lhs.Equals(rhs); //don't need to worry about null as URLPair is a struct
+        }
+
+        public override string ToString()
+        {
+            return "(" + One + ", " + Two + ")";
+        }
+
+        public string ToStringShort()
+        {
+            return "(" + StringHelper.GetLastUrlPathSegment(One) + ", " + StringHelper.GetLastUrlPathSegment(Two) + ")";
         }
     }
 }

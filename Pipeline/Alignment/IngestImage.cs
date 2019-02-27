@@ -26,20 +26,22 @@ namespace OPS.Pipeline
         /// </summary>
         public class Result
         {
-            public string ImageUrl;
-            public Status Status;
-            public Observation Observation;
+            public readonly string ImageUrl;
+            public readonly Status Status;
+            public readonly Observation Observation;
+            public readonly Frame ObservationFrame;
 
             public Result()
             {
                 Status = Status.Failed;
             }
 
-            public Result(string imageUrl, Status status, Observation obs)
+            public Result(string imageUrl, Status status, Observation obs = null, Frame obsFrame = null)
             {
                 this.ImageUrl = imageUrl;
                 this.Status = status;
                 this.Observation = obs;
+                this.ObservationFrame = obsFrame;
             }
         }
 

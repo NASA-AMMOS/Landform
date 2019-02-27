@@ -1,12 +1,13 @@
-﻿using Microsoft.Xna.Framework;
-using OPS.Geometry;
-using OPS.Imaging;
-using System;
+﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Microsoft.Xna.Framework;
+using OPS.Util;
+using OPS.Geometry;
+using OPS.Imaging;
 
 namespace OPS.Pipeline
 {
@@ -44,7 +45,7 @@ namespace OPS.Pipeline
             Mesh result = new Mesh(mesh);
             result.HasUVs = true;
             ConcurrentBag<Vertex> verticesToRemove = new ConcurrentBag<Vertex>();
-            Parallel.ForEach(result.Vertices, v => 
+            CoreLimitedParallel.ForEach(result.Vertices, v => 
             {
                 // Transform the mesh frame vertex into camera frame
                 Vector3 meshFramePoint = v.Position;

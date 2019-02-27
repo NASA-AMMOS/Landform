@@ -3,8 +3,8 @@ using OPS.Pipeline.AlignmentServer;
 
 namespace OPS.Pipeline
 {
-    public class NodeObservation : NodeComponent
+    public class NodeFrame : NodeComponent
     {
-        public Observation Observation;
+        public Frame Frame;
     }
 }

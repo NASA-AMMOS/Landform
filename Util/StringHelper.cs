@@ -137,5 +137,10 @@ namespace OPS.Util
             }
             return null;
         }
+
+        public static string CollapseWhitespace(string str)
+        {
+            return !string.IsNullOrEmpty(str) ? Regex.Replace(str, @"\s+", " ") : str;
+        }
     }
 }
