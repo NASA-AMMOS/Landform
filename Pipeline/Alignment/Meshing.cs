@@ -25,6 +25,7 @@ namespace OPS.Pipeline
         public Observation Points;
         public Observation Normals;
         public Observation Mask;
+        public Observation Texture;
     }
 
     public class Meshing
@@ -54,6 +55,7 @@ namespace OPS.Pipeline
             var pointsType = ObservationType.Points.ToString();
             var normalsType = ObservationType.Normals.ToString();
             var maskType = ObservationType.RoverMask.ToString();
+            var imageType = ObservationType.Image.ToString();
 
             List<RoverObservation> obsForFrame =
                 observationCache.GetAllObservationsForFrame(frameCache.GetFrame(frameName))
@@ -82,7 +84,6 @@ namespace OPS.Pipeline
             {
                 ret.Normals = null;
             }
-
             if (requireNormals && ret.Normals == null)
             {
                 return null;
@@ -93,6 +94,8 @@ namespace OPS.Pipeline
             {
                 ret.Mask = null;
             }
+
+            ret.Texture = obsForFrame.Find(obs => obs.ObservationType == imageType);
 
             return ret;
         }
@@ -119,6 +122,37 @@ namespace OPS.Pipeline
             return ret;
         }
 
+        private static void AddMaskForMissingConstant(Image img, PDSParser parser = null)
+        {
+            parser = parser ?? new PDSParser((PDSMetadata)img.Metadata);
+            if (parser.HasMissingConstant)
+            {
+                img.CreateMask(parser.MissingConstant.Select(x => (float)x).ToArray());
+            }
+            else
+            {
+                img.CreateMask(false);
+            }
+        }
+
+        private static void CheckType(PDSParser parser, RoverProductType type, string what)
+        {
+            if (parser.DerivedImageType != type)
+            {
+                throw new ArgumentException(what + " requires " + type + " product");
+            }
+        }
+
+        private static Vector3 GetCameraCenter(Image img, string what)
+        {
+            CAHV cahv = img.CameraModel as CAHV;
+            if (cahv == null)
+            {
+                throw new NotImplementedException(what + " requires CAHV camera model");
+            }
+            return cahv.C;
+        }
+
         /// <summary>
         /// accepts a range or XYZ map in any coordinate frame and returns an XYZ map in rover frame
         /// also sets mask of return image to be union of input mask, if any
@@ -129,10 +163,9 @@ namespace OPS.Pipeline
             PDSParser parser = new PDSParser((PDSMetadata)img.Metadata);
             switch (parser.DerivedImageType)
             {
-                case RoverProductType.Range: return ConvertRNG(img);
-                case RoverProductType.XYZ: return ConvertXYZ(img);
-                default: throw new ArgumentException(string.Format("cannot convert {0} image to XYR",
-                                                                   parser.DerivedImageType));
+                case RoverProductType.Range: return ConvertRNG(img, parser);
+                case RoverProductType.XYZ: return ConvertXYZ(img, parser);
+                default: throw new ArgumentException("cannot convert " + parser.DerivedImageType + " image to XYR");
             }
         }
 
@@ -141,46 +174,29 @@ namespace OPS.Pipeline
         /// also sets mask of return image to be union of input mask, if any
         /// plus invalid values according to image header metadata
         /// </summary>
-        public static Image ConvertXYZ(Image img)
+        public static Image ConvertXYZ(Image img, PDSParser parser = null)
         {
-            //validate assumptions about input data
-            PDSParser parser = new PDSParser((PDSMetadata)img.Metadata);
-            if (parser.DerivedImageType != RoverProductType.XYZ)
-            {
-                throw new ArgumentException("ConvertXYZ requires XYZ map"); ;
-            }
+            parser = parser ?? new PDSParser((PDSMetadata)img.Metadata);
+            CheckType(parser, RoverProductType.XYZ, "ConvertXYZ");
             Matrix xform = RoverCoordinateSystem.GetTransformToRoverFrame(parser);
-
-            Image xyr = new Image(3, img.Width, img.Height);
-
-            //don't assume that input image already has a mask
-            //but also don't mutate the input image to add a mask
-            if (parser.HasMissingConstant)
-            {
-                xyr.CreateMask(parser.MissingConstant.Select(x => (float)x).ToArray());
-            }
-            else
-            {
-                xyr.CreateMask(false);
-            }
-
+            Image ret = new Image(3, img.Width, img.Height);
+            AddMaskForMissingConstant(ret, parser);
             for (int row = 0; row < img.Height; row++)
             {
                 for (int col = 0; col < img.Width; col++)
                 {
                     if (img.IsInvalid(row, col)) //respect input image mask if it has one
                     {
-                        xyr.SetMaskValue(row, col, true);
+                        ret.SetMaskValue(row, col, true);
                     }
-                    else if (!parser.HasMissingConstant || !xyr.IsInvalid(row, col))
+                    else if (!parser.HasMissingConstant || !ret.IsInvalid(row, col))
                     {
                         var p = new Vector3(img[0, row, col], img[1, row, col], img[2, row, col]);
-                        xyr.SetBandValues(row, col, Vector3.Transform(p, xform).ToFloatArray());
+                        ret.SetBandValues(row, col, Vector3.Transform(p, xform).ToFloatArray());
                     }
                 }
             }
-
-            return xyr;
+            return ret;
         }
 
         /// <summary>
@@ -188,60 +204,38 @@ namespace OPS.Pipeline
         /// also sets mask of return image to be union of input mask, if any
         /// plus invalid values according to image header metadata
         /// </summary>
-        public static Image ConvertRNG(Image img)
+        public static Image ConvertRNG(Image img, PDSParser parser)
         {
-            //validate assumptions about input data
-            PDSParser parser = new PDSParser((PDSMetadata)img.Metadata);
-            if (parser.DerivedImageType != RoverProductType.Range)
-            {
-                throw new ArgumentException("ConvertRNG requires range map"); ;
-            }
+            parser = parser ?? new PDSParser((PDSMetadata)img.Metadata);
+            CheckType(parser, RoverProductType.Range, "ConvertRange");
             if (parser.CameraModelRefFrame != PDSParser.ReferenceCoordinateFrame.RoverNav)
             {
                 throw new NotImplementedException("ConvertRNG requires camera model in rover frame");
             }
-            CAHV cahv = img.CameraModel as CAHV;
-            if (cahv == null)
-            {
-                throw new NotImplementedException("ConvertRNG requires CAHV camera model");
-            }
             Matrix xform = RoverCoordinateSystem.GetTransformToRoverFrame(parser);
             Vector3 rangeOrigin = Vector3.Transform(parser.RangeOrigin, xform);
-            if (!Vector3.AlmostEqual(rangeOrigin, cahv.C, 0.0005))
+            if (!Vector3.AlmostEqual(rangeOrigin, GetCameraCenter(img, "ConvertRNG"), 0.0005))
             {
                 throw new NotImplementedException("ConvertRNG requires range maps projected from camera location");
             }
-
-            Image xyr = new Image(3, img.Width, img.Height);
-
-            //don't assume that input image already has a mask
-            //but also don't mutate the input image to add a mask
-            if (parser.HasMissingConstant)
-            {
-                xyr.CreateMask(parser.MissingConstant.Select(x => (float)x).ToArray());
-            }
-            else
-            {
-                xyr.CreateMask(false);
-            }
-
+            Image ret = new Image(3, img.Width, img.Height);
+            AddMaskForMissingConstant(ret, parser);
             for (int row = 0; row < img.Height; row++)
             {
                 for (int col = 0; col < img.Width; col++)
                 {
                     if (img.IsInvalid(row, col)) //respect input image mask if it has one
                     {
-                        xyr.SetMaskValue(row, col, true);
+                        ret.SetMaskValue(row, col, true);
                     }
-                    else if (!parser.HasMissingConstant || !xyr.IsInvalid(row, col))
+                    else if (!parser.HasMissingConstant || !ret.IsInvalid(row, col))
                     {
                         Vector3 p = img.CameraModel.Unproject(new Vector2(col, row), img[0, row, col]);
-                        xyr.SetBandValues(row, col, p.ToFloatArray());
+                        ret.SetBandValues(row, col, p.ToFloatArray());
                     }
                 }
             }
-
-            return xyr;
+            return ret;
         }
 
         /// <summary>
@@ -250,44 +244,74 @@ namespace OPS.Pipeline
         /// </summary>
         public static Image GenerateConfidence(Image img)
         {
-            //validate assumptions about input data
             PDSParser parser = new PDSParser((PDSMetadata)img.Metadata);
-            if (parser.DerivedImageType != RoverProductType.Range)
+            switch (parser.DerivedImageType)
             {
-                throw new NotImplementedException("synthetic confidence requires range map"); ;
+                case RoverProductType.Range: return GenerateConfidenceFromRNG(img, parser);
+                case RoverProductType.XYZ: return GenerateConfidenceFromXYZ(img, parser);
+                default: throw new NotImplementedException("synthetic confidence requires range or XYZ map"); ;
             }
+        }
 
-            Image confidence = new Image(1, img.Width, img.Height);
-
-            //don't assume that input image already has a mask
-            //but also don't mutate the input image to add a mask
-            if (parser.HasMissingConstant)
-            {
-                confidence.CreateMask(parser.MissingConstant.Select(x => (float)x).ToArray());
-            }
-            else
-            {
-                confidence.CreateMask(false);
-            }
-
+        /// <summary>
+        /// naive confidence: farther away the point is from the camera the lower the confidence
+        /// </summary>
+        public static Image GenerateConfidenceFromRNG(Image img, PDSParser parser = null)
+        {
+            parser = parser ?? new PDSParser((PDSMetadata)img.Metadata);
+            CheckType(parser, RoverProductType.Range, "GenerateConfidenceFromRNG");
+            Image ret = new Image(1, img.Width, img.Height);
+            AddMaskForMissingConstant(ret, parser);
             for (int row = 0; row < img.Height; row++)
             {
                 for (int col = 0; col < img.Width; col++)
                 {
                     if (img.IsInvalid(row, col) || //respect input image mask if it has one
-                        img[0, row, col] <= 0.0f) //negative range values are invalid
+                        img[0, row, col] <= 0.0f) //non-positive range values are invalid
                     {
-                        confidence.SetMaskValue(row, col, true);
+                        ret.SetMaskValue(row, col, true);
                     }
-                    else if (!parser.HasMissingConstant || !confidence.IsInvalid(row, col))
+                    else if (!parser.HasMissingConstant || !ret.IsInvalid(row, col))
                     {
-                        //naive confidence: farther away the point is, the lower the confidence
-                        confidence[0, row, col] = 1 / img[0, row, col];
+                        ret[0, row, col] = 1 / img[0, row, col];
                     }
                 }
             }
 
-            return confidence;
+            return ret;
+        }
+
+        /// <summary>
+        /// naive confidence: farther away the point is from the camera the lower the confidence
+        /// </summary>
+        public static Image GenerateConfidenceFromXYZ(Image img, PDSParser parser = null)
+        {
+            parser = parser ?? new PDSParser((PDSMetadata)img.Metadata);
+            CheckType(parser, RoverProductType.XYZ, "GenerateConfidenceFromXYZ");
+            if (parser.CameraModelRefFrame != PDSParser.ReferenceCoordinateFrame.RoverNav)
+            {
+                throw new NotImplementedException("GenerateConfidenceFromXYZ requires camera model in rover frame");
+            }
+            Vector3 rangeOrigin = GetCameraCenter(img, "GenerateConfidenceFromXYZ");
+            Matrix xform = RoverCoordinateSystem.GetTransformToRoverFrame(parser);
+            Image ret = new Image(1, img.Width, img.Height);
+            AddMaskForMissingConstant(ret, parser);
+            for (int row = 0; row < img.Height; row++)
+            {
+                for (int col = 0; col < img.Width; col++)
+                {
+                    if (img.IsInvalid(row, col)) //respect input image mask if it has one
+                    {
+                        ret.SetMaskValue(row, col, true);
+                    }
+                    else if (!parser.HasMissingConstant || !ret.IsInvalid(row, col))
+                    {
+                        var p = new Vector3(img[0, row, col], img[1, row, col], img[2, row, col]);
+                        ret[0, row, col] = 1 / (float)Vector3.Distance(Vector3.Transform(p, xform), rangeOrigin);
+                    }
+                }
+            }
+            return ret;
         }
 
         /// <summary>
@@ -305,27 +329,11 @@ namespace OPS.Pipeline
         {
             //validate assumptions about input data
             PDSParser parser = new PDSParser((PDSMetadata)img.Metadata);
-            if (parser.DerivedImageType != RoverProductType.NormalMap)
-            {
-                throw new NotImplementedException("normals image requires normal map"); ;
-            }
-
+            CheckType(parser, RoverProductType.NormalMap, "ConvertNormals");
             Matrix xform = RoverCoordinateSystem.GetTransformToRoverFrame(parser);
             bool nonIdentityXform = !xform.Equals(Matrix.Identity);
-
-            Image normals = new Image(img);
-
-            //don't assume that input image already has a mask
-            //but also don't mutate the input image to add a mask
-            if (parser.HasMissingConstant)
-            {
-                normals.CreateMask(parser.MissingConstant.Select(x => (float)x).ToArray());
-            }
-            else
-            {
-                normals.CreateMask(false);
-            }
-
+            Image ret = new Image(img);
+            AddMaskForMissingConstant(ret, parser);
             for (int row = 0; row < img.Height; row++)
             {
                 for (int col = 0; col < img.Width; col++)
@@ -340,24 +348,151 @@ namespace OPS.Pipeline
                         img.IsInvalid(row, left) || img.IsInvalid(row, right) ||
                         img.IsInvalid(down, left) || img.IsInvalid(down, col) || img.IsInvalid(down, right))
                     {
-                        normals.SetMaskValue(row, col, true);
+                        ret.SetMaskValue(row, col, true);
                     }
-                    else if (!parser.HasMissingConstant || !normals.IsInvalid(row, col))
+                    else if (!parser.HasMissingConstant || !ret.IsInvalid(row, col))
                     {
                         if (nonIdentityXform)
                         {
                             var n = new Vector3(img[0, row, col], img[1, row, col], img[2, row, col]);
-                            normals.SetBandValues(row, col, Vector3.TransformNormal(n, xform).ToFloatArray());
+                            ret.SetBandValues(row, col, Vector3.TransformNormal(n, xform).ToFloatArray());
                         }
                         if (confidence != null)
                         {
-                            normals[0, row, col] *= confidence[0, row, col];
+                            ret[0, row, col] *= confidence[0, row, col];
                         }
                     }
                 }
             }
+            return ret;
+        }
 
-            return normals;
+        /// <summary>
+        /// transform a mesh from a specific rover frame to the corresponding sitedrive or root frame
+        /// </summary>transform a mesh 
+        public static void TransformMesh(Mesh mesh, string fromFrame, string toFrame, FrameCache frameCache,
+                                         bool usePriors = false)
+        {
+            if (toFrame == "rover" || toFrame == PDSParser.ReferenceCoordinateFrame.RoverNav.ToString())
+            {
+                return;
+            }
+
+            Frame obsFrame = frameCache.GetFrame(fromFrame);
+            var obsToSD = usePriors ? frameCache.GetBestPrior(obsFrame) : frameCache.GetBestTransform(obsFrame);
+
+            if (toFrame == "sitedrive" || toFrame == PDSParser.ReferenceCoordinateFrame.LocalLevel.ToString())
+            {
+                mesh.Transform(obsToSD.Transform.Mean);
+                return;
+            }
+
+            if (toFrame == "site" || toFrame == PDSParser.ReferenceCoordinateFrame.Site.ToString())
+            {
+                throw new NotImplementedException("TransformMesh to site frame not implemented");
+            }
+
+            Frame sdFrame = frameCache.GetFrame(obsFrame.ParentName);
+            var sdToRoot = usePriors ? frameCache.GetBestPrior(sdFrame) : frameCache.GetBestTransform(sdFrame);
+
+            if (toFrame == "root" || string.IsNullOrEmpty(toFrame))
+            {
+                mesh.Transform(obsToSD.Transform.Mean * sdToRoot.Transform.Mean);
+                return;
+            }
+
+            throw new NotImplementedException("Transform Mesh to " + toFrame + " not implemented");
+        }
+
+        public static Image DecimateNormals(Image normals, int blocksize, Image mask = null)
+        {
+            var ret = normals.Decimate(blocksize, mask);
+            for (int row = 0; row < ret.Height; row++)
+            {
+                for (int col = 0; col < ret.Width; col++)
+                {
+                    if (!ret.IsInvalid(row, col))
+                    {
+                        var n = new Vector3(ret[0, row, col], ret[1, row, col], ret[2, row, col]);
+                        n.Normalize();
+                        ret.SetBandValues(row, col, n.ToFloatArray());
+                    }
+                }
+            }
+            return ret;
+        }
+
+        public static void LoadOrGenerateMeshImages(PipelineCore pipeline, MeshObservations obs, int decimateBlocksize,
+                                                    bool scaleNormalsByConfidence,
+                                                    out Image points, out Image normals, out Image mask)
+        {
+            //TODO metadata from points image until real confidence and mask products are available
+            //https://github.jpl.nasa.gov/OnSight/Landform/issues/259
+            var pointsRaw = pipeline.LoadImage(obs.Points.Url);
+            points = ConvertPoints(pointsRaw);
+
+            normals = null;
+            if (obs.Normals != null)
+            {
+                var confidence = scaleNormalsByConfidence ? GenerateConfidence(pointsRaw) : null;
+                normals = ConvertNormals(pipeline.LoadImage(obs.Normals.Url), confidence);
+            }
+
+            mask = obs.Mask != null ? pipeline.LoadImage(obs.Mask.Url) : null;
+            if (mask == null)
+            {
+                pipeline.LogVerbose("generating synthetic rover mask for {0}", obs.Points.Name);
+                mask = RoverMask.Build(pointsRaw);
+            }
+
+            if (decimateBlocksize > 1)
+            {
+                points = points.Decimate(decimateBlocksize, mask);
+                if (normals != null)
+                {
+                    normals = DecimateNormals(normals, decimateBlocksize, mask);
+                }
+                mask = null;
+            }
+        }
+
+        /// add texture coordinates to a mesh by projecting vertices onto an image
+        /// also optionally removes any vertices of the mesh that aren't visible in the image
+        /// the passed mesh is mutated in place
+        /// </summary>
+        public static void AddUVs(Mesh mesh, Image img, Matrix? meshToImage = null, bool removeVertsOutsideView = true,
+                                  bool processVertsInParallel = false)
+        {
+            Matrix xform = meshToImage ?? Matrix.Identity;
+            ConcurrentBag<Vertex> verticesToRemove = new ConcurrentBag<Vertex>();
+            Action<Vertex> generateUV = v => {
+                double range;
+                Vector2 pixel = img.CameraModel.Project(Vector3.Transform(v.Position, xform), out range);
+                if (range < 0 || pixel.X < 0 || pixel.X > (img.Width - 1) || pixel.Y < 0 || pixel.Y > (img.Height - 1))
+                {
+                    verticesToRemove.Add(v);
+                }
+                else
+                {
+                    // TODO: review this half pixel offset
+                    //v.UV =  new Vector2((pixel.X - 0.5) / (image.Width+1), 1 - ((pixel.Y - 0.5) / (image.Height+1)));
+                    v.UV = img.PixelToUV(pixel);
+                    v.UV = Vector2.Clamp(v.UV, Vector2.Zero, Vector2.One);
+                }
+            };
+            if (processVertsInParallel)
+            {
+                CoreLimitedParallel.ForEach(mesh.Vertices, generateUV);
+            }
+            else
+            {
+                mesh.Vertices.ForEach(generateUV);
+            }
+            mesh.HasUVs = true;
+            if (removeVertsOutsideView)
+            {
+                mesh.RemoveVertices(verticesToRemove);
+            }
         }
 
         /// <summary>
@@ -370,22 +505,31 @@ namespace OPS.Pipeline
             {
                 for (int col = 0; col < points.Width; col++)
                 {
-                    if (points.IsInvalid(row, col) ||
-                        (normals != null && normals.IsInvalid(row, col)) ||
+                    if (points.IsInvalid(row, col) || (normals != null && normals.IsInvalid(row, col)) ||
                         mask != null && mask[0, row, col] == 0)
                     {
                         continue;
                     }
-
                     var v = new Vertex(new Vector3(points[0, row, col], points[1, row, col], points[2, row, col]));
                     if (normals != null)
                     {
                         v.Normal = new Vector3(normals[0, row, col], normals[1, row, col], normals[2, row, col]);
                     }
-                                               
                     ret.Vertices.Add(v);
                 }
             }
+            return ret;
+        }
+
+        public static Mesh BuildPointCloud(PipelineCore pipeline, MeshObservations obs, FrameCache frameCache,
+                                           string frame = "root", bool usePriors = false, int decimateBlocksize = 1,
+                                           bool scaleNormalsByConfidence = false)
+        {
+            Image points, normals, mask;
+            LoadOrGenerateMeshImages(pipeline, obs, decimateBlocksize, scaleNormalsByConfidence,
+                                     out points, out normals, out mask);
+            var ret = BuildPointCloud(points, normals, mask);
+            TransformMesh(ret, obs.Points.FrameName, frame, frameCache, usePriors);
             return ret;
         }
 
@@ -475,66 +619,20 @@ namespace OPS.Pipeline
             return ret;
         }
 
-        /// <summary>
-        /// decimate a normals image  
-        /// </summary>
-        public static Image DecimateNormals(Image normals, int blocksize, Image mask = null)
+        public static Mesh BuildOrganizedMesh(PipelineCore pipeline, MeshObservations obs, FrameCache frameCache,
+                                              string frame = "root", bool usePriors = false, int decimateBlocksize = 1,
+                                              bool scaleNormalsByConfidence = false, bool withUVs = false)
         {
-            var ret = normals.Decimate(blocksize, mask);
-            for (int row = 0; row < ret.Height; row++)
+            Image points, normals, mask;
+            LoadOrGenerateMeshImages(pipeline, obs, decimateBlocksize, scaleNormalsByConfidence,
+                                     out points, out normals, out mask);
+            var ret = BuildOrganizedMesh(points, normals, mask);
+            if (withUVs && obs.Texture != null)
             {
-                for (int col = 0; col < ret.Width; col++)
-                {
-                    if (!ret.IsInvalid(row, col))
-                    {
-                        var n = new Vector3(ret[0, row, col], ret[1, row, col], ret[2, row, col]);
-                        n.Normalize();
-                        ret.SetBandValues(row, col, n.ToFloatArray());
-                    }
-                }
+                AddUVs(ret, pipeline.LoadImage(obs.Texture.Url));
             }
+            TransformMesh(ret, obs.Points.FrameName, frame, frameCache, usePriors);
             return ret;
-        }
-
-        /// <summary>
-        /// add texture coordinates to a mesh by projecting vertices onto an image
-        /// also optionally removes any vertices of the mesh that aren't visible in the image
-        /// the passed mesh is mutated in place
-        /// </summary>
-        public static Mesh AddUVs(Mesh mesh, Image img, Matrix? meshToImage = null,
-                                  bool removeVertsOutsideView = true, bool processVertsInParallel = true)
-        {
-            Matrix xform = meshToImage ?? Matrix.Identity;
-            ConcurrentBag<Vertex> verticesToRemove = new ConcurrentBag<Vertex>();
-            Action<Vertex> generateUV = v => {
-                double range;
-                Vector2 pixel = img.CameraModel.Project(Vector3.Transform(v.Position, xform), out range);
-                if (range < 0 || pixel.X < 0 || pixel.X > (img.Width - 1) || pixel.Y < 0 || pixel.Y > (img.Height - 1))
-                {
-                    verticesToRemove.Add(v);
-                }
-                else
-                {
-                    // TODO: review this half pixel offset
-                    //v.UV =  new Vector2((pixel.X - 0.5) / (image.Width+1), 1 - ((pixel.Y - 0.5) / (image.Height+1)));
-                    v.UV = img.PixelToUV(pixel);
-                    v.UV = Vector2.Clamp(v.UV, Vector2.Zero, Vector2.One);
-                }
-            };
-            if (processVertsInParallel)
-            {
-                CoreLimitedParallel.ForEach(mesh.Vertices, generateUV);
-            }
-            else
-            {
-                mesh.Vertices.ForEach(generateUV);
-            }
-            mesh.HasUVs = true;
-            if (removeVertsOutsideView)
-            {
-                mesh.RemoveVertices(verticesToRemove);
-            }
-            return mesh;
         }
     }
 }

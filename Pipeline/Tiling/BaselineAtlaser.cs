@@ -47,8 +47,9 @@ namespace OPS.Pipeline
         /// <returns></returns>
         public Mesh GenerateAtlas(Mesh mesh, bool removeVertsOutsideView, bool processVertsInParallel)
         {
-            return Meshing.AddUVs(new Mesh(mesh), image, meshToCameraModelFrame, removeVertsOutsideView,
-                                  processVertsInParallel);
+            var ret = new Mesh(mesh);
+            Meshing.AddUVs(ret, image, meshToCameraModelFrame, removeVertsOutsideView, processVertsInParallel);
+            return ret;
         }
 
         /// <summary>

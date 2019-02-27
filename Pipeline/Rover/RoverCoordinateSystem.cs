@@ -9,7 +9,6 @@ using OPS.Geometry;
 
 namespace OPS.Pipeline
 {
-
     // UNITY - left-handed space used in unity
     //           +Y is real-world up and mars up, +Z is North/forward, +X is East/right
 
@@ -165,6 +164,5 @@ namespace OPS.Pipeline
                 default: throw new NotImplementedException("unknown reference frame: " + parser.DerivedImageRefFrame);
             }
         }
-
     }
 }

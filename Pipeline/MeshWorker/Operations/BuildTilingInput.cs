@@ -54,36 +54,10 @@ namespace OPS.Pipeline.MeshWorker
             for (int idx = 0; idx < observations.Count; idx++)
             {
                 var obs = observations[idx];
-                var frameName = obs.Points.FrameName;
-
-                pipeline.LogInfo("building point cloud {0}/{1} ({2})%): {3}",
-                                 idx + 1, observations.Count, (int)(100 * idx / (float)observations.Count), frameName);
-
-                //TODO metadata from points image until real confidence and mask products are available
-                //https://github.jpl.nasa.gov/OnSight/Landform/issues/259
-                var pointsRaw = pipeline.LoadImage(obs.Points.Url);
-                var points = Meshing.ConvertPoints(pointsRaw);
-                var confidence = Meshing.GenerateConfidence(pointsRaw);
-                var normals = Meshing.ConvertNormals(pipeline.LoadImage(obs.Normals.Url), confidence);
-                var mask = obs.Mask != null ? pipeline.LoadImage(obs.Mask.Url) : null;
-                if (mask == null)
-                {
-                    pipeline.LogVerbose("generating synthetic rover mask for {0}",
-                                        StringHelper.GetLastUrlPathSegment(obs.Points.Url));
-                    mask = RoverMask.Build(pointsRaw);
-                }
-
-                Mesh pointCloud = Meshing.BuildPointCloud(points, normals, mask);
-
-                Frame obsFrame = frameCache.GetFrame(frameName);
-                Frame sitedriveFrame = frameCache.GetFrame(obsFrame.ParentName);
-                var obsToSiteDrive = FrameTransform.FindBest(pipeline, obsFrame).Transform;
-                var siteDriveToRoot = FrameTransform.FindBest(pipeline, sitedriveFrame).Transform;
-                var obsToRoot = obsToSiteDrive * siteDriveToRoot;
-
-                pointCloud.Transform(obsToRoot.Mean);
-
-                aggregatePointCloud.MergeWith(new Mesh[] { pointCloud }, false);
+                pipeline.LogInfo("building point cloud {0}/{1} ({2})%): {3}", idx + 1, observations.Count,
+                                 (int)(100 * idx / (float)observations.Count), obs.Points.FrameName);
+                var mesh = Meshing.BuildPointCloud(pipeline, obs, frameCache, scaleNormalsByConfidence: true);
+                aggregatePointCloud.MergeWith(new Mesh[] { mesh }, false);
             }
             
             // build the large mesh from the aggregate point cloud using poisson reconstruction
