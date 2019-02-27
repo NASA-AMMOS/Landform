@@ -13,8 +13,8 @@ namespace OPS.Pipeline.AlignmentServer
 
         private readonly Dictionary<string, Frame> frames = new Dictionary<string, Frame>();
         private readonly Dictionary<string, List<Frame>> children = new Dictionary<string, List<Frame>>();
-        private readonly Dictionary<string, FrameTransform> transforms = new Dictionary<string, FrameTransform>();
-        private readonly Dictionary<string, TransformPrior> priors = new Dictionary<string, TransformPrior>();
+        private readonly Dictionary<string, SortedDictionary<TransformSource, FrameTransform>> transforms =
+            new Dictionary<string, SortedDictionary<TransformSource, FrameTransform>>();
 
         public FrameCache(PipelineCore pipeline, string projectName)
         {
@@ -40,15 +40,17 @@ namespace OPS.Pipeline.AlignmentServer
 
         public void Add(FrameTransform transform)
         {
-            transforms[transform.FrameName] = transform;
+            if (!transforms.ContainsKey(transform.FrameName))
+            {
+                transforms[transform.FrameName] = new SortedDictionary<TransformSource, FrameTransform>();
+            }
+            if (!transforms[transform.FrameName].ContainsKey(transform.Source))
+            {
+                transforms[transform.FrameName][transform.Source] = transform;
+            }
         }
 
-        public void Add(TransformPrior prior)
-        {
-            priors[prior.FrameName] = prior;
-        }
-            
-        public int Preload(bool loadTransforms = true, bool loadPriors = false)
+        public int Preload(bool loadTransforms = true)
         {
             Frame.Find(pipeline, projectName).ToList().ForEach(frame => Add(frame));
             foreach (var frame in frames.Keys)
@@ -65,22 +67,27 @@ namespace OPS.Pipeline.AlignmentServer
                 {
                     if (!transforms.ContainsKey(frame))
                     {
-                        transforms[frame] = null;
-                    }
-                }
-            }
-            if (loadPriors)
-            {
-                TransformPrior.Find(pipeline, projectName).ToList().ForEach(prior => Add(prior));
-                foreach (var frame in frames.Keys)
-                {
-                    if (!priors.ContainsKey(frame))
-                    {
-                        priors[frame] = null;
+                        transforms[frame] = new SortedDictionary<TransformSource, FrameTransform>();
                     }
                 }
             }
             return frames.Count;
+        }
+
+        public IEnumerable<Frame> GetAllFrames()
+        {
+            return frames.Values;
+        }
+
+        public IEnumerable<FrameTransform> GetAllTransforms()
+        {
+            foreach (var forFrame in transforms.Values)
+            {
+                foreach (var transform in forFrame.Values)
+                {
+                    yield return transform;
+                }
+            }
         }
 
         public IEnumerable<Frame> GetChildren(string name)
@@ -115,27 +122,62 @@ namespace OPS.Pipeline.AlignmentServer
             return frames[name];
         }
 
-        public FrameTransform GetTransform(string name)
+        public IEnumerable<FrameTransform> GetTransforms(string name)
         {
             if (!transforms.ContainsKey(name))
             {
-                transforms[name] = FrameTransform.Find(pipeline, GetFrame(name)); //may be null
+                foreach (var transform in FrameTransform.Find(pipeline, GetFrame(name))) Add(transform);
             }
-            return transforms[name];
+            return transforms[name].Values;
         }
 
-        public FrameTransform GetTransform(Frame frame)
+        public IEnumerable<FrameTransform> GetTransforms(Frame frame)
         {
-            return GetTransform(frame.Name);
+            return GetTransforms(frame.Name);
         }
 
-        public TransformPrior GetTransformPrior(Frame frame)
+        public FrameTransform GetBestTransform(string name)
         {
-            if (!priors.ContainsKey(frame.Name))
+            return GetTransforms(name).FirstOrDefault();
+        }
+
+        public FrameTransform GetBestTransform(Frame frame)
+        {
+            return GetBestTransform(frame.Name);
+        }
+
+        public FrameTransform GetBestAdjustedTransform(string name)
+        {
+            foreach (var transform in GetTransforms(name))
             {
-                priors[frame.Name] = frame.GetPrior(pipeline); //may be null
+                if (transform.Source < TransformSource.Prior)
+                {
+                    return transform;
+                }
             }
-            return priors[frame.Name];
+            return null;
+        }
+
+        public FrameTransform GetBestAdjustedTransform(Frame frame)
+        {
+            return GetBestAdjustedTransform(frame.Name);
+        }
+
+        public FrameTransform GetBestPrior(string name)
+        {
+            foreach (var transform in GetTransforms(name))
+            {
+                if (transform.Source >= TransformSource.Prior)
+                {
+                    return transform;
+                }
+            }
+            return null;
+        }
+
+        public FrameTransform GetBestPrior(Frame frame)
+        {
+            return GetBestPrior(frame.Name);
         }
     }
 }

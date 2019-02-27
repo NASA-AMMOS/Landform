@@ -131,8 +131,7 @@ namespace OPS.Pipeline
             {
                 pipeline.LogInfo("preloading frame cache for project {0}", projectName);
                 double start = UTCTime.Now();
-                int numPreloaded = frameCache.Preload(loadTransforms: !options.UseTransformPriors,
-                                                      loadPriors: options.UseTransformPriors);
+                int numPreloaded = frameCache.Preload();
                 pipeline.LogInfo("preloaded {0} frames for project {1} in {2:F3}s",
                                  numPreloaded, projectName, UTCTime.Now() - start);
             }
@@ -205,7 +204,7 @@ namespace OPS.Pipeline
                 UncertainRigidTransform ut = null;
                 if (options.UseTransformPriors)
                 {
-                    var tp = frameCache.GetTransformPrior(frame);
+                    var tp = frameCache.GetBestPrior(frame);
                     if (tp == null)
                     {
                         throw new Exception("failed to get transform prior for frame " + frame.Name);
@@ -214,7 +213,7 @@ namespace OPS.Pipeline
                 }
                 else
                 {
-                    var ft = frameCache.GetTransform(frame);
+                    var ft = frameCache.GetBestTransform(frame);
                     if (ft == null)
                     {
                         throw new Exception("failed to get transform for frame " + frame.Name);
