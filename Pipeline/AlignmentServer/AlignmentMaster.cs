@@ -177,40 +177,43 @@ namespace OPS.Pipeline.AlignmentServer
             var initializer = new InitializeAlignmentProject(this);
             var project = initializer.Initialize(options.ProjectName, productUrl, inputUrl, options.RedoProject);
 
-            //frame name -> observation type -> observation
-            ConcurrentDictionary<string, ConcurrentDictionary<string, Observation>> obsGroups =
-                new ConcurrentDictionary<string, ConcurrentDictionary<string, Observation>>();
-
-            Action<IngestImage.Result> handler = res =>
-                obsGroups
-                .GetOrAdd(res.ObservationFrame.Name, _ => new ConcurrentDictionary<string, Observation>())
-                .AddOrUpdate(res.Observation.ObservationType, _ => res.Observation, (_, __) => res.Observation);
-
+            //careful here - there can be more than one observation of a given type for a single frame
+            //frame name -> observations
+            var obsForFrame = new ConcurrentDictionary<string, ConcurrentBag<Observation>>();
             var ingester = new IngestAlignmentInputs(this, project, options.RedoObservations, options.RedoPriors);
-            ingester.Ingest(MSLLocations.LoadFromUrl(), handler);
-
+            ingester.Ingest(MSLLocations.LoadFromUrl(),
+                            res => obsForFrame
+                            .GetOrAdd(res.ObservationFrame.Name, _ => new ConcurrentBag<Observation>())
+                            .Add(res.Observation));
+                            
             var imageType = ObservationType.Image.ToString();
             var maskType = ObservationType.RoverMask.ToString();
-            foreach (var obsGroup in obsGroups.Values)
+            foreach (var obsGroup in obsForFrame.Values)
             {
-                if (obsGroup.ContainsKey(imageType))
+                var observations = obsGroup
+                    .Cast<RoverObservation>()
+                    .Distinct() //ConcurrentBag allows duplicates, which is probably harmless here, but why not
+                    .Where(obs => obs.UseForReconstruction)
+                    .ToList();
+                observations.Sort(MSLProject.RoverObservationComparison);
+
+                var imageObs = observations.Find(obs => obs.ObservationType == imageType);
+                if (imageObs != null)
                 {
-                    var imageObs = obsGroup[imageType];
-                    if (imageObs.UseForReconstruction)
+                    if (ValidGuid(imageObs.FeaturesGuid) && !options.RedoFeatures)
                     {
-                        if (ValidGuid(imageObs.FeaturesGuid) && !options.RedoFeatures)
-                        {
-                            LogVerbose("using existing features for observation {0}", imageObs.Name);
-                        }
-                        else
-                        {
-                            LogVerbose("requesting feature detection for observation {0}", imageObs.Name);
-                            pendingFeatures[imageObs.Url] = imageObs;
-                            WorkerQueue.Enqueue(new DetectFeaturesMessage(options.ProjectName) {
-                                    ImageUrl = imageObs.Url,
-                                    MaskUrl = obsGroup.ContainsKey(maskType) ? obsGroup[maskType].Url : null
-                                });
-                        }
+                        LogVerbose("using existing features for observation {0}", imageObs.Name);
+                    }
+                    else
+                    {
+                        var maskObs = observations.Find(obs => obs.ObservationType == maskType &&
+                                                        obs.Width == imageObs.Width && obs.Height == imageObs.Height);
+                        LogVerbose("requesting feature detection for observation {0}", imageObs.Name);
+                        pendingFeatures[imageObs.Url] = imageObs;
+                        WorkerQueue.Enqueue(new DetectFeaturesMessage(options.ProjectName) {
+                                ImageUrl = imageObs.Url,
+                                MaskUrl = maskObs != null ? maskObs.Url : null
+                            });
                     }
                 }
             }

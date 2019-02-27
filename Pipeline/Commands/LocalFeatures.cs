@@ -1,4 +1,7 @@
 using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.Collections.Concurrent;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -44,62 +47,83 @@ namespace OPS.Pipeline
                 return 1;
             }
 
-            var imageType = ObservationType.Image.ToString();
-            var maskType = ObservationType.RoverMask.ToString();
-            
             var frameCache = new FrameCache(this, options.ProjectName);
             frameCache.Preload(loadTransforms: false);
 
             var observationCache = new ObservationCache(this, options.ProjectName);
-            int no = observationCache.Preload(obs => obs.ObservationType == imageType && obs.UseForReconstruction);
+            observationCache.Preload(obs => obs.UseForReconstruction);
 
+            var imageType = ObservationType.Image.ToString();
+            var maskType = ObservationType.RoverMask.ToString();
+            var obsForFrame = new Dictionary<string, List<Observation>>();
+            foreach (var obs in observationCache.GetAllObservations())
+            {
+                if (!obsForFrame.ContainsKey(obs.FrameName))
+                {
+                    obsForFrame[obs.FrameName] = new List<Observation>();
+                }
+                obsForFrame[obs.FrameName].Add(obs);
+            }
+
+            int no = obsForFrame.Values.Count(obsGroup => obsGroup.Any(obs => obs.ObservationType == imageType));
             LogInfo("computing {0} features for {1} reconstruction images", options.DetectorType, no);
 
             FeatureDetector detector = new FeatureDetector(options.DetectorType);
 
             double startSec = UTCTime.Now();
             int nc = 0, ne = 0, nf = 0, np = 0;
-            CoreLimitedParallel.ForEach(observationCache.GetAllObservations(), obs => {
-                    if (obs.FeaturesGuid != null && obs.FeaturesGuid != Guid.Empty)
+            CoreLimitedParallel.ForEach(obsForFrame.Values, obsGroup => { 
+
+                    var observations = obsGroup
+                    .Cast<RoverObservation>()
+                    .ToList();
+                    observations.Sort(MSLProject.RoverObservationComparison);
+                    
+                    var imageObs = observations.Find(obs => obs.ObservationType == imageType);
+                    if (imageObs != null)
                     {
-                        Interlocked.Increment(ref ne);
-                        if (!options.RedoFeatures)
+                        if (imageObs.FeaturesGuid != null && imageObs.FeaturesGuid != Guid.Empty)
                         {
-                            LogVerbose("not recomputing features for observation {0}", obs.Name);
-                            return;
+                            Interlocked.Increment(ref ne);
+                            if (!options.RedoFeatures)
+                            {
+                                LogVerbose("not recomputing features for observation {0}", imageObs.Name);
+                                return;
+                            }
+                            else
+                            {
+                                LogVerbose("recomputing features for observation {0}", imageObs.Name);
+                            }
                         }
                         else
                         {
-                            LogVerbose("recomputing features for observation {0}", obs.Name);
+                            LogVerbose("computing features for observation {0}", imageObs.Name);
                         }
+                        
+                        Interlocked.Increment(ref nf);
+                        Interlocked.Increment(ref np);
+                        
+                        if (!options.NoProgress)
+                        {
+                            LogInfo("computing features for {0} images in parallel, completed {1}/{2}", np, nc, no);
+                        }
+                        
+                        var maskObs =
+                            observations.Find(obs => obs.ObservationType == maskType &&
+                                              obs.Width == imageObs.Width && obs.Height == imageObs.Height);
+                        
+                        var features = detector.Detect(this, imageObs.Url, maskObs != null ? maskObs.Url : null,
+                                                       project.Name, project.ProductPath);
+                        if (features != null)
+                        {
+                            SaveDataProduct(project.ProductPath, features, project.Name);
+                            imageObs.FeaturesGuid = features.Guid;
+                            imageObs.Save(this);
+                        }
+                        
+                        Interlocked.Decrement(ref np);
+                        Interlocked.Increment(ref nc);
                     }
-                    else
-                    {
-                        LogVerbose("computing features for observation {0}", obs.Name);
-                    }
-                    Interlocked.Increment(ref nf);
-                    Interlocked.Increment(ref np);
-
-                    if (!options.NoProgress)
-                    {
-                        LogInfo("computing features for {0} images in parallel, completed {1}/{2}", np, nc, no);
-                    }
-
-                    var maskUrl = observationCache.GetAllObservationsForFrame(frameCache.GetFrame(obs.FrameName))
-                        .Where(o => o.ObservationType == maskType)
-                        .Select(o => o.Url)
-                        .FirstOrDefault();
-
-                    var features = detector.Detect(this, obs.Url, maskUrl, project.Name, project.ProductPath);
-                    if (features != null)
-                    {
-                        SaveDataProduct(project.ProductPath, features, project.Name);
-                        obs.FeaturesGuid = features.Guid;
-                        obs.Save(this);
-                    }
-
-                    Interlocked.Decrement(ref np);
-                    Interlocked.Increment(ref nc);
                 });
             double totalSec = UTCTime.Now() - startSec;
             
