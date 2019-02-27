@@ -43,6 +43,14 @@ namespace OPS.Pipeline
                     {
                         pipeline.DeleteDatabaseItem(rootTransform);
                     }
+                    foreach (var id in rootFrame.PriorIds)
+                    {
+                        var prior = TransformPrior.Find(pipeline, projectName, id);
+                        if (prior != null)
+                        {
+                            pipeline.DeleteDatabaseItem(prior);
+                        }
+                    }
                     pipeline.DeleteDatabaseItem(rootFrame);
                     rootFrame = null;
                     rootTransform = null;
@@ -67,10 +75,18 @@ namespace OPS.Pipeline
 
             rootFrame = Frame.FindOrCreate(pipeline, projectName, rootName);
 
-            var xform = new UncertainRigidTransform
+            var ut = new UncertainRigidTransform
                 (new MathExtensions.GaussianND(CreateVector.Dense<double>(6), CreateMatrix.Dense<double>(6, 6)));
 
-            rootTransform = FrameTransform.FindOrCreate(pipeline, rootFrame, xform);
+            rootTransform = FrameTransform.FindOrCreate(pipeline, rootFrame, ut);
+
+            TransformPrior rootPrior = rootFrame.GetPrior(pipeline);
+            if (rootPrior == null)
+            {
+                rootPrior = TransformPrior.Create(pipeline, rootFrame, ut);
+                rootFrame.AddPrior(rootPrior.Id);
+                rootFrame.Save(pipeline);
+            }
 
             return project;
         }

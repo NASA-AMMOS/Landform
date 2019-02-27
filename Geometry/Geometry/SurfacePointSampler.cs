@@ -1,8 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using Microsoft.Xna.Framework;
 using System.Threading.Tasks;
+using Microsoft.Xna.Framework;
+using OPS.Util;
 
 namespace OPS.Geometry
 {
@@ -118,7 +119,7 @@ namespace OPS.Geometry
             {
                 seeds[i] = random.Next();
             }
-            Parallel.For(0, samples.Length, i => {
+            CoreLimitedParallel.For(0, samples.Length, i => {
                 samples[i] = PickPointOnMesh(tris, runningTriAreas, surfaceArea, seeds[i]);
             });
 

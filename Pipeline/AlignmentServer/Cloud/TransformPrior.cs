@@ -11,23 +11,20 @@ namespace OPS.Pipeline.AlignmentServer
     public class TransformPrior
     {
         [DynamoDBRangeKey]
-        [DynamoDBProperty()]
-        public string ProjectName { get; set; }
+        public string ProjectName;
 
         [DynamoDBHashKey]
-        [DynamoDBProperty]
-        public string Id { get; set; }
+        public string Id;
 
-        [DynamoDBProperty()]
-        public string FrameName { get; set; }
+        public string FrameName;
 
         [DynamoDBProperty("Mean", typeof(VectorNConverter))]
         [JsonConverter(typeof(VectorNConverter))]
-        public Vector<double> Mean { get; set; }
+        public Vector<double> Mean;
 
         [DynamoDBProperty("Covariance", typeof(SquareMatrixConverter))]
         [JsonConverter(typeof(SquareMatrixConverter))]
-        public Matrix<double> Covariance { get; set; }
+        public Matrix<double> Covariance;
 
         [DynamoDBIgnore]
         [JsonIgnore]
@@ -60,14 +57,19 @@ namespace OPS.Pipeline.AlignmentServer
         
         public static TransformPrior Create(PipelineCore pipeline, Frame frame, UncertainRigidTransform transform)
         {
-            TransformPrior ft = new TransformPrior(Guid.NewGuid().ToString(), frame, transform);
-            pipeline.SaveDatabaseItem(ft);
-            return ft;
+            TransformPrior tp = new TransformPrior(Guid.NewGuid().ToString(), frame, transform);
+            pipeline.SaveDatabaseItem(tp);
+            return tp;
         }
 
         public static TransformPrior Find(PipelineCore pipeline, string project, string id)
         {
             return pipeline.LoadDatabaseItem<TransformPrior>(id, project);
+        }
+
+        public static IEnumerable<TransformPrior> Find(PipelineCore pipeline, string projectName)
+        {
+            return pipeline.ScanDatabase<TransformPrior>("ProjectName", projectName);
         }
 
         public void Save(PipelineCore pipeline)

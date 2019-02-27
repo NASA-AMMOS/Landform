@@ -34,18 +34,22 @@ namespace OPS.Pipeline
         public static bool CheckFilename(string filename)
         {
             RoverProductId id = RoverProductId.ParseFromString(filename);
+
             if (id == null)
             {
                 return false;
             }
+
             if (id.Camera == RoverProductCamera.Unknown)
             {
                 return false;
             }
+
             if (id.ProductType == RoverProductType.Unknown)
             {
                 return false;
             }
+
             if (id.Producer == RoverProductProducer.OPGS)
             {
                 OPGSProductId opgsId = (OPGSProductId)id;
@@ -54,6 +58,7 @@ namespace OPS.Pipeline
                     return false;
                 }
             }
+
             if (id.Producer == RoverProductProducer.MSSS)
             {
                 // Check that this is a DCX file
@@ -71,10 +76,11 @@ namespace OPS.Pipeline
             
             //ISSUE #353: need to validate that alignment works across cameras with non-linearized images.
             // so not allowing non-aligned images to be used when other aligned images are being used.
-            if(id.Geometry != RoverProductGeometry.Linearized)
+            if (id.Geometry != RoverProductGeometry.Linearized)
             {
                 return false;
             }
+
             return true;
         }
 
@@ -214,8 +220,8 @@ namespace OPS.Pipeline
             // Parse the filename to quickly rule out data products we know we don't care about.
             if (!CheckFilename(StringHelper.GetLastUrlPathSegment(imgUrl, stripExtension: true)))
             {
-                pipeline.LogVerbose("rejected {0} by filename", imgUrl);
-                return new Result(imgUrl, Status.Skipped, null);
+                pipeline.LogDebug("rejected {0} by filename", imgUrl);
+                return new Result(imgUrl, Status.Skipped);
             }
 
             // Fetch image and check metadata
@@ -223,8 +229,8 @@ namespace OPS.Pipeline
             PDSParser parser = new PDSParser(metadata);
             if (!CheckMetadata(parser))
             {
-                pipeline.LogVerbose("rejected {0} by metadata", imgUrl);
-                return new Result(imgUrl, Status.Skipped, null);
+                pipeline.LogDebug("rejected {0} by metadata", imgUrl);
+                return new Result(imgUrl, Status.Skipped);
             }
 
             string observationName = ObservationName(parser);
@@ -236,8 +242,8 @@ namespace OPS.Pipeline
             }
             catch
             {
-                pipeline.LogVerbose("invalid camera model for {0}", observationName);
-                return new Result(imgUrl, Status.Skipped, null);
+                pipeline.LogDebug("invalid camera model for {0}", observationName);
+                return new Result(imgUrl, Status.Skipped);
             }
 
             // Create database entries
@@ -261,13 +267,13 @@ namespace OPS.Pipeline
             {
                 if (recreateExistingObservations)
                 {
-                    pipeline.LogVerbose("recreating existing observation {0}", observationName);
+                    pipeline.LogDebug("recreating existing observation {0}", observationName);
                     pipeline.DeleteDatabaseItem(observation);
                 }
                 else
                 {
-                    pipeline.LogVerbose("not recreating existing observation {0}", observationName);
-                    return new Result(imgUrl, Status.Duplicate, observation);
+                    pipeline.LogDebug("not recreating existing observation {0}", observationName);
+                    return new Result(imgUrl, Status.Duplicate, observation, observationFrame);
                 }
             }
 
@@ -281,13 +287,16 @@ namespace OPS.Pipeline
                                                   metadata.Width, metadata.Height);
             if (observation != null)
             {
-                pipeline.LogVerbose("created observation {0}", observationName);
-                return new Result(imgUrl, Status.Added, observation);
+                //don't add observation to frame.ObservationNames here
+                //we ingest multiple images in parallel, possibly for the same frame
+                //so that would be a read-modify-write hazard
+                pipeline.LogDebug("created observation {0}", observationName);
+                return new Result(imgUrl, Status.Added, observation, observationFrame);
             }
             else
             {
-                pipeline.LogVerbose("failed to create observation {0}", observationName);
-                return new Result(imgUrl, Status.Failed, null);
+                pipeline.LogDebug("failed to create observation {0}", observationName);
+                return new Result(imgUrl, Status.Failed, null, observationFrame);
             }
         }
 
@@ -327,16 +336,21 @@ namespace OPS.Pipeline
             var frameTransform = FrameTransform.Find(pipeline, frame);
             if (frameTransform == null)
             {
-                pipeline.LogVerbose("creating transform for frame {0}", name);
+                pipeline.LogDebug("creating transform for frame {0}", name);
                 var transform = defTransform();
                 frameTransform = FrameTransform.Create(pipeline, frame, transform);
+                //TODO it's possible that orphan TransformPriors can get created here
+                //because we ingest multiple images in parallel, possibly for the same frame
+                //and each TransformPrior has a unique random GUID
+                //leaving for now as TransformPrior should be going away soon
+                //https://github.jpl.nasa.gov/OnSight/Landform/issues/405
                 var prior = TransformPrior.Create(pipeline, frame, transform);
-                frame.PriorIds.Add(prior.Id);
+                frame.AddPrior(prior.Id);
                 frame.Save(pipeline);
             }
             else if (resetTransforms && !alreadyResetTransforms.ContainsKey(name))
             {
-                pipeline.LogVerbose("resetting transform for frame {0}", name);
+                pipeline.LogDebug("resetting transform for frame {0}", name);
                 var transform = defTransform();
                 frameTransform.Transform = transform;
                 frameTransform.Save(pipeline);

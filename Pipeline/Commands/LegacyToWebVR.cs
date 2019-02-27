@@ -81,7 +81,7 @@ namespace OPS.Pipeline
             var mat = Matrix.CreateLookAt(new Vector3(0, 100, 0), new Vector3(0, 0, 0), new Vector3(0,0,1));
             Image img = new Image(3, imageRes, imageRes);
             var cam = new OrthographicCameraModel(mat, new Vector2(img.Width, img.Height), extent);
-            Parallel.For(0, img.Height, r => {
+            CoreLimitedParallel.For(0, img.Height, r => {
                 for (int c = 0; c < img.Width; c++)
                 {
                     Ray ray = cam.Unproject(new Vector2(c, r));
@@ -100,7 +100,7 @@ namespace OPS.Pipeline
             img = new Image(1, demRes, demRes);
             cam = new OrthographicCameraModel(mat, new Vector2(img.Width, img.Height), 40);
             float maxDist = 0;
-            Parallel.For(0, img.Height, r =>
+            CoreLimitedParallel.For(0, img.Height, r =>
             {
                 for (int c = 0; c < img.Width; c++)
                 {
@@ -114,7 +114,7 @@ namespace OPS.Pipeline
                     }
                 }
             });
-            Parallel.For(0, img.Height, r =>
+            CoreLimitedParallel.For(0, img.Height, r =>
             {
                 for (int c = 0; c < img.Width; c++)
                 {
@@ -198,7 +198,7 @@ namespace OPS.Pipeline
             logger.Info("Loading legacy scene");
             LegacyScene scene = new LegacyScene(options.InputDirectory, options.InputExtent);
             logger.Info("Removing skirts");
-            Parallel.ForEach(scene.TerrainRoot.Leaves(), node =>
+            CoreLimitedParallel.ForEach(scene.TerrainRoot.Leaves(), node =>
             {
                 var pair = node.GetComponent<MeshImagePair>();
                 if (pair != null && pair.Mesh != null)
@@ -309,7 +309,7 @@ namespace OPS.Pipeline
             IEnumerable<SceneNode> nodesToProcess = options.InnerMostTilesOnly ? innerNodes : root.Leaves();
                         
 
-            Parallel.ForEach(nodesToProcess, leaf =>
+            CoreLimitedParallel.ForEach(nodesToProcess, leaf =>
             {
                 if (File.Exists(Path.Combine(options.OutputDirectory, leaf.Name) + ".obj"))
                 {

@@ -33,12 +33,12 @@ namespace OPS.Pipeline.TileServer
         
         public void Process()
         {
-            LogInfo("started building parent " + message.TileId);
+            pipeline.LogInfo("started building parent " + message.TileId);
             var project = TilingProject.Find(pipeline, projectName);
             TilingNode parent = TilingNode.Find(pipeline, projectName, message.TileId);
             if (parent.MeshUrl != null)
             {
-                LogInfo("parent " + parent.Id + " already complete, skipping");
+                pipeline.LogInfo("parent " + parent.Id + " already complete, skipping");
                 pipeline.MasterQueue.Enqueue(new TileCompletedMessage(projectName) { TileId = parent.Id });
                 return;
             }
@@ -58,19 +58,19 @@ namespace OPS.Pipeline.TileServer
             {
                 if (!idToNode.ContainsKey(childId))
                 {
-                    LogError(parent.Id + "missing input data");
+                    pipeline.LogError(parent.Id + "missing input data");
                     return;
                 }                
                 idToNode[childId].Transform.SetParent(parentSceneNode.Transform);
             }
-            LogInfo("generating parent " + message.TileId + " from " + parent.DependsOn.Count + " tiles");
+            pipeline.LogInfo("generating parent {0} from {1} tiles", message.TileId, parent.DependsOn.Count);
             parentSceneNode.BuildGeometryFromChildren(parentSceneNode, project.GetReconMethod(), project.FacesPerTile,
                                                       project.TileResolution, project.GetSkirtMode());
             var pair = parentSceneNode.GetComponent<MeshImagePair>();
             parent.SaveMesh(pair, pipeline, parentSceneNode.GetComponent<NodeGeometricError>().Error,
                             project.ExportMeshFormat, project.ExportImageFormat, project.GetSkirtMode());
             pipeline.MasterQueue.Enqueue(new TileCompletedMessage(projectName) { TileId = parent.Id });
-            LogInfo("completed building parent " + message.TileId);
+            pipeline.LogInfo("completed building parent " + message.TileId);
         }
     }
 }

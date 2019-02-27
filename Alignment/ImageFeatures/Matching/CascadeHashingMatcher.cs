@@ -79,7 +79,7 @@ namespace OPS.Alignment
         private DescriptorHashes[] ComputeHashes(ImageFeature[] features, Vector<float> featureMean)
         {
             DescriptorHashes[] res = new DescriptorHashes[features.Length];
-            Parallel.For(0, features.Length, i =>
+            CoreLimitedParallel.For(0, features.Length, i =>
             {
                 var mc = GetMeanCentered(features[i], featureMean);
                 var primary = primaryHash.Project(mc);
@@ -97,18 +97,28 @@ namespace OPS.Alignment
             return res;
         }
 
-        public ImagePairCorrespondence Match(AlignmentScene scene, URLPair pair)
+        public ImagePairCorrespondence Match(AlignmentScene scene, string modelUrl, string dataUrl)
         {
-            var modelUrl = pair.One;
-            var dataUrl = pair.Two;
-            var modelFeat = scene.DetectedFeatures[modelUrl]; 
-            var dataFeat = scene.DetectedFeatures[dataUrl];
+            var modelFeatures = scene.DetectedFeatures[modelUrl]; 
+            var dataFeatures = scene.DetectedFeatures[dataUrl];
+            return Match(modelFeatures, dataFeatures, modelUrl, dataUrl);
+        }
 
-            var meanDescriptor = FeatureMean(modelFeat, dataFeat);
+        public ImagePairCorrespondence Match(ImageFeature[] modelFeatures, ImageFeature[] dataFeatures,
+                                             string modelUrl, string dataUrl)
+        {
+            return new ImagePairCorrespondence(modelUrl, dataUrl, Match(modelFeatures, dataFeatures));
+        }
+
+        public IEnumerable<KeyValuePair<int, int>> Match(ImageFeature[] modelFeatures, ImageFeature[] dataFeatures)
+        {
+            if (modelFeatures.Length < 1 || dataFeatures.Length < 1) yield break;
+
+            var meanDescriptor = FeatureMean(modelFeatures, dataFeatures);
 
             // Compute hashes
-            DescriptorHashes[] modelHashes = ComputeHashes(modelFeat, meanDescriptor);
-            DescriptorHashes[] dataHashes = ComputeHashes(dataFeat, meanDescriptor);
+            DescriptorHashes[] modelHashes = ComputeHashes(modelFeatures, meanDescriptor);
+            DescriptorHashes[] dataHashes = ComputeHashes(dataFeatures, meanDescriptor);
 
             // Put model features in buckets
             Dictionary<HashCode, List<int>>[] buckets = new Dictionary<HashCode, List<int>>[BucketCount];
@@ -117,7 +127,7 @@ namespace OPS.Alignment
                 buckets[i] = new Dictionary<HashCode, List<int>>();
             }
 
-            for (int i = 0; i < modelFeat.Length; i++)
+            for (int i = 0; i < modelHashes.Length; i++)
             {
                 var dh = modelHashes[i];
                 for (int j = 0; j < BucketCount; j++)
@@ -132,8 +142,8 @@ namespace OPS.Alignment
                 }
             }
 
-            int[] d2m = new int[dataFeat.Length];
-            Parallel.For(0, dataFeat.Length, i =>
+            int[] d2m = new int[dataHashes.Length];
+            CoreLimitedParallel.For(0, dataHashes.Length, i =>
             {
                 d2m[i] = -1;
 
@@ -162,7 +172,9 @@ namespace OPS.Alignment
                 KNNMatcher<HashCode>.Node[] knnHamming;
                 {
                     KNNMatcher<HashCode> matcher = new KNNMatcher<HashCode>((c0, c1) => c0.HammingDistance(c1));
-                    knnHamming = matcher.Find(dh.PrimaryHash, candidateIndices.Select(idx => modelHashes[idx].PrimaryHash).ToArray(), MaximumKnnCandidates).ToArray();
+                    knnHamming = matcher.Find(dh.PrimaryHash,
+                                              candidateIndices.Select(idx => modelHashes[idx].PrimaryHash).ToArray(),
+                                              MaximumKnnCandidates).ToArray();
                 }
                 if (knnHamming.Length < MinimumKnnCandidates)
                 {
@@ -184,7 +196,9 @@ namespace OPS.Alignment
                         }
                         return res;
                     });
-                    nearest = matcher.Find(dataFeat[i], knnHamming.Select(n => modelFeat[candidateIndices[n.Index]]).ToArray(), 2).ToArray();
+                    nearest = matcher.Find(dataFeatures[i],
+                                           knnHamming.Select(n => modelFeatures[candidateIndices[n.Index]]).ToArray(),
+                                           2).ToArray();
                 }
                 if (nearest.Length < 2)
                 {
@@ -201,26 +215,13 @@ namespace OPS.Alignment
                 }
             });
 
-            // Convert flat array to list of feature pairs
-            List<KeyValuePair<int, int>> goodD2m = new List<KeyValuePair<int, int>>();
             for (int i = 0; i < d2m.Length; i++)
             {
-                if (d2m[i] < 0)
+                if (d2m[i] >= 0)
                 {
-                    continue;
+                    yield return new KeyValuePair<int, int>(i, d2m[i]);
                 }
-                goodD2m.Add(new KeyValuePair<int, int>(i, d2m[i]));
             }
-
-            return new ImagePairCorrespondence(modelUrl, dataUrl, goodD2m);
-        }
-
-        /// <summary>
-        /// Compute the mean descriptor value between both images in a pair.
-        /// </summary>
-        private Vector<float> FeatureMean(AlignmentScene scene, URLPair pair)
-        {
-            return FeatureMean(scene.DetectedFeatures[pair.One], scene.DetectedFeatures[pair.Two]);
         }
 
         private void AccumulateFeatures(ImageFeature[] features, ref int count, Vector<float> res)

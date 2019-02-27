@@ -1,15 +1,17 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections;
+using System.Collections.Generic;
 using System.Linq;
-using OPS.Imaging.Emgu;
 using System.Diagnostics;
 using System.IO;
+using System.Threading.Tasks;
+using log4net;
 using Emgu.CV.Structure;
 using MathNet.Numerics.LinearAlgebra;
 using MathNet.Numerics.LinearAlgebra.Factorization;
 using MathNet.Numerics.Statistics;
-using System.Threading.Tasks;
-using System;
-using log4net;
+using OPS.Util;
+using OPS.Imaging.Emgu;
 
 namespace OPS.Alignment
 {
@@ -98,7 +100,7 @@ namespace OPS.Alignment
             string[] imageFiles = Directory.GetFiles(path, "*.png");
             object obj = new object();
             List<float[]> gradients = new List<float[]>();
-            Parallel.For(0, imageFiles.Count(), i =>
+            CoreLimitedParallel.For(0, imageFiles.Count(), i =>
                 {
                     float[][] grads = CalculateGradients(imageFiles[i]);
                     lock (obj)
@@ -138,7 +140,7 @@ namespace OPS.Alignment
 
             Vector<float> vec;
 
-            Parallel.For(0, data.ColumnCount, i =>
+            CoreLimitedParallel.For(0, data.ColumnCount, i =>
             {
                 vec = data.Column(i);
                 B[i] = (vec.Subtract((float)vec.Mean()));
@@ -148,7 +150,7 @@ namespace OPS.Alignment
 
             float coeff = 1f / (data.RowCount - 1);
 
-            Parallel.For(0, data.ColumnCount, i =>
+            CoreLimitedParallel.For(0, data.ColumnCount, i =>
             {
                 float resultNum;
                 Vector<float> vecA, vecB;

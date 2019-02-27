@@ -15,15 +15,16 @@ namespace OPS.Alignment
     {
         public SceneNode Root;
 
-        public Dictionary<string, SceneNode> ImageToNode; //indexed by image URL
-        public Dictionary<string, ImageFeature[]> DetectedFeatures; //indexed by image URL
+        //these are all indexed by observation URL
+        public Dictionary<string, SceneNode> ObservationUrlToNode;
+        public Dictionary<string, ImageFeature[]> DetectedFeatures;
         public Dictionary<URLPair, ImagePairCorrespondence> Correspondences;
         public HashSet<URLPair> Overlaps;
 
         public AlignmentScene()
         {
             Root = new SceneNode();
-            ImageToNode = new Dictionary<string, SceneNode>();
+            ObservationUrlToNode = new Dictionary<string, SceneNode>();
             DetectedFeatures = new Dictionary<string, ImageFeature[]>();
             Correspondences = new Dictionary<URLPair, ImagePairCorrespondence>();
             Overlaps = new HashSet<URLPair>();

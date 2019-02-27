@@ -30,13 +30,15 @@ namespace OPS.Pipeline
         private readonly StorageHelper defaultStorage;
         private readonly Dictionary<string, StorageHelper> storageSelect = new Dictionary<string, StorageHelper>();
 
-        public CloudPipeline(PipelineCoreOptions options, ILog logger = null, int lruCache = 100, bool quiet = false,
+        public CloudPipeline(PipelineCoreOptions options, ILog logger = null, int lruCache = 100,
+                             bool quietInit = false,
                              bool enableS3 = true, bool enableDynamo = true,
                              bool initQueues = true, bool initTables = true,
-                             string queuePrefix = null, string tablePrefix = null)
+                             string queuePrefix = null, string tablePrefix = null, int? maxCores = null)
             : base(options, CloudPipelineConfig.Instance,
                    StringHelper.NormalizeUrl(CloudPipelineConfig.Instance.S3Url, "s3://"),
-                   CloudPipelineConfig.Instance.Venue, logger, lruCache, quiet)
+                   CloudPipelineConfig.Instance.Venue, logger, lruCache, quietInit,
+                   maxCores ?? CloudPipelineConfig.Instance.MaxCores)
         {
             var cloudConfig = (CloudPipelineConfig)Config;
 
@@ -80,14 +82,14 @@ namespace OPS.Pipeline
                 dynamoClient = DBUtil.GetClientForContext(dynamoContext);
                 if (initTables)
                 {
-                    InitializeDatabase();
+                    InitializeDatabase(quiet || quietInit);
                 }
             }
 
             if (initQueues)
             {
                 this.queuePrefix = makePrefix(queuePrefix);
-                InitializeQueues();
+                InitializeQueues(quiet || quietInit);
             }
 
             //TODO MSL specific
@@ -125,6 +127,32 @@ namespace OPS.Pipeline
             return defaultStorage;
         }
 
+        private void DownloadFile(string url, string file)
+        {
+            try
+            {
+                GetStorageHelper(url).DownloadFile(url, file);
+            }
+            catch (Exception ex)
+            {
+                LogError("error downloading file {0}: {1}", url, ex.Message);
+                throw;
+            }
+        }
+
+        private void UploadFile(string file, string url)
+        {
+            try
+            {
+                GetStorageHelper(url).UploadFile(file, url);
+            }
+            catch (Exception ex)
+            {
+                LogError("error uploading file {0}: {1}", url, ex.Message);
+                throw;
+            }
+        }
+
         protected string CheckUrl(string url, bool constrainToStorage = true, bool preserveTrailingSlash = false)
         {
             url = StringHelper.NormalizeUrl(url, "s3://", preserveTrailingSlash);
@@ -148,10 +176,10 @@ namespace OPS.Pipeline
         public override void GetFile(string url, Action<string> func, bool constrainToStorage = false)
         {
             url = CheckUrl(url, constrainToStorage);
-            TemporaryFile.GetAndDelete(Path.GetExtension(url), f =>
+            TemporaryFile.GetAndDelete(Path.GetExtension(url), tmpFile =>
                     {
-                        GetStorageHelper(url).DownloadFile(url, f);
-                        func(f);
+                        DownloadFile(url, tmpFile);
+                        func(tmpFile);
                     });
         }
 
@@ -168,7 +196,7 @@ namespace OPS.Pipeline
             string cachedFile = DownloadCachePath(cacheFolder, filename);
             if (!File.Exists(cachedFile))
             {
-                TemporaryFile.GetAndMove(cachedFile, tmpFile => GetStorageHelper(url).DownloadFile(url, tmpFile));
+                TemporaryFile.GetAndMove(cachedFile, tmpFile => DownloadFile(url, tmpFile));
             }
 
             return cachedFile;
@@ -176,8 +204,7 @@ namespace OPS.Pipeline
 
         public override void SaveFile(string file, string url)
         {
-            url = CheckUrl(url);
-            GetStorageHelper(url).UploadFile(file, url);
+            UploadFile(file, CheckUrl(url));
         }
 
         public override void DeleteFile(string url, bool ignoreErrors = true)
@@ -200,7 +227,7 @@ namespace OPS.Pipeline
             return GetStorageHelper(url).SearchObjects(url, globPattern, recursive);
         }
 
-        private void InitializeDatabase()
+        private void InitializeDatabase(bool quiet = false)
         {
             int n = 0;
             foreach (var t in tableTypes)
@@ -212,23 +239,28 @@ namespace OPS.Pipeline
             {
                 DBUtil.WaitForTable(dynamoClient, t, tablePrefix, logger: quiet ? null : Logger);
             }
-            LogInfo("{0} tables initialized", n);
+            if (!quiet)
+            {
+                LogInfo("{0} tables initialized", n);
+            }
         }
 
-        public override void SaveDatabaseItem<T>(T obj, bool ignoreNulls = true, bool ignoreErrors = false )
+        public override void SaveDatabaseItem<T>(T obj, bool ignoreNulls = true, bool ignoreErrors = false,
+                                                 bool quiet = false)
         {
-            DBUtil.SaveItem(dynamoContext, obj, ignoreNulls, ignoreErrors, Logger);
+            DBUtil.SaveItem(dynamoContext, obj, ignoreNulls, ignoreErrors, quiet ? null : Logger);
         }
 
         public override T LoadDatabaseItem<T>(string key, string secondaryKey = null, bool ignoreNulls = true,
-                                              bool ignoreErrors = false, bool consistent = false)
+                                              bool ignoreErrors = false, bool quiet = false, bool consistent = false)
         {
-            return DBUtil.LoadItem<T>(dynamoContext, key, secondaryKey, ignoreNulls, ignoreErrors, consistent, Logger);
+            return DBUtil.LoadItem<T>(dynamoContext, key, secondaryKey, ignoreNulls, ignoreErrors, consistent,
+                                      quiet ? null : Logger);
         }
 
-        public override void DeleteDatabaseItem<T>(T obj, bool ignoreErrors = false)
+        public override void DeleteDatabaseItem<T>(T obj, bool ignoreErrors = false, bool quiet = false)
         {
-            DBUtil.DeleteItem(dynamoContext, obj, ignoreErrors, Logger);
+            DBUtil.DeleteItem(dynamoContext, obj, ignoreErrors, quiet ? null : Logger);
         }
 
         private ScanOperator ParseScanValue(ref string value)
@@ -242,7 +274,7 @@ namespace OPS.Pipeline
         }
 
         public override IEnumerable<T> ScanDatabase<T>(Dictionary<string, string> conditions = null,
-                                                       string indexName = null)
+                                                       string indexName = null, bool quiet = false)
         {
             if (conditions != null)
             {
@@ -279,13 +311,16 @@ namespace OPS.Pipeline
         public MessageQueue WorkerQueue { get; private set; }
         public MessageQueue MasterQueue { get; private set; }
 
-        private void InitializeQueues()
+        private void InitializeQueues(bool quiet = false)
         {
             MasterQueue = new MessageQueue(queuePrefix + "master", awsProfile, MASTER_QUEUE_TIMEOUT_SEC,
                                            logger: Logger, quiet: quiet);
             WorkerQueue = new MessageQueue(queuePrefix + "worker", awsProfile, WORKER_QUEUE_TIMEOUT_SEC,
                                            logger: Logger, quiet: quiet);
-            LogInfo("queues initialized");
+            if (!quiet)
+            {
+                LogInfo("queues initialized");
+            }
         }
 
         public void DeleteQueues()

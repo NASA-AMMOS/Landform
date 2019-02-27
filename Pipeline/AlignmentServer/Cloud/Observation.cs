@@ -20,33 +20,31 @@ namespace OPS.Pipeline.AlignmentServer
     public class Observation
     {
         [DynamoDBRangeKey]
-        public string ProjectName { get; set; }
+        public string ProjectName;
 
         [DynamoDBHashKey]
-        public string Name { get; set; }
+        public string Name;
 
-        public string Url { get; set; }
+        public string Url;
 
-        public Guid FeaturesGuid { get; set; }
+        public Guid FeaturesGuid;
 
-        public Guid MaskGuid { get; set; }
+        public Guid MaskGuid;
 
-        public string FeatureUrl { get; set; }
+        public string FrameName;
 
-        public string FrameName { get; set; }
+        public string ObservationType;
 
-        public string ObservationType { get; set; }
+        public string CameraModel;
 
-        public string CameraModel { get; set; }
-
-        public bool UseForReconstruction { get; set; }
+        public bool UseForReconstruction;
 
         public int Width;
 
         public int Height;
 
         /// Add required fields here 
-        private void IsValid()
+        protected void IsValid()
         {
             if (!(Url != null &&
                 FrameName != null &&
@@ -107,7 +105,7 @@ namespace OPS.Pipeline.AlignmentServer
         /// Save this observation without overwriting any values it may be missing
         /// </summary>
         /// <param name=""></param>
-        public void Save(PipelineCore pipeline)
+        public virtual void Save(PipelineCore pipeline)
         {
             pipeline.SaveDatabaseItem(this);
         }
@@ -131,7 +129,13 @@ namespace OPS.Pipeline.AlignmentServer
 
         public static IEnumerable<Observation> Find(PipelineCore pipeline, Frame frame)
         {
-            return pipeline.ScanDatabase<Observation>("ProjectName", frame.ProjectName, "FrameName", frame.Name);
+            //we could do a scan here, but it's better to avoid it
+            //because it will by definition iterate over every single Observation in the database
+            //return pipeline.ScanDatabase<Observation>("ProjectName", frame.ProjectName, "FrameName", frame.Name);
+            foreach (var obsName in frame.ObservationNames)
+            {
+                yield return Find(pipeline, frame.ProjectName, obsName);
+            }
         }
 
         public static IEnumerable<Observation> FindByType(PipelineCore pipeline, string projectName, string observationType)

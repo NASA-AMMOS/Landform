@@ -53,18 +53,18 @@ namespace OPS.Pipeline.MeshWorker
 
         public int Process()
         {
-            LogInfo("started");
+            pipeline.LogInfo("started");
 
             //cache data needed to build pointcloud
             FrameCache frameCache = new FrameCache(pipeline, projectName);
-            RoverObservationCache obsCache = new RoverObservationCache(pipeline, projectName);
-            obsCache.FillCache(onlyReconstructionObs: true);
+            ObservationCache obsCache = new ObservationCache(pipeline, projectName);
+            obsCache.Preload(obs => obs.UseForReconstruction);
 
             //find the best observations to use for each point cloud
-            List<PointCloudObservations> pointCloudObservations = CollectPointCloudInputs(obsCache);
+            List<PointCloudObservations> pointCloudObservations = CollectPointCloudInputs(obsCache, frameCache);
             if (pointCloudObservations.Count == 0)
             {
-                LogError("no observations were found to build a point cloud");
+                pipeline.LogError("no observations were found to build a point cloud");
                 return 1;
             }
             
@@ -72,15 +72,15 @@ namespace OPS.Pipeline.MeshWorker
             Mesh aggregatePointCloud = new Mesh(hasNormals: true);
             for (int idx = 0; idx < pointCloudObservations.Count; idx++)
             {
-                LogInfo("building point cloud {0}/{1} ({2})%): {3}",
-                        idx+1, pointCloudObservations.Count,
-                        (int)(100 * idx / (float)pointCloudObservations.Count),
-                        pointCloudObservations[idx].PointsObs.FrameName);
+                pipeline.LogInfo("building point cloud {0}/{1} ({2})%): {3}",
+                                 idx+1, pointCloudObservations.Count,
+                                 (int)(100 * idx / (float)pointCloudObservations.Count),
+                                 pointCloudObservations[idx].PointsObs.FrameName);
 
                 PointCloudInput? pcImgs = GetPointCloudInput(pointCloudObservations[idx]);
                 if( pcImgs == null)
                 {
-                    LogWarn("Failed to get pointcloud input for " + pointCloudObservations[idx].PointsObs.FrameName);
+                    pipeline.LogWarn("Failed to get pointcloud input for " + pointCloudObservations[idx].PointsObs.FrameName);
                     continue;
                 }
 
@@ -94,11 +94,11 @@ namespace OPS.Pipeline.MeshWorker
             // build the large mesh from the aggregate point cloud using poisson reconstruction
             if (aggregatePointCloud.Vertices.Count == 0)
             {
-                LogError("aggregate point cloud contains no points");
+                pipeline.LogError("aggregate point cloud contains no points");
                 return 1;
             }
           
-            LogInfo("reconstructing point cloud: " + aggregatePointCloud.Vertices.Count() + " vertices");
+            pipeline.LogInfo("reconstructing point cloud: " + aggregatePointCloud.Vertices.Count() + " vertices");
             PoissonReconstruction.Options opts = new PoissonReconstruction.Options
             {
                 Boundary = PoissonReconstruction.BoundaryTypes.Dirichlet,   // suppresses the large wings often seen when extrapolating without orbital data 
@@ -111,7 +111,7 @@ namespace OPS.Pipeline.MeshWorker
             Mesh surfacedMesh = PoissonReconstruction.Reconstruct(aggregatePointCloud, opts);            
             if (surfacedMesh == null || surfacedMesh.Vertices.Count == 0)
             {
-                LogError("point cloud failed to reconstruct");
+                pipeline.LogError("point cloud failed to reconstruct");
                 return 1;
             }
 
@@ -120,7 +120,7 @@ namespace OPS.Pipeline.MeshWorker
             string meshOutputUrl = pipeline.GetStorageUrl("input", projectName, meshName + ".ply");
             TemporaryFile.GetAndDelete(".ply", tempFile =>
             {
-                LogInfo("uploading mesh " + meshOutputUrl);
+                pipeline.LogInfo("uploading mesh " + meshOutputUrl);
                 surfacedMesh.Save(tempFile);
                 pipeline.SaveFile(tempFile, meshOutputUrl);
             });
@@ -132,7 +132,7 @@ namespace OPS.Pipeline.MeshWorker
             //indicate successs to the tiling server master
             pipeline.MasterQueue.Enqueue(new BuildTilingInputMessage(projectName));
 
-            LogInfo("complete");
+            pipeline.LogInfo("complete");
 
             return 0;
         }
@@ -158,7 +158,7 @@ namespace OPS.Pipeline.MeshWorker
 
             if(pct.Points.GeneratedImage == null)
             {
-                LogWarn("failed to generate XYR data");
+                pipeline.LogWarn("failed to generate XYR data");
                 return null;
             }
 
@@ -177,7 +177,7 @@ namespace OPS.Pipeline.MeshWorker
             if ((pct.Points.GeneratedImage.Width != pct.Normals.GeneratedImage.Width) ||
                 (pct.Points.GeneratedImage.Height != pct.Normals.GeneratedImage.Height))
             {
-                LogWarn("mismatched resolutions across points and normals");
+                pipeline.LogWarn("mismatched resolutions across points and normals");
                 return null;
             }
 
@@ -302,14 +302,14 @@ namespace OPS.Pipeline.MeshWorker
             {
                 if (rangePDR.CameraModelRefFrame != PDSParser.ReferenceCoordinateFrame.RoverNav)
                 {
-                    LogWarn("non-rover frame camera model not supported yet");
+                    pipeline.LogWarn("non-rover frame camera model not supported yet");
                     return null;
                 }
 
                 CAHV cahv = img.CameraModel as CAHV;
                 if (cahv == null)
                 {
-                    LogWarn("only cahv, cahvor, cahvore camera models handled currently");
+                    pipeline.LogWarn("only cahv, cahvor, cahvore camera models handled currently");
                     return null;
                 }
 
@@ -319,7 +319,7 @@ namespace OPS.Pipeline.MeshWorker
                 //verify we can use the camera model's position as the origin for the range data
                 if (!Vector3.AlmostEqual(cameraPosRover, cahv.C, 0.0005))
                 {
-                    LogWarn("only expecting range maps from the camera's location");
+                    pipeline.LogWarn("only expecting range maps from the camera's location");
                     return null;
                 }
             }
@@ -364,7 +364,7 @@ namespace OPS.Pipeline.MeshWorker
         /// uses the magnitude of the normal to indicate confidence
         /// </summary>
         /// <returns>a point cloud mesh (position and normals) in the root frame of the alignment</returns>
-        private Mesh BuildPointCloudMesh(PointCloudInput pcInput, FrameCache frameCache, RoverObservationCache obsCache)
+        private Mesh BuildPointCloudMesh(PointCloudInput pcInput, FrameCache frameCache, ObservationCache obsCache)
         {
             Mesh ptsRoverFrame = new Mesh(hasNormals: true);
             int imgWidth = pcInput.Points.PDSImage.Metadata.Width;
@@ -393,7 +393,7 @@ namespace OPS.Pipeline.MeshWorker
 
             if (ptsRoverFrame.Vertices.Count == 0)
             {
-                LogWarn("point cloud contributed no data " + pcInput.Points.Obs.FrameName);
+                pipeline.LogWarn("point cloud contributed no data " + pcInput.Points.Obs.FrameName);
                 return null;
             }
 
@@ -406,16 +406,20 @@ namespace OPS.Pipeline.MeshWorker
         ///     and groups them into a struct by frame
         /// </summary>
         /// <returns></returns>
-        private static List<PointCloudObservations> CollectPointCloudInputs(RoverObservationCache obsCache)
+        private static List<PointCloudObservations> CollectPointCloudInputs(ObservationCache obsCache,
+                                                                            FrameCache frameCache)
         {
             // collect data to build point clouds
             List<PointCloudObservations> pointCloudInputs = new List<PointCloudObservations>();
             string obsTypePoints = ObservationType.Points.ToString();
             string obsTypeNormals = ObservationType.Normals.ToString();
             string obsTypeRoverMask = ObservationType.RoverMask.ToString();
-            foreach (string frameName in obsCache.GetFrameNamesWithObservations())
+            foreach (string frameName in obsCache.GetAllFramesWithObservations())
             {
-                List<RoverObservation> obsForFrame = obsCache.GetObsByFrame(frameName);
+                List<RoverObservation> obsForFrame =
+                    obsCache.GetAllObservationsForFrame(frameCache.GetFrame(frameName))
+                    .Cast<RoverObservation>()
+                    .ToList();
                 obsForFrame.Sort(MSLProject.RoverObservationComparison);
 
                 PointCloudObservations pcInput;

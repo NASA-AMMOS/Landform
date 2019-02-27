@@ -178,7 +178,6 @@
     <Compile Include="AlignmentServer\Cloud\OverlapCache.cs" />
     <Compile Include="AlignmentServer\Cloud\Project.cs" />
     <Compile Include="AlignmentServer\Cloud\RoverObservation.cs" />
-    <Compile Include="AlignmentServer\Cloud\RoverObservationCache.cs" />
     <Compile Include="AlignmentServer\Cloud\SpatialIndex.cs" />
     <Compile Include="AlignmentServer\Cloud\SquareMatrixConverter.cs" />
     <Compile Include="AlignmentServer\Cloud\TransformPrior.cs" />
@@ -188,13 +187,14 @@
     <Compile Include="AlignmentServer\Operations\DetectFeatures.cs" />
     <Compile Include="AlignmentServer\Operations\MatchImages.cs" />
     <Compile Include="Alignment\BuildSceneGraph.cs" />
-    <Compile Include="Alignment\DetectOverlaps.cs" />
+    <Compile Include="Alignment\BundleAdjusting.cs" />
     <Compile Include="Alignment\FeatureDetector.cs" />
-    <Compile Include="Alignment\FrustumOverlapDetector.cs" />
+    <Compile Include="Alignment\ImageMatching.cs" />
     <Compile Include="Alignment\IngestAlignmentInputs.cs" />
     <Compile Include="Alignment\IngestImage.cs" />
     <Compile Include="Alignment\IngestPDSImage.cs" />
     <Compile Include="Alignment\InitializeAlignmentProject.cs" />
+    <Compile Include="Alignment\NodeFrame.cs" />
     <Compile Include="Alignment\NodeObservation.cs" />
     <Compile Include="CloudPipeline.cs" />
     <Compile Include="CloudPipelineConfig.cs" />
@@ -203,9 +203,11 @@
     <Compile Include="Commands\ConfigureCloud.cs" />
     <Compile Include="Commands\ConfigureLocal.cs" />
     <Compile Include="Commands\LegacyToTile3D.cs" />
+    <Compile Include="Commands\LocalBundleAdjust.cs" />
     <Compile Include="Commands\LocalFeatures.cs" />
     <Compile Include="Commands\LocalIngest.cs" />
     <Compile Include="Commands\LocalMasks.cs" />
+    <Compile Include="Commands\LocalMatching.cs" />
     <Compile Include="Commands\TileLocalMesh.cs" />
     <Compile Include="DataProducts\DataProduct.cs" />
     <Compile Include="DataProducts\JsonDataProduct.cs" />

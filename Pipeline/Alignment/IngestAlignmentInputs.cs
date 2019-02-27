@@ -81,61 +81,101 @@ namespace OPS.Pipeline
         public int Ingest(MSLLocations locations, Action<IngestImage.Result> func = null)
         {
             ingester.Locations = locations;
-            int n = 0;
+            string imageObs = ObservationType.Image.ToString();
+            double startTime = UTCTime.Now();
+            int ni = 0, na = 0, nf = 0, ns = 0, nr = 0;
             ConcurrentDictionary<SiteDrive, ConcurrentDictionary<string, int>> stats =
                 new ConcurrentDictionary<SiteDrive, ConcurrentDictionary<string, int>>();
+            ConcurrentDictionary<string, Tuple<Frame, ConcurrentBag<string>>> obsForFrame =
+                new ConcurrentDictionary<string, Tuple<Frame, ConcurrentBag<string>>>();
             foreach (var entry in BaseUrls)
             {
                 pipeline.LogInfo("{0}ingesting input files from {1} for alignment project {2}",
                                  entry.Recursive ? "recursively " : "", entry.Url, project.Name);
-        
-                Parallel.ForEach(pipeline.SearchFiles(entry.Url, "*.IMG", recursive: entry.Recursive), url => {
 
+                var images = pipeline.SearchFiles(entry.Url, "*.IMG", recursive: entry.Recursive);
+                CoreLimitedParallel.ForEach(images, url => {
+
+                        Interlocked.Increment(ref ni);
                         var res = ingester.Ingest(url);
 
-                        //duplicates are OK here to handle the case where ingestion is being re-run on an existing proj
-                        if (res.Status == IngestImage.Status.Added || res.Status == IngestImage.Status.Duplicate)
+                        if (res.Status == IngestImage.Status.Skipped)
                         {
-                            Interlocked.Increment(ref n);
+                            Interlocked.Increment(ref ns);
+                            pipeline.LogVerbose("{0} ({1})", res.ImageUrl, res.Status);
+                        }
+                        else if (res.Status == IngestImage.Status.Failed)
+                        {
+                            Interlocked.Increment(ref nf);
+                            pipeline.LogVerbose("{0} ({1})", res.ImageUrl, res.Status);
+                        }
+                        else if (res.Status == IngestImage.Status.Added || res.Status == IngestImage.Status.Duplicate)
+                        {
+                            //duplicates are OK to allow ingestion being re-run on an existing proj
 
-                            if (res.Status == IngestImage.Status.Skipped)
+                            Interlocked.Increment(ref na);
+
+                            var obs = res.Observation as RoverObservation;
+                            var frame = res.ObservationFrame;
+
+                            var off = obsForFrame.GetOrAdd(frame.Name,
+                                                           _ => new Tuple<Frame, ConcurrentBag<string>>
+                                                           (frame, new ConcurrentBag<string>()));
+                            off.Item2.Add(obs.Name);
+
+                            var sd = new SiteDrive(obs.Site, obs.Drive);
+                            var sds = stats.GetOrAdd(sd, _ => new ConcurrentDictionary<string, int>());
+                            sds.AddOrUpdate(obs.ObservationType, _ => 1, (_, m) => m + 1);
+
+                            pipeline.LogVerbose("{0} ({1}) {2}x{3} {4} sitedrive={5} -> observation {6}",
+                                                res.ImageUrl, res.Status, obs.Width, obs.Height,
+                                                obs.ObservationType, sd, obs.Name);
+
+                            if (obs.ObservationType == imageObs && obs.UseForReconstruction)
                             {
-                                pipeline.LogInfo("{0} ({1})", res.ImageUrl, res.Status);
-                            }
-                            else if (res.Observation is RoverObservation)
-                            {
-                                var obs = res.Observation as RoverObservation;
-                                var sd = new SiteDrive(obs.Site, obs.Drive);
-                                var sds = stats.GetOrAdd(sd, _ => new ConcurrentDictionary<string, int>());
-                                sds.AddOrUpdate(obs.ObservationType, _ => 1, (_, m) => m + 1);
-                                pipeline.LogInfo("{0} ({1}) {2}x{3} {4} sitedrive={5} -> observation {6}", res.ImageUrl,
-                                                 res.Status, obs.Width, obs.Height, obs.ObservationType, sd, obs.Name);
-                            }
-                            else if (res.Observation != null)
-                            {
-                                var obs = res.Observation;
-                                pipeline.LogInfo("{0} ({1}) {2}x{3} {4} -> observation {5}", res.ImageUrl,
-                                                 res.Status, obs.Width, obs.Height, obs.ObservationType, obs.Name);
-                            }
-                            else
-                            {
-                                pipeline.LogInfo("{0} ({1}) -> observation NULL", res.ImageUrl, res.Status);
+                                Interlocked.Increment(ref nr);
                             }
 
                             if (func != null) func(res);
                         }
                     });
             }
-                
-            pipeline.LogInfo("ingested {0} input files for alignment project {1}", n, project.Name);
+
+            //populate frame.ObservationNames here to avoid read-modify-write MT hazard
+            foreach (var off in obsForFrame.Values)
+            {
+                foreach (var obs in off.Item2)
+                {
+                    off.Item1.AddObservation(obs); //ignores duplicates
+                }
+                off.Item1.Save(pipeline);
+            }
+
+            pipeline.LogInfo("processed {0} files ({1:F3}s), {2} accepted, {3} failed, {4} skipped",
+                             ni, UTCTime.Now() - startTime, na, nf, ns);
+
+            Dictionary<string, int> totalStats = new Dictionary<string, int>();
             foreach (var sds in stats)
             {
                 pipeline.LogInfo("sitedrive {0}: {1}", sds.Key,
                                  string.Join(", ",
                                              sds.Value.Select(s => s.Value + " " + s.Key + " observations").ToArray()));
+                foreach (var entry in sds.Value)
+                {
+                    if (!totalStats.ContainsKey(entry.Key))
+                    {
+                        totalStats[entry.Key] = 0;
+                    }
+                    totalStats[entry.Key] += entry.Value;
+                }
+            }
+            foreach (var entry in totalStats)
+            {
+                pipeline.LogInfo("total {0} {1} observations{2}", entry.Value, entry.Key,
+                                 entry.Key == imageObs ? (" (" + nr + " for reconstruction)") : "");
             }
 
-            return n;
+            return na;
         }
     }
 }

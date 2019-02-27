@@ -11,20 +11,36 @@ namespace OPS.Geometry
 {
     public class ConvexHull
     {
-        readonly Mesh Mesh;
+        private readonly Mesh Mesh;
+
+        private readonly List<Plane> Planes;
+
         public List<Vertex> Vertices
         {
             get { return Mesh.Vertices; }
         }
 
-        readonly List<Plane> Planes;
+        public bool IsEmpty
+        {
+            get { return Mesh.Vertices.Count == 0; }
+        }
 
         /// <summary>
         /// Construct from a list of 3D points.
         /// </summary>
         public ConvexHull(IList<double[]> points)
         {
-            if (points.Count == 3)
+            if (points.Count == 0)
+            {
+                //empty
+                Mesh = new Mesh();
+                Planes = new List<Plane>();
+            }
+            else if (points.Count < 3)
+            {
+                throw new ArgumentException("must provide 0 or at least 3 points");
+            }
+            else if (points.Count == 3)
             {
                 // a single triangle will fail in the convex hull library, build a mesh of the two windings
                 // of the same triangle
@@ -66,15 +82,23 @@ namespace OPS.Geometry
             }
         }
 
-        public ConvexHull(IEnumerable<Vector3> points)
-            : this(points.Select(pt => pt.ToDoubleArray()).ToList()) { }
-        public ConvexHull(Mesh mesh)
-            : this(mesh.Vertices.Select(vert => vert.Position)) { }
+        public ConvexHull(IEnumerable<Vector3> points) : this(points.Select(pt => pt.ToDoubleArray()).ToList()) { }
+
+        public ConvexHull(Mesh mesh) : this(mesh.Vertices.Select(vert => vert.Position)) { }
+
         public ConvexHull(ConvexHull other)
         {
             Mesh = new Mesh(other.Mesh);
             Planes = new List<Plane>(other.Planes);
         }
+
+        //empty
+        public ConvexHull()
+        {
+            Mesh = new Mesh();
+            Planes = new List<Plane>();
+        }
+
         public static ConvexHull Union(params ConvexHull[] hulls)
         {
             return new ConvexHull(hulls.SelectMany(h => h.Vertices.Select(vtx => vtx.Position)));
@@ -85,7 +109,8 @@ namespace OPS.Geometry
             return FromParams(image.CameraModel, image.Width, image.Height, nearClip, farClip);
         }
 
-        public static ConvexHull FromParams(CameraModel camera, int width, int height, double nearClip=0.1, double farClip=20)
+        public static ConvexHull FromParams(CameraModel camera, double width, double height,
+                                            double nearClip = 0.1, double farClip = 20)
         {
             // Get points - just corners for linear models, denser otherwise
             int subdiv = 2;
@@ -102,8 +127,10 @@ namespace OPS.Geometry
                     {
                         Ray ray = camera.Unproject(new Vector2(x, y));
                         
-                        Plane nearClipPlane = new Plane(-camera.ImagePlaneNormal, Vector3.Dot(camera.ImagePlaneNormal, ray.Position) + nearClip);
-                        Plane farClipPlane = new Plane(-camera.ImagePlaneNormal, Vector3.Dot(camera.ImagePlaneNormal, ray.Position) + farClip);
+                        Plane nearClipPlane = new Plane(-camera.ImagePlaneNormal,
+                                                        Vector3.Dot(camera.ImagePlaneNormal, ray.Position) + nearClip);
+                        Plane farClipPlane = new Plane(-camera.ImagePlaneNormal,
+                                                       Vector3.Dot(camera.ImagePlaneNormal, ray.Position) + farClip);
 
                         double rayDistNear = ray.Intersects(nearClipPlane).Value;
                         double rayDistFar = ray.Intersects(farClipPlane).Value;
@@ -122,7 +149,7 @@ namespace OPS.Geometry
         /// </summary>
         public bool Intersects(ConvexHull other)
         {
-            return GJKIntersection.Intersects(Mesh, other.Mesh);
+            return !IsEmpty && !other.IsEmpty && GJKIntersection.Intersects(Mesh, other.Mesh);
         }
         
         /// <summary>
@@ -130,6 +157,11 @@ namespace OPS.Geometry
         /// </summary>
         public bool Intersects(Ray ray, double minT = 0, double maxT = double.PositiveInfinity)
         {
+            if (IsEmpty)
+            {
+                return false;
+            }
+
             foreach (var plane in Planes)
             {
                 double? t = ray.Intersects(plane);
@@ -161,15 +193,22 @@ namespace OPS.Geometry
         /// </summary>
         public bool Contains(Vector3 pt)
         {
+            if (IsEmpty)
+            {
+                return false;
+            }
+
             foreach (var plane in Planes)
             {
                 if (plane.DotCoordinate(pt) > 0) return false;
             }
+
             return true;
         }
 
         /// <summary>
         /// Compute the Minkowski sum of two convex hulls.
+        /// If either input is empty then the result will (correctly) be empty.
         /// </summary>
         public static ConvexHull MinkowskiSum(ConvexHull one, ConvexHull two)
         {
@@ -213,7 +252,8 @@ namespace OPS.Geometry
         /// <summary>
         /// Return a copy of this hull transformed by an uncertain transform.
         /// </summary>
-        public static ConvexHull Transformed(ConvexHull hull, UncertainRigidTransform transform, double sigma=3.0, int numSamples=10)
+        public static ConvexHull Transformed(ConvexHull hull, UncertainRigidTransform transform,
+                                             double sigma = 3.0, int numSamples = 10)
         {
             // If input transform is actually just a matrix, fall back to other overload for performance
             if (!transform.Uncertain) return Transformed(hull, transform.Mean);

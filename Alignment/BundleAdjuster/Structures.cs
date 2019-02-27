@@ -169,6 +169,10 @@ namespace OPS.Alignment.BundleAdjusterStructures
             }
         }
 
+        //it took me a little while to figure out why we don't just cache the Imaging.CameraModel
+        //that was originally passed to our constructor
+        //I believe the answer is that would require adding a field to this struct
+        //and that would mess up its marshalled form
         public Imaging.CameraModel Model
         {
             get

@@ -18,6 +18,10 @@ namespace OPS.Pipeline
         [ConfigEnvironmentVariable("LANDFORM_STORAGE_DIR")]
         public string StorageDir;
 
+        //0 to use all available cores, N to use up to N, -M to reserve M
+        [ConfigEnvironmentVariable("LANDFORM_MAX_CORES")]
+        public int MaxCores;
+
         protected override string ConfigFilename()
         {
             return "landform-local";
