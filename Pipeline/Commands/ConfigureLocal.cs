@@ -16,6 +16,9 @@ namespace OPS.Pipeline
         
         [Option(Default = null, HelpText = "Storage directory")]
         public string StorageDir { get; set; }
+
+        [Option(Default = null, HelpText = "0 or unset to use all available cores, N to use up to N, -M to reserve M")]
+        public string MaxCores { get; set; }
     }
 
     public class ConfigureLocal
@@ -37,8 +40,11 @@ namespace OPS.Pipeline
                 config.Venue = "local"; //default unless overridden by command line option or console input
             }
 
-            config.Venue = ConsoleHelper.Prompt("Venue name", options.Venue, config.Venue);
-            config.StorageDir = ConsoleHelper.Prompt("Storage directory", options.StorageDir, config.StorageDir);
+            config.Venue = ConsoleHelper.Prompt("venue", options.Venue, config.Venue);
+            config.StorageDir = ConsoleHelper.Prompt("storage directory", options.StorageDir, config.StorageDir);
+
+            config.MaxCores = ConsoleHelper.Prompt("max cores, 0 = all available, N = up to N, -M = reserve M",
+                                                   options.MaxCores, config.MaxCores);
 
             config.Validate();
 

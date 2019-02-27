@@ -101,7 +101,14 @@ namespace OPS.Cloud
         public class PropInfo
         {
             public MemberInfo Info;
+            public Type Type;
             public string DynamoDBPropName;
+            public PropInfo(MemberInfo info, string name)
+            {
+                this.Info = info;
+                this.Type = info is PropertyInfo ? (info as PropertyInfo).PropertyType : (info as FieldInfo).FieldType;
+                this.DynamoDBPropName = name;
+            }
         }
 
         /// <summary>
@@ -130,7 +137,7 @@ namespace OPS.Cloud
                 }
                 if (!checkForAttribute || hasAttrib)
                 {
-                    ret[member.Name] = new PropInfo() { Info = member, DynamoDBPropName = name };
+                    ret[member.Name] = new PropInfo(member, name);
                 }
             }
             return ret;
@@ -159,13 +166,21 @@ namespace OPS.Cloud
         {
             if (member is FieldInfo)
             {
-                return (member as FieldInfo).GetValue(obj).ToString();
+                var val = (member as FieldInfo).GetValue(obj);
+                if (val != null)
+                {
+                    return val.ToString();
+                }
             }
             else if (member is PropertyInfo)
             {
-                return (member as PropertyInfo).GetValue(obj).ToString();
+                var val = (member as PropertyInfo).GetValue(obj);
+                if (val != null)
+                {
+                    return val.ToString();
+                }
             }
-            return  null;
+            return  string.Empty;
         }
 
         public static void GetKeyValues(Object obj, out string hashValue, out string rangeValue)
@@ -338,7 +353,7 @@ namespace OPS.Cloud
             }
         }
 
-        public const double DEF_MAX_TABLE_WAIT_SEC = 60;
+        public const double DEF_MAX_TABLE_WAIT_SEC = 2*60;
         public const int TABLE_WAIT_SLEEP_MS = 3000;
 
         public static void WaitForTable(IAmazonDynamoDB client, Type type, string prefix = "",
@@ -420,12 +435,12 @@ namespace OPS.Cloud
             }
             catch (Exception e)
             {
-                if (logger != null)
-                {
-                    logger.WarnFormat("error saving DynamoDB object ({0}): {1}", e.GetType().FullName, e.Message);
-                }
                 if (!ignoreErrors)
                 {
+                    if (logger != null)
+                    {
+                        logger.WarnFormat("error saving DynamoDB object ({0}): {1}", e.GetType().FullName, e.Message);
+                    }
                     throw;
                 }
             }
@@ -450,12 +465,12 @@ namespace OPS.Cloud
             }
             catch (Exception e)
             {
-                if (logger != null)
-                {
-                    logger.WarnFormat("error loading DynamoDB object ({0}): {1}", e.GetType().FullName, e.Message);
-                }
                 if (!ignoreErrors)
                 {
+                    if (logger != null)
+                    {
+                        logger.WarnFormat("error loading DynamoDB object ({0}): {1}", e.GetType().FullName, e.Message);
+                    }
                     throw;
                 }
             }
@@ -470,12 +485,12 @@ namespace OPS.Cloud
             }
             catch (Exception e)
             {
-                if (logger != null)
-                {
-                    logger.WarnFormat("error deleting DynamoDB object ({0}): {1}", e.GetType().FullName, e.Message);
-                }
                 if (!ignoreErrors)
                 {
+                    if (logger != null)
+                    {
+                        logger.WarnFormat("error deleting DynamoDB object ({0}): {1}", e.GetType().FullName, e.Message);
+                    }
                     throw;
                 }
             }

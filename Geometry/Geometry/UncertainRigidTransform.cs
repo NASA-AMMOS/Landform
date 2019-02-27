@@ -1,11 +1,11 @@
-﻿using OPS.MathExtensions;
-using Microsoft.Xna.Framework;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Microsoft.Xna.Framework;
 using MathNet.Numerics.LinearAlgebra;
+using OPS.MathExtensions;
 
 namespace OPS.Geometry
 {
@@ -19,8 +19,7 @@ namespace OPS.Geometry
         /// </summary>
         /// <remarks>
         /// The transformation is parameterized as a 6D vector with the following interpretation:
-        /// 
-        ///   [t_x, t_y, t_z, r_x, r_y, r_z] 
+        /// [t_x, t_y, t_z, r_x, r_y, r_z] 
         /// t_[xyz]: Translation
         /// r_[xyz]: Rotation as <see cref="AxisAngleVector"/> 
         /// 
@@ -48,13 +47,21 @@ namespace OPS.Geometry
         /// <summary>
         /// Construct from a known mean transform and covariance.
         /// </summary>
-        /// <param name="mean">Mean transform</param>
-        /// <param name="covariance">6D parameter covariance matrix</param>
-        public UncertainRigidTransform(Matrix mean, Matrix<double> covariance)
+        /// <param name="mean">Mean transform as a 6D vector, omit or null for identity</param>
+        /// <param name="covariance">6D parameter covariance matrix, omit or null for no uncertainty</param>
+        public UncertainRigidTransform(Vector<double> mean = null, Matrix<double> covariance = null)
         {
-            var meanVec = ToVector(mean);
-            Distribution = new GaussianND(meanVec, covariance);
+            Distribution = new GaussianND(mean ?? CreateVector.Dense<double>(6),
+                                          covariance ?? CreateMatrix.Dense<double>(6, 6));
         }
+
+        /// <summary>
+        /// Construct from a known mean transform and covariance.
+        /// </summary>
+        /// <param name="mean">Mean transform</param>
+        /// <param name="covariance">6D parameter covariance matrix, omit or null for no uncertainty</param>
+        public UncertainRigidTransform(Matrix mean, Matrix<double> covariance = null) : this(ToVector(mean), covariance)
+        { }
 
         /// <summary>
         /// Construct from assumed-independent translation and rotation distributions.

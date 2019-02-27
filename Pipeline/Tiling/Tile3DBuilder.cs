@@ -99,7 +99,7 @@ namespace OPS.Pipeline
         /// </summary>
         public void CalculateGeometricError()
         {
-            Parallel.ForEach(Root.DepthFirstTraverse(), curNode =>
+            CoreLimitedParallel.ForEach(Root.DepthFirstTraverse(), curNode =>
             {
                 if (!curNode.HasComponent<NodeGeometricError>())
                 {

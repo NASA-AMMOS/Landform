@@ -8,12 +8,11 @@ namespace OPS.Pipeline
 {
     /// <summary>
     /// Represents a rover site drive pair
-    /// Site drives are usually referenced as two numbers a 10 digit string
+    /// Site drives are usually formatted as two concatenated 5 digit numbers with leading zeros
     /// </summary>
     public struct SiteDrive
     {
-        public int Site;
-        public int Drive;
+        public readonly int Site, Drive;
 
         public SiteDrive(int site, int drive)
         {
@@ -51,23 +50,23 @@ namespace OPS.Pipeline
             return Site * 10000 + Drive;
         }
 
-        public static bool operator ==(SiteDrive lhs, SiteDrive rhs)
-        {
-            return lhs.Site == rhs.Site && lhs.Drive == rhs.Drive;
-        }
-
-        public static bool operator !=(SiteDrive lhs, SiteDrive rhs)
-        {
-            return !(lhs == rhs);
-        }
-
         public override bool Equals(object obj)
         {
             if (obj == null || !(obj is SiteDrive))
             {
                 return false;
             }
-            return this == (SiteDrive)obj;
+            return Site == ((SiteDrive)obj).Site && Drive == ((SiteDrive)obj).Drive;
+        }
+
+        public static bool operator ==(SiteDrive lhs, SiteDrive rhs)
+        {
+            return lhs.Equals(rhs); //don't need to worry about null as SiteDrive is a struct
+        }
+
+        public static bool operator !=(SiteDrive lhs, SiteDrive rhs)
+        {
+            return !lhs.Equals(rhs); //don't need to worry about null as SiteDrive is a struct
         }
     }
 }

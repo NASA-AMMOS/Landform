@@ -1,13 +1,14 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using Emgu.CV;
-using Emgu.CV.Structure;
 using System.Diagnostics;
 using System.IO;
 using System.Threading.Tasks;
-using OPS.Imaging.Emgu;
 using log4net;
+using Emgu.CV;
+using Emgu.CV.Structure;
+using OPS.Imaging.Emgu;
+using OPS.Util;
 
 namespace OPS.Alignment
 {
@@ -207,7 +208,7 @@ namespace OPS.Alignment
         /// <param name="octaves">List of Guassian scales calculated for each octave.</param>
         void ComputeLocalDescriptors(List<PCASIFTFeature> keypoints, List<List<Image<Gray, float>>> octaves)
         {
-            Parallel.For(0, keypoints.Count(), i =>
+            CoreLimitedParallel.For(0, keypoints.Count(), i =>
             {
                 PCASIFTFeature key = keypoints[i];
                 MakeKeypointPCA(keypoints[i], octaves[key.Octave][key.Scale]);

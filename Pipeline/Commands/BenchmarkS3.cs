@@ -54,7 +54,7 @@ namespace OPS.Pipeline
 
             //string[] prefixes = File.ReadAllLines(options.InputFile);
             ConcurrentQueue<string> files = new ConcurrentQueue<string>();
-            Parallel.ForEach(prefixes, prefix =>
+            CoreLimitedParallel.ForEach(prefixes, prefix =>
             {
                 if (files.Count > MAX_FILES_TO_SAMPLE)
                 {
