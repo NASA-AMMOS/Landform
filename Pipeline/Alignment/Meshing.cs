@@ -394,6 +394,113 @@ namespace OPS.Pipeline
         }
 
         /// <summary>
+        /// build a mesh from the given points and optional normals and mask images
+        /// </summary>
+        public static Mesh BuildOrganizedMesh(Image points, Image normals = null, Image mask = null,
+                                              double maxTriangleAspect = 10)
+        {
+            if (maxTriangleAspect < 1)
+            {
+                throw new ArgumentException("max triangle aspect must be >= 1");
+            }
+
+            Mesh ret = new Mesh(hasNormals: normals != null);
+
+            Dictionary<Tuple<int, int>, int> pixelToVert = new Dictionary<Tuple<int, int>, int>();
+
+            int getOrAddVert(int r, int c)
+            {
+                var key = new Tuple<int, int>(r, c);
+                if (!pixelToVert.ContainsKey(key))
+                {
+                    pixelToVert[key] = ret.Vertices.Count;
+                    Vertex v = new Vertex();
+                    v.Position = new Vector3(points[0, r, c], points[1, r, c], points[2, r, c]);
+                    if (normals != null)
+                    {
+                        v.Normal = new Vector3(normals[0, r, c], normals[1, r, c], normals[2, r, c]);
+                    }
+                    ret.Vertices.Add(v);
+                }
+                return pixelToVert[key];
+            }
+
+            void addFaceMaybe(int r0, int c0, int r1, int c1, int r2, int c2)
+            {
+                if (points.IsInvalid(r0, c0) || points.IsInvalid(r1, c1) || points.IsInvalid(r2, c2))
+                {
+                    return;
+                } 
+                if (normals != null &&
+                    (normals.IsInvalid(r0, c0) || normals.IsInvalid(r1, c1) || normals.IsInvalid(r2, c2)))
+                {
+                    return;
+                }
+                if (mask != null && (mask[0, r0, c0] == 0 || mask[0, r1, c1] == 0 || mask[0, r2, c2] == 0))
+                {
+                    return;
+                }
+
+                Vector3 v0 = new Vector3(points[0, r0, c0], points[1, r0, c0], points[2, r0, c0]);
+                Vector3 v1 = new Vector3(points[0, r1, c1], points[1, r1, c1], points[2, r1, c1]);
+                Vector3 v2 = new Vector3(points[0, r2, c2], points[1, r2, c2], points[2, r2, c2]);
+
+                double s0 = Vector3.Distance(v0, v1);
+                double s1 = Vector3.Distance(v1, v2);
+                double s2 = Vector3.Distance(v2, v0);
+
+                double l = Math.Min(s0, Math.Min(s1, s2));
+                double u = Math.Max(s0, Math.Max(s1, s2));
+                if (l > 0 && u / l <= maxTriangleAspect)
+                {
+                    ret.Faces.Add(new Face(getOrAddVert(r0, c0), getOrAddVert(r1, c1), getOrAddVert(r2, c2)));
+                }
+            };
+
+            List<int> tris = new List<int>();
+            for (int row = 0; row < points.Height - 1 ; row++)
+            {
+                for (int col = 0; col < points.Width - 1 ; col++)
+                {
+                    //  (row, col)-----(row, col+1)
+                    //           |\    |       
+                    //           | \   |        
+                    //           |  \  |         
+                    //           |   \ |          
+                    //           |    \|           
+                    //(row+1, col)-----(row+1, col+1)
+
+                    addFaceMaybe(row, col, row+1, col+1, row, col+1); //upper triangle
+
+                    addFaceMaybe(row, col, row+1, col, row+1, col+1); //lower triangle
+                }
+            }
+
+            return ret;
+        }
+
+        /// <summary>
+        /// decimate a normals image  
+        /// </summary>
+        public static Image DecimateNormals(Image normals, int blocksize, Image mask = null)
+        {
+            var ret = normals.Decimate(blocksize, mask);
+            for (int row = 0; row < ret.Height; row++)
+            {
+                for (int col = 0; col < ret.Width; col++)
+                {
+                    if (!ret.IsInvalid(row, col))
+                    {
+                        var n = new Vector3(ret[0, row, col], ret[1, row, col], ret[2, row, col]);
+                        n.Normalize();
+                        ret.SetBandValues(row, col, n.ToFloatArray());
+                    }
+                }
+            }
+            return ret;
+        }
+
+        /// <summary>
         /// add texture coordinates to a mesh by projecting vertices onto an image
         /// also optionally removes any vertices of the mesh that aren't visible in the image
         /// the passed mesh is mutated in place
