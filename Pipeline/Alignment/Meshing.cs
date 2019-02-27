@@ -147,11 +147,11 @@ namespace OPS.Pipeline
             PDSParser parser = new PDSParser((PDSMetadata)img.Metadata);
             if (parser.DerivedImageType != RoverProductType.XYZ)
             {
-                throw new NotImplementedException("XYZ to XYR requires XYZ map"); ;
+                throw new ArgumentException("ConvertXYZ requires XYZ map"); ;
             }
             Matrix xform = RoverCoordinateSystem.GetTransformToRoverFrame(parser);
 
-            Image xyr = new Image(3, img.Metadata.Width, img.Metadata.Height);
+            Image xyr = new Image(3, img.Width, img.Height);
 
             //don't assume that input image already has a mask
             //but also don't mutate the input image to add a mask
@@ -164,18 +164,18 @@ namespace OPS.Pipeline
                 xyr.CreateMask(false);
             }
 
-            for (int idxRow = 0; idxRow < img.Metadata.Height; idxRow++)
+            for (int row = 0; row < img.Height; row++)
             {
-                for (int idxCol = 0; idxCol < img.Metadata.Width; idxCol++)
+                for (int col = 0; col < img.Width; col++)
                 {
-                    if (img.IsInvalid(idxRow, idxCol)) //respect input image mask if it has one
+                    if (img.IsInvalid(row, col)) //respect input image mask if it has one
                     {
-                        xyr.SetMaskValue(idxRow, idxCol, true);
+                        xyr.SetMaskValue(row, col, true);
                     }
-                    else if (!parser.HasMissingConstant || !xyr.IsInvalid(idxRow, idxCol))
+                    else if (!parser.HasMissingConstant || !xyr.IsInvalid(row, col))
                     {
-                        var p = new Vector3(img[0, idxRow, idxCol], img[1, idxRow, idxCol], img[2, idxRow, idxCol]);
-                        xyr.SetBandValues(idxRow, idxCol, Vector3.Transform(p, xform).ToFloatArray());
+                        var p = new Vector3(img[0, row, col], img[1, row, col], img[2, row, col]);
+                        xyr.SetBandValues(row, col, Vector3.Transform(p, xform).ToFloatArray());
                     }
                 }
             }
@@ -194,25 +194,25 @@ namespace OPS.Pipeline
             PDSParser parser = new PDSParser((PDSMetadata)img.Metadata);
             if (parser.DerivedImageType != RoverProductType.Range)
             {
-                throw new NotImplementedException("RNG to XYR requires range map"); ;
+                throw new ArgumentException("ConvertRNG requires range map"); ;
             }
             if (parser.CameraModelRefFrame != PDSParser.ReferenceCoordinateFrame.RoverNav)
             {
-                throw new NotImplementedException("RNG to XYR requires camera model in rover frame");
+                throw new NotImplementedException("ConvertRNG requires camera model in rover frame");
             }
             CAHV cahv = img.CameraModel as CAHV;
             if (cahv == null)
             {
-                throw new NotImplementedException("RNG to XYR requires CAHV camera model");
+                throw new NotImplementedException("ConvertRNG requires CAHV camera model");
             }
             Matrix xform = RoverCoordinateSystem.GetTransformToRoverFrame(parser);
             Vector3 rangeOrigin = Vector3.Transform(parser.RangeOrigin, xform);
             if (!Vector3.AlmostEqual(rangeOrigin, cahv.C, 0.0005))
             {
-                throw new NotImplementedException("RNG to XYR requires range maps projected from camera location");
+                throw new NotImplementedException("ConvertRNG requires range maps projected from camera location");
             }
 
-            Image xyr = new Image(3, img.Metadata.Width, img.Metadata.Height);
+            Image xyr = new Image(3, img.Width, img.Height);
 
             //don't assume that input image already has a mask
             //but also don't mutate the input image to add a mask
@@ -225,18 +225,18 @@ namespace OPS.Pipeline
                 xyr.CreateMask(false);
             }
 
-            for (int idxRow = 0; idxRow < img.Metadata.Height; idxRow++)
+            for (int row = 0; row < img.Height; row++)
             {
-                for (int idxCol = 0; idxCol < img.Metadata.Width; idxCol++)
+                for (int col = 0; col < img.Width; col++)
                 {
-                    if (img.IsInvalid(idxRow, idxCol)) //respect input image mask if it has one
+                    if (img.IsInvalid(row, col)) //respect input image mask if it has one
                     {
-                        xyr.SetMaskValue(idxRow, idxCol, true);
+                        xyr.SetMaskValue(row, col, true);
                     }
-                    else if (!parser.HasMissingConstant || !xyr.IsInvalid(idxRow, idxCol))
+                    else if (!parser.HasMissingConstant || !xyr.IsInvalid(row, col))
                     {
-                        Vector3 p = img.CameraModel.Unproject(new Vector2(idxCol, idxRow), img[0, idxRow, idxCol]);
-                        xyr.SetBandValues(idxRow, idxCol, p.ToFloatArray());
+                        Vector3 p = img.CameraModel.Unproject(new Vector2(col, row), img[0, row, col]);
+                        xyr.SetBandValues(row, col, p.ToFloatArray());
                     }
                 }
             }
@@ -257,7 +257,7 @@ namespace OPS.Pipeline
                 throw new NotImplementedException("synthetic confidence requires range map"); ;
             }
 
-            Image confidence = new Image(1, img.Metadata.Width, img.Metadata.Height);
+            Image confidence = new Image(1, img.Width, img.Height);
 
             //don't assume that input image already has a mask
             //but also don't mutate the input image to add a mask
@@ -270,19 +270,19 @@ namespace OPS.Pipeline
                 confidence.CreateMask(false);
             }
 
-            for (int idxRow = 0; idxRow < img.Metadata.Height; idxRow++)
+            for (int row = 0; row < img.Height; row++)
             {
-                for (int idxCol = 0; idxCol < img.Metadata.Width; idxCol++)
+                for (int col = 0; col < img.Width; col++)
                 {
-                    if (img.IsInvalid(idxRow, idxCol) || //respect input image mask if it has one
-                        img[0, idxRow, idxCol] <= 0.0f) //negative range values are invalid
+                    if (img.IsInvalid(row, col) || //respect input image mask if it has one
+                        img[0, row, col] <= 0.0f) //negative range values are invalid
                     {
-                        confidence.SetMaskValue(idxRow, idxCol, true);
+                        confidence.SetMaskValue(row, col, true);
                     }
-                    else if (!parser.HasMissingConstant || !confidence.IsInvalid(idxRow, idxCol))
+                    else if (!parser.HasMissingConstant || !confidence.IsInvalid(row, col))
                     {
                         //naive confidence: farther away the point is, the lower the confidence
-                        confidence[0, idxRow, idxCol] = 1 / img[0, idxRow, idxCol];
+                        confidence[0, row, col] = 1 / img[0, row, col];
                     }
                 }
             }
@@ -326,32 +326,32 @@ namespace OPS.Pipeline
                 normals.CreateMask(false);
             }
 
-            for (int idxRow = 0; idxRow < img.Metadata.Height; idxRow++)
+            for (int row = 0; row < img.Height; row++)
             {
-                for (int idxCol = 0; idxCol < img.Metadata.Width; idxCol++)
+                for (int col = 0; col < img.Width; col++)
                 {
-                    int up = Math.Max(0, idxRow - 1);
-                    int down = Math.Min(idxRow + 1, img.Height - 1);
-                    int left = Math.Max(0, idxCol - 1);
-                    int right = Math.Min(idxCol + 1, img.Width - 1);
-                    if (img.IsInvalid(idxRow, idxCol) || //respect input image mask if it has one
-                        (confidence != null && confidence.IsInvalid(idxRow, idxCol)) ||
-                        img.IsInvalid(up, left) || img.IsInvalid(up, idxCol) || img.IsInvalid(up, right) ||
-                        img.IsInvalid(idxRow, left) || img.IsInvalid(idxRow, right) ||
-                        img.IsInvalid(down, left) || img.IsInvalid(down, idxCol) || img.IsInvalid(down, right))
+                    int up = Math.Max(0, row - 1);
+                    int down = Math.Min(row + 1, img.Height - 1);
+                    int left = Math.Max(0, col - 1);
+                    int right = Math.Min(col + 1, img.Width - 1);
+                    if (img.IsInvalid(row, col) || //respect input image mask if it has one
+                        (confidence != null && confidence.IsInvalid(row, col)) ||
+                        img.IsInvalid(up, left) || img.IsInvalid(up, col) || img.IsInvalid(up, right) ||
+                        img.IsInvalid(row, left) || img.IsInvalid(row, right) ||
+                        img.IsInvalid(down, left) || img.IsInvalid(down, col) || img.IsInvalid(down, right))
                     {
-                        normals.SetMaskValue(idxRow, idxCol, true);
+                        normals.SetMaskValue(row, col, true);
                     }
-                    else if (!parser.HasMissingConstant || !normals.IsInvalid(idxRow, idxCol))
+                    else if (!parser.HasMissingConstant || !normals.IsInvalid(row, col))
                     {
                         if (nonIdentityXform)
                         {
-                            var n = new Vector3(img[0, idxRow, idxCol], img[1, idxRow, idxCol], img[2, idxRow, idxCol]);
-                            normals.SetBandValues(idxRow, idxCol, Vector3.TransformNormal(n, xform).ToFloatArray());
+                            var n = new Vector3(img[0, row, col], img[1, row, col], img[2, row, col]);
+                            normals.SetBandValues(row, col, Vector3.TransformNormal(n, xform).ToFloatArray());
                         }
                         if (confidence != null)
                         {
-                            normals[0, idxRow, idxCol] *= confidence[0, idxRow, idxCol];
+                            normals[0, row, col] *= confidence[0, row, col];
                         }
                     }
                 }
@@ -366,25 +366,21 @@ namespace OPS.Pipeline
         public static Mesh BuildPointCloud(Image points, Image normals = null, Image mask = null)
         {
             Mesh ret = new Mesh(hasNormals: normals != null);
-            for (int idxRow = 0; idxRow < points.Metadata.Height; idxRow++)
+            for (int row = 0; row < points.Height; row++)
             {
-                for (int idxCol = 0; idxCol < points.Metadata.Width; idxCol++)
+                for (int col = 0; col < points.Width; col++)
                 {
-                    if (points.IsInvalid(idxRow, idxCol) ||
-                        (normals != null && normals.IsInvalid(idxRow, idxCol)) ||
-                        mask != null && mask[0, idxRow, idxCol] == 0)
+                    if (points.IsInvalid(row, col) ||
+                        (normals != null && normals.IsInvalid(row, col)) ||
+                        mask != null && mask[0, row, col] == 0)
                     {
                         continue;
                     }
 
-                    var v = new Vertex(new Vector3(points[0, idxRow, idxCol],
-                                                   points[1, idxRow, idxCol],
-                                                   points[2, idxRow, idxCol]));
+                    var v = new Vertex(new Vector3(points[0, row, col], points[1, row, col], points[2, row, col]));
                     if (normals != null)
                     {
-                        v.Normal = new Vector3(normals[0, idxRow, idxCol],
-                                               normals[1, idxRow, idxCol],
-                                               normals[2, idxRow, idxCol]);
+                        v.Normal = new Vector3(normals[0, row, col], normals[1, row, col], normals[2, row, col]);
                     }
                                                
                     ret.Vertices.Add(v);
