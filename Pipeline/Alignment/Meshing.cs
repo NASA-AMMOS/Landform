@@ -404,9 +404,13 @@ namespace OPS.Pipeline
             throw new NotImplementedException("Transform Mesh to " + toFrame + " not implemented");
         }
 
-        public static Image DecimateNormals(Image normals, int blocksize, Image mask = null)
+        public static Image DecimateNormals(Image img, int blocksize, Image mask = null)
         {
-            var ret = normals.Decimate(blocksize, mask);
+            if (mask != null)
+            {
+                img.UnionMask(mask, new float[] { 0 } );
+            }
+            var ret = img.Decimate(blocksize);
             for (int row = 0; row < ret.Height; row++)
             {
                 for (int col = 0; col < ret.Width; col++)
@@ -420,6 +424,15 @@ namespace OPS.Pipeline
                 }
             }
             return ret;
+        }
+
+        public static Image DecimatePoints(Image img, int blocksize, Image mask = null)
+        {
+            if (mask != null)
+            {
+                img.UnionMask(mask, new float[] { 0 } );
+            }
+            return img.Decimate(blocksize);
         }
 
         public static void LoadOrGenerateMeshImages(PipelineCore pipeline, MeshObservations obs, int decimateBlocksize,
@@ -447,7 +460,7 @@ namespace OPS.Pipeline
 
             if (decimateBlocksize > 1)
             {
-                points = points.Decimate(decimateBlocksize, mask);
+                points = DecimatePoints(points, decimateBlocksize, mask);
                 if (normals != null)
                 {
                     normals = DecimateNormals(normals, decimateBlocksize, mask);

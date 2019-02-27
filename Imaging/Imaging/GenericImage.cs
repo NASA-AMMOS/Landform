@@ -136,6 +136,62 @@ namespace OPS.Imaging
         }
 
         /// <summary>
+        /// Mask any pixels in this image that are masked in other.
+        /// Both images must be the same size.
+        /// Adds mask to this image if it doesn't already have one.
+        /// Any pixels that are already masked in this image will remain masked.
+        /// </summary>
+        public void UnionMask<TT>(GenericImage<TT> other)
+        {
+            if (Width != other.Width || Height != other.Height)
+            {
+                throw new ArgumentException("can only union mask with another image of same size");
+            }
+            if (!HasMask)
+            {
+                CreateMask(false);
+            }
+            for (int row = 0; row < Height; row++)
+            {
+                for (int col = 0; col < Width; col++)
+                {
+                    if (other.IsInvalid(row, col))
+                    {
+                        SetMaskValue(row, col, true);
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Mask any pixels in this image that correspond to pixels in other which match the passed band values.
+        /// Both images must be the same size.
+        /// Adds mask to this image if it doesn't already have one.
+        /// Any pixels that are already masked in this image will remain masked.
+        /// </summary>
+        public void UnionMask<TT>(GenericImage<TT> other, TT[] perBandValues)
+        {
+            if (Width != other.Width || Height != other.Height)
+            {
+                throw new ArgumentException("can only union mask with another image of same size");
+            }
+            if (!HasMask)
+            {
+                CreateMask(false);
+            }
+            for (int row = 0; row < Height; row++)
+            {
+                for (int col = 0; col < Width; col++)
+                {
+                    if (other.BandValuesEqual(row, col, perBandValues))
+                    {
+                        SetMaskValue(row, col, true);
+                    }
+                }
+            }
+        }
+
+        /// <summary>
         /// Returns true if this image has a mask
         /// </summary>
         public bool HasMask

@@ -671,10 +671,8 @@ namespace OPS.Imaging
         /// decimate by averaging square blocks
         /// respects image mask, if any
         /// resulting image will have mask set for any source block that had no valid pixels
-        /// if extraMask is provided then it must be the same size as this image
-        /// and have one channel with zeros for additional masking
         /// </summary>
-        public Image Decimate(int blocksize, Image extraMask = null)
+        public Image Decimate(int blocksize)
         {
             int targetWidth = Width / blocksize; //integer math
             int targetHeight = Height / blocksize; //integer math
@@ -698,8 +696,7 @@ namespace OPS.Imaging
                                 {
                                     if (srcCol >= 0 && srcCol < this.Width)
                                     {
-                                        if (!IsInvalid(srcRow, srcCol) &&
-                                            (extraMask == null || extraMask[0, srcRow, srcCol] != 0))
+                                        if (!IsInvalid(srcRow, srcCol))
                                         {
                                             sum += this[band, srcRow, srcCol];
                                             n++;
