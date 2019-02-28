@@ -5,6 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 using Microsoft.Xna.Framework;
 using log4net;
+using OPS.Util;
 using OPS.Imaging;
 using OPS.Geometry;
 
@@ -25,9 +26,9 @@ namespace OPS.Alignment
         public delegate SceneNode ImageNodeDelegate(string imageUrl);
 
         private readonly ImageNodeDelegate imageToNode;
-        private readonly ILog logger;
+        private readonly ILogger logger;
 
-        public MoisanStivalFilter(ILog logger = null, ImageNodeDelegate imageToNode = null)
+        public MoisanStivalFilter(ILogger logger = null, ImageNodeDelegate imageToNode = null)
         {
             this.logger = logger;
             this.imageToNode = imageToNode;

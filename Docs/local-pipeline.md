@@ -15,7 +15,7 @@
 1.  `./Landform/bin/Release/Landform.exe local-matching PROJ [--verbose] [--redooverlaps] [--redomatches] [--matchwithinsitedrives]`
 1.  `./Landform/bin/Release/Landform.exe local-bundle-adjust PROJ [--verbose] [--adjustwithinsitedrives] [--noadjustacrosssitedrives] [--bundleadjustrounds=2] [--debugoutputfolder=DBG]`
 
-On my 36 core machine this particular workflow takes about about 15 minutes for cross-site adjustment of sols 588, 589, 590, or 43 min for adjusting all images (but we can probably get that one down by a lot as I think the bulk of the time is being spent in a Ceres bundle solve where the convergence criteria is too tight, see https://github.jpl.nasa.gov/OnSight/Landform/issues/414).  This dataset has 3688 navcam IMG files, about 5GB total, 263 which we consider observations, 90 images that we actually use for reconstruction.
+On my 36 core machine this workflow takes about about 15 minutes for cross-site adjustment of sols 588, 589, 590, or 43 min for adjusting all images (but we can probably get that one down by a lot as I think the bulk of the time is being spent in a Ceres bundle solve where the convergence criteria is too tight, see https://github.jpl.nasa.gov/OnSight/Landform/issues/414).  This dataset has 3688 navcam IMG files, about 5GB total, 263 which we consider observations, 90 images that we actually use for reconstruction.
 * download: 3min using fetch-msl.sh
 * ingest: 2.4sec
 * masks: 7.6sec

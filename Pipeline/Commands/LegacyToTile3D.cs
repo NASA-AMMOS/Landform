@@ -83,7 +83,7 @@ namespace OPS.Pipeline
 
 
             logger.Info("Building sky dataset.");            
-            Parallel.ForEach(scene.SkyRoot.DepthFirstTraverse(), node =>
+            CoreLimitedParallel.ForEach(scene.SkyRoot.DepthFirstTraverse(), node =>
             {
                 if (node.Name.ToLower() != "sky")
                 {
@@ -111,7 +111,7 @@ namespace OPS.Pipeline
 
             var terrainRoot = scene.TerrainRoot;
             logger.Info("Removing skirts and non-leaf data.");
-            Parallel.ForEach(terrainRoot.DepthFirstTraverse(), node =>
+            CoreLimitedParallel.ForEach(terrainRoot.DepthFirstTraverse(), node =>
             {
                 node.RemoveComponent<NodeBounds>();
                 if (!node.IsLeaf)
@@ -134,7 +134,7 @@ namespace OPS.Pipeline
             while (anyOversized)
             {
                 anyOversized = false;
-                Parallel.ForEach(terrainRoot.Leaves().ToList(), node =>
+                CoreLimitedParallel.ForEach(terrainRoot.Leaves().ToList(), node =>
                 {
                     var mip = node.GetComponent<MeshImagePair>();
                     if (mip.Image.Width > options.MaxTextureSize || mip.Image.Height > options.MaxTextureSize || mip.Mesh.Faces.Count > options.MaxFacesPerTile)
@@ -165,7 +165,7 @@ namespace OPS.Pipeline
                 });
             }
             logger.Info("Write leaves");
-            Parallel.ForEach(terrainRoot.Leaves(), node =>
+            CoreLimitedParallel.ForEach(terrainRoot.Leaves(), node =>
             {
                 var mesh = node.GetComponent<MeshImagePair>().Mesh;
                 mesh.GenerateVertexNormals();
@@ -187,7 +187,7 @@ namespace OPS.Pipeline
             logger.Info("Generate bounds");
             foreach (var group in depthGroups)
             {
-                Parallel.ForEach(group, node =>
+                CoreLimitedParallel.ForEach(group, node =>
                 {
                     var childBounds = node.Children.Select(c => c.GetComponent<NodeBounds>().Bounds).ToArray();
                     var bounds = BoundingBoxExtensions.Union(childBounds);
@@ -200,9 +200,8 @@ namespace OPS.Pipeline
             int parentsCompleted = 0;
             foreach (var group in depthGroups)
             {
-                Parallel.ForEach(group, new ParallelOptions() { MaxDegreeOfParallelism = Environment.ProcessorCount },
-                                 node =>
-                {
+                CoreLimitedParallel.ForEach(group, node => {
+
                     Interlocked.Increment(ref parentsCompleted);
                     int percentDone = (int)((parentsCompleted / (float)totalParents) * 100);
                     logger.Info("Creating parent data:" + node.Name + " (" + percentDone + "%)");

@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using Microsoft.Xna.Framework;
 using MathNet.Numerics.LinearAlgebra;
 using log4net;
+using OPS.Util;
 using OPS.Geometry;
 using OPS.Imaging;
 using OPS.Imaging.Emgu;
@@ -47,13 +48,13 @@ namespace OPS.Alignment
         public delegate SceneNode ImageNodeDelegate(string imageUrl);
 
         private readonly ImageNodeDelegate imageToNode;
-        private readonly ILog logger;
+        private readonly ILogger logger;
 
         /// <summary>
         /// Construct with a function mapping image references to nodes.
         /// </summary>
         /// <param name="imageToNode">Should return the scene node associated with a given image</param>
-        public KnownGeometryFilter(ILog logger = null, ImageNodeDelegate imageToNode = null)
+        public KnownGeometryFilter(ILogger logger = null, ImageNodeDelegate imageToNode = null)
         {
             this.logger = logger;
             this.imageToNode = imageToNode;
@@ -82,8 +83,6 @@ namespace OPS.Alignment
                                               ImagePairCorrespondence matches,
                                               SceneNode modelNode, SceneNode dataNode)
         {
-            if (modelNode == null || dataNode == null) return matches;
-
             UncertainRigidTransform dataToModel = dataNode.GetOrAddComponent<NodeUncertainTransform>().To(modelNode);
             UncertainRigidTransform modelToData = modelNode.GetOrAddComponent<NodeUncertainTransform>().To(dataNode);
 
@@ -95,13 +94,14 @@ namespace OPS.Alignment
                 throw new ArgumentException("KnownGeometryFilter requires camera models");
             }
 
-            // if node has a convex hull, compute it (uncertainty-inflated) in model space
+            // if data node has a convex hull, compute it (uncertainty-inflated) in model space
             ConvexHull dataHullInModel = dataNode.GetOrAddComponent<NodeConvexHull>().Hull;
             if (dataHullInModel != null)
             {
                 dataHullInModel = ConvexHull.Transformed(dataHullInModel, dataToModel);
             }
 
+            // if model node has a convex hull, compute it (uncertainty-inflated) in data space
             ConvexHull modelHullInData = modelNode.GetOrAddComponent<NodeConvexHull>().Hull;
             if (modelHullInData != null)
             {
@@ -169,7 +169,6 @@ namespace OPS.Alignment
                         continue;
                     }
                 }
-
 
                 if (dataToModel.Uncertain)
                 {
@@ -261,15 +260,15 @@ namespace OPS.Alignment
                     }
                 }
 
-                // we peachy
                 goodMatches.Add(pair);
             }
 
             if (logger != null)
             {
-                logger.DebugFormat("KnownGeometryFilter: rejected {0} for hull intersection, {1} for bad projection, " +
-                                   " {2} for sigma threshold, {3} for error",
-                                   rejectedHull, rejectedInvalid, rejectedSigma, rejectedError);
+                logger.LogVerbose("{0} KnownGeometryFilter: rejected {1} for hull intersection, " +
+                                  "{2} for bad projection, {3} for sigma threshold, {4} for error",
+                                  (new URLPair(matches.ModelImageUrl, matches.DataImageUrl)).ToStringShort(),
+                                  rejectedHull, rejectedInvalid, rejectedSigma, rejectedError);
             }
 
             if (goodMatches.Count == 0)

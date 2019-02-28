@@ -79,7 +79,7 @@ namespace OPS.Alignment
         private DescriptorHashes[] ComputeHashes(ImageFeature[] features, Vector<float> featureMean)
         {
             DescriptorHashes[] res = new DescriptorHashes[features.Length];
-            Parallel.For(0, features.Length, i =>
+            CoreLimitedParallel.For(0, features.Length, i =>
             {
                 var mc = GetMeanCentered(features[i], featureMean);
                 var primary = primaryHash.Project(mc);
@@ -143,7 +143,7 @@ namespace OPS.Alignment
             }
 
             int[] d2m = new int[dataHashes.Length];
-            Parallel.For(0, dataHashes.Length, i =>
+            CoreLimitedParallel.For(0, dataHashes.Length, i =>
             {
                 d2m[i] = -1;
 

@@ -34,10 +34,8 @@ namespace OPS.Pipeline.TileServer
 
         public string ParentId;
 
-        [JsonConverter(typeof(SynchronizedConverter<List<string>>))]
         public List<string> DependsOn;
 
-        [JsonConverter(typeof(SynchronizedConverter<List<string>>))]
         public List<string> DependedOnBy;
 
         public string Bounds;
@@ -426,44 +424,22 @@ namespace OPS.Pipeline.TileServer
 
         public bool AddDependsOn(string id)
         {
-            lock (DependsOn)
+            if (DependsOn.Contains(id))
             {
-                if (DependsOn.Contains(id))
-                {
-                    return false;
-                }
-                DependsOn.Add(id);
-                return true;
+                return false;
             }
+            DependsOn.Add(id);
+            return true;
         }
 
         public bool AddDependedOnBy(string id)
         {
-            lock (DependedOnBy)
+            if (DependedOnBy.Contains(id))
             {
-                if (DependedOnBy.Contains(id))
-                {
-                    return false;
-                }
-                DependedOnBy.Add(id);
-                return true;
+                return false;
             }
-        }
-
-        public IEnumerable<string> GetDependsOn()
-        {
-            lock (DependsOn)
-            {
-                return DependsOn.ToArray();
-            }
-        }
-
-        public IEnumerable<string> GetDependedOnBy()
-        {
-            lock (DependedOnBy)
-            {
-                return DependedOnBy.ToArray();
-            }
+            DependedOnBy.Add(id);
+            return true;
         }
     }
 }

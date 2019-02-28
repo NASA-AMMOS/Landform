@@ -29,7 +29,7 @@ namespace OPS.Pipeline
             public bool PreloadCaches = true;
             public bool LoadObservations = true;
             public bool LoadFeatures = false; //implies LoadObservations
-            public bool LoadOverlaps = false; //implies LoadFeatures
+            public bool LoadOverlaps = false; //implies LoadObservations
             public bool LoadCorrespondences = false; //implies LoadOverlaps
             public bool OnlyKeepImagesWithFeatures = false;
             public bool OnlyKeepBestImages = false;
@@ -105,7 +105,7 @@ namespace OPS.Pipeline
 
             if (options.LoadOverlaps)
             {
-                options.LoadFeatures = true;
+                options.LoadObservations = true;
             }
 
             if (options.LoadFeatures)
@@ -119,7 +119,6 @@ namespace OPS.Pipeline
                              options.LoadFeatures ? "" : "not ", options.LoadCorrespondences ? "" : "not ");
 
             double startTime = UTCTime.Now();
-            double lastSpew = startTime;
 
             var project = Project.Find(pipeline, projectName);
             if (frameCache == null)
@@ -132,8 +131,7 @@ namespace OPS.Pipeline
             {
                 pipeline.LogInfo("preloading frame cache for project {0}", projectName);
                 double start = UTCTime.Now();
-                int numPreloaded = frameCache.Preload(loadTransforms: !options.UseTransformPriors,
-                                                      loadPriors: options.UseTransformPriors);
+                int numPreloaded = frameCache.Preload();
                 pipeline.LogInfo("preloaded {0} frames for project {1} in {2:F3}s",
                                  numPreloaded, projectName, UTCTime.Now() - start);
             }
@@ -162,8 +160,11 @@ namespace OPS.Pipeline
             {
                 if (IsImage(obs))
                 {
+                    pipeline.LogDebug("adding image observation {0} to node {1}", obs.Url, node.Name);
                     if (options.LoadFeatures && ValidGuid(obs.FeaturesGuid))
                     {
+                        pipeline.LogDebug("adding detected features for image obseration {0} to node {1}",
+                                          obs.Url, node.Name);
                         var feat = pipeline.GetDataProduct<DetectedFeatures>(project.ProductPath, obs.FeaturesGuid,
                                                                              projectName);
                         scene.DetectedFeatures[obs.Url] = feat.Features;
@@ -179,22 +180,31 @@ namespace OPS.Pipeline
                 loadedObservations[obs.Name] = obs;
             }
 
-            HashSet<string> loadedNodes = new HashSet<string>();
-            SceneNode addNode(Frame frame)
+            pipeline.LogInfo("building scene graph {0}", direction);
+
+            double lastSpew = startTime;
+            Dictionary<string, SceneNode> loadedNodes = new Dictionary<string, SceneNode>();
+            SceneNode addOrGetNode(Frame frame)
             {
-                if (loadedNodes.Contains(frame.Name) || !options.IncludeFrame(frame))
+                if (!options.IncludeFrame(frame))
                 {
                     return null;
                 }
 
+                if (loadedNodes.ContainsKey(frame.Name))
+                {
+                    return loadedNodes[frame.Name];
+                } 
+
                 var node = new SceneNode(frame.Name);
+                loadedNodes[node.Name] = node;
 
                 node.AddComponent<NodeFrame>().Frame = frameCache.GetFrame(frame.Name);
 
                 UncertainRigidTransform ut = null;
                 if (options.UseTransformPriors)
                 {
-                    var tp = frameCache.GetTransformPrior(frame);
+                    var tp = frameCache.GetBestPrior(frame);
                     if (tp == null)
                     {
                         throw new Exception("failed to get transform prior for frame " + frame.Name);
@@ -203,7 +213,7 @@ namespace OPS.Pipeline
                 }
                 else
                 {
-                    var ft = frameCache.GetTransform(frame);
+                    var ft = frameCache.GetBestTransform(frame);
                     if (ft == null)
                     {
                         throw new Exception("failed to get transform for frame " + frame.Name);
@@ -222,6 +232,8 @@ namespace OPS.Pipeline
                         .Cast<RoverObservation>()
                         .ToArray();
 
+                    pipeline.LogDebug("kept {0} observations for frame {1}", obsForFrame.Length, frame.Name);
+
                     if (options.OnlyKeepBestImages && obsForFrame.Length > 0)
                     {
                         obsForFrame = new RoverObservation[] { MSLProject.FindBestImage(obsForFrame) };
@@ -239,13 +251,12 @@ namespace OPS.Pipeline
                         foreach (var obs in obsForFrame)
                         {
                             var obsNode = new SceneNode(obs.Name, node.Transform); //identity transform
+                            loadedNodes[obsNode.Name] = obsNode;
                             obsNode.AddComponent<NodeUncertainTransform>(); //no uncertainty
                             addObservation(obs, obsNode);
                         }
                     }
                 }
-
-                loadedNodes.Add(node.Name);
 
                 double now = UTCTime.Now();
                 if (now - lastSpew > 5)
@@ -258,15 +269,13 @@ namespace OPS.Pipeline
                 return node;
             }
 
-            pipeline.LogInfo("building scene graph {0}", direction);
-
             switch (direction)
             {
                 case BuildDirection.TopDown:
                 {
                     SceneNode spawn(Frame frame, SceneNode parent)
                     {
-                        var node = addNode(frame);
+                        var node = addOrGetNode(frame);
                         if (node != null)
                         {
                             node.Parent = parent;
@@ -282,9 +291,11 @@ namespace OPS.Pipeline
                 }
                 case BuildDirection.BottomUp:
                 {
+                    pipeline.LogDebug("start frames: {0}",
+                                      string.Join(", ", startFrames.Select(f => f != null ? f.Name : "null")));
                     void spawn(Frame frame, SceneNode child)
                     {
-                        var node = addNode(frame);
+                        var node = addOrGetNode(frame);
                         if (node != null)
                         {
                             if (child != null)
@@ -308,6 +319,9 @@ namespace OPS.Pipeline
                     break;
                 }
             }
+
+            pipeline.LogInfo("loaded {0} nodes, {1} observations, {2} feature products",
+                             loadedNodes.Count, loadedObservations.Count, numFeatures);
 
             if (options.LoadOverlaps)
             {
@@ -374,19 +388,23 @@ namespace OPS.Pipeline
                         }
                     }
 
-                    numOverlaps++;
                     var pair = new URLPair(o1.Url, o2.Url);
-                    scene.Overlaps.Add(pair);
 
-                    if (options.LoadCorrespondences && ValidGuid(overlap.MatchGuid))
+                    if (!scene.Overlaps.Contains(pair))
                     {
-                        var match = pipeline.GetDataProduct<ComputedCorrespondence>(project.ProductPath,
-                                                                                    overlap.MatchGuid,
-                                                                                    projectName);
-                        if (match != null)
+                        scene.Overlaps.Add(pair);
+                        numOverlaps++;
+                        if (options.LoadCorrespondences && ValidGuid(overlap.MatchGuid) &&
+                            !scene.Correspondences.ContainsKey(pair))
                         {
-                            scene.Correspondences[pair] = match.Correspondence;
-                            numCorrespondences++;
+                            var match = pipeline.GetDataProduct<ComputedCorrespondence>(project.ProductPath,
+                                                                                        overlap.MatchGuid,
+                                                                                        projectName);
+                            if (match != null)
+                            {
+                                scene.Correspondences[pair] = match.Correspondence;
+                                numCorrespondences++;
+                            }
                         }
                     }
                 }
@@ -398,7 +416,7 @@ namespace OPS.Pipeline
                 {
                     pipeline.LogInfo("processed {0}/{1} observations, "
                                      + "added {2} overlaps, {3} skipped, {4} correspondence products...",
-                                     numProcessed, loadedObservations.Count, numOverlaps, numCorrespondences);
+                                     numProcessed, loadedObservations.Count, numOverlaps, numSkipped, numCorrespondences);
                     lastSpew = now;
                 }
             }

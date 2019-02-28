@@ -1,16 +1,18 @@
-﻿using CommandLine;
-using System;
+﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.IO;
 using System.Threading.Tasks;
 using Microsoft.Xna.Framework;
+using log4net;
+using CommandLine;
+using Newtonsoft.Json;
+using OPS.Util;
 using OPS.Geometry;
 using OPS.Pipeline;
 using OPS.Imaging;
-using System.IO;
-using log4net;
-using Newtonsoft.Json;
 using OPS.Pipeline.TileServer;
 
 namespace OPS
@@ -142,7 +144,7 @@ namespace OPS
         void ProcessLeafNodes(MultiMeshClipper multiMeshClipper, SceneNode root)
         {
             var totalLeafCount = root.Leaves().Count();
-            Parallel.ForEach(root.Leaves(), (node, pls, index) =>
+            CoreLimitedParallel.ForEach(root.Leaves(), (node, pls, index) =>
             {
                 logger.InfoFormat("Leaf: {0} ({1}/{2})", node.Name, index, totalLeafCount);
                 Mesh m = multiMeshClipper.Clip(node.GetComponent<NodeBounds>().Bounds);
@@ -175,7 +177,7 @@ namespace OPS
             int groupCountOffset = 0;
             foreach (var group in root.GetReverseDepthGroups())
             {
-                Parallel.ForEach(group, (node, pls, index) =>
+                CoreLimitedParallel.ForEach(group, (node, pls, index) =>
                 {
                     // Check to see all children have meshes, otherwise defer processing
                     if (!node.AllChildrenHaveMeshes())

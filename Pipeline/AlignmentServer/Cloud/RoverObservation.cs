@@ -31,6 +31,22 @@ namespace OPS.Pipeline.AlignmentServer
 
         public string Producer;
 
+        protected void IsValidRoverOservation()
+        {
+            base.IsValid();
+            if (!(Version != null &&
+                  Sensor != null &&
+                  ImageFrameSize != null &&
+                  Producer != null))
+            {
+                throw new Exception("Missing required property in RoverObservation " + Name +
+                                    " Version=" + Version +
+                                    " Sensor=" + Sensor +
+                                    " ImageFrameSize=" + ImageFrameSize +
+                                    " Producer=" + Producer);
+            }
+        }
+
         //This constructor must be public for DynamoDb but should not be used
         public RoverObservation() { }
 
@@ -43,6 +59,7 @@ namespace OPS.Pipeline.AlignmentServer
             this.Sensor = sensor;
             this.ImageFrameSize = imageFrameSize;
             this.Producer = producer;
+            this.IsValidRoverOservation();
         }
 
         /// <summary>
@@ -75,13 +92,18 @@ namespace OPS.Pipeline.AlignmentServer
         /// <returns></returns>
         public static RoverObservation Create(PipelineCore pipeline, Frame frame, string name, string url, string observationType, string cameraModel, bool useForReconstruction, int site, int drive, string version, string sensor, string imageFrameSize, string producer, int width, int height)
         {
-            if (Observation.Find(pipeline, frame.ProjectName, name) != null)
+            if (Find(pipeline, frame.ProjectName, name) != null)
             {
                 return null; //An observation with this name and project already exists 
             }
             RoverObservation ro = new RoverObservation(frame, name, url, observationType, cameraModel, useForReconstruction, site, drive, version, sensor, imageFrameSize, producer, width, height);
             pipeline.SaveDatabaseItem(ro);
             return ro;
+        }
+
+        public override void Save(PipelineCore pipeline)
+        {
+            pipeline.SaveDatabaseItem(this);
         }
 
         /// <summary>

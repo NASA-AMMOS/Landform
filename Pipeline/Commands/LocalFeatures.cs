@@ -56,7 +56,7 @@ namespace OPS.Pipeline
 
             double startSec = UTCTime.Now();
             int nc = 0, ne = 0, nf = 0, np = 0;
-            Parallel.ForEach(observations, obs => {
+            CoreLimitedParallel.ForEach(observations, obs => {
                     if (obs.FeaturesGuid != null && obs.FeaturesGuid != Guid.Empty)
                     {
                         Interlocked.Increment(ref ne);

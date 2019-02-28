@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using MathNet.Numerics.LinearAlgebra;
 using OPS.Geometry;
 using OPS.Pipeline.AlignmentServer;
 
@@ -14,7 +13,7 @@ namespace OPS.Pipeline
         public InitializeAlignmentProject(PipelineCore pipeline) : base(pipeline) { }
 
         public Project Initialize(string projectName, string productPath, string inputPath, bool recreateIfExists,
-                                  string rootName, out Frame rootFrame, out FrameTransform rootTransform)
+                                  string rootName)
         {
             var project = Project.Find(pipeline, projectName);
 
@@ -35,25 +34,17 @@ namespace OPS.Pipeline
                 pipeline.DeleteDatabaseItem(project);
                 project = Project.Create(pipeline, projectName, productPath, inputPath, rootName);
 
-                rootFrame = Frame.Find(pipeline, projectName, rootName);
-                if (rootFrame != null)
+                var oldRoot = Frame.Find(pipeline, projectName, rootName);
+                if (oldRoot != null)
                 {
-                    rootTransform = FrameTransform.Find(pipeline, rootFrame);
-                    if (rootTransform != null)
+                    foreach (var source in oldRoot.Transforms)
                     {
-                        pipeline.DeleteDatabaseItem(rootTransform);
-                    }
-                    foreach (var id in rootFrame.GetPriors())
-                    {
-                        var prior = TransformPrior.Find(pipeline, projectName, id);
-                        if (prior != null)
+                        var transform = FrameTransform.Find(pipeline, oldRoot, source);
+                        if (transform != null)
                         {
-                            pipeline.DeleteDatabaseItem(prior);
+                            pipeline.DeleteDatabaseItem(transform);
                         }
                     }
-                    pipeline.DeleteDatabaseItem(rootFrame);
-                    rootFrame = null;
-                    rootTransform = null;
                 }
             }
             else
@@ -73,30 +64,16 @@ namespace OPS.Pipeline
                 pipeline.LogInfo("using existing alignment project {0}", projectName);
             }
 
-            rootFrame = Frame.FindOrCreate(pipeline, projectName, rootName);
-
-            var ut = new UncertainRigidTransform
-                (new MathExtensions.GaussianND(CreateVector.Dense<double>(6), CreateMatrix.Dense<double>(6, 6)));
-
-            rootTransform = FrameTransform.FindOrCreate(pipeline, rootFrame, ut);
-
-            TransformPrior rootPrior = rootFrame.GetPrior(pipeline);
-            if (rootPrior == null)
-            {
-                rootPrior = TransformPrior.Create(pipeline, rootFrame, ut);
-                rootFrame.AddPrior(rootPrior.Id);
-                rootFrame.Save(pipeline);
-            }
+            var rootFrame = Frame.FindOrCreate(pipeline, projectName, rootName);
+            var ut = new UncertainRigidTransform(); //identity, certain
+            FrameTransform.FindOrCreate(pipeline, rootFrame, TransformSource.Prior, ut);
 
             return project;
         }
 
         public Project Initialize(string projectName, string productPath, string inputPath, bool recreateIfExists)
         {
-            Frame rootFrame = null;
-            FrameTransform rootTransform = null;
-            return Initialize(projectName, productPath, inputPath, recreateIfExists, MSLProject.ROOT_FRAME_NAME,
-                              out rootFrame, out rootTransform);
+            return Initialize(projectName, productPath, inputPath, recreateIfExists, MSLProject.ROOT_FRAME_NAME);
         }
     }
 }

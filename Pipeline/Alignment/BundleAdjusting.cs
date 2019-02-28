@@ -4,6 +4,8 @@ using System.Linq;
 using System.Text;
 using System.Diagnostics;
 using log4net;
+using Microsoft.Xna.Framework;
+using MathNet.Numerics.LinearAlgebra;
 using OPS.Util;
 using OPS.Cloud;
 using OPS.Imaging;
@@ -28,6 +30,7 @@ namespace OPS.Pipeline
             pipeline.LogInfo("building scene graph for bundle adjustment, project {0}", projectName);
             var bsg = new BuildSceneGraph(pipeline, project.Name, new BuildSceneGraph.Options {
                     UseTransformPriors = true,
+                    LoadFeatures = true,
                     LoadCorrespondences = true,
                     OnlyKeepImagesWithFeatures = true,
                     OnlyKeepBestImages = true,
@@ -39,8 +42,14 @@ namespace OPS.Pipeline
             int numAdjustedNodes = 0, numImageNodes = 0, nsd = 0, nobs = 0;
             foreach (var siteDriveNode in scene.Root.Children)
             {
-                Debug.Assert(!siteDriveNode.IsLeaf);
-                Debug.Assert(!siteDriveNode.HasComponent<NodeImage>());
+                if (siteDriveNode.IsLeaf)
+                {
+                    throw new Exception("site drive node should not be a leaf: " + siteDriveNode.Name);
+                }
+                if (siteDriveNode.HasComponent<NodeImage>())
+                {
+                    throw new Exception("site drive node should not have image component: " + siteDriveNode.Name);
+                }
                 if (adjustAcrossSiteDrives)
                 {
                     siteDriveNode.AddComponent<AdjustedNode>();
@@ -49,7 +58,10 @@ namespace OPS.Pipeline
                 }
                 foreach (var observationNode in siteDriveNode.Children)
                 {
-                    Debug.Assert(observationNode.IsLeaf);
+                    if (!observationNode.IsLeaf)
+                    {
+                        throw new Exception("observation node should be a leaf: " + observationNode.Name);
+                    }
                     if (observationNode.HasComponent<NodeImage>())
                     {
                         numImageNodes++;
@@ -81,13 +93,18 @@ namespace OPS.Pipeline
                 foreach (var adjNode in scene.Root.GetComponentsInTree<AdjustedNode>())
                 {
                     pipeline.LogInfo("saving transform {0} of {1} adjusted frames", n++, numAdjustedNodes);
-                    Microsoft.Xna.Framework.Matrix bundleResult = adjNode.Node.Transform.Matrix;
-                    FrameTransform ft = FrameTransform.Find(pipeline, projectName, adjNode.Node.Name);
-                    if (ft.Transform.Mean != bundleResult)
-                    {
-                        ft.Transform = new UncertainRigidTransform(bundleResult, ft.Transform.Distribution.Covariance); 
-                    }
+                    var bundleResult = adjNode.Node.Transform.Matrix;
+                    var frame = adjNode.Node.GetComponent<NodeFrame>().Frame;
+                    //TODO propagate transform covariance out of ceres
+                    //https://github.jpl.nasa.gov/OnSight/Landform/issues/367
+                    var ut = new UncertainRigidTransform(bundleResult);
+                    FrameTransform ft = FrameTransform.FindOrCreate(pipeline, frame, TransformSource.Landform, ut);
+                    ft.Transform = ut;
                     ft.Save(pipeline);
+                    if (frame.AddTransform(ft))
+                    {
+                        frame.Save(pipeline);
+                    }
                 }
             }
             else

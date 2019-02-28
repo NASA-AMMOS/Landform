@@ -48,15 +48,16 @@ namespace OPS.Pipeline
                 return 1;
             }
 
-            var scene = ImageMatching.BuildSceneAndDetectOverlaps(this, project, options.RedoOverlaps,
-                                                                  !options.MatchWithinSiteDrives);
+            var scene = ImageMatching.BuildSceneAndDetectOverlaps(this, project, loadFeatures: true,
+                                                                  redoOverlaps: options.RedoOverlaps,
+                                                                  onlyCrossSite: !options.MatchWithinSiteDrives);
             int no = scene.Overlaps.Count;
 
             LogInfo("finding feature matches for {0} image pairs", no);
 
             double startSec = UTCTime.Now();
             int nc = 0, np = 0, ne = 0, nr = 0, ns = 0;
-            Parallel.ForEach(scene.Overlaps, pair => {
+            CoreLimitedParallel.ForEach(scene.Overlaps, pair => {
                 string pairName = pair.ToStringShort();
                 var modelUrl = pair.One;
                 var dataUrl = pair.Two;
@@ -80,7 +81,6 @@ namespace OPS.Pipeline
                 {
                     LogInfo("processing {0} image pairs in parallel, completed {1}/{2}", np, nc, no);
                 }
-                LogVerbose("computing features matches for image pair {0}", pairName);
                 var result = ImageMatching.ComputeCorrespondence(this, scene, modelUrl, dataUrl);
                 var guid = Guid.Empty;
                 if (result != null)

@@ -39,7 +39,7 @@ namespace OPS.Pipeline.TileServer
 
         public void Process()
         {
-            LogInfo("started batch of " + message.TileIds.Count + " leaf tiles");
+            pipeline.LogInfo("started batch of " + message.TileIds.Count + " leaf tiles");
             var project = TilingProject.Find(pipeline, projectName);
 
             List<TilingNode> leaves = new List<TilingNode>();
@@ -52,7 +52,7 @@ namespace OPS.Pipeline.TileServer
             {
                 if (n.MeshUrl != null)
                 {
-                    LogInfo("leaf " + n.Id + " already complete, skipping");
+                    pipeline.LogInfo("leaf " + n.Id + " already complete, skipping");
                     pipeline.MasterQueue.Enqueue(new TileCompletedMessage(projectName) { TileId = n.Id });
                 }
             }
@@ -60,7 +60,7 @@ namespace OPS.Pipeline.TileServer
             leaves = leaves.Where(n => n.MeshUrl == null).ToList();
             if (leaves.Count == 0)
             {
-                LogInfo("all leaves in job already generated");
+                pipeline.LogInfo("all leaves in job already generated");
                 return;
             }
 
@@ -125,11 +125,11 @@ namespace OPS.Pipeline.TileServer
                               project.GetSkirtMode());
                 processed.Add(leaf);
                 pipeline.MasterQueue.Enqueue(new TileCompletedMessage(projectName) { TileId = leaf.Id });
-                LogInfo("generating leaf {0} from {1} chunks ({2}/{3})",
-                        leaf.Id, inputGroups.SelectMany(g => g.Chunks).Count(), processed.Count(), leaves.Count);
+                pipeline.LogInfo("generating leaf {0} from {1} chunks ({2}/{3})",
+                                 leaf.Id, inputGroups.SelectMany(g => g.Chunks).Count(), processed.Count(), leaves.Count);
             });
 
-            LogInfo("batch completed, generated " + processed.Count() + " leaf tiles");
+            pipeline.LogInfo("batch completed, generated " + processed.Count() + " leaf tiles");
         }
     }
 }

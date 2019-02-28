@@ -42,7 +42,6 @@ namespace OPS.Pipeline.TileServer
 
         public bool FinishedRunning;
 
-        [JsonConverter(typeof(SynchronizedConverter<List<string>>))]
         public List<string> InputNames;
 
         public string NodeIdsUrl;
@@ -209,31 +208,12 @@ namespace OPS.Pipeline.TileServer
 
         public bool AddInput(string name)
         {
-            lock (InputNames)
+            if (InputNames.Contains(name))
             {
-                if (InputNames.Contains(name))
-                {
-                    return false;
-                }
-                InputNames.Add(name);
-                return true;
+                return false;
             }
-        }
-
-        public IEnumerable<string> GetInputs()
-        {
-            lock (InputNames)
-            {
-                return InputNames.ToArray();
-            }
-        }
-
-        public bool HasInput(string name)
-        {
-            lock (InputNames)
-            {
-                return InputNames.Contains(name);
-            }
+            InputNames.Add(name);
+            return true;
         }
     }
 }

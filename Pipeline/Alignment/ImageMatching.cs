@@ -30,6 +30,7 @@ namespace OPS.Pipeline
             };
             BuildSceneGraph builder = new BuildSceneGraph(pipeline, projectName, opts);
             AlignmentScene scene = builder.BuildBottomUp(new[] { modelFrameName, dataFrameName });
+            (new FrustumOverlapDetector(pipeline, pipeline)).MakeHulls(scene);
             return ComputeCorrespondence(pipeline, scene, modelUrl, dataUrl);
         }
 
@@ -38,6 +39,31 @@ namespace OPS.Pipeline
         {
             Debug.Assert(scene.ObservationUrlToNode.ContainsKey(modelUrl));
             Debug.Assert(scene.ObservationUrlToNode.ContainsKey(dataUrl));
+            Debug.Assert(scene.DetectedFeatures.ContainsKey(modelUrl));
+            Debug.Assert(scene.DetectedFeatures.ContainsKey(dataUrl));
+
+            var modelNode = scene.ObservationUrlToNode[modelUrl];
+            var dataNode = scene.ObservationUrlToNode[dataUrl];
+
+            var modelObs = modelNode.GetComponent<NodeObservation>().Observation;
+            var dataObs = dataNode.GetComponent<NodeObservation>().Observation;
+
+
+            string pairName = (new URLPair(modelUrl, dataUrl)).ToStringShort();
+            pipeline.LogVerbose("{0} ({1} features, {2} features): (re)computing feature matches",
+                                pairName,
+                                scene.DetectedFeatures[modelUrl].Length,
+                                scene.DetectedFeatures[dataUrl].Length);
+
+            if (modelObs is RoverObservation && dataObs is RoverObservation)
+            {
+                var mro = modelObs as RoverObservation;
+                var dro = dataObs as RoverObservation;
+                pipeline.LogVerbose("{0} SiteDrives: {1}, {2}",
+                                    pairName,
+                                    (new SiteDrive(mro.Site, mro.Drive)).ToString(),
+                                    (new SiteDrive(dro.Site, dro.Drive)).ToString());
+            }
 
             //IFeatureMatcher matcher = new EmguSIFTMatcher();
             //IFeatureMatcher matcher = new KnownGeometryMatcher();
@@ -46,30 +72,32 @@ namespace OPS.Pipeline
             var matches = matcher.Match(scene, modelUrl, dataUrl);
             if (matches.Count < MIN_MATCHES)
             {
+                pipeline.LogVerbose("{0} {1}: {2} < {3} matches, discarding", pairName, matcher.GetType().Name,
+                                    matches.Count, MIN_MATCHES);
                 return null;
             }
+            pipeline.LogVerbose("{0} {1}: {2} matches", pairName, matcher.GetType().Name, matches.Count);
 
             List<IMatchFilter> filters = new List<IMatchFilter>();
-            filters.Add(new KnownGeometryFilter(pipeline.Logger));
-            filters.Add(new MoisanStivalFilter(pipeline.Logger));
+            filters.Add(new KnownGeometryFilter(pipeline));
+            filters.Add(new MoisanStivalFilter(pipeline));
             //filters.Add(new GTMFilter());
 
             foreach (var filter in filters)
             {
                 int oldCount = matches.Count;
                 matches = filter.Filter(scene, matches);
-                pipeline.LogVerbose("{0}: {1} -> {2}", filter.GetType().Name, oldCount, matches.Count);
                 if (matches.Count < MIN_MATCHES)
                 {
+                    pipeline.LogVerbose("{0} {1}: {2} < {3} matches, discarding", pairName, filter.GetType().Name,
+                                        matches.Count, MIN_MATCHES);
                     return null;
                 }
+                pipeline.LogVerbose("{0} {1}: {2} -> {3}", pairName, filter.GetType().Name, oldCount, matches.Count);
             }
 
-            var modelNode = scene.ObservationUrlToNode[modelUrl];
-            var dataNode = scene.ObservationUrlToNode[dataUrl];
-
-            var modelObs = modelNode.GetComponent<NodeObservation>().Observation;
-            var dataObs = dataNode.GetComponent<NodeObservation>().Observation;
+            pipeline.LogVerbose("{0} {1}: {2} -> {3} feature matches", pairName, matcher.GetType().Name,
+                                string.Join(", ", filters.Select(f => f.GetType().Name)), matches.Count);
 
             return new ComputedCorrespondence()
             {
@@ -93,7 +121,8 @@ namespace OPS.Pipeline
         }
 
         public static AlignmentScene BuildSceneAndDetectOverlaps(PipelineCore pipeline, Project project,
-                                                                 bool redoOverlaps = false, bool onlyCrossSite = true,
+                                                                 bool loadFeatures = true, bool redoOverlaps = false,
+                                                                 bool onlyCrossSite = true,
                                                                  Func<Observation, bool> filter = null)
         {
             pipeline.LogInfo("building scene graph for {0}image matching",
@@ -101,7 +130,7 @@ namespace OPS.Pipeline
             var sb = new BuildSceneGraph(pipeline, project.Name, new BuildSceneGraph.Options()
                                          {
                                              UseTransformPriors = true,
-                                             LoadFeatures = true,
+                                             LoadFeatures = loadFeatures,
                                              LoadOverlaps = !redoOverlaps,
                                              OnlyKeepImagesWithFeatures = true,
                                              OnlyKeepBestImages = true,
@@ -112,7 +141,7 @@ namespace OPS.Pipeline
 
             if (scene.Overlaps.Count == 0)
             {
-                var fod = new FrustumOverlapDetector(pipeline, pipeline.Logger);
+                var fod = new FrustumOverlapDetector(pipeline, pipeline);
                 fod.Detect(scene, onlyCrossSite);
             }
             return scene;

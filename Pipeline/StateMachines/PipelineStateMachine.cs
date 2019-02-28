@@ -195,7 +195,7 @@ namespace OPS.Pipeline
         virtual protected bool ChunkInputs(TilingProject project)
         {
             bool allChunked = true;
-            foreach (var inputName in project.GetInputs())
+            foreach (var inputName in project.InputNames)
             {
                 var input = TilingInput.Find(pipeline, projectName, inputName);
                 if (!input.Chunked)

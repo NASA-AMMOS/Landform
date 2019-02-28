@@ -37,7 +37,6 @@ namespace OPS.Pipeline.TileServer
 
         public bool Chunked;
 
-        [JsonConverter(typeof(SynchronizedConverter<List<string>>))]
         public List<string> ChunkIds;
 
         public TilingInput()
@@ -77,7 +76,7 @@ namespace OPS.Pipeline.TileServer
 
         public static IEnumerable<TilingInput> Find(PipelineCore pipeline, TilingProject project, ILog logger = null)
         {
-            foreach (var name in project.GetInputs())
+            foreach (var name in project.InputNames)
             {
                 yield return Find(pipeline, project.Name, name);
             }
@@ -135,10 +134,10 @@ namespace OPS.Pipeline.TileServer
 
         public int AddChunks(IEnumerable<string> ids)
         {
+            HashSet<string> unique = new HashSet<string>();
             lock (ChunkIds)
             {
                 int old = ChunkIds.Count;
-                HashSet<string> unique = new HashSet<string>();
                 unique.UnionWith(ChunkIds);
                 unique.UnionWith(ids);
                 ChunkIds.Clear();

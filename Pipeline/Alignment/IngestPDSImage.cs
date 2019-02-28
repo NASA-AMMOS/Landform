@@ -221,7 +221,7 @@ namespace OPS.Pipeline
             if (!CheckFilename(StringHelper.GetLastUrlPathSegment(imgUrl, stripExtension: true)))
             {
                 pipeline.LogDebug("rejected {0} by filename", imgUrl);
-                return new Result(imgUrl, Status.Skipped, null);
+                return new Result(imgUrl, Status.Skipped);
             }
 
             // Fetch image and check metadata
@@ -230,7 +230,7 @@ namespace OPS.Pipeline
             if (!CheckMetadata(parser))
             {
                 pipeline.LogDebug("rejected {0} by metadata", imgUrl);
-                return new Result(imgUrl, Status.Skipped, null);
+                return new Result(imgUrl, Status.Skipped);
             }
 
             string observationName = ObservationName(parser);
@@ -243,7 +243,7 @@ namespace OPS.Pipeline
             catch
             {
                 pipeline.LogDebug("invalid camera model for {0}", observationName);
-                return new Result(imgUrl, Status.Skipped, null);
+                return new Result(imgUrl, Status.Skipped);
             }
 
             // Create database entries
@@ -255,11 +255,11 @@ namespace OPS.Pipeline
             }
 
             // site drive frame -> root frame
-            var siteDriveFrame = FindOrCreateFrame(SiteDriveFrameName(parser), rootFrame,
+            var siteDriveFrame = FindOrCreateFrame(SiteDriveFrameName(parser), rootFrame, TransformSource.LocationsDB,
                                                    () => GetDefaultSiteDriveTransform(parser.SiteDrive));
 
             // observation (aka rover) frame -> site drive (aka local level) frame
-            var observationFrame = FindOrCreateFrame(ObservationFrameName(parser), siteDriveFrame,
+            var observationFrame = FindOrCreateFrame(ObservationFrameName(parser), siteDriveFrame, TransformSource.PDS,
                                                      () => GetDefaultObservationTransform(parser.RoverOriginRotation));
 
             Observation observation = RoverObservation.Find(pipeline, project.Name, observationName);
@@ -273,7 +273,7 @@ namespace OPS.Pipeline
                 else
                 {
                     pipeline.LogDebug("not recreating existing observation {0}", observationName);
-                    return new Result(imgUrl, Status.Duplicate, observation);
+                    return new Result(imgUrl, Status.Duplicate, observation, observationFrame);
                 }
             }
 
@@ -287,15 +287,17 @@ namespace OPS.Pipeline
                                                   metadata.Width, metadata.Height);
             if (observation != null)
             {
-                observationFrame.AddObservation(observationName);
-                observationFrame.Save(pipeline);
+                //don't add to frame.ObservationNames here
+                //we ingest multiple images in parallel, possibly for the same frame
+                //so that would be a read-modify-write hazard
+                //instead this is done later in IngestAlignmentInputs
                 pipeline.LogDebug("created observation {0}", observationName);
-                return new Result(imgUrl, Status.Added, observation);
+                return new Result(imgUrl, Status.Added, observation, observationFrame);
             }
             else
             {
                 pipeline.LogDebug("failed to create observation {0}", observationName);
-                return new Result(imgUrl, Status.Failed, null);
+                return new Result(imgUrl, Status.Failed, null, observationFrame);
             }
         }
 
@@ -329,34 +331,25 @@ namespace OPS.Pipeline
 
         private ConcurrentDictionary<string, bool> alreadyResetTransforms = new ConcurrentDictionary<string, bool>();
 
-        private Frame FindOrCreateFrame(string name, Frame parent, Func<UncertainRigidTransform> defTransform)
+        private Frame FindOrCreateFrame(string name, Frame parent, TransformSource source,
+                                        Func<UncertainRigidTransform> defTransform)
         {
             var frame = Frame.FindOrCreate(pipeline, project.Name, name, parent);
-            var frameTransform = FrameTransform.Find(pipeline, frame);
+            var frameTransform = FrameTransform.Find(pipeline, frame, source);
             if (frameTransform == null)
             {
-                pipeline.LogDebug("creating transform for frame {0}", name);
-                var transform = defTransform();
-                frameTransform = FrameTransform.Create(pipeline, frame, transform);
-                var prior = TransformPrior.Create(pipeline, frame, transform);
-                frame.AddPrior(prior.Id);
-                frame.Save(pipeline);
+                pipeline.LogDebug("creating {0} transform for frame {1}", source, name);
+                frameTransform = FrameTransform.Create(pipeline, frame, source, defTransform());
+                //don't add to frame.Transforms here
+                //we ingest multiple images in parallel, possibly for the same frame
+                //so that would be a read-modify-write hazard
+                //instead this is done later in IngestAlignmentInputs
             }
             else if (resetTransforms && !alreadyResetTransforms.ContainsKey(name))
             {
-                pipeline.LogDebug("resetting transform for frame {0}", name);
-                var transform = defTransform();
-                frameTransform.Transform = transform;
+                pipeline.LogDebug("resetting {0} transform for frame {1}", source, name);
+                frameTransform.Transform = defTransform();
                 frameTransform.Save(pipeline);
-                foreach (var id in frame.GetPriors())
-                {
-                    var prior = TransformPrior.Find(pipeline, project.Name, id);
-                    if (prior != null && prior.FrameName == name)
-                    {
-                        prior.Transform = transform;
-                        prior.Save(pipeline);
-                    }
-                }
                 alreadyResetTransforms.TryAdd(name, true);
             }
             return frame;
