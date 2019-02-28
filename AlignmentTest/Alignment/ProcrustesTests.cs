@@ -37,7 +37,7 @@ namespace AlignmentTest
                                      out Vector3 translation, out Quaternion rotation, out double scale,
                                      calcTranslation: false, calcRotation: false, calcScale: true);
 
-            Assert.IsTrue(Math.Abs(appliedScale * scale) > 0.9998 && Math.Abs(appliedScale * scale) < 1.0001);
+            Assert.IsTrue(Math.Abs(appliedScale * scale - 1) < 0.0001);
             Assert.AreEqual(Vector3.Zero, translation);
             Assert.AreEqual(Quaternion.Identity, rotation);
         }
@@ -132,7 +132,7 @@ namespace AlignmentTest
                                      out Vector3 translation, out Quaternion rotation, out double scale,
                                      calcTranslation: true, calcRotation: true, calcScale: true);
 
-            Assert.IsTrue(Math.Abs(appliedScale * scale) > 0.9998 && Math.Abs(appliedScale * scale) < 1.0001);
+            Assert.IsTrue(Math.Abs(appliedScale * scale - 1) < 0.0001);
             Assert.IsTrue(Math.Abs((Quaternion.Identity - appliedRotation * rotation).Length()) < 0.001);
             Assert.IsTrue(Math.Abs((appliedTranslation - Vector3.Transform(-translation, appliedRotation) * appliedScale).Length()) < 0.001);
         }
