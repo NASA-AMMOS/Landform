@@ -14,15 +14,25 @@ namespace OPS.Alignment
 {
     public class EmguSIFTMatcher : IFeatureMatcher
     {
-        public ImagePairCorrespondence Match(AlignmentScene scene, URLPair pair)
+        public ImagePairCorrespondence Match(AlignmentScene scene, string modelUrl, string dataUrl)
         {
-            var modelUrl = pair.One;
-            var dataUrl = pair.Two;
-            var modelFeat = scene.DetectedFeatures[modelUrl];
-            var dataFeat = scene.DetectedFeatures[dataUrl];
+            var modelFeatures = scene.DetectedFeatures[modelUrl];
+            var dataFeatures = scene.DetectedFeatures[dataUrl];
+            return Match(modelFeatures, dataFeatures, modelUrl, dataUrl);
+        }
 
-            SIFTFeature[] feat0 = modelFeat.Cast<SIFTFeature>().ToArray();
-            SIFTFeature[] feat1 = dataFeat.Cast<SIFTFeature>().ToArray();
+        public ImagePairCorrespondence Match(ImageFeature[] modelFeatures, ImageFeature[] dataFeatures,
+                                             string modelUrl, string dataUrl)
+        {
+            return new ImagePairCorrespondence(modelUrl, dataUrl, Match(modelFeatures, dataFeatures));
+        }
+
+        public IEnumerable<KeyValuePair<int, int>> Match(ImageFeature[] modelFeatures, ImageFeature[] dataFeatures)
+        {
+            if (modelFeatures.Length < 1 || dataFeatures.Length < 1) yield break;
+
+            SIFTFeature[] feat0 = modelFeatures.Cast<SIFTFeature>().ToArray();
+            SIFTFeature[] feat1 = dataFeatures.Cast<SIFTFeature>().ToArray();
 
             Matrix<float> descr0 = ToDescriptorMatrix1(feat0);
             Matrix<float> descr1 = ToDescriptorMatrix1(feat1);
@@ -39,7 +49,6 @@ namespace OPS.Alignment
                 bfm.Add(descr0);
                 bfm.KnnMatch(descr1, matches, 2, null);
             }
-     
 
             Matrix<byte> mask = new Matrix<byte>(matches.Size, 1);
             mask.SetValue(255);
@@ -53,24 +62,27 @@ namespace OPS.Alignment
                 }
             }
             int nonZero = CvInvoke.CountNonZero(mask);
-            if (nonZero < 1) { return null; }
+            if (nonZero < 1)
+            {
+                yield break;
+            }
             lock (GlobalLock)
             {
                 nonZero = Features2DToolbox.VoteForSizeAndOrientation(kp0, kp1, matches, mask.Mat, 1.5, 20);
             }
-            if (nonZero < 1) { return null; }
+            if (nonZero < 1)
+            {
+                yield break;
+            }
 
-            List<KeyValuePair<int, int>> dataToModel = new List<KeyValuePair<int, int>>();
             for (int idx = 0; idx < matches.Size; idx++)
             {
                 if (mask[idx, 0] != 0)
                 {
                     var match = matches[idx][0];
-                    dataToModel.Add(new KeyValuePair<int, int>(match.QueryIdx, match.TrainIdx));
+                    yield return new KeyValuePair<int, int>(match.QueryIdx, match.TrainIdx);
                 }
             }
-
-            return new ImagePairCorrespondence(modelUrl, dataUrl, dataToModel);
         }
 
         static VectorOfKeyPoint ToVOKP(SIFTFeature[] kps)

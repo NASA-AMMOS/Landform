@@ -6,11 +6,13 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.IO;
 using Amazon.DynamoDBv2.DataModel;
+using log4net;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using OPS.Cloud;
 using OPS.Util;
 using OPS.Geometry;
-using log4net;
-using Newtonsoft.Json.Linq;
+using OPS.Pipeline.AlignmentServer;
 
 namespace OPS.Pipeline.TileServer
 {
@@ -19,36 +21,41 @@ namespace OPS.Pipeline.TileServer
     [DynamoDBWriteCapacity(5, 50)]
     public class TilingProject
     {
-        [DynamoDBHashKey] //Partition key
-        [DynamoDBProperty()]
-        public string Name { get; set; }
+        [DynamoDBHashKey]
+        public string Name;
 
-        public string TilingScheme { get; set; }
-        public string SkirtMode { get; set; }
-        public string ReconMethod { get; set; }
+        public string TilingScheme;
 
-        public int FacesPerTile { get; set; }
-        public int TileResolution { get; set; }
+        public string SkirtMode;
 
-        public bool TilesDefined { get; set; }
+        public string ReconMethod;
 
-        public string ProjectType { get; set; }
+        public int FacesPerTile;
 
-        public bool StartedRunning { get; set; }
+        public int TileResolution;
 
-        public bool FinishedRunning { get; set; }
+        public bool TilesDefined;
 
-        public List<string> InputNames { get; set; }
+        public string ProjectType;
 
-        public string NodeIdsUrl { get; set; }
+        public bool StartedRunning;
 
-        public string ExportMeshFormat { get; set; }
+        public bool FinishedRunning;
 
-        public string ExportImageFormat { get; set; }
+        public List<string> InputNames;
 
-        public int MaxLeafGroupSize { get; set; }
+        public string NodeIdsUrl;
 
-        public TilingProject() { }
+        public string ExportMeshFormat;
+
+        public string ExportImageFormat;
+
+        public int MaxLeafGroupSize;
+
+        public TilingProject()
+        {
+            InputNames = new List<string>();
+        }
 
         /// <summary>
         /// Creates Project object locally.  
@@ -57,6 +64,7 @@ namespace OPS.Pipeline.TileServer
         protected TilingProject(string name, TilingScheme tilingScheme, SkirtMode skirtMode,
                                 MeshReconMethod reconMethod, int faces, int resolution, string projectType,
                                 string exportMeshFormat, string exportImageFormat, int maxLeafGroupSize)
+            : this()
         {
             Name = name;
             TilingScheme = tilingScheme.ToString();
@@ -196,6 +204,16 @@ namespace OPS.Pipeline.TileServer
             });
             NodeIdsUrl = url;
             return url;
+        }
+
+        public bool AddInput(string name)
+        {
+            if (InputNames.Contains(name))
+            {
+                return false;
+            }
+            InputNames.Add(name);
+            return true;
         }
     }
 }

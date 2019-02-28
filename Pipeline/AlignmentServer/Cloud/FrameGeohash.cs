@@ -13,23 +13,19 @@ namespace OPS.Pipeline.AlignmentServer
     public class FrameGeohash
     {
         [DynamoDBHashKey]
-        [DynamoDBProperty]
-        public string Id { get; set; }
+        public string Id;
 
         [DynamoDBRangeKey]
-        [DynamoDBProperty]
-        public string ProjectName { get; set; }
+        public string ProjectName;
         
-        [DynamoDBProperty]
-        public string SpatialIndexId { get; set; }
+        public string SpatialIndexId;
 
-        [DynamoDBProperty]
-        public string FrameName { get; set; }
+        public string FrameName;
 
-        [DynamoDBProperty]
-        public string Geohash { get; set; }
+        public string Geohash;
 
         public FrameGeohash() { }
+
         protected FrameGeohash(string id, Project project, SpatialIndex index, Frame frame, string geohash)
         {
             Id = id;

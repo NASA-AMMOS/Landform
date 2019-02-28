@@ -16,25 +16,33 @@ namespace OPS.Alignment
     /// </summary>
     public class BruteForceMatcher : IFeatureMatcher
     {
-        private static readonly ILog logger = LogManager.GetLogger(typeof(BruteForceMatcher));
         const int K = 2;
 
         public BruteForceMatcher() { }
 
-        public ImagePairCorrespondence Match(AlignmentScene scene, URLPair pair)
+        public ImagePairCorrespondence Match(AlignmentScene scene, string modelUrl, string dataUrl)
         {
-            return Match(pair.One, pair.Two, scene.DetectedFeatures[pair.One], scene.DetectedFeatures[pair.Two]);
+            var modelFeatures = scene.DetectedFeatures[modelUrl]; 
+            var dataFeatures = scene.DetectedFeatures[dataUrl];
+            return Match(modelFeatures, dataFeatures, modelUrl, dataUrl);
         }
 
-        public ImagePairCorrespondence Match(string modelUrl, string dataUrl, 
-                                             ImageFeature[] modelFeat, ImageFeature[] dataFeat)
+        public ImagePairCorrespondence Match(ImageFeature[] modelFeatures, ImageFeature[] dataFeatures,
+                                             string modelUrl, string dataUrl)
         {
-            if (modelFeat.Length < 1 || dataFeat.Length < 1) return ImagePairCorrespondence.Empty;
+            var dataToModel = Match(modelFeatures, dataFeatures).ToArray();
+            return new ImagePairCorrespondence(modelUrl, dataUrl, dataToModel);
+        }
+            
+        public IEnumerable<KeyValuePair<int, int>> Match(ImageFeature[] modelFeatures, ImageFeature[] dataFeatures)
+        {
+            if (modelFeatures.Length < 1 || dataFeatures.Length < 1) yield break;
 
-            SIFTFeature[] feat0 = modelFeat.Cast<SIFTFeature>().ToArray();
-            SIFTFeature[] feat1 = dataFeat.Cast<SIFTFeature>().ToArray();
+            SIFTFeature[] feat0 = modelFeatures.Cast<SIFTFeature>().ToArray();
+            SIFTFeature[] feat1 = dataFeatures.Cast<SIFTFeature>().ToArray();
 
-            knnNode[][] Matches = dataFeat.Select((x, j) => new knnNode[2]).ToArray();
+            knnNode[][] Matches = dataFeatures.Select((x, j) => new knnNode[2]).ToArray();
+
             // Match descriptors
             KnnMatch(feat0, feat1, Matches);
             
@@ -57,46 +65,40 @@ namespace OPS.Alignment
                 }
             }
 
-            List<KeyValuePair<int, int>> dataToModel = new List<KeyValuePair<int, int>>();
             for (int idx = 0; idx < Matches.Length; idx++)
             {
                 if (mask[idx, 0] != 0)
                 {
                     var match = Matches[idx][0];
-                    dataToModel.Add(new KeyValuePair<int, int>(idx, match.Index));
+                    yield return new KeyValuePair<int, int>(idx, match.Index);
                 }
             }
-
-            logger.Info(string.Format("Model features: {0}, Data features: {1}, Matches: {2}",
-                                      feat0.Length, feat1.Length, dataToModel.Count));
-
-            return new ImagePairCorrespondence(modelUrl, dataUrl, dataToModel);
         }
 
-
-        private void KnnMatch(SIFTFeature[] modelFeat, SIFTFeature[] dataFeat, knnNode[][] Matches)
+        private void KnnMatch(SIFTFeature[] modelFeatures, SIFTFeature[] dataFeatures, knnNode[][] Matches)
         {
-            double[][] dist = new double[modelFeat.Length][].Select(x => new double[dataFeat.Length]).ToArray();
-            knnNode[][] knnModel = new knnNode[modelFeat.Length][].Select(x => new knnNode[K]).ToArray();
-            knnNode[][] knnData = new knnNode[dataFeat.Length][].Select(x => new knnNode[K]).ToArray();
+            double[][] dist = new double[modelFeatures.Length][].Select(x => new double[dataFeatures.Length]).ToArray();
+            knnNode[][] knnModel = new knnNode[modelFeatures.Length][].Select(x => new knnNode[K]).ToArray();
+            knnNode[][] knnData = new knnNode[dataFeatures.Length][].Select(x => new knnNode[K]).ToArray();
 
-            FeatureDescriptor<byte>[] modelDescr = modelFeat.Select(m => (FeatureDescriptor<byte>)m.Descriptor).ToArray();
-            FeatureDescriptor<byte>[] dataDescr = dataFeat.Select(m => (FeatureDescriptor<byte>)m.Descriptor).ToArray();
+            FeatureDescriptor<byte>[] modelDescr =
+                modelFeatures.Select(m => (FeatureDescriptor<byte>)m.Descriptor).ToArray();
+            FeatureDescriptor<byte>[] dataDescr =
+                dataFeatures.Select(m => (FeatureDescriptor<byte>)m.Descriptor).ToArray();
 
             int descriptorLength = modelDescr[0].Length;
 
             // Compute distance matrix
-            Parallel.For(0, modelFeat.Length, i =>
+            CoreLimitedParallel.For(0, modelDescr.Length, i =>
             {
-                SIFTFeature modelFeature = modelFeat[i];
-                for (int j = 0; j < dataFeat.Length; j++)
+                for (int j = 0; j < dataDescr.Length; j++)
                 {
                     double err = 0;
                     var d0 = modelDescr[i];
                     var d1 = dataDescr[j];
-                    for (int jerry = 0; jerry < descriptorLength; jerry++)
+                    for (int k = 0; k < descriptorLength; k++)
                     {
-                        double signedError = (d1[jerry] - d0[jerry]);
+                        double signedError = (d1[k] - d0[k]);
                         err += signedError * signedError;
                     }
                     dist[i][j] = err;
@@ -105,7 +107,7 @@ namespace OPS.Alignment
 
             var taskA = Task.Run(() =>
             {
-                Parallel.For(0, dist.Length, i =>
+                CoreLimitedParallel.For(0, dist.Length, i =>
                 {
                     double minval = double.MaxValue;
                     double minval2 = double.MaxValue;
@@ -134,9 +136,10 @@ namespace OPS.Alignment
                     knnModel[i] = new knnNode[] { new knnNode(minval, minI), new knnNode(minval2, minI2) };
                 });
             });
+
             var taskB = Task.Run(() =>
             {
-                Parallel.For(0, dist[0].Length, i =>
+                CoreLimitedParallel.For(0, dist[0].Length, i =>
                 {
                     double minval = double.MaxValue;
                     double minval2 = double.MaxValue;

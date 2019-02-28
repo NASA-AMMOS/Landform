@@ -16,27 +16,20 @@ namespace OPS.Pipeline.AlignmentServer
     [DynamoDBWriteCapacity(5, 50)]
     public class Project
     {
-        [DynamoDBHashKey] //Partition key
-        [DynamoDBProperty()]
+        [DynamoDBHashKey]
         public string Name;
 
-        /// <summary>
-        /// Prefix of s3 URL where derived products should be saved. Format s3://<bucketname>/<prefix>/
-        /// </summary>
         public string ProductPath;
 
-        /// <summary>
-        /// Prefix of s3 URL where input data is stored. Format s3://<bucketname>/<prefix>/
-        /// </summary>
         public string InputPath;
 
         public string RootFrame;
 
-        //This constructor must be public for DynamoDb but should not be used
+        //This constructor must be public for DynamoDB but should not be used
         public Project() { }
 
         /// <summary>
-        /// Creates Project object locally.  
+        /// Creates Project  
         /// </summary>
         /// <param name="name">Project names in the database must be unique</param>
         protected Project(string name, string productPath, string inputPath, string rootFrameName)

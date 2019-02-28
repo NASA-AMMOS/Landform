@@ -37,12 +37,11 @@ namespace OPS.Pipeline.AlignmentServer
         public void Process()
         {
             var project = Project.Find(pipeline, projectName);
-            pipeline.LogInfo("creating mask for image {0} in project {1}",
-                             StringHelper.GetLastUrlPathSegment(message.ImageUrl), project.Name);
+            var shortUrl = StringHelper.GetLastUrlPathSegment(message.ImageUrl);
+            pipeline.LogInfo("creating mask for image {0} in project {1}", shortUrl, project.Name);
             var mask = new PngDataProduct(RoverMask.Build(pipeline.LoadImage(message.ImageUrl)));
             pipeline.SaveDataProduct(project.ProductPath, mask, projectName);
-            pipeline.LogInfo("created mask for image {0} in project {1}",
-                             StringHelper.GetLastUrlPathSegment(message.ImageUrl), project.Name);
+            pipeline.LogInfo("created mask for image {0} in project {1}", shortUrl, project.Name);
             pipeline.MasterQueue.Enqueue(new MaskCreatedMessage(projectName)
                                          { ImageUrl = message.ImageUrl, MaskGuid = mask.Guid });
         }

@@ -9,6 +9,16 @@ using log4net.Core;
 
 namespace OPS.Util
 {
+    public interface ILogger
+    {
+        string LogPrefix { get; set; }
+        void LogInfo(string msg, params Object[] args);
+        void LogVerbose(string msg, params Object[] args);
+        void LogDebug(string msg, params Object[] args);
+        void LogWarn(string msg, params Object[] args);
+        void LogError(string msg, params Object[] args);
+    }
+
     public class Logging
     {
         //%level must be last token before : to faciltate parsing errors in web code

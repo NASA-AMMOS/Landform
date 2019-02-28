@@ -14,94 +14,123 @@ namespace OPS.Alignment
 {
     public class KnownGeometryMatcher : IFeatureMatcher
     {
-        /// <summary>
-        /// When two camera rays are parallel, try backprojecting from this distance.
-        /// </summary>
-        public double ParallelBackprojectDistance;
-        /// <summary>
-        /// Ratio of bad to good projections to reject an uncertain match.
-        /// </summary>
-        public double BadProjectionRatio;
+        public double MaxAbsDistToEpipolarLine = 10;
 
-        private IImageLoader loader;
+        public delegate SceneNode ImageNodeDelegate(string imageUrl);
 
-        public KnownGeometryMatcher(IImageLoader loader)
+        private readonly ImageNodeDelegate imageToNode;
+
+        public KnownGeometryMatcher(ImageNodeDelegate imageToNode = null)
         {
-            this.loader = loader;
+            this.imageToNode = imageToNode;
         }
 
-        public ImagePairCorrespondence Match(AlignmentScene scene, URLPair pair)
+        public ImagePairCorrespondence Match(AlignmentScene scene, string modelUrl, string dataUrl)
         {
-            string modelUrl = pair.One;
-            string dataUrl = pair.Two; 
+            var modelFeatures = scene.DetectedFeatures[modelUrl];
+            var dataFeatures = scene.DetectedFeatures[dataUrl];
+            var modelNode = scene.ObservationUrlToNode[modelUrl];
+            var dataNode = scene.ObservationUrlToNode[dataUrl];
+            return Match(modelFeatures, dataFeatures, modelUrl, dataUrl, modelNode, dataNode);
+        }
 
-            bool oneIsModel = (scene.DetectedFeatures[modelUrl].Length > scene.DetectedFeatures[dataUrl].Length);
-            if (!oneIsModel)
+        public ImagePairCorrespondence Match(ImageFeature[] modelFeatures, ImageFeature[] dataFeatures,
+                                             string modelUrl, string dataUrl)
+        {
+            var modelNode = imageToNode(modelUrl);
+            var dataNode = imageToNode(dataUrl);
+            return Match(modelFeatures, dataFeatures, modelUrl, dataUrl, modelNode, dataNode);
+        }
+
+        public ImagePairCorrespondence Match(ImageFeature[] modelFeatures, ImageFeature[] dataFeatures,
+                                             string modelUrl, string dataUrl, SceneNode modelNode, SceneNode dataNode)
+        {
+            bool swapped = dataFeatures.Length > modelFeatures.Length;
+            if (swapped)
             {
-                modelUrl = pair.Two;
-                dataUrl = pair.One;
+                var tmp1 = modelFeatures;
+                modelFeatures = dataFeatures;
+                dataFeatures = tmp1;
+
+                var tmp2 = modelUrl;
+                modelUrl = dataUrl;
+                dataUrl = tmp2;
+
+                var tmp3 = modelNode;
+                modelNode = dataNode;
+                dataNode = tmp3;
             }
 
-            ImageFeature[] modelFeatures = scene.DetectedFeatures[modelUrl];
-            ImageFeature[] dataFeatures = scene.DetectedFeatures[dataUrl];
+            var modelCam = modelNode.GetOrAddComponent<NodeImage>().CameraModel;
+            var dataCam = dataNode.GetOrAddComponent<NodeImage>().CameraModel;
 
-            var dataNode = scene.ImageToNode[dataUrl];
-            var modelNode = scene.ImageToNode[modelUrl];
+            if (modelCam == null || dataCam == null)
+            {
+                throw new ArgumentException("KnownGeometryMatcher requires camera models");
+            }
+
             var dataToModel = dataNode.GetOrAddComponent<NodeUncertainTransform>().To(modelNode);
             var modelToData = modelNode.GetOrAddComponent<NodeUncertainTransform>().To(dataNode);
 
-
-            ConvexHull modelHullInData = null;
-            var ch = modelNode.GetComponent<NodeConvexHull>();
-            if (ch != null)
+            var modelHullInData = modelNode.GetOrAddComponent<NodeConvexHull>().Hull;
+            if (modelHullInData != null)
             {
-                modelHullInData = ConvexHull.Transformed(ch.Hull, modelToData);
+                modelHullInData = ConvexHull.Transformed(modelHullInData, modelToData);
             }
 
-            ImagePairCorrespondence res = new ImagePairCorrespondence
+            var matches =
+                Match(modelFeatures, dataFeatures, modelCam, dataCam, dataToModel.Mean, modelHullInData).ToArray();
+
+            if (swapped)
             {
-                ModelImageUrl = modelUrl,
-                DataImageUrl = dataUrl
-            };
+                var tmp1 = modelUrl;
+                modelUrl = dataUrl;
+                dataUrl = tmp1;
 
+                var tmp2 = new KeyValuePair<int, int>[matches.Length];
+                for (int i = 0; i < matches.Length; i++)
+                {
+                    tmp2[i] = new KeyValuePair<int, int>(matches[i].Value, matches[i].Key);
+                }
+                matches = tmp2;
+            }
+            
+            return new ImagePairCorrespondence(modelUrl, dataUrl, matches);
+        }
+
+        public IEnumerable<KeyValuePair<int, int>> Match(ImageFeature[] modelFeatures, ImageFeature[] dataFeatures,
+                                                         CameraModel modelCam, CameraModel dataCam,
+                                                         Matrix dataToModel, ConvexHull modelHullInData = null)
+        {
+            if (modelFeatures.Length < 1 || dataFeatures.Length < 1) yield break;
             var epiFinder = new EpipolarLineFinder();
-
-            List<KeyValuePair<int, int>> matches = new List<KeyValuePair<int, int>>();
+            var bfm = new BruteForceMatcher();
             for (int i = 0; i < dataFeatures.Length; i++)
             {
-                var modelCam = loader.LoadImage(modelUrl).CameraModel;
-                var dataCam = loader.LoadImage(dataUrl).CameraModel;
-
                 var dataFeat = dataFeatures[i];
                 var dataRay = dataCam.Unproject(dataFeat.Location);
 
-                if (!modelHullInData.Intersects(dataRay)) continue;
-                
-                var epiLine = epiFinder.Find(modelCam, dataCam, dataToModel.Mean, dataFeat);
-
-                List<int> candidates = new List<int>();
-                for (int j = 0; j < modelFeatures.Length; j++)
+                if (modelHullInData != null && !modelHullInData.Intersects(dataRay))
                 {
-                    var modelFeat = modelFeatures[j];
-                    if (Math.Abs(epiLine.SignedDistance(modelFeat.Location)) > 10) continue;
-                    candidates.Add(j);
+                    continue;
                 }
+                
+                var epiLine = epiFinder.Find(modelCam, dataCam, dataToModel, dataFeat);
 
-                if (candidates.Count > 0)
+                List<ImageFeature> candidates = new List<ImageFeature>();
+                foreach (var modelFeat in modelFeatures)
                 {
-                    BruteForceMatcher bfm = new BruteForceMatcher();
-                    var submatch = bfm.Match(modelUrl, dataUrl,
-                                             candidates.Select(idx => modelFeatures[idx]).ToArray(),
-                                             new[] { dataFeat });
-                    if (submatch == null) continue;
-                    foreach (var match in submatch.DataToModel)
+                    if (Math.Abs(epiLine.SignedDistance(modelFeat.Location)) <= MaxAbsDistToEpipolarLine)
                     {
-                        matches.Add(new KeyValuePair<int, int>(i, candidates[match.Value]));
+                        candidates.Add(modelFeat);
                     }
                 }
+
+                foreach (var match in bfm.Match(candidates.ToArray(), new[] { dataFeat }))
+                {
+                    yield return match;
+                }
             }
-            res.DataToModel = matches.ToArray();
-            return res;
         }
     }
 }

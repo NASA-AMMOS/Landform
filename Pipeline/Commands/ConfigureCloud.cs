@@ -39,6 +39,9 @@ namespace OPS.Pipeline
         [Option(Default = null, HelpText = "MSLICE S3 url")]
         public string MSLICES3Url { get; set; }
 
+        [Option(Default = null, HelpText = "0 or unset to use all available cores, N to use up to N, -M to reserve M")]
+        public string MaxCores { get; set; }
+
         [Option(Default = false, HelpText = "Do not persist config")]
         public bool NoPersist { get; set; }
 
@@ -70,12 +73,15 @@ namespace OPS.Pipeline
                                              Environment.UserName.ToLower(), Environment.MachineName.ToLower());
             }
 
-            config.Venue = ConsoleHelper.Prompt("Venue name", options.Venue, config.Venue);
+            config.Venue = ConsoleHelper.Prompt("venue", options.Venue, config.Venue);
             config.S3Url = ConsoleHelper.Prompt("S3 url", options.S3Url, config.S3Url);
             config.AWSRegion = ConsoleHelper.Prompt("AWS region", options.AWSRegion, config.AWSRegion);
             config.AWSProfile = ConsoleHelper.Prompt("AWS profile", options.AWSProfile, config.AWSProfile);
-            config.MSLICEAWSProfile = ConsoleHelper.Prompt("MSLICE AWS profile", options.MSLICEAWSProfile, config.MSLICEAWSProfile);
+            config.MSLICEAWSProfile = ConsoleHelper.Prompt("MSLICE AWS profile", options.MSLICEAWSProfile,
+                                                           config.MSLICEAWSProfile);
             config.MSLICES3Url = ConsoleHelper.Prompt("MSLICE S3 url", options.MSLICES3Url, config.MSLICES3Url);
+            config.MaxCores = ConsoleHelper.Prompt("max cores, 0 = all available, N = up to N, -M = reserve M",
+                                                   options.MaxCores, config.MaxCores);
 
             config.Validate();
 

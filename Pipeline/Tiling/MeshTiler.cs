@@ -90,7 +90,7 @@ namespace OPS.Pipeline
         /// <param name="loadNode"></param>
         public void TryLoadAssetsFromDisk(LoadNodeDelegate loadNode)
         {
-            Parallel.ForEach(this.Root.DepthFirstTraverse(), curNode =>
+            CoreLimitedParallel.ForEach(this.Root.DepthFirstTraverse(), curNode =>
             {
                 if (curNode.GetComponent<MeshImagePair>() == null)
                 {

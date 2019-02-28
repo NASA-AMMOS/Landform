@@ -15,10 +15,25 @@ using OPS.Cloud;
 
 namespace OPS.Pipeline.AlignmentServer
 {
+    public enum TransformSource
+    {
+        //these are totally ordered by priority, highest priorty first
+
+        Adjusted = 0, //general adjusted transform
+        Manual = 10, //manually adjusted
+        Landform = 20, //Landform bundle adjusted
+        Agisoft = 30, //Agisoft bundle adjusted
+
+        Prior = 100, //general prior transform
+        PlacesDB = 110, //prior from mission "places" databsae
+        LocationsDB = 120, //prior from mission "locations" database
+        PDS = 130 //prior from mission PDS header
+    }
+
     /// <summary>
     /// Represents the rotation and translation between two frames
     /// Frame transforms are not versioned, so two workers can edit and save them at the same time. 
-    /// Frame transform lookups are versioned, but this is internal to the class and workers do not need to worry about it
+    /// Frame transform lookups are versioned, but this is internal to the class
     /// </summary>
     [DynamoDBTable("FrameTransforms")]
     [DynamoDBReadCapacity(5, 50)]
@@ -26,20 +41,22 @@ namespace OPS.Pipeline.AlignmentServer
     public class FrameTransform
     {
         [DynamoDBRangeKey]
-        [DynamoDBProperty()]
-        public string ProjectName { get; set; }
+        public string ProjectName;
 
-        [DynamoDBHashKey] //Partition key
-        [DynamoDBProperty()]
-        public string FrameName { get; set; }
+        [DynamoDBHashKey]
+        public string Name;
+
+        public string FrameName;
+
+        public TransformSource Source;
 
         [DynamoDBProperty("Mean", typeof(VectorNConverter))]
         [JsonConverter(typeof(VectorNConverter))]
-        public Vector<double> Mean { get; set; }
+        public Vector<double> Mean;
 
         [DynamoDBProperty("Covariance", typeof(SquareMatrixConverter))]
         [JsonConverter(typeof(SquareMatrixConverter))]
-        public Matrix<double> Covariance { get; set; }
+        public Matrix<double> Covariance;
 
         [DynamoDBIgnore]
         [JsonIgnore]
@@ -47,7 +64,7 @@ namespace OPS.Pipeline.AlignmentServer
         {
             get
             {
-                return new UncertainRigidTransform(new MathExtensions.GaussianND(Mean, Covariance));
+                return new UncertainRigidTransform(Mean, Covariance);
             }
             set
             {
@@ -56,69 +73,93 @@ namespace OPS.Pipeline.AlignmentServer
             }
         }
 
-        //This constructor must be public for DynamoDb but should not be used
-        public FrameTransform()
-        {
-            
-        }
+        //This constructor must be public for DynamoDB but should not be used
+        public FrameTransform() { }
 
         /// <summary>
         /// Creates a new transform specifying the relationship between two frames
         /// </summary>
-        /// <param name="fromFrame"></param>
-        /// <param name="toFrame"></param>
-        /// <param name="translation"></param>
-        /// <param name="rotation"></param>
-        /// <param name="transformSource"></param>
-        /// <param name="error"></param>
-        protected FrameTransform(Frame frame, UncertainRigidTransform transform)
+        protected FrameTransform(Frame frame, TransformSource source, UncertainRigidTransform transform)
         {
             this.ProjectName = frame.ProjectName;
+            this.Name = MakeName(frame.Name, source);
             this.FrameName = frame.Name;
+            this.Source = source;
             this.Mean = transform.Distribution.Mean;
             this.Covariance = transform.Distribution.Covariance;
         }
-        
-        public static FrameTransform Create(PipelineCore pipeline, Frame frame, UncertainRigidTransform transform)
-        {
-            //Now that the id has been saved to the lookup table, we are free to add the transform itself 
-            FrameTransform ft = new FrameTransform(frame, transform);
-            pipeline.SaveDatabaseItem(ft);
 
+        public static string MakeName(string frameName, TransformSource source)
+        {
+            return string.Format("{0}-{1}", frameName, source);
+        }
+
+        public static FrameTransform Create(PipelineCore pipeline, Frame frame, TransformSource source,
+                                            UncertainRigidTransform transform)
+        {
+            FrameTransform ft = new FrameTransform(frame, source, transform);
+            pipeline.SaveDatabaseItem(ft);
             return ft;
+        }
+
+        public static FrameTransform FindOrCreate(PipelineCore pipeline, Frame frame, TransformSource source,
+                                                  UncertainRigidTransform transform)
+        {
+            FrameTransform frameTransform = Find(pipeline, frame, source);
+            if (frameTransform != null)
+            {
+                return frameTransform;
+            }
+
+            // If it doesn't exist try to create it
+            frameTransform = Create(pipeline, frame, source, transform);
+            if (frameTransform != null)
+            {
+                return frameTransform;
+            }
+
+            // If our create failed someone else may have created one between our find and create calls
+            // Look for it again.
+            return Find(pipeline, frame, source);
         }
 
         /// <summary>
         /// Save this transform without overwriting any values it may be missing
         /// </summary>
-        /// <param name=""></param>
         public void Save(PipelineCore pipeline)
         {
             pipeline.SaveDatabaseItem(this);
         }
 
-        public static FrameTransform FindOrCreate(PipelineCore pipeline, Frame frame, UncertainRigidTransform transform)
+        public static IEnumerable<FrameTransform> Find(PipelineCore pipeline, string projectName)
         {
-            // Try to find this project
-            FrameTransform frameTransform = Find(pipeline, frame);
-            if (frameTransform != null)
-            {
-                return frameTransform;
-            }
-            // If it doesn't exist try to create it
-            frameTransform = Create(pipeline, frame, transform);
-            if (frameTransform != null)
-            {
-                return frameTransform;
-            }
-            // If our create failed someone else may have created one between our find and create calls
-            // Look for it again.
-            return Find(pipeline, frame);
+            return pipeline.ScanDatabase<FrameTransform>("ProjectName", projectName);
         }
 
-        public static FrameTransform Find(PipelineCore pipeline, Frame frame)
+        public static IEnumerable<FrameTransform> Find(PipelineCore pipeline, Frame frame)
         {
-            return pipeline.LoadDatabaseItem<FrameTransform>(frame.Name, frame.ProjectName);
+            //avoid a database scan which by definition checks every transform in the database
+            foreach (var source in frame.Transforms)
+            {
+                yield return Find(pipeline, frame, source);
+            }
+        }
+
+        public static FrameTransform FindBest(PipelineCore pipeline, Frame frame)
+        {
+            var sources = frame.Transforms;
+            return sources.Count > 0 ? Find(pipeline, frame, sources.OrderBy(source => source).First()) : null;
+        }
+
+        public static FrameTransform Find(PipelineCore pipeline, string projectName, string frameName,
+                                          TransformSource source)
+        {
+            return pipeline.LoadDatabaseItem<FrameTransform>(MakeName(frameName, source), projectName);
+        }
+
+        public static FrameTransform Find(PipelineCore pipeline, Frame frame, TransformSource source)
+        {
+            return Find(pipeline, frame.ProjectName, frame.Name, source);
         }
     }
 }

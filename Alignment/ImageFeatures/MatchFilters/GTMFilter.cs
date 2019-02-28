@@ -370,18 +370,22 @@ namespace OPS.Alignment
         /// <returns></returns>
         public ImagePairCorrespondence Filter(AlignmentScene scene, ImagePairCorrespondence matches)
         {
-            // Construct graph
-            ImageFeature[] modelFeat = scene.DetectedFeatures[matches.ModelImageUrl];
-            ImageFeature[] dataFeat = scene.DetectedFeatures[matches.DataImageUrl];
+            var modelFeatures = scene.DetectedFeatures[matches.ModelImageUrl];
+            var dataFeatures = scene.DetectedFeatures[matches.DataImageUrl];
+            return Filter(modelFeatures, dataFeatures, matches);
+        }
 
+        public ImagePairCorrespondence Filter(ImageFeature[] modelFeatures, ImageFeature[] dataFeatures,
+                                              ImagePairCorrespondence matches)
+        {
             // Create data and model verts and add to graphs           
             List<GTMNode> modelNodes = new List<GTMNode>();
             List<GTMNode> dataNodes = new List<GTMNode>();
             for(int i=0; i < matches.DataToModel.Length; i++)
             {
                 var pair = matches.DataToModel[i];
-                modelNodes.Add(new GTMNode(i, modelFeat[pair.Value], pair.Value));
-                dataNodes.Add(new GTMNode(i, dataFeat[pair.Key], pair.Key));
+                modelNodes.Add(new GTMNode(i, modelFeatures[pair.Value], pair.Value));
+                dataNodes.Add(new GTMNode(i, dataFeatures[pair.Key], pair.Key));
             }
             modelGraph = new GTMGraphNice(modelNodes, this.K);
             dataGraph = new GTMGraphNice(dataNodes, this.K);

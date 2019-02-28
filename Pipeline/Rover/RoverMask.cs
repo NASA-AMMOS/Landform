@@ -31,15 +31,12 @@ namespace OPS.Pipeline
             var cmod = metadata.CameraModel;
 
             Image res = new Image(1, metadata.Width, metadata.Height);
-            lock (RoverModel)
+            for (int i = 0; i < res.Width; i++)
             {
-                for (int i = 0; i < res.Width; i++)
+                for (int j = 0; j < res.Height; j++)
                 {
-                    for (int j = 0; j < res.Height; j++)
-                    {
-                    	var ray = cmod.Unproject(new Vector2(i, j));
-                        res[0, j, i] = sc.Occludes(ray) ? 0 : 1;
-                    }
+                    var ray = cmod.Unproject(new Vector2(i, j));
+                    res[0, j, i] = sc.Occludes(ray) ? 0 : 1;
                 }
             }
 
