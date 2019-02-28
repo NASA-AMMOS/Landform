@@ -1,37 +1,41 @@
-using System;
-using UnityEngine;
-using DotNetMatrix;
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using MathNet.Numerics.LinearAlgebra;
+using Microsoft.Xna.Framework;
 
+//ported from AsteroidViz/Assets/Scripts/Procrustes.cs for Unity by marty vona
+//SHA: 321c19b84ddadbf2d7376860e8ccb062381df38b
+
+namespace OPS.Pipeline.Alignment
+{
 public class Procrustes
 {
-    public const float SVDTolerance = 1e-3f;
+
+    public const double SVDTolerance = 1e-3f;
 
     /**
-     * Calculate optimal translation, rotation, and scale to transform all movingPts[i] to best match fixedPts[i].
-     *
-     * http://scicomp.stackexchange.com/questions/6878/fitting-one-set-of-points-to-another-by-a-rigid-motion
-     * http://www.codeproject.com/Articles/5835/DotNetMatrix-Simple-Matrix-Library-for-NET
-     *
-     * For scaling calculation see procrustes.m in matlab stats toolbox.
-     *
-     * Without scaling this is orthogonal (really *orthonormal*) Procrustes analysis.  With scaling this is extended
-     * orthogonal Procrustes analysis (EOP).
-     *
-     * The input points are assumed to all be in the same coordinate frame.
-     *
-     * For example, to move a GameObject containing the moving points relative to a GameObject containing the fixed
-     * points, first transform them all into world frame (or the frame of any GameObject).
-     *
-     * You can then apply the computed translation, rotation, and scale using the Procrustes.ApplyTo() function.
-     **/
-    public static void Calculate(Vector3[] movingPts, Vector3[] fixedPts, out float rmsResidual,
-                                 out Vector3 translation, out Quaternion rotation, out float scale,
-                                 bool calcTranslation = true, bool calcRotation = true, bool calcScale = false,
-                                 float svdTolerance = SVDTolerance)
+        * Calculate optimal translation, rotation, and scale to transform all movingPts[i] to best match fixedPts[i].
+        * http://scicomp.stackexchange.com/questions/6878/fitting-one-set-of-points-to-another-by-a-rigid-motion
+        * http://www.codeproject.com/Articles/5835/DotNetMatrix-Simple-Matrix-Library-for-NET
+        * For scaling calculation see procrustes.m in matlab stats toolbox.
+        * Without scaling this is orthogonal (really *orthonormal*) Procrustes analysis.  With scaling this is extended
+        * orthogonal Procrustes analysis (EOP).
+        * The input points are assumed to all be in the same coordinate frame.
+        * For example, to move a GameObject containing the moving points relative to a GameObject containing the fixed
+        * points, first transform them all into world frame (or the frame of any GameObject).
+        **/
+
+    public static void Calculate(Vector3[] movingPts, Vector3[] fixedPts, out double rmsResidual,
+                                    out Vector3 translation, out Quaternion rotation, out double scale,
+                                    bool calcTranslation = true, bool calcRotation = true, bool calcScale = false,
+                                    double svdTolerance = SVDTolerance)
     {
         rmsResidual = 0;
-        translation = Vector3.zero;
-        rotation = Quaternion.identity;
+        translation = Vector3.Zero;
+        rotation = Quaternion.Identity;
         scale = 1.0f;
 
         if (movingPts.Length != fixedPts.Length)
@@ -42,11 +46,15 @@ public class Procrustes
         if (numPoints < 3)
             throw new System.ArgumentException("must supply at least 3 points in each set");
 
-        Vector3 movingCtr = Vector3.zero, fixedCtr = Vector3.zero;
+        Vector3 movingCtr = Vector3.Zero, fixedCtr = Vector3.Zero;
 
         if (calcTranslation)
         {
-            for (int i = 0; i < numPoints; ++i) { movingCtr += movingPts[i]; fixedCtr += fixedPts[i]; }
+            for (int i = 0; i < numPoints; ++i)
+            {
+                movingCtr += movingPts[i]; fixedCtr += fixedPts[i];
+            }
+
             movingCtr /= numPoints; fixedCtr /= numPoints;
         }
 
@@ -65,49 +73,41 @@ public class Procrustes
             {
                 for (int i = 0; i < 3; ++i)
                 {
-                    movingPtsNorm += movingPtsCentered[j][i]*movingPtsCentered[j][i];
-                    fixedPtsNorm += fixedPtsCentered[j][i]*fixedPtsCentered[j][i];
+                    movingPtsNorm += movingPtsCentered[j][i] * movingPtsCentered[j][i];
+                    fixedPtsNorm += fixedPtsCentered[j][i] * fixedPtsCentered[j][i];
                 }
             }
+
             movingPtsNorm = System.Math.Sqrt(movingPtsNorm);
             fixedPtsNorm = System.Math.Sqrt(fixedPtsNorm);
 
-            GeneralMatrix A = new GeneralMatrix(3, numPoints); //3xN
-            GeneralMatrix B = new GeneralMatrix(3, numPoints); //3xN
+            MathNet.Numerics.LinearAlgebra.Double.DenseMatrix A = new MathNet.Numerics.LinearAlgebra.Double.DenseMatrix(3, numPoints); //moving
+            MathNet.Numerics.LinearAlgebra.Double.DenseMatrix B = new MathNet.Numerics.LinearAlgebra.Double.DenseMatrix(3, numPoints); //fixed
 
             for (int j = 0; j < numPoints; ++j)
             {
                 for (int i = 0; i < 3; ++i)
                 {
-                    A.SetElement(i, j, movingPtsCentered[j][i] / movingPtsNorm);
-                    B.SetElement(i, j, fixedPtsCentered[j][i] / fixedPtsNorm);
+                    A[i, j] = movingPtsCentered[j][i] / movingPtsNorm;
+                    B[i, j] = fixedPtsCentered[j][i] / fixedPtsNorm;
                 }
             }
 
-            GeneralMatrix C = B.Multiply(A.Transpose()); //[3xN]x[Nx3] = 3x3
+            MathNet.Numerics.LinearAlgebra.Matrix<double> C = B.Multiply(A.Transpose()); //[3xN]x[Nx3] = 3x3
+            var svd = C.Svd();
 
-            SingularValueDecomposition svd = C.SVD();
-
-            if (svd.ErrorInfo != 0)
-            {
-                throw new InvalidOperationException("SVD failed, aborting");
-            }
-
-//            Debug.Log("singular values: " +
-//                      svd.SingularValues[0] + " " + svd.SingularValues[1] + " " + svd.SingularValues[2]);
-
-            if (svd.SingularValues[1] < svdTolerance)
+            if (svd.S[1] < svdTolerance)
             {
                 throw new InvalidOperationException("SVD ambiguous, aborting");
             }
 
-            GeneralMatrix R = svd.GetU() * svd.GetV().Transpose();
+            MathNet.Numerics.LinearAlgebra.Matrix<double> R = svd.U * svd.VT;
 
             if (R.Determinant() < 0)
             {
-                GeneralMatrix I = GeneralMatrix.Identity(3, 3);
-                I.SetElement(2, 2, -1); // flip handedness if solution was inverted
-                R = svd.GetU() * I * svd.GetV().Transpose();
+                MathNet.Numerics.LinearAlgebra.Double.DiagonalMatrix I = MathNet.Numerics.LinearAlgebra.Double.DiagonalMatrix.CreateIdentity(3);
+                I[2, 2] = -1; // flip handedness if solution was inverted
+                R = svd.U * I * svd.VT;
             }
 
             if (calcRotation)
@@ -136,19 +136,19 @@ public class Procrustes
             if (calcScale)
             {
                 double dscale = 0;
-                for (int i = 0; i < 3; ++i) dscale += svd.SingularValues[i];
+                for (int i = 0; i < 3; ++i) dscale += svd.S[i];
                 dscale *= fixedPtsNorm / movingPtsNorm;
-                scale = (float)dscale;
+                scale = dscale;
             }
         }
 
-        translation = fixedCtr - rotation * movingCtr * scale;
+        translation = fixedCtr - Vector3.Transform(movingCtr, rotation) * scale;
 
         for (int i = 0; i < numPoints; ++i)
         {
-            rmsResidual += (fixedPts[i] - (translation + rotation * movingPts[i] * scale)).sqrMagnitude;
+            rmsResidual += (fixedPts[i] - (translation + Vector3.Transform(movingPts[i], rotation) * scale)).LengthSquared();
         }
-        rmsResidual = Mathf.Sqrt(rmsResidual/numPoints);
+        rmsResidual = Math.Sqrt(rmsResidual / numPoints);
     }
-    }
+}
 }
