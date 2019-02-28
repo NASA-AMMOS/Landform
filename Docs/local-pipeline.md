@@ -1,5 +1,4 @@
 # Running Landform Alignment Pipeline Locally
-
 1.  Get some input data.  You will want one or more directories with .IMG files, typically OPGS navcam RDRs.
     1.  To use MSL data from `s3://red-product` you will need the `mslice` AWS credentials in your `~/.aws/credentials` file.
     1.  You can download the data with any S3 tool such as CloudBerry or WinSCP, or use the `Pipeline/Rover/fetch-msl.sh` script.
@@ -20,3 +19,28 @@ On my 36 core machine this workflow takes about about 15 minutes for cross-site 
 * features: 9min
 * matching: 2.5min cross-site only (958 candidate image pairs, 17 keepers), 5min all (1662 candidates, 381 keepers)
 * bundle adjust: 2.3s site-drive frames only (6 adjusted nodes), 28.6min all frames (93 adjusted nodes) 
+
+## Observation Meshes
+`Landform.exe local-observation-meshes PROJ OPTS` generates meshes for each observation in the database.  Options include
+* `--outputfolder` Output directory, or omit to save to project storage. By default subdirectories will be created in the pattern FRAME/TYPE/PROJ/SITEDRIVE where FRAME corresponds to the output coordinate frame and TYPE indicates whether adjusted transforms or only priors were used and/or if the transform sources were limited to a subset of those available.
+* `--outputframe` (Default: rover) Output coordinate frame: rover, sitedrive, or root
+* `--allowmastcam`(Default: false) Create meshes for mastcam observations
+* `--requirenormals` (Default: false) Only create meshes for observations with normals
+* `--requiretextures` (Default: false) Only create meshes for observations with textures
+* `--notextures` (Default: false) Write meshes with UVs and corresponding texture images
+* `--meshformat` (Default: ply) Mesh format, e.g. ply, obj 
+* `--textureformat` (Default: jpg) Texture image format, e.g. png, jpg
+* `--pointcloud` (Default: false) Create point clouds instead of triangle meshes
+* `--adjustedtransformsources` Allowed sources for adjusted transforms, comma separated, all if empty (Adjusted,Manual,Landform,Agisoft)
+* `--priortransformsources` Allowed sources for transform priors, comma separated, all if empty (Prior,PlacesDB,LocationsDB,PDS)
+* `--usepriors` (Default: false) Use transform priors only
+* `--decimatemeshes` (Default: 8) Mesh decimation blocksize
+* `--decimatetextures` (Default: 4) Texture decimation blocksize
+* `--maxtriangleaspect` (Default: 10) Max triangle aspect ratio
+* `--scalenormalsbyconfidence` (Default: false) Scale normals by confidence
+* `--suppresssitedrivedirectories` (Default: false) Don't split output by site drive
+* `--onlyforsitedrives` Only generate meshes for specific site drives, comma separated
+* `--noprogress` (Default: false) Hide progress
+* `--verbose` (Default: false) Log verbose info
+* `--debug` (Default: false) Log debug info
+
