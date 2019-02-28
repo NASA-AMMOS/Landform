@@ -199,6 +199,7 @@
     <Compile Include="Alignment\InitializeAlignmentProject.cs" />
     <Compile Include="Alignment\NodeFrame.cs" />
     <Compile Include="Alignment\NodeObservation.cs" />
+    <Compile Include="Alignment\Procrustes.cs" />
     <Compile Include="CloudPipeline.cs" />
     <Compile Include="CloudPipelineConfig.cs" />
     <Compile Include="CloudPipelineOperation.cs" />
