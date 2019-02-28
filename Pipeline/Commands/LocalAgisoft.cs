@@ -135,7 +135,7 @@ namespace OPS.Pipeline
                         //TODO propagate transform covariance out of agi xml
                         //https://github.jpl.nasa.gov/OnSight/Landform/issues/367
                         var ut = new UncertainRigidTransform(bundleResult);
-                        FrameTransform ft = FrameTransform.FindOrCreate(this, frame, TransformSource.Landform, ut);
+                        FrameTransform ft = FrameTransform.FindOrCreate(this, frame, TransformSource.Agisoft, ut);
                         ft.Transform = ut;
                         ft.Save(this);
                         if (frame.AddTransform(ft))
