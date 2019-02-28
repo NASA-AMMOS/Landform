@@ -110,17 +110,28 @@ public class Procrustes
                 R = svd.GetU() * I * svd.GetV().Transpose();
             }
 
-            Vector3 forward;
-            forward.x = (float)R.GetElement(0, 2);
-            forward.y = (float)R.GetElement(1, 2);
-            forward.z = (float)R.GetElement(2, 2);
+            if (calcRotation)
+            {
+                Vector3 forward;
+                forward.X = R[0, 2];
+                forward.Y = R[1, 2];
+                forward.Z = R[2, 2];
 
-            Vector3 up;
-            up.x = (float)R.GetElement(0, 1);
-            up.y = (float)R.GetElement(1, 1);
-            up.z = (float)R.GetElement(2, 1);
+                Vector3 up;
+                up.X = R[0, 1];
+                up.Y = R[1, 1];
+                up.Z = R[2, 1];
 
-            rotation = Quaternion.LookRotation(forward, up);
+                Vector3 right = Vector3.Normalize(Vector3.Cross(up, forward));
+                up = Vector3.Normalize(Vector3.Cross(forward, right));
+
+                //build row major matrix from basis vectors
+                Matrix rotMat = new Matrix(right.X, right.Y, right.Z, 0,
+                                            up.X, up.Y, up.Z, 0,
+                                            forward.X, forward.Y, forward.Z, 0,
+                                            0, 0, 0, 1);
+                rotation = Quaternion.CreateFromRotationMatrix(rotMat);
+            }
 
             if (calcScale)
             {
