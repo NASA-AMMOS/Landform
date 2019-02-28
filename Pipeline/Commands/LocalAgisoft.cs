@@ -298,5 +298,38 @@ namespace OPS.Pipeline
             doc.Save(outputCalibXML);
         }
 
+        public static Dictionary<string, Matrix> ReadTransforms(string outputCamerasXMLPath)
+        {
+            Dictionary<string, Matrix> results = new Dictionary<string, Matrix>();
+            XmlDocument xd = new XmlDocument();
+            xd.Load(outputCamerasXMLPath);
+            XmlNode doc = xd.SelectSingleNode("document");
+            XmlNode chunk = doc.SelectSingleNode("chunk");
+            XmlNode cameras = chunk.SelectSingleNode("cameras");
+            foreach (XmlNode camera in cameras.ChildNodes)
+            {
+                string name = camera.Attributes["label"].Value;
+                XmlNode transforms = camera.SelectSingleNode("transform");
+                if (transforms != null)
+                {
+                    Matrix matrix = ReadTransform(transforms.InnerText);
+                    results[name] = matrix;
+                }
+            }
+
+            return results;
+        }
+
+        private static Matrix ReadTransform(string innerText)
+        {
+            string[] terms = innerText.Split(new char[] { ' ' });
+
+            //do transpose while copying data in
+            Matrix rowMajor = new Matrix(double.Parse(terms[0]), double.Parse(terms[4]), double.Parse(terms[8]), double.Parse(terms[12]),
+                                         double.Parse(terms[1]), double.Parse(terms[5]), double.Parse(terms[9]), double.Parse(terms[13]),
+                                         double.Parse(terms[2]), double.Parse(terms[6]), double.Parse(terms[10]), double.Parse(terms[14]),
+                                         double.Parse(terms[3]), double.Parse(terms[7]), double.Parse(terms[11]), double.Parse(terms[15]));
+            return rowMajor;
+        }
     }
 }
