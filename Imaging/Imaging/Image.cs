@@ -671,9 +671,15 @@ namespace OPS.Imaging
         /// decimate by averaging square blocks
         /// respects image mask, if any
         /// resulting image will have mask set for any source block that had no valid pixels
+        /// does not mutate source image
         /// </summary>
-        public Image Decimate(int blocksize)
+        public Image Decimated(int blocksize)
         {
+            if (blocksize == 1)
+            {
+                return (Image)Clone();
+            }
+
             int targetWidth = Width / blocksize; //integer math
             int targetHeight = Height / blocksize; //integer math
 

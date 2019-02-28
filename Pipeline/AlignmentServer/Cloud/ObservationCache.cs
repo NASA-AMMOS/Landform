@@ -41,11 +41,11 @@ namespace OPS.Pipeline.AlignmentServer
                         Add(obs);
                     }
                 });
-            foreach (var obs in observations.Keys)
+            foreach (var obs in observations.Values)
             {
-                if (!forFrame.ContainsKey(obs))
+                if (!forFrame.ContainsKey(obs.FrameName))
                 {
-                    forFrame[obs] = new List<Observation>(); //frame has no observations
+                    forFrame[obs.FrameName] = new List<Observation>(); //frame has no observations
                 }
             }
             return observations.Count;
@@ -85,7 +85,13 @@ namespace OPS.Pipeline.AlignmentServer
 
         public IEnumerable<string> GetAllFramesWithObservations()
         {
-            return forFrame.Keys;
+            foreach (var pair in forFrame)
+            {
+                if (pair.Value.Count > 0)
+                {
+                    yield return pair.Key;
+                }
+            }
         }
     }
 }

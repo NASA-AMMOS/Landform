@@ -115,16 +115,16 @@ namespace OPS.Pipeline
             return ret;
         }
 
-        private static void AddMaskForMissingConstant(Image img, PDSParser parser = null)
+        private static void AddMaskForMissingConstant(Image dst, Image src, PDSParser parser = null)
         {
-            parser = parser ?? new PDSParser((PDSMetadata)img.Metadata);
+            parser = parser ?? new PDSParser((PDSMetadata)src.Metadata);
             if (parser.HasMissingConstant)
             {
-                img.CreateMask(parser.MissingConstant.Select(x => (float)x).ToArray());
+                dst.UnionMask(src, parser.MissingConstant.Select(x => (float)x).ToArray());
             }
             else
             {
-                img.CreateMask(false);
+                dst.CreateMask(false);
             }
         }
 
@@ -173,7 +173,7 @@ namespace OPS.Pipeline
             CheckType(parser, RoverProductType.XYZ, "ConvertXYZ");
             Matrix xform = RoverCoordinateSystem.GetTransformToRoverFrame(parser);
             Image ret = new Image(3, img.Width, img.Height);
-            AddMaskForMissingConstant(ret, parser);
+            AddMaskForMissingConstant(ret, img, parser);
             for (int row = 0; row < img.Height; row++)
             {
                 for (int col = 0; col < img.Width; col++)
@@ -207,12 +207,12 @@ namespace OPS.Pipeline
             }
             Matrix xform = RoverCoordinateSystem.GetTransformToRoverFrame(parser);
             Vector3 rangeOrigin = Vector3.Transform(parser.RangeOrigin, xform);
-            if (!Vector3.AlmostEqual(rangeOrigin, GetCameraCenter(img, "ConvertRNG"), 0.0005))
+            if (!Vector3.AlmostEqual(rangeOrigin, GetCameraCenter(img, "ConvertRNG"), 0.1))
             {
                 throw new NotImplementedException("ConvertRNG requires range maps projected from camera location");
             }
             Image ret = new Image(3, img.Width, img.Height);
-            AddMaskForMissingConstant(ret, parser);
+            AddMaskForMissingConstant(ret, img, parser);
             for (int row = 0; row < img.Height; row++)
             {
                 for (int col = 0; col < img.Width; col++)
@@ -254,7 +254,7 @@ namespace OPS.Pipeline
             parser = parser ?? new PDSParser((PDSMetadata)img.Metadata);
             CheckType(parser, RoverProductType.Range, "GenerateConfidenceFromRNG");
             Image ret = new Image(1, img.Width, img.Height);
-            AddMaskForMissingConstant(ret, parser);
+            AddMaskForMissingConstant(ret, img, parser);
             for (int row = 0; row < img.Height; row++)
             {
                 for (int col = 0; col < img.Width; col++)
@@ -288,7 +288,7 @@ namespace OPS.Pipeline
             Vector3 rangeOrigin = GetCameraCenter(img, "GenerateConfidenceFromXYZ");
             Matrix xform = RoverCoordinateSystem.GetTransformToRoverFrame(parser);
             Image ret = new Image(1, img.Width, img.Height);
-            AddMaskForMissingConstant(ret, parser);
+            AddMaskForMissingConstant(ret, img, parser);
             for (int row = 0; row < img.Height; row++)
             {
                 for (int col = 0; col < img.Width; col++)
@@ -326,7 +326,7 @@ namespace OPS.Pipeline
             Matrix xform = RoverCoordinateSystem.GetTransformToRoverFrame(parser);
             bool nonIdentityXform = !xform.Equals(Matrix.Identity);
             Image ret = new Image(img);
-            AddMaskForMissingConstant(ret, parser);
+            AddMaskForMissingConstant(ret, img, parser);
             for (int row = 0; row < img.Height; row++)
             {
                 for (int col = 0; col < img.Width; col++)
@@ -403,20 +403,23 @@ namespace OPS.Pipeline
             {
                 img.UnionMask(mask, new float[] { 0 } );
             }
-            var ret = img.Decimate(blocksize);
-            for (int row = 0; row < ret.Height; row++)
+            if (blocksize > 1)
             {
-                for (int col = 0; col < ret.Width; col++)
+                img = img.Decimated(blocksize);
+                for (int row = 0; row < img.Height; row++)
                 {
-                    if (!ret.IsInvalid(row, col))
+                    for (int col = 0; col < img.Width; col++)
                     {
-                        var n = new Vector3(ret[0, row, col], ret[1, row, col], ret[2, row, col]);
-                        n.Normalize();
-                        ret.SetBandValues(row, col, n.ToFloatArray());
+                        if (!img.IsInvalid(row, col))
+                        {
+                            var n = new Vector3(img[0, row, col], img[1, row, col], img[2, row, col]);
+                            n.Normalize();
+                            img.SetBandValues(row, col, n.ToFloatArray());
+                        }
                     }
                 }
             }
-            return ret;
+            return img;
         }
 
         public static Image DecimatePoints(Image img, int blocksize, Image mask = null)
@@ -425,7 +428,7 @@ namespace OPS.Pipeline
             {
                 img.UnionMask(mask, new float[] { 0 } );
             }
-            return img.Decimate(blocksize);
+            return blocksize > 1 ? img.Decimated(blocksize) : img;
         }
 
         public static void LoadOrGenerateMeshImages(PipelineCore pipeline, MeshObservations obs, int decimateBlocksize,
@@ -627,12 +630,13 @@ namespace OPS.Pipeline
 
         public static Mesh BuildOrganizedMesh(PipelineCore pipeline, MeshObservations obs, FrameCache frameCache,
                                               string frame = "root", bool usePriors = false, int decimateBlocksize = 1,
-                                              bool scaleNormalsByConfidence = false, bool withUVs = false)
+                                              bool scaleNormalsByConfidence = false, double maxTriangleAspect = 10,
+                                              bool withUVs = false)
         {
             Image points, normals, mask;
             LoadOrGenerateMeshImages(pipeline, obs, decimateBlocksize, scaleNormalsByConfidence,
                                      out points, out normals, out mask);
-            var ret = BuildOrganizedMesh(points, normals, mask);
+            var ret = BuildOrganizedMesh(points, normals, mask, maxTriangleAspect);
             if (withUVs && obs.Texture != null)
             {
                 AddUVs(ret, pipeline.LoadImage(obs.Texture.Url));

@@ -33,7 +33,7 @@ namespace OPS.Pipeline
         public bool RequireTextures { get; set; }
 
         [Option(HelpText = "Write meshes with UVs and corresponding texture images", Default = false)]
-        public bool WriteTextures { get; set; }
+        public bool NoTextures { get; set; }
 
         [Option(HelpText = "Mesh format, e.g. ply, obj", Default = "ply")]
         public string MeshFormat { get; set; }
@@ -53,11 +53,23 @@ namespace OPS.Pipeline
         [Option(HelpText = "Use transform priors only", Default = false)]
         public bool UsePriors { get; set; }
 
-        [Option(HelpText = "Organized mesh decimation blocksize", Default = 8)]
-        public int Decimate { get; set; }
+        [Option(HelpText = "Mesh decimation blocksize", Default = 8)]
+        public int DecimateMeshes { get; set; }
+
+        [Option(HelpText = "Texture decimation blocksize", Default = 4)]
+        public int DecimateTextures { get; set; }
+
+        [Option(HelpText = "Max triangle aspect ratio", Default = 10)]
+        public double MaxTriangleAspect { get; set; }
 
         [Option(HelpText = "Scale normals by confidence", Default = false)]
         public bool ScaleNormalsByConfidence { get; set; }
+
+        [Option(HelpText = "Don't split output by site drive", Default = false)]
+        public bool SuppressSiteDriveDirectories { get; set; }
+
+        [Option(HelpText = "Only generate meshes for specific site drives, comma separated", Default = null)]
+        public string OnlyForSiteDrives { get; set; }
 
         [Option(HelpText = "Hide progress", Default = false)]
         public bool NoProgress { get; set; }
@@ -106,7 +118,7 @@ namespace OPS.Pipeline
             string meshExt = checkFormat(options.MeshFormat, "mesh", MeshSerializers.Instance);
 
             string imageExt = null;
-            if (options.WriteTextures)
+            if (!options.NoTextures)
             {
                 imageExt = checkFormat(options.TextureFormat, "image", ImageSerializers.Instance);
             }
@@ -115,6 +127,7 @@ namespace OPS.Pipeline
             {
                 return (sources ?? "")
                     .Split(',')
+                    .Where(s => !string.IsNullOrEmpty(s))
                     .Select(s => Enum.Parse(typeof(TransformSource), s.Trim(), ignoreCase: true))
                     .Cast<TransformSource>()
                     .ToArray();
@@ -165,9 +178,31 @@ namespace OPS.Pipeline
             var observations = Meshing.CollectMeshObservations(frameCache, observationCache, options.AllowMastcam,
                                                                options.RequireNormals, options.RequireTextures);
 
+            SiteDrive getSiteDrive(MeshObservations obs)
+            {
+                var ro = obs.Points as RoverObservation;
+                return new SiteDrive(ro.Site, ro.Drive);
+            }
+
+            SiteDrive[] siteDrives = (options.OnlyForSiteDrives ?? "")
+                .Split(',')
+                .Where(s => !string.IsNullOrEmpty(s))
+                .Select(s => new SiteDrive(s.Trim()))
+                .Cast<SiteDrive>()
+                .ToArray();
+
+            if (siteDrives.Length > 0)
+            {
+                observations = observations.Where(obs => siteDrives.Any(sd => sd == getSiteDrive(obs))).ToList();
+            }
+                                                  
             int no = observations.Count();
             string what = options.PointCloud ? "point clouds" : "triangle meshes";
-            LogInfo("computing {0} for {1} observations in {2}", what, no, outputPath);
+            LogInfo("computing {0} for {1} observations{2} under {3}", what, no,
+                    siteDrives.Length > 0 ?
+                    (" for site drive(s) " +
+                     String.Join(",", siteDrives.Select(sd => sd.ToString()).Cast<string>().ToArray())) : "",
+                    outputPath);
 
             double startSec = UTCTime.Now();
             int np = 0, nc = 0;
@@ -181,26 +216,37 @@ namespace OPS.Pipeline
                     }
 
                     var mesh = options.PointCloud ?
-                    Meshing.BuildPointCloud(this, obs, frameCache, outputFrame, options.UsePriors, options.Decimate,
-                                            options.ScaleNormalsByConfidence) :
+                    Meshing.BuildPointCloud(this, obs, frameCache, outputFrame, options.UsePriors,
+                                            options.DecimateMeshes, options.ScaleNormalsByConfidence) :
                     Meshing.BuildOrganizedMesh(this, obs, frameCache, outputFrame, options.UsePriors,
-                                               options.Decimate, options.ScaleNormalsByConfidence,
-                                               options.WriteTextures);
+                                               options.DecimateMeshes, options.ScaleNormalsByConfidence,
+                                               options.MaxTriangleAspect, !options.NoTextures);
+
+                    string siteDriveDir = "";
+                    if (!options.SuppressSiteDriveDirectories)
+                    {
+                        siteDriveDir = "/" + getSiteDrive(obs).ToString();
+                    }
 
                     string imageFilename = null;
-                    if (options.WriteTextures && obs.Texture != null && mesh.HasUVs)
+                    if (!options.NoTextures && obs.Texture != null && mesh.HasUVs)
                     {
                         imageFilename = obs.Points.Name + imageExt;
                         TemporaryFile.GetAndDelete(imageExt, tmpImage => {
-                                LoadImage(obs.Texture.Url).Save<byte>(tmpImage);
-                                SaveFile(tmpImage, outputPath + "/" + imageFilename);
+                                var img = LoadImage(obs.Texture.Url);
+                                if (options.DecimateTextures > 1)
+                                {
+                                    img = img.Decimated(options.DecimateTextures);
+                                }
+                                img.Save<byte>(tmpImage);
+                                SaveFile(tmpImage, outputPath + siteDriveDir + "/" + imageFilename);
                             });
                     }
 
                     string meshFilename = obs.Points.Name + meshExt;
                     TemporaryFile.GetAndDelete(meshExt, tmpMesh => {
                             mesh.Save(tmpMesh, imageFilename);
-                            SaveFile(tmpMesh, outputPath + "/" + meshFilename);
+                            SaveFile(tmpMesh, outputPath + siteDriveDir + "/" + meshFilename);
                         });
                     
                     Interlocked.Decrement(ref np);
