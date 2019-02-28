@@ -139,33 +139,5 @@ public class Procrustes
         }
         rmsResidual = Mathf.Sqrt(rmsResidual/numPoints);
     }
-
-    //apply the translation, rotation, and scale adjustments to transform t relative to base b
-    //that is, if you had transformed the input moving and fixed points into frame b
-    //then apply the computed translation, rotation, and scale to the localPosition, localRotation, and localScale of t
-    //use b = null if you had transformed the input points to world frame
-    public static void ApplyTo(Transform t, Vector3 translation, Quaternion rotation, float scale, Transform b = null)
-    {
-        Matrix4x4 t2p = Matrix4x4.TRS(t.localPosition, t.localRotation, t.localScale);
-        Matrix4x4 p2b = t.parent != null ? t.parent.localToWorldMatrix : Matrix4x4.identity;
-        if (b != null)
-        {
-            p2b = b.worldToLocalMatrix * p2b;
-        }
-        //p2b * t2p' = adj * p2b * t2p
-        //t2p' = p2b^(-1) * adj * p2b * t2p
-        t2p = p2b.inverse * Matrix4x4.TRS(translation, rotation, Vector3.one * scale) * p2b * t2p;
-        t.localPosition = t2p.GetColumn(3);
-        t.localRotation = Quaternion.LookRotation(t2p.GetColumn(2), t2p.GetColumn(1));
-        Vector3 origScale = t.localScale;
-        Vector3 s = new Vector3(t2p.GetColumn(0).magnitude, t2p.GetColumn(1).magnitude, t2p.GetColumn(2).magnitude);
-        for (int i = 0; i < 3; i++)
-        {
-            if (origScale[i] < 0)
-            {
-                s[i] *= -1;
-            }
-        }
-        t.localScale = s;
     }
 }
