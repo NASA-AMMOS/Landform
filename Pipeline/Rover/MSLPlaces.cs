@@ -19,20 +19,20 @@ namespace OPS.Pipeline
 
     public class PlacesConfig : SingletonConfig<PlacesConfig>
     {
-        [ConfigEnvironmentVariable("PLACES_USERNAME")]
+        [ConfigEnvironmentVariable("LANDFORM_PLACES_USERNAME")]
         public string Username { get; set; }
 
-        [ConfigEnvironmentVariable("PLACES_API_KEY")]
+        [ConfigEnvironmentVariable("LANDFORM_PLACES_API_KEY")]
         public string APIKey { get; set; }
 
-        [ConfigEnvironmentVariable("PLACES_VENUE")]
+        [ConfigEnvironmentVariable("LANDFORM_PLACES_VENUE")]
         public string Venue { get; set; } = "msl-ops";
 
-        [ConfigEnvironmentVariable("PLACES_VIEW")]
+        [ConfigEnvironmentVariable("LANDFORM_PLACES_VIEW")]
         public string View { get; set; } = "localized_interp"; // options: best_tactical, localized_pos, localized_interp 
 
-        [ConfigEnvironmentVariable("PLACES_API_KEY")]
-        public string Url { get; set; } = @"https://mslplaces.jpl.nasa.gov:9443";
+        [ConfigEnvironmentVariable("LANDFORM_PLACES_URL")]
+        public string Url { get; set; } = "https://mslplaces.jpl.nasa.gov:9443";
 
         protected override string ConfigFilename()
         {
@@ -49,9 +49,9 @@ namespace OPS.Pipeline
     public class MSLPlaces
     {
 
-        double? EllipsoidRadius = null;
+        private double? EllipsoidRadius = null;
 
-        XmlDocument GetXmlDoc(string url)
+        private XmlDocument GetXmlDoc(string url)
         {
             var config = PlacesConfig.Instance;
             RestClient client = new RestClient();
@@ -70,7 +70,7 @@ namespace OPS.Pipeline
             return document;
         }
 
-        Vector3 ReadOffsetFromDocument(XmlDocument doc)
+        private Vector3 ReadOffsetFromDocument(XmlDocument doc)
         {
             XmlNodeList nodes = doc.GetElementsByTagName("offset");
             if (nodes.Count != 1)
@@ -85,13 +85,13 @@ namespace OPS.Pipeline
             return v;
         }
 
-        double GetElipsoidRadius()
+        private double GetElipsoidRadius()
         {
             if (EllipsoidRadius == null)
             {
                 var config = PlacesConfig.Instance;
 
-                string urlForRequest = string.Format(@"{0}/places/rmc/orbital(0)/metadata", config.Venue);
+                string urlForRequest = string.Format("{0}/places/rmc/orbital(0)/metadata", config.Venue);
                 XmlDocument document = GetXmlDoc(urlForRequest);
                 foreach (XmlElement itemNode in document.GetElementsByTagName("item"))
                 {
@@ -117,7 +117,7 @@ namespace OPS.Pipeline
         public Vector2 GetEstimatedLatLon(SiteDrive sd)
         {
             var config = PlacesConfig.Instance;
-            string urlForRequest = string.Format(@"{0}/places/query/primary/{1}?from=rover({2},{3})&to=orbital(0)", config.Venue, config.View, sd.Site, sd.Drive);
+            string urlForRequest = string.Format("{0}/places/query/primary/{1}?from=rover({2},{3})&to=orbital(0)", config.Venue, config.View, sd.Site, sd.Drive);
             XmlDocument document = GetXmlDoc(urlForRequest);
             Vector3 v = ReadOffsetFromDocument(document);
             // x is northing
@@ -138,7 +138,7 @@ namespace OPS.Pipeline
         public Vector3 GetEsitmatedOffset(SiteDrive from, SiteDrive to)
         {
             var config = PlacesConfig.Instance;
-            string urlForRequest = string.Format(@"{0}/places/query/primary/{1}?from=rover({2},{3})&to=rover({4},{5})", config.Venue, config.View, from.Site, from.Drive, to.Site, to.Drive);
+            string urlForRequest = string.Format("{0}/places/query/primary/{1}?from=rover({2},{3})&to=rover({4},{5})", config.Venue, config.View, from.Site, from.Drive, to.Site, to.Drive);
             XmlDocument document = GetXmlDoc(urlForRequest);
             return ReadOffsetFromDocument(document);
         }
