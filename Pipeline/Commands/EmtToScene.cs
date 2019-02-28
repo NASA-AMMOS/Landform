@@ -647,9 +647,10 @@ namespace OPS.Pipeline
                 FacesPerTile = 2000,
                 TileResolution = 256,
                 ProjectType = PipelineStateMachine.ProjectType.GenericTiling,
-                NoWait = false
+                NoWait = false,
+                MaxLeafGroupSize = 32
             };
-
+            
             var createProject = new CreateProject(createOptions);
             r = createProject.Run();
 
