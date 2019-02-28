@@ -53,6 +53,7 @@
     </Otherwise>
   </Choose>
   <ItemGroup>
+    <Compile Include="Alignment\ProcrustesTests.cs" />
     <Compile Include="MatchFilters\GTMTest.cs" />
     <Compile Include="PCASIFT\PCASIFTUtilTest.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
@@ -61,6 +62,10 @@
     <ProjectReference Include="..\Alignment\Alignment.csproj">
       <Project>{ae1b74cc-7cbb-4aaf-9be6-68534d61d264}</Project>
       <Name>Alignment</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\Pipeline\Pipeline.csproj">
+      <Project>{C45F0CD6-C998-47EC-B67C-AD77196B06A0}</Project>
+      <Name>Pipeline</Name>
     </ProjectReference>
     <ProjectReference Include="..\Xna\Xna.csproj">
       <Project>{46759719-42D9-473B-A8AD-0848A33BDAC6}</Project>
