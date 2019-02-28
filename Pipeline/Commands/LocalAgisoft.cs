@@ -104,6 +104,34 @@ namespace OPS.Pipeline
                 }
 
                 this.LogInfo("agisoft alignment complete");
+
+                //read results
+                Dictionary<string, Matrix> adjusted = AgisoftXML.ReadTransforms(outputCamerasXMLPath);
+                int numAdjustedNodes = adjusted.Count;
+
+                int n = 1;
+                foreach (var obs in observations)
+                {
+                    if (adjusted.ContainsKey(obs.Name))
+                    {
+                        LogInfo("saving transform {0} of {1} adjusted frames", n++, numAdjustedNodes);
+
+                        SceneNode adjNode = scene.ObservationUrlToNode[obs.Url];
+                        var frame = adjNode.GetComponent<NodeFrame>().Frame;
+                        Matrix bundleResult = adjusted[obs.Name];
+                        //TODO propagate transform covariance out of agi xml
+                        //https://github.jpl.nasa.gov/OnSight/Landform/issues/367
+                        var ut = new UncertainRigidTransform(bundleResult);
+                        FrameTransform ft = FrameTransform.FindOrCreate(this, frame, TransformSource.Landform, ut);
+                        ft.Transform = ut;
+                        ft.Save(this);
+                        if (frame.AddTransform(ft))
+                        {
+                            frame.Save(this);
+                        }
+                    }
+                }
+
             }
             catch (Exception)
             {
