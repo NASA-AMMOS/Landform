@@ -14,6 +14,8 @@ using Microsoft.Xna.Framework;
 using System.Collections.Generic;
 using OPS.Alignment;
 using OPS.Geometry;
+using OPS.Pipeline.Alignment;
+
 namespace OPS.Pipeline
 {
     [Verb("local-agisoft", HelpText = "run agisoft on ingested images")]
@@ -114,18 +116,22 @@ namespace OPS.Pipeline
 
                 //read results
                 Dictionary<string, Matrix> adjusted = AgisoftXML.ReadTransforms(outputCamerasXMLPath);
-                int numAdjustedNodes = adjusted.Count;
 
+                //bring the results back into the original mission scale, rotation, translation
+                Dictionary<string, Matrix> adjustedAligned = AlignTransforms(scene, adjusted);
+
+                //save to database
+                int numAdjustedNodes = adjustedAligned.Count;
                 int n = 1;
                 foreach (var obs in observations)
                 {
-                    if (adjusted.ContainsKey(obs.Name))
+                    if (adjustedAligned.ContainsKey(obs.Name))
                     {
                         LogInfo("saving transform {0} of {1} adjusted frames", n++, numAdjustedNodes);
 
                         SceneNode adjNode = scene.ObservationUrlToNode[obs.Url];
                         var frame = adjNode.GetComponent<NodeFrame>().Frame;
-                        Matrix bundleResult = adjusted[obs.Name];
+                        Matrix bundleResult = adjustedAligned[obs.Name];
                         //TODO propagate transform covariance out of agi xml
                         //https://github.jpl.nasa.gov/OnSight/Landform/issues/367
                         var ut = new UncertainRigidTransform(bundleResult);
@@ -153,6 +159,53 @@ namespace OPS.Pipeline
             }
 
             return 0;
+        }
+
+        private Dictionary<string, Matrix> AlignTransforms(AlignmentScene scene, Dictionary<string, Matrix> adjusted)
+        {
+            if (adjusted.Count < 3)
+                throw new InvalidDataException("Too few transforms to align");
+
+            int numAdjusted = adjusted.Count();
+            Vector3[] fixedPts = new Vector3[numAdjusted];
+            Vector3[] movingPts = new Vector3[numAdjusted];
+
+            var observationNodes = scene.Root.GetComponentsInTree<NodeObservation>();
+            for(int idx=0; idx < numAdjusted; idx++)
+            {
+                //get fixed position
+                string obsName = adjusted.Keys.ElementAt(idx);
+                SceneNode node = observationNodes.Where(o => o.Observation.Name == obsName).First().Node;
+                CAHV cahv = (CameraModel)JsonHelper.FromJson(node.GetComponent<NodeObservation>().Observation.CameraModel) as CAHV;
+                Vector3 cameraPositionInRover = cahv.C;
+                Vector3 cameraPositionInRoot = Vector3.Transform(cameraPositionInRover, node.Transform.LocalToWorld);
+                fixedPts[idx] = cameraPositionInRoot;
+
+                //get moving position
+                Matrix adjCameraToWorld = adjusted[obsName];
+                Vector3 adjCameraPositionInRoot = Vector3.Transform(Vector3.Zero, adjCameraToWorld);
+                movingPts[idx] = adjCameraPositionInRoot;
+            }
+
+            Dictionary<string, Matrix> alignedTransforms = new Dictionary<string, Matrix>();
+
+            Procrustes.Calculate(movingPts, fixedPts, out double rmsResidual,
+                                    out Vector3 translation, out Quaternion rotation, out double scale,
+                                    calcTranslation: true, calcRotation: true, calcScale: true);
+
+            Matrix invTrans = Matrix.CreateTranslation(translation);
+            Matrix invRot = Matrix.CreateFromQuaternion(rotation);
+            Matrix invScale = Matrix.CreateScale(scale);
+            Matrix agiToLandform = (invTrans * invRot) * invScale;
+            Matrix landformToAgi = Matrix.Invert(agiToLandform);
+
+            //fixup transforms
+            foreach(var pair in adjusted)
+            {
+                alignedTransforms[pair.Key] = landformToAgi * adjusted[pair.Key] * agiToLandform;
+            }
+
+            return alignedTransforms;
         }
     }
 
