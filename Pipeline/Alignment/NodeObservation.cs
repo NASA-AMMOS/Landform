@@ -5,6 +5,6 @@ namespace OPS.Pipeline
 {
     public class NodeObservation : NodeComponent
     {
-        public Observation observation;
+        public Observation Observation;
     }
 }

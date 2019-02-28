@@ -1,9 +1,10 @@
-﻿using log4net;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using log4net;
+using OPS.Util;
 
 namespace OPS.Imaging
 {
@@ -256,7 +257,7 @@ namespace OPS.Imaging
             /// <param name="b">Output vector</param>
             public void MatrixMultiply(double[] x, double[] b, bool useAffine = false, double affineScale = 1.0)
             {
-                Parallel.For(0, Width * Height, (i) =>
+                CoreLimitedParallel.For(0, Width * Height, (i) =>
                 {
                     if ((Flags[i] & (byte)LimberDMG.Flags.NO_DATA) != 0)
                     {
@@ -417,7 +418,7 @@ namespace OPS.Imaging
                     // Gauss-Seidel updates can be performed in parallel within each set.
 
                     // Red
-                    Parallel.For(0, Height, (v) =>
+                    CoreLimitedParallel.For(0, Height, (v) =>
                     {
                         int u;
                         for (u = v % 2; u < Width; u += 2)
@@ -427,7 +428,7 @@ namespace OPS.Imaging
                         }
                     });
                     // Black
-                    Parallel.For(0, Height, (v) =>
+                    CoreLimitedParallel.For(0, Height, (v) =>
                     {
                         int u;
                         for (u = (v + 1) % 2; u < Width; u += 2)
@@ -706,7 +707,7 @@ namespace OPS.Imaging
 
             Image blendedImage = new Image(composite.Bands, composite.Width, composite.Height);
 
-            Parallel.For(0, composite.Bands, (i) =>
+            CoreLimitedParallel.For(0, composite.Bands, (i) =>
             {
                 var blendedBand = StitchBand(GetBandDouble(composite, i), GetBandInt(index, index.Bands == 1 ? 0 : i), GetBandByte(flags, flags.Bands == 1 ? 0 : i), composite.Width, composite.Height, i);
                 WriteBand(blendedImage, i, blendedBand);

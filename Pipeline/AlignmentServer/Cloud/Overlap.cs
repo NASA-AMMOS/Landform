@@ -42,16 +42,16 @@ namespace OPS.Pipeline.AlignmentServer
     {
         [DynamoDBRangeKey]
         [DynamoDBGlobalSecondaryIndexRangeKey("OverlapObservationNameOneIndex", "OverlapObservationNameTwoIndex")]
-        public string ProjectName { get; set; }
+        public string ProjectName;
 
         [DynamoDBHashKey]
-        public string CombinedName { get; set; }
+        public string CombinedName;
 
         [DynamoDBGlobalSecondaryIndexHashKey("OverlapObservationNameOneIndex")]
-        public string ObservationNameOne { get; set; }
+        public string ObservationNameOne;
 
         [DynamoDBGlobalSecondaryIndexHashKey("OverlapObservationNameTwoIndex")]
-        public string ObservationNameTwo { get; set; }
+        public string ObservationNameTwo;
 
         public enum StatusType
         {
@@ -59,16 +59,16 @@ namespace OPS.Pipeline.AlignmentServer
             Matched,
             Rejected
         }
-        public StatusType Status { get; set; }
+        public StatusType Status;
 
-        //This is set during creation to verify that only one worker can successfully create a single overlap item in Dynamo
-        public bool Uploaded { get; set; }
+        //set during creation to verify that only one worker can successfully create a single overlap item in Dynamo
+        public bool Uploaded;
 
-        //This is set upon computing a successful match to cache the result; if empty, check status to determine whether to compute
-        public Guid MatchGuid { get; set; }
+        //set on computing a match to cache the result; if empty, check status to determine whether to compute
+        public Guid MatchGuid;
 
         [DynamoDBVersion]
-        public int? VersionNumber { get; set; }
+        public int? VersionNumber;
 
         //Constructor required by DynamoDb but should not be called otherwise
         public Overlap() { }
@@ -79,13 +79,13 @@ namespace OPS.Pipeline.AlignmentServer
         /// <param name="obs1"></param>
         /// <param name="obs2"></param>
         /// <param name="projectName"></param>
-        protected Overlap(string obs1, string obs2, string projectName)
+        protected Overlap(string projectName, string obs1, string obs2)
         {
+            ProjectName = projectName;
             var name = new OverlapName(obs1, obs2);
             ObservationNameOne = name.ObservationNameOne;
             ObservationNameTwo = name.ObservationNameTwo;
             CombinedName = name.CombinedName;
-            ProjectName = projectName;
             Status = StatusType.Proposed;
         }
 
@@ -100,13 +100,13 @@ namespace OPS.Pipeline.AlignmentServer
         /// <param name="observationName1">Order of observations does not matter</param>
         /// <param name="observationName2"></param>
         /// <returns></returns>
-        public static Overlap Create(PipelineCore pipeline, Observation observation1, Observation observation2)
+        public static Overlap Create(PipelineCore pipeline, string projectName, string obs1, string obs2) 
         {
             //create an overlap without setting Uploaded
-            Overlap newOverlap = new Overlap(observation1.Name, observation2.Name, observation1.ProjectName);
+            Overlap newOverlap = new Overlap(projectName, obs1, obs2);
             try
             {
-                pipeline.SaveDatabaseItem(newOverlap);
+                pipeline.SaveDatabaseItem(newOverlap, quiet: true, ignoreErrors: false);
             }
             catch (ConditionalCheckFailedException)
             {
@@ -118,7 +118,7 @@ namespace OPS.Pipeline.AlignmentServer
 
             try
             {
-                pipeline.SaveDatabaseItem(newOverlap);
+                pipeline.SaveDatabaseItem(newOverlap, quiet: true, ignoreErrors: false);
             }
             catch (ConditionalCheckFailedException)
             {
@@ -127,7 +127,7 @@ namespace OPS.Pipeline.AlignmentServer
             }
 
             //return Overlap with most recent version number
-            return pipeline.LoadDatabaseItem<Overlap>(newOverlap.CombinedName, newOverlap.ProjectName, consistent: true);
+            return pipeline.LoadDatabaseItem<Overlap>(newOverlap.CombinedName, projectName, consistent: true);
         }
 
         /// <summary>
@@ -147,9 +147,9 @@ namespace OPS.Pipeline.AlignmentServer
             return true;
         }
 
-        public static Overlap Find(PipelineCore pipeline, string projectName, string obsOne, string obsTwo)
+        public static Overlap Find(PipelineCore pipeline, string projectName, string obs1, string obs2)
         {
-            return Find(pipeline, projectName, new OverlapName(obsOne, obsTwo).CombinedName);
+            return Find(pipeline, projectName, new OverlapName(obs1, obs2).CombinedName);
         }
 
         public static Overlap Find(PipelineCore pipeline, string projectName, string combinedName)
@@ -162,17 +162,15 @@ namespace OPS.Pipeline.AlignmentServer
             return pipeline.ScanDatabase<Overlap>("ProjectName", projectName);
         }
 
-        /// <summary>
-        /// Find all overlaps featuring an observation
-        /// </summary>
-        public static IEnumerable<Overlap> Find(PipelineCore pipeline, Observation observation)
+        public static IEnumerable<Overlap> FindAllForObservation(PipelineCore pipeline, string projectName,
+                                                                 string obsName)
         {
             foreach (var prop in new[] { "ObservationNameOne", "ObservationNameTwo" })
             {
                 var entries = pipeline.ScanDatabase<Overlap>(new Dictionary<string, string>()
                                                              {
-                                                                 { prop, observation.Name },
-                                                                 { "ProjectName", observation.ProjectName }
+                                                                 { "ProjectName", projectName },
+                                                                 { prop, obsName }
                                                              },
                                                              indexName: "Overlap" + prop + "Index");
                 foreach (var o in entries)

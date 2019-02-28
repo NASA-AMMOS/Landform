@@ -1,7 +1,4 @@
-﻿using OPS.Util;
-using System.Collections.Generic;
-
-namespace OPS.Alignment
+﻿namespace OPS.Alignment
 {
     /// <summary>
     /// Interface for feature matching strategies.
@@ -12,6 +9,9 @@ namespace OPS.Alignment
         /// Match features between a pair of images and return the
         /// set of corresponding points.
         /// </summary>
-        ImagePairCorrespondence Match(AlignmentScene scene, URLPair pair);
+        ImagePairCorrespondence Match(AlignmentScene scene, string modelUrl, string dataUrl);
+
+        ImagePairCorrespondence Match(ImageFeature[] modelFeatures, ImageFeature[] dataFeatures,
+                                      string modelUrl, string dataUrl);
     }
 }

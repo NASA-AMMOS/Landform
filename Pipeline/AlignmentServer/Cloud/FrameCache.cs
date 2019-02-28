@@ -1,26 +1,20 @@
 ﻿using System;
-using System.Collections.Concurrent;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
-using System.Threading.Tasks;
-using OPS.Cloud;
 
 namespace OPS.Pipeline.AlignmentServer
 {
-    /// <summary>
-    /// Caches frames and transforms from database keyed on name
-    /// </summary>
     public class FrameCache
     {
-        ConcurrentDictionary<string, Frame> frames = new ConcurrentDictionary<string, Frame>();
-        ConcurrentDictionary<string, FrameTransform> transforms = new ConcurrentDictionary<string, FrameTransform>();
-        ConcurrentDictionary<string, ConcurrentBag<Frame>> children =
-            new ConcurrentDictionary<string, ConcurrentBag<Frame>>();
-        ConcurrentDictionary<string, bool> loadedChildren = new ConcurrentDictionary<string, bool>();
-
         private readonly PipelineCore pipeline;
         private readonly string projectName;
+
+        private readonly Dictionary<string, Frame> frames = new Dictionary<string, Frame>();
+        private readonly Dictionary<string, List<Frame>> children = new Dictionary<string, List<Frame>>();
+        private readonly Dictionary<string, SortedDictionary<TransformSource, FrameTransform>> transforms =
+            new Dictionary<string, SortedDictionary<TransformSource, FrameTransform>>();
 
         public FrameCache(PipelineCore pipeline, string projectName)
         {
@@ -28,68 +22,82 @@ namespace OPS.Pipeline.AlignmentServer
             this.projectName = projectName;
         }
 
-        private void AddChild(Frame frame)
+        public void Add(Frame frame)
         {
-            var parentName = frame.ParentName;
-
-            if (parentName == null)
+            if (!frames.ContainsKey(frame.Name)) //ensure that children doesn't get duplicates
             {
-                parentName = ""; //parent of root
+                frames[frame.Name] = frame;
+                if (frame.ParentName != null)
+                {
+                    if (!children.ContainsKey(frame.ParentName))
+                    {
+                        children[frame.ParentName] = new List<Frame>();
+                    }
+                    children[frame.ParentName].Add(frame);
+                }
             }
-
-            children.AddOrUpdate(parentName, _ => {
-                    var bag = new ConcurrentBag<Frame>();
-                    bag.Add(frame);
-                    return bag;
-                },
-                (_, bag) => {
-                    bag.Add(frame);
-                    return bag;
-                });
         }
 
-        public int Preload()
+        public void Add(FrameTransform transform)
         {
-            int n = 0;
-            HashSet<string> all = new HashSet<string>();
-            HashSet<string> parents = new HashSet<string>();
-            foreach (var frame in Frame.Find(pipeline, projectName))
+            if (!transforms.ContainsKey(transform.FrameName))
             {
-                all.Add(frame.Name);
-                parents.Add(frame.ParentName);
-                frames.TryAdd(frame.Name, frame);
-                AddChild(frame);
-                n++;
+                transforms[transform.FrameName] = new SortedDictionary<TransformSource, FrameTransform>();
             }
-            foreach (var frame in all)
+            if (!transforms[transform.FrameName].ContainsKey(transform.Source))
             {
-                if (!parents.Contains(frame))
+                transforms[transform.FrameName][transform.Source] = transform;
+            }
+        }
+
+        public int Preload(bool loadTransforms = true)
+        {
+            Frame.Find(pipeline, projectName).ToList().ForEach(frame => Add(frame));
+            foreach (var frame in frames.Keys)
+            {
+                if (!children.ContainsKey(frame))
                 {
-                    //add empty bag of children for leaves
-                    children.TryAdd(frame, new ConcurrentBag<Frame>());
+                    children[frame] = new List<Frame>(); //leaf node
                 }
-                loadedChildren.TryAdd(frame, true);
             }
-            return n;
+            if (loadTransforms)
+            {
+                FrameTransform.Find(pipeline, projectName).ToList().ForEach(transform => Add(transform));
+                foreach (var frame in frames.Keys)
+                {
+                    if (!transforms.ContainsKey(frame))
+                    {
+                        transforms[frame] = new SortedDictionary<TransformSource, FrameTransform>();
+                    }
+                }
+            }
+            return frames.Count;
+        }
+
+        public IEnumerable<Frame> GetAllFrames()
+        {
+            return frames.Values;
+        }
+
+        public IEnumerable<FrameTransform> GetAllTransforms()
+        {
+            foreach (var forFrame in transforms.Values)
+            {
+                foreach (var transform in forFrame.Values)
+                {
+                    yield return transform;
+                }
+            }
         }
 
         public IEnumerable<Frame> GetChildren(string name)
         {
-            ConcurrentBag<Frame> bag = null;
-            if (loadedChildren.ContainsKey(name))
+            if (!children.ContainsKey(name))
             {
-                children.TryGetValue(name, out bag);
+                children[name] = new List<Frame>(); //handles case there are none
+                GetFrame(name).GetChildren(pipeline).ToList().ForEach(child => Add(child));
             }
-            else
-            {
-                bag = children.GetOrAdd(name, _ => new ConcurrentBag<Frame>());
-                foreach (var child in GetFrame(name).GetChildren(pipeline))
-                {
-                    AddChild(child);
-                }
-                loadedChildren.TryAdd(name, true);
-            }
-            return bag;
+            return children[name];
         }
 
         public IEnumerable<Frame> GetChildren(Frame frame)
@@ -99,17 +107,77 @@ namespace OPS.Pipeline.AlignmentServer
 
         public Frame GetFrame(string name)
         {
-            return frames.GetOrAdd(name, _ => Frame.Find(pipeline, projectName, name));
+            if (!frames.ContainsKey(name))
+            {
+                var frame = Frame.Find(pipeline, projectName, name);
+                if (frame != null)
+                {
+                    Add(frame);
+                }
+                else
+                {
+                    frames[name] = null;
+                }
+            }
+            return frames[name];
         }
 
-        public FrameTransform GetTransform(string name)
+        public IEnumerable<FrameTransform> GetTransforms(string name)
         {
-            return transforms.GetOrAdd(name, _ => FrameTransform.Find(pipeline, GetFrame(name)));
+            if (!transforms.ContainsKey(name))
+            {
+                foreach (var transform in FrameTransform.Find(pipeline, GetFrame(name))) Add(transform);
+            }
+            return transforms[name].Values;
         }
 
-        public FrameTransform GetTransform(Frame frame)
+        public IEnumerable<FrameTransform> GetTransforms(Frame frame)
         {
-            return GetTransform(frame.Name);
+            return GetTransforms(frame.Name);
+        }
+
+        public FrameTransform GetBestTransform(string name)
+        {
+            return GetTransforms(name).FirstOrDefault();
+        }
+
+        public FrameTransform GetBestTransform(Frame frame)
+        {
+            return GetBestTransform(frame.Name);
+        }
+
+        public FrameTransform GetBestAdjustedTransform(string name)
+        {
+            foreach (var transform in GetTransforms(name))
+            {
+                if (transform.Source < TransformSource.Prior)
+                {
+                    return transform;
+                }
+            }
+            return null;
+        }
+
+        public FrameTransform GetBestAdjustedTransform(Frame frame)
+        {
+            return GetBestAdjustedTransform(frame.Name);
+        }
+
+        public FrameTransform GetBestPrior(string name)
+        {
+            foreach (var transform in GetTransforms(name))
+            {
+                if (transform.Source >= TransformSource.Prior)
+                {
+                    return transform;
+                }
+            }
+            return null;
+        }
+
+        public FrameTransform GetBestPrior(Frame frame)
+        {
+            return GetBestPrior(frame.Name);
         }
     }
 }

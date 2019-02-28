@@ -1,11 +1,11 @@
-﻿using MathNet.Numerics.LinearAlgebra;
-using OPS.MathExtensions;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Microsoft.Xna.Framework;
+using MathNet.Numerics.LinearAlgebra;
+using OPS.MathExtensions;
 
 namespace OPS.Geometry
 {
@@ -74,19 +74,20 @@ namespace OPS.Geometry
         {
             if (_transform == null)
             {
-                // Initialize with perfect certainty (zero covariance matrix)
+                // Initialize from Node.Transform with perfect certainty (zero covariance matrix)
                 UncertainTransform = new UncertainRigidTransform(new NamedGaussian(Node.Guid, UncertainRigidTransform.ToVector(Node.Transform.Matrix), CreateMatrix.Dense<double>(6, 6)));
             }
             else
             {
-                // we were constructed with a transform - overwrite what's in NodeTransform
+                // we were constructed with a transform - overwrite what's in Node.Transform
                 Node.Transform.Matrix = UncertainTransform.Mean;
             }
         }
 
         public UncertainRigidTransform To(SceneNode other)
         {
-            if (other == Node) return new UncertainRigidTransform(Matrix.Identity, CreateMatrix.DenseDiagonal<double>(6, 0));
+            if (other == Node) return new UncertainRigidTransform(); //identity, certain
+
             HashSet<SceneNode> myAncestors = new HashSet<SceneNode>();
             {
                 SceneNode current = Node;
@@ -169,7 +170,7 @@ namespace OPS.Geometry
                     }
                     else
                     {
-                        next = new UncertainRigidTransform(current.Transform.Matrix, CreateMatrix.Dense<double>(6, 6));
+                        next = new UncertainRigidTransform(current.Transform.Matrix); //certain
                     }
                     t = t * next;
                 }

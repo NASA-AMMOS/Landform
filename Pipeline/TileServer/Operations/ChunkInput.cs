@@ -50,16 +50,16 @@ namespace OPS.Pipeline.TileServer
 
         public void Process()
         {
-            LogInfo("started chunking input " + message.InputName);
+            pipeline.LogInfo("started chunking input " + message.InputName);
             var input = TilingInput.Find(pipeline, projectName, message.InputName);
             if (input.Chunked)
             {
-                LogInfo("input " + message.InputName + " has already been chunked, skipping");
+                pipeline.LogInfo("input " + message.InputName + " has already been chunked, skipping");
                 pipeline.MasterQueue.Enqueue(message);
                 return;
             }
 
-            LogInfo("downloading " + input.MeshUrl);
+            pipeline.LogInfo("downloading " + input.MeshUrl);
             Mesh mesh = null;
             pipeline.GetFile(input.MeshUrl, f =>
             {
@@ -71,24 +71,24 @@ namespace OPS.Pipeline.TileServer
             string imageBaseUrl = null;
             if (input.ImageUrl != null)
             {
-                LogInfo("downloading " + input.ImageUrl);
+                pipeline.LogInfo("downloading " + input.ImageUrl);
                 pipeline.GetFile(input.ImageUrl, f => image = Image.Load(f));
                 input.ImageBands = image.Bands;
                 input.ImageWidth = image.Width;
                 input.ImageHeight = image.Height;
 
-                LogInfo("chunking image for input " + message.InputName);
+                pipeline.LogInfo("chunking image for input " + message.InputName);
                 var sparseImage = new SparseCloudImage(image, pipeline, CHUNK_RESOLUTION);
                 imageBaseUrl =  pipeline.GetStorageUrl("chunk", projectName, Guid.NewGuid().ToString());
                 sparseImage.Save<byte>(imageBaseUrl, IMAGE_EXT);
 
             }
-            LogInfo("building acceleration structures to chunk input " + message.InputName);
+            pipeline.LogInfo("building acceleration structures to chunk input " + message.InputName);
             var multiClipper = new MultiMeshClipper();
             var dataset = new MultiMeshClipperInput(mesh, image);
             multiClipper.AddInput(dataset);
 
-            LogInfo("building mesh chunks for input " + message.InputName);
+            pipeline.LogInfo("building mesh chunks for input " + message.InputName);
             var tilingScheme = new BinaryTreeTilingScheme();
             var splitCriteria = new FaceSplitCriteria(FACES_PER_CHUNK);
             var root = TileLocalMesh.BuildBoundsTree(multiClipper, tilingScheme, splitCriteria);
@@ -107,14 +107,14 @@ namespace OPS.Pipeline.TileServer
                     pipeline.SaveFile(f, meshUrl);
                     TilingInputChunk record = TilingInputChunk.Create(pipeline, id, meshUrl, imageBaseUrl, m.Bounds());
                     chunkIds.Add(id);
-                    LogInfo("generated chunk {0}/{1} for input {2}", chunkIds.Count(), leaves.Count, message.InputName);
+                    pipeline.LogInfo("generated chunk {0}/{1} for input {2}", chunkIds.Count(), leaves.Count, message.InputName);
                 });
             });
-            input.ChunkIds = chunkIds.ToList();
+            input.AddChunks(chunkIds);
             input.Chunked = true;
             input.Save(pipeline);
             pipeline.MasterQueue.Enqueue(message);
-            LogInfo("completed chunking input " + message.InputName);
+            pipeline.LogInfo("completed chunking input " + message.InputName);
         }
     }
 }

@@ -29,9 +29,9 @@ namespace OPS.Pipeline.TileServer
 
         public void Process()
         {
-            LogInfo("started");
+            pipeline.LogInfo("started");
             var project = TilingProject.Find(pipeline, projectName);
-            LogInfo("building json");
+            pipeline.LogInfo("building json");
             var root = TilingNode.BuildTreeFromDatabase(pipeline, project,
                                                         useBoundsWithSkirt: project.GetSkirtMode() != SkirtMode.None);
             // Only nodes with mesh image pairs will be marked as having content in the tile builder so add them
@@ -50,7 +50,7 @@ namespace OPS.Pipeline.TileServer
                 pipeline.SaveFile(f, url);
             });
             pipeline.MasterQueue.Enqueue(this.message);
-            LogInfo("completed");
+            pipeline.LogInfo("completed");
         }
     }
 }
