@@ -136,6 +136,14 @@ namespace OPS.Pipeline
             }
         }
 
+        private static void CheckCameraFrame(PDSParser parser, string what)
+        {
+            if (parser.CameraModelRefFrame != PDSParser.ReferenceCoordinateFrame.RoverNav)
+            {
+                throw new NotImplementedException(what + " requires camera model in rover frame");
+            }
+        }
+
         private static Vector3 GetCameraCenter(Image img, string what)
         {
             CAHV cahv = img.CameraModel as CAHV;
@@ -201,10 +209,7 @@ namespace OPS.Pipeline
         {
             parser = parser ?? new PDSParser((PDSMetadata)img.Metadata);
             CheckType(parser, RoverProductType.Range, "ConvertRange");
-            if (parser.CameraModelRefFrame != PDSParser.ReferenceCoordinateFrame.RoverNav)
-            {
-                throw new NotImplementedException("ConvertRNG requires camera model in rover frame");
-            }
+            CheckCameraFrame(parser, "ConvertRNG");
             Matrix xform = RoverCoordinateSystem.GetTransformToRoverFrame(parser);
             Vector3 rangeOrigin = Vector3.Transform(parser.RangeOrigin, xform);
             if (!Vector3.AlmostEqual(rangeOrigin, GetCameraCenter(img, "ConvertRNG"), 0.1))
@@ -281,10 +286,7 @@ namespace OPS.Pipeline
         {
             parser = parser ?? new PDSParser((PDSMetadata)img.Metadata);
             CheckType(parser, RoverProductType.XYZ, "GenerateConfidenceFromXYZ");
-            if (parser.CameraModelRefFrame != PDSParser.ReferenceCoordinateFrame.RoverNav)
-            {
-                throw new NotImplementedException("GenerateConfidenceFromXYZ requires camera model in rover frame");
-            }
+            CheckCameraFrame(parser, "GenerateConfidenceFromXYZ");
             Vector3 rangeOrigin = GetCameraCenter(img, "GenerateConfidenceFromXYZ");
             Matrix xform = RoverCoordinateSystem.GetTransformToRoverFrame(parser);
             Image ret = new Image(1, img.Width, img.Height);
@@ -361,14 +363,14 @@ namespace OPS.Pipeline
         }
 
         /// <summary>
-        /// transform a mesh from a specific rover frame to the corresponding sitedrive or root frame
+        /// get transform from a specific rover frame to the corresponding sitedrive or root frame
         /// </summary>transform a mesh 
-        public static void TransformMesh(Mesh mesh, string fromFrame, string toFrame, FrameCache frameCache,
-                                         bool usePriors = false)
+        public static UncertainRigidTransform GetTransform(string fromFrame, string toFrame, FrameCache frameCache,
+                                                           bool usePriors = false)
         {
             if (toFrame == "rover" || toFrame == PDSParser.ReferenceCoordinateFrame.RoverNav.ToString())
             {
-                return;
+                return new UncertainRigidTransform(); //identity, no uncertainty
             }
 
             Frame obsFrame = frameCache.GetFrame(fromFrame);
@@ -376,13 +378,12 @@ namespace OPS.Pipeline
 
             if (toFrame == "sitedrive" || toFrame == PDSParser.ReferenceCoordinateFrame.LocalLevel.ToString())
             {
-                mesh.Transform(obsToSD.Transform.Mean);
-                return;
+                return obsToSD.Transform;
             }
 
             if (toFrame == "site" || toFrame == PDSParser.ReferenceCoordinateFrame.Site.ToString())
             {
-                throw new NotImplementedException("TransformMesh to site frame not implemented");
+                throw new NotImplementedException("transform to site frame not implemented");
             }
 
             Frame sdFrame = frameCache.GetFrame(obsFrame.ParentName);
@@ -390,13 +391,15 @@ namespace OPS.Pipeline
 
             if (toFrame == "root" || string.IsNullOrEmpty(toFrame))
             {
-                mesh.Transform(obsToSD.Transform.Mean * sdToRoot.Transform.Mean);
-                return;
+                return obsToSD.Transform * sdToRoot.Transform;
             }
 
-            throw new NotImplementedException("Transform Mesh to " + toFrame + " not implemented");
+            throw new NotImplementedException("transform to " + toFrame + " not implemented");
         }
 
+        /// <summary>
+        /// decimate a normals image   
+        /// </summary>
         public static Image DecimateNormals(Image img, int blocksize, Image mask = null)
         {
             if (mask != null)
@@ -413,8 +416,15 @@ namespace OPS.Pipeline
                         if (!img.IsInvalid(row, col))
                         {
                             var n = new Vector3(img[0, row, col], img[1, row, col], img[2, row, col]);
-                            n.Normalize();
-                            img.SetBandValues(row, col, n.ToFloatArray());
+                            if (n.LengthSquared() < 0.0001)
+                            {
+                                img.SetMaskValue(row, col, true);
+                            }
+                            else
+                            {
+                                n.Normalize();
+                                img.SetBandValues(row, col, n.ToFloatArray());
+                            }
                         }
                     }
                 }
@@ -422,6 +432,9 @@ namespace OPS.Pipeline
             return img;
         }
 
+        /// <summary>
+        /// decimate a points image, baking mask into it
+        /// </summary>
         public static Image DecimatePoints(Image img, int blocksize, Image mask = null)
         {
             if (mask != null)
@@ -435,7 +448,7 @@ namespace OPS.Pipeline
                                                     bool scaleNormalsByConfidence,
                                                     out Image points, out Image normals, out Image mask)
         {
-            //TODO metadata from points image until real confidence and mask products are available
+            //TODO generate confidence and mask until real products are available
             //https://github.jpl.nasa.gov/OnSight/Landform/issues/259
             var pointsRaw = pipeline.LoadImage(obs.Points.Url);
             points = ConvertPoints(pointsRaw);
@@ -447,12 +460,7 @@ namespace OPS.Pipeline
                 normals = ConvertNormals(pipeline.LoadImage(obs.Normals.Url), confidence);
             }
 
-            mask = obs.Mask != null ? pipeline.LoadImage(obs.Mask.Url) : null;
-            if (mask == null)
-            {
-                pipeline.LogVerbose("generating synthetic rover mask for {0}", obs.Points.Name);
-                mask = RoverMask.Build(pointsRaw);
-            }
+            mask = RoverMask.LoadOrBuild(pipeline, obs.Mask, pointsRaw, obs.Points.Name);
 
             if (decimateBlocksize > 1)
             {
@@ -538,7 +546,7 @@ namespace OPS.Pipeline
             LoadOrGenerateMeshImages(pipeline, obs, decimateBlocksize, scaleNormalsByConfidence,
                                      out points, out normals, out mask);
             var ret = BuildPointCloud(points, normals, mask);
-            TransformMesh(ret, obs.Points.FrameName, frame, frameCache, usePriors);
+            ret.Transform(GetTransform(obs.Points.FrameName, frame, frameCache, usePriors).Mean);
             return ret;
         }
 
@@ -641,8 +649,20 @@ namespace OPS.Pipeline
             {
                 AddUVs(ret, pipeline.LoadImage(obs.Texture.Url));
             }
-            TransformMesh(ret, obs.Points.FrameName, frame, frameCache, usePriors);
+            ret.Transform(GetTransform(obs.Points.FrameName, frame, frameCache, usePriors).Mean);
             return ret;
+        }
+
+        public static ConvexHull BuildFrustumHull(PipelineCore pipeline, MeshObservations obs, FrameCache frameCache,
+                                                  string frame = "root", bool usePriors = false,
+                                                  bool uncertaintyInflated = false)
+        {
+            Image img = pipeline.LoadImage(obs.Texture != null ? obs.Texture.Url : obs.Points.Url);
+            var parser = new PDSParser((PDSMetadata)img.Metadata);
+            CheckCameraFrame(parser, "BuildFrustumHull");
+            ConvexHull ret = ConvexHull.FromImage(img);
+            var xform = GetTransform(obs.Points.FrameName, frame, frameCache, usePriors);
+            return uncertaintyInflated ? ConvexHull.Transformed(ret, xform) : ConvexHull.Transformed(ret, xform.Mean);
         }
     }
 }

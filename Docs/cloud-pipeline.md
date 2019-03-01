@@ -17,7 +17,7 @@
     * AWS profile: `landlords`
     * MSLICE AWS profile: `mslice`
     * MSLICE S3 url: `s3://red-product`
-1. `Landform.exe start-align-master PROJ [--inputpath=INPUT] [--debugoutputfolder=DBG] [--startworker] [--verbose] [--redoproject] [--redoobservations] [--redopriors] [--redomasks] [--redofeatures] [--redooverlaps] [--redomatches] [--skipmatching] [--skipbundleadjust] [--matchwithinsitedrives] [--adjustwithinsitedrives] [--noadjustacrosssitedrives] [--bundleadjustrounds=2]` where
+1. `Landform.exe start-align-master PROJ [--inputpath=INPUT] [--onlyforsitedrives=SSSSSDDDDD[,SSSSSDDDDD[,...]]] [--startworker] [--verbose] [--redoproject] [--redoobservations] [--redopriors] [--redomasks] [--redofeatures] [--redooverlaps] [--redomatches] [--skipmatching] [--skipbundleadjust] [--matchwithinsitedrives] [--adjustwithinsitedrives] [--noadjustacrosssitedrives] [--bundleadjustrounds=2] [--bundleadjustdebugoutputfolder=DBG]` where
    * PROJ is a project name, e.g. `align-test`
    * INPUT is the path to your inputs file, e.g. `s3://landlords-dev/landform-USERNAME/align-test-inputs.txt`.  It can also be a literal path, e.g. `s3://red-product/proj/msl/redops/ods/surface/sol/00589/opgs/rdr/ncam`.  Paths ending in `/**` will be searched recursively.  Input path is required when (re-)creating a project, but is optional if the project already exists (in that case it must match what the project was created with).
    * DBG is a local disk path to a folder for debug outputs

@@ -4,9 +4,14 @@ using System.Linq;
 using System.Text;
 using System.Diagnostics;
 using log4net;
+using Emgu.CV;
+using Emgu.CV.Util;
+using Emgu.CV.Structure;
+using Emgu.CV.Features2D;
 using OPS.Util;
 using OPS.Cloud;
 using OPS.Imaging;
+using OPS.Imaging.Emgu;
 using OPS.Geometry;
 using OPS.Alignment;
 using OPS.Pipeline;
@@ -16,11 +21,12 @@ namespace OPS.Pipeline
 {
     public class ImageMatching
     {
-        private static readonly int MIN_MATCHES = 20;
+        public const int DEF_MIN_MATCHES = 20;
 
         public static ComputedCorrespondence ComputeCorrespondence(PipelineCore pipeline, string projectName,
                                                                    string modelUrl, string dataUrl,
-                                                                   string modelFrameName, string dataFrameName)
+                                                                   string modelFrameName, string dataFrameName,
+                                                                   int minMatches = DEF_MIN_MATCHES)
         {
             //build a minimal scene graph containing these two frames and their ancestors
             var opts = new BuildSceneGraph.Options() {
@@ -31,11 +37,12 @@ namespace OPS.Pipeline
             BuildSceneGraph builder = new BuildSceneGraph(pipeline, projectName, opts);
             AlignmentScene scene = builder.BuildBottomUp(new[] { modelFrameName, dataFrameName });
             (new FrustumOverlapDetector(pipeline, pipeline)).MakeHulls(scene);
-            return ComputeCorrespondence(pipeline, scene, modelUrl, dataUrl);
+            return ComputeCorrespondence(pipeline, scene, modelUrl, dataUrl, minMatches);
         }
 
         public static ComputedCorrespondence ComputeCorrespondence(PipelineCore pipeline, AlignmentScene scene,
-                                                                   string modelUrl, string dataUrl)
+                                                                   string modelUrl, string dataUrl,
+                                                                   int minMatches = DEF_MIN_MATCHES)
         {
             Debug.Assert(scene.ObservationUrlToNode.ContainsKey(modelUrl));
             Debug.Assert(scene.ObservationUrlToNode.ContainsKey(dataUrl));
@@ -47,7 +54,6 @@ namespace OPS.Pipeline
 
             var modelObs = modelNode.GetComponent<NodeObservation>().Observation;
             var dataObs = dataNode.GetComponent<NodeObservation>().Observation;
-
 
             string pairName = (new URLPair(modelUrl, dataUrl)).ToStringShort();
             pipeline.LogVerbose("{0} ({1} features, {2} features): (re)computing feature matches",
@@ -70,10 +76,10 @@ namespace OPS.Pipeline
             //IFeatureMatcher matcher = new BruteForceMatcher();
             IFeatureMatcher matcher = new CascadeHashingMatcher();
             var matches = matcher.Match(scene, modelUrl, dataUrl);
-            if (matches.Count < MIN_MATCHES)
+            if (matches.Count < minMatches)
             {
                 pipeline.LogVerbose("{0} {1}: {2} < {3} matches, discarding", pairName, matcher.GetType().Name,
-                                    matches.Count, MIN_MATCHES);
+                                    matches.Count, minMatches);
                 return null;
             }
             pipeline.LogVerbose("{0} {1}: {2} matches", pairName, matcher.GetType().Name, matches.Count);
@@ -87,16 +93,16 @@ namespace OPS.Pipeline
             {
                 int oldCount = matches.Count;
                 matches = filter.Filter(scene, matches);
-                if (matches.Count < MIN_MATCHES)
+                if (matches.Count < minMatches)
                 {
                     pipeline.LogVerbose("{0} {1}: {2} < {3} matches, discarding", pairName, filter.GetType().Name,
-                                        matches.Count, MIN_MATCHES);
+                                        matches.Count, minMatches);
                     return null;
                 }
                 pipeline.LogVerbose("{0} {1}: {2} -> {3}", pairName, filter.GetType().Name, oldCount, matches.Count);
             }
 
-            pipeline.LogVerbose("{0} {1}: {2} -> {3} feature matches", pairName, matcher.GetType().Name,
+            pipeline.LogVerbose("{0} {1}: {2} -> {3} feature matches, keeping", pairName, matcher.GetType().Name,
                                 string.Join(", ", filters.Select(f => f.GetType().Name)), matches.Count);
 
             return new ComputedCorrespondence()
@@ -145,6 +151,29 @@ namespace OPS.Pipeline
                 fod.Detect(scene, onlyCrossSite);
             }
             return scene;
+        }
+        
+        public static Image DrawMatches(Image modelImg, Image dataImg, ImageFeature[] modelFeatures,
+                                        ImageFeature[] dataFeatures, KeyValuePair<int, int>[] dataToModel)
+        {
+            var modelKeypoints = modelFeatures.Cast<SIFTFeature>().CastToMKeyPoint().ToArray();
+            var dataKeypoints = dataFeatures.Cast<SIFTFeature>().CastToMKeyPoint().ToArray();
+            var ret = new Image<Bgr, byte>(modelImg.Width + dataImg.Width, Math.Max(modelImg.Height, dataImg.Height));
+            var lineColor = new MCvScalar(0, 0, 255); //RGB
+            var pointColor = new MCvScalar(255, 255, 0); //RGB
+            var matches = new VectorOfVectorOfDMatch();
+            foreach (var pair in dataToModel)
+            {
+                matches.Push(new VectorOfDMatch(new MDMatch[] { new MDMatch() {
+                                TrainIdx = pair.Value,
+                                QueryIdx = pair.Key
+                            } }));
+            }
+            Features2DToolbox.DrawMatches(modelImg.ToEmguGrayscale(), new VectorOfKeyPoint(modelKeypoints),
+                                          dataImg.ToEmguGrayscale(), new VectorOfKeyPoint(dataKeypoints),
+                                          matches, ret, lineColor, pointColor, null,
+                                          Features2DToolbox.KeypointDrawType.DrawRichKeypoints);
+            return ret.ToOPSImage();
         }
     }
 }

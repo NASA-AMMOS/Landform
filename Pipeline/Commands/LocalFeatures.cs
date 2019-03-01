@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using CommandLine;
 using log4net;
 using OPS.Util;
+using OPS.Imaging;
 using OPS.Pipeline.AlignmentServer;
 
 namespace OPS.Pipeline
@@ -18,11 +19,26 @@ namespace OPS.Pipeline
         [Value(0, Required = true, HelpText = "project name", Default = null)]
         public string ProjectName { get; set; }
 
-        [Option(HelpText = "Detector type", Default = FeatureDetector.DetectorType.ASIFT)]
-        public FeatureDetector.DetectorType DetectorType { get; set; }
+        [Option(HelpText = "Detector type", Default = DetectorType.ASIFT)]
+        public DetectorType DetectorType { get; set; }
+
+        [Option(HelpText = "Maximum number of features per image", Default = 1000)]
+        public int MaxFeaturesPerImage { get; set; }
+
+        [Option(HelpText = "Minimum feature size to keep", Default = 0)]
+        public double MinFeatureSize { get; set; }
 
         [Option(HelpText = "Recreate features that already exist", Default = false)]
         public bool RedoFeatures { get; set; }
+
+        [Option(HelpText = "Write feature images for debugging", Default = false)]
+        public bool WriteFeatureImages { get; set; }
+
+        [Option(HelpText = "Output directory for debug images, or omit to save to project storage", Default = null)]
+        public string ImageOutputFolder { get; set; }
+
+        [Option(HelpText = "Debug image format, e.g. png, jpg, help for list", Default = "png")]
+        public string ImageFormat { get; set; }
 
         [Option(HelpText = "Hide progress", Default = false)]
         public bool NoProgress { get; set; }
@@ -47,6 +63,27 @@ namespace OPS.Pipeline
                 return 1;
             }
 
+            string imagePath = options.ImageOutputFolder;
+            if (!string.IsNullOrEmpty(imagePath))
+            {
+                imagePath = StringHelper.NormalizeUrl(imagePath, "file://");
+            }
+            else
+            {
+                imagePath = GetStorageUrl("alignment/FeatureProducts", project.Name);
+            }
+            imagePath += "/";
+
+            string imageExt = null;
+            if (options.WriteFeatureImages)
+            {
+                imageExt = ImageSerializers.Instance.CheckFormat(options.ImageFormat, this);
+                if (imageExt == null)
+                {
+                    return 0;
+                }
+            }
+
             var frameCache = new FrameCache(this, options.ProjectName);
             frameCache.Preload(loadTransforms: false);
 
@@ -68,7 +105,8 @@ namespace OPS.Pipeline
             int no = obsForFrame.Values.Count(obsGroup => obsGroup.Any(obs => obs.ObservationType == imageType));
             LogInfo("computing {0} features for {1} reconstruction images", options.DetectorType, no);
 
-            FeatureDetector detector = new FeatureDetector(options.DetectorType);
+            FeatureDetector detector = new FeatureDetector(this, options.DetectorType, options.MaxFeaturesPerImage,
+                                                           options.MinFeatureSize);
 
             double startSec = UTCTime.Now();
             int nc = 0, ne = 0, nf = 0, np = 0;
@@ -111,9 +149,9 @@ namespace OPS.Pipeline
                         var maskObs =
                             observations.Find(obs => obs.ObservationType == maskType &&
                                               obs.Width == imageObs.Width && obs.Height == imageObs.Height);
+                        var maskUrl = maskObs != null ? maskObs.Url : null;
                         
-                        var features = detector.Detect(this, imageObs.Url, maskObs != null ? maskObs.Url : null,
-                                                       project.Name, project.ProductPath);
+                        var features = detector.Detect(imageObs.Url, maskUrl, project.Name, project.ProductPath);
                         if (features != null)
                         {
                             SaveDataProduct(project.ProductPath, features, project.Name);
@@ -121,6 +159,17 @@ namespace OPS.Pipeline
                             imageObs.Save(this);
                         }
                         
+                        if (options.WriteFeatureImages)
+                        {
+                            var img = new Image(LoadImage(imageObs.Url));
+                            var mask = FeatureDetecting.MakeMask(this, maskUrl, img, imageObs.Name);
+                            img = FeatureDetecting.DrawFeatures(img, mask, features.Features);
+                            TemporaryFile.GetAndDelete(imageExt, tmpImage => {
+                                    img.Save<byte>(tmpImage);
+                                    SaveFile(tmpImage, imagePath + imageObs.Name + "-Features" + imageExt);
+                                });
+                        }
+
                         Interlocked.Decrement(ref np);
                         Interlocked.Increment(ref nc);
                     }

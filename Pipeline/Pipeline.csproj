@@ -187,7 +187,7 @@
     <Compile Include="AlignmentServer\Operations\MatchImages.cs" />
     <Compile Include="Alignment\BuildSceneGraph.cs" />
     <Compile Include="Alignment\BundleAdjusting.cs" />
-    <Compile Include="Alignment\FeatureDetector.cs" />
+    <Compile Include="Alignment\FeatureDetecting.cs" />
     <Compile Include="Alignment\ImageMatching.cs" />
     <Compile Include="Alignment\IngestAlignmentInputs.cs" />
     <Compile Include="Alignment\IngestImage.cs" />
@@ -207,7 +207,7 @@
     <Compile Include="Commands\LocalFeatures.cs" />
     <Compile Include="Commands\LocalIngest.cs" />
     <Compile Include="Commands\LocalMatching.cs" />
-    <Compile Include="Commands\LocalObservationMeshes.cs" />
+    <Compile Include="Commands\LocalObservationProducts.cs" />
     <Compile Include="Commands\TileLocalMesh.cs" />
     <Compile Include="DataProducts\DataProduct.cs" />
     <Compile Include="DataProducts\JsonDataProduct.cs" />

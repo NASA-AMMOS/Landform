@@ -22,7 +22,7 @@ namespace OPS.Pipeline
             : base(options, LocalPipelineConfig.Instance,
                    StringHelper.NormalizeUrl(LocalPipelineConfig.Instance.StorageDir, "file://"),
                    LocalPipelineConfig.Instance.Venue, logger, lruCache, quietInit,
-                   maxCores ?? LocalPipelineConfig.Instance.MaxCores)
+                   options.SingleThreaded ? 1 : maxCores ?? LocalPipelineConfig.Instance.MaxCores)
         {
             if (initTables)
             {

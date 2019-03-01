@@ -24,8 +24,11 @@ namespace OPS.Pipeline
         [Option(HelpText = "Number of rounds of bundle adjustment", Default = 2)]
         public int BundleAdjustRounds { get; set; }
 
+        [Option(HelpText = "Write products for debugging", Default = false)]
+        public bool WriteDebug { get; set; }
+
         [Option(HelpText = "Optional directory to save bundle adjuster debug files to", Default = null)]
-        public string BundleAdjustDebugOutputFolder { get; set; }
+        public string DebugOutputFolder { get; set; }
     }
 
     public class LocalBundleAdjust : LocalPipeline
@@ -39,11 +42,22 @@ namespace OPS.Pipeline
 
         public int Run()
         {
+            string dbgFolder = options.DebugOutputFolder;
+            if (!string.IsNullOrEmpty(dbgFolder))
+            {
+                dbgFolder = StringHelper.NormalizeUrl(dbgFolder, "file://");
+            }
+            else
+            {
+                dbgFolder = GetStorageUrl("alignment/AdjustProducts", options.ProjectName);
+            }
+            dbgFolder = StringHelper.StripProtocol(dbgFolder, "file://");
+
             BundleAdjusting.BundleAdjust(this, options.ProjectName,
                                          options.AdjustWithinSiteDrives,
                                          !options.NoAdjustAcrossSiteDrives,
                                          rounds: options.BundleAdjustRounds,
-                                         debugOutputFolder: options.BundleAdjustDebugOutputFolder);
+                                         debugOutputFolder: options.WriteDebug ? dbgFolder : null);
             return 0;
         }
     }

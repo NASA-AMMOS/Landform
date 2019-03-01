@@ -37,8 +37,8 @@ namespace OPS.Pipeline
         private Project project;
         private IngestPDSImage ingester;
 
-        public IngestAlignmentInputs(PipelineCore pipeline, Project project, bool recreateExistingObservations = false,
-                                     bool resetExistingTransforms = false)
+        public IngestAlignmentInputs(PipelineCore pipeline, Project project, bool recreateObservations = false,
+                                     bool resetTransforms = false, string onlyForSiteDrives = null)
             : base(pipeline)
         {
             if (string.IsNullOrEmpty(project.InputPath))
@@ -75,7 +75,18 @@ namespace OPS.Pipeline
 
             this.project = project;
 
-            ingester = new IngestPDSImage(pipeline, project, recreateExistingObservations, resetExistingTransforms);
+            SiteDrive[] siteDrives = (onlyForSiteDrives ?? "")
+                .Split(',')
+                .Where(s => !string.IsNullOrEmpty(s))
+                .Select(s => new SiteDrive(s.Trim()))
+                .Cast<SiteDrive>()
+                .ToArray();
+
+            IngestPDSImage.Filter filter = (imageUrl, pdsMetadata, pdsParser) =>
+                siteDrives.Length == 0 ||
+                siteDrives.Any(sd => sd == new SiteDrive(pdsParser.Site, pdsParser.Drive));
+
+            ingester = new IngestPDSImage(pipeline, project, recreateObservations, resetTransforms, filter);
         }
 
         public int Ingest(MSLLocations locations, Action<IngestImage.Result> func = null)
@@ -84,8 +95,7 @@ namespace OPS.Pipeline
             string imageObs = ObservationType.Image.ToString();
             double startTime = UTCTime.Now();
             int ni = 0, na = 0, nf = 0, ns = 0, nr = 0;
-            ConcurrentDictionary<SiteDrive, ConcurrentDictionary<string, int>> stats =
-                new ConcurrentDictionary<SiteDrive, ConcurrentDictionary<string, int>>();
+            var stats = new ConcurrentDictionary<SiteDrive, ConcurrentDictionary<string, int>>();
             foreach (var entry in BaseUrls)
             {
                 pipeline.LogInfo("{0}ingesting input files from {1} for alignment project {2}",

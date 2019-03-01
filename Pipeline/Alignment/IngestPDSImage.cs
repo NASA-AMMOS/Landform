@@ -18,14 +18,19 @@ namespace OPS.Pipeline
         private bool recreateExistingObservations;
         private bool resetTransforms;
 
+        public delegate bool Filter(string imageUrl, PDSMetadata pdsMetadata, PDSParser pdsParser);
+        private Filter filter;
+
         public MSLLocations Locations;
 
         public IngestPDSImage(PipelineCore pipeline, Project project, bool recreateExistingObservations = false,
-                              bool resetTransforms = false) : base(pipeline)
+                              bool resetTransforms = false, Filter filter = null)
+            : base(pipeline)
         {
             this.project = project;
             this.recreateExistingObservations = recreateExistingObservations;
             this.resetTransforms = resetTransforms;
+            this.filter = filter;
         }
 
         /// <summary>
@@ -242,7 +247,13 @@ namespace OPS.Pipeline
             }
             catch
             {
-                pipeline.LogDebug("invalid camera model for {0}", observationName);
+                pipeline.LogDebug("rejected {0} for invalid camera model", observationName);
+                return new Result(imgUrl, Status.Skipped);
+            }
+
+            if (filter != null && !filter(imgUrl, metadata, parser))
+            {
+                pipeline.LogDebug("rejected {0} due to filter", observationName);
                 return new Result(imgUrl, Status.Skipped);
             }
 

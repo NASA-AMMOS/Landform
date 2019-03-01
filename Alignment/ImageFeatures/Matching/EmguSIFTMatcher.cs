@@ -36,8 +36,8 @@ namespace OPS.Alignment
 
             Matrix<float> descr0 = ToDescriptorMatrix1(feat0);
             Matrix<float> descr1 = ToDescriptorMatrix1(feat1);
-            VectorOfKeyPoint kp0 = ToVOKP(feat0);
-            VectorOfKeyPoint kp1 = ToVOKP(feat1);
+            VectorOfKeyPoint kp0 = new VectorOfKeyPoint(feat0.CastToMKeyPoint().ToArray());
+            VectorOfKeyPoint kp1 = new VectorOfKeyPoint(feat1.CastToMKeyPoint().ToArray());
             
             Matrix<int> indices = new Matrix<int>(descr1.Rows, 2);
 
@@ -83,22 +83,6 @@ namespace OPS.Alignment
                     yield return new KeyValuePair<int, int>(match.QueryIdx, match.TrainIdx);
                 }
             }
-        }
-
-        static VectorOfKeyPoint ToVOKP(SIFTFeature[] kps)
-        {
-            VectorOfKeyPoint res = new VectorOfKeyPoint();
-            res.Push(kps.Select(kp =>
-            {
-                MKeyPoint _kp = new MKeyPoint();
-                _kp.Size = (float)kp.Size;
-                _kp.Point = new System.Drawing.PointF((float)kp.Location.X, (float)kp.Location.Y);
-                _kp.Angle = (float)kp.Angle;
-                _kp.Octave = kp.Octave;
-                _kp.Response = (float)kp.Response;
-                return _kp;
-            }).ToArray());
-            return res;
         }
 
         static Matrix<T> ToDescriptorMatrix2<T>(SIFTFeature[] features) where T: struct
