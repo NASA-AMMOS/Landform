@@ -85,9 +85,9 @@ namespace OPS.Pipeline
                 }
                 else
                 {
-                Image mask = this.GetDataProduct<PngDataProduct>(project.ProductPath, obs.MaskGuid, project.Name).Image;
-                mask.Save<byte>(Path.Combine(masksDir, obs.Name + "_mask.png"));
-            }
+                    Image mask = this.GetDataProduct<PngDataProduct>(project.ProductPath, obs.MaskGuid, project.Name).Image;
+                    mask.Save<byte>(Path.Combine(masksDir, obs.Name + "_mask.png"));
+                }
             }
 
             this.LogInfo("preparing calibration information for agisoft");
@@ -103,11 +103,11 @@ namespace OPS.Pipeline
             {
                 int exitCode = pr.Run();
                 if (exitCode != 0)
-                { 
+                {
                     throw new InvalidProgramException("exited with status " + exitCode);
                 }
-               
-                if(!File.Exists(outputCamerasXMLPath))
+
+                if (!File.Exists(outputCamerasXMLPath))
                 {
                     throw new InvalidProgramException("failed to create output cameras.xml file");
                 }
@@ -117,21 +117,18 @@ namespace OPS.Pipeline
                 //read results
                 Dictionary<string, Matrix> adjusted = AgisoftXML.ReadTransforms(outputCamerasXMLPath);
 
-                //bring the results back into the original mission scale, rotation, translation
-                Dictionary<string, Matrix> adjustedAligned = AlignTransforms(scene, adjusted);
-
                 //save to database
-                int numAdjustedNodes = adjustedAligned.Count;
+                int numAdjustedNodes = adjusted.Count;
                 int n = 1;
                 foreach (var obs in observations)
                 {
-                    if (adjustedAligned.ContainsKey(obs.Name))
+                    if (adjusted.ContainsKey(obs.Name))
                     {
                         LogInfo("saving transform {0} of {1} adjusted frames", n++, numAdjustedNodes);
 
                         SceneNode adjNode = scene.ObservationUrlToNode[obs.Url];
                         var frame = adjNode.GetComponent<NodeFrame>().Frame;
-                        Matrix bundleResult = adjustedAligned[obs.Name];
+                        Matrix bundleResult = adjusted[obs.Name];
                         //TODO propagate transform covariance out of agi xml
                         //https://github.jpl.nasa.gov/OnSight/Landform/issues/367
                         var ut = new UncertainRigidTransform(bundleResult);
@@ -153,271 +150,224 @@ namespace OPS.Pipeline
             }
             finally
             {
-               Directory.Delete(imageDir, true);
-               Directory.Delete(masksDir, true);
-               Directory.Delete(metaDir, true);
+                Directory.Delete(imageDir, true);
+                Directory.Delete(masksDir, true);
+                Directory.Delete(metaDir, true);
             }
 
             return 0;
         }
 
-        private Dictionary<string, Matrix> AlignTransforms(AlignmentScene scene, Dictionary<string, Matrix> adjusted)
+        class AgisoftPython
         {
-            if (adjusted.Count < 3)
-                throw new InvalidDataException("Too few transforms to align");
-
-            int numAdjusted = adjusted.Count();
-            Vector3[] fixedPts = new Vector3[numAdjusted];
-            Vector3[] movingPts = new Vector3[numAdjusted];
-
-            var observationNodes = scene.Root.GetComponentsInTree<NodeObservation>();
-            for(int idx=0; idx < numAdjusted; idx++)
+            static public void WriteImageAlignScript(string calibXMLPath, string imagesDir, string masksDir, string outputPythonFilePath, string outputAgiScenePath, string outputCamerasXMLPath)
             {
-                //get fixed position
-                string obsName = adjusted.Keys.ElementAt(idx);
-                SceneNode node = observationNodes.Where(o => o.Observation.Name == obsName).First().Node;
-                CAHV cahv = (CameraModel)JsonHelper.FromJson(node.GetComponent<NodeObservation>().Observation.CameraModel) as CAHV;
-                Vector3 cameraPositionInRover = cahv.C;
-                Vector3 cameraPositionInRoot = Vector3.Transform(cameraPositionInRover, node.Transform.LocalToWorld);
-                fixedPts[idx] = cameraPositionInRoot;
+                //set up document
+                string fc = "import Metashape\n" +
+                            "doc = Metashape.app.document\n" +
+                            "chunk = doc.addChunk()\n";
 
-                //get moving position
-                Matrix adjCameraToWorld = adjusted[obsName];
-                Vector3 adjCameraPositionInRoot = Vector3.Transform(Vector3.Zero, adjCameraToWorld);
-                movingPts[idx] = adjCameraPositionInRoot;
-            }
-
-            Dictionary<string, Matrix> alignedTransforms = new Dictionary<string, Matrix>();
-
-            Procrustes.Calculate(movingPts, fixedPts, out double rmsResidual,
-                                    out Vector3 translation, out Quaternion rotation, out double scale,
-                                    calcTranslation: true, calcRotation: true, calcScale: true);
-
-            Matrix invTrans = Matrix.CreateTranslation(translation);
-            Matrix invRot = Matrix.CreateFromQuaternion(rotation);
-            Matrix invScale = Matrix.CreateScale(scale);
-            Matrix agiToLandform = (invTrans * invRot) * invScale;
-            Matrix landformToAgi = Matrix.Invert(agiToLandform);
-
-            //fixup transforms
-            foreach(var pair in adjusted)
-            {
-                alignedTransforms[pair.Key] = landformToAgi * adjusted[pair.Key] * agiToLandform;
-            }
-
-            return alignedTransforms;
-        }
-    }
-
-    class AgisoftPython
-    {
-        static public void WriteImageAlignScript(string calibXMLPath, string imagesDir, string masksDir, string outputPythonFilePath, string outputAgiScenePath, string outputCamerasXMLPath)
-        {
-            //set up document
-            string fc = "import Metashape\n" +
-                        "doc = Metashape.app.document\n" +
-                        "chunk = doc.addChunk()\n";
-
-            //add images
-            string param = "[";
-            foreach (var path in Directory.EnumerateFiles(imagesDir, "*.png"))
-            {
-                param += "\"" + path.Replace(@"\", "/") + "\", ";
-            }
-            param.TrimEnd(new char[]{ ',',' '});
-            param += "]";
-            fc += "chunk.addPhotos(" + param + ")\n";
-
-            //load camera calibrations
-            fc += "chunk.importCameras(\"" + calibXMLPath.Replace(@"\", "/") + "\")\n";
-
-            //load our masks
-            fc += "chunk.importMasks(path = \"" + masksDir.Replace(@"\", "/") + "/{filename}_mask.png\", source = Metashape.MaskSourceFile, operation = Metashape.MaskOperationReplacement, tolerance = 10)\n";
-
-            //do alginment
-            fc += "chunk.matchPhotos(accuracy = Metashape.HighAccuracy, generic_preselection = True, reference_preselection = False)\n" +
-                  "chunk.alignCameras()\n";
-
-            //save debug scene for inspection
-            fc += "doc.save(path = \"" + outputAgiScenePath.Replace(@"\", "/") + "\", chunks = [doc.chunk])\n";
-            
-            //save the modified camera positions
-            fc += "chunk.exportCameras(\"" + outputCamerasXMLPath.Replace(@"\", "/") + "\", format = Metashape.CamerasFormatXML, export_points = False)\n";
-
-            //save out generated python
-            File.WriteAllText(outputPythonFilePath, fc);
-        }
-    }
-
-    class AgisoftXML
-    {
-        static private void AddCameraXml(XmlNode cameras, int cameraId, int sensorId, string name)
-        {
-            XmlNode cameraNode = cameras.OwnerDocument.CreateElement("camera");
-            cameras.AppendChild(cameraNode);
-            AddAttributeXml(cameraNode, "id", cameraId.ToString());
-            AddAttributeXml(cameraNode, "sensor_id", sensorId.ToString());
-            AddAttributeXml(cameraNode, "label", name);
-            AddAttributeXml(cameraNode, "enabled", "1");
-        }
-
-        static private void AddAttributeXml(XmlNode node, string name, string value)
-        {
-            XmlAttribute att = node.OwnerDocument.CreateAttribute(name);
-            att.Value = value;
-            node.Attributes.Append(att);
-        }
-
-        static private void AddSensorXml(XmlNode sensorsNode, int sensorId, RoverProductCamera roverProdCam, int widthPixels, int heightPixels)
-        {
-            XmlNode sensorNode = sensorsNode.OwnerDocument.CreateElement("sensor");
-            sensorsNode.AppendChild(sensorNode);
-            AddAttributeXml(sensorNode, "id", sensorId.ToString());
-            AddAttributeXml(sensorNode, "label", roverProdCam.ToString() + "_" + widthPixels + "_" + heightPixels);
-
-            if (roverProdCam.ToString().Contains("Hazcam"))
-                throw new NotImplementedException("hazcams may need a fisheye camera type set here");
-            AddAttributeXml(sensorNode, "type", "frame");
-
-            XmlNode resolutionNode = sensorNode.OwnerDocument.CreateElement("resolution");
-            sensorNode.AppendChild(resolutionNode);
-            AddAttributeXml(resolutionNode, "width", widthPixels.ToString());
-            AddAttributeXml(resolutionNode, "height", heightPixels.ToString());
-
-            XmlNode propNode1 = sensorNode.OwnerDocument.CreateElement("property");
-            sensorNode.AppendChild(propNode1);
-            AddAttributeXml(propNode1, "name", "pixel_width");
-            AddAttributeXml(propNode1, "value", PDSParser.GetSensorPixelSizeMM(roverProdCam).ToString("F3"));
-
-            XmlNode propNode2 = sensorNode.OwnerDocument.CreateElement("property");
-            sensorNode.AppendChild(propNode2);
-            AddAttributeXml(propNode2, "name", "pixel_height");
-            AddAttributeXml(propNode2, "value", PDSParser.GetSensorPixelSizeMM(roverProdCam).ToString("F3"));
-
-            XmlNode propNode3 = sensorNode.OwnerDocument.CreateElement("property");
-            sensorNode.AppendChild(propNode3);
-            AddAttributeXml(propNode3, "name", "focal_length");
-            AddAttributeXml(propNode3, "value", PDSParser.GetFocalLengthMM(roverProdCam).ToString("F2"));
-
-            XmlNode propNode4 = sensorNode.OwnerDocument.CreateElement("property");
-            sensorNode.AppendChild(propNode4);
-            AddAttributeXml(propNode4, "name", "layer_index");
-            AddAttributeXml(propNode4, "value", "0");
-
-            XmlNode bandsNode = sensorNode.OwnerDocument.CreateElement("bands");
-            sensorNode.AppendChild(bandsNode);
-            if (roverProdCam.ToString().Contains("Mastcam") || roverProdCam.ToString().Contains("MAHLI"))
-                throw new NotImplementedException("color images may need more bands");
-            XmlNode bandNode = sensorNode.OwnerDocument.CreateElement("band");
-            bandsNode.AppendChild(bandNode);
-
-            XmlNode dataTypeNode = sensorNode.OwnerDocument.CreateElement("data_type");
-            sensorNode.AppendChild(dataTypeNode);
-            dataTypeNode.InnerText = "uint8";
-
-            XmlNode calibNode = sensorNode.OwnerDocument.CreateElement("calibration");
-            sensorNode.AppendChild(calibNode);
-            if (roverProdCam.ToString().Contains("Hazcam"))
-                throw new NotImplementedException("hazcams may need a fisheye camera type set here");
-            AddAttributeXml(calibNode, "type", "frame");
-            AddAttributeXml(calibNode, "class", "initial");
-
-            XmlNode resNode = sensorNode.OwnerDocument.CreateElement("resolution");
-            calibNode.AppendChild(resNode);
-            AddAttributeXml(resNode, "width", widthPixels.ToString());
-            AddAttributeXml(resNode, "height", heightPixels.ToString());
-
-            XmlNode fNode = sensorNode.OwnerDocument.CreateElement("f");
-            calibNode.AppendChild(fNode);
-            double focalLengthPixels = PDSParser.GetFocalLengthMM(roverProdCam) / PDSParser.GetSensorPixelSizeMM(roverProdCam);
-            fNode.InnerText = focalLengthPixels.ToString("F1");
-
-            XmlNode blackLevelNode = sensorNode.OwnerDocument.CreateElement("black_level");
-            sensorNode.AppendChild(blackLevelNode);
-            blackLevelNode.InnerText = "0.0000000000000000e+000";
-
-            XmlNode sensitivityNode = sensorNode.OwnerDocument.CreateElement("sensitivity");
-            sensorNode.AppendChild(sensitivityNode);
-            sensitivityNode.InnerText = "1.0000000000000000e+000";
-        }
-
-        static public void WriteCalibrationXML(IEnumerable<RoverObservation> observations, Dictionary<string, SceneNode> observationUrlToNode, string outputCalibXML)
-        {
-            var obsByCameraConfig = observations.GroupBy(o => new { o.Sensor, o.Width, o.Height });
-
-            //add xml fragmentes needed for cameras
-            XmlDocument doc = new XmlDocument();
-            doc.AppendChild(doc.CreateXmlDeclaration("1.0", "UTF-8", null));
-            XmlNode docNode = doc.CreateElement("document");
-            doc.AppendChild(docNode);
-            AddAttributeXml(docNode, "version", "1.5.0");
-
-            XmlNode chunkNode = doc.CreateElement("chunk");
-            docNode.AppendChild(chunkNode);
-            AddAttributeXml(chunkNode, "label", "Chunk 1");
-            AddAttributeXml(chunkNode, "enabled", "1");
-
-            XmlNode sensorsNode = doc.CreateElement("sensors");
-            chunkNode.AppendChild(sensorsNode);
-            AddAttributeXml(sensorsNode, "next_id", obsByCameraConfig.Count().ToString());
-
-            XmlNode camerasNode = doc.CreateElement("cameras");
-            chunkNode.AppendChild(camerasNode);
-            AddAttributeXml(camerasNode, "next_id", observations.Count().ToString());
-            AddAttributeXml(camerasNode, "next_group_id", "0");
-
-            //add sensors and cameras
-            int sensorId = 0;
-            int cameraId = 0;
-            foreach (var cameraConfig in obsByCameraConfig)
-            {
-                RoverProductCamera roverProdCam = (RoverProductCamera)Enum.Parse(typeof(RoverProductCamera), cameraConfig.Key.Sensor);
-                AddSensorXml(sensorsNode, sensorId, roverProdCam, cameraConfig.Key.Width, cameraConfig.Key.Height);
-
-                foreach (var obs in cameraConfig)
+                //add images
+                string param = "[";
+                foreach (var path in Directory.EnumerateFiles(imagesDir, "*.png"))
                 {
-                    AddCameraXml(camerasNode, cameraId, sensorId, obs.Name);
-                    cameraId++;
+                    param += "\"" + path.Replace(@"\", "/") + "\", ";
+                }
+                param.TrimEnd(new char[] { ',', ' ' });
+                param += "]";
+                fc += "chunk.addPhotos(" + param + ")\n";
+
+                //load camera calibrations
+                fc += "chunk.importCameras(\"" + calibXMLPath.Replace(@"\", "/") + "\")\n";
+
+                //load our masks
+                fc += "chunk.importMasks(path = \"" + masksDir.Replace(@"\", "/") + "/{filename}_mask.png\", source = Metashape.MaskSourceFile, operation = Metashape.MaskOperationReplacement, tolerance = 10)\n";
+
+                //do alginment
+                fc += "chunk.matchPhotos(accuracy = Metashape.HighAccuracy, generic_preselection = True, reference_preselection = False)\n" +
+                      "chunk.alignCameras()\n";
+
+                //save debug scene for inspection
+                fc += "doc.save(path = \"" + outputAgiScenePath.Replace(@"\", "/") + "\", chunks = [doc.chunk])\n";
+
+                //save the modified camera positions
+                fc += "chunk.exportCameras(\"" + outputCamerasXMLPath.Replace(@"\", "/") + "\", format = Metashape.CamerasFormatXML, export_points = False)\n";
+
+                //save out generated python
+                File.WriteAllText(outputPythonFilePath, fc);
+            }
+        }
+
+        class AgisoftXML
+        {
+            static private void AddCameraXml(XmlNode cameras, int cameraId, int sensorId, string name)
+            {
+                XmlNode cameraNode = cameras.OwnerDocument.CreateElement("camera");
+                cameras.AppendChild(cameraNode);
+                AddAttributeXml(cameraNode, "id", cameraId.ToString());
+                AddAttributeXml(cameraNode, "sensor_id", sensorId.ToString());
+                AddAttributeXml(cameraNode, "label", name);
+                AddAttributeXml(cameraNode, "enabled", "1");
+            }
+
+            static private void AddAttributeXml(XmlNode node, string name, string value)
+            {
+                XmlAttribute att = node.OwnerDocument.CreateAttribute(name);
+                att.Value = value;
+                node.Attributes.Append(att);
+            }
+
+            static private void AddSensorXml(XmlNode sensorsNode, int sensorId, RoverProductCamera roverProdCam, int widthPixels, int heightPixels)
+            {
+                XmlNode sensorNode = sensorsNode.OwnerDocument.CreateElement("sensor");
+                sensorsNode.AppendChild(sensorNode);
+                AddAttributeXml(sensorNode, "id", sensorId.ToString());
+                AddAttributeXml(sensorNode, "label", roverProdCam.ToString() + "_" + widthPixels + "_" + heightPixels);
+
+                if (roverProdCam.ToString().Contains("Hazcam"))
+                    throw new NotImplementedException("hazcams may need a fisheye camera type set here");
+                AddAttributeXml(sensorNode, "type", "frame");
+
+                XmlNode resolutionNode = sensorNode.OwnerDocument.CreateElement("resolution");
+                sensorNode.AppendChild(resolutionNode);
+                AddAttributeXml(resolutionNode, "width", widthPixels.ToString());
+                AddAttributeXml(resolutionNode, "height", heightPixels.ToString());
+
+                XmlNode propNode1 = sensorNode.OwnerDocument.CreateElement("property");
+                sensorNode.AppendChild(propNode1);
+                AddAttributeXml(propNode1, "name", "pixel_width");
+                AddAttributeXml(propNode1, "value", PDSParser.GetSensorPixelSizeMM(roverProdCam).ToString("F3"));
+
+                XmlNode propNode2 = sensorNode.OwnerDocument.CreateElement("property");
+                sensorNode.AppendChild(propNode2);
+                AddAttributeXml(propNode2, "name", "pixel_height");
+                AddAttributeXml(propNode2, "value", PDSParser.GetSensorPixelSizeMM(roverProdCam).ToString("F3"));
+
+                XmlNode propNode3 = sensorNode.OwnerDocument.CreateElement("property");
+                sensorNode.AppendChild(propNode3);
+                AddAttributeXml(propNode3, "name", "focal_length");
+                AddAttributeXml(propNode3, "value", PDSParser.GetFocalLengthMM(roverProdCam).ToString("F2"));
+
+                XmlNode propNode4 = sensorNode.OwnerDocument.CreateElement("property");
+                sensorNode.AppendChild(propNode4);
+                AddAttributeXml(propNode4, "name", "layer_index");
+                AddAttributeXml(propNode4, "value", "0");
+
+                XmlNode bandsNode = sensorNode.OwnerDocument.CreateElement("bands");
+                sensorNode.AppendChild(bandsNode);
+                if (roverProdCam.ToString().Contains("Mastcam") || roverProdCam.ToString().Contains("MAHLI"))
+                    throw new NotImplementedException("color images may need more bands");
+                XmlNode bandNode = sensorNode.OwnerDocument.CreateElement("band");
+                bandsNode.AppendChild(bandNode);
+
+                XmlNode dataTypeNode = sensorNode.OwnerDocument.CreateElement("data_type");
+                sensorNode.AppendChild(dataTypeNode);
+                dataTypeNode.InnerText = "uint8";
+
+                XmlNode calibNode = sensorNode.OwnerDocument.CreateElement("calibration");
+                sensorNode.AppendChild(calibNode);
+                if (roverProdCam.ToString().Contains("Hazcam"))
+                    throw new NotImplementedException("hazcams may need a fisheye camera type set here");
+                AddAttributeXml(calibNode, "type", "frame");
+                AddAttributeXml(calibNode, "class", "initial");
+
+                XmlNode resNode = sensorNode.OwnerDocument.CreateElement("resolution");
+                calibNode.AppendChild(resNode);
+                AddAttributeXml(resNode, "width", widthPixels.ToString());
+                AddAttributeXml(resNode, "height", heightPixels.ToString());
+
+                XmlNode fNode = sensorNode.OwnerDocument.CreateElement("f");
+                calibNode.AppendChild(fNode);
+                double focalLengthPixels = PDSParser.GetFocalLengthMM(roverProdCam) / PDSParser.GetSensorPixelSizeMM(roverProdCam);
+                fNode.InnerText = focalLengthPixels.ToString("F1");
+
+                XmlNode blackLevelNode = sensorNode.OwnerDocument.CreateElement("black_level");
+                sensorNode.AppendChild(blackLevelNode);
+                blackLevelNode.InnerText = "0.0000000000000000e+000";
+
+                XmlNode sensitivityNode = sensorNode.OwnerDocument.CreateElement("sensitivity");
+                sensorNode.AppendChild(sensitivityNode);
+                sensitivityNode.InnerText = "1.0000000000000000e+000";
+            }
+
+            static public void WriteCalibrationXML(IEnumerable<RoverObservation> observations, Dictionary<string, SceneNode> observationUrlToNode, string outputCalibXML)
+            {
+                var obsByCameraConfig = observations.GroupBy(o => new { o.Sensor, o.Width, o.Height });
+
+                //add xml fragmentes needed for cameras
+                XmlDocument doc = new XmlDocument();
+                doc.AppendChild(doc.CreateXmlDeclaration("1.0", "UTF-8", null));
+                XmlNode docNode = doc.CreateElement("document");
+                doc.AppendChild(docNode);
+                AddAttributeXml(docNode, "version", "1.5.0");
+
+                XmlNode chunkNode = doc.CreateElement("chunk");
+                docNode.AppendChild(chunkNode);
+                AddAttributeXml(chunkNode, "label", "Chunk 1");
+                AddAttributeXml(chunkNode, "enabled", "1");
+
+                XmlNode sensorsNode = doc.CreateElement("sensors");
+                chunkNode.AppendChild(sensorsNode);
+                AddAttributeXml(sensorsNode, "next_id", obsByCameraConfig.Count().ToString());
+
+                XmlNode camerasNode = doc.CreateElement("cameras");
+                chunkNode.AppendChild(camerasNode);
+                AddAttributeXml(camerasNode, "next_id", observations.Count().ToString());
+                AddAttributeXml(camerasNode, "next_group_id", "0");
+
+                //add sensors and cameras
+                int sensorId = 0;
+                int cameraId = 0;
+                foreach (var cameraConfig in obsByCameraConfig)
+                {
+                    RoverProductCamera roverProdCam = (RoverProductCamera)Enum.Parse(typeof(RoverProductCamera), cameraConfig.Key.Sensor);
+                    AddSensorXml(sensorsNode, sensorId, roverProdCam, cameraConfig.Key.Width, cameraConfig.Key.Height);
+
+                    foreach (var obs in cameraConfig)
+                    {
+                        AddCameraXml(camerasNode, cameraId, sensorId, obs.Name);
+                        cameraId++;
+                    }
+
+                    sensorId++;
                 }
 
-                sensorId++;
+                doc.Save(outputCalibXML);
             }
 
-            doc.Save(outputCalibXML);
-        }
-
-        public static Dictionary<string, Matrix> ReadTransforms(string outputCamerasXMLPath)
-        {
-            Dictionary<string, Matrix> results = new Dictionary<string, Matrix>();
-            XmlDocument xd = new XmlDocument();
-            xd.Load(outputCamerasXMLPath);
-            XmlNode doc = xd.SelectSingleNode("document");
-            XmlNode chunk = doc.SelectSingleNode("chunk");
-            XmlNode cameras = chunk.SelectSingleNode("cameras");
-            foreach (XmlNode camera in cameras.ChildNodes)
+            public static Dictionary<string, Matrix> ReadTransforms(string outputCamerasXMLPath)
             {
-                string name = camera.Attributes["label"].Value;
-                XmlNode transforms = camera.SelectSingleNode("transform");
-                if (transforms != null)
+                Dictionary<string, Matrix> results = new Dictionary<string, Matrix>();
+                XmlDocument xd = new XmlDocument();
+                xd.Load(outputCamerasXMLPath);
+                XmlNode doc = xd.SelectSingleNode("document");
+                XmlNode chunk = doc.SelectSingleNode("chunk");
+                XmlNode cameras = chunk.SelectSingleNode("cameras");
+                foreach (XmlNode camera in cameras.ChildNodes)
                 {
-                    Matrix matrix = ReadTransform(transforms.InnerText);
-                    results[name] = matrix;
+                    string name = camera.Attributes["label"].Value;
+                    XmlNode transforms = camera.SelectSingleNode("transform");
+                    if (transforms != null)
+                    {
+                        Matrix matrix = ReadTransform(transforms.InnerText);
+                        results[name] = matrix;
+                    }
                 }
+
+                return results;
             }
 
-            return results;
-        }
+            private static Matrix ReadTransform(string innerText)
+            {
+                string[] terms = innerText.Split(new char[] { ' ' });
 
-        private static Matrix ReadTransform(string innerText)
-        {
-            string[] terms = innerText.Split(new char[] { ' ' });
-
-            //do transpose while copying data in
-            Matrix rowMajor = new Matrix(double.Parse(terms[0]), double.Parse(terms[4]), double.Parse(terms[8]), double.Parse(terms[12]),
-                                         double.Parse(terms[1]), double.Parse(terms[5]), double.Parse(terms[9]), double.Parse(terms[13]),
-                                         double.Parse(terms[2]), double.Parse(terms[6]), double.Parse(terms[10]), double.Parse(terms[14]),
-                                         double.Parse(terms[3]), double.Parse(terms[7]), double.Parse(terms[11]), double.Parse(terms[15]));
-            return rowMajor;
+                //do transpose while copying data in
+                Matrix rowMajor = new Matrix(double.Parse(terms[0]), double.Parse(terms[4]), double.Parse(terms[8]), double.Parse(terms[12]),
+                                             double.Parse(terms[1]), double.Parse(terms[5]), double.Parse(terms[9]), double.Parse(terms[13]),
+                                             double.Parse(terms[2]), double.Parse(terms[6]), double.Parse(terms[10]), double.Parse(terms[14]),
+                                             double.Parse(terms[3]), double.Parse(terms[7]), double.Parse(terms[11]), double.Parse(terms[15]));
+                return rowMajor;
+            }
         }
     }
 }
