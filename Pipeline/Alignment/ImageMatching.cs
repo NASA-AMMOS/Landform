@@ -145,10 +145,14 @@ namespace OPS.Pipeline
                                          });
             var scene = sb.BuildTopDown(project.RootFrame);
 
+            var fod = new FrustumOverlapDetector(pipeline, pipeline);
             if (scene.Overlaps.Count == 0)
             {
-                var fod = new FrustumOverlapDetector(pipeline, pipeline);
                 fod.Detect(scene, onlyCrossSite);
+            }
+            else
+            {
+                fod.MakeHulls(scene);
             }
             return scene;
         }
