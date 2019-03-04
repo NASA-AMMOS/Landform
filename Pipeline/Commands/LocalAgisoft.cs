@@ -200,7 +200,7 @@ namespace OPS.Pipeline
 
         class AgisoftXML
         {
-            static private void AddCameraXml(XmlNode cameras, int cameraId, int sensorId, string name)
+            static private void AddCameraXml(XmlNode cameras, int cameraId, int sensorId, string name, Matrix agisoftCameraToWorld)
             {
                 XmlNode cameraNode = cameras.OwnerDocument.CreateElement("camera");
                 cameras.AppendChild(cameraNode);
@@ -208,6 +208,26 @@ namespace OPS.Pipeline
                 AddAttributeXml(cameraNode, "sensor_id", sensorId.ToString());
                 AddAttributeXml(cameraNode, "label", name);
                 AddAttributeXml(cameraNode, "enabled", "1");
+
+                XmlNode transformNode = cameras.OwnerDocument.CreateElement("transform");
+                cameraNode.AppendChild(transformNode);
+                transformNode.InnerText = agisoftCameraToWorld.M11.ToString("e16") + " " + agisoftCameraToWorld.M12.ToString("e16") + " " + agisoftCameraToWorld.M13.ToString("e16") + " " + agisoftCameraToWorld.M14.ToString("e16") + " " +
+                                          agisoftCameraToWorld.M21.ToString("e16") + " " + agisoftCameraToWorld.M22.ToString("e16") + " " + agisoftCameraToWorld.M23.ToString("e16") + " " + agisoftCameraToWorld.M24.ToString("e16") + " " +
+                                          agisoftCameraToWorld.M31.ToString("e16") + " " + agisoftCameraToWorld.M32.ToString("e16") + " " + agisoftCameraToWorld.M33.ToString("e16") + " " + agisoftCameraToWorld.M34.ToString("e16") + " " +
+                                          agisoftCameraToWorld.M41.ToString("e16") + " " + agisoftCameraToWorld.M42.ToString("e16") + " " + agisoftCameraToWorld.M43.ToString("e16") + " " + agisoftCameraToWorld.M44.ToString("e16");
+
+                XmlNode rotCovNode = cameras.OwnerDocument.CreateElement("rotation_covariance");
+                cameraNode.AppendChild(rotCovNode);
+                //TODO: plumbing
+                double degSqr = Math.Pow(Math.PI / 180, 2);
+                double rotCov = 5 * degSqr;
+                rotCovNode.InnerText = rotCov.ToString("e16") + " 0 0 0 " + rotCov.ToString("e16") + " 0 0 0 " + rotCov.ToString("e16");
+
+                XmlNode transCovNode = cameras.OwnerDocument.CreateElement("location_covariance");
+                cameraNode.AppendChild(transCovNode);
+                //TODO: plumbing
+                double transCov = 3 * 3;
+                transCovNode.InnerText = transCov.ToString("e16") + " 0 0 0 " + transCov.ToString("e16") + " 0 0 0 " + transCov.ToString("e16");
             }
 
             static private void AddAttributeXml(XmlNode node, string name, string value)
@@ -290,6 +310,36 @@ namespace OPS.Pipeline
                 sensitivityNode.InnerText = "1.0000000000000000e+000";
             }
 
+            static private Matrix landformToAgiColMjr = new Matrix(0, 1, 0, 0,
+                                                                  0, 0, -1, 0,
+                                                                 -1, 0, 0, 0,
+                                                                 0, 0, 0, 1);
+
+            static private Matrix agiToLandformColMjr = new Matrix(0, 0, -1, 0,
+                                                                  1, 0, 0, 0,
+                                                                  0, -1, 0, 0,
+                                                                  0, 0, 0, 1);
+
+            static private Matrix agiToBundlerColMjr = new Matrix(1, 0, 0, 0,
+                                                               0, -1, 0, 0,
+                                                               0, 0, -1, 0,
+                                                               0, 0, 0, 1);
+
+            static private Matrix bundlerToLandform = new Matrix(0, 1, 0, 0,
+                                                                 0, 0, 1, 0,
+                                                                 1, 0, 0, 0,
+                                                                 0, 0, 0, 1);
+
+            //agisoft: col vector convention, right handed, x right, y up, z back
+            //bundler: col vector convention, right handed, x right, y down, z fwd
+            //landform: row vector convention, right handed, x fwd, y right, z down
+            static private Matrix LandformMatToAgi(Matrix landformMat)
+            {
+                //return landformToAgiColMjr * (Matrix.Transpose(landformMat) * agiToLandformColMjr);
+                Matrix landformMatColMjr = Matrix.Transpose(landformMat);
+                return landformMatColMjr * (bundlerToLandform * agiToBundlerColMjr);
+            }
+
             static public void WriteCalibrationXML(IEnumerable<RoverObservation> observations, Dictionary<string, SceneNode> observationUrlToNode, string outputCalibXML)
             {
                 var obsByCameraConfig = observations.GroupBy(o => new { o.Sensor, o.Width, o.Height });
@@ -325,7 +375,12 @@ namespace OPS.Pipeline
 
                     foreach (var obs in cameraConfig)
                     {
-                        AddCameraXml(camerasNode, cameraId, sensorId, obs.Name);
+                        SceneNode node = observationUrlToNode[obs.Url];
+                        CAHV cahv = node.GetComponent<NodeImage>().CameraModel as CAHV;
+                        Matrix cameraToRover = CameraToRoverMatrix(cahv);
+                        Matrix cameraToWorld = cameraToRover * node.Transform.LocalToWorld;
+                        Matrix agiCameraToWorld = LandformMatToAgi(cameraToWorld);
+                        AddCameraXml(camerasNode, cameraId, sensorId, obs.Name, agiCameraToWorld);
                         cameraId++;
                     }
 
@@ -335,7 +390,32 @@ namespace OPS.Pipeline
                 doc.Save(outputCalibXML);
             }
 
-            public static Dictionary<string, Matrix> ReadTransforms(string outputCamerasXMLPath)
+            private static Matrix CameraToRoverMatrix(CAHV cahv)
+            {
+                Vector3 cameraLocationInRover = cahv.C;
+
+                //not true if sensor is off axis from optical center
+                Vector3 cameraFwd = Vector3.Normalize(cahv.A);
+                Vector3 cameraRight = Vector3.Normalize(cahv.H);
+                double Hs = cahv.H.Length();
+                double Vs = cahv.V.Length();
+                Vector3 cameraDown = Vector3.Normalize(Vector3.Cross(cameraFwd, cameraRight));
+                cameraRight = Vector3.Normalize(Vector3.Cross(cameraDown, cameraFwd));
+
+                Matrix imageToCamera = new Matrix(0, 1, 0, 0,
+                                                  0, 0, 1, 0,
+                                                  1, 0, 0, 0,
+                                                  0, 0, 0, 1);
+                Matrix cameraToRover = new Matrix(cameraFwd.X, cameraFwd.Y, cameraFwd.Z, 0,
+                                                 cameraRight.X, cameraRight.Y, cameraRight.Z, 0,
+                                                 cameraDown.X, cameraDown.Y, cameraDown.Z, 0,
+                                                 cameraLocationInRover.X, cameraLocationInRover.Y, cameraLocationInRover.Z, 1);
+
+                return imageToCamera * cameraToRover;
+                //return cameraToRover;
+            }
+
+            internal static Dictionary<string, Matrix> ReadTransforms(string outputCamerasXMLPath)
             {
                 Dictionary<string, Matrix> results = new Dictionary<string, Matrix>();
                 XmlDocument xd = new XmlDocument();
