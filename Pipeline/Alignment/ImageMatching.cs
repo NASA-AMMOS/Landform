@@ -160,21 +160,38 @@ namespace OPS.Pipeline
         public static Image DrawMatches(Image modelImg, Image dataImg, ImageFeature[] modelFeatures,
                                         ImageFeature[] dataFeatures, KeyValuePair<int, int>[] dataToModel)
         {
-            var modelKeypoints = modelFeatures.Cast<SIFTFeature>().CastToMKeyPoint().ToArray();
-            var dataKeypoints = dataFeatures.Cast<SIFTFeature>().CastToMKeyPoint().ToArray();
-            var ret = new Image<Bgr, byte>(modelImg.Width + dataImg.Width, Math.Max(modelImg.Height, dataImg.Height));
-            var lineColor = new MCvScalar(0, 0, 255); //RGB
-            var pointColor = new MCvScalar(255, 255, 0); //RGB
-            var matches = new VectorOfVectorOfDMatch();
+            var modelFeaturesForDataFeature = new Dictionary<int, HashSet<int>>();
             foreach (var pair in dataToModel)
             {
-                matches.Push(new VectorOfDMatch(new MDMatch[] { new MDMatch() {
-                                TrainIdx = pair.Value,
-                                QueryIdx = pair.Key
-                            } }));
+                int dataFeatureIndex = pair.Key;
+                int modelFeatureIndex = pair.Value;
+                if (!modelFeaturesForDataFeature.ContainsKey(dataFeatureIndex))
+                {
+                    modelFeaturesForDataFeature[dataFeatureIndex] = new HashSet<int>();
+                }
+                modelFeaturesForDataFeature[dataFeatureIndex].Add(modelFeatureIndex);
             }
-            Features2DToolbox.DrawMatches(modelImg.ToEmguGrayscale(), new VectorOfKeyPoint(modelKeypoints),
-                                          dataImg.ToEmguGrayscale(), new VectorOfKeyPoint(dataKeypoints),
+            var matches = new VectorOfVectorOfDMatch();
+            foreach (var pair in modelFeaturesForDataFeature)
+            {
+                int dataFeatureIndex = pair.Key;
+                var matchesForDataFeature = new List<MDMatch>();
+                foreach (int modelFeatureIndex in pair.Value)
+                {
+                    matchesForDataFeature.Add(new MDMatch() {
+                            TrainIdx = modelFeatureIndex,
+                            QueryIdx = dataFeatureIndex
+                        });
+                }
+                matches.Push(new VectorOfDMatch(matchesForDataFeature.ToArray()));
+            }
+            var modelKeypoints = new VectorOfKeyPoint(modelFeatures.Cast<SIFTFeature>().CastToMKeyPoint().ToArray());
+            var dataKeypoints = new VectorOfKeyPoint(dataFeatures.Cast<SIFTFeature>().CastToMKeyPoint().ToArray());
+            var lineColor = new MCvScalar(0, 0, 255); //RGB
+            var pointColor = new MCvScalar(255, 255, 0); //RGB
+            var ret = new Image<Bgr, byte>(modelImg.Width + dataImg.Width, Math.Max(modelImg.Height, dataImg.Height));
+            Features2DToolbox.DrawMatches(modelImg.ToEmguGrayscale(), modelKeypoints,
+                                          dataImg.ToEmguGrayscale(), dataKeypoints,
                                           matches, ret, lineColor, pointColor, null,
                                           Features2DToolbox.KeypointDrawType.DrawRichKeypoints);
             return ret.ToOPSImage();
