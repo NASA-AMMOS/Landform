@@ -42,57 +42,68 @@ namespace OPS.Pipeline
         [Option(HelpText = "Debug image format, e.g. png, jpg, help for list", Default = "png")]
         public string ImageFormat { get; set; }
 
+        [Option(HelpText = "Histogram bucket size", Default = 10)]
+        public int HistogramBucketSize { get; set; }
+
+        [Option(HelpText = "Include existing products in histogram", Default = false)]
+        public bool TallyExisting { get; set; }
+
         [Option(HelpText = "Hide progress", Default = false)]
         public bool NoProgress { get; set; }
+
+        [Option(HelpText = "Operate on cloud data", Default = false)]
+        public bool Cloud { get; set; }
     }
 
-    public class LocalMatching : LocalPipeline
+    public class LocalMatching
     {
         private LocalMatchingOptions options;
+        private PipelineCore pipeline;
+        private string imageDir;
+        private string imageExt;
 
-        public LocalMatching(LocalMatchingOptions options) : base(options)
+        public LocalMatching(LocalMatchingOptions options)
         {
             this.options = options;
+            if (options.Cloud)
+            {
+                this.pipeline = new CloudPipeline(options, initQueues: false);
+            }
+            else
+            {
+                this.pipeline = new LocalPipeline(options);
+            }
         }
 
         public int Run()
         {
-            var project = Project.Find(this, options.ProjectName);
+            var project = Project.Find(pipeline, options.ProjectName);
             if (project == null)
             {
-                LogError("project \"{0}\" not found", options.ProjectName);
+                pipeline.LogError("project \"{0}\" not found", options.ProjectName);
                 return 1;
             }
 
-            string imagePath = options.ImageOutputFolder;
-            if (!string.IsNullOrEmpty(imagePath))
-            {
-                imagePath = StringHelper.NormalizeUrl(imagePath, "file://");
-            }
-            else
-            {
-                imagePath = GetStorageUrl("alignment/MatchingProducts", project.Name);
-            }
-            imagePath += "/";
+            imageDir =
+                pipeline.GetLocalDebugFolder(options.ImageOutputFolder, "alignment/MatchingProducts", project.Name);
 
-            string imageExt = null;
             if (options.WriteMatchImages)
             {
-                imageExt = ImageSerializers.Instance.CheckFormat(options.ImageFormat, this);
+                imageExt = ImageSerializers.Instance.CheckFormat(options.ImageFormat, pipeline);
                 if (imageExt == null)
                 {
                     return 0;
                 }
+                pipeline.LogInfo("writing {0} match images to {1}", imageExt, imageDir);
             }
 
-            var scene = ImageMatching.BuildSceneAndDetectOverlaps(this, project, loadFeatures: true,
+            var scene = ImageMatching.BuildSceneAndDetectOverlaps(pipeline, project, loadFeatures: true,
                                                                   redoOverlaps: options.RedoOverlaps,
                                                                   onlyCrossSite: !options.MatchWithinSiteDrives);
             int no = scene.Overlaps.Count;
 
-            LogInfo("finding feature matches for {0} image pairs", no);
+            pipeline.LogInfo("finding feature matches for {0} image pairs", no);
 
-            int bucketSize = 10;
             var histogram = new ConcurrentDictionary<int, int>();
             var rejectionTallies = new ConcurrentDictionary<string, int>();
             double startSec = UTCTime.Now();
@@ -110,11 +121,25 @@ namespace OPS.Pipeline
                 if (!options.RedoMatches)
                 {
                     //only hit the database if we need to
-                    var overlap = Overlap.Find(this, project.Name, modelObs.Name, dataObs.Name);
+                    var overlap = Overlap.Find(pipeline, project.Name, modelObs.Name, dataObs.Name);
                     if (overlap != null)
                     {
                         Interlocked.Increment(ref ne);
-                        LogVerbose("not recomputing feature matches for image pair {0}", pairName);
+                        pipeline.LogVerbose("not recomputing feature matches for image pair {0}", pairName);
+                        if ((options.WriteMatchImages || options.TallyExisting) && overlap.MatchGuid != Guid.Empty)
+                        {
+                            var product =
+                                pipeline.GetDataProduct<ComputedCorrespondence>(project.ProductPath, overlap.MatchGuid);
+
+                            if (options.WriteMatchImages)
+                            {
+                                WriteMatchImage(product, project, modelObs.Name, dataObs.Name);
+                            }
+                            if (options.TallyExisting)
+                            {
+                                AddToHistogram(product, histogram);
+                            }
+                        }
                         return;
                     }
                 }
@@ -123,44 +148,32 @@ namespace OPS.Pipeline
                 if (!options.NoProgress)
 
                 {
-                    LogInfo("processing {0} image pairs in parallel, completed {1}/{2}", np, nc, no);
+                    pipeline.LogInfo("processing {0} image pairs in parallel, completed {1}/{2}", np, nc, no);
                 }
                 string rejectionReason;
-                var result = ImageMatching.ComputeCorrespondence(this, scene, modelUrl, dataUrl, out rejectionReason,
-                                                                 options.MinMatchesPerPair);
+                var result = ImageMatching.ComputeCorrespondence(pipeline, scene, modelUrl, dataUrl,
+                                                                 out rejectionReason, options.MinMatchesPerPair);
                 var guid = Guid.Empty;
                 if (result != null)
                 {
                     Interlocked.Increment(ref nr);
-                    SaveDataProduct(project.ProductPath, result, project.Name);
+                    pipeline.SaveDataProduct(project.ProductPath, result, project.Name);
                     guid = result.Guid;
-                    int bucket = result.Correspondence.Count / bucketSize;
-                    histogram.AddOrUpdate(bucket, _ => 1, (_, count) => count + 1);
+                    AddToHistogram(result, histogram);
                 }
                 else
                 {
                     rejectionTallies.AddOrUpdate(rejectionReason, _ => 1, (_, count) => count + 1);
                 }
 
-                if (ImageMatching.SaveOverlap(this, project.Name, guid, modelObs.Name, dataObs.Name))
+                if (ImageMatching.SaveOverlap(pipeline, project.Name, guid, modelObs.Name, dataObs.Name))
                 {
                     Interlocked.Increment(ref ns);
                 }
 
                 if (options.WriteMatchImages && result != null)
                 {
-                    var modelFeatGuid = result.ModelFeaturesGuid;
-                    var dataFeatGuid = result.DataFeaturesGuid;
-                    var d2m = result.Correspondence.DataToModel;
-                    var modelImg = LoadImage(modelUrl);
-                    var dataImg = LoadImage(dataUrl);
-                    var modelFeat = GetDataProduct<DetectedFeatures>(project.ProductPath, modelFeatGuid, project.Name);
-                    var dataFeat = GetDataProduct<DetectedFeatures>(project.ProductPath, dataFeatGuid, project.Name);
-                    var img = ImageMatching.DrawMatches(modelImg, dataImg, modelFeat.Features, dataFeat.Features, d2m);
-                    TemporaryFile.GetAndDelete(imageExt, tmpImage => {
-                            img.Save<byte>(tmpImage);
-                            SaveFile(tmpImage, imagePath + modelObs.Name + "-" + dataObs.Name + "-Matches" + imageExt);
-                        });
+                    WriteMatchImage(result, project, modelObs.Name, dataObs.Name);
                 }
 
                 Interlocked.Decrement(ref np);
@@ -169,18 +182,39 @@ namespace OPS.Pipeline
 
             foreach (var bucket in histogram.Keys.OrderBy(n => n))
             {
-                LogInfo("{0} correspondences with {1} to {2} matches", histogram[bucket],
-                        bucket * bucketSize, (bucket + 1) * bucketSize - 1);
+                pipeline.LogInfo("{0} correspondences with {1} to {2} matches", histogram[bucket],
+                                 bucket * options.HistogramBucketSize, (bucket + 1) * options.HistogramBucketSize - 1);
             }
             foreach (var reason in rejectionTallies.Keys.OrderBy(r => r))
             {
-                LogInfo("rejected {0} image pairs because {1}", rejectionTallies[reason], reason);
+                pipeline.LogInfo("rejected {0} image pairs because {1}", rejectionTallies[reason], reason);
             }
 
-            LogInfo("processed {0} image pairs ({1:F3}s), computed {2} correspondences ({3} existing), saved {4}",
-                    nc, UTCTime.Now() - startSec, nr, ne, ns);
+            pipeline.LogInfo("processed {0} image pairs ({1:F3}s), computed {2} correspondences ({3} existing), " +
+                             "saved {4}", nc, UTCTime.Now() - startSec, nr, ne, ns);
 
             return 0;
+        }
+
+        private void AddToHistogram(ComputedCorrespondence product, ConcurrentDictionary<int, int> histogram)
+        {
+            int bucket = product.Correspondence.Count / options.HistogramBucketSize;
+            histogram.AddOrUpdate(bucket, _ => 1, (_, count) => count + 1);
+        }
+
+        private void WriteMatchImage(ComputedCorrespondence product, Project project, string modelObsName,
+                                     string dataObsName)
+        {
+            var modelFeatGuid = product.ModelFeaturesGuid;
+            var dataFeatGuid = product.DataFeaturesGuid;
+            var d2m = product.Correspondence.DataToModel;
+            var modelImg = pipeline.LoadImage(product.Correspondence.ModelImageUrl);
+            var dataImg = pipeline.LoadImage(product.Correspondence.DataImageUrl);
+            var modelFeat = pipeline.GetDataProduct<DetectedFeatures>(project.ProductPath, modelFeatGuid, project.Name);
+            var dataFeat = pipeline.GetDataProduct<DetectedFeatures>(project.ProductPath, dataFeatGuid, project.Name);
+            var img = ImageMatching.DrawMatches(modelImg, dataImg, modelFeat.Features, dataFeat.Features, d2m);
+            PathHelper.EnsureExists(imageDir);
+            img.Save<byte>(string.Format("{0}{1}-{2}-Matches{3}", imageDir, modelObsName, dataObsName, imageExt));
         }
     }
 }
