@@ -4,9 +4,14 @@ using System.Linq;
 using System.Text;
 using System.Diagnostics;
 using log4net;
+using Emgu.CV;
+using Emgu.CV.Util;
+using Emgu.CV.Structure;
+using Emgu.CV.Features2D;
 using OPS.Util;
 using OPS.Cloud;
 using OPS.Imaging;
+using OPS.Imaging.Emgu;
 using OPS.Geometry;
 using OPS.Alignment;
 using OPS.Pipeline;
@@ -16,11 +21,12 @@ namespace OPS.Pipeline
 {
     public class ImageMatching
     {
-        private static readonly int MIN_MATCHES = 20;
+        public const int DEF_MIN_MATCHES = 20;
 
         public static ComputedCorrespondence ComputeCorrespondence(PipelineCore pipeline, string projectName,
                                                                    string modelUrl, string dataUrl,
-                                                                   string modelFrameName, string dataFrameName)
+                                                                   string modelFrameName, string dataFrameName,
+                                                                   int minMatches = DEF_MIN_MATCHES)
         {
             //build a minimal scene graph containing these two frames and their ancestors
             var opts = new BuildSceneGraph.Options() {
@@ -31,12 +37,24 @@ namespace OPS.Pipeline
             BuildSceneGraph builder = new BuildSceneGraph(pipeline, projectName, opts);
             AlignmentScene scene = builder.BuildBottomUp(new[] { modelFrameName, dataFrameName });
             (new FrustumOverlapDetector(pipeline, pipeline)).MakeHulls(scene);
-            return ComputeCorrespondence(pipeline, scene, modelUrl, dataUrl);
+            return ComputeCorrespondence(pipeline, scene, modelUrl, dataUrl, minMatches);
         }
 
         public static ComputedCorrespondence ComputeCorrespondence(PipelineCore pipeline, AlignmentScene scene,
-                                                                   string modelUrl, string dataUrl)
+                                                                   string modelUrl, string dataUrl,
+                                                                   int minMatches = DEF_MIN_MATCHES)
         {
+            string rejectionReason;
+            return ComputeCorrespondence(pipeline, scene, modelUrl, dataUrl, out rejectionReason, minMatches);
+        }
+
+        public static ComputedCorrespondence ComputeCorrespondence(PipelineCore pipeline, AlignmentScene scene,
+                                                                   string modelUrl, string dataUrl,
+                                                                   out string rejectionReason,
+                                                                   int minMatches = DEF_MIN_MATCHES)
+        {
+            rejectionReason = null;
+
             Debug.Assert(scene.ObservationUrlToNode.ContainsKey(modelUrl));
             Debug.Assert(scene.ObservationUrlToNode.ContainsKey(dataUrl));
             Debug.Assert(scene.DetectedFeatures.ContainsKey(modelUrl));
@@ -47,7 +65,6 @@ namespace OPS.Pipeline
 
             var modelObs = modelNode.GetComponent<NodeObservation>().Observation;
             var dataObs = dataNode.GetComponent<NodeObservation>().Observation;
-
 
             string pairName = (new URLPair(modelUrl, dataUrl)).ToStringShort();
             pipeline.LogVerbose("{0} ({1} features, {2} features): (re)computing feature matches",
@@ -70,10 +87,11 @@ namespace OPS.Pipeline
             //IFeatureMatcher matcher = new BruteForceMatcher();
             IFeatureMatcher matcher = new CascadeHashingMatcher();
             var matches = matcher.Match(scene, modelUrl, dataUrl);
-            if (matches.Count < MIN_MATCHES)
+            if (matches.Count < minMatches)
             {
                 pipeline.LogVerbose("{0} {1}: {2} < {3} matches, discarding", pairName, matcher.GetType().Name,
-                                    matches.Count, MIN_MATCHES);
+                                    matches.Count, minMatches);
+                rejectionReason = string.Format("(step 0) {0} returned too few matches", matcher.GetType().Name);
                 return null;
             }
             pipeline.LogVerbose("{0} {1}: {2} matches", pairName, matcher.GetType().Name, matches.Count);
@@ -83,20 +101,24 @@ namespace OPS.Pipeline
             filters.Add(new MoisanStivalFilter(pipeline));
             //filters.Add(new GTMFilter());
 
+            int step = 1;
             foreach (var filter in filters)
             {
                 int oldCount = matches.Count;
                 matches = filter.Filter(scene, matches);
-                if (matches.Count < MIN_MATCHES)
+                if (matches.Count < minMatches)
                 {
                     pipeline.LogVerbose("{0} {1}: {2} < {3} matches, discarding", pairName, filter.GetType().Name,
-                                        matches.Count, MIN_MATCHES);
+                                        matches.Count, minMatches);
+                    rejectionReason = string.Format("(step {0}) {1} returned too few matches",
+                                                    step, filter.GetType().Name);
                     return null;
                 }
                 pipeline.LogVerbose("{0} {1}: {2} -> {3}", pairName, filter.GetType().Name, oldCount, matches.Count);
+                step++;
             }
 
-            pipeline.LogVerbose("{0} {1}: {2} -> {3} feature matches", pairName, matcher.GetType().Name,
+            pipeline.LogVerbose("{0} {1}: {2} -> {3} feature matches, keeping", pairName, matcher.GetType().Name,
                                 string.Join(", ", filters.Select(f => f.GetType().Name)), matches.Count);
 
             return new ComputedCorrespondence()
@@ -139,12 +161,73 @@ namespace OPS.Pipeline
                                          });
             var scene = sb.BuildTopDown(project.RootFrame);
 
+            var fod = new FrustumOverlapDetector(pipeline, pipeline);
             if (scene.Overlaps.Count == 0)
             {
-                var fod = new FrustumOverlapDetector(pipeline, pipeline);
                 fod.Detect(scene, onlyCrossSite);
             }
+            else
+            {
+                fod.MakeHulls(scene);
+            }
             return scene;
+        }
+        
+        public static Image DrawMatches(Image modelImg, Image dataImg, ImageFeature[] modelFeatures,
+                                        ImageFeature[] dataFeatures, KeyValuePair<int, int>[] dataToModel)
+        {
+            var modelFeaturesForDataFeature = new Dictionary<int, HashSet<int>>();
+            foreach (var pair in dataToModel)
+            {
+                int dataFeatureIndex = pair.Key;
+                int modelFeatureIndex = pair.Value;
+                if (!modelFeaturesForDataFeature.ContainsKey(dataFeatureIndex))
+                {
+                    modelFeaturesForDataFeature[dataFeatureIndex] = new HashSet<int>();
+                }
+                modelFeaturesForDataFeature[dataFeatureIndex].Add(modelFeatureIndex);
+            }
+            var matches = new VectorOfVectorOfDMatch();
+            foreach (var pair in modelFeaturesForDataFeature)
+            {
+                int dataFeatureIndex = pair.Key;
+                var matchesForDataFeature = new List<MDMatch>();
+                foreach (int modelFeatureIndex in pair.Value)
+                {
+                    matchesForDataFeature.Add(new MDMatch() {
+                            TrainIdx = modelFeatureIndex,
+                            QueryIdx = dataFeatureIndex
+                        });
+                }
+                matches.Push(new VectorOfDMatch(matchesForDataFeature.ToArray()));
+            }
+            var modelKeypoints = new VectorOfKeyPoint(modelFeatures.Cast<SIFTFeature>().CastToMKeyPoint().ToArray());
+            var dataKeypoints = new VectorOfKeyPoint(dataFeatures.Cast<SIFTFeature>().CastToMKeyPoint().ToArray());
+            var lineColor = new MCvScalar(0, 0, 255); //RGB
+            var pointColor = new MCvScalar(255, 255, 0); //RGB
+            var ret = new Image<Bgr, byte>(modelImg.Width + dataImg.Width, Math.Max(modelImg.Height, dataImg.Height));
+            //opencv sometimes throws exception here
+            //this is infrequent but let's just add a retry
+            int retries = 2;
+            for (int i = 0; i < retries; i++)
+            {
+                try
+                {
+                    Features2DToolbox.DrawMatches(modelImg.ToEmguGrayscale(), modelKeypoints,
+                                                  dataImg.ToEmguGrayscale(), dataKeypoints,
+                                                  matches, ret, lineColor, pointColor, null,
+                                                  Features2DToolbox.KeypointDrawType.DrawRichKeypoints);
+                    break;
+                }
+                catch (Emgu.CV.Util.CvException)
+                {
+                    if (i == retries - 1)
+                    {
+                        throw;
+                    }
+                }
+            }
+            return ret.ToOPSImage();
         }
     }
 }

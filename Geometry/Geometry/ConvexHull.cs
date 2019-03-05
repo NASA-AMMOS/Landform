@@ -11,9 +11,9 @@ namespace OPS.Geometry
 {
     public class ConvexHull
     {
-        private readonly Mesh Mesh;
+        public readonly Mesh Mesh;
 
-        private readonly List<Plane> Planes;
+        public readonly List<Plane> Planes;
 
         public List<Vertex> Vertices
         {

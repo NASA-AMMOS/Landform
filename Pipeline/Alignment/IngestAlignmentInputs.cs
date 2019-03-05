@@ -37,8 +37,8 @@ namespace OPS.Pipeline
         private Project project;
         private IngestPDSImage ingester;
 
-        public IngestAlignmentInputs(PipelineCore pipeline, Project project, bool recreateExistingObservations = false,
-                                     bool resetExistingTransforms = false)
+        public IngestAlignmentInputs(PipelineCore pipeline, Project project, bool recreateObservations = false,
+                                     bool resetTransforms = false, string onlyForSiteDrives = null)
             : base(pipeline)
         {
             if (string.IsNullOrEmpty(project.InputPath))
@@ -75,7 +75,18 @@ namespace OPS.Pipeline
 
             this.project = project;
 
-            ingester = new IngestPDSImage(pipeline, project, recreateExistingObservations, resetExistingTransforms);
+            SiteDrive[] siteDrives = (onlyForSiteDrives ?? "")
+                .Split(',')
+                .Where(s => !string.IsNullOrEmpty(s))
+                .Select(s => new SiteDrive(s.Trim()))
+                .Cast<SiteDrive>()
+                .ToArray();
+
+            IngestPDSImage.Filter filter = (imageUrl, pdsMetadata, pdsParser) =>
+                siteDrives.Length == 0 ||
+                siteDrives.Any(sd => sd == new SiteDrive(pdsParser.Site, pdsParser.Drive));
+
+            ingester = new IngestPDSImage(pipeline, project, recreateObservations, resetTransforms, filter);
         }
 
         public int Ingest(MSLLocations locations, Action<IngestImage.Result> func = null)
@@ -84,8 +95,7 @@ namespace OPS.Pipeline
             string imageObs = ObservationType.Image.ToString();
             double startTime = UTCTime.Now();
             int ni = 0, na = 0, nf = 0, ns = 0, nr = 0;
-            ConcurrentDictionary<SiteDrive, ConcurrentDictionary<string, int>> stats =
-                new ConcurrentDictionary<SiteDrive, ConcurrentDictionary<string, int>>();
+            var stats = new ConcurrentDictionary<SiteDrive, ConcurrentDictionary<string, int>>();
             foreach (var entry in BaseUrls)
             {
                 pipeline.LogInfo("{0}ingesting input files from {1} for alignment project {2}",
@@ -156,20 +166,21 @@ namespace OPS.Pipeline
             pipeline.LogInfo("processed {0} files ({1:F3}s), {2} accepted, {3} failed, {4} skipped",
                              ni, UTCTime.Now() - startTime, na, nf, ns);
 
-            Dictionary<string, int> totalStats = new Dictionary<string, int>();
-            foreach (var sds in stats)
+            var totalStats = new SortedDictionary<string, int>();
+            foreach (var sd in stats.Keys.OrderBy(sd => (int)sd))
             {
-                pipeline.LogInfo("sitedrive {0}: {1}", sds.Key,
-                                 string.Join(", ",
-                                             sds.Value.Select(s => s.Value + " " + s.Key + " observations").ToArray()));
-                foreach (var entry in sds.Value)
+                var sds = new SortedDictionary<string, int>();
+                foreach (var entry in stats[sd])
                 {
+                    sds[entry.Key] = entry.Value;
                     if (!totalStats.ContainsKey(entry.Key))
                     {
                         totalStats[entry.Key] = 0;
                     }
                     totalStats[entry.Key] += entry.Value;
                 }
+                pipeline.LogInfo("sitedrive {0}: {1}", sd,
+                                 string.Join(", ", sds.Select(s => s.Value + " " + s.Key + " observations").ToArray()));
             }
             foreach (var entry in totalStats)
             {

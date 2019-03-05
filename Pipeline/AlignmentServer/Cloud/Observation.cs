@@ -8,6 +8,14 @@ using Amazon.DynamoDBv2.DataModel;
 
 namespace OPS.Pipeline.AlignmentServer
 {
+    public enum ObservationType
+    {
+        Image,
+        Points,
+        Normals,
+        RoverMask
+    }
+
     /// <summary>
     /// Represents an image or 3D shape measurement of the environment
     /// Can be connected to Frames and aligned with other observations through FrameTransforms
@@ -28,8 +36,6 @@ namespace OPS.Pipeline.AlignmentServer
         public string Url;
 
         public Guid FeaturesGuid;
-
-        public Guid MaskGuid;
 
         public string FrameName;
 

@@ -39,33 +39,23 @@ namespace OPS.Alignment
             }
         }
 
-        public void ComputeDescriptors(Image image, IEnumerable<ImageFeature> _features)
+        public void ComputeDescriptors(Image image, IEnumerable<ImageFeature> features)
         {
-            List<SIFTFeature> features = _features.Cast<SIFTFeature>().ToList();
             var emguImg = image.ToEmguGrayscale();
-            VectorOfKeyPoint vokp = new VectorOfKeyPoint(features.Select(f =>
-            {
-                MKeyPoint kp = new MKeyPoint();
-                kp.Point = new System.Drawing.PointF((float)f.Location.X, (float)f.Location.Y);
-                kp.Angle = (float)f.Angle;
-                kp.Octave = f.Octave;
-                kp.Response = (float)f.Response;
-                kp.Size = (float)f.Size;
-                return kp;
-            }).ToArray());
-
-            Matrix<float> descriptors = new Matrix<float>(features.Count, 128);
-            sift.Compute(emguImg, vokp, descriptors);
-
+            var keypoints = features.Cast<SIFTFeature>().CastToMKeyPoint().ToArray();
+            var descriptors = new Matrix<float>(keypoints.Length, 128);
+            sift.Compute(emguImg, new VectorOfKeyPoint(keypoints), descriptors);
             float[,] descData = descriptors.Data;
-            for (int i = 0; i < features.Count; i++)
+            int i = 0;
+            foreach (var feature in features)
             {
                 byte[] data = new byte[128];
                 for (int j = 0; j < 128; j++)
                 {
                     data[j] = (byte)descData[i, j];
                 }
-                features[i].Descriptor = new SIFTDescriptor(data);
+                feature.Descriptor = new SIFTDescriptor(data);
+                i++;
             }
         }
     }

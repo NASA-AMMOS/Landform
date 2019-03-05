@@ -20,6 +20,9 @@ namespace OPS.Pipeline
         [Option(HelpText = "input path, ending /** for recursive, or .txt or .json array of paths", Default = null)]
         public string InputPath { get; set; }
 
+        [Option(HelpText = "Only ingest data for specific site drives, comma separated", Default = null)]
+        public string OnlyForSiteDrives { get; set; }
+
         [Option(HelpText = "path to locations.xml, or omit to check input path(s)", Default = null)]
         public string LocationsXML { get; set; }
 
@@ -55,7 +58,8 @@ namespace OPS.Pipeline
             var initializer = new InitializeAlignmentProject(this);
             var project = initializer.Initialize(options.ProjectName, productUrl, inputUrl, options.RedoProject);
 
-            var ingester = new IngestAlignmentInputs(this, project, options.RedoObservations, options.RedoPriors);
+            var ingester = new IngestAlignmentInputs(this, project, options.RedoObservations, options.RedoPriors,
+                                                     options.OnlyForSiteDrives);
 
             string locationsFile = options.LocationsXML;
             if (string.IsNullOrEmpty(locationsFile))

@@ -29,5 +29,10 @@ namespace OPS.Geometry
             new STLSerializer().Register(this);
             new PNTSSerializer().Register(this);
         }
+
+        public override string Kind()
+        {
+            return "mesh";
+        }
     }
 }
