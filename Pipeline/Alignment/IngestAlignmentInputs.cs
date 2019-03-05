@@ -166,20 +166,21 @@ namespace OPS.Pipeline
             pipeline.LogInfo("processed {0} files ({1:F3}s), {2} accepted, {3} failed, {4} skipped",
                              ni, UTCTime.Now() - startTime, na, nf, ns);
 
-            Dictionary<string, int> totalStats = new Dictionary<string, int>();
-            foreach (var sds in stats)
+            var totalStats = new SortedDictionary<string, int>();
+            foreach (var sd in stats.Keys.OrderBy(sd => (int)sd))
             {
-                pipeline.LogInfo("sitedrive {0}: {1}", sds.Key,
-                                 string.Join(", ",
-                                             sds.Value.Select(s => s.Value + " " + s.Key + " observations").ToArray()));
-                foreach (var entry in sds.Value)
+                var sds = new SortedDictionary<string, int>();
+                foreach (var entry in stats[sd])
                 {
+                    sds[entry.Key] = entry.Value;
                     if (!totalStats.ContainsKey(entry.Key))
                     {
                         totalStats[entry.Key] = 0;
                     }
                     totalStats[entry.Key] += entry.Value;
                 }
+                pipeline.LogInfo("sitedrive {0}: {1}", sd,
+                                 string.Join(", ", sds.Select(s => s.Value + " " + s.Key + " observations").ToArray()));
             }
             foreach (var entry in totalStats)
             {
