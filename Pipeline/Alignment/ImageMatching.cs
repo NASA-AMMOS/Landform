@@ -206,10 +206,27 @@ namespace OPS.Pipeline
             var lineColor = new MCvScalar(0, 0, 255); //RGB
             var pointColor = new MCvScalar(255, 255, 0); //RGB
             var ret = new Image<Bgr, byte>(modelImg.Width + dataImg.Width, Math.Max(modelImg.Height, dataImg.Height));
-            Features2DToolbox.DrawMatches(modelImg.ToEmguGrayscale(), modelKeypoints,
-                                          dataImg.ToEmguGrayscale(), dataKeypoints,
-                                          matches, ret, lineColor, pointColor, null,
-                                          Features2DToolbox.KeypointDrawType.DrawRichKeypoints);
+            //opencv sometimes throws exception here
+            //this is infrequent but let's just add a retry
+            int retries = 2;
+            for (int i = 0; i < retries; i++)
+            {
+                try
+                {
+                    Features2DToolbox.DrawMatches(modelImg.ToEmguGrayscale(), modelKeypoints,
+                                                  dataImg.ToEmguGrayscale(), dataKeypoints,
+                                                  matches, ret, lineColor, pointColor, null,
+                                                  Features2DToolbox.KeypointDrawType.DrawRichKeypoints);
+                    break;
+                }
+                catch (Emgu.CV.Util.CvException)
+                {
+                    if (i == retries - 1)
+                    {
+                        throw;
+                    }
+                }
+            }
             return ret.ToOPSImage();
         }
     }
