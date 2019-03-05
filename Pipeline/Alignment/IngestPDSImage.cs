@@ -316,6 +316,10 @@ namespace OPS.Pipeline
         private double halfDegSqr = Math.Pow(0.5 * Math.PI / 180, 2);
         private double degSqr = Math.Pow(Math.PI / 180, 2);
 
+        /// <summary>
+        /// Get transform from a site drive frame to root.  This is just the translation of the site drive frame from
+        /// the MSLLocations database.
+        /// </summary>
         private UncertainRigidTransform GetSiteDriveTransform(PDSParser parser)
         {
             var siteDrive = new SiteDrive(parser.SiteDrive);
@@ -332,13 +336,17 @@ namespace OPS.Pipeline
             return new UncertainRigidTransform(Matrix.CreateTranslation(loc.Position), covariance);
         }
 
+        /// <summary>
+        /// Get transform from observation frame, which is rover frame at the time the observation was acquired, to the
+        /// corresponding site drive (aka local level) frame.
+        /// </summary>
         private UncertainRigidTransform GetObservationTransform(PDSParser parser)
         {
             // TODO: examine values here
             var covariance = CreateMatrix
                 .Diagonal<double>(new double[] { 0.01, 0.01, 0.01, quarterDegSqr, quarterDegSqr, halfDegSqr });
-
-            return new UncertainRigidTransform(Matrix.CreateFromQuaternion(parser.RoverOriginRotation), covariance);
+            return new UncertainRigidTransform(RoverCoordinateSystem.RoverToLocalLevel(parser.RoverOriginRotation),
+                                               covariance);
         }
 
         private ConcurrentDictionary<string, bool> alreadyResetTransforms = new ConcurrentDictionary<string, bool>();

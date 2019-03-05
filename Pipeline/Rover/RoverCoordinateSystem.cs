@@ -142,16 +142,25 @@ namespace OPS.Pipeline
             localLevelMesh.Translate(originOffset);
         }
 
+        /// <summary>
+        /// Get transform from DERIVED_IMAGE_PARAMS/REFERENCE_COORDINATE_SYSTEM_NAME in image PDS metadata to rover frame.
+        /// </summary>
         public static Matrix GetTransformToRoverFrame(Image img)
         {
             return GetTransformToRoverFrame((PDSMetadata)img.Metadata);
         }
 
+        /// <summary>
+        /// Get transform from DERIVED_IMAGE_PARAMS/REFERENCE_COORDINATE_SYSTEM_NAME in PDS metadata to rover frame.
+        /// </summary>
         public static Matrix GetTransformToRoverFrame(PDSMetadata metadata)
         {
             return GetTransformToRoverFrame(new PDSParser(metadata));
         }
 
+        /// <summary>
+        /// Get transform from DERIVED_IMAGE_PARAMS/REFERENCE_COORDINATE_SYSTEM_NAME in PDS metadata to rover frame.
+        /// </summary>
         public static Matrix GetTransformToRoverFrame(PDSParser parser)
         {
             var roverOriginRotation = parser.RoverOriginRotation;

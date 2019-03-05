@@ -192,10 +192,14 @@ namespace OPS.Pipeline
             outputPath += "/";
 
             var frameCache = new FrameCache(this, options.ProjectName);
+            Func<FrameTransform, bool> filterPrior =
+                transform => priorSources.Length == 0 || priorSources.Any(s => s == transform.Source);
+            Func<FrameTransform, bool> filterAdjusted =
+                transform => adjustedSources.Length == 0 || adjustedSources.Any(s => s == transform.Source);
             frameCache.Preload(loadTransforms: true, transformFilter: ft => 
-                               (!options.UsePriors || ft.IsPrior()) &&
-                               (priorSources.Length == 0 || !ft.IsPrior() || priorSources.Any(s => s == ft.Source)) &&
-                               (adjustedSources.Length == 0 || ft.IsPrior() || adjustedSources.Any(s => s == ft.Source)));
+                               (!options.UsePriors || ft.IsPrior()) && //iff --usepriors only allow priors
+                               ((ft.IsPrior() && filterPrior(ft)) || //iff --priorsources only allow specific priors
+                                (!ft.IsPrior() && filterAdjusted(ft)))); //iff --adjustedsources only allow specific adj
 
             var observationCache = new ObservationCache(this, options.ProjectName);
             observationCache.Preload();
