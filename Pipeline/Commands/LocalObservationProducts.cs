@@ -38,7 +38,7 @@ namespace OPS.Pipeline
         [Option(HelpText = "Don't write wedge meshes", Default = false)]
         public bool NoWedgeMeshes { get; set; }
 
-        [Option(HelpText = "Write wedge meshes with UVs and corresponding texture images", Default = false)]
+        [Option(HelpText = "Don't write observation images (and don't texture wedge meshes)", Default = false)]
         public bool NoImages { get; set; }
 
         [Option(HelpText = "Mesh format, e.g. ply, obj, help for list", Default = "ply")]

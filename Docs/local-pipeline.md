@@ -81,7 +81,7 @@ It is also possible to **post-mortem collect stats and generate debug outputs fr
     * `--requirenormals` (Default: false) Only create meshes for observations with normals
     * `--requiretextures` (Default: false) Only create meshes for observations with textures
     * `--nowedgemeshes` (Default: false) Don't write wedge meshes
-    * `--noimages` (Default: false) Write meshes with UVs and corresponding texture images
+    * `--noimages` (Default: false) Don't write observation images (and don't texture wedge meshes)
     * `--meshformat` (Default: ply) Mesh format, e.g. ply, obj 
     * `--imageformat` (Default: jpg) Texture image format, e.g. png, jpg
     * `--pointcloud` (Default: false) Create point clouds instead of triangle meshes
