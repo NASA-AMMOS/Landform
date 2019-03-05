@@ -20,7 +20,7 @@ On my 36 core machine this workflow takes about about 15 minutes for cross-site 
 * bundle adjust: 2.3s site-drive frames only (6 adjusted nodes), 28.6min all frames (93 adjusted nodes) 
 
 ## Run Locally but Operate on Cloud Data
-All of the local commands (`local-ingest`, `local-features`, `local-matching`, `local-bundle-adjust`) also support a `--cloud` option.  If present, that means that the computation and flow control will be performed locally, but that data will be read from and written to the cloud (i.e. S3 and DynamoDB).  Debug outputs will still be written locally.
+All of the local commands (`local-ingest`, `local-features`, `local-matching`, `local-bundle-adjust`, `local-observation-products`) also support a `--cloud` option.  If present, that means that the computation and flow control will be performed locally, but that data will be read from and written to the cloud (i.e. S3 and DynamoDB).  Debug outputs will still be written locally.
 
 Example of full workflow to operate on cloud data:
 ```
