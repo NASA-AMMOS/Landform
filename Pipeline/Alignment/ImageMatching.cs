@@ -6,6 +6,7 @@ using System.Diagnostics;
 using log4net;
 using Emgu.CV;
 using Emgu.CV.Util;
+using Emgu.CV.CvEnum;
 using Emgu.CV.Structure;
 using Emgu.CV.Features2D;
 using OPS.Util;
@@ -174,7 +175,8 @@ namespace OPS.Pipeline
         }
         
         public static Image DrawMatches(Image modelImg, Image dataImg, ImageFeature[] modelFeatures,
-                                        ImageFeature[] dataFeatures, KeyValuePair<int, int>[] dataToModel)
+                                        ImageFeature[] dataFeatures, KeyValuePair<int, int>[] dataToModel,
+                                        string modelName = null, string dataName = null)
         {
             var modelFeaturesForDataFeature = new Dictionary<int, HashSet<int>>();
             foreach (var pair in dataToModel)
@@ -207,6 +209,7 @@ namespace OPS.Pipeline
             var pointColor = new MCvScalar(255, 255, 0); //RGB
             var ret = new Image<Bgr, byte>(modelImg.Width + dataImg.Width, Math.Max(modelImg.Height, dataImg.Height));
             //opencv sometimes throws exceptions here, so roll our own replacement
+            //https://github.jpl.nasa.gov/OnSight/Landform/issues/439
             //Features2DToolbox.DrawMatches(modelImg.ToEmguGrayscale(), modelKeypoints,
             //                              dataImg.ToEmguGrayscale(), dataKeypoints,
             //                              matches, ret, lineColor, pointColor, null,
@@ -215,6 +218,16 @@ namespace OPS.Pipeline
                         dataImg.ToEmguGrayscale(), dataKeypoints,
                         matches, ret, lineColor, pointColor,
                         Features2DToolbox.KeypointDrawType.DrawRichKeypoints);
+            if (dataName != null)
+            {
+                ret.Draw("data: " + dataName, new System.Drawing.Point(5, 30),
+                         FontFace.HersheySimplex, 1, new Bgr(255, 0, 255), 2);
+            }
+            if (modelName != null)
+            {
+                ret.Draw("model: " + modelName, new System.Drawing.Point(dataImg.Width + 5, 30),
+                         FontFace.HersheySimplex, 1, new Bgr(255, 0, 255), 2);
+            }
             return ret.ToOPSImage();
         }
 

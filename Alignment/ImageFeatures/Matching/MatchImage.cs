@@ -75,6 +75,7 @@ namespace OPS.Alignment
             return res;
         }
 
+        // https://github.jpl.nasa.gov/OnSight/Landform/issues/439
         private static Image<Bgr, byte> CreateMatchImage(VectorOfKeyPoint kp0, VectorOfKeyPoint kp1,
                                                          Image<Gray, byte> modelImage, Image<Gray, byte> dataImage,
                                                          VectorOfVectorOfDMatch matches, Matrix<byte> mask, int nonZero,

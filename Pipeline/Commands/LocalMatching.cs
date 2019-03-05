@@ -208,11 +208,16 @@ namespace OPS.Pipeline
             var modelFeatGuid = product.ModelFeaturesGuid;
             var dataFeatGuid = product.DataFeaturesGuid;
             var d2m = product.Correspondence.DataToModel;
-            var modelImg = pipeline.LoadImage(product.Correspondence.ModelImageUrl);
-            var dataImg = pipeline.LoadImage(product.Correspondence.DataImageUrl);
+            var modelUrl = product.Correspondence.ModelImageUrl;
+            var dataUrl = product.Correspondence.DataImageUrl;
+            var modelImg = pipeline.LoadImage(modelUrl);
+            var dataImg = pipeline.LoadImage(dataUrl);
+            var modelName = StringHelper.GetLastUrlPathSegment(modelUrl);
+            var dataName = StringHelper.GetLastUrlPathSegment(dataUrl);
             var modelFeat = pipeline.GetDataProduct<DetectedFeatures>(project.ProductPath, modelFeatGuid, project.Name);
             var dataFeat = pipeline.GetDataProduct<DetectedFeatures>(project.ProductPath, dataFeatGuid, project.Name);
-            var img = ImageMatching.DrawMatches(modelImg, dataImg, modelFeat.Features, dataFeat.Features, d2m);
+            var img = ImageMatching.DrawMatches(modelImg, dataImg, modelFeat.Features, dataFeat.Features, d2m,
+                                                modelName, dataName);
             PathHelper.EnsureExists(imageDir);
             img.Save<byte>(string.Format("{0}{1}-{2}-Matches{3}", imageDir, modelObsName, dataObsName, imageExt));
         }

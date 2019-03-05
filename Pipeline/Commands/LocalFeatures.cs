@@ -219,7 +219,8 @@ namespace OPS.Pipeline
         {
             var img = new Image(pipeline.LoadImage(product.ImageUrl)); //don't mutate original image
             var mask = FeatureDetecting.MakeMask(pipeline, maskUrl, img, observationName);
-            img = FeatureDetecting.DrawFeatures(img, mask, product.Features);
+            img = FeatureDetecting.DrawFeatures(img, mask, product.Features,
+                                                StringHelper.GetLastUrlPathSegment(product.ImageUrl));
             PathHelper.EnsureExists(imageDir);
             img.Save<byte>(string.Format("{0}{1}-Features{2}", imageDir, observationName, imageExt));
         }
