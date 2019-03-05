@@ -40,7 +40,7 @@ namespace OPS.Pipeline
     {
         private static readonly ILog logger = LogManager.GetLogger(typeof(MSLLocations));
 
-        const string DEFAULT_URL = "http://mars.jpl.nasa.gov/msl-raw-images/locations.xml";
+        public const string DEFAULT_URL = "http://mars.jpl.nasa.gov/msl-raw-images/locations.xml";
 
         private ConcurrentDictionary<SiteDrive, MSLLocation> locations; 
       
@@ -59,6 +59,11 @@ namespace OPS.Pipeline
             XmlDocument doc = new XmlDocument();
             doc.Load(file);
             return new MSLLocations(doc);
+        }
+
+        public static MSLLocations Load(string fileOrUrl)
+        {
+            return fileOrUrl.ToLower().StartsWith("http") ? LoadFromUrl(fileOrUrl) : LoadFromFile(fileOrUrl);
         }
 
         private MSLLocations(XmlDocument doc)

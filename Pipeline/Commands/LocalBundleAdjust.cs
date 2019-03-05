@@ -29,35 +29,50 @@ namespace OPS.Pipeline
 
         [Option(HelpText = "Optional directory to save bundle adjuster debug files to", Default = null)]
         public string DebugOutputFolder { get; set; }
+
+        [Option(HelpText = "Operate on cloud data", Default = false)]
+        public bool Cloud { get; set; }
     }
 
-    public class LocalBundleAdjust : LocalPipeline
+    public class LocalBundleAdjust
     {
         private LocalBundleAdjustOptions options;
+        private PipelineCore pipeline;
+        private string dbgDir;
 
-        public LocalBundleAdjust(LocalBundleAdjustOptions options) : base(options)
+        public LocalBundleAdjust(LocalBundleAdjustOptions options)
         {
             this.options = options;
+            if (options.Cloud)
+            {
+                this.pipeline = new CloudPipeline(options, initQueues: false);
+            }
+            else
+            {
+                this.pipeline = new LocalPipeline(options);
+            }
         }
 
         public int Run()
         {
-            string dbgFolder = options.DebugOutputFolder;
-            if (!string.IsNullOrEmpty(dbgFolder))
+            var project = Project.Find(pipeline, options.ProjectName);
+            if (project == null)
             {
-                dbgFolder = StringHelper.NormalizeUrl(dbgFolder, "file://");
+                pipeline.LogError("project \"{0}\" not found", options.ProjectName);
+                return 1;
             }
-            else
-            {
-                dbgFolder = GetStorageUrl("alignment/AdjustProducts", options.ProjectName);
-            }
-            dbgFolder = StringHelper.StripProtocol(dbgFolder, "file://");
 
-            BundleAdjusting.BundleAdjust(this, options.ProjectName,
+            dbgDir = pipeline.GetLocalDebugFolder(options.DebugOutputFolder, "alignment/AdjustProducts", project.Name);
+            if (options.WriteDebug)
+            {
+                pipeline.LogInfo("writing debug data to {0}", dbgDir);
+            }
+
+            BundleAdjusting.BundleAdjust(pipeline, options.ProjectName,
                                          options.AdjustWithinSiteDrives,
                                          !options.NoAdjustAcrossSiteDrives,
                                          rounds: options.BundleAdjustRounds,
-                                         debugOutputFolder: options.WriteDebug ? dbgFolder : null);
+                                         debugOutputFolder: options.WriteDebug ? dbgDir : null);
             return 0;
         }
     }

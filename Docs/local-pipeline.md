@@ -1,4 +1,52 @@
 # Running Landform Alignment Pipeline Locally
+
+## TLDR Example Workflow
+```
+./Pipeline/Rover/fetch-msl.sh c:/Users/$USERNAME/Downloads locations 00588 00589 00590
+./Landform/bin/Release/Landform.exe configure-local --venue=local --storagedir=c:/Users/$USERNAME/Documents/landform-storage --maxcores=0
+./Landform/bin/Release/Landform.exe local-ingest sols588to590 --inputpath=c:/Users/$USERNAME/Downloads/msl/**
+./Landform/bin/Release/Landform.exe local-features sols588to590 --writefeatureimages
+./Landform/bin/Release/Landform.exe local-matching sols588to590 --writematchimages
+./Landform/bin/Release/Landform.exe local-bundle-adjust sols588to590 --writedebug
+./Landform/bin/Release/Landform.exe local-observation-products sols588to590 --writeallthethings --outputframe=root --usepriors
+./Landform/bin/Release/Landform.exe local-observation-products sols588to590 --writeallthethings --outputframe=root
+```
+
+On my 36 core machine this workflow takes about about 15 minutes for cross-site adjustment of sols 588, 589, 590, or 43 min for adjusting all images (but we can probably get that one down by a lot as I think the bulk of the time is being spent in a Ceres bundle solve where the convergence criteria is too tight, see https://github.jpl.nasa.gov/OnSight/Landform/issues/414).  This dataset has 3688 navcam IMG files, about 5GB total, 263 which we consider observations, 90 images that we actually use for reconstruction.
+* download: 3min using fetch-msl.sh
+* ingest: 2.4sec
+* features: 9min
+* matching: 2.5min cross-site only (958 candidate image pairs, 17 keepers), 5min all (1662 candidates, 381 keepers)
+* bundle adjust: 2.3s site-drive frames only (6 adjusted nodes), 28.6min all frames (93 adjusted nodes) 
+
+## Run Locally but Operate on Cloud Data
+All of the local commands (`local-ingest`, `local-features`, `local-matching`, `local-bundle-adjust`, `local-observation-products`) also support a `--cloud` option.  If present, that means that the computation and flow control will be performed locally, but that data will be read from and written to the cloud (i.e. S3 and DynamoDB).  Debug outputs will still be written locally.
+
+Example of full workflow to operate on cloud data:
+```
+./Landform/bin/Release/Landform.exe configure-local --venue=local --storagedir=c:/Users/$USERNAME/Documents/landform-storage --maxcores=0
+./Landform/bin/Release/Landform.exe configure-cloud --venue=landform-dev-$USERNAME-$HOSTNAME --s3url=s3://landlords-dev/landform-$USERNAME --awsregion=us-west-1 --awsprofile=landlords --msliceawsprofile=mslice --mslices3url=s3://red-product --maxcores=0 --nouserdata
+./Landform/bin/Release/Landform.exe local-ingest sol589 --cloud --inputpath=s3://red-product/proj/msl/redops/ods/surface/sol/00589/opgs/rdr/ncam/**
+./Landform/bin/Release/Landform.exe local-features sol589 --cloud --writefeatureimages
+./Landform/bin/Release/Landform.exe local-matching sol589 --cloud --writematchimages
+./Landform/bin/Release/Landform.exe local-bundle-adjust sol589 --cloud --writedebug
+./Landform/bin/Release/Landform.exe local-observation-products sol589 --cloud --writeallthethings --outputframe=root --usepriors
+./Landform/bin/Release/Landform.exe local-observation-products sol589 --cloud --writeallthethings --outputframe=root
+```
+
+It is also possible to **post-mortem collect stats and generate debug outputs from already-run cloud data**:
+```
+./Landform/bin/Release/Landform.exe configure-local --venue=local --storagedir=c:/Users/$USERNAME/Documents/landform-storage --maxcores=0
+./Landform/bin/Release/Landform.exe configure-cloud --venue=landform-dev-$USERNAME-$HOSTNAME --s3url=s3://landlords-dev/landform-$USERNAME --awsregion=us-west-1 --awsprofile=landlords --msliceawsprofile=mslice --mslices3url=s3://red-product --maxcores=0 --nouserdata
+./Landform/bin/Release/Landform.exe local-ingest sol589 --cloud
+./Landform/bin/Release/Landform.exe local-features sol589 --cloud --writefeatureimages --tallyexisting
+./Landform/bin/Release/Landform.exe local-matching sol589 --cloud --writematchimages --tallyexisting
+# local-bundle-adjust currently does not have an option to only generate debug outputs
+./Landform/bin/Release/Landform.exe local-observation-products sol589 --cloud --writeallthethings --outputframe=root --usepriors
+./Landform/bin/Release/Landform.exe local-observation-products sol589 --cloud --writeallthethings --outputframe=root
+```
+
+## Long Form
 1.  Get some input data.  You will want one or more directories with .IMG files, typically OPGS navcam RDRs.
     1.  To use MSL data from `s3://red-product` you will need the `mslice` AWS credentials in your `~/.aws/credentials` file.
     1.  You can download the data with any S3 tool such as CloudBerry or WinSCP, or use the `Pipeline/Rover/fetch-msl.sh` script.
@@ -32,19 +80,19 @@
     * `--allowmastcam`(Default: false) Create meshes for mastcam observations
     * `--requirenormals` (Default: false) Only create meshes for observations with normals
     * `--requiretextures` (Default: false) Only create meshes for observations with textures
-    * `--notextures` (Default: false) Write meshes with UVs and corresponding texture images
+    * `--nowedgemeshes` (Default: false) Don't write wedge meshes
+    * `--noimages` (Default: false) Don't write observation images (and don't texture wedge meshes)
     * `--meshformat` (Default: ply) Mesh format, e.g. ply, obj 
-    * `--textureformat` (Default: jpg) Texture image format, e.g. png, jpg
+    * `--imageformat` (Default: jpg) Texture image format, e.g. png, jpg
     * `--pointcloud` (Default: false) Create point clouds instead of triangle meshes
     * `--adjustedtransformsources` Allowed sources for adjusted transforms, comma separated, all if empty (Adjusted,Manual,Landform,Agisoft)
     * `--priortransformsources` Allowed sources for transform priors, comma separated, all if empty (Prior,PlacesDB,LocationsDB,PDS)
     * `--usepriors` (Default: false) Use transform priors only
     * `--decimatemeshes` (Default: 4) Mesh decimation blocksize
-    * `--decimatetextures` (Default: 2) Texture decimation blocksize
+    * `--decimateimages` (Default: 2) Texture decimation blocksize
     * `--maxtriangleaspect` (Default: 10) Max triangle aspect ratio
     * `--scalenormalsbyconfidence` (Default: false) Scale normals by confidence
     * `--suppresssitedrivedirectories` (Default: false) Don't split output by site drive
-    * `--writerovermasks` (Default: false) Write rover mask binary images (0=masked)
     * `--writefrustumhullmeshes` (Default: false) Write camera frustum hull meshes
     * `--writeuncertaintyinflatedfrustumhullmeshes` (Default: false) Write uncertainty inflated camera frustum hull meshes
     * `--writeallthethings` (Default: false) Write all the things
@@ -52,14 +100,4 @@
     * `--verbose` (Default: false) Log verbose info
     * `--debug` (Default: false) Log debug info
 
-On my 36 core machine this workflow takes about about 15 minutes for cross-site adjustment of sols 588, 589, 590, or 43 min for adjusting all images (but we can probably get that one down by a lot as I think the bulk of the time is being spent in a Ceres bundle solve where the convergence criteria is too tight, see https://github.jpl.nasa.gov/OnSight/Landform/issues/414).  This dataset has 3688 navcam IMG files, about 5GB total, 263 which we consider observations, 90 images that we actually use for reconstruction.
-* download: 3min using fetch-msl.sh
-* ingest: 2.4sec
-* features: 9min
-* matching: 2.5min cross-site only (958 candidate image pairs, 17 keepers), 5min all (1662 candidates, 381 keepers)
-* bundle adjust: 2.3s site-drive frames only (6 adjusted nodes), 28.6min all frames (93 adjusted nodes) 
 
-
-./Landform/bin/Release/Landform.exe local-ingest msl --inputpath=c:/Users/vona/Downloads/msl/** --onlyforsitedrives=0003100000,0003001254
-./Landform/bin/Release/Landform.exe local-features msl --writefeatureimages
-./Landform/bin/Release/Landform.exe local-matching msl --writematchimages

@@ -6,6 +6,7 @@ using System.Diagnostics;
 using log4net;
 using Emgu.CV;
 using Emgu.CV.Util;
+using Emgu.CV.CvEnum;
 using Emgu.CV.Structure;
 using Emgu.CV.Features2D;
 using OPS.Util;
@@ -174,7 +175,8 @@ namespace OPS.Pipeline
         }
         
         public static Image DrawMatches(Image modelImg, Image dataImg, ImageFeature[] modelFeatures,
-                                        ImageFeature[] dataFeatures, KeyValuePair<int, int>[] dataToModel)
+                                        ImageFeature[] dataFeatures, KeyValuePair<int, int>[] dataToModel,
+                                        string modelName = null, string dataName = null)
         {
             var modelFeaturesForDataFeature = new Dictionary<int, HashSet<int>>();
             foreach (var pair in dataToModel)
@@ -206,28 +208,66 @@ namespace OPS.Pipeline
             var lineColor = new MCvScalar(0, 0, 255); //RGB
             var pointColor = new MCvScalar(255, 255, 0); //RGB
             var ret = new Image<Bgr, byte>(modelImg.Width + dataImg.Width, Math.Max(modelImg.Height, dataImg.Height));
-            //opencv sometimes throws exception here
-            //this is infrequent but let's just add a retry
-            int retries = 2;
-            for (int i = 0; i < retries; i++)
+            //opencv sometimes throws exceptions here, so roll our own replacement
+            //https://github.jpl.nasa.gov/OnSight/Landform/issues/439
+            //Features2DToolbox.DrawMatches(modelImg.ToEmguGrayscale(), modelKeypoints,
+            //                              dataImg.ToEmguGrayscale(), dataKeypoints,
+            //                              matches, ret, lineColor, pointColor, null,
+            //                              Features2DToolbox.KeypointDrawType.DrawRichKeypoints);
+            DrawMatches(modelImg.ToEmguGrayscale(), modelKeypoints,
+                        dataImg.ToEmguGrayscale(), dataKeypoints,
+                        matches, ret, lineColor, pointColor,
+                        Features2DToolbox.KeypointDrawType.DrawRichKeypoints);
+            if (dataName != null)
             {
-                try
-                {
-                    Features2DToolbox.DrawMatches(modelImg.ToEmguGrayscale(), modelKeypoints,
-                                                  dataImg.ToEmguGrayscale(), dataKeypoints,
-                                                  matches, ret, lineColor, pointColor, null,
-                                                  Features2DToolbox.KeypointDrawType.DrawRichKeypoints);
-                    break;
-                }
-                catch (Emgu.CV.Util.CvException)
-                {
-                    if (i == retries - 1)
-                    {
-                        throw;
-                    }
-                }
+                ret.Draw("data: " + dataName, new System.Drawing.Point(5, 30),
+                         FontFace.HersheySimplex, 1, new Bgr(255, 0, 255), 2);
+            }
+            if (modelName != null)
+            {
+                ret.Draw("model: " + modelName, new System.Drawing.Point(dataImg.Width + 5, 30),
+                         FontFace.HersheySimplex, 1, new Bgr(255, 0, 255), 2);
             }
             return ret.ToOPSImage();
+        }
+
+        //basic replacement for Features2DToolbox.DrawMatches() which sometimes barfs
+        //NOTE these functions draw the model image on the right and the data image on the left
+        //our legacy code in MatchImage.cs is similar (and maybe should go away) but does the opposite...
+        public static void DrawMatches(Image<Gray, byte> modelImage, VectorOfKeyPoint modelKeypoints,
+                                       Image<Gray, byte> dataImage, VectorOfKeyPoint dataKeypoints,
+                                       VectorOfVectorOfDMatch matches, Image<Bgr, byte> ret,
+                                       MCvScalar lineColor, MCvScalar pointColor,
+                                       Features2DToolbox.KeypointDrawType flags)
+        {
+            var pc = new Bgr(pointColor.V0, pointColor.V1, pointColor.V2);
+            var lc = new Bgr(lineColor.V0, lineColor.V1, lineColor.V2);
+
+            //don't import System.Drawing because it creates a conflict with "Image"
+            ret.ROI = new System.Drawing.Rectangle(0, 0, dataImage.Width, dataImage.Height);
+            dataImage.Convert<Bgr, byte>().CopyTo(ret);
+            Features2DToolbox.DrawKeypoints(ret, dataKeypoints, ret, pc, flags);
+
+            ret.ROI = new System.Drawing.Rectangle(dataImage.Width, 0, modelImage.Width, modelImage.Height);
+            modelImage.Convert<Bgr, byte>().CopyTo(ret);
+            Features2DToolbox.DrawKeypoints(ret, modelKeypoints, ret, pc, flags);
+
+            //ret.ROI = new System.Drawing.Rectangle(0, 0, ret.Width, ret.Height); //tried this, doesn't work
+            ret.ROI = new System.Drawing.Rectangle(0, 0, modelImage.Width + dataImage.Width,
+                                                   Math.Max(modelImage.Height, dataImage.Height));
+            var offset = new System.Drawing.SizeF(dataImage.Width, 0);
+
+            for (int i = 0; i < matches.Size; i++)
+            {
+                for (int j = 0; j < matches[i].Size; j++)
+                {
+                    var mp = modelKeypoints[matches[i][j].TrainIdx];
+                    var dp = dataKeypoints[matches[i][j].QueryIdx];
+                    ret.Draw(new CircleF(mp.Point + offset, mp.Size), lc, 2);
+                    ret.Draw(new CircleF(dp.Point, dp.Size), lc, 2);
+                    ret.Draw(new LineSegment2DF(mp.Point + offset, dp.Point), lc, 1);
+                }
+            }
         }
     }
 }

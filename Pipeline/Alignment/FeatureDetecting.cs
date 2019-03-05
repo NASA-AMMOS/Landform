@@ -5,6 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 using Emgu.CV;
 using Emgu.CV.Util;
+using Emgu.CV.CvEnum;
 using Emgu.CV.Structure;
 using Emgu.CV.Features2D;
 using OPS.Util;
@@ -181,7 +182,7 @@ namespace OPS.Pipeline
             return ret;
         }
 
-        public static Image DrawFeatures(Image img, Image mask, ImageFeature[] features)
+        public static Image DrawFeatures(Image img, Image mask, ImageFeature[] features, string imageName = null)
         {
             var ret = CompositeMask(img, mask).ToEmgu<Bgr>();
             var siftFeat = features.Cast<SIFTFeature>().ToArray();
@@ -191,6 +192,11 @@ namespace OPS.Pipeline
             var withRange = new VectorOfKeyPoint(siftFeat.Where(f => f.Range > 0).CastToMKeyPoint().ToArray());
             Features2DToolbox.DrawKeypoints(ret, withRange, ret, new Bgr(0, 255, 0), //actually RGB
                                             Features2DToolbox.KeypointDrawType.DrawRichKeypoints);
+            if (imageName != null)
+            {
+                ret.Draw(imageName, new System.Drawing.Point(5, 30),
+                         FontFace.HersheySimplex, 1, new Bgr(255, 0, 255), 2);
+            }
             return ret.ToOPSImage();
         }
     }
