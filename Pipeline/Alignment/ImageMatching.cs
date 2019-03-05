@@ -44,6 +44,17 @@ namespace OPS.Pipeline
                                                                    string modelUrl, string dataUrl,
                                                                    int minMatches = DEF_MIN_MATCHES)
         {
+            string rejectionReason;
+            return ComputeCorrespondence(pipeline, scene, modelUrl, dataUrl, out rejectionReason, minMatches);
+        }
+
+        public static ComputedCorrespondence ComputeCorrespondence(PipelineCore pipeline, AlignmentScene scene,
+                                                                   string modelUrl, string dataUrl,
+                                                                   out string rejectionReason,
+                                                                   int minMatches = DEF_MIN_MATCHES)
+        {
+            rejectionReason = null;
+
             Debug.Assert(scene.ObservationUrlToNode.ContainsKey(modelUrl));
             Debug.Assert(scene.ObservationUrlToNode.ContainsKey(dataUrl));
             Debug.Assert(scene.DetectedFeatures.ContainsKey(modelUrl));
@@ -80,6 +91,7 @@ namespace OPS.Pipeline
             {
                 pipeline.LogVerbose("{0} {1}: {2} < {3} matches, discarding", pairName, matcher.GetType().Name,
                                     matches.Count, minMatches);
+                rejectionReason = string.Format("(step 0) {0} returned too few matches", matcher.GetType().Name);
                 return null;
             }
             pipeline.LogVerbose("{0} {1}: {2} matches", pairName, matcher.GetType().Name, matches.Count);
@@ -89,6 +101,7 @@ namespace OPS.Pipeline
             filters.Add(new MoisanStivalFilter(pipeline));
             //filters.Add(new GTMFilter());
 
+            int step = 1;
             foreach (var filter in filters)
             {
                 int oldCount = matches.Count;
@@ -97,9 +110,12 @@ namespace OPS.Pipeline
                 {
                     pipeline.LogVerbose("{0} {1}: {2} < {3} matches, discarding", pairName, filter.GetType().Name,
                                         matches.Count, minMatches);
+                    rejectionReason = string.Format("(step {0}) {1} returned too few matches",
+                                                    step, filter.GetType().Name);
                     return null;
                 }
                 pipeline.LogVerbose("{0} {1}: {2} -> {3}", pairName, filter.GetType().Name, oldCount, matches.Count);
+                step++;
             }
 
             pipeline.LogVerbose("{0} {1}: {2} -> {3} feature matches, keeping", pairName, matcher.GetType().Name,

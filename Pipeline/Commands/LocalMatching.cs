@@ -1,5 +1,8 @@
 ﻿using System;
 using System.Linq;
+using System.Collections;
+using System.Collections.Generic;
+using System.Collections.Concurrent;
 using System.Threading;
 using System.Threading.Tasks;
 using CommandLine;
@@ -89,6 +92,9 @@ namespace OPS.Pipeline
 
             LogInfo("finding feature matches for {0} image pairs", no);
 
+            int bucketSize = 10;
+            var histogram = new ConcurrentDictionary<int, int>();
+            var rejectionTallies = new ConcurrentDictionary<string, int>();
             double startSec = UTCTime.Now();
             int nc = 0, np = 0, ne = 0, nr = 0, ns = 0;
             CoreLimitedParallel.ForEach(scene.Overlaps, pair => {
@@ -119,16 +125,21 @@ namespace OPS.Pipeline
                 {
                     LogInfo("processing {0} image pairs in parallel, completed {1}/{2}", np, nc, no);
                 }
-
-                var result = ImageMatching.ComputeCorrespondence(this, scene, modelUrl, dataUrl,
+                string rejectionReason;
+                var result = ImageMatching.ComputeCorrespondence(this, scene, modelUrl, dataUrl, out rejectionReason,
                                                                  options.MinMatchesPerPair);
-
                 var guid = Guid.Empty;
                 if (result != null)
                 {
                     Interlocked.Increment(ref nr);
                     SaveDataProduct(project.ProductPath, result, project.Name);
                     guid = result.Guid;
+                    int bucket = result.Correspondence.Count / bucketSize;
+                    histogram.AddOrUpdate(bucket, _ => 1, (_, count) => count + 1);
+                }
+                else
+                {
+                    rejectionTallies.AddOrUpdate(rejectionReason, _ => 1, (_, count) => count + 1);
                 }
 
                 if (ImageMatching.SaveOverlap(this, project.Name, guid, modelObs.Name, dataObs.Name))
@@ -155,6 +166,16 @@ namespace OPS.Pipeline
                 Interlocked.Decrement(ref np);
                 Interlocked.Increment(ref nc);
             });
+
+            foreach (var bucket in histogram.Keys.OrderBy(n => n))
+            {
+                LogInfo("{0} correspondences with {1} to {2} matches", histogram[bucket],
+                        bucket * bucketSize, (bucket + 1) * bucketSize - 1);
+            }
+            foreach (var reason in rejectionTallies.Keys.OrderBy(r => r))
+            {
+                LogInfo("rejected {0} image pairs because {1}", rejectionTallies[reason], reason);
+            }
 
             LogInfo("processed {0} image pairs ({1:F3}s), computed {2} correspondences ({3} existing), saved {4}",
                     nc, UTCTime.Now() - startSec, nr, ne, ns);
