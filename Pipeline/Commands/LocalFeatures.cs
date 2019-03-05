@@ -1,8 +1,8 @@
 using System;
+using System.Linq;
 using System.Collections;
 using System.Collections.Generic;
 using System.Collections.Concurrent;
-using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using CommandLine;
@@ -108,6 +108,8 @@ namespace OPS.Pipeline
             FeatureDetector detector = new FeatureDetector(this, options.DetectorType, options.MaxFeaturesPerImage,
                                                            options.MinFeatureSize);
 
+            int bucketSize = 50;
+            var histogram = new ConcurrentDictionary<int, int>();
             double startSec = UTCTime.Now();
             int nc = 0, ne = 0, nf = 0, np = 0;
             CoreLimitedParallel.ForEach(obsForFrame.Values, obsGroup => { 
@@ -151,19 +153,21 @@ namespace OPS.Pipeline
                                               obs.Width == imageObs.Width && obs.Height == imageObs.Height);
                         var maskUrl = maskObs != null ? maskObs.Url : null;
                         
-                        var features = detector.Detect(imageObs.Url, maskUrl, project.Name, project.ProductPath);
-                        if (features != null)
+                        var result = detector.Detect(imageObs.Url, maskUrl, project.Name, project.ProductPath);
+                        if (result != null)
                         {
-                            SaveDataProduct(project.ProductPath, features, project.Name);
-                            imageObs.FeaturesGuid = features.Guid;
+                            SaveDataProduct(project.ProductPath, result, project.Name);
+                            imageObs.FeaturesGuid = result.Guid;
                             imageObs.Save(this);
+                            int bucket = result.Features.Length / bucketSize;
+                            histogram.AddOrUpdate(bucket, _ => 1, (_, count) => count + 1);
                         }
                         
                         if (options.WriteFeatureImages)
                         {
                             var img = new Image(LoadImage(imageObs.Url));
                             var mask = FeatureDetecting.MakeMask(this, maskUrl, img, imageObs.Name);
-                            img = FeatureDetecting.DrawFeatures(img, mask, features.Features);
+                            img = FeatureDetecting.DrawFeatures(img, mask, result.Features);
                             TemporaryFile.GetAndDelete(imageExt, tmpImage => {
                                     img.Save<byte>(tmpImage);
                                     SaveFile(tmpImage, imagePath + imageObs.Name + "-Features" + imageExt);
@@ -176,6 +180,11 @@ namespace OPS.Pipeline
                 });
             double totalSec = UTCTime.Now() - startSec;
             
+            foreach (var bucket in histogram.Keys.OrderBy(n => n))
+            {
+                LogInfo("{0} images with {1} to {2} features", histogram[bucket],
+                        bucket * bucketSize, (bucket + 1) * bucketSize - 1);
+            }
             LogInfo("processed {0} reconstruction images ({1:F3}s), computed features for {2} images ({3} existing)",
                     nc, totalSec, nf, ne);
 
