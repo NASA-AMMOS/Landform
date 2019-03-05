@@ -29,8 +29,11 @@ namespace OPS.Pipeline
         private readonly int maxFeatures;
         private readonly PipelineCore pipeline;
 
-        public FeatureDetector(PipelineCore pipeline, DetectorType detector, int maxFeatures = 10000,
-                               double minFeatureSize = 0)
+        public const int DEF_MAX_FEATURES = 10000;
+        public const double DEF_MIN_FEATURE_SIZE = 0;
+
+        public FeatureDetector(PipelineCore pipeline, DetectorType detector, int maxFeatures = DEF_MAX_FEATURES,
+                               double minFeatureSize = DEF_MIN_FEATURE_SIZE)
         {
             this.pipeline = pipeline;
             this.Detector = detector;

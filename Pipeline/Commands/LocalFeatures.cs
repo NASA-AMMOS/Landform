@@ -22,10 +22,10 @@ namespace OPS.Pipeline
         [Option(HelpText = "Detector type", Default = DetectorType.ASIFT)]
         public DetectorType DetectorType { get; set; }
 
-        [Option(HelpText = "Maximum number of features per image", Default = 1000)]
+        [Option(HelpText = "Maximum number of features per image", Default = FeatureDetector.DEF_MAX_FEATURES)]
         public int MaxFeaturesPerImage { get; set; }
 
-        [Option(HelpText = "Minimum feature size to keep", Default = 0)]
+        [Option(HelpText = "Minimum feature size to keep", Default = FeatureDetector.DEF_MIN_FEATURE_SIZE)]
         public double MinFeatureSize { get; set; }
 
         [Option(HelpText = "Recreate features that already exist", Default = false)]
