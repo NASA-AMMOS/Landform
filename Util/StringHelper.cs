@@ -138,6 +138,20 @@ namespace OPS.Util
             return null;
         }
 
+        public static bool? ParseBoolSafe(string str)
+        {
+            if (string.IsNullOrEmpty(str))
+            {
+                return null;
+            }
+            bool ret = false;
+            if (bool.TryParse(str, out ret))
+            {
+                return ret;
+            }
+            return null;
+        }
+
         public static string CollapseWhitespace(string str)
         {
             return !string.IsNullOrEmpty(str) ? Regex.Replace(str, @"\s+", " ") : str;

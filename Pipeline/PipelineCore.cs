@@ -69,6 +69,8 @@ namespace OPS.Pipeline
         public readonly string StorageUrl;
         public readonly string StorageUrlWithVenue;
 
+        public virtual bool LegacyCompat { get { return false; } }
+
         protected bool quiet, verbose, debug;
 
         private LRUCache<string, Image> imageCache; //indexed by URL

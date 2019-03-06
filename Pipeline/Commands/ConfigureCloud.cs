@@ -42,6 +42,9 @@ namespace OPS.Pipeline
         [Option(Default = null, HelpText = "0 or unset to use all available cores, N to use up to N, -M to reserve M")]
         public string MaxCores { get; set; }
 
+        [Option(Default = null, HelpText = "legacy compatibility (read only) true/false")]
+        public string LegacyCompat { get; set; }
+
         [Option(Default = false, HelpText = "Do not persist config")]
         public bool NoPersist { get; set; }
 
@@ -82,6 +85,8 @@ namespace OPS.Pipeline
             config.MSLICES3Url = ConsoleHelper.Prompt("MSLICE S3 url", options.MSLICES3Url, config.MSLICES3Url);
             config.MaxCores = ConsoleHelper.Prompt("max cores, 0 = all available, N = up to N, -M = reserve M",
                                                    options.MaxCores, config.MaxCores);
+            config.LegacyCompat = ConsoleHelper.Prompt("legacy compatability (read only) true/false",
+                                                       options.LegacyCompat, config.LegacyCompat);
 
             config.Validate();
 
