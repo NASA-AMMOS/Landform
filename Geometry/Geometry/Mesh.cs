@@ -889,7 +889,7 @@ namespace OPS.Geometry
         /// Vertex objects are cloned to avoid side effects in case the meshes are modifed in the future
         /// </summary>
         /// <param name="otherMeshes"></param>
-        public void MergeWith(Mesh[] otherMeshes, bool normalize = true)
+        public void MergeWith(Mesh[] otherMeshes, bool normalize)
         {
             for (int i = 0; i < otherMeshes.Length; i++)
             {
@@ -914,6 +914,11 @@ namespace OPS.Geometry
             }
             
             Clean(normalize);
+        }
+
+        public void MergeWith(params Mesh[] otherMeshes)
+        {
+            MergeWith(otherMeshes, true);
         }
 
         /// <summary>
