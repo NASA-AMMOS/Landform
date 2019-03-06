@@ -34,8 +34,8 @@ namespace OPS.Alignment
             SIFTFeature[] feat0 = modelFeatures.Cast<SIFTFeature>().ToArray();
             SIFTFeature[] feat1 = dataFeatures.Cast<SIFTFeature>().ToArray();
 
-            Matrix<float> descr0 = ToDescriptorMatrix1(feat0);
-            Matrix<float> descr1 = ToDescriptorMatrix1(feat1);
+            Matrix<float> descr0 = ToDescriptorMatrix(feat0);
+            Matrix<float> descr1 = ToDescriptorMatrix(feat1);
             VectorOfKeyPoint kp0 = new VectorOfKeyPoint(feat0.CastToMKeyPoint().ToArray());
             VectorOfKeyPoint kp1 = new VectorOfKeyPoint(feat1.CastToMKeyPoint().ToArray());
             
@@ -66,10 +66,10 @@ namespace OPS.Alignment
             {
                 yield break;
             }
-            lock (GlobalLock)
-            {
+            //lock (GlobalLock)
+            //{
                 nonZero = Features2DToolbox.VoteForSizeAndOrientation(kp0, kp1, matches, mask.Mat, 1.5, 20);
-            }
+            //}
             if (nonZero < 1)
             {
                 yield break;
@@ -85,6 +85,7 @@ namespace OPS.Alignment
             }
         }
 
+        /*
         static Matrix<T> ToDescriptorMatrix2<T>(SIFTFeature[] features) where T: struct
         {
             Matrix<T> res = new Matrix<T>(features.Length, features[0].Descriptor.Length);
@@ -106,6 +107,7 @@ namespace OPS.Alignment
             }
             return res;
         }
+
         static Matrix<float> ToDescriptorMatrix1(SIFTFeature[] features)
         {
             var d0 = features[0].Descriptor;
@@ -118,6 +120,23 @@ namespace OPS.Alignment
             //    return ToDescriptorMatrix2<byte>(features);
             //}
             throw new ArgumentException("descriptors must be byte or float");
+        }
+        */
+
+        public static Matrix<float> ToDescriptorMatrix(SIFTFeature[] features)
+        {
+            Matrix<float> res = new Matrix<float>(features.Length, features[0].Descriptor.Length);
+            float[,] data = res.Data;
+            int i, j;
+            for (i = 0; i < features.Length; i++)
+            {
+                var d = ((FeatureDescriptor<byte>)features[i].Descriptor).Data;
+                for (j = 0; j < d.Length; j++)
+                {
+                    data[i, j] = d[j];
+                }
+            }
+            return res;
         }
 
         private static readonly object GlobalLock = new object();
