@@ -273,7 +273,7 @@ namespace OPS.Pipeline
             var observationFrame = FindOrCreateFrame(ObservationFrameName(parser), siteDriveFrame, TransformSource.PDS,
                                                      GetObservationTransform(parser));
 
-            Observation observation = RoverObservation.Find(pipeline, project.Name, observationName);
+            RoverObservation observation = RoverObservation.Find(pipeline, project.Name, observationName);
             if (observation != null)
             {
                 if (recreateExistingObservations)
