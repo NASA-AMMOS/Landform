@@ -115,7 +115,7 @@ namespace OPS.Pipeline
             return ret;
         }
 
-        private static void AddMaskForMissingConstant(Image dst, Image src, PDSParser parser = null)
+        public static void AddMaskForMissingConstant(Image dst, Image src, PDSParser parser = null)
         {
             parser = parser ?? new PDSParser((PDSMetadata)src.Metadata);
             if (parser.HasMissingConstant)
@@ -128,7 +128,7 @@ namespace OPS.Pipeline
             }
         }
 
-        private static void CheckType(PDSParser parser, RoverProductType type, string what)
+        public static void CheckType(PDSParser parser, RoverProductType type, string what)
         {
             if (parser.DerivedImageType != type)
             {
@@ -136,7 +136,7 @@ namespace OPS.Pipeline
             }
         }
 
-        private static void CheckCameraFrame(PDSParser parser, string what)
+        public static void CheckCameraFrame(PDSParser parser, string what)
         {
             if (parser.CameraModelRefFrame != PDSParser.ReferenceCoordinateFrame.RoverNav)
             {
@@ -144,7 +144,7 @@ namespace OPS.Pipeline
             }
         }
 
-        private static Vector3 GetCameraCenter(Image img, string what)
+        public static Vector3 GetCameraCenter(Image img, string what)
         {
             CAHV cahv = img.CameraModel as CAHV;
             if (cahv == null)
@@ -152,6 +152,27 @@ namespace OPS.Pipeline
                 throw new NotImplementedException(what + " requires CAHV camera model");
             }
             return cahv.C;
+        }
+
+        public static Vector3 CheckCameraCenter(Image img, string what, bool checkRangeOrigin = true)
+        {
+            return CheckCameraCenter(new PDSParser((PDSMetadata)img.Metadata), img, what, checkRangeOrigin);
+        }
+
+        public static Vector3 CheckCameraCenter(PDSParser parser, Image img, string what, bool checkRangeOrigin = true)
+        {
+            CheckCameraFrame(parser, what);
+            Vector3 cameraCenter = GetCameraCenter(img, what);
+            if (checkRangeOrigin)
+            {
+                Matrix xform = RoverCoordinateSystem.GetTransformToRoverFrame(parser);
+                Vector3 rangeOrigin = Vector3.Transform(parser.RangeOrigin, xform);
+                if (!Vector3.AlmostEqual(rangeOrigin, cameraCenter, 0.1))
+                {
+                    throw new NotImplementedException(what + " requires range maps projected from camera location");
+                }
+            }
+            return cameraCenter;
         }
 
         /// <summary>
@@ -209,13 +230,7 @@ namespace OPS.Pipeline
         {
             parser = parser ?? new PDSParser((PDSMetadata)img.Metadata);
             CheckType(parser, RoverProductType.Range, "ConvertRange");
-            CheckCameraFrame(parser, "ConvertRNG");
-            Matrix xform = RoverCoordinateSystem.GetTransformToRoverFrame(parser);
-            Vector3 rangeOrigin = Vector3.Transform(parser.RangeOrigin, xform);
-            if (!Vector3.AlmostEqual(rangeOrigin, GetCameraCenter(img, "ConvertRNG"), 0.1))
-            {
-                throw new NotImplementedException("ConvertRNG requires range maps projected from camera location");
-            }
+            CheckCameraCenter(parser, img, "ConvertRNG");
             Image ret = new Image(3, img.Width, img.Height);
             AddMaskForMissingConstant(ret, img, parser);
             for (int row = 0; row < img.Height; row++)
@@ -286,8 +301,7 @@ namespace OPS.Pipeline
         {
             parser = parser ?? new PDSParser((PDSMetadata)img.Metadata);
             CheckType(parser, RoverProductType.XYZ, "GenerateConfidenceFromXYZ");
-            CheckCameraFrame(parser, "GenerateConfidenceFromXYZ");
-            Vector3 rangeOrigin = GetCameraCenter(img, "GenerateConfidenceFromXYZ");
+            Vector3 c = CheckCameraCenter(img, "GenerateConfidenceFromXYZ");
             Matrix xform = RoverCoordinateSystem.GetTransformToRoverFrame(parser);
             Image ret = new Image(1, img.Width, img.Height);
             AddMaskForMissingConstant(ret, img, parser);
@@ -302,7 +316,7 @@ namespace OPS.Pipeline
                     else if (!parser.HasMissingConstant || !ret.IsInvalid(row, col))
                     {
                         var p = new Vector3(img[0, row, col], img[1, row, col], img[2, row, col]);
-                        ret[0, row, col] = 1 / (float)Vector3.Distance(Vector3.Transform(p, xform), rangeOrigin);
+                        ret[0, row, col] = 1 / (float)Vector3.Distance(Vector3.Transform(p, xform), c);
                     }
                 }
             }
