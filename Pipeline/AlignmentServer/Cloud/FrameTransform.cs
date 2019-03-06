@@ -133,7 +133,10 @@ namespace OPS.Pipeline.AlignmentServer
 
         public static IEnumerable<FrameTransform> Find(PipelineCore pipeline, string projectName)
         {
-            return pipeline.ScanDatabase<FrameTransform>("ProjectName", projectName);
+            foreach (var ft in pipeline.ScanDatabase<FrameTransform>("ProjectName", projectName))
+            {
+                yield return Compat(pipeline, ft);
+            }
         }
 
         public static IEnumerable<FrameTransform> Find(PipelineCore pipeline, Frame frame)
@@ -154,7 +157,7 @@ namespace OPS.Pipeline.AlignmentServer
         public static FrameTransform Find(PipelineCore pipeline, string projectName, string frameName,
                                           TransformSource source)
         {
-            return pipeline.LoadDatabaseItem<FrameTransform>(MakeName(frameName, source), projectName);
+            return Compat(pipeline, pipeline.LoadDatabaseItem<FrameTransform>(MakeName(frameName, source), projectName));
         }
 
         public static FrameTransform Find(PipelineCore pipeline, Frame frame, TransformSource source)
@@ -165,6 +168,17 @@ namespace OPS.Pipeline.AlignmentServer
         public bool IsPrior()
         {
             return Source >= TransformSource.Prior;
+        }
+
+        private static FrameTransform Compat(PipelineCore pipeline, FrameTransform ft)
+        {
+            if (pipeline.LegacyCompat && string.IsNullOrEmpty(ft.Name))
+            {
+                //ft.Source should default to Adjusted (0) which is correct
+                //but if somehow it is different, then leave it as is
+                ft.Name = MakeName(ft.FrameName, ft.Source);
+            }
+            return ft;
         }
     }
 }

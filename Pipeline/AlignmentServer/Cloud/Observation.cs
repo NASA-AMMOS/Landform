@@ -103,7 +103,7 @@ namespace OPS.Pipeline.AlignmentServer
         public static Observation Create(PipelineCore pipeline, Frame frame, string name, string url, string observationType, string cameraModel, bool useForReconstruction, int width, int height)
         {
             Observation obs = new Observation(frame, name, url, observationType, cameraModel, useForReconstruction, width, height);
-            pipeline.SaveDatabaseItem(obs);
+            obs.Save(pipeline);
             return obs;
         }
 
@@ -113,6 +113,7 @@ namespace OPS.Pipeline.AlignmentServer
         /// <param name=""></param>
         public virtual void Save(PipelineCore pipeline)
         {
+            IsValid();
             pipeline.SaveDatabaseItem(this);
         }
 
