@@ -26,7 +26,7 @@ Download sols 588 - 590 but process sol 588 only:
 
 The default is to only detect feature matches and bundle adjust across site drives.  
 
-The sol 588 - 590 dataset has 3688 navcam IMG files, about 5GB total, 263 which we consider observations, 90 images that we actually use for reconstruction.  Total time is currently about 12min.
+The sol 588 - 590 dataset has 3688 navcam IMG files, about 5GB total, 263 which we consider observations, 90 images that we actually use for reconstruction.  Total time is currently about 15min.
 *   `fetch-msl.sh`: ~3min
 *   `local-ingest`: ~3sec
     ```
@@ -41,14 +41,14 @@ The sol 588 - 590 dataset has 3688 navcam IMG files, about 5GB total, 263 which 
     total 86 Normals observations
     total 86 Points observations
     ```
-*   `local-features`: 7.5min
+*   `local-features`: 9min
     ```
     1 images with 400 to 449 features
     1 images with 550 to 599 features
     1 images with 1400 to 1449 features
     1 images with 1800 to 1849 features
     2 images with 2250 to 2299 features
-    1 images with 2550 to 2599 features
+    1 images with 2500 to 2549 features
     1 images with 3700 to 3749 features
     1 images with 3950 to 3999 features
     1 images with 4350 to 4399 features
@@ -62,22 +62,25 @@ The sol 588 - 590 dataset has 3688 navcam IMG files, about 5GB total, 263 which 
     1 images with 9400 to 9449 features
     1 images with 9950 to 9999 features
     64 images with 10000 to 10049 features
-    processed 87 reconstruction images (448.493s), computed features for 87 images (0 existing)
+    processed 87 reconstruction images (532.296s), computed features for 87 images, 86 with range, 86 existing
+    total 746571 features, 575637 with range
     ```
-*   `local-matching`: ~3min (cross-site only)
+*   `local-matching`: ~4min (cross-site only)
     ```
     4 correspondences with 20 to 29 matches
-    1 correspondences with 40 to 49 matches
-    4 correspondences with 50 to 59 matches
+    1 correspondences with 30 to 39 matches
+    3 correspondences with 40 to 49 matches
     3 correspondences with 70 to 79 matches
-    2 correspondences with 80 to 89 matches
-    3 correspondences with 100 to 109 matches
+    5 correspondences with 80 to 89 matches
+    2 correspondences with 90 to 99 matches
+    2 correspondences with 100 to 109 matches
+    2 correspondences with 110 to 119 matches
+    1 correspondences with 120 to 129 matches
     1 correspondences with 130 to 139 matches
-    2 correspondences with 140 to 149 matches
-    1 correspondences with 170 to 179 matches
-    rejected 943 image pairs because (step 1) KnownGeometryFilter returned too few matches
-    rejected 31 image pairs because (step 2) MoisanStivalFilter returned too few matches
-    processed 995 image pairs (169.043s), computed 21 correspondences (0 existing), saved 995
+    1 correspondences with 140 to 149 matches
+    rejected 941 image pairs because (step 1) KnownGeometryFilter returned too few matches
+    rejected 24 image pairs because (step 2) MoisanStivalFilter returned too few matches
+    processed 990 image pairs (239.224s), computed 25 correspondences (0 existing), saved 990
     ```
 *   `local-bundle-adjust`: ~20s (cross-site only)
     ```
