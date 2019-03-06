@@ -283,8 +283,6 @@ namespace OPS.Pipeline
             double lineSize = 0.02; //meters
             var pointMesh = BoundingBoxExtensions.MakeCube(pointSize).ToMesh(pointColor);
             var lineMesh = BoundingBoxExtensions.MakeCube(lineSize).ToMesh(lineColor);
-            Console.WriteLine("making match mesh, {0} matches", dataToModel.Length);
-            int n = 0;
             foreach (var match in dataToModel)
             {
                 var df = dataFeat[match.Key];
@@ -297,10 +295,8 @@ namespace OPS.Pipeline
                     ret.MergeWith(Mesh.Transformed(pointMesh, Matrix.CreateTranslation(dp)));
                     var lineMat = BoundingBoxExtensions.StretchCubeAlongLineSegment(mp, dp, lineSize);
                     ret.MergeWith(Mesh.Transformed(lineMesh, lineMat));
-                    n++;
                 }
             }
-            Console.WriteLine("{0} matches with range", n);
             return ret;
         }
     }
