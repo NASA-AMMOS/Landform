@@ -36,11 +36,17 @@ namespace OPS.Pipeline
         [Option(HelpText = "Write match images for debugging", Default = false)]
         public bool WriteMatchImages { get; set; }
 
-        [Option(HelpText = "Output directory for debug images, or omit to save to project storage", Default = null)]
-        public string ImageOutputFolder { get; set; }
+        [Option(HelpText = "Write match meshes (in root frame using transform priors) for debugging", Default = true)]
+        public bool WriteMatchMeshes { get; set; }
+
+        [Option(HelpText = "Output directory for debug products, or omit to save to project storage", Default = null)]
+        public string OutputFolder { get; set; }
 
         [Option(HelpText = "Debug image format, e.g. png, jpg, help for list", Default = "png")]
         public string ImageFormat { get; set; }
+
+        [Option(HelpText = "Debug mesh format, e.g. ply, obj, help for list", Default = "ply")]
+        public string MeshFormat { get; set; }
 
         [Option(HelpText = "Histogram bucket size", Default = 10)]
         public int HistogramBucketSize { get; set; }
@@ -59,8 +65,9 @@ namespace OPS.Pipeline
     {
         private LocalMatchingOptions options;
         private PipelineCore pipeline;
-        private string imageDir;
+        private string dbgDir;
         private string imageExt;
+        private string meshExt;
 
         public LocalMatching(LocalMatchingOptions options)
         {
@@ -84,8 +91,7 @@ namespace OPS.Pipeline
                 return 1;
             }
 
-            imageDir =
-                pipeline.GetLocalDebugFolder(options.ImageOutputFolder, "alignment/MatchingProducts", project.Name);
+            dbgDir = pipeline.GetLocalDebugFolder(options.OutputFolder, "alignment/MatchingProducts", project.Name);
 
             if (options.WriteMatchImages)
             {
@@ -94,7 +100,17 @@ namespace OPS.Pipeline
                 {
                     return 0;
                 }
-                pipeline.LogInfo("writing {0} match images to {1}", imageExt, imageDir);
+                pipeline.LogInfo("writing {0} match images to {1}", imageExt, dbgDir);
+            }
+
+            if (options.WriteMatchMeshes)
+            {
+                meshExt = MeshSerializers.Instance.CheckFormat(options.MeshFormat, pipeline);
+                if (meshExt == null)
+                {
+                    return 0;
+                }
+                pipeline.LogInfo("writing {0} match meshes to {1}", meshExt, dbgDir);
             }
 
             var scene = ImageMatching.BuildSceneAndDetectOverlaps(pipeline, project, loadFeatures: true,
@@ -126,14 +142,19 @@ namespace OPS.Pipeline
                     {
                         Interlocked.Increment(ref ne);
                         pipeline.LogVerbose("not recomputing feature matches for image pair {0}", pairName);
-                        if ((options.WriteMatchImages || options.TallyExisting) && overlap.MatchGuid != Guid.Empty)
+                        if ((options.WriteMatchImages || options.WriteMatchMeshes || options.TallyExisting) &&
+                            overlap.MatchGuid != Guid.Empty)
                         {
                             var product =
                                 pipeline.GetDataProduct<ComputedCorrespondence>(project.ProductPath, overlap.MatchGuid);
 
                             if (options.WriteMatchImages)
                             {
-                                WriteMatchImage(product, project, modelObs.Name, dataObs.Name);
+                                WriteMatchImage(product, scene, modelObs, dataObs);
+                            }
+                            if (options.WriteMatchMeshes)
+                            {
+                                WriteMatchMesh(product, scene, modelObs, dataObs);
                             }
                             if (options.TallyExisting)
                             {
@@ -173,7 +194,12 @@ namespace OPS.Pipeline
 
                 if (options.WriteMatchImages && result != null)
                 {
-                    WriteMatchImage(result, project, modelObs.Name, dataObs.Name);
+                    WriteMatchImage(result, scene, modelObs, dataObs);
+                }
+
+                if (options.WriteMatchMeshes && result != null)
+                {
+                    WriteMatchMesh(result, scene, modelObs, dataObs);
                 }
 
                 Interlocked.Decrement(ref np);
@@ -202,24 +228,36 @@ namespace OPS.Pipeline
             histogram.AddOrUpdate(bucket, _ => 1, (_, count) => count + 1);
         }
 
-        private void WriteMatchImage(ComputedCorrespondence product, Project project, string modelObsName,
-                                     string dataObsName)
+        private void WriteMatchImage(ComputedCorrespondence product, AlignmentScene scene,
+                                     Observation modelObs, Observation dataObs)
         {
-            var modelFeatGuid = product.ModelFeaturesGuid;
-            var dataFeatGuid = product.DataFeaturesGuid;
+            var modelImg = pipeline.LoadImage(modelObs.Url);
+            var dataImg = pipeline.LoadImage(dataObs.Url);
+            var modelFeat = scene.DetectedFeatures[modelObs.Url];
+            var dataFeat = scene.DetectedFeatures[dataObs.Url];
             var d2m = product.Correspondence.DataToModel;
-            var modelUrl = product.Correspondence.ModelImageUrl;
-            var dataUrl = product.Correspondence.DataImageUrl;
-            var modelImg = pipeline.LoadImage(modelUrl);
-            var dataImg = pipeline.LoadImage(dataUrl);
-            var modelName = StringHelper.GetLastUrlPathSegment(modelUrl);
-            var dataName = StringHelper.GetLastUrlPathSegment(dataUrl);
-            var modelFeat = pipeline.GetDataProduct<DetectedFeatures>(project.ProductPath, modelFeatGuid, project.Name);
-            var dataFeat = pipeline.GetDataProduct<DetectedFeatures>(project.ProductPath, dataFeatGuid, project.Name);
-            var img = ImageMatching.DrawMatches(modelImg, dataImg, modelFeat.Features, dataFeat.Features, d2m,
-                                                modelName, dataName);
-            PathHelper.EnsureExists(imageDir);
-            img.Save<byte>(string.Format("{0}{1}-{2}-Matches{3}", imageDir, modelObsName, dataObsName, imageExt));
+            var modelFile = StringHelper.GetLastUrlPathSegment(modelObs.Url);
+            var dataFile = StringHelper.GetLastUrlPathSegment(dataObs.Url);
+            var ret = ImageMatching.DrawMatches(modelImg, dataImg, modelFeat, dataFeat, d2m, modelFile, dataFile);
+            PathHelper.EnsureExists(dbgDir);
+            ret.Save<byte>(string.Format("{0}{1}-{2}-Matches{3}", dbgDir, modelObs.Name, dataObs.Name, imageExt));
+        }
+
+        private void WriteMatchMesh(ComputedCorrespondence product, AlignmentScene scene,
+                                    Observation modelObs, Observation dataObs)
+        {
+            var modelNode = scene.ObservationUrlToNode[modelObs.Url];
+            var dataNode = scene.ObservationUrlToNode[dataObs.Url];
+            var modelCam = modelNode.GetComponent<NodeImage>().CameraModel;
+            var dataCam = dataNode.GetComponent<NodeImage>().CameraModel;
+            var modelFeat = scene.DetectedFeatures[modelObs.Url];
+            var dataFeat = scene.DetectedFeatures[dataObs.Url];
+            var d2m = product.Correspondence.DataToModel;
+            var modelToRoot = modelNode.GetComponent<NodeUncertainTransform>().To(scene.Root).Mean;
+            var dataToRoot = dataNode.GetComponent<NodeUncertainTransform>().To(scene.Root).Mean;
+            var ret = ImageMatching.MakeMatchMesh(modelCam, dataCam, modelFeat, dataFeat, modelToRoot, dataToRoot, d2m);
+            PathHelper.EnsureExists(dbgDir);
+            ret.Save(string.Format("{0}{1}-{2}-PriorMatches{3}", dbgDir, modelObs.Name, dataObs.Name, meshExt));
         }
     }
 }

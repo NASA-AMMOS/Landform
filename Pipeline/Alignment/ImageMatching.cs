@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Diagnostics;
+using Microsoft.Xna.Framework;
 using log4net;
 using Emgu.CV;
 using Emgu.CV.Util;
@@ -268,6 +269,39 @@ namespace OPS.Pipeline
                     ret.Draw(new LineSegment2DF(mp.Point + offset, dp.Point), lc, 1);
                 }
             }
+        }
+
+        public static Mesh MakeMatchMesh(CameraModel modelCam, CameraModel dataCam,
+                                         ImageFeature[] modelFeat, ImageFeature[] dataFeat,
+                                         Matrix modelToRoot, Matrix dataToRoot,
+                                         KeyValuePair<int, int>[] dataToModel)
+        {
+            var ret = new Mesh(hasNormals: true, hasColors: true);
+            var lineColor = new Vector4(0, 0, 1, 0);
+            var pointColor = new Vector4(0, 1, 0, 0);
+            double pointSize = 0.05; //meters
+            double lineSize = 0.02; //meters
+            var pointMesh = BoundingBoxExtensions.MakeCube(pointSize).ToMesh(pointColor);
+            var lineMesh = BoundingBoxExtensions.MakeCube(lineSize).ToMesh(lineColor);
+            Console.WriteLine("making match mesh, {0} matches", dataToModel.Length);
+            int n = 0;
+            foreach (var match in dataToModel)
+            {
+                var df = dataFeat[match.Key];
+                var mf = modelFeat[match.Value];
+                if (df.Range > 0 && mf.Range > 0)
+                {
+                    var mp = Vector3.Transform(modelCam.Unproject(mf.Location, mf.Range), modelToRoot);
+                    var dp = Vector3.Transform(dataCam.Unproject(df.Location, df.Range), dataToRoot);
+                    ret.MergeWith(Mesh.Transformed(pointMesh, Matrix.CreateTranslation(mp)));
+                    ret.MergeWith(Mesh.Transformed(pointMesh, Matrix.CreateTranslation(dp)));
+                    var lineMat = BoundingBoxExtensions.StretchCubeAlongLineSegment(mp, dp, lineSize);
+                    ret.MergeWith(Mesh.Transformed(lineMesh, lineMat));
+                    n++;
+                }
+            }
+            Console.WriteLine("{0} matches with range", n);
+            return ret;
         }
     }
 }
