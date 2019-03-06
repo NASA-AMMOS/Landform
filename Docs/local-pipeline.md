@@ -6,18 +6,115 @@
 ./Landform/bin/Release/Landform.exe configure-local --venue=local --storagedir=c:/Users/$USERNAME/Documents/landform-storage --maxcores=0
 ./Landform/bin/Release/Landform.exe local-ingest sols588to590 --inputpath=c:/Users/$USERNAME/Downloads/msl/**
 ./Landform/bin/Release/Landform.exe local-features sols588to590 --writefeatureimages
-./Landform/bin/Release/Landform.exe local-matching sols588to590 --writematchimages
+./Landform/bin/Release/Landform.exe local-matching sols588to590 --writematchimages --writematchmeshes
 ./Landform/bin/Release/Landform.exe local-bundle-adjust sols588to590 --writedebug
 ./Landform/bin/Release/Landform.exe local-observation-products sols588to590 --writeallthethings --outputframe=root --usepriors
 ./Landform/bin/Release/Landform.exe local-observation-products sols588to590 --writeallthethings --outputframe=root
 ```
 
-On my 36 core machine this workflow takes about about 15 minutes for cross-site adjustment of sols 588, 589, 590, or 43 min for adjusting all images (but we can probably get that one down by a lot as I think the bulk of the time is being spent in a Ceres bundle solve where the convergence criteria is too tight, see https://github.jpl.nasa.gov/OnSight/Landform/issues/414).  This dataset has 3688 navcam IMG files, about 5GB total, 263 which we consider observations, 90 images that we actually use for reconstruction.
-* download: 3min using fetch-msl.sh
-* ingest: 2.4sec
-* features: 9min
-* matching: 2.5min cross-site only (958 candidate image pairs, 17 keepers), 5min all (1662 candidates, 381 keepers)
-* bundle adjust: 2.3s site-drive frames only (6 adjusted nodes), 28.6min all frames (93 adjusted nodes) 
+Download sols 588 - 590 but process sol 588 only:
+```
+./Pipeline/Rover/fetch-msl.sh c:/Users/$USERNAME/Downloads locations 00588 00589 00590
+./Landform/bin/Release/Landform.exe configure-local --venue=local --storagedir=c:/Users/$USERNAME/Documents/landform-storage --maxcores=0
+./Landform/bin/Release/Landform.exe local-ingest sols588 --inputpath=c:/Users/$USERNAME/Downloads/msl/redops/ods/surface/sol/00588/** --locationsxml=c:/Users/$USERNAME/Downloads/msl/locations.xml
+./Landform/bin/Release/Landform.exe local-features sol588 --writefeatureimages
+./Landform/bin/Release/Landform.exe local-matching sol588 --writematchimages --writematchmeshes
+./Landform/bin/Release/Landform.exe local-bundle-adjust sol588 --writedebug
+./Landform/bin/Release/Landform.exe local-observation-products sol588 --writeallthethings --outputframe=root --usepriors
+./Landform/bin/Release/Landform.exe local-observation-products sol588 --writeallthethings --outputframe=root
+```
+
+The default is to only detect feature matches and bundle adjust across site drives.  
+
+The sol 588 - 590 dataset has 3688 navcam IMG files, about 5GB total, 263 which we consider observations, 90 images that we actually use for reconstruction.  Total time is currently about 12min.
+*   `fetch-msl.sh`: ~3min
+*   `local-ingest`: ~3sec
+    ```
+    processed 3688 files (2.138s), 263 accepted, 0 existing, 0 failed, 3425 skipped
+    sitedrive 0003001070: 4 Image observations, 4 Normals observations, 4 Points observations
+    sitedrive 0003001208: 4 Image observations, 4 Normals observations, 4 Points observations
+    sitedrive 0003001254: 34 Image observations, 34 Normals observations, 34 Points observations
+    sitedrive 0003001338: 6 Image observations, 6 Normals observations, 6 Points observations
+    sitedrive 0003001366: 1 Image observations
+    sitedrive 0003100000: 42 Image observations, 38 Normals observations, 38 Points observations
+    total 91 Image observations (90 for reconstruction)
+    total 86 Normals observations
+    total 86 Points observations
+    ```
+*   `local-features`: 7.5min
+    ```
+    1 images with 400 to 449 features
+    1 images with 550 to 599 features
+    1 images with 1400 to 1449 features
+    1 images with 1800 to 1849 features
+    2 images with 2250 to 2299 features
+    1 images with 2550 to 2599 features
+    1 images with 3700 to 3749 features
+    1 images with 3950 to 3999 features
+    1 images with 4350 to 4399 features
+    1 images with 4750 to 4799 features
+    2 images with 4850 to 4899 features
+    1 images with 5100 to 5149 features
+    3 images with 5250 to 5299 features
+    2 images with 5700 to 5749 features
+    1 images with 8050 to 8099 features
+    1 images with 8650 to 8699 features
+    1 images with 9400 to 9449 features
+    1 images with 9950 to 9999 features
+    64 images with 10000 to 10049 features
+    processed 87 reconstruction images (448.493s), computed features for 87 images (0 existing)
+    ```
+*   `local-matching`: ~3min (cross-site only)
+    ```
+    4 correspondences with 20 to 29 matches
+    1 correspondences with 40 to 49 matches
+    4 correspondences with 50 to 59 matches
+    3 correspondences with 70 to 79 matches
+    2 correspondences with 80 to 89 matches
+    3 correspondences with 100 to 109 matches
+    1 correspondences with 130 to 139 matches
+    2 correspondences with 140 to 149 matches
+    1 correspondences with 170 to 179 matches
+    rejected 943 image pairs because (step 1) KnownGeometryFilter returned too few matches
+    rejected 31 image pairs because (step 2) MoisanStivalFilter returned too few matches
+    processed 995 image pairs (169.043s), computed 21 correspondences (0 existing), saved 995
+    ```
+*   `local-bundle-adjust`: ~20s (cross-site only)
+    ```
+    adjusting across site drives: True
+    adjusting within site drives: False
+    adjusting 6 nodes, 6 site drive frames, 0 observation frames
+    running bundle adjuster, 87 total images, 2 rounds
+    Setting up bundle adjust of 6 frames
+    processed 21 correspondences
+    processed 2530 tracks
+    running Ceres round 0
+    ...
+    got ceres result after 2.35366702079773s
+    Identified 166 bad points on 19 tracks
+    Completed trimming bad points from tracks
+    running Ceres round 1
+    ...
+    got ceres result after 0.502443313598633s
+    Identified 122 bad points on 55 tracks
+    Completed trimming bad points from tracks
+    bundle adjust complete (2.926s)
+    writing bundle adjust debug point cloud to c:/Users/vona/Documents/landform-storage/local/alignment/AdjustProducts/sols588to590/bundlecloud.ply
+    saving transform 1 of 6 adjusted frames
+    saving transform 2 of 6 adjusted frames
+    saving transform 3 of 6 adjusted frames
+    saving transform 4 of 6 adjusted frames
+    saving transform 5 of 6 adjusted frames
+    saving transform 6 of 6 adjusted frames
+    ```
+*   `local-observation-products --usepriors`: 17s
+    ```
+    generated meshes for 86 observations (16.734s)
+    ```
+*   `local-observation-products`: 17s
+    ```
+    generated meshes for 86 observations (17.041s)
+    ```
 
 ## Run Locally but Operate on Cloud Data
 All of the local commands (`local-ingest`, `local-features`, `local-matching`, `local-bundle-adjust`, `local-observation-products`) also support a `--cloud` option.  If present, that means that the computation and flow control will be performed locally, but that data will be read from and written to the cloud (i.e. S3 and DynamoDB).  Debug outputs will still be written locally.
@@ -28,7 +125,7 @@ Example of full workflow to operate on cloud data:
 ./Landform/bin/Release/Landform.exe configure-cloud --venue=landform-dev-$USERNAME-$HOSTNAME --s3url=s3://landlords-dev/landform-$USERNAME --awsregion=us-west-1 --awsprofile=landlords --msliceawsprofile=mslice --mslices3url=s3://red-product --maxcores=0 --nouserdata
 ./Landform/bin/Release/Landform.exe local-ingest sol589 --cloud --inputpath=s3://red-product/proj/msl/redops/ods/surface/sol/00589/opgs/rdr/ncam/**
 ./Landform/bin/Release/Landform.exe local-features sol589 --cloud --writefeatureimages
-./Landform/bin/Release/Landform.exe local-matching sol589 --cloud --writematchimages
+./Landform/bin/Release/Landform.exe local-matching sol589 --cloud --writematchimages --writematchmeshes
 ./Landform/bin/Release/Landform.exe local-bundle-adjust sol589 --cloud --writedebug
 ./Landform/bin/Release/Landform.exe local-observation-products sol589 --cloud --writeallthethings --outputframe=root --usepriors
 ./Landform/bin/Release/Landform.exe local-observation-products sol589 --cloud --writeallthethings --outputframe=root
@@ -40,7 +137,7 @@ It is also possible to **post-mortem collect stats and generate debug outputs fr
 ./Landform/bin/Release/Landform.exe configure-cloud --venue=landform-dev-$USERNAME-$HOSTNAME --s3url=s3://landlords-dev/landform-$USERNAME --awsregion=us-west-1 --awsprofile=landlords --msliceawsprofile=mslice --mslices3url=s3://red-product --maxcores=0 --nouserdata
 ./Landform/bin/Release/Landform.exe local-ingest sol589 --cloud
 ./Landform/bin/Release/Landform.exe local-features sol589 --cloud --writefeatureimages --tallyexisting
-./Landform/bin/Release/Landform.exe local-matching sol589 --cloud --writematchimages --tallyexisting
+./Landform/bin/Release/Landform.exe local-matching sol589 --cloud --writematchimages --writematchmeshes --tallyexisting
 # local-bundle-adjust currently does not have an option to only generate debug outputs
 ./Landform/bin/Release/Landform.exe local-observation-products sol589 --cloud --writeallthethings --outputframe=root --usepriors
 ./Landform/bin/Release/Landform.exe local-observation-products sol589 --cloud --writeallthethings --outputframe=root
@@ -63,11 +160,12 @@ It is also possible to **post-mortem collect stats and generate debug outputs fr
     * `--quiet`, `--verbose`, `--debug`, `--noprogress`, `--singlethreaded`
 1.  **`./Landform/bin/Release/Landform.exe local-features PROJ`**.  Options include
     * `--redofeatures`, `--detectortype=ASIFT`, `--maxfeaturesperimage=1000`, `--minfeaturesize=0`
+    * `--norange`
     * `--writefeatureimages`, `--imageformat=png`, `--imageoutputfolder=DIR` default output folder is the project storage under `alignment/FeatureProducts`
     * `--quiet`, `--verbose`, `--debug`, `--noprogress`, `--singlethreaded`
 1.  **`./Landform/bin/Release/Landform.exe local-matching PROJ`**.  Options include
     * `--redooverlaps`, `--redomatches`, `--matchwithinsitedrives`, `--minmatchesperpair=20`
-    * `--writematchimages`, `--imageoutputfolder=DIR` default output folder is project storage under `alignment/FeatureProducts`
+    * `--writematchimages`, `--writematchmeshes`, `--outputfolder=DIR` default output folder is project storage under `alignment/FeatureProducts`
     * `--quiet`, `--verbose`, `--debug`, `--noprogress`, `--singlethreaded`
 1.  **`./Landform/bin/Release/Landform.exe local-bundle-adjust PROJ`**.  Options include
     * `--adjustwithinsitedrives`, `--noadjustacrosssitedrives`, `--bundleadjustrounds=2`
