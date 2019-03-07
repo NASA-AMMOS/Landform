@@ -68,11 +68,15 @@ namespace OPS.Pipeline
                 pipeline.LogInfo("writing debug data to {0}", dbgDir);
             }
 
+            double startSec = UTCTime.Now();
             BundleAdjusting.BundleAdjust(pipeline, options.ProjectName,
                                          options.AdjustWithinSiteDrives,
                                          !options.NoAdjustAcrossSiteDrives,
                                          rounds: options.BundleAdjustRounds,
                                          debugOutputFolder: options.WriteDebug ? dbgDir : null);
+            double totalSec = UTCTime.Now() - startSec;
+            pipeline.LogInfo("total time: {0:F3}s", totalSec);
+
             return 0;
         }
     }

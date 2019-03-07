@@ -169,5 +169,98 @@ namespace OPS.Geometry
         {
             return tri.Intersects(box);
         }
+
+        public static Mesh ToMesh(this BoundingBox box, Vector4? color = null)
+        {
+            List<Triangle> tt = new List<Triangle>();
+
+            //there is an XNA API to get the corners but I don't like its doc
+            Vector3 min = box.Min;
+            Vector3 max = box.Max;
+            Vector3[] c = new Vector3[] //box corners
+                {
+                    //bottom
+                    //
+                    //    c[3]---c[2]
+                    // y    |      |
+                    // ^    |      |
+                    // |  c[0]---c[1]
+                    // |  
+                    // +----> x
+                    new Vector3(min.X, min.Y, min.Z),
+                    new Vector3(max.X, min.Y, min.Z),
+                    new Vector3(max.X, max.Y, min.Z),
+                    new Vector3(min.X, max.Y, min.Z),
+
+                    //top
+                    //
+                    //    c[7]---c[6]
+                    // y    |      |
+                    // ^    |      |
+                    // |  c[4]---c[5]
+                    // |  
+                    // +----> x
+                    new Vector3(min.X, min.Y, max.Z),
+                    new Vector3(max.X, min.Y, max.Z),
+                    new Vector3(max.X, max.Y, max.Z),
+                    new Vector3(min.X, max.Y, max.Z),
+                };
+
+            //top (+z)
+            Vector3 up = new Vector3(0, 0, 1);
+            tt.Add(new Triangle(new Vertex(c[4], up, color), new Vertex(c[5], up, color), new Vertex(c[6], up, color)));
+            tt.Add(new Triangle(new Vertex(c[6], up, color), new Vertex(c[7], up, color), new Vertex(c[4], up, color)));
+
+            //bottom (-z)
+            Vector3 dn = new Vector3(0, 0, -1);
+            tt.Add(new Triangle(new Vertex(c[0], dn, color), new Vertex(c[3], dn, color), new Vertex(c[2], dn, color)));
+            tt.Add(new Triangle(new Vertex(c[2], dn, color), new Vertex(c[1], dn, color), new Vertex(c[0], dn, color)));
+
+            //front (+y)
+            Vector3 fw = new Vector3(0, 1, 0);
+            tt.Add(new Triangle(new Vertex(c[0], fw, color), new Vertex(c[1], fw, color), new Vertex(c[5], fw, color)));
+            tt.Add(new Triangle(new Vertex(c[5], fw, color), new Vertex(c[4], fw, color), new Vertex(c[0], fw, color)));
+
+            //back (-y)
+            Vector3 bk = new Vector3(0, -1, 0);
+            tt.Add(new Triangle(new Vertex(c[3], bk, color), new Vertex(c[7], bk, color), new Vertex(c[6], bk, color)));
+            tt.Add(new Triangle(new Vertex(c[6], bk, color), new Vertex(c[2], bk, color), new Vertex(c[3], bk, color)));
+
+            //right (+x)
+            Vector3 rt = new Vector3(1, 0, 0);
+            tt.Add(new Triangle(new Vertex(c[1], rt, color), new Vertex(c[2], rt, color), new Vertex(c[6], rt, color)));
+            tt.Add(new Triangle(new Vertex(c[6], rt, color), new Vertex(c[5], rt, color), new Vertex(c[1], rt, color)));
+
+            //left (-x)
+            Vector3 lf = new Vector3(-1, 0, 0);
+            tt.Add(new Triangle(new Vertex(c[0], lf, color), new Vertex(c[4], lf, color), new Vertex(c[7], lf, color)));
+            tt.Add(new Triangle(new Vertex(c[7], lf, color), new Vertex(c[3], lf, color), new Vertex(c[0], lf, color)));
+
+            return new Mesh(tt, hasNormals: true, hasColors: color.HasValue);
+        }
+
+        public static Matrix StretchCubeAlongLineSegment(Vector3 a, Vector3 b, double size = 1)
+        {
+            Vector3 c = 0.5 * (a + b);
+            Vector3 d = (1 / size) * (b - a);
+            Vector3 dn = Vector3.Normalize(d);
+            Vector3 h = Vector3.Cross(dn, Vector3.UnitX);
+            if (h.LengthSquared() < 0.001)
+            {
+                h = Vector3.Cross(dn, Vector3.UnitY);
+            }
+            h = Vector3.Normalize(h);
+            Vector3 v = Vector3.Cross(dn, h);
+            return new Matrix(h.X, h.Y, h.Z, 0,
+                              v.X, v.Y, v.Z, 0,
+                              d.X, d.Y, d.Z, 0,
+                              c.X, c.Y, c.Z, 1);
+        }
+
+        public static BoundingBox MakeCube(double size = 1)
+        {
+            double h = 0.5 * size;
+            return new BoundingBox(new Vector3(-h, -h, -h), new Vector3(h, h, h));
+        }
     }
 }

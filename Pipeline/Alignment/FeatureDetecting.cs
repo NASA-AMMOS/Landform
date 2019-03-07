@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Microsoft.Xna.Framework;
 using Emgu.CV;
 using Emgu.CV.Util;
 using Emgu.CV.CvEnum;
@@ -198,6 +199,27 @@ namespace OPS.Pipeline
                          FontFace.HersheySimplex, 1, new Bgr(255, 0, 255), 2);
             }
             return ret.ToOPSImage();
+        }
+
+        public static int AddRange(IEnumerable<ImageFeature> features, Image img, Image points)
+        {
+            //can't check range origin here because img is not actually a range image
+            //so it does not  have the necessary PDS header data for that
+            var c = Meshing.CheckCameraCenter(img, "AddRange", checkRangeOrigin: false);
+            var xyr = Meshing.ConvertPoints(points);
+            int n = 0;
+            foreach (var feature in features)
+            {
+                int row = (int)feature.Location.Y;
+                int col = (int)feature.Location.X;
+                if (!xyr.IsInvalid(row, col))
+                {
+                    var p = new Vector3(xyr[0, row, col], xyr[1, row, col], xyr[2, row, col]);
+                    feature.Range = Vector3.Distance(p, c);
+                    n++;
+                }
+            }
+            return n;
         }
     }
 }

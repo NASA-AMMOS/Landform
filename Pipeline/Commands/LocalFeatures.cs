@@ -31,6 +31,9 @@ namespace OPS.Pipeline
         [Option(HelpText = "Recreate features that already exist", Default = false)]
         public bool RedoFeatures { get; set; }
 
+        [Option(HelpText = "Don't try to add range data to features", Default = false)]
+        public bool NoRange { get; set; }
+
         [Option(HelpText = "Write feature images for debugging", Default = false)]
         public bool WriteFeatureImages { get; set; }
 
@@ -104,6 +107,8 @@ namespace OPS.Pipeline
 
             var imageType = ObservationType.Image.ToString();
             var maskType = ObservationType.RoverMask.ToString();
+            var pointsType = ObservationType.Points.ToString();
+
             var obsForFrame = new Dictionary<string, List<Observation>>();
             foreach (var obs in observationCache.GetAllObservations())
             {
@@ -122,7 +127,7 @@ namespace OPS.Pipeline
 
             var histogram = new ConcurrentDictionary<int, int>();
             double startSec = UTCTime.Now();
-            int nc = 0, ne = 0, nf = 0, np = 0;
+            int nc = 0, ne = 0, nf = 0, np = 0, wr = 0, tf = 0, trf = 0;
             CoreLimitedParallel.ForEach(obsForFrame.Values, obsGroup => { 
 
                     var observations = obsGroup
@@ -181,6 +186,18 @@ namespace OPS.Pipeline
                         var result = detector.Detect(imageObs.Url, maskUrl, project.Name, project.ProductPath);
                         if (result != null)
                         {
+                            Interlocked.Add(ref tf, result.Features.Length);
+                            var pointsObs =
+                                observations.Find(obs => obs.ObservationType == pointsType &&
+                                                  obs.Width == imageObs.Width && obs.Height == imageObs.Height);
+                            if (!options.NoRange && pointsObs != null)
+                            {
+                                Interlocked.Increment(ref wr);
+                                int rf = FeatureDetecting.AddRange(result.Features,
+                                                                   pipeline.LoadImage(imageObs.Url),
+                                                                   pipeline.LoadImage(pointsObs.Url));
+                                Interlocked.Add(ref trf, rf);
+                            }
                             pipeline.SaveDataProduct(project.ProductPath, result, project.Name);
                             imageObs.FeaturesGuid = result.Guid;
                             imageObs.Save(pipeline);
@@ -203,8 +220,9 @@ namespace OPS.Pipeline
                 pipeline.LogInfo("{0} images with {1} to {2} features", histogram[bucket],
                                  bucket * options.HistogramBucketSize, (bucket + 1) * options.HistogramBucketSize - 1);
             }
-            pipeline.LogInfo("processed {0} reconstruction images ({1:F3}s), computed features for {2} images " +
-                             "({3} existing)", nc, totalSec, nf, ne);
+            pipeline.LogInfo("processed {0} reconstruction images ({1:F3}s), computed features for {2} images, " +
+                             "{3} with range, {4} existing", nc, totalSec, nf, wr, ne);
+            pipeline.LogInfo("total {0} features, {1} with range", tf, trf);
             
             return 0;
         }
