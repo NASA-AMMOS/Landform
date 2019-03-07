@@ -12,16 +12,16 @@
 ./Landform/bin/Release/Landform.exe local-observation-products sols588to590 --writeallthethings --outputframe=root
 ```
 
-Download sols 588 - 590 but process sol 588 only:
+Download sols 588 - 590 but process sol 589 only:
 ```
 ./Pipeline/Rover/fetch-msl.sh c:/Users/$USERNAME/Downloads locations 00588 00589 00590
 ./Landform/bin/Release/Landform.exe configure-local --venue=local --storagedir=c:/Users/$USERNAME/Documents/landform-storage --maxcores=0
-./Landform/bin/Release/Landform.exe local-ingest sols588 --inputpath=c:/Users/$USERNAME/Downloads/msl/redops/ods/surface/sol/00588/** --locationsxml=c:/Users/$USERNAME/Downloads/msl/locations.xml
-./Landform/bin/Release/Landform.exe local-features sol588 --writefeatureimages
-./Landform/bin/Release/Landform.exe local-matching sol588 --writematchimages --writematchmeshes
-./Landform/bin/Release/Landform.exe local-bundle-adjust sol588 --writedebug
-./Landform/bin/Release/Landform.exe local-observation-products sol588 --writeallthethings --outputframe=root --usepriors
-./Landform/bin/Release/Landform.exe local-observation-products sol588 --writeallthethings --outputframe=root
+./Landform/bin/Release/Landform.exe local-ingest sol589 --inputpath=c:/Users/$USERNAME/Downloads/msl/redops/ods/surface/sol/00589/** --locationsxml=c:/Users/$USERNAME/Downloads/msl/locations.xml
+./Landform/bin/Release/Landform.exe local-features sol589 --writefeatureimages
+./Landform/bin/Release/Landform.exe local-matching sol589 --writematchimages --writematchmeshes
+./Landform/bin/Release/Landform.exe local-bundle-adjust sol589 --writedebug
+./Landform/bin/Release/Landform.exe local-observation-products sol589 --writeallthethings --outputframe=root --usepriors
+./Landform/bin/Release/Landform.exe local-observation-products sol589 --writeallthethings --outputframe=root
 ```
 
 The default is to only detect feature matches and bundle adjust across site drives.  
