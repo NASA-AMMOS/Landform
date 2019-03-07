@@ -57,6 +57,9 @@ namespace OPS.Pipeline
         [Option(HelpText = "Hide progress", Default = false)]
         public bool NoProgress { get; set; }
 
+        [Option(HelpText = "Disable saving results to database", Default = false)]
+        public bool NoSave { get; set; }
+
         [Option(HelpText = "Operate on cloud data", Default = false)]
         public bool Cloud { get; set; }
     }
@@ -178,8 +181,11 @@ namespace OPS.Pipeline
                 if (result != null)
                 {
                     Interlocked.Increment(ref nr);
-                    pipeline.SaveDataProduct(project.ProductPath, result, project.Name);
-                    guid = result.Guid;
+                    if (!options.NoSave)
+                    {
+                        pipeline.SaveDataProduct(project.ProductPath, result, project.Name);
+                        guid = result.Guid;
+                    }
                     AddToHistogram(result, histogram);
                 }
                 else
@@ -187,7 +193,7 @@ namespace OPS.Pipeline
                     rejectionTallies.AddOrUpdate(rejectionReason, _ => 1, (_, count) => count + 1);
                 }
 
-                if (ImageMatching.SaveOverlap(pipeline, project.Name, guid, modelObs.Name, dataObs.Name))
+                if (!options.NoSave && ImageMatching.SaveOverlap(pipeline, project.Name, guid, modelObs.Name, dataObs.Name))
                 {
                     Interlocked.Increment(ref ns);
                 }

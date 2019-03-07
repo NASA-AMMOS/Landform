@@ -52,6 +52,9 @@ namespace OPS.Pipeline
         [Option(HelpText = "Hide progress", Default = false)]
         public bool NoProgress { get; set; }
 
+        [Option(HelpText = "Disable saving results to database", Default = false)]
+        public bool NoSave { get; set; }
+
         [Option(HelpText = "Operate on cloud data", Default = false)]
         public bool Cloud { get; set; }
     }
@@ -198,9 +201,12 @@ namespace OPS.Pipeline
                                                                    pipeline.LoadImage(pointsObs.Url));
                                 Interlocked.Add(ref trf, rf);
                             }
-                            pipeline.SaveDataProduct(project.ProductPath, result, project.Name);
                             imageObs.FeaturesGuid = result.Guid;
-                            imageObs.Save(pipeline);
+                            if (!options.NoSave)
+                            {
+                                pipeline.SaveDataProduct(project.ProductPath, result, project.Name);
+                                imageObs.Save(pipeline);
+                            }
                             AddToHistogram(result, histogram);
                         }
                         
