@@ -86,7 +86,7 @@ namespace OPS.Imaging
         /// Saves image to disk using gdal and convert from normalzied values to value range
         /// </summary>
         /// <param name="filename"></param>
-        public void Save<T>(string filename)
+        public Image Save<T>(string filename)
         {
             string ext = Path.GetExtension(filename);
             ImageSerializer s = ImageSerializers.Instance.GetSerializer(ext);
@@ -95,6 +95,7 @@ namespace OPS.Imaging
                 throw new ImageSerializationException("Image format not supported");
             }
             s.Write<T>(filename, this);
+            return this;
         }
 
         /// <summary>
@@ -103,7 +104,7 @@ namespace OPS.Imaging
         /// <param name="filename"></param>
         /// <param name="serializer"></param>
         /// <param name="converter"></param>
-        public void Save<T>(string filename, IImageConverter converter)
+        public Image Save<T>(string filename, IImageConverter converter)
         {
             string ext = Path.GetExtension(filename);
             ImageSerializer s = ImageSerializers.Instance.GetSerializer(ext);
@@ -112,6 +113,7 @@ namespace OPS.Imaging
                 throw new ImageSerializationException("Image format not supported");
             }
             s.Write<T>(filename, this, converter);
+            return this;
         }
 
         /// <summary>
@@ -120,15 +122,16 @@ namespace OPS.Imaging
         /// <param name="filename"></param>
         /// <param name="serializer"></param>
         /// <param name="converter"></param>
-        public void Save<T>(string filename, ImageSerializer serializer, IImageConverter converter)
+        public Image Save<T>(string filename, ImageSerializer serializer, IImageConverter converter)
         {
             serializer.Write<T>(filename, this, converter);
+            return this;
         }
 
         /// <summary>
-        /// Reflects an image vertically
+        /// Reflects an image vertically in place
         /// </summary>
-        public void FlipVertical()
+        public Image FlipVertical()
         {
             int swapRow = this.Height - 1;
             for (int r = 0; r < swapRow; r++, swapRow--)
@@ -143,17 +146,18 @@ namespace OPS.Imaging
                     }
                 }
             }
+            return this;
         }
 
         /// <summary>
-        /// Linearly scale values in this band
+        /// Linearly scale values in a band in place
         /// </summary>
         /// <param name="band">band to scale</param>
         /// <param name="beforeMin">any pixles currently at this value will be mapped to afterMin</param>
         /// <param name="beforeMax">any pixels currently at this value will be mapped to afterMax</param>
         /// <param name="afterMin">the new min value for this band</param>
         /// <param name="afterMax">the new max value for this band</param>
-        public void ScaleValues(int band, float beforeMin, float beforeMax, float afterMin, float afterMax)
+        public Image ScaleValues(int band, float beforeMin, float beforeMax, float afterMin, float afterMax)
         {
             if (beforeMax == beforeMin)
             {
@@ -167,10 +171,11 @@ namespace OPS.Imaging
                 float result = MathE.Clamp(afterMin + afterRange * amount, afterMin, afterMax);
                 return result;
             });
+            return this;
         }
 
         /// <summary>
-        /// Linearly scales values in the image from [beforeMin, beforeMax] to [afterMin, afterMax]
+        /// Linearly scales values in the image from [beforeMin, beforeMax] to [afterMin, afterMax] in place
         /// Scaling is applied uniformly to all bands of the image.
         /// Result values are clamped to afterMin and afterMax in the case that input values are outside
         /// beforeMin and beforeMax
@@ -182,23 +187,25 @@ namespace OPS.Imaging
         /// <param name="beforeMax">max value in original image</param>
         /// <param name="afterMin">min value in result image</param>
         /// <param name="afterMax">max value in result image</param>
-        public void ScaleValues(float beforeMin, float beforeMax, float afterMin, float afterMax)
+        public Image ScaleValues(float beforeMin, float beforeMax, float afterMin, float afterMax)
         {
             for (int b = 0; b < this.Bands; b++)
             {
                 ScaleValues(b, beforeMin, beforeMax, afterMin, afterMax);
             }
+            return this;
         }
 
         /// <summary>
-        /// Given an image with a mask, extend the image and the mask by border pixels
+        /// Given an image with a mask, extend the image and the mask by border pixels in place
         /// If border is negative (the default) continue inpainting until there are no
         /// masked pixels left.  Inpainted pixels are an average of their non-masked neighbors
         /// </summary>
         /// <param name="border"></param>
-        public void Inpaint(int border = -1)
+        public Image Inpaint(int border = -1)
         {
             Inpainter.Apply(this, border);
+            return this;
         }
 
         /// <summary>
@@ -211,13 +218,13 @@ namespace OPS.Imaging
         }
 
         /// <summary>
-        /// Stretch the color channles of an image based the standard deviation of its values
+        /// Stretch the color channles of an image based the standard deviation of its values in place
         /// The resulting image will have its values normalzied between 0 and 1
         /// NOTE that bands with no variance (ie all the same value) will not be scaled and could be outside the 0-1 range
         /// NOTE masked values are also not scaled and could remain outside the 0-1 range
         /// </summary>
         /// <param name="nStdev">Number of standard deviations from the mean to place the upper and lower values of the stretch</param>
-        public void ApplyStdDevStretch(double nStdev = 3)
+        public Image ApplyStdDevStretch(double nStdev = 3)
         {
             ImageStatistics stats = new ImageStatistics(this);
             for (int b = 0; b < this.Bands; b++)
@@ -238,6 +245,7 @@ namespace OPS.Imaging
                     ScaleValues(b, (float)min, (float)max, 0, 1);
                 }
             }
+            return this;
         }
 
         /// <summary>
@@ -269,12 +277,13 @@ namespace OPS.Imaging
         }
 
         /// <summary>
-        /// Simulate a guassian blur with a series of box blurs
+        /// Simulate a guassian blur with a series of box blurs in place
         /// </summary>
         /// <param name="r"></param>
-        public void GuassianBoxBlur(int r)
+        public Image GuassianBoxBlur(int r)
         {
             Blur.GuassianBoxBlur(this, r);
+            return this;
         }
 
         public float BilinearSample(int band, float row, float col)
