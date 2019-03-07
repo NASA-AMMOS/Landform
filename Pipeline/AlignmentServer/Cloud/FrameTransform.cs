@@ -79,7 +79,7 @@ namespace OPS.Pipeline.AlignmentServer
         /// <summary>
         /// Creates a new transform specifying the relationship between two frames
         /// </summary>
-        protected FrameTransform(Frame frame, TransformSource source, UncertainRigidTransform transform)
+        public FrameTransform(Frame frame, TransformSource source, UncertainRigidTransform transform)
         {
             this.ProjectName = frame.ProjectName;
             this.Name = MakeName(frame.Name, source);

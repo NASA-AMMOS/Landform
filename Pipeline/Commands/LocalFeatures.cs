@@ -155,7 +155,7 @@ namespace OPS.Pipeline
                                                                                   imageObs.FeaturesGuid, project.Name);
                                     if (options.WriteFeatureImages)
                                     {
-                                        WriteFeatureImage(product, maskUrl, imageObs.Name);
+                                        WriteFeatureImage(product, maskUrl, imageObs);
                                     }
                                     if (options.TallyExisting)
                                     {
@@ -206,7 +206,7 @@ namespace OPS.Pipeline
                         
                         if (options.WriteFeatureImages)
                         {
-                            WriteFeatureImage(result, maskUrl, imageObs.Name);
+                            WriteFeatureImage(result, maskUrl, imageObs);
                         }
 
                         Interlocked.Decrement(ref np);
@@ -233,14 +233,16 @@ namespace OPS.Pipeline
             histogram.AddOrUpdate(bucket, _ => 1, (_, count) => count + 1);
         }
 
-        private void WriteFeatureImage(DetectedFeatures product, string maskUrl, string observationName)
+        private void WriteFeatureImage(DetectedFeatures product, string maskUrl, Observation imageObs)
         {
-            var img = new Image(pipeline.LoadImage(product.ImageUrl)); //don't mutate original image
-            var mask = FeatureDetecting.MakeMask(pipeline, maskUrl, img, observationName);
+            //avoid using product.ImageUrl here for legacy compat reasons
+            //fortunately we can use imageObs.Url instead
+            var img = new Image(pipeline.LoadImage(imageObs.Url)); //don't mutate original image
+            var mask = FeatureDetecting.MakeMask(pipeline, maskUrl, img, imageObs.Name);
             img = FeatureDetecting.DrawFeatures(img, mask, product.Features,
-                                                StringHelper.GetLastUrlPathSegment(product.ImageUrl));
+                                                StringHelper.GetLastUrlPathSegment(imageObs.Url));
             PathHelper.EnsureExists(imageDir);
-            img.Save<byte>(string.Format("{0}{1}-Features{2}", imageDir, observationName, imageExt));
+            img.Save<byte>(string.Format("{0}{1}-Features{2}", imageDir, imageObs.Name, imageExt));
         }
     }
 }

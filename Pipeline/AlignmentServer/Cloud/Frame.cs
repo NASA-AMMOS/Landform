@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using Newtonsoft.Json;
 using Amazon.DynamoDBv2.DataModel;
 using OPS.Cloud;
+using OPS.Geometry;
 
 namespace OPS.Pipeline.AlignmentServer
 {
@@ -30,6 +31,12 @@ namespace OPS.Pipeline.AlignmentServer
         public List<TransformSource> Transforms;
 
         public List<string> ObservationNames;
+
+        //DEPRECATED - for legacy compat only
+        public string FrameName;
+
+        //DEPRECATED - for legacy compat only
+        public List<string> PriorIds;
 
         //This constructor must be public for DynamoDB but should not be used
         public Frame()
@@ -153,56 +160,74 @@ namespace OPS.Pipeline.AlignmentServer
 
         private static Dictionary<string, List<FrameTransform>> compatTransformCache = null;
         private static ObservationCache compatObservationCache = null;
+        private static object compatLock = new Object();
         private static Frame Compat(PipelineCore pipeline, Frame frame)
         {
-            if (pipeline.LegacyCompat && frame.Transforms.Count == 0)
+            if (pipeline.LegacyCompat)
             {
-                if (compatTransformCache == null)
+                lock (compatLock)
                 {
-                    pipeline.LogInfo("populating legacy compat transform cache...");
-                    compatTransformCache = new Dictionary<string, List<FrameTransform>>();
-
-                    foreach (var ft in pipeline.ScanDatabase<FrameTransform>())
+                    if (string.IsNullOrEmpty(frame.Name))
                     {
-                        if (!compatTransformCache.ContainsKey(ft.FrameName))
+                        frame.Name = frame.FrameName;
+                    }
+                    
+                    if (frame.Transforms.Count == 0)
+                    {
+                        if (compatTransformCache == null)
                         {
-                            compatTransformCache[ft.FrameName] = new List<FrameTransform>();
+                            pipeline.LogInfo("populating legacy compat transform cache...");
+                            compatTransformCache = new Dictionary<string, List<FrameTransform>>();
+                            
+                            foreach (var ft in pipeline.ScanDatabase<FrameTransform>())
+                            {
+                                if (!compatTransformCache.ContainsKey(ft.FrameName))
+                                {
+                                    compatTransformCache[ft.FrameName] = new List<FrameTransform>();
+                                }
+                                ft.Source = TransformSource.Adjusted; //this should be the default anyway
+                                compatTransformCache[ft.FrameName].Add(ft);
+                            }
+                            
+                            foreach (var ft in pipeline.ScanDatabase<FrameTransform>(null, tableName: "FrameTransformPriors"))
+                            {
+                                if (!compatTransformCache.ContainsKey(ft.FrameName))
+                                {
+                                    compatTransformCache[ft.FrameName] = new List<FrameTransform>();
+                                }
+                                ft.Source = TransformSource.Prior;
+                                compatTransformCache[ft.FrameName].Add(ft);
+                            }
                         }
-                        ft.Source = TransformSource.Adjusted; //this should be the default anyway
-                        compatTransformCache[ft.FrameName].Add(ft);
-                    }
-
-                    foreach (var ft in pipeline.ScanDatabase<FrameTransform>("FrameTransformPriors"))
-                    {
-                        if (!compatTransformCache.ContainsKey(ft.FrameName))
+                        var transformsForFrame = compatTransformCache[frame.Name];
+                        if (transformsForFrame != null)
                         {
-                            compatTransformCache[ft.FrameName] = new List<FrameTransform>();
+                            foreach (var transform in transformsForFrame)
+                            {
+                                frame.AddTransform(transform);
+                            }
                         }
-                        ft.Source = TransformSource.Prior;
-                        compatTransformCache[ft.FrameName].Add(ft);
+                        if (string.IsNullOrEmpty(frame.ParentName))
+                        {
+                            //root frame doesn't have a prior in the legacy database, but it's just identity
+                            frame.AddTransform(new FrameTransform(frame, TransformSource.Prior,
+                                                                  new UncertainRigidTransform()));
+                        }
                     }
-                }
-                var transformsForFrame = compatTransformCache[frame.Name];
-                if (transformsForFrame != null)
-                {
-                    foreach (var transform in transformsForFrame)
+                    
+                    if (frame.ObservationNames.Count == 0)
                     {
-                        frame.AddTransform(transform);
+                        if (compatObservationCache == null)
+                        {
+                            pipeline.LogInfo("populating legacy compat observation cache...");
+                            compatObservationCache = new ObservationCache(pipeline, frame.ProjectName);
+                            compatObservationCache.Preload();
+                        }
+                        foreach (var obs in compatObservationCache.GetAllObservationsForFrame(frame))
+                        {
+                            frame.AddObservation(obs);
+                        }
                     }
-                }
-            }
-
-            if (pipeline.LegacyCompat && frame.ObservationNames.Count == 0)
-            {
-                if (compatObservationCache == null)
-                {
-                    pipeline.LogInfo("populating legacy compat observation cache...");
-                    compatObservationCache = new ObservationCache(pipeline, frame.ProjectName);
-                    compatObservationCache.Preload();
-                }
-                foreach (var obs in compatObservationCache.GetAllObservationsForFrame(frame))
-                {
-                    frame.AddObservation(obs);
                 }
             }
 

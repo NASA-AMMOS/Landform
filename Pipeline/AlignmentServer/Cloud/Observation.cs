@@ -49,6 +49,12 @@ namespace OPS.Pipeline.AlignmentServer
 
         public int Height;
 
+        //DEPRECATED - for legacy compat only
+        public string MaskGuid;
+
+        //DEPRECATED - for legacy compat only
+        public string FeatureUrl;
+
         /// Add required fields here 
         protected void IsValid()
         {

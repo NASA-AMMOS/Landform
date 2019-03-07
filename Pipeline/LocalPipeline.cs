@@ -478,7 +478,7 @@ namespace OPS.Pipeline
             }
         }
 
-        public override IEnumerable<T> ScanDatabase<T>(Dictionary<string, string> conditions = null,
+        public override IEnumerable<T> ScanDatabase<T>(Dictionary<string, string> conditions,
                                                        string indexName = null, bool quiet = false,
                                                        string tableName = null)
         {

@@ -64,11 +64,16 @@ namespace OPS.Pipeline
                 {
                     pfx += "-";
                 }
-                pfx = Venue + "-" + pfx;
+
+                //legacy: landform-lkg-vona-quarthProjects
+                //new: landform-lkg-vona-quarth-Projects
+                pfx = Venue + (LegacyCompat ? "" : "-") + pfx;
+
                 if (!pfx.ToLower().StartsWith("landform-"))
                 {
                     pfx = "landform-" + pfx;
                 }
+
                 return pfx;
             };
 
@@ -90,6 +95,10 @@ namespace OPS.Pipeline
 
             if (initQueues)
             {
+                if (LegacyCompat)
+                {
+                    throw new NotImplementedException("legacy compat SQS messaging not implemented");
+                }
                 this.queuePrefix = makePrefix(queuePrefix);
                 InitializeQueues(quiet || quietInit);
             }
@@ -279,7 +288,7 @@ namespace OPS.Pipeline
             return ScanOperator.Equal;
         }
 
-        public override IEnumerable<T> ScanDatabase<T>(Dictionary<string, string> conditions = null,
+        public override IEnumerable<T> ScanDatabase<T>(Dictionary<string, string> conditions,
                                                        string indexName = null, bool quiet = false,
                                                        string tableName = null)
         {

@@ -364,7 +364,7 @@ namespace OPS.Pipeline
         /// <summary>
         /// table name is usually inferred from an annotation on type T  
         /// </summary>
-        public abstract IEnumerable<T> ScanDatabase<T>(Dictionary<string, string> conditions = null,
+        public abstract IEnumerable<T> ScanDatabase<T>(Dictionary<string, string> conditions,
                                                        string indexName = null, bool quiet = false,
                                                        string tableName = null);
 
