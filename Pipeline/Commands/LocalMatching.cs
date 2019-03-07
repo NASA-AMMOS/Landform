@@ -36,7 +36,7 @@ namespace OPS.Pipeline
         [Option(HelpText = "Write match images for debugging", Default = false)]
         public bool WriteMatchImages { get; set; }
 
-        [Option(HelpText = "Write match meshes (in root frame using transform priors) for debugging", Default = true)]
+        [Option(HelpText = "Write match meshes (in root frame using transform priors) for debugging", Default = false)]
         public bool WriteMatchMeshes { get; set; }
 
         [Option(HelpText = "Output directory for debug products, or omit to save to project storage", Default = null)]
