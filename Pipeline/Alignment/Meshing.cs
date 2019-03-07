@@ -28,6 +28,13 @@ namespace OPS.Pipeline
         public Observation Texture;
     }
 
+    public enum ReconstructionMethod
+    {
+        Organized,
+        Poisson,
+        FSSR
+    }
+
     public class Meshing
     {
         /// <summary>
@@ -487,6 +494,7 @@ namespace OPS.Pipeline
             }
         }
 
+        /// <summary>
         /// add texture coordinates to a mesh by projecting vertices onto an image
         /// also optionally removes any vertices of the mesh that aren't visible in the image
         /// the passed mesh is mutated in place
@@ -568,7 +576,7 @@ namespace OPS.Pipeline
         /// build a mesh from the given points and optional normals and mask images
         /// </summary>
         public static Mesh BuildOrganizedMesh(Image points, Image normals = null, Image mask = null,
-                                              double maxTriangleAspect = 10)
+                                              double maxTriangleAspect = 20, double isolatedPointSize =  0)
         {
             if (maxTriangleAspect < 1)
             {
@@ -647,18 +655,101 @@ namespace OPS.Pipeline
                 }
             }
 
+            if (isolatedPointSize > 0)
+            {
+                List<Mesh> cubes = new List<Mesh>();
+                for (int row = 0; row < points.Height; row++)
+                {
+                    for (int col = 0; col < points.Width; col++)
+                    {
+                        if (!points.IsInvalid(row, col) && !pixelToVert.ContainsKey(new Tuple<int, int>(row, col)))
+                        {
+                            var cube = BoundingBoxExtensions.MakeCube(isolatedPointSize).ToMesh();
+                            cube.Transform(Matrix.CreateTranslation(points[0, row, col],
+                                                                    points[1, row, col],
+                                                                    points[2, row, col]));
+                            var uv = new Vector2(((double)row)/points.Width, ((double)col)/points.Height);
+                            foreach (var vert in cube.Vertices)
+                            {
+                                vert.UV = uv;
+                            }
+                            cubes.Add(cube);
+                        }
+                    }
+                }
+                ret.MergeWith(cubes.ToArray());
+            }
+
             return ret;
+        }
+
+        public static Mesh BuildPoissonMesh(Image points, Image normals, Image mask = null,
+                                            bool normalsAreScaledByConfidence = false)
+        {
+            if (normals == null)
+            {
+                throw new ArgumentException("Poission reconstruction requires normals");
+            }
+            var opts = new PoissonReconstruction.Options
+            {
+                Boundary = PoissonReconstruction.BoundaryTypes.Neumann,
+                MinOctreeCellWidthMeters = 0.05f,
+                MinOctreeSamplesPerCell = 15,
+                BSplineDegree = 1,
+                UseNormalsForConfidence = normalsAreScaledByConfidence
+            };
+            return PoissonReconstruction.Reconstruct(BuildPointCloud(points, normals, mask), opts);
+        }
+
+        public static Mesh BuildFSSRMesh(Image points, Image normals, Image mask = null)
+        {
+            if (normals == null)
+            {
+                throw new ArgumentException("FSSR reconstruction requires normals");
+            }
+            return FSSR.Reconstruct(BuildPointCloud(points, normals, mask));            
         }
 
         public static Mesh BuildOrganizedMesh(PipelineCore pipeline, MeshObservations obs, FrameCache frameCache,
                                               string frame = "root", bool usePriors = false, int decimateBlocksize = 1,
-                                              bool scaleNormalsByConfidence = false, double maxTriangleAspect = 10,
-                                              bool withUVs = false)
+                                              bool scaleNormalsByConfidence = false, double maxTriangleAspect = 20,
+                                              double isolatedPointSize = 0, bool withUVs = false)
         {
             Image points, normals, mask;
             LoadOrGenerateMeshImages(pipeline, obs, decimateBlocksize, scaleNormalsByConfidence,
                                      out points, out normals, out mask);
-            var ret = BuildOrganizedMesh(points, normals, mask, maxTriangleAspect);
+            var ret = BuildOrganizedMesh(points, normals, mask, maxTriangleAspect, isolatedPointSize);
+            if (withUVs && obs.Texture != null)
+            {
+                AddUVs(ret, pipeline.LoadImage(obs.Texture.Url));
+            }
+            ret.Transform(GetTransform(obs.Points.FrameName, frame, frameCache, usePriors).Mean);
+            return ret;
+        }
+
+        public static Mesh BuildPoissonMesh(PipelineCore pipeline, MeshObservations obs, FrameCache frameCache,
+                                            string frame = "root", bool usePriors = false, int decimateBlocksize = 1,
+                                            bool scaleNormalsByConfidence = false, bool withUVs = false)
+        {
+            Image points, normals, mask;
+            LoadOrGenerateMeshImages(pipeline, obs, decimateBlocksize, scaleNormalsByConfidence,
+                                     out points, out normals, out mask);
+            var ret = BuildPoissonMesh(points, normals, mask, scaleNormalsByConfidence);
+            if (withUVs && obs.Texture != null)
+            {
+                AddUVs(ret, pipeline.LoadImage(obs.Texture.Url));
+            }
+            ret.Transform(GetTransform(obs.Points.FrameName, frame, frameCache, usePriors).Mean);
+            return ret;
+        }
+
+        public static Mesh BuildFSSRMesh(PipelineCore pipeline, MeshObservations obs, FrameCache frameCache,
+                                         string frame = "root", bool usePriors = false, int decimateBlocksize = 1,
+                                         bool withUVs = false)
+        {
+            Image points, normals, mask;
+            LoadOrGenerateMeshImages(pipeline, obs, decimateBlocksize, false, out points, out normals, out mask);
+            var ret = BuildFSSRMesh(points, normals, mask);
             if (withUVs && obs.Texture != null)
             {
                 AddUVs(ret, pipeline.LoadImage(obs.Texture.Url));

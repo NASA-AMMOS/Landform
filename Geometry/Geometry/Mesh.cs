@@ -891,6 +891,10 @@ namespace OPS.Geometry
         /// <param name="otherMeshes"></param>
         public void MergeWith(Mesh[] otherMeshes, bool normalize)
         {
+            int numNewVerts = otherMeshes.Aggregate(0, (sum, mesh) => sum + mesh.Vertices.Count);
+            int numNewFaces = otherMeshes.Aggregate(0, (sum, mesh) => sum + mesh.Faces.Count);
+            Vertices.Capacity = Math.Min(Vertices.Capacity, Vertices.Count + numNewVerts);
+            Faces.Capacity = Math.Min(Faces.Capacity, Faces.Count + numNewFaces);
             for (int i = 0; i < otherMeshes.Length; i++)
             {
                 Mesh m = otherMeshes[i];

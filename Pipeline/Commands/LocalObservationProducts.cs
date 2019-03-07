@@ -50,6 +50,9 @@ namespace OPS.Pipeline
         [Option(HelpText = "Create point clouds instead of triangle meshes", Default = false)]
         public bool PointCloud { get; set; }
 
+        [Option(HelpText = "Triangle mesh reconstruction method (Organized, Poisson, or FSSR)", Default = ReconstructionMethod.Organized)]
+        public ReconstructionMethod ReconstructionMethod { get; set; }
+
         [Option(HelpText = "Allowed sources for adjusted transforms, comma separated, all if empty (Adjusted,Manual,Landform,Agisoft)", Default = null)]
         public string AdjustedTransformSources { get; set; }
 
@@ -65,8 +68,11 @@ namespace OPS.Pipeline
         [Option(HelpText = "Image decimation blocksize", Default = 2)]
         public int DecimateImages { get; set; }
 
-        [Option(HelpText = "Max triangle aspect ratio", Default = 10)]
+        [Option(HelpText = "Max triangle aspect ratio for organized mesh reconstruction", Default = 20)]
         public double MaxTriangleAspect { get; set; }
+
+        [Option(HelpText = "Isolated point size for organized mesh reconstruction ", Default = 0)]
+        public double IsolatedPointSize { get; set; }
 
         [Option(HelpText = "Scale normals by confidence", Default = false)]
         public bool ScaleNormalsByConfidence { get; set; }
@@ -256,12 +262,46 @@ namespace OPS.Pipeline
                                          what, np, nc, no);
                     }
 
-                    var mesh = options.PointCloud ?
-                    Meshing.BuildPointCloud(pipeline, obs, frameCache, outputFrame, options.UsePriors,
-                                            options.DecimateMeshes, options.ScaleNormalsByConfidence) :
-                    Meshing.BuildOrganizedMesh(pipeline, obs, frameCache, outputFrame, options.UsePriors,
-                                               options.DecimateMeshes, options.ScaleNormalsByConfidence,
-                                               options.MaxTriangleAspect, !options.NoImages);
+                    Mesh mesh = null;
+                    if (options.PointCloud)
+                    {
+                        mesh = Meshing.BuildPointCloud(pipeline, obs, frameCache, outputFrame, options.UsePriors,
+                                                       options.DecimateMeshes, options.ScaleNormalsByConfidence);
+                    }
+                    else
+                    {
+                        switch (options.ReconstructionMethod)
+                        {
+                            case ReconstructionMethod.Organized:
+                            {
+                                mesh = Meshing.BuildOrganizedMesh(pipeline, obs, frameCache, outputFrame,
+                                                                  options.UsePriors, options.DecimateMeshes,
+                                                                  options.ScaleNormalsByConfidence,
+                                                                  options.MaxTriangleAspect, options.IsolatedPointSize,
+                                                                  !options.NoImages);
+                                break;
+                            }
+                            case ReconstructionMethod.Poisson:
+                            {
+                                mesh = Meshing.BuildPoissonMesh(pipeline, obs, frameCache, outputFrame,
+                                                                options.UsePriors, options.DecimateMeshes,
+                                                                options.ScaleNormalsByConfidence, !options.NoImages);
+                                break;
+                            }
+                            case ReconstructionMethod.FSSR:
+                            {
+                                mesh = Meshing.BuildFSSRMesh(pipeline, obs, frameCache, outputFrame,
+                                                             options.UsePriors, options.DecimateMeshes,
+                                                             !options.NoImages);
+                                break;
+                            }
+                        }
+                        if (!mesh.HasFaces)
+                        {
+                            pipeline.LogWarn("{0} reconstruction failed on observation {1}",
+                                             options.ReconstructionMethod, obs.Points.Name);
+                        }
+                    }
 
                     //we're running for multiple site drives in parallel so don't mutate outputPath
                     string tmpPath = outputPath;
@@ -272,7 +312,7 @@ namespace OPS.Pipeline
 
                     string obsName = obs.Points.Name;
                     string imageFilename = null;
-                    if (!options.NoImages && obs.Texture != null && mesh.HasUVs)
+                    if (!options.NoImages && obs.Texture != null && mesh != null && mesh.HasUVs)
                     {
                         imageFilename = obsName + imageExt;
                         var img = pipeline.LoadImage(obs.Texture.Url);
@@ -284,7 +324,7 @@ namespace OPS.Pipeline
                         img.Save<byte>(tmpPath + imageFilename);
                     }
 
-                    if (!options.NoWedgeMeshes)
+                    if (!options.NoWedgeMeshes && mesh != null)
                     {
                         if  (mesh.Vertices.Count > 0)
                         {
