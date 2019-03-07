@@ -203,6 +203,8 @@ namespace OPS.Pipeline
 
         public static int AddRange(IEnumerable<ImageFeature> features, Image img, Image points)
         {
+            //can't check range origin here because img is not actually a range image
+            //so it does not  have the necessary PDS header data for that
             var c = Meshing.CheckCameraCenter(img, "AddRange", checkRangeOrigin: false);
             var xyr = Meshing.ConvertPoints(points);
             int n = 0;
