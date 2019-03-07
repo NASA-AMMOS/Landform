@@ -209,15 +209,14 @@ namespace OPS.Pipeline
             var lineColor = new MCvScalar(0, 0, 255); //RGB
             var pointColor = new MCvScalar(255, 255, 0); //RGB
             var ret = new Image<Bgr, byte>(modelImg.Width + dataImg.Width, Math.Max(modelImg.Height, dataImg.Height));
+            var modelImgEmgu = (new Image(modelImg)).ApplyStdDevStretch().ToEmguGrayscale();
+            var dataImgEmgu = (new Image(dataImg)).ApplyStdDevStretch().ToEmguGrayscale();
             //opencv sometimes throws exceptions here, so roll our own replacement
             //https://github.jpl.nasa.gov/OnSight/Landform/issues/439
-            //Features2DToolbox.DrawMatches(modelImg.ToEmguGrayscale(), modelKeypoints,
-            //                              dataImg.ToEmguGrayscale(), dataKeypoints,
-            //                              matches, ret, lineColor, pointColor, null,
+            //Features2DToolbox.DrawMatches(modelImgEmgu, modelKeypoints, dataImgEmgu, dataKeypoints, matches, ret,
+            //                              lineColor, pointColor, null,
             //                              Features2DToolbox.KeypointDrawType.DrawRichKeypoints);
-            DrawMatches(modelImg.ToEmguGrayscale(), modelKeypoints,
-                        dataImg.ToEmguGrayscale(), dataKeypoints,
-                        matches, ret, lineColor, pointColor,
+            DrawMatches(modelImgEmgu, modelKeypoints, dataImgEmgu, dataKeypoints, matches, ret, lineColor, pointColor,
                         Features2DToolbox.KeypointDrawType.DrawRichKeypoints);
             if (dataName != null)
             {

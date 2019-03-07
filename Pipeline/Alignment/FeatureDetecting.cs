@@ -162,30 +162,25 @@ namespace OPS.Pipeline
             return mask;
         }
 
-        public static Image CompositeMask(Image img, Image mask, float alpha = 0.1f)
-        {
-            Image ret = new Image(3, img.Width, img.Height);
-            for (int row = 0; row < img.Height; row++)
-            {
-                for (int col = 0; col < img.Width; col++)
-                {
-                    float gray = 0;
-                    for (int band = 0; band < img.Bands; band++)
-                    {
-                        gray += img[0, row, col];
-                    }
-                    gray /= img.Bands;
-                    ret[0, row, col] = gray;
-                    ret[1, row, col] = (1.0f - alpha) * gray + alpha * mask[0, row, col];
-                    ret[2, row, col] = gray;
-                }
-            }
-            return ret;
-        }
-
         public static Image DrawFeatures(Image img, Image mask, ImageFeature[] features, string imageName = null)
         {
-            var ret = CompositeMask(img, mask).ToEmgu<Bgr>();
+            var ret = (new Image(img)).ApplyStdDevStretch().ToEmgu<Bgr>();
+
+            //alpha blend mask into green channel
+            if (mask != null)
+            {
+                float alpha = 0.1f;
+                for (int row = 0; row < img.Height; row++)
+                {
+                    for (int col = 0; col < img.Width; col++)
+                    {
+                        float green = ret.Data[row, col, 1] / 255.0f;
+                        green = (1.0f - alpha) * green + alpha * mask[0, row, col];
+                        ret.Data[row, col, 1] = (byte)(green * 255);
+                    }
+                }
+            }
+
             var siftFeat = features.Cast<SIFTFeature>().ToArray();
             var noRange = new VectorOfKeyPoint(siftFeat.Where(f => !(f.Range > 0)).CastToMKeyPoint().ToArray());
             Features2DToolbox.DrawKeypoints(ret, noRange, ret, new Bgr(255, 0, 0), //actually RGB
