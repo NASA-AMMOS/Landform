@@ -197,6 +197,12 @@ namespace OPS.Pipeline
             {
                 ret.Draw(imageName, new System.Drawing.Point(5, 30),
                          FontFace.HersheySimplex, 1, new Bgr(255, 0, 255), 2);
+                if (img.Metadata is PDSMetadata)
+                {
+                    int sol = (new PDSParser((PDSMetadata)img.Metadata)).PlanetDayNumber;
+                    ret.Draw("sol" + sol, new System.Drawing.Point(5, 60),
+                             FontFace.HersheySimplex, 1, new Bgr(255, 0, 255), 2);
+                }
             }
             return ret.ToOPSImage();
         }

@@ -223,11 +223,23 @@ namespace OPS.Pipeline
             {
                 ret.Draw("data: " + dataName, new System.Drawing.Point(5, 30),
                          FontFace.HersheySimplex, 1, new Bgr(255, 0, 255), 2);
+                if (modelImg.Metadata is PDSMetadata)
+                {
+                    int sol = (new PDSParser((PDSMetadata)modelImg.Metadata)).PlanetDayNumber;
+                    ret.Draw("sol" + sol, new System.Drawing.Point(5, 60),
+                             FontFace.HersheySimplex, 1, new Bgr(255, 0, 255), 2);
+                }
             }
             if (modelName != null)
             {
                 ret.Draw("model: " + modelName, new System.Drawing.Point(dataImg.Width + 5, 30),
                          FontFace.HersheySimplex, 1, new Bgr(255, 0, 255), 2);
+                if (modelImg.Metadata is PDSMetadata)
+                {
+                    int sol = (new PDSParser((PDSMetadata)modelImg.Metadata)).PlanetDayNumber;
+                    ret.Draw("sol" + sol, new System.Drawing.Point(dataImg.Width + 5, 60),
+                             FontFace.HersheySimplex, 1, new Bgr(255, 0, 255), 2);
+                }
             }
             return ret.ToOPSImage();
         }
