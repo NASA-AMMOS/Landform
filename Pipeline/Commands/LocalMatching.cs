@@ -264,8 +264,9 @@ namespace OPS.Pipeline
             var ret = ImageMatching.MakeMatchMesh(modelCam, dataCam, modelFeat, dataFeat, modelToRoot, dataToRoot, d2m);
             if (ret.HasFaces)
             {
-                PathHelper.EnsureExists(dbgDir);
-                ret.Save(string.Format("{0}{1}-{2}-PriorMatches{3}", dbgDir, modelObs.Name, dataObs.Name, meshExt));
+                var dir = dbgDir + "meshes/";
+                PathHelper.EnsureExists(dir);
+                ret.Save(string.Format("{0}{1}-{2}-PriorMatches{3}", dir, modelObs.Name, dataObs.Name, meshExt));
             }
         }
     }
