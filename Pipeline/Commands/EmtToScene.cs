@@ -444,15 +444,10 @@ namespace OPS.Pipeline
                 }
                 var parser = new PDSParser(new PDSMetadata(localRecord.PreferedMetadataImage));
 
-                if (!m.HasNormals)
+                if (!m.HasNormals || options.ForceNormalComputation)
                 {
+                    logger.Info("Input mesh missing normals or force normal computation is set, generating normals");
                     m.GenerateVertexNormals();
-                }
-                // In the ROASTT, we saw some issues with normals and  dataset has some backwards normals
-                if (options.ForceNormalComputation)
-                {
-                    logger.Info("Forcing normal recomputation with meshlab");
-                    m = MeshLab.ComputeNormals(m);
                 }
                 if (decimationRatio.HasValue)
                 {
