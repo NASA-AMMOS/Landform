@@ -70,7 +70,7 @@ namespace OPS.Alignment
             }
         }
 
-        public void Adjust(AlignmentScene scene, int rounds = 2, string debugOutputDirectory = null)
+        public BundleAdjusterProblem Adjust(AlignmentScene scene, int rounds = 2)
         {
             // scene.Root is the world coordinate system
             // AdjustedNodes are present on all frames to adjust
@@ -324,6 +324,7 @@ namespace OPS.Alignment
 
             HashSet<int> badPoints = new HashSet<int>();
 
+            BundleAdjusterProblem result = null;
             for (int round = 0; round < rounds; round++)
             {
                 if (logger != null)
@@ -332,7 +333,6 @@ namespace OPS.Alignment
                 }
 
                 double startTime = UTCTime.Now();
-                BundleAdjusterProblem result = null;
                 TemporaryFile.GetAndDelete(".bin", inputFile =>
                 {
                     using (FileStream fs = new FileStream(inputFile, FileMode.Create))
@@ -374,18 +374,6 @@ namespace OPS.Alignment
                     node.Transform.Matrix = transform.Matrix;
                 }
                 problem.Points = result.Points;
-
-                if(debugOutputDirectory != null)
-                {
-                    logger.Info("Writing bundler debug data");
-                    Mesh m = new Mesh(capacity: result.Points.Count);
-                    for (int i = 0; i < result.Points.Count; i++)
-                    {
-                        m.Vertices.Add(new Vertex(result.Points[i].Position));
-                    }
-                    PathHelper.EnsureExists(debugOutputDirectory);
-                    m.Save(Path.Combine(debugOutputDirectory, "bundlecloud.ply"));
-                }
 
                 // Trim bad points
                 List<double> trackErrors = new List<double>(tracks.Count);
@@ -446,6 +434,8 @@ namespace OPS.Alignment
 
                 logger.Info("Completed trimming bad points from tracks");
             }
+
+            return result;
         }
     }
 }

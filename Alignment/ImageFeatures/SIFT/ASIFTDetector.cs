@@ -222,14 +222,7 @@ namespace OPS.Alignment
         {
             foreach (SIFTFeature feat in DetectSIFT(image, mask))
             {
-                yield return new SIFTFeature(
-                    feat.Location,
-                    feat.Size,
-                    feat.Angle,
-                    feat.Octave,
-                    feat.Response,
-                    feat.Descriptor
-                    );
+                yield return feat;
             }
 
             // formula for generating tilt/phi values from ASIFT paper

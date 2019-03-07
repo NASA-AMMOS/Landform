@@ -26,5 +26,10 @@ namespace OPS.Imaging
             new FITSSerializer().Register(this);
             new RGBSerializer().Register(this);
         }
+
+        public override string Kind()
+        {
+            return "image";
+        }
     }
 }

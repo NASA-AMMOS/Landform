@@ -29,8 +29,8 @@ namespace OPS.Pipeline.AlignmentServer
         [Option(HelpText = "Input path, ending /** for recursive, or .txt or .json array of paths", Default = null)]
         public string InputPath { get; set; }
 
-        [Option(HelpText = "Optional directory to save debug output files to", Default = null)]
-        public string DebugOutputFolder { get; set; }
+        [Option(HelpText = "Only ingest data for specific site drives, comma separated", Default = null)]
+        public string OnlyForSiteDrives { get; set; }
 
         [Option(HelpText = "Recreate project if it already exists", Default = false)]
         public bool RedoProject { get; set; }
@@ -40,9 +40,6 @@ namespace OPS.Pipeline.AlignmentServer
 
         [Option(HelpText = "Recreate transform priors that already exist", Default = false)]
         public bool RedoPriors { get; set; }
-
-        [Option(HelpText = "Recompute all masks (implies --RedoFeatures)", Default = false)]
-        public bool RedoMasks { get; set; }
 
         [Option(HelpText = "Recompute all image features", Default = false)]
         public bool RedoFeatures { get; set; }
@@ -71,19 +68,11 @@ namespace OPS.Pipeline.AlignmentServer
         [Option(HelpText = "Number of rounds of bundle adjustment", Default = 2)]
         public int BundleAdjustRounds { get; set; }
 
+        [Option(HelpText = "Optional directory to save bundle adjuster debug files to", Default = null)]
+        public string BundleAdjustDebugOutputFolder { get; set; }
+
         [Option(HelpText = "Start a worker in the same process (useful for debugging)", Default = false)]
         public bool StartWorker { get; set; }
-    }
-
-    public class ImageState
-    {
-        public Observation Observation;
-        public Guid MaskGuid = Guid.Empty;
-        public Guid FeaturesGuid = Guid.Empty;
-        public ImageState(Observation obs)
-        {
-            this.Observation = obs;
-        }
     }
 
     //https://github.jpl.nasa.gov/ProtoSpace/ps-pipeline/issues/159
@@ -98,9 +87,9 @@ namespace OPS.Pipeline.AlignmentServer
         private bool allDone = false;
         private Task workerTask = null;
         private TypeDispatcher dispatcher;
-        private Dictionary<string, ImageState> imageStates = new Dictionary<string, ImageState>(); //by image URL
-        private HashSet<string> pendingIngestions = new HashSet<string>(); //image URLs
+        private Dictionary<string, Observation> pendingFeatures = new Dictionary<string, Observation>(); //by image URL
         private HashSet<URLPair> pendingOverlaps = new HashSet<URLPair>();
+        private AlignmentScene matchScene;
 
         const int DEQUEUE_THROTTLE_MS = 50;
 
@@ -111,12 +100,8 @@ namespace OPS.Pipeline.AlignmentServer
 
         public AlignmentMaster(StartAlignMasterOptions options) : base(options, queuePrefix: "alignment")
         {
-            options.RedoFeatures |= options.RedoMasks;
-
             this.options = options;
-
             dispatcher = new TypeDispatcher()
-                .Case<MaskCreatedMessage>(MaskDone)
                 .Case<FeaturesDetectedMessage>(FeaturesDone)
                 .Case<ImagesMatchedMessage>(MatchDone);
         }
@@ -195,105 +180,68 @@ namespace OPS.Pipeline.AlignmentServer
             var initializer = new InitializeAlignmentProject(this);
             var project = initializer.Initialize(options.ProjectName, productUrl, inputUrl, options.RedoProject);
 
-            object ingestionLock = new object();
-            Action<IngestImage.Result> handler = res => {
-                var obs = res.Observation;
-                if (obs.ObservationType == ObservationType.Image.ToString() && obs.UseForReconstruction)
+            //careful here - there can be more than one observation of a given type for a single frame
+            //frame name -> observations
+            var obsForFrame = new ConcurrentDictionary<string, ConcurrentBag<Observation>>();
+            var ingester = new IngestAlignmentInputs(this, project, options.RedoObservations, options.RedoPriors,
+                                                     options.OnlyForSiteDrives);
+            ingester.Ingest(MSLLocations.LoadFromUrl(),
+                            res => obsForFrame
+                            .GetOrAdd(res.ObservationFrame.Name, _ => new ConcurrentBag<Observation>())
+                            .Add(res.Observation));
+                            
+            var imageType = ObservationType.Image.ToString();
+            var maskType = ObservationType.RoverMask.ToString();
+            foreach (var obsGroup in obsForFrame.Values)
+            {
+                var observations = obsGroup
+                    .Cast<RoverObservation>()
+                    .Distinct() //ConcurrentBag allows duplicates, which is probably harmless here, but why not
+                    .Where(obs => obs.UseForReconstruction)
+                    .ToList();
+                observations.Sort(MSLProject.RoverObservationComparison);
+
+                var imageObs = observations.Find(obs => obs.ObservationType == imageType);
+                if (imageObs != null)
                 {
-                    var state = new ImageState(obs);
-                    lock (ingestionLock)
+                    if (ValidGuid(imageObs.FeaturesGuid) && !options.RedoFeatures)
                     {
-                        imageStates[obs.Url] = state;
-                        pendingIngestions.Add(obs.Url);
+                        LogVerbose("using existing features for observation {0}", imageObs.Name);
+                    }
+                    else
+                    {
+                        var maskObs = observations.Find(obs => obs.ObservationType == maskType &&
+                                                        obs.Width == imageObs.Width && obs.Height == imageObs.Height);
+                        LogVerbose("requesting feature detection for observation {0}", imageObs.Name);
+                        pendingFeatures[imageObs.Url] = imageObs;
+                        WorkerQueue.Enqueue(new DetectFeaturesMessage(options.ProjectName) {
+                                ImageUrl = imageObs.Url,
+                                MaskUrl = maskObs != null ? maskObs.Url : null
+                            });
                     }
                 }
-            };
-
-            var ingester = new IngestAlignmentInputs(this, project, options.RedoObservations, options.RedoPriors);
-            ingester.Ingest(MSLLocations.LoadFromUrl(), handler);
-
-            //iterate over a copy of pendingIngestions
-            //if mask and features are already done for an image
-            //then RequestMaskMaybe() will flow through to IngestionCompleted()
-            //which will remove the image from pendingIngestions
-            foreach (var url in pendingIngestions.ToList())
-            {
-                RequestMaskMaybe(url);
             }
-        }
 
-        private void RequestMaskMaybe(string imageUrl)
-        {
-            var state = imageStates[imageUrl];
-            var obs = state.Observation;
-            if (ValidGuid(obs.MaskGuid) && !options.RedoMasks)
+            if (pendingFeatures.Count == 0)
             {
-                state.MaskGuid = obs.MaskGuid;
-                LogVerbose("using existing mask for observation {0}", obs.Name);
-                RequestFeaturesMaybe(imageUrl);
+                LogInfo("completed ingestion for project {0}, using existing image features", options.ProjectName);
+                Match();
             }
             else
             {
-                LogVerbose("requesting mask creation for observation {0}", obs.Name);
-                WorkerQueue.Enqueue(new CreateMaskMessage(options.ProjectName) { ImageUrl = obs.Url });
-            }
-        }
-
-        private void MaskDone(MaskCreatedMessage message)
-        {
-            var state = imageStates[message.ImageUrl];
-            var obs = state.Observation;
-            if (ValidGuid(state.MaskGuid))
-            {
-                LogWarn("duplicate mask created message for observation {0}", obs.Name);
-                return;
-            }
-            LogVerbose("got mask for observation {0}", obs.Name);
-            obs.MaskGuid = state.MaskGuid = message.MaskGuid;
-            obs.Save(this);
-            RequestFeaturesMaybe(message.ImageUrl);
-        }
-
-        private void RequestFeaturesMaybe(string imageUrl)
-        {
-            var state = imageStates[imageUrl];
-            var obs = state.Observation;
-            if (ValidGuid(obs.FeaturesGuid) && !options.RedoFeatures)
-            {
-                state.FeaturesGuid = obs.FeaturesGuid;
-                LogVerbose("using existing features for observation {0}", obs.Name);
-                IngestionCompleted(imageUrl);
-            }
-            else
-            {
-                LogVerbose("requesting feature detection for observation {0}", obs.Name);
-                WorkerQueue.Enqueue(new DetectFeaturesMessage(options.ProjectName)
-                {
-                    ImageUrl = imageUrl,
-                    MaskGuid = state.MaskGuid
-                });
-            }
+                LogInfo("completed ingestion for project {0}, requested features for {1} images",
+                        options.ProjectName, pendingFeatures.Count);
+            } 
         }
 
         private void FeaturesDone(FeaturesDetectedMessage message)
         {
-            var state = imageStates[message.ImageUrl];
-            var obs = state.Observation;
-            if (ValidGuid(state.FeaturesGuid))
-            {
-                LogWarn("duplicate features created message for observation {0}", obs.Name);
-                return;
-            }
+            var obs = pendingFeatures[message.ImageUrl];
+            pendingFeatures.Remove(message.ImageUrl);
             LogVerbose("got features for observation {0}", obs.Name);
-            obs.FeaturesGuid = state.FeaturesGuid = message.FeaturesGuid;
+            obs.FeaturesGuid = message.FeaturesGuid;
             obs.Save(this);
-            IngestionCompleted(message.ImageUrl);
-        }
-
-        private void IngestionCompleted(string imageUrl)
-        {
-            pendingIngestions.Remove(imageUrl);
-            if (pendingIngestions.Count == 0)
+            if (pendingFeatures.Count == 0)
             {
                 LogInfo("completed ingestion for project {0}", options.ProjectName);
                 Match();
@@ -329,28 +277,25 @@ namespace OPS.Pipeline.AlignmentServer
 
             var onlyCrossSite = !(options.AdjustWithinSiteDrives || options.MatchWithinSiteDrives);
 
-            var scene = ImageMatching.BuildSceneAndDetectOverlaps(this, project, loadFeatures: false,
-                                                                  redoOverlaps: options.RedoOverlaps,
-                                                                  onlyCrossSite: onlyCrossSite,
-                                                                  filter: obs => imageStates.ContainsKey(obs.Url));
+            matchScene = ImageMatching.BuildSceneAndDetectOverlaps(this, project, loadFeatures: false,
+                                                                   redoOverlaps: options.RedoOverlaps,
+                                                                   onlyCrossSite: onlyCrossSite);
 
-            pendingOverlaps.UnionWith(scene.Overlaps);
+            pendingOverlaps.UnionWith(matchScene.Overlaps);
 
             int nr = 0, ns = 0;
-            foreach (var pair in scene.Overlaps)
+            foreach (var pair in matchScene.Overlaps)
             {
                 var pairName = pair.ToStringShort();
                 var modelUrl = pair.One;
                 var dataUrl = pair.Two;
-                var modelState = imageStates[modelUrl];
-                var dataState = imageStates[dataUrl];
-                var modelObs = modelState.Observation.Name;
-                var dataObs = dataState.Observation.Name;
+                var modelObs = matchScene.ObservationUrlToNode[modelUrl].GetComponent<NodeObservation>().Observation;
+                var dataObs = matchScene.ObservationUrlToNode[dataUrl].GetComponent<NodeObservation>().Observation;
 
                 bool skip = false;
                 if (!options.RedoMatches)
                 {
-                    var overlap = Overlap.Find(this, options.ProjectName, modelObs, dataObs);
+                    var overlap = Overlap.Find(this, options.ProjectName, modelObs.Name, dataObs.Name);
                     if (overlap != null)
                     {
                         LogVerbose("not recomputing feature matches for overlapping image pair {0}", pairName);
@@ -365,11 +310,11 @@ namespace OPS.Pipeline.AlignmentServer
                     WorkerQueue.Enqueue(new MatchImagesMessage(options.ProjectName)
                     {
                             ModelImageUrl = modelUrl,
-                            ModelFeaturesGuid = modelState.FeaturesGuid,
-                            ModelFrameName = modelState.Observation.FrameName,
+                            ModelFeaturesGuid = modelObs.FeaturesGuid,
+                            ModelFrameName = modelObs.FrameName,
                             DataImageUrl = dataUrl,
-                            DataFeaturesGuid = dataState.FeaturesGuid,
-                            DataFrameName = dataState.Observation.FrameName,
+                            DataFeaturesGuid = dataObs.FeaturesGuid,
+                            DataFrameName = dataObs.FrameName,
                     });
                     nr++;
                 }
@@ -403,9 +348,10 @@ namespace OPS.Pipeline.AlignmentServer
             LogVerbose("got feature match for image pair {0}", pairName);
 
             // create db entry once all of the work is done - natural rate limiting
-            var modelObs = imageStates[modelUrl].Observation.Name;
-            var dataObs = imageStates[dataUrl].Observation.Name;
-            ImageMatching.SaveOverlap(this, message.ProjectName, message.CorrespondenceGuid, modelObs, dataObs);
+            var modelObs = matchScene.ObservationUrlToNode[modelUrl].GetComponent<NodeObservation>().Observation;
+            var dataObs = matchScene.ObservationUrlToNode[dataUrl].GetComponent<NodeObservation>().Observation;
+            ImageMatching.SaveOverlap(this, message.ProjectName, message.CorrespondenceGuid,
+                                      modelObs.Name, dataObs.Name);
 
             pendingOverlaps.Remove(pair);
             if (pendingOverlaps.Count == 0)
@@ -432,9 +378,8 @@ namespace OPS.Pipeline.AlignmentServer
             BundleAdjusting.BundleAdjust(this, options.ProjectName,
                                          options.AdjustWithinSiteDrives,
                                          !options.NoAdjustAcrossSiteDrives,
-                                         obs => imageStates.ContainsKey(obs.Url),
                                          options.BundleAdjustRounds,
-                                         options.DebugOutputFolder);
+                                         options.BundleAdjustDebugOutputFolder);
             AllDone();
         }
 

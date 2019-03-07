@@ -191,12 +191,13 @@
     <Compile Include="AlignmentServer\Operations\MatchImages.cs" />
     <Compile Include="Alignment\BuildSceneGraph.cs" />
     <Compile Include="Alignment\BundleAdjusting.cs" />
-    <Compile Include="Alignment\FeatureDetector.cs" />
+    <Compile Include="Alignment\FeatureDetecting.cs" />
     <Compile Include="Alignment\ImageMatching.cs" />
     <Compile Include="Alignment\IngestAlignmentInputs.cs" />
     <Compile Include="Alignment\IngestImage.cs" />
     <Compile Include="Alignment\IngestPDSImage.cs" />
     <Compile Include="Alignment\InitializeAlignmentProject.cs" />
+    <Compile Include="Alignment\Meshing.cs" />
     <Compile Include="Alignment\NodeFrame.cs" />
     <Compile Include="Alignment\NodeObservation.cs" />
     <Compile Include="Alignment\Procrustes.cs" />
@@ -211,8 +212,8 @@
     <Compile Include="Commands\LocalBundleAdjust.cs" />
     <Compile Include="Commands\LocalFeatures.cs" />
     <Compile Include="Commands\LocalIngest.cs" />
-    <Compile Include="Commands\LocalMasks.cs" />
     <Compile Include="Commands\LocalMatching.cs" />
+    <Compile Include="Commands\LocalObservationProducts.cs" />
     <Compile Include="Commands\TileLocalMesh.cs" />
     <Compile Include="DataProducts\DataProduct.cs" />
     <Compile Include="DataProducts\JsonDataProduct.cs" />
@@ -258,8 +259,6 @@
     <Compile Include="Commands\TileBaselineMesh.cs" />
     <Compile Include="DataProducts\ComputedCorrespondence.cs" />
     <Compile Include="DataProducts\DetectedFeatures.cs" />
-    <Compile Include="General\LegacyScene.cs" />
-    <Compile Include="General\ObservationEnums.cs" />
     <Compile Include="GdalConfiguration.cs" />
     <Compile Include="Rover\MSLLocations.cs" />
     <Compile Include="Rover\RoverCoordinateSystem.cs" />
@@ -280,6 +279,7 @@
     <Compile Include="Tiling\IImageProducer.cs" />
     <Compile Include="Tiling\IMeshAtlaser.cs" />
     <Compile Include="Tiling\ITileSplitCriteria.cs" />
+    <Compile Include="Tiling\LegacyScene.cs" />
     <Compile Include="Tiling\MeshImagePair.cs" />
     <Compile Include="Tiling\MeshTiler.cs" />
     <Compile Include="Rover\PDSParser.cs" />

@@ -79,15 +79,8 @@ namespace OPS.Pipeline
                 Image img = this.LoadImage(obs.Url);
                 img.Save<byte>(Path.Combine(imageDir, obs.Name + ".png"));
 
-                if (obs.MaskGuid == Guid.Empty)
-                {
-                    LogWarn("no mask for " + obs.Name);
-                }
-                else
-                {
-                    Image mask = this.GetDataProduct<PngDataProduct>(project.ProductPath, obs.MaskGuid, project.Name).Image;
-                    mask.Save<byte>(Path.Combine(masksDir, obs.Name + "_mask.png"));
-                }
+                var mask = FeatureDetecting.MakeMask(this, null, img, obs.Name);
+                mask.Save<byte>(Path.Combine(masksDir, obs.Name + "_mask.png"));
             }
 
             this.LogInfo("preparing calibration information for agisoft");

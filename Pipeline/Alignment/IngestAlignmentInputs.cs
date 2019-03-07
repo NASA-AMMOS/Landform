@@ -36,9 +36,11 @@ namespace OPS.Pipeline
 
         private Project project;
         private IngestPDSImage ingester;
+        private bool noProgress;
 
-        public IngestAlignmentInputs(PipelineCore pipeline, Project project, bool recreateExistingObservations = false,
-                                     bool resetExistingTransforms = false)
+        public IngestAlignmentInputs(PipelineCore pipeline, Project project, bool recreateObservations = false,
+                                     bool resetTransforms = false, string onlyForSiteDrives = null,
+                                     bool noProgress = false)
             : base(pipeline)
         {
             if (string.IsNullOrEmpty(project.InputPath))
@@ -75,7 +77,20 @@ namespace OPS.Pipeline
 
             this.project = project;
 
-            ingester = new IngestPDSImage(pipeline, project, recreateExistingObservations, resetExistingTransforms);
+            SiteDrive[] siteDrives = (onlyForSiteDrives ?? "")
+                .Split(',')
+                .Where(s => !string.IsNullOrEmpty(s))
+                .Select(s => new SiteDrive(s.Trim()))
+                .Cast<SiteDrive>()
+                .ToArray();
+
+            IngestPDSImage.Filter filter = (imageUrl, pdsMetadata, pdsParser) =>
+                siteDrives.Length == 0 ||
+                siteDrives.Any(sd => sd == new SiteDrive(pdsParser.Site, pdsParser.Drive));
+
+            this.noProgress = noProgress;
+
+            ingester = new IngestPDSImage(pipeline, project, recreateObservations, resetTransforms, filter);
         }
 
         public int Ingest(MSLLocations locations, Action<IngestImage.Result> func = null)
@@ -83,9 +98,8 @@ namespace OPS.Pipeline
             ingester.Locations = locations;
             string imageObs = ObservationType.Image.ToString();
             double startTime = UTCTime.Now();
-            int ni = 0, na = 0, nf = 0, ns = 0, nr = 0;
-            ConcurrentDictionary<SiteDrive, ConcurrentDictionary<string, int>> stats =
-                new ConcurrentDictionary<SiteDrive, ConcurrentDictionary<string, int>>();
+            int ni = 0, na = 0, ne = 0, nf = 0, ns = 0, nr = 0, np = 0;
+            var stats = new ConcurrentDictionary<SiteDrive, ConcurrentDictionary<string, int>>();
             foreach (var entry in BaseUrls)
             {
                 pipeline.LogInfo("{0}ingesting input files from {1} for alignment project {2}",
@@ -95,7 +109,15 @@ namespace OPS.Pipeline
                 CoreLimitedParallel.ForEach(images, url => {
 
                         Interlocked.Increment(ref ni);
+                        Interlocked.Increment(ref np);
+                        if (!noProgress)
+                        {
+                            pipeline.LogInfo("ingesting {0} images in parallel, completed {1}", np, ni);
+                        }
+
                         var res = ingester.Ingest(url);
+
+                        Interlocked.Decrement(ref np);
 
                         if (res.Status == IngestImage.Status.Skipped)
                         {
@@ -112,6 +134,11 @@ namespace OPS.Pipeline
                             //duplicates are OK to allow ingestion being re-run on an existing proj
 
                             Interlocked.Increment(ref na);
+
+                            if (res.Status == IngestImage.Status.Duplicate)
+                            {
+                                Interlocked.Increment(ref ne);
+                            }
 
                             var obs = res.Observation as RoverObservation;
                             var frame = res.ObservationFrame;
@@ -135,41 +162,45 @@ namespace OPS.Pipeline
             }
 
             //populate frame.ObservationNames and frame.Transforms here to avoid read-modify-write MT hazard
-            pipeline.LogInfo("adding observations and transforms to frames...");
-            var observationCache = new ObservationCache(pipeline, project.Name);
-            observationCache.Preload();
-            var frameCache = new FrameCache(pipeline, project.Name);
-            frameCache.Preload();
-            foreach (var observation in observationCache.GetAllObservations())
+            if (na > ne) //don't write to database if we didn't add any observations
             {
-                frameCache.GetFrame(observation.FrameName).AddObservation(observation);
-            }
-            foreach (var transform in frameCache.GetAllTransforms())
-            {
-                frameCache.GetFrame(transform.FrameName).AddTransform(transform);
-            }
-            foreach (var frame in frameCache.GetAllFrames())
-            {
-                frame.Save(pipeline);
-            }
-
-            pipeline.LogInfo("processed {0} files ({1:F3}s), {2} accepted, {3} failed, {4} skipped",
-                             ni, UTCTime.Now() - startTime, na, nf, ns);
-
-            Dictionary<string, int> totalStats = new Dictionary<string, int>();
-            foreach (var sds in stats)
-            {
-                pipeline.LogInfo("sitedrive {0}: {1}", sds.Key,
-                                 string.Join(", ",
-                                             sds.Value.Select(s => s.Value + " " + s.Key + " observations").ToArray()));
-                foreach (var entry in sds.Value)
+                pipeline.LogInfo("adding observations and transforms to frames...");
+                var observationCache = new ObservationCache(pipeline, project.Name);
+                observationCache.Preload();
+                var frameCache = new FrameCache(pipeline, project.Name);
+                frameCache.Preload();
+                foreach (var observation in observationCache.GetAllObservations())
                 {
+                    frameCache.GetFrame(observation.FrameName).AddObservation(observation);
+                }
+                foreach (var transform in frameCache.GetAllTransforms())
+                {
+                    frameCache.GetFrame(transform.FrameName).AddTransform(transform);
+                }
+                foreach (var frame in frameCache.GetAllFrames())
+                {
+                    frame.Save(pipeline);
+                }
+            }
+
+            pipeline.LogInfo("processed {0} files ({1:F3}s), {2} accepted, {3} existing, {4} failed, {5} skipped",
+                             ni, UTCTime.Now() - startTime, na, ne, nf, ns);
+
+            var totalStats = new SortedDictionary<string, int>();
+            foreach (var sd in stats.Keys.OrderBy(sd => (int)sd))
+            {
+                var sds = new SortedDictionary<string, int>();
+                foreach (var entry in stats[sd])
+                {
+                    sds[entry.Key] = entry.Value;
                     if (!totalStats.ContainsKey(entry.Key))
                     {
                         totalStats[entry.Key] = 0;
                     }
                     totalStats[entry.Key] += entry.Value;
                 }
+                pipeline.LogInfo("sitedrive {0}: {1}", sd,
+                                 string.Join(", ", sds.Select(s => s.Value + " " + s.Key + " observations").ToArray()));
             }
             foreach (var entry in totalStats)
             {

@@ -27,11 +27,13 @@ namespace OPS.Alignment
             ImageFeature[] feat1;
             int[] indices;
             matches.Flatten(modelFeatures, dataFeatures, out feat0, out feat1, out indices);
+            var sift0 = feat0.Cast<SIFTFeature>().ToList();
+            var sift1 = feat1.Cast<SIFTFeature>().ToList();
 
-            Matrix<float> descr0 = ToDescriptorMatrix(feat0.Cast<SIFTFeature>().ToList());
-            Matrix<float> descr1 = ToDescriptorMatrix(feat1.Cast<SIFTFeature>().ToList());
-            VectorOfKeyPoint kp0 = ToVOKP(feat0.Cast<SIFTFeature>().ToList());
-            VectorOfKeyPoint kp1 = ToVOKP(feat1.Cast<SIFTFeature>().ToList());
+            Matrix<float> descr0 = ToDescriptorMatrix(sift0);
+            Matrix<float> descr1 = ToDescriptorMatrix(sift1);
+            VectorOfKeyPoint kp0 = new VectorOfKeyPoint(sift0.CastToMKeyPoint().ToArray());
+            VectorOfKeyPoint kp1 = new VectorOfKeyPoint(sift1.CastToMKeyPoint().ToArray());
 
             VectorOfVectorOfDMatch matchVector = new VectorOfVectorOfDMatch();
             for (int i = 0; i < feat1.Length; i++)
@@ -57,20 +59,6 @@ namespace OPS.Alignment
             img.Save<byte>(outFile);
         }
 
-        static VectorOfKeyPoint ToVOKP(List<SIFTFeature> kps)
-        {
-            VectorOfKeyPoint res = new VectorOfKeyPoint();
-            res.Push(kps.Select(kp =>
-            {
-                MKeyPoint _kp = new MKeyPoint();
-                _kp.Size = (float)kp.Size;
-                _kp.Point = new PointF((float)kp.Location.X, (float)kp.Location.Y);
-                _kp.Angle = (float)kp.Angle;
-                return _kp;
-            }).ToArray());
-            return res;
-        }
-
         public static Matrix<float> ToDescriptorMatrix(List<SIFTFeature> features)
         {
             Matrix<float> res = new Matrix<float>(features.Count, features[0].Descriptor.Length);
@@ -87,6 +75,7 @@ namespace OPS.Alignment
             return res;
         }
 
+        // https://github.jpl.nasa.gov/OnSight/Landform/issues/439
         private static Image<Bgr, byte> CreateMatchImage(VectorOfKeyPoint kp0, VectorOfKeyPoint kp1,
                                                          Image<Gray, byte> modelImage, Image<Gray, byte> dataImage,
                                                          VectorOfVectorOfDMatch matches, Matrix<byte> mask, int nonZero,

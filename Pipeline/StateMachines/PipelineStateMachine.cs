@@ -281,6 +281,10 @@ namespace OPS.Pipeline
         virtual protected Queue<SceneNode> CollectLeafGroups(SceneNode node, List<List<SceneNode>> groups,
                                                              int maxGroupSize)
         {
+            if(maxGroupSize < 1)
+            {
+                throw new Exception("CollectLeafGroups must have maxGroupSize of 1 or more.  Called with: " + maxGroupSize);
+            }
             var result = new Queue<SceneNode>();
             if (node.IsLeaf)
             {

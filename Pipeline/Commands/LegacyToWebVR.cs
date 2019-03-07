@@ -1,19 +1,19 @@
-﻿using CommandLine;
-using log4net;
-using Microsoft.Xna.Framework;
-using Newtonsoft.Json;
-using OPS.Geometry;
-using OPS.Imaging;
-using OPS.MathExtensions;
-using OPS.Util;
-using System;
+﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using OPS.RayTrace;
 using System.Text;
 using System.Threading.Tasks;
+using CommandLine;
+using log4net;
+using Microsoft.Xna.Framework;
+using Newtonsoft.Json;
+using OPS.MathExtensions;
+using OPS.Util;
+using OPS.Imaging;
+using OPS.Geometry;
+using OPS.RayTrace;
 
 namespace OPS.Pipeline
 {

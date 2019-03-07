@@ -55,6 +55,16 @@ namespace OPS.Geometry
             this.Normal = normal;
         }
 
+        public Vertex(Vector3 position, Vector3 normal, Vector4? color)
+        {
+            this.Position = position;
+            this.Normal = normal;
+            if (color.HasValue)
+            {
+                this.Color = color.Value;
+            }
+        }
+
         public Vertex(Vector3 position, Vector3 normal, Vector4 color, Vector2 uv)
         {
             this.Position = position;

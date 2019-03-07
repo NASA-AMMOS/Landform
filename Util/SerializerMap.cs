@@ -11,6 +11,8 @@ namespace OPS.Util
 
         protected abstract void RegisterSerializers();
 
+        public abstract string Kind();
+
         public SerializerMap()
         {
             RegisterSerializers();
@@ -75,6 +77,25 @@ namespace OPS.Util
                 }
             }
             return ret;
+        }
+
+        public string CheckFormat(string fmt, ILogger logger)
+        {
+            if (fmt.ToLower() == "help")
+            {
+                logger.LogInfo("{0} formats: {1}", Kind(), string.Join(", ", SupportedFormats()));
+                return null;
+            }
+            if (!fmt.StartsWith("."))
+            {
+                fmt = "." + fmt;
+            }
+            if (!SupportsFormat(fmt))
+            {
+                logger.LogError("invalid {0} format \"{1}\", valid formats: {2}", Kind(), fmt,
+                                string.Join(", ", SupportedFormats()));
+            }
+            return fmt;
         }
     }
 }

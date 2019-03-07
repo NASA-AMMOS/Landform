@@ -192,6 +192,16 @@ namespace OPS.Pipeline
             return StringHelper.NormalizeSlashes(Path.Combine(StorageUrlWithVenue, folder, project, file));
         }
 
+        public string GetLocalDebugFolder(string givenFolder, string defaultSubpath, string project)
+        {
+            var ret = givenFolder;
+            if (string.IsNullOrEmpty(givenFolder))
+            {
+                ret = Path.Combine(LocalPipelineConfig.Instance.StorageDir, Venue, defaultSubpath, project);
+            }
+            return StringHelper.EnsureTrailingSlash(StringHelper.NormalizeSlashes(ret));
+        }
+
         /// <summary>
         /// Get a file, downloading it to a local temp file if necessary.
         /// If a temp file is created it will be automatically deleted when the callback is finished.
@@ -248,7 +258,7 @@ namespace OPS.Pipeline
         /// <param name="url">base URL to search, if constrainToStorage = true must start with StorageURL/Venue</param>
         public abstract IEnumerable<string> SearchFiles(string url, string globPattern = "*", bool recursive = true,
                                                         bool constrainToStorage = false);
-        
+
         //****************** Data Product API *****************
 
         private static object dataCacheLock = new object();

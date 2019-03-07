@@ -13,6 +13,7 @@ namespace OPS.Alignment
     /// </summary>
     public class ImageFeature
     {
+        public double Range = 0; //positive iff a feature has valid associated range
         public Vector2 Location;
         public FeatureDescriptor Descriptor;
 

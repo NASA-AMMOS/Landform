@@ -161,5 +161,10 @@ namespace OPS.Pipeline.AlignmentServer
         {
             return Find(pipeline, frame.ProjectName, frame.Name, source);
         }
+
+        public bool IsPrior()
+        {
+            return Source >= TransformSource.Prior;
+        }
     }
 }
