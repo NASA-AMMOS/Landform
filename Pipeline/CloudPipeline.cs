@@ -44,6 +44,11 @@ namespace OPS.Pipeline
         {
             var cloudConfig = (CloudPipelineConfig)Config;
 
+            if (cloudConfig.RandomSeed >= 0)
+            {
+                NumberHelper.RandomSeed = cloudConfig.RandomSeed;
+            }
+
             awsProfile = cloudConfig.AWSProfile;
             if (awsProfile == "" || awsProfile == "null")
             {

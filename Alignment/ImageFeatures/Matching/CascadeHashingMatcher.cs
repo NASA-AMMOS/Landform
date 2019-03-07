@@ -48,7 +48,7 @@ namespace OPS.Alignment
             MaximumKnnCandidates = maxCandidates;
             MaximumDistanceRatio = maxRatio;
 
-            Random r = new Random();
+            Random r = NumberHelper.MakeRandomGenerator();
 
             // Create projection matrices
             secondaryHashes = new LocalitySensitiveHash[BucketCount];

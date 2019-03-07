@@ -24,6 +24,13 @@ namespace OPS.Pipeline
                    LocalPipelineConfig.Instance.Venue, logger, lruCache, quietInit,
                    options.SingleThreaded ? 1 : maxCores ?? LocalPipelineConfig.Instance.MaxCores)
         {
+            var localConfig = (LocalPipelineConfig)Config;
+
+            if (localConfig.RandomSeed >= 0)
+            {
+                NumberHelper.RandomSeed = localConfig.RandomSeed;
+            }
+
             if (initTables)
             {
                 InitializeDatabase(quiet || quietInit);
