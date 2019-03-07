@@ -262,8 +262,11 @@ namespace OPS.Pipeline
             var modelToRoot = modelNode.GetComponent<NodeUncertainTransform>().To(scene.Root).Mean;
             var dataToRoot = dataNode.GetComponent<NodeUncertainTransform>().To(scene.Root).Mean;
             var ret = ImageMatching.MakeMatchMesh(modelCam, dataCam, modelFeat, dataFeat, modelToRoot, dataToRoot, d2m);
-            PathHelper.EnsureExists(dbgDir);
-            ret.Save(string.Format("{0}{1}-{2}-PriorMatches{3}", dbgDir, modelObs.Name, dataObs.Name, meshExt));
+            if (ret.HasFaces)
+            {
+                PathHelper.EnsureExists(dbgDir);
+                ret.Save(string.Format("{0}{1}-{2}-PriorMatches{3}", dbgDir, modelObs.Name, dataObs.Name, meshExt));
+            }
         }
     }
 }

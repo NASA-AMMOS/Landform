@@ -286,8 +286,11 @@ namespace OPS.Pipeline
 
                     if (!options.NoWedgeMeshes)
                     {
-                        PathHelper.EnsureExists(tmpPath);
-                        mesh.Save(tmpPath + obsName + meshExt, imageFilename);
+                        if  (mesh.Vertices.Count > 0)
+                        {
+                            PathHelper.EnsureExists(tmpPath);
+                            mesh.Save(tmpPath + obsName + meshExt, imageFilename);
+                        }
                     }
                       
                     if (options.WriteFrustumHullMeshes)
