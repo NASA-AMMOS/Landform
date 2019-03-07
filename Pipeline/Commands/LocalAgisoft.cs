@@ -115,23 +115,33 @@ namespace OPS.Pipeline
                 this.LogInfo("agisoft alignment complete");
 
                 //read results
-                Dictionary<string, Matrix> adjusted = AgisoftXML.ReadTransforms(outputCamerasXMLPath);
+                Dictionary<string, Matrix> adjCameraToScene = AgisoftXML.ReadTransforms(outputCamerasXMLPath);
 
                 //save to database
-                int numAdjustedNodes = adjusted.Count;
+                int numAdjustedNodes = adjCameraToScene.Count;
                 int n = 1;
                 foreach (var obs in observations)
                 {
-                    if (adjusted.ContainsKey(obs.Name))
+                    if (adjCameraToScene.ContainsKey(obs.Name))
                     {
                         LogInfo("saving transform {0} of {1} adjusted frames", n++, numAdjustedNodes);
 
                         SceneNode adjNode = scene.ObservationUrlToNode[obs.Url];
                         var frame = adjNode.GetComponent<NodeFrame>().Frame;
-                        Matrix bundleResult = adjusted[obs.Name];
+
+                        //agi returns the full transform we need just the rover to sitedrive portion
+                        Matrix cameraToRoot = adjCameraToScene[obs.Name];
+
+                        GetCameraToRover(adjNode.GetComponent<NodeImage>().CameraModel, out Matrix cameraToRover);
+                        Matrix roverToCamera = Matrix.Invert(cameraToRover);
+                        Matrix roverToRoot = roverToCamera * cameraToRoot;
+
+                        Matrix rootToSiteDrive = adjNode.Parent.Transform.WorldToLocal;
+                        Matrix roverToSiteDrive = roverToRoot * rootToSiteDrive;
+
                         //TODO propagate transform covariance out of agi xml
                         //https://github.jpl.nasa.gov/OnSight/Landform/issues/367
-                        var ut = new UncertainRigidTransform(bundleResult);
+                        var ut = new UncertainRigidTransform(roverToSiteDrive);
                         FrameTransform ft = FrameTransform.FindOrCreate(this, frame, TransformSource.Agisoft, ut);
                         ft.Transform = ut;
                         ft.Save(this);
@@ -198,9 +208,40 @@ namespace OPS.Pipeline
             }
         }
 
+        static void GetCameraToRover(CameraModel m, out Matrix cameraToRover)
+        {
+            CAHV linear = (CAHV)m;
+
+            double h_c = linear.A.Dot(linear.H);
+            double v_c = linear.A.Dot(linear.V);
+
+            double h_s = linear.A.Cross(linear.H).Length();
+            double v_s = linear.A.Cross(linear.V).Length();
+
+            Vector3 fwd = linear.A; fwd.Normalize();
+            Vector3 right = (linear.H - h_c * linear.A) / h_s;
+            Vector3 up = (linear.V - v_c * linear.A) / v_s;
+
+            cameraToRover = Matrix.Identity;
+            for (int i = 0; i < 3; i++)
+            {
+                cameraToRover[0, i] = right[i];
+                cameraToRover[1, i] = up[i];
+                cameraToRover[2, i] = fwd[i];
+            }
+            cameraToRover.Translation = linear.C;
+        }
+
+        static void GetSceneToCamera(CameraModel m, Matrix roverToScene, out Matrix sceneToCamera)
+        {
+            GetCameraToRover(m, out Matrix cameraToRover);
+            Matrix cameraToScene = cameraToRover * roverToScene;
+            sceneToCamera = Matrix.Invert(cameraToScene);
+        }
+
         class AgisoftXML
         {
-            static private void AddCameraXml(XmlNode cameras, int cameraId, int sensorId, string name, Matrix agisoftCameraToWorld)
+            static private void AddCameraXml(XmlNode cameras, int cameraId, int sensorId, string name, Matrix matrix)
             {
                 XmlNode cameraNode = cameras.OwnerDocument.CreateElement("camera");
                 cameras.AppendChild(cameraNode);
@@ -208,9 +249,12 @@ namespace OPS.Pipeline
                 AddAttributeXml(cameraNode, "sensor_id", sensorId.ToString());
                 AddAttributeXml(cameraNode, "label", name);
                 AddAttributeXml(cameraNode, "enabled", "1");
-
                 XmlNode transformNode = cameras.OwnerDocument.CreateElement("transform");
                 cameraNode.AppendChild(transformNode);
+#if false
+                Matrix agisoftCameraToWorld = matrix;
+               
+               
                 transformNode.InnerText = agisoftCameraToWorld.M11.ToString("e16") + " " + agisoftCameraToWorld.M12.ToString("e16") + " " + agisoftCameraToWorld.M13.ToString("e16") + " " + agisoftCameraToWorld.M14.ToString("e16") + " " +
                                           agisoftCameraToWorld.M21.ToString("e16") + " " + agisoftCameraToWorld.M22.ToString("e16") + " " + agisoftCameraToWorld.M23.ToString("e16") + " " + agisoftCameraToWorld.M24.ToString("e16") + " " +
                                           agisoftCameraToWorld.M31.ToString("e16") + " " + agisoftCameraToWorld.M32.ToString("e16") + " " + agisoftCameraToWorld.M33.ToString("e16") + " " + agisoftCameraToWorld.M34.ToString("e16") + " " +
@@ -228,6 +272,17 @@ namespace OPS.Pipeline
                 //TODO: plumbing
                 double transCov = 3 * 3;
                 transCovNode.InnerText = transCov.ToString("e16") + " 0 0 0 " + transCov.ToString("e16") + " 0 0 0 " + transCov.ToString("e16");
+#else
+                Matrix sceneToCamera = matrix;
+                Matrix cameraToScene = Matrix.Invert(sceneToCamera);
+                string transformString = string.Format("{3} {4} {5} {6} {7} {8} {9} {10} {11} {12} {13} {14} {15} {16} {17} {18}",
+                    null, null, null,
+                    cameraToScene[0, 0], cameraToScene[1, 0], cameraToScene[2, 0], cameraToScene[3, 0],
+                    cameraToScene[0, 1], cameraToScene[1, 1], cameraToScene[2, 1], cameraToScene[3, 1],
+                    cameraToScene[0, 2], cameraToScene[1, 2], cameraToScene[2, 2], cameraToScene[3, 2],
+                    cameraToScene[0, 3], cameraToScene[1, 3], cameraToScene[2, 3], cameraToScene[3, 3]);
+                transformNode.InnerText = transformString;
+#endif
             }
 
             static private void AddAttributeXml(XmlNode node, string name, string value)
@@ -310,35 +365,35 @@ namespace OPS.Pipeline
                 sensitivityNode.InnerText = "1.0000000000000000e+000";
             }
 
-            static private Matrix landformToAgiColMjr = new Matrix(0, 1, 0, 0,
-                                                                  0, 0, -1, 0,
-                                                                 -1, 0, 0, 0,
-                                                                 0, 0, 0, 1);
+            //static private Matrix landformToAgiColMjr = new Matrix(0, 1, 0, 0,
+            //                                                      0, 0, -1, 0,
+            //                                                     -1, 0, 0, 0,
+            //                                                     0, 0, 0, 1);
 
-            static private Matrix agiToLandformColMjr = new Matrix(0, 0, -1, 0,
-                                                                  1, 0, 0, 0,
-                                                                  0, -1, 0, 0,
-                                                                  0, 0, 0, 1);
+            //static private Matrix agiToLandformColMjr = new Matrix(0, 0, -1, 0,
+            //                                                      1, 0, 0, 0,
+            //                                                      0, -1, 0, 0,
+            //                                                      0, 0, 0, 1);
 
-            static private Matrix agiToBundlerColMjr = new Matrix(1, 0, 0, 0,
-                                                               0, -1, 0, 0,
-                                                               0, 0, -1, 0,
-                                                               0, 0, 0, 1);
+            //static private Matrix agiToBundlerColMjr = new Matrix(1, 0, 0, 0,
+            //                                                   0, -1, 0, 0,
+            //                                                   0, 0, -1, 0,
+            //                                                   0, 0, 0, 1);
 
-            static private Matrix bundlerToLandform = new Matrix(0, 1, 0, 0,
-                                                                 0, 0, 1, 0,
-                                                                 1, 0, 0, 0,
-                                                                 0, 0, 0, 1);
+            //static private Matrix bundlerToLandform = new Matrix(0, 1, 0, 0,
+            //                                                     0, 0, 1, 0,
+            //                                                     1, 0, 0, 0,
+            //                                                     0, 0, 0, 1);
 
-            //agisoft: col vector convention, right handed, x right, y up, z back
-            //bundler: col vector convention, right handed, x right, y down, z fwd
-            //landform: row vector convention, right handed, x fwd, y right, z down
-            static private Matrix LandformMatToAgi(Matrix landformMat)
-            {
-                //return landformToAgiColMjr * (Matrix.Transpose(landformMat) * agiToLandformColMjr);
-                Matrix landformMatColMjr = Matrix.Transpose(landformMat);
-                return landformMatColMjr * (bundlerToLandform * agiToBundlerColMjr);
-            }
+            ////agisoft: col vector convention, right handed, x right, y up, z back
+            ////bundler: col vector convention, right handed, x right, y down, z fwd
+            ////landform: row vector convention, right handed, x fwd, y right, z down
+            //static private Matrix LandformMatToAgi(Matrix landformMat)
+            //{
+            //    //return landformToAgiColMjr * (Matrix.Transpose(landformMat) * agiToLandformColMjr);
+            //    Matrix landformMatColMjr = Matrix.Transpose(landformMat);
+            //    return landformMatColMjr * (bundlerToLandform * agiToBundlerColMjr);
+            //}
 
             static public void WriteCalibrationXML(IEnumerable<RoverObservation> observations, Dictionary<string, SceneNode> observationUrlToNode, string outputCalibXML)
             {
@@ -376,11 +431,17 @@ namespace OPS.Pipeline
                     foreach (var obs in cameraConfig)
                     {
                         SceneNode node = observationUrlToNode[obs.Url];
+#if false
                         CAHV cahv = node.GetComponent<NodeImage>().CameraModel as CAHV;
                         Matrix cameraToRover = CameraToRoverMatrix(cahv);
                         Matrix cameraToWorld = cameraToRover * node.Transform.LocalToWorld;
                         Matrix agiCameraToWorld = LandformMatToAgi(cameraToWorld);
                         AddCameraXml(camerasNode, cameraId, sensorId, obs.Name, agiCameraToWorld);
+#else
+                        //charlie code
+                        GetSceneToCamera(node.GetComponent<NodeImage>().CameraModel, node.Transform.LocalToWorld, out Matrix sceneToCamera);
+                        AddCameraXml(camerasNode, cameraId, sensorId, obs.Name, sceneToCamera);
+#endif
                         cameraId++;
                     }
 
@@ -390,30 +451,30 @@ namespace OPS.Pipeline
                 doc.Save(outputCalibXML);
             }
 
-            private static Matrix CameraToRoverMatrix(CAHV cahv)
-            {
-                Vector3 cameraLocationInRover = cahv.C;
+            //private static Matrix CameraToRoverMatrix(CAHV cahv)
+            //{
+            //    Vector3 cameraLocationInRover = cahv.C;
 
-                //not true if sensor is off axis from optical center
-                Vector3 cameraFwd = Vector3.Normalize(cahv.A);
-                Vector3 cameraRight = Vector3.Normalize(cahv.H);
-                double Hs = cahv.H.Length();
-                double Vs = cahv.V.Length();
-                Vector3 cameraDown = Vector3.Normalize(Vector3.Cross(cameraFwd, cameraRight));
-                cameraRight = Vector3.Normalize(Vector3.Cross(cameraDown, cameraFwd));
+            //    //not true if sensor is off axis from optical center
+            //    Vector3 cameraFwd = Vector3.Normalize(cahv.A);
+            //    Vector3 cameraRight = Vector3.Normalize(cahv.H);
+            //    double Hs = cahv.H.Length();
+            //    double Vs = cahv.V.Length();
+            //    Vector3 cameraDown = Vector3.Normalize(Vector3.Cross(cameraFwd, cameraRight));
+            //    cameraRight = Vector3.Normalize(Vector3.Cross(cameraDown, cameraFwd));
 
-                Matrix imageToCamera = new Matrix(0, 1, 0, 0,
-                                                  0, 0, 1, 0,
-                                                  1, 0, 0, 0,
-                                                  0, 0, 0, 1);
-                Matrix cameraToRover = new Matrix(cameraFwd.X, cameraFwd.Y, cameraFwd.Z, 0,
-                                                 cameraRight.X, cameraRight.Y, cameraRight.Z, 0,
-                                                 cameraDown.X, cameraDown.Y, cameraDown.Z, 0,
-                                                 cameraLocationInRover.X, cameraLocationInRover.Y, cameraLocationInRover.Z, 1);
+            //    Matrix imageToCamera = new Matrix(0, 1, 0, 0,
+            //                                      0, 0, 1, 0,
+            //                                      1, 0, 0, 0,
+            //                                      0, 0, 0, 1);
+            //    Matrix cameraToRover = new Matrix(cameraFwd.X, cameraFwd.Y, cameraFwd.Z, 0,
+            //                                     cameraRight.X, cameraRight.Y, cameraRight.Z, 0,
+            //                                     cameraDown.X, cameraDown.Y, cameraDown.Z, 0,
+            //                                     cameraLocationInRover.X, cameraLocationInRover.Y, cameraLocationInRover.Z, 1);
 
-                return imageToCamera * cameraToRover;
-                //return cameraToRover;
-            }
+            //    return imageToCamera * cameraToRover;
+            //    //return cameraToRover;
+            //}
 
             internal static Dictionary<string, Matrix> ReadTransforms(string outputCamerasXMLPath)
             {
@@ -429,8 +490,8 @@ namespace OPS.Pipeline
                     XmlNode transforms = camera.SelectSingleNode("transform");
                     if (transforms != null)
                     {
-                        Matrix matrix = ReadTransform(transforms.InnerText);
-                        results[name] = matrix;
+                        Matrix cameraToScene = ReadTransform(transforms.InnerText);
+                        results[name] = cameraToScene;
                     }
                 }
 
