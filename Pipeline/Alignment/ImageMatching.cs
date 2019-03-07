@@ -147,7 +147,8 @@ namespace OPS.Pipeline
         public static AlignmentScene BuildSceneAndDetectOverlaps(PipelineCore pipeline, Project project,
                                                                  bool loadFeatures = true, bool redoOverlaps = false,
                                                                  bool onlyCrossSite = true,
-                                                                 Func<Observation, bool> filter = null)
+                                                                 Func<Observation, bool> obsFilter = null,
+                                                                 Func<string, string, bool> overlapFilter = null)
         {
             pipeline.LogInfo("building scene graph for {0}image matching",
                              onlyCrossSite ? "cross-site " : "");
@@ -159,12 +160,16 @@ namespace OPS.Pipeline
                                              OnlyKeepImagesWithFeatures = true,
                                              OnlyKeepBestImages = true,
                                              OnlyCrossSiteDriveOverlaps = onlyCrossSite,
-                                             IncludeObservation = obs => filter == null || filter(obs)
+                                             IncludeObservation = obs => obsFilter == null || obsFilter(obs),
+                                             IncludeOverlap = (n1, n2) => overlapFilter == null || overlapFilter(n1, n2)
                                          });
             var scene = sb.BuildTopDown(project.RootFrame);
 
             var fod = new FrustumOverlapDetector(pipeline, pipeline);
-            if (scene.Overlaps.Count == 0)
+
+            //scene should have no overlaps if redoOverlaps is set because they shouldn't have been loaded
+            //but it's more clear and doesn't hurt to also or with redoOverlaps here
+            if (redoOverlaps || scene.Overlaps.Count == 0)
             {
                 fod.Detect(scene, onlyCrossSite);
             }

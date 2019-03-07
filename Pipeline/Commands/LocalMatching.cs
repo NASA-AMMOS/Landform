@@ -60,6 +60,9 @@ namespace OPS.Pipeline
         [Option(HelpText = "Disable saving results to database", Default = false)]
         public bool NoSave { get; set; }
 
+        [Option(HelpText = "Comma separated list of observation pairs (\"Name1-Name2\", order agnostic) to process, omit for all", Default = null)]
+        public string OnlyForOverlaps { get; set; }
+
         [Option(HelpText = "Operate on cloud data", Default = false)]
         public bool Cloud { get; set; }
     }
@@ -116,9 +119,23 @@ namespace OPS.Pipeline
                 pipeline.LogInfo("writing {0} match meshes to {1}", meshExt, dbgDir);
             }
 
+            var allowed = (options.OnlyForOverlaps ?? "")
+                .Split(',')
+                .Where(s => !string.IsNullOrEmpty(s))
+                .Select(s => s.Split('-'))
+                .ToArray();
+
+            Func<Observation, bool> obsFilter =
+                obs => allowed.Length == 0 || allowed.Any(pair => obs.Name == pair[0] || obs.Name == pair[1]);
+
+            //note: (n1, n2) vs (n2, n1) is handled inside BuildSceneGraph
+            Func<string, string, bool> overlapFilter =
+                (n1, n2) => allowed.Length == 0 || allowed.Any(pair => n1 == pair[0] && n2 == pair[1]);
+
             var scene = ImageMatching.BuildSceneAndDetectOverlaps(pipeline, project, loadFeatures: true,
                                                                   redoOverlaps: options.RedoOverlaps,
-                                                                  onlyCrossSite: !options.MatchWithinSiteDrives);
+                                                                  onlyCrossSite: !options.MatchWithinSiteDrives,
+                                                                  obsFilter: obsFilter, overlapFilter: overlapFilter);
             int no = scene.Overlaps.Count;
 
             pipeline.LogInfo("finding feature matches for {0} image pairs", no);

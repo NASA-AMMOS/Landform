@@ -55,6 +55,9 @@ namespace OPS.Pipeline
         [Option(HelpText = "Disable saving results to database", Default = false)]
         public bool NoSave { get; set; }
 
+        [Option(HelpText = "Comma separated list of observations to process, omit for all", Default = null)]
+        public string OnlyForObservations { get; set; }
+
         [Option(HelpText = "Operate on cloud data", Default = false)]
         public bool Cloud { get; set; }
     }
@@ -102,11 +105,17 @@ namespace OPS.Pipeline
                 pipeline.LogInfo("writing {0} feature images to {1}", imageExt, imageDir);
             }
 
+            var allowed = (options.OnlyForObservations ?? "")
+                .Split(',')
+                .Where(s => !string.IsNullOrEmpty(s))
+                .ToArray();
+
             var frameCache = new FrameCache(pipeline, options.ProjectName);
             frameCache.Preload(loadTransforms: false);
 
             var observationCache = new ObservationCache(pipeline, options.ProjectName);
-            observationCache.Preload(obs => obs.UseForReconstruction);
+            observationCache.Preload(obs => obs.UseForReconstruction &&
+                                     (allowed.Length == 0 || allowed.Any(name => name == obs.Name)));
 
             var imageType = ObservationType.Image.ToString();
             var maskType = ObservationType.RoverMask.ToString();
