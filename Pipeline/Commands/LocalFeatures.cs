@@ -201,10 +201,10 @@ namespace OPS.Pipeline
                                                                    pipeline.LoadImage(pointsObs.Url));
                                 Interlocked.Add(ref trf, rf);
                             }
-                            imageObs.FeaturesGuid = result.Guid;
                             if (!options.NoSave)
                             {
                                 pipeline.SaveDataProduct(project.ProductPath, result, project.Name);
+                                imageObs.FeaturesGuid = result.Guid;
                                 imageObs.Save(pipeline);
                             }
                             AddToHistogram(result, histogram);
