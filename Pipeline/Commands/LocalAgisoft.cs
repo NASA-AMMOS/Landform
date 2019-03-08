@@ -78,7 +78,8 @@ namespace OPS.Pipeline
             {
                 Image img = this.LoadImage(obs.Url);
                 img.Save<byte>(Path.Combine(imageDir, obs.Name + ".png"));
-
+                
+                //TODO: query observations to get mission masks if available
                 var mask = FeatureDetecting.MakeMask(this, null, img, obs.Name);
                 mask.Save<byte>(Path.Combine(masksDir, obs.Name + "_mask.png"));
             }
@@ -191,8 +192,9 @@ namespace OPS.Pipeline
                       "chunk.alignCameras()\n";
 
                 fc += "Metashape.app.document.chunk.buildPoints()\n";
-                
-                //TODO: optimize cameras and re-align
+
+                fc += "chunk.optimizeCameras()\n" +
+                     "chunk.alignCameras(chunk.cameras)\n";
 
                 //save debug scene for inspection
                 fc += "doc.save(path = \"" + outputAgiScenePath.Replace(@"\", "/") + "\", chunks = [doc.chunk])\n";
