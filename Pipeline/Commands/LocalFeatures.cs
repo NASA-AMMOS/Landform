@@ -19,20 +19,41 @@ namespace OPS.Pipeline
         [Value(0, Required = true, HelpText = "project name", Default = null)]
         public string ProjectName { get; set; }
 
-        [Option(HelpText = "Detector type", Default = DetectorType.ASIFT)]
-        public DetectorType DetectorType { get; set; }
+        [Option(HelpText = "Detector type", Default = FeatureDetector.DEF_DETECTOR_TYPE)]
+        public FeatureDetector.DetectorType DetectorType { get; set; }
+
+        [Option(HelpText = "Minimum feature size to keep", Default = FeatureDetector.DEF_MIN_FEATURE_SIZE)]
+        public double MinFeatureSize { get; set; }
+
+        [Option(HelpText = "Minimum feature response keep, -1 for all", Default = FeatureDetector.DEF_MIN_RESPONSE)]
+        public double MinResponse { get; set; }
+
+        [Option(HelpText = "Maximum feature response keep, -1 for all", Default = FeatureDetector.DEF_MAX_RESPONSE)]
+        public double MaxResponse { get; set; }
 
         [Option(HelpText = "Maximum number of features per image", Default = FeatureDetector.DEF_MAX_FEATURES)]
         public int MaxFeaturesPerImage { get; set; }
 
-        [Option(HelpText = "Minimum feature size to keep", Default = FeatureDetector.DEF_MIN_FEATURE_SIZE)]
-        public double MinFeatureSize { get; set; }
+        [Option(HelpText = "Image decimation", Default = FeatureDetector.DEF_DECIMATION)]
+        public int Decimation { get; set; }
+
+        [Option(HelpText = "SIFT octave layers", Default = FeatureDetector.DEF_SIFT_OCTAVES)]
+        public int SIFTOctaves { get; set; }
+
+        [Option(HelpText = "Minimum (finest) SIFT octave layer of features to keep, -1 for all", Default = FeatureDetector.DEF_MIN_SIFT_OCTAVE)]
+        public int MinSIFTOctave { get; set; }
+
+        [Option(HelpText = "Maximum (coarsest) SIFT octave layer of features to keep, -1 for all", Default = FeatureDetector.DEF_MAX_SIFT_OCTAVE)]
+        public int MaxSIFTOctave { get; set; }
 
         [Option(HelpText = "Recreate features that already exist", Default = false)]
         public bool RedoFeatures { get; set; }
 
         [Option(HelpText = "Don't try to add range data to features", Default = false)]
         public bool NoRange { get; set; }
+
+        [Option(HelpText = "Only keep features with range", Default = false)]
+        public bool RequireRange { get; set; }
 
         [Option(HelpText = "Write feature images for debugging", Default = false)]
         public bool WriteFeatureImages { get; set; }
@@ -43,10 +64,7 @@ namespace OPS.Pipeline
         [Option(HelpText = "Debug image format, e.g. png, jpg, help for list", Default = "png")]
         public string ImageFormat { get; set; }
 
-        [Option(HelpText = "Histogram bucket size", Default = 50)]
-        public int HistogramBucketSize { get; set; }
-
-        [Option(HelpText = "Include existing products in histogram", Default = false)]
+        [Option(HelpText = "Include existing products in histograms", Default = false)]
         public bool TallyExisting { get; set; }
 
         [Option(HelpText = "Hide progress", Default = false)]
@@ -134,10 +152,24 @@ namespace OPS.Pipeline
             int no = obsForFrame.Values.Count(obsGroup => obsGroup.Any(obs => obs.ObservationType == imageType));
             pipeline.LogInfo("computing {0} features for {1} reconstruction images", options.DetectorType, no);
 
-            FeatureDetector detector = new FeatureDetector(pipeline, options.DetectorType, options.MaxFeaturesPerImage,
-                                                           options.MinFeatureSize);
+            var detectorOpts = new FeatureDetector.Options()
+                {
+                    DetectorType = options.DetectorType,
+                    MinFeatureSize = options.MinFeatureSize,
+                    MinResponse = options.MinResponse,
+                    MaxResponse = options.MaxResponse,
+                    MaxFeatures = options.MaxFeaturesPerImage,
+                    Decimation = options.Decimation,
+                    SIFTOctaves = options.SIFTOctaves,
+                    MinSIFTOctave = options.MinSIFTOctave,
+                    MaxSIFTOctave = options.MaxSIFTOctave,
+                    FeaturesPerImageBucketSize = 100,
+                    FeaturesPerSizeBucketSize = 2,
+                    FeaturesPerResponseBucketSize = 0.002,
+                    FeaturesPerOctaveBucketSize = 1
+                };
+            FeatureDetector detector = new FeatureDetector(pipeline, detectorOpts);
 
-            var histogram = new ConcurrentDictionary<int, int>();
             double startSec = UTCTime.Now();
             int nc = 0, ne = 0, nf = 0, np = 0, wr = 0, tf = 0, trf = 0;
             CoreLimitedParallel.ForEach(obsForFrame.Values, obsGroup => { 
@@ -171,7 +203,7 @@ namespace OPS.Pipeline
                                     }
                                     if (options.TallyExisting)
                                     {
-                                        AddToHistogram(product, histogram);
+                                        detector.Tally(product.Features);
                                     }
                                 }
                                 return;
@@ -194,7 +226,7 @@ namespace OPS.Pipeline
                             pipeline.LogInfo("computing features for {0} images in parallel, completed {1}/{2}",
                                              np, nc, no);
                         }
-                        
+
                         var result = detector.Detect(imageObs.Url, maskUrl, project.Name, project.ProductPath);
                         if (result != null)
                         {
@@ -208,6 +240,10 @@ namespace OPS.Pipeline
                                 int rf = FeatureDetecting.AddRange(result.Features,
                                                                    pipeline.LoadImage(imageObs.Url),
                                                                    pipeline.LoadImage(pointsObs.Url));
+                                if (options.RequireRange)
+                                {
+                                    result.Features = result.Features.Where(f => f.Range > 0).ToArray();
+                                }
                                 Interlocked.Add(ref trf, rf);
                             }
                             if (!options.NoSave)
@@ -216,10 +252,9 @@ namespace OPS.Pipeline
                                 imageObs.FeaturesGuid = result.Guid;
                                 imageObs.Save(pipeline);
                             }
-                            AddToHistogram(result, histogram);
                         }
                         
-                        if (options.WriteFeatureImages)
+                        if (options.WriteFeatureImages && result != null)
                         {
                             WriteFeatureImage(result, maskUrl, imageObs);
                         }
@@ -229,23 +264,14 @@ namespace OPS.Pipeline
                     }
                 });
             double totalSec = UTCTime.Now() - startSec;
-            
-            foreach (var bucket in histogram.Keys.OrderBy(n => n))
-            {
-                pipeline.LogInfo("{0} images with {1} to {2} features", histogram[bucket],
-                                 bucket * options.HistogramBucketSize, (bucket + 1) * options.HistogramBucketSize - 1);
-            }
+
+            detector.DumpHistograms(pipeline);
+
             pipeline.LogInfo("processed {0} reconstruction images ({1:F3}s), computed features for {2} images, " +
                              "{3} with range, {4} existing", nc, totalSec, nf, wr, ne);
             pipeline.LogInfo("total {0} features, {1} with range", tf, trf);
             
             return 0;
-        }
-
-        private void AddToHistogram(DetectedFeatures product, ConcurrentDictionary<int, int> histogram)
-        {
-            int bucket = product.Features.Length / options.HistogramBucketSize;
-            histogram.AddOrUpdate(bucket, _ => 1, (_, count) => count + 1);
         }
 
         private void WriteFeatureImage(DetectedFeatures product, string maskUrl, Observation imageObs)

@@ -12,12 +12,16 @@ namespace OPS.Alignment
 {
     public class SIFTFeature : ImageFeature
     {
-        public double Size;
-        public double Angle;
-        public int Octave;
+        public double Size; //neighborhood diameter
+        public double Angle; //degrees in [0, 360)
+        public int Octave; //pyramid layer
         public double Response;
 
-        public SIFTFeature(Vector2 location, double size, double angle, int octave, double response, FeatureDescriptor descriptor = null)
+        //needed for JSON deserialization
+        public SIFTFeature() { }
+
+        public SIFTFeature(Vector2 location, double size, double angle, int octave, double response,
+                           FeatureDescriptor descriptor = null)
             : base(location, descriptor)
         {
             this.Size = size;
@@ -25,6 +29,10 @@ namespace OPS.Alignment
             this.Octave = octave;
             this.Response = response;
         }
+
+        public SIFTFeature(MKeyPoint kp, FeatureDescriptor descriptor = null)
+            : this(new Vector2(kp.Point.X, kp.Point.Y), kp.Size, kp.Angle, kp.Octave, kp.Response, descriptor)
+        { }
 
         public static explicit operator MKeyPoint(SIFTFeature feature)
         {

@@ -1,37 +1,44 @@
-﻿using System.Collections.Generic;
-using Emgu.CV.XFeatures2D;
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using Microsoft.Xna.Framework;
 using Emgu.CV;
+using Emgu.CV.Structure;
+using Emgu.CV.XFeatures2D;
 using OPS.Imaging;
 using OPS.Imaging.Emgu;
-using Emgu.CV.Structure;
-using Microsoft.Xna.Framework;
-using System;
 
 namespace OPS.Alignment
 {
-    public class PCASIFTDetector : IFeatureDetector
+    /// <summary>
+    /// http://www.cs.ubc.ca/~lowe/papers/ijcv04.pdf
+    /// </summary>
+    public class PCASIFTDetector : SIFTDetector
     {
-        Emgu.CV.XFeatures2D.SIFT sift;
-        // For details, see http://www.cs.ubc.ca/~lowe/papers/ijcv04.pdf
-        public PCASIFTDetector(int numFeatures = 0, int octaveLayers = 3, float contrastThreshold = 0.04f, float edgeThreshold = 10f, float sigma = 1.6f)
+        private static readonly PCAKeypointProjector projector;
+
+        static PCASIFTDetector()
         {
-            sift = new Emgu.CV.XFeatures2D.SIFT(numFeatures, octaveLayers, contrastThreshold, edgeThreshold, sigma);
+            projector = new PCAKeypointProjector(PCAKeypointProjector.DefaultTrainingSpace);
         }
 
-        public IEnumerable<ImageFeature> Detect(Image image, Image mask = null)
+        public override IEnumerable<ImageFeature> Detect(Image image, Image mask = null)
         {
-            var emguImg = image.ToEmguGrayscale();
-            var emguMask = (mask != null) ? (mask.ToEmguGrayscale()) : null;
-
-            foreach (var kp in sift.Detect(emguImg, emguMask))
+            var keypoints = DetectKeypoints(image.ToEmguGrayscale(), (mask != null) ? mask.ToEmguGrayscale() : null);
+            foreach (var keypoint in keypoints)
             {
-                yield return new PCASIFTFeature(
-                    new Vector2(kp.Point.X, kp.Point.Y),
-                    kp.Size,
-                    MathHelper.ToRadians(kp.Angle),
-                    kp.Octave,
-                    kp.Response);
+                yield return (new PCASIFTFeature(keypoint));
             }
+        }
+
+        public override void AddDescriptors(Image image, IEnumerable<ImageFeature> features)
+        {
+            AddDescriptors(image.ToEmguGrayscale(), features);
+        }
+
+        public override void AddDescriptors(Image<Gray, byte> image, IEnumerable<ImageFeature> features)
+        {
+            projector.Project(image, features.Cast<PCASIFTFeature>());
         }
     }
 }

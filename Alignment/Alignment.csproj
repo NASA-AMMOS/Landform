@@ -103,7 +103,7 @@
     <Compile Include="ImageFeatures\Interfaces\IFeatureDetector.cs" />
     <Compile Include="ImageFeatures\SIFT\SIFTDescriptor.cs" />
     <Compile Include="ImageFeatures\MatchFilters\MoisanStivalFilter.cs" />
-    <Compile Include="ImageFeatures\SIFT\SIFT.cs" />
+    <Compile Include="ImageFeatures\SIFT\SIFTDetector.cs" />
     <Compile Include="ImageFeatures\SIFT\SIFTFeature.cs" />
     <Compile Include="ImageFeatures\Interfaces\IMatchFilter.cs" />
     <Compile Include="ImageFeatures\Interfaces\IFeatureMatcher.cs" />

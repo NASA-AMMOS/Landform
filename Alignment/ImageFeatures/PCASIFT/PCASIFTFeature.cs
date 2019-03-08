@@ -1,6 +1,6 @@
-﻿using Emgu.CV;
+﻿using Microsoft.Xna.Framework;
+using Emgu.CV;
 using Emgu.CV.Structure;
-using Microsoft.Xna.Framework;
 
 namespace OPS.Alignment
 {
@@ -12,11 +12,19 @@ namespace OPS.Alignment
         public float SX, SY;
         public Image<Gray, float> Patch;
 
-        public PCASIFTFeature(Vector2 location, double size, double angle, int octave, double response, FeatureDescriptor descriptor = null)
+        //needed for JSON deserialization
+        public PCASIFTFeature() { }
+
+        public PCASIFTFeature(Vector2 location, double size, double angle, int octave, double response,
+                              FeatureDescriptor descriptor = null)
             : base(location, size, angle, octave, response, descriptor)
         {
-            this.GScale = (float)size;
+            GScale = (float)size;
         }
+
+        public PCASIFTFeature(MKeyPoint kp, FeatureDescriptor descriptor = null)
+            : this(new Vector2(kp.Point.X, kp.Point.Y), kp.Size, kp.Angle, kp.Octave, kp.Response)
+        { }
     }
 }
 

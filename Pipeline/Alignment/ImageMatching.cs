@@ -23,44 +23,68 @@ namespace OPS.Pipeline
 {
     public class ImageMatching
     {
+        public enum MatcherType
+        {
+            EmguSIFT,
+            KnownGeometry,
+            BruteForce,
+            CascadeHashing
+        }
+        public const MatcherType DEF_MATCHER_TYPE = MatcherType.CascadeHashing;
         public const int DEF_MIN_MATCHES = 20;
+        public const double DEF_MAX_DESCRIPTOR_DISTANCE_RATIO = 0.9;
+        public const double DEF_MAX_DESCRIPTOR_DISTANCE = 0;
+        public const bool DEF_USE_KNOWN_GEOMETRY_FILTER = true;
+        public const bool DEF_USE_MOISAN_STIVAL_FILTER = true;
+        public const bool DEF_USE_GTM_FILTER = false;
+
+        public class Options
+        {
+            public MatcherType MatcherType = DEF_MATCHER_TYPE;
+            public int MinMatches = DEF_MIN_MATCHES;
+            public double MaxDescriptorDistanceRatio = DEF_MAX_DESCRIPTOR_DISTANCE_RATIO;
+            public double MaxDescriptorDistance = DEF_MAX_DESCRIPTOR_DISTANCE;
+            public bool UseKnownGeometryFilter = DEF_USE_KNOWN_GEOMETRY_FILTER;
+            public bool UseMoisanStivalFilter = DEF_USE_MOISAN_STIVAL_FILTER;
+            public bool UseGTMFilter = DEF_USE_GTM_FILTER;
+        }
 
         public static ComputedCorrespondence ComputeCorrespondence(PipelineCore pipeline, string projectName,
                                                                    string modelUrl, string dataUrl,
                                                                    string modelFrameName, string dataFrameName,
-                                                                   int minMatches = DEF_MIN_MATCHES)
+                                                                   Options options = null)
         {
             //build a minimal scene graph containing these two frames and their ancestors
-            var opts = new BuildSceneGraph.Options() {
+            var bsoOpts = new BuildSceneGraph.Options() {
                 PreloadCaches = false, //in this situation it will in general be a loss to preload caches
                 UseTransformPriors = true, //we build the scene graph bottom-up so the frame cache doesn't scan
                 LoadFeatures = true //observation cache doesn't scan
             };
-            BuildSceneGraph builder = new BuildSceneGraph(pipeline, projectName, opts);
+            BuildSceneGraph builder = new BuildSceneGraph(pipeline, projectName, bsoOpts);
             AlignmentScene scene = builder.BuildBottomUp(new[] { modelFrameName, dataFrameName });
             (new FrustumOverlapDetector(pipeline, pipeline)).MakeHulls(scene);
-            return ComputeCorrespondence(pipeline, scene, modelUrl, dataUrl, minMatches);
+            return ComputeCorrespondence(pipeline, scene, modelUrl, dataUrl, options);
         }
 
         public static ComputedCorrespondence ComputeCorrespondence(PipelineCore pipeline, AlignmentScene scene,
                                                                    string modelUrl, string dataUrl,
-                                                                   int minMatches = DEF_MIN_MATCHES)
+                                                                   Options options = null)
         {
             string rejectionReason;
-            return ComputeCorrespondence(pipeline, scene, modelUrl, dataUrl, out rejectionReason, minMatches);
+            return ComputeCorrespondence(pipeline, scene, modelUrl, dataUrl, out rejectionReason, options);
         }
+
 
         public static ComputedCorrespondence ComputeCorrespondence(PipelineCore pipeline, AlignmentScene scene,
                                                                    string modelUrl, string dataUrl,
-                                                                   out string rejectionReason,
-                                                                   int minMatches = DEF_MIN_MATCHES)
+                                                                   out string rejectionReason, Options options = null)
         {
-            rejectionReason = null;
+            if (options == null)
+            {
+                options = new Options();
+            }
 
-            Debug.Assert(scene.ObservationUrlToNode.ContainsKey(modelUrl));
-            Debug.Assert(scene.ObservationUrlToNode.ContainsKey(dataUrl));
-            Debug.Assert(scene.DetectedFeatures.ContainsKey(modelUrl));
-            Debug.Assert(scene.DetectedFeatures.ContainsKey(dataUrl));
+            rejectionReason = null;
 
             var modelNode = scene.ObservationUrlToNode[modelUrl];
             var dataNode = scene.ObservationUrlToNode[dataUrl];
@@ -84,34 +108,74 @@ namespace OPS.Pipeline
                                     (new SiteDrive(dro.Site, dro.Drive)).ToString());
             }
 
-            //IFeatureMatcher matcher = new EmguSIFTMatcher();
-            //IFeatureMatcher matcher = new KnownGeometryMatcher();
-            //IFeatureMatcher matcher = new BruteForceMatcher();
-            IFeatureMatcher matcher = new CascadeHashingMatcher();
+            IFeatureMatcher matcher = null;
+            switch (options.MatcherType)
+            {
+                case MatcherType.EmguSIFT:
+                {
+                    matcher = new EmguSIFTMatcher() { MaxDistanceRatio = options.MaxDescriptorDistanceRatio };
+                    break;
+                }
+                case MatcherType.KnownGeometry:
+                {
+                    matcher = new KnownGeometryMatcher() { MaxDistanceRatio = options.MaxDescriptorDistanceRatio };
+                    break;
+                }
+                case MatcherType.BruteForce:
+                {
+                    matcher = new BruteForceMatcher() { MaxDistanceRatio = options.MaxDescriptorDistanceRatio };
+                    break;
+                }
+                case MatcherType.CascadeHashing:
+                {
+                    matcher = new CascadeHashingMatcher() { MaxDistanceRatio = options.MaxDescriptorDistanceRatio };
+                    break;
+                }
+            }
+
+            pipeline.LogVerbose("{0} {1}: maxDescriptorDistanceRatio = {2}, minMatches = {3}" +
+                                "useKnownGeometryFilter={4}, useMoisanStivalFilter={5}, useGTMFilter={6}",
+                                pairName, matcher.GetType().Name, options.MaxDescriptorDistanceRatio,
+                                options.MinMatches, options.UseKnownGeometryFilter, options.UseMoisanStivalFilter,
+                                options.UseGTMFilter);
+
             var matches = matcher.Match(scene, modelUrl, dataUrl);
-            if (matches.Count < minMatches)
+
+            if (matches.Count < options.MinMatches)
             {
                 pipeline.LogVerbose("{0} {1}: {2} < {3} matches, discarding", pairName, matcher.GetType().Name,
-                                    matches.Count, minMatches);
+                                    matches.Count, options.MinMatches);
                 rejectionReason = string.Format("(step 0) {0} returned too few matches", matcher.GetType().Name);
                 return null;
             }
             pipeline.LogVerbose("{0} {1}: {2} matches", pairName, matcher.GetType().Name, matches.Count);
 
             List<IMatchFilter> filters = new List<IMatchFilter>();
-            filters.Add(new KnownGeometryFilter(pipeline));
-            filters.Add(new MoisanStivalFilter(pipeline));
-            //filters.Add(new GTMFilter());
-
+            if (options.MaxDescriptorDistance > 0)
+            {
+                filters.Add(new DescriptorDistanceFilter(options.MaxDescriptorDistance));
+            }
+            if (options.UseKnownGeometryFilter)
+            {
+                filters.Add(new KnownGeometryFilter(pipeline));
+            }
+            if (options.UseMoisanStivalFilter)
+            {
+                filters.Add(new MoisanStivalFilter(pipeline));
+            }
+            if (options.UseGTMFilter)
+            { 
+                filters.Add(new GTMFilter());
+            }
             int step = 1;
             foreach (var filter in filters)
             {
                 int oldCount = matches.Count;
                 matches = filter.Filter(scene, matches);
-                if (matches.Count < minMatches)
+                if (matches.Count < options.MinMatches)
                 {
                     pipeline.LogVerbose("{0} {1}: {2} < {3} matches, discarding", pairName, filter.GetType().Name,
-                                        matches.Count, minMatches);
+                                        matches.Count, options.MinMatches);
                     rejectionReason = string.Format("(step {0}) {1} returned too few matches",
                                                     step, filter.GetType().Name);
                     return null;
