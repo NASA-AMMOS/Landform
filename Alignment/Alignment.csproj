@@ -79,6 +79,7 @@
   <ItemGroup>
     <Compile Include="ImageFeatures\FeatureDescriptor.cs" />
     <Compile Include="ImageFeatures\ImageFeature.cs" />
+    <Compile Include="ImageFeatures\MatchFilters\DescriptorDistanceFilter.cs" />
     <Compile Include="ImageFeatures\Matching\CascadeHashingMatcher.cs" />
     <Compile Include="Components\AdjustedNode.cs" />
     <Compile Include="EpipolarGeometry\EpipolarTransformDecomposition.cs" />
