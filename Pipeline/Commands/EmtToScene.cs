@@ -452,44 +452,9 @@ namespace OPS.Pipeline
                 if (decimationRatio.HasValue)
                 {
                     int targetFaces = (int)(m.Faces.Count * decimationRatio.Value);
-                    //logger.Info("Decimating: " + m.Faces.Count + " down to " + targetFaces);
+                    logger.Info("Decimating: " + m.Faces.Count + " down to " + targetFaces);
                     m = EdgeCollapse.QuadricEdgeCollapse(m, targetFaces);
-                    m = BaselineAtlaser.AtlasSiteFrameMesh(m, Image.Load(localRecord.PreferedMetadataImage));
-                    //var m2 = BaselineAtlaser.AtlasSiteFrameMesh(m, Image.Load(localRecord.PreferedMetadataImage));
-                    //int missCounter = 0;
-                    //OPS.MathExtensions.RunningAverage avgU = new OPS.MathExtensions.RunningAverage();
-                    //OPS.MathExtensions.RunningAverage avgV = new OPS.MathExtensions.RunningAverage();
-
-                    //for (int i = 0; i < m.Vertices.Count; i++)
-                    //{
-
-                    //    m2.Vertices[i].Color = new Microsoft.Xna.Framework.Vector4(0, 0, 1, 1);
-                    //    var dist = (m.Vertices[i].UV - m2.Vertices[i].UV);
-                    //    avgU.Push(dist.U);
-                    //    avgV.Push(dist.V);
-
-                    //    //if (dist > 0.001)
-                    //    //{
-                    //    //    //m2.Vertices[i].Color = new Microsoft.Xna.Framework.Vector4(1, 0, 0, 1);
-
-                    //    //    //Console.WriteLine(m.Vertices[i].Position);
-                    //    //    //Console.WriteLine(m2.Vertices[i].Position);
-                    //    //    //Console.WriteLine(m.Vertices[i].UV);
-                    //    //    //Console.WriteLine(m2.Vertices[i].UV);
-                    //    //    //Console.WriteLine(m.Vertices[i].UV - m2.Vertices[i].UV);
-                    //    //    //Console.WriteLine(" -- ");
-                    //    //    missCounter++;
-                    //    //}
-
-                    //}
-                    //m = m2;
-                    //Console.WriteLine("Misses: " + missCounter + " / " + m.Vertices.Count);
-                    //Console.WriteLine("AvgU: " + avgU.Mean);
-                    //Console.WriteLine("MaxU: " + avgU.Max);
-                    //Console.WriteLine("MinU: " + avgU.Min);
-                    //Console.WriteLine("AvgV: " + avgV.Mean);
-                    //Console.WriteLine("MaxV: " + avgV.Max);
-                    //Console.WriteLine("MinV: " + avgV.Min);
+                    m = BaselineAtlaser.AtlasSiteFrameMesh(m, Image.Load(localRecord.PreferedMetadataImage));                  
 
                 }
                 m.Translate(-parser.OriginOffset);
@@ -693,7 +658,6 @@ namespace OPS.Pipeline
             foreach (var v in mesh.Vertices)
             {
                 var p = v.Position;
-                //v.Position = new Vector3(p.X, -p.Z, p.Y);
                 v.Position = new Vector3(-p.Y, -p.Z, p.X);
             }
         }
