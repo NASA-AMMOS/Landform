@@ -38,7 +38,7 @@ namespace OPS.Pipeline
             : base(options, CloudPipelineConfig.Instance,
                    StringHelper.NormalizeUrl(CloudPipelineConfig.Instance.S3Url, "s3://"),
                    CloudPipelineConfig.Instance.Venue, logger, lruCache, quietInit,
-                   maxCores ?? CloudPipelineConfig.Instance.MaxCores)
+                   options.SingleThreaded ? 1 : maxCores ?? CloudPipelineConfig.Instance.MaxCores)
         {
             var cloudConfig = (CloudPipelineConfig)Config;
 

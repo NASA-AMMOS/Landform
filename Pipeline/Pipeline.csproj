@@ -116,6 +116,9 @@
       <HintPath>..\packages\GDAL.1.11.1\lib\net40\osr_csharp.dll</HintPath>
       <Private>True</Private>
     </Reference>
+    <Reference Include="RestSharp, Version=106.6.7.0, Culture=neutral, PublicKeyToken=598062e77f915f75, processorArchitecture=MSIL">
+      <HintPath>..\packages\RestSharp.106.6.7\lib\net452\RestSharp.dll</HintPath>
+    </Reference>
     <Reference Include="RTree, Version=1.1.0.0, Culture=neutral, processorArchitecture=MSIL">
       <HintPath>..\packages\RTree.1.1.0\lib\netstandard2.0\RTree.dll</HintPath>
     </Reference>
@@ -154,6 +157,7 @@
       <Private>True</Private>
     </Reference>
     <Reference Include="System.Runtime.Serialization" />
+    <Reference Include="System.Web" />
     <Reference Include="System.Windows" />
     <Reference Include="System.Windows.Forms" />
     <Reference Include="System.Xml.Linq" />
@@ -187,14 +191,16 @@
     <Compile Include="AlignmentServer\Operations\MatchImages.cs" />
     <Compile Include="Alignment\BuildSceneGraph.cs" />
     <Compile Include="Alignment\BundleAdjusting.cs" />
-    <Compile Include="Alignment\FeatureDetector.cs" />
+    <Compile Include="Alignment\FeatureDetecting.cs" />
     <Compile Include="Alignment\ImageMatching.cs" />
     <Compile Include="Alignment\IngestAlignmentInputs.cs" />
     <Compile Include="Alignment\IngestImage.cs" />
     <Compile Include="Alignment\IngestPDSImage.cs" />
     <Compile Include="Alignment\InitializeAlignmentProject.cs" />
+    <Compile Include="Alignment\Meshing.cs" />
     <Compile Include="Alignment\NodeFrame.cs" />
     <Compile Include="Alignment\NodeObservation.cs" />
+    <Compile Include="Alignment\Procrustes.cs" />
     <Compile Include="CloudPipeline.cs" />
     <Compile Include="CloudPipelineConfig.cs" />
     <Compile Include="CloudPipelineOperation.cs" />
@@ -206,8 +212,8 @@
     <Compile Include="Commands\LocalBundleAdjust.cs" />
     <Compile Include="Commands\LocalFeatures.cs" />
     <Compile Include="Commands\LocalIngest.cs" />
-    <Compile Include="Commands\LocalMasks.cs" />
     <Compile Include="Commands\LocalMatching.cs" />
+    <Compile Include="Commands\LocalObservationProducts.cs" />
     <Compile Include="Commands\TileLocalMesh.cs" />
     <Compile Include="DataProducts\DataProduct.cs" />
     <Compile Include="General\LegacySceneManfiest.cs" />
@@ -220,6 +226,7 @@
     <Compile Include="MeshWorker\Operations\BuildTilingInput.cs" />
     <Compile Include="PipelineCore.cs" />
     <Compile Include="PipelineRoutine.cs" />
+    <Compile Include="Rover\MSLPlaces.cs" />
     <Compile Include="Rover\MSLProject.cs" />
     <Compile Include="StateMachines\GenericTilingStateMachine.cs" />
     <Compile Include="StateMachines\MSLStateMachine.cs" />
@@ -253,8 +260,6 @@
     <Compile Include="Commands\TileBaselineMesh.cs" />
     <Compile Include="DataProducts\ComputedCorrespondence.cs" />
     <Compile Include="DataProducts\DetectedFeatures.cs" />
-    <Compile Include="General\LegacyScene.cs" />
-    <Compile Include="General\ObservationEnums.cs" />
     <Compile Include="GdalConfiguration.cs" />
     <Compile Include="Rover\MSLLocations.cs" />
     <Compile Include="Rover\RoverCoordinateSystem.cs" />
@@ -275,6 +280,7 @@
     <Compile Include="Tiling\IImageProducer.cs" />
     <Compile Include="Tiling\IMeshAtlaser.cs" />
     <Compile Include="Tiling\ITileSplitCriteria.cs" />
+    <Compile Include="Tiling\LegacyScene.cs" />
     <Compile Include="Tiling\MeshImagePair.cs" />
     <Compile Include="Tiling\MeshTiler.cs" />
     <Compile Include="Rover\PDSParser.cs" />

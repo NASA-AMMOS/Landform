@@ -320,6 +320,8 @@ namespace OPS.Imaging
         /// <summary>
         /// Image resizing based on 
         /// http://entropymine.com/imageworsener/resample/
+        /// TODO this does not respect the image mask, if any
+        /// https://github.jpl.nasa.gov/OnSight/Landform/issues/430
         /// </summary>
         public Image Resize(int targetWidth, int targetHeight, FilterDelegate filter = null)
         {
@@ -524,6 +526,8 @@ namespace OPS.Imaging
         /// <summary>
         /// Resize an image to the target width using a simple bicubic function
         /// Considering using Resize() instead
+        /// TODO this does not respect the image mask, if any
+        /// https://github.jpl.nasa.gov/OnSight/Landform/issues/430
         /// </summary>
         /// <param name="targetWidth"></param>
         /// <param name="targetHeight"></param>
@@ -663,6 +667,62 @@ namespace OPS.Imaging
             return this[b, row, col];
         }
 
+        /// <summary>
+        /// decimate by averaging square blocks
+        /// respects image mask, if any
+        /// resulting image will have mask set for any source block that had no valid pixels
+        /// does not mutate source image
+        /// </summary>
+        public Image Decimated(int blocksize)
+        {
+            if (blocksize == 1)
+            {
+                return (Image)Clone();
+            }
 
+            int targetWidth = Width / blocksize; //integer math
+            int targetHeight = Height / blocksize; //integer math
+
+            Image result = new Image(this.Bands, targetWidth, targetHeight);
+            result.CreateMask(false);
+
+            for (int band = 0; band < Bands; band++)
+            {
+                for (int dstRow = 0; dstRow < targetHeight; dstRow++)
+                {
+                    for (int dstCol = 0; dstCol < targetWidth; dstCol++)
+                    {
+                        int n = 0;
+                        float sum = 0;
+                        for (int srcRow = dstRow*blocksize; srcRow < (dstRow + 1)*blocksize; srcRow++)
+                        {
+                            if (srcRow >= 0 && srcRow < this.Height)
+                            {
+                                for (int srcCol = dstCol*blocksize; srcCol < (dstCol + 1)*blocksize; srcCol++)
+                                {
+                                    if (srcCol >= 0 && srcCol < this.Width)
+                                    {
+                                        if (!IsInvalid(srcRow, srcCol))
+                                        {
+                                            sum += this[band, srcRow, srcCol];
+                                            n++;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        if (n > 0)
+                        {
+                            result[band, dstRow, dstCol] = sum / n;
+                        }
+                        else
+                        {
+                            result.SetMaskValue(dstRow, dstCol, true);
+                        }
+                    }
+                }
+            }
+            return result;
+        }
     }
 }

@@ -45,9 +45,14 @@ namespace OPS.Pipeline
             return string.Format("{0:D5}{1:D5}", Site, Drive);            
         }
 
+        public static explicit operator int(SiteDrive sd)
+        {
+            return sd.Site * 10000 + sd.Drive;
+        }
+
         public override int GetHashCode()
         {
-            return Site * 10000 + Drive;
+            return (int)this;
         }
 
         public override bool Equals(object obj)
