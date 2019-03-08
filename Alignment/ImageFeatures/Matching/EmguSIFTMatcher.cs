@@ -14,6 +14,18 @@ namespace OPS.Alignment
 {
     public class EmguSIFTMatcher : IFeatureMatcher
     {
+        //maxumum ratio between distance of nearest data feature descriptor to model feature descriptor
+        //vs 2nd nearest data feature descriptor to the same model feature descriptor
+        //set to 1 to disable filtering by this ratio
+        public double MaxDistanceRatio = 0.9;
+
+        //whether to use EmguCV VoteForSizeAndOrientation
+        public bool VoteForSizeAndOrientation = true;
+
+        //minimum distance ratio to consider two feature matches unique
+        //set to 0 to disable uniqueness filtering
+        public double MinUniquenessRatio = 0.8;
+
         public ImagePairCorrespondence Match(AlignmentScene scene, string modelUrl, string dataUrl)
         {
             var modelFeatures = scene.DetectedFeatures[modelUrl];
@@ -27,52 +39,67 @@ namespace OPS.Alignment
             return new ImagePairCorrespondence(modelUrl, dataUrl, Match(modelFeatures, dataFeatures));
         }
 
-        public IEnumerable<KeyValuePair<int, int>> Match(ImageFeature[] modelFeatures, ImageFeature[] dataFeatures)
+        public IEnumerable<FeatureMatch> Match(ImageFeature[] modelFeatures, ImageFeature[] dataFeatures)
         {
             if (modelFeatures.Length < 1 || dataFeatures.Length < 1) yield break;
 
-            SIFTFeature[] feat0 = modelFeatures.Cast<SIFTFeature>().ToArray();
-            SIFTFeature[] feat1 = dataFeatures.Cast<SIFTFeature>().ToArray();
+            Matrix<float> modelDescriptors = FeatureDescriptor.ToDescriptorMatrix(modelFeatures);
+            Matrix<float> dataDescriptors = FeatureDescriptor.ToDescriptorMatrix(dataFeatures);
+            VectorOfKeyPoint modelKeypoints =
+                new VectorOfKeyPoint(modelFeatures.Cast<SIFTFeature>().CastToMKeyPoint().ToArray());
+            VectorOfKeyPoint dataKeypoints =
+                new VectorOfKeyPoint(dataFeatures.Cast<SIFTFeature>().CastToMKeyPoint().ToArray());
 
-            Matrix<float> descr0 = ToDescriptorMatrix(feat0);
-            Matrix<float> descr1 = ToDescriptorMatrix(feat1);
-            VectorOfKeyPoint kp0 = new VectorOfKeyPoint(feat0.CastToMKeyPoint().ToArray());
-            VectorOfKeyPoint kp1 = new VectorOfKeyPoint(feat1.CastToMKeyPoint().ToArray());
-            
-            Matrix<int> indices = new Matrix<int>(descr1.Rows, 2);
-
-            // Match descriptors
+            //find 2 closest model features for each data feature
+            Matrix<int> indices = new Matrix<int>(dataDescriptors.Rows, 2);
             VectorOfVectorOfDMatch matches = new VectorOfVectorOfDMatch();
-
             using (BFMatcher bfm = new BFMatcher(DistanceType.L2))
             {
-                bfm.Add(descr0);
-                bfm.KnnMatch(descr1, matches, 2, null);
+                bfm.Add(modelDescriptors);
+                bfm.KnnMatch(dataDescriptors, matches, 2, null);
             }
 
             Matrix<byte> mask = new Matrix<byte>(matches.Size, 1);
-            mask.SetValue(255);
+            mask.SetValue(1);
 
             // OpenCV standard correspondence checks
-            for (int idx = 0; idx < matches.Size; idx++)
+
+            if (MaxDistanceRatio < 1) 
             {
-                if (matches[idx][0].Distance > matches[idx][1].Distance * 0.8)
+                int keepers = matches.Size;
+                for (int idx = 0; idx < matches.Size; idx++)
                 {
-                    mask[idx, 0] = 0;
+                    //keep match iff bestDist/2ndBestDist <= MaxDistanceRatio
+                    if (matches[idx][0].Distance > matches[idx][1].Distance * MaxDistanceRatio)
+                    {
+                        mask[idx, 0] = 0;
+                        keepers--;
+                    }
+                }
+                if (keepers == 0)
+                {
+                    yield break;
                 }
             }
-            int nonZero = CvInvoke.CountNonZero(mask);
-            if (nonZero < 1)
+
+            if (VoteForSizeAndOrientation)
             {
-                yield break;
+                int keepers = Features2DToolbox.VoteForSizeAndOrientation(modelKeypoints, dataKeypoints, matches,
+                                                                          mask.Mat, 1.5, 20);
+                if (keepers == 0)
+                {
+                    yield break;
+                }
             }
-            //lock (GlobalLock)
-            //{
-                nonZero = Features2DToolbox.VoteForSizeAndOrientation(kp0, kp1, matches, mask.Mat, 1.5, 20);
-            //}
-            if (nonZero < 1)
+
+            if (MinUniquenessRatio > 0)
             {
-                yield break;
+                //unlike VoteForSizeAndOrientation this API does not return the number of nonzeros in the resulting mask
+                Features2DToolbox.VoteForUniqueness(matches, MinUniquenessRatio, mask.Mat);
+                if (CvInvoke.CountNonZero(mask) == 0)
+                {
+                    yield break;
+                }
             }
 
             for (int idx = 0; idx < matches.Size; idx++)
@@ -80,65 +107,14 @@ namespace OPS.Alignment
                 if (mask[idx, 0] != 0)
                 {
                     var match = matches[idx][0];
-                    yield return new KeyValuePair<int, int>(match.QueryIdx, match.TrainIdx);
+                    yield return new FeatureMatch()
+                    {
+                        DataIndex = match.QueryIdx,
+                        ModelIndex = match.TrainIdx,
+                        DescriptorDistance = match.Distance
+                    };
                 }
             }
         }
-
-        /*
-        static Matrix<T> ToDescriptorMatrix2<T>(SIFTFeature[] features) where T: struct
-        {
-            Matrix<T> res = new Matrix<T>(features.Length, features[0].Descriptor.Length);
-            T[,] data = res.Data;
-            int i, j;
-            for (i = 0; i < features.Length; i++)
-            {
-                var d = features[i].Descriptor;
-                if (d.ElementType != typeof(T) || d.Length != res.Cols)
-                {
-                    throw new InvalidOperationException("Mismatched descriptor types");
-                }
-
-                var fd = (FeatureDescriptor<T>)d;
-                for (j = 0; j < d.Length; j++)
-                {
-                    data[i, j] = fd.Data[j];
-                }
-            }
-            return res;
-        }
-
-        static Matrix<float> ToDescriptorMatrix1(SIFTFeature[] features)
-        {
-            var d0 = features[0].Descriptor;
-            if (d0.ElementType == typeof(float))
-            {
-                return ToDescriptorMatrix2<float>(features);
-            }
-            //else if (d0.ElementType == typeof(byte))
-            //{
-            //    return ToDescriptorMatrix2<byte>(features);
-            //}
-            throw new ArgumentException("descriptors must be byte or float");
-        }
-        */
-
-        public static Matrix<float> ToDescriptorMatrix(SIFTFeature[] features)
-        {
-            Matrix<float> res = new Matrix<float>(features.Length, features[0].Descriptor.Length);
-            float[,] data = res.Data;
-            int i, j;
-            for (i = 0; i < features.Length; i++)
-            {
-                var d = ((FeatureDescriptor<byte>)features[i].Descriptor).Data;
-                for (j = 0; j < d.Length; j++)
-                {
-                    data[i, j] = d[j];
-                }
-            }
-            return res;
-        }
-
-        private static readonly object GlobalLock = new object();
     }
 }

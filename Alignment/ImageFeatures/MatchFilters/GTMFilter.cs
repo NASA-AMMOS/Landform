@@ -404,11 +404,20 @@ namespace OPS.Alignment
                 throw new Exception("Unexpected difference in graph sizes");
             }
             // Both graphs are the same size and have a one-to-one correspondence when ordered by index
+            var descriptorDistance = new Dictionary<KeyValuePair<int, int>, double>();
+            for (int i = 0; i < matches.DataToModel.Length; i++)
+            {
+                descriptorDistance[matches.DataToModel[i]] = matches.DescriptorDistance[i];
+            }
             var dataToModel = Enumerable.Zip(
                 dataGraph.OrderedFeatureIndices(),
                 modelGraph.OrderedFeatureIndices(),
-                (dataIdx, modelIdx) => new KeyValuePair<int,int>(dataIdx, modelIdx)
-            );
+                (dataIdx, modelIdx) => new FeatureMatch()
+                    {
+                        DataIndex = dataIdx,
+                        ModelIndex = modelIdx,
+                        DescriptorDistance = descriptorDistance[new KeyValuePair<int, int>(dataIdx, modelIdx)]
+                    });
             return new ImagePairCorrespondence(matches.ModelImageUrl, matches.DataImageUrl, dataToModel,
                                                matches.FundamentalMatrix, matches.BestTransformEstimate);
         }

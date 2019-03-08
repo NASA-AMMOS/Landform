@@ -119,9 +119,9 @@ namespace OPS.Alignment
                                               ConvexHull modelHullInData = null, ConvexHull dataHullInModel = null)
         {
             // Cache result of model ray -> data frustum intersection, because model rays can be repeated
-            Dictionary<int, bool> modelRayIntersects = new Dictionary<int, bool>();
-            Dictionary<int, bool> dataRayIntersects = new Dictionary<int, bool>();
-            List<KeyValuePair<int, int>> goodMatches = new List<KeyValuePair<int, int>>();
+            var modelRayIntersects = new Dictionary<int, bool>();
+            var dataRayIntersects = new Dictionary<int, bool>();
+            var goodMatches = new List<FeatureMatch>();
 
             int rejectedHull = 0;
             int rejectedSigma = 0;
@@ -131,10 +131,13 @@ namespace OPS.Alignment
             var epiFinder = new EpipolarLineFinder();
             epiFinder.ParallelProjectionDistance = ParallelProjectionDistance;
 
-            foreach (var pair in matches.DataToModel)
+            for (int i = 0; i < matches.DataToModel.Length; i++)
             {
-                var modelFeature = modelFeatures[pair.Value];
-                var dataFeature = dataFeatures[pair.Key];
+                int dataFeatureIndex = matches.DataToModel[i].Key;
+                int modelFeatureIndex = matches.DataToModel[i].Value;
+
+                var modelFeature = modelFeatures[modelFeatureIndex];
+                var dataFeature = dataFeatures[dataFeatureIndex];
 
                 var modelRay = modelCam.Unproject(modelFeature.Location);
                 var dataRay = dataCam.Unproject(dataFeature.Location);
@@ -142,13 +145,13 @@ namespace OPS.Alignment
                 // if we have a convex hull, check if model ray intersects it at all
                 if (dataHullInModel != null)
                 {
-                    if (!modelRayIntersects.ContainsKey(pair.Value))
+                    if (!modelRayIntersects.ContainsKey(modelFeatureIndex))
                     {
                         bool intersects = dataHullInModel.Intersects(modelRay);
-                        modelRayIntersects[pair.Value] = intersects;
+                        modelRayIntersects[modelFeatureIndex] = intersects;
                     }
 
-                    if (!modelRayIntersects[pair.Value])
+                    if (!modelRayIntersects[modelFeatureIndex])
                     {
                         rejectedHull++;
                         continue;
@@ -157,13 +160,13 @@ namespace OPS.Alignment
 
                 if (modelHullInData != null)
                 {
-                    if (!dataRayIntersects.ContainsKey(pair.Key))
+                    if (!dataRayIntersects.ContainsKey(dataFeatureIndex))
                     {
                         bool intersects = modelHullInData.Intersects(dataRay);
-                        dataRayIntersects[pair.Key] = intersects;
+                        dataRayIntersects[dataFeatureIndex] = intersects;
                     }
 
-                    if (!dataRayIntersects[pair.Key])
+                    if (!dataRayIntersects[dataFeatureIndex])
                     {
                         rejectedHull++;
                         continue;
@@ -260,7 +263,12 @@ namespace OPS.Alignment
                     }
                 }
 
-                goodMatches.Add(pair);
+                goodMatches.Add(new FeatureMatch()
+                                {
+                                    DataIndex = dataFeatureIndex,
+                                    ModelIndex = modelFeatureIndex,
+                                    DescriptorDistance = matches.DescriptorDistance[i]
+                                });
             }
 
             if (logger != null)

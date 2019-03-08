@@ -77,6 +77,8 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="ImageFeatures\FeatureDescriptor.cs" />
+    <Compile Include="ImageFeatures\ImageFeature.cs" />
     <Compile Include="ImageFeatures\Matching\CascadeHashingMatcher.cs" />
     <Compile Include="Components\AdjustedNode.cs" />
     <Compile Include="EpipolarGeometry\EpipolarTransformDecomposition.cs" />
@@ -86,11 +88,8 @@
     <Compile Include="Components\BundleSceneComponents.cs" />
     <Compile Include="BundleAdjuster\Problem.cs" />
     <Compile Include="BundleAdjuster\Structures.cs" />
-    <Compile Include="ImageFeatures\Interfaces\IDescriptorCalculator.cs" />
     <Compile Include="ImageFeatures\MatchFilters\KnownGeometryFilter.cs" />
     <Compile Include="ImageFeatures\Matching\EmguSIFTMatcher.cs" />
-    <Compile Include="ImageFeatures\Matching\FeatureDescriptor.cs" />
-    <Compile Include="ImageFeatures\Matching\ImageFeature.cs" />
     <Compile Include="ImageFeatures\Matching\ImagePairCorrespondence.cs" />
     <Compile Include="ImageFeatures\Matching\KnownGeometryMatcher.cs" />
     <Compile Include="ImageFeatures\PCASIFT\PCAConstants.cs" />
