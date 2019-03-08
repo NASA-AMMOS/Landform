@@ -149,6 +149,9 @@ namespace OPS.Pipeline
                 combinedFull.GenerateVertexNormals();
             }
             BoundingBox minimumBounds = node.GetComponent<NodeBounds>().Bounds;
+            // Note that we compute an enlargedMinBounds instead of just using searchBounds because in the tiling server "BuildParent" routine we
+            // construct a flat tree with just the parent node and all of its dependence as children.  As a result "ChildBounds" is no longer a reliable
+            // measure.  This is pretty nuanced and could potentially benefit from a refactor in the future
             BoundingBox enlargedMinBounds = BoundingBoxExtensions.Scale(minimumBounds, childBoundSearchRatio);
             combinedFull = Mesh.Clip(combinedFull, enlargedMinBounds);
             combinedFull.NormalizeNormals();
