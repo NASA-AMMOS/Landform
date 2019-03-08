@@ -57,10 +57,10 @@ namespace OPS.Alignment
                                               ImagePairCorrespondence matches,
                                               SceneNode modelNode, SceneNode dataNode)
         {
-            var modelImg = modelNode.GetOrAddComponent<NodeImage>();
-            var dataImg = dataNode.GetOrAddComponent<NodeImage>();
+            var modelImg = modelNode.GetComponent<NodeImage>();
+            var dataImg = dataNode.GetComponent<NodeImage>();
 
-            if (!modelImg.Size.HasValue || !dataImg.Size.HasValue)
+            if (modelImg == null || !modelImg.Size.HasValue || dataImg == null || !dataImg.Size.HasValue)
             {
                 throw new ArgumentException("MoisanStivalFilter requires image sizes");
             }

@@ -83,32 +83,35 @@ namespace OPS.Alignment
                                               ImagePairCorrespondence matches,
                                               SceneNode modelNode, SceneNode dataNode)
         {
-            UncertainRigidTransform dataToModel = dataNode.GetOrAddComponent<NodeUncertainTransform>().To(modelNode);
-            UncertainRigidTransform modelToData = modelNode.GetOrAddComponent<NodeUncertainTransform>().To(dataNode);
+            UncertainRigidTransform dataToModel = dataNode.GetComponent<NodeUncertainTransform>().To(modelNode);
+            UncertainRigidTransform modelToData = modelNode.GetComponent<NodeUncertainTransform>().To(dataNode);
 
-            var modelCam = modelNode.GetOrAddComponent<NodeImage>().CameraModel;
-            var dataCam = dataNode.GetOrAddComponent<NodeImage>().CameraModel;
+            var modelCam = modelNode.GetComponent<NodeImage>();
+            var dataCam = dataNode.GetComponent<NodeImage>();
 
-            if (modelCam == null || dataCam == null)
+            if (modelCam == null || modelCam.CameraModel == null || dataCam == null || dataCam.CameraModel == null)
             {
                 throw new ArgumentException("KnownGeometryFilter requires camera models");
             }
 
             // if data node has a convex hull, compute it (uncertainty-inflated) in model space
-            ConvexHull dataHullInModel = dataNode.GetOrAddComponent<NodeConvexHull>().Hull;
-            if (dataHullInModel != null)
+            ConvexHull dataHullInModel = null;
+            var hullComp = dataNode.GetComponent<NodeConvexHull>();
+            if (hullComp != null && hullComp.Hull != null)
             {
-                dataHullInModel = ConvexHull.Transformed(dataHullInModel, dataToModel);
+                dataHullInModel = ConvexHull.Transformed(hullComp.Hull, dataToModel);
             }
 
             // if model node has a convex hull, compute it (uncertainty-inflated) in data space
-            ConvexHull modelHullInData = modelNode.GetOrAddComponent<NodeConvexHull>().Hull;
-            if (modelHullInData != null)
+            ConvexHull modelHullInData = null;
+            hullComp = modelNode.GetComponent<NodeConvexHull>();
+            if (hullComp != null && hullComp.Hull != null)
             {
-                modelHullInData = ConvexHull.Transformed(modelHullInData, modelToData);
+                modelHullInData = ConvexHull.Transformed(hullComp.Hull, modelToData);
             }
 
-            return Filter(modelFeatures, dataFeatures, matches, modelCam, dataCam, modelToData, dataToModel,
+            return Filter(modelFeatures, dataFeatures, matches,
+                          modelCam.CameraModel, dataCam.CameraModel, modelToData, dataToModel,
                           modelHullInData, dataHullInModel);
         }
 
