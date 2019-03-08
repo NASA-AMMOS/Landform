@@ -23,7 +23,7 @@ namespace OPS.Pipeline
             /// Each passed in object must have a [Verb] decorator
             /// NOTE you will get (slightly cryptic) compiler errors if there are more than 16 commands
             return CommandLine.Parser.Default.ParseArguments<ConvertBaselineMeshOptions,
-                                                             PDSImageConverterOptions,
+                                                             //PDSImageConverterOptions,
                                                              ConvertBaselineMeshesOptions,
                                                              TileBaselineMeshOptions,
                                                              TileBaselineMeshesOptions,
@@ -46,7 +46,7 @@ namespace OPS.Pipeline
                 (ConvertBaselineMeshesOptions opts) => new ConvertBaselineMeshes(opts).Run(),
                 (TileBaselineMeshOptions opts) => new TileBaselineMesh(opts).Run(),
                 (TileBaselineMeshesOptions opts) => new TileBaselineMeshes(opts).Run(),
-                (PDSImageConverterOptions opts) => new PDSImageConverter(opts).Run(),
+                //(PDSImageConverterOptions opts) => new PDSImageConverter(opts).Run(),
                 //(LegacyToWebVROptions opts) => new LegacyToWebVR(opts).Run(),
                 //(LegacyToTile3DOptions opts) => new LegacyToTile3D(opts).Run(),
                 (TileLocalMeshOptions opts) => new TileLocalMesh(opts).Run(),
