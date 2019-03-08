@@ -80,9 +80,6 @@ namespace OPS.Pipeline
         [Option(HelpText = "Don't split output by site drive", Default = false)]
         public bool SuppressSiteDriveDirectories { get; set; }
 
-        [Option(HelpText = "Mask image format, e.g. png, jpg, help for list", Default = "png")]
-        public string MaskFormat { get; set; }
-
         [Option(HelpText = "Write camera frustum hull meshes", Default = false)]
         public bool WriteFrustumHullMeshes { get; set; }
 
