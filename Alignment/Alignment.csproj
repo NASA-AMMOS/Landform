@@ -93,7 +93,6 @@
     <Compile Include="ImageFeatures\Matching\ImageFeature.cs" />
     <Compile Include="ImageFeatures\Matching\ImagePairCorrespondence.cs" />
     <Compile Include="ImageFeatures\Matching\KnownGeometryMatcher.cs" />
-    <Compile Include="ImageFeatures\Matching\MatchImage.cs" />
     <Compile Include="ImageFeatures\PCASIFT\PCAConstants.cs" />
     <Compile Include="ImageFeatures\SIFT\ASIFTDetector.cs" />
     <Compile Include="ImageFeatures\PCASIFT\PCASIFTDescriptor.cs" />
