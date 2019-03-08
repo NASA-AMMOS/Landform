@@ -119,6 +119,14 @@ The sol 588 - 590 dataset has 3688 navcam IMG files, about 5GB total, 263 which 
     generated meshes for 86 observations (17.041s)
     ```
 
+## Run Agisoft instead of our bundler
+install Agisoft Metashape professional (standard will not work as it doesn't allow python scripting)
+run the pipeline as described above through local-matching
+then
+./Landform/bin/Release/Landform.exe local-agisoft sol589 --metashapeexepath="C:/Program Files/Agisoft/Metashape Pro/metashape.exe"
+the results will be published back to your local database with the agisoft transform source. they can be visualized with observation products by
+./Landform/bin/Release/Landform.exe local-observation-products sol589 --adjustedtransformsources=agisoft
+
 ## Run Locally but Operate on Cloud Data
 All of the local commands (`local-ingest`, `local-features`, `local-matching`, `local-bundle-adjust`, `local-observation-products`) also support a `--cloud` option.  If present, that means that the computation and flow control will be performed locally, but that data will be read from and written to the cloud (i.e. S3 and DynamoDB).  Debug outputs will still be written locally.
 
