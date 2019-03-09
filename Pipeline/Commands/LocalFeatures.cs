@@ -163,10 +163,12 @@ namespace OPS.Pipeline
                     SIFTOctaves = options.SIFTOctaves,
                     MinSIFTOctave = options.MinSIFTOctave,
                     MaxSIFTOctave = options.MaxSIFTOctave,
-                    FeaturesPerImageBucketSize = 100,
-                    FeaturesPerSizeBucketSize = 2,
+                    FeaturesPerImageBucketSize = 1000,
+                    FeaturesPerSizeBucketSize = 5,
                     FeaturesPerResponseBucketSize = 0.002,
-                    FeaturesPerOctaveBucketSize = 1
+                    FeaturesPerOctaveBucketSize = 1,
+                    FeaturesPerLayerBucketSize = 1,
+                    FeaturesPerScaleBucketSize = 0.1
                 };
             FeatureDetector detector = new FeatureDetector(pipeline, detectorOpts);
 

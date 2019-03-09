@@ -46,16 +46,20 @@ namespace OPS.Pipeline
             public int SIFTOctaves = DEF_SIFT_OCTAVES;
             public int MinSIFTOctave = DEF_MIN_SIFT_OCTAVE;
             public int MaxSIFTOctave = DEF_MAX_SIFT_OCTAVE;
-            public double FeaturesPerImageBucketSize = 0; //100 is a good value, 0 to disable
-            public double FeaturesPerSizeBucketSize = 0; //2 is a good value, 0 to disable
+            public double FeaturesPerImageBucketSize = 0; //1000 is a good value, 0 to disable
+            public double FeaturesPerSizeBucketSize = 0; //5 is a good value, 0 to disable
             public double FeaturesPerResponseBucketSize = 0; //0.002 is a good value, 0 to disable
             public double FeaturesPerOctaveBucketSize = 0; //1 is a good value, 0 to disable
+            public double FeaturesPerLayerBucketSize = 0; //1 is a good value, 0 to disable
+            public double FeaturesPerScaleBucketSize = 0; //0.1 is a good value, 0 to disable
         }
 
         private Histogram featuresPerImage;
         private Histogram featuresPerSize;
         private Histogram featuresPerResponse;
         private Histogram featuresPerOctave;
+        private Histogram featuresPerLayer;
+        private Histogram featuresPerScale;
 
         private readonly PipelineCore pipeline;
         private readonly Options options;
@@ -67,25 +71,28 @@ namespace OPS.Pipeline
 
             if (options.FeaturesPerImageBucketSize > 0)
             {
-                featuresPerImage =
-                    new Histogram(options.FeaturesPerImageBucketSize, "images", "valid features before filtering");
+                featuresPerImage = new Histogram(options.FeaturesPerImageBucketSize, "images", "valid features");
             }
             if (options.FeaturesPerSizeBucketSize > 0)
             {
-                featuresPerSize =
-                    new Histogram(options.FeaturesPerSizeBucketSize, "features", "diameter before filtering");
+                featuresPerSize = new Histogram(options.FeaturesPerSizeBucketSize, "features", "diameter");
             }
             if (options.FeaturesPerResponseBucketSize > 0)
             {
-                featuresPerResponse = new Histogram(options.FeaturesPerResponseBucketSize, "features",
-                                                    "response before filtering");
+                featuresPerResponse = new Histogram(options.FeaturesPerResponseBucketSize, "features", "response");
             }
             if (options.FeaturesPerOctaveBucketSize > 0)
             {
-                featuresPerOctave =
-                    new Histogram(options.FeaturesPerOctaveBucketSize, "features", "octave before filtering");
+                featuresPerOctave = new Histogram(options.FeaturesPerOctaveBucketSize, "features", "octave");
             }
-
+            if (options.FeaturesPerLayerBucketSize > 0)
+            {
+                featuresPerLayer = new Histogram(options.FeaturesPerLayerBucketSize, "features", "layer");
+            }
+            if (options.FeaturesPerScaleBucketSize > 0)
+            {
+                featuresPerScale = new Histogram(options.FeaturesPerScaleBucketSize, "features", "scale");
+            }
         }
 
         public ImageFeature[] Detect(Image img, Image mask)
@@ -118,8 +125,6 @@ namespace OPS.Pipeline
 
             var rawFeatures = detector.Detect(img, mask).Cast<SIFTFeature>();
             var features = FilterInvalid(rawFeatures, img, mask).ToArray();
-
-            Tally(features, options.Decimation);
 
             if (pipeline.Options.Debug)
             {
@@ -157,6 +162,8 @@ namespace OPS.Pipeline
                 }
             }
 
+            Tally(features);
+
             return features;
         }
 
@@ -178,7 +185,7 @@ namespace OPS.Pipeline
             }
         }
 
-        public void Tally(ImageFeature[] features, int decimation = 1)
+        public void Tally(ImageFeature[] features)
         {
             if (featuresPerImage != null)
             {
@@ -197,29 +204,23 @@ namespace OPS.Pipeline
                     }
                 }
             }
-            tally(featuresPerSize, f => f.Size * decimation);
+            tally(featuresPerSize, f => f.Size);
             tally(featuresPerResponse, f => f.Response);
             tally(featuresPerOctave, f => f.Octave);
+            tally(featuresPerLayer, f => f.Layer);
+            tally(featuresPerScale, f => f.Scale);
         }
 
         public void DumpHistograms(ILogger logger)
         {
-            if (featuresPerImage != null)
+            foreach (var h in new Histogram[] { featuresPerImage, featuresPerSize, featuresPerResponse,
+                                                featuresPerOctave, featuresPerLayer, featuresPerScale })
             {
-                featuresPerImage.Dump(logger);
-            } 
-            if (featuresPerSize != null)
-            {
-                featuresPerSize.Dump(logger);
-            } 
-            if (featuresPerResponse != null)
-            {
-                featuresPerResponse.Dump(logger);
-            } 
-            if (featuresPerOctave != null)
-            {
-                featuresPerOctave.Dump(logger);
-            } 
+                if (h != null)
+                {
+                    h.Dump(logger);
+                }
+            }
         }
 
         //feature detectors only check that the center pixel of the feature is not masked

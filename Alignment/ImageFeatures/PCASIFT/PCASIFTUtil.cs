@@ -215,11 +215,11 @@ namespace OPS.Alignment
                 double tmp = Math.Log((double)k.GScale / PCAConstants.SIGMA) / log2 + 1.0;
                 k.Octave = (int)tmp;
                 k.FScale = (float)((tmp - k.Octave) * PCAConstants.SCALES_PER_OCTAVE);
-                k.Scale = (int)Math.Round(k.FScale);
+                k.IScale = (int)Math.Round(k.FScale);
 
-                if (k.Scale == 0 && k.Octave > 0)
+                if (k.IScale == 0 && k.Octave > 0)
                 {
-                    k.Scale = PCAConstants.SCALES_PER_OCTAVE;
+                    k.IScale = PCAConstants.SCALES_PER_OCTAVE;
                     k.Octave -= 1;
                     k.FScale += PCAConstants.SCALES_PER_OCTAVE;
                 }

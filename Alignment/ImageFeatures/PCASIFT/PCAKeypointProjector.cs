@@ -210,7 +210,7 @@ namespace OPS.Alignment
         {
             foreach (var feature in features)
             {
-                MakeKeypointPCA(feature, octaves[feature.Octave][feature.Scale]);
+                MakeKeypointPCA(feature, octaves[feature.Octave][feature.IScale]);
             }
         }
 

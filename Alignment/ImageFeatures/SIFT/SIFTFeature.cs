@@ -14,7 +14,10 @@ namespace OPS.Alignment
     {
         public double Size; //neighborhood diameter
         public double Angle; //degrees in [0, 360)
-        public int Octave; //pyramid layer
+        public int PackedOctave;
+        public int Octave;
+        public int Layer;
+        public float Scale;
         public double Response;
 
         //needed for JSON deserialization
@@ -26,7 +29,14 @@ namespace OPS.Alignment
         {
             this.Size = size;
             this.Angle = angle;
-            this.Octave = octave;
+
+            //https://github.com/opencv/opencv/issues/4554
+            this.PackedOctave = octave;
+            this.Layer = (octave >> 8) & 255;
+            octave = octave & 255;
+            this.Octave = octave = octave < 128 ? octave : (-128 | octave);
+            this.Scale = octave >= 0 ? 1.0f/(1 << octave) : (float)(1 << -octave);
+
             this.Response = response;
         }
 
@@ -38,14 +48,14 @@ namespace OPS.Alignment
         {
             return new MKeyPoint() {
                 Angle = (float)feature.Angle,
-                Octave = feature.Octave,
+                Octave = feature.PackedOctave,
                 Point = new PointF((float)feature.Location.X, (float)feature.Location.Y),
                 Response = (float)feature.Response,
                 Size = (float)feature.Size
             };
         }
     }
-
+        
     public static class SIFTFeatureExtensions
     {
         //can't use Cast<MKeyPoint>() unfortunately because linq Cast<>() doesn't work with user defined conversions

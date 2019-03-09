@@ -8,7 +8,7 @@ namespace OPS.Alignment
     {
         public float GScale;
         public float FScale;
-        public int Scale;
+        public int IScale;
         public float SX, SY;
         public Image<Gray, float> Patch;
 
