@@ -103,6 +103,13 @@ namespace OPS.Pipeline
                 mask = mask.Decimated(options.Decimation);
             }
 
+            Func<SIFTFeature, bool> filter = f =>
+                (f.Size * options.Decimation >= options.MinFeatureSize) &&
+                (options.MinResponse < 0 || f.Response >= options.MinResponse) &&
+                (options.MaxResponse < 0 || f.Response <= options.MaxResponse) &&
+                (options.MinSIFTOctave < 0 || f.Octave >= options.MinSIFTOctave) &&
+                (options.MaxSIFTOctave < 0 || f.Octave <= options.MaxSIFTOctave);
+
             IFeatureDetector detector = null;
             switch (options.DetectorType)
             {
@@ -113,7 +120,7 @@ namespace OPS.Pipeline
                 }
                 case DetectorType.ASIFT:
                 {
-                    detector = new ASIFTDetector() { OctaveLayers = options.SIFTOctaves };
+                    detector = new ASIFTDetector() { OctaveLayers = options.SIFTOctaves, Filter = filter };
                     break;
                 }
                 case DetectorType.PCASIFT:
@@ -138,20 +145,22 @@ namespace OPS.Pipeline
             }
 
             features = features
-                .Where(f => f.Size * options.Decimation >= options.MinFeatureSize)
-                .Where(f => options.MinResponse < 0 || f.Response >= options.MinResponse)
-                .Where(f => options.MaxResponse < 0 || f.Response <= options.MaxResponse)
-                .Where(f => options.MinSIFTOctave < 0 || f.Octave >= options.MinSIFTOctave)
-                .Where(f => options.MaxSIFTOctave < 0 || f.Octave <= options.MaxSIFTOctave)
+                .Where(filter)
                 .OrderByDescending(f => f.Response)
                 .Take(options.MaxFeatures)
                 .ToArray();
 
-            //important: only add descriptors now that we've culled down the features and eliminated bad ones
+            //add descriptors now that we've culled down the features and eliminated bad ones
             //this can save quite a bit of time
             //but also we have seen crashes in the emgucv code to collect SIFT feature descriptors
             //and computing them here hopefully limits the impact of that
-            detector.AddDescriptors(img, features);
+            //some detectors will have already added descriptors
+            //e.g. ASIFT does that because the descriptors are based on temporary warped copies of the image
+            var featuresWithoutDescriptors = features.Where(f => f.Descriptor == null).ToArray();
+            if (featuresWithoutDescriptors.Length > 0)
+            {
+                detector.AddDescriptors(img, featuresWithoutDescriptors);
+            }
 
             if (options.Decimation > 1)
             {

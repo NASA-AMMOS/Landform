@@ -19,10 +19,32 @@ namespace OPS.Alignment
     /// </summary>
     public class ASIFTDetector : SIFTDetector
     {
+        public Func<SIFTFeature, bool> Filter = null;
+
         public override IEnumerable<ImageFeature> Detect(Image image, Image mask = null)
         {
-            var emguImage = image.ToEmguGrayscale();
-            var emguMask = (mask != null) ? mask.ToEmguGrayscale() : null;
+            List<ImageFeature> tmp = new List<ImageFeature>();
+            IEnumerable<ImageFeature> detectAndCompute(Image<Gray, byte> img, Image<Gray, byte> msk)
+            {
+                tmp.Clear();
+                foreach (var f in base.Detect(img, msk))
+                {
+                    if ((Filter == null || Filter((SIFTFeature)f)) && CheckValidFeature(f, img, msk))
+                    {
+                        tmp.Add(f);
+                    }
+                }
+                AddDescriptors(img, tmp);
+                return tmp;
+            }
+
+            var origImage = image.ToEmguGrayscale();
+            var origMask = (mask != null) ? mask.ToEmguGrayscale() : null;
+
+            foreach (var f in detectAndCompute(origImage, origMask))
+            {
+                yield return f;
+            }
 
             // formula for generating tilt/phi values from ASIFT paper
             for (int tiltIdx = 0; tiltIdx < 6; tiltIdx++)
@@ -42,18 +64,21 @@ namespace OPS.Alignment
                     
                     Matrix<float> A;
                     Image<Gray, byte> skewImage, skewMask;
-                    AffineSkew(tilt, phiDegrees, emguImage, emguMask, out skewImage, out skewMask, out A);
+                    AffineSkew(tilt, phiDegrees, origImage, origMask, out skewImage, out skewMask, out A);
                     
                     Matrix<float> Ai = new Matrix<float>(2, 3);
                     Emgu.CV.CvInvoke.InvertAffineTransform(A, Ai);
 
-                    foreach (var feat in base.Detect(skewImage, skewMask))
+                    //need to add descriptors here based on the skewed image
+                    foreach (var f in detectAndCompute(skewImage, skewMask))
                     {
-                        double fx = feat.Location.X;
-                        double fy = feat.Location.Y;
-                        feat.Location.X = fx * Ai[0, 0] + fy * Ai[0, 1] + Ai[0, 2];
-                        feat.Location.Y = fx * Ai[1, 0] + fy * Ai[1, 1] + Ai[1, 2];
-                        yield return feat;
+                        //the feature may be out of bounds or in masked parts of the original image
+                        //but that will be checked later
+                        double fx = f.Location.X;
+                        double fy = f.Location.Y;
+                        f.Location.X = fx * Ai[0, 0] + fy * Ai[0, 1] + Ai[0, 2];
+                        f.Location.Y = fx * Ai[1, 0] + fy * Ai[1, 1] + Ai[1, 2];
+                        yield return f;
                     }
                 }
             }

@@ -66,8 +66,12 @@ namespace OPS.Alignment
 
         public virtual void AddDescriptors(Image<Gray, byte> image, IEnumerable<ImageFeature> features)
         {
-            var sift = new SIFT(MaxNumFeatures, OctaveLayers, ContrastThreshold, EdgeThreshold, Sigma);
             var keypoints = features.Cast<SIFTFeature>().CastToMKeyPoint().ToArray();
+            if (keypoints.Length == 0)
+            {
+                return;
+            }
+            var sift = new SIFT(MaxNumFeatures, OctaveLayers, ContrastThreshold, EdgeThreshold, Sigma);
             var descriptorMatrix = new Matrix<float>(keypoints.Length, 128);
             sift.Compute(image, new VectorOfKeyPoint(keypoints), descriptorMatrix);
             int i = 0;
@@ -81,6 +85,37 @@ namespace OPS.Alignment
                 feature.Descriptor = new SIFTDescriptor(data);
                 i++;
             }
+        }
+
+        /// <summary>
+        /// check that feature is in bounds of image and mask and that none of the pixels in its rect are masked  
+        /// </summary>
+        public static bool CheckValidFeature(ImageFeature feature, Image<Gray, byte> image, Image<Gray, byte> mask)
+        {
+            int row = (int)feature.Location.Y;
+            int col = (int)feature.Location.X;
+            int radius = (int)(0.5*((SIFTFeature)feature).Size); //yes, round down
+            int minR = row - radius;
+            int maxR = row + radius;
+            if (minR < 0 || maxR >= image.Height || maxR >= mask.Height)
+            {
+                return false;
+            }
+            int minC = col - radius;
+            int maxC = col + radius;
+            if (minC < 0 || maxC >= image.Width || maxC >= mask.Width)
+            {
+                return false;
+            }
+            bool ok = true;
+            for (int r = minR; ok && r <= maxR; r++)
+            {
+                for (int c = minC; ok && c <= maxC; c++)
+                {
+                    ok &= mask.Data[r, c, 0] != 0;
+                }
+            }
+            return ok;
         }
     }
 }
