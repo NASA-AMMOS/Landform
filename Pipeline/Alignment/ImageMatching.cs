@@ -47,6 +47,8 @@ namespace OPS.Pipeline
             public bool UseKnownGeometryFilter = DEF_USE_KNOWN_GEOMETRY_FILTER;
             public bool UseMoisanStivalFilter = DEF_USE_MOISAN_STIVAL_FILTER;
             public bool UseGTMFilter = DEF_USE_GTM_FILTER;
+            public double KGFMahalanobisThreshold = KnownGeometryFilter.DEF_MAHALANOBIS_THRESHOLD;
+            public double KGFMajorAxisThreshold = KnownGeometryFilter.DEF_MAJOR_AXIS_THRESHOLD;
         }
 
         public static ComputedCorrespondence ComputeCorrespondence(PipelineCore pipeline, string projectName,
@@ -157,7 +159,11 @@ namespace OPS.Pipeline
             }
             if (options.UseKnownGeometryFilter)
             {
-                filters.Add(new KnownGeometryFilter(pipeline));
+                filters.Add(new KnownGeometryFilter(pipeline)
+                            {
+                                MahalanobisThreshold = options.KGFMahalanobisThreshold,
+                                MajorAxisThreshold = options.KGFMajorAxisThreshold
+                            });
             }
             if (options.UseMoisanStivalFilter)
             {

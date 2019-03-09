@@ -20,6 +20,9 @@ namespace OPS.Alignment
     /// </summary>
     public class KnownGeometryFilter : IMatchFilter
     {
+        public const double DEF_MAHALANOBIS_THRESHOLD = 4;
+        public const double DEF_MAJOR_AXIS_THRESHOLD = 100;
+
         /// <summary>
         /// When two camera rays are parallel, try projecting from this distance.
         /// </summary>
@@ -33,17 +36,17 @@ namespace OPS.Alignment
         /// <summary>
         /// Maximum Mahalanobis distance to accept. Conceptually similar to number of standard deviations.
         /// </summary>
-        public double MahalanobisThreshold = 4;
+        public double MahalanobisThreshold = DEF_MAHALANOBIS_THRESHOLD;
+
+        /// <summary>
+        /// Maximum uncertainty
+        /// </summary>
+        public double MajorAxisThreshold = DEF_MAJOR_AXIS_THRESHOLD;
 
         /// <summary>
         /// Error threshold (in pixels) for matches with no transform uncertainty information.
         /// </summary>
         public double FixedErrorThreshold = 20;
-
-        /// <summary>
-        /// Maximum uncertainty
-        /// </summary>
-        public double MajorAxisThreshold = 100;
 
         public delegate SceneNode ImageNodeDelegate(string imageUrl);
 

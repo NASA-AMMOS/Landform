@@ -45,6 +45,12 @@ namespace OPS.Pipeline
         [Option(HelpText = "Disable known geometry filter for cross-sitedrive matches", Default = false)]
         public bool DisableKnownGeometryFilterForCrossSiteDrive { get; set; }
 
+        [Option(HelpText = "Known geometry filter Mahalanobis threshold", Default = KnownGeometryFilter.DEF_MAHALANOBIS_THRESHOLD)]
+        public double KGFMahalanobisThreshold { get; set; }
+
+        [Option(HelpText = "Known geometry filter major axis threshold", Default = KnownGeometryFilter.DEF_MAJOR_AXIS_THRESHOLD)]
+        public double KGFMajorAxisThreshold { get; set; }
+
         [Option(HelpText = "Disable Moisan Stival filter", Default = !ImageMatching.DEF_USE_MOISAN_STIVAL_FILTER)]
         public bool NoMoisanStivalFilter { get; set; }
 
@@ -221,7 +227,9 @@ namespace OPS.Pipeline
                     MaxDescriptorDistance = options.MaxDescriptorDistance,
                     UseKnownGeometryFilter = !options.NoKnownGeometryFilter,
                     UseMoisanStivalFilter = !options.NoMoisanStivalFilter,
-                    UseGTMFilter = options.UseGTMFilter
+                    UseGTMFilter = options.UseGTMFilter,
+                    KGFMahalanobisThreshold = options.KGFMahalanobisThreshold,
+                    KGFMajorAxisThreshold = options.KGFMajorAxisThreshold
                 };
                 if (options.DisableKnownGeometryFilterForCrossSiteDrive &&
                     modelObs is RoverObservation && dataObs is RoverObservation)
