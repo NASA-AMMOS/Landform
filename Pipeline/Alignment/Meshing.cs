@@ -453,14 +453,26 @@ namespace OPS.Pipeline
             return img;
         }
 
-        public static Image NormalsToTilt(Image img, bool abs = true, Vector3? up = null)
+        public enum TiltMode { Abs, Acos, InvAcos, Cos };
+        public const TiltMode DEF_TILT_MODE = TiltMode.InvAcos;
+
+        /// <summary>
+        /// Convert a normals vector image to a scalar "tilt" image  
+        /// TiltMode.Abs: returned tilt is the absolute value of the cosine of the angle relative to up
+        /// TiltMode.Acos: returned tilt is the angle relative to up normalized to 0-1
+        /// TiltMode.InvAcos: returned tilt is the angle relative to down normalized to 0-1
+        /// TiltMode.Cos: returned tilt is cosine of the angle relative to up
+        /// </summary>
+        public static Image NormalsToTilt(Image img, TiltMode tiltMode = DEF_TILT_MODE, Vector3? up = null)
         {
             if (up == null)
             {
                 up = new Vector3(0, 0, -1);
             }
+
             Image ret = new Image(1, img.Width, img.Height);
             ret.CreateMask();
+
             for (int row = 0; row < img.Height; row++)
             {
                 for (int col = 0; col < img.Width; col++)
@@ -469,9 +481,12 @@ namespace OPS.Pipeline
                     {
                         var n = new Vector3(img[0, row, col], img[1, row, col], img[2, row, col]);
                         var tilt = n.Dot(up.Value);
-                        if (abs)
+                        switch (tiltMode)
                         {
-                            tilt = Math.Abs(tilt);
+                            case TiltMode.Abs: tilt = Math.Abs(tilt); break;
+                            case TiltMode.Acos: tilt = Math.Acos(tilt) / Math.PI; break;
+                            case TiltMode.InvAcos: tilt = 1 - Math.Acos(tilt) / Math.PI; break;
+                            case TiltMode.Cos: break;
                         }
                         ret[0, row, col] = (float)tilt;
                     } 
@@ -481,7 +496,129 @@ namespace OPS.Pipeline
                     }
                 }
             }
+
             return ret;
+        }
+
+        /// <summary>
+        /// convert a points image to a scalar elevation image  
+        /// </summary>
+        public static Image PointsToElevation(Image img, bool normalize = true, Vector3? up = null)
+        {
+            if (up == null)
+            {
+                up = new Vector3(0, 0, -1);
+            }
+
+            Image ret = new Image(1, img.Width, img.Height);
+            ret.CreateMask();
+
+            Vector3 ctr = new Vector3();
+            int n = 0;
+            for (int row = 0; row < img.Height; row++)
+            {
+                for (int col = 0; col < img.Width; col++)
+                {
+                    if (!img.IsInvalid(row, col))
+                    {
+                        ctr += new Vector3(img[0, row, col], img[1, row, col], img[2, row, col]);
+                        n++;
+                    }
+                }
+            }
+            ctr /= n; //n=0 is harmless here
+
+            float min = float.PositiveInfinity;
+            float max = float.NegativeInfinity;
+            for (int row = 0; row < img.Height; row++)
+            {
+                for (int col = 0; col < img.Width; col++)
+                {
+                    if (!img.IsInvalid(row, col))
+                    {
+                        var p = new Vector3(img[0, row, col], img[1, row, col], img[2, row, col]);
+                        var elev = (float)(p - ctr).Dot(up.Value);
+                        ret[0, row, col] = elev;
+                        min = Math.Min(min, elev);
+                        max = Math.Max(max, elev);
+                    }
+                    else
+                    {
+                        ret.SetMaskValue(row, col, true);
+                    }
+                }
+            }
+
+            if (normalize && n > 0 && max > min)
+            {
+                for (int row = 0; row < img.Height; row++)
+                {
+                    for (int col = 0; col < img.Width; col++)
+                    {
+                        if (!img.IsInvalid(row, col))
+                        {
+                            ret[0, row, col] = (ret[0, row, col] - min) / (max - min);
+                        }
+                    }
+                }
+            }
+
+            return ret;
+        }
+
+        /// <summary>
+        /// flood fill mask from each invalid pixel on the border of img
+        /// mask image is 0 for masked pixels
+        /// </summary>
+        private struct Pixel
+        {
+            public int Row, Col;
+
+            public Pixel(int row, int col)
+            {
+                this.Row = row;
+                this.Col = col;
+            }
+
+            public static Pixel operator+(Pixel a, Pixel b)
+            {
+                return new Pixel(a.Row + b.Row, a.Col + b.Col);
+            }
+        };
+        public static void AddOuterRegionsToMask(Image img, Image mask)
+        {
+            void floodFill(int row, int col)
+            {
+                if (img.IsValid(row, col) || mask[0, row, col] == 0) return;
+                mask[0, row, col] = 0;
+                var queue = new Queue<Pixel>();
+                queue.Enqueue(new Pixel(row, col));
+                var offsets = new Pixel[] { new Pixel(-1, 0), new Pixel(1, 0), new Pixel(0, -1), new Pixel(0, 1) };
+                while (queue.Count > 0)
+                {
+                    var px = queue.Dequeue();
+                    foreach (var offset in offsets)
+                    {
+                        var tgt = px + offset;
+                        if (tgt.Row >= 0 && tgt.Row < img.Height && tgt.Col >= 0 && tgt.Col < img.Width &&
+                            img.IsInvalid(tgt.Row, tgt.Col) && mask[0, tgt.Row, tgt.Col] != 0)
+                        {
+                            mask[0, tgt.Row, tgt.Col] = 0;
+                            queue.Enqueue(tgt);
+                        }
+                    }
+                }
+            }
+            for (int row = 0; row < img.Height; row++)
+            {
+                floodFill(row, 0);
+                floodFill(row, img.Width - 1);
+            }
+            for (int col = 0; col < img.Width; col++)
+            {
+                floodFill(0, col);
+                floodFill(img.Height - 1, col);
+            }
         }
 
         /// <summary>
