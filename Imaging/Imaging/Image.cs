@@ -733,5 +733,38 @@ namespace OPS.Imaging
             }
             return result;
         }
+
+        /// <summary>
+        /// blit another image or a subframe thereof onto this image in place  
+        /// </summary>
+        public Image Blit(Image other, int dstX, int dstY, int srcX = 0, int srcY = 0,
+                          int srcWidth = -1, int srcHeight = -1)
+        {
+            if (other.Bands != Bands)
+            {
+                throw new ArgumentException("cannot blit images with different numbers of bands");
+            }
+            int nr = srcHeight >= 0 ? srcHeight : other.Height;
+            int nc = srcWidth >= 0 ? srcWidth : other.Width;
+            if (srcX < 0 || srcY < 0 || srcX + nc > other.Width || srcY + nr > other.Height)
+            {
+                throw new ArgumentException("source region out of bounds");
+            }
+            if (dstX < 0 || dstY < 0 || dstX + nc > Width || dstY + nr > Height)
+            {
+                throw new ArgumentException("target region out of bounds");
+            }
+            for (int band = 0; band < Bands; band++)
+            {
+                for (int r = 0; r < nr; r++)
+                {
+                    for (int c = 0; c < nc; c++)
+                    {
+                        this[band, dstY + r, dstX + c] = other[band, srcY + r, srcX + c];
+                    }
+                }
+            }
+            return this;
+        }
     }
 }

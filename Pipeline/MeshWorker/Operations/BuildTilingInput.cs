@@ -57,7 +57,7 @@ namespace OPS.Pipeline.MeshWorker
                 pipeline.LogInfo("building point cloud {0}/{1} ({2})%): {3}", idx + 1, observations.Count,
                                  (int)(100 * idx / (float)observations.Count), obs.Points.FrameName);
                 var mesh = Meshing.BuildPointCloud(pipeline, obs, frameCache, scaleNormalsByConfidence: true);
-                aggregatePointCloud.MergeWith(new Mesh[] { mesh }, false);
+                aggregatePointCloud.MergeWith(new Mesh[] { mesh }, normalize: false);
             }
             
             // build the large mesh from the aggregate point cloud using poisson reconstruction

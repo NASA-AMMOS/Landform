@@ -471,12 +471,14 @@ namespace OPS.Pipeline
         {
             //TODO generate confidence and mask until real products are available
             //https://github.jpl.nasa.gov/OnSight/Landform/issues/259
+            pipeline.LogVerbose("loading points {0}", obs.Points.Url);
             var pointsRaw = pipeline.LoadImage(obs.Points.Url);
             points = ConvertPoints(pointsRaw);
 
             normals = null;
             if (obs.Normals != null)
             {
+                pipeline.LogVerbose("loading normals {0}", obs.Normals.Url);
                 var confidence = scaleNormalsByConfidence ? GenerateConfidence(pointsRaw) : null;
                 normals = ConvertNormals(pipeline.LoadImage(obs.Normals.Url), confidence);
             }
@@ -485,9 +487,11 @@ namespace OPS.Pipeline
 
             if (decimateBlocksize > 1)
             {
+                pipeline.LogVerbose("decimating points {0}", obs.Points.Name);
                 points = DecimatePoints(points, decimateBlocksize, mask);
                 if (normals != null)
                 {
+                    pipeline.LogVerbose("decimating normals {0}", obs.Normals.Name);
                     normals = DecimateNormals(normals, decimateBlocksize, mask);
                 }
                 mask = null;
@@ -567,6 +571,7 @@ namespace OPS.Pipeline
             Image points, normals, mask;
             LoadOrGenerateMeshImages(pipeline, obs, decimateBlocksize, scaleNormalsByConfidence,
                                      out points, out normals, out mask);
+            pipeline.LogVerbose("building point cloud {0}", obs.Points.Name);
             var ret = BuildPointCloud(points, normals, mask);
             ret.Transform(GetTransform(obs.Points.FrameName, frame, frameCache, usePriors).Mean);
             return ret;
@@ -718,6 +723,7 @@ namespace OPS.Pipeline
             Image points, normals, mask;
             LoadOrGenerateMeshImages(pipeline, obs, decimateBlocksize, scaleNormalsByConfidence,
                                      out points, out normals, out mask);
+            pipeline.LogVerbose("building organized mesh {0}", obs.Points.Name);
             var ret = BuildOrganizedMesh(points, normals, mask, maxTriangleAspect, isolatedPointSize);
             if (withUVs && obs.Texture != null)
             {
@@ -734,6 +740,7 @@ namespace OPS.Pipeline
             Image points, normals, mask;
             LoadOrGenerateMeshImages(pipeline, obs, decimateBlocksize, scaleNormalsByConfidence,
                                      out points, out normals, out mask);
+            pipeline.LogVerbose("building Poisson mesh {0}", obs.Points.Name);
             var ret = BuildPoissonMesh(points, normals, mask, scaleNormalsByConfidence);
             if (withUVs && obs.Texture != null)
             {
@@ -749,6 +756,7 @@ namespace OPS.Pipeline
         {
             Image points, normals, mask;
             LoadOrGenerateMeshImages(pipeline, obs, decimateBlocksize, false, out points, out normals, out mask);
+            pipeline.LogVerbose("building FSSR mesh {0}", obs.Points.Name);
             var ret = BuildFSSRMesh(points, normals, mask);
             if (withUVs && obs.Texture != null)
             {
@@ -768,6 +776,71 @@ namespace OPS.Pipeline
             ConvexHull ret = ConvexHull.FromImage(img);
             var xform = GetTransform(obs.Points.FrameName, frame, frameCache, usePriors);
             return uncertaintyInflated ? ConvexHull.Transformed(ret, xform) : ConvexHull.Transformed(ret, xform.Mean);
+        }
+
+        public static Tuple<Mesh, Image> MergeMeshesAndTextures(IEnumerable<Tuple<Mesh, Image>> inputs)
+        {
+            var textures = inputs
+                .Where(pair => pair.Item1 != null && pair.Item1.HasUVs)
+                .Where(pair => pair.Item2 != null)
+                .Select(pair => pair.Item2);
+            int numTextures = textures.Count();
+            var uvOffsets = new Queue<Vector2>();
+            var uvScale = new Vector2();
+            Image atlas = null;
+            if (numTextures > 0)
+            {
+                int maxWidth = textures.Select(t => t.Width).Max();
+                int maxHeight = textures.Select(t => t.Height).Max();
+                int maxBands = textures.Select(t => t.Bands).Max();
+                int minBands = textures.Select(t => t.Bands).Min();
+                if (minBands != maxBands)
+                {
+                    throw new ArgumentException("cannot merge textures with different numbers of bands");
+                }
+                int cols = (int)Math.Sqrt(numTextures);
+                int rows = (int)Math.Ceiling((double)(numTextures) / cols);
+                uvScale.X = 1.0 / cols;
+                uvScale.Y = 1.0 / rows;
+                atlas = new Image(maxBands, cols * maxWidth, rows * maxHeight);
+                int row = 0, col = 0;
+                foreach (var texture in textures)
+                {
+                    int x = col * maxWidth, y = row * maxHeight;
+                    atlas.Blit(texture, x, y);
+                    uvOffsets.Enqueue(atlas.PixelToUV(new Vector2(x, y + maxHeight - 1)));
+                    col++;
+                    if (col >= cols)
+                    {
+                        col = 0;
+                        row++;
+                    }
+                }
+            }
+            var merged = Mesh.Merge(inputs.Where(pair => pair.Item1 != null).Select(pair => pair.Item1).ToArray(),
+                                    clean: false);
+            int index = 0;
+            foreach (var pair in inputs)
+            {
+                var mesh = pair.Item1;
+                var texture = pair.Item2;
+                if (mesh != null && mesh.HasUVs && texture != null)
+                {
+                    var offset = uvOffsets.Dequeue();
+                    for (int i = 0; i < mesh.Vertices.Count; i++)
+                    {
+                        var vert = merged.Vertices[index++];
+                        vert.UV.X *= uvScale.X;
+                        vert.UV.Y *= uvScale.Y;
+                        vert.UV += offset;
+                    }
+                }
+                else if (mesh != null)
+                {
+                    index += mesh.Vertices.Count;
+                }
+            }
+            return new Tuple<Mesh, Image>(merged, atlas);
         }
     }
 }

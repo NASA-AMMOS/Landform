@@ -1,5 +1,8 @@
 using System;
 using System.Linq;
+using System.Collections;
+using System.Collections.Generic;
+using System.Collections.Concurrent;
 using System.Threading;
 using System.Threading.Tasks;
 using CommandLine;
@@ -17,8 +20,11 @@ namespace OPS.Pipeline
         [Value(0, Required = true, HelpText = "Project name", Default = null)]
         public string ProjectName { get; set; }
 
-        [Option(HelpText = "Only generate meshes for specific site drives, comma separated", Default = null)]
+        [Option(HelpText = "Only generate products for specific site drives, comma separated", Default = null)]
         public string OnlyForSiteDrives { get; set; }
+
+        [Option(HelpText = "Only generate products for specific cameras, comma separated (FrontHazcamLeft, FrontHazcamRight, RearHazcamLeft, RearHazcamRight, NavcamLeft, NavcamRight, MastcamLeft, MastcamRight, MAHLI)", Default = null)]
+        public string OnlyForCameras { get; set; }
 
         [Option(HelpText = "Output directory, or omit to save to project storage", Default = null)]
         public string OutputFolder { get; set; }
@@ -71,23 +77,29 @@ namespace OPS.Pipeline
         [Option(HelpText = "Max triangle aspect ratio for organized mesh reconstruction", Default = 20)]
         public double MaxTriangleAspect { get; set; }
 
-        [Option(HelpText = "Isolated point size for organized mesh reconstruction ", Default = 0)]
+        [Option(HelpText = "Isolated point size for organized mesh reconstruction, 0 to disable", Default = 0)]
         public double IsolatedPointSize { get; set; }
 
-        [Option(HelpText = "Scale normals by confidence", Default = false)]
+        [Option(HelpText = "Scale normals by confidence (for Poisson reconstruction)", Default = false)]
         public bool ScaleNormalsByConfidence { get; set; }
 
         [Option(HelpText = "Don't split output by site drive", Default = false)]
         public bool SuppressSiteDriveDirectories { get; set; }
 
         [Option(HelpText = "Write camera frustum hull meshes", Default = false)]
-        public bool WriteFrustumHullMeshes { get; set; }
+        public bool FrustumHullMeshes { get; set; }
 
         [Option(HelpText = "Write uncertainty inflated camera frustum hull meshes", Default = false)]
-        public bool WriteUncertaintyInflatedFrustumHullMeshes { get; set; }
+        public bool UncertaintyInflatedFrustumHullMeshes { get; set; }
+
+        [Option(HelpText = "Write merged site drive meshes", Default = false)]
+        public bool MergedSiteDriveMeshes { get; set; }
+
+        [Option(HelpText = "Write only merged site drive meshes", Default = false)]
+        public bool OnlyMergedSiteDriveMeshes { get; set; }
 
         [Option(HelpText = "Write all the things", Default = false)]
-        public bool WriteAllTheThings { get; set; }
+        public bool AllTheThings { get; set; }
 
         [Option(HelpText = "Hide progress", Default = false)]
         public bool NoProgress { get; set; }
@@ -116,8 +128,14 @@ namespace OPS.Pipeline
 
         public int Run()
         {
-            options.WriteFrustumHullMeshes |= options.WriteAllTheThings;
-            options.WriteUncertaintyInflatedFrustumHullMeshes |= options.WriteAllTheThings;
+            options.FrustumHullMeshes &= !options.OnlyMergedSiteDriveMeshes;
+            options.UncertaintyInflatedFrustumHullMeshes &= !options.OnlyMergedSiteDriveMeshes;
+            options.MergedSiteDriveMeshes |= options.OnlyMergedSiteDriveMeshes;
+            options.NoWedgeMeshes |= options.OnlyMergedSiteDriveMeshes;
+
+            options.FrustumHullMeshes |= options.AllTheThings;
+            options.UncertaintyInflatedFrustumHullMeshes |= options.AllTheThings;
+            options.MergedSiteDriveMeshes |= options.AllTheThings;
 
             var project = Project.Find(pipeline, options.ProjectName);
 
@@ -131,6 +149,12 @@ namespace OPS.Pipeline
             if (!(new [] {"rover", "sitedrive", "root"}).Any(f => outputFrame == f))
             {
                 pipeline.LogError("unknown output frame: " + outputFrame);
+                return 1;
+            }
+
+            if (options.MergedSiteDriveMeshes && outputFrame == "rover")
+            {
+                pipeline.LogError("cannot write merged sitedrive meshes in rover frame");
                 return 1;
             }
 
@@ -172,8 +196,8 @@ namespace OPS.Pipeline
                                                              project.Name);
 
             string meshExt = null;
-            if (!options.NoWedgeMeshes || options.WriteFrustumHullMeshes ||
-                options.WriteUncertaintyInflatedFrustumHullMeshes)
+            if (!options.NoWedgeMeshes || options.FrustumHullMeshes ||
+                options.UncertaintyInflatedFrustumHullMeshes || options.MergedSiteDriveMeshes)
             {
                 meshExt = MeshSerializers.Instance.CheckFormat(options.MeshFormat, pipeline);
                 if (meshExt == null)
@@ -184,14 +208,18 @@ namespace OPS.Pipeline
                 {
                     pipeline.LogInfo("writing {0} wedge meshes to {1}", meshExt, outputPath);
                 }
-                if (options.WriteFrustumHullMeshes)
+                if (options.FrustumHullMeshes)
                 {
                     pipeline.LogInfo("writing {0} hull meshes to {1}", meshExt, outputPath);
                 } 
-                if (options.WriteUncertaintyInflatedFrustumHullMeshes)
+                if (options.UncertaintyInflatedFrustumHullMeshes)
                 {
                     pipeline.LogInfo("writing {0} uncertainty inflated hull meshes to {1}", meshExt, outputPath);
                 } 
+                if (options.MergedSiteDriveMeshes)
+                {
+                    pipeline.LogInfo("writing {0} merged site drive meshes to {1}", meshExt, outputPath);
+                }
             }
 
             string imageExt = null;
@@ -227,6 +255,11 @@ namespace OPS.Pipeline
                 return new SiteDrive(ro.Site, ro.Drive);
             }
 
+            string getCamera(MeshObservations obs)
+            {
+                return (obs.Points as RoverObservation).Sensor;
+            }
+
             SiteDrive[] siteDrives = (options.OnlyForSiteDrives ?? "")
                 .Split(',')
                 .Where(s => !string.IsNullOrEmpty(s))
@@ -238,6 +271,16 @@ namespace OPS.Pipeline
             {
                 observations = observations.Where(obs => siteDrives.Any(sd => sd == getSiteDrive(obs))).ToList();
             }
+
+            string[] cameras = (options.OnlyForCameras ?? "")
+                .Split(',')
+                .Where(s => !string.IsNullOrEmpty(s))
+                .ToArray();
+
+            if (cameras.Length > 0)
+            {
+                observations = observations.Where(obs => cameras.Any(cam => cam == getCamera(obs))).ToList();
+            }
                                                   
             int no = observations.Count();
             string what = options.PointCloud ? "point clouds" : "triangle meshes";
@@ -246,6 +289,9 @@ namespace OPS.Pipeline
                              (" for site drive(s) " +
                               String.Join(",", siteDrives.Select(sd => sd.ToString()).Cast<string>().ToArray())) : "",
                              outputPath);
+
+            //sitedrive => (mesh, image)
+            var mergeInputs = new ConcurrentDictionary<string, ConcurrentBag<Tuple<Mesh, Image>>>();
 
             double startSec = UTCTime.Now();
             int np = 0, nc = 0;
@@ -262,11 +308,18 @@ namespace OPS.Pipeline
                     Mesh mesh = null;
                     if (options.PointCloud)
                     {
+                        pipeline.LogVerbose("building point cloud for {0}", obs.Points.Name);
                         mesh = Meshing.BuildPointCloud(pipeline, obs, frameCache, outputFrame, options.UsePriors,
                                                        options.DecimateMeshes, options.ScaleNormalsByConfidence);
+                        if (!mesh.HasVertices)
+                        {
+                            mesh = null;
+                        }
                     }
                     else
                     {
+                        pipeline.LogVerbose("building {0} triangle mesh for {1}",
+                                            options.ReconstructionMethod, obs.Points.Name);
                         switch (options.ReconstructionMethod)
                         {
                             case ReconstructionMethod.Organized:
@@ -297,63 +350,109 @@ namespace OPS.Pipeline
                         {
                             pipeline.LogWarn("{0} reconstruction failed on observation {1}",
                                              options.ReconstructionMethod, obs.Points.Name);
+                            mesh = null;
                         }
                     }
+
+                    string siteDrive = getSiteDrive(obs).ToString();
 
                     //we're running for multiple site drives in parallel so don't mutate outputPath
                     string tmpPath = outputPath;
                     if (!options.SuppressSiteDriveDirectories)
                     {
-                        tmpPath += getSiteDrive(obs).ToString() + "/";
+                        tmpPath += siteDrive + "/";
                     }
 
                     string obsName = obs.Points.Name;
                     string imageFilename = null;
-                    if (!options.NoImages && obs.Texture != null && mesh != null && mesh.HasUVs)
+                    Image img = null;
+                    if (!options.NoImages && obs.Texture != null)
                     {
+                        pipeline.LogVerbose("loading image {0}", obs.Texture.Name);
                         imageFilename = obsName + imageExt;
-                        var img = pipeline.LoadImage(obs.Texture.Url);
+                        img = pipeline.LoadImage(obs.Texture.Url);
                         if (options.DecimateImages > 1)
                         {
                             img = img.Decimated(options.DecimateImages);
                         }
-                        PathHelper.EnsureExists(tmpPath);
-                        img.Save<byte>(tmpPath + imageFilename);
+                        if (!options.OnlyMergedSiteDriveMeshes)
+                        {
+                            string file = tmpPath + imageFilename;
+                            pipeline.LogVerbose("saving image {0}", file);
+                            PathHelper.EnsureExists(tmpPath);
+                            img.Save<byte>(file);
+                        }
+                    }
+
+                    if (options.MergedSiteDriveMeshes && mesh != null)
+                    {
+                        var pair = new Tuple<Mesh, Image>(mesh, img);
+                        mergeInputs.AddOrUpdate(siteDrive,
+                                                _ => new ConcurrentBag<Tuple<Mesh, Image>>(new [] { pair }),
+                                                (_, bag) => { bag.Add(pair); return bag; });
                     }
 
                     if (!options.NoWedgeMeshes && mesh != null)
                     {
-                        if  (mesh.Vertices.Count > 0)
-                        {
-                            PathHelper.EnsureExists(tmpPath);
-                            mesh.Save(tmpPath + obsName + meshExt, imageFilename);
-                        }
+                        string file = tmpPath + obsName + meshExt;
+                        pipeline.LogVerbose("saving mesh {0}", file);
+                        PathHelper.EnsureExists(tmpPath);
+                        mesh.Save(file, imageFilename);
                     }
                       
-                    if (options.WriteFrustumHullMeshes)
+                    if (options.FrustumHullMeshes)
                     {
                         var hull = Meshing.BuildFrustumHull(pipeline, obs, frameCache, outputFrame, options.UsePriors,
                                                             uncertaintyInflated: false);
-                        var path = tmpPath + "Frusta/";
+                        string path = tmpPath + "Frusta/";
+                        string file = tmpPath + obsName + meshExt;
+                        pipeline.LogVerbose("saving hull mesh {0}", file);
                         PathHelper.EnsureExists(path);
-                        hull.Mesh.Save(path + obsName + meshExt);
+                        hull.Mesh.Save(file);
                     }
 
-                    if (options.WriteUncertaintyInflatedFrustumHullMeshes)
+                    if (options.UncertaintyInflatedFrustumHullMeshes)
                     {
                         var hull = Meshing.BuildFrustumHull(pipeline, obs, frameCache, outputFrame, options.UsePriors,
                                                             uncertaintyInflated: true);
-                        var path = tmpPath + "InflatedFrusta/";
+                        string path = tmpPath + "InflatedFrusta/";
+                        string file = path + obsName + meshExt;
+                        pipeline.LogVerbose("saving uncertainty inflated hull mesh {0}", file);
                         PathHelper.EnsureExists(path);
-                        hull.Mesh.Save(path + obsName + meshExt);
+                        hull.Mesh.Save(file);
                     }
 
                     Interlocked.Decrement(ref np);
                     Interlocked.Increment(ref nc);
                 });
             double totalSec = UTCTime.Now() - startSec;
-            
-            pipeline.LogInfo("generated meshes for {0} observations ({1:F3}s)", no, totalSec);
+
+            if (options.MergedSiteDriveMeshes)
+            {
+                pipeline.LogInfo("generating merged meshes for {0} sitedrives", mergeInputs.Count);
+                foreach (var siteDrive in mergeInputs.Keys.OrderBy(name => name))
+                {
+                    pipeline.LogInfo("generating merged mesh for site drive {0}", siteDrive);
+                    var pair = Meshing.MergeMeshesAndTextures(mergeInputs[siteDrive].Distinct().ToArray());
+                    var mesh = pair.Item1;
+                    var img = pair.Item2;
+                    string imageFilename = null;
+                    if (img != null)
+                    {
+                        imageFilename = siteDrive + imageExt;
+                        PathHelper.EnsureExists(outputPath);
+                        img.Save<byte>(outputPath + imageFilename);
+                    }
+                    if (mesh != null && mesh.HasVertices && (options.PointCloud || mesh.HasFaces))
+                    {
+                        string file = outputPath + siteDrive + meshExt;
+                        pipeline.LogVerbose("saving merged mesh {0}", file);
+                        PathHelper.EnsureExists(outputPath);
+                        mesh.Save(file, imageFilename);
+                    }
+                }
+            }
+            pipeline.LogInfo("generated products for {0} observations ({1:F3}s)", no, totalSec);
 
             return 0;
         }
