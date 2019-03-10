@@ -37,6 +37,22 @@ namespace OPS.Pipeline
 
     public class Meshing
     {
+        private struct Pixel
+        {
+            public int Row, Col;
+
+            public Pixel(int row, int col)
+            {
+                this.Row = row;
+                this.Col = col;
+            }
+
+            public static Pixel operator+(Pixel a, Pixel b)
+            {
+                return new Pixel(a.Row + b.Row, a.Col + b.Col);
+            }
+        };
+
         /// <summary>
         /// check if an observation is from a mastcam
         /// </summary>
@@ -519,7 +535,7 @@ namespace OPS.Pipeline
             {
                 for (int col = 0; col < img.Width; col++)
                 {
-                    if (!img.IsInvalid(row, col))
+                    if (img.IsValid(row, col))
                     {
                         ctr += new Vector3(img[0, row, col], img[1, row, col], img[2, row, col]);
                         n++;
@@ -534,7 +550,7 @@ namespace OPS.Pipeline
             {
                 for (int col = 0; col < img.Width; col++)
                 {
-                    if (!img.IsInvalid(row, col))
+                    if (img.IsValid(row, col))
                     {
                         var p = new Vector3(img[0, row, col], img[1, row, col], img[2, row, col]);
                         var elev = (float)(p - ctr).Dot(up.Value);
@@ -549,13 +565,13 @@ namespace OPS.Pipeline
                 }
             }
 
-            if (normalize && n > 0 && max > min)
+            if (normalize && max > min)
             {
-                for (int row = 0; row < img.Height; row++)
+                for (int row = 0; row < ret.Height; row++)
                 {
-                    for (int col = 0; col < img.Width; col++)
+                    for (int col = 0; col < ret.Width; col++)
                     {
-                        if (!img.IsInvalid(row, col))
+                        if (ret.IsValid(row, col))
                         {
                             ret[0, row, col] = (ret[0, row, col] - min) / (max - min);
                         }
@@ -566,25 +582,112 @@ namespace OPS.Pipeline
             return ret;
         }
 
+
+        public enum Neighborhood { Four = 4, Eight = 8 };
+        public const Neighborhood DEF_CURVATURE_NEIGHBORHOOD = Neighborhood.Four;
+
+        /// <summary>
+        /// compute approximate max curvature at each valid point
+        /// https://computergraphics.stackexchange.com/a/1719
+        /// </summary>
+        public static Image ComputeCurvatures(Image points, Image normals, bool normalize = true,
+                                              Neighborhood neighborhood = DEF_CURVATURE_NEIGHBORHOOD)
+        {
+            int hoodSize = (int)neighborhood + 1;
+            Pixel[] offsets = new Pixel[hoodSize];
+            offsets[0] = new Pixel(0, 0);
+            offsets[1] = new Pixel(-1, 0);
+            offsets[2] = new Pixel(1, 0);
+            offsets[3] = new Pixel(0, -1);
+            offsets[4] = new Pixel(0, 1);
+            if (neighborhood == Neighborhood.Eight)
+            {
+                offsets[5] = new Pixel(-1, -1);
+                offsets[6] = new Pixel(1, 1);
+                offsets[7] = new Pixel(-1, 1);
+                offsets[8] = new Pixel(1, -1);
+            }
+            var hoodPoints = new Vector3[hoodSize];
+            var hoodNormals = new Vector3[hoodSize];
+            int collectHood(int row, int col)
+            {
+                var ctr = new Pixel(row, col);
+                int n = 0;
+                foreach (var offset in offsets)
+                {
+                    var px = ctr + offset;
+                    if (points.IsValid(px.Row, px.Col) && normals.IsValid(px.Row, px.Col))
+                    {
+                        hoodPoints[n] = new Vector3(points[0, px.Row, px.Col],
+                                                    points[1, px.Row, px.Col],
+                                                    points[2, px.Row, px.Col]);
+                        hoodNormals[n] = new Vector3(normals[0, px.Row, px.Col],
+                                                     normals[1, px.Row, px.Col],
+                                                     normals[2, px.Row, px.Col]);
+                        n++;
+                    }
+                }
+                return n;
+            }
+
+            Image ret = new Image(1, points.Width, points.Height);
+            ret.CreateMask();
+
+            float min = float.PositiveInfinity;
+            float max = float.NegativeInfinity;
+            for (int row = 0; row < ret.Height; row++)
+            {
+                for (int col = 0; col < ret.Width; col++)
+                {
+                    if (points.IsValid(row, col) && normals.IsValid(row, col))
+                    {
+                        int n = collectHood(row, col);
+                        float maxAbsCurvature = 0;
+                        for (int i = 1; i < n; i++)
+                        {
+                            var d = hoodPoints[i] - hoodPoints[0];
+                            var c = (float)Math.Abs((hoodNormals[i] - hoodNormals[0]).Dot(d) / d.LengthSquared());
+                            maxAbsCurvature = Math.Max(maxAbsCurvature, c);
+                        }
+                        ret[0, row, col] = maxAbsCurvature;
+                        min = Math.Min(min, maxAbsCurvature);
+                        max = Math.Max(max, maxAbsCurvature);
+                    }
+                    else
+                    {
+                        ret.SetMaskValue(row, col, true);
+                    }
+                }
+            }
+
+            if (normalize && max > min)
+            {
+                for (int row = 0; row < ret.Height; row++)
+                {
+                    for (int col = 0; col < ret.Width; col++)
+                    {
+                        if (ret.IsValid(row, col))
+                        {
+                            ret[0, row, col] = (ret[0, row, col] - min) / (max - min);
+                        }
+                    }
+                }
+            }
+
+            return ret;
+        }
+
+        public static Mesh ColorMeshByCurvature(Mesh mesh, bool normalize = false, bool stretch = false,
+                                                Neighborhood neighborhood = DEF_CURVATURE_NEIGHBORHOOD)
+        {
+            //TODO
+            return mesh;
+        }
+
         /// <summary>
         /// flood fill mask from each invalid pixel on the border of img
         /// mask image is 0 for masked pixels
         /// </summary>
-        private struct Pixel
-        {
-            public int Row, Col;
-
-            public Pixel(int row, int col)
-            {
-                this.Row = row;
-                this.Col = col;
-            }
-
-            public static Pixel operator+(Pixel a, Pixel b)
-            {
-                return new Pixel(a.Row + b.Row, a.Col + b.Col);
-            }
-        };
         public static void AddOuterRegionsToMask(Image img, Image mask)
         {
             void floodFill(int row, int col)

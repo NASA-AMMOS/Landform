@@ -113,6 +113,12 @@ namespace OPS.Pipeline
         [Option(HelpText = "Normal to tilt conversion (Abs, Acos, Cos)", Default = Meshing.DEF_TILT_MODE)]
         public Meshing.TiltMode TiltMode { get; set; }
 
+        [Option(HelpText = "Write curvature images", Default = false)]
+        public bool CurvatureImages { get; set; }
+
+        [Option(HelpText = "Curvature neighborhood (Four, Eight)", Default = Meshing.Neighborhood.Four)]
+        public Meshing.Neighborhood CurvatureNeighborhood { get; set; }
+
         [Option(HelpText = "Write elevation images", Default = false)]
         public bool ElevationImages { get; set; }
 
@@ -245,7 +251,7 @@ namespace OPS.Pipeline
             }
 
             string imageExt = null;
-            if (!options.NoImages || options.NormalsImages || options.ElevationImages)
+            if (!options.NoImages || options.NormalsImages || options.CurvatureImages || options.ElevationImages)
             {
                 imageExt = ImageSerializers.Instance.CheckFormat(options.ImageFormat, pipeline);
                 if (imageExt == null)
@@ -259,6 +265,10 @@ namespace OPS.Pipeline
                 if (options.NormalsImages)
                 {
                     pipeline.LogInfo("writing {0} normals images to {1}", imageExt, outputPath);
+                }
+                if (options.CurvatureImages)
+                {
+                    pipeline.LogInfo("writing {0} curvature images to {1}", imageExt, outputPath);
                 }
                 if (options.ElevationImages)
                 {
@@ -474,6 +484,47 @@ namespace OPS.Pipeline
                         pipeline.LogVerbose("saving {0}x{1} normals image {2}", normals.Width, normals.Height, file);
                         PathHelper.EnsureExists(tmpPath);
                         normals.Save<byte>(file, ImageConverters.AbsNormalizedImageToValueRange);
+                    }
+
+                    if (options.CurvatureImages && obs.Points != null && obs.Normals != null)
+                    {
+                        pipeline.LogVerbose("loading points image {0} and normals image {1} to make curvature image",
+                                            obs.Points.Name, obs.Normals.Name);
+                        var points = Meshing.ConvertPoints(pipeline.LoadImage(obs.Points.Url));
+                        var normals = Meshing.ConvertNormals(pipeline.LoadImage(obs.Normals.Url));
+                        if (options.DecimateImages > 1)
+                        {
+                            pipeline.LogVerbose("decimating points and normals images by {1}", options.DecimateImages);
+                        }
+                        var mask = RoverMask.LoadOrBuild(pipeline, obs.Mask, obs.Points);
+                        points = Meshing.MaskAndDecimatePoints(points, options.DecimateImages, mask);
+                        normals = Meshing.MaskAndDecimateNormals(normals, options.DecimateImages, mask);
+                        string name = "Curvature";
+                        var curvatures = Meshing.ComputeCurvatures(points, normals, !options.StretchImages,
+                                                                   options.CurvatureNeighborhood);
+                        if (options.StretchImages)
+                        {
+                            curvatures = curvatures.ApplyStdDevStretch();
+                        }
+                        if (options.InpaintImages > 0)
+                        {
+                            //see comment above
+                            if (options.DecimateImages > 1)
+                            {
+                                mask = mask.Decimated(options.DecimateImages);
+                            } 
+                            Meshing.AddOuterRegionsToMask(curvatures, mask);
+                            curvatures.Inpaint(options.InpaintImages);
+                            curvatures.UnionMask(mask, new float[] { 0 } );
+                        }
+                        if (options.ThresholdImages > 0)
+                        {
+                            curvatures.ApplyInPlace(v => v > options.ThresholdImages ? 1 : 0);
+                        }
+                        string file = tmpPath + obsName + "_" + name + imageExt;
+                        pipeline.LogVerbose("saving {0}x{1} curvtures image {2}", normals.Width, normals.Height, file);
+                        PathHelper.EnsureExists(tmpPath);
+                        curvatures.Save<byte>(file);
                     }
 
                     if (options.ElevationImages && obs.Points != null)
