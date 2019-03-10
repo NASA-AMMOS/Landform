@@ -101,6 +101,18 @@ namespace OPS.Pipeline
         [Option(HelpText = "Write all the things", Default = false)]
         public bool AllTheThings { get; set; }
 
+        [Option(HelpText = "Write normals images", Default = false)]
+        public bool NormalsImages { get; set; }
+
+        [Option(HelpText = "Convert normals to scalar tilt relative to up (0, 0, -1)", Default = false)]
+        public bool ConvertNormalsToTilts { get; set; }
+
+        [Option(HelpText = "Optimize contrast of tilt images", Default = false)]
+        public bool StretchTilts { get; set; }
+
+        [Option(HelpText = "Inpaint normals by this many pixels", Default = 0)]
+        public int InpaintNormals { get; set; }
+
         [Option(HelpText = "Hide progress", Default = false)]
         public bool NoProgress { get; set; }
 
@@ -136,6 +148,7 @@ namespace OPS.Pipeline
             options.FrustumHullMeshes |= options.AllTheThings;
             options.UncertaintyInflatedFrustumHullMeshes |= options.AllTheThings;
             options.MergedSiteDriveMeshes |= options.AllTheThings;
+            options.NormalsImages |= options.AllTheThings;
 
             var project = Project.Find(pipeline, options.ProjectName);
 
@@ -223,14 +236,21 @@ namespace OPS.Pipeline
             }
 
             string imageExt = null;
-            if (!options.NoImages)
+            if (!options.NoImages || options.NormalsImages)
             {
                 imageExt = ImageSerializers.Instance.CheckFormat(options.ImageFormat, pipeline);
                 if (imageExt == null)
                 {
                     return 0;
                 }
-                pipeline.LogInfo("writing {0} images to {1}", imageExt, outputPath);
+                if (!options.NoImages)
+                {
+                    pipeline.LogInfo("writing {0} images to {1}", imageExt, outputPath);
+                }
+                if (options.NormalsImages)
+                {
+                    pipeline.LogInfo("writing {0} normals images to {1}", imageExt, outputPath);
+                }
             }
 
             var frameCache = new FrameCache(pipeline, options.ProjectName);
@@ -283,8 +303,7 @@ namespace OPS.Pipeline
             }
                                                   
             int no = observations.Count();
-            string what = options.PointCloud ? "point clouds" : "triangle meshes";
-            pipeline.LogInfo("computing {0} for {1} observations{2} under {3}", what, no,
+            pipeline.LogInfo("computing observation products for {0} observations{2} under {2}", no,
                              siteDrives.Length > 0 ?
                              (" for site drive(s) " +
                               String.Join(",", siteDrives.Select(sd => sd.ToString()).Cast<string>().ToArray())) : "",
@@ -301,12 +320,13 @@ namespace OPS.Pipeline
 
                     if (!options.NoProgress)
                     {
-                        pipeline.LogInfo("computing {0} for {1} observations in parallel, completed {2}/{3}",
-                                         what, np, nc, no);
+                        pipeline.LogInfo("computing products for {0} observations in parallel, completed {1}/{2}",
+                                         np, nc, no);
                     }
 
                     Mesh mesh = null;
-                    if (options.PointCloud)
+                    bool buildMesh = !options.NoWedgeMeshes || options.MergedSiteDriveMeshes;
+                    if (buildMesh && options.PointCloud)
                     {
                         pipeline.LogVerbose("building point cloud for {0}", obs.Points.Name);
                         mesh = Meshing.BuildPointCloud(pipeline, obs, frameCache, outputFrame, options.UsePriors,
@@ -316,7 +336,7 @@ namespace OPS.Pipeline
                             mesh = null;
                         }
                     }
-                    else
+                    else if (buildMesh)
                     {
                         pipeline.LogVerbose("building {0} triangle mesh for {1}",
                                             options.ReconstructionMethod, obs.Points.Name);
@@ -373,15 +393,55 @@ namespace OPS.Pipeline
                         img = pipeline.LoadImage(obs.Texture.Url);
                         if (options.DecimateImages > 1)
                         {
+                            pipeline.LogVerbose("decimating {0}x{1} image {2} by {3}", img.Width, img.Height,
+                                                obs.Texture.Name, options.DecimateImages);
                             img = img.Decimated(options.DecimateImages);
                         }
                         if (!options.OnlyMergedSiteDriveMeshes)
                         {
                             string file = tmpPath + imageFilename;
-                            pipeline.LogVerbose("saving image {0}", file);
+                            pipeline.LogVerbose("saving {0}x{1} image {2}", img.Width, img.Height, file);
                             PathHelper.EnsureExists(tmpPath);
                             img.Save<byte>(file);
                         }
+                    }
+
+                    if (options.NormalsImages && obs.Normals != null)
+                    {
+                        pipeline.LogVerbose("loading normals image {0}", obs.Normals.Name);
+                        var normals = pipeline.LoadImage(obs.Normals.Url);
+                        if (options.DecimateImages > 1)
+                        {
+                            pipeline.LogVerbose("decimating {0}x{1} normals image {2} by {3}", normals.Width,
+                                                normals.Height, obs.Normals.Name, options.DecimateImages);
+                        }
+
+                        var mask = RoverMask.LoadOrBuild(pipeline, obs.Mask, obs.Normals);
+                        normals = Meshing.MaskAndDecimateNormals(normals, options.DecimateImages, mask);
+                        if (options.DecimateImages > 1)
+                        {
+                            mask = mask.Decimated(options.DecimateImages);
+                        } 
+                        string name = "Normals";
+                        if (options.ConvertNormalsToTilts)
+                        {
+                            name = "Tilts";
+                            normals = Meshing.NormalsToTilt(normals);
+                            if (options.StretchTilts)
+                            {
+                                normals = normals.ApplyStdDevStretch();
+                            }
+                        }
+                        if (options.InpaintNormals > 0)
+                        {
+                            name += "_Inpainted";
+                            normals.Inpaint(options.InpaintNormals);
+                            normals.UnionMask(mask, new float[] { 0 } );
+                        }
+                        string file = tmpPath + obsName + "_" + name + imageExt;
+                        pipeline.LogVerbose("saving {0}x{1} normals image {2}", normals.Width, normals.Height, file);
+                        PathHelper.EnsureExists(tmpPath);
+                        normals.Save<byte>(file, ImageConverters.AbsNormalizedImageToValueRange);
                     }
 
                     if (options.MergedSiteDriveMeshes && mesh != null)

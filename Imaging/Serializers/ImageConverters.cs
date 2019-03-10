@@ -11,6 +11,7 @@ namespace OPS.Imaging
     {
         public static IImageConverter ValueRangeToNormalizedImage = new ValueRange2NormalizedImage();
         public static IImageConverter NormalizedImageToValueRange = new NormalizedImage2ValueRange();
+        public static IImageConverter AbsNormalizedImageToValueRange = new AbsNormalizedImage2ValueRange();
         public static IImageConverter PassThrough = new ValuePassThrough();
         public static IImageConverter PDSBitMaskValueRangeToNormalizedImage = new BitMaskValueRangeToNormalizedImage();
 
@@ -50,6 +51,31 @@ namespace OPS.Imaging
                 Image converted = (Image)image.Clone();
                 if (typeof(T) != typeof(float) && typeof(T) != typeof(double))
                 {
+                    converted.ScaleValues(0, 1, 0, MaxValueForType<T>());
+                }
+                return converted;
+            }
+        }
+
+        private class AbsNormalizedImage2ValueRange : IImageConverter
+        {
+            /// <summary>
+            /// Returns a copy of an image with values ranging from 0 to T.MaxValue
+            /// Assumes input image values are normalized -1 to 1 for most types
+            /// No scaling is performed on float or double types
+            /// </summary>
+            /// <typeparam name="T">Type used to determine the output value range</typeparam>
+            /// <param name="image"></param>
+            /// <returns></returns>
+            public Image Convert<T>(Image image)
+            {
+                Image converted = (Image)image.Clone();
+                if (typeof(T) != typeof(float) && typeof(T) != typeof(double))
+                {
+                    for (int band = 0; band < converted.Bands; band++)
+                    {
+                        converted.ApplyInPlace(band, v => (float)Math.Abs(v));
+                    }
                     converted.ScaleValues(0, 1, 0, MaxValueForType<T>());
                 }
                 return converted;

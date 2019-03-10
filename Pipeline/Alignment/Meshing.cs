@@ -419,9 +419,9 @@ namespace OPS.Pipeline
         }
 
         /// <summary>
-        /// decimate a normals image   
+        /// mask and decimate a normals image   
         /// </summary>
-        public static Image DecimateNormals(Image img, int blocksize, Image mask = null)
+        public static Image MaskAndDecimateNormals(Image img, int blocksize, Image mask = null)
         {
             if (mask != null)
             {
@@ -430,22 +430,22 @@ namespace OPS.Pipeline
             if (blocksize > 1)
             {
                 img = img.Decimated(blocksize);
-                for (int row = 0; row < img.Height; row++)
+            }
+            for (int row = 0; row < img.Height; row++)
+            {
+                for (int col = 0; col < img.Width; col++)
                 {
-                    for (int col = 0; col < img.Width; col++)
+                    if (!img.IsInvalid(row, col))
                     {
-                        if (!img.IsInvalid(row, col))
+                        var n = new Vector3(img[0, row, col], img[1, row, col], img[2, row, col]);
+                        if (n.LengthSquared() < 0.0001)
                         {
-                            var n = new Vector3(img[0, row, col], img[1, row, col], img[2, row, col]);
-                            if (n.LengthSquared() < 0.0001)
-                            {
-                                img.SetMaskValue(row, col, true);
-                            }
-                            else
-                            {
-                                n.Normalize();
-                                img.SetBandValues(row, col, n.ToFloatArray());
-                            }
+                            img.SetMaskValue(row, col, true);
+                        }
+                        else
+                        {
+                            n.Normalize();
+                            img.SetBandValues(row, col, n.ToFloatArray());
                         }
                     }
                 }
@@ -453,10 +453,41 @@ namespace OPS.Pipeline
             return img;
         }
 
+        public static Image NormalsToTilt(Image img, bool abs = true, Vector3? up = null)
+        {
+            if (up == null)
+            {
+                up = new Vector3(0, 0, -1);
+            }
+            Image ret = new Image(1, img.Width, img.Height);
+            ret.CreateMask();
+            for (int row = 0; row < img.Height; row++)
+            {
+                for (int col = 0; col < img.Width; col++)
+                {
+                    if (!img.IsInvalid(row, col))
+                    {
+                        var n = new Vector3(img[0, row, col], img[1, row, col], img[2, row, col]);
+                        var tilt = n.Dot(up.Value);
+                        if (abs)
+                        {
+                            tilt = Math.Abs(tilt);
+                        }
+                        ret[0, row, col] = (float)tilt;
+                    } 
+                    else
+                    {
+                        ret.SetMaskValue(row, col, true);
+                    }
+                }
+            }
+            return ret;
+        }
+
         /// <summary>
         /// decimate a points image, baking mask into it
         /// </summary>
-        public static Image DecimatePoints(Image img, int blocksize, Image mask = null)
+        public static Image MaskAndDecimatePoints(Image img, int blocksize, Image mask = null)
         {
             if (mask != null)
             {
@@ -488,11 +519,11 @@ namespace OPS.Pipeline
             if (decimateBlocksize > 1)
             {
                 pipeline.LogVerbose("decimating points {0}", obs.Points.Name);
-                points = DecimatePoints(points, decimateBlocksize, mask);
+                points = MaskAndDecimatePoints(points, decimateBlocksize, mask);
                 if (normals != null)
                 {
                     pipeline.LogVerbose("decimating normals {0}", obs.Normals.Name);
-                    normals = DecimateNormals(normals, decimateBlocksize, mask);
+                    normals = MaskAndDecimateNormals(normals, decimateBlocksize, mask);
                 }
                 mask = null;
             }
