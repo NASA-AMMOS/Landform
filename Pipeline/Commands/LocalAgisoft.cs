@@ -33,7 +33,7 @@ namespace OPS.Pipeline
         [Option(HelpText = "Redo agisoft alignment", Default = false)]
         public bool RedoAlignment { get; set; }
 
-        [Option(HelpText = "Clear the files generated for/by agisoft", Default = false)] //TODO: default true
+        [Option(HelpText = "Clear the files generated for/by agisoft", Default = true)] 
        public bool ClearAgiInputsOutputs { get; set; }
 
     }
