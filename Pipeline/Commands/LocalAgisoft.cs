@@ -240,6 +240,7 @@ namespace OPS.Pipeline
                 fc += "chunk.matchPhotos(accuracy = Metashape.HighAccuracy, generic_preselection = True, reference_preselection = False)\n" +
                       "chunk.alignCameras(chunk.cameras)\n";
 
+                //required to keep scene generated in metadata from crashing if you select "look through" on the camera (tech support from agisoft)
                 fc += "Metashape.app.document.chunk.buildPoints()\n";
 
                 //second pass after optimizing camera and aligning (improves results in the ui)
