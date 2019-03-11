@@ -33,7 +33,6 @@ namespace OPS.Pipeline
         [Option(HelpText = "Redo agisoft alignment", Default = false)]
         public bool RedoAlignment { get; set; }
 
-        [Option(HelpText = "Clear the files generated for/by agisoft", Default = false)] //TODO: default true
        public bool ClearAgiInputsOutputs { get; set; }
 
     }
@@ -57,7 +56,7 @@ namespace OPS.Pipeline
                 return 1;
             }
 
-            // prepare data directories
+            //get temp paths
             var imageDir = TemporaryFile.GetTempSubdir("agi_images");
             var masksDir = TemporaryFile.GetTempSubdir("agi_masks");
             var metaDir = TemporaryFile.GetTempSubdir("agi_meta");
@@ -70,6 +69,11 @@ namespace OPS.Pipeline
                 Directory.Delete(metaDir, true);
             }
 
+            //recreate the directories
+            PathHelper.EnsureExists(Path.GetFullPath(imageDir));
+            PathHelper.EnsureExists(Path.GetFullPath(masksDir));
+            PathHelper.EnsureExists(Path.GetFullPath(metaDir));
+            
             // prepare metadata filenames
             string calibXMLPath = Path.Combine(metaDir, "calibIn.xml");
             string alignPythonPath = Path.Combine(metaDir, "imageAlign.py");
@@ -90,8 +94,12 @@ namespace OPS.Pipeline
             AlignmentScene scene = bsg.BuildTopDown(project.RootFrame);
 
             // prepare png versions of images and masks for agisoft
+            var observationCache = new ObservationCache(this, options.ProjectName);
+            observationCache.Preload(obs => obs.UseForReconstruction);
+
             var observations = scene.Root.GetComponentsInTree<NodeObservation>().Select(no => no.Observation as RoverObservation);
-            this.LogInfo("generating pngs for " + observations.Count() + "images and masks");
+            this.LogInfo("generating pngs for " + observations.Count() + " images and masks");
+            string maskStr = ObservationType.RoverMask.ToString();
             Dictionary<RoverObservation, int> observationToNumBands = new Dictionary<RoverObservation, int>();
             foreach (var obs in observations)
             {
@@ -105,8 +113,16 @@ namespace OPS.Pipeline
                 string maskPath = Path.Combine(masksDir, obs.Name + "_mask.png");
                 if (!File.Exists(maskPath) || options.RedoImages)
                 {
-                    //TODO: query observations to get mission masks if available
-                    var mask = FeatureDetecting.MakeMask(this, null, img, obs.Name);
+                //TODO: query observations to get mission masks if available
+                    var maskObs = observationCache.GetAllObservationsForFrame(Frame.Find(this, options.ProjectName, obs.FrameName)).Where(o => o.ObservationType == maskStr).Cast<RoverObservation>().ToList();
+                    string maskUrl = null;
+                    if (maskObs != null && maskObs.Count() > 0)
+                    {
+                        maskObs.Sort(MSLProject.RoverObservationComparison);
+                        maskUrl = maskObs.First().Url;
+                    }
+
+                    Image mask = FeatureDetecting.MakeMask(this, maskUrl, img, obs.Name);
                     mask.Save<byte>(Path.Combine(masksDir, obs.Name + "_mask.png"));
                 }
 
@@ -188,7 +204,6 @@ namespace OPS.Pipeline
                     {
                         frame.Save(this);
                     }
-                }
             }
 
             return 0;
@@ -221,10 +236,12 @@ namespace OPS.Pipeline
 
                 //do alginment
                 fc += "chunk.matchPhotos(accuracy = Metashape.HighAccuracy, generic_preselection = True, reference_preselection = False)\n" +
-                      "chunk.alignCameras()\n";
+                      "chunk.alignCameras(chunk.cameras)\n";
 
+                //required to keep scene generated in metadata from crashing if you select "look through" on the camera (tech support from agisoft)
                 fc += "Metashape.app.document.chunk.buildPoints()\n";
 
+                //second pass after optimizing camera and aligning (improves results in the ui)
                 fc += "chunk.optimizeCameras()\n" +
                      "chunk.alignCameras(chunk.cameras)\n";
 

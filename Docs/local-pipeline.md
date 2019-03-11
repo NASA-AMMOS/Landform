@@ -121,9 +121,11 @@ The sol 588 - 590 dataset has 3688 navcam IMG files, about 5GB total, 263 which 
 
 ## Run Agisoft instead of our bundler
 install Agisoft Metashape professional (standard will not work as it doesn't allow python scripting)
-run the pipeline as described above through local-matching
-then
+./Pipeline/Rover/fetch-msl.sh c:/Users/$USERNAME/Downloads locations 00588 00589 00590
+./Landform/bin/Release/Landform.exe configure-local --venue=local --storagedir=c:/Users/$USERNAME/Documents/landform-storage --maxcores=0
+./Landform/bin/Release/Landform.exe local-ingest sols588to590 --inputpath=c:/Users/$USERNAME/Downloads/msl/**
 ./Landform/bin/Release/Landform.exe local-agisoft sol589 --metashapeexepath="C:/Program Files/Agisoft/Metashape Pro/metashape.exe"
+
 the results will be published back to your local database with the agisoft transform source. they can be visualized with observation products by
 ./Landform/bin/Release/Landform.exe local-observation-products sol589 --adjustedtransformsources=agisoft
 
