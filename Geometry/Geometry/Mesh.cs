@@ -561,7 +561,7 @@ namespace OPS.Geometry
                 EdgeGraph edgeGraph = new EdgeGraph(copy);
 
                 //Compute a skirt location for each perimeter vertex based on the normals of surrounding triangles. If a previous skirt vertex is "good enough" based on `threshold', it may be used instead of creating a new one
-                foreach (VertexNode vNode in edgeGraph.vertNodes)
+                foreach (VertexNode vNode in edgeGraph.VertNodes)
                 {
                     if (vNode.IsOnPerimeter)
                     {
@@ -611,7 +611,7 @@ namespace OPS.Geometry
                 }
 
                 //Add in the faces for the new skirt vertices
-                foreach (VertexNode vNode in edgeGraph.vertNodes)
+                foreach (VertexNode vNode in edgeGraph.VertNodes)
                 {
                     if (vNode.IsOnPerimeter)
                     {

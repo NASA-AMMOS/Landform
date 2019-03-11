@@ -14,30 +14,30 @@ namespace OPS.Geometry
     /// </summary>
     public class EdgeGraph
     {
-        public List<VertexNode> vertNodes;
+        public List<VertexNode> VertNodes;
         int newID;
 
         public EdgeGraph(Mesh mesh)
         {
-            vertNodes = new List<VertexNode>();
+            VertNodes = new List<VertexNode>();
 
             //Construct VertexNode objects for each vertex
             for (int i = 0; i < mesh.Vertices.Count; i++)
             {
-                vertNodes.Add(new VertexNode(mesh.Vertices[i], i));
+                VertNodes.Add(new VertexNode(mesh.Vertices[i], i));
             }
             newID = mesh.Vertices.Count;
 
             //Add adjacency info
             foreach (Face face in mesh.Faces)
             {
-                vertNodes[face.P0].AdjacentEdges.Add(new Edge(vertNodes[face.P0], vertNodes[face.P1], vertNodes[face.P2], null));
-                vertNodes[face.P1].AdjacentEdges.Add(new Edge(vertNodes[face.P1], vertNodes[face.P2], vertNodes[face.P0], null));
-                vertNodes[face.P2].AdjacentEdges.Add(new Edge(vertNodes[face.P2], vertNodes[face.P0], vertNodes[face.P1], null));
+                VertNodes[face.P0].AdjacentEdges.Add(new Edge(VertNodes[face.P0], VertNodes[face.P1], VertNodes[face.P2], null));
+                VertNodes[face.P1].AdjacentEdges.Add(new Edge(VertNodes[face.P1], VertNodes[face.P2], VertNodes[face.P0], null));
+                VertNodes[face.P2].AdjacentEdges.Add(new Edge(VertNodes[face.P2], VertNodes[face.P0], VertNodes[face.P1], null));
             }
 
             //Flag perimeter vertices and edges
-            foreach (VertexNode v in vertNodes)
+            foreach (VertexNode v in VertNodes)
             {
                 foreach (Edge e in v.AdjacentEdges)
                 {
@@ -70,7 +70,7 @@ namespace OPS.Geometry
         public List<VertexNode> GetPerimeterNodes()
         {
             var res = new List<VertexNode>();
-            foreach (VertexNode v in vertNodes)
+            foreach (VertexNode v in VertNodes)
             {
                 if (v.IsActive)
                 {
@@ -87,7 +87,7 @@ namespace OPS.Geometry
         public List<Edge> GetPerimeterEdges()
         {
             var res = new List<Edge>();
-            foreach(VertexNode v in vertNodes)
+            foreach(VertexNode v in VertNodes)
             {
                 if(v.IsActive)
                 {

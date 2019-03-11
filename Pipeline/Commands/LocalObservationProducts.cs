@@ -14,6 +14,8 @@ using OPS.Pipeline.AlignmentServer;
 
 namespace OPS.Pipeline
 {
+    public enum MeshColor { None, Texture, Normals, Elevation, Curvature };
+
     [Verb("local-observation-products", HelpText = "create observation mesh and image products locally")]
     public class LocalObservationProductsOptions : PipelineCoreOptions
     {
@@ -74,8 +76,8 @@ namespace OPS.Pipeline
         [Option(HelpText = "Image decimation blocksize", Default = 2)]
         public int DecimateImages { get; set; }
 
-        [Option(HelpText = "Optimize contrast of images", Default = false)]
-        public bool StretchImages { get; set; }
+        [Option(HelpText = "Optimize color contrast", Default = false)]
+        public bool StretchContrast { get; set; }
 
         [Option(HelpText = "Max triangle aspect ratio for organized mesh reconstruction", Default = 20)]
         public double MaxTriangleAspect { get; set; }
@@ -107,6 +109,9 @@ namespace OPS.Pipeline
         [Option(HelpText = "Write normals images", Default = false)]
         public bool NormalsImages { get; set; }
 
+        [Option(HelpText = "Mesh coloring (None, Texture, Normals, Curvature, Elevation)", Default = MeshColor.Texture)]
+        public MeshColor ColorMeshesBy { get; set; }
+
         [Option(HelpText = "Convert normals to scalar tilt relative to up (0, 0, -1)", Default = false)]
         public bool ConvertNormalsToTilts { get; set; }
 
@@ -116,7 +121,7 @@ namespace OPS.Pipeline
         [Option(HelpText = "Write curvature images", Default = false)]
         public bool CurvatureImages { get; set; }
 
-        [Option(HelpText = "Curvature neighborhood (Four, Eight)", Default = Meshing.Neighborhood.Four)]
+        [Option(HelpText = "Curvature image neighborhood (Four, Eight)", Default = Meshing.Neighborhood.Four)]
         public Meshing.Neighborhood CurvatureNeighborhood { get; set; }
 
         [Option(HelpText = "Write elevation images", Default = false)]
@@ -164,6 +169,10 @@ namespace OPS.Pipeline
             options.UncertaintyInflatedFrustumHullMeshes |= options.AllTheThings;
             options.MergedSiteDriveMeshes |= options.AllTheThings;
             options.NormalsImages |= options.AllTheThings;
+
+            bool withUVs = !options.NoImages && options.ColorMeshesBy == MeshColor.Texture;
+
+            options.NoImages |= options.OnlyMergedSiteDriveMeshes && !withUVs;
 
             var project = Project.Find(pipeline, options.ProjectName);
 
@@ -371,21 +380,20 @@ namespace OPS.Pipeline
                                                                   options.UsePriors, options.DecimateMeshes,
                                                                   options.ScaleNormalsByConfidence,
                                                                   options.MaxTriangleAspect, options.IsolatedPointSize,
-                                                                  !options.NoImages);
+                                                                  withUVs);
                                 break;
                             }
                             case ReconstructionMethod.Poisson:
                             {
                                 mesh = Meshing.BuildPoissonMesh(pipeline, obs, frameCache, outputFrame,
                                                                 options.UsePriors, options.DecimateMeshes,
-                                                                options.ScaleNormalsByConfidence, !options.NoImages);
+                                                                options.ScaleNormalsByConfidence, withUVs);
                                 break;
                             }
                             case ReconstructionMethod.FSSR:
                             {
                                 mesh = Meshing.BuildFSSRMesh(pipeline, obs, frameCache, outputFrame,
-                                                             options.UsePriors, options.DecimateMeshes,
-                                                             !options.NoImages);
+                                                             options.UsePriors, options.DecimateMeshes, withUVs);
                                 break;
                             }
                         }
@@ -420,7 +428,7 @@ namespace OPS.Pipeline
                                                 obs.Texture.Name, options.DecimateImages);
                             img = img.Decimated(options.DecimateImages);
                         }
-                        if (options.StretchImages)
+                        if (options.StretchContrast)
                         {
                             img = img.ApplyStdDevStretch();
                         }
@@ -456,7 +464,7 @@ namespace OPS.Pipeline
                             name = "Tilts";
                             normals = Meshing.NormalsToTilt(normals, options.TiltMode);
                         }
-                        if (options.StretchImages)
+                        if (options.StretchContrast)
                         {
                             normals = normals.ApplyStdDevStretch();
                         }
@@ -500,9 +508,9 @@ namespace OPS.Pipeline
                         points = Meshing.MaskAndDecimatePoints(points, options.DecimateImages, mask);
                         normals = Meshing.MaskAndDecimateNormals(normals, options.DecimateImages, mask);
                         string name = "Curvature";
-                        var curvatures = Meshing.ComputeCurvatures(points, normals, !options.StretchImages,
+                        var curvatures = Meshing.ComputeCurvatures(points, normals, !options.StretchContrast,
                                                                    options.CurvatureNeighborhood);
-                        if (options.StretchImages)
+                        if (options.StretchContrast)
                         {
                             curvatures = curvatures.ApplyStdDevStretch();
                         }
@@ -539,8 +547,8 @@ namespace OPS.Pipeline
                         var mask = RoverMask.LoadOrBuild(pipeline, obs.Mask, obs.Points);
                         points = Meshing.MaskAndDecimatePoints(points, options.DecimateImages, mask);
                         string name = "Elevations";
-                        var elevations = Meshing.PointsToElevation(points, normalize: !options.StretchImages);
-                        if (options.StretchImages)
+                        var elevations = Meshing.PointsToElevation(points, normalize: !options.StretchContrast);
+                        if (options.StretchContrast)
                         {
                             elevations = elevations.ApplyStdDevStretch();
                         }
@@ -568,7 +576,7 @@ namespace OPS.Pipeline
 
                     if (options.MergedSiteDriveMeshes && mesh != null)
                     {
-                        var pair = new Tuple<Mesh, Image>(mesh, img);
+                        var pair = new Tuple<Mesh, Image>(mesh, withUVs ? img : null);
                         mergeInputs.AddOrUpdate(siteDrive,
                                                 _ => new ConcurrentBag<Tuple<Mesh, Image>>(new [] { pair }),
                                                 (_, bag) => { bag.Add(pair); return bag; });
@@ -579,7 +587,8 @@ namespace OPS.Pipeline
                         string file = tmpPath + obsName + meshExt;
                         pipeline.LogVerbose("saving mesh {0}", file);
                         PathHelper.EnsureExists(tmpPath);
-                        mesh.Save(file, imageFilename);
+                        ColorMesh(mesh);
+                        mesh.Save(file, withUVs ? imageFilename : null);
                     }
                       
                     if (options.FrustumHullMeshes)
@@ -615,28 +624,69 @@ namespace OPS.Pipeline
                 foreach (var siteDrive in mergeInputs.Keys.OrderBy(name => name))
                 {
                     pipeline.LogInfo("generating merged mesh for site drive {0}", siteDrive);
+
                     var pair = Meshing.MergeMeshesAndTextures(mergeInputs[siteDrive].Distinct().ToArray());
                     var mesh = pair.Item1;
                     var img = pair.Item2;
+
+                    ColorMesh(mesh);
+
                     string imageFilename = null;
                     if (img != null)
                     {
                         imageFilename = siteDrive + imageExt;
+                        string file = outputPath + imageFilename;
+                        pipeline.LogVerbose("saving merged sitedrive texure {0}", file);
                         PathHelper.EnsureExists(outputPath);
-                        img.Save<byte>(outputPath + imageFilename);
+                        img.Save<byte>(file);
                     }
+
                     if (mesh != null && mesh.HasVertices && (options.PointCloud || mesh.HasFaces))
                     {
                         string file = outputPath + siteDrive + meshExt;
-                        pipeline.LogVerbose("saving merged mesh {0}", file);
+                        pipeline.LogVerbose("saving merged sitedrive mesh {0}", file);
                         PathHelper.EnsureExists(outputPath);
-                        mesh.Save(file, imageFilename);
+                        mesh.Save(file, withUVs ? imageFilename : null);
                     }
                 }
             }
             pipeline.LogInfo("generated products for {0} observations ({1:F3}s)", no, totalSec);
 
             return 0;
+        }
+
+        private void ColorMesh(Mesh mesh)
+        {
+            switch (options.ColorMeshesBy)
+            {
+                case MeshColor.None: break;
+                case MeshColor.Texture: break;
+                case MeshColor.Normals:
+                {
+                    if (options.ConvertNormalsToTilts)
+                    {
+                        Meshing.ColorMeshByNormals(mesh, options.StretchContrast, options.TiltMode);
+                    }
+                    else
+                    {
+                        Meshing.ColorMeshByNormals(mesh, options.StretchContrast);
+                    } 
+                    mesh.HasNormals = false;
+                    break;
+                }
+                case MeshColor.Curvature:
+                {
+                    Meshing.ColorMeshByCurvature(mesh, !options.StretchContrast, options.StretchContrast);
+                    mesh.HasNormals = false;
+                    break;
+                }
+                case MeshColor.Elevation:
+                {
+                    Meshing.ColorMeshByElevation(mesh, !options.StretchContrast, options.StretchContrast);
+                    mesh.HasNormals = false;
+                    break;
+                }
+            }
         }
     }
 }

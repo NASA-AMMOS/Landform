@@ -8,6 +8,7 @@ using System.Diagnostics;
 using log4net;
 using Microsoft.Xna.Framework;
 using MathNet.Numerics.LinearAlgebra;
+using OPS.MathExtensions;
 using OPS.Util;
 using OPS.Imaging;
 using OPS.Geometry;
@@ -473,11 +474,26 @@ namespace OPS.Pipeline
         public const TiltMode DEF_TILT_MODE = TiltMode.InvAcos;
 
         /// <summary>
+        /// TiltMode.Abs: tilt is the absolute value of the cosine of the angle relative to up
+        /// TiltMode.Acos: tilt is the angle relative to up normalized to 0-1
+        /// TiltMode.InvAcos: tilt is the angle relative to down normalized to 0-1
+        /// TiltMode.Cos: tilt is cosine of the angle relative to up
+        /// </summary>
+        public static double NormalToTilt(Vector3 n, TiltMode mode, Vector3 up)
+        {
+            var tilt = MathE.Clamp01(n.Dot(up));
+            switch (mode)
+            {
+                case TiltMode.Abs: tilt = Math.Abs(tilt); break;
+                case TiltMode.Acos: tilt = Math.Acos(tilt) / Math.PI; break;
+                case TiltMode.InvAcos: tilt = 1 - Math.Acos(tilt) / Math.PI; break;
+                case TiltMode.Cos: break;
+            }
+            return tilt;
+        }
+
+        /// <summary>
         /// Convert a normals vector image to a scalar "tilt" image  
-        /// TiltMode.Abs: returned tilt is the absolute value of the cosine of the angle relative to up
-        /// TiltMode.Acos: returned tilt is the angle relative to up normalized to 0-1
-        /// TiltMode.InvAcos: returned tilt is the angle relative to down normalized to 0-1
-        /// TiltMode.Cos: returned tilt is cosine of the angle relative to up
         /// </summary>
         public static Image NormalsToTilt(Image img, TiltMode tiltMode = DEF_TILT_MODE, Vector3? up = null)
         {
@@ -496,15 +512,7 @@ namespace OPS.Pipeline
                     if (!img.IsInvalid(row, col))
                     {
                         var n = new Vector3(img[0, row, col], img[1, row, col], img[2, row, col]);
-                        var tilt = n.Dot(up.Value);
-                        switch (tiltMode)
-                        {
-                            case TiltMode.Abs: tilt = Math.Abs(tilt); break;
-                            case TiltMode.Acos: tilt = Math.Acos(tilt) / Math.PI; break;
-                            case TiltMode.InvAcos: tilt = 1 - Math.Acos(tilt) / Math.PI; break;
-                            case TiltMode.Cos: break;
-                        }
-                        ret[0, row, col] = (float)tilt;
+                        ret[0, row, col] = (float)NormalToTilt(n, tiltMode, up.Value);
                     } 
                     else
                     {
@@ -516,10 +524,97 @@ namespace OPS.Pipeline
             return ret;
         }
 
+        public static void ApplyStdDevStretchToColors(Mesh mesh, bool greyscale = false, double nStddev = 3)
+        {
+            void applyToChannel(Func<Vertex, double> getter, Action<Vertex, double> setter)
+            {
+                int n = 0;
+                double min = double.PositiveInfinity;
+                double max = double.NegativeInfinity;
+                double mean = 0;
+                foreach (var v in mesh.Vertices)
+                {
+                    var val = getter(v);
+                    mean += val;
+                    min = Math.Min(min, val);
+                    max = Math.Max(max, val);
+                    n++;
+                }
+                mean /= n;
+
+                double variance = 0;
+                foreach (var v in mesh.Vertices)
+                {
+                    var d = getter(v) - mean;
+                    variance += d * d;
+                }
+                variance /= n;
+                double stddev = Math.Sqrt(variance);
+
+                double lower = Math.Max(mean - stddev * nStddev, min);
+                double upper = Math.Min(mean + stddev * nStddev, max);
+
+                if (min != max)
+                {
+                    foreach (var v in mesh.Vertices)
+                    {
+                        setter(v, MathE.Clamp01((getter(v) - lower) / (upper - lower)));
+                    }
+                }
+            }
+
+            if (greyscale)
+            {
+                applyToChannel(v => v.Color.X, (v, g) => { v.Color.X = v.Color.Y = v.Color.Z = g; });
+            }
+            else
+            {
+                applyToChannel(v => v.Color.X, (v, r) => { v.Color.X = r; });
+                applyToChannel(v => v.Color.Y, (v, g) => { v.Color.Y = g; });
+                applyToChannel(v => v.Color.Z, (v, b) => { v.Color.Z = b; });
+            }
+        }
+
+        /// <summary>
+        /// set vertex color components as absolute values of normal components
+        /// if tiltMode is set then a greyscale color is set instead, see NormalToTilt()
+        /// </summary>
+        public static Mesh ColorMeshByNormals(Mesh mesh, bool stretch = false, TiltMode? tiltMode = null,
+                                              Vector3? up = null) 
+        {
+            if (up == null)
+            {
+                up = new Vector3(0, 0, -1);
+            }
+
+            foreach (var v in mesh.Vertices)
+            {
+                var n = v.Normal;
+                if (!tiltMode.HasValue)
+                {
+                    v.Color.X = Math.Abs(n.X);
+                    v.Color.Y = Math.Abs(n.Y);
+                    v.Color.Z = Math.Abs(n.Z);
+                }
+                else
+                {
+                    v.Color.X = v.Color.Y = v.Color.Z = NormalToTilt(n, tiltMode.Value, up.Value);
+                }
+            }
+
+            if (stretch)
+            {
+                ApplyStdDevStretchToColors(mesh, greyscale: tiltMode.HasValue);
+            }
+
+            mesh.HasColors = true;
+            return mesh;
+        }
+
         /// <summary>
         /// convert a points image to a scalar elevation image  
         /// </summary>
-        public static Image PointsToElevation(Image img, bool normalize = true, Vector3? up = null)
+        public static Image PointsToElevation(Image img, bool normalize = true, bool absolute = false, Vector3? up = null)
         {
             if (up == null)
             {
@@ -529,20 +624,25 @@ namespace OPS.Pipeline
             Image ret = new Image(1, img.Width, img.Height);
             ret.CreateMask();
 
-            Vector3 ctr = new Vector3();
-            int n = 0;
-            for (int row = 0; row < img.Height; row++)
+            var ctr = new Vector3(0, 0, 0);
+
+            if (!absolute)
             {
-                for (int col = 0; col < img.Width; col++)
+                BoundingBox bounds = new BoundingBox(Vector3.Largest, Vector3.Smallest);
+                for (int row = 0; row < img.Height; row++)
                 {
-                    if (img.IsValid(row, col))
+                    for (int col = 0; col < img.Width; col++)
                     {
-                        ctr += new Vector3(img[0, row, col], img[1, row, col], img[2, row, col]);
-                        n++;
+                        if (img.IsValid(row, col))
+                        {
+                            var p = new Vector3(img[0, row, col], img[1, row, col], img[2, row, col]);
+                            bounds.Min = Vector3.Min(bounds.Min, p);
+                            bounds.Max = Vector3.Max(bounds.Max, p);
+                        }
                     }
                 }
+                ctr = bounds.Center();
             }
-            ctr /= n; //n=0 is harmless here
 
             float min = float.PositiveInfinity;
             float max = float.NegativeInfinity;
@@ -582,13 +682,59 @@ namespace OPS.Pipeline
             return ret;
         }
 
+        /// <summary>
+        /// compute elevation at each vertex and set it as greyscale vertex color
+        /// </summary>
+        public static Mesh ColorMeshByElevation(Mesh mesh, bool normalize = false, bool stretch = false,
+                                                bool absolute = false, Vector3? up = null) 
+        {
+            if (up == null)
+            {
+                up = new Vector3(0, 0, -1);
+            }
+
+            var ctr = absolute ? new Vector3(0, 0, 0) : mesh.Bounds().Center();
+
+            double min = double.PositiveInfinity;
+            double max = double.NegativeInfinity;
+            foreach (var v in mesh.Vertices)
+            {
+                var elev = (v.Position - ctr).Dot(up.Value);
+                v.Color.X = v.Color.Y = v.Color.Z = elev;
+                min = Math.Min(min, elev);
+                max = Math.Max(max, elev);
+            }
+
+            if (stretch)
+            {
+                ApplyStdDevStretchToColors(mesh, greyscale: true);
+            }
+            else if (normalize && max > min)
+            {
+                foreach (var v in mesh.Vertices)
+                {
+                    v.Color.X = v.Color.Y = v.Color.Z = (v.Color.X - min) / (max - min);
+                }
+            }
+
+            mesh.HasColors = true;
+            return mesh;
+        }
 
         public enum Neighborhood { Four = 4, Eight = 8 };
         public const Neighborhood DEF_CURVATURE_NEIGHBORHOOD = Neighborhood.Four;
 
         /// <summary>
-        /// compute approximate max curvature at each valid point
         /// https://computergraphics.stackexchange.com/a/1719
+        /// </summary>
+        public static double Curvature(Vector3 p1, Vector3 p2, Vector3 n1, Vector3 n2)
+        {
+            var d = p2 - p1;
+            return (n2 - n1).Dot(d) / d.LengthSquared();
+        }
+
+        /// <summary>
+        /// compute approximate max abs curvature at each valid point
         /// </summary>
         public static Image ComputeCurvatures(Image points, Image normals, bool normalize = true,
                                               Neighborhood neighborhood = DEF_CURVATURE_NEIGHBORHOOD)
@@ -608,7 +754,7 @@ namespace OPS.Pipeline
                 offsets[8] = new Pixel(1, -1);
             }
             var hoodPoints = new Vector3[hoodSize];
-            var hoodNormals = new Vector3[hoodSize];
+            var hoodNorms = new Vector3[hoodSize];
             int collectHood(int row, int col)
             {
                 var ctr = new Pixel(row, col);
@@ -621,9 +767,9 @@ namespace OPS.Pipeline
                         hoodPoints[n] = new Vector3(points[0, px.Row, px.Col],
                                                     points[1, px.Row, px.Col],
                                                     points[2, px.Row, px.Col]);
-                        hoodNormals[n] = new Vector3(normals[0, px.Row, px.Col],
-                                                     normals[1, px.Row, px.Col],
-                                                     normals[2, px.Row, px.Col]);
+                        hoodNorms[n] = new Vector3(normals[0, px.Row, px.Col],
+                                                   normals[1, px.Row, px.Col],
+                                                   normals[2, px.Row, px.Col]);
                         n++;
                     }
                 }
@@ -645,8 +791,7 @@ namespace OPS.Pipeline
                         float maxAbsCurvature = 0;
                         for (int i = 1; i < n; i++)
                         {
-                            var d = hoodPoints[i] - hoodPoints[0];
-                            var c = (float)Math.Abs((hoodNormals[i] - hoodNormals[0]).Dot(d) / d.LengthSquared());
+                            var c = (float)Math.Abs(Curvature(hoodPoints[0], hoodPoints[i], hoodNorms[0], hoodNorms[i]));
                             maxAbsCurvature = Math.Max(maxAbsCurvature, c);
                         }
                         ret[0, row, col] = maxAbsCurvature;
@@ -677,10 +822,41 @@ namespace OPS.Pipeline
             return ret;
         }
 
-        public static Mesh ColorMeshByCurvature(Mesh mesh, bool normalize = false, bool stretch = false,
-                                                Neighborhood neighborhood = DEF_CURVATURE_NEIGHBORHOOD)
+        /// <summary>
+        /// compute approximate max abs curvature at each vertex and set it as greyscale vertex color
+        /// </summary>
+        public static Mesh ColorMeshByCurvature(Mesh mesh, bool normalize = false, bool stretch = false)
         {
-            //TODO
+            var graph = new EdgeGraph(mesh);
+
+            double min = double.PositiveInfinity;
+            double max = double.NegativeInfinity;
+            foreach (var v in graph.VertNodes)
+            {
+                double maxAbsCurvature = 0;
+                foreach (var e in v.AdjacentEdges)
+                {
+                    var c = Math.Abs(Curvature(v.Vert.Position, e.Dst.Vert.Position, v.Vert.Normal, e.Dst.Vert.Normal));
+                    maxAbsCurvature = Math.Max(maxAbsCurvature, c);
+                }
+                v.Vert.Color.X = v.Vert.Color.Y = v.Vert.Color.Z = maxAbsCurvature;
+                min = Math.Min(min, maxAbsCurvature);
+                max = Math.Max(max, maxAbsCurvature);
+            }
+
+            if (stretch)
+            {
+                ApplyStdDevStretchToColors(mesh, greyscale: true);
+            }
+            else if (normalize && max > min)
+            {
+                foreach (var v in mesh.Vertices)
+                {
+                    v.Color.X = v.Color.Y = v.Color.Z = (v.Color.X - min) / (max - min);
+                }
+            }
+
+            mesh.HasColors = true;
             return mesh;
         }
 
