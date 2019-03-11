@@ -125,7 +125,7 @@ namespace OPS.Pipeline
             }
 
             var outputFrame = options.OutputFrame.ToLower().Trim();
-            if (!(new [] {"rover", "sitedrive", "root"}).Any(f => outputFrame == f))
+            if (!(new[] { "rover", "sitedrive", "root" }).Any(f => outputFrame == f))
             {
                 pipeline.LogError("unknown output frame: " + outputFrame);
                 return 1;
@@ -177,18 +177,18 @@ namespace OPS.Pipeline
                 {
                     return 0;
                 }
-                if  (!options.NoWedgeMeshes)
+                if (!options.NoWedgeMeshes)
                 {
                     pipeline.LogInfo("writing {0} wedge meshes to {1}", meshExt, outputPath);
                 }
                 if (options.WriteFrustumHullMeshes)
                 {
                     pipeline.LogInfo("writing {0} hull meshes to {1}", meshExt, outputPath);
-                } 
+                }
                 if (options.WriteUncertaintyInflatedFrustumHullMeshes)
                 {
                     pipeline.LogInfo("writing {0} uncertainty inflated hull meshes to {1}", meshExt, outputPath);
-                } 
+                }
             }
 
             string imageExt = null;
@@ -207,7 +207,7 @@ namespace OPS.Pipeline
                 transform => priorSources.Length == 0 || priorSources.Any(s => s == transform.Source);
             Func<FrameTransform, bool> filterAdjusted =
                 transform => adjustedSources.Length == 0 || adjustedSources.Any(s => s == transform.Source);
-            frameCache.Preload(loadTransforms: true, transformFilter: ft => 
+            frameCache.Preload(loadTransforms: true, transformFilter: ft =>
                                (!options.UsePriors || ft.IsPrior()) && //iff --usepriors only allow priors
                                ((ft.IsPrior() && filterPrior(ft)) || //iff --priorsources only allow specific priors
                                 (!ft.IsPrior() && filterAdjusted(ft)))); //iff --adjustedsources only allow specific adj
@@ -215,8 +215,8 @@ namespace OPS.Pipeline
             var observationCache = new ObservationCache(pipeline, options.ProjectName);
             observationCache.Preload();
 
-            var observations = Meshing.CollectMeshObservations(frameCache, observationCache, options.AllowMastcam,
-                                                               options.RequireNormals, options.RequireTextures);
+            var imageObservations = Meshing.CollectMeshObservations(frameCache, observationCache, options.AllowMastcam, requirePoints: false, requireNormals: false, requireTextures: true);
+            var meshingObservations = Meshing.CollectMeshObservations(frameCache, observationCache, options.AllowMastcam, requirePoints: true, requireNormals:options.RequireNormals, requireTextures:options.RequireTextures);
 
             SiteDrive getSiteDrive(MeshObservations obs)
             {
@@ -233,10 +233,10 @@ namespace OPS.Pipeline
 
             if (siteDrives.Length > 0)
             {
-                observations = observations.Where(obs => siteDrives.Any(sd => sd == getSiteDrive(obs))).ToList();
+                meshingObservations = meshingObservations.Where(obs => siteDrives.Any(sd => sd == getSiteDrive(obs))).ToList();
             }
-                                                  
-            int no = observations.Count();
+
+            int no = meshingObservations.Count();
             string what = options.PointCloud ? "point clouds" : "triangle meshes";
             pipeline.LogInfo("computing {0} for {1} observations{2} under {3}", what, no,
                              siteDrives.Length > 0 ?
@@ -244,75 +244,89 @@ namespace OPS.Pipeline
                               String.Join(",", siteDrives.Select(sd => sd.ToString()).Cast<string>().ToArray())) : "",
                              outputPath);
 
+            CoreLimitedParallel.ForEach(imageObservations, obs =>
+            {
+                string tmpPath = outputPath;
+                if (!options.SuppressSiteDriveDirectories)
+                {
+                    RoverObservation ro = (RoverObservation)obs.Texture;
+                    SiteDrive sd = new SiteDrive(ro.Site, ro.Drive);
+                    tmpPath += sd.ToString() + "/";
+                }
+
+                string obsName = obs.Texture.Name;
+
+                if (options.WriteFrustumHullMeshes)
+                {
+                    var hull = Meshing.BuildFrustumHull(pipeline, obs, frameCache, outputFrame, options.UsePriors,
+                                                        uncertaintyInflated: false);
+                    var path = tmpPath + "Frusta/";
+                    PathHelper.EnsureExists(path);
+                    hull.Mesh.Save(path + obsName + meshExt);
+                }
+
+                if (options.WriteUncertaintyInflatedFrustumHullMeshes)
+                {
+                    var hull = Meshing.BuildFrustumHull(pipeline, obs, frameCache, outputFrame, options.UsePriors,
+                                                        uncertaintyInflated: true);
+                    var path = tmpPath + "InflatedFrusta/";
+                    PathHelper.EnsureExists(path);
+                    hull.Mesh.Save(path + obsName + meshExt);
+                }
+            });
+
             double startSec = UTCTime.Now();
             int np = 0, nc = 0;
-            CoreLimitedParallel.ForEach(observations, obs => { 
+            CoreLimitedParallel.ForEach(meshingObservations, obs =>
+            {
 
-                    Interlocked.Increment(ref np);
+                Interlocked.Increment(ref np);
 
-                    if (!options.NoProgress)
+                if (!options.NoProgress)
+                {
+                    pipeline.LogInfo("computing {0} for {1} observations in parallel, completed {2}/{3}",
+                                     what, np, nc, no);
+                }
+
+                var mesh = options.PointCloud ?
+                Meshing.BuildPointCloud(pipeline, obs, frameCache, outputFrame, options.UsePriors,
+                                        options.DecimateMeshes, options.ScaleNormalsByConfidence) :
+                Meshing.BuildOrganizedMesh(pipeline, obs, frameCache, outputFrame, options.UsePriors,
+                                           options.DecimateMeshes, options.ScaleNormalsByConfidence,
+                                           options.MaxTriangleAspect, !options.NoImages);
+
+                //we're running for multiple site drives in parallel so don't mutate outputPath
+                string tmpPath = outputPath;
+                if (!options.SuppressSiteDriveDirectories)
+                {
+                    tmpPath += getSiteDrive(obs).ToString() + "/";
+                }
+
+                string obsName = obs.Points.Name;
+                string imageFilename = null;
+                if (!options.NoImages && obs.Texture != null && mesh.HasUVs)
+                {
+                    imageFilename = obsName + imageExt;
+                    var img = pipeline.LoadImage(obs.Texture.Url);
+                    if (options.DecimateImages > 1)
                     {
-                        pipeline.LogInfo("computing {0} for {1} observations in parallel, completed {2}/{3}",
-                                         what, np, nc, no);
+                        img = img.Decimated(options.DecimateImages);
                     }
+                    PathHelper.EnsureExists(tmpPath);
+                    img.Save<byte>(tmpPath + imageFilename);
+                }
 
-                    var mesh = options.PointCloud ?
-                    Meshing.BuildPointCloud(pipeline, obs, frameCache, outputFrame, options.UsePriors,
-                                            options.DecimateMeshes, options.ScaleNormalsByConfidence) :
-                    Meshing.BuildOrganizedMesh(pipeline, obs, frameCache, outputFrame, options.UsePriors,
-                                               options.DecimateMeshes, options.ScaleNormalsByConfidence,
-                                               options.MaxTriangleAspect, !options.NoImages);
+                if (!options.NoWedgeMeshes)
+                {
+                    PathHelper.EnsureExists(tmpPath);
+                    mesh.Save(tmpPath + obsName + meshExt, imageFilename);
+                }
 
-                    //we're running for multiple site drives in parallel so don't mutate outputPath
-                    string tmpPath = outputPath;
-                    if (!options.SuppressSiteDriveDirectories)
-                    {
-                        tmpPath += getSiteDrive(obs).ToString() + "/";
-                    }
-
-                    string obsName = obs.Points.Name;
-                    string imageFilename = null;
-                    if (!options.NoImages && obs.Texture != null && mesh.HasUVs)
-                    {
-                        imageFilename = obsName + imageExt;
-                        var img = pipeline.LoadImage(obs.Texture.Url);
-                        if (options.DecimateImages > 1)
-                        {
-                            img = img.Decimated(options.DecimateImages);
-                        }
-                        PathHelper.EnsureExists(tmpPath);
-                        img.Save<byte>(tmpPath + imageFilename);
-                    }
-
-                    if (!options.NoWedgeMeshes)
-                    {
-                        PathHelper.EnsureExists(tmpPath);
-                        mesh.Save(tmpPath + obsName + meshExt, imageFilename);
-                    }
-                      
-                    if (options.WriteFrustumHullMeshes)
-                    {
-                        var hull = Meshing.BuildFrustumHull(pipeline, obs, frameCache, outputFrame, options.UsePriors,
-                                                            uncertaintyInflated: false);
-                        var path = tmpPath + "Frusta/";
-                        PathHelper.EnsureExists(path);
-                        hull.Mesh.Save(path + obsName + meshExt);
-                    }
-
-                    if (options.WriteUncertaintyInflatedFrustumHullMeshes)
-                    {
-                        var hull = Meshing.BuildFrustumHull(pipeline, obs, frameCache, outputFrame, options.UsePriors,
-                                                            uncertaintyInflated: true);
-                        var path = tmpPath + "InflatedFrusta/";
-                        PathHelper.EnsureExists(path);
-                        hull.Mesh.Save(path + obsName + meshExt);
-                    }
-
-                    Interlocked.Decrement(ref np);
-                    Interlocked.Increment(ref nc);
-                });
+                Interlocked.Decrement(ref np);
+                Interlocked.Increment(ref nc);
+            });
             double totalSec = UTCTime.Now() - startSec;
-            
+
             pipeline.LogInfo("generated meshes for {0} observations ({1:F3}s)", no, totalSec);
 
             return 0;

@@ -50,6 +50,7 @@ namespace OPS.Pipeline
         public static MeshObservations CollectMeshObservationsForFrame(string frameName, FrameCache frameCache,
                                                                        ObservationCache observationCache,
                                                                        bool allowMastcam = false,
+                                                                       bool requirePoints = true,
                                                                        bool requireNormals = true,
                                                                        bool requireTextures = false)
         {
@@ -68,7 +69,7 @@ namespace OPS.Pipeline
             var ret = new MeshObservations();
 
             ret.Points = observations.Find(obs => obs.ObservationType == pointsType);
-            if (ret.Points == null)
+            if (requirePoints && ret.Points == null)
             {
                 return null;
             }
@@ -99,6 +100,7 @@ namespace OPS.Pipeline
         public static List<MeshObservations> CollectMeshObservations(FrameCache frameCache,
                                                                      ObservationCache observationCache,
                                                                      bool allowMastcam = false,
+                                                                     bool requirePoints = true,
                                                                      bool requireNormals = true,
                                                                      bool requireTextures = false)
         {
@@ -106,11 +108,11 @@ namespace OPS.Pipeline
             foreach (var frameName in observationCache.GetAllFramesWithObservations())
             {
                 var obs = CollectMeshObservationsForFrame(frameName, frameCache, observationCache,
-                                                          allowMastcam, requireNormals, requireTextures);
+                                                          allowMastcam, requirePoints, requireNormals, requireTextures);
                 if (obs != null)
                 {
                     ret.Add(obs);
-                } 
+                }
             }
             return ret;
         }
@@ -418,7 +420,7 @@ namespace OPS.Pipeline
         {
             if (mask != null)
             {
-                img.UnionMask(mask, new float[] { 0 } );
+                img.UnionMask(mask, new float[] { 0 });
             }
             if (blocksize > 1)
             {
@@ -453,7 +455,7 @@ namespace OPS.Pipeline
         {
             if (mask != null)
             {
-                img.UnionMask(mask, new float[] { 0 } );
+                img.UnionMask(mask, new float[] { 0 });
             }
             return blocksize > 1 ? img.Decimated(blocksize) : img;
         }
@@ -496,7 +498,8 @@ namespace OPS.Pipeline
         {
             Matrix xform = meshToImage ?? Matrix.Identity;
             ConcurrentBag<Vertex> verticesToRemove = new ConcurrentBag<Vertex>();
-            Action<Vertex> generateUV = v => {
+            Action<Vertex> generateUV = v =>
+            {
                 double range;
                 Vector2 pixel = img.CameraModel.Project(Vector3.Transform(v.Position, xform), out range);
                 if (range < 0 || pixel.X < 0 || pixel.X > (img.Width - 1) || pixel.Y < 0 || pixel.Y > (img.Height - 1))
@@ -601,7 +604,7 @@ namespace OPS.Pipeline
                 if (points.IsInvalid(r0, c0) || points.IsInvalid(r1, c1) || points.IsInvalid(r2, c2))
                 {
                     return;
-                } 
+                }
                 if (normals != null &&
                     (normals.IsInvalid(r0, c0) || normals.IsInvalid(r1, c1) || normals.IsInvalid(r2, c2)))
                 {
@@ -629,9 +632,9 @@ namespace OPS.Pipeline
             };
 
             List<int> tris = new List<int>();
-            for (int row = 0; row < points.Height - 1 ; row++)
+            for (int row = 0; row < points.Height - 1; row++)
             {
-                for (int col = 0; col < points.Width - 1 ; col++)
+                for (int col = 0; col < points.Width - 1; col++)
                 {
                     //  (row, col)-----(row, col+1)
                     //           |\    |       
@@ -641,9 +644,9 @@ namespace OPS.Pipeline
                     //           |    \|           
                     //(row+1, col)-----(row+1, col+1)
 
-                    addFaceMaybe(row, col, row+1, col+1, row, col+1); //upper triangle
+                    addFaceMaybe(row, col, row + 1, col + 1, row, col + 1); //upper triangle
 
-                    addFaceMaybe(row, col, row+1, col, row+1, col+1); //lower triangle
+                    addFaceMaybe(row, col, row + 1, col, row + 1, col + 1); //lower triangle
                 }
             }
 
@@ -675,7 +678,9 @@ namespace OPS.Pipeline
             var parser = new PDSParser((PDSMetadata)img.Metadata);
             CheckCameraFrame(parser, "BuildFrustumHull");
             ConvexHull ret = ConvexHull.FromImage(img);
-            var xform = GetTransform(obs.Points.FrameName, frame, frameCache, usePriors);
+
+            string frameName = obs.Points != null ? obs.Points.FrameName : obs.Texture.FrameName;
+            var xform = GetTransform(frameName, frame, frameCache, usePriors);
             return uncertaintyInflated ? ConvexHull.Transformed(ret, xform) : ConvexHull.Transformed(ret, xform.Mean);
         }
     }
