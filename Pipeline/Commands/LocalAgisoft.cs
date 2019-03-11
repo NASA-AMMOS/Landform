@@ -238,10 +238,11 @@ namespace OPS.Pipeline
 
                 //do alginment
                 fc += "chunk.matchPhotos(accuracy = Metashape.HighAccuracy, generic_preselection = True, reference_preselection = False)\n" +
-                      "chunk.alignCameras()\n";
+                      "chunk.alignCameras(chunk.cameras)\n";
 
                 fc += "Metashape.app.document.chunk.buildPoints()\n";
 
+                //second pass after optimizing camera and aligning (improves results in the ui)
                 fc += "chunk.optimizeCameras()\n" +
                      "chunk.alignCameras(chunk.cameras)\n";
 
