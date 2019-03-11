@@ -1289,5 +1289,110 @@ namespace OPS.Pipeline
             }
             return new Tuple<Mesh, Image>(merged, atlas);
         }
+
+        /// <summary>
+        /// rasterize a birds eye view image of mesh
+        /// if mesh has UVs and img is not null it will be texture mapped
+        /// otherwise the mesh vertex colors will be used
+        /// the view is from +Z looking down unless ccw is false, in which case it is from -Z looking up
+        /// occlusion is painters algorithm, so sort the mesh faces if you need to
+        /// </summary>
+        public static Image RenderBirdsEyeView(Mesh mesh, Image img, double metersPerPixel, bool greyscale,
+                                               bool ccw = false)
+        {
+            var meshBounds = mesh.Bounds();
+
+            double widthMeters = meshBounds.Max.X - meshBounds.Min.X;
+            double heightMeters = meshBounds.Max.Y - meshBounds.Min.Y;
+
+            double pixelsPerMeter = 1 / metersPerPixel;
+
+            int widthPixels =  (int)(widthMeters * pixelsPerMeter);
+            int heightPixels =  (int)(heightMeters * pixelsPerMeter);
+
+            greyscale |= img != null && img.Bands == 1;
+            var ret = new Image(greyscale ? 1 : 3, widthPixels, heightPixels);
+
+            var pixelOrigin = new Vector2(meshBounds.Min.X, meshBounds.Min.Y) * pixelsPerMeter;
+
+            double relDist(Vector2 p, Vector2 a, Vector2 b)
+            {
+                var n = new Vector2(a.Y - b.Y, b.X - a.X); //normal to segment from a to b
+                return p.Dot(n) - a.Dot(n);
+            }
+
+            Vector2 zero = new Vector2(0, 0), one = new Vector2(1, 1);
+            void writeFragment(int r, int c, Vertex v0, Vertex v1, Vertex v2, double alpha, double beta, double gamma)
+            {
+                if (mesh.HasUVs && img != null)
+                {
+                    var src = img.UVToPixel(Vector2.Clamp(v0.UV * alpha + v1.UV * beta + v2.UV * gamma, zero, one));
+                    ret[0, r, c] = img[0, (int)src.Y, (int)src.X];
+                    if (!greyscale)
+                    {
+                        ret[1, r, c] = img[1, (int)src.Y, (int)src.X];
+                        ret[2, r, c] = img[2, (int)src.Y, (int)src.X];
+                    }
+                }
+                else
+                {
+                    ret[0, r, c] = (float)(v0.Color.X * alpha + v1.Color.X * beta + v2.Color.X * gamma);
+                    if (!greyscale)
+                    {
+                        ret[1, r, c] = (float)(v0.Color.Y * alpha + v1.Color.Y * beta + v2.Color.Y * gamma);
+                        ret[2, r, c] = (float)(v0.Color.Z * alpha + v1.Color.Z * beta + v2.Color.Z * gamma);
+                    }
+                }
+            }
+
+            foreach (var t in mesh.Faces)
+            {
+                var v0 = mesh.Vertices[ccw ? t.P0 : t.P2];
+                var v1 = mesh.Vertices[t.P1];
+                var v2 = mesh.Vertices[ccw ? t.P2 : t.P0];
+
+                var p0 = new Vector2(v0.Position.X, v0.Position.Y) * pixelsPerMeter - pixelOrigin;
+                var p1 = new Vector2(v1.Position.X, v1.Position.Y) * pixelsPerMeter - pixelOrigin;
+                var p2 = new Vector2(v2.Position.X, v2.Position.Y) * pixelsPerMeter - pixelOrigin;
+
+                var minR = (int)Math.Max(0, Math.Min(Math.Min(p0.Y, p1.Y), p2.Y));
+                var maxR = (int)Math.Min(ret.Height - 1, Math.Max(Math.Max(p0.Y, p1.Y), p2.Y));
+
+                var minC = (int)Math.Max(0, Math.Min(Math.Min(p0.X, p1.X), p2.X));
+                var maxC = (int)Math.Min(ret.Width - 1, Math.Max(Math.Max(p0.X, p1.X), p2.X));
+
+                double alpha, beta, gamma;
+                if (minR == maxR || minC == maxC) //degenerate
+                {
+                    alpha = beta = gamma = 1.0 / 3;
+                    for (int r =  minR; r <= maxR; r++)
+                    {
+                        for (int c = minC; c <= maxC; c++)
+                        { 
+                            writeFragment(r, c, v0, v1, v2, alpha, beta, gamma);
+                        }
+                    }
+                }
+                else
+                {
+                    for (int r =  minR; r <= maxR; r++)
+                    {
+                        for (int c = minC; c <= maxC; c++)
+                        { 
+                            var px = new Vector2(c, r);
+                            alpha = relDist(px, p1, p2) / relDist(p0, p1, p2);
+                            beta  = relDist(px, p2, p0) / relDist(p1, p2, p0);
+                            gamma = relDist(px, p0, p1) / relDist(p2, p0, p1);
+                            if ((alpha >= 0) && (beta >= 0) && (gamma >= 0))
+                            {
+                                writeFragment(r, c, v0, v1, v2, alpha, beta, gamma);
+                            }
+                        }
+                    }
+                }
+            }
+                                
+            return ret;
+        }
     }
 }

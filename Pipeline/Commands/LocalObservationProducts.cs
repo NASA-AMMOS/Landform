@@ -103,6 +103,12 @@ namespace OPS.Pipeline
         [Option(HelpText = "Write only merged site drive meshes", Default = false)]
         public bool OnlyMergedSiteDriveMeshes { get; set; }
 
+        [Option(HelpText = "Write site drive birds eye view images", Default = false)]
+        public bool SiteDriveBirdsEyeViews { get; set; }
+
+        [Option(HelpText = "Birds eye view meters per pixel", Default = 0.01)]
+        public double BEVMetersPerPixel { get; set; }
+
         [Option(HelpText = "Write all the things", Default = false)]
         public bool AllTheThings { get; set; }
 
@@ -160,6 +166,8 @@ namespace OPS.Pipeline
 
         public int Run()
         {
+            options.MergedSiteDriveMeshes |= options.SiteDriveBirdsEyeViews;
+
             options.FrustumHullMeshes &= !options.OnlyMergedSiteDriveMeshes;
             options.UncertaintyInflatedFrustumHullMeshes &= !options.OnlyMergedSiteDriveMeshes;
             options.MergedSiteDriveMeshes |= options.OnlyMergedSiteDriveMeshes;
@@ -260,7 +268,8 @@ namespace OPS.Pipeline
             }
 
             string imageExt = null;
-            if (!options.NoImages || options.NormalsImages || options.CurvatureImages || options.ElevationImages)
+            if (!options.NoImages || options.NormalsImages || options.CurvatureImages || options.ElevationImages ||
+                options.SiteDriveBirdsEyeViews)
             {
                 imageExt = ImageSerializers.Instance.CheckFormat(options.ImageFormat, pipeline);
                 if (imageExt == null)
@@ -282,6 +291,10 @@ namespace OPS.Pipeline
                 if (options.ElevationImages)
                 {
                     pipeline.LogInfo("writing {0} elevation images to {1}", imageExt, outputPath);
+                }
+                if (options.SiteDriveBirdsEyeViews)
+                {
+                    pipeline.LogInfo("writing {0} sitedrive birds eye view images to {1}", imageExt, outputPath);
                 }
             }
 
@@ -647,6 +660,17 @@ namespace OPS.Pipeline
                         pipeline.LogVerbose("saving merged sitedrive mesh {0}", file);
                         PathHelper.EnsureExists(outputPath);
                         mesh.Save(file, withUVs ? imageFilename : null);
+                    }
+
+                    if (options.SiteDriveBirdsEyeViews)
+                    {
+                        bool greyscale = !withUVs &&
+                            (options.ColorMeshesBy != MeshColor.Normals || options.ConvertNormalsToTilts);
+                        var bev = Meshing.RenderBirdsEyeView(mesh, img, options.BEVMetersPerPixel, greyscale);
+                        string file = outputPath + siteDrive + "_BirdsEyeView" + imageExt;
+                        pipeline.LogVerbose("saving merged sitedrive birds eye view {0}", file);
+                        PathHelper.EnsureExists(outputPath);
+                        bev.Save<byte>(file);
                     }
                 }
             }
