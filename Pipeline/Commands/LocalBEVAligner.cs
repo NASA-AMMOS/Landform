@@ -27,7 +27,7 @@ namespace OPS.Pipeline
         [Option(HelpText = "Only generate products for specific site drives, comma separated", Default = null)]
         public string OnlyForSiteDrives { get; set; }
 
-        [Option(HelpText = "Only generate products for specific cameras, comma separated (FrontHazcamLeft, FrontHazcamRight, RearHazcamLeft, RearHazcamRight, NavcamLeft, NavcamRight, MastcamLeft, MastcamRight, MAHLI)", Default = null)]
+        [Option(HelpText = "Only generate products for specific cameras, comma separated (FrontHazcamLeft, FrontHazcamRight, RearHazcamLeft, RearHazcamRight, NavcamLeft, NavcamRight, MastcamLeft, MastcamRight, MAHLI)", Default = "NavcamLeft")]
         public string OnlyForCameras { get; set; }
 
         [Option(HelpText = "Wedge mesh decimation blocksize", Default = 4)]
@@ -63,7 +63,7 @@ namespace OPS.Pipeline
         [Option(HelpText = "Detector type", Default = FeatureDetector.DetectorType.FAST)]
         public FeatureDetector.DetectorType DetectorType { get; set; }
 
-        [Option(HelpText = "Maximum number of features per image", Default = FeatureDetector.DEF_MAX_FEATURES)]
+        [Option(HelpText = "Maximum number of features per image", Default = 50000)]
         public int MaxFeaturesPerImage { get; set; }
 
         [Option(HelpText = "Extra radius to cull features near invalid regions", Default = 4)]
@@ -81,10 +81,10 @@ namespace OPS.Pipeline
         [Option(HelpText = "Mesh format, e.g. ply, obj, help for list", Default = "ply")]
         public string MeshFormat { get; set; }
 
-        [Option(HelpText = "Image format, e.g. png, jpg, help for list", Default = "jpg")]
+        [Option(HelpText = "Image format, e.g. png, jpg, help for list", Default = "png")]
         public string ImageFormat { get; set; }
 
-        [Option(HelpText = "Optimize contrast", Default = false)]
+        [Option(HelpText = "Optimize contrast", Default = true)]
         public bool StretchContrast { get; set; }
 
         [Option(HelpText = "Hide progress", Default = false)]
@@ -379,7 +379,7 @@ namespace OPS.Pipeline
                                  options.DetectorType, bev.Width, bev.Height, siteDrive);
                 var mask = bev.MaskToImage(valid: 1, invalid: 0);
                 features[siteDrive] = detector.Detect(bev, mask);
-                pipeline.LogInfo("detected {0} {1} features in birds eye view for {3}",
+                pipeline.LogInfo("detected {0} {1} features in birds eye view for {2}",
                                  features[siteDrive].Length, options.DetectorType, siteDrive);
                 if (options.WriteDebug)
                 {
