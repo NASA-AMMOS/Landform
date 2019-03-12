@@ -13,7 +13,7 @@ namespace OPS.Pipeline
     public struct SiteDrive
     {
         public readonly int Site, Drive;
-
+        
         public SiteDrive(int site, int drive)
         {
             this.Site = site;
@@ -33,7 +33,7 @@ namespace OPS.Pipeline
             this.Site = int.Parse(name.Substring(0, 5));
             this.Drive = int.Parse(name.Substring(5, 5));
         }
-
+        
         /// <summary>
         /// Return a 10 digit string representing this site drive
         /// First 5 digits are 0 left padded site number
@@ -49,12 +49,12 @@ namespace OPS.Pipeline
         {
             return sd.Site * 10000 + sd.Drive;
         }
-
+        
         public override int GetHashCode()
         {
             return (int)this;
         }
-
+        
         public override bool Equals(object obj)
         {
             if (obj == null || !(obj is SiteDrive))
@@ -63,15 +63,35 @@ namespace OPS.Pipeline
             }
             return Site == ((SiteDrive)obj).Site && Drive == ((SiteDrive)obj).Drive;
         }
-
+        
         public static bool operator ==(SiteDrive lhs, SiteDrive rhs)
         {
             return lhs.Equals(rhs); //don't need to worry about null as SiteDrive is a struct
         }
-
+            
         public static bool operator !=(SiteDrive lhs, SiteDrive rhs)
         {
             return !lhs.Equals(rhs); //don't need to worry about null as SiteDrive is a struct
+        }
+
+        public static bool operator <(SiteDrive lhs, SiteDrive rhs)
+        {
+            return lhs.Site < rhs.Site || lhs.Drive < rhs.Drive;
+        }
+
+        public static bool operator <=(SiteDrive lhs, SiteDrive rhs)
+        {
+            return lhs < rhs || lhs == rhs;
+        }
+
+        public static bool operator >(SiteDrive lhs, SiteDrive rhs)
+        {
+            return !(lhs <= rhs);
+        }
+
+        public static bool operator >=(SiteDrive lhs, SiteDrive rhs)
+        {
+            return lhs > rhs || lhs == rhs;
         }
     }
 }

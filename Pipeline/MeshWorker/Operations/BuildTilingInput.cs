@@ -40,9 +40,10 @@ namespace OPS.Pipeline.MeshWorker
             var observationCache = new ObservationCache(pipeline, projectName);
             observationCache.Preload(obs => obs.UseForReconstruction);
 
-            List<MeshObservations> observations = Meshing.CollectMeshObservations(frameCache, observationCache,
-                                                                                  allowMastcam: false,
-                                                                                  requireNormals: true);
+            //temporarily suppress mastcam point cloud data until validated
+            //https://github.jpl.nasa.gov/OnSight/Landform/issues/261
+            var observations = Meshing.CollectMeshObservations(frameCache, observationCache, allowMastcam: false,
+                                                               requireNormals: true);
             if (observations.Count == 0)
             {
                 pipeline.LogError("no observations were found to build a point cloud");

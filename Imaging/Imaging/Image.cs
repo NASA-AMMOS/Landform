@@ -341,8 +341,7 @@ namespace OPS.Imaging
 
         public Image Trim()
         {
-            Vector2 upperLeftCorner;
-            return Trim(out upperLeftCorner);
+            return Trim(out Vector2 upperLeftCorner);
         }
 
         public delegate void InvalidBlock(int blockRow, int blockCol, double validRatio);
@@ -465,6 +464,10 @@ namespace OPS.Imaging
             return this;
         }
 
+        /// <summary>
+        /// invalidate all but the largest blob of valid (i.e. un-masked) pixels
+        /// operates on the image in-place
+        /// </summary>
         public Image RemoveAllButLargestValidBlob(out int largestBlobSize)
         {
             if (!HasMask)
@@ -503,7 +506,7 @@ namespace OPS.Imaging
             }
 
             largestBlobSize = 0;
-            Pixel seedOfLargestBlob = null;
+            Pixel seedOfLargestBlob = new Pixel();
             for (int row = 0; row < Height; row++)
             {
                 for (int col = 0; col < Width; col++)
@@ -547,8 +550,7 @@ namespace OPS.Imaging
 
         public Image RemoveAllButLargestValidBlob()
         {
-            int largestBlobSize;
-            return RemoveAllButLargestValidBlob(out largestBlobSize);
+            return RemoveAllButLargestValidBlob(out int largestBlobSize);
         }
 
         /// <summary>
@@ -1054,6 +1056,50 @@ namespace OPS.Imaging
                 }
             }
             return ret;
+        }
+
+        /// <summary>
+        /// flood fill mask from each invalid pixel on the border of this mask
+        /// </summary>
+        public Image AddOuterRegionsToMask(Image mask, float invalid = 1)
+        {
+            if (!HasMask)
+            {
+                return mask;
+            }
+            void floodFill(int row, int col)
+            {
+                if (IsValid(row, col) || mask[0, row, col] == invalid) return;
+                mask[0, row, col] = invalid;
+                var queue = new Queue<Pixel>();
+                queue.Enqueue(new Pixel(row, col));
+                var offsets = new Pixel[] { new Pixel(-1, 0), new Pixel(1, 0), new Pixel(0, -1), new Pixel(0, 1) };
+                while (queue.Count > 0)
+                {
+                    var px = queue.Dequeue();
+                    foreach (var offset in offsets)
+                    {
+                        var tgt = px + offset;
+                        if (tgt.Row >= 0 && tgt.Row < Height && tgt.Col >= 0 && tgt.Col < Width &&
+                            IsInvalid(tgt.Row, tgt.Col) && mask[0, tgt.Row, tgt.Col] != invalid)
+                        {
+                            mask[0, tgt.Row, tgt.Col] = invalid;
+                            queue.Enqueue(tgt);
+                        }
+                    }
+                }
+            }
+            for (int row = 0; row < Height; row++)
+            {
+                floodFill(row, 0);
+                floodFill(row, Width - 1);
+            }
+            for (int col = 0; col < Width; col++)
+            {
+                floodFill(0, col);
+                floodFill(Height - 1, col);
+            }
+            return mask;
         }
     }
 }

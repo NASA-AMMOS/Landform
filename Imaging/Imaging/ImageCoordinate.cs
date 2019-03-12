@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace OPS.Imaging
 {
-    public class Pixel
+    public struct Pixel
     {
         public int Row, Col;
         
@@ -22,13 +22,16 @@ namespace OPS.Imaging
         }
     }
 
-    public class ImageCoordinate : Pixel
+    public struct ImageCoordinate
     {
         public int Band;
+        public int Row, Col;
 
-        public ImageCoordinate(int b, int r, int c) : base(r, c)
+        public ImageCoordinate(int band, int row, int col)
         {
-            this.Band = b;
+            this.Band = band;
+            this.Row = row;
+            this.Col = col;
         }
     }
 }

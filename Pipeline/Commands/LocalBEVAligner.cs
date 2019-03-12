@@ -16,7 +16,7 @@ using OPS.Pipeline.AlignmentServer;
 
 namespace OPS.Pipeline
 {
-    public enum ColorMode { Tilt, Elevation };
+    public enum ColorMode { Texture, Tilt, Elevation };
 
     [Verb("local-bev-align", HelpText = "birds eye view align locally")]
     public class LocalBEVAlignerOptions : PipelineCoreOptions
@@ -33,17 +33,20 @@ namespace OPS.Pipeline
         [Option(HelpText = "Wedge mesh decimation blocksize", Default = 4)]
         public int DecimateWedgeMeshes { get; set; }
 
+        [Option(HelpText = "Wedge image decimation blocksize", Default = 2)]
+        public int DecimateWedgeImages { get; set; }
+
         [Option(HelpText = "Max triangle aspect ratio for organized mesh reconstruction", Default = 20)]
         public double MaxTriangleAspect { get; set; }
 
         [Option(HelpText = "Birds eye view meters per pixel", Default = 0.005)]
         public double BEVMetersPerPixel { get; set; }
 
-        [Option(HelpText = "Birds eye view coloring (Tilt, Elevation}", Default = ColorMode.Tilt)]
+        [Option(HelpText = "Birds eye view coloring (Texture, Tilt, Elevation}", Default = ColorMode.Tilt)]
         public ColorMode BEVColoring { get; set; }
 
-        [Option(HelpText = "Birds eye view sparse invalidation blocksize", Default = "0.5%")]
-        public string BEVSparseBlocksize { get; set; }
+        [Option(HelpText = "Birds eye view sparse invalidation blocksize, relative to largest image dimension if < 1, disabled if 0", Default = 0.005)]
+        public double BEVSparseBlocksize { get; set; }
 
         [Option(HelpText = "Birds eye view sparse invalidation block threshold", Default = 0.8)]
         public double BEVMinValidBlockRatio { get; set; }
@@ -84,7 +87,10 @@ namespace OPS.Pipeline
         [Option(HelpText = "Image format, e.g. png, jpg, help for list", Default = "png")]
         public string ImageFormat { get; set; }
 
-        [Option(HelpText = "Optimize contrast", Default = false)]
+        [Option(HelpText = "Recompute existing BEVs", Default = false)]
+        public bool RedoBEVs { get; set; }
+
+        [Option(HelpText = "Optimize contrast", Default = true)]
         public bool StretchContrast { get; set; }
 
         [Option(HelpText = "Hide progress", Default = false)]
@@ -98,8 +104,30 @@ namespace OPS.Pipeline
     {
         private LocalBEVAlignerOptions options;
         private PipelineCore pipeline;
+
+        private string outputPath;
         private string imageExt;
         private string meshExt;
+
+        private FrameCache frameCache;
+        private ObservationCache observationCache;
+
+        private List<MeshObservations> observations;
+
+        private string[] siteDrives;
+
+        //sitedrive name => (mesh, image), (mesh, image), ...
+        private ConcurrentDictionary<string, ConcurrentBag<Tuple<Mesh, Image>>> mergeInputs =
+            new ConcurrentDictionary<string, ConcurrentBag<Tuple<Mesh, Image>>>();
+
+        //sitedrive name => BEV image
+        ConcurrentDictionary<string, Image> bevs = new ConcurrentDictionary<string, Image>();
+
+        //sitedrive name => pixel in BEV image corresponding to worl frame origin (based on priors)
+        ConcurrentDictionary<string, Vector2> bevOrigins = new ConcurrentDictionary<string, Vector2>();
+
+        //indexed by sitedrive name
+        ConcurrentDictionary<string, ImageFeature[]> features = new ConcurrentDictionary<string, ImageFeature[]>();
 
         public LocalBEVAligner(LocalBEVAlignerOptions options)
         {
@@ -124,9 +152,8 @@ namespace OPS.Pipeline
                 return 1;
             }
 
-            string outputPath = pipeline.GetLocalDebugFolder(options.DebugOutputFolder,
-                                                             "alignment/AdjustProducts/",
-                                                             project.Name);
+            outputPath = pipeline.GetLocalDebugFolder(options.DebugOutputFolder, "alignment/AdjustProducts/",
+                                                      project.Name);
 
             if (options.WriteDebug)
             {
@@ -135,72 +162,50 @@ namespace OPS.Pipeline
                 {
                     return 0;
                 }
+                pipeline.LogInfo("writing {0} debug meshes to {1}", meshExt, outputPath);
+
                 imageExt = ImageSerializers.Instance.CheckFormat(options.ImageFormat, pipeline);
                 if (imageExt == null)
                 {
                     return 0;
                 }
-                pipeline.LogInfo("writing debug data to {0}", outputPath);
+                pipeline.LogInfo("writing {0} debug images to {1}", imageExt, outputPath);
             }
 
-            var frameCache = new FrameCache(pipeline, options.ProjectName);
+            frameCache = new FrameCache(pipeline, options.ProjectName);
             frameCache.Preload(loadTransforms: true, transformFilter: ft => ft.IsPrior());
 
-            var observationCache = new ObservationCache(pipeline, options.ProjectName);
+            observationCache = new ObservationCache(pipeline, options.ProjectName);
             observationCache.Preload();
 
-            var observations = Meshing.CollectMeshObservations(frameCache, observationCache, requireNormals: true);
+            bool allowMastcam = false;
+            bool requireNormals = options.BEVColoring == ColorMode.Tilt;
+            bool requireTextures = options.BEVColoring == ColorMode.Texture;
+            observations = Meshing.CollectMeshObservations(frameCache, observationCache,
+                                                           allowMastcam, requireNormals, requireTextures,
+                                                           options.OnlyForSiteDrives, options.OnlyForCameras);
 
-            SiteDrive getSiteDrive(MeshObservations obs)
-            {
-                var ro = obs.Points as RoverObservation;
-                return new SiteDrive(ro.Site, ro.Drive);
-            }
-
-            string getCamera(MeshObservations obs)
-            {
-                return (obs.Points as RoverObservation).Sensor;
-            }
-
-            SiteDrive[] siteDrives = (options.OnlyForSiteDrives ?? "")
-                .Split(',')
-                .Where(s => !string.IsNullOrEmpty(s))
-                .Select(s => new SiteDrive(s.Trim()))
-                .Cast<SiteDrive>()
-                .ToArray();
-
-            if (siteDrives.Length > 0)
-            {
-                observations = observations.Where(obs => siteDrives.Any(sd => sd == getSiteDrive(obs))).ToList();
-            }
-
-            string[] cameras = (options.OnlyForCameras ?? "")
-                .Split(',')
-                .Where(s => !string.IsNullOrEmpty(s))
-                .ToArray();
-
-            if (cameras.Length > 0)
-            {
-                observations = observations.Where(obs => cameras.Any(cam => cam == getCamera(obs))).ToList();
-            }
-                                                  
-            int no = observations.Count();
-
-            siteDrives = observations.Select(obs => getSiteDrive(obs)).Distinct().ToArray();
+            siteDrives = observations.Select(obs => obs.SiteDrive.ToString()).Distinct().OrderBy(sd => sd).ToArray();
             if (siteDrives.Length != 2)
             {
-                pipeline.LogError("current implementatino can only BEV align two sitedrives");
+                pipeline.LogError("current implementation can only BEV align two sitedrives");
                 return 1;
             }
 
             pipeline.LogInfo("computing birds eye view alignment for site drives {0} and {1}, {2} observations",
-                             siteDrives[0], siteDrives[1], no);
+                             siteDrives[0], siteDrives[1], observations.Count());
 
-            //sitedrive => mesh, mesh, ...
-            var mergeInputs = new ConcurrentDictionary<string, ConcurrentBag<Mesh>>();
+            RenderBEVs();
 
+            DetectFeatures();
+
+            return 0;
+        }
+
+        private void BuildWedgeMeshes()
+        {
             double startSec = UTCTime.Now();
-            int np = 0, nc = 0;
+            int no = observations.Count(), np = 0, nc = 0;
             CoreLimitedParallel.ForEach(observations, obs => { 
 
                     Interlocked.Increment(ref np);
@@ -211,130 +216,187 @@ namespace OPS.Pipeline
                                          np, nc, no);
                     }
 
-                    Mesh mesh = Meshing.BuildOrganizedMesh(pipeline, obs, frameCache, "root", true,
-                                                           options.DecimateWedgeMeshes);
+                    Mesh mesh = Meshing.BuildOrganizedMesh(pipeline, obs, frameCache, "root", usePriors: true,
+                                                           decimate: options.DecimateWedgeMeshes);
 
-                    mergeInputs.AddOrUpdate(getSiteDrive(obs).ToString(),
-                                            _ => new ConcurrentBag<Mesh>(new [] { mesh }),
-                                            (_, bag) => { bag.Add(mesh); return bag; });
+                    Image img = null;
+                    if (options.BEVColoring == ColorMode.Texture && obs.Texture != null)
+                    {
+                        img = pipeline.LoadImage(obs.Texture.Url);
+                        if (options.DecimateWedgeImages > 1)
+                        {
+                            img = img.Decimated(options.DecimateWedgeImages);
+                        }
+                    }
+
+                    var pair = new Tuple<Mesh, Image>(mesh, img);
+                    mergeInputs.AddOrUpdate(obs.SiteDrive.ToString(),
+                                            _ => new ConcurrentBag<Tuple<Mesh, Image>>(new [] { pair }),
+                                            (_, bag) => { bag.Add(pair); return bag; });
 
                     Interlocked.Decrement(ref np);
                     Interlocked.Increment(ref nc);
                 });
+            pipeline.LogInfo("created wedge meshes for {0} observations ({1:F3}s)", nc, UTCTime.Now() - startSec);
+        }
 
-            var bevs = new Dictionary<string, Image>();
-            var origins = new Dictionary<string, Vector2>();
-            double min = double.PositiveInfinity;
-            double max = double.NegativeInfinity;
-            foreach (var siteDrive in mergeInputs.Keys.OrderBy(name => name))
+        private double ParsePercent(string val, double total)
+        {
+            if (val.EndsWith("%"))
             {
-                pipeline.LogInfo("generating merged mesh for site drive {0}", siteDrive);
-                var mesh = Mesh.Merge(mergeInputs[siteDrive].Distinct().ToArray());
-                double lower = double.PositiveInfinity;
-                double upper = double.NegativeInfinity;
-                switch (options.BEVColoring)
-                {
-                    case ColorMode.Tilt:
-                    {
-                        Meshing.ColorMeshByNormals(mesh, out lower, out upper, Meshing.TiltMode.InvAcos);
-                        break;
-                    }
-                    case ColorMode.Elevation:
-                    {
-                        Meshing.ColorMeshByElevation(mesh, out lower, out upper);
-                        break;
-                    }
-                }
-                min = Math.Min(min, lower);
-                max = Math.Max(max, upper);
-                if (options.WriteDebug)
-                {
-                    string file = outputPath + siteDrive + meshExt;
-                    pipeline.LogVerbose("saving merged sitedrive mesh {0}", file);
-                    PathHelper.EnsureExists(outputPath);
-                    mesh.Save(file);
-                }
+                return double.Parse(val.Substring(0, val.Length - 1)) * 0.01 * total;
+            }
+            else
+            {
+                return double.Parse(val);
+            }
+        }
 
-                pipeline.LogInfo("generating birds eye view for site drive {0}", siteDrive);
-                Vector2 origin;
-                var bev = Meshing.RenderBirdsEyeView(mesh, null, options.BEVMetersPerPixel, true, out origin);
-                var bs = (int)ParsePercent(options.BEVSparseBlocksize, Math.Max(bev.Width, bev.Height));
-                if (bs > 0)
+        private void RenderBEVs()
+        {
+            double startSec = UTCTime.Now();
+            pipeline.LogInfo("rendering {0} birds eye views...", siteDrives.Length);
+
+            //TODO HACK - migrate to use pipeline database and storage if we keep this code
+            string cacheImageExt = ".tif";
+            string cacheMaskExt = ".png";
+            if (!options.RedoBEVs)
+            {
+                int nc = 0;
+                foreach (var siteDrive in siteDrives)
                 {
-                    pipeline.LogVerbose("sparse block size {0}, min valid block ratio {1}",
-                                        bs, options.BEVMinValidBlockRatio);
-                    bev = bev.InvalidateSparseExternalBlocks(bs, options.BEVMinValidBlockRatio);
-                    bev = bev.RemoveAllButLargestValidBlob();
-                    bev = bev.Trim(out Vector2 ulc);
-                    origin -= ulc;
+                    string basename = siteDrive + "_BirdsEyeView_cached";
+                    var available = pipeline.SearchFiles(outputPath, recursive: false).ToArray();
+                    foreach (var url in available)
+                    {
+                        var file = StringHelper.GetLastUrlPathSegment(url);
+                        if (file.StartsWith(basename) && file.EndsWith(cacheImageExt))
+                        {
+                            var parts = file.Split('.');
+                            var maskUrl =
+                                url.Substring(0, url.Length - file.Length) + parts[0] + "_mask" + cacheMaskExt;
+                            if (!Array.Exists(available, u => u == maskUrl))
+                            {
+                                continue;
+                            }
+                            var bev = pipeline.LoadImage(url);
+                            bev.UnionMask(pipeline.LoadImage(maskUrl), new float[] { 1 });
+                            bevs[siteDrive] = bev;
+                            var origin = new Vector2(int.Parse(parts[parts.Length - 3]),
+                                                     int.Parse(parts[parts.Length - 2]));
+                            bevOrigins[siteDrive] = origin;
+                            pipeline.LogInfo("loaded cached {0}x{1} birds eye view for site drive {2}, origin {3}",
+                                             bev.Width, bev.Height, siteDrive, origin);
+                            nc++;
+                            break;
+                        }
+                    }
                 }
-                if (options.BEVInpaint > 0)
+                if (nc == siteDrives.Length)
                 {
-                    //inpaint just the interior holes
-                    //we do this by first creating a mask by floodfilling exterior invalid regions
-                    Image mask = new Image(1, bev.Width, bev.Height);
-                    mask.ApplyInPlace(v => 1); //mask=1 means valid
-                    Meshing.AddOuterRegionsToMask(bev, mask);
-                    bev.Inpaint(options.BEVInpaint); //inpaint all invalid regions
-                    bev.UnionMask(mask, new float[] { 0 } ); //re-apply the exterior mask
+                    pipeline.LogInfo("loaded {0} cached birds eye views ({1:F3}s)",
+                                     bevs.Count, UTCTime.Now() - startSec);
+                    return;
                 }
-                if (options.BEVSmoothing > 0)
+                else if (nc > 0)
                 {
-                    bev = bev.GaussianBoxBlur(options.BEVSmoothing);
+                    pipeline.LogWarn("loaded only {0} of {1} birds eye views from cache, must regenerate all",
+                                     nc, siteDrives.Length);
+                    bevs.Clear();
+                    bevOrigins.Clear();
                 }
-                if (options.BEVDecimation > 1)
-                {
-                    bev = bev.Decimated(options.BEVDecimation);
-                }
-                pipeline.LogInfo("generated {0}x{1} birds eye view image for site drive {2}, mesh origin at pixel {3}",
-                                 bev.Width, bev.Height, siteDrive, origin);
-                bevs[siteDrive] = bev;
-                origins[siteDrive] = origin;
             }
 
-            pipeline.LogInfo("min global intensity {0}, max {1}", min, max);
+            BuildWedgeMeshes();
+
+            CoreLimitedParallel.ForEach(siteDrives, siteDrive => {
+
+                    Mesh mesh = null;
+                    Image img = null;
+                    if (options.BEVColoring == ColorMode.Texture)
+                    {
+                        var pair = Meshing.MergeMeshesAndTextures(mergeInputs[siteDrive].Distinct().ToArray());
+                        mesh = pair.Item1;
+                        img = pair.Item2;
+                    }
+                    else
+                    {
+                        mesh = Mesh.Merge(mergeInputs[siteDrive].Distinct().Select(pr => pr.Item1).ToArray());
+                    }
+
+                    switch (options.BEVColoring)
+                    {
+                        case ColorMode.Texture: break;
+                        case ColorMode.Tilt:
+                        {
+                            Meshing.ColorMeshByNormals(mesh, Meshing.TiltMode.InvAcos);
+                            break;
+                        }
+                        case ColorMode.Elevation:
+                        {
+                            Meshing.ColorMeshByElevation(mesh);
+                            break;
+                        }
+                    }
+                    
+                    if (options.WriteDebug)
+                    {
+                        string imageFilename = null;
+                        if (img != null)
+                        {
+                            imageFilename = siteDrive + imageExt;
+                            pipeline.LogInfo("saving merged sitedrive texure {0}", outputPath + imageFilename);
+                            PathHelper.EnsureExists(outputPath);
+                            img.Save<byte>(outputPath + imageFilename);
+                        }
+                        string file = outputPath + siteDrive + meshExt;
+                        pipeline.LogInfo("saving merged sitedrive mesh {0}", file);
+                        PathHelper.EnsureExists(outputPath);
+                        mesh.Save(file, imageFilename);
+                    }
+
+                    pipeline.LogInfo("generating birds eye view for site drive {0}", siteDrive);
+                    pipeline.LogInfo("{0} meters per pixel, sparse block size {1}, valid block ratio {2}, " +
+                                     "inpaint {3}, smoothing {4}, decimation {5}",
+                                     options.BEVMetersPerPixel, options.BEVSparseBlocksize,
+                                     options.BEVMinValidBlockRatio, options.BEVInpaint, options.BEVSmoothing,
+                                     options.BEVDecimation);
+                    Vector2 origin;
+                    bool greyscale = true;
+                    bool ccw = false;
+                    var bev = Meshing.RenderBirdsEyeView(mesh, img, options.BEVMetersPerPixel, greyscale, out origin,
+                                                         ccw, options.BEVSparseBlocksize, options.BEVMinValidBlockRatio,
+                                                         options.BEVInpaint, options.BEVSmoothing,
+                                                         options.BEVDecimation);
+                    pipeline.LogInfo("generated {0}x{1} birds eye view for site drive {2}, origin {3}",
+                                     bev.Width, bev.Height, siteDrive, origin);
+                    
+                    bevs[siteDrive] = bev;
+                    bevOrigins[siteDrive] = origin;
+                });
+
+            int n = 0;
+            double min = double.PositiveInfinity;
+            double max = double.NegativeInfinity;
+            double mean = 0;
+            double stddev = 0;
+            if (options.StretchContrast || options.BEVColoring == ColorMode.Elevation)
+            {
+                CollectBEVStats(out n, out min, out max, out mean, out stddev);
+            }
 
             if (options.StretchContrast)
             {
-                pipeline.LogInfo("stretching contrast");
-                int n = 0;
-                double mean = 0;
-                foreach (var bev in bevs.Values)
-                {
-                    foreach (ImageCoordinate ic in bev.Coordinates(includeInvalidValues: false))
-                    {
-                        mean += bev[0, ic.Row, ic.Col];
-                        n++;
-                    }
-                }
-                mean /= n;
-
-                double variance = 0;
-                foreach (var bev in bevs.Values)
-                {
-                    foreach (ImageCoordinate ic in bev.Coordinates(includeInvalidValues: false))
-                    {
-                        var d = bev[0, ic.Row, ic.Col] - mean;
-                        variance += d * d;
-                    }
-                }
-                variance /= n;
-                double stddev = Math.Sqrt(variance);
-
                 int nStddev = 3;
-                min = Math.Max(mean - stddev * nStddev, min);
-                max = Math.Min(mean + stddev * nStddev, max);
-
-                pipeline.LogInfo("{0} valid pixels, mean {1}, stddev {2}, stretch range [{3}, {4}] ({5} stddev)",
-                                 n, mean, stddev, min, max, nStddev);
+                double lower = Math.Max(mean - stddev * nStddev, min);
+                double upper = Math.Min(mean + stddev * nStddev, max);
+                pipeline.LogInfo("stretching [{0}, {1}] -> [0, 1] ({2} stddev)", lower, upper, nStddev);
+                foreach (var bev in bevs.Values)
+                {
+                    bev.ScaleValues((float)lower, (float)upper, 0, 1);
+                }
             }
 
-            pipeline.LogInfo("normalizing [{0}, {1}] to [0, 1]", min, max);
-            foreach (var bev in bevs.Values)
-            {
-                bev.ScaleValues((float)min, (float)max, 0, 1);
-            }
-            
             if (options.BEVThreshold > 0)
             {
                 pipeline.LogInfo("thresholding to {0}", options.BEVThreshold);
@@ -350,13 +412,79 @@ namespace OPS.Pipeline
                 {
                     var siteDrive = pair.Key;
                     var bev = pair.Value;
+                    if (!options.StretchContrast && options.BEVColoring == ColorMode.Elevation)
+                    {
+                        bev = new Image(bev);
+                        bev.ScaleValues((float)min, (float)max, 0, 1);
+                    }
                     string file = outputPath + siteDrive + "_BirdsEyeView" + imageExt;
-                    pipeline.LogVerbose("saving {0}x{1} merged sitedrive birds eye view {2}",
-                                        bev.Width, bev.Height, file);
+                    pipeline.LogInfo("saving {0}x{1} birds eye view {2}", bev.Width, bev.Height, file);
                     PathHelper.EnsureExists(outputPath);
                     bev.Save<byte>(file);
                 }
             }
+
+            //TODO HACK
+            foreach (var pair in bevs)
+            {
+                var siteDrive = pair.Key;
+                var bev = pair.Value;
+                int x = (int)bevOrigins[siteDrive].X;
+                int y = (int)bevOrigins[siteDrive].Y;
+                string file = outputPath + siteDrive + "_BirdsEyeView_cached." + x + "." + y + cacheImageExt;
+                pipeline.LogInfo("caching {0}x{1} birds eye view {2}", bev.Width, bev.Height, file);
+                PathHelper.EnsureExists(outputPath);
+                bev.Save<float>(file);
+                PathHelper.EnsureExists(outputPath);
+                bev.MaskToImage().Save<byte>(outputPath + siteDrive + "_BirdsEyeView_cached_mask" + cacheMaskExt);
+            }
+
+            pipeline.LogInfo("generated {0} birds eye views ({1:F3}s)", bevs.Count, UTCTime.Now() - startSec);
+        }
+
+        private void CollectBEVStats(out int n, out double min, out double max, out double mean, out double stddev)
+        {
+            double startSec = UTCTime.Now();
+            pipeline.LogInfo("collecting combined stats for {0} birds eye views...", bevs.Count);
+
+            n = 0;
+            min = double.PositiveInfinity;
+            max = double.NegativeInfinity;
+            mean = 0;
+            foreach (var bev in bevs.Values)
+            {
+                foreach (ImageCoordinate ic in bev.Coordinates(includeInvalidValues: false))
+                {
+                    var v = bev[0, ic.Row, ic.Col];
+                    min = Math.Min(min, v);
+                    max = Math.Max(max, v);
+                    mean += v;
+                    n++;
+                }
+            }
+            mean /= n;
+            
+            double variance = 0;
+            foreach (var bev in bevs.Values)
+            {
+                foreach (ImageCoordinate ic in bev.Coordinates(includeInvalidValues: false))
+                {
+                    var d = bev[0, ic.Row, ic.Col] - mean;
+                    variance += d * d;
+                }
+            }
+            variance /= n;
+            stddev = Math.Sqrt(variance);
+
+            pipeline.LogInfo("{0} valid pixels, min {1}, max{2}, mean {3}, stddev {4}", n, min, max, mean, stddev);
+
+            pipeline.LogInfo("collected stats for {0} birds eye views ({1:F3}s)", bevs.Count, UTCTime.Now() - startSec);
+        }
+
+        private void DetectFeatures()
+        {
+            double startSec = UTCTime.Now();
+            pipeline.LogInfo("detecting {0} features in {1} birds eye views...", options.DetectorType, bevs.Count);
 
             var detectorOpts = new FeatureDetector.Options()
                 {
@@ -368,45 +496,31 @@ namespace OPS.Pipeline
                     FeaturesPerSizeBucketSize = 5,
                     FeaturesPerResponseBucketSize = 10,
                 };
-
-            var features = new Dictionary<string, ImageFeature[]>();
             FeatureDetector detector = new FeatureDetector(pipeline, detectorOpts);
-            foreach (var pair in bevs)
-            {
-                var siteDrive = pair.Key;
-                var bev = pair.Value;
-                pipeline.LogInfo("detecting {0} features in {1}x{2} birds eye view for {3}",
-                                 options.DetectorType, bev.Width, bev.Height, siteDrive);
-                var mask = bev.MaskToImage(valid: 1, invalid: 0);
-                features[siteDrive] = detector.Detect(bev, mask);
-                pipeline.LogInfo("detected {0} {1} features in birds eye view for {2}",
-                                 features[siteDrive].Length, options.DetectorType, siteDrive);
-                if (options.WriteDebug)
-                {
-                    var img = FeatureDetecting.DrawFeatures(bev, mask, features[siteDrive], siteDrive, stretch: false);
-                    string file = outputPath + siteDrive + "_BirdsEyeView_Features" + imageExt;
-                    PathHelper.EnsureExists(outputPath);
-                    img.Save<byte>(file);
-                }
-            }
+
+            CoreLimitedParallel.ForEach(siteDrives, siteDrive => {
+                    var bev = bevs[siteDrive];
+                    pipeline.LogInfo("detecting {0} features in {1}x{2} birds eye view for {3}",
+                                     options.DetectorType, bev.Width, bev.Height, siteDrive);
+                    pipeline.LogInfo("max features {0}, extra invalid radius {1}, FAST threshold {2}",
+                                     options.MaxFeaturesPerImage, options.FeatureExtraInvalidRadius,
+                                     options.FASTThreshold);
+                    var mask = bev.MaskToImage(valid: 1, invalid: 0);
+                    var feat = features[siteDrive] = detector.Detect(bev, mask);
+                    pipeline.LogInfo("detected {0} {1} features in birds eye view for {2}", feat.Length,
+                                     options.DetectorType, siteDrive);
+                    if (options.WriteDebug)
+                    {
+                        var img = FeatureDetecting.DrawFeatures(bev, mask, feat, siteDrive, stretch: false);
+                        string file = outputPath + siteDrive + "_BirdsEyeView_Features" + imageExt;
+                        PathHelper.EnsureExists(outputPath);
+                        img.Save<byte>(file);
+                    }
+                });
             detector.DumpHistograms(pipeline);
 
-            double totalSec = UTCTime.Now() - startSec;
-            pipeline.LogInfo("aligned {0} observations ({1:F3}s)", no, totalSec);
-
-            return 0;
-        }
-
-        private double ParsePercent(string val, double total)
-        {
-            if (val.EndsWith("%"))
-            {
-                return double.Parse(val.Substring(0, val.Length - 1)) * 0.01 * total;
-            }
-            else
-            {
-                return double.Parse(val);
-            }
+            pipeline.LogInfo("detected features for {0} birds eye views ({1:F3}s)",
+                             features.Count, UTCTime.Now() - startSec);
         }
     }
 }

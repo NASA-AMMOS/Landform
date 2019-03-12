@@ -27,6 +27,13 @@ namespace OPS.Pipeline
         public Observation Normals;
         public Observation Mask;
         public Observation Texture;
+
+        public SiteDrive SiteDrive
+        {
+            get { return new SiteDrive((Points as RoverObservation).Site, (Points as RoverObservation).Drive); }
+        }
+
+        public string Camera { get { return (Points as RoverObservation).Sensor; } }
     }
 
     public enum ReconstructionMethod
@@ -39,18 +46,6 @@ namespace OPS.Pipeline
     public class Meshing
     {
         /// <summary>
-        /// check if an observation is from a mastcam
-        /// </summary>
-        public static bool IsMastcam(RoverObservation observation)
-        {
-            //temporarily suppress mastcam point cloud data until validated
-            //https://github.jpl.nasa.gov/OnSight/Landform/issues/261
-            return
-                observation.Sensor == RoverProductCamera.MastcamLeft.ToString() ||
-                observation.Sensor == RoverProductCamera.MastcamRight.ToString();
-        }
-
-        /// <summary>
         /// sift through the available observations for a frame
         /// and try to collect those that are required to build a mesh
         /// returns null if the required observation types are not found for the frame
@@ -59,7 +54,9 @@ namespace OPS.Pipeline
                                                                        ObservationCache observationCache,
                                                                        bool allowMastcam = false,
                                                                        bool requireNormals = true,
-                                                                       bool requireTextures = false)
+                                                                       bool requireTextures = false,
+                                                                       SiteDrive[] onlyForSiteDrives = null,
+                                                                       string[] onlyForCameras = null)
         {
             var pointsType = ObservationType.Points.ToString();
             var normalsType = ObservationType.Normals.ToString();
@@ -69,8 +66,11 @@ namespace OPS.Pipeline
             var observations =
                 observationCache.GetAllObservationsForFrame(frameCache.GetFrame(frameName))
                 .Cast<RoverObservation>()
-                .Where(obs => allowMastcam || !IsMastcam(obs))
+                .Where(obs => allowMastcam || !obs.IsMastcam)
+                .Where(obs => onlyForSiteDrives == null || onlyForSiteDrives.Any(sd => sd == obs.SiteDrive))
+                .Where(obs => onlyForCameras == null || onlyForCameras.Any(cam => cam == obs.Sensor))
                 .ToList();
+
             observations.Sort(MSLProject.RoverObservationComparison);
 
             var ret = new MeshObservations();
@@ -108,13 +108,36 @@ namespace OPS.Pipeline
                                                                      ObservationCache observationCache,
                                                                      bool allowMastcam = false,
                                                                      bool requireNormals = true,
-                                                                     bool requireTextures = false)
+                                                                     bool requireTextures = false,
+                                                                     string onlyForSiteDrives = null,
+                                                                     string onlyForCameras = null)
         {
+            SiteDrive[] siteDriveFilter = null;
+            if (!string.IsNullOrEmpty(onlyForSiteDrives))
+            {
+                siteDriveFilter = onlyForSiteDrives
+                    .Split(',')
+                    .Where(s => !string.IsNullOrEmpty(s))
+                    .Select(s => new SiteDrive(s.Trim()))
+                    .Cast<SiteDrive>()
+                    .ToArray();
+            }
+
+            string[] cameraFilter = null;
+            if (!string.IsNullOrEmpty(onlyForCameras))
+            {
+                cameraFilter = onlyForCameras
+                    .Split(',')
+                    .Where(s => !string.IsNullOrEmpty(s))
+                    .ToArray();
+            }
+
             List<MeshObservations> ret = new List<MeshObservations>();
             foreach (var frameName in observationCache.GetAllFramesWithObservations())
             {
                 var obs = CollectMeshObservationsForFrame(frameName, frameCache, observationCache,
-                                                          allowMastcam, requireNormals, requireTextures);
+                                                          allowMastcam, requireNormals, requireTextures,
+                                                          siteDriveFilter, cameraFilter);
                 if (obs != null)
                 {
                     ret.Add(obs);
@@ -454,7 +477,7 @@ namespace OPS.Pipeline
             return img;
         }
 
-        public enum TiltMode { Abs, Acos, InvAcos, Cos };
+        public enum TiltMode { None, Abs, Acos, InvAcos, Cos };
         public const TiltMode DEF_TILT_MODE = TiltMode.InvAcos;
 
         /// <summary>
@@ -472,6 +495,7 @@ namespace OPS.Pipeline
                 case TiltMode.Acos: tilt = Math.Acos(tilt) / Math.PI; break;
                 case TiltMode.InvAcos: tilt = 1 - Math.Acos(tilt) / Math.PI; break;
                 case TiltMode.Cos: break;
+                default: throw new ArgumentException("unhandled tilt mode: " + mode);
             }
             return tilt;
         }
@@ -596,8 +620,7 @@ namespace OPS.Pipeline
 
         public static Mesh ColorMeshByNormals(Mesh mesh, TiltMode? tiltMode = null, Vector3? up = null) 
         {
-            double minTilt, maxTilt;
-            return ColorMeshByNormals(mesh, out minTilt, out maxTilt, tiltMode, up);
+            return ColorMeshByNormals(mesh, out double minTilt, out double maxTilt, tiltMode, up);
         }
 
         /// <summary>
@@ -692,8 +715,7 @@ namespace OPS.Pipeline
 
         public static Mesh ColorMeshByElevation(Mesh mesh, bool absolute = false, Vector3? up = null) 
         {
-            double min, max;
-            return ColorMeshByElevation(mesh, out min, out max, absolute, up);
+            return ColorMeshByElevation(mesh, out double min, out double max, absolute, up);
         }
 
         public enum Neighborhood { Four = 4, Eight = 8 };
@@ -815,48 +837,69 @@ namespace OPS.Pipeline
 
         public static Mesh ColorMeshByCurvature(Mesh mesh)
         {
-            double min, max;
-            return ColorMeshByCurvature(mesh, out min, out max);
+            return ColorMeshByCurvature(mesh, out double min, out double max);
         }
 
-        /// <summary>
-        /// flood fill mask from each invalid pixel on the border of img
-        /// mask image is 0 for masked pixels
-        /// </summary>
-        public static void AddOuterRegionsToMask(Image img, Image mask)
+        public enum MeshColor { None, Texture, Normals, Elevation, Curvature };
+
+        public static Mesh ColorMesh(Mesh mesh, MeshColor mode, TiltMode tiltMode = TiltMode.None,
+                                     bool allowAdjustColors = true, bool stretch = false)
         {
-            void floodFill(int row, int col)
+            bool greyscale = false;
+            bool adjustColors = false;
+            double min = double.PositiveInfinity;
+            double max = double.NegativeInfinity;
+
+            switch (mode)
             {
-                if (img.IsValid(row, col) || mask[0, row, col] == 0) return;
-                mask[0, row, col] = 0;
-                var queue = new Queue<Pixel>();
-                queue.Enqueue(new Pixel(row, col));
-                var offsets = new Pixel[] { new Pixel(-1, 0), new Pixel(1, 0), new Pixel(0, -1), new Pixel(0, 1) };
-                while (queue.Count > 0)
+                case MeshColor.None: break;
+                case MeshColor.Texture: break;
+                case MeshColor.Normals:
                 {
-                    var px = queue.Dequeue();
-                    foreach (var offset in offsets)
+                    if (tiltMode != TiltMode.None)
                     {
-                        var tgt = px + offset;
-                        if (tgt.Row >= 0 && tgt.Row < img.Height && tgt.Col >= 0 && tgt.Col < img.Width &&
-                            img.IsInvalid(tgt.Row, tgt.Col) && mask[0, tgt.Row, tgt.Col] != 0)
-                        {
-                            mask[0, tgt.Row, tgt.Col] = 0;
-                            queue.Enqueue(tgt);
-                        }
+                        ColorMeshByNormals(mesh, out min, out max, tiltMode);
+                        adjustColors = greyscale = true;
+                    }
+                    else
+                    {
+                        ColorMeshByNormals(mesh);
+                    } 
+                    mesh.HasNormals = false;
+                    break;
+                }
+                case MeshColor.Curvature:
+                {
+                    ColorMeshByCurvature(mesh, out min, out max);
+                    adjustColors = greyscale = true;
+                    mesh.HasNormals = false;
+                    break;
+                }
+                case MeshColor.Elevation:
+                {
+                    ColorMeshByElevation(mesh, out min, out max);
+                    adjustColors = greyscale = true;
+                    mesh.HasNormals = false;
+                    break;
+                }
+            }
+
+            if (adjustColors && allowAdjustColors)
+            {
+                if (stretch)
+                {
+                    ApplyStdDevStretchToColors(mesh, greyscale);
+                }
+                else if (greyscale)
+                {
+                    foreach (var v in mesh.Vertices)
+                    {
+                        v.Color.X = v.Color.Y = v.Color.Z = (v.Color.X - min) / (max - min);
                     }
                 }
             }
-            for (int row = 0; row < img.Height; row++)
-            {
-                floodFill(row, 0);
-                floodFill(row, img.Width - 1);
-            }
-            for (int col = 0; col < img.Width; col++)
-            {
-                floodFill(0, col);
-                floodFill(img.Height - 1, col);
-            }
+
+            return mesh;
         }
 
         /// <summary>
@@ -871,7 +914,7 @@ namespace OPS.Pipeline
             return blocksize > 1 ? img.Decimated(blocksize) : img;
         }
 
-        public static void LoadOrGenerateMeshImages(PipelineCore pipeline, MeshObservations obs, int decimateBlocksize,
+        public static void LoadOrGenerateMeshImages(PipelineCore pipeline, MeshObservations obs, int decimate,
                                                     bool scaleNormalsByConfidence,
                                                     out Image points, out Image normals, out Image mask)
         {
@@ -891,14 +934,14 @@ namespace OPS.Pipeline
 
             mask = RoverMask.LoadOrBuild(pipeline, obs.Mask, pointsRaw, obs.Points.Name);
 
-            if (decimateBlocksize > 1)
+            if (decimate > 1)
             {
                 pipeline.LogVerbose("decimating points {0}", obs.Points.Name);
-                points = MaskAndDecimatePoints(points, decimateBlocksize, mask);
+                points = MaskAndDecimatePoints(points, decimate, mask);
                 if (normals != null)
                 {
                     pipeline.LogVerbose("decimating normals {0}", obs.Normals.Name);
-                    normals = MaskAndDecimateNormals(normals, decimateBlocksize, mask);
+                    normals = MaskAndDecimateNormals(normals, decimate, mask);
                 }
                 mask = null;
             }
@@ -971,12 +1014,11 @@ namespace OPS.Pipeline
         }
 
         public static Mesh BuildPointCloud(PipelineCore pipeline, MeshObservations obs, FrameCache frameCache,
-                                           string frame = "root", bool usePriors = false, int decimateBlocksize = 1,
+                                           string frame = "root", bool usePriors = false, int decimate = 1,
                                            bool scaleNormalsByConfidence = false)
         {
-            Image points, normals, mask;
-            LoadOrGenerateMeshImages(pipeline, obs, decimateBlocksize, scaleNormalsByConfidence,
-                                     out points, out normals, out mask);
+            LoadOrGenerateMeshImages(pipeline, obs, decimate, scaleNormalsByConfidence,
+                                     out Image points, out Image normals, out Image mask);
             pipeline.LogVerbose("building point cloud {0}", obs.Points.Name);
             var ret = BuildPointCloud(points, normals, mask);
             ret.Transform(GetTransform(obs.Points.FrameName, frame, frameCache, usePriors).Mean);
@@ -1122,13 +1164,12 @@ namespace OPS.Pipeline
         }
 
         public static Mesh BuildOrganizedMesh(PipelineCore pipeline, MeshObservations obs, FrameCache frameCache,
-                                              string frame = "root", bool usePriors = false, int decimateBlocksize = 1,
+                                              string frame = "root", bool usePriors = false, int decimate = 1,
                                               bool scaleNormalsByConfidence = false, double maxTriangleAspect = 20,
                                               double isolatedPointSize = 0, bool withUVs = false)
         {
-            Image points, normals, mask;
-            LoadOrGenerateMeshImages(pipeline, obs, decimateBlocksize, scaleNormalsByConfidence,
-                                     out points, out normals, out mask);
+            LoadOrGenerateMeshImages(pipeline, obs, decimate, scaleNormalsByConfidence,
+                                     out Image points, out Image normals, out Image mask);
             pipeline.LogVerbose("building organized mesh {0}", obs.Points.Name);
             var ret = BuildOrganizedMesh(points, normals, mask, maxTriangleAspect, isolatedPointSize);
             if (withUVs && obs.Texture != null)
@@ -1140,12 +1181,11 @@ namespace OPS.Pipeline
         }
 
         public static Mesh BuildPoissonMesh(PipelineCore pipeline, MeshObservations obs, FrameCache frameCache,
-                                            string frame = "root", bool usePriors = false, int decimateBlocksize = 1,
+                                            string frame = "root", bool usePriors = false, int decimate = 1,
                                             bool scaleNormalsByConfidence = false, bool withUVs = false)
         {
-            Image points, normals, mask;
-            LoadOrGenerateMeshImages(pipeline, obs, decimateBlocksize, scaleNormalsByConfidence,
-                                     out points, out normals, out mask);
+            LoadOrGenerateMeshImages(pipeline, obs, decimate, scaleNormalsByConfidence,
+                                     out Image points, out Image normals, out Image mask);
             pipeline.LogVerbose("building Poisson mesh {0}", obs.Points.Name);
             var ret = BuildPoissonMesh(points, normals, mask, scaleNormalsByConfidence);
             if (withUVs && obs.Texture != null)
@@ -1157,11 +1197,11 @@ namespace OPS.Pipeline
         }
 
         public static Mesh BuildFSSRMesh(PipelineCore pipeline, MeshObservations obs, FrameCache frameCache,
-                                         string frame = "root", bool usePriors = false, int decimateBlocksize = 1,
+                                         string frame = "root", bool usePriors = false, int decimate = 1,
                                          bool withUVs = false)
         {
-            Image points, normals, mask;
-            LoadOrGenerateMeshImages(pipeline, obs, decimateBlocksize, false, out points, out normals, out mask);
+            LoadOrGenerateMeshImages(pipeline, obs, decimate, false,
+                                     out Image points, out Image normals, out Image mask);
             pipeline.LogVerbose("building FSSR mesh {0}", obs.Points.Name);
             var ret = BuildFSSRMesh(points, normals, mask);
             if (withUVs && obs.Texture != null)
@@ -1253,12 +1293,16 @@ namespace OPS.Pipeline
         /// rasterize a birds eye view image of mesh
         /// if mesh has UVs and img is not null it will be texture mapped
         /// otherwise the mesh vertex colors will be used
-        /// the view is from +Z looking down unless ccw is false, in which case it is from -Z looking up
+        /// the view is from above but assuming +Z is down, so that we are looking at the backfaces of ccw triangles
+        /// and we do render the backfaces
+        /// you can flip all that by specifying ccw = true
         /// occlusion is painters algorithm, so sort the mesh faces if you need to
         /// output meshOrigin is the pixel corresponding to the origin of mesh frame (which may be outside image)
         /// </summary>
         public static Image RenderBirdsEyeView(Mesh mesh, Image img, double metersPerPixel, bool greyscale,
-                                               out Vector2 meshOrigin, bool ccw = false)
+                                               out Vector2 meshOrigin, bool ccw = false,
+                                               double sparseBlockSize = 0, double minSparseBlockValidRatio = 1,
+                                               int inpaint = 0, int blur = 0, int decimate = 1)
         {
             var meshBounds = mesh.Bounds();
 
@@ -1355,14 +1399,50 @@ namespace OPS.Pipeline
                 }
             }
 
+            if (sparseBlockSize > 0)
+            {
+                if (sparseBlockSize < 1)
+                {
+                    sparseBlockSize *= Math.Max(ret.Width, ret.Height);
+                }
+                ret.InvalidateSparseExternalBlocks((int)sparseBlockSize, minSparseBlockValidRatio);
+                ret.RemoveAllButLargestValidBlob();
+                ret = ret.Trim(out Vector2 ulc);
+                meshOrigin -= ulc;
+            }
+
+            if (inpaint > 0)
+            {
+                //inpaint just the interior holes
+                //we do this by first creating a mask by floodfilling exterior invalid regions
+                Image mask = new Image(1, ret.Width, ret.Height);
+                ret.AddOuterRegionsToMask(mask);
+                ret.Inpaint(inpaint);
+                ret.UnionMask(mask, new float[] { 1 } ); //re-apply the exterior mask
+            }
+
+            //can't use Image.Resize() here because it doesn't preserve mask
+            //but Image.Decimated() does
+
+            if (blur > 0)
+            {
+                ret.GaussianBoxBlur(blur);
+            }
+
+            if (decimate > 1)
+            {
+                ret = ret.Decimated(decimate);
+            }
+
             return ret;
         }
 
         public static Image RenderBirdsEyeView(Mesh mesh, Image img, double metersPerPixel, bool greyscale,
-                                               bool ccw = false)
+                                               bool ccw = false, double sparseBlockSize = 0,
+                                               double minSparseBlockValidRatio = 1, int inpaint = 0, int blur = 0,
+                                               int decimate = 1)
         {
-            Vector2 meshOrigin;
-            return RenderBirdsEyeView(mesh, img, metersPerPixel, greyscale, out meshOrigin, ccw);
+            return RenderBirdsEyeView(mesh, img, metersPerPixel, greyscale, out Vector2 meshOrigin, ccw);
         }
     }
 }

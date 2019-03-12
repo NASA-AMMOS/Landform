@@ -3,10 +3,9 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-
 using Amazon.DynamoDBv2.DataModel;
 using Amazon.DynamoDBv2.DocumentModel;
-
+using Newtonsoft.Json;
 using OPS.Cloud;
 
 namespace OPS.Pipeline.AlignmentServer
@@ -31,6 +30,21 @@ namespace OPS.Pipeline.AlignmentServer
 
         public string Producer;
 
+        [DynamoDBIgnore]
+        [JsonIgnore]
+        public SiteDrive SiteDrive { get { return new SiteDrive(Site, Drive); } }
+
+        [DynamoDBIgnore]
+        [JsonIgnore]
+        public bool IsMastcam
+        {
+            get
+            {
+                return Sensor == RoverProductCamera.MastcamLeft.ToString() ||
+                    Sensor == RoverProductCamera.MastcamRight.ToString();
+            }
+        }
+        
         protected void IsValidRoverOservation()
         {
             base.IsValid();

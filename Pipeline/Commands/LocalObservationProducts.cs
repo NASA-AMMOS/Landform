@@ -14,8 +14,6 @@ using OPS.Pipeline.AlignmentServer;
 
 namespace OPS.Pipeline
 {
-    public enum MeshColor { None, Texture, Normals, Elevation, Curvature };
-
     [Verb("local-observation-products", HelpText = "create observation mesh and image products locally")]
     public class LocalObservationProductsOptions : PipelineCoreOptions
     {
@@ -109,8 +107,8 @@ namespace OPS.Pipeline
         [Option(HelpText = "Birds eye view meters per pixel", Default = 0.005)]
         public double BEVMetersPerPixel { get; set; }
 
-        [Option(HelpText = "Birds eye view sparse invalidation blocksize", Default = "0.5%")]
-        public string BEVSparseBlocksize { get; set; }
+        [Option(HelpText = "Birds eye view sparse invalidation blocksize, relative to largest image dimension if < 1, disabled if 0", Default = 0.005)]
+        public double BEVSparseBlocksize { get; set; }
 
         [Option(HelpText = "Birds eye view sparse invalidation block threshold", Default = 0.8)]
         public double BEVMinValidBlockRatio { get; set; }
@@ -127,8 +125,9 @@ namespace OPS.Pipeline
         [Option(HelpText = "Write normals images", Default = false)]
         public bool NormalsImages { get; set; }
 
-        [Option(HelpText = "Mesh coloring (None, Texture, Normals, Curvature, Elevation)", Default = MeshColor.Texture)]
-        public MeshColor ColorMeshesBy { get; set; }
+        [Option(HelpText = "Mesh coloring (None, Texture, Normals, Curvature, Elevation)",
+                Default = Meshing.MeshColor.Texture)]
+        public Meshing.MeshColor ColorMeshesBy { get; set; }
 
         [Option(HelpText = "Convert normals to scalar tilt relative to up (0, 0, -1)", Default = false)]
         public bool ConvertNormalsToTilts { get; set; }
@@ -192,7 +191,7 @@ namespace OPS.Pipeline
             options.MergedSiteDriveMeshes |= options.AllTheThings;
             options.NormalsImages |= options.AllTheThings;
 
-            bool withUVs = !options.NoImages && options.ColorMeshesBy == MeshColor.Texture;
+            bool withUVs = !options.NoImages && options.ColorMeshesBy == Meshing.MeshColor.Texture;
 
             options.NoImages |= options.OnlyMergedSiteDriveMeshes && !withUVs;
 
@@ -262,22 +261,7 @@ namespace OPS.Pipeline
                 {
                     return 0;
                 }
-                if  (!options.NoWedgeMeshes)
-                {
-                    pipeline.LogInfo("writing {0} wedge meshes to {1}", meshExt, outputPath);
-                }
-                if (options.FrustumHullMeshes)
-                {
-                    pipeline.LogInfo("writing {0} hull meshes to {1}", meshExt, outputPath);
-                } 
-                if (options.UncertaintyInflatedFrustumHullMeshes)
-                {
-                    pipeline.LogInfo("writing {0} uncertainty inflated hull meshes to {1}", meshExt, outputPath);
-                } 
-                if (options.MergedSiteDriveMeshes)
-                {
-                    pipeline.LogInfo("writing {0} merged site drive meshes to {1}", meshExt, outputPath);
-                }
+                pipeline.LogInfo("writing {0} meshes to {1}", meshExt, outputPath);
             }
 
             if (!options.NoImages || options.NormalsImages || options.CurvatureImages || options.ElevationImages ||
@@ -288,26 +272,7 @@ namespace OPS.Pipeline
                 {
                     return 0;
                 }
-                if (!options.NoImages)
-                {
-                    pipeline.LogInfo("writing {0} images to {1}", imageExt, outputPath);
-                }
-                if (options.NormalsImages)
-                {
-                    pipeline.LogInfo("writing {0} normals images to {1}", imageExt, outputPath);
-                }
-                if (options.CurvatureImages)
-                {
-                    pipeline.LogInfo("writing {0} curvature images to {1}", imageExt, outputPath);
-                }
-                if (options.ElevationImages)
-                {
-                    pipeline.LogInfo("writing {0} elevation images to {1}", imageExt, outputPath);
-                }
-                if (options.SiteDriveBirdsEyeViews)
-                {
-                    pipeline.LogInfo("writing {0} sitedrive birds eye view images to {1}", imageExt, outputPath);
-                }
+                pipeline.LogInfo("writing {0} images to {1}", imageExt, outputPath);
             }
 
             var frameCache = new FrameCache(pipeline, options.ProjectName);
@@ -324,46 +289,15 @@ namespace OPS.Pipeline
             observationCache.Preload();
 
             var observations = Meshing.CollectMeshObservations(frameCache, observationCache, options.AllowMastcam,
-                                                               options.RequireNormals, options.RequireTextures);
+                                                               options.RequireNormals, options.RequireTextures,
+                                                               options.OnlyForSiteDrives, options.OnlyForCameras);
 
-            SiteDrive getSiteDrive(MeshObservations obs)
-            {
-                var ro = obs.Points as RoverObservation;
-                return new SiteDrive(ro.Site, ro.Drive);
-            }
-
-            string getCamera(MeshObservations obs)
-            {
-                return (obs.Points as RoverObservation).Sensor;
-            }
-
-            SiteDrive[] siteDrives = (options.OnlyForSiteDrives ?? "")
-                .Split(',')
-                .Where(s => !string.IsNullOrEmpty(s))
-                .Select(s => new SiteDrive(s.Trim()))
-                .Cast<SiteDrive>()
-                .ToArray();
-
-            if (siteDrives.Length > 0)
-            {
-                observations = observations.Where(obs => siteDrives.Any(sd => sd == getSiteDrive(obs))).ToList();
-            }
-
-            string[] cameras = (options.OnlyForCameras ?? "")
-                .Split(',')
-                .Where(s => !string.IsNullOrEmpty(s))
-                .ToArray();
-
-            if (cameras.Length > 0)
-            {
-                observations = observations.Where(obs => cameras.Any(cam => cam == getCamera(obs))).ToList();
-            }
-                                                  
             int no = observations.Count();
+            var siteDrives = observations.Select(obs => obs.SiteDrive).Distinct().OrderBy(sd => sd).ToArray();
             pipeline.LogInfo("computing observation products for {0} observations{1} under {2}", no,
                              siteDrives.Length > 0 ?
                              (" for site drive(s) " +
-                              String.Join(",", siteDrives.Select(sd => sd.ToString()).Cast<string>().ToArray())) : "",
+                              String.Join(",", siteDrives.Select(sd => sd.ToString()).ToArray())) : "",
                              outputPath);
 
             //sitedrive => (mesh, image), (mesh, image), ...
@@ -430,7 +364,7 @@ namespace OPS.Pipeline
                         }
                     }
 
-                    string siteDrive = getSiteDrive(obs).ToString();
+                    string siteDrive = obs.SiteDrive.ToString();
 
                     //we're running for multiple site drives in parallel so don't mutate outputPath
                     string tmpPath = outputPath;
@@ -524,10 +458,20 @@ namespace OPS.Pipeline
 
                     if (!options.NoWedgeMeshes && mesh != null)
                     {
+                        if (options.ColorMeshesBy != Meshing.MeshColor.None &&
+                            options.ColorMeshesBy != Meshing.MeshColor.Texture)
+                        {
+                            if (options.MergedSiteDriveMeshes)
+                            {
+                                mesh = new Mesh(mesh);
+                            }
+                            Meshing.ColorMesh(mesh, options.ColorMeshesBy,
+                                              options.ConvertNormalsToTilts ? options.TiltMode : Meshing.TiltMode.None,
+                                              stretch: options.StretchContrast);
+                        }
                         string file = tmpPath + obsName + meshExt;
                         pipeline.LogVerbose("saving mesh {0}", file);
                         PathHelper.EnsureExists(tmpPath);
-                        ColorMesh(mesh);
                         mesh.Save(file, withUVs ? imageFilename : null);
                     }
                       
@@ -568,7 +512,10 @@ namespace OPS.Pipeline
                     var mesh = pair.Item1;
                     var img = pair.Item2;
 
-                    ColorMesh(mesh, allowAdjustColors: !options.SiteDriveBirdsEyeViews);
+                    Meshing.ColorMesh(mesh, options.ColorMeshesBy,
+                                      options.ConvertNormalsToTilts ? options.TiltMode : Meshing.TiltMode.None,
+                                      allowAdjustColors: !options.SiteDriveBirdsEyeViews,
+                                      stretch: options.StretchContrast);
 
                     string imageFilename = null;
                     if (img != null)
@@ -592,35 +539,12 @@ namespace OPS.Pipeline
                     {
                         pipeline.LogInfo("generating birds eye view for site drive {0}", siteDrive);
                         bool greyscale = !withUVs &&
-                            (options.ColorMeshesBy != MeshColor.Normals || options.ConvertNormalsToTilts);
-                        var bev = Meshing.RenderBirdsEyeView(mesh, img, options.BEVMetersPerPixel, greyscale);
-                        var bs = (int)ParsePercent(options.BEVSparseBlocksize, Math.Max(bev.Width, bev.Height));
-                        if (bs > 0)
-                        {
-                            pipeline.LogVerbose("sparse block size {0}, min valid block ratio {1}",
-                                                bs, options.BEVMinValidBlockRatio);
-                            bev = bev.InvalidateSparseExternalBlocks(bs, options.BEVMinValidBlockRatio);
-                            bev = bev.RemoveAllButLargestValidBlob();
-                            bev = bev.Trim();
-                        }
-                        if (options.InpaintImages > 0)
-                        {
-                            //inpaint just the interior holes
-                            //we do this by first creating a mask by floodfilling exterior invalid regions
-                            Image mask = new Image(1, bev.Width, bev.Height);
-                            mask.ApplyInPlace(v => 1); //mask=1 means valid
-                            Meshing.AddOuterRegionsToMask(bev, mask);
-                            bev.Inpaint(options.InpaintImages); //inpaint all invalid regions
-                            bev.UnionMask(mask, new float[] { 0 } ); //re-apply the exterior mask
-                        }
-                        if (options.BEVSmoothing > 0)
-                        {
-                            bev = bev.GaussianBoxBlur(options.BEVSmoothing);
-                        }
-                        if (options.BEVDecimation > 1)
-                        {
-                            bev = bev.Decimated(options.BEVDecimation);
-                        }
+                            (options.ColorMeshesBy != Meshing.MeshColor.Normals || options.ConvertNormalsToTilts);
+                        bool ccw = false;
+                        var bev = Meshing.RenderBirdsEyeView(mesh, img, options.BEVMetersPerPixel, greyscale, ccw,
+                                                             options.BEVSparseBlocksize, options.BEVMinValidBlockRatio,
+                                                             options.InpaintImages, options.BEVSmoothing,
+                                                             options.BEVDecimation);
                         if (options.StretchContrast)
                         {
                             bev.ApplyStdDevStretch();
@@ -666,7 +590,7 @@ namespace OPS.Pipeline
                 {
                     mask = mask.Decimated(options.DecimateImages);
                 } 
-                Meshing.AddOuterRegionsToMask(img, mask);
+                img.AddOuterRegionsToMask(mask, invalid: 0);
                 img.Inpaint(options.InpaintImages);
                 img.UnionMask(mask, new float[] { 0 } );
             }
@@ -678,75 +602,6 @@ namespace OPS.Pipeline
             pipeline.LogVerbose("saving {0}x{1} {2} image {3}", img.Width, img.Height, name, file);
             PathHelper.EnsureExists(dir);
             img.Save<byte>(file);
-        }
-
-        private void ColorMesh(Mesh mesh, bool allowAdjustColors = true)
-        {
-            bool greyscale = false;
-            bool adjustColors = false;
-            double min = double.PositiveInfinity;
-            double max = double.NegativeInfinity;
-
-            switch (options.ColorMeshesBy)
-            {
-                case MeshColor.None: break;
-                case MeshColor.Texture: break;
-                case MeshColor.Normals:
-                {
-                    if (options.ConvertNormalsToTilts)
-                    {
-                        Meshing.ColorMeshByNormals(mesh, out min, out max, options.TiltMode);
-                        adjustColors = greyscale = true;
-                    }
-                    else
-                    {
-                        Meshing.ColorMeshByNormals(mesh);
-                    } 
-                    mesh.HasNormals = false;
-                    break;
-                }
-                case MeshColor.Curvature:
-                {
-                    Meshing.ColorMeshByCurvature(mesh, out min, out max);
-                    adjustColors = greyscale = true;
-                    mesh.HasNormals = false;
-                    break;
-                }
-                case MeshColor.Elevation:
-                {
-                    Meshing.ColorMeshByElevation(mesh, out min, out max);
-                    adjustColors = greyscale = true;
-                    mesh.HasNormals = false;
-                    break;
-                }
-            }
-
-            if (adjustColors && allowAdjustColors)
-            {
-                if (options.StretchContrast)
-                {
-                    Meshing.ApplyStdDevStretchToColors(mesh, greyscale);
-                }
-                else if (greyscale)
-                {
-                    foreach (var v in mesh.Vertices)
-                    {
-                        v.Color.X = v.Color.Y = v.Color.Z = (v.Color.X - min) / (max - min);
-                    }
-                }
-            }
-        }
-
-        private double ParsePercent(string val, double total)
-        {
-            if (val.EndsWith("%"))
-            {
-                return double.Parse(val.Substring(0, val.Length - 1)) * 0.01 * total;
-            }
-            else
-            {
-                return double.Parse(val);
-            }
         }
     }
 }
