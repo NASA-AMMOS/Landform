@@ -241,7 +241,7 @@ namespace OPS.Pipeline
                     }
                     case ColorMode.Elevation:
                     {
-                        Meshing.ColorMeshByElevation(mesh, out lower, out upper, absolute: true);
+                        Meshing.ColorMeshByElevation(mesh, out lower, out upper);
                         break;
                     }
                 }
