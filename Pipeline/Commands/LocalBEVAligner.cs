@@ -84,7 +84,7 @@ namespace OPS.Pipeline
         [Option(HelpText = "Image format, e.g. png, jpg, help for list", Default = "png")]
         public string ImageFormat { get; set; }
 
-        [Option(HelpText = "Optimize contrast", Default = true)]
+        [Option(HelpText = "Optimize contrast", Default = false)]
         public bool StretchContrast { get; set; }
 
         [Option(HelpText = "Hide progress", Default = false)]
@@ -383,7 +383,7 @@ namespace OPS.Pipeline
                                  features[siteDrive].Length, options.DetectorType, siteDrive);
                 if (options.WriteDebug)
                 {
-                    var img = FeatureDetecting.DrawFeatures(bev, mask, features[siteDrive], siteDrive);
+                    var img = FeatureDetecting.DrawFeatures(bev, mask, features[siteDrive], siteDrive, stretch: false);
                     string file = outputPath + siteDrive + "_BirdsEyeView_Features" + imageExt;
                     PathHelper.EnsureExists(outputPath);
                     img.Save<byte>(file);

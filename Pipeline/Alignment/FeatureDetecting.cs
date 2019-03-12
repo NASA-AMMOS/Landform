@@ -345,9 +345,10 @@ namespace OPS.Pipeline
             return mask;
         }
 
-        public static Image DrawFeatures(Image img, Image mask, ImageFeature[] features, string imageName = null)
+        public static Image DrawFeatures(Image img, Image mask, ImageFeature[] features, string imageName = null,
+                                         bool stretch = true)
         {
-            var ret = (new Image(img)).ApplyStdDevStretch().ToEmgu<Bgr>();
+            var ret = stretch ?  (new Image(img)).ApplyStdDevStretch().ToEmgu<Bgr>() : img.ToEmgu<Bgr>();
 
             //alpha blend mask into green channel
             if (mask != null)
