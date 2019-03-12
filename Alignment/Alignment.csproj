@@ -78,6 +78,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="ImageFeatures\FeatureDescriptor.cs" />
+    <Compile Include="ImageFeatures\FeatureDetectorBase.cs" />
     <Compile Include="ImageFeatures\ImageFeature.cs" />
     <Compile Include="ImageFeatures\MatchFilters\DescriptorDistanceFilter.cs" />
     <Compile Include="ImageFeatures\Matching\CascadeHashingMatcher.cs" />
@@ -101,6 +102,8 @@
     <Compile Include="ImageFeatures\PCASIFT\PCASIFTIO.cs" />
     <Compile Include="ImageFeatures\PCASIFT\PCASIFTUtil.cs" />
     <Compile Include="ImageFeatures\Interfaces\IFeatureDetector.cs" />
+    <Compile Include="ImageFeatures\SIFT\BRIEFDescriptor.cs" />
+    <Compile Include="ImageFeatures\SIFT\FASTDetector.cs" />
     <Compile Include="ImageFeatures\SIFT\SIFTDescriptor.cs" />
     <Compile Include="ImageFeatures\MatchFilters\MoisanStivalFilter.cs" />
     <Compile Include="ImageFeatures\SIFT\SIFTDetector.cs" />

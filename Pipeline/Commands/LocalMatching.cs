@@ -318,7 +318,7 @@ namespace OPS.Pipeline
             var dataFile = StringHelper.GetLastUrlPathSegment(dataObs.Url);
             var ret = ImageMatching.DrawMatches(modelImg, dataImg, modelFeat, dataFeat, d2m, modelFile, dataFile);
             PathHelper.EnsureExists(dbgDir);
-            ret.Save<byte>(string.Format("{0}{1}-{2}-Matches{3}", dbgDir, modelObs.Name, dataObs.Name, imageExt));
+            ret.Save<byte>(string.Format("{0}{1}_{2}_Matches{3}", dbgDir, modelObs.Name, dataObs.Name, imageExt));
         }
 
         private void WriteMatchMesh(ComputedCorrespondence product, AlignmentScene scene,
@@ -338,7 +338,7 @@ namespace OPS.Pipeline
             {
                 var dir = dbgDir + "meshes/";
                 PathHelper.EnsureExists(dir);
-                ret.Save(string.Format("{0}{1}-{2}-PriorMatches{3}", dir, modelObs.Name, dataObs.Name, meshExt));
+                ret.Save(string.Format("{0}{1}_{2}_PriorMatches{3}", dir, modelObs.Name, dataObs.Name, meshExt));
             }
         }
     }

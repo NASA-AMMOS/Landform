@@ -285,7 +285,7 @@ namespace OPS.Pipeline
             img = FeatureDetecting.DrawFeatures(img, mask, product.Features,
                                                 StringHelper.GetLastUrlPathSegment(imageObs.Url));
             PathHelper.EnsureExists(imageDir);
-            img.Save<byte>(string.Format("{0}{1}-Features{2}", imageDir, imageObs.Name, imageExt));
+            img.Save<byte>(string.Format("{0}{1}_Features{2}", imageDir, imageObs.Name, imageExt));
         }
     }
 }

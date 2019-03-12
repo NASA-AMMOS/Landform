@@ -1255,9 +1255,10 @@ namespace OPS.Pipeline
         /// otherwise the mesh vertex colors will be used
         /// the view is from +Z looking down unless ccw is false, in which case it is from -Z looking up
         /// occlusion is painters algorithm, so sort the mesh faces if you need to
+        /// output meshOrigin is the pixel corresponding to the origin of mesh frame (which may be outside image)
         /// </summary>
         public static Image RenderBirdsEyeView(Mesh mesh, Image img, double metersPerPixel, bool greyscale,
-                                               bool ccw = false)
+                                               out Vector2 meshOrigin, bool ccw = false)
         {
             var meshBounds = mesh.Bounds();
 
@@ -1273,7 +1274,8 @@ namespace OPS.Pipeline
             var ret = new Image(greyscale ? 1 : 3, widthPixels, heightPixels);
             ret.CreateMask(true); //pixels default to masked
 
-            var pixelOrigin = new Vector2(meshBounds.Min.X, meshBounds.Min.Y) * pixelsPerMeter;
+            var offset = new Vector2(meshBounds.Min.X, ccw ? meshBounds.Max.Y : meshBounds.Min.Y);
+            meshOrigin = -1 * offset * pixelsPerMeter;
 
             double relDist(Vector2 p, Vector2 a, Vector2 b)
             {
@@ -1312,9 +1314,9 @@ namespace OPS.Pipeline
                 var v1 = mesh.Vertices[t.P1];
                 var v2 = mesh.Vertices[ccw ? t.P2 : t.P0];
 
-                var p0 = new Vector2(v0.Position.X, v0.Position.Y) * pixelsPerMeter - pixelOrigin;
-                var p1 = new Vector2(v1.Position.X, v1.Position.Y) * pixelsPerMeter - pixelOrigin;
-                var p2 = new Vector2(v2.Position.X, v2.Position.Y) * pixelsPerMeter - pixelOrigin;
+                var p0 = (new Vector2(v0.Position.X, v0.Position.Y) - offset) * pixelsPerMeter;
+                var p1 = (new Vector2(v1.Position.X, v1.Position.Y) - offset) * pixelsPerMeter;
+                var p2 = (new Vector2(v2.Position.X, v2.Position.Y) - offset) * pixelsPerMeter;
 
                 var minR = (int)Math.Max(0, Math.Min(Math.Min(p0.Y, p1.Y), p2.Y));
                 var maxR = (int)Math.Min(ret.Height - 1, Math.Max(Math.Max(p0.Y, p1.Y), p2.Y));
@@ -1354,6 +1356,13 @@ namespace OPS.Pipeline
             }
 
             return ret;
+        }
+
+        public static Image RenderBirdsEyeView(Mesh mesh, Image img, double metersPerPixel, bool greyscale,
+                                               bool ccw = false)
+        {
+            Vector2 meshOrigin;
+            return RenderBirdsEyeView(mesh, img, metersPerPixel, greyscale, out meshOrigin, ccw);
         }
     }
 }

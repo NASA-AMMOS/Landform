@@ -2,9 +2,10 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.IO;
+using Microsoft.Xna.Framework;
 using OPS.Imaging;
 using OPS.MathExtensions;
-using System.IO;
 
 namespace OPS.Imaging
 {
@@ -308,7 +309,7 @@ namespace OPS.Imaging
         /// If there are no valid pixels the return will be a zero-size image.
         /// This method does not retain metadata or camera model.
         /// </summary>
-        public Image Trim()
+        public Image Trim(out Vector2 upperLeftCorner)
         {
             int minValidRow = int.MaxValue;
             int maxValidRow = 0;
@@ -321,6 +322,8 @@ namespace OPS.Imaging
                 minValidCol = Math.Min(minValidCol, ic.Col);
                 maxValidCol = Math.Max(maxValidCol, ic.Col);
             }
+            upperLeftCorner.X = minValidCol;
+            upperLeftCorner.Y = minValidRow;
             if (maxValidRow >= minValidRow && maxValidCol >= minValidCol)
             {
                 return Crop(minValidRow, minValidCol, maxValidCol - minValidCol + 1, maxValidRow - minValidRow + 1);
@@ -334,6 +337,12 @@ namespace OPS.Imaging
                 }
                 return ret;
             }
+        }
+
+        public Image Trim()
+        {
+            Vector2 upperLeftCorner;
+            return Trim(out upperLeftCorner);
         }
 
         public delegate void InvalidBlock(int blockRow, int blockCol, double validRatio);
@@ -1032,6 +1041,19 @@ namespace OPS.Imaging
                 }
             }
             return this;
+        }
+
+        public Image MaskToImage(float valid = 0, float invalid = 1)
+        {
+            var ret = new Image(1, Width, Height);
+            for (int row = 0; row < Height; row++)
+            {
+                for (int col = 0; col < Width; col++)
+                {
+                    ret[0, row, col] = IsValid(row, col) ? valid : invalid;
+                }
+            }
+            return ret;
         }
     }
 }

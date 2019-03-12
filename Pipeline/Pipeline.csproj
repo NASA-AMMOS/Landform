@@ -208,6 +208,7 @@
     <Compile Include="Commands\ConfigureCloud.cs" />
     <Compile Include="Commands\ConfigureLocal.cs" />
     <Compile Include="Commands\LegacyToTile3D.cs" />
+    <Compile Include="Commands\LocalBEVAligner.cs" />
     <Compile Include="Commands\LocalBundleAdjust.cs" />
     <Compile Include="Commands\LocalFeatures.cs" />
     <Compile Include="Commands\LocalIngest.cs" />

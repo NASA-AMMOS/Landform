@@ -24,7 +24,7 @@ namespace OPS.Pipeline
             return CommandLine.Parser.Default.ParseArguments<ConvertBaselineMeshOptions,
                                                              PDSImageConverterOptions,
                                                              ConvertBaselineMeshesOptions,
-                                                             TileBaselineMeshOptions,
+                                                             //TileBaselineMeshOptions,
                                                              TileBaselineMeshesOptions,
                                                              LegacyToWebVROptions,
                                                              LegacyToTile3DOptions,
@@ -36,6 +36,7 @@ namespace OPS.Pipeline
                                                              LocalMatchingOptions,
                                                              LocalBundleAdjustOptions,
                                                              LocalObservationProductsOptions,
+                                                             LocalBEVAlignerOptions,
                                                              ConfigureCloudOptions,
                                                              ConfigureLocalOptions
                                                              >(args)
@@ -43,7 +44,7 @@ namespace OPS.Pipeline
                 (ConvertBaselineMeshOptions opts) => new ConvertBaselineMesh(opts).Run(),
                 (ConvertBaselineMeshesOptions opts) => new ConvertBaselineMeshes(opts).Run(),
                 (TileBaselineMeshOptions opts) => new TileBaselineMesh(opts).Run(),
-                (TileBaselineMeshesOptions opts) => new TileBaselineMeshes(opts).Run(),
+                //(TileBaselineMeshesOptions opts) => new TileBaselineMeshes(opts).Run(),
                 (PDSImageConverterOptions opts) => new PDSImageConverter(opts).Run(),
                 (LegacyToWebVROptions opts) => new LegacyToWebVR(opts).Run(),
                 (LegacyToTile3DOptions opts) => new LegacyToTile3D(opts).Run(),
@@ -55,6 +56,7 @@ namespace OPS.Pipeline
                 (LocalMatchingOptions opts) => new LocalMatching(opts).Run(),
                 (LocalBundleAdjustOptions opts) => new LocalBundleAdjust(opts).Run(),
                 (LocalObservationProductsOptions opts) => new LocalObservationProducts(opts).Run(),
+                (LocalBEVAlignerOptions opts) => new LocalBEVAligner(opts).Run(),
                 (ConfigureCloudOptions opts) => new ConfigureCloud(opts).Run(),
                 (ConfigureLocalOptions opts) => new ConfigureLocal(opts).Run(),
                 errs => 1);

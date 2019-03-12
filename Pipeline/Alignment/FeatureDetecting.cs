@@ -22,18 +22,21 @@ namespace OPS.Pipeline
         {
             SIFT,
             ASIFT,
-            PCASIFT
+            PCASIFT,
+            FAST
         }
 
         public const DetectorType DEF_DETECTOR_TYPE = DetectorType.ASIFT;
         public const double DEF_MIN_FEATURE_SIZE = 0;
         public const double DEF_MIN_RESPONSE = -1;
         public const double DEF_MAX_RESPONSE = -1;
+        public const int DEF_EXTRA_INVALID_RADIUS = 0;
         public const int DEF_MAX_FEATURES = 10000;
         public const int DEF_DECIMATION = 1;
         public const int DEF_SIFT_OCTAVES = 4;
         public const int DEF_MIN_SIFT_OCTAVE = -1;
         public const int DEF_MAX_SIFT_OCTAVE = -1;
+        public const int DEF_FAST_THRESHOLD = 10;
 
         public class Options
         {
@@ -41,11 +44,13 @@ namespace OPS.Pipeline
             public double MinFeatureSize = DEF_MIN_FEATURE_SIZE;
             public double MinResponse = DEF_MIN_RESPONSE;
             public double MaxResponse = DEF_MAX_RESPONSE;
+            public int ExtraInvalidRadius = DEF_EXTRA_INVALID_RADIUS;
             public int MaxFeatures = DEF_MAX_FEATURES;
             public int Decimation = DEF_DECIMATION;
             public int SIFTOctaves = DEF_SIFT_OCTAVES;
             public int MinSIFTOctave = DEF_MIN_SIFT_OCTAVE;
             public int MaxSIFTOctave = DEF_MAX_SIFT_OCTAVE;
+            public int FASTThreshold = DEF_FAST_THRESHOLD;
             public double FeaturesPerImageBucketSize = 0; //1000 is a good value, 0 to disable
             public double FeaturesPerSizeBucketSize = 0; //5 is a good value, 0 to disable
             public double FeaturesPerResponseBucketSize = 0; //0.002 is a good value, 0 to disable
@@ -126,6 +131,11 @@ namespace OPS.Pipeline
                 case DetectorType.PCASIFT:
                 {
                     detector = new PCASIFTDetector() { OctaveLayers = options.SIFTOctaves };
+                    break;
+                }
+                case DetectorType.FAST:
+                {
+                    detector = new FASTDetector() { Threshold = options.FASTThreshold };
                     break;
                 }
             }
@@ -234,13 +244,14 @@ namespace OPS.Pipeline
 
         //feature detectors only check that the center pixel of the feature is not masked
         //here we check that all pixels in the feature rect are in bounds and valid both in img and mask
-        private static IEnumerable<SIFTFeature> FilterInvalid(IEnumerable<SIFTFeature> features, Image img, Image mask)
+        private IEnumerable<SIFTFeature> FilterInvalid(IEnumerable<SIFTFeature> features, Image img, Image mask)
         {
             foreach (var feat in features)
             {
                 int row = (int)feat.Location.Y;
                 int col = (int)feat.Location.X;
                 int radius = (int)(0.5*feat.Size); //yes, round down
+                radius += options.ExtraInvalidRadius;
                 int minR = row - radius;
                 int maxR = row + radius;
                 if (minR < 0 || maxR >= img.Height)

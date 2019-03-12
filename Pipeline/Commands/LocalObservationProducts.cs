@@ -360,13 +360,13 @@ namespace OPS.Pipeline
             }
                                                   
             int no = observations.Count();
-            pipeline.LogInfo("computing observation products for {0} observations{2} under {2}", no,
+            pipeline.LogInfo("computing observation products for {0} observations{1} under {2}", no,
                              siteDrives.Length > 0 ?
                              (" for site drive(s) " +
                               String.Join(",", siteDrives.Select(sd => sd.ToString()).Cast<string>().ToArray())) : "",
                              outputPath);
 
-            //sitedrive => (mesh, image)
+            //sitedrive => (mesh, image), (mesh, image), ...
             var mergeInputs = new ConcurrentDictionary<string, ConcurrentBag<Tuple<Mesh, Image>>>();
 
             double startSec = UTCTime.Now();
@@ -470,7 +470,6 @@ namespace OPS.Pipeline
 
                     if (options.NormalsImages && obs.Normals != null)
                     {
-                        pipeline.LogVerbose("loading normals image {0}", obs.Normals.Name);
                         var normals = pipeline.LoadImage(obs.Normals.Url);
                         Image confidence = null;
                         if (options.ScaleNormalsByConfidence)
@@ -557,7 +556,6 @@ namespace OPS.Pipeline
                     Interlocked.Decrement(ref np);
                     Interlocked.Increment(ref nc);
                 });
-            double totalSec = UTCTime.Now() - startSec;
 
             if (options.MergedSiteDriveMeshes)
             {
@@ -643,6 +641,8 @@ namespace OPS.Pipeline
                     }
                 }
             }
+
+            double totalSec = UTCTime.Now() - startSec;
             pipeline.LogInfo("generated products for {0} observations ({1:F3}s)", no, totalSec);
 
             return 0;

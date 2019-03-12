@@ -17,7 +17,7 @@ namespace OPS.Alignment
         /// </summary>
         /// <param name="image">Image to detect features in</param>
         /// <param name="mask">Optional mask, where zero pixels are unused</param>
-        IEnumerable<ImageFeature> Detect(Image image, Image mask=null);
+        IEnumerable<ImageFeature> Detect(Image image, Image mask = null);
 
         void AddDescriptors(Image image, IEnumerable<ImageFeature> features);
     }

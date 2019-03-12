@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Emgu.CV;
 using Emgu.CV.Structure;
+using Emgu.CV.Features2D;
 using Emgu.CV.XFeatures2D;
 using Emgu.CV.Util;
 using OPS.Imaging;
@@ -13,7 +14,7 @@ namespace OPS.Alignment
     /// <summary>
     /// http://www.cs.ubc.ca/~lowe/papers/ijcv04.pdf
     /// </summary>
-    public class SIFTDetector : IFeatureDetector
+    public class SIFTDetector : FeatureDetectorBase
     {
         //parameter docs come from a combination of
         //http://www.emgu.com/wiki/files/3.0.0/document/html/ca75809a-082d-dcda-6fcf-aaf738e179f0.htm
@@ -40,82 +41,9 @@ namespace OPS.Alignment
         //Use 1.6 as default
         public float Sigma = 1.6f;
 
-        public virtual IEnumerable<ImageFeature> Detect(Image image, Image mask = null)
+        public override Feature2D MakeDetector()
         {
-            return Detect(image.ToEmguGrayscale(), (mask != null) ? mask.ToEmguGrayscale() : null);
-        }
-
-        public IEnumerable<ImageFeature> Detect(Image<Gray, byte> image, Image<Gray, byte> mask = null)
-        {
-            foreach (var keypoint in DetectKeypoints(image, mask))
-            {
-                yield return new SIFTFeature(keypoint);
-            }
-        }
-
-        public MKeyPoint[] DetectKeypoints(Image<Gray, byte> image, Image<Gray, byte> mask = null)
-        {
-            var sift = new SIFT(MaxNumFeatures, OctaveLayers, ContrastThreshold, EdgeThreshold, Sigma);
-            return sift.Detect(image, mask);
-        }
-
-        public virtual void AddDescriptors(Image image, IEnumerable<ImageFeature> features)
-        {
-            AddDescriptors(image.ToEmguGrayscale(), features);
-        }
-
-        public virtual void AddDescriptors(Image<Gray, byte> image, IEnumerable<ImageFeature> features)
-        {
-            var keypoints = features.Cast<SIFTFeature>().CastToMKeyPoint().ToArray();
-            if (keypoints.Length == 0)
-            {
-                return;
-            }
-            var sift = new SIFT(MaxNumFeatures, OctaveLayers, ContrastThreshold, EdgeThreshold, Sigma);
-            var descriptorMatrix = new Matrix<float>(keypoints.Length, 128);
-            sift.Compute(image, new VectorOfKeyPoint(keypoints), descriptorMatrix);
-            int i = 0;
-            foreach (var feature in features)
-            {
-                byte[] data = new byte[128];
-                for (int j = 0; j < 128; j++)
-                {
-                    data[j] = (byte)descriptorMatrix.Data[i, j];
-                }
-                feature.Descriptor = new SIFTDescriptor(data);
-                i++;
-            }
-        }
-
-        /// <summary>
-        /// check that feature is in bounds of image and mask and that none of the pixels in its rect are masked  
-        /// </summary>
-        public static bool CheckValidFeature(ImageFeature feature, Image<Gray, byte> image, Image<Gray, byte> mask)
-        {
-            int row = (int)feature.Location.Y;
-            int col = (int)feature.Location.X;
-            int radius = (int)(0.5*((SIFTFeature)feature).Size); //yes, round down
-            int minR = row - radius;
-            int maxR = row + radius;
-            if (minR < 0 || maxR >= image.Height || maxR >= mask.Height)
-            {
-                return false;
-            }
-            int minC = col - radius;
-            int maxC = col + radius;
-            if (minC < 0 || maxC >= image.Width || maxC >= mask.Width)
-            {
-                return false;
-            }
-            bool ok = true;
-            for (int r = minR; ok && r <= maxR; r++)
-            {
-                for (int c = minC; ok && c <= maxC; c++)
-                {
-                    ok &= mask.Data[r, c, 0] != 0;
-                }
-            }
-            return ok;
+            return new SIFT(MaxNumFeatures, OctaveLayers, ContrastThreshold, EdgeThreshold, Sigma);
         }
     }
 }
