@@ -13,7 +13,7 @@
 #    MacOS: ~/Library/Python/?.?/bin
 
 if [ $# -lt 2 ]; then
-    echo "Usage: fetch-msl.sh destination [locations] sol0 sol1 ..."
+    echo "Usage: fetch-msl.sh destination [includeMastcams] [locations] sol0 sol1 ..."
     exit 1
 fi
 
@@ -29,20 +29,27 @@ shift
 profile=mslice
 
 sols=$@
-
-pfxs=( "proj/msl/redops/ods/surface/sol" "ods/surface/sol" )
-sfxs=( "opgs/rdr/ncam" "soas/rdr/mcam" )
+cameraIndices=( 0 )
+#navcams
+pfxs=( "proj/msl/redops/ods/surface/sol" )
+sfxs=( "opgs/rdr/ncam" )
 for sol in $sols; do
     if [ $sol = "locations" ]; then
         curl http://mars.jpl.nasa.gov/msl-raw-images/locations.xml -o $out/msl/locations.xml
+    elif [ $sol = "includeMastcams" ]; then
+        #mastcams
+        cameraIndices+=( 1 )
+        pfxs+=( "ods/surface/sol" )
+        sfxs+=( "soas/rdr/mcam" )
     else
-        for i in {0..1}; do
-            pfx="${pfxs[i]}"
-            sfx="${sfxs[i]}"
+        for i in "${cameraIndices[@]}"; do
+            pfx="${pfxs[$i]}"
+            sfx="${sfxs[$i]}"
             src="s3://red-product/$pfx/$sol/$sfx"
             dst="$out/$pfx/$sol/$sfx"
             echo "$src -> $dst"
             mkdir -p $dst
+            echo "aws --profile=$profile s3 cp $src $dst --recursive --exclude="*" --include="*.IMG""
             aws --profile=$profile s3 cp $src $dst --recursive --exclude="*" --include="*.IMG"
         done
     fi
