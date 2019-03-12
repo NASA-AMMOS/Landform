@@ -204,6 +204,7 @@ namespace OPS.Pipeline
                     {
                         frame.Save(this);
                     }
+                }
             }
 
             return 0;
