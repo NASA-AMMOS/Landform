@@ -33,7 +33,8 @@ namespace OPS.Pipeline
         [Option(HelpText = "Redo agisoft alignment", Default = false)]
         public bool RedoAlignment { get; set; }
 
-       public bool ClearAgiInputsOutputs { get; set; }
+        [Option(HelpText = "Don't clear agisoft inputs/outputs", Default = false)]
+        public bool DontClearInputsOutputs { get; set; }
 
     }
 
@@ -62,7 +63,7 @@ namespace OPS.Pipeline
             var metaDir = TemporaryFile.GetTempSubdir("agi_meta");
 
             //clear old results
-            if (options.ClearAgiInputsOutputs)
+            if (!options.DontClearInputsOutputs)
             {
                 Directory.Delete(imageDir, true);
                 Directory.Delete(masksDir, true);
