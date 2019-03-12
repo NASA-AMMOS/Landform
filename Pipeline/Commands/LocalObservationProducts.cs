@@ -106,8 +106,20 @@ namespace OPS.Pipeline
         [Option(HelpText = "Write site drive birds eye view images", Default = false)]
         public bool SiteDriveBirdsEyeViews { get; set; }
 
-        [Option(HelpText = "Birds eye view meters per pixel", Default = 0.01)]
+        [Option(HelpText = "Birds eye view meters per pixel", Default = 0.005)]
         public double BEVMetersPerPixel { get; set; }
+
+        [Option(HelpText = "Birds eye view sparse invalidation blocksize", Default = "0.5%")]
+        public string BEVSparseBlocksize { get; set; }
+
+        [Option(HelpText = "Birds eye view sparse invalidation block threshold", Default = 0.8)]
+        public double BEVMinValidBlockRatio { get; set; }
+
+        [Option(HelpText = "Birds eye view smoothing box size (should be odd)", Default = 3)]
+        public int BEVSmoothing { get; set; }
+
+        [Option(HelpText = "Birds eye view decimation", Default = 2)]
+        public int BEVDecimation { get; set; }
 
         [Option(HelpText = "Write all the things", Default = false)]
         public bool AllTheThings { get; set; }
@@ -150,6 +162,8 @@ namespace OPS.Pipeline
     {
         private LocalObservationProductsOptions options;
         private PipelineCore pipeline;
+        private string imageExt;
+        private string meshExt;
 
         public LocalObservationProducts(LocalObservationProductsOptions options)
         {
@@ -240,7 +254,6 @@ namespace OPS.Pipeline
                                                              "alignment/ObservationProducts/" + dir,
                                                              project.Name);
 
-            string meshExt = null;
             if (!options.NoWedgeMeshes || options.FrustumHullMeshes ||
                 options.UncertaintyInflatedFrustumHullMeshes || options.MergedSiteDriveMeshes)
             {
@@ -267,7 +280,6 @@ namespace OPS.Pipeline
                 }
             }
 
-            string imageExt = null;
             if (!options.NoImages || options.NormalsImages || options.CurvatureImages || options.ElevationImages ||
                 options.SiteDriveBirdsEyeViews)
             {
@@ -432,25 +444,27 @@ namespace OPS.Pipeline
                     Image img = null;
                     if (!options.NoImages && obs.Texture != null)
                     {
-                        pipeline.LogVerbose("loading image {0}", obs.Texture.Name);
                         imageFilename = obsName + imageExt;
                         img = pipeline.LoadImage(obs.Texture.Url);
                         if (options.DecimateImages > 1)
                         {
-                            pipeline.LogVerbose("decimating {0}x{1} image {2} by {3}", img.Width, img.Height,
-                                                obs.Texture.Name, options.DecimateImages);
                             img = img.Decimated(options.DecimateImages);
                         }
+                        var wedgeImg = img;
                         if (options.StretchContrast)
                         {
-                            img = img.ApplyStdDevStretch();
+                            if (options.SiteDriveBirdsEyeViews)
+                            {
+                                wedgeImg = (Image)img.Clone();
+                            }
+                            wedgeImg.ApplyStdDevStretch();
                         }
                         if (!options.OnlyMergedSiteDriveMeshes)
                         {
                             string file = tmpPath + imageFilename;
-                            pipeline.LogVerbose("saving {0}x{1} image {2}", img.Width, img.Height, file);
+                            pipeline.LogVerbose("saving {0}x{1} wedge image {2}", wedgeImg.Width, wedgeImg.Height, file);
                             PathHelper.EnsureExists(tmpPath);
-                            img.Save<byte>(file);
+                            wedgeImg.Save<byte>(file);
                         }
                     }
 
@@ -464,11 +478,6 @@ namespace OPS.Pipeline
                             confidence = Meshing.GenerateConfidence(pipeline.LoadImage(obs.Points.Url));
                         }
                         normals = Meshing.ConvertNormals(normals, confidence);
-                        if (options.DecimateImages > 1)
-                        {
-                            pipeline.LogVerbose("decimating {0}x{1} normals image {2} by {3}", normals.Width,
-                                                normals.Height, obs.Normals.Name, options.DecimateImages);
-                        }
                         var mask = RoverMask.LoadOrBuild(pipeline, obs.Mask, obs.Normals);
                         normals = Meshing.MaskAndDecimateNormals(normals, options.DecimateImages, mask);
                         string name = "Normals";
@@ -477,114 +486,33 @@ namespace OPS.Pipeline
                             name = "Tilts";
                             normals = Meshing.NormalsToTilt(normals, options.TiltMode);
                         }
-                        if (options.StretchContrast)
+                        else
                         {
-                            normals = normals.ApplyStdDevStretch();
+                            normals.ApplyInPlace(v => Math.Abs(v));
                         }
-                        if (options.InpaintImages > 0)
-                        {
-                            //we're going to call Inpaint() to try to fill in small holes
-                            //but by its nature it will also inpaint into the rover mask
-                            //we combat this by re-applying the mask after the inpainting
-                            //but there is a third category of bad pixels besides rover mask and small holes:
-                            //outer regions where stereo corelation failed
-                            //so let's try to add them to the mask
-                            if (options.DecimateImages > 1)
-                            {
-                                mask = mask.Decimated(options.DecimateImages);
-                            } 
-                            Meshing.AddOuterRegionsToMask(normals, mask);
-                            normals.Inpaint(options.InpaintImages);
-                            normals.UnionMask(mask, new float[] { 0 } );
-                        }
-                        if (options.ConvertNormalsToTilts && options.ThresholdImages > 0)
-                        {
-                            normals.ApplyInPlace(v => v > options.ThresholdImages ? 1 : 0);
-                        }
-                        string file = tmpPath + obsName + "_" + name + imageExt;
-                        pipeline.LogVerbose("saving {0}x{1} normals image {2}", normals.Width, normals.Height, file);
-                        PathHelper.EnsureExists(tmpPath);
-                        normals.Save<byte>(file, ImageConverters.AbsNormalizedImageToValueRange);
+                        FinishImage(normals, mask, tmpPath, obsName, name);
+
                     }
 
                     if (options.CurvatureImages && obs.Points != null && obs.Normals != null)
                     {
-                        pipeline.LogVerbose("loading points image {0} and normals image {1} to make curvature image",
-                                            obs.Points.Name, obs.Normals.Name);
                         var points = Meshing.ConvertPoints(pipeline.LoadImage(obs.Points.Url));
                         var normals = Meshing.ConvertNormals(pipeline.LoadImage(obs.Normals.Url));
-                        if (options.DecimateImages > 1)
-                        {
-                            pipeline.LogVerbose("decimating points and normals images by {1}", options.DecimateImages);
-                        }
                         var mask = RoverMask.LoadOrBuild(pipeline, obs.Mask, obs.Points);
                         points = Meshing.MaskAndDecimatePoints(points, options.DecimateImages, mask);
                         normals = Meshing.MaskAndDecimateNormals(normals, options.DecimateImages, mask);
-                        string name = "Curvature";
                         var curvatures = Meshing.ComputeCurvatures(points, normals, !options.StretchContrast,
                                                                    options.CurvatureNeighborhood);
-                        if (options.StretchContrast)
-                        {
-                            curvatures = curvatures.ApplyStdDevStretch();
-                        }
-                        if (options.InpaintImages > 0)
-                        {
-                            //see comment above
-                            if (options.DecimateImages > 1)
-                            {
-                                mask = mask.Decimated(options.DecimateImages);
-                            } 
-                            Meshing.AddOuterRegionsToMask(curvatures, mask);
-                            curvatures.Inpaint(options.InpaintImages);
-                            curvatures.UnionMask(mask, new float[] { 0 } );
-                        }
-                        if (options.ThresholdImages > 0)
-                        {
-                            curvatures.ApplyInPlace(v => v > options.ThresholdImages ? 1 : 0);
-                        }
-                        string file = tmpPath + obsName + "_" + name + imageExt;
-                        pipeline.LogVerbose("saving {0}x{1} curvtures image {2}", normals.Width, normals.Height, file);
-                        PathHelper.EnsureExists(tmpPath);
-                        curvatures.Save<byte>(file);
+                        FinishImage(curvatures, mask, tmpPath, obsName, "Curvature");
                     }
 
                     if (options.ElevationImages && obs.Points != null)
                     {
-                        pipeline.LogVerbose("loading points image to generate elevations {0}", obs.Points.Name);
                         var points = Meshing.ConvertPoints(pipeline.LoadImage(obs.Points.Url));
-                        if (options.DecimateImages > 1)
-                        {
-                            pipeline.LogVerbose("decimating {0}x{1} points image {2} by {3}", points.Width,
-                                                points.Height, obs.Points.Name, options.DecimateImages);
-                        }
                         var mask = RoverMask.LoadOrBuild(pipeline, obs.Mask, obs.Points);
                         points = Meshing.MaskAndDecimatePoints(points, options.DecimateImages, mask);
-                        string name = "Elevations";
                         var elevations = Meshing.PointsToElevation(points, normalize: !options.StretchContrast);
-                        if (options.StretchContrast)
-                        {
-                            elevations = elevations.ApplyStdDevStretch();
-                        }
-                        if (options.InpaintImages > 0)
-                        {
-                            //see comment above
-                            if (options.DecimateImages > 1)
-                            {
-                                mask = mask.Decimated(options.DecimateImages);
-                            } 
-                            Meshing.AddOuterRegionsToMask(elevations, mask);
-                            elevations.Inpaint(options.InpaintImages);
-                            elevations.UnionMask(mask, new float[] { 0 } );
-                        }
-                        if (options.ThresholdImages > 0)
-                        {
-                            elevations.ApplyInPlace(v => v > options.ThresholdImages ? 1 : 0);
-                        }
-                        string file = tmpPath + obsName + "_" + name + imageExt;
-                        pipeline.LogVerbose("saving {0}x{1} elevations image {2}",
-                                            elevations.Width, elevations.Height, file);
-                        PathHelper.EnsureExists(tmpPath);
-                        elevations.Save<byte>(file);
+                        FinishImage(elevations, mask, tmpPath, obsName, "Elevation");
                     }
 
                     if (options.MergedSiteDriveMeshes && mesh != null)
@@ -642,7 +570,7 @@ namespace OPS.Pipeline
                     var mesh = pair.Item1;
                     var img = pair.Item2;
 
-                    ColorMesh(mesh);
+                    ColorMesh(mesh, allowAdjustColors: !options.SiteDriveBirdsEyeViews);
 
                     string imageFilename = null;
                     if (img != null)
@@ -664,11 +592,52 @@ namespace OPS.Pipeline
 
                     if (options.SiteDriveBirdsEyeViews)
                     {
+                        pipeline.LogInfo("generating birds eye view for site drive {0}", siteDrive);
                         bool greyscale = !withUVs &&
                             (options.ColorMeshesBy != MeshColor.Normals || options.ConvertNormalsToTilts);
                         var bev = Meshing.RenderBirdsEyeView(mesh, img, options.BEVMetersPerPixel, greyscale);
+                        var bs = (int)ParsePercent(options.BEVSparseBlocksize, Math.Max(bev.Width, bev.Height));
+                        if (bs > 0)
+                        {
+                            pipeline.LogVerbose("sparse block size {0}, min valid block ratio {1}",
+                                                bs, options.BEVMinValidBlockRatio);
+                            bev = bev.InvalidateSparseExternalBlocks(bs, options.BEVMinValidBlockRatio);
+                            bev = bev.RemoveAllButLargestValidBlob();
+                            bev = bev.Trim();
+                        }
+                        if (options.InpaintImages > 0)
+                        {
+                            //inpaint just the interior holes
+                            //we do this by first creating a mask by floodfilling exterior invalid regions
+                            Image mask = new Image(1, bev.Width, bev.Height);
+                            mask.ApplyInPlace(v => 1); //mask=1 means valid
+                            Meshing.AddOuterRegionsToMask(bev, mask);
+                            bev.Inpaint(options.InpaintImages); //inpaint all invalid regions
+                            bev.UnionMask(mask, new float[] { 0 } ); //re-apply the exterior mask
+                        }
+                        if (options.BEVSmoothing > 0)
+                        {
+                            bev = bev.GaussianBoxBlur(options.BEVSmoothing);
+                        }
+                        if (options.BEVDecimation > 1)
+                        {
+                            bev = bev.Decimated(options.BEVDecimation);
+                        }
+                        if (options.StretchContrast)
+                        {
+                            bev.ApplyStdDevStretch();
+                        }
+                        else if (bev.Bands == 1)
+                        {
+                            bev.Normalize();
+                        }
+                        if (bev.Bands == 1 && options.ThresholdImages > 0)
+                        {
+                            bev.ApplyInPlace(v => v > options.ThresholdImages ? 1 : 0);
+                        }
                         string file = outputPath + siteDrive + "_BirdsEyeView" + imageExt;
-                        pipeline.LogVerbose("saving merged sitedrive birds eye view {0}", file);
+                        pipeline.LogVerbose("saving {0}x{1} merged sitedrive birds eye view {2}",
+                                            bev.Width, bev.Height, file);
                         PathHelper.EnsureExists(outputPath);
                         bev.Save<byte>(file);
                     }
@@ -679,8 +648,45 @@ namespace OPS.Pipeline
             return 0;
         }
 
-        private void ColorMesh(Mesh mesh)
+        private void FinishImage(Image img, Image mask, string dir, string basename, string name)
         {
+            if (options.StretchContrast)
+            {
+                img = img.ApplyStdDevStretch();
+            }
+            if (options.InpaintImages > 0)
+            {
+                //we're going to call Inpaint() to try to fill in small holes
+                //but by its nature it will also inpaint into the rover mask
+                //we combat this by re-applying the mask after the inpainting
+                //but there is a third category of bad pixels besides rover mask and small holes:
+                //outer regions where stereo corelation failed
+                //so let's try to add them to the mask
+                if (options.DecimateImages > 1)
+                {
+                    mask = mask.Decimated(options.DecimateImages);
+                } 
+                Meshing.AddOuterRegionsToMask(img, mask);
+                img.Inpaint(options.InpaintImages);
+                img.UnionMask(mask, new float[] { 0 } );
+            }
+            if (img.Bands == 1 && options.ThresholdImages > 0)
+            {
+                img.ApplyInPlace(v => v > options.ThresholdImages ? 1 : 0);
+            }
+            string file = dir + basename + "_" + name + imageExt;
+            pipeline.LogVerbose("saving {0}x{1} {2} image {3}", img.Width, img.Height, name, file);
+            PathHelper.EnsureExists(dir);
+            img.Save<byte>(file);
+        }
+
+        private void ColorMesh(Mesh mesh, bool allowAdjustColors = true)
+        {
+            bool greyscale = false;
+            bool adjustColors = false;
+            double min = double.PositiveInfinity;
+            double max = double.NegativeInfinity;
+
             switch (options.ColorMeshesBy)
             {
                 case MeshColor.None: break;
@@ -689,27 +695,57 @@ namespace OPS.Pipeline
                 {
                     if (options.ConvertNormalsToTilts)
                     {
-                        Meshing.ColorMeshByNormals(mesh, options.StretchContrast, options.TiltMode);
+                        Meshing.ColorMeshByNormals(mesh, out min, out max, options.TiltMode);
+                        adjustColors = greyscale = true;
                     }
                     else
                     {
-                        Meshing.ColorMeshByNormals(mesh, options.StretchContrast);
+                        Meshing.ColorMeshByNormals(mesh);
                     } 
                     mesh.HasNormals = false;
                     break;
                 }
                 case MeshColor.Curvature:
                 {
-                    Meshing.ColorMeshByCurvature(mesh, !options.StretchContrast, options.StretchContrast);
+                    Meshing.ColorMeshByCurvature(mesh, out min, out max);
+                    adjustColors = greyscale = true;
                     mesh.HasNormals = false;
                     break;
                 }
                 case MeshColor.Elevation:
                 {
-                    Meshing.ColorMeshByElevation(mesh, !options.StretchContrast, options.StretchContrast);
+                    Meshing.ColorMeshByElevation(mesh, out min, out max);
+                    adjustColors = greyscale = true;
                     mesh.HasNormals = false;
                     break;
                 }
+            }
+
+            if (adjustColors && allowAdjustColors)
+            {
+                if (options.StretchContrast)
+                {
+                    Meshing.ApplyStdDevStretchToColors(mesh, greyscale);
+                }
+                else if (greyscale)
+                {
+                    foreach (var v in mesh.Vertices)
+                    {
+                        v.Color.X = v.Color.Y = v.Color.Z = (v.Color.X - min) / (max - min);
+                    }
+                }
+            }
+        }
+
+        private double ParsePercent(string val, double total)
+        {
+            if (val.EndsWith("%"))
+            {
+                return double.Parse(val.Substring(0, val.Length - 1)) * 0.01 * total;
+            }
+            else
+            {
+                return double.Parse(val);
             }
         }
     }

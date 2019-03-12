@@ -20,9 +20,11 @@ namespace OPS.Imaging
         public CameraModel CameraModel;
 
         public T[][] Data;        
+
         public int Bands;
         public int Width;
         public int Height;
+
         /// <summary>
         /// A mask value of true indicates that the value is masked out
         /// A mask value of false indicates that the value is valid
@@ -31,10 +33,7 @@ namespace OPS.Imaging
         /// </summary>
         protected bool[] Mask;
 
-        protected GenericImage()
-        {
-
-        }
+        protected GenericImage() { }
 
         /// <summary>
         /// Create a new, blank image.

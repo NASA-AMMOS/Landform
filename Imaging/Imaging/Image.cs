@@ -249,6 +249,31 @@ namespace OPS.Imaging
         }
 
         /// <summary>
+        /// Normalize the color channels of this image to 0-1
+        /// NOTE that bands with no variance (ie all the same value) will not be scaled and could be outside the 0-1 range
+        /// NOTE masked values are also not scaled and could remain outside the 0-1 range
+        /// </summary>
+        public Image Normalize()
+        {
+            ImageStatistics stats = new ImageStatistics(this);
+            for (int b = 0; b < this.Bands; b++)
+            {
+                if (stats.Average(b).Count <= 1)
+                {
+                    continue;
+                }
+                double min = stats.Average(b).Min;
+                double max = stats.Average(b).Max;
+                // Scaling values is invalid if min and max are the same
+                if (min != max)
+                {
+                    ScaleValues(b, (float)min, (float)max, 0, 1);
+                }
+            }
+            return this;
+        }
+
+        /// <summary>
         /// Crop the source image to the specified dimensions.  Return a new image of the cropped area.
         /// This method does not retain metadata or camera model.
         /// </summary>
@@ -277,12 +302,253 @@ namespace OPS.Imaging
         }
 
         /// <summary>
-        /// Simulate a guassian blur with a series of box blurs in place
+        /// Crop this image to the smallest subframe that contains all valid pixels.
+        /// Returns a new image of the cropped area.
+        /// If there is no mask the return will just be a copy of this image.
+        /// If there are no valid pixels the return will be a zero-size image.
+        /// This method does not retain metadata or camera model.
+        /// </summary>
+        public Image Trim()
+        {
+            int minValidRow = int.MaxValue;
+            int maxValidRow = 0;
+            int minValidCol = int.MaxValue;
+            int maxValidCol = 0;
+            foreach (ImageCoordinate ic in Coordinates(includeInvalidValues: false))
+            {
+                minValidRow = Math.Min(minValidRow, ic.Row);
+                maxValidRow = Math.Max(maxValidRow, ic.Row);
+                minValidCol = Math.Min(minValidCol, ic.Col);
+                maxValidCol = Math.Max(maxValidCol, ic.Col);
+            }
+            if (maxValidRow >= minValidRow && maxValidCol >= minValidCol)
+            {
+                return Crop(minValidRow, minValidCol, maxValidCol - minValidCol + 1, maxValidRow - minValidRow + 1);
+            }
+            else
+            {
+                var ret = new Image(Bands, 0, 0);
+                if (HasMask)
+                {
+                    ret.CreateMask();
+                }
+                return ret;
+            }
+        }
+
+        public delegate void InvalidBlock(int blockRow, int blockCol, double validRatio);
+
+        /// <summary>
+        /// Count the number of valid (i.e. un-masked) pixels in each blocksize x blocksize chunk of this image.
+        /// For each chunk where the ratio of the number of valid pixels to total in block is less than minValidRatio,
+        /// invalidate (i.e. mask) all pixels in the block.
+        /// Operates on the image in-place.
+        /// If callback is provided then it is called for each invalid block instead of actually invalidating the block.
+        /// </summary>
+        public Image InvalidateSparseBlocks(int blocksize, double minValidRatio, InvalidBlock callback = null)
+        {
+            if (HasMask)
+            {
+                int hBlocks = (int)Math.Ceiling(((double)Width) / blocksize);
+                int vBlocks = (int)Math.Ceiling(((double)Height) / blocksize);
+                for (int vBlock = 0; vBlock < vBlocks; vBlock++)
+                {
+                    int maxR = Math.Min(Height, (vBlock + 1) * blocksize);
+                    for (int hBlock = 0; hBlock < hBlocks; hBlock++)
+                    {
+                        int maxC = Math.Min(Width, (hBlock + 1) * blocksize);
+                        int numValid = 0, numTotal = 0;
+                        for (int r = vBlock * blocksize; r < maxR; r++)
+                        {
+                            for (int c = hBlock * blocksize; c < maxC; c++)
+                            {
+                                numTotal++;
+                                if (IsValid(r, c))
+                                {
+                                    numValid++;
+                                }
+                            }
+                        }
+
+                        if (numTotal > 0)
+                        {
+                            double ratio = ((double)numValid) / numTotal;
+                            if (ratio < minValidRatio)
+                            {
+                                if (callback != null)
+                                {
+                                    callback(vBlock, hBlock, ratio);
+                                }
+                                else
+                                {
+                                    for (int r = vBlock * blocksize; r < maxR; r++)
+                                    {
+                                        for (int c = hBlock * blocksize; c < maxC; c++)
+                                        {
+                                            SetMaskValue(r, c, true);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    } //for each block in row
+                } //for each row of blocks
+            } //has mask
+            return this;
+        }
+
+        /// <summary>
+        /// invalidate sparse blocks that are not fully surrounded by valid blocks
+        /// </summary>
+        public Image InvalidateSparseExternalBlocks(int blocksize, double minValidRatio)
+        {
+            if (!HasMask)
+            {
+                return this;
+            }
+
+            int hBlocks = (int)Math.Ceiling(((double)Width) / blocksize);
+            int vBlocks = (int)Math.Ceiling(((double)Height) / blocksize);
+
+            //marked[row, col] = false means block is not invalid or has already been invalidated
+            var marked = new bool[vBlocks, hBlocks];
+            var seeds = new Queue<Pixel>(); //invalid border blocks
+
+            //mark all invalid blocks and collect seeds
+            InvalidateSparseBlocks(blocksize, minValidRatio,
+                                   (row, col, ratio) => {
+                                       marked[row, col] = true;
+                                       if (row == 0 || row == vBlocks - 1 || col == 0 || col == hBlocks - 1)
+                                       {
+                                           seeds.Enqueue(new Pixel(row, col));
+                                       }
+                                   });
+
+            var offsets = new Pixel[] { new Pixel(-1, 0), new Pixel(1, 0), new Pixel(0, -1), new Pixel(0, 1) };
+
+            //DFS from each seed to invalidate blocks reachable from an invalid block on the image border
+            while (seeds.Count > 0)
+            {
+                var seed = seeds.Dequeue();
+                if (marked[seed.Row, seed.Col])
+                {
+                    marked[seed.Row, seed.Col] = false;
+                    int maxR = Math.Min(Height, (seed.Row + 1) * blocksize);
+                    int maxC = Math.Min(Width, (seed.Col + 1) * blocksize);
+                    for (int r = seed.Row * blocksize; r < maxR; r++)
+                    {
+                        for (int c = seed.Col * blocksize; c < maxC; c++)
+                        {
+                            SetMaskValue(r, c, true);
+                        }
+                    }
+                    foreach (var offset in offsets)
+                    {
+                        var n = seed + offset;
+                        if (n.Row >= 0 && n.Row < vBlocks && n.Col >= 0 && n.Col < hBlocks && marked[n.Row, n.Col])
+                        {
+                            seeds.Enqueue(n);
+                        }
+                    }
+                }
+            }
+
+            return this;
+        }
+
+        public Image RemoveAllButLargestValidBlob(out int largestBlobSize)
+        {
+            if (!HasMask)
+            {
+                largestBlobSize = Width * Height;
+                return this;
+            }
+
+            var marked = new bool[Height, Width];
+
+            var seeds = new Queue<Pixel>();
+            var offsets = new Pixel[] { new Pixel(-1, 0), new Pixel(1, 0), new Pixel(0, -1), new Pixel(0, 1) };
+            int markBlob(Pixel seed)
+            {
+                int size = 0;
+                seeds.Enqueue(seed);
+                while (seeds.Count > 0)
+                {
+                    var px = seeds.Dequeue();
+                    if (!marked[px.Row, px.Col])
+                    {
+                        size++;
+                        marked[px.Row, px.Col] = true;
+                        foreach (var offset in offsets)
+                        {
+                            var n = px + offset;
+                            if (n.Row >= 0 && n.Row < Height && n.Col >= 0 && n.Col < Width && !marked[n.Row, n.Col] &&
+                                IsValid(n.Row, n.Col))
+                            {
+                                seeds.Enqueue(n);
+                            }
+                        }
+                    }
+                }
+                return size;
+            }
+
+            largestBlobSize = 0;
+            Pixel seedOfLargestBlob = null;
+            for (int row = 0; row < Height; row++)
+            {
+                for (int col = 0; col < Width; col++)
+                {
+                    if (IsValid(row, col) && !marked[row, col])
+                    {
+                        var seed = new Pixel(row, col);
+                        int size = markBlob(seed);
+                        if (size > largestBlobSize)
+                        {
+                            largestBlobSize = size;
+                            seedOfLargestBlob = seed;
+                        }
+                    }
+                }
+            }
+
+            if (largestBlobSize > 0)
+            {
+                for (int row = 0; row < Height; row++)
+                {
+                    for (int col = 0; col < Width; col++)
+                    {
+                        marked[row, col] = false;
+                    }
+                }
+                markBlob(seedOfLargestBlob);
+                for (int row = 0; row < Height; row++)
+                {
+                    for (int col = 0; col < Width; col++)
+                    {
+                        if (!marked[row, col])
+                        {
+                            SetMaskValue(row, col, true);
+                        }
+                    }
+                }
+            }
+            return this;
+        }
+
+        public Image RemoveAllButLargestValidBlob()
+        {
+            int largestBlobSize;
+            return RemoveAllButLargestValidBlob(out largestBlobSize);
+        }
+
+        /// <summary>
+        /// Simulate a Gaussian blur with a series of box blurs in place
         /// </summary>
         /// <param name="r"></param>
-        public Image GuassianBoxBlur(int r)
+        public Image GaussianBoxBlur(int r)
         {
-            Blur.GuassianBoxBlur(this, r);
+            Blur.GaussianBoxBlur(this, r);
             return this;
         }
 
@@ -681,6 +947,7 @@ namespace OPS.Imaging
         /// respects image mask, if any
         /// resulting image will have mask set for any source block that had no valid pixels
         /// does not mutate source image
+        /// This method does not retain metadata or camera model.
         /// </summary>
         public Image Decimated(int blocksize)
         {

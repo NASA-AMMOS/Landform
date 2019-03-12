@@ -38,22 +38,6 @@ namespace OPS.Pipeline
 
     public class Meshing
     {
-        private struct Pixel
-        {
-            public int Row, Col;
-
-            public Pixel(int row, int col)
-            {
-                this.Row = row;
-                this.Col = col;
-            }
-
-            public static Pixel operator+(Pixel a, Pixel b)
-            {
-                return new Pixel(a.Row + b.Row, a.Col + b.Col);
-            }
-        };
-
         /// <summary>
         /// check if an observation is from a mastcam
         /// </summary>
@@ -579,14 +563,16 @@ namespace OPS.Pipeline
         /// set vertex color components as absolute values of normal components
         /// if tiltMode is set then a greyscale color is set instead, see NormalToTilt()
         /// </summary>
-        public static Mesh ColorMeshByNormals(Mesh mesh, bool stretch = false, TiltMode? tiltMode = null,
-                                              Vector3? up = null) 
+        public static Mesh ColorMeshByNormals(Mesh mesh, out double minTilt, out double maxTilt,
+                                              TiltMode? tiltMode = null, Vector3? up = null) 
         {
             if (up == null)
             {
                 up = new Vector3(0, 0, -1);
             }
 
+            minTilt = double.PositiveInfinity;
+            maxTilt = double.NegativeInfinity;
             foreach (var v in mesh.Vertices)
             {
                 var n = v.Normal;
@@ -598,23 +584,27 @@ namespace OPS.Pipeline
                 }
                 else
                 {
-                    v.Color.X = v.Color.Y = v.Color.Z = NormalToTilt(n, tiltMode.Value, up.Value);
+                    var tilt = NormalToTilt(n, tiltMode.Value, up.Value);
+                    minTilt = Math.Min(minTilt, tilt);
+                    maxTilt = Math.Max(maxTilt, tilt);
+                    v.Color.X = v.Color.Y = v.Color.Z = tilt;
                 }
             }
-
-            if (stretch)
-            {
-                ApplyStdDevStretchToColors(mesh, greyscale: tiltMode.HasValue);
-            }
-
             mesh.HasColors = true;
             return mesh;
+        }
+
+        public static Mesh ColorMeshByNormals(Mesh mesh, TiltMode? tiltMode = null, Vector3? up = null) 
+        {
+            double minTilt, maxTilt;
+            return ColorMeshByNormals(mesh, out minTilt, out maxTilt, tiltMode, up);
         }
 
         /// <summary>
         /// convert a points image to a scalar elevation image  
         /// </summary>
-        public static Image PointsToElevation(Image img, bool normalize = true, bool absolute = false, Vector3? up = null)
+        public static Image PointsToElevation(Image img, bool normalize = true, bool absolute = false,
+                                              Vector3? up = null)
         {
             if (up == null)
             {
@@ -665,18 +655,9 @@ namespace OPS.Pipeline
                 }
             }
 
-            if (normalize && max > min)
+            if (normalize)
             {
-                for (int row = 0; row < ret.Height; row++)
-                {
-                    for (int col = 0; col < ret.Width; col++)
-                    {
-                        if (ret.IsValid(row, col))
-                        {
-                            ret[0, row, col] = (ret[0, row, col] - min) / (max - min);
-                        }
-                    }
-                }
+                ret.ScaleValues(min, max, 0, 1);
             }
 
             return ret;
@@ -685,8 +666,8 @@ namespace OPS.Pipeline
         /// <summary>
         /// compute elevation at each vertex and set it as greyscale vertex color
         /// </summary>
-        public static Mesh ColorMeshByElevation(Mesh mesh, bool normalize = false, bool stretch = false,
-                                                bool absolute = false, Vector3? up = null) 
+        public static Mesh ColorMeshByElevation(Mesh mesh, out double min, out double max, bool absolute = false,
+                                                Vector3? up = null) 
         {
             if (up == null)
             {
@@ -695,8 +676,8 @@ namespace OPS.Pipeline
 
             var ctr = absolute ? new Vector3(0, 0, 0) : mesh.Bounds().Center();
 
-            double min = double.PositiveInfinity;
-            double max = double.NegativeInfinity;
+            min = double.PositiveInfinity;
+            max = double.NegativeInfinity;
             foreach (var v in mesh.Vertices)
             {
                 var elev = (v.Position - ctr).Dot(up.Value);
@@ -704,21 +685,15 @@ namespace OPS.Pipeline
                 min = Math.Min(min, elev);
                 max = Math.Max(max, elev);
             }
-
-            if (stretch)
-            {
-                ApplyStdDevStretchToColors(mesh, greyscale: true);
-            }
-            else if (normalize && max > min)
-            {
-                foreach (var v in mesh.Vertices)
-                {
-                    v.Color.X = v.Color.Y = v.Color.Z = (v.Color.X - min) / (max - min);
-                }
-            }
-
+            
             mesh.HasColors = true;
             return mesh;
+        }
+
+        public static Mesh ColorMeshByElevation(Mesh mesh, bool absolute = false, Vector3? up = null) 
+        {
+            double min, max;
+            return ColorMeshByElevation(mesh, out min, out max, absolute, up);
         }
 
         public enum Neighborhood { Four = 4, Eight = 8 };
@@ -805,18 +780,9 @@ namespace OPS.Pipeline
                 }
             }
 
-            if (normalize && max > min)
+            if (normalize)
             {
-                for (int row = 0; row < ret.Height; row++)
-                {
-                    for (int col = 0; col < ret.Width; col++)
-                    {
-                        if (ret.IsValid(row, col))
-                        {
-                            ret[0, row, col] = (ret[0, row, col] - min) / (max - min);
-                        }
-                    }
-                }
+                ret.ScaleValues(min, max, 0, 1);
             }
 
             return ret;
@@ -825,12 +791,12 @@ namespace OPS.Pipeline
         /// <summary>
         /// compute approximate max abs curvature at each vertex and set it as greyscale vertex color
         /// </summary>
-        public static Mesh ColorMeshByCurvature(Mesh mesh, bool normalize = false, bool stretch = false)
+        public static Mesh ColorMeshByCurvature(Mesh mesh, out double min, out double max)
         {
             var graph = new EdgeGraph(mesh);
 
-            double min = double.PositiveInfinity;
-            double max = double.NegativeInfinity;
+            min = double.PositiveInfinity;
+            max = double.NegativeInfinity;
             foreach (var v in graph.VertNodes)
             {
                 double maxAbsCurvature = 0;
@@ -843,21 +809,14 @@ namespace OPS.Pipeline
                 min = Math.Min(min, maxAbsCurvature);
                 max = Math.Max(max, maxAbsCurvature);
             }
-
-            if (stretch)
-            {
-                ApplyStdDevStretchToColors(mesh, greyscale: true);
-            }
-            else if (normalize && max > min)
-            {
-                foreach (var v in mesh.Vertices)
-                {
-                    v.Color.X = v.Color.Y = v.Color.Z = (v.Color.X - min) / (max - min);
-                }
-            }
-
             mesh.HasColors = true;
             return mesh;
+        }
+
+        public static Mesh ColorMeshByCurvature(Mesh mesh)
+        {
+            double min, max;
+            return ColorMeshByCurvature(mesh, out min, out max);
         }
 
         /// <summary>
@@ -1312,6 +1271,7 @@ namespace OPS.Pipeline
 
             greyscale |= img != null && img.Bands == 1;
             var ret = new Image(greyscale ? 1 : 3, widthPixels, heightPixels);
+            ret.CreateMask(true); //pixels default to masked
 
             var pixelOrigin = new Vector2(meshBounds.Min.X, meshBounds.Min.Y) * pixelsPerMeter;
 
@@ -1343,6 +1303,7 @@ namespace OPS.Pipeline
                         ret[2, r, c] = (float)(v0.Color.Z * alpha + v1.Color.Z * beta + v2.Color.Z * gamma);
                     }
                 }
+                ret.SetMaskValue(r, c, false);
             }
 
             foreach (var t in mesh.Faces)
@@ -1391,7 +1352,7 @@ namespace OPS.Pipeline
                     }
                 }
             }
-                                
+
             return ret;
         }
     }

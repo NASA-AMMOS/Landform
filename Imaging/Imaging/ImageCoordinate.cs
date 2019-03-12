@@ -6,35 +6,29 @@ using System.Threading.Tasks;
 
 namespace OPS.Imaging
 {
-    /// <summary>
-    /// Represents a coordinate in an image
-    /// </summary>
-    public struct ImageCoordinate
+    public class Pixel
     {
-        /// <summary>
-        /// Band
-        /// </summary>
-        public int Band;
-        /// <summary>
-        /// Row
-        /// </summary>
-        public int Row;
-        /// <summary>
-        /// Column
-        /// </summary>
-        public int Col;
+        public int Row, Col;
         
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="b">Band</param>
-        /// <param name="r">Row</param>
-        /// <param name="c">Column</param>
-        public ImageCoordinate(int b, int r, int c)
+        public Pixel(int row, int col)
+        {
+            this.Row = row;
+            this.Col = col;
+        }
+        
+        public static Pixel operator+(Pixel a, Pixel b)
+        {
+            return new Pixel(a.Row + b.Row, a.Col + b.Col);
+        }
+    }
+
+    public class ImageCoordinate : Pixel
+    {
+        public int Band;
+
+        public ImageCoordinate(int b, int r, int c) : base(r, c)
         {
             this.Band = b;
-            this.Row = r;
-            this.Col = c;
         }
     }
 }
