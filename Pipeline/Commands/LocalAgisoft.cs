@@ -326,7 +326,7 @@ namespace OPS.Pipeline
                 XmlNode sensorNode = sensorsNode.OwnerDocument.CreateElement("sensor");
                 sensorsNode.AppendChild(sensorNode);
                 AddAttributeXml(sensorNode, "id", sensorId.ToString());
-                AddAttributeXml(sensorNode, "label", roverProdCam.ToString() + "_" + widthPixels + "_" + heightPixels);
+                AddAttributeXml(sensorNode, "label", roverProdCam.ToString() + "_" + widthPixels + "_" + heightPixels + "_" + bands);
 
                 if (roverProdCam.ToString().Contains("Hazcam"))
                     throw new NotImplementedException("hazcams may need a fisheye camera type set here");
