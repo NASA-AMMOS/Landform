@@ -348,6 +348,12 @@ namespace OPS.Pipeline
         public static Image DrawFeatures(Image img, Image mask, ImageFeature[] features, string imageName = null,
                                          bool stretch = true)
         {
+            return DrawFeaturesEmgu(img, mask, features, imageName, stretch).ToOPSImage();
+        }
+
+        public static Image<Bgr, byte> DrawFeaturesEmgu(Image img, Image mask, ImageFeature[] features,
+                                                        string imageName = null, bool stretch = true)
+        {
             var ret = stretch ?  (new Image(img)).ApplyStdDevStretch().ToEmgu<Bgr>() : img.ToEmgu<Bgr>();
 
             //alpha blend mask into green channel
@@ -383,7 +389,7 @@ namespace OPS.Pipeline
                              FontFace.HersheySimplex, 1, new Bgr(255, 0, 255), 2);
                 }
             }
-            return ret.ToOPSImage();
+            return ret;
         }
 
         public static int AddRange(IEnumerable<ImageFeature> features, Image img, Image points)

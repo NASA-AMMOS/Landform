@@ -252,7 +252,7 @@ namespace OPS.Pipeline
         
         public static Image DrawMatches(Image modelImg, Image dataImg, ImageFeature[] modelFeatures,
                                         ImageFeature[] dataFeatures, KeyValuePair<int, int>[] dataToModel,
-                                        string modelName = null, string dataName = null)
+                                        string modelName = null, string dataName = null, bool stretch = true)
         {
             var modelFeaturesForDataFeature = new Dictionary<int, HashSet<int>>();
             foreach (var pair in dataToModel)
@@ -284,8 +284,10 @@ namespace OPS.Pipeline
             var lineColor = new MCvScalar(0, 0, 255); //RGB
             var pointColor = new MCvScalar(255, 255, 0); //RGB
             var ret = new Image<Bgr, byte>(modelImg.Width + dataImg.Width, Math.Max(modelImg.Height, dataImg.Height));
-            var modelImgEmgu = (new Image(modelImg)).ApplyStdDevStretch().ToEmguGrayscale();
-            var dataImgEmgu = (new Image(dataImg)).ApplyStdDevStretch().ToEmguGrayscale();
+            var modelImgEmgu =
+                stretch ? (new Image(modelImg)).ApplyStdDevStretch().ToEmguGrayscale() : modelImg.ToEmguGrayscale();
+            var dataImgEmgu =
+                stretch ? (new Image(dataImg)).ApplyStdDevStretch().ToEmguGrayscale() : dataImg.ToEmguGrayscale();
             //opencv sometimes throws exceptions here, so roll our own replacement
             //https://github.jpl.nasa.gov/OnSight/Landform/issues/439
             //Features2DToolbox.DrawMatches(modelImgEmgu, modelKeypoints, dataImgEmgu, dataKeypoints, matches, ret,

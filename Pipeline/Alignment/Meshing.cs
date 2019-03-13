@@ -1432,6 +1432,7 @@ namespace OPS.Pipeline
             if (decimate > 1)
             {
                 ret = ret.Decimated(decimate);
+                meshOrigin /= decimate;
             }
 
             return ret;

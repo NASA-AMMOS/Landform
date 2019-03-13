@@ -4,12 +4,14 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Collections.Concurrent;
 using System.Threading;
-using System.Threading.Tasks;
 using Microsoft.Xna.Framework;
 using CommandLine;
 using log4net;
+using Emgu.CV;
+using Emgu.CV.Structure;
 using OPS.Util;
 using OPS.Imaging;
+using OPS.Imaging.Emgu;
 using OPS.Geometry;
 using OPS.Alignment;
 using OPS.Pipeline.AlignmentServer;
@@ -511,16 +513,65 @@ namespace OPS.Pipeline
                                      options.DetectorType, siteDrive);
                     if (options.WriteDebug)
                     {
-                        var img = FeatureDetecting.DrawFeatures(bev, mask, feat, siteDrive, stretch: false);
+                        var img = FeatureDetecting.DrawFeaturesEmgu(bev, mask, feat, siteDrive, stretch: false);
+                        for (int i = 0; i < 2; i++)
+                        {
+                            var pixel = PointToPixel(Vector3.Zero, siteDrives[i], siteDrive);
+                            var other = siteDrives[i] != siteDrive;
+                            var color = new Vector3(other ? 0 : 1, other ? 1 : 0, 0);
+                            DrawOrigin(img, pixel, color);
+                        }
                         string file = outputPath + siteDrive + "_BirdsEyeView_Features" + imageExt;
                         PathHelper.EnsureExists(outputPath);
-                        img.Save<byte>(file);
+                        img.ToOPSImage().Save<byte>(file);
                     }
                 });
             detector.DumpHistograms(pipeline);
 
             pipeline.LogInfo("detected features for {0} birds eye views ({1:F3}s)",
                              features.Count, UTCTime.Now() - startSec);
+        }
+
+        private double GetPixelsPerMeter()
+        {
+            return 1 / (options.BEVMetersPerPixel * options.BEVDecimation);
+        }
+            
+        private Vector2 PointToPixel(Vector3 srcPoint, string srcSiteDrive, string dstSiteDrive)
+        {
+            var srcSiteDriveToRoot = frameCache.GetBestTransform(srcSiteDrive).Transform;
+            var ptInRoot = Vector3.Transform(srcPoint, srcSiteDriveToRoot.Mean);
+            var pixelsPerMeter = GetPixelsPerMeter();
+            var pixelInRoot = ptInRoot * pixelsPerMeter;
+            return bevOrigins[dstSiteDrive] + new Vector2(pixelInRoot.X, pixelInRoot.Y);
+        }
+
+        private void DrawOrigin(Image<Bgr, byte> img, Vector2 pixel, Vector3 color,
+                                double crossRadius = 0.05, double circleRadius = 0.5)
+        {
+            var bgr = new Bgr((float)color.X * 255, (float)color.Y * 255, (float)color.Z * 255); //actually RGB
+            var pixelsPerMeter = GetPixelsPerMeter();
+            if (crossRadius > 0)
+            {
+                var cr = crossRadius * pixelsPerMeter;
+                img.Draw(ToLineSegment2DF(pixel + new Vector2(-cr, 0), pixel + new Vector2(cr, 0)), bgr, 2);
+                img.Draw(ToLineSegment2DF(pixel + new Vector2(0, -cr), pixel + new Vector2(0, cr)), bgr, 2);
+            }
+            if (circleRadius > 0)
+            {
+                var cr = circleRadius * pixelsPerMeter;
+                img.Draw(new CircleF(ToPointF(pixel), (float)cr), bgr, 2);
+            }
+        }
+
+        private static System.Drawing.PointF ToPointF(Vector2 v)
+        {
+            return new System.Drawing.PointF((float)v.X, (float)v.Y);
+        }
+
+        private static LineSegment2DF ToLineSegment2DF(Vector2 a, Vector2 b)
+        {
+            return new LineSegment2DF(ToPointF(a), ToPointF(b));
         }
     }
 }
