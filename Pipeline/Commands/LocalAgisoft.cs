@@ -186,6 +186,10 @@ namespace OPS.Pipeline
                     var frame = adjNode.GetComponent<NodeFrame>().Frame;
 
                     //agi returns the full transform we need just the rover to sitedrive portion
+                    //the implemented approach takes all the adjustment found by agisoft and pushes it into the observations to rover matrix
+                    //it does not account for changes to the camera calibration found by agisoft and 
+                    //does not attempt to find a best transform for the sitedrive to minimize the adjustments to the observations 
+                    //tracked as issues #450, #451
                     Matrix cameraToRoot = adjCameraToScene[obs.Name];
 
                     GetCameraToRover(adjNode.GetComponent<NodeImage>().CameraModel, out Matrix cameraToRover);
@@ -195,7 +199,7 @@ namespace OPS.Pipeline
                     Matrix rootToSiteDrive = adjNode.Parent.Transform.WorldToLocal;
                     Matrix roverToSiteDrive = roverToRoot * rootToSiteDrive;
 
-                    //TODO propagate transform covariance out of agi xml
+                    //TODO propagate transform covariance out of agi xml Issue #367
                     //https://github.jpl.nasa.gov/OnSight/Landform/issues/367
                     var ut = new UncertainRigidTransform(roverToSiteDrive);
                     FrameTransform ft = FrameTransform.FindOrCreate(this, frame, TransformSource.Agisoft, ut);
