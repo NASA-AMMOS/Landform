@@ -268,6 +268,15 @@ namespace OPS.Pipeline
             }
         }
 
+        public bool IsSunFinding
+        {
+            get
+            {
+                //MSSS doesn't put the flag in there
+                return ProducingInstitution == RoverProductProducer.OPGS && metadata.ReadAsString("IMAGE_REQUEST_PARMS", "SOURCE_ID") == "SUN";
+            }
+        }
+
         public RoverProductProducer ProducingInstitution
         {
             get

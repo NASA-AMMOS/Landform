@@ -97,7 +97,8 @@ namespace OPS.Pipeline
         bool CheckMetadata(PDSParser parser)
         {
             return productTypeToObservationType.ContainsKey(parser.DerivedImageType) &&
-                parser.ImageSizeType == RoverProductSize.Regular;
+               parser.ImageSizeType == RoverProductSize.Regular &&
+               !parser.IsSunFinding;
         }
 
         /// <summary>
