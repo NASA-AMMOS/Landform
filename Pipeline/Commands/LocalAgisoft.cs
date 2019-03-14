@@ -100,8 +100,7 @@ namespace OPS.Pipeline
                 LoadCorrespondences = false,
                 OnlyKeepImagesWithFeatures = false,
                 OnlyKeepBestImages = true,
-                OnlyCrossSiteDriveOverlaps = false,
-                IncludeObservation = o => o.ObservationType == ObservationType.Image.ToString() && o.UseForReconstruction
+                OnlyCrossSiteDriveOverlaps = false
             });
             AlignmentScene scene = bsg.BuildTopDown(project.RootFrame);
 
