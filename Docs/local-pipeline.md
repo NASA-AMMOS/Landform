@@ -124,7 +124,6 @@ install Agisoft Metashape professional (standard will not work as it doesn't all
 ./Pipeline/Rover/fetch-msl.sh c:/Users/$USERNAME/Downloads locations 00588 00589 00590
 ./Landform/bin/Release/Landform.exe configure-local --venue=local --storagedir=c:/Users/$USERNAME/Documents/landform-storage --maxcores=0
 ./Landform/bin/Release/Landform.exe local-ingest sols588to590 --inputpath=c:/Users/$USERNAME/Downloads/msl/**
-./Landform/bin/Release/Landform.exe local-agisoft sol589 --metashapeexepath="C:/Program Files/Agisoft/Metashape Pro/metashape.exe"
 
 the results will be published back to your local database with the agisoft transform source. they can be visualized with observation products by
 ./Landform/bin/Release/Landform.exe local-observation-products sol589 --adjustedtransformsources=agisoft
@@ -163,7 +162,7 @@ It is also possible to **post-mortem collect stats and generate debug outputs fr
     1.  A full path would be `s3://red-product/proj/msl/redops/ods/surface/sol/NUM/opgs/rdr/ncam` where NUM is a sol number.
     1.  You will also need the MSL locations XML file from `http://mars.jpl.nasa.gov/msl-raw-images/locations.xml` (no authentication required).
     1.  To use `fetch-msl.sh` you will need a sh-compatible command prompt (e.g. git bash, cygwin, or WSL). You will also need the AWS command line interface (install latest python3, `pip install awscli --upgrade --user`,  your PATH environment variable must include `%USERPROFILE%\AppData\Roaming\Python\Python??\Scripts`).
-    1.  Some example sol numbers are `00588`, `00589`, `00590`.  So you could run e.g. `./Pipeline/Rover/fetch-msl.sh DIR locations 00588 00589 00590` where DIR is where you'd like to download the input data (an `msl` subdir will be created), e.g. `c:/Users/USER/Downloads`.  The script fetches the OPGS navcam RDR .IMG products (only) for the specified sols.  It also fetches locations.xml if "locations" is included in the argument list.
+    1.  Some example sol numbers are `00588`, `00589`, `00590`.  So you could run e.g. `./Pipeline/Rover/fetch-msl.sh DIR locations 00588 00589 00590` where DIR is where you'd like to download the input data (an `msl` subdir will be created), e.g. `c:/Users/USER/Downloads`.  The script fetches the OPGS navcam RDR .IMG products (only) for the specified sols.  It also fetches locations.xml if "locations" is included in the argument list. it will fetch the MSS processed Mastcams if "includeMastcams" is specified in the command list before the sol range.
 1.  Build Landform in visual studio in Release mode.
 1.  **`./Landform/bin/Release/Landform.exe configure-local`** accept the default `local` as venue name, and specify an absolute path (a relative path should work too but may get confusing) for the storage dir, e.g. `c:/Users/USER/Documents/landform-storage`.  The directory does not need to exist yet.
 1.  **`./Landform/bin/Release/Landform.exe local-ingest PROJ`** where PROJ is a project name, e.g. `msl`.  Options include
