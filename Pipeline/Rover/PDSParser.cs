@@ -93,9 +93,9 @@ namespace OPS.Pipeline
             switch (camera)
             {
                 case RoverProductCamera.NavcamLeft:
-                    return 14.67; //source SIS
+                    return 14.67; //source SIS: https://pds-imaging.jpl.nasa.gov/data/msl/MSLNAV_0XXX/DOCUMENT/MSL_CAMERA_SIS_latest.PDF
                 case RoverProductCamera.NavcamRight:
-                    return 14.67; //source SIS
+                    return 14.67; //source SIS: https://pds-imaging.jpl.nasa.gov/data/msl/MSLNAV_0XXX/DOCUMENT/MSL_CAMERA_SIS_latest.PDF
                 default:
                     throw new NotImplementedException("focal length for camera " + camera + " not added yet");
             }
