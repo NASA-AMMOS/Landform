@@ -6,6 +6,7 @@ using System.Text;
 using System.Threading.Tasks;
 using OPS.Pipeline.MeshWorker;
 using OPS.Pipeline.AlignmentServer;
+using OPS.Pipeline;
 
 namespace OPS.Pipeline
 {
@@ -22,12 +23,12 @@ namespace OPS.Pipeline
             /// Each passed in object must have a [Verb] decorator
             /// NOTE you will get (slightly cryptic) compiler errors if there are more than 16 commands
             return CommandLine.Parser.Default.ParseArguments<ConvertBaselineMeshOptions,
-                                                             PDSImageConverterOptions,
+                                                             //PDSImageConverterOptions,
                                                              ConvertBaselineMeshesOptions,
                                                              TileBaselineMeshOptions,
                                                              TileBaselineMeshesOptions,
-                                                             LegacyToWebVROptions,
-                                                             LegacyToTile3DOptions,
+                                                             //LegacyToWebVROptions,
+                                                             //LegacyToTile3DOptions,
                                                              TileLocalMeshOptions,
                                                              //TextureMeshOptions,
                                                              StartAlignMasterOptions,
@@ -36,6 +37,7 @@ namespace OPS.Pipeline
                                                              LocalMatchingOptions,
                                                              LocalBundleAdjustOptions,
                                                              LocalObservationProductsOptions,
+                                                             LocalAgisoftOptions,
                                                              ConfigureCloudOptions,
                                                              ConfigureLocalOptions
                                                              >(args)
@@ -44,9 +46,9 @@ namespace OPS.Pipeline
                 (ConvertBaselineMeshesOptions opts) => new ConvertBaselineMeshes(opts).Run(),
                 (TileBaselineMeshOptions opts) => new TileBaselineMesh(opts).Run(),
                 (TileBaselineMeshesOptions opts) => new TileBaselineMeshes(opts).Run(),
-                (PDSImageConverterOptions opts) => new PDSImageConverter(opts).Run(),
-                (LegacyToWebVROptions opts) => new LegacyToWebVR(opts).Run(),
-                (LegacyToTile3DOptions opts) => new LegacyToTile3D(opts).Run(),
+                //(PDSImageConverterOptions opts) => new PDSImageConverter(opts).Run(),
+                //(LegacyToWebVROptions opts) => new LegacyToWebVR(opts).Run(),
+                //(LegacyToTile3DOptions opts) => new LegacyToTile3D(opts).Run(),
                 (TileLocalMeshOptions opts) => new TileLocalMesh(opts).Run(),
                 //(TextureMeshOptions opts) => new TextureMeshCommand(opts).Run(),
                 (StartAlignMasterOptions opts) => new AlignmentMaster(opts).Run(),
@@ -55,6 +57,7 @@ namespace OPS.Pipeline
                 (LocalMatchingOptions opts) => new LocalMatching(opts).Run(),
                 (LocalBundleAdjustOptions opts) => new LocalBundleAdjust(opts).Run(),
                 (LocalObservationProductsOptions opts) => new LocalObservationProducts(opts).Run(),
+                (LocalAgisoftOptions opts) => new LocalAgisoft(opts).Run(),
                 (ConfigureCloudOptions opts) => new ConfigureCloud(opts).Run(),
                 (ConfigureLocalOptions opts) => new ConfigureLocal(opts).Run(),
                 errs => 1);

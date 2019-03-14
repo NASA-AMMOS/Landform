@@ -14,7 +14,7 @@ namespace OPS.Pipeline.Alignment
     public class Procrustes
     {
 
-        public const double SVDTolerance = 1e-3f;
+        public const double SVDTolerance = 1e-5f;
 
         /**
             * Calculate optimal translation, rotation, and scale to transform all movingPts[i] to best match fixedPts[i].
