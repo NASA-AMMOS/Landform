@@ -33,27 +33,38 @@ namespace OPS.Pipeline
         [Option(HelpText = "Redo agisoft alignment", Default = false)]
         public bool RedoAlignment { get; set; }
 
-        [Option(HelpText = "Clear the files generated for/by agisoft", Default = true)] 
-       public bool ClearAgiInputsOutputs { get; set; }
+        [Option(HelpText = "Clear the files generated for/by agisoft", Default = true)]
+        public bool ClearAgiInputsOutputs { get; set; }
 
+        [Option(HelpText = "Operate on cloud data", Default = false)]
+        public bool Cloud { get; set; }
     }
 
-    public class LocalAgisoft : LocalPipeline
+    public class LocalAgisoft
     {
         private LocalAgisoftOptions options;
+        private PipelineCore pipeline;
 
-        public LocalAgisoft(LocalAgisoftOptions options) : base(options)
+        public LocalAgisoft(LocalAgisoftOptions options)
         {
             this.options = options;
+            if (options.Cloud)
+            {
+                this.pipeline = new CloudPipeline(options, initQueues: false);
+            }
+            else
+            {
+                this.pipeline = new LocalPipeline(options);
+            }
         }
 
         public int Run()
         {
             // collect project info for db queries
-            var project = Project.Find(this, options.ProjectName);
+            var project = Project.Find(pipeline, options.ProjectName);
             if (project == null)
             {
-                LogError("project \"{0}\" not found", options.ProjectName);
+                pipeline.LogError("project \"{0}\" not found", options.ProjectName);
                 return 1;
             }
 
@@ -74,7 +85,7 @@ namespace OPS.Pipeline
             PathHelper.EnsureExists(Path.GetFullPath(imageDir));
             PathHelper.EnsureExists(Path.GetFullPath(masksDir));
             PathHelper.EnsureExists(Path.GetFullPath(metaDir));
-            
+
             // prepare metadata filenames
             string calibXMLPath = Path.Combine(metaDir, "calibIn.xml");
             string alignPythonPath = Path.Combine(metaDir, "imageAlign.py");
@@ -82,8 +93,8 @@ namespace OPS.Pipeline
             string outputCamerasXMLPath = Path.Combine(metaDir, "camerasOut.xml");
 
             //build scene graph from database tables for images and transforms heirarchy
-            this.LogInfo("building scene graph for bundle adjustment, project {0}", options.ProjectName);
-            var bsg = new BuildSceneGraph(this, project.Name, new BuildSceneGraph.Options
+            pipeline.LogInfo("building scene graph for bundle adjustment, project {0}", options.ProjectName);
+            var bsg = new BuildSceneGraph(pipeline, project.Name, new BuildSceneGraph.Options
             {
                 UseTransformPriors = true,
                 LoadCorrespondences = false,
@@ -95,17 +106,17 @@ namespace OPS.Pipeline
             AlignmentScene scene = bsg.BuildTopDown(project.RootFrame);
 
             // prepare png versions of images and masks for agisoft
-            var observationCache = new ObservationCache(this, options.ProjectName);
+            var observationCache = new ObservationCache(pipeline, options.ProjectName);
             observationCache.Preload(obs => obs.UseForReconstruction);
 
             var observations = scene.Root.GetComponentsInTree<NodeObservation>().Select(no => no.Observation as RoverObservation);
-            this.LogInfo("generating pngs for " + observations.Count() + " images and masks");
+            pipeline.LogInfo("generating pngs for " + observations.Count() + " images and masks");
             string maskStr = ObservationType.RoverMask.ToString();
             Dictionary<RoverObservation, int> observationToNumBands = new Dictionary<RoverObservation, int>();
             foreach (var obs in observations)
             {
                 string imgPath = Path.Combine(imageDir, obs.Name + ".png");
-                Image img = this.LoadImage(obs.Url);
+                Image img = pipeline.LoadImage(obs.Url);
                 if (!File.Exists(imgPath) || options.RedoImages)
                 {
                     img.Save<byte>(imgPath);
@@ -115,7 +126,7 @@ namespace OPS.Pipeline
                 if (!File.Exists(maskPath) || options.RedoImages)
                 {
                     //check for mission mask products in the tables
-                    var maskObs = observationCache.GetAllObservationsForFrame(Frame.Find(this, options.ProjectName, obs.FrameName)).Where(o => o.ObservationType == maskStr).Cast<RoverObservation>().ToList();
+                    var maskObs = observationCache.GetAllObservationsForFrame(Frame.Find(pipeline, options.ProjectName, obs.FrameName)).Where(o => o.ObservationType == maskStr).Cast<RoverObservation>().ToList();
                     string maskUrl = null;
                     if (maskObs != null && maskObs.Count() > 0)
                     {
@@ -123,22 +134,22 @@ namespace OPS.Pipeline
                         maskUrl = maskObs.First().Url;
                     }
 
-                    Image mask = FeatureDetecting.MakeMask(this, maskUrl, img, obs.Name);
+                    Image mask = FeatureDetecting.MakeMask(pipeline, maskUrl, img, obs.Name);
                     mask.Save<byte>(Path.Combine(masksDir, obs.Name + "_mask.png"));
                 }
 
                 observationToNumBands.Add(obs, img.Bands);
             }
 
-            this.LogInfo("preparing calibration information for agisoft");
+            pipeline.LogInfo("preparing calibration information for agisoft");
             AgisoftXML.WriteCalibrationXML(observations, scene.ObservationUrlToNode, calibXMLPath, observationToNumBands);
 
-            this.LogInfo("generating python script for agisoft to preform alignment");
+            pipeline.LogInfo("generating python script for agisoft to preform alignment");
             AgisoftPython.WriteImageAlignScript(calibXMLPath, imageDir, masksDir, alignPythonPath, debugAgiScene, outputCamerasXMLPath);
 
             if (!File.Exists(outputCamerasXMLPath) || options.RedoAlignment)
             {
-                this.LogInfo("running agisoft alignment");
+                pipeline.LogInfo("running agisoft alignment");
                 string arguments = "-r \"" + alignPythonPath + "\"";
                 ProgramRunner pr = new ProgramRunner(options.MetaShapeExePath, arguments, captureOutput: true);
                 try
@@ -154,17 +165,17 @@ namespace OPS.Pipeline
                         throw new InvalidProgramException("failed to create output cameras.xml file");
                     }
 
-                    this.LogInfo("agisoft alignment complete");
+                    pipeline.LogInfo("agisoft alignment complete");
                 }
                 catch (Exception)
                 {
-                    this.LogError(pr.OutputText);
-                    this.LogError(pr.ErrorText);
+                    pipeline.LogError(pr.OutputText);
+                    pipeline.LogError(pr.ErrorText);
                 }
             }
             else
             {
-                this.LogInfo("Skipping alignment, re-using existing results");
+                pipeline.LogInfo("Skipping alignment, re-using existing results");
             }
 
             if (!File.Exists(outputCamerasXMLPath))
@@ -180,7 +191,7 @@ namespace OPS.Pipeline
             {
                 if (adjCameraToScene.ContainsKey(obs.Name))
                 {
-                    LogInfo("saving transform {0} of {1} adjusted frames", n++, numAdjustedNodes);
+                    pipeline.LogInfo("saving transform {0} of {1} adjusted frames", n++, numAdjustedNodes);
 
                     SceneNode adjNode = scene.ObservationUrlToNode[obs.Url];
                     var frame = adjNode.GetComponent<NodeFrame>().Frame;
@@ -202,12 +213,12 @@ namespace OPS.Pipeline
                     //TODO propagate transform covariance out of agi xml Issue #367
                     //https://github.jpl.nasa.gov/OnSight/Landform/issues/367
                     var ut = new UncertainRigidTransform(roverToSiteDrive);
-                    FrameTransform ft = FrameTransform.FindOrCreate(this, frame, TransformSource.Agisoft, ut);
+                    FrameTransform ft = FrameTransform.FindOrCreate(pipeline, frame, TransformSource.Agisoft, ut);
                     ft.Transform = ut;
-                    ft.Save(this);
+                    ft.Save(pipeline);
                     if (frame.AddTransform(ft))
                     {
-                        frame.Save(this);
+                        frame.Save(pipeline);
                     }
                 }
             }
@@ -261,7 +272,7 @@ namespace OPS.Pipeline
                 File.WriteAllText(outputPythonFilePath, fc);
             }
         }
-       
+
         static void GetSceneToCamera(CameraModel m, Matrix roverToScene, out Matrix sceneToCamera)
         {
             RoverCoordinateSystem.GetCameraToRover(m, out Matrix cameraToRover);
