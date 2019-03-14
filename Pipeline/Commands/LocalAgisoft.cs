@@ -192,7 +192,7 @@ namespace OPS.Pipeline
                     //tracked as issues #450, #451
                     Matrix cameraToRoot = adjCameraToScene[obs.Name];
 
-                    GetCameraToRover(adjNode.GetComponent<NodeImage>().CameraModel, out Matrix cameraToRover);
+                    RoverCoordinateSystem.GetCameraToRover(adjNode.GetComponent<NodeImage>().CameraModel, out Matrix cameraToRover);
                     Matrix roverToCamera = Matrix.Invert(cameraToRover);
                     Matrix roverToRoot = roverToCamera * cameraToRoot;
 
@@ -264,7 +264,7 @@ namespace OPS.Pipeline
        
         static void GetSceneToCamera(CameraModel m, Matrix roverToScene, out Matrix sceneToCamera)
         {
-            GetCameraToRover(m, out Matrix cameraToRover);
+            RoverCoordinateSystem.GetCameraToRover(m, out Matrix cameraToRover);
             Matrix cameraToScene = cameraToRover * roverToScene;
             sceneToCamera = Matrix.Invert(cameraToScene);
         }
