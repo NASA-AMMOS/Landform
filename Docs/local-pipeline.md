@@ -124,7 +124,6 @@ install Agisoft Metashape professional (standard will not work as it doesn't all
 ./Pipeline/Rover/fetch-msl.sh c:/Users/$USERNAME/Downloads locations 00588 00589 00590
 ./Landform/bin/Release/Landform.exe configure-local --venue=local --storagedir=c:/Users/$USERNAME/Documents/landform-storage --maxcores=0
 ./Landform/bin/Release/Landform.exe local-ingest sols588to590 --inputpath=c:/Users/$USERNAME/Downloads/msl/**
-./Landform/bin/Release/Landform.exe local-agisoft sols588to590 --metashapeexepath="C:/Program Files/Agisoft/Metashape Pro/metashape.exe"
 
 the results will be published back to your local database with the agisoft transform source. they can be visualized with observation products by
 ./Landform/bin/Release/Landform.exe local-observation-products sol589 --adjustedtransformsources=agisoft
