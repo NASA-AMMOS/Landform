@@ -44,6 +44,17 @@ namespace OPS.Alignment
             : this(new Vector2(kp.Point.X, kp.Point.Y), kp.Size, kp.Angle, kp.Octave, kp.Response, descriptor)
         { }
 
+        public SIFTFeature(SIFTFeature other) : base(other.Location, other.Descriptor)
+        {
+            this.Size = other.Size;
+            this.Angle = other.Angle;
+            this.PackedOctave = other.PackedOctave;
+            this.Layer = other.Layer;
+            this.Octave = other.Octave;
+            this.Scale = other.Scale;
+            this.Response = other.Response;
+        }
+
         public static explicit operator MKeyPoint(SIFTFeature feature)
         {
             return new MKeyPoint() {

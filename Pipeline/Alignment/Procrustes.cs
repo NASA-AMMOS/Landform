@@ -96,10 +96,10 @@ namespace OPS.Pipeline.Alignment
                 MathNet.Numerics.LinearAlgebra.Matrix<double> C = B.Multiply(A.Transpose()); //[3xN]x[Nx3] = 3x3
                 var svd = C.Svd();
 
-                if (svd.S[1] < svdTolerance)
-                {
-                    throw new InvalidOperationException("SVD ambiguous, aborting");
-                }
+                //if (svd.S[1] < svdTolerance)
+                //{
+                //    throw new InvalidOperationException("SVD ambiguous, aborting");
+                //}
 
                 MathNet.Numerics.LinearAlgebra.Matrix<double> R = svd.U * svd.VT;
 

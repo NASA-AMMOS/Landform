@@ -8,12 +8,16 @@ using Microsoft.Xna.Framework;
 using CommandLine;
 using log4net;
 using Emgu.CV;
+using Emgu.CV.Util;
+using Emgu.CV.CvEnum;
 using Emgu.CV.Structure;
+using Emgu.CV.Features2D;
 using OPS.Util;
 using OPS.Imaging;
 using OPS.Imaging.Emgu;
 using OPS.Geometry;
 using OPS.Alignment;
+using OPS.Pipeline.Alignment;
 using OPS.Pipeline.AlignmentServer;
 
 namespace OPS.Pipeline
@@ -101,6 +105,18 @@ namespace OPS.Pipeline
         [Option(HelpText = "Max descriptor distance", Default = 300)]
         public double MaxDescriptorDistance { get; set; }
 
+        [Option(HelpText = "Max RANSAC tests", Default = 100000)]
+        public int MaxRansacTests { get; set; }
+
+        [Option(HelpText = "Max RANSAC residual in meters", Default = 0.02)]
+        public double MaxRansacResidual { get; set; }
+
+        [Option(HelpText = "Max RANSAC feature match radius meters", Default = 0.1)]
+        public double RansacMatchRadius { get; set; }
+
+        [Option(HelpText = "Min RANSAC good matches", Default = 10)]
+        public int MinRansacAgreement { get; set; }
+
         [Option(HelpText = "Optimize contrast", Default = true)]
         public bool StretchContrast { get; set; }
 
@@ -139,6 +155,8 @@ namespace OPS.Pipeline
 
         //indexed by sitedrive name
         ConcurrentDictionary<string, ImageFeature[]> features = new ConcurrentDictionary<string, ImageFeature[]>();
+
+        List<FeatureMatch> matches = new List<FeatureMatch>();
 
         public LocalBEVAligner(LocalBEVAlignerOptions options)
         {
@@ -214,6 +232,8 @@ namespace OPS.Pipeline
             DetectFeatures();
 
             MatchFeatures();
+
+            RansacMatches();
 
             return 0;
         }
@@ -626,8 +646,6 @@ namespace OPS.Pipeline
 
             double radius = options.MatchRadius * GetPixelsPerMeter();
 
-            var matches = new List<FeatureMatch>();
-
             var histogram = new Histogram(50, "matches", "distance");
             for (int i = 0; i < dataFeatures.Length; i++)
             {
@@ -672,13 +690,13 @@ namespace OPS.Pipeline
 
         //return the index of the first entry in distances that is >= distance
         //yes there is a built-in Array.BinarySearch()
-        //but here we can control behavior when distance is not actually prsent in distances
+        //but here we can control behavior when distance is not actually present in distances
         private static int BinarySearch(double[] distances, double distance)
         {
             int l = 0, u = distances.Length - 1;
             while (u - l > 1)
             {
-                var m = l + (u - l) / 2;
+                var m = (u + l) / 2;
                 if (distance <= distances[m])
                 {
                     u = m;
@@ -689,6 +707,256 @@ namespace OPS.Pipeline
                 }
             }
             return u;
+        }
+
+        private class RigidTransform2D
+        {
+            public Vector2 Translation;
+
+            private double theta, cos, sin;
+            public double Rotation //radians
+            {
+                set
+                {
+                    theta = value;
+                    cos = Math.Cos(value);
+                    sin = Math.Sin(value);
+                }
+
+                get
+                {
+                    return theta;
+                }
+            }
+
+            public RigidTransform2D(Vector2 translation, double rotation)
+            {
+                this.Translation = translation;
+                this.Rotation = rotation;
+            }
+
+            public RigidTransform2D()
+            {
+                this.Translation = Vector2.Zero;
+                this.Rotation = 0;
+            }
+
+            public Vector2 Transform(Vector2 pt)
+            {
+                return new Vector2(Translation.X + cos * pt.X - sin * pt.Y,
+                                   Translation.Y + sin * pt.X + cos * pt.Y);
+            }
+
+            public static RigidTransform2D Estimate(Vector2[] movingPts, Vector2[] fixedPts, out double residual)
+            {
+                if (movingPts.Length != fixedPts.Length)
+                {
+                    throw new ArgumentException("must have equal numbers of points to estimate transform");
+                }
+
+                residual = 0;
+
+                int n = movingPts.Length;
+                if (n == 0)
+                {
+                    return new RigidTransform2D();
+                }
+                else if (n == 1)
+                {
+                    return new RigidTransform2D(fixedPts[0] - movingPts[0], 0);
+                }
+                else if (n == 2)
+                {
+                    var avgFixed = 0.5 * (fixedPts[0] + fixedPts[1]);
+                    var avgMoving = 0.5 * (movingPts[0] + movingPts[1]);
+                    var translation = avgFixed - avgMoving;
+
+                    var fixedVec = fixedPts[1] - fixedPts[0];
+                    var movingVec = movingPts[1] - movingPts[0];
+                    var fixedVecLengthSquared = fixedVec.LengthSquared();
+                    var movingVecLengthSquared = movingVec.LengthSquared();
+                    double rotation = 0;
+                    if (fixedVecLengthSquared > 1e-6 && movingVecLengthSquared > 1e-6)
+                    {
+                        var fv3D = new Vector3(fixedVec.X, fixedVec.Y, 0) * (1 / Math.Sqrt(fixedVecLengthSquared));
+                        var mv3D = new Vector3(movingVec.X, movingVec.Y, 0) * (1 / Math.Sqrt(movingVecLengthSquared));
+                        double sin = Vector3.Cross(mv3D, fv3D).Z;
+                        double cos = Vector3.Dot(mv3D, fv3D);
+                        rotation = Math.Atan2(sin, cos);
+                    }
+                    var ret = new RigidTransform2D(translation, rotation);
+                    residual = ret.Residual(movingPts, fixedPts);
+                    return ret;
+                }
+                else
+                {
+                    Procrustes.Calculate(movingPts.Select(p => new Vector3(p.X, p.Y, 0)).ToArray(),
+                                         fixedPts.Select(p => new Vector3(p.X, p.Y, 0)).ToArray(),
+                                         out residual,
+                                         out Vector3 translation, out Quaternion quat, out double scale,
+                                         calcTranslation: true, calcRotation: true, calcScale: false);
+                    double cos = quat.W;
+                    double sin = new Vector3(quat.X, quat.Y, quat.Z).Length();
+                    return new RigidTransform2D(new Vector2(translation.X, translation.Y), 2 * Math.Atan2(sin, cos));
+                }
+            }
+
+            public double Residual(Vector2[] movingPts, Vector2[] fixedPts)
+            {
+                if (movingPts.Length != fixedPts.Length)
+                {
+                    throw new ArgumentException("must have equal numbers of points to calculate residual");
+                }
+                int n = movingPts.Length;
+                double ret = 0;
+                for (int i = 0; i < n; i++)
+                {
+                    
+                    ret += Vector2.DistanceSquared(Transform(movingPts[i]), fixedPts[i]);
+                }
+                return Math.Sqrt(ret / n);
+            }
+        }
+
+        private void RansacMatches()
+        {
+            double startSec = UTCTime.Now();
+            pipeline.LogInfo("RANSACing {0} feature matches for {1} birds eye views...", matches.Count, bevs.Count);
+
+            //siteDrives has already been lexicograpically sorted
+            //which means that siteDrives[1] > siteDrives[0]
+            //there are a few different strategies we could consider here
+            //like choosing "model" and "data" based on number of features in each
+            //but for now lets call "model" the older sitedrive and "data" the newer one
+            var modelSD = siteDrives[0];
+            var dataSD = siteDrives[1];
+
+            //pixel corresponding to origin of data sitedrive in data BEV
+            var dataOrigin = PointToPixel(Vector3.Zero, dataSD, dataSD);
+
+            //pixel corresponding to origin of data sitedrive in model BEV
+            var dataOriginInModel = PointToPixel(Vector3.Zero, dataSD, modelSD);
+
+            var modelToDataPrior = dataOriginInModel - dataOrigin;
+
+            var dataPtsInModel = matches
+                .Select(m => features[dataSD][m.DataIndex].Location + modelToDataPrior)
+                .ToArray();
+
+            var modelPts = matches
+                .Select(m => features[modelSD][m.ModelIndex].Location)
+                .ToArray();
+
+            int numPts = matches.Count;
+
+            var random = NumberHelper.MakeRandomGenerator();
+
+            var bestTransform = new RigidTransform2D();
+            var bestMatches = new List<int>(numPts);
+            double bestResidual = double.PositiveInfinity;
+
+            double radiusSquared = options.RansacMatchRadius * GetPixelsPerMeter();
+            radiusSquared = radiusSquared * radiusSquared;
+
+
+            var pixelsPerMeter = GetPixelsPerMeter();
+            var metersPerPixel = 1 / pixelsPerMeter;
+
+            var maxResidual = options.MaxRansacResidual * pixelsPerMeter;
+
+            int i;
+            for (i = 0; i < options.MaxRansacTests; i++)
+            {
+                var seeds = new [] { random.Next(0, numPts), random.Next(0, numPts) };
+                if (seeds[0] == seeds[1])
+                {
+                    continue;
+                }
+
+                var xform = RigidTransform2D.Estimate(seeds.Select(s => dataPtsInModel[s]).ToArray(), 
+                                                      seeds.Select(s => modelPts[s]).ToArray(),
+                                                      out double residual);
+                if (residual > bestResidual)
+                {
+                    continue;
+                }
+
+                bestMatches.Clear();
+                residual = 0;
+                for (int j = 0; j < numPts; j++)
+                {
+                    var d = Vector2.DistanceSquared(xform.Transform(dataPtsInModel[j]), modelPts[j]);
+                    if (d < radiusSquared)
+                    {
+                        bestMatches.Add(j);
+                        residual += d * d;
+                    }
+                }
+
+                if (bestMatches.Count < options.MinRansacAgreement)
+                {
+                    continue;
+                }
+
+                xform = RigidTransform2D.Estimate(bestMatches.Select(j => dataPtsInModel[j]).ToArray(),
+                                                  bestMatches.Select(j => modelPts[j]).ToArray(),
+                                                  out residual);
+
+                if (residual < bestResidual)
+                {
+                    bestResidual = residual;
+                    bestTransform = xform;
+                }
+
+                if (bestResidual < maxResidual)
+                {
+                    break;
+                }
+            }
+
+            if (options.WriteDebug)
+            {
+                var mfColor = new Bgr(255, 0, 0); //actually RGB
+                var dfColor = new Bgr(0, 255, 0); //actually RGB
+
+                var mf = bestMatches
+                    .Select(m => features[modelSD][matches[m].ModelIndex])
+                    .Cast<SIFTFeature>()
+                    .CastToMKeyPoint()
+                    .ToArray();
+
+                var df = bestMatches
+                    .Select(m =>
+                            {
+                                var f = new SIFTFeature((SIFTFeature)features[dataSD][matches[m].DataIndex]);
+                                f.Location = bestTransform.Transform(dataPtsInModel[m]);
+                                return f;
+                            })
+                    .CastToMKeyPoint()
+                    .ToArray();
+
+                var img = bevs[modelSD].ToEmgu<Bgr>();
+
+                Features2DToolbox.DrawKeypoints(img, new VectorOfKeyPoint(mf), img, mfColor,
+                                                Features2DToolbox.KeypointDrawType.DrawRichKeypoints);
+
+                Features2DToolbox.DrawKeypoints(img, new VectorOfKeyPoint(df), img, dfColor,
+                                                Features2DToolbox.KeypointDrawType.DrawRichKeypoints);
+
+                string file = outputPath + modelSD + "-" + dataSD + "_BirdsEyeView_RANSAC" + imageExt;
+                PathHelper.EnsureExists(outputPath);
+                img.ToOPSImage().Save<byte>(file);
+            }
+
+            var tx = bestTransform.Translation.X * metersPerPixel;
+            var ty = bestTransform.Translation.Y * metersPerPixel;
+            var deg = MathHelper.ToDegrees(bestTransform.Rotation);
+            var res = bestResidual * metersPerPixel;
+
+            pipeline.LogInfo("best transform ({0:F3}m, {1:F3}m, {2:F3}deg), residual {3:F3}m, {4} matches",
+                             tx, ty, deg, res, bestMatches.Count);
+
+            pipeline.LogInfo("performed {0} ransac tests ({1:F3}s)", i, UTCTime.Now() - startSec);
         }
     }
 }
