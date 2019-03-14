@@ -100,20 +100,25 @@ namespace OPS.Pipeline
                 LoadCorrespondences = false,
                 OnlyKeepImagesWithFeatures = false,
                 OnlyKeepBestImages = true,
-                OnlyCrossSiteDriveOverlaps = false
+                OnlyCrossSiteDriveOverlaps = false,
+                OnlyLoadImageObservations = false,
+                IncludeObservation = o => o.ObservationType == ObservationType.Image.ToString() || o.ObservationType == ObservationType.RoverMask.ToString()
             });
             AlignmentScene scene = bsg.BuildTopDown(project.RootFrame);
 
             // prepare png versions of images and masks for agisoft
-            var observationCache = new ObservationCache(pipeline, options.ProjectName);
-            observationCache.Preload(obs => obs.UseForReconstruction);
-
-            var observations = scene.Root.GetComponentsInTree<NodeObservation>().Select(no => no.Observation as RoverObservation);
-            pipeline.LogInfo("generating pngs for " + observations.Count() + " images and masks");
             string maskStr = ObservationType.RoverMask.ToString();
+            string imgStr = ObservationType.Image.ToString();
+            var imgObsNodes = scene.Root.GetComponentsInTree<NodeObservation>().Where(no => no.Observation.ObservationType == imgStr);
+            var observations = imgObsNodes.Select(no => no.Observation).Cast<RoverObservation>();
+
+            pipeline.LogInfo("generating pngs for " + imgObsNodes.Count() + " images and masks");
+           
             Dictionary<RoverObservation, int> observationToNumBands = new Dictionary<RoverObservation, int>();
-            foreach (var obs in observations)
+            foreach (var imgNode in imgObsNodes)
             {
+                RoverObservation obs = (RoverObservation)imgNode.Observation;
+            
                 string imgPath = Path.Combine(imageDir, obs.Name + ".png");
                 Image img = pipeline.LoadImage(obs.Url);
                 if (!File.Exists(imgPath) || options.RedoImages)
@@ -125,12 +130,15 @@ namespace OPS.Pipeline
                 if (!File.Exists(maskPath) || options.RedoImages)
                 {
                     //check for mission mask products in the tables
-                    var maskObs = observationCache.GetAllObservationsForFrame(Frame.Find(pipeline, options.ProjectName, obs.FrameName)).Where(o => o.ObservationType == maskStr).Cast<RoverObservation>().ToList();
+                    var maskObs = imgNode.Node.Parent.GetComponentsInTree<NodeObservation>()
+                        .Where(no => no.Observation.ObservationType == maskStr)
+                        .Cast<RoverObservation>()
+                        .FirstOrDefault();
+
                     string maskUrl = null;
-                    if (maskObs != null && maskObs.Count() > 0)
+                    if(maskObs != null)
                     {
-                        maskObs.Sort(MSLProject.RoverObservationComparison);
-                        maskUrl = maskObs.First().Url;
+                        maskUrl = maskObs.Url;
                     }
 
                     Image mask = FeatureDetecting.MakeMask(pipeline, maskUrl, img, obs.Name);
