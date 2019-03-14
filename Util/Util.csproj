@@ -50,6 +50,7 @@
   <ItemGroup>
     <Compile Include="Config.cs" />
     <Compile Include="ConsoleHelper.cs" />
+    <Compile Include="HammingDistance.cs" />
     <Compile Include="HashCombiner.cs" />
     <Compile Include="Histogram.cs" />
     <Compile Include="JsonHelper.cs" />

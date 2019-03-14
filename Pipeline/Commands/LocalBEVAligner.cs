@@ -92,6 +92,15 @@ namespace OPS.Pipeline
         [Option(HelpText = "Recompute existing BEVs", Default = false)]
         public bool RedoBEVs { get; set; }
 
+        [Option(HelpText = "Search radius for feature matching in meters", Default = 2)]
+        public double MatchRadius { get; set; }
+
+        [Option(HelpText = "Max descriptor distance ratio", Default = 0.9)]
+        public double MaxDescriptorDistanceRatio { get; set; }
+
+        [Option(HelpText = "Max descriptor distance", Default = 300)]
+        public double MaxDescriptorDistance { get; set; }
+
         [Option(HelpText = "Optimize contrast", Default = true)]
         public bool StretchContrast { get; set; }
 
@@ -187,6 +196,9 @@ namespace OPS.Pipeline
                                                            allowMastcam, requireNormals, requireTextures,
                                                            options.OnlyForSiteDrives, options.OnlyForCameras);
 
+            //lexicographically sort siteDrives so that older ones come before newer
+            //also this ensures that multiple runs with the same sitedrives but possibly different observations
+            //will consider them in the same order
             siteDrives = observations.Select(obs => obs.SiteDrive.ToString()).Distinct().OrderBy(sd => sd).ToArray();
             if (siteDrives.Length != 2)
             {
@@ -200,6 +212,8 @@ namespace OPS.Pipeline
             RenderBEVs();
 
             DetectFeatures();
+
+            MatchFeatures();
 
             return 0;
         }
@@ -507,8 +521,11 @@ namespace OPS.Pipeline
                     pipeline.LogInfo("max features {0}, extra invalid radius {1}, FAST threshold {2}",
                                      options.MaxFeaturesPerImage, options.FeatureExtraInvalidRadius,
                                      options.FASTThreshold);
+                    var siteDriveOrigin = PointToPixel(Vector3.Zero, siteDrive, siteDrive);
+                    FeatureDetector.FeatureSortKey sortByDistance =
+                    (SIFTFeature f) => Vector2.DistanceSquared(f.Location, siteDriveOrigin);
                     var mask = bev.MaskToImage(valid: 1, invalid: 0);
-                    var feat = features[siteDrive] = detector.Detect(bev, mask);
+                    var feat = features[siteDrive] = detector.Detect(bev, mask, sortByDistance);
                     pipeline.LogInfo("detected {0} {1} features in birds eye view for {2}", feat.Length,
                                      options.DetectorType, siteDrive);
                     if (options.WriteDebug)
@@ -573,5 +590,106 @@ namespace OPS.Pipeline
         {
             return new LineSegment2DF(ToPointF(a), ToPointF(b));
         }
+
+        private void MatchFeatures()
+        {
+            double startSec = UTCTime.Now();
+            pipeline.LogInfo("matching {0} features in {1} birds eye views...",
+                             String.Join(", ", siteDrives.Select(sd => features[sd].Length).ToArray()),
+                             features.Count);
+
+            //siteDrives has already been lexicograpically sorted
+            //which means that siteDrives[1] > siteDrives[0]
+            //there are a few different strategies we could consider here
+            //like choosing "model" and "data" based on number of features in each
+            //but for now lets call "model" the older sitedrive and "data" the newer one
+            var modelSD = siteDrives[0];
+            var dataSD = siteDrives[1];
+
+            var modelFeatures = features[modelSD];
+            var dataFeatures = features[dataSD];
+
+            //pixel corresponding to origin of model sitedrive in model BEV
+            var modelOrigin = PointToPixel(Vector3.Zero, modelSD, modelSD);
+
+            //pixel corresponding to origin of data sitedrive in data BEV
+            var dataOrigin = PointToPixel(Vector3.Zero, dataSD, dataSD);
+
+            //pixel corresponding to origin of data sitedrive in model BEV
+            var dataOriginInModel = PointToPixel(Vector3.Zero, dataSD, modelSD);
+
+            //distance in pixels of each model feature to pixel corresponding to origin of model sitedrive in model BEV
+            var modelDistances = modelFeatures.Select(f => Vector2.Distance(f.Location, modelOrigin)).ToArray();
+
+            //sort modelFeatures and modelDistances by increasing distance to origin of model sitedrive
+            Array.Sort(modelDistances, modelFeatures);
+
+            double radius = options.MatchRadius * GetPixelsPerMeter();
+
+            var matches = new List<FeatureMatch>();
+
+            var histogram = new Histogram(50, "matches", "distance");
+            for (int i = 0; i < dataFeatures.Length; i++)
+            {
+                var df = dataFeatures[i];
+                var dfInModel = dataOriginInModel + (df.Location - dataOrigin);
+                var r = Vector2.Distance(dfInModel, modelOrigin);
+                double minRadius = r - radius;
+                double maxRadius = r + radius;
+                int minSearchIndex = BinarySearch(modelDistances, minRadius);
+                int maxSearchIndex = BinarySearch(modelDistances, maxRadius) - 1;
+                if (maxSearchIndex >= minSearchIndex)
+                {
+                    var match = BruteForceMatcher
+                        .FindBestModelFeatureForDataFeature(modelFeatures, dataFeatures, i,
+                                                            options.MaxDescriptorDistanceRatio,
+                                                            mf => Vector2.Distance(mf.Location, dfInModel) <= radius,
+                                                            minSearchIndex,
+                                                            maxSearchIndex);
+                    if (match != null && match.DescriptorDistance < options.MaxDescriptorDistance)
+                    {
+                        matches.Add(match);
+                        histogram.Add(match.DescriptorDistance);
+                    }
+                }
+            }
+
+            histogram.Dump(pipeline);
+
+            if (options.WriteDebug)
+            {
+                var d2m = matches.Select(m => new KeyValuePair<int, int>(m.DataIndex, m.ModelIndex)).ToArray();
+                var img = ImageMatching.DrawMatches(bevs[modelSD], bevs[dataSD], modelFeatures, dataFeatures, d2m,
+                                                    modelSD, dataSD, stretch: false);
+                string file = outputPath + modelSD + "-" + dataSD + "_BirdsEyeView_Matches" + imageExt;
+                PathHelper.EnsureExists(outputPath);
+                img.Save<byte>(file);
+            }
+
+            pipeline.LogInfo("got {0} feature matches for {1} birds eye views ({1:F3}s)",
+                             matches.Count, bevs.Count, UTCTime.Now() - startSec);
+        }
+
+        //return the index of the first entry in distances that is >= distance
+        //yes there is a built-in Array.BinarySearch()
+        //but here we can control behavior when distance is not actually prsent in distances
+        private static int BinarySearch(double[] distances, double distance)
+        {
+            int l = 0, u = distances.Length - 1;
+            while (u - l > 1)
+            {
+                var m = l + (u - l) / 2;
+                if (distance <= distances[m])
+                {
+                    u = m;
+                }
+                else
+                {
+                    l = m;
+                }
+            }
+            return u;
+        }
     }
 }
+

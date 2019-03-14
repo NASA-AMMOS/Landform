@@ -29,11 +29,21 @@ namespace OPS.Util
         
         public void Dump(ILogger logger)
         {
+            Dump(s => logger.LogInfo(s));
+        }
+
+        public void Dump(System.Action<string> printer)
+        {
             foreach (var key in buckets.Keys.OrderBy(n => n))
             {
-                logger.LogInfo("{0} {1} with {2} to {3} {4}",
-                               buckets[key], objectName, key * bucketSize, (key + 1) * bucketSize, valueName);
+                printer(string.Format("{0} {1} with {2} to {3} {4}",
+                                      buckets[key], objectName, key * bucketSize, (key + 1) * bucketSize, valueName));
             }
+        }
+
+        public void Dump()
+        {
+            Dump(s => Console.WriteLine(s));
         }
     }
 }

@@ -23,27 +23,12 @@ namespace OPS.Alignment
             return new FastDetector(Threshold, NonMaxSuppression, DetectorType);
         }
 
-        public override void AddDescriptors(Image<Gray, byte> image, IEnumerable<ImageFeature> features)
+        public override Feature2D MakeExtractor()
         {
-            var keypoints = features.Cast<SIFTFeature>().CastToMKeyPoint().ToArray();
-            if (keypoints.Length == 0)
-            {
-                return;
-            }
-            var detector = new BriefDescriptorExtractor(DescriptorSize);
-            var descriptorMatrix = new Matrix<float>(keypoints.Length, DescriptorSize);
-            detector.Compute(image, new VectorOfKeyPoint(keypoints), descriptorMatrix);
-            int i = 0;
-            foreach (var feature in features)
-            {
-                byte[] data = new byte[DescriptorSize];
-                for (int j = 0; j < DescriptorSize; j++)
-                {
-                    data[j] = (byte)descriptorMatrix.Data[i, j];
-                }
-                feature.Descriptor = new BRIEFDescriptor(data);
-                i++;
-            }
+            //for some reason BriefDescriptorExtractor is returning all zeros
+            //return new BriefDescriptorExtractor(DescriptorSize);
+            //so for now just use SIFT descriptors
+            return new SIFT();
         }
     }
 }

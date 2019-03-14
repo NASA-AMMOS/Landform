@@ -100,7 +100,9 @@ namespace OPS.Pipeline
             }
         }
 
-        public ImageFeature[] Detect(Image img, Image mask)
+        public delegate double FeatureSortKey(SIFTFeature feature);
+
+        public ImageFeature[] Detect(Image img, Image mask, FeatureSortKey sortKey = null)
         {
             if (options.Decimation > 1)
             {
@@ -152,6 +154,11 @@ namespace OPS.Pipeline
                                  features.Select(f => f.Response).Min(), features.Select(f => f.Response).Max());
                 pipeline.LogInfo("min octave {0}, max octave {1}",
                                  features.Select(f => f.Octave).Min(), features.Select(f => f.Octave).Max());
+            }
+
+            if (sortKey == null)
+            {
+                sortKey = (SIFTFeature f) => f.Response;
             }
 
             features = features

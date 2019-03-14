@@ -14,6 +14,11 @@ namespace OPS.Alignment
     {
         public abstract Feature2D MakeDetector();
 
+        public virtual Feature2D MakeExtractor()
+        {
+            return MakeDetector();
+        }
+
         public virtual IEnumerable<ImageFeature> Detect(Image image, Image mask = null)
         {
             return Detect(image.ToEmguGrayscale(), (mask != null) ? mask.ToEmguGrayscale() : null);
@@ -44,14 +49,14 @@ namespace OPS.Alignment
             {
                 return;
             }
-            var detector = MakeDetector();
-            var descriptorMatrix = new Matrix<float>(keypoints.Length, detector.DescriptorSize);
-            detector.Compute(image, new VectorOfKeyPoint(keypoints), descriptorMatrix);
+            var extractor = MakeExtractor();
+            var descriptorMatrix = new Matrix<float>(keypoints.Length, extractor.DescriptorSize);
+            extractor.Compute(image, new VectorOfKeyPoint(keypoints), descriptorMatrix);
             int i = 0;
             foreach (var feature in features)
             {
-                byte[] data = new byte[detector.DescriptorSize];
-                for (int j = 0; j < detector.DescriptorSize; j++)
+                byte[] data = new byte[extractor.DescriptorSize];
+                for (int j = 0; j < extractor.DescriptorSize; j++)
                 {
                     data[j] = (byte)descriptorMatrix.Data[i, j];
                 }

@@ -27,7 +27,7 @@ namespace OPS.Alignment
 
         public abstract double GetElement(int index);
 
-        public double L2DistanceSquared(FeatureDescriptor other)
+        public virtual double L2DistanceSquared(FeatureDescriptor other)
         {
             if (other.Length != Length)
             {
@@ -46,6 +46,32 @@ namespace OPS.Alignment
                 ret += d * d;
             }
             return ret;
+        }
+
+        public virtual double FastDistance(FeatureDescriptor other)
+        {
+            return L2DistanceSquared(other);
+        }
+
+        public virtual double BestDistance(FeatureDescriptor other)
+        {
+            return FastDistanceToBestDistance(FastDistance(other));
+        }
+
+        public virtual double FastDistanceToBestDistance(double d)
+        {
+            return Math.Sqrt(d);
+        }
+
+        public virtual double BestDistanceToFastDistance(double d)
+        {
+            return d * d;
+        }
+
+        public virtual bool CheckFastDistanceRatio(double closestDist, double secondClosestDist, double maxRatio)
+        {
+            //keep match iff bestDist/2ndBestDist <= MaxDistanceRatio
+            return closestDist <= secondClosestDist * maxRatio;
         }
 
         //convert M feature descriptors of N elements each into an EmguCV float matrix of M rows by N columns

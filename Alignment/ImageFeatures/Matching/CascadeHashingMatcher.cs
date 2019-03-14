@@ -97,7 +97,8 @@ namespace OPS.Alignment
                 }
             }
 
-            double maxDistanceRatioSq = MaxDistanceRatio * MaxDistanceRatio;
+            var anyDescriptor = dataFeatures[0].Descriptor;
+            double maxDistanceRatio = anyDescriptor.BestDistanceToFastDistance(MaxDistanceRatio);
             for (int i = 0; i < dataFeatures.Length; i++)
             {
                 var dh = dataHashes[i];
@@ -121,7 +122,7 @@ namespace OPS.Alignment
                 // Get KNN in hamming space with primary hash
                 KNNMatcher<HashCode>.Node[] knnHamming;
                 {
-                    KNNMatcher<HashCode> matcher = new KNNMatcher<HashCode>((c0, c1) => c0.HammingDistance(c1));
+                    KNNMatcher<HashCode> matcher = new KNNMatcher<HashCode>((c0, c1) => c0.Distance(c1));
                     knnHamming = matcher.Find(dh.PrimaryHash,
                                               candidateIndices.Select(idx => modelHashes[idx].PrimaryHash).ToArray(),
                                               MaximumKnnCandidates).ToArray();
@@ -135,7 +136,7 @@ namespace OPS.Alignment
                 KNNMatcher<ImageFeature>.Node[] nearest;
                 {
                     KNNMatcher<ImageFeature> matcher =
-                        new KNNMatcher<ImageFeature>((f0, f1) => f0.Descriptor.L2DistanceSquared(f1.Descriptor));
+                        new KNNMatcher<ImageFeature>((f0, f1) => f0.Descriptor.FastDistance(f1.Descriptor));
                     nearest = matcher.Find(dataFeatures[i],
                                            knnHamming.Select(n => modelFeatures[candidateIndices[n.Index]]).ToArray(),
                                            2).ToArray();
@@ -147,7 +148,7 @@ namespace OPS.Alignment
                 }
 
                 //keep match iff bestDist/2ndBestDist <= MaxDistanceRatio
-                if (nearest[0].Distance <= nearest[1].Distance * maxDistanceRatioSq)
+                if (anyDescriptor.CheckFastDistanceRatio(nearest[0].Distance, nearest[1].Distance, maxDistanceRatio))
                 {
                     // what a tangled web we weave
                     int indexInKnnHamming = nearest[0].Index;
@@ -157,7 +158,7 @@ namespace OPS.Alignment
                     {
                         DataIndex = i,
                         ModelIndex = featureIndex,
-                        DescriptorDistance = (float)Math.Sqrt(nearest[0].Distance)
+                        DescriptorDistance = (float)anyDescriptor.FastDistanceToBestDistance(nearest[0].Distance)
                     };
                 }
             }
@@ -240,55 +241,13 @@ namespace OPS.Alignment
             }
 
             /// <summary>
-            /// Lookup table for number of bits set in a given byte.
-            /// 
-            /// This is much faster than looping over each bit at runtime. Ideally
-            /// we want something that compiles down to a popcnt instruction but
-            /// we don't get that in C#.
-            /// </summary>
-            static int[] ByteBitCount;
-            static HashCode()
-            {
-                ByteBitCount = new int[256];
-                for (int i = 0; i < 256; i++)
-                {
-                    byte b = (byte)i;
-                    int cnt = 0;
-                    for (int j = 0; j < 8; j++)
-                    {
-                        if ((b & (1 << j)) != 0)
-                        {
-                            cnt++;
-                        }
-                    }
-                    ByteBitCount[i] = cnt;
-                }
-            }
-
-            /// <summary>
             /// Return the number of bits that differ between this and another HashCode.
             /// </summary>
             /// <param name="code">HashCode with same BitCount</param>
             /// <returns>[0, BitCount]</returns>
-            public int HammingDistance(HashCode code)
+            public int Distance(HashCode code)
             {
-                if (code.BitCount != BitCount)
-                {
-                    throw new InvalidOperationException("HammingDistance between different bit lengths");
-                }
-                int res = 0;
-
-                var xor = new byte[Data.Length];
-                for (int i = 0; i < Data.Length; i++)
-                {
-                    xor[i] = (byte)(Data[i] ^ code.Data[i]);
-                }
-
-                for (int i = 0; i < Data.Length; i++)
-                {
-                    res += ByteBitCount[xor[i]];
-                }
-                return res;
+                return HammingDistance.Distance(Data, code.Data);
             }
         }
 

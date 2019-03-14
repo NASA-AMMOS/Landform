@@ -30,11 +30,11 @@ namespace OPS.Alignment
         public IEnumerable<FeatureMatch> Match(ImageFeature[] modelFeatures, ImageFeature[] dataFeatures)
         {
             if (modelFeatures.Length < 1 || dataFeatures.Length < 1) yield break;
-            double maxDistanceRatioSq = MaxDistanceRatio * MaxDistanceRatio;
+            double maxDistanceRatio = modelFeatures[0].Descriptor.BestDistanceToFastDistance(MaxDistanceRatio);
             for (int dataIndex = 0; dataIndex < dataFeatures.Length; dataIndex++)
             {
                 var match = FindBestModelFeatureForDataFeature(modelFeatures, dataFeatures, dataIndex,
-                                                               maxDistanceRatioSq);
+                                                               maxDistanceRatio);
                 if (match != null)
                 {
                     yield return match;
@@ -44,16 +44,22 @@ namespace OPS.Alignment
 
         public static FeatureMatch FindBestModelFeatureForDataFeature(ImageFeature[] modelFeatures,
                                                                       ImageFeature[] dataFeatures, int dataIndex,
-                                                                      double maxDistanceRatioSq,
-                                                                      Func<ImageFeature, bool> filter = null)
+                                                                      double maxDistanceRatio,
+                                                                      Func<ImageFeature, bool> filter = null,
+                                                                      int firstModelIndex = 0,
+                                                                      int lastModelIndex = -1)
         {
             //find 2 closest model features for this data feature
-            double closestDistSq = double.PositiveInfinity;
-            double secondClosestDistSq = double.PositiveInfinity;
+            double closestDist = double.PositiveInfinity;
+            double secondClosestDist = double.PositiveInfinity;
             int closestModelIndex = -1;
             int secondClosestModelIndex = -1;
             var dataDesc = dataFeatures[dataIndex].Descriptor;
-            for (int modelIndex = 0; modelIndex < modelFeatures.Length; modelIndex++)
+            if (lastModelIndex < 0)
+            {
+                lastModelIndex = modelFeatures.Length - 1;
+            }
+            for (int modelIndex = firstModelIndex; modelIndex <= lastModelIndex; modelIndex++)
             {
                 var modelFeature = modelFeatures[modelIndex];
                 if (filter != null && !filter(modelFeature))
@@ -61,17 +67,17 @@ namespace OPS.Alignment
                     continue;
                 }
 
-                double distSq = dataDesc.L2DistanceSquared(modelFeature.Descriptor);
-                if (distSq < secondClosestDistSq)
+                double dist = dataDesc.FastDistance(modelFeature.Descriptor);
+                if (dist < secondClosestDist)
                 {
-                    if (distSq < closestDistSq)
+                    if (dist < closestDist)
                     {
-                        closestDistSq = distSq;
+                        closestDist = dist;
                         closestModelIndex = modelIndex;
                     }
                     else
                     {
-                        secondClosestDistSq = distSq;
+                        secondClosestDist = dist;
                         secondClosestModelIndex = modelIndex;
                     }
                 }
@@ -79,13 +85,14 @@ namespace OPS.Alignment
 
             //keep match iff bestDist/2ndBestDist <= MaxDistanceRatio
             if (closestModelIndex >= 0 &&
-                (secondClosestModelIndex < 0 || (closestDistSq <= secondClosestDistSq * maxDistanceRatioSq)))
+                (secondClosestModelIndex < 0 ||
+                 dataDesc.CheckFastDistanceRatio(closestDist, secondClosestDist, maxDistanceRatio)))
             {
                 return new FeatureMatch()
                 {
                     DataIndex = dataIndex,
                     ModelIndex = closestModelIndex,
-                    DescriptorDistance = Math.Sqrt(closestDistSq)
+                    DescriptorDistance = (float)dataDesc.FastDistanceToBestDistance(closestDist)
                 };
             }
             else
