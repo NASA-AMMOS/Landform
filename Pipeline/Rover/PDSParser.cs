@@ -97,9 +97,9 @@ namespace OPS.Pipeline
             switch (camera)
             {
                 case RoverProductCamera.NavcamLeft:
-                    return 14.67; //source SIS
+                    return 14.67; //source SIS: https://pds-imaging.jpl.nasa.gov/data/msl/MSLNAV_0XXX/DOCUMENT/MSL_CAMERA_SIS_latest.PDF
                 case RoverProductCamera.NavcamRight:
-                    return 14.67; //source SIS
+                    return 14.67; //source SIS: https://pds-imaging.jpl.nasa.gov/data/msl/MSLNAV_0XXX/DOCUMENT/MSL_CAMERA_SIS_latest.PDF
                 case RoverProductCamera.MastcamLeft:
                     return 34.0; //https://www.lpi.usra.edu/meetings/lpsc2010/pdf/1123.pdf
                 case RoverProductCamera.MastcamRight:
