@@ -33,7 +33,8 @@ namespace AlignmentTest
                 movingPts[idx] = Vector3.Transform(fixedPts[idx], finalTransform);
             }
 
-            Procrustes.Calculate(movingPts, fixedPts, out double rmsResidual,
+            double rmsResidual =
+                Procrustes.Calculate(movingPts, fixedPts, 
                                      out Vector3 translation, out Quaternion rotation, out double scale,
                                      calcTranslation: false, calcRotation: false, calcScale: true);
 
@@ -62,7 +63,8 @@ namespace AlignmentTest
                 movingPts[idx] = Vector3.Transform(fixedPts[idx], finalTransform);
             }
 
-            Procrustes.Calculate(movingPts, fixedPts, out double rmsResidual,
+            double rmsResidual =
+                Procrustes.Calculate(movingPts, fixedPts,
                                      out Vector3 translation, out Quaternion rotation, out double scale,
                                      calcTranslation: false, calcRotation: true, calcScale: false);
 
@@ -92,7 +94,8 @@ namespace AlignmentTest
                 movingPts[idx] = Vector3.Transform(fixedPts[idx], finalTransform);
             }
 
-            Procrustes.Calculate(movingPts, fixedPts, out double rmsResidual,
+            double rmsResidual =
+                Procrustes.Calculate(movingPts, fixedPts,
                                      out Vector3 translation, out Quaternion rotation, out double scale,
                                      calcTranslation: true, calcRotation: false, calcScale: false);
 
@@ -128,7 +131,8 @@ namespace AlignmentTest
                 movingPts[idx] = Vector3.Transform(fixedPts[idx], finalTransform);
             }
 
-            Procrustes.Calculate(movingPts, fixedPts, out double rmsResidual,
+            double rmsResidual =
+                Procrustes.Calculate(movingPts, fixedPts,
                                      out Vector3 translation, out Quaternion rotation, out double scale,
                                      calcTranslation: true, calcRotation: true, calcScale: true);
 

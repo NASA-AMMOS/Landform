@@ -364,6 +364,23 @@ namespace OPS.Pipeline
                                          Matrix modelToRoot, Matrix dataToRoot,
                                          KeyValuePair<int, int>[] dataToModel)
         {
+            var modelPts = new List<Vector3>();
+            var dataPts = new List<Vector3>();
+            foreach (var match in dataToModel)
+            {
+                var df = dataFeat[match.Key];
+                var mf = modelFeat[match.Value];
+                if (df.Range > 0 && mf.Range > 0)
+                {
+                    modelPts.Add(modelCam.Unproject(mf.Location, mf.Range));
+                    dataPts.Add(dataCam.Unproject(df.Location, df.Range));
+                }
+            }
+            return MakeMatchMesh(modelPts.ToArray(), dataPts.ToAray(), modelToRoot, dataToRoot);
+        }
+
+        public static Mesh MakeMatchMesh(Vector3[] modelPts, Vector3[] dataPts, Matrix modelToRoot, Matrix dataToRoot)
+        {
             var ret = new Mesh(hasNormals: true, hasColors: true);
             var lineColor = new Vector4(0, 0, 1, 0);
             var pointColor = new Vector4(0, 1, 0, 0);
@@ -371,21 +388,21 @@ namespace OPS.Pipeline
             double lineSize = 0.02; //meters
             var pointMesh = BoundingBoxExtensions.MakeCube(pointSize).ToMesh(pointColor);
             var lineMesh = BoundingBoxExtensions.MakeCube(lineSize).ToMesh(lineColor);
-            foreach (var match in dataToModel)
+            for (int i = 0; i < modelPts.Length; i++)
             {
-                var df = dataFeat[match.Key];
-                var mf = modelFeat[match.Value];
-                if (df.Range > 0 && mf.Range > 0)
-                {
-                    var mp = Vector3.Transform(modelCam.Unproject(mf.Location, mf.Range), modelToRoot);
-                    var dp = Vector3.Transform(dataCam.Unproject(df.Location, df.Range), dataToRoot);
-                    ret.MergeWith(Mesh.Transformed(pointMesh, Matrix.CreateTranslation(mp)));
-                    ret.MergeWith(Mesh.Transformed(pointMesh, Matrix.CreateTranslation(dp)));
-                    var lineMat = BoundingBoxExtensions.StretchCubeAlongLineSegment(mp, dp, lineSize);
-                    ret.MergeWith(Mesh.Transformed(lineMesh, lineMat));
-                }
+                var mp = Vector3.Transform(modelPts[i], modelToRoot);
+                var dp = Vector3.Transform(dataPts[i], dataToRoot);
+                ret.MergeWith(Mesh.Transformed(pointMesh, Matrix.CreateTranslation(mp)));
+                ret.MergeWith(Mesh.Transformed(pointMesh, Matrix.CreateTranslation(dp)));
+                var lineMat = BoundingBoxExtensions.StretchCubeAlongLineSegment(mp, dp, lineSize);
+                ret.MergeWith(Mesh.Transformed(lineMesh, lineMat));
             }
             return ret;
+        }
+
+        public static Mesh MakeMatchMesh(Vector3[] modelPts, Vector3[] dataPts)
+        {
+            return MakeMatchMesh(modelPts, dataPts, Matrix.Identity, Matrix.Identity);
         }
     }
 }

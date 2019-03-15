@@ -22,6 +22,7 @@ namespace OPS.Pipeline.AlignmentServer
         Adjusted = 0, //general adjusted transform
         Manual = 10, //manually adjusted
         Landform = 20, //Landform bundle adjusted
+        LandformBEV = 21, //Landform birds eye view aligned
         Agisoft = 30, //Agisoft bundle adjusted
 
         Prior = 100, //general prior transform
