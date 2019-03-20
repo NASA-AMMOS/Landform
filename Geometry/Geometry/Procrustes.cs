@@ -141,7 +141,7 @@ namespace OPS.Geometry
 
             translation = fixedCtr - Vector3.Transform(movingCtr, rotation) * scale;
 
-            bool rmsResidual = 0;
+            double rmsResidual = 0;
             for (int i = 0; i < numPoints; ++i)
             {
                 rmsResidual +=
@@ -165,7 +165,7 @@ namespace OPS.Geometry
         {
             double rmsResidual = Calculate(movingPts, fixedPts,
                                            out Vector3 translation, out Quaternion rotation, out double scale,
-                                           calcTranslation, calcRotation, calcScale, svdTolerance);
+                                           out degenerate, calcTranslation, calcRotation, calcScale, svdTolerance);
             var sm = Matrix.CreateScale(scale);
             var rm = Matrix.CreateFromQuaternion(rotation);
             var tm = Matrix.CreateTranslation(translation);
@@ -184,13 +184,13 @@ namespace OPS.Geometry
         public static double CalculateRigid(Vector3[] movingPts, Vector3[] fixedPts, out Matrix matrix,
                                             out bool degenerate, double svdTolerance = SVDTolerance)
         {
-            return Calculate(movingPts, fixedPts, out matrix, out degenerate, svdTolerance);
+            return Calculate(movingPts, fixedPts, out matrix, out degenerate, true, true, false, svdTolerance);
         }
 
         public static double CalculateRigid(Vector3[] movingPts, Vector3[] fixedPts, out Matrix matrix,
                                             double svdTolerance = SVDTolerance)
         {
-            return Calculate(movingPts, fixedPts, out matrix, out bool degenerate, svdTolerance);
+            return CalculateRigid(movingPts, fixedPts, out matrix, out bool degenerate, svdTolerance);
         }
     }
 }

@@ -1,14 +1,13 @@
 ﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
-using OPS.Pipeline.Alignment;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Microsoft.Xna.Framework;
-using OPS.Alignment;
+using OPS.Geometry;
 
-namespace AlignmentTest
+namespace GeometryTest
 {
     [TestClass()]
     public class ProcrustesTests

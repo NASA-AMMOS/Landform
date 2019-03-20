@@ -17,12 +17,15 @@ using OPS.Imaging;
 using OPS.Imaging.Emgu;
 using OPS.Geometry;
 using OPS.Alignment;
-using OPS.Pipeline.Alignment;
 using OPS.Pipeline.AlignmentServer;
 
 namespace OPS.Pipeline
 {
     public enum ColorMode { Texture, Tilt, Elevation };
+
+    public enum SiteDrivePriority { NewestFirst, OldestFirst, BiggestFirst, SmallestFirst };
+    
+    public enum AlignmentMode { PairwiseMinimal, PairwiseMaximal, Simultaneous };
 
     [Verb("local-bev-align", HelpText = "birds eye view align locally")]
     public class LocalBEVAlignerOptions : PipelineCoreOptions
@@ -32,6 +35,15 @@ namespace OPS.Pipeline
 
         [Option(HelpText = "Only generate products for specific site drives, comma separated", Default = null)]
         public string OnlyForSiteDrives { get; set; }
+
+        [Option(HelpText = "Don't adjust specified site drives (or \"newest\", \"oldest\", \"largest\", \"smallest\"), comma separated", Default = null)]
+        public string FixSiteDrives { get; set; }
+
+        [Option(HelpText = "Alignment algorithm: PairwiseMinimal, PairwiseMaximal, or Simultaneous", Default = AlignmentMode.PairwiseMaximal)]
+        public AlignmentMode AlignmentMode { get; set; }
+
+        [Option(HelpText = "In pairwise alignment modes lower priority site drives will be aligned to higher priority ones (NewestFirst, OldestFirst, BiggestFirst, SmallestFirst)", Default = SiteDrivePriority.NewestFirst)]
+        public SiteDrivePriority SiteDrivePriority { get; set; }
 
         [Option(HelpText = "Only generate products for specific cameras, comma separated (FrontHazcamLeft, FrontHazcamRight, RearHazcamLeft, RearHazcamRight, NavcamLeft, NavcamRight, MastcamLeft, MastcamRight, MAHLI)", Default = "NavcamLeft")]
         public string OnlyForCameras { get; set; }
@@ -153,7 +165,7 @@ namespace OPS.Pipeline
         //sitedrive name => DEM image
         private ConcurrentDictionary<string, Image> dems = new ConcurrentDictionary<string, Image>();
 
-        //sitedrive name => pixel in BEV image corresponding to world frame origin (based on priors)
+        //sitedrive name => pixel in BEV image corresponding to world frame origin, based on priors
         private ConcurrentDictionary<string, Vector2> bevOrigins = new ConcurrentDictionary<string, Vector2>();
 
         //sitedrive name => features sorted by increasing distance to origin of sitedrive
@@ -170,18 +182,16 @@ namespace OPS.Pipeline
 
         //modelSiteDrive-dataSiteDrive => (modelPoint, dataPoint), (modelPoint, dataPoint), ...
         private ConcurrentDictionary<string, List<Tuple<Vector3, Vector3>>> spatialMatches =
-            new ConcurrentDictionary<string, List<Tuple<Vector3, Vector3>>();
+            new ConcurrentDictionary<string, List<Tuple<Vector3, Vector3>>>();
 
         //(modelSiteDrive, dataSiteDrive), (modelSiteDrive, dataSiteDrive), ...
-        List<Tuple<string, string>> allPairs = new List<Tuple<string, string>>();
+        List<Tuple<string, string>> siteDrivePairs = new List<Tuple<string, string>>();
         
         private const string cacheImageExt = ".tif";
         private const string cacheMaskExt = ".png";
 
-        private double GetPixelsPerMeter()
-        {
-            return 1 / (options.BEVMetersPerPixel * options.BEVDecimation);
-        }
+        private double MetersPerPixel { get { return options.BEVMetersPerPixel * options.BEVDecimation; } }
+        private double PixelsPerMeter { get { return 1 / MetersPerPixel; } }
 
         /// <summary>
         /// map a 3D point in meters from a given site drive to a 2D pint in pixels in a given site drive
@@ -190,8 +200,7 @@ namespace OPS.Pipeline
         {
             var srcSiteDriveToRoot = frameCache.GetBestTransform(srcSiteDrive).Transform;
             var ptInRoot = Vector3.Transform(srcPoint, srcSiteDriveToRoot.Mean);
-            var pixelsPerMeter = GetPixelsPerMeter();
-            var pixelInRoot = ptInRoot * pixelsPerMeter;
+            var pixelInRoot = ptInRoot * PixelsPerMeter;
             return bevOrigins[dstSiteDrive] + new Vector2(pixelInRoot.X, pixelInRoot.Y);
         }
 
@@ -224,6 +233,12 @@ namespace OPS.Pipeline
                 }
             }
             return u;
+        }
+
+        private int BEVArea(string siteDrive)
+        {
+            var bev = bevs[siteDrive];
+            return bev.Width * bev.Height;
         }
 
         public LocalBEVAligner(LocalBEVAlignerOptions options)
@@ -284,50 +299,74 @@ namespace OPS.Pipeline
                                                            allowMastcam, requireNormals, requireTextures,
                                                            options.OnlyForSiteDrives, options.OnlyForCameras);
 
-            //lexicographically sort siteDrives so that older ones come before newer
-            //also this ensures that multiple runs with the same sitedrives but possibly different observations
-            //will consider them in the same order
+            //for now lexicographically sort siteDrives so that older ones come before newer
+            //just to give a canonical order
+            //later in ComputePairs we may change the order depending on options
             siteDrives = observations.Select(obs => obs.SiteDrive.ToString()).Distinct().OrderBy(sd => sd).ToArray();
 
-            pipeline.LogInfo("computing birds eye view alignment for site drives {0} and {1}, {2} observations",
-                             siteDrives[0], siteDrives[1], observations.Count());
+            pipeline.LogInfo("computing birds eye view alignment for {0} observations, {1} site drives",
+                             siteDrives.Length, observations.Count());
 
             RenderBEVs(); //observations -> bevs, dems
 
             DetectFeatures(); //bevs -> features
 
-            ComputeSiteDrivePairs(); //siteDrives -> allPairs
+            ComputePairs(); //siteDrives -> siteDrivePairs
 
-            int nc = 0, np = 0;
-            CoreLimitedParallel.ForEach(pair => {
-                    
-                    Interlocked.Increment(ref np);
+            MatchPairs(); //siteDrivePairs, features -> spatialMatches
 
-                    if (!options.NoProgress)
-                    {
-                        pipeline.LogInfo("aligning {0} sitedrive pairs in parallel, completed {1}/{2}",
-                                         np, nc, allPairs.Count);
-                    }
-
-                    var model = pair.Item1;
-                    var data = pair.Item2;
-
-                    MatchFeatures(model, data); //features -> matches
-
-                    RansacMatches(model, data); //matches -> ransacMatches
-
-                    SpatializeMatches(model, data); //ransacMatches -> spatialMatches
-
-                    Interlocked.Decrement(ref np);
-                    Interlocked.Increment(ref nc);
-                });
-
-            int na = ProcrustesAlign(); //spatialMatches -> LandformBEV aligned FrameTransforms
+            //spatialMatches -> LandformBEV aligned FrameTransforms
+            int na = options.AlignmentMode == AlignmentMode.Simultaneous ? SimultaneousAlign() : PairwiseAlign();
 
             pipeline.LogInfo("aligned {0} site drives from {1} birds eye views ({1:F3}s)", na, bevs.Count,
                              UTCTime.Now() - startSec);
 
             return 0;
+        }
+
+        /// <summary>
+        /// populates mergeInputs with individual wedge meshes and textures from observations
+        /// </summary>
+        private void BuildWedgeMeshes()
+        {
+            double startSec = UTCTime.Now();
+            int no = observations.Count();
+            pipeline.LogInfo("creating wedge meshes for {0} observations...", no);
+
+            int np = 0, nc = 0;
+            CoreLimitedParallel.ForEach(observations, obs => { 
+
+                    Interlocked.Increment(ref np);
+
+                    if (!options.NoProgress)
+                    {
+                        pipeline.LogInfo("computing products for {0} observations in parallel, completed {1}/{2}",
+                                         np, nc, no);
+                    }
+
+                    Mesh mesh = Meshing.BuildOrganizedMesh(pipeline, obs, frameCache, "root", usePriors: true,
+                                                           decimate: options.DecimateWedgeMeshes);
+
+                    Image img = null;
+                    if (options.BEVColoring == ColorMode.Texture && obs.Texture != null)
+                    {
+                        img = pipeline.LoadImage(obs.Texture.Url);
+                        if (options.DecimateWedgeImages > 1)
+                        {
+                            img = img.Decimated(options.DecimateWedgeImages);
+                        }
+                    }
+
+                    var pair = new Tuple<Mesh, Image>(mesh, img);
+                    mergeInputs.AddOrUpdate(obs.SiteDrive.ToString(),
+                                            _ => new ConcurrentBag<Tuple<Mesh, Image>>(new [] { pair }),
+                                            (_, bag) => { bag.Add(pair); return bag; });
+
+                    Interlocked.Decrement(ref np);
+                    Interlocked.Increment(ref nc);
+                });
+
+            pipeline.LogInfo("created wedge meshes for {0} observations ({1:F3}s)", nc, UTCTime.Now() - startSec);
         }
 
         /// <summary>
@@ -401,10 +440,10 @@ namespace OPS.Pipeline
                     var bev = RenderBEV(mesh, img, out Vector2 origin);
 
                     pipeline.LogVerbose("birds eye view for site drive {0}: {1}x{2}, origin ({3}, {4}), " +
-                                        "{5} meters/pixel, sparse block size {6}, valid block ratio {7}, " +
-                                        "inpaint {8}, smoothing {9}, decimation {10}",
+                                        "{5} meters/pixel ({6} with decimation), sparse block size {7}, " +
+                                        "valid block ratio {8}, inpaint {9}, smoothing {10}, decimation {11}",
                                         siteDrive, bev.Width, bev.Height, (int)origin.X, (int)origin.Y,
-                                        options.BEVMetersPerPixel, options.BEVSparseBlocksize,
+                                        options.BEVMetersPerPixel, 1 / PixelsPerMeter, options.BEVSparseBlocksize,
                                         options.BEVMinValidBlockRatio, options.BEVInpaint, options.BEVSmoothing,
                                         options.BEVDecimation);
                     
@@ -421,12 +460,13 @@ namespace OPS.Pipeline
                         var dem = RenderBEV(mesh, null, out Vector2 demOrigin);
                         if (dem.Width != bev.Width || dem.Height != bev.Height)
                         {
-                            throw new Exception("DEM dimensions {0}x{1} don't match BEV {2}x{3}",
-                                                dem.Width, dem.Height, bev.Width, bev.Height);
+                            throw new Exception(string.Format("DEM dimensions {0}x{1} don't match BEV {2}x{3}",
+                                                              dem.Width, dem.Height, bev.Width, bev.Height));
                         }
                         if (demOrigin != origin)
                         {
-                            throw new Exception("DEM origin {0} doesn't match BEV {1}", demOrigin, origin);
+                            throw new Exception(string.Format("DEM origin {0} doesn't match BEV {1}",
+                                                              demOrigin, origin));
                         }
                         dems[siteDrive] = dem;
                     }
@@ -461,12 +501,10 @@ namespace OPS.Pipeline
 
         private Image RenderBEV(Mesh mesh, Image img, out Vector2 origin)
         {
-            bool greyscale = true;
-            bool ccw = false;
+            bool greyscale = true, ccw = false;
             return Meshing.RenderBirdsEyeView(mesh, img, options.BEVMetersPerPixel, greyscale, out origin,
                                               ccw, options.BEVSparseBlocksize, options.BEVMinValidBlockRatio,
-                                              options.BEVInpaint, options.BEVSmoothing,
-                                              options.BEVDecimation);
+                                              options.BEVInpaint, options.BEVSmoothing, options.BEVDecimation);
         }
 
         /// <summary>
@@ -477,11 +515,12 @@ namespace OPS.Pipeline
             double startSec = UTCTime.Now();
             pipeline.LogInfo("checking cache for {0} birds eye views...", siteDrives.Length);
 
+            var available = pipeline.SearchFiles(outputPath, recursive: false).ToArray();
+
             int nc = 0;
             foreach (var siteDrive in siteDrives)
             {
                 string basename = siteDrive + "_BirdsEyeView_cached";
-                var available = pipeline.SearchFiles(outputPath, recursive: false).ToArray();
                 foreach (var url in available)
                 {
                     var file = StringHelper.GetLastUrlPathSegment(url);
@@ -512,8 +551,7 @@ namespace OPS.Pipeline
 
             if (nc == siteDrives.Length)
             {
-                pipeline.LogInfo("loaded {0} cached birds eye views ({1:F3}s)",
-                                 bevs.Count, UTCTime.Now() - startSec);
+                pipeline.LogInfo("loaded {0} cached birds eye views ({1:F3}s)", bevs.Count, UTCTime.Now() - startSec);
                 return true;
             }
 
@@ -547,51 +585,6 @@ namespace OPS.Pipeline
                 bev.MaskToImage().Save<byte>(outputPath + siteDrive + "_BirdsEyeView_cached_mask" + cacheMaskExt);
                 dems[siteDrive].Save<float>(outputPath + siteDrive + "_BirdsEyeView_cached_DEM" + cacheImageExt);
             }
-        }
-
-        /// <summary>
-        /// populates mergeInputs with individual wedge meshes and textures from observations
-        /// </summary>
-        private void BuildWedgeMeshes()
-        {
-            double startSec = UTCTime.Now();
-            int no = observations.Count();
-            pipeline.LogInfo("creating wedge meshes for {0} observations...", no);
-
-            int np = 0, nc = 0;
-            CoreLimitedParallel.ForEach(observations, obs => { 
-
-                    Interlocked.Increment(ref np);
-
-                    if (!options.NoProgress)
-                    {
-                        pipeline.LogInfo("computing products for {0} observations in parallel, completed {1}/{2}",
-                                         np, nc, no);
-                    }
-
-                    Mesh mesh = Meshing.BuildOrganizedMesh(pipeline, obs, frameCache, "root", usePriors: true,
-                                                           decimate: options.DecimateWedgeMeshes);
-
-                    Image img = null;
-                    if (options.BEVColoring == ColorMode.Texture && obs.Texture != null)
-                    {
-                        img = pipeline.LoadImage(obs.Texture.Url);
-                        if (options.DecimateWedgeImages > 1)
-                        {
-                            img = img.Decimated(options.DecimateWedgeImages);
-                        }
-                    }
-
-                    var pair = new Tuple<Mesh, Image>(mesh, img);
-                    mergeInputs.AddOrUpdate(obs.SiteDrive.ToString(),
-                                            _ => new ConcurrentBag<Tuple<Mesh, Image>>(new [] { pair }),
-                                            (_, bag) => { bag.Add(pair); return bag; });
-
-                    Interlocked.Decrement(ref np);
-                    Interlocked.Increment(ref nc);
-                });
-
-            pipeline.LogInfo("created wedge meshes for {0} observations ({1:F3}s)", nc, UTCTime.Now() - startSec);
         }
 
         /// <summary>
@@ -675,7 +668,7 @@ namespace OPS.Pipeline
             variance /= n;
             stddev = Math.Sqrt(variance);
 
-            pipeline.LogInfo("{0} valid pixels, min {1}, max{2}, mean {3}, stddev {4}", n, min, max, mean, stddev);
+            pipeline.LogInfo("{0} valid pixels, min {1}, max {2}, mean {3}, stddev {4}", n, min, max, mean, stddev);
             pipeline.LogInfo("collected stats for {0} birds eye views ({1:F3}s)", bevs.Count, UTCTime.Now() - startSec);
         }
 
@@ -745,7 +738,10 @@ namespace OPS.Pipeline
                     Interlocked.Increment(ref nc);
                 });
 
-            detector.DumpHistograms(pipeline);
+            if (options.Verbose)
+            {
+                detector.DumpHistograms(pipeline);
+            }
 
             pipeline.LogInfo("detected features for {0} birds eye views ({1:F3}s)",
                              features.Count, UTCTime.Now() - startSec);
@@ -758,16 +754,15 @@ namespace OPS.Pipeline
                                 double crossRadius = 0.05, double circleRadius = 0.5)
         {
             var bgr = new Bgr((float)color.X * 255, (float)color.Y * 255, (float)color.Z * 255); //actually RGB
-            var pixelsPerMeter = GetPixelsPerMeter();
             if (crossRadius > 0)
             {
-                var cr = crossRadius * pixelsPerMeter;
+                var cr = crossRadius * PixelsPerMeter;
                 img.Draw(ToLineSegment2DF(pixel + new Vector2(-cr, 0), pixel + new Vector2(cr, 0)), bgr, 2);
                 img.Draw(ToLineSegment2DF(pixel + new Vector2(0, -cr), pixel + new Vector2(0, cr)), bgr, 2);
             }
             if (circleRadius > 0)
             {
-                var cr = circleRadius * pixelsPerMeter;
+                var cr = circleRadius * PixelsPerMeter;
                 img.Draw(new CircleF(ToPointF(pixel), (float)cr), bgr, 2);
             }
         }
@@ -799,28 +794,26 @@ namespace OPS.Pipeline
 
             //NOTE: features for a site drive are already sorted by distance to origin of that site drive
 
-            double radius = options.MatchRadius * GetPixelsPerMeter();
+            double radius = options.MatchRadius * PixelsPerMeter;
 
+            var pair = modelSiteDrive + "-" + dataSiteDrive;
             var matchList = new List<FeatureMatch>();
-            var histogram =
-                new Histogram(50, string.Format("{0}-{1} matches", modelSiteDrive, dataSiteDrive), "distance");
+            var histogram = new Histogram(50, pair + " matches", "distance");
             for (int i = 0; i < dataFeatures.Length; i++)
             {
                 var df = dataFeatures[i];
                 var dfInModel = dataOriginInModel + (df.Location - dataOrigin);
                 var r = Vector2.Distance(dfInModel, modelOrigin);
-                double minRadius = r - radius, maxRadius = r + radius;
-                int minSearchIndex = BinarySearch(modelDistances, minRadius);
-                int maxSearchIndex = BinarySearch(modelDistances, maxRadius) - 1;
+                int minSearchIndex = BinarySearch(modelDistances, r - radius);
+                int maxSearchIndex = BinarySearch(modelDistances, r + radius) - 1;
                 if (maxSearchIndex >= minSearchIndex)
                 {
                     var match = BruteForceMatcher
                         .FindBestModelFeatureForDataFeature(modelFeatures, dataFeatures, i,
                                                             options.MaxDescriptorDistanceRatio,
                                                             mf => Vector2.Distance(mf.Location, dfInModel) <= radius,
-                                                            minSearchIndex,
-                                                            maxSearchIndex);
-                    if (match != null && match.DescriptorDistance < options.MaxDescriptorDistance)
+                                                            minSearchIndex, maxSearchIndex);
+                    if (match != null && match.DescriptorDistance <= options.MaxDescriptorDistance)
                     {
                         matchList.Add(match);
                         histogram.Add(match.DescriptorDistance);
@@ -828,7 +821,7 @@ namespace OPS.Pipeline
                 }
             }
 
-            matches[modelSiteDrive + "-" + dataSiteDrive] = matchList;
+            matches[pair] = matchList;
 
             if (options.Verbose)
             {
@@ -841,7 +834,7 @@ namespace OPS.Pipeline
                 var img = ImageMatching.DrawMatches(bevs[modelSiteDrive], bevs[dataSiteDrive],
                                                     modelFeatures, dataFeatures, d2m,
                                                     modelSiteDrive, dataSiteDrive, stretch: false);
-                string file = outputPath + modelSiteDrive + "-" + dataSiteDrive + "_BirdsEyeView_Matches" + imageExt;
+                string file = outputPath + pair + "_BirdsEyeView_Matches" + imageExt;
                 PathHelper.EnsureExists(outputPath);
                 img.Save<byte>(file);
             }
@@ -855,7 +848,8 @@ namespace OPS.Pipeline
         /// </summary>
         private void RansacMatches(string modelSiteDrive, string dataSiteDrive)
         {
-            var matchList = matches[modelSiteDrive + "-" + dataSiteDrive];
+            var pair = modelSiteDrive + "-" + dataSiteDrive;
+            var matchList = matches[pair];
 
             double startSec = UTCTime.Now();
             pipeline.LogInfo("RANSACing {0} feature matches for stite drives {1} (model) and  {2} (data)...",
@@ -874,55 +868,111 @@ namespace OPS.Pipeline
             var dataOriginInModel = PointToPixel(Vector3.Zero, dataSiteDrive, modelSiteDrive);
 
             //pixel offsets corresponding to model features relative to data sitedrive origin in model BEV
-            var modelPts = matches
+            var modelPts = matchList
                 .Select(m => modelFeatures[m.ModelIndex].Location - dataOriginInModel)
                 .ToArray();
 
             //pixel offsets corresponding to data features relative to data sitedrive origin in model BEV
-            var dataPtsInModel = matches
+            var dataPtsInModel = matchList
                 .Select(m => dataFeatures[m.DataIndex].Location - dataOrigin)
                 .ToArray();
 
-            var random = NumberHelper.MakeRandomGenerator();
-
             var bestTransform = new RigidTransform2D();
-            var bestMatches = new List<int>(matches.Count);
+            var bestMatches = new List<int>(matchList.Count);
             double bestResidual = double.PositiveInfinity;
 
-            double radiusSquared = options.RansacMatchRadius * GetPixelsPerMeter();
+            double radiusSquared = options.RansacMatchRadius * PixelsPerMeter;
             radiusSquared = radiusSquared * radiusSquared;
 
-            var pixelsPerMeter = GetPixelsPerMeter();
-            var metersPerPixel = 1 / pixelsPerMeter;
+            var maxResidual = options.MaxRansacResidual * PixelsPerMeter;
 
-            var maxResidual = options.MaxRansacResidual * pixelsPerMeter;
-
-            int i;
-            for (i = 0; i < options.MaxRansacTests; i++)
+            var random = NumberHelper.MakeRandomGenerator();
+            int[,] shuffle = null;
+            HashSet<Tuple<int, int>> alreadyTried = null;
+            int maxTests = 0, nm = matchList.Count;
+            long totalCombinations = nm * (nm - 1) / 2; //nm choose 2
+            if (totalCombinations < 2 * (long)(options.MaxRansacTests))
             {
-                var seeds = new [] { random.Next(0, matches.Count), random.Next(0, matches.Count) };
-                if (seeds[0] == seeds[1])
+                //the total number of combinations is tractable
+                //so enumerate all combinations, randomly shuffle, take at most MaxRansacTests of them
+                shuffle = new int[(int)totalCombinations, 2]; 
+                int n = 0;
+                for (int i = 0; i < nm; i++)
                 {
-                    continue;
+                    for (int j = i + 1; j < nm; j++)
+                    {
+                        shuffle[n, 0] = i;
+                        shuffle[n, 1] = j;
+                        n++;
+                    }
                 }
 
-                var xform = RigidTransform2D.Estimate(seeds.Select(s => dataPtsInModel[s]).ToArray(), 
-                                                      seeds.Select(s => modelPts[s]).ToArray(),
-                                                      out double residual);
+                //Fisher-Yates shuffle
+                void swap(int i, int j, int k)
+                {
+                    var t = shuffle[i, k];
+                    shuffle[i, k] = shuffle[j, k];
+                    shuffle[j, k] = t;
+                }
+                for (int i = 0; i < shuffle.Length - 1; i++)
+                {
+                    int j = random.Next(i, matchList.Count);
+                    swap(i, j, 0);
+                    swap(i, j, 1);
+                }
+
+                maxTests = (int)Math.Min(totalCombinations, options.MaxRansacTests);
+            }
+            else
+            {
+                //if the total number of combinations is more than twice MaxRansacTests then
+                //avoid allocating shuffle which could be gigantic
+                //in this case we instead throw dice to generate combinations
+                //but keep track of the ones we've already tried and re-throw if we get a dupe
+                //since we'll be trying at most half of the total possible combinations
+                //we should't spend too much time re-throwing
+                alreadyTried = new HashSet<Tuple<int, int>>();
+                maxTests = options.MaxRansacTests;
+            }
+
+            int nt;
+            for (nt = 0; nt < maxTests; nt++)
+            {
+                Tuple<int, int> seeds = null;
+                if (shuffle != null)
+                {
+                    seeds = new Tuple<int, int>(shuffle[nt, 0], shuffle[nt, 1]);
+                }
+                else
+                {
+                    do
+                    {
+                        int j = random.Next(0, matchList.Count);
+                        int k = random.Next(0, matchList.Count);
+                        seeds = new Tuple<int, int>(Math.Min(j, k), Math.Max(j, k)); //canonical order Item1 < item2
+                    }
+                    while (seeds.Item1 == seeds.Item2 || alreadyTried.Contains(seeds));
+                }
+
+                alreadyTried.Add(seeds);
+
+                var xform =
+                    RigidTransform2D.Estimate(new [] { dataPtsInModel[seeds.Item1], dataPtsInModel[seeds.Item2] },
+                                              new [] { modelPts[seeds.Item1], modelPts[seeds.Item2] },
+                                              out double residual);
+
                 if (residual > bestResidual)
                 {
                     continue;
                 }
 
                 bestMatches.Clear();
-                residual = 0;
-                for (int j = 0; j < matches.Count; j++)
+                for (int j = 0; j < matchList.Count; j++)
                 {
                     var d = Vector2.DistanceSquared(xform.Transform(dataPtsInModel[j]), modelPts[j]);
                     if (d < radiusSquared)
                     {
                         bestMatches.Add(j);
-                        residual += d * d;
                     }
                 }
 
@@ -953,43 +1003,51 @@ namespace OPS.Pipeline
                 var dfColor = new Bgr(0, 255, 0); //actually RGB
 
                 var mf = bestMatches
-                    .Select(m => modelFeatures[matches[m].ModelIndex])
+                    .Select(m => modelFeatures[matchList[m].ModelIndex])
                     .Cast<SIFTFeature>()
                     .CastToMKeyPoint()
                     .ToArray();
 
-                var df = bestMatches
-                    .Select(m =>
-                            {
-                                var f = new SIFTFeature((SIFTFeature)dataFeatures[matches[m].DataIndex]);
-                                f.Location = bestTransform.Transform(dataPtsInModel[m]) + dataOriginInModel;
-                                return f;
-                            })
-                    .CastToMKeyPoint()
-                    .ToArray();
-
-                var img = bevs[modelSiteDrive].ToEmgu<Bgr>();
-
-                Features2DToolbox.DrawKeypoints(img, new VectorOfKeyPoint(mf), img, mfColor,
-                                                Features2DToolbox.KeypointDrawType.DrawRichKeypoints);
-
-                Features2DToolbox.DrawKeypoints(img, new VectorOfKeyPoint(df), img, dfColor,
-                                                Features2DToolbox.KeypointDrawType.DrawRichKeypoints);
-
-                string file = outputPath + modelSiteDrive + "-" + dataSiteDrive + "_BirdsEyeView_RANSAC" + imageExt;
-                PathHelper.EnsureExists(outputPath);
-                img.ToOPSImage().Save<byte>(file);
+                void writeImage(string suffix, Func<Vector2, Vector2> dataPointTransform)
+                {
+                    var df = bestMatches
+                        .Select(m =>
+                                {
+                                    var f = new SIFTFeature((SIFTFeature)(dataFeatures[matchList[m].DataIndex]));
+                                    f.Location = dataPointTransform(dataPtsInModel[m]) + dataOriginInModel;
+                                    return f;
+                                })
+                        .CastToMKeyPoint()
+                        .ToArray();
+                    
+                    var img = bevs[modelSiteDrive].ToEmgu<Bgr>();
+                    
+                    Features2DToolbox.DrawKeypoints(img, new VectorOfKeyPoint(mf), img, mfColor,
+                                                    Features2DToolbox.KeypointDrawType.DrawRichKeypoints);
+                    
+                    Features2DToolbox.DrawKeypoints(img, new VectorOfKeyPoint(df), img, dfColor,
+                                                    Features2DToolbox.KeypointDrawType.DrawRichKeypoints);
+                    
+                    string file = outputPath + pair + "_BirdsEyeView_RANSAC" + suffix + imageExt;
+                    PathHelper.EnsureExists(outputPath);
+                    img.ToOPSImage().Save<byte>(file);
+                }
+                
+                writeImage("_priors", pt => pt);
+                writeImage("_rotation", pt => bestTransform.Rotate(pt));
+                writeImage("", pt => bestTransform.Transform(pt));
             }
 
-            bestTransform.Translation *= metersPerPixel;
-            bestResidual *= metersPerPixel;
+            bestTransform.Translation *= MetersPerPixel;
+            bestResidual *= MetersPerPixel;
 
-            pipeline.LogInfo("{0} ransac tests, best transform ({1:F3}m, {2:F3}m, {3:F3}deg), residual {4:F3}m, " +
-                             "{5} matches ({6:F3}s)", i, bestTransform.Translation.X, bestTransform.Translation.Y,
+            pipeline.LogInfo("performed {0}/{1} ransac tests ({2} total combinations), best transform " +
+                             "({3:F3}m, {4:F3}m, {5:F3}deg), residual {6:F3}m, {7} matches ({8:F3}s)",
+                             nt, maxTests, totalCombinations, bestTransform.Translation.X, bestTransform.Translation.Y,
                              MathHelper.ToDegrees(bestTransform.Rotation), bestResidual, bestMatches.Count,
                              UTCTime.Now() - startSec);
 
-            ransacMatches[modelSiteDrive + "-" + dataSiteDrive] = bestMatches.Select(m => matches[m]).ToList();
+            ransacMatches[pair] = bestMatches.Select(m => matchList[m]).ToList();
         }
 
         /// <summary>
@@ -1009,110 +1067,287 @@ namespace OPS.Pipeline
             var modelDEM = dems[modelSiteDrive];
             var dataDEM = dems[dataSiteDrive];
 
-            var key = modelSiteDrive + "-" + dataSiteDrive;
+            var pair = modelSiteDrive + "-" + dataSiteDrive;
 
             var pairs = new List<Tuple<Vector3, Vector3>>();
-            foreach (var match in ransacMatches[key])
+            foreach (var match in ransacMatches[pair])
             {
                 var mf = modelFeatures[match.ModelIndex];
                 var df = dataFeatures[match.DataIndex];
 
-                var mz = modelDem[(int)mf.Location.Y, (int)mf.Location.X];
-                var mxy = (mf.Location - modelOrigin) * metersPerPixel;
+                var mz = modelDEM[0, (int)mf.Location.Y, (int)mf.Location.X];
+                var mxy = (mf.Location - modelOrigin) * MetersPerPixel;
 
-                var dz = dataDem[(int)df.Location.Y, (int)df.Location.X];
-                var dxy = (df.Location - dataOrigin) * metersPerPixel;
+                var dz = dataDEM[0, (int)df.Location.Y, (int)df.Location.X];
+                var dxy = (df.Location - dataOrigin) * MetersPerPixel;
 
-                pairs.Add(new Vector3(mxy.X, mxy.Y, mz), new Vector3(dxy.X, dxy.Z, dz));
+                pairs.Add(new Tuple<Vector3, Vector3>(new Vector3(mxy.X, mxy.Y, mz), new Vector3(dxy.X, dxy.Y, dz)));
             }
 
             if (options.WriteDebug)
             {
-                var mesh = ImageMatching.MakeMatchMesh(pairs.Select(p => p.Item1), pairs.Select(p => p.Item2));
-                string file = outputPath + siteDrive + "_matches" + meshExt;
+                var mesh = ImageMatching.MakeMatchMesh(pairs.Select(p => p.Item1).ToArray(),
+                                                       pairs.Select(p => p.Item2).ToArray());
+                string file = outputPath + pair + "_matches" + meshExt;
                 PathHelper.EnsureExists(outputPath);
                 mesh.Save(file);
             }
 
-            spatialMatches[key] = pairs;
+            spatialMatches[pair] = pairs;
         }
 
         /// <summary>
-        /// compute allPairs of sitedrive pairs that are candidates for relative alignment  
+        /// compute siteDrivePairs = (modelSiteDrive, dataSiteDrive), (modelSiteDrive, dataSiteDrive), ...
         /// </summary>
-        private void ComputeSiteDrivePairs()
+        private void ComputePairs()
         {
-            //siteDrives has already been lexicograpically sorted
-            //so that for all j > i siteDrives[j] > siteDrives[i]
-            //there are a few different strategies we could consider here
-            //like choosing "model" and "data" based on number of features in each
-            //but for now lets call "model" the older sitedrive and "data" the newer one
+            switch (options.SiteDrivePriority)
+            {
+                case SiteDrivePriority.NewestFirst:
+                {
+                    siteDrives = siteDrives.OrderByDescending(sd => sd).ToArray();
+                    break;
+                }
+                case SiteDrivePriority.OldestFirst:
+                {
+                    siteDrives = siteDrives.OrderBy(sd => sd).ToArray();
+                    break;
+                }
+                case SiteDrivePriority.BiggestFirst:
+                {
+                    siteDrives = siteDrives.OrderByDescending(sd => BEVArea(sd)).ToArray();
+                    break;
+                }
+                case SiteDrivePriority.SmallestFirst:
+                {
+                    siteDrives = siteDrives.OrderByDescending(sd => BEVArea(sd)).ToArray();
+                    break;
+                }
+            }
+
+            pipeline.LogInfo("site drives ordered by {0}: {1}",
+                             options.SiteDrivePriority, string.Join(", ", siteDrives));
+
             for (int i = 0; i < siteDrives.Length; i++)
             {
                 for (int j = i + 1; j < siteDrives.Length; j++)
                 {
-                    allPairs.Add(new Tuple<string, string>(siteDrives[i], siteDrives[j]));
+                    siteDrivePairs.Add(new Tuple<string, string>(siteDrives[i], siteDrives[j]));
                 }
             }
+
+            pipeline.LogInfo("site drive pairs: {0}",
+                             string.Join(", ",
+                                         siteDrivePairs.Select(pr => string.Format("({0}, {1})", pr.Item1, pr.Item2))));
+        }
+
+        /// <summary>
+        /// compute matches, ransacMatches, and spatialMatches from siteDrivePairs and features  
+        /// </summary>
+        private void MatchPairs()
+        {
+            double startSec = UTCTime.Now();
+            pipeline.LogInfo("matching features in birds eye views for {0} site drive pairs...", siteDrivePairs.Count);
+
+            var histogram = new Histogram(10, "pairs", "matches");
+            int nc = 0, np = 0, ng = 0;
+            CoreLimitedParallel.ForEach(siteDrivePairs, pair => {
+                    
+                    Interlocked.Increment(ref np);
+                    
+                    if (!options.NoProgress)
+                    {
+                        pipeline.LogInfo("aligning {0} sitedrive pairs in parallel, completed {1}/{2}",
+                                         np, nc, siteDrivePairs.Count);
+                    }
+
+                    var model = pair.Item1;
+                    var data = pair.Item2;
+
+                    MatchFeatures(model, data); //features -> matches
+
+                    RansacMatches(model, data); //matches -> ransacMatches
+
+                    SpatializeMatches(model, data); //ransacMatches -> spatialMatches
+
+                    if (spatialMatches[model + "-" + data].Count >= options.MinRansacAgreement)
+                    {
+                        Interlocked.Increment(ref ng);
+                    }
+
+                    Interlocked.Decrement(ref np);
+                    Interlocked.Increment(ref nc);
+                });
+
+            if (options.Verbose)
+            {
+                histogram.Dump(pipeline);
+            }
+
+            pipeline.LogInfo("matched features in birds eye views for {0} site drive pairs, " +
+                             "{1} with at least threshold {2} matches ({3:F3}s)",
+                             siteDrivePairs.Count, ng, options.MinRansacAgreement, UTCTime.Now() - startSec);
         }
 
         private class Node
         {
             public string Name;
-
             public Node Parent;
-
-            public List<Node> Chidren = new List<Node>();
-
-            public int Depth = int.MaxValue; //length of shortest path to world
-
+            public List<Node> Children = new List<Node>();
+            public int Depth; //length of path along ancestor chain to world
             public Matrix Transform; //to parent
-
             public Matrix? WorldTransform; //to world
-
             public Node(string name)
             {
                 this.Name = name;
             }
         }
+        private Dictionary<string, Node> nodes = new Dictionary<string, Node>();
 
         /// <summary>
-        /// Procrustes align all sitedrive pairs that have a sufficent number of spatialized ransac feature matches
-        /// then compute the adjusted sitedrive -> root transforms and write them back to the database
-        /// using TransformSource = LandformBEV
+        /// build graph of sitedrive nodes  
+        /// for each pair of sitedrives for which we have a sufficient spatial match
+        /// the "data" sitedrive is a child of the "model" sitedrive
+        /// at this stage the graph can is a DAG because a node can be a child of more than one parent
+        /// the graph is also possibly disconnected (i.e. there can be more than one node with no parent)
         /// </summary>
-        private int ProcrustesAlign()
+        private void MakeGraph()
         {
-            double startSec = UTCTime.Now();
-            pipeline.LogInfo("Procrustes aligning site drives...");
-
-            var nodes = new Dictionary<string, Node>();
             foreach (var sd in siteDrives)
             {
                 nodes[sd] = new Node(sd);
             }
 
-            //for each pair of sitedrives for which we have a sufficient spatial match
-            //add the "data" sitedrive as a child of the "model" sitedrive
-            //at this stage the graph can is a DAG because a node can be a child of more than one parent
-            //the graph is also possibly disconnected (i.e. there can be more than one node with no parent)
-            foreach (var pair in allPairs)
+            var locked = (options.FixSiteDrives ?? "")
+                .Split(',')
+                .Where(s => !string.IsNullOrEmpty(s))
+                .ToArray();
+
+            var newest = siteDrives.OrderByDescending(sd => sd).FirstOrDefault();
+            var oldest = siteDrives.OrderBy(sd => sd).FirstOrDefault();
+            var largest = siteDrives.OrderByDescending(sd => BEVArea(sd)).FirstOrDefault();
+            var smallest = siteDrives.OrderBy(sd => BEVArea(sd)).FirstOrDefault();
+
+            for (int i = 0; i < locked.Length; i++)
             {
-                var model =  pair.Item1;
-                var data =  pair.Item2;
-                var key = model + "-" + data;
-                if (spatialMatches.ContainsKey(key) && spatialMatches[key].Count >= options.MinRansacAgreement)
+                if (locked[i].ToLower() == "newest")
                 {
-                    var parent = nodes[model];
-                    var child = nodes[data];
-                    parent.Children.Add(child);
-                    child.Parent = parent; //for now any parent will do
+                    locked[i] = newest;
+                }
+                else if (locked[i].ToLower() == "oldest")
+                {
+                    locked[i] = oldest;
+                }
+                else if (locked[i].ToLower() == "largest")
+                {
+                    locked[i] = largest;
+                }
+                else if (locked[i].ToLower() == "smallest")
+                {
+                    locked[i] = smallest;
                 }
             }
 
+            foreach (var pair in siteDrivePairs)
+            {
+                var model =  pair.Item1;
+                var data =  pair.Item2;
+                if (!locked.Any(sd => sd == data))
+                {
+                    var key = model + "-" + data;
+                    if (spatialMatches.ContainsKey(key) && spatialMatches[key].Count >= options.MinRansacAgreement)
+                    {
+                        var parent = nodes[model];
+                        var child = nodes[data];
+                        parent.Children.Add(child);
+                        child.Parent = parent; //for now any parent will do
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// write out sitedrive -> root adjusted transforms
+        /// </summary>
+        private void SaveTransforms(IEnumerable<Node> nodes)
+        {
+            var transformSource = TransformSource.LandformBEV;
+            foreach (var node in nodes)
+            {
+                var ut = new UncertainRigidTransform(node.WorldTransform.Value);
+                var frame = frameCache.GetFrame(node.Name);
+                var ft = FrameTransform.FindOrCreate(pipeline, frame, transformSource, ut);
+                ft.Transform = ut;
+                ft.Save(pipeline);
+                if (frame.AddTransform(ft))
+                {
+                    frame.Save(pipeline);
+                }
+                pipeline.LogInfo("saved {0} adjusted transform for site drive {1}", transformSource, node.Name);
+            }
+        }
+
+        /// <summary>
+        /// simultaneous align all sitedrives that have a sufficent number of spatialized ransac feature matches
+        /// then compute the adjusted sitedrive -> root transforms and write them back to the database
+        /// using TransformSource = LandformBEV
+        /// </summary>
+        private int SimultaneousAlign()
+        {
+            double startSec = UTCTime.Now();
+            pipeline.LogInfo("simultaneous aligning...");
+
+            MakeGraph();
+
+            foreach (var node in nodes.Values)
+            {
+                node.WorldTransform = Meshing.GetTransform(node.Name, "root", frameCache, usePriors: true).Mean;
+            }
+
+            var floating = new Dictionary<string, Node>();
+            foreach (var node in nodes.Values)
+            {
+                if (node.Children.Count > 0)
+                {
+                    floating[node.Name] = node;
+                    foreach (var child in node.Children)
+                    {
+                        floating[child.Name] = child;
+                    }
+                }
+            }
+
+            var nodesToAlign = floating.Values.ToArray();
+
+            //TODO
+            throw new NotImplementedException("simultaneous align not implemented yet");
+
+            //SaveTransforms(nodesToAlign);
+
+            //pipeline.LogInfo("simultaneous aligned {0} nodes ({1:F3}s)", nodesToAlign.Length, UTCTime.Now() - startSec);
+
+            //return nodesToAlign.Length;
+        }
+
+        /// <summary>
+        /// pairwise align all sitedrives that have a sufficent number of spatialized ransac feature matches
+        /// then compute the adjusted sitedrive -> root transforms and write them back to the database
+        /// using TransformSource = LandformBEV
+        /// </summary>
+        private int PairwiseAlign()
+        {
+            double startSec = UTCTime.Now();
+            pipeline.LogInfo("pairwise aligning...");
+
+            MakeGraph();
+
             //BFS the graph to set the best parent for each node
-            //the best parent is the one to follow to get to the root along a shortest path
-            foreach (var node in nodes.Where(n => n.Parent == null))
+            //the best parent is the one to follow to get to the root along a best path
+            foreach (var node in nodes.Values)
+            {
+                node.Depth = options.AlignmentMode == AlignmentMode.PairwiseMinimal ? int.MaxValue : int.MinValue;
+            }
+            foreach (var node in nodes.Values.Where(n => n.Parent == null))
             {
                 node.Depth = 0;
                 var queue = new Queue<Node>();
@@ -1120,39 +1355,41 @@ namespace OPS.Pipeline
                 while (queue.Count > 0)
                 {
                     var parent = queue.Dequeue();
+                    var depth = parent.Depth + 1;
                     foreach (var child in parent.Children)
                     {
-                        if (child.Depth > parent.Depth + 1)
+                        if ((options.AlignmentMode == AlignmentMode.PairwiseMinimal && child.Depth > depth) ||
+                            (options.AlignmentMode == AlignmentMode.PairwiseMaximal && child.Depth < depth))
                         {
                             child.Parent = parent;
-                            child.Depth = parent.Depth + 1;
+                            child.Depth = depth;
                             queue.Enqueue(child);
                         }
                     }
                 }
             }
 
-            //Procrustes align every node that has a parent
-            //a node has a parent iff we found enough ransac matches from that node to an earlier sitedrive
-            var nodesToAlign = nodes.Where(n => n.Parent != null).ToArray();
-            pipeline.LogInfo("Procrustes aligning {0} site drives", nodesToAlign.Length);
+            //align every node to its a parent
+            //a node has a parent iff we found enough ransac matches from that node to a higher-priority sitedrive
+            var nodesToAlign = nodes.Values.Where(n => n.Parent != null).ToArray();
+            pipeline.LogInfo("pairwise aligning {0} site drives", nodesToAlign.Length);
             int nc = 0, np = 0;
             CoreLimitedParallel.ForEach(nodesToAlign, node => {
 
-                    Interlocked.Increment(np);
+                    Interlocked.Increment(ref np);
 
                     if (!options.NoProgress)
                     {
-                        pipeline.LogInfo("Procrustes aligning for {0} site drives in parallel, completed {1}/{2}",
+                        pipeline.LogInfo("pairwise aligning for {0} site drives in parallel, completed {1}/{2}",
                                          np, nc, nodesToAlign.Length);
                     }
 
                     var model = node.Parent.Name;
                     var data = node.Name;
                     
-                    var modelToRootPrior = Meshing.GetTransform(model, "root", frameCache, usePriors: true);
+                    var modelToRootPrior = Meshing.GetTransform(model, "root", frameCache, usePriors: true).Mean;
                     
-                    var dataToRootPrior = Meshing.GetTransform(data, "root", frameCache, usePriors: true);
+                    var dataToRootPrior = Meshing.GetTransform(data, "root", frameCache, usePriors: true).Mean;
                     
                     var rootToModelPrior = Matrix.Invert(modelToRootPrior);
                     
@@ -1180,57 +1417,35 @@ namespace OPS.Pipeline
                     //adjusted transform taking points in data frame to points in model frame
                     node.Transform = dataToModelPrior * adj;
 
-                    Interlocked.Decrement(np);
-                    Interlocked.Increment(nc);
+                    Interlocked.Decrement(ref np);
+                    Interlocked.Increment(ref nc);
                 });
 
             //compute a world transform for each node (i.e. sitedrive to root transform)
             //for a node with no parent this is just the prior
-            //otherwise it's the concatenation of adjusted transforms on shortest path from the node to the world frame
-            foreach (var node in nodes)
+            //otherwise it's the concatenation of adjusted transforms along ancestor chain from node to world
+            foreach (var node in nodes.Values.Where(n => n.Parent == null))
             {
-                if  (node.WorldTransform == null)
-                {
-                    var stack = new Stack<Node>();
-                    do
-                    {
-                        stack.Push(node);
-                        node = node.Parent;
-                    }
-                    while (node != null && node.WorldTransform == null);
-
-                    while (stack.Count > 0)
-                    {
-                        node = stack.Pop();
-                        if (node.Parent == null)
-                        {
-                            node.WorldTransform = Meshing.GetTransform(node.Name, "root", frameCache, usePriors: true);
-                        }
-                        else
-                        {
-                            //row matrix transforms compose left to right
-                            node.WorldTransform = node.Transform * node.Parent.WorldTransform.Value;
-                        }
-                    }
-                }
+                node.WorldTransform = Meshing.GetTransform(node.Name, "root", frameCache, usePriors: true).Mean;
             }
-
-            //write out sitedrive -> root adjusted transforms
             foreach (var node in nodesToAlign)
             {
-                var transformSource = TransformSource.LandformBEV;
-                var ut = new UncertainRigidTransform(node.WorldTransform.Value);
-                var ft = FrameTransform.FindOrCreate(pipeline, node.Name, transformSource, ut);
-                ft.Transform = ut;
-                ft.Save(pipeline);
-                if (frame.AddTransform(ft))
+                var stack = new Stack<Node>();
+                for (var n = node; n.WorldTransform == null; n = n.Parent)
                 {
-                    frame.Save(pipeline);
+                    stack.Push(node);
                 }
-                pipeline.LogInfo("saved {0} adjusted transform for site drive {1}", transformSource, node.Name)
+                while (stack.Count > 0)
+                {
+                    var n = stack.Pop();
+                    //row matrix transforms compose left to right
+                    n.WorldTransform = n.Transform * n.Parent.WorldTransform.Value;
+                }
             }
 
-            pipeline.LogInfo("Procrustes aligned {0} nodes ({1:F3}s)", nodesToAlign.Length, UTCTime.Now() - startSec);
+            SaveTransforms(nodesToAlign);
+
+            pipeline.LogInfo("pairwise aligned {0} nodes ({1:F3}s)", nodesToAlign.Length, UTCTime.Now() - startSec);
 
             return nodesToAlign.Length;
         }

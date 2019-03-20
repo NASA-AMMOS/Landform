@@ -376,7 +376,7 @@ namespace OPS.Pipeline
                     dataPts.Add(dataCam.Unproject(df.Location, df.Range));
                 }
             }
-            return MakeMatchMesh(modelPts.ToArray(), dataPts.ToAray(), modelToRoot, dataToRoot);
+            return MakeMatchMesh(modelPts.ToArray(), dataPts.ToArray(), modelToRoot, dataToRoot);
         }
 
         public static Mesh MakeMatchMesh(Vector3[] modelPts, Vector3[] dataPts, Matrix modelToRoot, Matrix dataToRoot)

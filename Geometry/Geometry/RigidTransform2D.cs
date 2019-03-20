@@ -40,8 +40,17 @@ namespace OPS.Geometry
         
         public Vector2 Transform(Vector2 pt)
         {
-            return new Vector2(Translation.X + cos * pt.X - sin * pt.Y,
-                               Translation.Y + sin * pt.X + cos * pt.Y);
+            return Translate(Rotate(pt));
+        }
+
+        public Vector2 Rotate(Vector2 pt)
+        {
+            return new Vector2(cos * pt.X - sin * pt.Y, sin * pt.X + cos * pt.Y);
+        }
+
+        public Vector2 Translate(Vector2 pt)
+        {
+            return Translation + pt;
         }
         
         public static RigidTransform2D Estimate(Vector2[] movingPts, Vector2[] fixedPts, out double residual)

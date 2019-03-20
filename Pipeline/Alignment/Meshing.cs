@@ -119,7 +119,6 @@ namespace OPS.Pipeline
                     .Split(',')
                     .Where(s => !string.IsNullOrEmpty(s))
                     .Select(s => new SiteDrive(s.Trim()))
-                    .Cast<SiteDrive>()
                     .ToArray();
             }
 
