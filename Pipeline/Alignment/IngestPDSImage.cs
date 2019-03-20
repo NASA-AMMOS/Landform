@@ -22,6 +22,7 @@ namespace OPS.Pipeline
         private Filter filter;
 
         public MSLLocations Locations;
+        public MSLPlaces Places;
 
         public IngestPDSImage(PipelineCore pipeline, Project project, bool recreateExistingObservations = false,
                               bool resetTransforms = false, Filter filter = null)
@@ -267,11 +268,14 @@ namespace OPS.Pipeline
             }
 
             // site drive frame -> root frame
-            var siteDriveFrame = FindOrCreateFrame(SiteDriveFrameName(parser), rootFrame, TransformSource.LocationsDB,
-                                                   GetSiteDriveTransform(parser));
+            var siteDriveFrameLocationsDB = FindOrCreateFrame(SiteDriveFrameName(parser), rootFrame, TransformSource.LocationsDB,
+                                                   GetSiteDriveTransformFromLocations(parser));
 
+            var siteDriveFramePlacesDB = FindOrCreateFrame(SiteDriveFrameName(parser), rootFrame, TransformSource.PlacesDB,
+                                                   GetSiteDriveTransformFromPlaces(parser));
+            
             // observation (aka rover) frame -> site drive (aka local level) frame
-            var observationFrame = FindOrCreateFrame(ObservationFrameName(parser), siteDriveFrame, TransformSource.PDS,
+            var observationFrame = FindOrCreateFrame(ObservationFrameName(parser), siteDriveFramePlacesDB, TransformSource.PDS,
                                                      GetObservationTransform(parser));
 
             RoverObservation observation = RoverObservation.Find(pipeline, project.Name, observationName);
@@ -321,7 +325,7 @@ namespace OPS.Pipeline
         /// Get transform from a site drive frame to root.  This is just the translation of the site drive frame from
         /// the MSLLocations database.
         /// </summary>
-        private UncertainRigidTransform GetSiteDriveTransform(PDSParser parser)
+        private UncertainRigidTransform GetSiteDriveTransformFromLocations(PDSParser parser)
         {
             var siteDrive = new SiteDrive(parser.SiteDrive);
             var loc = Locations.Location(siteDrive);
@@ -337,6 +341,22 @@ namespace OPS.Pipeline
             return new UncertainRigidTransform(Matrix.CreateTranslation(loc.Position), covariance);
         }
 
+        private UncertainRigidTransform GetSiteDriveTransformFromPlaces(PDSParser parser)
+        {
+            var siteDrive = new SiteDrive(parser.SiteDrive);
+            var loc = Places.GetEstimatedOffsetFromStart(siteDrive);
+            if (loc == null)
+            {
+                throw new Exception(string.Format("no MSL Places for site drive {0}", siteDrive));
+            }
+
+            // TODO: examine values here
+            var covariance = CreateMatrix
+                .Diagonal<double>(new double[] { 0.25, 0.25, 0.25, 0.5 * degSqr, 0.5 * degSqr, 1.0 * degSqr });
+
+            return new UncertainRigidTransform(Matrix.CreateTranslation(loc), covariance);
+
+        }
         /// <summary>
         /// Get transform from observation frame, which is rover frame at the time the observation was acquired, to the
         /// corresponding site drive (aka local level) frame.
