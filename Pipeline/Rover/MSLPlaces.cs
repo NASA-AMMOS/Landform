@@ -50,6 +50,7 @@ namespace OPS.Pipeline
     {
 
         private double? EllipsoidRadius = null;
+        private Dictionary<SiteDrive, Vector3> cachedOffsetFromRootRover = new Dictionary<SiteDrive, Vector3>();
 
         private XmlDocument GetXmlDoc(string url)
         {
@@ -150,7 +151,14 @@ namespace OPS.Pipeline
         /// <returns></returns>
         public Vector3 GetEstimatedOffsetFromStart(SiteDrive sd)
         {
-            return GetEstimatedOffset(sd, new SiteDrive(1, 0));
+            lock (cachedOffsetFromRootRover)
+            {
+                if (!cachedOffsetFromRootRover.Keys.Contains(sd))
+                {
+                    cachedOffsetFromRootRover[sd] = GetEstimatedOffset(sd, new SiteDrive(1, 0));
+                }
+            }
+            return cachedOffsetFromRootRover[sd];
         }
     }
 }
