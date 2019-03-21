@@ -268,14 +268,17 @@ namespace OPS.Pipeline
             }
 
             // site drive frame -> root frame
-            var siteDriveFrameLocationsDB = FindOrCreateFrame(SiteDriveFrameName(parser), rootFrame, TransformSource.LocationsDB,
+            var siteDriveFrame = FindOrCreateFrame(SiteDriveFrameName(parser), rootFrame, TransformSource.LocationsDB,
                                                    GetSiteDriveTransformFromLocations(parser));
 
-            var siteDriveFramePlacesDB = FindOrCreateFrame(SiteDriveFrameName(parser), rootFrame, TransformSource.PlacesDB,
+            if (Places != null)
+            {
+                siteDriveFrame = FindOrCreateFrame(SiteDriveFrameName(parser), rootFrame, TransformSource.PlacesDB,
                                                    GetSiteDriveTransformFromPlaces(parser));
-            
+            }
+
             // observation (aka rover) frame -> site drive (aka local level) frame
-            var observationFrame = FindOrCreateFrame(ObservationFrameName(parser), siteDriveFramePlacesDB, TransformSource.PDS,
+            var observationFrame = FindOrCreateFrame(ObservationFrameName(parser), siteDriveFrame, TransformSource.PDS,
                                                      GetObservationTransform(parser));
 
             RoverObservation observation = RoverObservation.Find(pipeline, project.Name, observationName);

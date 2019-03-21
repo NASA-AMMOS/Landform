@@ -52,6 +52,11 @@ namespace OPS.Pipeline
         private double? EllipsoidRadius = null;
         private Dictionary<SiteDrive, Vector3> cachedOffsetFromRootRover = new Dictionary<SiteDrive, Vector3>();
 
+        public bool CredentialsLoaded()
+        {
+            return PlacesConfig.Instance.Username != null && PlacesConfig.Instance.APIKey != null;
+        }
+
         private XmlDocument GetXmlDoc(string url)
         {
             var config = PlacesConfig.Instance;

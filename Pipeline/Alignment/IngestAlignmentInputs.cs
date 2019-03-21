@@ -97,6 +97,11 @@ namespace OPS.Pipeline
         {
             ingester.Locations = locations;
             ingester.Places = new MSLPlaces();
+            if(!ingester.Places.CredentialsLoaded())
+            {
+                pipeline.LogWarn("Credentials for places database not loaded. disabling querying places.");
+                ingester.Places = null;
+            }
 
             string imageObs = ObservationType.Image.ToString();
             double startTime = UTCTime.Now();
