@@ -158,12 +158,12 @@ namespace OPS.Pipeline
 
             if (sortKey == null)
             {
-                sortKey = (SIFTFeature f) => f.Response;
+                sortKey = (SIFTFeature f) => -f.Response;
             }
 
             features = features
                 .Where(filter)
-                .OrderByDescending(f => f.Response)
+                .OrderBy(f => sortKey(f))
                 .Take(options.MaxFeatures)
                 .ToArray();
 

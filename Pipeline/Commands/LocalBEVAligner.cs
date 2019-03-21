@@ -25,7 +25,7 @@ namespace OPS.Pipeline
 
     public enum SiteDrivePriority { NewestFirst, OldestFirst, BiggestFirst, SmallestFirst };
     
-    public enum AlignmentMode { PairwiseMinimal, PairwiseMaximal, Simultaneous };
+    public enum AlignmentMode { PairwiseMinimal, PairwiseMaximal, Simultaneous, None };
 
     [Verb("local-bev-align", HelpText = "birds eye view align locally")]
     public class LocalBEVAlignerOptions : PipelineCoreOptions
@@ -39,7 +39,7 @@ namespace OPS.Pipeline
         [Option(HelpText = "Don't adjust specified site drives (or \"newest\", \"oldest\", \"largest\", \"smallest\"), comma separated", Default = null)]
         public string FixSiteDrives { get; set; }
 
-        [Option(HelpText = "Alignment algorithm: PairwiseMinimal, PairwiseMaximal, or Simultaneous", Default = AlignmentMode.PairwiseMaximal)]
+        [Option(HelpText = "Alignment algorithm: PairwiseMinimal, PairwiseMaximal, Simultaneous, None (match only)", Default = AlignmentMode.PairwiseMaximal)]
         public AlignmentMode AlignmentMode { get; set; }
 
         [Option(HelpText = "In pairwise alignment modes lower priority site drives will be aligned to higher priority ones (NewestFirst, OldestFirst, BiggestFirst, SmallestFirst)", Default = SiteDrivePriority.NewestFirst)]
@@ -93,6 +93,9 @@ namespace OPS.Pipeline
         [Option(HelpText = "FAST detector threshold", Default = 5)]
         public int FASTThreshold { get; set; }
 
+        [Option(HelpText = "Minimum feature response", Default = 10)]
+        public double MinFeatureResponse { get; set; }
+
         [Option(HelpText = "Write products for debugging", Default = false)]
         public bool WriteDebug { get; set; }
 
@@ -111,13 +114,16 @@ namespace OPS.Pipeline
         [Option(HelpText = "Search radius for feature matching in meters", Default = 2)]
         public double MatchRadius { get; set; }
 
-        [Option(HelpText = "Max descriptor distance ratio", Default = 0.9)]
+        [Option(HelpText = "Max descriptor distance ratio", Default = 1)]
         public double MaxDescriptorDistanceRatio { get; set; }
 
-        [Option(HelpText = "Max descriptor distance", Default = 300)]
+        [Option(HelpText = "Max descriptor distance", Default = 500)]
         public double MaxDescriptorDistance { get; set; }
 
-        [Option(HelpText = "Max RANSAC tests", Default = 100000)]
+        [Option(HelpText = "Disable bidirectional feature matching", Default = false)]
+        public bool NoBidirectionalMatching { get; set; }
+
+        [Option(HelpText = "Max RANSAC tests", Default = 5000000)]
         public int MaxRansacTests { get; set; }
 
         [Option(HelpText = "Max RANSAC residual in meters", Default = 0.02)]
@@ -126,8 +132,14 @@ namespace OPS.Pipeline
         [Option(HelpText = "Max RANSAC feature match radius meters", Default = 0.1)]
         public double RansacMatchRadius { get; set; }
 
+        [Option(HelpText = "Min RANSAC feature separation meters", Default = 0.1)]
+        public double MinRansacSeparation { get; set; }
+
         [Option(HelpText = "Min RANSAC good matches", Default = 10)]
-        public int MinRansacAgreement { get; set; }
+        public int MinRansacMatches { get; set; }
+
+        [Option(HelpText = "Max RANSAC good matches", Default = 500)]
+        public int MaxRansacMatches { get; set; }
 
         [Option(HelpText = "Optimize contrast", Default = true)]
         public bool StretchContrast { get; set; }
@@ -198,8 +210,8 @@ namespace OPS.Pipeline
         /// </summary>
         private Vector2 PointToPixel(Vector3 srcPoint, string srcSiteDrive, string dstSiteDrive)
         {
-            var srcSiteDriveToRoot = frameCache.GetBestTransform(srcSiteDrive).Transform;
-            var ptInRoot = Vector3.Transform(srcPoint, srcSiteDriveToRoot.Mean);
+            var srcToRoot = frameCache.GetBestTransform(srcSiteDrive).Transform.Mean;
+            var ptInRoot = Vector3.Transform(srcPoint, srcToRoot);
             var pixelInRoot = ptInRoot * PixelsPerMeter;
             return bevOrigins[dstSiteDrive] + new Vector2(pixelInRoot.X, pixelInRoot.Y);
         }
@@ -313,13 +325,22 @@ namespace OPS.Pipeline
 
             ComputePairs(); //siteDrives -> siteDrivePairs
 
-            MatchPairs(); //siteDrivePairs, features -> spatialMatches
+            int nm = MatchPairs(); //siteDrivePairs, features -> spatialMatches
 
             //spatialMatches -> LandformBEV aligned FrameTransforms
-            int na = options.AlignmentMode == AlignmentMode.Simultaneous ? SimultaneousAlign() : PairwiseAlign();
+            int na = 0;
+            bool matchOnly = false;
+            switch (options.AlignmentMode)
+            {
+                case AlignmentMode.Simultaneous: { na = SimultaneousAlign(); break; }
+                case AlignmentMode.PairwiseMaximal: { na = PairwiseAlign(maximal: true); break; }
+                case AlignmentMode.PairwiseMinimal: { na = PairwiseAlign(maximal: false); break; }
+                case AlignmentMode.None: { matchOnly = true; na = 0; break; }
+            }
 
-            pipeline.LogInfo("aligned {0} site drives from {1} birds eye views ({1:F3}s)", na, bevs.Count,
-                             UTCTime.Now() - startSec);
+            pipeline.LogInfo("matched {0}{1} site drives from {2} birds eye views ({3:F3}s)",
+                             matchOnly ? "" : "and aligned ", matchOnly ? nm : na,
+                             bevs.Count, UTCTime.Now() - startSec);
 
             return 0;
         }
@@ -376,6 +397,10 @@ namespace OPS.Pipeline
         {
             if (!options.RedoBEVs && LoadCachedBEVs())
             {
+                if (options.Verbose)
+                {
+                    DumpBEVFingerprints();
+                }
                 return;
             }
 
@@ -432,9 +457,8 @@ namespace OPS.Pipeline
                             PathHelper.EnsureExists(outputPath);
                             img.Save<byte>(outputPath + imageFilename);
                         }
-                        string file = outputPath + siteDrive + meshExt;
                         PathHelper.EnsureExists(outputPath);
-                        mesh.Save(file, imageFilename);
+                        mesh.Save(outputPath + siteDrive + meshExt, imageFilename);
                     }
 
                     var bev = RenderBEV(mesh, img, out Vector2 origin);
@@ -488,15 +512,39 @@ namespace OPS.Pipeline
                         bev = new Image(bev);
                         bev.ScaleValues((float)min, (float)max, 0, 1);
                     }
-                    string file = outputPath + siteDrive + "_BirdsEyeView" + imageExt;
                     PathHelper.EnsureExists(outputPath);
-                    bev.Save<byte>(file);
+                    bev.Save<byte>(outputPath + siteDrive + "_BirdsEyeView" + imageExt);
                 }
             }
 
             SaveCachedBEVs();
 
+            if (options.Verbose)
+            {
+                DumpBEVFingerprints();
+            }
+
             pipeline.LogInfo("generated {0} birds eye views ({1:F3}s)", bevs.Count, UTCTime.Now() - startSec);
+        }
+
+        private void DumpBEVFingerprints()
+        {
+            foreach(var sd in siteDrives)
+            {
+                string fingerprint(Image img)
+                {
+                    int hash = 17, valid = 0;
+                    foreach (var v in img)
+                    {
+                        hash = HashCombiner.Combine(hash, v.GetHashCode());
+                        valid++;
+                    }
+                    return string.Format("{0}x{1} {2} valid, hash {3}", img.Width, img.Height, valid, hash);
+                }
+                pipeline.LogInfo("sitedrive {0} BEV origin: {1}", sd, bevOrigins[sd]);
+                pipeline.LogInfo("sitedrive {0} BEV: {1}", sd, fingerprint(bevs[sd]));
+                pipeline.LogInfo("sitedrive {0} DEM: {1}", sd, fingerprint(dems[sd]));
+            }
         }
 
         private Image RenderBEV(Mesh mesh, Image img, out Vector2 origin)
@@ -529,18 +577,26 @@ namespace OPS.Pipeline
                         var parts = file.Split('.');
                         var baseUrl = url.Substring(0, url.Length - file.Length) + parts[0];
                         var maskUrl = baseUrl + "_mask" + cacheMaskExt;
-                        var demUrl = baseUrl + "_DEM" + cacheMaskExt;
+                        var demUrl = baseUrl + "_DEM" + cacheImageExt;
                         if (!Array.Exists(available, u => u == maskUrl) || !Array.Exists(available, u => u == demUrl) )
                         {
                             continue;
                         }
+
                         var bev = pipeline.LoadImage(url);
-                        bev.UnionMask(pipeline.LoadImage(maskUrl), new float[] { 1 });
+                        var dem = pipeline.LoadImage(demUrl);
+
+                        var mask = pipeline.LoadImage(maskUrl);
+                        bev.UnionMask(mask, new float[] { 1 });
+                        dem.UnionMask(mask, new float[] { 1 });
+
                         bevs[siteDrive] = bev;
-                        var origin = new Vector2(int.Parse(parts[parts.Length - 3]),
-                                                 int.Parse(parts[parts.Length - 2]));
+                        dems[siteDrive] = dem;
+
+                        var origin = new Vector2(0.001 * double.Parse(parts[parts.Length - 3]),
+                                                 0.001 * double.Parse(parts[parts.Length - 2]));
                         bevOrigins[siteDrive] = origin;
-                        dems[siteDrive] = pipeline.LoadImage(demUrl);
+
                         pipeline.LogInfo("loaded cached {0}x{1} birds eye view for site drive {2}, origin {3}",
                                          bev.Width, bev.Height, siteDrive, origin);
                         nc++;
@@ -576,8 +632,8 @@ namespace OPS.Pipeline
             {
                 var siteDrive = pair.Key;
                 var bev = pair.Value;
-                int x = (int)bevOrigins[siteDrive].X;
-                int y = (int)bevOrigins[siteDrive].Y;
+                var x = (long)(1000 * bevOrigins[siteDrive].X);
+                var y = (long)(1000 * bevOrigins[siteDrive].Y);
                 string file = outputPath + siteDrive + "_BirdsEyeView_cached." + x + "." + y + cacheImageExt;
                 pipeline.LogInfo("caching {0}x{1} birds eye view {2}", bev.Width, bev.Height, file);
                 PathHelper.EnsureExists(outputPath);
@@ -668,7 +724,8 @@ namespace OPS.Pipeline
             variance /= n;
             stddev = Math.Sqrt(variance);
 
-            pipeline.LogInfo("{0} valid pixels, min {1}, max {2}, mean {3}, stddev {4}", n, min, max, mean, stddev);
+            pipeline.LogInfo("{0} valid pixels, min {1:F3}, max {2:F3}, mean {3:F3}, stddev {4:F3}",
+                             n, min, max, mean, stddev);
             pipeline.LogInfo("collected stats for {0} birds eye views ({1:F3}s)", bevs.Count, UTCTime.Now() - startSec);
         }
 
@@ -683,6 +740,7 @@ namespace OPS.Pipeline
             var detectorOpts = new FeatureDetector.Options()
                 {
                     DetectorType = options.DetectorType,
+                    MinResponse = options.MinFeatureResponse,
                     MaxFeatures = options.MaxFeaturesPerImage,
                     ExtraInvalidRadius = options.FeatureExtraInvalidRadius,
                     FASTThreshold = options.FASTThreshold,
@@ -729,9 +787,8 @@ namespace OPS.Pipeline
                             var color = new Vector3(other ? 0 : 1, other ? 1 : 0, 0);
                             DrawOrigin(img, pixel, color);
                         }
-                        string file = outputPath + siteDrive + "_BirdsEyeView_Features" + imageExt;
                         PathHelper.EnsureExists(outputPath);
-                        img.ToOPSImage().Save<byte>(file);
+                        img.ToOPSImage().Save<byte>(outputPath + siteDrive + "_BirdsEyeView_Features" + imageExt);
                     }
 
                     Interlocked.Decrement(ref np);
@@ -771,89 +828,132 @@ namespace OPS.Pipeline
         /// populates matches[modelSiteDrive-dataSiteDrive] from features
         /// assumes features[siteDrive] are sorted by increasing distance to origin of siteDrive
         /// </summary>
-        private void MatchFeatures(string modelSiteDrive, string dataSiteDrive)
+        private int MatchFeatures(string modelSiteDrive, string dataSiteDrive)
         {
             double startSec = UTCTime.Now();
             pipeline.LogInfo("matching features in birds eye views for site drives {0} (model) and  {1} (data)...",
                              modelSiteDrive, dataSiteDrive);
 
-            var modelFeatures = features[modelSiteDrive];
-            var dataFeatures = features[dataSiteDrive];
-
-            //pixel corresponding to origin of model sitedrive in model BEV
-            var modelOrigin = PointToPixel(Vector3.Zero, modelSiteDrive, modelSiteDrive);
-
-            //pixel corresponding to origin of data sitedrive in data BEV
-            var dataOrigin = PointToPixel(Vector3.Zero, dataSiteDrive, dataSiteDrive);
-
-            //pixel corresponding to origin of data sitedrive in model BEV
-            var dataOriginInModel = PointToPixel(Vector3.Zero, dataSiteDrive, modelSiteDrive);
-
-            //distance in pixels of each model feature to pixel corresponding to origin of model sitedrive in model BEV
-            var modelDistances = modelFeatures.Select(f => Vector2.Distance(f.Location, modelOrigin)).ToArray();
-
-            //NOTE: features for a site drive are already sorted by distance to origin of that site drive
-
-            double radius = options.MatchRadius * PixelsPerMeter;
-
-            var pair = modelSiteDrive + "-" + dataSiteDrive;
-            var matchList = new List<FeatureMatch>();
-            var histogram = new Histogram(50, pair + " matches", "distance");
-            for (int i = 0; i < dataFeatures.Length; i++)
+            IEnumerable<FeatureMatch> matchPair(string model, string data)
             {
-                var df = dataFeatures[i];
-                var dfInModel = dataOriginInModel + (df.Location - dataOrigin);
-                var r = Vector2.Distance(dfInModel, modelOrigin);
-                int minSearchIndex = BinarySearch(modelDistances, r - radius);
-                int maxSearchIndex = BinarySearch(modelDistances, r + radius) - 1;
-                if (maxSearchIndex >= minSearchIndex)
+                var modelFeatures = features[model];
+                var dataFeatures = features[data];
+
+                //pixel corresponding to origin of model sitedrive in model BEV
+                var modelOrigin = PointToPixel(Vector3.Zero, model, model);
+
+                //pixel corresponding to origin of data sitedrive in data BEV
+                var dataOrigin = PointToPixel(Vector3.Zero, data, data);
+
+                //pixel corresponding to origin of data sitedrive in model BEV
+                var dataOriginInModel = PointToPixel(Vector3.Zero, data, model);
+                
+                //distance in pixels of model feature to origin of model sitedrive in model BEV
+                var modelDistances = modelFeatures.Select(f => Vector2.Distance(f.Location, modelOrigin)).ToArray();
+
+                //NOTE: features for a site drive are already sorted by distance to origin of that site drive
+                
+                double radius = options.MatchRadius * PixelsPerMeter;
+                
+                for (int i = 0; i < dataFeatures.Length; i++)
                 {
-                    var match = BruteForceMatcher
-                        .FindBestModelFeatureForDataFeature(modelFeatures, dataFeatures, i,
-                                                            options.MaxDescriptorDistanceRatio,
-                                                            mf => Vector2.Distance(mf.Location, dfInModel) <= radius,
-                                                            minSearchIndex, maxSearchIndex);
-                    if (match != null && match.DescriptorDistance <= options.MaxDescriptorDistance)
+                    var df = dataFeatures[i];
+                    var dfInModel = dataOriginInModel + (df.Location - dataOrigin);
+                    var r = Vector2.Distance(dfInModel, modelOrigin);
+                    int minSearchIndex = BinarySearch(modelDistances, r - radius);
+                    int maxSearchIndex = BinarySearch(modelDistances, r + radius) - 1;
+                    if (maxSearchIndex >= minSearchIndex)
                     {
-                        matchList.Add(match);
-                        histogram.Add(match.DescriptorDistance);
+                        var match =
+                            BruteForceMatcher.FindBestModelFeatureForDataFeature
+                            (modelFeatures, dataFeatures, i,
+                             options.MaxDescriptorDistanceRatio,
+                             mf => Vector2.Distance(mf.Location, dfInModel) <= radius,
+                             minSearchIndex, maxSearchIndex);
+                        if (match != null && match.DescriptorDistance <= options.MaxDescriptorDistance)
+                        {
+                            yield return match;
+                        }
                     }
                 }
             }
+
+            var best = new Dictionary<FeatureMatch, double>();
+            int d2m = 0, m2d = 0;
+
+            foreach (var match in matchPair(modelSiteDrive, dataSiteDrive))
+            {
+                d2m++;
+                best[match] = match.DescriptorDistance;
+            }
+
+            if (!options.NoBidirectionalMatching)
+            {
+                foreach (var match in matchPair(dataSiteDrive, modelSiteDrive))
+                {
+                    var tmp = match.ModelIndex;
+                    match.ModelIndex = match.DataIndex;
+                    match.DataIndex = tmp;
+                    if (!best.ContainsKey(match))
+                    {
+                        best[match] = match.DescriptorDistance;
+                        m2d++;
+                    }
+                    else if (best[match] > match.DescriptorDistance)
+                    {
+                        best[match] = match.DescriptorDistance;
+                        d2m--;
+                        m2d++;
+                    }
+                }
+            }
+                
+            var pair = modelSiteDrive + "-" + dataSiteDrive;
+
+            var matchList = best.Keys.OrderBy(m => m.DescriptorDistance).ToList();
 
             matches[pair] = matchList;
 
             if (options.Verbose)
             {
+                var histogram = new Histogram(50, pair + " matches", "distance");
+                foreach (var match in matchList)
+                {
+                    histogram.Add(match.DescriptorDistance);
+                }
                 histogram.Dump(pipeline);
             }
 
             if (options.WriteDebug)
             {
-                var d2m = matchList.Select(m => new KeyValuePair<int, int>(m.DataIndex, m.ModelIndex)).ToArray();
+                var modelFeatures = features[modelSiteDrive];
+                var dataFeatures = features[dataSiteDrive];
+                var pairs = matchList.Select(m => new KeyValuePair<int, int>(m.DataIndex, m.ModelIndex)).ToArray();
                 var img = ImageMatching.DrawMatches(bevs[modelSiteDrive], bevs[dataSiteDrive],
-                                                    modelFeatures, dataFeatures, d2m,
+                                                    modelFeatures, dataFeatures, pairs,
                                                     modelSiteDrive, dataSiteDrive, stretch: false);
-                string file = outputPath + pair + "_BirdsEyeView_Matches" + imageExt;
                 PathHelper.EnsureExists(outputPath);
-                img.Save<byte>(file);
+                img.Save<byte>(outputPath + pair + "_BirdsEyeView_Matches" + imageExt);
             }
 
-            pipeline.LogInfo("{0} feature matches for site drives {1} (model) and  {2} (data) ({3:F3}s)",
-                             matchList.Count, modelSiteDrive, dataSiteDrive, UTCTime.Now() - startSec);
+            int nm = matchList.Count;
+            pipeline.LogInfo("{0} feature matches for site drives {1} (model) and {2} (data) ({3} d2m, {4} m2d) " +
+                             "({5:F3}s)", nm, modelSiteDrive, dataSiteDrive, d2m, m2d, UTCTime.Now() - startSec);
+            return nm;
         }
 
         /// <summary>
         /// populates ransacMatches[modelSiteDrive-dataSiteDrive] from corresponding matches and features
         /// </summary>
-        private void RansacMatches(string modelSiteDrive, string dataSiteDrive)
+        private int RansacMatches(string modelSiteDrive, string dataSiteDrive)
         {
             var pair = modelSiteDrive + "-" + dataSiteDrive;
             var matchList = matches[pair];
+            var nm = matchList.Count;
 
             double startSec = UTCTime.Now();
-            pipeline.LogInfo("RANSACing {0} feature matches for stite drives {1} (model) and  {2} (data)...",
-                             matchList.Count, modelSiteDrive, dataSiteDrive);
+            pipeline.LogInfo("RANSACing {0} feature matches for site drives {1} (model) and  {2} (data)...",
+                             nm, modelSiteDrive, dataSiteDrive);
 
             var modelFeatures = features[modelSiteDrive];
             var dataFeatures = features[dataSiteDrive];
@@ -878,21 +978,27 @@ namespace OPS.Pipeline
                 .ToArray();
 
             var bestTransform = new RigidTransform2D();
-            var bestMatches = new List<int>(matchList.Count);
+            var bestMatches = new List<int>(nm);
+            var tmpMatches = new List<int>(nm);
             double bestResidual = double.PositiveInfinity;
 
-            double radiusSquared = options.RansacMatchRadius * PixelsPerMeter;
-            radiusSquared = radiusSquared * radiusSquared;
+            double radius = options.RansacMatchRadius * PixelsPerMeter;
+            double radiusSquared = radius * radius;
+
+            double minSep = options.MinRansacSeparation * PixelsPerMeter;
+            double minSepSquared = minSep * minSep;
 
             var maxResidual = options.MaxRansacResidual * PixelsPerMeter;
 
             var random = NumberHelper.MakeRandomGenerator();
             int[,] shuffle = null;
             HashSet<Tuple<int, int>> alreadyTried = null;
-            int maxTests = 0, nm = matchList.Count;
+            int maxTests = 0;
             long totalCombinations = nm * (nm - 1) / 2; //nm choose 2
             if (totalCombinations < 2 * (long)(options.MaxRansacTests))
             {
+                pipeline.LogVerbose("generating random shuffle of {0} feature pairs for {1}", totalCombinations, pair);
+
                 //the total number of combinations is tractable
                 //so enumerate all combinations, randomly shuffle, take at most MaxRansacTests of them
                 shuffle = new int[(int)totalCombinations, 2]; 
@@ -914,9 +1020,9 @@ namespace OPS.Pipeline
                     shuffle[i, k] = shuffle[j, k];
                     shuffle[j, k] = t;
                 }
-                for (int i = 0; i < shuffle.Length - 1; i++)
+                for (int i = 0; i < (int)totalCombinations - 1; i++)
                 {
-                    int j = random.Next(i, matchList.Count);
+                    int j = random.Next(i, (int)totalCombinations);
                     swap(i, j, 0);
                     swap(i, j, 1);
                 }
@@ -925,6 +1031,8 @@ namespace OPS.Pipeline
             }
             else
             {
+                pipeline.LogVerbose("random shuffle of {0} feature pairs for {1} too big, using probabilistic sampling",
+                                    totalCombinations, pair);
                 //if the total number of combinations is more than twice MaxRansacTests then
                 //avoid allocating shuffle which could be gigantic
                 //in this case we instead throw dice to generate combinations
@@ -935,6 +1043,7 @@ namespace OPS.Pipeline
                 maxTests = options.MaxRansacTests;
             }
 
+            pipeline.LogInfo("RANSACing {0} feature pairs for {1}", maxTests, pair);
             int nt;
             for (nt = 0; nt < maxTests; nt++)
             {
@@ -947,14 +1056,20 @@ namespace OPS.Pipeline
                 {
                     do
                     {
-                        int j = random.Next(0, matchList.Count);
-                        int k = random.Next(0, matchList.Count);
+                        int j = random.Next(0, nm);
+                        int k = random.Next(0, nm);
                         seeds = new Tuple<int, int>(Math.Min(j, k), Math.Max(j, k)); //canonical order Item1 < item2
                     }
                     while (seeds.Item1 == seeds.Item2 || alreadyTried.Contains(seeds));
+                    alreadyTried.Add(seeds);
                 }
 
-                alreadyTried.Add(seeds);
+                if (minSepSquared > 0 &&
+                    (Vector2.DistanceSquared(dataPtsInModel[seeds.Item1], dataPtsInModel[seeds.Item2]) < minSepSquared
+                     || Vector2.DistanceSquared(modelPts[seeds.Item1], modelPts[seeds.Item2]) < minSepSquared))
+                {
+                    continue;
+                }
 
                 var xform =
                     RigidTransform2D.Estimate(new [] { dataPtsInModel[seeds.Item1], dataPtsInModel[seeds.Item2] },
@@ -966,29 +1081,51 @@ namespace OPS.Pipeline
                     continue;
                 }
 
-                bestMatches.Clear();
-                for (int j = 0; j < matchList.Count; j++)
+                tmpMatches.Clear();
+                for (int j = 0; j < nm; j++)
                 {
                     var d = Vector2.DistanceSquared(xform.Transform(dataPtsInModel[j]), modelPts[j]);
                     if (d < radiusSquared)
                     {
-                        bestMatches.Add(j);
+                        bool ok = true;
+                        if (minSepSquared > 0)
+                        {
+                            foreach (var k in tmpMatches)
+                            {
+                                if (Vector2.DistanceSquared(dataPtsInModel[j], dataPtsInModel[k]) < minSepSquared ||
+                                    Vector2.DistanceSquared(modelPts[j], modelPts[k]) < minSepSquared)
+                                {
+                                    ok = false;
+                                    break;
+                                }
+                            }
+                        }
+                        if (ok)
+                        {
+                            tmpMatches.Add(j);
+                        }
+                    }
+                    if (tmpMatches.Count >= options.MaxRansacMatches)
+                    {
+                        break;
                     }
                 }
 
-                if (bestMatches.Count < options.MinRansacAgreement)
+                if (tmpMatches.Count < options.MinRansacMatches)
                 {
                     continue;
                 }
 
-                xform = RigidTransform2D.Estimate(bestMatches.Select(j => dataPtsInModel[j]).ToArray(),
-                                                  bestMatches.Select(j => modelPts[j]).ToArray(),
+                xform = RigidTransform2D.Estimate(tmpMatches.Select(j => dataPtsInModel[j]).ToArray(),
+                                                  tmpMatches.Select(j => modelPts[j]).ToArray(),
                                                   out residual);
 
                 if (residual < bestResidual)
                 {
                     bestResidual = residual;
                     bestTransform = xform;
+                    bestMatches.Clear();
+                    bestMatches.AddRange(tmpMatches);
                 }
 
                 if (bestResidual < maxResidual)
@@ -997,8 +1134,19 @@ namespace OPS.Pipeline
                 }
             }
 
+            ransacMatches[pair] = bestMatches.Select(m => matchList[m]).ToList();
+
             if (options.WriteDebug)
             {
+                var d2m = bestMatches
+                    .Select(m => new KeyValuePair<int, int>(matchList[m].DataIndex, matchList[m].ModelIndex))
+                    .ToArray();
+                PathHelper.EnsureExists(outputPath);
+                var matchImg = ImageMatching.DrawMatches(bevs[modelSiteDrive], bevs[dataSiteDrive],
+                                                         modelFeatures, dataFeatures, d2m,
+                                                         modelSiteDrive, dataSiteDrive, stretch: false);
+                matchImg.Save<byte>(outputPath + pair + "_BirdsEyeView_RANSAC_Matches" + imageExt);
+
                 var mfColor = new Bgr(255, 0, 0); //actually RGB
                 var dfColor = new Bgr(0, 255, 0); //actually RGB
 
@@ -1028,26 +1176,23 @@ namespace OPS.Pipeline
                     Features2DToolbox.DrawKeypoints(img, new VectorOfKeyPoint(df), img, dfColor,
                                                     Features2DToolbox.KeypointDrawType.DrawRichKeypoints);
                     
-                    string file = outputPath + pair + "_BirdsEyeView_RANSAC" + suffix + imageExt;
                     PathHelper.EnsureExists(outputPath);
-                    img.ToOPSImage().Save<byte>(file);
+                    img.ToOPSImage().Save<byte>(outputPath + pair + "_BirdsEyeView_RANSAC" + suffix + imageExt);
                 }
                 
-                writeImage("_priors", pt => pt);
-                writeImage("_rotation", pt => bestTransform.Rotate(pt));
-                writeImage("", pt => bestTransform.Transform(pt));
+                writeImage("_0_priors", pt => pt);
+                writeImage("_1_rotation", pt => bestTransform.Rotate(pt));
+                writeImage("_2_solved", pt => bestTransform.Transform(pt));
             }
 
-            bestTransform.Translation *= MetersPerPixel;
-            bestResidual *= MetersPerPixel;
-
-            pipeline.LogInfo("performed {0}/{1} ransac tests ({2} total combinations), best transform " +
-                             "({3:F3}m, {4:F3}m, {5:F3}deg), residual {6:F3}m, {7} matches ({8:F3}s)",
-                             nt, maxTests, totalCombinations, bestTransform.Translation.X, bestTransform.Translation.Y,
-                             MathHelper.ToDegrees(bestTransform.Rotation), bestResidual, bestMatches.Count,
-                             UTCTime.Now() - startSec);
-
-            ransacMatches[pair] = bestMatches.Select(m => matchList[m]).ToList();
+            nm = bestMatches.Count;
+            pipeline.LogInfo("performed {0}/{1} ransac tests for {2} ({3} total combinations), best transform " +
+                             "({4:F3}m, {5:F3}m, {6:F3}deg), residual {7:F3}m, {8} matches ({9:F3}s)",
+                             nt, maxTests, pair, totalCombinations,
+                             bestTransform.Translation.X * MetersPerPixel, bestTransform.Translation.Y * MetersPerPixel,
+                             MathHelper.ToDegrees(bestTransform.Rotation), bestResidual * MetersPerPixel,
+                             nm, UTCTime.Now() - startSec);
+            return nm;
         }
 
         /// <summary>
@@ -1075,11 +1220,11 @@ namespace OPS.Pipeline
                 var mf = modelFeatures[match.ModelIndex];
                 var df = dataFeatures[match.DataIndex];
 
-                var mz = modelDEM[0, (int)mf.Location.Y, (int)mf.Location.X];
                 var mxy = (mf.Location - modelOrigin) * MetersPerPixel;
+                var mz = modelDEM[0, (int)mf.Location.Y, (int)mf.Location.X];
 
-                var dz = dataDEM[0, (int)df.Location.Y, (int)df.Location.X];
                 var dxy = (df.Location - dataOrigin) * MetersPerPixel;
+                var dz = dataDEM[0, (int)df.Location.Y, (int)df.Location.X];
 
                 pairs.Add(new Tuple<Vector3, Vector3>(new Vector3(mxy.X, mxy.Y, mz), new Vector3(dxy.X, dxy.Y, dz)));
             }
@@ -1088,9 +1233,8 @@ namespace OPS.Pipeline
             {
                 var mesh = ImageMatching.MakeMatchMesh(pairs.Select(p => p.Item1).ToArray(),
                                                        pairs.Select(p => p.Item2).ToArray());
-                string file = outputPath + pair + "_matches" + meshExt;
                 PathHelper.EnsureExists(outputPath);
-                mesh.Save(file);
+                mesh.Save(outputPath + pair + "_matches" + meshExt);
             }
 
             spatialMatches[pair] = pairs;
@@ -1144,35 +1288,41 @@ namespace OPS.Pipeline
         /// <summary>
         /// compute matches, ransacMatches, and spatialMatches from siteDrivePairs and features  
         /// </summary>
-        private void MatchPairs()
+        private int MatchPairs()
         {
             double startSec = UTCTime.Now();
             pipeline.LogInfo("matching features in birds eye views for {0} site drive pairs...", siteDrivePairs.Count);
 
             var histogram = new Histogram(10, "pairs", "matches");
             int nc = 0, np = 0, ng = 0;
+            var good = new ConcurrentDictionary<string, bool>();
             CoreLimitedParallel.ForEach(siteDrivePairs, pair => {
                     
                     Interlocked.Increment(ref np);
                     
                     if (!options.NoProgress)
                     {
-                        pipeline.LogInfo("aligning {0} sitedrive pairs in parallel, completed {1}/{2}",
+                        pipeline.LogInfo("matching {0} sitedrive pairs in parallel, completed {1}/{2}",
                                          np, nc, siteDrivePairs.Count);
                     }
 
                     var model = pair.Item1;
                     var data = pair.Item2;
 
-                    MatchFeatures(model, data); //features -> matches
+                    int nm = MatchFeatures(model, data); //features -> matches
 
-                    RansacMatches(model, data); //matches -> ransacMatches
-
-                    SpatializeMatches(model, data); //ransacMatches -> spatialMatches
-
-                    if (spatialMatches[model + "-" + data].Count >= options.MinRansacAgreement)
+                    if (nm > options.MinRansacMatches)
                     {
-                        Interlocked.Increment(ref ng);
+                        nm = RansacMatches(model, data); //matches -> ransacMatches
+
+                        SpatializeMatches(model, data); //ransacMatches -> spatialMatches
+
+                        if (nm >= options.MinRansacMatches)
+                        {
+                            Interlocked.Increment(ref ng);
+                            good[model] = true;
+                            good[data] = true;
+                        }
                     }
 
                     Interlocked.Decrement(ref np);
@@ -1186,7 +1336,9 @@ namespace OPS.Pipeline
 
             pipeline.LogInfo("matched features in birds eye views for {0} site drive pairs, " +
                              "{1} with at least threshold {2} matches ({3:F3}s)",
-                             siteDrivePairs.Count, ng, options.MinRansacAgreement, UTCTime.Now() - startSec);
+                             siteDrivePairs.Count, ng, options.MinRansacMatches, UTCTime.Now() - startSec);
+
+            return good.Keys.Count;
         }
 
         private class Node
@@ -1202,7 +1354,9 @@ namespace OPS.Pipeline
                 this.Name = name;
             }
         }
-        private Dictionary<string, Node> nodes = new Dictionary<string, Node>();
+        private List<Node> nodes = new List<Node>();
+        private Dictionary<string, Node> siteDriveToNode = new Dictionary<string, Node>();
+        private HashSet<string> fixedNodes = new HashSet<string>();
 
         /// <summary>
         /// build graph of sitedrive nodes  
@@ -1215,53 +1369,44 @@ namespace OPS.Pipeline
         {
             foreach (var sd in siteDrives)
             {
-                nodes[sd] = new Node(sd);
+                var node = new Node(sd);
+                nodes.Add(node);
+                siteDriveToNode[sd] = node;
             }
 
-            var locked = (options.FixSiteDrives ?? "")
+            var fx = (options.FixSiteDrives ?? "")
                 .Split(',')
                 .Where(s => !string.IsNullOrEmpty(s))
                 .ToArray();
 
-            var newest = siteDrives.OrderByDescending(sd => sd).FirstOrDefault();
-            var oldest = siteDrives.OrderBy(sd => sd).FirstOrDefault();
-            var largest = siteDrives.OrderByDescending(sd => BEVArea(sd)).FirstOrDefault();
-            var smallest = siteDrives.OrderBy(sd => BEVArea(sd)).FirstOrDefault();
+            var specials = new Dictionary<string, string>();
+            specials["newest"] = siteDrives.OrderByDescending(sd => sd).FirstOrDefault();
+            specials["oldest"] = siteDrives.OrderBy(sd => sd).FirstOrDefault();
+            specials["largest"] = siteDrives.OrderByDescending(sd => BEVArea(sd)).FirstOrDefault();
+            specials["smallest"] = siteDrives.OrderBy(sd => BEVArea(sd)).FirstOrDefault();
 
-            for (int i = 0; i < locked.Length; i++)
+            for (int i = 0; i < fx.Length; i++)
             {
-                if (locked[i].ToLower() == "newest")
+                var sd = fx[i].ToLower();
+                if (specials.ContainsKey(sd))
                 {
-                    locked[i] = newest;
-                }
-                else if (locked[i].ToLower() == "oldest")
-                {
-                    locked[i] = oldest;
-                }
-                else if (locked[i].ToLower() == "largest")
-                {
-                    locked[i] = largest;
-                }
-                else if (locked[i].ToLower() == "smallest")
-                {
-                    locked[i] = smallest;
+                    fx[i] = specials[sd];
                 }
             }
+
+            fixedNodes.UnionWith(fx);
 
             foreach (var pair in siteDrivePairs)
             {
                 var model =  pair.Item1;
                 var data =  pair.Item2;
-                if (!locked.Any(sd => sd == data))
+                var key = model + "-" + data;
+                if (spatialMatches.ContainsKey(key) && spatialMatches[key].Count >= options.MinRansacMatches)
                 {
-                    var key = model + "-" + data;
-                    if (spatialMatches.ContainsKey(key) && spatialMatches[key].Count >= options.MinRansacAgreement)
-                    {
-                        var parent = nodes[model];
-                        var child = nodes[data];
-                        parent.Children.Add(child);
-                        child.Parent = parent; //for now any parent will do
-                    }
+                    var parent = siteDriveToNode[model];
+                    var child = siteDriveToNode[data];
+                    parent.Children.Add(child);
+                    child.Parent = parent; //for now any parent will do
                 }
             }
         }
@@ -1269,11 +1414,13 @@ namespace OPS.Pipeline
         /// <summary>
         /// write out sitedrive -> root adjusted transforms
         /// </summary>
-        private void SaveTransforms(IEnumerable<Node> nodes)
+        private void SaveTransforms(IEnumerable<Node> aligned)
         {
+            var unaligned = new HashSet<string>(siteDrives);
             var transformSource = TransformSource.LandformBEV;
-            foreach (var node in nodes)
+            foreach (var node in aligned)
             {
+                unaligned.Remove(node.Name);
                 var ut = new UncertainRigidTransform(node.WorldTransform.Value);
                 var frame = frameCache.GetFrame(node.Name);
                 var ft = FrameTransform.FindOrCreate(pipeline, frame, transformSource, ut);
@@ -1284,6 +1431,21 @@ namespace OPS.Pipeline
                     frame.Save(pipeline);
                 }
                 pipeline.LogInfo("saved {0} adjusted transform for site drive {1}", transformSource, node.Name);
+            }
+            foreach (var sd in unaligned)
+            {
+                var frame = frameCache.GetFrame(sd);
+                if (frame.RemoveTransform(transformSource))
+                {
+                    frame.Save(pipeline);
+                }
+                //can't use frameCache here because it was loaded with only priors
+                //but that's OK because FrameTransform.Find() doesn't scan
+                var ft = FrameTransform.Find(pipeline, frame, transformSource);
+                if (ft != null)
+                {
+                    ft.Delete(pipeline);
+                }
             }
         }
 
@@ -1299,32 +1461,26 @@ namespace OPS.Pipeline
 
             MakeGraph();
 
-            foreach (var node in nodes.Values)
+            foreach (var node in nodes)
             {
                 node.WorldTransform = Meshing.GetTransform(node.Name, "root", frameCache, usePriors: true).Mean;
             }
 
-            var floating = new Dictionary<string, Node>();
-            foreach (var node in nodes.Values)
+            var nodesToAlign = new List<Node>();
+            foreach (var node in nodes)
             {
-                if (node.Children.Count > 0)
+                if ((node.Parent != null || node.Children.Count > 0) && !fixedNodes.Contains(node.Name))
                 {
-                    floating[node.Name] = node;
-                    foreach (var child in node.Children)
-                    {
-                        floating[child.Name] = child;
-                    }
+                    nodesToAlign.Add(node);
                 }
             }
-
-            var nodesToAlign = floating.Values.ToArray();
 
             //TODO
             throw new NotImplementedException("simultaneous align not implemented yet");
 
             //SaveTransforms(nodesToAlign);
 
-            //pipeline.LogInfo("simultaneous aligned {0} nodes ({1:F3}s)", nodesToAlign.Length, UTCTime.Now() - startSec);
+            //pipeline.LogInfo("simultaneous aligned {0} nodes ({1:F3}s)", nodesToAlign.Count, UTCTime.Now() - startSec);
 
             //return nodesToAlign.Length;
         }
@@ -1334,7 +1490,7 @@ namespace OPS.Pipeline
         /// then compute the adjusted sitedrive -> root transforms and write them back to the database
         /// using TransformSource = LandformBEV
         /// </summary>
-        private int PairwiseAlign()
+        private int PairwiseAlign(bool maximal)
         {
             double startSec = UTCTime.Now();
             pipeline.LogInfo("pairwise aligning...");
@@ -1343,11 +1499,11 @@ namespace OPS.Pipeline
 
             //BFS the graph to set the best parent for each node
             //the best parent is the one to follow to get to the root along a best path
-            foreach (var node in nodes.Values)
+            foreach (var node in nodes)
             {
-                node.Depth = options.AlignmentMode == AlignmentMode.PairwiseMinimal ? int.MaxValue : int.MinValue;
+                node.Depth = maximal ? int.MinValue : int.MaxValue;
             }
-            foreach (var node in nodes.Values.Where(n => n.Parent == null))
+            foreach (var node in nodes.Where(n => n.Parent == null))
             {
                 node.Depth = 0;
                 var queue = new Queue<Node>();
@@ -1358,8 +1514,7 @@ namespace OPS.Pipeline
                     var depth = parent.Depth + 1;
                     foreach (var child in parent.Children)
                     {
-                        if ((options.AlignmentMode == AlignmentMode.PairwiseMinimal && child.Depth > depth) ||
-                            (options.AlignmentMode == AlignmentMode.PairwiseMaximal && child.Depth < depth))
+                        if ((maximal && child.Depth < depth) || (!maximal && child.Depth > depth))
                         {
                             child.Parent = parent;
                             child.Depth = depth;
@@ -1371,8 +1526,11 @@ namespace OPS.Pipeline
 
             //align every node to its a parent
             //a node has a parent iff we found enough ransac matches from that node to a higher-priority sitedrive
-            var nodesToAlign = nodes.Values.Where(n => n.Parent != null).ToArray();
-            pipeline.LogInfo("pairwise aligning {0} site drives", nodesToAlign.Length);
+            var nodesToAlign = nodes
+                .Where(n => n.Parent != null)
+                .Where(n => !fixedNodes.Contains(n.Name))
+                .ToList();
+            pipeline.LogInfo("pairwise aligning {0} site drives", nodesToAlign.Count);
             int nc = 0, np = 0;
             CoreLimitedParallel.ForEach(nodesToAlign, node => {
 
@@ -1380,8 +1538,8 @@ namespace OPS.Pipeline
 
                     if (!options.NoProgress)
                     {
-                        pipeline.LogInfo("pairwise aligning for {0} site drives in parallel, completed {1}/{2}",
-                                         np, nc, nodesToAlign.Length);
+                        pipeline.LogInfo("pairwise aligning {0} site drives in parallel, completed {1}/{2}",
+                                         np, nc, nodesToAlign.Count);
                     }
 
                     var model = node.Parent.Name;
@@ -1408,7 +1566,7 @@ namespace OPS.Pipeline
                     //compute transform adj that best aligns data points to model points
                     var residual = Procrustes.CalculateRigid(dataPts, modelPts, out Matrix adj);
                     
-                    pipeline.LogInfo("Procrustes aligned sitedrive {0} to {1}, residual {2}->{3}m", data, model,
+                    pipeline.LogInfo("aligned sitedrive {0} to {1}, residual {2}->{3}m", data, model,
                                      priorResidual, residual);
                     
                     //row matrix transforms compose left to right
@@ -1424,7 +1582,7 @@ namespace OPS.Pipeline
             //compute a world transform for each node (i.e. sitedrive to root transform)
             //for a node with no parent this is just the prior
             //otherwise it's the concatenation of adjusted transforms along ancestor chain from node to world
-            foreach (var node in nodes.Values.Where(n => n.Parent == null))
+            foreach (var node in nodes.Where(n => n.Parent == null))
             {
                 node.WorldTransform = Meshing.GetTransform(node.Name, "root", frameCache, usePriors: true).Mean;
             }
@@ -1445,9 +1603,9 @@ namespace OPS.Pipeline
 
             SaveTransforms(nodesToAlign);
 
-            pipeline.LogInfo("pairwise aligned {0} nodes ({1:F3}s)", nodesToAlign.Length, UTCTime.Now() - startSec);
+            pipeline.LogInfo("pairwise aligned {0} nodes ({1:F3}s)", nodesToAlign.Count, UTCTime.Now() - startSec);
 
-            return nodesToAlign.Length;
+            return nodesToAlign.Count;
         }
     }
 }

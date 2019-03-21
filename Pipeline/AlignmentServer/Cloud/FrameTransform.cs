@@ -132,6 +132,11 @@ namespace OPS.Pipeline.AlignmentServer
             pipeline.SaveDatabaseItem(this);
         }
 
+        public void Delete(PipelineCore pipeline, bool ignoreErrors = true)
+        {
+            pipeline.DeleteDatabaseItem(this, ignoreErrors);
+        }
+
         public static IEnumerable<FrameTransform> Find(PipelineCore pipeline, string projectName)
         {
             foreach (var ft in pipeline.ScanDatabase<FrameTransform>("ProjectName", projectName))

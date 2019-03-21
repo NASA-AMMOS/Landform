@@ -25,8 +25,9 @@ namespace OPS.Alignment
 
         public override Feature2D MakeExtractor()
         {
-            //for some reason BriefDescriptorExtractor is returning all zeros
             //return new BriefDescriptorExtractor(DescriptorSize);
+
+            //for some reason BriefDescriptorExtractor is returning all zeros
             //so for now just use SIFT descriptors
             return new SIFT();
         }

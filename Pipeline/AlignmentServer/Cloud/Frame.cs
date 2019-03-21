@@ -81,6 +81,8 @@ namespace OPS.Pipeline.AlignmentServer
         /// <param name=""></param>
         public void Save(PipelineCore pipeline)
         {
+            Transforms = (new HashSet<TransformSource>(Transforms)).ToList();
+            ObservationNames = (new HashSet<string>(ObservationNames)).ToList();
             pipeline.SaveDatabaseItem(this);
         }
 
@@ -129,11 +131,31 @@ namespace OPS.Pipeline.AlignmentServer
 
         public bool AddTransform(FrameTransform transform)
         {
-            if (Transforms.Contains(transform.Source))
+            return AddTransform(transform.Source);
+        }
+
+        public bool AddTransform(TransformSource transformSource)
+        {
+            if (Transforms.Contains(transformSource))
             {
                 return false;
             }
-            Transforms.Add(transform.Source);
+            Transforms.Add(transformSource);
+            return true;
+        }
+
+        public bool RemoveTransform(FrameTransform transform)
+        {
+            return RemoveTransform(transform.Source);
+        }
+
+        public bool RemoveTransform(TransformSource transformSource)
+        {
+            if (!Transforms.Contains(transformSource))
+            {
+                return false;
+            }
+            Transforms.Remove(transformSource);
             return true;
         }
 

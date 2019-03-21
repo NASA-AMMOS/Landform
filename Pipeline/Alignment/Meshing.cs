@@ -693,7 +693,7 @@ namespace OPS.Pipeline
         {
             if (up == null)
             {
-                up = new Vector3(0, 0, -1);
+                up = new Vector3(0, 0, 1);
             }
 
             var ctr = absolute ? new Vector3(0, 0, 0) : mesh.Bounds().Center();

@@ -10,7 +10,7 @@ namespace OPS.Pipeline
     /// Represents a rover site drive pair
     /// Site drives are usually formatted as two concatenated 5 digit numbers with leading zeros
     /// </summary>
-    public struct SiteDrive
+    public struct SiteDrive : IComparable<SiteDrive>
     {
         public readonly int Site, Drive;
         
@@ -74,24 +74,45 @@ namespace OPS.Pipeline
             return !lhs.Equals(rhs); //don't need to worry about null as SiteDrive is a struct
         }
 
-        public static bool operator <(SiteDrive lhs, SiteDrive rhs)
+        public int CompareTo(SiteDrive other)
         {
-            return lhs.Site < rhs.Site || lhs.Drive < rhs.Drive;
+            if (Site > other.Site)
+            {
+                return 1;
+            }
+            if (Site < other.Site)
+            {
+                return -1;
+            }
+            if (Drive > other.Drive)
+            {
+                return 1;
+            }
+            if (Drive < other.Drive)
+            {
+                return -1;
+            }
+            return 0;
         }
 
-        public static bool operator <=(SiteDrive lhs, SiteDrive rhs)
+        public static bool operator >  (SiteDrive lhs, SiteDrive rhs)
         {
-            return lhs < rhs || lhs == rhs;
+            return lhs.CompareTo(rhs) == 1;
         }
-
-        public static bool operator >(SiteDrive lhs, SiteDrive rhs)
+        
+        public static bool operator <  (SiteDrive lhs, SiteDrive rhs)
         {
-            return !(lhs <= rhs);
+            return lhs.CompareTo(rhs) == -1;
         }
-
-        public static bool operator >=(SiteDrive lhs, SiteDrive rhs)
+        
+        public static bool operator >=  (SiteDrive lhs, SiteDrive rhs)
         {
-            return lhs > rhs || lhs == rhs;
+            return lhs.CompareTo(rhs) >= 0;
+        }
+            
+            public static bool operator <=  (SiteDrive lhs, SiteDrive rhs)
+        {
+            return lhs.CompareTo(rhs) <= 0;
         }
     }
 }
