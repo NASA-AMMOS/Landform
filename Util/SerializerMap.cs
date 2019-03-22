@@ -94,6 +94,7 @@ namespace OPS.Util
             {
                 logger.LogError("invalid {0} format \"{1}\", valid formats: {2}", Kind(), fmt,
                                 string.Join(", ", SupportedFormats()));
+                return null;
             }
             return fmt;
         }
