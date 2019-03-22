@@ -842,7 +842,7 @@ namespace OPS.Pipeline
         public enum MeshColor { None, Texture, Normals, Elevation, Curvature };
 
         public static Mesh ColorMesh(Mesh mesh, MeshColor mode, TiltMode tiltMode = TiltMode.None,
-                                     bool allowAdjustColors = true, bool stretch = false)
+                                     bool allowAdjustColors = true, bool stretch = false, double nStddev = 3)
         {
             bool greyscale = false;
             bool adjustColors = false;
@@ -887,7 +887,7 @@ namespace OPS.Pipeline
             {
                 if (stretch)
                 {
-                    ApplyStdDevStretchToColors(mesh, greyscale);
+                    ApplyStdDevStretchToColors(mesh, greyscale, nStddev);
                 }
                 else if (greyscale)
                 {
@@ -1288,6 +1288,21 @@ namespace OPS.Pipeline
             return new Tuple<Mesh, Image>(merged, atlas);
         }
 
+        public enum BlendMode { Over, Under, Average, Max, Min };
+
+        public class BEVOptions
+        {
+            public BlendMode BlendMode = BlendMode.Average;
+            public bool CCW = false;
+            public double MetersPerPixel = 0.005;
+            public bool Greyscale = false;
+            public double SparseBlockSize = 0.005;
+            public double MinSparseBlockValidRatio = 0.8;
+            public int Inpaint = 20;
+            public int Blur = 0;
+            public int Decimate = 2;
+        }
+
         /// <summary>
         /// rasterize a birds eye view image of mesh
         /// if mesh has UVs and img is not null it will be texture mapped
@@ -1298,24 +1313,28 @@ namespace OPS.Pipeline
         /// occlusion is painters algorithm, so sort the mesh faces if you need to
         /// output meshOrigin is the pixel corresponding to the origin of mesh frame (which may be outside image)
         /// </summary>
-        public static Image RenderBirdsEyeView(Mesh mesh, Image img, double metersPerPixel, bool greyscale,
-                                               out Vector2 meshOrigin, bool ccw = false,
-                                               double sparseBlockSize = 0, double minSparseBlockValidRatio = 1,
-                                               int inpaint = 0, int blur = 0, int decimate = 1)
+        public static Image RenderBirdsEyeView(Mesh mesh, Image img, out Vector2 meshOrigin, BEVOptions options = null)
         {
+            if (options == null)
+            {
+                options = new BEVOptions();
+            }
+
             var meshBounds = mesh.Bounds();
 
             double widthMeters = meshBounds.Max.X - meshBounds.Min.X;
             double heightMeters = meshBounds.Max.Y - meshBounds.Min.Y;
 
-            double pixelsPerMeter = 1 / metersPerPixel;
+            double pixelsPerMeter = 1 / options.MetersPerPixel;
 
             int widthPixels =  (int)(widthMeters * pixelsPerMeter);
             int heightPixels =  (int)(heightMeters * pixelsPerMeter);
 
-            greyscale |= img != null && img.Bands == 1;
+            bool greyscale = options.Greyscale || img != null && img.Bands == 1;
             var ret = new Image(greyscale ? 1 : 3, widthPixels, heightPixels);
             ret.CreateMask(true); //pixels default to masked
+
+            bool ccw = options.CCW;
 
             var offset = new Vector2(meshBounds.Min.X, ccw ? meshBounds.Max.Y : meshBounds.Min.Y);
             meshOrigin = -1 * offset * pixelsPerMeter;
@@ -1326,26 +1345,68 @@ namespace OPS.Pipeline
                 return p.Dot(n) - a.Dot(n);
             }
 
+            Action<int, int, int, float> blend = null;
+            switch (options.BlendMode)
+            {
+                case BlendMode.Over:
+                {
+                    blend = (int b, int r, int c, float v) => { ret[b, r, c] = v; };
+                    break;
+                }
+                case BlendMode.Under:
+                {
+                    blend = (int b, int r, int c, float v) =>
+                        {
+                            var w = ret[b, r, c];
+                            ret[b, r, c] = w > 0 ? w : v;
+                        };
+                    break;
+                }
+                case BlendMode.Average:
+                {
+                    blend = (int b, int r, int c, float v) =>
+                        {
+                            var w = ret[b, r, c];
+                            ret[b, r, c] = w > 0 ? 0.5f * w + 0.5f * v : v;
+                        };
+                    break;
+                }
+                case BlendMode.Max:
+                {
+                    blend = (int b, int r, int c, float v) => { ret[b, r, c] = Math.Max(ret[b, r, c], v); };
+                    break;
+                }
+                case BlendMode.Min:
+                {
+                    blend = (int b, int r, int c, float v) =>
+                        {
+                            var w = ret[b, r, c];
+                            ret[b, r, c] = w > 0 ? Math.Min(w, v) : v;
+                        };
+                    break;
+                }
+            }
+
             Vector2 zero = new Vector2(0, 0), one = new Vector2(1, 1);
             void writeFragment(int r, int c, Vertex v0, Vertex v1, Vertex v2, double alpha, double beta, double gamma)
             {
                 if (mesh.HasUVs && img != null)
                 {
                     var src = img.UVToPixel(Vector2.Clamp(v0.UV * alpha + v1.UV * beta + v2.UV * gamma, zero, one));
-                    ret[0, r, c] = img[0, (int)src.Y, (int)src.X];
+                    blend(0, r, c, img[0, (int)src.Y, (int)src.X]);
                     if (!greyscale)
                     {
-                        ret[1, r, c] = img[1, (int)src.Y, (int)src.X];
-                        ret[2, r, c] = img[2, (int)src.Y, (int)src.X];
+                        blend(1, r, c, img[1, (int)src.Y, (int)src.X]);
+                        blend(2, r, c, img[2, (int)src.Y, (int)src.X]);
                     }
                 }
                 else
                 {
-                    ret[0, r, c] = (float)(v0.Color.X * alpha + v1.Color.X * beta + v2.Color.X * gamma);
+                    blend(0, r, c, (float)(v0.Color.X * alpha + v1.Color.X * beta + v2.Color.X * gamma));
                     if (!greyscale)
                     {
-                        ret[1, r, c] = (float)(v0.Color.Y * alpha + v1.Color.Y * beta + v2.Color.Y * gamma);
-                        ret[2, r, c] = (float)(v0.Color.Z * alpha + v1.Color.Z * beta + v2.Color.Z * gamma);
+                        blend(1, r, c, (float)(v0.Color.Y * alpha + v1.Color.Y * beta + v2.Color.Y * gamma));
+                        blend(2, r, c, (float)(v0.Color.Z * alpha + v1.Color.Z * beta + v2.Color.Z * gamma));
                     }
                 }
                 ret.SetMaskValue(r, c, false);
@@ -1398,51 +1459,48 @@ namespace OPS.Pipeline
                 }
             }
 
-            if (sparseBlockSize > 0)
+            if (options.SparseBlockSize > 0)
             {
-                if (sparseBlockSize < 1)
+                if (options.SparseBlockSize < 1)
                 {
-                    sparseBlockSize *= Math.Max(ret.Width, ret.Height);
+                    options.SparseBlockSize *= Math.Max(ret.Width, ret.Height);
                 }
-                ret.InvalidateSparseExternalBlocks((int)sparseBlockSize, minSparseBlockValidRatio);
+                ret.InvalidateSparseExternalBlocks((int)options.SparseBlockSize, options.MinSparseBlockValidRatio);
                 ret.RemoveAllButLargestValidBlob();
                 ret = ret.Trim(out Vector2 ulc);
                 meshOrigin -= ulc;
             }
 
-            if (inpaint > 0)
+            if (options.Inpaint > 0)
             {
                 //inpaint just the interior holes
                 //we do this by first creating a mask by floodfilling exterior invalid regions
                 Image mask = new Image(1, ret.Width, ret.Height);
                 ret.AddOuterRegionsToMask(mask);
-                ret.Inpaint(inpaint);
+                ret.Inpaint(options.Inpaint);
                 ret.UnionMask(mask, new float[] { 1 } ); //re-apply the exterior mask
             }
 
             //can't use Image.Resize() here because it doesn't preserve mask
             //but Image.Decimated() does
 
-            if (blur > 0)
+            if (options.Blur > 0)
             {
-                ret.GaussianBoxBlur(blur);
+                ret.GaussianBoxBlur(options.Blur);
             }
 
-            if (decimate > 1)
+            if (options.Decimate > 1)
             {
-                ret = ret.Decimated(decimate);
-                meshOrigin /= decimate;
+                ret = ret.Decimated(options.Decimate);
+                meshOrigin /= options.Decimate;
             }
 
             return ret;
         }
 
-        public static Image RenderBirdsEyeView(Mesh mesh, Image img, double metersPerPixel, bool greyscale,
-                                               bool ccw = false, double sparseBlockSize = 0,
-                                               double minSparseBlockValidRatio = 1, int inpaint = 0, int blur = 0,
-                                               int decimate = 1)
+        public static Image RenderBirdsEyeView(Mesh mesh, Image img, BEVOptions options = null)
         {
-            return RenderBirdsEyeView(mesh, img, metersPerPixel, greyscale, out Vector2 meshOrigin, ccw);
+            return RenderBirdsEyeView(mesh, img, out Vector2 meshOrigin, options);
         }
     }
 }

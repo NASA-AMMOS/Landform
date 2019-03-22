@@ -77,6 +77,9 @@ namespace OPS.Pipeline
         [Option(HelpText = "Optimize color contrast", Default = false)]
         public bool StretchContrast { get; set; }
 
+        [Option(HelpText = "Optimize color contrast number of standard deviations", Default = 2)]
+        public double StretchStdDev { get; set; }
+
         [Option(HelpText = "Max triangle aspect ratio for organized mesh reconstruction", Default = 20)]
         public double MaxTriangleAspect { get; set; }
 
@@ -104,6 +107,9 @@ namespace OPS.Pipeline
         [Option(HelpText = "Write site drive birds eye view images", Default = false)]
         public bool SiteDriveBirdsEyeViews { get; set; }
 
+        [Option(HelpText = "Birds eye view blend mode (Over, Average, Max, Min)", Default = Meshing.BlendMode.Max)]
+        public Meshing.BlendMode BEVBlending { get; set; }
+
         [Option(HelpText = "Birds eye view meters per pixel", Default = 0.005)]
         public double BEVMetersPerPixel { get; set; }
 
@@ -113,7 +119,7 @@ namespace OPS.Pipeline
         [Option(HelpText = "Birds eye view sparse invalidation block threshold", Default = 0.8)]
         public double BEVMinValidBlockRatio { get; set; }
 
-        [Option(HelpText = "Birds eye view smoothing box size (should be odd)", Default = 3)]
+        [Option(HelpText = "Birds eye view smoothing box size (should be odd)", Default = 1)]
         public int BEVSmoothing { get; set; }
 
         [Option(HelpText = "Birds eye view decimation", Default = 2)]
@@ -300,9 +306,9 @@ namespace OPS.Pipeline
                               String.Join(",", siteDrives.Select(sd => sd.ToString()).ToArray())) : "",
                              outputPath);
 
-            //sitedrive => (mesh, image), (mesh, image), ...
-            var mergeInputs = new ConcurrentDictionary<string, ConcurrentBag<Tuple<Mesh, Image>>>();
-
+            //sitedrive name => (observation, mesh, image), (observation, mesh, image), ...
+            var mergeInputs = new ConcurrentDictionary<string, ConcurrentBag<Tuple<string, Mesh, Image>>>();
+            
             double startSec = UTCTime.Now();
             int np = 0, nc = 0;
             CoreLimitedParallel.ForEach(observations, obs => { 
@@ -450,10 +456,10 @@ namespace OPS.Pipeline
 
                     if (options.MergedSiteDriveMeshes && mesh != null)
                     {
-                        var pair = new Tuple<Mesh, Image>(mesh, withUVs ? img : null);
+                        var input = new Tuple<string, Mesh, Image>(obs.Points.Name, mesh, withUVs ? img : null);
                         mergeInputs.AddOrUpdate(siteDrive,
-                                                _ => new ConcurrentBag<Tuple<Mesh, Image>>(new [] { pair }),
-                                                (_, bag) => { bag.Add(pair); return bag; });
+                                                _ => new ConcurrentBag<Tuple<string, Mesh, Image>>(new [] { input }),
+                                                (_, bag) => { bag.Add(input); return bag; });
                     }
 
                     if (!options.NoWedgeMeshes && mesh != null)
@@ -467,7 +473,7 @@ namespace OPS.Pipeline
                             }
                             Meshing.ColorMesh(mesh, options.ColorMeshesBy,
                                               options.ConvertNormalsToTilts ? options.TiltMode : Meshing.TiltMode.None,
-                                              stretch: options.StretchContrast);
+                                              stretch: options.StretchContrast, nStddev: options.StretchStdDev);
                         }
                         string file = tmpPath + obsName + meshExt;
                         pipeline.LogVerbose("saving mesh {0}", file);
@@ -508,14 +514,22 @@ namespace OPS.Pipeline
                 {
                     pipeline.LogInfo("generating merged mesh for site drive {0}", siteDrive);
 
-                    var pair = Meshing.MergeMeshesAndTextures(mergeInputs[siteDrive].Distinct().ToArray());
+                    //ensure inpurs are in a canonical order particularly for BEVBlending = Over
+                    var inputs = mergeInputs[siteDrive]
+                        .OrderBy(inp => inp.Item1) //order by observation name
+                        .Distinct() //ConcurrentBag is not necessarily a set
+                        .Select(inp => new Tuple<Mesh, Image>(inp.Item2, inp.Item3))
+                        .ToArray();
+
+                    var pair = Meshing.MergeMeshesAndTextures(inputs);
+
                     var mesh = pair.Item1;
                     var img = pair.Item2;
 
                     Meshing.ColorMesh(mesh, options.ColorMeshesBy,
                                       options.ConvertNormalsToTilts ? options.TiltMode : Meshing.TiltMode.None,
                                       allowAdjustColors: !options.SiteDriveBirdsEyeViews,
-                                      stretch: options.StretchContrast);
+                                      stretch: options.StretchContrast, nStddev: options.StretchStdDev);
 
                     string imageFilename = null;
                     if (img != null)
@@ -538,13 +552,21 @@ namespace OPS.Pipeline
                     if (options.SiteDriveBirdsEyeViews)
                     {
                         pipeline.LogInfo("generating birds eye view for site drive {0}", siteDrive);
-                        bool greyscale = !withUVs &&
-                            (options.ColorMeshesBy != Meshing.MeshColor.Normals || options.ConvertNormalsToTilts);
-                        bool ccw = false;
-                        var bev = Meshing.RenderBirdsEyeView(mesh, img, options.BEVMetersPerPixel, greyscale, ccw,
-                                                             options.BEVSparseBlocksize, options.BEVMinValidBlockRatio,
-                                                             options.InpaintImages, options.BEVSmoothing,
-                                                             options.BEVDecimation);
+
+                        var bevOptions = new Meshing.BEVOptions
+                        {
+                            BlendMode = options.BEVBlending,
+                            MetersPerPixel = options.BEVMetersPerPixel,
+                            Greyscale = !withUVs &&
+                            (options.ColorMeshesBy != Meshing.MeshColor.Normals || options.ConvertNormalsToTilts),
+                            SparseBlockSize = options.BEVSparseBlocksize,
+                            MinSparseBlockValidRatio = options.BEVMinValidBlockRatio,
+                            Inpaint = options.InpaintImages,
+                            Blur = options.BEVSmoothing,
+                            Decimate = options.BEVDecimation
+                        };
+                        var bev = Meshing.RenderBirdsEyeView(mesh, img, bevOptions);
+
                         if (options.StretchContrast)
                         {
                             bev.ApplyStdDevStretch();
@@ -576,7 +598,7 @@ namespace OPS.Pipeline
         {
             if (options.StretchContrast)
             {
-                img = img.ApplyStdDevStretch();
+                img = img.ApplyStdDevStretch(options.StretchStdDev);
             }
             if (options.InpaintImages > 0)
             {
