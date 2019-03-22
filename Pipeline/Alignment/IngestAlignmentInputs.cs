@@ -93,9 +93,11 @@ namespace OPS.Pipeline
             ingester = new IngestPDSImage(pipeline, project, recreateObservations, resetTransforms, filter);
         }
 
-        public int Ingest(MSLLocations locations, Action<IngestImage.Result> func = null)
+        public int Ingest(MSLLocations locations, MSLPlaces places, Action<IngestImage.Result> func = null)
         {
             ingester.Locations = locations;
+            ingester.Places = places;
+
             string imageObs = ObservationType.Image.ToString();
             double startTime = UTCTime.Now();
             int ni = 0, na = 0, ne = 0, nf = 0, ns = 0, nr = 0, np = 0;

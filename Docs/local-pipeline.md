@@ -2,7 +2,7 @@
 
 ## TLDR Example Workflow
 ```
-./Pipeline/Rover/fetch-msl.sh c:/Users/$USERNAME/Downloads locations 00588 00589 00590
+./Pipeline/Rover/fetch-msl.sh c:/Users/$USERNAME/Downloads locations basemap 00588 00589 00590
 ./Landform/bin/Release/Landform.exe configure-local --venue=local --storagedir=c:/Users/$USERNAME/Documents/landform-storage --maxcores=0 --randomseed=-1
 ./Landform/bin/Release/Landform.exe local-ingest sols588to590 --inputpath=c:/Users/$USERNAME/Downloads/msl/**
 ./Landform/bin/Release/Landform.exe local-features sols588to590 --writefeatureimages
@@ -14,9 +14,9 @@
 
 Download sols 588 - 590 but process sol 589 only:
 ```
-./Pipeline/Rover/fetch-msl.sh c:/Users/$USERNAME/Downloads locations 00588 00589 00590
+./Pipeline/Rover/fetch-msl.sh c:/Users/$USERNAME/Downloads locations basemap 00588 00589 00590
 ./Landform/bin/Release/Landform.exe configure-local --venue=local --storagedir=c:/Users/$USERNAME/Documents/landform-storage --maxcores=0 --randomseed=-1
-./Landform/bin/Release/Landform.exe local-ingest sol589 --inputpath=c:/Users/$USERNAME/Downloads/msl/redops/ods/surface/sol/00589/** --locationsxml=c:/Users/$USERNAME/Downloads/msl/locations.xml
+./Landform/bin/Release/Landform.exe local-ingest sol589 --inputpath=c:/Users/$USERNAME/Downloads/msl/redops/ods/surface/sol/00589/** --locationsxml=c:/Users/$USERNAME/Downloads/msl/locations.xml --basemapdem=c:/Users/$USERNAME/Downloads/msl/out_deltaradii_smg_1m.tif
 ./Landform/bin/Release/Landform.exe local-features sol589 --writefeatureimages
 ./Landform/bin/Release/Landform.exe local-matching sol589 --writematchimages --writematchmeshes
 ./Landform/bin/Release/Landform.exe local-bundle-adjust sol589 --writedebug
@@ -151,9 +151,11 @@ It is also possible to **post-mortem collect stats and generate debug outputs fr
     1.  To use MSL data from `s3://red-product` you will need the `mslice` AWS credentials in your `~/.aws/credentials` file.
     1.  You can download the data with any S3 tool such as CloudBerry or WinSCP, or use the `Pipeline/Rover/fetch-msl.sh` script.
     1.  A full path would be `s3://red-product/proj/msl/redops/ods/surface/sol/NUM/opgs/rdr/ncam` where NUM is a sol number.
-    1.  You will also need the MSL locations XML file from `http://mars.jpl.nasa.gov/msl-raw-images/locations.xml` (no authentication required).
+    1.  If you want to use MSLLocations priors you will also need
+        1.  the MSL locations XML file from `http://mars.jpl.nasa.gov/msl-raw-images/locations.xml` (no authentication required)
+        1.  the MSL basemap DEM from `s3://12landlords/TerrainSourceAssets/basemaps/out_deltaradii_smg_1m.tif`
     1.  To use `fetch-msl.sh` you will need a sh-compatible command prompt (e.g. git bash, cygwin, or WSL). You will also need the AWS command line interface (install latest python3, `pip install awscli --upgrade --user`,  your PATH environment variable must include `%USERPROFILE%\AppData\Roaming\Python\Python??\Scripts`).
-    1.  Some example sol numbers are `00588`, `00589`, `00590`.  So you could run e.g. `./Pipeline/Rover/fetch-msl.sh DIR locations 00588 00589 00590` where DIR is where you'd like to download the input data (an `msl` subdir will be created), e.g. `c:/Users/USER/Downloads`.  The script fetches the OPGS navcam RDR .IMG products (only) for the specified sols.  It also fetches locations.xml if "locations" is included in the argument list.
+    1.  Some example sol numbers are `00588`, `00589`, `00590`.  So you could run e.g. `./Pipeline/Rover/fetch-msl.sh DIR locations basemap 00588 00589 00590` where DIR is where you'd like to download the input data (an `msl` subdir will be created), e.g. `c:/Users/USER/Downloads`.  The script fetches the OPGS navcam RDR .IMG products (only) for the specified sols.  It also fetches locations.xml if "locations" is included in the argument list and the basemap DEM if "basemap" is included in the arguments list.  For the latter you will need a "landlords" profile in your ~/.aws/credentials.
 1.  Build Landform in visual studio in Release mode.
 1.  **`./Landform/bin/Release/Landform.exe configure-local`** accept the default `local` as venue name, and specify an absolute path (a relative path should work too but may get confusing) for the storage dir, e.g. `c:/Users/USER/Documents/landform-storage`.  The directory does not need to exist yet.
 1.  **`./Landform/bin/Release/Landform.exe local-ingest PROJ`** where PROJ is a project name, e.g. `msl`.  Options include

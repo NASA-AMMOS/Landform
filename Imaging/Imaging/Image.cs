@@ -4,7 +4,6 @@ using System.Linq;
 using System.Text;
 using System.IO;
 using Microsoft.Xna.Framework;
-using OPS.Imaging;
 using OPS.MathExtensions;
 
 namespace OPS.Imaging

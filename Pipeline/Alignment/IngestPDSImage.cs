@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Collections.Generic;
 using System.Collections.Concurrent;
@@ -22,6 +22,7 @@ namespace OPS.Pipeline
         private Filter filter;
 
         public MSLLocations Locations;
+        public MSLPlaces Places;
 
         public IngestPDSImage(PipelineCore pipeline, Project project, bool recreateExistingObservations = false,
                               bool resetTransforms = false, Filter filter = null)
@@ -266,12 +267,25 @@ namespace OPS.Pipeline
             }
 
             // site drive frame -> root frame
-            var siteDriveFrame = FindOrCreateFrame(SiteDriveFrameName(parser), rootFrame, TransformSource.LocationsDB,
-                                                   GetSiteDriveTransform(parser));
+            Frame siteDriveFrame = null;
+            if (Places != null)
+            {
+                siteDriveFrame = GetFrame(SiteDriveFrameName(parser), rootFrame, TransformSource.PlacesDB,
+                                                   GetSiteDriveTransformFromPlaces(parser));
+            }
+            if (Locations != null)
+            {
+                siteDriveFrame = GetFrame(SiteDriveFrameName(parser), rootFrame, TransformSource.LocationsDB,
+                                          GetSiteDriveTransformFromLocations(parser));
+            }
+            if (siteDriveFrame == null)
+            {
+                throw new Exception("neither MSLLocations nor Places DB available for priors");
+            }
 
             // observation (aka rover) frame -> site drive (aka local level) frame
-            var observationFrame = FindOrCreateFrame(ObservationFrameName(parser), siteDriveFrame, TransformSource.PDS,
-                                                     GetObservationTransform(parser));
+            var observationFrame = GetFrame(ObservationFrameName(parser), siteDriveFrame, TransformSource.PDS,
+                                            GetObservationTransform(parser));
 
             RoverObservation observation = RoverObservation.Find(pipeline, project.Name, observationName);
             if (observation != null)
@@ -320,20 +334,42 @@ namespace OPS.Pipeline
         /// Get transform from a site drive frame to root.  This is just the translation of the site drive frame from
         /// the MSLLocations database.
         /// </summary>
-        private UncertainRigidTransform GetSiteDriveTransform(PDSParser parser)
+        private UncertainRigidTransform GetSiteDriveTransformFromLocations(PDSParser parser)
         {
             var siteDrive = new SiteDrive(parser.SiteDrive);
+
             var loc = Locations.Location(siteDrive);
             if (loc == null)
             {
                 throw new Exception(string.Format("no MSL location for site drive {0}", siteDrive));
             }
-            
+
+            if (Locations.HasBasemapDEM)
+            {
+                Locations.SetZFromBasemap(loc);
+            }
+
             // TODO: examine values here
             var covariance = CreateMatrix
                 .Diagonal<double>(new double[] { 8, 8, 8, 5 * degSqr, 5 * degSqr, 5 * degSqr });
-            
+
             return new UncertainRigidTransform(Matrix.CreateTranslation(loc.Position), covariance);
+        }
+
+        private UncertainRigidTransform GetSiteDriveTransformFromPlaces(PDSParser parser)
+        {
+            var siteDrive = new SiteDrive(parser.SiteDrive);
+            var loc = Places.GetEstimatedOffsetFromStart(siteDrive);
+            if (loc == null)
+            {
+                throw new Exception(string.Format("no MSL Places for site drive {0}", siteDrive));
+            }
+
+            // TODO: examine values here
+            var covariance = CreateMatrix
+                .Diagonal<double>(new double[] { 0.25, 0.25, 0.25, 0.5 * degSqr, 0.5 * degSqr, 1.0 * degSqr });
+
+            return new UncertainRigidTransform(Matrix.CreateTranslation(loc), covariance);
         }
 
         /// <summary>
@@ -351,8 +387,7 @@ namespace OPS.Pipeline
 
         private ConcurrentDictionary<string, bool> alreadyResetTransforms = new ConcurrentDictionary<string, bool>();
 
-        private Frame FindOrCreateFrame(string name, Frame parent, TransformSource source,
-                                        UncertainRigidTransform transform)
+        private Frame GetFrame(string name, Frame parent, TransformSource source, UncertainRigidTransform transform)
         {
             var frame = Frame.FindOrCreate(pipeline, project.Name, name, parent);
             var frameTransform = FrameTransform.Find(pipeline, frame, source);
