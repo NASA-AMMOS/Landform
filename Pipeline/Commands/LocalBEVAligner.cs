@@ -422,6 +422,9 @@ namespace OPS.Pipeline
                 Decimate = options.BEVDecimation
             };
 
+            var demOptions = (Meshing.BEVOptions)(bevOptions.Clone());
+            demOptions.BlendMode = Meshing.BlendMode.Average;
+
             int np = 0, nc = 0;
             CoreLimitedParallel.ForEach(siteDrives, siteDrive => {
 
@@ -494,14 +497,14 @@ namespace OPS.Pipeline
                     bevs[siteDrive] = bev;
                     bevOrigins[siteDrive] = origin;
                     
-                    if (options.BEVColoring == ColorMode.Elevation)
+                    if (options.BEVColoring == ColorMode.Elevation && options.BEVBlending == Meshing.BlendMode.Average)
                     {
                         dems[siteDrive] = (options.StretchContrast || options.BEVThreshold > 0) ? new Image(bev) : bev;
                     }
                     else
                     {
                         Meshing.ColorMeshByElevation(mesh, absolute: true);
-                        var dem = Meshing.RenderBirdsEyeView(mesh, null, out Vector2 demOrigin, bevOptions);
+                        var dem = Meshing.RenderBirdsEyeView(mesh, null, out Vector2 demOrigin, demOptions);
                         if (dem.Width != bev.Width || dem.Height != bev.Height)
                         {
                             throw new Exception(string.Format("DEM dimensions {0}x{1} don't match BEV {2}x{3}",

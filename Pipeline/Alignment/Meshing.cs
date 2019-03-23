@@ -1290,7 +1290,7 @@ namespace OPS.Pipeline
 
         public enum BlendMode { Over, Under, Average, Max, Min };
 
-        public class BEVOptions
+        public class BEVOptions : ICloneable
         {
             public BlendMode BlendMode = BlendMode.Average;
             public bool CCW = false;
@@ -1301,6 +1301,11 @@ namespace OPS.Pipeline
             public int Inpaint = 20;
             public int Blur = 0;
             public int Decimate = 2;
+
+            public object Clone()
+            {
+                return MemberwiseClone();
+            }
         }
 
         /// <summary>
