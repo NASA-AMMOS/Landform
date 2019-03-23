@@ -980,7 +980,7 @@ namespace OPS.Pipeline
             int[,] shuffle = null;
             HashSet<Tuple<int, int>> alreadyTried = null;
             int maxTests = 0;
-            long totalCombinations = nm * (nm - 1) / 2; //nm choose 2
+            long totalCombinations = ((long)nm) * (((long)nm) - 1) / 2; //nm choose 2
             if (totalCombinations < 2 * (long)(options.MaxRansacTests))
             {
                 pipeline.LogVerbose("generating random shuffle of {0} feature pairs for {1}", totalCombinations, pair);
