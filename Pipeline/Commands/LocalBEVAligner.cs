@@ -132,13 +132,13 @@ namespace OPS.Pipeline
         [Option(HelpText = "Max RANSAC residual in meters", Default = 0.02)]
         public double MaxRansacResidual { get; set; }
 
-        [Option(HelpText = "Max RANSAC feature match radius meters", Default = 0.1)]
+        [Option(HelpText = "Max RANSAC feature match radius meters", Default = 0.05)]
         public double RansacMatchRadius { get; set; }
 
         [Option(HelpText = "Min RANSAC feature separation meters", Default = 0.1)]
         public double MinRansacSeparation { get; set; }
 
-        [Option(HelpText = "Min RANSAC good matches", Default = 10)]
+        [Option(HelpText = "Min RANSAC good matches", Default = 50)]
         public int MinRansacMatches { get; set; }
 
         [Option(HelpText = "Max RANSAC good matches", Default = 500)]
@@ -148,7 +148,10 @@ namespace OPS.Pipeline
         public bool StretchContrast { get; set; }
 
         [Option(HelpText = "Optimize color contrast number of standard deviations", Default = 2)]
-        public double StretchStdDev { get; set; }
+        public double StretchStdDevs { get; set; }
+
+        [Option(HelpText = "Spatial outlier number of mean absolute deviations", Default = 5)]
+        public double SpatialOutlierMADs { get; set; }
 
         [Option(HelpText = "Hide progress", Default = false)]
         public bool NoProgress { get; set; }
@@ -575,8 +578,8 @@ namespace OPS.Pipeline
 
                         var bev = pipeline.LoadImage(url);
                         var dem = pipeline.LoadImage(demUrl);
-
                         var mask = pipeline.LoadImage(maskUrl);
+
                         bev.UnionMask(mask, new float[] { 1 });
                         dem.UnionMask(mask, new float[] { 1 });
 
@@ -653,9 +656,9 @@ namespace OPS.Pipeline
 
             if (options.StretchContrast)
             {
-                double lower = Math.Max(mean - stddev * options.StretchStdDev, min);
-                double upper = Math.Min(mean + stddev * options.StretchStdDev, max);
-                pipeline.LogInfo("stretching [{0}, {1}] -> [0, 1] ({2} stddev)", lower, upper, options.StretchStdDev);
+                double lower = Math.Max(mean - stddev * options.StretchStdDevs, min);
+                double upper = Math.Min(mean + stddev * options.StretchStdDevs, max);
+                pipeline.LogInfo("stretching [{0}, {1}] -> [0, 1] ({2} stddev)", lower, upper, options.StretchStdDevs);
                 foreach (var bev in bevs.Values)
                 {
                     bev.ScaleValues((float)lower, (float)upper, 0, 1);
@@ -1109,7 +1112,8 @@ namespace OPS.Pipeline
                                                   tmpMatches.Select(j => modelPts[j]).ToArray(),
                                                   out residual);
 
-                if (residual < bestResidual)
+                //if (residual < bestResidual)
+                if (tmpMatches.Count() > bestMatches.Count())
                 {
                     bestResidual = residual;
                     bestTransform = xform;
@@ -1187,7 +1191,7 @@ namespace OPS.Pipeline
         /// <summary>
         /// compute spatialMatches from ransacMatches, features, and dems
         /// </summary>
-        private void SpatializeMatches(string modelSiteDrive, string dataSiteDrive)
+        private int SpatializeMatches(string modelSiteDrive, string dataSiteDrive)
         {
             var modelFeatures = features[modelSiteDrive];
             var dataFeatures = features[dataSiteDrive];
@@ -1204,6 +1208,7 @@ namespace OPS.Pipeline
             var pair = modelSiteDrive + "-" + dataSiteDrive;
 
             var pairs = new List<Tuple<Vector3, Vector3>>();
+            var lengths = new List<double>();
             foreach (var match in ransacMatches[pair])
             {
                 var mf = modelFeatures[match.ModelIndex];
@@ -1215,9 +1220,37 @@ namespace OPS.Pipeline
                 var dxy = (df.Location - dataOrigin) * MetersPerPixel;
                 var dz = dataDEM[0, (int)df.Location.Y, (int)df.Location.X];
 
-                pairs.Add(new Tuple<Vector3, Vector3>(new Vector3(mxy.X, mxy.Y, mz), new Vector3(dxy.X, dxy.Y, dz)));
+                var mp = new Vector3(mxy.X, mxy.Y, mz);
+                var dp = new Vector3(dxy.X, dxy.Y, dz);
+                lengths.Add(Vector3.Distance(mp, dp));
+                pairs.Add(new Tuple<Vector3, Vector3>(mp, dp));
             }
 
+            //the XY components of the matches should already be pretty robust due to the ransac
+            //but now that they have Z components those can be dirty
+            int n = lengths.Count();
+            if (n > 1)
+            {
+                lengths.Sort();
+                double median = lengths[n/2];
+                for (int i = 0; i < n; i++)
+                {
+                    lengths[i] = Math.Abs(lengths[i] - median);
+                }
+                lengths.Sort();
+                var mad = lengths[n/2]; //median absolute deviation
+                
+                double threshold = options.SpatialOutlierMADs * mad;
+                pairs = pairs.Where(pr => Math.Abs(Vector3.Distance(pr.Item1, pr.Item2) - median) < threshold).ToList();
+                int nn = pairs.Count();
+                if (nn < n)
+                {
+                    pipeline.LogInfo("{0} outlier spatial matches for {1}, median {2:F3}, threshold {3:F3} ({4} MAD)",
+                                     n - nn, pair, median, threshold, options.SpatialOutlierMADs);
+                }
+                n = nn;
+            }
+                
             if (options.WriteDebug)
             {
                 var mesh = ImageMatching.MakeMatchMesh(pairs.Select(p => p.Item1).ToArray(),
@@ -1227,6 +1260,8 @@ namespace OPS.Pipeline
             }
 
             spatialMatches[pair] = pairs;
+
+            return n;
         }
 
         /// <summary>
@@ -1304,13 +1339,16 @@ namespace OPS.Pipeline
                     {
                         nm = RansacMatches(model, data); //matches -> ransacMatches
 
-                        SpatializeMatches(model, data); //ransacMatches -> spatialMatches
-
-                        if (nm >= options.MinRansacMatches)
+                        if (nm > 0)
                         {
-                            Interlocked.Increment(ref ng);
-                            good[model] = true;
-                            good[data] = true;
+                            nm = SpatializeMatches(model, data); //ransacMatches -> spatialMatches
+                            
+                            if (nm >= options.MinRansacMatches)
+                            {
+                                Interlocked.Increment(ref ng);
+                                good[model] = true;
+                                good[data] = true;
+                            }
                         }
                     }
 

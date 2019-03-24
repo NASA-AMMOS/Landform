@@ -1350,43 +1350,46 @@ namespace OPS.Pipeline
                 return p.Dot(n) - a.Dot(n);
             }
 
-            Action<int, int, int, float> blend = null;
+            Action<int, int, int, float, bool> blend = null;
             switch (options.BlendMode)
             {
                 case BlendMode.Over:
                 {
-                    blend = (int b, int r, int c, float v) => { ret[b, r, c] = v; };
+                    blend = (int b, int r, int c, float v, bool overdraw) => { ret[b, r, c] = v; };
                     break;
                 }
                 case BlendMode.Under:
                 {
-                    blend = (int b, int r, int c, float v) =>
+                    blend = (int b, int r, int c, float v, bool overdraw) =>
                         {
-                            var w = ret[b, r, c];
-                            ret[b, r, c] = w > 0 ? w : v;
+                            if (!overdraw)
+                            {
+                                ret[b, r, c] = v;
+                            }
                         };
                     break;
                 }
                 case BlendMode.Average:
                 {
-                    blend = (int b, int r, int c, float v) =>
+                    blend = (int b, int r, int c, float v, bool overdraw) =>
                         {
-                            var w = ret[b, r, c];
-                            ret[b, r, c] = w > 0 ? 0.5f * w + 0.5f * v : v;
+                            ret[b, r, c] = overdraw ? 0.5f * (ret[b, r, c] + v) : v;
                         };
                     break;
                 }
                 case BlendMode.Max:
                 {
-                    blend = (int b, int r, int c, float v) => { ret[b, r, c] = Math.Max(ret[b, r, c], v); };
+                    blend = (int b, int r, int c, float v, bool overdraw) =>
+                        {
+                            ret[b, r, c] = overdraw ? Math.Max(ret[b, r, c], v) : v;
+                        };
                     break;
                 }
                 case BlendMode.Min:
                 {
-                    blend = (int b, int r, int c, float v) =>
+                    blend = (int b, int r, int c, float v, bool overdraw) =>
                         {
-                            var w = ret[b, r, c];
-                            ret[b, r, c] = w > 0 ? Math.Min(w, v) : v;
+                            ret[b, r, c] = overdraw ? Math.Min(ret[b, r, c], v) : v;
                         };
                     break;
                 }
@@ -1395,23 +1398,24 @@ namespace OPS.Pipeline
             Vector2 zero = new Vector2(0, 0), one = new Vector2(1, 1);
             void writeFragment(int r, int c, Vertex v0, Vertex v1, Vertex v2, double alpha, double beta, double gamma)
             {
+                bool overdraw = ret.IsValid(r, c);
                 if (mesh.HasUVs && img != null)
                 {
                     var src = img.UVToPixel(Vector2.Clamp(v0.UV * alpha + v1.UV * beta + v2.UV * gamma, zero, one));
-                    blend(0, r, c, img[0, (int)src.Y, (int)src.X]);
+                    blend(0, r, c, img[0, (int)src.Y, (int)src.X], overdraw);
                     if (!greyscale)
                     {
-                        blend(1, r, c, img[1, (int)src.Y, (int)src.X]);
-                        blend(2, r, c, img[2, (int)src.Y, (int)src.X]);
+                        blend(1, r, c, img[1, (int)src.Y, (int)src.X], overdraw);
+                        blend(2, r, c, img[2, (int)src.Y, (int)src.X], overdraw);
                     }
                 }
                 else
                 {
-                    blend(0, r, c, (float)(v0.Color.X * alpha + v1.Color.X * beta + v2.Color.X * gamma));
+                    blend(0, r, c, (float)(v0.Color.X * alpha + v1.Color.X * beta + v2.Color.X * gamma), overdraw);
                     if (!greyscale)
                     {
-                        blend(1, r, c, (float)(v0.Color.Y * alpha + v1.Color.Y * beta + v2.Color.Y * gamma));
-                        blend(2, r, c, (float)(v0.Color.Z * alpha + v1.Color.Z * beta + v2.Color.Z * gamma));
+                        blend(1, r, c, (float)(v0.Color.Y * alpha + v1.Color.Y * beta + v2.Color.Y * gamma), overdraw);
+                        blend(2, r, c, (float)(v0.Color.Z * alpha + v1.Color.Z * beta + v2.Color.Z * gamma), overdraw);
                     }
                 }
                 ret.SetMaskValue(r, c, false);
