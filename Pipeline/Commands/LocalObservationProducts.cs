@@ -8,6 +8,7 @@ using OPS.Util;
 using OPS.Imaging;
 using OPS.Geometry;
 using OPS.Pipeline.AlignmentServer;
+using Microsoft.Xna.Framework;
 
 namespace OPS.Pipeline
 {
@@ -91,7 +92,10 @@ namespace OPS.Pipeline
 
         [Option(HelpText = "Operate on cloud data", Default = false)]
         public bool Cloud { get; set; }
-    }
+
+        [Option(HelpText = "Write delta range images", Default = false)]
+        public bool WriteDeltaRangeImages { get; set;}
+    } 
 
     public class LocalObservationProducts
     {
@@ -308,6 +312,28 @@ namespace OPS.Pipeline
                         hull.Mesh.Save(path + obsName + meshExt);
                     }
 
+                    if (options.WriteDeltaRangeImages)
+                    {
+                        string path = tmpPath + "DeltaRange/";
+                        PathHelper.EnsureExists(path);
+
+                        foreach (var otherObs in observations)
+                        {
+                            if (obs == otherObs)
+                                continue;
+
+                            var overlap = Overlap.Find(pipeline, project.Name, otherObs.Texture.Name, obs.Texture.Name);
+                            if (overlap == null)
+                                continue;
+
+                            Image deltaRangeImage = CreateDeltaRangeImage(otherObs, obs, frameCache, options.UsePriors);
+                            if (deltaRangeImage != null)
+                            {
+                                deltaRangeImage.Save<float>(path + otherObs.Points.Name + "_in_" + obs.Points.Name + ".tif");
+                            }
+                        }
+                    }
+
                     Interlocked.Decrement(ref np);
                     Interlocked.Increment(ref nc);
                 });
@@ -316,6 +342,83 @@ namespace OPS.Pipeline
             pipeline.LogInfo("generated meshes for {0} observations ({1:F3}s)", no, totalSec);
 
             return 0;
+        }
+
+        // fills a texture with the difference in the per-pixel range of a src point cloud and dst point cloud 
+        // designed to give an coarse visual estimate of how well cameras are aligned
+        private Image CreateDeltaRangeImage(MeshObservations srcObs, MeshObservations dstObs, FrameCache frameCache, bool usePriors)
+        {
+            //load images
+            Meshing.LoadOrGenerateMeshImages(this.pipeline, srcObs, 1, false, out Image srcPoints, out Image srcNormals, out Image srcMask);
+            srcPoints.UnionMask(srcMask, new float[] { 0 });
+
+            Meshing.LoadOrGenerateMeshImages(this.pipeline, dstObs, 1, false, out Image dstPoints, out Image dstNormals, out Image dstMask);
+            dstPoints.UnionMask(dstMask, new float[] { 0 });
+
+            //get camera model
+            Image dstImg = pipeline.LoadImage(dstObs.Texture.Url);
+            PDSParser dstParser = new PDSParser((PDSMetadata)dstImg.Metadata);
+            CameraModel dstCamera = dstParser.metadata.CameraModel;
+ 
+            var srcObsToDstObs = Meshing.GetTransform(srcObs.Points.FrameName, dstObs.Points.FrameName, frameCache, usePriors).Mean;
+            var dstHull = Meshing.BuildFrustumHull(pipeline, dstObs, frameCache, dstObs.Points.FrameName, usePriors, uncertaintyInflated: false);
+
+            //project points of src texture into dst
+            Image deltaRangeImg = new Image(1, dstObs.Texture.Width, dstObs.Texture.Height);
+            deltaRangeImg.CreateMask(true);
+
+            bool anyValid = false;
+            for (int idxSrcRow = 0; idxSrcRow < srcObs.Texture.Height; idxSrcRow++)
+            {
+                for (int idxColRow = 0; idxColRow < srcObs.Texture.Width; idxColRow++)
+                {
+                    if (srcPoints.IsInvalid(idxSrcRow,idxColRow))
+                        continue;
+
+                    Vector3 srcRoverPt = new Vector3(srcPoints[0, idxSrcRow, idxColRow], srcPoints[1, idxSrcRow, idxColRow], srcPoints[2, idxSrcRow, idxColRow]);
+                    Vector3 srcPtInDst = Vector3.Transform(srcRoverPt, srcObsToDstObs);
+
+                    //coarse test to ensure no errors at the far distant edges of camera models, or points behind the camera 
+                    // projecting to valid screen positions. NOTE: enforces the hull distance limit which may be too conservative
+                    // also accuracy is poor for nonlinear camera models
+                    if (!dstHull.Contains(srcPtInDst))
+                        continue;
+
+                    Vector2 dstPixel = dstCamera.Project(srcPtInDst, out double range);
+
+                    int dstPixelX = (int)Math.Round(dstPixel.X);
+                    int dstPixelY = (int)Math.Round(dstPixel.Y);
+
+                    if (dstPixelX < 0 || dstPixelX >= dstObs.Texture.Width ||
+                        dstPixelY < 0 || dstPixelY >= dstObs.Texture.Height)
+                        continue;
+
+                    //TODO: properly handle spreading data across fractional pixels (subpixel projection results)
+                    //TODO: properly handle blending with existing data (coverage channel)
+               
+                    Vector3 dstRoverPt = new Vector3(dstPoints[0, dstPixelY, dstPixelX], dstPoints[1, dstPixelY, dstPixelX], dstPoints[2, dstPixelY, dstPixelX]);
+
+                    Vector2 refDstPixel = dstCamera.Project(dstRoverPt, out double refRange);
+                    int refDstPixelX = (int)Math.Round(refDstPixel.X);
+                    int refDstPixelY = (int)Math.Round(refDstPixel.Y);
+
+                    if (refDstPixelX < 0 || refDstPixelX >= dstObs.Texture.Width ||
+                        refDstPixelY < 0 || refDstPixelY >= dstObs.Texture.Height)
+                        continue;
+
+                    if (dstMask.IsInvalid((int)refDstPixelY, (int)refDstPixelX))
+                        continue;
+
+                    if ((int)refDstPixelX != (int)dstPixelX || (int)refDstPixelY != (int)dstPixelY)
+                        throw new Exception("range product points should map back to the same pixel it was pulled from");
+
+                    deltaRangeImg[0, (int)dstPixel.Y, (int)dstPixel.X] = (float)Math.Abs(range - refRange);
+                    deltaRangeImg.SetMaskValue((int)dstPixel.Y, (int)dstPixel.X, false);
+                    anyValid = true;
+                }
+            }
+
+            return anyValid ? deltaRangeImg : null;
         }
     }
 }
