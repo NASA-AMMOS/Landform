@@ -407,8 +407,12 @@ namespace OPS.Pipeline
             {
                 return obsToSD.Transform * sdToRoot.Transform;
             }
-
-            throw new NotImplementedException("transform to " + toFrame + " not implemented");
+            else
+            {
+                var fromFrameToRoot = GetTransform(fromFrame, "root", frameCache, usePriors);
+                var toFrameToRoot = GetTransform(toFrame, "root", frameCache, usePriors);
+                return fromFrameToRoot.TimesInverse(toFrameToRoot);
+            }
         }
 
         /// <summary>
