@@ -724,5 +724,35 @@ namespace OPS.Imaging
             }
             return result;
         }
+
+        /// <summary>
+        /// copies the source image into this image at the pixel location specified
+        /// it will copy as much of the image as it can until it hits the limits of this textures resolution
+        /// NOTE: it does not copy the mask of the source image into the mask of the destination image
+        /// </summary>
+        public void Composite(Image srcImg, int destinationRow, int destinationCol)
+        {
+            if (srcImg.Bands != Bands)
+                throw new InvalidDataException("mismatched bands in composite request");
+
+            for (int band = 0; band < Bands; band++)
+            {
+                for (int srcRow = 0; srcRow < srcImg.Height; srcRow++)
+                {
+                    int dstRow = srcRow + destinationRow;
+                    if (dstRow >= Height)
+                        break;
+
+                    for (int srcCol = 0; srcCol < srcImg.Width; srcCol++)
+                    {
+                        int dstCol = srcCol + destinationCol;
+                        if (dstCol >= Width)
+                            break;
+
+                        this[band, dstRow, dstCol] = srcImg[band, srcRow, srcCol];
+                    }
+                }
+            }
+        }
     }
 }
