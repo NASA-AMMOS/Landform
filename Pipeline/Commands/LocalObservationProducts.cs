@@ -9,6 +9,8 @@ using OPS.Imaging;
 using OPS.Geometry;
 using OPS.Pipeline.AlignmentServer;
 using Microsoft.Xna.Framework;
+using OPS.Imaging.Emgu;
+using Emgu.CV.Structure;
 
 namespace OPS.Pipeline
 {
@@ -321,9 +323,8 @@ namespace OPS.Pipeline
                         PathHelper.EnsureExists(pathPreview);
 
                         float[] previewDistanceBuckets = new float[] { 0.1f, 0.25f, 0.5f, 0.75f, 1.0f, 1.25f, 1.5f };
-                        Vector3 [] colors = BrewerColors.GetColors("RdBu", previewDistanceBuckets.Length + 1);
-                        colors = colors.Reverse().ToArray(); //brewer colors are light=low to dark=high, maybe for display on white paper. flipping to match my biases.
-
+                        Vector3 [] colors = BrewerColors.GetColors("Blues", previewDistanceBuckets.Length + 1);
+                       
                         foreach (var otherObs in observations)
                         {
                             if (obs == otherObs)
@@ -339,7 +340,10 @@ namespace OPS.Pipeline
                                 string imageName = otherObs.Points.Name + "_in_" + obs.Points.Name;
                                 deltaRangeImage.Save<float>(path + imageName + ".tif");
 
-                                Image deltaRangePreview = ColorizeFloatImage(deltaRangeImage.Decimated(4), previewDistanceBuckets, colors);
+                                Vector3 backgroundColor = new Vector3(0.9, 0.9, 0.9);
+                                Image deltaRangePreview = ColorizeFloatImage(deltaRangeImage.Decimated(4), previewDistanceBuckets, colors, backgroundColor);
+                                deltaRangePreview = StampLegend(deltaRangePreview, previewDistanceBuckets, colors, backgroundColor);
+                                deltaRangePreview.DeleteMask();
                                 deltaRangePreview.Save<byte>(pathPreview + imageName + ".png");
                             }
                         }
@@ -358,17 +362,22 @@ namespace OPS.Pipeline
         //converts the floating point values in the source image to colorized values. the previewBucketdistances
         // are the boundaries for the colors in colorsLowToHigh. There should be one more color than distance to catch
         // the distances that are larger than the final bucket cutoff
-        private Image ColorizeFloatImage(Image img, float[] previewDistanceBuckets, Vector3[] colorsLowToHigh)
+        private Image ColorizeFloatImage(Image img, float[] previewDistanceBuckets, Vector3[] colorsLowToHigh, Vector3 bgColor)
         {
             Image result = new Image(3, img.Width, img.Height);
             result.CreateMask(true);
-
+            
             for(int idxRow = 0; idxRow < img.Height; idxRow++)
             {
                 for (int idxCol = 0; idxCol < img.Width; idxCol++)
                 {
                     if (img.IsInvalid(idxRow, idxCol))
+                    {
+                        result[0, idxRow, idxCol] = (float)bgColor.X;
+                        result[1, idxRow, idxCol] = (float)bgColor.Y;
+                        result[2, idxRow, idxCol] = (float)bgColor.Z;
                         continue;
+                    }
 
                     float val = img[0, idxRow, idxCol];
                     Vector3 color = colorsLowToHigh.Last();
@@ -387,6 +396,55 @@ namespace OPS.Pipeline
                     result.SetMaskValue(idxRow, idxCol, false);
                 }
             }
+
+            return result;
+        }
+        
+        Rgb ToEmguColor(Vector3 color)
+        {
+            return new Rgb(color.R * 255, color.G * 255, color.B * 255);
+        }
+
+        private Image StampLegend(Image img, float[] previewDistanceBuckets, Vector3[] colorsLowToHigh, Vector3 backgroundColor)
+        {
+            //formatting parameters
+            // if we need a more general layout api these can be exposed
+            int largeSpacingPixels = 16;
+            int smallSpacingPixels = 7;
+            int colorChipWidthPixels = 10;
+            int frameWidthPixels = 70;
+
+            int legendDimColor = 3;
+            Rgb textColor = new Rgb(40, 40, 40);
+            Rgb bgColor = ToEmguColor(backgroundColor);
+            Rgb legendColor = new Rgb(Math.Max(0,bgColor.Red - legendDimColor), Math.Max(0, bgColor.Green - legendDimColor), Math.Max(0, bgColor.Blue - legendDimColor));
+
+            //allocate expanded image and clear to background color
+            System.Drawing.Size expandedImageSize = new System.Drawing.Size(frameWidthPixels + img.Width, img.Height);
+            Emgu.CV.Image<Rgb, byte> emguImg = new Emgu.CV.Image<Rgb, byte>(expandedImageSize);
+            emguImg.Draw(new System.Drawing.Rectangle(new System.Drawing.Point(0, 0), new System.Drawing.Size(frameWidthPixels, img.Height)), legendColor, -1);
+
+            //draw legend
+
+            System.Drawing.Point pt = new System.Drawing.Point(largeSpacingPixels, largeSpacingPixels);
+            
+            //catchall
+            emguImg.Draw(new System.Drawing.Rectangle(new System.Drawing.Point(pt.X, pt.Y - (int)colorChipWidthPixels / 2), new System.Drawing.Size(colorChipWidthPixels, colorChipWidthPixels)), ToEmguColor(colorsLowToHigh.Last()), -1);
+            emguImg.Draw("> " + previewDistanceBuckets[previewDistanceBuckets.Length - 1].ToString("F2") + "m", new System.Drawing.Point(pt.X + colorChipWidthPixels + smallSpacingPixels, pt.Y), Emgu.CV.CvEnum.FontFace.HersheySimplex, 0.2, textColor, 1);
+            pt.Y += largeSpacingPixels;
+
+            for (int idx = previewDistanceBuckets.Length-1; idx >= 0; idx--)
+            {
+                Rgb color = ToEmguColor(colorsLowToHigh[idx]);
+                emguImg.Draw(new System.Drawing.Rectangle(new System.Drawing.Point(pt.X,pt.Y - (int)colorChipWidthPixels/2), new System.Drawing.Size(colorChipWidthPixels, colorChipWidthPixels)), color, -1);
+                emguImg.Draw("< " + previewDistanceBuckets[idx].ToString("F2") + "m", new System.Drawing.Point(pt.X + colorChipWidthPixels + smallSpacingPixels, pt.Y), Emgu.CV.CvEnum.FontFace.HersheySimplex, 0.2, textColor, 1);
+                pt.Y += largeSpacingPixels;
+            }
+            
+            Image result = emguImg.ToOPSImage();
+            emguImg.Dispose();
+
+            result.Composite(img,0,frameWidthPixels);
 
             return result;
         }
