@@ -268,17 +268,17 @@ namespace OPS.Pipeline
             }
 
             // site drive frame -> root frame
-            var siteDriveFrame = FindOrCreateFrame(SiteDriveFrameName(parser), rootFrame, TransformSource.LocationsDB,
+            var siteDriveFrame = CreateOrUpdate(SiteDriveFrameName(parser), rootFrame, TransformSource.LocationsDB,
                                                    GetSiteDriveTransformFromLocations(parser));
 
             if (Places != null)
             {
-                siteDriveFrame = FindOrCreateFrame(SiteDriveFrameName(parser), rootFrame, TransformSource.PlacesDB,
+                siteDriveFrame = CreateOrUpdate(SiteDriveFrameName(parser), rootFrame, TransformSource.PlacesDB,
                                                    GetSiteDriveTransformFromPlaces(parser));
             }
 
             // observation (aka rover) frame -> site drive (aka local level) frame
-            var observationFrame = FindOrCreateFrame(ObservationFrameName(parser), siteDriveFrame, TransformSource.PDS,
+            var observationFrame = CreateOrUpdate(ObservationFrameName(parser), siteDriveFrame, TransformSource.PDS,
                                                      GetObservationTransform(parser));
 
             RoverObservation observation = RoverObservation.Find(pipeline, project.Name, observationName);
@@ -350,7 +350,7 @@ namespace OPS.Pipeline
             var loc = Places.GetEstimatedOffsetFromStart(siteDrive);
             if (loc == null)
             {
-                throw new Exception(string.Format("no MSL Places for site drive {0}", siteDrive));
+                pipeline.LogWarn(string.Format("no MSL Places for site drive {0}", siteDrive));
             }
 
             // TODO: examine values here
@@ -375,7 +375,7 @@ namespace OPS.Pipeline
 
         private ConcurrentDictionary<string, bool> alreadyResetTransforms = new ConcurrentDictionary<string, bool>();
 
-        private Frame FindOrCreateFrame(string name, Frame parent, TransformSource source,
+        private Frame CreateOrUpdate(string name, Frame parent, TransformSource source,
                                         UncertainRigidTransform transform)
         {
             var frame = Frame.FindOrCreate(pipeline, project.Name, name, parent);
