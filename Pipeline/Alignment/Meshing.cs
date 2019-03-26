@@ -26,6 +26,19 @@ namespace OPS.Pipeline
         public Observation Normals;
         public Observation Mask;
         public Observation Texture;
+
+        public string Name
+        {
+            get
+            {
+                if (Points != null) return Points.Name;
+                if (Texture != null) return Texture.Name;
+                if (Normals != null) return Normals.Name;
+                if (Mask != null) return Mask.Name;
+
+                throw new InvalidOperationException("can't get name of an empty MeshObservation");
+            }
+        }
     }
 
     public class Meshing
@@ -476,7 +489,7 @@ namespace OPS.Pipeline
                 normals = ConvertNormals(pipeline.LoadImage(obs.Normals.Url), confidence);
             }
 
-            mask = RoverMask.LoadOrBuild(pipeline, obs.Mask, pointsRaw, obs.Points.Name);
+            mask = RoverMask.LoadOrBuild(pipeline, obs.Mask, pointsRaw, obs.Name);
 
             if (decimateBlocksize > 1)
             {
