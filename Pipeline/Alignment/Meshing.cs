@@ -39,6 +39,19 @@ namespace OPS.Pipeline
                 throw new InvalidOperationException("can't get name of an empty MeshObservation");
             }
         }
+
+        public RoverObservation RoverObs
+        {
+            get
+            {
+                if (Points != null) return (RoverObservation)Points;
+                if (Texture != null) return (RoverObservation)Texture;
+                if (Normals != null) return (RoverObservation)Normals;
+                if (Mask != null) return (RoverObservation)Mask;
+
+                throw new InvalidOperationException("can't get observation of an empty MeshObservation");
+            }
+        }        
     }
 
     public class Meshing
