@@ -129,7 +129,6 @@ namespace OPS.Pipeline
                 string maskPath = Path.Combine(masksDir, obs.Name + "_mask.png");
                 if (!File.Exists(maskPath) || options.RedoImages)
                 {
-                //TODO: query observations to get mission masks if available
                     var maskObs = imgNode.Node.Parent.GetComponentsInTree<NodeObservation>()
                         .Where(no => no.Observation.ObservationType == maskStr)
                         .Cast<RoverObservation>()
