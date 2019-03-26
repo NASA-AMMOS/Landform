@@ -215,12 +215,12 @@ namespace OPS.Pipeline
             var observationCache = new ObservationCache(pipeline, options.ProjectName);
             observationCache.Preload();
 
-            var observations = Meshing.CollectMeshObservations(frameCache, observationCache, options.AllowMastcam,
-                                                               options.RequireNormals, options.RequireTextures);
+            var observations = Meshing.CollectMeshObservations(frameCache, observationCache, options.AllowMastcam, requirePoints:false,
+                                                               requireNormals:options.RequireNormals, requireTextures:options.RequireTextures);
 
             SiteDrive getSiteDrive(MeshObservations obs)
             {
-                var ro = obs.Points as RoverObservation;
+                var ro = obs.RoverObs;
                 return new SiteDrive(ro.Site, ro.Drive);
             }
 
@@ -256,12 +256,16 @@ namespace OPS.Pipeline
                                          what, np, nc, no);
                     }
 
-                    var mesh = options.PointCloud ?
-                    Meshing.BuildPointCloud(pipeline, obs, frameCache, outputFrame, options.UsePriors,
-                                            options.DecimateMeshes, options.ScaleNormalsByConfidence) :
-                    Meshing.BuildOrganizedMesh(pipeline, obs, frameCache, outputFrame, options.UsePriors,
-                                               options.DecimateMeshes, options.ScaleNormalsByConfidence,
-                                               options.MaxTriangleAspect, !options.NoImages);
+                    Mesh mesh = null;
+                    if (obs.Points != null)
+                    {
+                        mesh = options.PointCloud ?
+                        Meshing.BuildPointCloud(pipeline, obs, frameCache, outputFrame, options.UsePriors,
+                                                options.DecimateMeshes, options.ScaleNormalsByConfidence) :
+                        Meshing.BuildOrganizedMesh(pipeline, obs, frameCache, outputFrame, options.UsePriors,
+                                                   options.DecimateMeshes, options.ScaleNormalsByConfidence,
+                                                   options.MaxTriangleAspect, !options.NoImages);
+                    }
 
                     //we're running for multiple site drives in parallel so don't mutate outputPath
                     string tmpPath = outputPath;
@@ -270,9 +274,9 @@ namespace OPS.Pipeline
                         tmpPath += getSiteDrive(obs).ToString() + "/";
                     }
 
-                    string obsName = obs.Points.Name;
+                    string obsName = obs.Name;
                     string imageFilename = null;
-                    if (!options.NoImages && obs.Texture != null && mesh.HasUVs)
+                    if (!options.NoImages && obs.Texture != null)
                     {
                         imageFilename = obsName + imageExt;
                         var img = pipeline.LoadImage(obs.Texture.Url);
@@ -284,13 +288,13 @@ namespace OPS.Pipeline
                         img.Save<byte>(tmpPath + imageFilename);
                     }
 
-                    if (!options.NoWedgeMeshes)
+                    if (!options.NoWedgeMeshes && mesh != null)
                     {
                         PathHelper.EnsureExists(tmpPath);
                         mesh.Save(tmpPath + obsName + meshExt, imageFilename);
                     }
                       
-                    if (options.WriteFrustumHullMeshes)
+                    if (options.WriteFrustumHullMeshes && mesh != null)
                     {
                         var hull = Meshing.BuildFrustumHull(pipeline, obs, frameCache, outputFrame, options.UsePriors,
                                                             uncertaintyInflated: false);

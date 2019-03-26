@@ -79,7 +79,7 @@ namespace OPS.Pipeline
                     return false;
                 }
             }
-            
+
             //ISSUE #353: need to validate that alignment works across cameras with non-linearized images.
             // so not allowing non-aligned images to be used when other aligned images are being used.
             if (id.Geometry != RoverProductGeometry.Linearized)
@@ -119,7 +119,7 @@ namespace OPS.Pipeline
             // Low exposure hazcams
             if (parser.DerivedImageType == RoverProductType.Image)
             {
-                if (parser.ExposureDuration != 0 && parser.ExposureDuration < MSLProject.MIN_NAV_HAZ_EXPOSURE)
+                if (parser.IsHazcam && parser.ExposureDuration != 0 && parser.ExposureDuration < MSLProject.MIN_NAV_HAZ_EXPOSURE)
                 {
                     return false;
                 }

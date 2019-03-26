@@ -33,8 +33,8 @@ namespace OPS.Pipeline
         [Option(HelpText = "Redo agisoft alignment", Default = false)]
         public bool RedoAlignment { get; set; }
 
-        [Option(HelpText = "Clear the files generated for/by agisoft", Default = true)]
-        public bool ClearAgiInputsOutputs { get; set; }
+        [Option(HelpText = "Don't clear agisoft inputs/outputs", Default = false)]
+        public bool DontClearInputsOutputs { get; set; }
 
         [Option(HelpText = "Operate on cloud data", Default = false)]
         public bool Cloud { get; set; }
@@ -74,7 +74,7 @@ namespace OPS.Pipeline
             var metaDir = TemporaryFile.GetTempSubdir("agi_meta");
 
             //clear old results
-            if (options.ClearAgiInputsOutputs)
+            if (!options.DontClearInputsOutputs)
             {
                 Directory.Delete(imageDir, true);
                 Directory.Delete(masksDir, true);
@@ -129,7 +129,6 @@ namespace OPS.Pipeline
                 string maskPath = Path.Combine(masksDir, obs.Name + "_mask.png");
                 if (!File.Exists(maskPath) || options.RedoImages)
                 {
-                    //check for mission mask products in the tables
                     var maskObs = imgNode.Node.Parent.GetComponentsInTree<NodeObservation>()
                         .Where(no => no.Observation.ObservationType == maskStr)
                         .Cast<RoverObservation>()
@@ -321,7 +320,7 @@ namespace OPS.Pipeline
                 XmlNode sensorNode = sensorsNode.OwnerDocument.CreateElement("sensor");
                 sensorsNode.AppendChild(sensorNode);
                 AddAttributeXml(sensorNode, "id", sensorId.ToString());
-                AddAttributeXml(sensorNode, "label", roverProdCam.ToString() + "_" + widthPixels + "_" + heightPixels);
+                AddAttributeXml(sensorNode, "label", roverProdCam.ToString() + "_" + widthPixels + "_" + heightPixels + "_" + bands);
 
                 if (roverProdCam.ToString().Contains("Hazcam"))
                     throw new NotImplementedException("hazcams may need a fisheye camera type set here");
