@@ -319,7 +319,7 @@ namespace OPS.Pipeline
                         string path = tmpPath + "DeltaRange/";
                         PathHelper.EnsureExists(path);
 
-                        string pathPreview = tmpPath + "DeltaRangePreview/";
+                        string pathPreview = tmpPath + "DeltaRange/Preview/";
                         PathHelper.EnsureExists(pathPreview);
 
                         float[] previewDistanceBuckets = new float[] { 0.1f, 0.25f, 0.5f, 0.75f, 1.0f, 1.25f, 1.5f };
