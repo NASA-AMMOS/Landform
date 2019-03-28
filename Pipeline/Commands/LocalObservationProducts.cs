@@ -359,12 +359,6 @@ namespace OPS.Pipeline
             return 0;
         }
        
-        
-        Rgb ToEmguColor(Vector3 color)
-        {
-            return new Rgb(color.R * 255, color.G * 255, color.B * 255);
-        }
-
         private Image StampLegend(Image img, float[] previewDistanceBuckets, Vector3[] colorsLowToHigh, Vector3 backgroundColor)
         {
             //formatting parameters
@@ -376,7 +370,7 @@ namespace OPS.Pipeline
 
             int legendDimColor = 3;
             Rgb textColor = new Rgb(40, 40, 40);
-            Rgb bgColor = ToEmguColor(backgroundColor);
+            Rgb bgColor = OPS.Imaging.Emgu.Extensions.ToEmguColor(backgroundColor.ToFloatArray());
             Rgb legendColor = new Rgb(Math.Max(0,bgColor.Red - legendDimColor), Math.Max(0, bgColor.Green - legendDimColor), Math.Max(0, bgColor.Blue - legendDimColor));
 
             //allocate expanded image and clear to background color
@@ -389,13 +383,13 @@ namespace OPS.Pipeline
             System.Drawing.Point pt = new System.Drawing.Point(largeSpacingPixels, largeSpacingPixels);
             
             //catchall
-            emguImg.Draw(new System.Drawing.Rectangle(new System.Drawing.Point(pt.X, pt.Y - (int)colorChipWidthPixels / 2), new System.Drawing.Size(colorChipWidthPixels, colorChipWidthPixels)), ToEmguColor(colorsLowToHigh.Last()), -1);
+            emguImg.Draw(new System.Drawing.Rectangle(new System.Drawing.Point(pt.X, pt.Y - (int)colorChipWidthPixels / 2), new System.Drawing.Size(colorChipWidthPixels, colorChipWidthPixels)), OPS.Imaging.Emgu.Extensions.ToEmguColor(colorsLowToHigh.Last().ToFloatArray()), -1);
             emguImg.Draw("> " + previewDistanceBuckets[previewDistanceBuckets.Length - 1].ToString("F2") + "m", new System.Drawing.Point(pt.X + colorChipWidthPixels + smallSpacingPixels, pt.Y), Emgu.CV.CvEnum.FontFace.HersheySimplex, 0.2, textColor, 1);
             pt.Y += largeSpacingPixels;
 
             for (int idx = previewDistanceBuckets.Length-1; idx >= 0; idx--)
             {
-                Rgb color = ToEmguColor(colorsLowToHigh[idx]);
+                Rgb color = OPS.Imaging.Emgu.Extensions.ToEmguColor(colorsLowToHigh[idx].ToFloatArray());
                 emguImg.Draw(new System.Drawing.Rectangle(new System.Drawing.Point(pt.X,pt.Y - (int)colorChipWidthPixels/2), new System.Drawing.Size(colorChipWidthPixels, colorChipWidthPixels)), color, -1);
                 emguImg.Draw("< " + previewDistanceBuckets[idx].ToString("F2") + "m", new System.Drawing.Point(pt.X + colorChipWidthPixels + smallSpacingPixels, pt.Y), Emgu.CV.CvEnum.FontFace.HersheySimplex, 0.2, textColor, 1);
                 pt.Y += largeSpacingPixels;
