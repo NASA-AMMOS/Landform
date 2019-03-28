@@ -475,12 +475,12 @@ namespace OPS.Pipeline
             bool anyValid = false;
             for (int idxSrcRow = 0; idxSrcRow < srcObs.Texture.Height; idxSrcRow++)
             {
-                for (int idxColRow = 0; idxColRow < srcObs.Texture.Width; idxColRow++)
+                for (int idxSrcCol = 0; idxSrcCol < srcObs.Texture.Width; idxSrcCol++)
                 {
-                    if (srcPoints.IsInvalid(idxSrcRow,idxColRow))
+                    if (srcPoints.IsInvalid(idxSrcRow,idxSrcCol))
                         continue;
 
-                    Vector3 srcRoverPt = new Vector3(srcPoints[0, idxSrcRow, idxColRow], srcPoints[1, idxSrcRow, idxColRow], srcPoints[2, idxSrcRow, idxColRow]);
+                    Vector3 srcRoverPt = new Vector3(srcPoints[0, idxSrcRow, idxSrcCol], srcPoints[1, idxSrcRow, idxSrcCol], srcPoints[2, idxSrcRow, idxSrcCol]);
                     Vector3 srcPtInDst = Vector3.Transform(srcRoverPt, srcObsToDstObs);
 
                     //coarse test to ensure no errors at the far distant edges of camera models, or points behind the camera 
