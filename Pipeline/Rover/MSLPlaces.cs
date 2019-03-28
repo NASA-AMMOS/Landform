@@ -50,6 +50,12 @@ namespace OPS.Pipeline
     {
 
         private double? EllipsoidRadius = null;
+        private Dictionary<SiteDrive, Vector3> cachedOffsetFromRootRover = new Dictionary<SiteDrive, Vector3>();
+
+        public bool CredentialsLoaded()
+        {
+            return PlacesConfig.Instance.Username != null && PlacesConfig.Instance.APIKey != null;
+        }
 
         private XmlDocument GetXmlDoc(string url)
         {
@@ -130,12 +136,12 @@ namespace OPS.Pipeline
         }
 
         /// <summary>
-        /// Returns the ROVER frame offset between the "from" sitedrive to the "to" sitedrive
+        /// Returns the Local_level frame offset between the "from" sitedrive to the "to" sitedrive
         /// </summary>
         /// <param name="from"></param>
         /// <param name="to"></param>
         /// <returns></returns>
-        public Vector3 GetEsitmatedOffset(SiteDrive from, SiteDrive to)
+        public Vector3 GetEstimatedOffset(SiteDrive from, SiteDrive to)
         {
             var config = PlacesConfig.Instance;
             string urlForRequest = string.Format("{0}/places/query/primary/{1}?from=rover({2},{3})&to=rover({4},{5})", config.Venue, config.View, from.Site, from.Drive, to.Site, to.Drive);
@@ -148,9 +154,16 @@ namespace OPS.Pipeline
         /// </summary>
         /// <param name="sd"></param>
         /// <returns></returns>
-        public Vector3 GetEsitmatedOffsetFromStart(SiteDrive sd)
+        public Vector3 GetEstimatedOffsetFromStart(SiteDrive sd)
         {
-            return GetEsitmatedOffset(sd, new SiteDrive(1, 0));
+            lock (cachedOffsetFromRootRover)
+            {
+                if (!cachedOffsetFromRootRover.Keys.Contains(sd))
+                {
+                    cachedOffsetFromRootRover[sd] = GetEstimatedOffset(sd, new SiteDrive(1, 0));
+                }
+            }
+            return cachedOffsetFromRootRover[sd];
         }
     }
 }

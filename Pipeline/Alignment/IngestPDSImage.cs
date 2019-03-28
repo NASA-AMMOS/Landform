@@ -22,6 +22,7 @@ namespace OPS.Pipeline
         private Filter filter;
 
         public MSLLocations Locations;
+        public MSLPlaces Places;
 
         public IngestPDSImage(PipelineCore pipeline, Project project, bool recreateExistingObservations = false,
                               bool resetTransforms = false, Filter filter = null)
@@ -78,7 +79,7 @@ namespace OPS.Pipeline
                     return false;
                 }
             }
-            
+
             //ISSUE #353: need to validate that alignment works across cameras with non-linearized images.
             // so not allowing non-aligned images to be used when other aligned images are being used.
             if (id.Geometry != RoverProductGeometry.Linearized)
@@ -97,7 +98,8 @@ namespace OPS.Pipeline
         bool CheckMetadata(PDSParser parser)
         {
             return productTypeToObservationType.ContainsKey(parser.DerivedImageType) &&
-                parser.ImageSizeType == RoverProductSize.Regular;
+               parser.ImageSizeType == RoverProductSize.Regular &&
+               !parser.IsSunFinding;
         }
 
         /// <summary>
@@ -117,7 +119,7 @@ namespace OPS.Pipeline
             // Low exposure hazcams
             if (parser.DerivedImageType == RoverProductType.Image)
             {
-                if (parser.ExposureDuration != 0 && parser.ExposureDuration < MSLProject.MIN_NAV_HAZ_EXPOSURE)
+                if (parser.IsHazcam && parser.ExposureDuration != 0 && parser.ExposureDuration < MSLProject.MIN_NAV_HAZ_EXPOSURE)
                 {
                     return false;
                 }
@@ -266,11 +268,17 @@ namespace OPS.Pipeline
             }
 
             // site drive frame -> root frame
-            var siteDriveFrame = FindOrCreateFrame(SiteDriveFrameName(parser), rootFrame, TransformSource.LocationsDB,
-                                                   GetSiteDriveTransform(parser));
+            var siteDriveFrame = CreateOrUpdate(SiteDriveFrameName(parser), rootFrame, TransformSource.LocationsDB,
+                                                   GetSiteDriveTransformFromLocations(parser));
+
+            if (Places != null)
+            {
+                siteDriveFrame = CreateOrUpdate(SiteDriveFrameName(parser), rootFrame, TransformSource.PlacesDB,
+                                                   GetSiteDriveTransformFromPlaces(parser));
+            }
 
             // observation (aka rover) frame -> site drive (aka local level) frame
-            var observationFrame = FindOrCreateFrame(ObservationFrameName(parser), siteDriveFrame, TransformSource.PDS,
+            var observationFrame = CreateOrUpdate(ObservationFrameName(parser), siteDriveFrame, TransformSource.PDS,
                                                      GetObservationTransform(parser));
 
             RoverObservation observation = RoverObservation.Find(pipeline, project.Name, observationName);
@@ -320,7 +328,7 @@ namespace OPS.Pipeline
         /// Get transform from a site drive frame to root.  This is just the translation of the site drive frame from
         /// the MSLLocations database.
         /// </summary>
-        private UncertainRigidTransform GetSiteDriveTransform(PDSParser parser)
+        private UncertainRigidTransform GetSiteDriveTransformFromLocations(PDSParser parser)
         {
             var siteDrive = new SiteDrive(parser.SiteDrive);
             var loc = Locations.Location(siteDrive);
@@ -336,6 +344,22 @@ namespace OPS.Pipeline
             return new UncertainRigidTransform(Matrix.CreateTranslation(loc.Position), covariance);
         }
 
+        private UncertainRigidTransform GetSiteDriveTransformFromPlaces(PDSParser parser)
+        {
+            var siteDrive = new SiteDrive(parser.SiteDrive);
+            var loc = Places.GetEstimatedOffsetFromStart(siteDrive);
+            if (loc == null)
+            {
+                pipeline.LogWarn(string.Format("no MSL Places for site drive {0}", siteDrive));
+            }
+
+            // TODO: examine values here
+            var covariance = CreateMatrix
+                .Diagonal<double>(new double[] { 0.25, 0.25, 0.25, 0.5 * degSqr, 0.5 * degSqr, 1.0 * degSqr });
+
+            return new UncertainRigidTransform(Matrix.CreateTranslation(loc), covariance);
+
+        }
         /// <summary>
         /// Get transform from observation frame, which is rover frame at the time the observation was acquired, to the
         /// corresponding site drive (aka local level) frame.
@@ -351,7 +375,7 @@ namespace OPS.Pipeline
 
         private ConcurrentDictionary<string, bool> alreadyResetTransforms = new ConcurrentDictionary<string, bool>();
 
-        private Frame FindOrCreateFrame(string name, Frame parent, TransformSource source,
+        private Frame CreateOrUpdate(string name, Frame parent, TransformSource source,
                                         UncertainRigidTransform transform)
         {
             var frame = Frame.FindOrCreate(pipeline, project.Name, name, parent);

@@ -159,14 +159,12 @@ namespace OPS.Pipeline.AlignmentServer
 
         public FrameTransform GetBestAdjustedTransform(string name)
         {
-            foreach (var transform in GetTransforms(name))
-            {
-                if (transform.Source < TransformSource.Prior)
-                {
-                    return transform;
-                }
-            }
-            return null;
+            var adjustedTransforms = GetTransforms(name).Where(t => t.Source < TransformSource.Prior);
+            if (adjustedTransforms == null || adjustedTransforms.Count() == 0)
+                return null;
+
+            //transforms are in a sorted dictionary, where lower source number is higher priority
+            return adjustedTransforms.First();
         }
 
         public FrameTransform GetBestAdjustedTransform(Frame frame)
@@ -176,14 +174,12 @@ namespace OPS.Pipeline.AlignmentServer
 
         public FrameTransform GetBestPrior(string name)
         {
-            foreach (var transform in GetTransforms(name))
-            {
-                if (transform.Source >= TransformSource.Prior)
-                {
-                    return transform;
-                }
-            }
-            return null;
+            var priorTransforms = GetTransforms(name).Where(t => t.Source >= TransformSource.Prior);
+            if (priorTransforms == null || priorTransforms.Count() == 0)
+                return null;
+
+            //transforms are in a sorted dictionary, where lower source number is higher priority
+            return priorTransforms.First(); 
         }
 
         public FrameTransform GetBestPrior(Frame frame)
