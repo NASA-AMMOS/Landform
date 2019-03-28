@@ -413,6 +413,10 @@ namespace OPS.Pipeline
         {
             get
             {
+                if (metadata.HasKey("IDENTIFICATION", "ROVER_MOTION_COUNTER"))
+                {
+                    return metadata.ReadAsIntArray("IDENTIFICATION", "ROVER_MOTION_COUNTER");
+                }
                 if (metadata.HasKey("ROVER_MOTION_COUNTER"))
                 {
                     return metadata.ReadAsIntArray("ROVER_MOTION_COUNTER");
@@ -556,6 +560,37 @@ namespace OPS.Pipeline
             get
             {
                 return new PDSRoverArticulationParser(this.metadata).Parse();
+            }
+        }
+
+        public double HorizontalFOV
+        {
+            get
+            {
+                // Todo: write read angle: issues/465
+                if (this.metadata.HasKey("INSTRUMENT_STATE_PARMS", "AZIMUTH_FOV"))
+                {
+                    return MathHelper.ToRadians(this.metadata.ReadAsDouble("INSTRUMENT_STATE_PARMS", "AZIMUTH_FOV"));
+                }
+
+                return MathHelper.ToRadians(this.metadata.ReadAsDouble("INSTRUMENT_STATE_PARMS", "HORIZONTAL_FOV"));
+                
+               
+            }
+        }
+
+        public double VerticleFOV
+        {
+            get
+            {
+                // Todo: write read angle: issues/465
+
+                if (this.metadata.HasKey("INSTRUMENT_STATE_PARMS", "ELEVATION_FOV"))
+                {
+                    return MathHelper.ToRadians(this.metadata.ReadAsDouble("INSTRUMENT_STATE_PARMS", "ELEVATION_FOV"));
+                }
+                return MathHelper.ToRadians(this.metadata.ReadAsDouble("INSTRUMENT_STATE_PARMS", "VERTICAL_FOV"));
+                
             }
         }
 

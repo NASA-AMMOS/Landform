@@ -357,15 +357,16 @@ namespace OPS.Cloud
                 {
                     response = client.ListObjectsV2(request);
                     // Process response.
-                    foreach (string prefix in response.CommonPrefixes)
+                    foreach (var obj in response.S3Objects)
                     {
                         // Remove the location prefix from the returned results for the regex check
-                        var item = prefix;
+                        var prefix = obj.Key;
+                        var regexPrefix = prefix;
                         if (!string.IsNullOrEmpty(location.Prefix))
                         {
-                            item = item.Replace(location.Prefix, "");
+                            regexPrefix = regexPrefix.Replace(location.Prefix, "");
                         }
-                        if (regex.IsMatch(item))
+                        if (regex.IsMatch(regexPrefix))
                         {
                             yield return new S3Url(location.BucketName, prefix).Url;
                         }

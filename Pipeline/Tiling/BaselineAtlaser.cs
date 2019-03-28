@@ -38,6 +38,7 @@ namespace OPS.Pipeline
             return GenerateAtlas(mesh, true, true);
         }
 
+
         /// <summary>
         /// Return a copy of the provided mesh but UVed according to our provided image
         /// Any vertices (and referencing faces) outside the view of the camera will be removed
