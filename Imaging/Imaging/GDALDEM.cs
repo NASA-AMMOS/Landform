@@ -16,6 +16,9 @@ namespace OPS.Imaging
         SpatialReference MakeSphericalSpatialReference();
     }
 
+    /// <summary>
+    /// ported from TerrainTools/ImageLib/Pipeline/Mars.cs
+    /// </summary>
     public class MarsBody : DEMBody
     {
         public double GetRadius()
