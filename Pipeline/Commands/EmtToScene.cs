@@ -26,7 +26,7 @@ namespace OPS.Pipeline
         [Value(1, Required = true, HelpText = "List of S3 locations to search for data")]
         public IEnumerable<string> SearchLocations { get; set; }
         
-        [Option(Required = false, Default = "menzies_m2020_gov", HelpText = "")]
+        [Option(Required = true, HelpText = "")]
         public string InputAWSProfile { get; set; }
 
         [Option(Required = false, Default = "us-gov-west-1", HelpText = "")]
@@ -394,7 +394,7 @@ namespace OPS.Pipeline
         {
             ConcurrentBag<FileRecord> results = new ConcurrentBag<FileRecord>();
             var po = new ParallelOptions() { MaxDegreeOfParallelism = options.ConcurrentDownloads};
-            Parallel.ForEach(records, po, r => 
+            CoreLimitedParallel.ForEach(records, po, r => 
             {            
                 var localRec = new FileRecord(r);
                 localRec.ChangePath(destination);
@@ -424,8 +424,7 @@ namespace OPS.Pipeline
             ConcurrentBag<FileRecord> results = new ConcurrentBag<FileRecord>();
             ConcurrentBag<FileRecord> empty = new ConcurrentBag<FileRecord>();
             var po = new ParallelOptions() { MaxDegreeOfParallelism = options.ConcurrentMeshOps };
-
-            Parallel.ForEach(localFileRecords, po, localRecord =>
+            CoreLimitedParallel.ForEach(localFileRecords, po, localRecord =>
             {
                 var processedRecord = new FileRecord(Path.Combine(destination, Path.GetFileName(localRecord.OBJ)));
                 processedRecord.AddFile(Path.Combine(destination, processedRecord.FilenameBase + ".png"));
@@ -485,7 +484,7 @@ namespace OPS.Pipeline
 
 
             ConcurrentBag<LegacySceneManfiest.ImageData> imageDatas = new ConcurrentBag<LegacySceneManfiest.ImageData>();
-            Parallel.ForEach(localFileRecords, rec =>
+            CoreLimitedParallel.ForEach(localFileRecords, rec =>
             {
                 var imageData = new LegacySceneManfiest.ImageData()
                 {
@@ -498,7 +497,7 @@ namespace OPS.Pipeline
             var groupedImageData = imageDatas.GroupBy(id => new PDSParser(id.Metadata).SiteDrive.ToString());
             var primarySiteDrive = groupedImageData.Select(g => g.Key).OrderBy(x => x).Last();
             logger.Info("Converting images for scene");
-            Parallel.ForEach(localFileRecords, rec => 
+            CoreLimitedParallel.ForEach(localFileRecords, rec => 
             { 
                 string siteImageDir = Path.Combine(imagesDir, primarySiteDrive);
                 PathHelper.EnsureExists(siteImageDir);
@@ -590,9 +589,6 @@ namespace OPS.Pipeline
             var processedDirectory = Path.Combine(options.WorkingDir, "Processed");
             PathHelper.EnsureExists(processedDirectory);
             var processedRecords = ProcessMeshes(downloadedMeshRecords, processedDirectory, options.DecimationRatio);
-
-
-
             string projectName = options.ProjectName;// + "_" + rec.FilenameBase;
             logger.Info("Creating tiling Project: " + projectName);
 
@@ -639,11 +635,6 @@ namespace OPS.Pipeline
                 tilingTask.Wait();
             }
             return 0;
-        }
-
-        public string S3GetDirectory(string path)
-        {
-            return path.Substring(0, path.LastIndexOf("/"));
         }
 
         /// <summary>

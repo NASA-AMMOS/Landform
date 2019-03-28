@@ -67,8 +67,6 @@ namespace OPS.Pipeline
             Matrix siteFrameMeshToLocalLevelImage = RoverCoordinateSystem.SiteToRover(parser.RoverOriginRotation, parser.OriginOffset);
             var atlaser = new BaselineAtlaser(siteFrameMeshToLocalLevelImage, image);
             return atlaser.GenerateAtlas(m, removeVertsOutsideView, processVertsInParallel);
-
-
         }
     }
 }

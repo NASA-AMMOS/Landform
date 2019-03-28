@@ -164,8 +164,6 @@ namespace OPS.Pipeline
             }
             projectionsEl.AppendChild(transformsEl);
 
-
-
             XmlElement imagesEl = doc.CreateElement("images");
             foreach (var sitedrive in data)
             {
@@ -261,7 +259,7 @@ namespace OPS.Pipeline
             }
             else
             {
-                throw new Exception("Not enough cameramodels");
+                throw new NotImplementedException("Not enough cameramodels - cannot do cavhore");
             }
 
             parentElement.AppendChild(imageEl);

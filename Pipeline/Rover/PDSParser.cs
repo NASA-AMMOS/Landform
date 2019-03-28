@@ -506,7 +506,7 @@ namespace OPS.Pipeline
         {
             get
             {
-                // Todo: write read angle
+                // Todo: write read angle: issues/465
                 if (this.metadata.HasKey("INSTRUMENT_STATE_PARMS", "AZIMUTH_FOV"))
                 {
                     return MathHelper.ToRadians(this.metadata.ReadAsDouble("INSTRUMENT_STATE_PARMS", "AZIMUTH_FOV"));
@@ -522,7 +522,7 @@ namespace OPS.Pipeline
         {
             get
             {
-                // Todo: write read angle
+                // Todo: write read angle: issues/465
 
                 if (this.metadata.HasKey("INSTRUMENT_STATE_PARMS", "ELEVATION_FOV"))
                 {
