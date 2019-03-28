@@ -377,7 +377,7 @@ namespace OPS.Pipeline
         }
 
         /// <summary>
-        /// get transform from a specific rover frame to the corresponding sitedrive or root frame
+        /// get transform from a specific rover frame to the corresponding, observation, sitedrive or root frame
         /// </summary>transform a mesh 
         public static UncertainRigidTransform GetTransform(string fromFrame, string toFrame, FrameCache frameCache,
                                                            bool usePriors = false)
