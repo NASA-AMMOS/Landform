@@ -341,7 +341,7 @@ namespace OPS.Pipeline
                                 deltaRangeImage.Save<float>(path + imageName + ".tif");
 
                                 Vector3 backgroundColor = new Vector3(0.9, 0.9, 0.9);
-                                Image deltaRangePreview = ColorizeFloatImage(deltaRangeImage.Decimated(4), previewDistanceBuckets, colors, backgroundColor);
+                                Image deltaRangePreview = Image.ColorizeScalarImage(deltaRangeImage.Decimated(4), previewDistanceBuckets, colors.Select(c => c.ToFloatArray()).ToArray(), backgroundColor.ToFloatArray());
                                 deltaRangePreview = StampLegend(deltaRangePreview, previewDistanceBuckets, colors, backgroundColor);
                                 deltaRangePreview.DeleteMask();
                                 deltaRangePreview.Save<byte>(pathPreview + imageName + ".png");
@@ -358,47 +358,7 @@ namespace OPS.Pipeline
 
             return 0;
         }
-
-        //converts the floating point values in the source image to colorized values. the previewBucketdistances
-        // are the boundaries for the colors in colorsLowToHigh. There should be one more color than distance to catch
-        // the distances that are larger than the final bucket cutoff
-        private Image ColorizeFloatImage(Image img, float[] previewDistanceBuckets, Vector3[] colorsLowToHigh, Vector3 bgColor)
-        {
-            Image result = new Image(3, img.Width, img.Height);
-            result.CreateMask(true);
-            
-            for(int idxRow = 0; idxRow < img.Height; idxRow++)
-            {
-                for (int idxCol = 0; idxCol < img.Width; idxCol++)
-                {
-                    if (img.IsInvalid(idxRow, idxCol))
-                    {
-                        result[0, idxRow, idxCol] = (float)bgColor.X;
-                        result[1, idxRow, idxCol] = (float)bgColor.Y;
-                        result[2, idxRow, idxCol] = (float)bgColor.Z;
-                        continue;
-                    }
-
-                    float val = img[0, idxRow, idxCol];
-                    Vector3 color = colorsLowToHigh.Last();
-                    for(int idxColor = 0; idxColor < previewDistanceBuckets.Length; idxColor++)
-                    {
-                        if (val < previewDistanceBuckets[idxColor])
-                        {
-                            color = colorsLowToHigh[idxColor];
-                            break;
-                        }
-                    }
-
-                    result[0, idxRow, idxCol] = (float)color.X;
-                    result[1, idxRow, idxCol] = (float)color.Y;
-                    result[2, idxRow, idxCol] = (float)color.Z;
-                    result.SetMaskValue(idxRow, idxCol, false);
-                }
-            }
-
-            return result;
-        }
+       
         
         Rgb ToEmguColor(Vector3 color)
         {
