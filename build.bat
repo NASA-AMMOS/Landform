@@ -11,7 +11,7 @@ mkdir out
 move JPL.Landform*nupkg out
 mkdir out\Landform
 robocopy /s /e Landform\bin\Release\ out\Landform
-cd LandformWeb
+cd Web
 CALL npm run build
 if %errorlevel% neq 0 exit /b %errorlevel%
 move landformweb.zip ..\out\
