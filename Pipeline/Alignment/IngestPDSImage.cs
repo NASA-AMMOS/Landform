@@ -79,7 +79,7 @@ namespace OPS.Pipeline
                     return false;
                 }
             }
-            
+
             //ISSUE #353: need to validate that alignment works across cameras with non-linearized images.
             // so not allowing non-aligned images to be used when other aligned images are being used.
             if (id.Geometry != RoverProductGeometry.Linearized)
@@ -98,7 +98,8 @@ namespace OPS.Pipeline
         bool CheckMetadata(PDSParser parser)
         {
             return productTypeToObservationType.ContainsKey(parser.DerivedImageType) &&
-                parser.ImageSizeType == RoverProductSize.Regular;
+               parser.ImageSizeType == RoverProductSize.Regular &&
+               !parser.IsSunFinding;
         }
 
         /// <summary>
@@ -118,7 +119,7 @@ namespace OPS.Pipeline
             // Low exposure hazcams
             if (parser.DerivedImageType == RoverProductType.Image)
             {
-                if (parser.ExposureDuration != 0 && parser.ExposureDuration < MSLProject.MIN_NAV_HAZ_EXPOSURE)
+                if (parser.IsHazcam && parser.ExposureDuration != 0 && parser.ExposureDuration < MSLProject.MIN_NAV_HAZ_EXPOSURE)
                 {
                     return false;
                 }
@@ -271,7 +272,7 @@ namespace OPS.Pipeline
             if (Places != null)
             {
                 siteDriveFrame = GetFrame(SiteDriveFrameName(parser), rootFrame, TransformSource.PlacesDB,
-                                                   GetSiteDriveTransformFromPlaces(parser));
+                                          GetSiteDriveTransformFromPlaces(parser));
             }
             if (Locations != null)
             {
@@ -341,7 +342,7 @@ namespace OPS.Pipeline
             var loc = Locations.Location(siteDrive);
             if (loc == null)
             {
-                throw new Exception(string.Format("no MSL location for site drive {0}", siteDrive));
+                pipeline.LogWarn("no MSL location for site drive {0}", siteDrive);
             }
 
             if (Locations.HasBasemapDEM)
@@ -362,7 +363,7 @@ namespace OPS.Pipeline
             var loc = Places.GetEstimatedOffsetFromStart(siteDrive);
             if (loc == null)
             {
-                throw new Exception(string.Format("no MSL Places for site drive {0}", siteDrive));
+                pipeline.LogWarn("no MSL Places for site drive {0}", siteDrive);
             }
 
             // TODO: examine values here

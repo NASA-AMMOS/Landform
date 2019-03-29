@@ -28,7 +28,6 @@ namespace TilingServer
             {
                 Config.SubCommand = args[0];
             }
-
             // Parse command line arguments
             int returnCode = TileServerCommands.RunFromCommandline(args);
             return returnCode;

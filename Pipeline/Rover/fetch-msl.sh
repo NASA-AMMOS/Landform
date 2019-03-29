@@ -13,7 +13,7 @@
 #    MacOS: ~/Library/Python/?.?/bin
 
 if [ $# -lt 2 ]; then
-    echo "Usage: fetch-msl.sh destination [locations] [basemap] sol0 sol1 ..."
+    echo "Usage: fetch-msl.sh destination [locations] [basemap] [mastcams] sol0 sol1 ..."
     exit 1
 fi
 
@@ -39,8 +39,17 @@ basemap_src=s3://12landlords/TerrainSourceAssets/basemaps/$basemap_file
 
 sols=$@
 
-pfx="msl/redops/ods/surface/sol"
-sfx="opgs/rdr/ncam"
+cameraIndices=( 0 )
+pfxs=( "proj/msl/redops/ods/surface/sol" )
+sfxs=( "opgs/rdr/ncam" )
+
+for sol in $sols; do
+    if [ $sol = "mastcams" ]; then
+        cameraIndices+=( 1 )
+        pfxs+=( "ods/surface/sol" )
+        sfxs+=( "soas/rdr/mcam" )
+    fi
+done
 
 for sol in $sols; do
     if [ $sol = "locations" ]; then
@@ -53,12 +62,18 @@ for sol in $sols; do
         dst="$out/msl/$basemap_file"
         echo "$src -> $dst"
         aws --profile=$landlords_profile s3 cp $src $dst
+    elif [ $sol = "mastcams" ]; then
+        # ignore
     else
-        src="s3://red-product/proj/$pfx/$sol/$sfx"
-        dst="$out/$pfx/$sol/$sfx"
-        echo "$src -> $dst"
-        mkdir -p $dst
-        aws --profile=$red_product_profile s3 cp $src $dst --recursive --exclude="*" --include="*.IMG"
+        for i in "${cameraIndices[@]}"; do
+            pfx="${pfxs[$i]}"
+            sfx="${sfxs[$i]}"
+            src="s3://red-product/$pfx/$sol/$sfx"
+            dst="$out/$pfx/$sol/$sfx"
+            echo "$src -> $dst"
+            mkdir -p $dst
+            aws --profile=$profile s3 cp $src $dst --recursive --exclude="*" --include="*.IMG"
+        done
     fi
 done
 

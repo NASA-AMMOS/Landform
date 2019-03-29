@@ -314,10 +314,11 @@ namespace OPS.Pipeline
             observationCache.Preload();
 
             bool allowMastcam = false;
+            bool requirePoints = true;
             bool requireNormals = options.BEVColoring == ColorMode.Tilt;
             bool requireTextures = options.BEVColoring == ColorMode.Texture;
             observations = Meshing.CollectMeshObservations(frameCache, observationCache,
-                                                           allowMastcam, requireNormals, requireTextures,
+                                                           allowMastcam, requirePoints, requireNormals, requireTextures,
                                                            options.OnlyForSiteDrives, options.OnlyForCameras);
 
             //for now lexicographically sort siteDrives so that older ones come before newer

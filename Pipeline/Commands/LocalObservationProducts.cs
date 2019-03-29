@@ -294,10 +294,12 @@ namespace OPS.Pipeline
             var observationCache = new ObservationCache(pipeline, options.ProjectName);
             observationCache.Preload();
 
-            var observations = Meshing.CollectMeshObservations(frameCache, observationCache, options.AllowMastcam,
-                                                               options.RequireNormals, options.RequireTextures,
-                                                               options.OnlyForSiteDrives, options.OnlyForCameras);
-
+            bool requirePoints = false;
+            var observations =
+                Meshing.CollectMeshObservations(frameCache, observationCache, options.AllowMastcam,
+                                                requirePoints, options.RequireNormals, options.RequireTextures,
+                                                options.OnlyForSiteDrives, options.OnlyForCameras);
+            
             int no = observations.Count();
             var siteDrives = observations.Select(obs => obs.SiteDrive).Distinct().OrderBy(sd => sd).ToArray();
             pipeline.LogInfo("computing observation products for {0} observations{1} under {2}", no,
@@ -321,8 +323,10 @@ namespace OPS.Pipeline
                                          np, nc, no);
                     }
 
+                    string siteDrive = obs.SiteDrive.ToString();
+
                     Mesh mesh = null;
-                    bool buildMesh = !options.NoWedgeMeshes || options.MergedSiteDriveMeshes;
+                    bool buildMesh = obs.Points != null && (!options.NoWedgeMeshes || options.MergedSiteDriveMeshes);
                     if (buildMesh && options.PointCloud)
                     {
                         pipeline.LogVerbose("building point cloud for {0}", obs.Points.Name);
@@ -370,8 +374,6 @@ namespace OPS.Pipeline
                         }
                     }
 
-                    string siteDrive = obs.SiteDrive.ToString();
-
                     //we're running for multiple site drives in parallel so don't mutate outputPath
                     string tmpPath = outputPath;
                     if (!options.SuppressSiteDriveDirectories)
@@ -379,12 +381,11 @@ namespace OPS.Pipeline
                         tmpPath += siteDrive + "/";
                     }
 
-                    string obsName = obs.Points.Name;
                     string imageFilename = null;
                     Image img = null;
                     if (!options.NoImages && obs.Texture != null)
                     {
-                        imageFilename = obsName + imageExt;
+                        imageFilename = obs.Name + imageExt;
                         img = pipeline.LoadImage(obs.Texture.Url);
                         if (options.DecimateImages > 1)
                         {
@@ -429,7 +430,7 @@ namespace OPS.Pipeline
                         {
                             normals.ApplyInPlace(v => Math.Abs(v));
                         }
-                        FinishImage(normals, mask, tmpPath, obsName, name);
+                        FinishImage(normals, mask, tmpPath, obs.Name, name);
 
                     }
 
@@ -442,7 +443,7 @@ namespace OPS.Pipeline
                         normals = Meshing.MaskAndDecimateNormals(normals, options.DecimateImages, mask);
                         var curvatures = Meshing.ComputeCurvatures(points, normals, !options.StretchContrast,
                                                                    options.CurvatureNeighborhood);
-                        FinishImage(curvatures, mask, tmpPath, obsName, "Curvature");
+                        FinishImage(curvatures, mask, tmpPath, obs.Name, "Curvature");
                     }
 
                     if (options.ElevationImages && obs.Points != null)
@@ -451,7 +452,7 @@ namespace OPS.Pipeline
                         var mask = RoverMask.LoadOrBuild(pipeline, obs.Mask, obs.Points);
                         points = Meshing.MaskAndDecimatePoints(points, options.DecimateImages, mask);
                         var elevations = Meshing.PointsToElevation(points, normalize: !options.StretchContrast);
-                        FinishImage(elevations, mask, tmpPath, obsName, "Elevation");
+                        FinishImage(elevations, mask, tmpPath, obs.Name, "Elevation");
                     }
 
                     if (options.MergedSiteDriveMeshes && mesh != null)
@@ -475,18 +476,18 @@ namespace OPS.Pipeline
                                               options.ConvertNormalsToTilts ? options.TiltMode : Meshing.TiltMode.None,
                                               stretch: options.StretchContrast, nStddev: options.StretchStdDev);
                         }
-                        string file = tmpPath + obsName + meshExt;
+                        string file = tmpPath + obs.Name + meshExt;
                         pipeline.LogVerbose("saving mesh {0}", file);
                         PathHelper.EnsureExists(tmpPath);
                         mesh.Save(file, withUVs ? imageFilename : null);
                     }
                       
-                    if (options.FrustumHullMeshes)
+                    if (options.FrustumHullMeshes && (obs.Texture != null || obs.Points != null))
                     {
                         var hull = Meshing.BuildFrustumHull(pipeline, obs, frameCache, outputFrame, options.UsePriors,
                                                             uncertaintyInflated: false);
                         string path = tmpPath + "Frusta/";
-                        string file = tmpPath + obsName + meshExt;
+                        string file = tmpPath + obs.Name + meshExt;
                         pipeline.LogVerbose("saving hull mesh {0}", file);
                         PathHelper.EnsureExists(path);
                         hull.Mesh.Save(file);
@@ -497,7 +498,7 @@ namespace OPS.Pipeline
                         var hull = Meshing.BuildFrustumHull(pipeline, obs, frameCache, outputFrame, options.UsePriors,
                                                             uncertaintyInflated: true);
                         string path = tmpPath + "InflatedFrusta/";
-                        string file = path + obsName + meshExt;
+                        string file = path + obs.Name + meshExt;
                         pipeline.LogVerbose("saving uncertainty inflated hull mesh {0}", file);
                         PathHelper.EnsureExists(path);
                         hull.Mesh.Save(file);

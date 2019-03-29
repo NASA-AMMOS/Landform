@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="14.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <Import Project="..\packages\EmguCV.3.1.0.1\build\EmguCV.props" Condition="Exists('..\packages\EmguCV.3.1.0.1\build\EmguCV.props')" />
   <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
@@ -206,8 +206,10 @@
     <Compile Include="Commands\BenchmarkS3.cs" />
     <Compile Include="Commands\ConfigureCloud.cs" />
     <Compile Include="Commands\ConfigureLocal.cs" />
+    <Compile Include="Commands\EmtToScene.cs" />
     <Compile Include="Commands\LegacyToTile3D.cs" />
     <Compile Include="Commands\LocalBEVAligner.cs" />
+    <Compile Include="Commands\LocalAgisoft.cs" />
     <Compile Include="Commands\LocalBundleAdjust.cs" />
     <Compile Include="Commands\LocalFeatures.cs" />
     <Compile Include="Commands\LocalIngest.cs" />
@@ -215,6 +217,7 @@
     <Compile Include="Commands\LocalObservationProducts.cs" />
     <Compile Include="Commands\TileLocalMesh.cs" />
     <Compile Include="DataProducts\DataProduct.cs" />
+    <Compile Include="General\LegacySceneManfiest.cs" />
     <Compile Include="DataProducts\JsonDataProduct.cs" />
     <Compile Include="DataProducts\PngDataProduct.cs" />
     <Compile Include="LocalPipeline.cs" />
