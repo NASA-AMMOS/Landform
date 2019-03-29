@@ -23,8 +23,20 @@ namespace OPS.Pipeline
         [Option(HelpText = "Only ingest data for specific site drives, comma separated", Default = null)]
         public string OnlyForSiteDrives { get; set; }
 
-        [Option(HelpText = "path to locations.xml, or omit to check input path(s)", Default = null)]
+        [Option(HelpText = "Whether to make LocationsDB priors (requires locations.xml and basemap DEM)", Default = false)]
+        public bool AddLocationsDBPriors { get; set; }
+
+        [Option(HelpText = "Whether to not make PlacesDB priors (requires API key)", Default = false)]
+        public bool NoPlacesDBPriors { get; set; }
+
+        [Option(HelpText = "Path to locations.xml, or omit to check input path(s)", Default = null)]
         public string LocationsXML { get; set; }
+
+        [Option(HelpText = "Path to basemap DEM, or omit to check input path(s)", Default = null)]
+        public string BasemapDEM { get; set; }
+
+        [Option(HelpText = "Don't load basemap DEM", Default = false)]
+        public bool NoBasemapDEM { get; set; }
 
         [Option(HelpText = "Recreate project if it already exists", Default = false)]
         public bool RedoProject { get; set; }
@@ -76,6 +88,28 @@ namespace OPS.Pipeline
             var ingester = new IngestAlignmentInputs(pipeline, project, options.RedoObservations, options.RedoPriors,
                                                      options.OnlyForSiteDrives, options.NoProgress);
 
+            ingester.Ingest(options.AddLocationsDBPriors ? GetLocationsDB(ingester.BaseUrls.Select(b => b.Url)) : null,
+                            !options.NoPlacesDBPriors ? GetPlacesDB() : null);
+
+            return 0;
+        }
+
+        private MSLLocations GetLocationsDB(IEnumerable<string> baseUrls)
+        {
+            string findFile(string filename)
+            {
+                foreach (var url in baseUrls)
+                {
+                    var dir = StringHelper.EnsureTrailingSlash(StringHelper.StripProtocol(url, "file://"));
+                    var file = dir + filename;
+                    if (File.Exists(file))
+                    {
+                        return file;
+                    }
+                }
+                return null;
+            }
+
             string locationsFile = options.LocationsXML;
             if (string.IsNullOrEmpty(locationsFile))
             {
@@ -85,32 +119,71 @@ namespace OPS.Pipeline
                 }
                 else
                 {
-                    foreach (var entry in ingester.BaseUrls)
-                    {
-                        var dir = StringHelper.EnsureTrailingSlash(StringHelper.StripProtocol(entry.Url, "file://"));
-                        var file = dir + "locations.xml";
-                        if (File.Exists(file))
-                        {
-                            locationsFile = file;
-                            break;
-                        }
-                    }
+                    locationsFile = findFile(MSLLocations.DEFAULT_FILENAME);
                 }
             }
 
             if (string.IsNullOrEmpty(locationsFile))
             {
                 pipeline.LogError("could not find locations.xml");
-                return 1;
+                return null;
             }
             else
             {
                 pipeline.LogInfo("loading locations from {0}", locationsFile);
             }
 
-            ingester.Ingest(MSLLocations.Load(locationsFile));
+            var locations = MSLLocations.Load(locationsFile);
 
-            return 0;
+            string basemapFile = options.BasemapDEM;
+            if (string.IsNullOrEmpty(basemapFile) && !options.NoBasemapDEM)
+            {
+                if (options.Cloud)
+                {
+                    try
+                    {
+                        basemapFile = pipeline.GetFileCached(MSLLocations.BASEMAP_URL,
+                                                             filename: MSLLocations.BASEMAP_FILENAME);
+                    }
+                    catch (Exception ex)
+                    {
+                        pipeline.LogWarn("error downloading basemap {0}: {1}", MSLLocations.BASEMAP_URL, ex.Message);
+                    }
+                }
+                else
+                {
+                    basemapFile = findFile(MSLLocations.BASEMAP_FILENAME);
+                }
+            }
+
+            if (!string.IsNullOrEmpty(basemapFile))
+            {
+                locations.LoadBasemapDEM(basemapFile);
+            }
+            else
+            {
+                if (!options.NoBasemapDEM)
+                {
+                    throw new Exception("could not locate basemap DEM");
+                }
+                else
+                {
+                    pipeline.LogWarn("using MSLLocations without basemap DEM, Z priors will be in site frame");
+                }
+            }
+
+            return locations;
+        }
+
+        private MSLPlaces GetPlacesDB()
+        {
+            var ret = new MSLPlaces();
+            if(!ret.CredentialsLoaded())
+            {
+                pipeline.LogWarn("Credentials for PlacesDB priors not available, disabling PlacesDB.");
+                return null;
+            }
+            return ret;
         }
     }
 }

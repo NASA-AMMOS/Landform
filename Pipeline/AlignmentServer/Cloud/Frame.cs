@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using Newtonsoft.Json;
 using Amazon.DynamoDBv2.DataModel;
 using OPS.Cloud;
+using OPS.Geometry;
 
 namespace OPS.Pipeline.AlignmentServer
 {
@@ -30,6 +31,12 @@ namespace OPS.Pipeline.AlignmentServer
         public List<TransformSource> Transforms;
 
         public List<string> ObservationNames;
+
+        //DEPRECATED - for legacy compat only
+        public string FrameName;
+
+        //DEPRECATED - for legacy compat only
+        public List<string> PriorIds;
 
         //This constructor must be public for DynamoDB but should not be used
         public Frame()
@@ -64,7 +71,7 @@ namespace OPS.Pipeline.AlignmentServer
         public static Frame Create(PipelineCore pipeline, string projectName, string name = null, Frame parent = null)
         {
             Frame f = new Frame(projectName, name, parent);
-            pipeline.SaveDatabaseItem<Frame>(f);
+            f.Save(pipeline);
             return f;
         }
 
@@ -74,6 +81,8 @@ namespace OPS.Pipeline.AlignmentServer
         /// <param name=""></param>
         public void Save(PipelineCore pipeline)
         {
+            Transforms = (new HashSet<TransformSource>(Transforms)).ToList();
+            ObservationNames = (new HashSet<string>(ObservationNames)).ToList();
             pipeline.SaveDatabaseItem(this);
         }
 
@@ -109,21 +118,44 @@ namespace OPS.Pipeline.AlignmentServer
         /// </summary>
         public static Frame Find(PipelineCore pipeline, string projectName, string name)
         {
-            return pipeline.LoadDatabaseItem<Frame>(name, projectName);
+            return Compat(pipeline, pipeline.LoadDatabaseItem<Frame>(name, projectName));
         }
 
         public static IEnumerable<Frame> Find(PipelineCore pipeline, string projectName)
         {
-            return pipeline.ScanDatabase<Frame>("ProjectName", projectName);
+            foreach (var frame in pipeline.ScanDatabase<Frame>("ProjectName", projectName))
+            {
+                yield return Compat(pipeline, frame);
+            }
         }
 
         public bool AddTransform(FrameTransform transform)
         {
-            if (Transforms.Contains(transform.Source))
+            return AddTransform(transform.Source);
+        }
+
+        public bool AddTransform(TransformSource transformSource)
+        {
+            if (Transforms.Contains(transformSource))
             {
                 return false;
             }
-            Transforms.Add(transform.Source);
+            Transforms.Add(transformSource);
+            return true;
+        }
+
+        public bool RemoveTransform(FrameTransform transform)
+        {
+            return RemoveTransform(transform.Source);
+        }
+
+        public bool RemoveTransform(TransformSource transformSource)
+        {
+            if (!Transforms.Contains(transformSource))
+            {
+                return false;
+            }
+            Transforms.Remove(transformSource);
             return true;
         }
 
@@ -148,5 +180,80 @@ namespace OPS.Pipeline.AlignmentServer
             return Find(pipeline, ProjectName, ParentName);
         }
 
+        private static Dictionary<string, List<FrameTransform>> compatTransformCache = null;
+        private static ObservationCache compatObservationCache = null;
+        private static object compatLock = new Object();
+        private static Frame Compat(PipelineCore pipeline, Frame frame)
+        {
+            if (pipeline.LegacyCompat)
+            {
+                lock (compatLock)
+                {
+                    if (string.IsNullOrEmpty(frame.Name))
+                    {
+                        frame.Name = frame.FrameName;
+                    }
+                    
+                    if (frame.Transforms.Count == 0)
+                    {
+                        if (compatTransformCache == null)
+                        {
+                            pipeline.LogInfo("populating legacy compat transform cache...");
+                            compatTransformCache = new Dictionary<string, List<FrameTransform>>();
+                            
+                            foreach (var ft in pipeline.ScanDatabase<FrameTransform>())
+                            {
+                                if (!compatTransformCache.ContainsKey(ft.FrameName))
+                                {
+                                    compatTransformCache[ft.FrameName] = new List<FrameTransform>();
+                                }
+                                ft.Source = TransformSource.Adjusted; //this should be the default anyway
+                                compatTransformCache[ft.FrameName].Add(ft);
+                            }
+                            
+                            foreach (var ft in pipeline.ScanDatabase<FrameTransform>(null, tableName: "FrameTransformPriors"))
+                            {
+                                if (!compatTransformCache.ContainsKey(ft.FrameName))
+                                {
+                                    compatTransformCache[ft.FrameName] = new List<FrameTransform>();
+                                }
+                                ft.Source = TransformSource.Prior;
+                                compatTransformCache[ft.FrameName].Add(ft);
+                            }
+                        }
+                        var transformsForFrame = compatTransformCache[frame.Name];
+                        if (transformsForFrame != null)
+                        {
+                            foreach (var transform in transformsForFrame)
+                            {
+                                frame.AddTransform(transform);
+                            }
+                        }
+                        if (string.IsNullOrEmpty(frame.ParentName))
+                        {
+                            //root frame doesn't have a prior in the legacy database, but it's just identity
+                            frame.AddTransform(new FrameTransform(frame, TransformSource.Prior,
+                                                                  new UncertainRigidTransform()));
+                        }
+                    }
+                    
+                    if (frame.ObservationNames.Count == 0)
+                    {
+                        if (compatObservationCache == null)
+                        {
+                            pipeline.LogInfo("populating legacy compat observation cache...");
+                            compatObservationCache = new ObservationCache(pipeline, frame.ProjectName);
+                            compatObservationCache.Preload();
+                        }
+                        foreach (var obs in compatObservationCache.GetAllObservationsForFrame(frame))
+                        {
+                            frame.AddObservation(obs);
+                        }
+                    }
+                }
+            }
+
+            return frame;
+        }
     }   
 }

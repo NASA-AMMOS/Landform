@@ -1,9 +1,10 @@
-﻿using Microsoft.Xna.Framework;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Microsoft.Xna.Framework;
+using OPS.Util;
 
 namespace OPS.Geometry
 {
@@ -187,7 +188,7 @@ namespace OPS.Geometry
             "Bornhardt", "Karst Field"
         };
 
-        static Random nameRand = new Random();
+        static Random nameRand = NumberHelper.MakeRandomGenerator();
         /// <summary>
         /// Create a new node with a random silly name.
         /// </summary>

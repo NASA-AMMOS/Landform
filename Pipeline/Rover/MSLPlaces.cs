@@ -1,5 +1,6 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
+using System.Collections.Concurrent;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -57,25 +58,30 @@ namespace OPS.Pipeline
             return PlacesConfig.Instance.Username != null && PlacesConfig.Instance.APIKey != null;
         }
 
+        //avoid hitting the upstream service too hard
+        ConcurrentDictionary<string, XmlDocument> cache = new ConcurrentDictionary<string, XmlDocument>();
         private XmlDocument GetXmlDoc(string url)
         {
-            var config = PlacesConfig.Instance;
-            RestClient client = new RestClient();
-            client.BaseUrl = new Uri(config.Url);
-            client.Authenticator = new HttpBasicAuthenticator(config.Username, config.APIKey);
-            var request = new RestRequest();
-            
-            request.Resource = url;
-            IRestResponse response = client.Execute(request);
-            if(response.ResponseStatus != ResponseStatus.Completed)
-            {
-                throw new Exception("Error connecting to places: " + response.StatusCode.ToString() + " " + response.ErrorMessage);
-            }
-            XmlDocument document = new XmlDocument();
-            document.LoadXml(response.Content);
-            return document;
+            return cache.GetOrAdd(url, _ => {
+                    var config = PlacesConfig.Instance;
+                    RestClient client = new RestClient();
+                    client.BaseUrl = new Uri(config.Url);
+                    client.Authenticator = new HttpBasicAuthenticator(config.Username, config.APIKey);
+                    var request = new RestRequest();
+                    
+                    request.Resource = url;
+                    IRestResponse response = client.Execute(request);
+                    if(response.ResponseStatus != ResponseStatus.Completed)
+                    {
+                        throw new Exception("Error connecting to places DB: " + response.StatusCode.ToString() + " " +
+                                            response.ErrorMessage);
+                    }
+                    XmlDocument document = new XmlDocument();
+                    document.LoadXml(response.Content);
+                    return document;
+                });
         }
-
+                
         private Vector3 ReadOffsetFromDocument(XmlDocument doc)
         {
             XmlNodeList nodes = doc.GetElementsByTagName("offset");

@@ -93,15 +93,10 @@ namespace OPS.Pipeline
             ingester = new IngestPDSImage(pipeline, project, recreateObservations, resetTransforms, filter);
         }
 
-        public int Ingest(MSLLocations locations, Action<IngestImage.Result> func = null)
+        public int Ingest(MSLLocations locations, MSLPlaces places, Action<IngestImage.Result> func = null)
         {
             ingester.Locations = locations;
-            ingester.Places = new MSLPlaces();
-            if(!ingester.Places.CredentialsLoaded())
-            {
-                pipeline.LogWarn("Credentials for places database not loaded. disabling querying places.");
-                ingester.Places = null;
-            }
+            ingester.Places = places;
 
             string imageObs = ObservationType.Image.ToString();
             double startTime = UTCTime.Now();

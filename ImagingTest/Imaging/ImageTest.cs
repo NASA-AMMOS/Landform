@@ -250,7 +250,7 @@ namespace ImageTest
             Image orig = Image.Load(Path.Combine("TestData", "img", "testPattern.png"));
             {
                 Image img = Image.Load(Path.Combine("TestData", "img", "testPattern.png"));
-                img.GuassianBoxBlur(10);
+                img.GaussianBoxBlur(10);
                 img.Save<byte>("blur_10.png");
 
             }
@@ -264,7 +264,7 @@ namespace ImageTest
                         img.SetMaskValue(r, c, true);
                     }
                 }
-                img.GuassianBoxBlur(10);
+                img.GaussianBoxBlur(10);
                 for (int i = 0; i < img.Data[0].Length; i++)
                 {
                     if (img.IsInvalid(i))
@@ -282,12 +282,12 @@ namespace ImageTest
             }
             {
                 Image img = Image.Load(Path.Combine("TestData", "img", "testPattern.png"));
-                img.GuassianBoxBlur(1000);
+                img.GaussianBoxBlur(1000);
                 img.Save<byte>("blur_1000.png");
             }
             {
                 Image img = Image.Load(Path.Combine("TestData", "img", "testPattern.png"));
-                img.GuassianBoxBlur(0);
+                img.GaussianBoxBlur(0);
                 for (int i = 0; i < img.Data[0].Length; i++)
                 {
                     var a = img.GetBandValues(i);

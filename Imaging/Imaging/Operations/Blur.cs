@@ -9,14 +9,14 @@ namespace OPS.Imaging
     class Blur
     {
         /// <summary>
-        /// Simulates a guassian blur using 3 box blurs
+        /// Simulates a gaussian blur using 3 box blurs
         /// Reference:
         /// http://blog.ivank.net/fastest-gaussian-blur.html
         /// http://elynxsdk.free.fr/ext-docs/Blur/Fast_box_blur.pdf
         /// </summary>
         /// <param name="img">image to blur</param>
         /// <param name="r">radius of blur</param>
-        static public void GuassianBoxBlur(Image img, int r)
+        static public void GaussianBoxBlur(Image img, int r)
         {
             int[] boxes = BoxesForGauss(r, 3);
             Image tmp = new Image(img.Bands, img.Width, img.Height);
@@ -26,7 +26,7 @@ namespace OPS.Imaging
         }
 
         /// <summary>
-        /// Computes a set of radius parameters to use in a box blur to simulate a guassian blur
+        /// Computes a set of radius parameters to use in a box blur to simulate a gaussian blur
         /// </summary>
         /// <param name="sigma"></param>
         /// <param name="n"></param>

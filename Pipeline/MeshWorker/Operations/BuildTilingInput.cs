@@ -40,9 +40,10 @@ namespace OPS.Pipeline.MeshWorker
             var observationCache = new ObservationCache(pipeline, projectName);
             observationCache.Preload(obs => obs.UseForReconstruction);
 
-            List<MeshObservations> observations = Meshing.CollectMeshObservations(frameCache, observationCache,
-                                                                                  allowMastcam: false,
-                                                                                  requireNormals: true);
+            //temporarily suppress mastcam point cloud data until validated
+            //https://github.jpl.nasa.gov/OnSight/Landform/issues/261
+            var observations = Meshing.CollectMeshObservations(frameCache, observationCache, allowMastcam: false,
+                                                               requireNormals: true);
             if (observations.Count == 0)
             {
                 pipeline.LogError("no observations were found to build a point cloud");
@@ -57,7 +58,7 @@ namespace OPS.Pipeline.MeshWorker
                 pipeline.LogInfo("building point cloud {0}/{1} ({2})%): {3}", idx + 1, observations.Count,
                                  (int)(100 * idx / (float)observations.Count), obs.Points.FrameName);
                 var mesh = Meshing.BuildPointCloud(pipeline, obs, frameCache, scaleNormalsByConfidence: true);
-                aggregatePointCloud.MergeWith(new Mesh[] { mesh }, false);
+                aggregatePointCloud.MergeWith(new Mesh[] { mesh }, normalize: false);
             }
             
             // build the large mesh from the aggregate point cloud using poisson reconstruction

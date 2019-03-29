@@ -57,10 +57,10 @@ namespace OPS.Alignment
                                               ImagePairCorrespondence matches,
                                               SceneNode modelNode, SceneNode dataNode)
         {
-            var modelImg = modelNode.GetOrAddComponent<NodeImage>();
-            var dataImg = dataNode.GetOrAddComponent<NodeImage>();
+            var modelImg = modelNode.GetComponent<NodeImage>();
+            var dataImg = dataNode.GetComponent<NodeImage>();
 
-            if (!modelImg.Size.HasValue || !dataImg.Size.HasValue)
+            if (modelImg == null || !modelImg.Size.HasValue || dataImg == null || !dataImg.Size.HasValue)
             {
                 throw new ArgumentException("MoisanStivalFilter requires image sizes");
             }
@@ -100,14 +100,16 @@ namespace OPS.Alignment
             if (!mso.Meaningful) return ImagePairCorrespondence.Empty;
             LastEpipolarTransform = mso.FundamentalMatrix;
 
-            List<KeyValuePair<int, int>> goodMatches = new List<KeyValuePair<int, int>>();
-            foreach (int idx in mso.ComputeInliers())
+            var goodMatches = new List<FeatureMatch>();
+            foreach (int i in mso.ComputeInliers())
             {
-                goodMatches.Add(matches.DataToModel[idx]);
+                goodMatches.Add(new FeatureMatch()
+                                {
+                                    DataIndex = matches.DataToModel[i].Key,
+                                    ModelIndex = matches.DataToModel[i].Value,
+                                    DescriptorDistance = matches.DescriptorDistance[i]
+                                });
             }
-
-            Vector2[] dataPointsAfter = goodMatches.Select(pair => dataFeatures[pair.Key].Location).ToArray();
-            Vector2[] modelPointsAfter = goodMatches.Select(pair => modelFeatures[pair.Value].Location).ToArray();
 
             LastBestTransform = mso.BestTransform;
 

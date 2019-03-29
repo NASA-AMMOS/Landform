@@ -25,7 +25,7 @@ namespace OPS.Pipeline
             return CommandLine.Parser.Default.ParseArguments<ConvertBaselineMeshOptions,
                                                              //PDSImageConverterOptions,
                                                              ConvertBaselineMeshesOptions,
-                                                             TileBaselineMeshOptions,
+                                                             //TileBaselineMeshOptions,
                                                              TileBaselineMeshesOptions,
                                                              //LegacyToWebVROptions,
                                                              //LegacyToTile3DOptions,
@@ -37,9 +37,11 @@ namespace OPS.Pipeline
                                                              LocalMatchingOptions,
                                                              LocalBundleAdjustOptions,
                                                              LocalObservationProductsOptions,
+                                                             LocalBEVAlignerOptions,
                                                              LocalAgisoftOptions,
                                                              ConfigureCloudOptions,
-                                                             ConfigureLocalOptions
+                                                             ConfigureLocalOptions,
+                                                             EmtToSceneOptions
                                                              >(args)
               .MapResult(
                 (ConvertBaselineMeshOptions opts) => new ConvertBaselineMesh(opts).Run(),
@@ -57,9 +59,11 @@ namespace OPS.Pipeline
                 (LocalMatchingOptions opts) => new LocalMatching(opts).Run(),
                 (LocalBundleAdjustOptions opts) => new LocalBundleAdjust(opts).Run(),
                 (LocalObservationProductsOptions opts) => new LocalObservationProducts(opts).Run(),
+                (LocalBEVAlignerOptions opts) => new LocalBEVAligner(opts).Run(),
                 (LocalAgisoftOptions opts) => new LocalAgisoft(opts).Run(),
                 (ConfigureCloudOptions opts) => new ConfigureCloud(opts).Run(),
                 (ConfigureLocalOptions opts) => new ConfigureLocal(opts).Run(),
+                (EmtToSceneOptions opts) => new EmtToScene(opts).Run(),
                 errs => 1);
         }
     }

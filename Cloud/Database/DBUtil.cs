@@ -31,6 +31,7 @@ namespace OPS.Cloud
     {
         public const int DEFAULT_READ_CAPACITY = 50;
         public const int DEFAULT_WRITE_CAPACITY = 5;
+        public const double DEFAULT_SCAN_REL_CAPACITY = 0.5;
         public const int MIN_MS_PER_SCAN_REQUEST = 500;
         public const double SCAN_DEADBAND_REL = 0.2;
 
@@ -541,23 +542,13 @@ namespace OPS.Cloud
             return prefix;
         }
 
-        public const double DEF_SCAN_REL_CAPACITY = 0.5;
-        public static IEnumerable<T> Scan<T>(DynamoDBContext context, params ScanCondition[] conditions)
-        {
-            return Scan<T>(context, DEF_SCAN_REL_CAPACITY, true, null, conditions);
-        }
-
-        public static IEnumerable<T> Scan<T>(DynamoDBContext context, ILog logger, params ScanCondition[] conditions)
-        {
-            return Scan<T>(context, DEF_SCAN_REL_CAPACITY, true, logger, conditions);
-        }
-
         /// <summary>
         /// Scan a table with dyanamic speed up / slow down to try to maintain the indicated read units per second
         /// </summary>
         /// <param name="relCapacity">read units per sec as fraction of table provisioned capacity</param>
-        public static IEnumerable<T> Scan<T>(DynamoDBContext context, double relCapacity, bool consistent, ILog logger,
-                                             params ScanCondition[] conditions)
+        public static IEnumerable<T> Scan<T>(DynamoDBContext context, ScanCondition[] conditions = null,
+                                             double relCapacity = DEFAULT_SCAN_REL_CAPACITY, bool consistent = false,
+                                             ILog logger = null, string tableName = null)
         {
             var sw = new Stopwatch();
             sw.Start();
@@ -569,14 +560,17 @@ namespace OPS.Cloud
             //* how to measure the consumed capacity
 
             var result = new List<T>();
-            var tableName = GetTableName(typeof(T));
+            if (string.IsNullOrEmpty(tableName))
+            {
+                tableName = GetTableName(typeof(T));
+            }
             var client = GetClientForContext(context);
 
             if (client == null)
             {
                 //fallback, we could not lookup the client associated with this context
                 //see commentry above
-                return ScanWithBackoff<T>(context, consistent, logger, conditions);
+                return ScanWithBackoff<T>(context, conditions, consistent, logger);
             }
 
             tableName = GetPrefixForContext(context) + tableName;
@@ -713,17 +707,6 @@ namespace OPS.Cloud
             return result;
         }
 
-        public static IEnumerable<T> ScanWithBackoff<T>(DynamoDBContext context, params ScanCondition[] conditions)
-        {
-            return ScanWithBackoff<T>(context, true, null, conditions);
-        }
-
-        public static IEnumerable<T> ScanWithBackoff<T>(DynamoDBContext context, ILog logger,
-                                                        params ScanCondition[] conditions)
-        {
-            return ScanWithBackoff<T>(context, true, logger, conditions);
-        }
-
         /// <summary>
         /// the high-level DynamoDBContext.Scan<T>() API is convenient but can cause throughput exceptions
         /// we really should only get here if we couldn't get a DynamoDB client handle associated with
@@ -731,11 +714,16 @@ namespace OPS.Cloud
         /// https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/bp-query-scan.html
         /// https://aws.amazon.com/blogs/developer/rate-limited-scans-in-amazon-dynamodb
         /// </summary>
-        public static IEnumerable<T> ScanWithBackoff<T>(DynamoDBContext context, bool consistent, ILog logger,
-                                                        params ScanCondition[] conditions)
+        public static IEnumerable<T> ScanWithBackoff<T>(DynamoDBContext context, ScanCondition[] conditions = null,
+                                                        bool consistent = false, ILog logger = null)
         {
             var sw = new Stopwatch();
             sw.Start();
+
+            if (conditions == null)
+            {
+                conditions = new ScanCondition[] {};
+            }
 
             var result = new List<T>();
             var tableName = GetTableName(typeof(T));
@@ -793,7 +781,7 @@ namespace OPS.Cloud
         private static Dictionary<string, Condition> ScanConditionsToFilter(ScanCondition[] conditions)
         {
             var ret = new Dictionary<string, Condition>();
-            foreach (var cond in conditions)
+            foreach (var cond in conditions ?? new ScanCondition[] {})
             {
                 ret[cond.PropertyName] = new Condition() { ComparisonOperator = ConvertScanOperator(cond.Operator),
                                                            AttributeValueList = ConvertScanValues(cond.Values) };

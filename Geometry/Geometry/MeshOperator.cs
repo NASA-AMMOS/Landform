@@ -13,7 +13,7 @@ namespace OPS.Geometry
 {
     /// <summary>
     /// A class for performing optimized operations on a mesh
-    /// Internally this class generates and caches datastructhres such as KDTrees
+    /// Internally this class generates and caches datastructures such as KDTrees
     /// to accelerate certain types of mesh operations
     /// </summary>
     public class MeshOperator

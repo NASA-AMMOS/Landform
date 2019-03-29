@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using OPS.Geometry;
 
 namespace OPS.Pipeline.AlignmentServer
 {
@@ -74,10 +75,24 @@ namespace OPS.Pipeline.AlignmentServer
                             Add(transform);
                         }
                     });
+                if (pipeline.LegacyCompat)
+                {
+                    foreach (var ft in pipeline.ScanDatabase<FrameTransform>(null, tableName: "FrameTransformPriors"))
+                    {
+                        ft.Source = TransformSource.Prior;
+                        Add(ft);
+                    }
+                    if (frames.ContainsKey("root"))
+                    {
+                        //root frame doesn't have a prior in the legacy database, but it's just identity
+                        Add(new FrameTransform(frames["root"], TransformSource.Prior, new UncertainRigidTransform()));
+                    }
+                }
                 foreach (var frame in frames.Keys)
                 {
                     if (!transforms.ContainsKey(frame))
                     {
+                        pipeline.LogWarn("frame \"{0}\" has no transforms!", frame);
                         transforms[frame] = new SortedDictionary<TransformSource, FrameTransform>();
                     }
                 }
@@ -162,8 +177,9 @@ namespace OPS.Pipeline.AlignmentServer
             var adjustedTransforms = GetTransforms(name).Where(t => t.Source < TransformSource.Prior);
             if (adjustedTransforms == null || adjustedTransforms.Count() == 0)
                 return null;
-            
-            return adjustedTransforms.OrderBy(o => o.Source).First(); //lower number == higher priority            
+
+            //transforms are in a sorted dictionary, where lower source number is higher priority
+            return adjustedTransforms.First();
         }
 
         public FrameTransform GetBestAdjustedTransform(Frame frame)
@@ -177,7 +193,8 @@ namespace OPS.Pipeline.AlignmentServer
             if (priorTransforms == null || priorTransforms.Count() == 0)
                 return null;
 
-            return priorTransforms.OrderBy(o => o.Source).First(); //lower number == higher priority
+            //transforms are in a sorted dictionary, where lower source number is higher priority
+            return priorTransforms.First(); 
         }
 
         public FrameTransform GetBestPrior(Frame frame)

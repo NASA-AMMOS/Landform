@@ -17,108 +17,63 @@ namespace OPS.Alignment
     /// </summary>
     public class CascadeHashingMatcher : IFeatureMatcher
     {
-        public readonly int DescriptorSize;
-        public readonly int PrimaryHashBits;
-        public readonly int SecondaryHashBits;
-        public readonly int BucketCount;
-        public readonly int MinimumKnnCandidates;
-        public readonly int MaximumKnnCandidates;
-        public readonly double MaximumDistanceRatio;
+        //maximum ratio between distance of nearest data feature descriptor to model feature descriptor
+        //vs 2nd nearest data feature descriptor to the same model feature descriptor
+        //set to 1 to disable filtering by this ratio
+        public double MaxDistanceRatio = 0.9;
 
-        private readonly LocalitySensitiveHash primaryHash;
-        private LocalitySensitiveHash[] secondaryHashes;
+        //number of bits to use in primary hash code
+        public int PrimaryHashBits = 128;
 
-        /// <summary>
-        /// Construct an instance with the given parameters.
-        /// </summary>
-        /// <param name="descriptorSize">Number of elements in input descriptors</param>
-        /// <param name="primaryHashBits">Number of bits to use in primary hash code</param>
-        /// <param name="secondaryHashBits">Number of bits to use in each secondary hash</param>
-        /// <param name="bucketCount">Number of secondary hashes</param>
-        /// <param name="minCandidates">Minimum number of candidates in hamming distance KNN</param>
-        /// <param name="maxCandidates">Maximum number of candidates in hamming distance KNN</param>
-        /// <param name="maxRatio">Maximum distance ratio between best and second best match to accept match</param>
-        public CascadeHashingMatcher(int descriptorSize = 128, int primaryHashBits = 128, int secondaryHashBits = 8, int bucketCount = 6, int minCandidates = 6, int maxCandidates = 10, double maxRatio = 0.9)
-        {
-            DescriptorSize = descriptorSize;
-            PrimaryHashBits = primaryHashBits;
-            SecondaryHashBits = secondaryHashBits;
-            BucketCount = bucketCount;
-            MinimumKnnCandidates = minCandidates;
-            MaximumKnnCandidates = maxCandidates;
-            MaximumDistanceRatio = maxRatio;
+        //number of bits to use in each secondary hash
+        public readonly int SecondaryHashBits = 8;
 
-            Random r = new Random();
+        //number of secondary hashes
+        public readonly int BucketCount = 6;
 
-            // Create projection matrices
-            secondaryHashes = new LocalitySensitiveHash[BucketCount];
-            for (int i = 0; i < BucketCount; i++)
-            {
-                secondaryHashes[i] = new LocalitySensitiveHash(DescriptorSize, SecondaryHashBits, r);
-            }
-            primaryHash = new LocalitySensitiveHash(DescriptorSize, PrimaryHashBits, r);
-        }
+        //minimum number of candidates in hamming distance KNN
+        public readonly int MinimumKnnCandidates = 6;
 
-        /// <summary>
-        /// Set of hash codes computed for a feature descriptor
-        /// </summary>
-        struct DescriptorHashes
-        {
-            public HashCode PrimaryHash;
-            public HashCode[] SecondaryHashes;
-        }
-
-        /// <summary>
-        /// Compute all hashes for an image's features
-        /// </summary>
-        private DescriptorHashes[] ComputeHashes(AlignmentScene scene, string imgUrl, Vector<float> featureMean)
-        {
-            return ComputeHashes(scene.DetectedFeatures[imgUrl], featureMean);
-        }
-
-        private DescriptorHashes[] ComputeHashes(ImageFeature[] features, Vector<float> featureMean)
-        {
-            DescriptorHashes[] res = new DescriptorHashes[features.Length];
-            CoreLimitedParallel.For(0, features.Length, i =>
-            {
-                var mc = GetMeanCentered(features[i], featureMean);
-                var primary = primaryHash.Project(mc);
-                var secondary = new HashCode[BucketCount];
-                for (int j = 0; j < BucketCount; j++)
-                {
-                    secondary[j] = secondaryHashes[j].Project(mc);
-                }
-                res[i] = new DescriptorHashes()
-                {
-                    PrimaryHash = primary,
-                    SecondaryHashes = secondary
-                };
-            });
-            return res;
-        }
+        //maximum number of candidates in hamming distance KNN
+        public readonly int MaximumKnnCandidates = 10;
 
         public ImagePairCorrespondence Match(AlignmentScene scene, string modelUrl, string dataUrl)
         {
             var modelFeatures = scene.DetectedFeatures[modelUrl]; 
             var dataFeatures = scene.DetectedFeatures[dataUrl];
-            return Match(modelFeatures, dataFeatures, modelUrl, dataUrl);
-        }
-
-        public ImagePairCorrespondence Match(ImageFeature[] modelFeatures, ImageFeature[] dataFeatures,
-                                             string modelUrl, string dataUrl)
-        {
             return new ImagePairCorrespondence(modelUrl, dataUrl, Match(modelFeatures, dataFeatures));
         }
 
-        public IEnumerable<KeyValuePair<int, int>> Match(ImageFeature[] modelFeatures, ImageFeature[] dataFeatures)
+        public IEnumerable<FeatureMatch> Match(ImageFeature[] modelFeatures, ImageFeature[] dataFeatures)
         {
             if (modelFeatures.Length < 1 || dataFeatures.Length < 1) yield break;
 
-            var meanDescriptor = FeatureMean(modelFeatures, dataFeatures);
+            Random rand = NumberHelper.MakeRandomGenerator();
 
-            // Compute hashes
-            DescriptorHashes[] modelHashes = ComputeHashes(modelFeatures, meanDescriptor);
-            DescriptorHashes[] dataHashes = ComputeHashes(dataFeatures, meanDescriptor);
+            int descriptorSize = modelFeatures[0].Descriptor.Length;
+
+            // Create projection matrices
+            var primaryHash = new LocalitySensitiveHash(descriptorSize, PrimaryHashBits, rand);
+            var secondaryHashes = new LocalitySensitiveHash[BucketCount];
+            for (int i = 0; i < BucketCount; i++)
+            {
+                secondaryHashes[i] = new LocalitySensitiveHash(descriptorSize, SecondaryHashBits, rand);
+            }
+
+            int totalFeatures = 0;
+            Vector<float> meanDescriptor = CreateVector.Dense(descriptorSize, 0.0f);
+            foreach (var f in modelFeatures.Concat(dataFeatures))
+            {
+                for (int i = 0; i < descriptorSize; i++)
+                {
+                    meanDescriptor[i] += (float)f.Descriptor.GetElement(i);
+                }
+                totalFeatures++;
+            }
+            meanDescriptor = meanDescriptor / totalFeatures;
+
+            var modelHashes = ComputeHashes(primaryHash, secondaryHashes, modelFeatures, meanDescriptor);
+            var dataHashes = ComputeHashes(primaryHash, secondaryHashes, dataFeatures, meanDescriptor);
 
             // Put model features in buckets
             Dictionary<HashCode, List<int>>[] buckets = new Dictionary<HashCode, List<int>>[BucketCount];
@@ -127,7 +82,7 @@ namespace OPS.Alignment
                 buckets[i] = new Dictionary<HashCode, List<int>>();
             }
 
-            for (int i = 0; i < modelHashes.Length; i++)
+            for (int i = 0; i < modelFeatures.Length; i++)
             {
                 var dh = modelHashes[i];
                 for (int j = 0; j < BucketCount; j++)
@@ -142,124 +97,109 @@ namespace OPS.Alignment
                 }
             }
 
-            int[] d2m = new int[dataHashes.Length];
-            CoreLimitedParallel.For(0, dataHashes.Length, i =>
+            var anyDescriptor = dataFeatures[0].Descriptor;
+            double maxDistanceRatio = anyDescriptor.BestDistanceToFastDistance(MaxDistanceRatio);
+            for (int i = 0; i < dataFeatures.Length; i++)
             {
-                d2m[i] = -1;
-
                 var dh = dataHashes[i];
 
                 // Collect list of candidate features in model image from secondary hash collisions
-                List<int> candidateIndices;
+                HashSet<int> candidateMatches = new HashSet<int>();
+                for (int hashIdx = 0; hashIdx < BucketCount; hashIdx++)
                 {
-                    HashSet<int> candidateMatches = new HashSet<int>();
-                    for (int hashIdx = 0; hashIdx < BucketCount; hashIdx++)
+                    var bucket = buckets[hashIdx];
+                    var hash = dh.SecondaryHashes[hashIdx];
+                    if (bucket.ContainsKey(hash))
                     {
-                        var bucket = buckets[hashIdx];
-                        var hash = dh.SecondaryHashes[hashIdx];
-                        if (bucket.ContainsKey(hash))
+                        foreach (var c in bucket[hash])
                         {
-                            foreach (var c in bucket[hash])
-                            {
-                                candidateMatches.Add(c);
-                            }
+                            candidateMatches.Add(c);
                         }
                     }
-                    candidateIndices = new List<int>(candidateMatches);
                 }
+                var candidateIndices = candidateMatches.ToArray();
 
                 // Get KNN in hamming space with primary hash
                 KNNMatcher<HashCode>.Node[] knnHamming;
                 {
-                    KNNMatcher<HashCode> matcher = new KNNMatcher<HashCode>((c0, c1) => c0.HammingDistance(c1));
+                    KNNMatcher<HashCode> matcher = new KNNMatcher<HashCode>((c0, c1) => c0.Distance(c1));
                     knnHamming = matcher.Find(dh.PrimaryHash,
                                               candidateIndices.Select(idx => modelHashes[idx].PrimaryHash).ToArray(),
                                               MaximumKnnCandidates).ToArray();
                 }
                 if (knnHamming.Length < MinimumKnnCandidates)
                 {
-                    return;
+                    continue;
                 }
 
                 // Finally, get 2NN in euclidean space
                 KNNMatcher<ImageFeature>.Node[] nearest;
                 {
-                    KNNMatcher<ImageFeature> matcher = new KNNMatcher<ImageFeature>((f0, f1) =>
-                    {
-                        double res = 0;
-                        var d0 = ((FeatureDescriptor<byte>)f0.Descriptor).Data;
-                        var d1 = ((FeatureDescriptor<byte>)f1.Descriptor).Data;
-                        for (int k = 0; k < d0.Length; k++)
-                        {
-                            var dist = d1[k] - d0[k];
-                            res += dist * dist;
-                        }
-                        return res;
-                    });
+                    KNNMatcher<ImageFeature> matcher =
+                        new KNNMatcher<ImageFeature>((f0, f1) => f0.Descriptor.FastDistance(f1.Descriptor));
                     nearest = matcher.Find(dataFeatures[i],
                                            knnHamming.Select(n => modelFeatures[candidateIndices[n.Index]]).ToArray(),
                                            2).ToArray();
                 }
+
                 if (nearest.Length < 2)
                 {
-                    return;
+                    continue;
                 }
 
-                if (nearest[0].Distance < nearest[1].Distance * MaximumDistanceRatio * MaximumDistanceRatio)
+                //keep match iff bestDist/2ndBestDist <= MaxDistanceRatio
+                if (anyDescriptor.CheckFastDistanceRatio(nearest[0].Distance, nearest[1].Distance, maxDistanceRatio))
                 {
                     // what a tangled web we weave
                     int indexInKnnHamming = nearest[0].Index;
                     int indexInCandidateIndices = knnHamming[indexInKnnHamming].Index;
                     int featureIndex = candidateIndices[indexInCandidateIndices];
-                    d2m[i] = featureIndex;
-                }
-            });
-
-            for (int i = 0; i < d2m.Length; i++)
-            {
-                if (d2m[i] >= 0)
-                {
-                    yield return new KeyValuePair<int, int>(i, d2m[i]);
+                    yield return new FeatureMatch()
+                    {
+                        DataIndex = i,
+                        ModelIndex = featureIndex,
+                        DescriptorDistance = (float)anyDescriptor.FastDistanceToBestDistance(nearest[0].Distance)
+                    };
                 }
             }
         }
 
-        private void AccumulateFeatures(ImageFeature[] features, ref int count, Vector<float> res)
+        /// <summary>
+        /// Set of hash codes computed for a feature descriptor
+        /// </summary>
+        private struct DescriptorHashes
         {
-            foreach (var feat in features)
+            public HashCode PrimaryHash;
+            public HashCode[] SecondaryHashes;
+        }
+
+        private DescriptorHashes[] ComputeHashes(LocalitySensitiveHash primaryHash,
+                                                 LocalitySensitiveHash[] secondaryHashes,
+                                                 ImageFeature[] features, Vector<float> featureMean)
+        {
+            DescriptorHashes[] res = new DescriptorHashes[features.Length];
+            for (int i = 0; i < features.Length; i++)
             {
-#if DEBUG
-                if (feat.Descriptor.Length != DescriptorSize)
+                FeatureDescriptor descriptor = features[i].Descriptor;
+                Vector<float> meanCenteredDescriptor = CreateVector.Dense(descriptor.Length, 0.0f);
+                for (int j = 0; j < descriptor.Length; j++)
                 {
-                    throw new Exception("Descriptor size mismatch");
+                    meanCenteredDescriptor[j] = ((float)descriptor.GetElement(j)) - featureMean[j];
                 }
-#endif
-                byte[] data = ((FeatureDescriptor<byte>)feat.Descriptor).Data;
-                for (int i = 0; i < DescriptorSize; i++)
+
+                var primary = primaryHash.Project(meanCenteredDescriptor);
+                var secondary = new HashCode[BucketCount];
+                for (int j = 0; j < BucketCount; j++)
                 {
-                    res[i] += data[i];
+                    secondary[j] = secondaryHashes[j].Project(meanCenteredDescriptor);
                 }
-                count++;
+                res[i] = new DescriptorHashes()
+                {
+                    PrimaryHash = primary,
+                    SecondaryHashes = secondary
+                };
             }
-        }
-
-        private Vector<float> FeatureMean(ImageFeature[] featuresOne, ImageFeature[] featuresTwo)
-        {
-            int count = 0;
-            Vector<float> res = CreateVector.Dense(DescriptorSize, 0.0f);
-            AccumulateFeatures(featuresOne, ref count, res);
-            AccumulateFeatures(featuresTwo, ref count, res);
-            return res / count;
-        }
-
-        private Vector<float> GetMeanCentered(byte[] descriptor, Vector<float> mean)
-        {
-            return CreateVector.DenseOfArray(descriptor.Select(b => (float)b).ToArray()) - mean;
-        }
-
-        private Vector<float> GetMeanCentered(ImageFeature feat, Vector<float> mean)
-        {
-            return GetMeanCentered(((FeatureDescriptor<byte>)feat.Descriptor).Data, mean);
+            return res;
         }
 
         /// <summary>
@@ -301,55 +241,13 @@ namespace OPS.Alignment
             }
 
             /// <summary>
-            /// Lookup table for number of bits set in a given byte.
-            /// 
-            /// This is much faster than looping over each bit at runtime. Ideally
-            /// we want something that compiles down to a popcnt instruction but
-            /// we don't get that in C#.
-            /// </summary>
-            static int[] ByteBitCount;
-            static HashCode()
-            {
-                ByteBitCount = new int[256];
-                for (int i = 0; i < 256; i++)
-                {
-                    byte b = (byte)i;
-                    int cnt = 0;
-                    for (int j = 0; j < 8; j++)
-                    {
-                        if ((b & (1 << j)) != 0)
-                        {
-                            cnt++;
-                        }
-                    }
-                    ByteBitCount[i] = cnt;
-                }
-            }
-
-            /// <summary>
             /// Return the number of bits that differ between this and another HashCode.
             /// </summary>
             /// <param name="code">HashCode with same BitCount</param>
             /// <returns>[0, BitCount]</returns>
-            public int HammingDistance(HashCode code)
+            public int Distance(HashCode code)
             {
-                if (code.BitCount != BitCount)
-                {
-                    throw new InvalidOperationException("HammingDistance between different bit lengths");
-                }
-                int res = 0;
-
-                var xor = new byte[Data.Length];
-                for (int i = 0; i < Data.Length; i++)
-                {
-                    xor[i] = (byte)(Data[i] ^ code.Data[i]);
-                }
-
-                for (int i = 0; i < Data.Length; i++)
-                {
-                    res += ByteBitCount[xor[i]];
-                }
-                return res;
+                return HammingDistance.Distance(Data, code.Data);
             }
         }
 
@@ -412,17 +310,18 @@ namespace OPS.Alignment
                 public int Index;
                 public double Distance;
             }
-            public readonly Func<T, T, double> Distance;
+
+            private readonly Func<T, T, double> distance;
 
             public KNNMatcher(Func<T, T, double> distance)
             {
-                Distance = distance;
+                this.distance = distance;
             }
 
-            public IEnumerable<Node> Find(T query, IList<T> candidates, int K)
+            public IEnumerable<Node> Find(T query, IList<T> candidates, int k)
             {
-                Node[] res = new Node[K];
-                for (int i = 0; i < K; i++)
+                Node[] res = new Node[k];
+                for (int i = 0; i < k; i++)
                 {
                     res[i].Index = -1;
                     res[i].Distance = double.PositiveInfinity;
@@ -430,9 +329,10 @@ namespace OPS.Alignment
 
                 for (int i = 0; i < candidates.Count; i++)
                 {
-                    var dist = Distance(query, candidates[i]);
+                    var dist = distance(query, candidates[i]);
+
                     // skip any that suck
-                    if (dist > res[K - 1].Distance) continue;
+                    if (dist > res[k - 1].Distance) continue;
 
                     // binary search insertion point
                     int insertPt = res.Select(n => n.Distance).ToList().BinarySearch(dist);
@@ -441,17 +341,19 @@ namespace OPS.Alignment
                         // if < 0, result of BinarySearch is complement of first index of larger element
                         insertPt = ~insertPt;
                     }
-                    if (insertPt >= K)
+
+                    if (insertPt >= k)
                     {
                         // shouldn't ever happen, but better safe than sorry
                         continue;
                     }
 
                     // shift elements down
-                    for (int j = K - 1; j > insertPt; j--)
+                    for (int j = k - 1; j > insertPt; j--)
                     {
                         res[j] = res[j - 1];
                     }
+
                     res[insertPt] = new Node()
                     {
                         Index = i,
@@ -459,7 +361,7 @@ namespace OPS.Alignment
                     };
                 }
 
-                for (int i = 0; i < K; i++)
+                for (int i = 0; i < k; i++)
                 {
                     if (res[i].Index < 0)
                     {

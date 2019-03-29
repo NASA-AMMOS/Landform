@@ -20,6 +20,9 @@ namespace OPS.Alignment
     /// </summary>
     public class KnownGeometryFilter : IMatchFilter
     {
+        public const double DEF_MAHALANOBIS_THRESHOLD = 4;
+        public const double DEF_MAJOR_AXIS_THRESHOLD = 100;
+
         /// <summary>
         /// When two camera rays are parallel, try projecting from this distance.
         /// </summary>
@@ -33,17 +36,17 @@ namespace OPS.Alignment
         /// <summary>
         /// Maximum Mahalanobis distance to accept. Conceptually similar to number of standard deviations.
         /// </summary>
-        public double MahalanobisThreshold = 4;
+        public double MahalanobisThreshold = DEF_MAHALANOBIS_THRESHOLD;
+
+        /// <summary>
+        /// Maximum uncertainty
+        /// </summary>
+        public double MajorAxisThreshold = DEF_MAJOR_AXIS_THRESHOLD;
 
         /// <summary>
         /// Error threshold (in pixels) for matches with no transform uncertainty information.
         /// </summary>
         public double FixedErrorThreshold = 20;
-
-        /// <summary>
-        /// Maximum uncertainty
-        /// </summary>
-        public double MajorAxisThreshold = 100;
 
         public delegate SceneNode ImageNodeDelegate(string imageUrl);
 
@@ -83,32 +86,35 @@ namespace OPS.Alignment
                                               ImagePairCorrespondence matches,
                                               SceneNode modelNode, SceneNode dataNode)
         {
-            UncertainRigidTransform dataToModel = dataNode.GetOrAddComponent<NodeUncertainTransform>().To(modelNode);
-            UncertainRigidTransform modelToData = modelNode.GetOrAddComponent<NodeUncertainTransform>().To(dataNode);
+            UncertainRigidTransform dataToModel = dataNode.GetComponent<NodeUncertainTransform>().To(modelNode);
+            UncertainRigidTransform modelToData = modelNode.GetComponent<NodeUncertainTransform>().To(dataNode);
 
-            var modelCam = modelNode.GetOrAddComponent<NodeImage>().CameraModel;
-            var dataCam = dataNode.GetOrAddComponent<NodeImage>().CameraModel;
+            var modelCam = modelNode.GetComponent<NodeImage>();
+            var dataCam = dataNode.GetComponent<NodeImage>();
 
-            if (modelCam == null || dataCam == null)
+            if (modelCam == null || modelCam.CameraModel == null || dataCam == null || dataCam.CameraModel == null)
             {
                 throw new ArgumentException("KnownGeometryFilter requires camera models");
             }
 
             // if data node has a convex hull, compute it (uncertainty-inflated) in model space
-            ConvexHull dataHullInModel = dataNode.GetOrAddComponent<NodeConvexHull>().Hull;
-            if (dataHullInModel != null)
+            ConvexHull dataHullInModel = null;
+            var hullComp = dataNode.GetComponent<NodeConvexHull>();
+            if (hullComp != null && hullComp.Hull != null)
             {
-                dataHullInModel = ConvexHull.Transformed(dataHullInModel, dataToModel);
+                dataHullInModel = ConvexHull.Transformed(hullComp.Hull, dataToModel);
             }
 
             // if model node has a convex hull, compute it (uncertainty-inflated) in data space
-            ConvexHull modelHullInData = modelNode.GetOrAddComponent<NodeConvexHull>().Hull;
-            if (modelHullInData != null)
+            ConvexHull modelHullInData = null;
+            hullComp = modelNode.GetComponent<NodeConvexHull>();
+            if (hullComp != null && hullComp.Hull != null)
             {
-                modelHullInData = ConvexHull.Transformed(modelHullInData, modelToData);
+                modelHullInData = ConvexHull.Transformed(hullComp.Hull, modelToData);
             }
 
-            return Filter(modelFeatures, dataFeatures, matches, modelCam, dataCam, modelToData, dataToModel,
+            return Filter(modelFeatures, dataFeatures, matches,
+                          modelCam.CameraModel, dataCam.CameraModel, modelToData, dataToModel,
                           modelHullInData, dataHullInModel);
         }
 
@@ -119,9 +125,9 @@ namespace OPS.Alignment
                                               ConvexHull modelHullInData = null, ConvexHull dataHullInModel = null)
         {
             // Cache result of model ray -> data frustum intersection, because model rays can be repeated
-            Dictionary<int, bool> modelRayIntersects = new Dictionary<int, bool>();
-            Dictionary<int, bool> dataRayIntersects = new Dictionary<int, bool>();
-            List<KeyValuePair<int, int>> goodMatches = new List<KeyValuePair<int, int>>();
+            var modelRayIntersects = new Dictionary<int, bool>();
+            var dataRayIntersects = new Dictionary<int, bool>();
+            var goodMatches = new List<FeatureMatch>();
 
             int rejectedHull = 0;
             int rejectedSigma = 0;
@@ -131,10 +137,13 @@ namespace OPS.Alignment
             var epiFinder = new EpipolarLineFinder();
             epiFinder.ParallelProjectionDistance = ParallelProjectionDistance;
 
-            foreach (var pair in matches.DataToModel)
+            for (int i = 0; i < matches.DataToModel.Length; i++)
             {
-                var modelFeature = modelFeatures[pair.Value];
-                var dataFeature = dataFeatures[pair.Key];
+                int dataFeatureIndex = matches.DataToModel[i].Key;
+                int modelFeatureIndex = matches.DataToModel[i].Value;
+
+                var modelFeature = modelFeatures[modelFeatureIndex];
+                var dataFeature = dataFeatures[dataFeatureIndex];
 
                 var modelRay = modelCam.Unproject(modelFeature.Location);
                 var dataRay = dataCam.Unproject(dataFeature.Location);
@@ -142,13 +151,13 @@ namespace OPS.Alignment
                 // if we have a convex hull, check if model ray intersects it at all
                 if (dataHullInModel != null)
                 {
-                    if (!modelRayIntersects.ContainsKey(pair.Value))
+                    if (!modelRayIntersects.ContainsKey(modelFeatureIndex))
                     {
                         bool intersects = dataHullInModel.Intersects(modelRay);
-                        modelRayIntersects[pair.Value] = intersects;
+                        modelRayIntersects[modelFeatureIndex] = intersects;
                     }
 
-                    if (!modelRayIntersects[pair.Value])
+                    if (!modelRayIntersects[modelFeatureIndex])
                     {
                         rejectedHull++;
                         continue;
@@ -157,13 +166,13 @@ namespace OPS.Alignment
 
                 if (modelHullInData != null)
                 {
-                    if (!dataRayIntersects.ContainsKey(pair.Key))
+                    if (!dataRayIntersects.ContainsKey(dataFeatureIndex))
                     {
                         bool intersects = modelHullInData.Intersects(dataRay);
-                        dataRayIntersects[pair.Key] = intersects;
+                        dataRayIntersects[dataFeatureIndex] = intersects;
                     }
 
-                    if (!dataRayIntersects[pair.Key])
+                    if (!dataRayIntersects[dataFeatureIndex])
                     {
                         rejectedHull++;
                         continue;
@@ -260,7 +269,12 @@ namespace OPS.Alignment
                     }
                 }
 
-                goodMatches.Add(pair);
+                goodMatches.Add(new FeatureMatch()
+                                {
+                                    DataIndex = dataFeatureIndex,
+                                    ModelIndex = modelFeatureIndex,
+                                    DescriptorDistance = matches.DescriptorDistance[i]
+                                });
             }
 
             if (logger != null)

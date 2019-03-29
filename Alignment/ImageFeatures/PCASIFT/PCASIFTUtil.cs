@@ -207,21 +207,19 @@ namespace OPS.Alignment
         /// Updates the fields of given keypoints such that patches may be computed.
         /// </summary>
         /// <param name="keypoints">Input keypoints.</param>
-        public static void UpdateKeypoints(List<PCASIFTFeature> keypoints)
+        public static void UpdateKeypoints(IEnumerable<PCASIFTFeature> keypoints)
         {
             float log2 = (float)Math.Log(2);
-            for (int i = 0; i < keypoints.Count; i++)
+            foreach (var k in keypoints)
             {
-                PCASIFTFeature k = keypoints[i];
-
                 double tmp = Math.Log((double)k.GScale / PCAConstants.SIGMA) / log2 + 1.0;
                 k.Octave = (int)tmp;
                 k.FScale = (float)((tmp - k.Octave) * PCAConstants.SCALES_PER_OCTAVE);
-                k.Scale = (int)Math.Round(k.FScale);
+                k.IScale = (int)Math.Round(k.FScale);
 
-                if (k.Scale == 0 && k.Octave > 0)
+                if (k.IScale == 0 && k.Octave > 0)
                 {
-                    k.Scale = PCAConstants.SCALES_PER_OCTAVE;
+                    k.IScale = PCAConstants.SCALES_PER_OCTAVE;
                     k.Octave -= 1;
                     k.FScale += PCAConstants.SCALES_PER_OCTAVE;
                 }
