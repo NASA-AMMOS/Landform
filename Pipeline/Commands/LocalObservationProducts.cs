@@ -465,7 +465,7 @@ namespace OPS.Pipeline
                         refDstPixelY < 0 || refDstPixelY >= dstObs.Texture.Height)
                         continue;
 
-                    if (dstMask.IsInvalid((int)refDstPixelY, (int)refDstPixelX))
+                    if (dstPoints.IsInvalid((int)refDstPixelY, (int)refDstPixelX))
                         continue;
 
                     if ((int)refDstPixelX != (int)dstPixelX || (int)refDstPixelY != (int)dstPixelY)
