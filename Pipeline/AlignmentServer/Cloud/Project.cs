@@ -70,7 +70,7 @@ namespace OPS.Pipeline.AlignmentServer
                                      string rootFrameName)
         {
             Project project = new Project(name, productPath, inputPath, rootFrameName);
-            pipeline.SaveDatabaseItem(project);
+            project.Save(pipeline);
             return project;
         }
 
@@ -79,7 +79,7 @@ namespace OPS.Pipeline.AlignmentServer
         /// <returns></returns>
         public void Save(PipelineCore pipeline)
         {
-            this.IsValid();
+            IsValid();
             pipeline.SaveDatabaseItem(this);
         }
 
@@ -95,6 +95,10 @@ namespace OPS.Pipeline.AlignmentServer
             Project project = pipeline.LoadDatabaseItem<Project>(name);
             if (project != null)
             {
+                if (pipeline.LegacyCompat && string.IsNullOrEmpty(project.RootFrame))
+                {
+                    project.RootFrame = MSLProject.ROOT_FRAME_NAME; //legacy compat
+                }
                 project.IsValid();
             }
             return project;

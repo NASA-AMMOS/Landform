@@ -153,7 +153,7 @@ namespace OPS.Alignment
                     PCASIFTFeature key = keypoints[a];
                     writer.WriteLine("{0} {1} {2} {3}", string.Format("{0:0.00}", key.Location.Y), string.Format("{0:0.00}", key.Location.X),
                         string.Format("{0:0.000}", key.Size), string.Format("{0:0.000}", key.Angle));
-                    var data = ((FeatureDescriptor<float>)key.Descriptor).Data;
+                    var data = ((PCASIFTDescriptor)key.Descriptor).Data;
                     for (int j = 0; j < 36; j++)
                     {
                         if (j % 12 == 0) writer.WriteLine();

@@ -7,15 +7,14 @@ using System.Threading.Tasks;
 
 namespace OPS.Alignment
 {
-    /// <summary>
-    /// A point of interest in an image, optionally with an associated
-    /// feature descriptor.
-    /// </summary>
     public class ImageFeature
     {
-        public double Range = 0; //positive iff a feature has valid associated range
+        public double Range = 0; //positive iff feature has valid associated range
         public Vector2 Location;
         public FeatureDescriptor Descriptor;
+
+        //needed for JSON deserialization
+        public ImageFeature() { }
 
         public ImageFeature(Vector2 location, FeatureDescriptor descriptor)
         {

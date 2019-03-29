@@ -14,13 +14,16 @@ namespace OPS.Alignment
     /// </summary>
     public class EpipolarLineFinder
     {
-        public EpipolarLineFinder()
-        {
-            ParallelProjectionDistance = 100;
-            MinGuessDepth = 0.1;
-            MaxGuessDepth = 100;
-            NumDepthGuesses = 10;
-        }
+        /// <summary>
+        /// When two camera rays are parallel, try backprojecting from this distance.
+        /// </summary>
+        public double ParallelProjectionDistance = 100;
+
+        public double MinGuessDepth = 0.1;
+
+        public double MaxGuessDepth = 100;
+
+        public int NumDepthGuesses = 10;
 
         public struct Result
         {
@@ -42,18 +45,6 @@ namespace OPS.Alignment
                 return point.Dot(PerpendicularDirection) - PerpendicularDistance;
             }
         }
-
-
-        /// <summary>
-        /// When two camera rays are parallel, try backprojecting from this distance.
-        /// </summary>
-        public double ParallelProjectionDistance;
-
-        public double MinGuessDepth;
-
-        public double MaxGuessDepth;
-
-        public int NumDepthGuesses;
 
         /// <summary>
         /// Find an epipolar line in 'model' corresponding to a feature in 'data'
@@ -103,7 +94,6 @@ namespace OPS.Alignment
                 candidates.Add(guess);
             }
             
-
             for (int i = 0; i < candidates.Count; i++)
             {
                 var depth = candidates[i];

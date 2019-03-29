@@ -75,7 +75,7 @@ namespace OPS.Geometry
             if (notTouched != null)
             {
                 OnlyPositions(notTouched);
-                foreach (VertexNode v in edgeGraph.vertNodes)
+                foreach (VertexNode v in edgeGraph.VertNodes)
                 {
                     if (notTouched.Contains(v.Vert))
                     {
@@ -89,13 +89,13 @@ namespace OPS.Geometry
             List<Face>[] adjacentFaces = GetVertexFaceAdjacency(mesh);
             for (int i = 0; i < mesh.Vertices.Count; i++)
             {
-                edgeGraph.vertNodes[i].Q = GetQMatrix(i, mesh, edgeGraph.vertNodes, adjacentFaces, perimeterPenaltyFactor, weightByArea);
-                edgeGraph.vertNodes[i].AdjFaceCount = adjacentFaces[i].Count;
+                edgeGraph.VertNodes[i].Q = GetQMatrix(i, mesh, edgeGraph.VertNodes, adjacentFaces, perimeterPenaltyFactor, weightByArea);
+                edgeGraph.VertNodes[i].AdjFaceCount = adjacentFaces[i].Count;
             }
 
             // build min heap on QEM for each edge vertex pair
             FastPriorityQueue<EdgeCollapseQueueNode> heap = new FastPriorityQueue<EdgeCollapseQueueNode>(6*mesh.Faces.Count);
-            foreach (VertexNode v in edgeGraph.vertNodes)
+            foreach (VertexNode v in edgeGraph.VertNodes)
             {
                 foreach (Edge e in v.AdjacentEdges)
                 {
@@ -109,13 +109,13 @@ namespace OPS.Geometry
 
             // process edge collapses until target number of faces are left
             int numFaces = mesh.Faces.Count;
-            int nVerts = edgeGraph.vertNodes.Count;
+            int nVerts = edgeGraph.VertNodes.Count;
 
             while (numFaces > targetNumFaces && heap.Count > 0)
             {
                 if (_DEBUG)
                 {
-                    foreach (VertexNode v in edgeGraph.vertNodes)
+                    foreach (VertexNode v in edgeGraph.VertNodes)
                     {
                         if (v.IsActive)
                         {
@@ -296,7 +296,7 @@ namespace OPS.Geometry
 
                 if (_DEBUG)
                 {
-                    foreach (VertexNode v in edgeGraph.vertNodes)
+                    foreach (VertexNode v in edgeGraph.VertNodes)
                     {
                         if (v.IsActive)
                         {
@@ -312,7 +312,7 @@ namespace OPS.Geometry
                 }
 
                 //Add new vertex
-                edgeGraph.vertNodes.Add(vNew);
+                edgeGraph.VertNodes.Add(vNew);
 
                 //Remove old vertices
                 v1.IsActive = false;
@@ -329,7 +329,7 @@ namespace OPS.Geometry
 
             //Create a new mesh from list of edges
             var triangleList = new List<Triangle>();
-            foreach (VertexNode v in edgeGraph.vertNodes)
+            foreach (VertexNode v in edgeGraph.VertNodes)
             {
                 if (v.IsActive)
                 {

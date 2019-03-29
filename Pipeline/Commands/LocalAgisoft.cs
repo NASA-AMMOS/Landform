@@ -14,7 +14,6 @@ using Microsoft.Xna.Framework;
 using System.Collections.Generic;
 using OPS.Alignment;
 using OPS.Geometry;
-using OPS.Pipeline.Alignment;
 
 namespace OPS.Pipeline
 {

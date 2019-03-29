@@ -77,6 +77,10 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="ImageFeatures\FeatureDescriptor.cs" />
+    <Compile Include="ImageFeatures\FeatureDetectorBase.cs" />
+    <Compile Include="ImageFeatures\ImageFeature.cs" />
+    <Compile Include="ImageFeatures\MatchFilters\DescriptorDistanceFilter.cs" />
     <Compile Include="ImageFeatures\Matching\CascadeHashingMatcher.cs" />
     <Compile Include="Components\AdjustedNode.cs" />
     <Compile Include="EpipolarGeometry\EpipolarTransformDecomposition.cs" />
@@ -86,14 +90,10 @@
     <Compile Include="Components\BundleSceneComponents.cs" />
     <Compile Include="BundleAdjuster\Problem.cs" />
     <Compile Include="BundleAdjuster\Structures.cs" />
-    <Compile Include="ImageFeatures\Interfaces\IDescriptorCalculator.cs" />
     <Compile Include="ImageFeatures\MatchFilters\KnownGeometryFilter.cs" />
     <Compile Include="ImageFeatures\Matching\EmguSIFTMatcher.cs" />
-    <Compile Include="ImageFeatures\Matching\FeatureDescriptor.cs" />
-    <Compile Include="ImageFeatures\Matching\ImageFeature.cs" />
     <Compile Include="ImageFeatures\Matching\ImagePairCorrespondence.cs" />
     <Compile Include="ImageFeatures\Matching\KnownGeometryMatcher.cs" />
-    <Compile Include="ImageFeatures\Matching\MatchImage.cs" />
     <Compile Include="ImageFeatures\PCASIFT\PCAConstants.cs" />
     <Compile Include="ImageFeatures\SIFT\ASIFTDetector.cs" />
     <Compile Include="ImageFeatures\PCASIFT\PCASIFTDescriptor.cs" />
@@ -102,9 +102,11 @@
     <Compile Include="ImageFeatures\PCASIFT\PCASIFTIO.cs" />
     <Compile Include="ImageFeatures\PCASIFT\PCASIFTUtil.cs" />
     <Compile Include="ImageFeatures\Interfaces\IFeatureDetector.cs" />
+    <Compile Include="ImageFeatures\SIFT\BRIEFDescriptor.cs" />
+    <Compile Include="ImageFeatures\SIFT\FASTDetector.cs" />
     <Compile Include="ImageFeatures\SIFT\SIFTDescriptor.cs" />
     <Compile Include="ImageFeatures\MatchFilters\MoisanStivalFilter.cs" />
-    <Compile Include="ImageFeatures\SIFT\SIFT.cs" />
+    <Compile Include="ImageFeatures\SIFT\SIFTDetector.cs" />
     <Compile Include="ImageFeatures\SIFT\SIFTFeature.cs" />
     <Compile Include="ImageFeatures\Interfaces\IMatchFilter.cs" />
     <Compile Include="ImageFeatures\Interfaces\IFeatureMatcher.cs" />

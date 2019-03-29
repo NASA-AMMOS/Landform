@@ -1,14 +1,13 @@
 ﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
-using OPS.Pipeline.Alignment;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Microsoft.Xna.Framework;
-using OPS.Alignment;
+using OPS.Geometry;
 
-namespace AlignmentTest
+namespace GeometryTest
 {
     [TestClass()]
     public class ProcrustesTests
@@ -33,7 +32,8 @@ namespace AlignmentTest
                 movingPts[idx] = Vector3.Transform(fixedPts[idx], finalTransform);
             }
 
-            Procrustes.Calculate(movingPts, fixedPts, out double rmsResidual,
+            double rmsResidual =
+                Procrustes.Calculate(movingPts, fixedPts, 
                                      out Vector3 translation, out Quaternion rotation, out double scale,
                                      calcTranslation: false, calcRotation: false, calcScale: true);
 
@@ -62,7 +62,8 @@ namespace AlignmentTest
                 movingPts[idx] = Vector3.Transform(fixedPts[idx], finalTransform);
             }
 
-            Procrustes.Calculate(movingPts, fixedPts, out double rmsResidual,
+            double rmsResidual =
+                Procrustes.Calculate(movingPts, fixedPts,
                                      out Vector3 translation, out Quaternion rotation, out double scale,
                                      calcTranslation: false, calcRotation: true, calcScale: false);
 
@@ -92,7 +93,8 @@ namespace AlignmentTest
                 movingPts[idx] = Vector3.Transform(fixedPts[idx], finalTransform);
             }
 
-            Procrustes.Calculate(movingPts, fixedPts, out double rmsResidual,
+            double rmsResidual =
+                Procrustes.Calculate(movingPts, fixedPts,
                                      out Vector3 translation, out Quaternion rotation, out double scale,
                                      calcTranslation: true, calcRotation: false, calcScale: false);
 
@@ -128,7 +130,8 @@ namespace AlignmentTest
                 movingPts[idx] = Vector3.Transform(fixedPts[idx], finalTransform);
             }
 
-            Procrustes.Calculate(movingPts, fixedPts, out double rmsResidual,
+            double rmsResidual =
+                Procrustes.Calculate(movingPts, fixedPts,
                                      out Vector3 translation, out Quaternion rotation, out double scale,
                                      calcTranslation: true, calcRotation: true, calcScale: true);
 

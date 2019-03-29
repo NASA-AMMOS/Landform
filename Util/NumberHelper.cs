@@ -26,6 +26,20 @@ namespace OPS.Util
         {
             return Convert.ToString(value, CultureInfo.InvariantCulture);
         }
+
+        public static int? RandomSeed = null;
+
+        public static Random MakeRandomGenerator()
+        {
+            if (RandomSeed.HasValue)
+            {
+                return new Random(RandomSeed.Value);
+            }
+            else
+            {
+                return new Random();
+            }
+        }
     }
     
 }

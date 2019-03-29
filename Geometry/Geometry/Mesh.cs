@@ -29,6 +29,7 @@ namespace OPS.Geometry
         public bool HasUVs = false;
         public bool HasColors = false;
         public bool HasFaces { get { return Faces.Count > 0; } }
+        public bool HasVertices { get { return Vertices.Count > 0; } }
 
         /// <summary>
         /// Creates an empty mesh. 
@@ -560,7 +561,7 @@ namespace OPS.Geometry
                 EdgeGraph edgeGraph = new EdgeGraph(copy);
 
                 //Compute a skirt location for each perimeter vertex based on the normals of surrounding triangles. If a previous skirt vertex is "good enough" based on `threshold', it may be used instead of creating a new one
-                foreach (VertexNode vNode in edgeGraph.vertNodes)
+                foreach (VertexNode vNode in edgeGraph.VertNodes)
                 {
                     if (vNode.IsOnPerimeter)
                     {
@@ -610,7 +611,7 @@ namespace OPS.Geometry
                 }
 
                 //Add in the faces for the new skirt vertices
-                foreach (VertexNode vNode in edgeGraph.vertNodes)
+                foreach (VertexNode vNode in edgeGraph.VertNodes)
                 {
                     if (vNode.IsOnPerimeter)
                     {
@@ -889,8 +890,12 @@ namespace OPS.Geometry
         /// Vertex objects are cloned to avoid side effects in case the meshes are modifed in the future
         /// </summary>
         /// <param name="otherMeshes"></param>
-        public void MergeWith(Mesh[] otherMeshes, bool normalize)
+        public void MergeWith(Mesh[] otherMeshes, bool clean = true, bool normalize = true)
         {
+            int numNewVerts = otherMeshes.Aggregate(0, (sum, mesh) => sum + mesh.Vertices.Count);
+            int numNewFaces = otherMeshes.Aggregate(0, (sum, mesh) => sum + mesh.Faces.Count);
+            Vertices.Capacity = Math.Min(Vertices.Capacity, Vertices.Count + numNewVerts);
+            Faces.Capacity = Math.Min(Faces.Capacity, Faces.Count + numNewFaces);
             for (int i = 0; i < otherMeshes.Length; i++)
             {
                 Mesh m = otherMeshes[i];
@@ -912,13 +917,16 @@ namespace OPS.Geometry
                     this.Faces.Add(f);
                 }
             }
-            
-            Clean(normalize);
+
+            if (clean)
+            {
+                Clean(normalize);
+            }
         }
 
         public void MergeWith(params Mesh[] otherMeshes)
         {
-            MergeWith(otherMeshes, true);
+            MergeWith(otherMeshes, true, true); //specify params or this will be a self-call (infinite recursion)
         }
 
         /// <summary>
@@ -928,10 +936,15 @@ namespace OPS.Geometry
         /// </summary>
         /// <param name="meshesToCombine"></param>
         /// <returns></returns>
-        public static Mesh Merge(params Mesh[] meshesToCombine)
+        public static Mesh Merge(Mesh[] meshesToCombine, bool clean = true, bool normalize = true)
         {
             Mesh first = meshesToCombine[0];
-            return Merge(first.HasNormals, first.HasUVs, first.HasColors, meshesToCombine);
+            return Merge(first.HasNormals, first.HasUVs, first.HasColors, meshesToCombine, clean, normalize);
+        }
+
+        public static Mesh Merge(params Mesh[] meshesToCombine)
+        {
+            return Merge(meshesToCombine, true, true); //specify params or this will be a self-call (infinite recursion)
         }
 
         /// <summary>
@@ -940,12 +953,17 @@ namespace OPS.Geometry
         /// </summary>
         /// <param name="meshesToCombine"></param>
         /// <returns></returns>
-        public static Mesh MergeWithCommonAttributes(params Mesh[] meshesToCombine)
+        public static Mesh MergeWithCommonAttributes(Mesh[] meshesToCombine, bool clean = true, bool normalize = true)
         {
             bool normals = meshesToCombine.All(m => m.HasNormals);
             bool uvs = meshesToCombine.All(m => m.HasUVs);
             bool colors = meshesToCombine.All(m => m.HasColors);
-            return Merge(normals, uvs, colors, meshesToCombine);
+            return Merge(normals, uvs, colors, meshesToCombine, clean, normalize);
+        }
+
+        public static Mesh MergeWithCommonAttributes(params Mesh[] meshesToCombine)
+        {
+            return MergeWithCommonAttributes(meshesToCombine); //all params or this will be infinite recursion
         }
 
         /// <summary>
@@ -956,11 +974,17 @@ namespace OPS.Geometry
         /// <param name="hasColors"></param>
         /// <param name="meshesToCombine"></param>
         /// <returns></returns>
-        public static Mesh Merge(bool hasNormals, bool hasUvs, bool hasColors, params Mesh[] meshesToCombine)
+        public static Mesh Merge(bool hasNormals, bool hasUvs, bool hasColors, Mesh[] meshesToCombine,
+                                 bool clean = true, bool normalize = true)
         {
             Mesh result = new Mesh(hasNormals, hasUvs, hasColors);
-            result.MergeWith(meshesToCombine);
+            result.MergeWith(meshesToCombine, clean, normalize);
             return result;
+        }
+
+        public static Mesh Merge(bool hasNormals, bool hasUvs, bool hasColors, params Mesh[] meshesToCombine)
+        {
+            return Merge(hasNormals, hasUvs, hasColors, meshesToCombine, true, true); //all params or infinite recursion
         }
 
         /// <summary>

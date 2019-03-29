@@ -50,5 +50,27 @@ namespace OPS.Util
         {
             return Prompt(prompt, fixedValue, StringHelper.ParseIntSafe(defaultValue));
         }
+
+        public static bool Prompt(string prompt, bool? fixedValue, bool? defaultValue)
+        {
+            string fv = fixedValue.HasValue ? fixedValue.ToString() : null;
+            string dv = defaultValue.HasValue ? defaultValue.ToString() : null;
+            bool? ret = null;
+            while (!ret.HasValue)
+            {
+                ret = StringHelper.ParseBoolSafe(Prompt(prompt, fv, dv));
+            }
+            return ret.Value;
+        }
+
+        public static bool Prompt(string prompt, string fixedValue, bool? defaultValue)
+        {
+            return Prompt(prompt, StringHelper.ParseBoolSafe(fixedValue), defaultValue);
+        }
+
+        public static bool Prompt(string prompt, bool? fixedValue, string defaultValue)
+        {
+            return Prompt(prompt, fixedValue, StringHelper.ParseBoolSafe(defaultValue));
+        }
     }
 }

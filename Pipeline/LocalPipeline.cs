@@ -24,6 +24,13 @@ namespace OPS.Pipeline
                    LocalPipelineConfig.Instance.Venue, logger, lruCache, quietInit,
                    options.SingleThreaded ? 1 : maxCores ?? LocalPipelineConfig.Instance.MaxCores)
         {
+            var localConfig = (LocalPipelineConfig)Config;
+
+            if (localConfig.RandomSeed >= 0)
+            {
+                NumberHelper.RandomSeed = localConfig.RandomSeed;
+            }
+
             if (initTables)
             {
                 InitializeDatabase(quiet || quietInit);
@@ -478,10 +485,15 @@ namespace OPS.Pipeline
             }
         }
 
-        public override IEnumerable<T> ScanDatabase<T>(Dictionary<string, string> conditions = null,
-                                                       string indexName = null, bool quiet = false)
+        public override IEnumerable<T> ScanDatabase<T>(Dictionary<string, string> conditions,
+                                                       string indexName = null, bool quiet = false,
+                                                       string tableName = null)
         {
             var ti = GetTableInfo(typeof(T));
+            if (!string.IsNullOrEmpty(tableName) && tableName != ti.Name)
+            {
+                throw new NotImplementedException("LocalPipeline.ScanDatabase() table name must match type annotation");
+            }
             Regex hashRegex = new Regex(".*");
             Regex rangeRegex = new Regex(".*");
             List<Regex> fieldRegex = new List<Regex>();

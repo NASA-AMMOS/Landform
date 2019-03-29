@@ -2,9 +2,9 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
-using OPS.Imaging;
-using OPS.MathExtensions;
 using System.IO;
+using Microsoft.Xna.Framework;
+using OPS.MathExtensions;
 
 namespace OPS.Imaging
 {
@@ -86,7 +86,7 @@ namespace OPS.Imaging
         /// Saves image to disk using gdal and convert from normalzied values to value range
         /// </summary>
         /// <param name="filename"></param>
-        public void Save<T>(string filename)
+        public Image Save<T>(string filename)
         {
             string ext = Path.GetExtension(filename);
             ImageSerializer s = ImageSerializers.Instance.GetSerializer(ext);
@@ -95,6 +95,7 @@ namespace OPS.Imaging
                 throw new ImageSerializationException("Image format not supported");
             }
             s.Write<T>(filename, this);
+            return this;
         }
 
         /// <summary>
@@ -103,7 +104,7 @@ namespace OPS.Imaging
         /// <param name="filename"></param>
         /// <param name="serializer"></param>
         /// <param name="converter"></param>
-        public void Save<T>(string filename, IImageConverter converter)
+        public Image Save<T>(string filename, IImageConverter converter)
         {
             string ext = Path.GetExtension(filename);
             ImageSerializer s = ImageSerializers.Instance.GetSerializer(ext);
@@ -112,6 +113,7 @@ namespace OPS.Imaging
                 throw new ImageSerializationException("Image format not supported");
             }
             s.Write<T>(filename, this, converter);
+            return this;
         }
 
         /// <summary>
@@ -120,15 +122,16 @@ namespace OPS.Imaging
         /// <param name="filename"></param>
         /// <param name="serializer"></param>
         /// <param name="converter"></param>
-        public void Save<T>(string filename, ImageSerializer serializer, IImageConverter converter)
+        public Image Save<T>(string filename, ImageSerializer serializer, IImageConverter converter)
         {
             serializer.Write<T>(filename, this, converter);
+            return this;
         }
 
         /// <summary>
-        /// Reflects an image vertically
+        /// Reflects an image vertically in place
         /// </summary>
-        public void FlipVertical()
+        public Image FlipVertical()
         {
             int swapRow = this.Height - 1;
             for (int r = 0; r < swapRow; r++, swapRow--)
@@ -143,17 +146,18 @@ namespace OPS.Imaging
                     }
                 }
             }
+            return this;
         }
 
         /// <summary>
-        /// Linearly scale values in this band
+        /// Linearly scale values in a band in place
         /// </summary>
         /// <param name="band">band to scale</param>
         /// <param name="beforeMin">any pixles currently at this value will be mapped to afterMin</param>
         /// <param name="beforeMax">any pixels currently at this value will be mapped to afterMax</param>
         /// <param name="afterMin">the new min value for this band</param>
         /// <param name="afterMax">the new max value for this band</param>
-        public void ScaleValues(int band, float beforeMin, float beforeMax, float afterMin, float afterMax)
+        public Image ScaleValues(int band, float beforeMin, float beforeMax, float afterMin, float afterMax)
         {
             if (beforeMax == beforeMin)
             {
@@ -167,10 +171,11 @@ namespace OPS.Imaging
                 float result = MathE.Clamp(afterMin + afterRange * amount, afterMin, afterMax);
                 return result;
             });
+            return this;
         }
 
         /// <summary>
-        /// Linearly scales values in the image from [beforeMin, beforeMax] to [afterMin, afterMax]
+        /// Linearly scales values in the image from [beforeMin, beforeMax] to [afterMin, afterMax] in place
         /// Scaling is applied uniformly to all bands of the image.
         /// Result values are clamped to afterMin and afterMax in the case that input values are outside
         /// beforeMin and beforeMax
@@ -182,23 +187,25 @@ namespace OPS.Imaging
         /// <param name="beforeMax">max value in original image</param>
         /// <param name="afterMin">min value in result image</param>
         /// <param name="afterMax">max value in result image</param>
-        public void ScaleValues(float beforeMin, float beforeMax, float afterMin, float afterMax)
+        public Image ScaleValues(float beforeMin, float beforeMax, float afterMin, float afterMax)
         {
             for (int b = 0; b < this.Bands; b++)
             {
                 ScaleValues(b, beforeMin, beforeMax, afterMin, afterMax);
             }
+            return this;
         }
 
         /// <summary>
-        /// Given an image with a mask, extend the image and the mask by border pixels
+        /// Given an image with a mask, extend the image and the mask by border pixels in place
         /// If border is negative (the default) continue inpainting until there are no
         /// masked pixels left.  Inpainted pixels are an average of their non-masked neighbors
         /// </summary>
         /// <param name="border"></param>
-        public void Inpaint(int border = -1)
+        public Image Inpaint(int border = -1)
         {
             Inpainter.Apply(this, border);
+            return this;
         }
 
         /// <summary>
@@ -211,13 +218,13 @@ namespace OPS.Imaging
         }
 
         /// <summary>
-        /// Stretch the color channles of an image based the standard deviation of its values
+        /// Stretch the color channles of an image based the standard deviation of its values in place
         /// The resulting image will have its values normalzied between 0 and 1
         /// NOTE that bands with no variance (ie all the same value) will not be scaled and could be outside the 0-1 range
         /// NOTE masked values are also not scaled and could remain outside the 0-1 range
         /// </summary>
         /// <param name="nStdev">Number of standard deviations from the mean to place the upper and lower values of the stretch</param>
-        public void ApplyStdDevStretch(double nStdev = 3)
+        public Image ApplyStdDevStretch(double nStdev = 3)
         {
             ImageStatistics stats = new ImageStatistics(this);
             for (int b = 0; b < this.Bands; b++)
@@ -238,6 +245,32 @@ namespace OPS.Imaging
                     ScaleValues(b, (float)min, (float)max, 0, 1);
                 }
             }
+            return this;
+        }
+
+        /// <summary>
+        /// Normalize the color channels of this image to 0-1
+        /// NOTE that bands with no variance (ie all the same value) will not be scaled and could be outside the 0-1 range
+        /// NOTE masked values are also not scaled and could remain outside the 0-1 range
+        /// </summary>
+        public Image Normalize()
+        {
+            ImageStatistics stats = new ImageStatistics(this);
+            for (int b = 0; b < this.Bands; b++)
+            {
+                if (stats.Average(b).Count <= 1)
+                {
+                    continue;
+                }
+                double min = stats.Average(b).Min;
+                double max = stats.Average(b).Max;
+                // Scaling values is invalid if min and max are the same
+                if (min != max)
+                {
+                    ScaleValues(b, (float)min, (float)max, 0, 1);
+                }
+            }
+            return this;
         }
 
         /// <summary>
@@ -269,12 +302,264 @@ namespace OPS.Imaging
         }
 
         /// <summary>
-        /// Simulate a guassian blur with a series of box blurs
+        /// Crop this image to the smallest subframe that contains all valid pixels.
+        /// Returns a new image of the cropped area.
+        /// If there is no mask the return will just be a copy of this image.
+        /// If there are no valid pixels the return will be a zero-size image.
+        /// This method does not retain metadata or camera model.
+        /// </summary>
+        public Image Trim(out Vector2 upperLeftCorner)
+        {
+            int minValidRow = int.MaxValue;
+            int maxValidRow = 0;
+            int minValidCol = int.MaxValue;
+            int maxValidCol = 0;
+            foreach (ImageCoordinate ic in Coordinates(includeInvalidValues: false))
+            {
+                minValidRow = Math.Min(minValidRow, ic.Row);
+                maxValidRow = Math.Max(maxValidRow, ic.Row);
+                minValidCol = Math.Min(minValidCol, ic.Col);
+                maxValidCol = Math.Max(maxValidCol, ic.Col);
+            }
+            upperLeftCorner.X = minValidCol;
+            upperLeftCorner.Y = minValidRow;
+            if (maxValidRow >= minValidRow && maxValidCol >= minValidCol)
+            {
+                return Crop(minValidRow, minValidCol, maxValidCol - minValidCol + 1, maxValidRow - minValidRow + 1);
+            }
+            else
+            {
+                var ret = new Image(Bands, 0, 0);
+                if (HasMask)
+                {
+                    ret.CreateMask();
+                }
+                return ret;
+            }
+        }
+
+        public Image Trim()
+        {
+            return Trim(out Vector2 upperLeftCorner);
+        }
+
+        public delegate void InvalidBlock(int blockRow, int blockCol, double validRatio);
+
+        /// <summary>
+        /// Count the number of valid (i.e. un-masked) pixels in each blocksize x blocksize chunk of this image.
+        /// For each chunk where the ratio of the number of valid pixels to total in block is less than minValidRatio,
+        /// invalidate (i.e. mask) all pixels in the block.
+        /// Operates on the image in-place.
+        /// If callback is provided then it is called for each invalid block instead of actually invalidating the block.
+        /// </summary>
+        public Image InvalidateSparseBlocks(int blocksize, double minValidRatio, InvalidBlock callback = null)
+        {
+            if (HasMask)
+            {
+                int hBlocks = (int)Math.Ceiling(((double)Width) / blocksize);
+                int vBlocks = (int)Math.Ceiling(((double)Height) / blocksize);
+                for (int vBlock = 0; vBlock < vBlocks; vBlock++)
+                {
+                    int maxR = Math.Min(Height, (vBlock + 1) * blocksize);
+                    for (int hBlock = 0; hBlock < hBlocks; hBlock++)
+                    {
+                        int maxC = Math.Min(Width, (hBlock + 1) * blocksize);
+                        int numValid = 0, numTotal = 0;
+                        for (int r = vBlock * blocksize; r < maxR; r++)
+                        {
+                            for (int c = hBlock * blocksize; c < maxC; c++)
+                            {
+                                numTotal++;
+                                if (IsValid(r, c))
+                                {
+                                    numValid++;
+                                }
+                            }
+                        }
+
+                        if (numTotal > 0)
+                        {
+                            double ratio = ((double)numValid) / numTotal;
+                            if (ratio < minValidRatio)
+                            {
+                                if (callback != null)
+                                {
+                                    callback(vBlock, hBlock, ratio);
+                                }
+                                else
+                                {
+                                    for (int r = vBlock * blocksize; r < maxR; r++)
+                                    {
+                                        for (int c = hBlock * blocksize; c < maxC; c++)
+                                        {
+                                            SetMaskValue(r, c, true);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    } //for each block in row
+                } //for each row of blocks
+            } //has mask
+            return this;
+        }
+
+        /// <summary>
+        /// invalidate sparse blocks that are not fully surrounded by valid blocks
+        /// </summary>
+        public Image InvalidateSparseExternalBlocks(int blocksize, double minValidRatio)
+        {
+            if (!HasMask)
+            {
+                return this;
+            }
+
+            int hBlocks = (int)Math.Ceiling(((double)Width) / blocksize);
+            int vBlocks = (int)Math.Ceiling(((double)Height) / blocksize);
+
+            //marked[row, col] = false means block is not invalid or has already been invalidated
+            var marked = new bool[vBlocks, hBlocks];
+            var seeds = new Queue<Pixel>(); //invalid border blocks
+
+            //mark all invalid blocks and collect seeds
+            InvalidateSparseBlocks(blocksize, minValidRatio,
+                                   (row, col, ratio) => {
+                                       marked[row, col] = true;
+                                       if (row == 0 || row == vBlocks - 1 || col == 0 || col == hBlocks - 1)
+                                       {
+                                           seeds.Enqueue(new Pixel(row, col));
+                                       }
+                                   });
+
+            var offsets = new Pixel[] { new Pixel(-1, 0), new Pixel(1, 0), new Pixel(0, -1), new Pixel(0, 1) };
+
+            //DFS from each seed to invalidate blocks reachable from an invalid block on the image border
+            while (seeds.Count > 0)
+            {
+                var seed = seeds.Dequeue();
+                if (marked[seed.Row, seed.Col])
+                {
+                    marked[seed.Row, seed.Col] = false;
+                    int maxR = Math.Min(Height, (seed.Row + 1) * blocksize);
+                    int maxC = Math.Min(Width, (seed.Col + 1) * blocksize);
+                    for (int r = seed.Row * blocksize; r < maxR; r++)
+                    {
+                        for (int c = seed.Col * blocksize; c < maxC; c++)
+                        {
+                            SetMaskValue(r, c, true);
+                        }
+                    }
+                    foreach (var offset in offsets)
+                    {
+                        var n = seed + offset;
+                        if (n.Row >= 0 && n.Row < vBlocks && n.Col >= 0 && n.Col < hBlocks && marked[n.Row, n.Col])
+                        {
+                            seeds.Enqueue(n);
+                        }
+                    }
+                }
+            }
+
+            return this;
+        }
+
+        /// <summary>
+        /// invalidate all but the largest blob of valid (i.e. un-masked) pixels
+        /// operates on the image in-place
+        /// </summary>
+        public Image RemoveAllButLargestValidBlob(out int largestBlobSize)
+        {
+            if (!HasMask)
+            {
+                largestBlobSize = Width * Height;
+                return this;
+            }
+
+            var marked = new bool[Height, Width];
+
+            var seeds = new Queue<Pixel>();
+            var offsets = new Pixel[] { new Pixel(-1, 0), new Pixel(1, 0), new Pixel(0, -1), new Pixel(0, 1) };
+            int markBlob(Pixel seed)
+            {
+                int size = 0;
+                seeds.Enqueue(seed);
+                while (seeds.Count > 0)
+                {
+                    var px = seeds.Dequeue();
+                    if (!marked[px.Row, px.Col])
+                    {
+                        size++;
+                        marked[px.Row, px.Col] = true;
+                        foreach (var offset in offsets)
+                        {
+                            var n = px + offset;
+                            if (n.Row >= 0 && n.Row < Height && n.Col >= 0 && n.Col < Width && !marked[n.Row, n.Col] &&
+                                IsValid(n.Row, n.Col))
+                            {
+                                seeds.Enqueue(n);
+                            }
+                        }
+                    }
+                }
+                return size;
+            }
+
+            largestBlobSize = 0;
+            Pixel seedOfLargestBlob = new Pixel();
+            for (int row = 0; row < Height; row++)
+            {
+                for (int col = 0; col < Width; col++)
+                {
+                    if (IsValid(row, col) && !marked[row, col])
+                    {
+                        var seed = new Pixel(row, col);
+                        int size = markBlob(seed);
+                        if (size > largestBlobSize)
+                        {
+                            largestBlobSize = size;
+                            seedOfLargestBlob = seed;
+                        }
+                    }
+                }
+            }
+
+            if (largestBlobSize > 0)
+            {
+                for (int row = 0; row < Height; row++)
+                {
+                    for (int col = 0; col < Width; col++)
+                    {
+                        marked[row, col] = false;
+                    }
+                }
+                markBlob(seedOfLargestBlob);
+                for (int row = 0; row < Height; row++)
+                {
+                    for (int col = 0; col < Width; col++)
+                    {
+                        if (!marked[row, col])
+                        {
+                            SetMaskValue(row, col, true);
+                        }
+                    }
+                }
+            }
+            return this;
+        }
+
+        public Image RemoveAllButLargestValidBlob()
+        {
+            return RemoveAllButLargestValidBlob(out int largestBlobSize);
+        }
+
+        /// <summary>
+        /// Simulate a Gaussian blur with a series of box blurs in place
         /// </summary>
         /// <param name="r"></param>
-        public void GuassianBoxBlur(int r)
+        public Image GaussianBoxBlur(int r)
         {
-            Blur.GuassianBoxBlur(this, r);
+            Blur.GaussianBoxBlur(this, r);
+            return this;
         }
 
         public float BilinearSample(int band, float row, float col)
@@ -672,6 +957,7 @@ namespace OPS.Imaging
         /// respects image mask, if any
         /// resulting image will have mask set for any source block that had no valid pixels
         /// does not mutate source image
+        /// This method does not retain metadata or camera model.
         /// </summary>
         public Image Decimated(int blocksize)
         {
@@ -723,6 +1009,96 @@ namespace OPS.Imaging
                 }
             }
             return result;
+        }
+
+        /// <summary>
+        /// blit another image or a subframe thereof onto this image in place  
+        /// </summary>
+        public Image Blit(Image other, int dstX, int dstY, int srcX = 0, int srcY = 0,
+                          int srcWidth = -1, int srcHeight = -1)
+        {
+            if (other.Bands != Bands)
+            {
+                throw new ArgumentException("cannot blit images with different numbers of bands");
+            }
+            int nr = srcHeight >= 0 ? srcHeight : other.Height;
+            int nc = srcWidth >= 0 ? srcWidth : other.Width;
+            if (srcX < 0 || srcY < 0 || srcX + nc > other.Width || srcY + nr > other.Height)
+            {
+                throw new ArgumentException("source region out of bounds");
+            }
+            if (dstX < 0 || dstY < 0 || dstX + nc > Width || dstY + nr > Height)
+            {
+                throw new ArgumentException("target region out of bounds");
+            }
+            for (int band = 0; band < Bands; band++)
+            {
+                for (int r = 0; r < nr; r++)
+                {
+                    for (int c = 0; c < nc; c++)
+                    {
+                        this[band, dstY + r, dstX + c] = other[band, srcY + r, srcX + c];
+                    }
+                }
+            }
+            return this;
+        }
+
+        public Image MaskToImage(float valid = 0, float invalid = 1)
+        {
+            var ret = new Image(1, Width, Height);
+            for (int row = 0; row < Height; row++)
+            {
+                for (int col = 0; col < Width; col++)
+                {
+                    ret[0, row, col] = IsValid(row, col) ? valid : invalid;
+                }
+            }
+            return ret;
+        }
+
+        /// <summary>
+        /// flood fill mask from each invalid pixel on the border of this mask
+        /// </summary>
+        public Image AddOuterRegionsToMask(Image mask, float invalid = 1)
+        {
+            if (!HasMask)
+            {
+                return mask;
+            }
+            void floodFill(int row, int col)
+            {
+                if (IsValid(row, col) || mask[0, row, col] == invalid) return;
+                mask[0, row, col] = invalid;
+                var queue = new Queue<Pixel>();
+                queue.Enqueue(new Pixel(row, col));
+                var offsets = new Pixel[] { new Pixel(-1, 0), new Pixel(1, 0), new Pixel(0, -1), new Pixel(0, 1) };
+                while (queue.Count > 0)
+                {
+                    var px = queue.Dequeue();
+                    foreach (var offset in offsets)
+                    {
+                        var tgt = px + offset;
+                        if (tgt.Row >= 0 && tgt.Row < Height && tgt.Col >= 0 && tgt.Col < Width &&
+                            IsInvalid(tgt.Row, tgt.Col) && mask[0, tgt.Row, tgt.Col] != invalid)
+                        {
+                            mask[0, tgt.Row, tgt.Col] = invalid;
+                            queue.Enqueue(tgt);
+                        }
+                    }
+                }
+            }
+            for (int row = 0; row < Height; row++)
+            {
+                floodFill(row, 0);
+                floodFill(row, Width - 1);
+            }
+            for (int col = 0; col < Width; col++)
+            {
+                floodFill(0, col);
+                floodFill(Height - 1, col);
+            }
+            return mask;
         }
     }
 }

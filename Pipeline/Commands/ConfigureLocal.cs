@@ -19,6 +19,9 @@ namespace OPS.Pipeline
 
         [Option(Default = null, HelpText = "0 or unset to use all available cores, N to use up to N, -M to reserve M")]
         public string MaxCores { get; set; }
+
+        [Option(Default = -1, HelpText = "negative to use a time-dependent random seed")]
+        public int RandomSeed { get; set; }
     }
 
     public class ConfigureLocal
@@ -42,9 +45,10 @@ namespace OPS.Pipeline
 
             config.Venue = ConsoleHelper.Prompt("venue", options.Venue, config.Venue);
             config.StorageDir = ConsoleHelper.Prompt("storage directory", options.StorageDir, config.StorageDir);
-
             config.MaxCores = ConsoleHelper.Prompt("max cores, 0 = all available, N = up to N, -M = reserve M",
                                                    options.MaxCores, config.MaxCores);
+            config.RandomSeed = ConsoleHelper.Prompt("negative to use a time dependent random seed",
+                                                     options.RandomSeed, config.RandomSeed);
 
             config.Validate();
 

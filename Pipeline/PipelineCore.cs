@@ -69,6 +69,8 @@ namespace OPS.Pipeline
         public readonly string StorageUrl;
         public readonly string StorageUrlWithVenue;
 
+        public virtual bool LegacyCompat { get { return false; } }
+
         protected bool quiet, verbose, debug;
 
         private LRUCache<string, Image> imageCache; //indexed by URL
@@ -359,8 +361,12 @@ namespace OPS.Pipeline
 
         public abstract void DeleteDatabaseItem<T>(T obj, bool ignoreErrors = false, bool quiet = false);
 
-        public abstract IEnumerable<T> ScanDatabase<T>(Dictionary<string, string> conditions = null,
-                                                       string indexName = null, bool quiet = false);
+        /// <summary>
+        /// table name is usually inferred from an annotation on type T  
+        /// </summary>
+        public abstract IEnumerable<T> ScanDatabase<T>(Dictionary<string, string> conditions,
+                                                       string indexName = null, bool quiet = false,
+                                                       string tableName = null);
 
         public IEnumerable<T> ScanDatabase<T>(params string[] conditions)
         {

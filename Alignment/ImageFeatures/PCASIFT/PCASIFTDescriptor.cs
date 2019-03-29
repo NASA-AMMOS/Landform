@@ -12,18 +12,18 @@ namespace OPS.Alignment
             }
         }
 
+        public override double GetElement(int index)
+        {
+            return Data[index];
+        }
+
         public PCASIFTDescriptor(float[] data)
         {
             if (data.Length != Length)
             {
-                throw new ArgumentException("Descriptor must have length " + Length.ToString());
+                throw new ArgumentException("PCASIFT escriptor must have length " + Length);
             }
             this.Data = data;
-        }
-
-        public float[] GetData()
-        {
-            return (float[])Data.Clone();
         }
     }
 }

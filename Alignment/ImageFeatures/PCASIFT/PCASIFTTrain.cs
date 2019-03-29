@@ -258,12 +258,12 @@ namespace OPS.Alignment
                 PCASIFTFeature key = keypoints[i];
 
                 Debug.Assert(key.Octave >= 0 && key.Octave < octaves.Count);
-                Debug.Assert(key.Scale >= 0 && key.Scale < octaves[key.Octave].Count);
+                Debug.Assert(key.IScale >= 0 && key.IScale < octaves[key.Octave].Count);
 
                 int iradius, patchsize;
                 double sine, cosine, sizeratio;
                 float scale = PCAConstants.SIGMA * (float)Math.Pow(2.0, key.FScale / PCAConstants.SCALES_PER_OCTAVE);
-                Emgu.CV.Image<Gray, float> blur = octaves[key.Octave][key.Scale];
+                Emgu.CV.Image<Gray, float> blur = octaves[key.Octave][key.IScale];
 
                 // Sampling window size
                 patchsize = (int)(PCAConstants.PATCH_MAG * scale);
