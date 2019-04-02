@@ -21,8 +21,6 @@ using OPS.Pipeline.AlignmentServer;
 
 namespace OPS.Pipeline
 {
-    public enum ColorMode { Texture, Tilt, Elevation };
-
     public enum SiteDrivePriority { NewestFirst, OldestFirst, BiggestFirst, SmallestFirst };
     
     public enum AlignmentMode { PairwiseMinimal, PairwiseMaximal, Simultaneous, None };
@@ -63,8 +61,8 @@ namespace OPS.Pipeline
         [Option(HelpText = "Birds eye view blend mode (Over, Average, Max, Min)", Default = Meshing.BlendMode.Max)]
         public Meshing.BlendMode BEVBlending { get; set; }
 
-        [Option(HelpText = "Birds eye view coloring (Texture, Tilt, Elevation}", Default = ColorMode.Tilt)]
-        public ColorMode BEVColoring { get; set; }
+        [Option(HelpText = "Birds eye view coloring (Texture, Tilt, Elevation}", Default = BirdsEyeViewing.ColorMode.Tilt)]
+        public BirdsEyeViewing.ColorMode BEVColoring { get; set; }
 
         [Option(HelpText = "Birds eye view sparse invalidation blocksize, relative to largest image dimension if < 1, disabled if 0", Default = 0.005)]
         public double BEVSparseBlocksize { get; set; }
@@ -164,6 +162,7 @@ namespace OPS.Pipeline
     {
         private LocalBEVAlignerOptions options;
         private PipelineCore pipeline;
+        private Project project;
 
         private string outputPath;
         private string imageExt;
@@ -277,7 +276,7 @@ namespace OPS.Pipeline
 
         public int Run()
         {
-            var project = Project.Find(pipeline, options.ProjectName);
+            project = Project.Find(pipeline, options.ProjectName);
 
             if (project == null)
             {
@@ -315,8 +314,8 @@ namespace OPS.Pipeline
 
             bool allowMastcam = false;
             bool requirePoints = true;
-            bool requireNormals = options.BEVColoring == ColorMode.Tilt;
-            bool requireTextures = options.BEVColoring == ColorMode.Texture;
+            bool requireNormals = options.BEVColoring == BirdsEyeViewing.ColorMode.Tilt;
+            bool requireTextures = options.BEVColoring == BirdsEyeViewing.ColorMode.Texture;
             observations = Meshing.CollectMeshObservations(frameCache, observationCache,
                                                            allowMastcam, requirePoints, requireNormals, requireTextures,
                                                            options.OnlyForSiteDrives, options.OnlyForCameras);
@@ -329,7 +328,7 @@ namespace OPS.Pipeline
             pipeline.LogInfo("computing birds eye view alignment for {0} observations, {1} site drives",
                              siteDrives.Length, observations.Count());
 
-            RenderBEVs(); //observations -> bevs, dems
+            LoadOrRenderBEVs(); //observations -> bevs, dems
 
             DetectFeatures(); //bevs -> features
 
@@ -379,7 +378,7 @@ namespace OPS.Pipeline
                                                            decimate: options.DecimateWedgeMeshes);
 
                     Image img = null;
-                    if (options.BEVColoring == ColorMode.Texture && obs.Texture != null)
+                    if (options.BEVColoring == BirdsEyeViewing.ColorMode.Texture && obs.Texture != null)
                     {
                         img = pipeline.LoadImage(obs.Texture.Url);
                         if (options.DecimateWedgeImages > 1)
@@ -403,15 +402,39 @@ namespace OPS.Pipeline
         /// <summary>
         /// populates bevs, dems, and bevOrigins from observations
         /// </summary>
-        private void RenderBEVs()
+        private void LoadOrRenderBEVs()
         {
-            if (!options.RedoBEVs && LoadCachedBEVs())
+            if (options.RedoBEVs || !LoadBEVs())
             {
-                return;
+                BuildWedgeMeshes();
+                RenderBEVs();
+                SaveBEVs();
             }
 
-            BuildWedgeMeshes();
+            PostProcessBEVs(out double min, out double max);
 
+            if (options.WriteDebug)
+            {
+                foreach (var pair in bevs)
+                {
+                    var siteDrive = pair.Key;
+                    var bev = pair.Value;
+                    if (!options.StretchContrast && options.BEVColoring == BirdsEyeViewing.ColorMode.Elevation)
+                    {
+                        bev = new Image(bev);
+                        bev.ScaleValues((float)min, (float)max, 0, 1);
+                    }
+                    PathHelper.EnsureExists(outputPath);
+                    bev.Save<byte>(outputPath + siteDrive + "_BirdsEyeView" + imageExt);
+                }
+            }
+        }
+
+        /// <summary>
+        /// render any BEV and DEM images that were not loaded from database
+        /// </summary>
+        private void RenderBEVs()
+        {
             double startSec = UTCTime.Now();
             pipeline.LogInfo("rendering {0} birds eye views...", siteDrives.Length);
 
@@ -440,200 +463,155 @@ namespace OPS.Pipeline
                                          np, nc, siteDrives.Length);
                     }
 
-                    //ensure inpurs are in a canonical order particularly for BEVBlending = Over
-                    var inputs = mergeInputs[siteDrive]
-                        .OrderBy(inp => inp.Item1) //order by observation name
-                        .Distinct() //ConcurrentBag is not necessarily a set
-                        .Select(inp => new Tuple<Mesh, Image>(inp.Item2, inp.Item3))
-                        .ToArray();
-
                     Mesh mesh = null;
                     Image img = null;
-                    if (options.BEVColoring == ColorMode.Texture)
+                    if (bevs[siteDrive] == null || dems[siteDrive] == null)
                     {
-                        var pair = Meshing.MergeMeshesAndTextures(inputs);
-                        mesh = pair.Item1;
-                        img = pair.Item2;
-                    }
-                    else
-                    {
-                        mesh = Mesh.Merge(inputs.Select(pr => pr.Item1).ToArray());
+                        //ensure inpurs are in a canonical order particularly for BEVBlending = Over
+                        var inputs = mergeInputs[siteDrive]
+                            .OrderBy(inp => inp.Item1) //order by observation name
+                            .Distinct() //ConcurrentBag is not necessarily a set
+                            .Select(inp => new Tuple<Mesh, Image>(inp.Item2, inp.Item3))
+                            .ToArray();
+                        
+                        if (options.BEVColoring == BirdsEyeViewing.ColorMode.Texture)
+                        {
+                            var pair = Meshing.MergeMeshesAndTextures(inputs);
+                            mesh = pair.Item1;
+                            img = pair.Item2;
+                        }
+                        else
+                        {
+                            mesh = Mesh.Merge(inputs.Select(pr => pr.Item1).ToArray());
+                        }
+                        
+                        switch (options.BEVColoring)
+                        {
+                            case BirdsEyeViewing.ColorMode.Texture: break;
+                            case BirdsEyeViewing.ColorMode.Tilt:
+                                {
+                                    Meshing.ColorMeshByNormals(mesh, Meshing.TiltMode.InvAcos);
+                                    break;
+                                }
+                            case BirdsEyeViewing.ColorMode.Elevation:
+                                {
+                                    Meshing.ColorMeshByElevation(mesh, absolute: true);
+                                    break;
+                                }
+                        }
+                    
+                        if (options.WriteDebug)
+                        {
+                            string imageFilename = null;
+                            if (img != null)
+                            {
+                                imageFilename = siteDrive + imageExt;
+                                PathHelper.EnsureExists(outputPath);
+                                img.Save<byte>(outputPath + imageFilename);
+                            }
+                            PathHelper.EnsureExists(outputPath);
+                            mesh.Save(outputPath + siteDrive + meshExt, imageFilename);
+                        }
                     }
 
-                    switch (options.BEVColoring)
+                    if (bevs[siteDrive] == null)
                     {
-                        case ColorMode.Texture: break;
-                        case ColorMode.Tilt:
+                        var bev = Meshing.RenderBirdsEyeView(mesh, img, out Vector2 origin, bevOptions);
+                        
+                        pipeline.LogVerbose("birds eye view for site drive {0}: {1}x{2}, origin ({3}, {4}), " +
+                                            "{5} meters/pixel ({6} with decimation), sparse block size {7}, " +
+                                            "valid block ratio {8}, inpaint {9}, smoothing {10}, decimation {11}",
+                                            siteDrive, bev.Width, bev.Height, (int)origin.X, (int)origin.Y,
+                                            options.BEVMetersPerPixel, 1 / PixelsPerMeter, options.BEVSparseBlocksize,
+                                            options.BEVMinValidBlockRatio, options.BEVInpaint, options.BEVSmoothing,
+                                            options.BEVDecimation);
+                        
+                        bevs[siteDrive] = bev;
+                        bevOrigins[siteDrive] = origin;
+                    }
+
+                    if (dems[siteDrive] == null)
+                    {
+                        var bev = bevs[siteDrive];
+                        var origin = bevOrigins[siteDrive];
+
+                        if (options.BEVColoring == BirdsEyeViewing.ColorMode.Elevation &&
+                            options.BEVBlending == Meshing.BlendMode.Average)
                         {
-                            Meshing.ColorMeshByNormals(mesh, Meshing.TiltMode.InvAcos);
-                            break;
+                            dems[siteDrive] = new Image(bev); //deep copy - BEV may later be post-processed
                         }
-                        case ColorMode.Elevation:
+                        else
                         {
                             Meshing.ColorMeshByElevation(mesh, absolute: true);
-                            break;
+                            var dem = Meshing.RenderBirdsEyeView(mesh, null, out Vector2 demOrigin, demOptions);
+                            if (dem.Width != bev.Width || dem.Height != bev.Height)
+                            {
+                                throw new Exception(string.Format("DEM dimensions {0}x{1} don't match BEV {2}x{3}",
+                                                                  dem.Width, dem.Height, bev.Width, bev.Height));
+                            }
+                            if (demOrigin != origin)
+                            {
+                                throw new Exception(string.Format("DEM origin {0} doesn't match BEV {1}",
+                                                                  demOrigin, origin));
+                            }
+                            dems[siteDrive] = dem;
                         }
-                    }
-                    
-                    if (options.WriteDebug)
-                    {
-                        string imageFilename = null;
-                        if (img != null)
-                        {
-                            imageFilename = siteDrive + imageExt;
-                            PathHelper.EnsureExists(outputPath);
-                            img.Save<byte>(outputPath + imageFilename);
-                        }
-                        PathHelper.EnsureExists(outputPath);
-                        mesh.Save(outputPath + siteDrive + meshExt, imageFilename);
-                    }
-
-                    var bev = Meshing.RenderBirdsEyeView(mesh, img, out Vector2 origin, bevOptions);
-
-                    pipeline.LogVerbose("birds eye view for site drive {0}: {1}x{2}, origin ({3}, {4}), " +
-                                        "{5} meters/pixel ({6} with decimation), sparse block size {7}, " +
-                                        "valid block ratio {8}, inpaint {9}, smoothing {10}, decimation {11}",
-                                        siteDrive, bev.Width, bev.Height, (int)origin.X, (int)origin.Y,
-                                        options.BEVMetersPerPixel, 1 / PixelsPerMeter, options.BEVSparseBlocksize,
-                                        options.BEVMinValidBlockRatio, options.BEVInpaint, options.BEVSmoothing,
-                                        options.BEVDecimation);
-                    
-                    bevs[siteDrive] = bev;
-                    bevOrigins[siteDrive] = origin;
-                    
-                    if (options.BEVColoring == ColorMode.Elevation && options.BEVBlending == Meshing.BlendMode.Average)
-                    {
-                        dems[siteDrive] = (options.StretchContrast || options.BEVThreshold > 0) ? new Image(bev) : bev;
-                    }
-                    else
-                    {
-                        Meshing.ColorMeshByElevation(mesh, absolute: true);
-                        var dem = Meshing.RenderBirdsEyeView(mesh, null, out Vector2 demOrigin, demOptions);
-                        if (dem.Width != bev.Width || dem.Height != bev.Height)
-                        {
-                            throw new Exception(string.Format("DEM dimensions {0}x{1} don't match BEV {2}x{3}",
-                                                              dem.Width, dem.Height, bev.Width, bev.Height));
-                        }
-                        if (demOrigin != origin)
-                        {
-                            throw new Exception(string.Format("DEM origin {0} doesn't match BEV {1}",
-                                                              demOrigin, origin));
-                        }
-                        dems[siteDrive] = dem;
                     }
                         
                     Interlocked.Decrement(ref np);
                     Interlocked.Increment(ref nc);
                 });
 
-            PostProcessBEVs(out double min, out double max);
-
-            if (options.WriteDebug)
-            {
-                foreach (var pair in bevs)
-                {
-                    var siteDrive = pair.Key;
-                    var bev = pair.Value;
-                    if (!options.StretchContrast && options.BEVColoring == ColorMode.Elevation)
-                    {
-                        bev = new Image(bev);
-                        bev.ScaleValues((float)min, (float)max, 0, 1);
-                    }
-                    PathHelper.EnsureExists(outputPath);
-                    bev.Save<byte>(outputPath + siteDrive + "_BirdsEyeView" + imageExt);
-                }
-            }
-
-            SaveCachedBEVs();
-
             pipeline.LogInfo("generated {0} birds eye views ({1:F3}s)", bevs.Count, UTCTime.Now() - startSec);
         }
 
         /// <summary>
-        /// TODO HACK - migrate to use pipeline database and storage if we keep this code
+        /// populate bevs, dems, and bevOrigins from database
+        /// returns true iff all were loaded successfully
         /// </summary>
-        private bool LoadCachedBEVs()
+        private bool LoadBEVs()
         {
-            double startSec = UTCTime.Now();
-            pipeline.LogInfo("checking cache for {0} birds eye views...", siteDrives.Length);
-
-            var available = pipeline.SearchFiles(outputPath, recursive: false).ToArray();
-
             int nc = 0;
             foreach (var siteDrive in siteDrives)
             {
-                string basename = siteDrive + "_BirdsEyeView_cached";
-                foreach (var url in available)
+                var rec = BirdsEyeView.Find(pipeline, project.Name, siteDrive);
+                if (rec != null &&
+                    rec.Coloring == options.BEVColoring &&
+                    rec.Blending == options.BEVBlending &&
+                    rec.MetersPerPixel == options.BEVMetersPerPixel &&
+                    rec.SparseBlockSize == options.BEVSparseBlocksize &&
+                    rec.MinValidBlockRatio == options.BEVMinValidBlockRatio &&
+                    rec.Inpaint == options.BEVInpaint &&
+                    rec.Smoothing == options.BEVSmoothing &&
+                    rec.Decimation == options.BEVDecimation)
                 {
-                    var file = StringHelper.GetLastUrlPathSegment(url);
-                    if (file.StartsWith(basename) && file.EndsWith(cacheImageExt))
-                    {
-                        var parts = file.Split('.');
-                        var baseUrl = url.Substring(0, url.Length - file.Length) + parts[0];
-                        var maskUrl = baseUrl + "_mask" + cacheMaskExt;
-                        var demUrl = baseUrl + "_DEM" + cacheImageExt;
-                        if (!Array.Exists(available, u => u == maskUrl) || !Array.Exists(available, u => u == demUrl) )
-                        {
-                            continue;
-                        }
-
-                        var bev = pipeline.LoadImage(url);
-                        var dem = pipeline.LoadImage(demUrl);
-                        var mask = pipeline.LoadImage(maskUrl);
-
-                        bev.UnionMask(mask, new float[] { 1 });
-                        dem.UnionMask(mask, new float[] { 1 });
-
-                        bevs[siteDrive] = bev;
-                        dems[siteDrive] = dem;
-
-                        var origin = new Vector2(0.001 * double.Parse(parts[parts.Length - 3]),
-                                                 0.001 * double.Parse(parts[parts.Length - 2]));
-                        bevOrigins[siteDrive] = origin;
-
-                        pipeline.LogInfo("loaded cached {0}x{1} birds eye view for site drive {2}, origin {3}",
-                                         bev.Width, bev.Height, siteDrive, origin);
-                        nc++;
-                        break;
-                    }
+                    bevs[siteDrive] =
+                        pipeline.GetDataProduct<TiffDataProduct>(project.ProductPath, rec.BEVGuid, project.Name).Image;
+                    dems[siteDrive] =
+                        pipeline.GetDataProduct<TiffDataProduct>(project.ProductPath, rec.DEMGuid, project.Name).Image;
+                    bevOrigins[siteDrive] = new Vector2(rec.OriginX, rec.OriginY);
+                    nc++;
                 }
             }
 
-            if (nc == siteDrives.Length)
-            {
-                pipeline.LogInfo("loaded {0} cached birds eye views ({1:F3}s)", bevs.Count, UTCTime.Now() - startSec);
-                return true;
-            }
-
-            if (nc > 0)
-            {
-                pipeline.LogWarn("loaded only {0} of {1} birds eye views from cache, must regenerate all",
-                                 nc, siteDrives.Length);
-                bevs.Clear();
-                dems.Clear();
-                bevOrigins.Clear();
-            }
-
-            return false;
+            return nc == siteDrives.Length;
         }
 
         /// <summary>
-        /// TODO HACK - migrate to use pipeline database and storage if we keep this code
+        /// save bevs, dems, and associated metadata to database
         /// </summary>
-        private void SaveCachedBEVs()
+        private void SaveBEVs()
         {
             foreach (var pair in bevs)
             {
                 var siteDrive = pair.Key;
                 var bev = pair.Value;
-                var x = (long)(1000 * bevOrigins[siteDrive].X);
-                var y = (long)(1000 * bevOrigins[siteDrive].Y);
-                string file = outputPath + siteDrive + "_BirdsEyeView_cached." + x + "." + y + cacheImageExt;
-                pipeline.LogInfo("caching {0}x{1} birds eye view {2}", bev.Width, bev.Height, file);
-                PathHelper.EnsureExists(outputPath);
-                bev.Save<float>(file);
-                bev.MaskToImage().Save<byte>(outputPath + siteDrive + "_BirdsEyeView_cached_mask" + cacheMaskExt);
-                dems[siteDrive].Save<float>(outputPath + siteDrive + "_BirdsEyeView_cached_DEM" + cacheImageExt);
+                var dem = dems[siteDrive];
+                var origin = bevOrigins[siteDrive];
+                BirdsEyeView.Create(pipeline, project, siteDrive, bev, dem, origin, options.BEVColoring,
+                                    options.BEVBlending, options.BEVMetersPerPixel, options.BEVSparseBlocksize,
+                                    options.BEVMinValidBlockRatio, options.BEVInpaint, options.BEVSmoothing,
+                                    options.BEVDecimation);
             }
         }
 
@@ -650,7 +628,7 @@ namespace OPS.Pipeline
             max = double.NegativeInfinity;
             double mean = 0;
             double stddev = 0;
-            if (options.StretchContrast || options.BEVColoring == ColorMode.Elevation)
+            if (options.StretchContrast || options.BEVColoring == BirdsEyeViewing.ColorMode.Elevation)
             {
                 CollectBEVStats(out n, out min, out max, out mean, out stddev);
             }

@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="14.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <Import Project="..\packages\EmguCV.3.1.0.1\build\EmguCV.props" Condition="Exists('..\packages\EmguCV.3.1.0.1\build\EmguCV.props')" />
   <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
@@ -172,6 +172,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="AlignmentServer\AlignmentMaster.cs" />
+    <Compile Include="AlignmentServer\Cloud\BirdsEyeView.cs" />
     <Compile Include="AlignmentServer\Cloud\Frame.cs" />
     <Compile Include="AlignmentServer\Cloud\FrameCache.cs" />
     <Compile Include="AlignmentServer\Cloud\FrameGeohash.cs" />
@@ -189,6 +190,7 @@
     <Compile Include="AlignmentServer\Operations\CreateMask.cs" />
     <Compile Include="AlignmentServer\Operations\DetectFeatures.cs" />
     <Compile Include="AlignmentServer\Operations\MatchImages.cs" />
+    <Compile Include="Alignment\BirdsEyeViewing.cs" />
     <Compile Include="Alignment\BuildSceneGraph.cs" />
     <Compile Include="Alignment\BundleAdjusting.cs" />
     <Compile Include="Alignment\FeatureDetecting.cs" />
@@ -217,6 +219,7 @@
     <Compile Include="Commands\LocalObservationProducts.cs" />
     <Compile Include="Commands\TileLocalMesh.cs" />
     <Compile Include="DataProducts\DataProduct.cs" />
+    <Compile Include="DataProducts\TiffDataProduct.cs" />
     <Compile Include="General\LegacySceneManfiest.cs" />
     <Compile Include="DataProducts\JsonDataProduct.cs" />
     <Compile Include="DataProducts\PngDataProduct.cs" />
