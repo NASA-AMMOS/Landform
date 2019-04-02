@@ -10,10 +10,11 @@ namespace OPS.Geometry
 {
     class CleverCombinePointClouds
     {
-        /// <summary>
-        /// Size of a cell, in meters.
-        /// </summary>
-        const double CELL_SIZE = 0.025;
+        //settings
+        private const double CellSize = 0.025; //size of cell (meters)
+        private const double MinDistRange = 1.2; //if the max distance is this many times bigger than the minimum, the point with max distance can be pruned
+        private const double SmallestNNDistance = 0.005; //if any point's distance to another is < this number stop searching
+        private const double MaxMSEThreshold = 0.0001; //if a point's error is greater than this it is a candidate for removal
 
         /// <summary>
         /// a weighted combination of redundant point cloud data resulting in a single winner per voxel
@@ -31,8 +32,8 @@ namespace OPS.Geometry
             }
 
             //calculate the number of cells
-            int width = (int)Math.Ceiling(bbox.Extent().X / CELL_SIZE);
-            int height = (int)Math.Ceiling(bbox.Extent().Y / CELL_SIZE);
+            int width = (int)Math.Ceiling(bbox.Extent().X / CellSize);
+            int height = (int)Math.Ceiling(bbox.Extent().Y / CellSize);
 
             //collect points into voxels
             List<int>[][,] pointIndices = new List<int>[inputPointClouds.Length][,];
@@ -52,8 +53,8 @@ namespace OPS.Geometry
                         if (bbox.Contains(point.Position) == ContainmentType.Disjoint)
                             continue;
 
-                        int i = (int)Math.Floor((point.Position.X - bbox.Min.X) / CELL_SIZE),
-                            j = (int)Math.Floor((point.Position.Y - bbox.Min.Y) / CELL_SIZE);
+                        int i = (int)Math.Floor((point.Position.X - bbox.Min.X) / CellSize),
+                            j = (int)Math.Floor((point.Position.Y - bbox.Min.Y) / CellSize);
 
                         if (indices[i, j] == null)
                         {
@@ -83,29 +84,38 @@ namespace OPS.Geometry
                 {
                     for (int j = 0; j < height; j++)
                     {
-                        double[] originDistances = Enumerable.Range(0, inputPointClouds.Length).Select((sd) =>
+                        double[] originDistances = Enumerable.Range(0, inputPointClouds.Length).Select((pc) =>
                         {
-                            double dx = inputPointCloudOrigins[sd].X - ((i + 0.5) * CELL_SIZE + bbox.Min.X);
-                            double dy = inputPointCloudOrigins[sd].Y - ((j + 0.5) * CELL_SIZE + bbox.Min.Y);
+                            double dx = inputPointCloudOrigins[pc].X - ((i + 0.5) * CellSize + bbox.Min.X);
+                            double dy = inputPointCloudOrigins[pc].Y - ((j + 0.5) * CellSize + bbox.Min.Y);
                             return Math.Sqrt(dx * dx + dy * dy);
                         }).ToArray();
 
                         List<int> cloudIndices = Enumerable.Range(0, inputPointClouds.Length)
-                            .Where(sd => pointIndices[sd] != null && pointIndices[sd][i, j] != null)
+                            .Where(pc => pointIndices[pc] != null && pointIndices[pc][i, j] != null)
                             .ToList();
 
                         // Skip empty cells
-                        if (cloudIndices.Count == 0) continue;
+                        if (cloudIndices.Count == 0)
+                            continue;
 
+                        //narrow down to a single answer per cell
                         while (cloudIndices.Count > 1)
                         {
-                            double minDist = double.PositiveInfinity,
-                                   maxDist = double.NegativeInfinity;
                             int maxDistIdx = -1;
+                            double minDist = double.PositiveInfinity;
+                            double maxDist = double.NegativeInfinity;
+
+                            //collect min/max distances
                             for (int idx = 0; idx < cloudIndices.Count; idx++)
                             {
                                 double dist = originDistances[cloudIndices[idx]];
-                                if (dist < minDist) minDist = dist;
+
+                                if (dist < minDist)
+                                {
+                                    minDist = dist;
+                                }
+
                                 if (dist > maxDist)
                                 {
                                     maxDist = dist;
@@ -113,12 +123,14 @@ namespace OPS.Geometry
                                 }
                             }
 
-                            if (maxDist > minDist * 1.2)
+                            //if the range is wide enough, remove the point generated from the greatest distance
+                            if (maxDist > minDist * MinDistRange)
                             {
                                 cloudIndices.RemoveAt(maxDistIdx);
                                 continue;
                             }
 
+                            // calculate mean squared error between points in the cell
                             double[] nnDistanceMSE = new double[cloudIndices.Count];
                             for (int idx = 0; idx < cloudIndices.Count; idx++)
                             {
@@ -132,7 +144,9 @@ namespace OPS.Geometry
                                 int numSamples = 0;
                                 for (int idx1 = 0; idx1 < cloudIndices.Count; idx1++)
                                 {
-                                    if (idx1 == idx) continue;
+                                    if (idx1 == idx)
+                                        continue;
+
                                     int cloudIdx1 = cloudIndices[idx1];
                                     foreach (int myIdx in nnIndices)
                                     {
@@ -141,8 +155,12 @@ namespace OPS.Geometry
                                         foreach (Vector3 otherPt in points[cloudIdx1][i, j])
                                         {
                                             double dist = (otherPt - myPt).LengthSquared();
-                                            if (dist < minNNDist) minNNDist = dist;
-                                            if (dist < 0.005) break;
+
+                                            if (dist < minNNDist)
+                                                minNNDist = dist;
+
+                                            if (dist <SmallestNNDistance)
+                                                break;
                                         }
                                         nnDistMSE += minNNDist;
                                         numSamples++;
@@ -155,6 +173,7 @@ namespace OPS.Geometry
                                 }
                             }
 
+                            // find the largest mean squared error
                             double maxNNMSE = double.NegativeInfinity;
                             int maxNNMSEIdx = -1;
                             for (int idx = 0; idx < cloudIndices.Count; idx++)
@@ -166,7 +185,7 @@ namespace OPS.Geometry
                                 }
                             }
 
-                            if (maxNNMSE > 0.0001)
+                            if (maxNNMSE > MaxMSEThreshold)
                             {
                                 cloudIndices.RemoveAt(maxDistIdx);
                                 continue;
@@ -174,6 +193,7 @@ namespace OPS.Geometry
                             break;
                         }
 
+                        //mark good points
                         foreach (int cloudIdx in cloudIndices)
                         {
                             foreach (int pointIdx in pointIndices[cloudIdx][i, j])
