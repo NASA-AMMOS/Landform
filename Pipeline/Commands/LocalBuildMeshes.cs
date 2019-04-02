@@ -6,6 +6,7 @@ using OPS.Util;
 using OPS.Geometry;
 using OPS.Pipeline.MeshWorker;
 using OPS.Pipeline.AlignmentServer;
+using Microsoft.Xna.Framework;
 
 namespace OPS.Pipeline
 {
@@ -82,6 +83,8 @@ namespace OPS.Pipeline
                 // clips the mesh to the 2d bounds of the input points
                 mesh = Mesh.Clip(mesh, pointBounds);
 
+                // normalizes the normals that were used for generating the mesh
+                mesh.Clean();
             }
 
             string meshFilePath = Path.Combine(outputPath, "fullMesh.ply");
