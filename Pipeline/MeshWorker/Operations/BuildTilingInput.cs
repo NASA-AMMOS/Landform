@@ -34,7 +34,7 @@ namespace OPS.Pipeline.MeshWorker
         public int Process()
         {
             pipeline.LogInfo("started");
-            Mesh surfacedMesh = BuildMesh(pipeline, projectName);
+            Mesh surfacedMesh = BuildMesh(pipeline, projectName, null);
             if (surfacedMesh == null || surfacedMesh.Vertices.Count == 0)
             {
                 pipeline.LogError("point cloud failed to reconstruct");
@@ -54,7 +54,7 @@ namespace OPS.Pipeline.MeshWorker
             //create a tiling input
             TilingProject tilingProject = TilingProject.Find(pipeline, projectName);
             TilingInput.Create(pipeline, meshName, tilingProject, meshOutputUrl, null, null);
-            
+
             //indicate successs to the tiling server master
             pipeline.MasterQueue.Enqueue(new BuildTilingInputMessage(projectName));
 
@@ -63,10 +63,21 @@ namespace OPS.Pipeline.MeshWorker
             return 0;
         }
 
-        static public Mesh BuildMesh(PipelineCore pipeline, string projectName)
+        static public Mesh BuildMesh(PipelineCore pipeline, string projectName, TransformSource[] transfromSources)
         {
+            //load transforms, by filtering by allowed transform sources or allowing all
             var frameCache = new FrameCache(pipeline, projectName);
-            frameCache.Preload(loadTransforms: true);
+            if (transfromSources != null)
+            {
+                Func<FrameTransform, bool> allowedTransformSource = transform => transfromSources.Length == 0 || transfromSources.Any(s => s == transform.Source);
+                frameCache.Preload(loadTransforms: true, transformFilter: ft => allowedTransformSource(ft));
+            }
+            else
+            {
+                frameCache.Preload(loadTransforms: true);
+            }
+
+            //load observations
             var observationCache = new ObservationCache(pipeline, projectName);
             observationCache.Preload(obs => obs.UseForReconstruction);
 

@@ -1,9 +1,11 @@
-﻿using CommandLine;
+﻿using System;
+using System.IO;
+using System.Linq;
+using CommandLine;
+using OPS.Util;
 using OPS.Geometry;
 using OPS.Pipeline.MeshWorker;
-using OPS.Util;
-using System;
-using System.IO;
+using OPS.Pipeline.AlignmentServer;
 
 namespace OPS.Pipeline
 {
@@ -68,7 +70,7 @@ namespace OPS.Pipeline
             PathHelper.EnsureExists(outputPath);
 
             pipeline.LogInfo("Building full mesh for {0} from {1}", options.ProjectName, options.TransformSource);
-            Mesh mesh = BuildTilingInput.BuildMesh(this.pipeline, options.ProjectName);
+            Mesh mesh = BuildTilingInput.BuildMesh(this.pipeline, options.ProjectName, ParseSources(options.TransformSource));
             if(mesh == null)
             {
                 pipeline.LogError("Mesh building for {0) failed.", options.ProjectName);
@@ -80,6 +82,16 @@ namespace OPS.Pipeline
             mesh.Save(meshFilePath);
 
             return 0;
+        }
+
+        private TransformSource[] ParseSources(string sources)
+        {
+            return (sources ?? "")
+                .Split(',')
+                .Where(s => !string.IsNullOrEmpty(s))
+                .Select(s => Enum.Parse(typeof(TransformSource), s.Trim(), ignoreCase: true))
+                .Cast<TransformSource>()
+                .ToArray();
         }
     }
 }
