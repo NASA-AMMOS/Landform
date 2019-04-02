@@ -20,6 +20,13 @@ namespace OPS.Pipeline
         MAHLI
     }
 
+    public enum CameraEye
+    {
+        Mono,
+        StereoLeft,
+        StereoRight
+    }
+
     public enum RoverProductGeometry
     {
         Unknown,

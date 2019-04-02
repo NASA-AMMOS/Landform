@@ -82,6 +82,7 @@ namespace OPS.Pipeline
                                                                        bool requirePoints = true,
                                                                        bool requireNormals = true,
                                                                        bool requireTextures = false,
+                                                                       bool onlyLeftEye = false,
                                                                        SiteDrive[] onlyForSiteDrives = null,
                                                                        string[] onlyForCameras = null)
         {
@@ -96,6 +97,7 @@ namespace OPS.Pipeline
                 .Where(obs => allowMastcam || !obs.IsMastcam)
                 .Where(obs => onlyForSiteDrives == null || onlyForSiteDrives.Any(sd => sd == obs.SiteDrive))
                 .Where(obs => onlyForCameras == null || onlyForCameras.Any(cam => cam == obs.Sensor))
+                .Where(obs => !onlyLeftEye || obs.Eye == CameraEye.StereoLeft)
                 .ToList();
 
             observations.Sort(MSLProject.RoverObservationComparison);
@@ -142,6 +144,7 @@ namespace OPS.Pipeline
                                                                      bool requirePoints = true,
                                                                      bool requireNormals = true,
                                                                      bool requireTextures = false,
+                                                                     bool onlyLeftEye = false,
                                                                      string onlyForSiteDrives = null,
                                                                      string onlyForCameras = null)
         {
@@ -169,7 +172,7 @@ namespace OPS.Pipeline
             {
                 var obs = CollectMeshObservationsForFrame(frameName, frameCache, observationCache,
                                                           allowMastcam, requirePoints, requireNormals, requireTextures,
-                                                          siteDriveFilter, cameraFilter);
+                                                          onlyLeftEye, siteDriveFilter, cameraFilter);
                 if (obs != null)
                 {
                     ret.Add(obs);

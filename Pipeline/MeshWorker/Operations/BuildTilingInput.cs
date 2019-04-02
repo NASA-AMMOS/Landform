@@ -34,7 +34,8 @@ namespace OPS.Pipeline.MeshWorker
         public int Process()
         {
             pipeline.LogInfo("started");
-            Mesh surfacedMesh = BuildMesh(pipeline, projectName, null);
+
+            Mesh surfacedMesh = BuildMesh(pipeline, projectName);
             if (surfacedMesh == null || surfacedMesh.Vertices.Count == 0)
             {
                 pipeline.LogError("point cloud failed to reconstruct");
@@ -63,7 +64,7 @@ namespace OPS.Pipeline.MeshWorker
             return 0;
         }
 
-        static public Mesh BuildMesh(PipelineCore pipeline, string projectName, TransformSource[] transfromSources)
+        static public Mesh BuildMesh(PipelineCore pipeline, string projectName, TransformSource[] transfromSources = null)
         {
             //load transforms, by filtering by allowed transform sources or allowing all
             var frameCache = new FrameCache(pipeline, projectName);
@@ -84,7 +85,7 @@ namespace OPS.Pipeline.MeshWorker
             //temporarily suppress mastcam point cloud data until validated
             //https://github.jpl.nasa.gov/OnSight/Landform/issues/261
             var observations = Meshing.CollectMeshObservations(frameCache, observationCache, allowMastcam: false,
-                                                               requireNormals: true);
+                                                               requireNormals: true, onlyLeftEye:true);
             if (observations.Count == 0)
             {
                 pipeline.LogError("no observations were found to build a point cloud");

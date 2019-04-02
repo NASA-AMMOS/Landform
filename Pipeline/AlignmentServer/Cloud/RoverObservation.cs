@@ -44,7 +44,34 @@ namespace OPS.Pipeline.AlignmentServer
                     Sensor == RoverProductCamera.MastcamRight.ToString();
             }
         }
-        
+
+        [DynamoDBIgnore]
+        [JsonIgnore]
+        public CameraEye Eye
+        {
+            get
+            {
+               switch ((RoverProductCamera)Enum.Parse(typeof(RoverProductCamera),Sensor))
+                {
+                    case RoverProductCamera.FrontHazcamLeft:
+                    case RoverProductCamera.RearHazcamLeft:
+                    case RoverProductCamera.NavcamLeft:
+                    case RoverProductCamera.MastcamLeft:
+                        return CameraEye.StereoLeft;
+                    case RoverProductCamera.FrontHazcamRight:
+                    case RoverProductCamera.RearHazcamRight:
+                    case RoverProductCamera.NavcamRight:
+                    case RoverProductCamera.MastcamRight:
+                        return CameraEye.StereoRight;
+                    case RoverProductCamera.MAHLI:
+                    case RoverProductCamera.Unknown:
+                    default:
+                        return CameraEye.Mono;
+                };
+            }
+
+        }
+
         protected void IsValidRoverOservation()
         {
             base.IsValid();

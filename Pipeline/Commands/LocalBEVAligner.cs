@@ -317,8 +317,9 @@ namespace OPS.Pipeline
             bool requirePoints = true;
             bool requireNormals = options.BEVColoring == ColorMode.Tilt;
             bool requireTextures = options.BEVColoring == ColorMode.Texture;
+            bool onlyLeftEye = false;
             observations = Meshing.CollectMeshObservations(frameCache, observationCache,
-                                                           allowMastcam, requirePoints, requireNormals, requireTextures,
+                                                           allowMastcam, requirePoints, requireNormals, requireTextures, onlyLeftEye,
                                                            options.OnlyForSiteDrives, options.OnlyForCameras);
 
             //for now lexicographically sort siteDrives so that older ones come before newer
