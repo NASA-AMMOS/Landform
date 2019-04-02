@@ -55,6 +55,9 @@ namespace OPS.Pipeline
             {
                 throw new NotImplementedException("project type not implemented yet");
             }
+
+            options.TransformSource += ",PDS"; // camera models from PDS are required
+
         }
 
         public int Run()
