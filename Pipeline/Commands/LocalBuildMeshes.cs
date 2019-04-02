@@ -64,7 +64,7 @@ namespace OPS.Pipeline
         }
 
         public int Run()
-        {
+        {            
             string outputPath = pipeline.GetLocalDebugFolder(options.OutputFolder,
                                                              "tiling/" + options.TransformSource.Replace(',','_'),
                                                              options.ProjectName);

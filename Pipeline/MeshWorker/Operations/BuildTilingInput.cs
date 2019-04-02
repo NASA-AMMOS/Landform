@@ -118,8 +118,8 @@ namespace OPS.Pipeline.MeshWorker
             pipeline.LogInfo("reconstructing point cloud: " + aggregatePointCloud.Vertices.Count() + " vertices");
             PoissonReconstruction.Options opts = new PoissonReconstruction.Options
             {
-                // suppresses the large wings often seen when extrapolating without orbital data 
-                Boundary = PoissonReconstruction.BoundaryTypes.Dirichlet,
+                //extrapolates the edges of the mesh
+                Boundary = PoissonReconstruction.BoundaryTypes.Neumann,
 
                 // no features should be finer than this many meters as this is the finest the octree will dice
                 MinOctreeCellWidthMeters = 0.05f,
