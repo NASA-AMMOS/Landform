@@ -765,9 +765,13 @@ namespace OPS.Geometry
         /// If any faces are defined this will also remove any vertices that are not referenced
         /// by a face
         /// </summary>
-        public void Clean(bool normalize=true)
+        public void Clean(bool normalize=true, bool removeDuplicateVerts=true)
         {
-            RemoveDuplicateVertices();
+            if (removeDuplicateVerts)
+            {
+                RemoveDuplicateVertices();
+            }
+
             if (HasFaces)
             {
                 RemoveInvalidFaces();
@@ -890,7 +894,7 @@ namespace OPS.Geometry
         /// Vertex objects are cloned to avoid side effects in case the meshes are modifed in the future
         /// </summary>
         /// <param name="otherMeshes"></param>
-        public void MergeWith(Mesh[] otherMeshes, bool clean = true, bool normalize = true)
+        public void MergeWith(Mesh[] otherMeshes, bool clean = true, bool normalize = true, bool removeDuplicateVerts = true)
         {
             int numNewVerts = otherMeshes.Aggregate(0, (sum, mesh) => sum + mesh.Vertices.Count);
             int numNewFaces = otherMeshes.Aggregate(0, (sum, mesh) => sum + mesh.Faces.Count);
@@ -920,7 +924,7 @@ namespace OPS.Geometry
 
             if (clean)
             {
-                Clean(normalize);
+                Clean(normalize, removeDuplicateVerts);
             }
         }
 
