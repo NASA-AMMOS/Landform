@@ -1,102 +1,96 @@
-﻿using ImageLib.Geometry;
-using ImageLib.Geometry.Serializers;
-using log4net;
-using Microsoft.Xna.Framework;
-using System;
+﻿using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using System.Text.RegularExpressions;
-using System.Threading.Tasks;
+using Microsoft.Xna.Framework;
 
 //ported from onsight/terraintools sha 840d24d65f8cc05653e7b8155156cb8bb6d31a75 ClevererCombinePointClouds
-namespace ImageLib.Pipeline.Routines
+namespace OPS.Geometry
 {
     class CleverCombinePointClouds
     {
-        private static readonly ILog logger = LogManager.GetLogger(typeof(CombinePointClouds));
-
         /// <summary>
         /// Size of a cell, in meters.
         /// </summary>
         const double CELL_SIZE = 0.025;
 
-        public static void ClevererCombine(string[] inputFilepaths, string outputFilepath)
+        /// <summary>
+        /// a weighted combination of redundant point cloud data resulting in a single winner per voxel
+        //  note: all input pointclouds are expected to be in the same reference frame
+        /// </summary>
+        /// <param name="inputPointCloudOrigins">a position from which the distance of each point is a meaningful quality estimate (eg. site drive center, camera origin, etc) /param>
+        /// <param name="inputPointClouds">point clouds to combine, order should match pointcloudorigins</param>
+        public static Mesh Combine(Vector3[] inputPointCloudOrigins, Mesh[] inputPointClouds)
         {
-            logger.Info("Combining " + inputFilepaths.Length + " point clouds");
-
             // Compute bounds of surface area
-            GlobalOptions go = GlobalOptions.GetInstance();
-            Vector3 max = new Vector3(go.SurfaceDataExtent, go.SurfaceDataExtent, go.SurfaceDataExtent);
-            Vector3 min = -max;
+            BoundingBox bbox = inputPointClouds.FirstOrDefault().Bounds();
+            for (int idx = 1; idx < inputPointClouds.Length; idx++)
+            {
+                bbox = BoundingBox.CreateMerged(bbox, inputPointClouds[idx].Bounds());
+            }
 
-            int width = (int)Math.Ceiling((max.X - min.X) / CELL_SIZE),
-                height = (int)Math.Ceiling((max.Y - min.Y) / CELL_SIZE);
+            //calculate the number of cells
+            int width = (int)Math.Ceiling(bbox.Extent().X / CELL_SIZE);
+            int height = (int)Math.Ceiling(bbox.Extent().Y / CELL_SIZE);
 
-            BoundingBox bbox = new BoundingBox(min, max);
-            
-            List<int>[][,] pointIndices = new List<int>[inputFilepaths.Length][,];
-            List<Vector3>[][,] points = new List<Vector3>[inputFilepaths.Length][,];
-            int idx;
-            for (idx = 0; idx < inputFilepaths.Length; idx++)
+            //collect points into voxels
+            List<int>[][,] pointIndices = new List<int>[inputPointClouds.Length][,];
+            List<Vector3>[][,] points = new List<Vector3>[inputPointClouds.Length][,];
+            for (int idx = 0; idx < inputPointClouds.Length; idx++)
             {
                 pointIndices[idx] = new List<int>[width, height];
                 points[idx] = new List<Vector3>[width, height];
 
                 var indices = pointIndices[idx];
                 int pointIdx = 0;
-                foreach (PLYVertex point in PLYSerializer.ReadStream(inputFilepaths[idx]))
+                foreach (var inputPointCloud in inputPointClouds)
                 {
-                    pointIdx++;
-                    if (bbox.Contains(point.vertex) == ContainmentType.Disjoint) continue;
-
-                    int i = (int)Math.Floor((point.vertex.X - min.X) / CELL_SIZE),
-                        j = (int)Math.Floor((point.vertex.Y - min.Y) / CELL_SIZE);
-
-                    if (indices[i, j] == null)
+                    foreach (var point in inputPointCloud.Vertices)
                     {
-                        indices[i, j] = new List<int>();
+                        pointIdx++;
+                        if (bbox.Contains(point.Position) == ContainmentType.Disjoint)
+                            continue;
+
+                        int i = (int)Math.Floor((point.Position.X - bbox.Min.X) / CELL_SIZE),
+                            j = (int)Math.Floor((point.Position.Y - bbox.Min.Y) / CELL_SIZE);
+
+                        if (indices[i, j] == null)
+                        {
+                            indices[i, j] = new List<int>();
+                        }
+                        indices[i, j].Add(pointIdx - 1);
+                        if (points[idx][i, j] == null)
+                        {
+                            points[idx][i, j] = new List<Vector3>();
+                        }
+                        points[idx][i, j].Add(point.Position);
                     }
-                    indices[i, j].Add(pointIdx - 1);
-                    if (points[idx][i, j] == null)
-                    {
-                        points[idx][i, j] = new List<Vector3>();
-                    }
-                    points[idx][i, j].Add(point.vertex);
                 }
             }
 
-            BitArray[] pointsToKeep = new BitArray[inputFilepaths.Length];
-            Vector3[] sdOrigins = new Vector3[inputFilepaths.Length];
-            string[] sdIds = new string[inputFilepaths.Length];
-            for (idx = 0; idx < inputFilepaths.Length; idx++)
+            //initialize points to keep arrays
+            BitArray[] pointsToKeep = new BitArray[inputPointClouds.Length];
+            for (int idx = 0; idx < inputPointClouds.Length; idx++)
             {
-                pointsToKeep[idx] = new BitArray(PLYSerializer.NumVerticesInFile(inputFilepaths[idx]));
-                Match sdMatch = Regex.Match(inputFilepaths[idx], @"(\d{10})");
-                sdIds[idx] = sdMatch.Captures[0].Value;
-
-                Matrix llToScene = CoordinateSystem.LocalLevelToScene(sdIds[idx]);
-                sdOrigins[idx] = Vector3.Transform(Vector3.Zero, llToScene);
+                pointsToKeep[idx] = new BitArray(inputPointClouds[idx].Vertices.Count);
             }
-
 
             // Filter points
             {
-                            Random r = new Random();
-                int i, j;
-                for (i = 0; i < width; i++)
+                Random r = new Random();
+                for (int i = 0; i < width; i++)
                 {
-                    for (j = 0; j < height; j++)
+                    for (int j = 0; j < height; j++)
                     {
-                        double[] originDistances = Enumerable.Range(0, inputFilepaths.Length).Select((sd) =>
+                        double[] originDistances = Enumerable.Range(0, inputPointClouds.Length).Select((sd) =>
                         {
-                            double dx = sdOrigins[sd].X - ((i + 0.5) * CELL_SIZE + min.X);
-                            double dy = sdOrigins[sd].Y - ((j + 0.5) * CELL_SIZE + min.Y);
+                            double dx = inputPointCloudOrigins[sd].X - ((i + 0.5) * CELL_SIZE + bbox.Min.X);
+                            double dy = inputPointCloudOrigins[sd].Y - ((j + 0.5) * CELL_SIZE + bbox.Min.Y);
                             return Math.Sqrt(dx * dx + dy * dy);
                         }).ToArray();
 
-                        List<int> cloudIndices = Enumerable.Range(0, inputFilepaths.Length)
+                        List<int> cloudIndices = Enumerable.Range(0, inputPointClouds.Length)
                             .Where(sd => pointIndices[sd] != null && pointIndices[sd][i, j] != null)
                             .ToList();
 
@@ -108,9 +102,7 @@ namespace ImageLib.Pipeline.Routines
                             double minDist = double.PositiveInfinity,
                                    maxDist = double.NegativeInfinity;
                             int maxDistIdx = -1;
-
-                            int maxIdx = -1;
-                            for (idx = 0; idx < cloudIndices.Count; idx++)
+                            for (int idx = 0; idx < cloudIndices.Count; idx++)
                             {
                                 double dist = originDistances[cloudIndices[idx]];
                                 if (dist < minDist) minDist = dist;
@@ -128,7 +120,7 @@ namespace ImageLib.Pipeline.Routines
                             }
 
                             double[] nnDistanceMSE = new double[cloudIndices.Count];
-                            for (idx = 0; idx < cloudIndices.Count; idx++)
+                            for (int idx = 0; idx < cloudIndices.Count; idx++)
                             {
                                 int cloudIdx = cloudIndices[idx];
                                 int numNNSamples = Math.Min(points[cloudIdx][i, j].Count, 30);
@@ -165,7 +157,7 @@ namespace ImageLib.Pipeline.Routines
 
                             double maxNNMSE = double.NegativeInfinity;
                             int maxNNMSEIdx = -1;
-                            for (idx = 0; idx < cloudIndices.Count; idx++)
+                            for (int idx = 0; idx < cloudIndices.Count; idx++)
                             {
                                 if (nnDistanceMSE[idx] > maxNNMSE)
                                 {
@@ -193,34 +185,25 @@ namespace ImageLib.Pipeline.Routines
                 }
             }
 
-            // Write out PLY file
-            using (PLYStreamWriter plyWriter = new PLYStreamWriter(outputFilepath))
+            //fill output mesh
+            bool hasNormals = inputPointClouds.Any(pc => pc.HasNormals);
+            bool hasUVs = inputPointClouds.Any(pc => pc.HasUVs);
+            bool hasColors = inputPointClouds.Any(pc => pc.HasColors);
+            Mesh output = new Mesh(hasNormals, hasUVs, hasColors);
+
+            for (int idx = 0; idx < inputPointClouds.Length; idx++)
             {
-                plyWriter.Configure(haveVertices: true, haveNormals: true, haveUvs: true, haveColors: true);
-
-                for (idx = 0; idx < inputFilepaths.Length; idx++)
+                Mesh pc = inputPointClouds[idx];
+                for (int i = 0; i < pc.Vertices.Count; i++)
                 {
-                    Mesh pc = PLYSerializer.Read(inputFilepaths[idx]);
-                    for (int i = 0; i < pc.vertices.Count; i++)
+                    if (pointsToKeep[idx].Get(i))
                     {
-                        if (pointsToKeep[idx].Get(i))
-                        {
-                            PLYVertex vert = new PLYVertex();
-
-                            vert.vertex = pc.vertices[i];
-                            vert.normal = pc.normals[i];
-
-                            byte color = (byte)pc.colors[i].X;
-                            vert.color = new Vector3(color, color, color);
-                            byte mask = (byte)(idx * (255 / (float)inputFilepaths.Count()));
-                            vert.uv = new Vector2(mask, mask);
-
-                            plyWriter.Write(vert);
-                        }
+                        output.Vertices.Add(new Vertex(pc.Vertices[i]));
                     }
                 }
-                plyWriter.Save();
             }
+
+            return output;
         }
     }
 }
