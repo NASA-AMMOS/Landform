@@ -70,11 +70,18 @@ namespace OPS.Pipeline
             PathHelper.EnsureExists(outputPath);
 
             pipeline.LogInfo("Building full mesh for {0} from {1}", options.ProjectName, options.TransformSource);
-            Mesh mesh = BuildTilingInput.BuildMesh(this.pipeline, options.ProjectName, ParseSources(options.TransformSource));
+            Mesh mesh = BuildTilingInput.BuildMesh(this.pipeline, options.ProjectName, out BoundingBox pointBounds, ParseSources(options.TransformSource));
             if(mesh == null)
             {
                 pipeline.LogError("Mesh building for {0) failed.", options.ProjectName);
                 return 1;
+            }
+
+            if (mesh != null)
+            {
+                // clips the mesh to the 2d bounds of the input points
+                mesh = Mesh.Clip(mesh, pointBounds);
+
             }
 
             string meshFilePath = Path.Combine(outputPath, "fullMesh.ply");

@@ -35,7 +35,7 @@ namespace OPS.Pipeline.MeshWorker
         {
             pipeline.LogInfo("started");
 
-            Mesh surfacedMesh = BuildMesh(pipeline, projectName);
+            Mesh surfacedMesh = BuildMesh(pipeline, projectName, out BoundingBox pointBounds);
             if (surfacedMesh == null || surfacedMesh.Vertices.Count == 0)
             {
                 pipeline.LogError("point cloud failed to reconstruct");
@@ -64,8 +64,10 @@ namespace OPS.Pipeline.MeshWorker
             return 0;
         }
 
-        static public Mesh BuildMesh(PipelineCore pipeline, string projectName, TransformSource[] transfromSources = null)
+        static public Mesh BuildMesh(PipelineCore pipeline, string projectName, out BoundingBox pointBounds, TransformSource[] transfromSources = null)
         {
+            pointBounds = new BoundingBox();
+
             //load transforms, by filtering by allowed transform sources or allowing all
             var frameCache = new FrameCache(pipeline, projectName);
             if (transfromSources != null)
@@ -110,6 +112,8 @@ namespace OPS.Pipeline.MeshWorker
                 pipeline.LogError("aggregate point cloud contains no points");
                 return null;
             }
+
+            pointBounds = aggregatePointCloud.Bounds();
 
             pipeline.LogInfo("reconstructing point cloud: " + aggregatePointCloud.Vertices.Count() + " vertices");
             PoissonReconstruction.Options opts = new PoissonReconstruction.Options
