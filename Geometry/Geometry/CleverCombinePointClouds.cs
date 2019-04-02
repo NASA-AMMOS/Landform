@@ -8,7 +8,7 @@ using Microsoft.Xna.Framework;
 //ported from onsight/terraintools sha 840d24d65f8cc05653e7b8155156cb8bb6d31a75 ClevererCombinePointClouds
 namespace OPS.Geometry
 {
-    class CleverCombinePointClouds
+    public class CleverCombinePointClouds
     {
         //settings
         private const double CellSize = 0.025; //size of cell (meters)
@@ -43,31 +43,28 @@ namespace OPS.Geometry
                 pointIndices[idx] = new List<int>[width, height];
                 points[idx] = new List<Vector3>[width, height];
 
-                var indices = pointIndices[idx];
+                var indices = pointIndices[idx];              
                 int pointIdx = 0;
-                foreach (var inputPointCloud in inputPointClouds)
+                foreach (var point in inputPointClouds[idx].Vertices)
                 {
-                    foreach (var point in inputPointCloud.Vertices)
+                    pointIdx++;
+                    if (bbox.Contains(point.Position) == ContainmentType.Disjoint)
+                        continue;
+
+                    int i = (int)Math.Floor((point.Position.X - bbox.Min.X) / CellSize),
+                        j = (int)Math.Floor((point.Position.Y - bbox.Min.Y) / CellSize);
+
+                    if (indices[i, j] == null)
                     {
-                        pointIdx++;
-                        if (bbox.Contains(point.Position) == ContainmentType.Disjoint)
-                            continue;
-
-                        int i = (int)Math.Floor((point.Position.X - bbox.Min.X) / CellSize),
-                            j = (int)Math.Floor((point.Position.Y - bbox.Min.Y) / CellSize);
-
-                        if (indices[i, j] == null)
-                        {
-                            indices[i, j] = new List<int>();
-                        }
-                        indices[i, j].Add(pointIdx - 1);
-                        if (points[idx][i, j] == null)
-                        {
-                            points[idx][i, j] = new List<Vector3>();
-                        }
-                        points[idx][i, j].Add(point.Position);
+                        indices[i, j] = new List<int>();
                     }
-                }
+                    indices[i, j].Add(pointIdx - 1);
+                    if (points[idx][i, j] == null)
+                    {
+                        points[idx][i, j] = new List<Vector3>();
+                    }
+                    points[idx][i, j].Add(point.Position);
+                }                
             }
 
             //initialize points to keep arrays
