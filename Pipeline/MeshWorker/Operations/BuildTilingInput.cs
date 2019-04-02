@@ -103,6 +103,11 @@ namespace OPS.Pipeline.MeshWorker
                                  (int)(100 * idx / (float)(observations.Count-1)), obs.Points.FrameName);
 
                 var mesh = Meshing.BuildPointCloud(pipeline, obs, frameCache, scaleNormalsByConfidence: true);
+                if(mesh == null)
+                {
+                    pipeline.LogInfo("failed to build pointcloud for {0}", obs.Name);
+                    continue;
+                }
                 aggregatePointCloud.MergeWith(new Mesh[] { mesh }, normalize: false, removeDuplicateVerts: false);
             }
 

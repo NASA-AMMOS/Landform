@@ -333,7 +333,7 @@ namespace OPS.Pipeline
                         pipeline.LogVerbose("building point cloud for {0}", obs.Points.Name);
                         mesh = Meshing.BuildPointCloud(pipeline, obs, frameCache, outputFrame, options.UsePriors,
                                                        options.DecimateMeshes, options.ScaleNormalsByConfidence);
-                        if (!mesh.HasVertices)
+                        if (mesh != null && !mesh.HasVertices)
                         {
                             mesh = null;
                         }

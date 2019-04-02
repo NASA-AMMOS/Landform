@@ -476,6 +476,11 @@ namespace OPS.Pipeline
 
             if (toFrame == "root" || string.IsNullOrEmpty(toFrame))
             {
+                if (sdToRoot == null)
+                {
+                    return null;
+                }
+
                 return obsToSD.Transform * sdToRoot.Transform;
             }
 
@@ -1062,7 +1067,10 @@ namespace OPS.Pipeline
                                      out Image points, out Image normals, out Image mask);
             pipeline.LogVerbose("building point cloud {0}", obs.Points.Name);
             var ret = BuildPointCloud(points, normals, mask);
-            ret.Transform(GetTransform(obs.Points.FrameName, frame, frameCache, usePriors).Mean);
+            var transform = GetTransform(obs.Points.FrameName, frame, frameCache, usePriors);
+            if (transform == null)
+                return null;
+            ret.Transform(transform.Mean);
             return ret;
         }
 
