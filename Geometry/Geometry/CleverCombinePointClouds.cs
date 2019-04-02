@@ -10,10 +10,10 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
-//ported from onsight/terraintools sha 840d24d65f8cc05653e7b8155156cb8bb6d31a75 ClevererCombine
+//ported from onsight/terraintools sha 840d24d65f8cc05653e7b8155156cb8bb6d31a75 ClevererCombinePointClouds
 namespace ImageLib.Pipeline.Routines
 {
-    class ClevererCombinePointClouds
+    class CleverCombinePointClouds
     {
         private static readonly ILog logger = LogManager.GetLogger(typeof(CombinePointClouds));
 
