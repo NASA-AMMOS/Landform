@@ -154,6 +154,12 @@ It is also possible to **post-mortem collect stats and generate debug outputs fr
 ./Landform/bin/Release/Landform.exe local-observation-products sol589 --cloud --writeallthethings --outputframe=root --usepriors
 ./Landform/bin/Release/Landform.exe local-observation-products sol589 --cloud --writeallthethings --outputframe=root
 ```
+## Generating tiled meshes
+If you've ingested observations and optionally aligned them you can generate a mesh with the `local-build-meshes` command
+running with a commandline like 
+./Landform/bin/Release/Landform.exe local-build-meshes sol589 will build a mesh from the PlacesDB priors stored in the sol589 project
+./Landform/bin/Release/Landform.exe local-build-meshes sol589 -transformsource=LandformBEV will build a mesh using the birds eye view aligned transforms you've built previously for sol589
+
 
 ## Long Form
 1.  Get some input data.  You will want one or more directories with .IMG files, typically OPGS navcam RDRs.

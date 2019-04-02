@@ -25,7 +25,7 @@ namespace OPS.Pipeline
         [Option(HelpText = "don't build textures for the mesh", Default = true)]
         public bool NoTextures { get; set; }
 
-        [Option(HelpText = "Allowed source for transform priors: PlacesDB or Landform. PDS is implicit for observations", Default = "PlacesDB")]
+        [Option(HelpText = "Allowed source for transform priors: PlacesDB, Landform, LandformBEV. (PDS is implicit for observations)", Default = "PlacesDB")]
         public string TransformSource { get; set; }
 
         [Option(HelpText = "Operate on cloud data", Default = false)]
