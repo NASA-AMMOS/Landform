@@ -97,7 +97,8 @@ namespace OPS.Pipeline.MeshWorker
             {
                 var obs = observations[idx];
                 pipeline.LogInfo("building point cloud {0}/{1} ({2})%): {3}", idx + 1, observations.Count,
-                                 (int)(100 * idx / (float)observations.Count), obs.Points.FrameName);
+                                 (int)(100 * idx / (float)(observations.Count-1)), obs.Points.FrameName);
+
                 var mesh = Meshing.BuildPointCloud(pipeline, obs, frameCache, scaleNormalsByConfidence: true);
                 aggregatePointCloud.MergeWith(new Mesh[] { mesh }, normalize: false);
             }
