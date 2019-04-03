@@ -156,9 +156,9 @@ It is also possible to **post-mortem collect stats and generate debug outputs fr
 ```
 ## Generating tiled meshes
 If you've ingested observations and optionally aligned them you can generate a mesh with the `local-build-meshes` command
-running with a commandline like 
-./Landform/bin/Release/Landform.exe local-build-meshes sol589 will build a mesh from the PlacesDB priors stored in the sol589 project
-./Landform/bin/Release/Landform.exe local-build-meshes sol589 -transformsource=LandformBEV will build a mesh using the birds eye view aligned transforms you've built previously for sol589
+the command line behavior is a subset of local-observation-products. running with a commandline like 
+./Landform/bin/Release/Landform.exe local-build-meshes sol589 --onlyforcameras=NavcamLeft --usepriors will build a mesh from the PlacesDB priors stored in the sol589 project
+./Landform/bin/Release/Landform.exe local-build-meshes sol589  --onlyforcameras=NavcamLeft --adjustedtransformsources=LandformBEV will build a mesh using the birds eye view aligned transforms you've built previously for sol589
 
 
 ## Long Form
