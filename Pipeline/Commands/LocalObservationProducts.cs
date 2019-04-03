@@ -295,10 +295,9 @@ namespace OPS.Pipeline
             observationCache.Preload();
 
             bool requirePoints = false;
-            bool onlyLeftEye = false;
             var observations =
                 Meshing.CollectMeshObservations(frameCache, observationCache, options.AllowMastcam,
-                                                requirePoints, options.RequireNormals, options.RequireTextures, onlyLeftEye,
+                                                requirePoints, options.RequireNormals, options.RequireTextures,
                                                 options.OnlyForSiteDrives, options.OnlyForCameras);
             
             int no = observations.Count();

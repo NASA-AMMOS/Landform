@@ -73,14 +73,14 @@ namespace OPS.Pipeline.MeshWorker
             return 0;
         }
 
-        static public Mesh BuildMesh(PipelineCore pipeline, string projectName, out BoundingBox pointBounds, FrameCache frameCache, ObservationCache observationCache, string outputFrame)
+        static public Mesh BuildMesh(PipelineCore pipeline, string projectName, out BoundingBox pointBounds, FrameCache frameCache, ObservationCache observationCache, string outputFrame, string onlyForCameras = null)
         {
             pointBounds = new BoundingBox();
            
             //temporarily suppress mastcam point cloud data until validated
             //https://github.jpl.nasa.gov/OnSight/Landform/issues/261
             var observations = Meshing.CollectMeshObservations(frameCache, observationCache, allowMastcam: false,
-                                                               requireNormals: true, onlyLeftEye:true);
+                                                               requireNormals: true, onlyForCameras:onlyForCameras);
             if (observations.Count == 0)
             {
                 pipeline.LogError("no observations were found to build a point cloud");

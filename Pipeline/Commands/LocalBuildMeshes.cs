@@ -19,6 +19,9 @@ namespace OPS.Pipeline
         [Option(HelpText = "the type of tiling project (currently only MSL supported)", Default = "MSL")]
         public string ProjectType { get; set; }
 
+        [Option(HelpText = "Only generate products for specific cameras, comma separated (FrontHazcamLeft, FrontHazcamRight, RearHazcamLeft, RearHazcamRight, NavcamLeft, NavcamRight, MastcamLeft, MastcamRight, MAHLI)", Default = null)]
+        public string OnlyForCameras { get; set; }
+
         [Option(HelpText = "Output directory, or omit to save to project storage", Default = null)]
         public string OutputFolder { get; set; }
 
@@ -101,7 +104,7 @@ namespace OPS.Pipeline
 
             //build mesh
             pipeline.LogInfo("Building full mesh for {0}", options.ProjectName);
-            Mesh mesh = BuildTilingInput.BuildMesh(this.pipeline, options.ProjectName, out BoundingBox pointBounds, frameCache, observationCache, outputFrame);
+            Mesh mesh = BuildTilingInput.BuildMesh(this.pipeline, options.ProjectName, out BoundingBox pointBounds, frameCache, observationCache, outputFrame, options.OnlyForCameras);
             if (mesh == null)
             {
                 pipeline.LogError("Mesh building for {0) failed.", options.ProjectName);
