@@ -35,13 +35,14 @@ namespace OPS.Pipeline
                                                              LocalIngestOptions,
                                                              LocalFeaturesOptions,
                                                              LocalMatchingOptions,
-                                                             LocalBundleAdjustOptions,
+                                                             //LocalBundleAdjustOptions,
                                                              LocalObservationProductsOptions,
                                                              LocalBEVAlignerOptions,
                                                              LocalAgisoftOptions,
                                                              ConfigureCloudOptions,
                                                              ConfigureLocalOptions,
-                                                             EmtToSceneOptions
+                                                             EmtToSceneOptions,
+                                                             LocalBuildMeshesOptions
                                                              >(args)
               .MapResult(
                 (ConvertBaselineMeshOptions opts) => new ConvertBaselineMesh(opts).Run(),
@@ -57,13 +58,14 @@ namespace OPS.Pipeline
                 (LocalIngestOptions opts) => new LocalIngest(opts).Run(),
                 (LocalFeaturesOptions opts) => new LocalFeatures(opts).Run(),
                 (LocalMatchingOptions opts) => new LocalMatching(opts).Run(),
-                (LocalBundleAdjustOptions opts) => new LocalBundleAdjust(opts).Run(),
+                //(LocalBundleAdjustOptions opts) => new LocalBundleAdjust(opts).Run(),
                 (LocalObservationProductsOptions opts) => new LocalObservationProducts(opts).Run(),
                 (LocalBEVAlignerOptions opts) => new LocalBEVAligner(opts).Run(),
                 (LocalAgisoftOptions opts) => new LocalAgisoft(opts).Run(),
                 (ConfigureCloudOptions opts) => new ConfigureCloud(opts).Run(),
                 (ConfigureLocalOptions opts) => new ConfigureLocal(opts).Run(),
                 (EmtToSceneOptions opts) => new EmtToScene(opts).Run(),
+                (LocalBuildMeshesOptions opts) => new LocalBuildMeshes(opts).Run(),
                 errs => 1);
         }
     }

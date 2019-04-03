@@ -59,7 +59,7 @@ namespace OPS.Pipeline
         [Option(HelpText = "Triangle mesh reconstruction method (Organized, Poisson, or FSSR)", Default = ReconstructionMethod.Organized)]
         public ReconstructionMethod ReconstructionMethod { get; set; }
 
-        [Option(HelpText = "Allowed sources for adjusted transforms, comma separated, all if empty (Adjusted,Manual,Landform,Agisoft)", Default = null)]
+        [Option(HelpText = "Allowed sources for adjusted transforms, comma separated, all if empty (Adjusted,Manual,Landform,LandformBEV,Agisoft)", Default = null)]
         public string AdjustedTransformSources { get; set; }
 
         [Option(HelpText = "Allowed sources for transform priors, comma separated, all if empty (Prior,PlacesDB,LocationsDB,PDS)", Default = null)]
@@ -332,7 +332,7 @@ namespace OPS.Pipeline
                         pipeline.LogVerbose("building point cloud for {0}", obs.Points.Name);
                         mesh = Meshing.BuildPointCloud(pipeline, obs, frameCache, outputFrame, options.UsePriors,
                                                        options.DecimateMeshes, options.ScaleNormalsByConfidence);
-                        if (!mesh.HasVertices)
+                        if (mesh != null && !mesh.HasVertices)
                         {
                             mesh = null;
                         }
