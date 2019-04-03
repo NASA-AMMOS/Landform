@@ -22,11 +22,20 @@ namespace OPS.Pipeline
         [Option(HelpText = "Output directory, or omit to save to project storage", Default = null)]
         public string OutputFolder { get; set; }
 
+        [Option(HelpText = "Output coordinate frame: rover, sitedrive, or root", Default = "root")]
+        public string OutputFrame { get; set; }
+
         [Option(HelpText = "don't build textures for the mesh", Default = true)]
         public bool NoTextures { get; set; }
 
-        [Option(HelpText = "Allowed source for transform priors: PlacesDB, Landform, LandformBEV. (PDS is implicit for observations)", Default = "PlacesDB")]
-        public string TransformSource { get; set; }
+        [Option(HelpText = "Allowed sources for adjusted transforms, comma separated, all if empty (Adjusted,Manual,Landform,LandformBEV,Agisoft)", Default = null)]
+        public string AdjustedTransformSources { get; set; }
+
+        [Option(HelpText = "Allowed sources for transform priors, comma separated, all if empty (Prior,PlacesDB,LocationsDB,PDS)", Default = null)]
+        public string PriorTransformSources { get; set; }
+
+        [Option(HelpText = "Use transform priors only", Default = false)]
+        public bool UsePriors { get; set; }
 
         [Option(HelpText = "Operate on cloud data", Default = false)]
         public bool Cloud { get; set; }
@@ -59,25 +68,47 @@ namespace OPS.Pipeline
                 throw new NotImplementedException("project type not implemented yet");
             }
 
-            options.TransformSource += ",PDS"; // camera models from PDS are required
-
+            var outputFrame = options.OutputFrame.ToLower().Trim();
+            if (!(new[] { "rover", "sitedrive", "root" }).Any(f => outputFrame == f))
+            {
+                throw new InvalidOperationException("unknown output frame: " + outputFrame);
+            }
         }
 
         public int Run()
-        {            
-            string outputPath = pipeline.GetLocalDebugFolder(options.OutputFolder,
-                                                             "tiling/" + options.TransformSource.Replace(',','_'),
-                                                             options.ProjectName);
+        {
+            //create directory for output
+            var adjustedSources = ParseSources(options.AdjustedTransformSources);
+            var priorSources = ParseSources(options.PriorTransformSources);
+            var outputFrame = options.OutputFrame.ToLower().Trim();
+            string dir = outputFrame + "Frame" + CreateSourcesPath(adjustedSources, priorSources);
+            string outputPath = pipeline.GetLocalDebugFolder(options.OutputFolder, "tiling/" + dir, options.ProjectName);
             PathHelper.EnsureExists(outputPath);
 
-            pipeline.LogInfo("Building full mesh for {0} from {1}", options.ProjectName, options.TransformSource);
-            Mesh mesh = BuildTilingInput.BuildMesh(this.pipeline, options.ProjectName, out BoundingBox pointBounds, ParseSources(options.TransformSource));
-            if(mesh == null)
+            //load data for building
+            var frameCache = new FrameCache(pipeline, options.ProjectName);
+            Func<FrameTransform, bool> filterPrior =
+                transform => priorSources.Length == 0 || priorSources.Any(s => s == transform.Source);
+            Func<FrameTransform, bool> filterAdjusted =
+                transform => adjustedSources.Length == 0 || adjustedSources.Any(s => s == transform.Source);
+            frameCache.Preload(loadTransforms: true, transformFilter: ft =>
+                               (!options.UsePriors || ft.IsPrior()) && //iff --usepriors only allow priors
+                               ((ft.IsPrior() && filterPrior(ft)) || //iff --priorsources only allow specific priors
+                                (!ft.IsPrior() && filterAdjusted(ft)))); //iff --adjustedsources only allow specific adj
+
+            var observationCache = new ObservationCache(pipeline, options.ProjectName);
+            observationCache.Preload(obs => obs.UseForReconstruction);
+
+            //build mesh
+            pipeline.LogInfo("Building full mesh for {0}", options.ProjectName);
+            Mesh mesh = BuildTilingInput.BuildMesh(this.pipeline, options.ProjectName, out BoundingBox pointBounds, frameCache, observationCache, outputFrame);
+            if (mesh == null)
             {
                 pipeline.LogError("Mesh building for {0) failed.", options.ProjectName);
                 return 1;
             }
 
+            //beautify mesh
             if (mesh != null)
             {
                 // clips the mesh to the 2d bounds of the input points
@@ -87,11 +118,39 @@ namespace OPS.Pipeline
                 mesh.Clean();
             }
 
+            //save mesh
             string meshFilePath = Path.Combine(outputPath, "fullMesh.ply");
             pipeline.LogInfo("Saving full mesh to: {0}", meshFilePath);
             mesh.Save(meshFilePath);
 
             return 0;
+        }
+
+        private string CreateSourcesPath(TransformSource[] adjustedSources, TransformSource[] priorSources)
+        {
+            string sourcesString = string.Empty;
+            if (options.UsePriors)
+            {
+                sourcesString += "/prior";
+                if (priorSources.Length > 0)
+                {
+                    sourcesString += "_" + String.Join("_", priorSources);
+                }
+            }
+            else
+            {
+                sourcesString += "/best";
+                if (priorSources.Length > 0)
+                {
+                    sourcesString += "_" + String.Join("_", priorSources);
+                }
+                if (adjustedSources.Length > 0)
+                {
+                    sourcesString += "_" + String.Join("_", adjustedSources);
+                }
+            }
+
+            return sourcesString;
         }
 
         private TransformSource[] ParseSources(string sources)

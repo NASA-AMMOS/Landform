@@ -1069,7 +1069,9 @@ namespace OPS.Pipeline
             var ret = BuildPointCloud(points, normals, mask);
             var transform = GetTransform(obs.Points.FrameName, frame, frameCache, usePriors);
             if (transform == null)
+            {
                 return null;
+            }
             ret.Transform(transform.Mean);
             return ret;
         }

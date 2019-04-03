@@ -35,7 +35,16 @@ namespace OPS.Pipeline.MeshWorker
         {
             pipeline.LogInfo("started");
 
-            Mesh surfacedMesh = BuildMesh(pipeline, projectName, out BoundingBox pointBounds);
+            //load transforms, by filtering by allowed transform sources or allowing all
+            var frameCache = new FrameCache(pipeline, projectName);           
+            frameCache.Preload(loadTransforms: true);
+            
+            //load observations
+            var observationCache = new ObservationCache(pipeline, projectName);
+            observationCache.Preload(obs => obs.UseForReconstruction);
+
+            string outputFrame = "root";
+            Mesh surfacedMesh = BuildMesh(pipeline, projectName, out BoundingBox pointBounds, frameCache, observationCache, outputFrame);
             if (surfacedMesh == null || surfacedMesh.Vertices.Count == 0)
             {
                 pipeline.LogError("point cloud failed to reconstruct");
@@ -64,26 +73,10 @@ namespace OPS.Pipeline.MeshWorker
             return 0;
         }
 
-        static public Mesh BuildMesh(PipelineCore pipeline, string projectName, out BoundingBox pointBounds, TransformSource[] transfromSources = null)
+        static public Mesh BuildMesh(PipelineCore pipeline, string projectName, out BoundingBox pointBounds, FrameCache frameCache, ObservationCache observationCache, string outputFrame)
         {
             pointBounds = new BoundingBox();
-
-            //load transforms, by filtering by allowed transform sources or allowing all
-            var frameCache = new FrameCache(pipeline, projectName);
-            if (transfromSources != null)
-            {
-                Func<FrameTransform, bool> allowedTransformSource = transform => transfromSources.Length == 0 || transfromSources.Any(s => s == transform.Source);
-                frameCache.Preload(loadTransforms: true, transformFilter: ft => allowedTransformSource(ft));
-            }
-            else
-            {
-                frameCache.Preload(loadTransforms: true);
-            }
-
-            //load observations
-            var observationCache = new ObservationCache(pipeline, projectName);
-            observationCache.Preload(obs => obs.UseForReconstruction);
-
+           
             //temporarily suppress mastcam point cloud data until validated
             //https://github.jpl.nasa.gov/OnSight/Landform/issues/261
             var observations = Meshing.CollectMeshObservations(frameCache, observationCache, allowMastcam: false,
@@ -102,7 +95,7 @@ namespace OPS.Pipeline.MeshWorker
                 pipeline.LogInfo("building point cloud {0}/{1} ({2})%): {3}", idx + 1, observations.Count,
                                  (int)(100 * idx / (float)(observations.Count-1)), obs.Points.FrameName);
 
-                var mesh = Meshing.BuildPointCloud(pipeline, obs, frameCache, scaleNormalsByConfidence: true);
+                var mesh = Meshing.BuildPointCloud(pipeline, obs, frameCache, outputFrame, scaleNormalsByConfidence: true);
                 if(mesh == null)
                 {
                     pipeline.LogInfo("failed to build pointcloud for {0}", obs.Name);
