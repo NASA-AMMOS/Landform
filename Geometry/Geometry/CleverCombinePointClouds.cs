@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
 using Microsoft.Xna.Framework;
+using OPS.Util;
 
 //ported from onsight/terraintools sha 840d24d65f8cc05653e7b8155156cb8bb6d31a75 ClevererCombinePointClouds
 namespace OPS.Geometry
@@ -76,15 +77,15 @@ namespace OPS.Geometry
 
             // Filter points
             {
-                Random r = new Random();
+                Random random = NumberHelper.MakeRandomGenerator();
                 for (int i = 0; i < width; i++)
                 {
                     for (int j = 0; j < height; j++)
                     {
-                        double[] originDistances = Enumerable.Range(0, inputPointClouds.Length).Select((pc) =>
+                        double[] originDistances = inputPointCloudOrigins.Select( origin =>
                         {
-                            double dx = inputPointCloudOrigins[pc].X - ((i + 0.5) * CellSize + bbox.Min.X);
-                            double dy = inputPointCloudOrigins[pc].Y - ((j + 0.5) * CellSize + bbox.Min.Y);
+                            double dx = origin.X - ((i + 0.5) * CellSize + bbox.Min.X);
+                            double dy = origin.Y - ((j + 0.5) * CellSize + bbox.Min.Y);
                             return Math.Sqrt(dx * dx + dy * dy);
                         }).ToArray();
 
@@ -134,7 +135,7 @@ namespace OPS.Geometry
                                 int cloudIdx = cloudIndices[idx];
                                 int numNNSamples = Math.Min(points[cloudIdx][i, j].Count, 30);
                                 int[] nnIndices = Enumerable.Range(0, points[cloudIdx][i, j].Count)
-                                    .OrderBy(x => r.NextDouble())
+                                    .OrderBy(x => random.NextDouble())
                                     .Take(numNNSamples).ToArray();
 
                                 double nnDistMSE = 0;
