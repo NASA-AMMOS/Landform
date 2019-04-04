@@ -400,7 +400,7 @@ namespace OPS.Pipeline
         }
 
         /// <summary>
-        /// populates bevs, dems, and bevOrigins from observations
+        /// populates bevs, dems, and bevOrigins from database or observations
         /// </summary>
         private void LoadOrRenderBEVs()
         {
@@ -436,7 +436,8 @@ namespace OPS.Pipeline
         private void RenderBEVs()
         {
             double startSec = UTCTime.Now();
-            pipeline.LogInfo("rendering {0} birds eye views...", siteDrives.Length);
+            pipeline.LogInfo("rendering {0} birds eye views...",
+                             siteDrives.Where(sd => !bevs.ContainsKey(sd) || !dems.ContainsKey(sd)).Count());
 
             var bevOptions = new Meshing.BEVOptions
             {
@@ -465,7 +466,7 @@ namespace OPS.Pipeline
 
                     Mesh mesh = null;
                     Image img = null;
-                    if (bevs[siteDrive] == null || dems[siteDrive] == null)
+                    if (!bevs.ContainsKey(siteDrive) || !dems.ContainsKey(siteDrive))
                     {
                         //ensure inpurs are in a canonical order particularly for BEVBlending = Over
                         var inputs = mergeInputs[siteDrive]
@@ -514,7 +515,7 @@ namespace OPS.Pipeline
                         }
                     }
 
-                    if (bevs[siteDrive] == null)
+                    if (!bevs.ContainsKey(siteDrive))
                     {
                         var bev = Meshing.RenderBirdsEyeView(mesh, img, out Vector2 origin, bevOptions);
                         
@@ -530,7 +531,7 @@ namespace OPS.Pipeline
                         bevOrigins[siteDrive] = origin;
                     }
 
-                    if (dems[siteDrive] == null)
+                    if (!dems.ContainsKey(siteDrive))
                     {
                         var bev = bevs[siteDrive];
                         var origin = bevOrigins[siteDrive];
@@ -571,28 +572,33 @@ namespace OPS.Pipeline
         /// </summary>
         private bool LoadBEVs()
         {
+            double startSec = UTCTime.Now();
             int nc = 0;
-            foreach (var siteDrive in siteDrives)
-            {
-                var rec = BirdsEyeView.Find(pipeline, project.Name, siteDrive);
-                if (rec != null &&
-                    rec.Coloring == options.BEVColoring &&
-                    rec.Blending == options.BEVBlending &&
-                    rec.MetersPerPixel == options.BEVMetersPerPixel &&
-                    rec.SparseBlockSize == options.BEVSparseBlocksize &&
-                    rec.MinValidBlockRatio == options.BEVMinValidBlockRatio &&
-                    rec.Inpaint == options.BEVInpaint &&
-                    rec.Smoothing == options.BEVSmoothing &&
-                    rec.Decimation == options.BEVDecimation)
-                {
-                    bevs[siteDrive] =
-                        pipeline.GetDataProduct<TiffDataProduct>(project.ProductPath, rec.BEVGuid, project.Name).Image;
-                    dems[siteDrive] =
-                        pipeline.GetDataProduct<TiffDataProduct>(project.ProductPath, rec.DEMGuid, project.Name).Image;
-                    bevOrigins[siteDrive] = new Vector2(rec.OriginX, rec.OriginY);
-                    nc++;
-                }
-            }
+            CoreLimitedParallel.ForEach(siteDrives, siteDrive => {
+                    var rec = BirdsEyeView.Find(pipeline, project.Name, siteDrive);
+                    if (rec != null &&
+                        rec.Coloring == options.BEVColoring &&
+                        rec.Blending == options.BEVBlending &&
+                        rec.MetersPerPixel == options.BEVMetersPerPixel &&
+                        rec.SparseBlockSize == options.BEVSparseBlocksize &&
+                        rec.MinValidBlockRatio == options.BEVMinValidBlockRatio &&
+                        rec.Inpaint == options.BEVInpaint &&
+                        rec.Smoothing == options.BEVSmoothing &&
+                        rec.Decimation == options.BEVDecimation)
+                    {
+                        var bev = pipeline.GetDataProduct<TiffDataProduct>(project, rec.BEVGuid).Image;
+                        var dem = pipeline.GetDataProduct<TiffDataProduct>(project, rec.DEMGuid).Image;
+                        var mask = pipeline.GetDataProduct<PngDataProduct>(project, rec.MaskGuid).Image;
+                        bev.UnionMask(mask, new float[] { 1 });
+                        dem.UnionMask(mask, new float[] { 1 });
+                        bevs[siteDrive] = bev;
+                        dems[siteDrive] = dem;
+                        bevOrigins[siteDrive] = new Vector2(rec.OriginX, rec.OriginY);
+                        Interlocked.Increment(ref nc);
+                    }
+                });
+            
+            pipeline.LogInfo("loaded {0} birds eye views ({1:F3}s)", nc, UTCTime.Now() - startSec);
 
             return nc == siteDrives.Length;
         }
@@ -602,17 +608,21 @@ namespace OPS.Pipeline
         /// </summary>
         private void SaveBEVs()
         {
-            foreach (var pair in bevs)
-            {
-                var siteDrive = pair.Key;
-                var bev = pair.Value;
-                var dem = dems[siteDrive];
-                var origin = bevOrigins[siteDrive];
-                BirdsEyeView.Create(pipeline, project, siteDrive, bev, dem, origin, options.BEVColoring,
-                                    options.BEVBlending, options.BEVMetersPerPixel, options.BEVSparseBlocksize,
-                                    options.BEVMinValidBlockRatio, options.BEVInpaint, options.BEVSmoothing,
-                                    options.BEVDecimation);
-            }
+            double startSec = UTCTime.Now();
+            int nc = 0;
+            CoreLimitedParallel.ForEach(bevs, pair => {
+                    var siteDrive = pair.Key;
+                    var bev = pair.Value;
+                    var dem = dems[siteDrive];
+                    var mask = bev.MaskToImage();
+                    var origin = bevOrigins[siteDrive];
+                    BirdsEyeView.Create(pipeline, project, siteDrive, bev, dem, mask, origin, options.BEVColoring,
+                                        options.BEVBlending, options.BEVMetersPerPixel, options.BEVSparseBlocksize,
+                                        options.BEVMinValidBlockRatio, options.BEVInpaint, options.BEVSmoothing,
+                                        options.BEVDecimation);
+                    Interlocked.Increment(ref nc);
+                });
+            pipeline.LogInfo("saved {0} birds eye views ({1:F3}s)", nc, UTCTime.Now() - startSec);
         }
 
         /// <summary>
