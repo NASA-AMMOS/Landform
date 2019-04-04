@@ -266,6 +266,7 @@ namespace OPS.Pipeline
             Matrix xform = RoverCoordinateSystem.GetTransformToRoverFrame(parser);
             Image ret = new Image(3, img.Width, img.Height);
             AddMaskForMissingConstant(ret, img, parser);
+            bool hasMissingConstant = parser.HasMissingConstant;
             for (int row = 0; row < img.Height; row++)
             {
                 for (int col = 0; col < img.Width; col++)
@@ -274,7 +275,7 @@ namespace OPS.Pipeline
                     {
                         ret.SetMaskValue(row, col, true);
                     }
-                    else if (!parser.HasMissingConstant || !ret.IsInvalid(row, col))
+                    else if (!hasMissingConstant || !ret.IsInvalid(row, col))
                     {
                         var p = new Vector3(img[0, row, col], img[1, row, col], img[2, row, col]);
                         ret.SetBandValues(row, col, Vector3.Transform(p, xform).ToFloatArray());
@@ -296,6 +297,7 @@ namespace OPS.Pipeline
             CheckCameraCenter(parser, img, "ConvertRNG");
             Image ret = new Image(3, img.Width, img.Height);
             AddMaskForMissingConstant(ret, img, parser);
+            bool hasMissingConstant = parser.HasMissingConstant;
             for (int row = 0; row < img.Height; row++)
             {
                 for (int col = 0; col < img.Width; col++)
@@ -304,7 +306,7 @@ namespace OPS.Pipeline
                     {
                         ret.SetMaskValue(row, col, true);
                     }
-                    else if (!parser.HasMissingConstant || !ret.IsInvalid(row, col))
+                    else if (!hasMissingConstant || !ret.IsInvalid(row, col))
                     {
                         Vector3 p = img.CameraModel.Unproject(new Vector2(col, row), img[0, row, col]);
                         ret.SetBandValues(row, col, p.ToFloatArray());
@@ -338,6 +340,7 @@ namespace OPS.Pipeline
             CheckType(parser, RoverProductType.Range, "GenerateConfidenceFromRNG");
             Image ret = new Image(1, img.Width, img.Height);
             AddMaskForMissingConstant(ret, img, parser);
+            bool hasMissingConstant = parser.HasMissingConstant;
             for (int row = 0; row < img.Height; row++)
             {
                 for (int col = 0; col < img.Width; col++)
@@ -347,7 +350,7 @@ namespace OPS.Pipeline
                     {
                         ret.SetMaskValue(row, col, true);
                     }
-                    else if (!parser.HasMissingConstant || !ret.IsInvalid(row, col))
+                    else if (!hasMissingConstant || !ret.IsInvalid(row, col))
                     {
                         ret[0, row, col] = 1 / img[0, row, col];
                     }
@@ -368,6 +371,7 @@ namespace OPS.Pipeline
             Matrix xform = RoverCoordinateSystem.GetTransformToRoverFrame(parser);
             Image ret = new Image(1, img.Width, img.Height);
             AddMaskForMissingConstant(ret, img, parser);
+            bool hasMissingConstant = parser.HasMissingConstant;
             for (int row = 0; row < img.Height; row++)
             {
                 for (int col = 0; col < img.Width; col++)
@@ -376,7 +380,7 @@ namespace OPS.Pipeline
                     {
                         ret.SetMaskValue(row, col, true);
                     }
-                    else if (!parser.HasMissingConstant || !ret.IsInvalid(row, col))
+                    else if (!hasMissingConstant || !ret.IsInvalid(row, col))
                     {
                         var p = new Vector3(img[0, row, col], img[1, row, col], img[2, row, col]);
                         ret[0, row, col] = 1 / (float)Vector3.Distance(Vector3.Transform(p, xform), c);
@@ -406,6 +410,7 @@ namespace OPS.Pipeline
             bool nonIdentityXform = !xform.Equals(Matrix.Identity);
             Image ret = new Image(img);
             AddMaskForMissingConstant(ret, img, parser);
+            bool hasMissingConstant = parser.HasMissingConstant;
             for (int row = 0; row < img.Height; row++)
             {
                 for (int col = 0; col < img.Width; col++)
@@ -422,7 +427,7 @@ namespace OPS.Pipeline
                     {
                         ret.SetMaskValue(row, col, true);
                     }
-                    else if (!parser.HasMissingConstant || !ret.IsInvalid(row, col))
+                    else if (!hasMissingConstant || !ret.IsInvalid(row, col))
                     {
                         if (nonIdentityXform)
                         {
@@ -468,6 +473,11 @@ namespace OPS.Pipeline
 
             if (toFrame == "root" || string.IsNullOrEmpty(toFrame))
             {
+                if (sdToRoot == null)
+                {
+                    return null;
+                }
+
                 return obsToSD.Transform * sdToRoot.Transform;
             }
             else
@@ -1058,7 +1068,12 @@ namespace OPS.Pipeline
                                      out Image points, out Image normals, out Image mask);
             pipeline.LogVerbose("building point cloud {0}", obs.Points.Name);
             var ret = BuildPointCloud(points, normals, mask);
-            ret.Transform(GetTransform(obs.Points.FrameName, frame, frameCache, usePriors).Mean);
+            var transform = GetTransform(obs.Points.FrameName, frame, frameCache, usePriors);
+            if (transform == null)
+            {
+                return null;
+            }
+            ret.Transform(transform.Mean);
             return ret;
         }
 

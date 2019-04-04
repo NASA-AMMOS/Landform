@@ -35,6 +35,7 @@ namespace OPS.Imaging
 {
     // the colors for this code are translated from http://personal.psu.edu/cab38/ColorBrewer/ColorBrewer_RGB.html
     // the colors are based on the perceptual map color work of Dr. Cynthia Brewer http://colorbrewer.org
+    // BuPu and OrRd are recommended for sequential data both for colorblindness scores (page 45, http://www.personal.psu.edu/cab38/ColorBrewer/Steve_Gardner_thesis_PSU.pdf) and by the team designer (Rob Ray) for look
     public class BrewerColors
     {
         public enum Scheme

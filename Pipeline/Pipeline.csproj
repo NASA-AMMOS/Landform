@@ -214,6 +214,7 @@
     <Compile Include="Commands\LocalFeatures.cs" />
     <Compile Include="Commands\LocalIngest.cs" />
     <Compile Include="Commands\LocalMatching.cs" />
+    <Compile Include="Commands\LocalBuildMeshes.cs" />
     <Compile Include="Commands\LocalObservationProducts.cs" />
     <Compile Include="Commands\TileLocalMesh.cs" />
     <Compile Include="DataProducts\DataProduct.cs" />

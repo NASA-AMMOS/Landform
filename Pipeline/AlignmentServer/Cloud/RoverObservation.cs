@@ -44,7 +44,7 @@ namespace OPS.Pipeline.AlignmentServer
                     Sensor == RoverProductCamera.MastcamRight.ToString();
             }
         }
-        
+      
         protected void IsValidRoverOservation()
         {
             base.IsValid();
