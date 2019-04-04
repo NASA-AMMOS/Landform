@@ -165,7 +165,7 @@ namespace OPS.Pipeline
         [Option(HelpText = "Operate on cloud data", Default = false)]
         public bool Cloud { get; set; }
 
-        [Option(HelpText = "Write delta range images", Default = false)]
+        [Option(HelpText = "Write delta range images: a visualization of the 3d distance between the points in one image projected into and compared to the points in another image", Default = false)]
         public bool WriteDeltaRangeImages { get; set;}
     } 
 
@@ -729,8 +729,8 @@ namespace OPS.Pipeline
                         dstPixelY < 0 || dstPixelY >= dstObs.Texture.Height)
                         continue;
 
-                    //TODO: properly handle spreading data across fractional pixels (subpixel projection results)
-                    //TODO: properly handle blending with existing data (coverage channel)
+                    //Issue #476: properly handle spreading data across fractional pixels (subpixel projection results) 
+                    // and properly handle blending with existing data (coverage channel)
 
                     Vector3 dstRoverPt = new Vector3(dstPoints[0, dstPixelY, dstPixelX], dstPoints[1, dstPixelY, dstPixelX], dstPoints[2, dstPixelY, dstPixelX]);
 
@@ -748,7 +748,7 @@ namespace OPS.Pipeline
                     if ((int)refDstPixelX != (int)dstPixelX || (int)refDstPixelY != (int)dstPixelY)
                         throw new Exception("range product points should map back to the same pixel it was pulled from");
 
-                    deltaRangeImg[0, (int)dstPixel.Y, (int)dstPixel.X] = (float)Math.Abs(range - refRange);
+                    deltaRangeImg[0, (int)dstPixel.Y, (int)dstPixel.X] = (float)Vector3.Distance(dstRoverPt, srcPtInDst);
                     deltaRangeImg.SetMaskValue((int)dstPixel.Y, (int)dstPixel.X, false);
                     anyValid = true;
                 }
