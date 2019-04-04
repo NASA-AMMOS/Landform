@@ -11,6 +11,9 @@ using OPS.Util;
 using OPS.Imaging;
 using OPS.Geometry;
 using OPS.Pipeline.AlignmentServer;
+using Microsoft.Xna.Framework;
+using OPS.Imaging.Emgu;
+using Emgu.CV.Structure;
 
 namespace OPS.Pipeline
 {
@@ -161,7 +164,10 @@ namespace OPS.Pipeline
 
         [Option(HelpText = "Operate on cloud data", Default = false)]
         public bool Cloud { get; set; }
-    }
+
+        [Option(HelpText = "Write delta range images: a visualization of the 3d distance between the points in one image projected into and compared to the points in another image", Default = false)]
+        public bool WriteDeltaRangeImages { get; set;}
+    } 
 
     public class LocalObservationProducts
     {
@@ -504,6 +510,41 @@ namespace OPS.Pipeline
                         hull.Mesh.Save(file);
                     }
 
+                    if (options.WriteDeltaRangeImages)
+                    {
+                        string path = tmpPath + "DeltaRange/";
+                        PathHelper.EnsureExists(path);
+
+                        string pathPreview = tmpPath + "DeltaRange/Preview/";
+                        PathHelper.EnsureExists(pathPreview);
+
+                        float[] previewDistanceBuckets = new float[] { 0.1f, 0.25f, 0.5f, 0.75f, 1.0f, 1.25f, 1.5f };
+                        Vector3 [] colors = BrewerColors.GetColors("Blues", previewDistanceBuckets.Length + 1);
+                       
+                        foreach (var otherObs in observations)
+                        {
+                            if (obs == otherObs)
+                                continue;
+
+                            var overlap = Overlap.Find(pipeline, project.Name, otherObs.Texture.Name, obs.Texture.Name);
+                            if (overlap == null)
+                                continue;
+
+                            Image deltaRangeImage = CreateDeltaRangeImage(otherObs, obs, frameCache, options.UsePriors);
+                            if (deltaRangeImage != null)
+                            {
+                                string imageName = otherObs.Points.Name + "_in_" + obs.Points.Name;
+                                deltaRangeImage.Save<float>(path + imageName + ".tif");
+
+                                Vector3 backgroundColor = new Vector3(0.9, 0.9, 0.9);
+                                Image deltaRangePreview = Image.ColorizeScalarImage(deltaRangeImage.Decimated(4), previewDistanceBuckets, colors.Select(c => c.ToFloatArray()).ToArray(), backgroundColor.ToFloatArray());
+                                deltaRangePreview = StampLegend(deltaRangePreview, previewDistanceBuckets, colors, backgroundColor);
+                                deltaRangePreview.DeleteMask();
+                                deltaRangePreview.Save<byte>(pathPreview + imageName + ".png");
+                            }
+                        }
+                    }
+
                     Interlocked.Decrement(ref np);
                     Interlocked.Increment(ref nc);
                 });
@@ -595,6 +636,126 @@ namespace OPS.Pipeline
             return 0;
         }
 
+        private Image StampLegend(Image img, float[] previewDistanceBuckets, Vector3[] colorsLowToHigh, Vector3 backgroundColor)
+        {
+            //formatting parameters
+            // if we need a more general layout api these can be exposed
+            int largeSpacingPixels = 16;
+            int smallSpacingPixels = 7;
+            int colorChipWidthPixels = 10;
+            int frameWidthPixels = 70;
+
+            int legendDimColor = 3;
+            Rgb textColor = new Rgb(40, 40, 40);
+            Rgb bgColor = OPS.Imaging.Emgu.Extensions.ToEmguColor(backgroundColor.ToFloatArray());
+            Rgb legendColor = new Rgb(Math.Max(0,bgColor.Red - legendDimColor), Math.Max(0, bgColor.Green - legendDimColor), Math.Max(0, bgColor.Blue - legendDimColor));
+
+            //allocate expanded image and clear to background color
+            System.Drawing.Size expandedImageSize = new System.Drawing.Size(frameWidthPixels + img.Width, img.Height);
+            Emgu.CV.Image<Rgb, byte> emguImg = new Emgu.CV.Image<Rgb, byte>(expandedImageSize);
+            emguImg.Draw(new System.Drawing.Rectangle(new System.Drawing.Point(0, 0), new System.Drawing.Size(frameWidthPixels, img.Height)), legendColor, -1);
+
+            //draw legend
+
+            System.Drawing.Point pt = new System.Drawing.Point(largeSpacingPixels, largeSpacingPixels);
+            
+            //catchall
+            emguImg.Draw(new System.Drawing.Rectangle(new System.Drawing.Point(pt.X, pt.Y - (int)colorChipWidthPixels / 2), new System.Drawing.Size(colorChipWidthPixels, colorChipWidthPixels)), OPS.Imaging.Emgu.Extensions.ToEmguColor(colorsLowToHigh.Last().ToFloatArray()), -1);
+            emguImg.Draw("> " + previewDistanceBuckets[previewDistanceBuckets.Length - 1].ToString("F2") + "m", new System.Drawing.Point(pt.X + colorChipWidthPixels + smallSpacingPixels, pt.Y), Emgu.CV.CvEnum.FontFace.HersheySimplex, 0.2, textColor, 1);
+            pt.Y += largeSpacingPixels;
+
+            for (int idx = previewDistanceBuckets.Length-1; idx >= 0; idx--)
+            {
+                Rgb color = OPS.Imaging.Emgu.Extensions.ToEmguColor(colorsLowToHigh[idx].ToFloatArray());
+                emguImg.Draw(new System.Drawing.Rectangle(new System.Drawing.Point(pt.X,pt.Y - (int)colorChipWidthPixels/2), new System.Drawing.Size(colorChipWidthPixels, colorChipWidthPixels)), color, -1);
+                emguImg.Draw("< " + previewDistanceBuckets[idx].ToString("F2") + "m", new System.Drawing.Point(pt.X + colorChipWidthPixels + smallSpacingPixels, pt.Y), Emgu.CV.CvEnum.FontFace.HersheySimplex, 0.2, textColor, 1);
+                pt.Y += largeSpacingPixels;
+            }
+            
+            Image result = emguImg.ToOPSImage();
+            emguImg.Dispose();
+
+            result.Blit(img,frameWidthPixels,0);
+
+            return result;
+        }
+
+        // fills a texture with the difference in the per-pixel range of a src point cloud and dst point cloud 
+        // designed to give an coarse visual estimate of how well cameras are aligned
+        private Image CreateDeltaRangeImage(MeshObservations srcObs, MeshObservations dstObs, FrameCache frameCache, bool usePriors)
+        {
+            //load images
+            Meshing.LoadOrGenerateMeshImages(this.pipeline, srcObs, 1, false, out Image srcPoints, out Image srcNormals, out Image srcMask);
+            srcPoints.UnionMask(srcMask, new float[] { 0 });
+
+            Meshing.LoadOrGenerateMeshImages(this.pipeline, dstObs, 1, false, out Image dstPoints, out Image dstNormals, out Image dstMask);
+            dstPoints.UnionMask(dstMask, new float[] { 0 });
+
+            //get camera model
+            Image dstImg = pipeline.LoadImage(dstObs.Texture.Url);
+            PDSParser dstParser = new PDSParser((PDSMetadata)dstImg.Metadata);
+            CameraModel dstCamera = dstParser.metadata.CameraModel;
+
+            var srcObsToDstObs = Meshing.GetTransform(srcObs.Points.FrameName, dstObs.Points.FrameName, frameCache, usePriors).Mean;
+            var dstHull = Meshing.BuildFrustumHull(pipeline, dstObs, frameCache, dstObs.Points.FrameName, usePriors, uncertaintyInflated: false);
+
+            //project points of src texture into dst
+            Image deltaRangeImg = new Image(1, dstObs.Texture.Width, dstObs.Texture.Height);
+            deltaRangeImg.CreateMask(true);
+
+            bool anyValid = false;
+            for (int idxSrcRow = 0; idxSrcRow < srcObs.Texture.Height; idxSrcRow++)
+            {
+                for (int idxSrcCol = 0; idxSrcCol < srcObs.Texture.Width; idxSrcCol++)
+                {
+                    if (srcPoints.IsInvalid(idxSrcRow, idxSrcCol))
+                        continue;
+
+                    Vector3 srcRoverPt = new Vector3(srcPoints[0, idxSrcRow, idxSrcCol], srcPoints[1, idxSrcRow, idxSrcCol], srcPoints[2, idxSrcRow, idxSrcCol]);
+                    Vector3 srcPtInDst = Vector3.Transform(srcRoverPt, srcObsToDstObs);
+
+                    //coarse test to ensure no errors at the far distant edges of camera models, or points behind the camera 
+                    // projecting to valid screen positions. NOTE: enforces the hull distance limit which may be too conservative
+                    // also accuracy is poor for nonlinear camera models
+                    if (!dstHull.Contains(srcPtInDst))
+                        continue;
+
+                    Vector2 dstPixel = dstCamera.Project(srcPtInDst, out double range);
+
+                    int dstPixelX = (int)Math.Round(dstPixel.X);
+                    int dstPixelY = (int)Math.Round(dstPixel.Y);
+
+                    if (dstPixelX < 0 || dstPixelX >= dstObs.Texture.Width ||
+                        dstPixelY < 0 || dstPixelY >= dstObs.Texture.Height)
+                        continue;
+
+                    //Issue #476: properly handle spreading data across fractional pixels (subpixel projection results) 
+                    // and properly handle blending with existing data (coverage channel)
+
+                    Vector3 dstRoverPt = new Vector3(dstPoints[0, dstPixelY, dstPixelX], dstPoints[1, dstPixelY, dstPixelX], dstPoints[2, dstPixelY, dstPixelX]);
+
+                    Vector2 refDstPixel = dstCamera.Project(dstRoverPt, out double refRange);
+                    int refDstPixelX = (int)Math.Round(refDstPixel.X);
+                    int refDstPixelY = (int)Math.Round(refDstPixel.Y);
+
+                    if (refDstPixelX < 0 || refDstPixelX >= dstObs.Texture.Width ||
+                        refDstPixelY < 0 || refDstPixelY >= dstObs.Texture.Height)
+                        continue;
+
+                    if (dstPoints.IsInvalid((int)refDstPixelY, (int)refDstPixelX))
+                        continue;
+
+                    if ((int)refDstPixelX != (int)dstPixelX || (int)refDstPixelY != (int)dstPixelY)
+                        throw new Exception("range product points should map back to the same pixel it was pulled from");
+
+                    deltaRangeImg[0, (int)dstPixel.Y, (int)dstPixel.X] = (float)Vector3.Distance(dstRoverPt, srcPtInDst);
+                    deltaRangeImg.SetMaskValue((int)dstPixel.Y, (int)dstPixel.X, false);
+                    anyValid = true;
+                }
+            }
+
+            return anyValid ? deltaRangeImg : null;
+        }
         private void FinishImage(Image img, Image mask, string dir, string basename, string name)
         {
             if (options.StretchContrast)

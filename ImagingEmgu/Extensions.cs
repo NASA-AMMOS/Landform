@@ -11,6 +11,14 @@ namespace OPS.Imaging.Emgu
 {
     public static class Extensions
     {
+        /// <summary>
+        /// converts a 3 float color in R,G,B order with an expected range of 0 to 1 to an emgu color
+        /// </summary>
+        public static Rgb ToEmguColor(float[] color)
+        {
+            return new Rgb(color[0] * 255, color[1] * 255, color[2] * 255);
+        }
+
         public static Image<TColor, byte> ToEmgu<TColor>(this Image img) where TColor : struct, IColor
         {
             Image<TColor, byte> res = new Image<TColor, byte>(img.Width, img.Height);
