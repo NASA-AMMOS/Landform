@@ -42,6 +42,9 @@ namespace OPS.Pipeline
 
         [Option(HelpText = "Operate on cloud data", Default = false)]
         public bool Cloud { get; set; }
+
+        [Option(HelpText = "disable clever combine point cloud merging", Default = false)]
+        public bool NoCleverCombine { get; set; }
     }
 
     public class LocalBuildMeshes
@@ -104,7 +107,7 @@ namespace OPS.Pipeline
 
             //build mesh
             pipeline.LogInfo("Building full mesh for {0}", options.ProjectName);
-            Mesh mesh = BuildTilingInput.BuildMesh(this.pipeline, options.ProjectName, out BoundingBox pointBounds, frameCache, observationCache, outputFrame, options.OnlyForCameras);
+            Mesh mesh = BuildTilingInput.BuildMesh(this.pipeline, options.ProjectName, out BoundingBox pointBounds, frameCache, observationCache, outputFrame, options.UsePriors, options.OnlyForCameras, useCleverCombine:!options.NoCleverCombine);
             if (mesh == null)
             {
                 pipeline.LogError("Mesh building for {0) failed.", options.ProjectName);
