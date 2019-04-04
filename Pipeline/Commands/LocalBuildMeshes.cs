@@ -45,7 +45,7 @@ namespace OPS.Pipeline
         [Option(HelpText = "Operate on cloud data", Default = false)]
         public bool Cloud { get; set; }
 
-        [Option(Default = "Bin", HelpText = "tiling scheme:  Bin, QuadX, QuadY, QuadZ, Oct")]
+        [Option(Default = "QuadZ", HelpText = "tiling scheme (axis letters indicate the up direction):  Bin, QuadX, QuadY, QuadZ, Oct")]
         public string TilingScheme { get; set; }
      
         [Option(Default = 2000, HelpText = "target maximum faces per tile")]
