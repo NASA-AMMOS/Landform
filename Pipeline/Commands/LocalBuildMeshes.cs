@@ -30,7 +30,7 @@ namespace OPS.Pipeline
         [Option(HelpText = "Output coordinate frame: rover, sitedrive, or root", Default = "root")]
         public string OutputFrame { get; set; }
 
-        [Option(HelpText = "don't build textures for the mesh", Default = true)]
+        [Option(HelpText = "don't build textures for the mesh", Default = false)]
         public bool NoTextures { get; set; }
 
         [Option(HelpText = "Allowed sources for adjusted transforms, comma separated, all if empty (Adjusted,Manual,Landform,LandformBEV,Agisoft)", Default = null)]
@@ -73,11 +73,6 @@ namespace OPS.Pipeline
             else
             {
                 this.pipeline = new LocalPipeline(options);
-            }
-
-            if (options.NoTextures == false)
-            {
-                throw new NotImplementedException("texture building not implemented yet");
             }
 
             if (options.ProjectType != "MSL")
