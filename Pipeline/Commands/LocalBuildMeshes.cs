@@ -110,12 +110,17 @@ namespace OPS.Pipeline
             Mesh fullMesh = null;
             if (options.CachedFullMesh == null)
             {
-                var observationCache = new ObservationCache(pipeline, options.ProjectName);
-                observationCache.Preload(obs => obs.UseForReconstruction);
+                // preload points and normal images
+                ObservationCache observationCacheMesh = new ObservationCache(pipeline, options.ProjectName);
+                observationCacheMesh.Preload(obs =>
+                {
+                    ObservationType obsType = (ObservationType)Enum.Parse(typeof(ObservationType), obs.ObservationType);
+                    return obs.UseForReconstruction && (obsType == ObservationType.Points || obsType == ObservationType.Normals);
+                });
 
                 //build mesh
                 pipeline.LogInfo("Building full mesh for {0}", options.ProjectName);
-                fullMesh = BuildTilingInput.BuildMesh(pipeline, options.ProjectName, out BoundingBox pointBounds, frameCache, observationCache, outputFrame, options.OnlyForCameras);
+                fullMesh = BuildTilingInput.BuildMesh(pipeline, options.ProjectName, out BoundingBox pointBounds, frameCache, observationCacheMesh, outputFrame, options.OnlyForCameras);
                 if (fullMesh == null)
                 {
                     pipeline.LogError("Mesh building for {0) failed.", options.ProjectName);
