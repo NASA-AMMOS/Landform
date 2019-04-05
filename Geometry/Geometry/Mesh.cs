@@ -150,6 +150,28 @@ namespace OPS.Geometry
         }
 
         /// <summary>
+        /// For each vertex, compute a ray from the vertex to the observation point
+        /// If the normal for the vertex points away (more than 90 degrees) from this ray
+        /// flip the normal.  This method is useful when points have been captured from a 
+        /// sensor and you want to disambiguate normal direction to point toward the sensor
+        /// </summary>
+        /// <param name="observationPoint"></param>
+        public void FlipNormalsWithRespectToPoint(Vector3 observationPoint)
+        {
+            foreach (var v in this.Vertices)
+            {
+                Vector3 pointToVert = v.Position - observationPoint;
+                if (v.Normal.Length() != 0)
+                {
+                    if (Vector3.Dot(v.Normal, pointToVert) > 0)
+                    {
+                        v.Normal *= -1;
+                    }
+                }
+            }
+        }
+
+        /// <summary>
         /// Remove vertex normals from this mesh
         /// set all vertex normals to zero and set meshes HasNormals flag to false
         /// </summary>
