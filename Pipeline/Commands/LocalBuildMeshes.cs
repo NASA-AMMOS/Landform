@@ -105,6 +105,8 @@ namespace OPS.Pipeline
             PathHelper.EnsureExists(tilesPath);
 
             //load data for building
+            FrameCache frameCache = GetFilteredFrameCache(adjustedSources, priorSources);
+           
             Mesh fullMesh = null;
             if (options.CachedFullMesh == null)
             {
@@ -207,5 +209,20 @@ namespace OPS.Pipeline
                 .Cast<TransformSource>()
                 .ToArray();
         }
+
+        private FrameCache GetFilteredFrameCache(TransformSource[] adjustedSources, TransformSource[] priorSources)
+        {
+            FrameCache frameCache = new FrameCache(pipeline, options.ProjectName);
+            Func<FrameTransform, bool> filterPrior =
+                transform => priorSources.Length == 0 || priorSources.Any(s => s == transform.Source);
+            Func<FrameTransform, bool> filterAdjusted =
+                transform => adjustedSources.Length == 0 || adjustedSources.Any(s => s == transform.Source);
+            frameCache.Preload(loadTransforms: true, transformFilter: ft =>
+                               (!options.UsePriors || ft.IsPrior()) &&      //iff --usepriors only allow priors
+                               ((ft.IsPrior() && filterPrior(ft)) ||        //iff --priorsources only allow specific priors
+                                (!ft.IsPrior() && filterAdjusted(ft))));    //iff --adjustedsources only allow specific adj
+            return frameCache;
+        }
+            
     }
 }
