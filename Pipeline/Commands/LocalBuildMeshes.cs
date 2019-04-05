@@ -51,6 +51,9 @@ namespace OPS.Pipeline
         [Option(Default = 2000, HelpText = "target maximum faces per tile")]
         public int FacesPerTile { get; set; }
 
+        [Option(Default = 256, HelpText = "maximum image resolution per tile")]
+        public int TileResolution { get; set; }
+
         [Option(HelpText = "path to cached full mesh (when set will skip generating a full mesh and instead load the existing mesh at this path)", Default = null)]
         public string CachedFullMesh { get; set; }
 
