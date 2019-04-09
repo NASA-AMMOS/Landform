@@ -282,27 +282,32 @@ namespace OPS.Pipeline
                 leafImage.CreateMask(true);
 
                 //naive backproject: distance per tile: sort observations by distance to leaf tile center
-                SortedDictionary<double, Observation> observationsByDistance = new SortedDictionary<double, Observation>();
+                Dictionary<Observation,double> distancesByObservation = new Dictionary<Observation, double>();
                 foreach( var obs in intersectingObservations.Cast<RoverObservation>())
                 {
                     Matrix obsToOutput = Meshing.GetTransform(obs.FrameName, options.OutputFrame, frameCache, options.UsePriors).Mean;
                     CAHV camera = (CameraModel)JsonHelper.FromJson(obs.CameraModel) as CAHV;
                     Vector3 cameraPosInOutput = Vector3.Transform(camera.C, obsToOutput);
                     double camDistanceToLeafCenter = Vector3.Distance(leafBounds.Center(), cameraPosInOutput);
-                    observationsByDistance.Add(camDistanceToLeafCenter, obs);
+
+                    distancesByObservation.Add(obs,camDistanceToLeafCenter);
                 }
+
+                //sort the list of observations by distance
+                intersectingObservations.Sort((obs1, obs2) => distancesByObservation[obs1].CompareTo(distancesByObservation[obs2]));
 
                 //cache the destination pixels (and the mesh positions for perf) for which backproject is valid
                 MeshOperator leafOp = new MeshOperator(leafMesh, buildFaceTree: false, buildVertexTree: false, buildUVFaceTree: true);
 
                 //for each source image, sweep through all valid destination pixels (not atlas gutter pixels)
                 Queue<PixelPoint> pointsToBackproject = GetPointsToBackproject(leafOp, options.TileResolution);
-                foreach (var pair in observationsByDistance)
+                foreach (var obs in intersectingObservations)
                 {
+                    //quit if done
                     if (pointsToBackproject.Count == 0)
                         break;
 
-                    BackprojectObservation(frameCache, observationCache, sc, (RoverObservation)pair.Value, obsToHull[pair.Value], ref pointsToBackproject, leafImage);
+                    BackprojectObservation(frameCache, observationCache, sc, (RoverObservation)obs, obsToHull[obs], ref pointsToBackproject, leafImage);
                 }
 
                 if (options.DontInpaint)
