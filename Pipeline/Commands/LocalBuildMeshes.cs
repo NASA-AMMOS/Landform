@@ -1,5 +1,6 @@
 ﻿using CommandLine;
 using Microsoft.Xna.Framework;
+using Newtonsoft.Json;
 using OPS.Geometry;
 using OPS.Imaging;
 using OPS.Pipeline.AlignmentServer;
@@ -71,6 +72,15 @@ namespace OPS.Pipeline
 
         [Option(HelpText = "Debug function that skips all tiles except that one with this name", Default = null)]
         public string OnlyTileNamed { get; set; }
+
+        [Option(Required = false, Default = SkirtMode.None, HelpText = "Axis to use as up in quad tree tiling")]
+        public SkirtMode SkirtAxis { get; set; }
+
+        [Option(Required = false, Default = "b3dm", HelpText = "Mesh Extension")]
+        public string MeshExtension { get; set; }
+
+        [Option(Required = false, Default = "jpg", HelpText = "Image Extension")]
+        public string ImageExtension { get; set; }
     }
 
     public class LocalBuildMeshes
@@ -114,18 +124,24 @@ namespace OPS.Pipeline
             string outputPath = pipeline.GetLocalDebugFolder(options.OutputFolder, "tiling/" + dir, options.ProjectName);
             PathHelper.EnsureExists(outputPath);
 
-            string tilesPath = outputPath + "tiles/";
-            PathHelper.EnsureExists(tilesPath);
+            string leafTilesPath = outputPath + "leafTiles/";
+            PathHelper.EnsureExists(leafTilesPath);
+
+            string tileSetPath = outputPath + "tileset/";
+            PathHelper.EnsureExists(tileSetPath);
 
             //get transforms
             pipeline.LogInfo("Populating frame cache");
             FrameCache frameCache = GetFilteredFrameCache(adjustedSources, priorSources);
 
+            ObservationCache observationCache = new ObservationCache(pipeline, options.ProjectName);
+            observationCache.Preload(obs => obs.UseForReconstruction);
+         
             //build or load cached full mesh
             Mesh fullMesh = null;
             if (options.CachedFullMesh == null)
             {
-                fullMesh = BuildFullMesh(frameCache, outputFrame);
+                fullMesh = BuildFullMesh(frameCache, observationCache, outputFrame);
             }
             else
             {
@@ -164,25 +180,21 @@ namespace OPS.Pipeline
                 decimatedMesh = MeshLab.Decimate(fullMesh, options.FullMeshFaces);
             }
 
-            //load image observations
-            pipeline.LogInfo("Populating observation cache for texturing");
-            ObservationCache observationCacheImages = new ObservationCache(pipeline, options.ProjectName);
-            observationCacheImages.Preload(obs => obs.UseForReconstruction &&
-                                                 (ObservationType)Enum.Parse(typeof(ObservationType), obs.ObservationType) == ObservationType.Image);
-            pipeline.LogInfo("Found {0} images to texture with", observationCacheImages.GetAllObservations().Count());
-
+            
             //build convex hulls
             pipeline.LogInfo("Building convex hulls");
             Dictionary<Observation, ConvexHull> obsToHull = new Dictionary<Observation, ConvexHull>();
-            foreach (var obs in observationCacheImages.GetAllObservations())
+            string imageObsType = ObservationType.Image.ToString();
+            var imageObservations = observationCache.GetAllObservations().Where(obs => obs.ObservationType == imageObsType);
+            foreach (var obs in imageObservations)
             {
-                pipeline.LogInfo("Building hull for {0}, {1}/{2} ({3}%)", obs.Name, obsToHull.Count(), observationCacheImages.GetAllObservations().Count(), (int)(100 * obsToHull.Count()/(float)observationCacheImages.GetAllObservations().Count()));
+                pipeline.LogInfo("Building hull for {0}, {1}/{2} ({3}%)", obs.Name, obsToHull.Count(), imageObservations.Count(), (int)(100 * obsToHull.Count()/(float)imageObservations.Count()));
                 ConvexHull obsHull = Meshing.BuildFrustumHull(pipeline, new MeshObservations() { Texture = obs }, frameCache, options.OutputFrame, options.UsePriors, uncertaintyInflated: false);
                 obsToHull.Add(obs, obsHull);
             
                 if (options.OutputDebugMeshes)
                 {
-                    obsHull.Mesh.Save(Path.Combine(tilesPath, obs.Name + "_hull.ply"));
+                    obsHull.Mesh.Save(Path.Combine(leafTilesPath, obs.Name + "_hull.ply"));
                 }
             }
 
@@ -227,17 +239,17 @@ namespace OPS.Pipeline
                 // save meshes
                 if (options.NoTextures)
                 {
-                    leafMesh.Save(Path.Combine(tilesPath, leaf.Name + ".ply"));
+                    leafMesh.Save(Path.Combine(leafTilesPath, leaf.Name + ".ply"));
                 }
                 else
                 {
-                    leafMesh.Save(Path.Combine(tilesPath, leaf.Name + ".ply"), Path.Combine(tilesPath, leaf.Name + ".png"));
+                    leafMesh.Save(Path.Combine(leafTilesPath, leaf.Name + ".ply"), Path.Combine(leafTilesPath, leaf.Name + ".png"));
                 }
 
                 if (options.OutputDebugMeshes)
                 {
                     Mesh boundsMesh = leaf.GetComponent<NodeBounds>().Bounds.ToMesh();
-                    boundsMesh.Save(Path.Combine(tilesPath, leaf.Name + "_bounds.ply"));
+                    boundsMesh.Save(Path.Combine(leafTilesPath, leaf.Name + "_bounds.ply"));
                 }
 
                 if (options.NoTextures)
@@ -246,7 +258,7 @@ namespace OPS.Pipeline
                 // coarse frustum test: get all observations that intersect mesh hull
                 ConvexHull leafHull = new ConvexHull(leafMesh);
                 List<Observation> intersectingObservations = new List<Observation>();
-                foreach(var obs in observationCacheImages.GetAllObservations())
+                foreach(var obs in imageObservations)
                 {
                     ConvexHull obsHull = obsToHull[obs];
                     if (leafHull.Intersects(obsHull))
@@ -282,15 +294,15 @@ namespace OPS.Pipeline
 
                 //cache the destination pixels (and the mesh positions for perf) for which backproject is valid
                 MeshOperator leafOp = new MeshOperator(leafMesh, buildFaceTree: false, buildVertexTree: false, buildUVFaceTree: true);
-                Queue<PixelPoint> pointsToBackproject = GetPointsToBackproject(leafOp, options.TileResolution);
 
-                //for each camera, sweep through all valid destination pixels (not atlas gutter pixels)
+                //for each source image, sweep through all valid destination pixels (not atlas gutter pixels)
+                Queue<PixelPoint> pointsToBackproject = GetPointsToBackproject(leafOp, options.TileResolution);
                 foreach (var pair in observationsByDistance)
                 {
                     if (pointsToBackproject.Count == 0)
                         break;
 
-                    BackprojectObservation(frameCache, sc, (RoverObservation)pair.Value, obsToHull[pair.Value], ref pointsToBackproject, leafImage);
+                    BackprojectObservation(frameCache, observationCache, sc, (RoverObservation)pair.Value, obsToHull[pair.Value], ref pointsToBackproject, leafImage);
                 }
 
                 if (options.DontInpaint)
@@ -310,11 +322,32 @@ namespace OPS.Pipeline
                 }
                 
                 //save image
-                leafImage.Save<byte>(Path.Combine(tilesPath, leaf.Name + ".png"));
+                leafImage.Save<byte>(Path.Combine(leafTilesPath, leaf.Name + ".png"));
+
+                leaf.AddComponent<MeshImagePair>(new MeshImagePair(leafMesh, leafImage));
+                leaf.AddComponent(new NodeGeometricError(0));
+                leaf.SaveMesh(tileSetPath, meshExtension: options.MeshExtension, imageExtension: options.ImageExtension);
             });
-            
+
+            pipeline.LogInfo("Building parent tiles");
+            TileLocalMesh.BuildParents(root, options.FacesPerTile, options.TileResolution, SkirtsEnabled, options.SkirtAxis, tileSetPath, options.MeshExtension, options.ImageExtension);
+
+            pipeline.LogInfo("Building tileset json");
+            Tile3DBuilder builder = new Tile3DBuilder(root);
+            builder.BuildTileset(NodeToUrl, false);
+            string jsonData = JsonConvert.SerializeObject(builder.Tileset, Formatting.None);
+            File.WriteAllText(Path.Combine(tileSetPath, "tileset.json"), jsonData);
+
             return 0;
         }
+
+        private string NodeToUrl(SceneNode node)
+        {
+            return node.Name + options.MeshExtension;
+        }
+
+        private bool SkirtsEnabled
+        { get { return options.SkirtAxis != SkirtMode.None; } }
 
         private Mesh LoadFullMesh()
         {
@@ -329,22 +362,15 @@ namespace OPS.Pipeline
             return fullMesh;
         }
 
-        private Mesh BuildFullMesh(FrameCache frameCache, string outputFrame)
+        private Mesh BuildFullMesh(FrameCache frameCache, ObservationCache observationCache, string outputFrame )
         {
             Mesh fullMesh = null;
 
             pipeline.LogInfo("Populating observations cache for mesh building");
-            // preload points and normal images
-            ObservationCache observationCacheMesh = new ObservationCache(pipeline, options.ProjectName);
-            observationCacheMesh.Preload(obs =>
-            {
-                ObservationType obsType = (ObservationType)Enum.Parse(typeof(ObservationType), obs.ObservationType);
-                return obs.UseForReconstruction && (obsType == ObservationType.Points || obsType == ObservationType.Normals);
-            });
-
+        
             //build mesh
             pipeline.LogInfo("Building full mesh for {0}", options.ProjectName);
-            fullMesh = BuildTilingInput.BuildMesh(pipeline, options.ProjectName, out BoundingBox pointBounds, frameCache, observationCacheMesh, outputFrame, options.OnlyForCameras);
+            fullMesh = BuildTilingInput.BuildMesh(pipeline, options.ProjectName, out BoundingBox pointBounds, frameCache, observationCache, outputFrame, options.OnlyForCameras);
             if (fullMesh == null)
             {
                 pipeline.LogError("Mesh building for {0) failed.", options.ProjectName);
@@ -359,14 +385,18 @@ namespace OPS.Pipeline
             return fullMesh;
         }
 
-        private void BackprojectObservation(FrameCache frameCache, SceneCaster sc, RoverObservation obs, ConvexHull obsHull, ref Queue<PixelPoint> pointsToBackproject, Image leafImage)
+        private void BackprojectObservation(FrameCache frameCache, ObservationCache obsCache, SceneCaster sc, RoverObservation obs, ConvexHull obsHull, ref Queue<PixelPoint> pointsToBackproject, Image leafImage)
         {
             Matrix obsToMesh = Meshing.GetTransform(obs.FrameName, options.OutputFrame, frameCache, options.UsePriors).Mean;
             Matrix meshToObs = Matrix.Invert(obsToMesh);
             CameraModel camera = (CameraModel)JsonHelper.FromJson(obs.CameraModel);
 
-            Image img = pipeline.LoadImage(obs.Url); 
-            Image mask = FeatureDetecting.MakeMask(pipeline, null, img, obs.Name); //TODO: load mission masks when available
+            Image img = pipeline.LoadImage(obs.Url);
+
+            //want the version with border pixels and invalid pixels
+            string maskType = ObservationType.RoverMask.ToString();
+            var maskObs = obsCache.GetAllObservationsForFrame(frameCache.GetFrame(obs.FrameName)).Where(o => o.ObservationType == maskType).FirstOrDefault(); ;
+            Image mask = FeatureDetecting.MakeMask(pipeline, maskObs == null ? null : maskObs.Url, img, obs.Name);
 
             Queue<PixelPoint> failedToBackproject = new Queue<PixelPoint>();
             while ( pointsToBackproject.Count() > 0)
@@ -512,9 +542,6 @@ namespace OPS.Pipeline
         /// <summary>
         /// bilinearly sample from each band of the image 
         /// </summary>
-        /// <param name="srcImage"></param>
-        /// <param name="srcPixel"></param>
-        /// <returns></returns>
         private static float[] GetSamples(Image srcImage, Vector2 srcPixel)
         {
             float[] samples = new float[srcImage.Bands];
@@ -528,10 +555,6 @@ namespace OPS.Pipeline
         /// <summary>
         /// fill destination with samples from source texture (eg. replicate a single band to 3 if needed)
         /// </summary>
-        /// <param name="samples"></param>
-        /// <param name="destRow"></param>
-        /// <param name="destCol"></param>
-        /// <param name="destImage"></param>
         private static void SetSamples(float[] samples, int destRow, int destCol, Image destImage)
         {
             if (destImage.Bands < samples.Length)
