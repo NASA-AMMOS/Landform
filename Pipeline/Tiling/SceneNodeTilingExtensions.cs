@@ -143,7 +143,7 @@ namespace OPS.Pipeline
             var pairs = childNodes.Select(n => n.GetComponent<MeshImagePair>());
             var childMeshes = pairs.Select(p => p.Mesh);
 
-            Mesh combinedFull = Mesh.MergeWithCommonAttributes(childMeshes.ToArray());
+            Mesh combinedFull = Mesh.MergeWithCommonAttributes(childMeshes.ToArray(), clean:true, normalize:true);
             if (!combinedFull.HasNormals)
             {
                 combinedFull.GenerateVertexNormals();
