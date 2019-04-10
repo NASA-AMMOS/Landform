@@ -396,7 +396,7 @@ namespace OPS.Pipeline
 
         private string NodeToUrl(SceneNode node)
         {
-            return node.Name + options.MeshExtension;
+            return node.Name + "." + options.MeshExtension;
         }
 
         private bool SkirtsEnabled
