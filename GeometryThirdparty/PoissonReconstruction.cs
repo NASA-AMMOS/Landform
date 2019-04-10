@@ -170,7 +170,7 @@ namespace OPS.Geometry
 
                             result = Mesh.Load(outputFile);
 
-                            if (result.Vertices.Count == 0)
+                            if (result.Vertices.Count == 0 || result.Faces.Count == 0)
                             {
                                 throw new MeshException("empty output");
                             }
