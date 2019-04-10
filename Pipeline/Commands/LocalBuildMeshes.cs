@@ -49,10 +49,10 @@ namespace OPS.Pipeline
         [Option(HelpText = "Operate on cloud data", Default = false)]
         public bool Cloud { get; set; }
 
-        [Option( HelpText = "tiling scheme (axis letters indicate the up direction):  Bin, QuadX, QuadY, QuadZ, Oct", Default = "QuadZ")]
+        [Option(HelpText = "tiling scheme (axis letters indicate the up direction):  Bin, QuadX, QuadY, QuadZ, Oct", Default = "QuadZ")]
         public string TilingScheme { get; set; }
-     
-        [Option(HelpText = "target maximum faces per tile", Default = 2000 )]
+
+        [Option(HelpText = "target maximum faces per tile", Default = 2000)]
         public int FacesPerTile { get; set; }
 
         [Option(HelpText = "maximum image resolution per tile", Default = 256)]
@@ -61,13 +61,16 @@ namespace OPS.Pipeline
         [Option(HelpText = "path to cached full mesh (when set will skip generating a full mesh and instead load the existing mesh at this path)", Default = null)]
         public string CachedFullMesh { get; set; }
 
+        [Option(HelpText = "path to cachedleaves(when set will skip generating leaves and instead load them from this path)", Default = null)]
+        public string CachedLeavesPath { get; set; }
+
         [Option(HelpText = "Output bounding box and frustum hull meshes", Default = false)]
         public bool OutputDebugMeshes { get; set; }
 
         [Option(HelpText = "Don't inpaint output to fill seams and holes when backprojecting", Default = false)]
         public bool DontInpaint { get; set; }
 
-        [Option(HelpText ="Debug function that decimates the full mesh to this target number of faces", Default = 0)]
+        [Option(HelpText = "Debug function that decimates the full mesh to this target number of faces", Default = 0)]
         public int FullMeshFaces { get; set; }
 
         [Option(HelpText = "Debug function that skips all tiles except that one with this name", Default = null)]
@@ -136,7 +139,7 @@ namespace OPS.Pipeline
 
             ObservationCache observationCache = new ObservationCache(pipeline, options.ProjectName);
             observationCache.Preload(obs => obs.UseForReconstruction);
-         
+
             //build or load cached full mesh
             Mesh fullMesh = null;
             if (options.CachedFullMesh == null)
@@ -180,21 +183,27 @@ namespace OPS.Pipeline
                 decimatedMesh = MeshLab.Decimate(fullMesh, options.FullMeshFaces);
             }
 
-            
+
             //build convex hulls
-            pipeline.LogInfo("Building convex hulls");
-            Dictionary<Observation, ConvexHull> obsToHull = new Dictionary<Observation, ConvexHull>();
-            string imageObsType = ObservationType.Image.ToString();
-            var imageObservations = observationCache.GetAllObservations().Where(obs => obs.ObservationType == imageObsType);
-            foreach (var obs in imageObservations)
+            IEnumerable<Observation> imageObservations = null;
+            Dictionary<Observation, ConvexHull> obsToHull =null;
+
+            if (options.CachedLeavesPath == null)
             {
-                pipeline.LogInfo("Building hull for {0}, {1}/{2} ({3}%)", obs.Name, obsToHull.Count(), imageObservations.Count(), (int)(100 * obsToHull.Count()/(float)imageObservations.Count()));
-                ConvexHull obsHull = Meshing.BuildFrustumHull(pipeline, new MeshObservations() { Texture = obs }, frameCache, options.OutputFrame, options.UsePriors, uncertaintyInflated: false);
-                obsToHull.Add(obs, obsHull);
-            
-                if (options.OutputDebugMeshes)
+                pipeline.LogInfo("Building convex hulls");
+                obsToHull = new Dictionary<Observation, ConvexHull>();
+                string imageObsType = ObservationType.Image.ToString();
+                imageObservations = observationCache.GetAllObservations().Where(obs => obs.ObservationType == imageObsType);
+                foreach (var obs in imageObservations)
                 {
-                    obsHull.Mesh.Save(Path.Combine(leafTilesPath, obs.Name + "_hull.ply"));
+                    pipeline.LogInfo("Building hull for {0}, {1}/{2} ({3}%)", obs.Name, obsToHull.Count(), imageObservations.Count(), (int)(100 * obsToHull.Count() / (float)imageObservations.Count()));
+                    ConvexHull obsHull = Meshing.BuildFrustumHull(pipeline, new MeshObservations() { Texture = obs }, frameCache, options.OutputFrame, options.UsePriors, uncertaintyInflated: false);
+                    obsToHull.Add(obs, obsHull);
+
+                    if (options.OutputDebugMeshes)
+                    {
+                        obsHull.Mesh.Save(Path.Combine(leafTilesPath, obs.Name + "_hull.ply"));
+                    }
                 }
             }
 
@@ -209,30 +218,50 @@ namespace OPS.Pipeline
             CoreLimitedParallel.ForEach(root.Leaves(), leaf =>
             {
                 //debug functionality to only generate a single tile
-                if (options.OnlyTileNamed != null && options.OnlyTileNamed != leaf.Name) 
+                if (options.OnlyTileNamed != null && options.OnlyTileNamed != leaf.Name)
                     return;
 
                 Interlocked.Increment(ref curLeafNum);
-                pipeline.LogInfo("Building tile {0}: {1}/{2} ({3}%)", leaf.Name, curLeafNum, root.Leaves().Count(), (int)(100 * curLeafNum/(float)root.Leaves().Count()));
 
                 BoundingBox leafBounds = leaf.GetComponent<NodeBounds>().Bounds;
-                Mesh leafMesh = meshOp.Clip(leafBounds);
 
-                //generate texture coordinates
-                if (!options.NoTextures)
+                Mesh leafMesh = null;
+                if (options.CachedLeavesPath != null)
                 {
-                    try
+                    pipeline.LogInfo("Loading cached tile mesh {0}: {1}/{2} ({3}%)", leaf.Name, curLeafNum, root.Leaves().Count(), (int)(100 * curLeafNum / (float)root.Leaves().Count()));
+                    string meshPath = options.CachedLeavesPath + "\\" + leaf.Name + ".ply";
+                    if (File.Exists(meshPath))
                     {
-                        leafMesh = UVAtlas.Atlas(leafMesh, options.TileResolution, options.TileResolution);
+                        leafMesh = Mesh.Load(meshPath);
                     }
-                    catch
+                    else
                     {
-                        pipeline.LogError("Failed: couldn't generate texture coordinates for tile: {0}", leaf.Name);
-                        lock (failedNodes)
-                        {
-                            failedNodes.Add(leaf);
-                        }
+                        pipeline.LogWarn("Failed to load cached mesh for {0}", leaf.Name);
+                        failedNodes.Add(leaf);
                         return;
+                    }
+                }
+                else
+                {
+                    pipeline.LogInfo("Building tile mesh {0}: {1}/{2} ({3}%)", leaf.Name, curLeafNum, root.Leaves().Count(), (int)(100 * curLeafNum / (float)root.Leaves().Count()));
+                    leafMesh = meshOp.Clip(leafBounds);
+
+                    //generate texture coordinates
+                    if (!options.NoTextures)
+                    {
+                        try
+                        {
+                            leafMesh = UVAtlas.Atlas(leafMesh, options.TileResolution, options.TileResolution);
+                        }
+                        catch
+                        {
+                            pipeline.LogError("Failed: couldn't generate texture coordinates for tile: {0}", leaf.Name);
+                            lock (failedNodes)
+                            {
+                                failedNodes.Add(leaf);
+                            }
+                            return;
+                        }
                     }
                 }
 
@@ -255,77 +284,96 @@ namespace OPS.Pipeline
                 if (options.NoTextures)
                     return;
 
-                // coarse frustum test: get all observations that intersect mesh hull
-                ConvexHull leafHull = new ConvexHull(leafMesh);
-                List<Observation> intersectingObservations = new List<Observation>();
-                foreach(var obs in imageObservations)
+                Image leafImage = null;
+                if (options.CachedLeavesPath != null)
                 {
-                    ConvexHull obsHull = obsToHull[obs];
-                    if (leafHull.Intersects(obsHull))
+                    pipeline.LogInfo("loading cached tile image for {0}", leaf.Name);
+                    string imagePath = options.CachedLeavesPath + "\\" + leaf.Name + ".png";
+                    if (File.Exists(imagePath))
                     {
-                        intersectingObservations.Add(obs);
+                        leafImage = Image.Load(imagePath);
                     }
-                }
-
-                // tile with no textures means it is wholly extrapolation by reconstruction algorithm. skip it.
-                if (intersectingObservations.Count() == 0)
-                {
-                    pipeline.LogWarn("Failed: no images intersected tile: {0}", leaf.Name);
-                    failedNodes.Add(leaf);
-                    return;
-                }
-
-                pipeline.LogInfo("Found {0} observations instersecting tile {1}", intersectingObservations.Count(), leaf.Name);
-              
-                //create image
-                Image leafImage = new Image(3, options.TileResolution, options.TileResolution);
-                leafImage.CreateMask(true);
-
-                //naive backproject: distance per tile: sort observations by distance to leaf tile center
-                Dictionary<Observation,double> distancesByObservation = new Dictionary<Observation, double>();
-                foreach( var obs in intersectingObservations.Cast<RoverObservation>())
-                {
-                    Matrix obsToOutput = Meshing.GetTransform(obs.FrameName, options.OutputFrame, frameCache, options.UsePriors).Mean;
-                    CAHV camera = (CameraModel)JsonHelper.FromJson(obs.CameraModel) as CAHV;
-                    Vector3 cameraPosInOutput = Vector3.Transform(camera.C, obsToOutput);
-                    double camDistanceToLeafCenter = Vector3.Distance(leafBounds.Center(), cameraPosInOutput);
-
-                    distancesByObservation.Add(obs,camDistanceToLeafCenter);
-                }
-
-                //sort the list of observations by distance
-                intersectingObservations.Sort((obs1, obs2) => distancesByObservation[obs1].CompareTo(distancesByObservation[obs2]));
-
-                //cache the destination pixels (and the mesh positions for perf) for which backproject is valid
-                MeshOperator leafOp = new MeshOperator(leafMesh, buildFaceTree: false, buildVertexTree: false, buildUVFaceTree: true);
-
-                //for each source image, sweep through all valid destination pixels (not atlas gutter pixels)
-                Queue<PixelPoint> pointsToBackproject = GetPointsToBackproject(leafOp, options.TileResolution);
-                foreach (var obs in intersectingObservations)
-                {
-                    //quit if done
-                    if (pointsToBackproject.Count == 0)
-                        break;
-
-                    BackprojectObservation(frameCache, observationCache, sc, (RoverObservation)obs, obsToHull[obs], ref pointsToBackproject, leafImage);
-                }
-
-                if (options.DontInpaint)
-                {
-                    while (pointsToBackproject.Count() > 0)
+                    else
                     {
-                        //during development color pixels that failed to backproject blue
-                        var pair = pointsToBackproject.Dequeue();
-                        leafImage[2, (int)pair.Pixel.Y, (int)pair.Pixel.X] = 1.0f;
+                        pipeline.LogWarn("failed to load cached tile image for {0}", leaf.Name);
+                        failedNodes.Add(leaf);
+                        return;
                     }
-
-                    leafImage.DeleteMask();
                 }
                 else
                 {
-                    InpaintPreserveMask(leafImage);
+                    // coarse frustum test: get all observations that intersect mesh hull
+                    ConvexHull leafHull = new ConvexHull(leafMesh);
+                    List<Observation> intersectingObservations = new List<Observation>();
+                    foreach (var obs in imageObservations)
+                    {
+                        ConvexHull obsHull = obsToHull[obs];
+                        if (leafHull.Intersects(obsHull))
+                        {
+                            intersectingObservations.Add(obs);
+                        }
+                    }
+
+                    // tile with no textures means it is wholly extrapolation by reconstruction algorithm. skip it.
+                    if (intersectingObservations.Count() == 0)
+                    {
+                        pipeline.LogWarn("Failed: no images intersected tile: {0}", leaf.Name);
+                        failedNodes.Add(leaf);
+                        return;
+                    }
+
+                    pipeline.LogInfo("Found {0} observations instersecting tile {1}", intersectingObservations.Count(), leaf.Name);
+
+                    //create image
+                    leafImage = new Image(3, options.TileResolution, options.TileResolution);
+                    leafImage.CreateMask(true);
+
+                    //naive backproject: distance per tile: sort observations by distance to leaf tile center
+                    Dictionary<Observation, double> distancesByObservation = new Dictionary<Observation, double>();
+                    foreach (var obs in intersectingObservations.Cast<RoverObservation>())
+                    {
+                        Matrix obsToOutput = Meshing.GetTransform(obs.FrameName, options.OutputFrame, frameCache, options.UsePriors).Mean;
+                        CAHV camera = (CameraModel)JsonHelper.FromJson(obs.CameraModel) as CAHV;
+                        Vector3 cameraPosInOutput = Vector3.Transform(camera.C, obsToOutput);
+                        double camDistanceToLeafCenter = Vector3.Distance(leafBounds.Center(), cameraPosInOutput);
+
+                        distancesByObservation.Add(obs, camDistanceToLeafCenter);
+                    }
+
+                    //sort the list of observations by distance
+                    intersectingObservations.Sort((obs1, obs2) => distancesByObservation[obs1].CompareTo(distancesByObservation[obs2]));
+
+                    //cache the destination pixels (and the mesh positions for perf) for which backproject is valid
+                    MeshOperator leafOp = new MeshOperator(leafMesh, buildFaceTree: false, buildVertexTree: false, buildUVFaceTree: true);
+
+                    //for each source image, sweep through all valid destination pixels (not atlas gutter pixels)
+                    Queue<PixelPoint> pointsToBackproject = GetPointsToBackproject(leafOp, options.TileResolution);
+                    foreach (var obs in intersectingObservations)
+                    {
+                        //quit if done
+                        if (pointsToBackproject.Count == 0)
+                            break;
+
+                        BackprojectObservation(frameCache, observationCache, sc, (RoverObservation)obs, obsToHull[obs], ref pointsToBackproject, leafImage);
+                    }
+
+                    if (options.DontInpaint)
+                    {
+                        while (pointsToBackproject.Count() > 0)
+                        {
+                            //during development color pixels that failed to backproject blue
+                            var pair = pointsToBackproject.Dequeue();
+                            leafImage[2, (int)pair.Pixel.Y, (int)pair.Pixel.X] = 1.0f;
+                        }
+
+                        leafImage.DeleteMask();
+                    }
+                    else
+                    {
+                        InpaintPreserveMask(leafImage);
+                    }
                 }
-                
+
                 //save image
                 leafImage.Save<byte>(Path.Combine(leafTilesPath, leaf.Name + ".png"));
 
@@ -367,12 +415,12 @@ namespace OPS.Pipeline
             return fullMesh;
         }
 
-        private Mesh BuildFullMesh(FrameCache frameCache, ObservationCache observationCache, string outputFrame )
+        private Mesh BuildFullMesh(FrameCache frameCache, ObservationCache observationCache, string outputFrame)
         {
             Mesh fullMesh = null;
 
             pipeline.LogInfo("Populating observations cache for mesh building");
-        
+
             //build mesh
             pipeline.LogInfo("Building full mesh for {0}", options.ProjectName);
             fullMesh = BuildTilingInput.BuildMesh(pipeline, options.ProjectName, out BoundingBox pointBounds, frameCache, observationCache, outputFrame, options.OnlyForCameras);
@@ -386,7 +434,7 @@ namespace OPS.Pipeline
             pipeline.LogInfo("Post-processing full mesh");
             fullMesh = Mesh.Clip(fullMesh, pointBounds); // clips the mesh to the 2d bounds of the input points
             fullMesh.Clean();                            // normalizes the normals that were used for generating the mesh
-           
+
             return fullMesh;
         }
 
@@ -404,7 +452,7 @@ namespace OPS.Pipeline
             Image mask = FeatureDetecting.MakeMask(pipeline, maskObs == null ? null : maskObs.Url, img, obs.Name);
 
             Queue<PixelPoint> failedToBackproject = new Queue<PixelPoint>();
-            while ( pointsToBackproject.Count() > 0)
+            while (pointsToBackproject.Count() > 0)
             {
                 var pixelpoint = pointsToBackproject.Dequeue();
                 Vector3 meshPos = pixelpoint.Point;
