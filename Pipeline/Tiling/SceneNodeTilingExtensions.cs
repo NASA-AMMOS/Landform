@@ -140,10 +140,10 @@ namespace OPS.Pipeline
         {
             BoundingBox searchBounds;
             var childNodes = FindNodesRequiredForParent(node, root, out searchBounds, childBoundSearchRatio);
-            var pairs = childNodes.Select(n => n.GetComponent<MeshImagePair>());
-            var childMeshes = pairs.Select(p => p.Mesh);
+            var pairs = childNodes.Where(n => n.HasComponent<MeshImagePair>()).Select(n => n.GetComponent<MeshImagePair>());
+            var childMeshes = pairs.Where(p => p.Mesh != null).Select(p => p.Mesh);
 
-            Mesh combinedFull = Mesh.MergeWithCommonAttributes(childMeshes.ToArray());
+            Mesh combinedFull = Mesh.MergeWithCommonAttributes(childMeshes.ToArray(), clean:true, normalize:true);
             if (!combinedFull.HasNormals)
             {
                 combinedFull.GenerateVertexNormals();
