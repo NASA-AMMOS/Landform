@@ -198,11 +198,14 @@ namespace OPS.Pipeline
                 {
                     pipeline.LogInfo("Building hull for {0}, {1}/{2} ({3}%)", obs.Name, obsToHull.Count(), imageObservations.Count(), (int)(100 * obsToHull.Count() / (float)imageObservations.Count()));
                     ConvexHull obsHull = Meshing.BuildFrustumHull(pipeline, new MeshObservations() { Texture = obs }, frameCache, options.OutputFrame, options.UsePriors, uncertaintyInflated: false);
-                    obsToHull.Add(obs, obsHull);
-
-                    if (options.OutputDebugMeshes)
+                    if (obsHull != null)
                     {
-                        obsHull.Mesh.Save(Path.Combine(leafTilesPath, obs.Name + "_hull.ply"));
+                        obsToHull.Add(obs, obsHull);
+
+                        if (options.OutputDebugMeshes)
+                        {
+                            obsHull.Mesh.Save(Path.Combine(leafTilesPath, obs.Name + "_hull.ply"));
+                        }
                     }
                 }
             }
@@ -308,7 +311,7 @@ namespace OPS.Pipeline
                     foreach (var obs in imageObservations)
                     {
                         ConvexHull obsHull = obsToHull[obs];
-                        if (leafHull.Intersects(obsHull))
+                        if (obsHull != null && leafHull.Intersects(obsHull))
                         {
                             intersectingObservations.Add(obs);
                         }
