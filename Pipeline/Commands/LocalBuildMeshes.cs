@@ -310,8 +310,10 @@ namespace OPS.Pipeline
                     List<Observation> intersectingObservations = new List<Observation>();
                     foreach (var obs in imageObservations)
                     {
-                        ConvexHull obsHull = obsToHull[obs];
-                        if (obsHull != null && leafHull.Intersects(obsHull))
+                        if (!obsToHull.ContainsKey(obs))
+                            continue;
+
+                        if (leafHull.Intersects(obsToHull[obs]))
                         {
                             intersectingObservations.Add(obs);
                         }
