@@ -96,7 +96,7 @@ namespace OPS.Pipeline
                 transform => adjustedSources.Length == 0 || adjustedSources.Any(s => s == transform.Source);
             frameCache.Preload(loadTransforms: true, transformFilter: ft =>
                                (!options.UsePriors || ft.IsPrior()) && //iff --usepriors only allow priors
-                               ((ft.IsPrior() && filterPrior(ft)) || //iff --priorsources only allow specific priors
+                ((ft.IsPrior() && filterPrior(ft)) || //iff --priorsources only allow specific priors
                                 (!ft.IsPrior() && filterAdjusted(ft)))); //iff --adjustedsources only allow specific adj
 
             var observationCache = new ObservationCache(pipeline, options.ProjectName);
