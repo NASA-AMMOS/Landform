@@ -457,6 +457,7 @@ namespace OPS.Pipeline
             {
                 var pixelpoint = pointsToBackproject.Dequeue();
                 Vector3 meshPos = pixelpoint.Point;
+                bool failedToBackprojectPoint = true;
 
                 // validate surface point is in the frustum to avoid camera model issues with offscreen points
                 if (obsHull.Contains(meshPos))
@@ -482,13 +483,16 @@ namespace OPS.Pipeline
 
                             //mark mask as valid
                             leafImage.SetMaskValue((int)pixelpoint.Pixel.Y, (int)pixelpoint.Pixel.X, false);
-                            continue;
+                            failedToBackprojectPoint = false;
                         }
                     }
                 }
 
                 //add to failed
-                failedToBackproject.Enqueue(pixelpoint);
+                if (failedToBackprojectPoint)
+                {
+                    failedToBackproject.Enqueue(pixelpoint);
+                }
             }
 
             pointsToBackproject = failedToBackproject;
