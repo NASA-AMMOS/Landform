@@ -1071,6 +1071,7 @@ namespace OPS.Pipeline
             var transform = GetTransform(obs.Points.FrameName, frame, frameCache, usePriors);
             if (transform == null)
             {
+                pipeline.LogWarn("failed to find transform for {0}", obs.Points.FrameName);
                 return null;
             }
             ret.Transform(transform.Mean);

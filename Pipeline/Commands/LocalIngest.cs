@@ -52,6 +52,9 @@ namespace OPS.Pipeline
 
         [Option(HelpText = "Operate on cloud data", Default = false)]
         public bool Cloud { get; set; }
+
+        [Option(HelpText = "URL to legacy manifest, used to build priors from onsight manifest", Default = null)]
+        public string LegacyManifestURL { get; set; }
     }
 
     public class LocalIngest
@@ -89,11 +92,11 @@ namespace OPS.Pipeline
                                                      options.OnlyForSiteDrives, options.NoProgress);
 
             ingester.Ingest(options.AddLocationsDBPriors ? GetLocationsDB(ingester.BaseUrls.Select(b => b.Url)) : null,
-                            !options.NoPlacesDBPriors ? GetPlacesDB() : null);
+                            !options.NoPlacesDBPriors ? GetPlacesDB() : null, options.LegacyManifestURL != null ? MSLLegacyManifest.Load(options.LegacyManifestURL) : null);
 
             return 0;
         }
-
+        
         private MSLLocations GetLocationsDB(IEnumerable<string> baseUrls)
         {
             string findFile(string filename)
