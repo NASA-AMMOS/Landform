@@ -478,8 +478,8 @@ namespace OPS.Pipeline
                         if (!IsOccluded(camera, obsPixel, sc, rangeMeshToImage, obsToMesh))
                         {
                             //copy src image data to dst image data
-                            float[] samples = GetSamples(img, obsPixel);
-                            SetSamples(samples, (int)pixelpoint.Pixel.Y, (int)pixelpoint.Pixel.X, leafImage);
+                            float[] samples = img.SampleAsColor(obsPixel);
+                            leafImage.SetAsColor(samples, (int)pixelpoint.Pixel.Y, (int)pixelpoint.Pixel.X);
 
                             //mark mask as valid
                             leafImage.SetMaskValue((int)pixelpoint.Pixel.Y, (int)pixelpoint.Pixel.X, false);
@@ -596,34 +596,7 @@ namespace OPS.Pipeline
             //if the occlusion distance is closer than the camera projection distance it is occluded in this image
             return (hit != null) && (hit.Distance < rangeMeshToImage);
         }
-
-        /// <summary>
-        /// bilinearly sample from each band of the image 
-        /// </summary>
-        private static float[] GetSamples(Image srcImage, Vector2 srcPixel)
-        {
-            float[] samples = new float[srcImage.Bands];
-            for (int idxBand = 0; idxBand < srcImage.Bands; idxBand++)
-            {
-                samples[idxBand] = srcImage.BilinearSample(idxBand, (float)srcPixel.Y, (float)srcPixel.X);
-            }
-            return samples;
-        }
-
-        /// <summary>
-        /// fill destination with samples from source texture (eg. replicate a single band to 3 if needed)
-        /// </summary>
-        private static void SetSamples(float[] samples, int destRow, int destCol, Image destImage)
-        {
-            if (destImage.Bands < samples.Length)
-                throw new NotImplementedException("Need to do luminance calculation to turn color to mono");
-
-            for (int idxBand = 0; idxBand < destImage.Bands; idxBand++)
-            {
-                destImage[idxBand, destRow, destCol] = samples[Math.Min(idxBand, samples.Length - 1)];
-            }
-        }
-
+      
         // then inpaint to keep bilinear filtering from picking up the bad pixels
         // inpainting marks all pixels as valid, so cache the original mask state and then replace it
         private static void InpaintPreserveMask(Image srcImage)

@@ -1,5 +1,6 @@
 ﻿using System;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using Microsoft.Xna.Framework;
 using OPS.Imaging;
 using System.IO;
 using OPS.Test;
@@ -40,7 +41,7 @@ namespace ImageTest
         public void ImageSaveLoad()
         {
             Image imgOrig = new Image(3, 20, 30);
-            imgOrig[1, 2, 3] = 43f/255;
+            imgOrig[1, 2, 3] = 43f / 255;
             imgOrig.Save<byte>("load.png");
             if (!File.Exists("load.png"))
             {
@@ -232,7 +233,7 @@ namespace ImageTest
             Image img = Image.Load(Path.Combine("TestData", "img", "testPattern.png"));
             Image flipped = new Image(img);
             flipped.FlipVertical();
-            for(int c = 0; c< img.Width; c++)
+            for (int c = 0; c < img.Width; c++)
             {
                 Assert.AreEqual(img[0, 50, c], flipped[0, img.Height - 1 - 50, c]);
                 Assert.AreEqual(img[1, 50, c], flipped[1, img.Height - 1 - 50, c]);
@@ -320,6 +321,63 @@ namespace ImageTest
             Assert.AreEqual(img[0, 1, 1], rotatedImg[0, 1, 1]);
             Assert.AreEqual(img[0, 2, 0], rotatedImg[0, 0, 0]);
             Assert.AreEqual(img[0, 2, 1], rotatedImg[0, 1, 0]);
+        }
+
+        [TestMethod()]
+        public void SampleAsColorTest()
+        {
+            Image monoImage = new Image(1, 1, 1);
+            monoImage[0, 0, 0] = 0.75f;
+
+            Image colorImage = new Image(3, 1, 1);
+            colorImage[0, 0, 0] = 0.15f;
+            colorImage[1, 0, 0] = 0.25f;
+            colorImage[2, 0, 0] = 0.35f;
+
+            float[] monoSamples = monoImage.SampleAsColor(Vector2.Zero);
+            Assert.IsTrue(monoSamples.Length == 3);
+            Assert.IsTrue(monoSamples[0] == 0.75f);
+            Assert.IsTrue(monoSamples[1] == 0.75f);
+            Assert.IsTrue(monoSamples[2] == 0.75f);
+
+            float[] colorSamples = colorImage.SampleAsColor(Vector2.Zero);
+            Assert.IsTrue(colorSamples[0] == 0.15f);
+            Assert.IsTrue(colorSamples[1] == 0.25f);
+            Assert.IsTrue(colorSamples[2] == 0.35f);
+        }
+
+        [TestMethod()]
+        public void SampleAsMonoTest()
+        {
+            //When #502 is resolved add another test here for color to mono
+            Image monoImage = new Image(1, 1, 1);
+            monoImage[0, 0, 0] = 0.75f;
+
+            Assert.IsTrue(monoImage.SampleAsMono(Vector2.Zero) == 0.75f);
+        }
+
+        [TestMethod()]
+        public void SetAsColorTest()
+        {
+            Image colorImage = new Image(3, 1, 1);
+            colorImage.SetAsColor(new float[] { 0.75f }, 0, 0);
+            Assert.IsTrue(colorImage[0, 0, 0] == 0.75f);
+            Assert.IsTrue(colorImage[1, 0, 0] == 0.75f);
+            Assert.IsTrue(colorImage[2, 0, 0] == 0.75f);
+
+            colorImage.SetAsColor(new float[] { 0.15f, 0.25f, 0.35f }, 0, 0);
+            Assert.IsTrue(colorImage[0, 0, 0] == 0.15f);
+            Assert.IsTrue(colorImage[1, 0, 0] == 0.25f);
+            Assert.IsTrue(colorImage[2, 0, 0] == 0.35f);
+        }
+
+        [TestMethod()]
+        public void SetAsMonoTest()
+        {
+            //When #502 is resolved add another test here for color to mono
+            Image monoImage = new Image(1, 1, 1);
+            monoImage.SetAsMono(new float[] { 0.75f }, 0, 0);
+            Assert.IsTrue(monoImage[0, 0, 0] == 0.75f);
         }
     }
 }
