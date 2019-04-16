@@ -49,9 +49,9 @@ namespace OPS.Pipeline
         [Option(HelpText = "Operate on cloud data", Default = false)]
         public bool Cloud { get; set; }
 
-        [Option(HelpText = "tiling scheme (axis letters indicate the up direction):  Bin, QuadX, QuadY, QuadZ, Oct", Default = "QuadZ")]
-        public string TilingScheme { get; set; }
-
+        [Option(HelpText = "tiling scheme (axis letters indicate the up direction):  Bin, QuadX, QuadY, QuadZ, Oct"), Default = TilingScheme.QuadZ]
+        public TilingScheme TilingScheme { get; set; }
+     
         [Option(HelpText = "target maximum faces per tile", Default = 2000)]
         public int FacesPerTile { get; set; }
 
@@ -84,6 +84,8 @@ namespace OPS.Pipeline
 
         [Option(Required = false, Default = "jpg", HelpText = "Image Extension")]
         public string ImageExtension { get; set; }
+        [Option(HelpText = "disable clever combine point cloud merging", Default = false)]
+        public bool NoCleverCombine { get; set; }
     }
 
     public class LocalBuildMeshes
@@ -125,7 +127,6 @@ namespace OPS.Pipeline
             var outputFrame = options.OutputFrame.ToLower().Trim();
             string dir = outputFrame + "Frame" + CreateSourcesPath(adjustedSources, priorSources);
             string outputPath = pipeline.GetLocalDebugFolder(options.OutputFolder, "tiling/" + dir, options.ProjectName);
-            PathHelper.EnsureExists(outputPath);
 
             string leafTilesPath = outputPath + "leafTiles/";
             PathHelper.EnsureExists(leafTilesPath);

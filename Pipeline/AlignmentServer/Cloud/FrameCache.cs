@@ -51,6 +51,23 @@ namespace OPS.Pipeline.AlignmentServer
             }
         }
 
+
+        /// <summary>
+        /// convenience function for the common case of allowing all frames but filtering transforms based on parameters
+        /// </summary>
+        public int PreloadFilteredTransforms(TransformSource[] priorSources, TransformSource[] adjustedSources, bool usePriors)
+        {
+            Func<FrameTransform, bool> filterPrior =
+                   transform => priorSources.Length == 0 || priorSources.Any(s => s == transform.Source);
+            Func<FrameTransform, bool> filterAdjusted =
+                transform => adjustedSources.Length == 0 || adjustedSources.Any(s => s == transform.Source);
+
+            return Preload(loadTransforms: true, transformFilter: ft =>
+                              (!usePriors || ft.IsPrior()) &&      //iff --usepriors only allow priors
+                              ((ft.IsPrior() && filterPrior(ft)) ||        //iff --priorsources only allow specific priors
+                              (!ft.IsPrior() && filterAdjusted(ft))));    //iff --adjustedsources only allow specific adj
+        }
+
         public int Preload(bool loadTransforms = true, Func<Frame, bool> frameFilter = null,
                            Func<FrameTransform, bool> transformFilter =  null)
         {

@@ -36,7 +36,7 @@ namespace OPS.Pipeline.MeshWorker
             pipeline.LogInfo("started");
 
             //load transforms, by filtering by allowed transform sources or allowing all
-            var frameCache = new FrameCache(pipeline, projectName);           
+            var frameCache = new FrameCache(pipeline, projectName);
             frameCache.Preload(loadTransforms: true);
             
             //load observations
@@ -44,7 +44,7 @@ namespace OPS.Pipeline.MeshWorker
             observationCache.Preload(obs => obs.UseForReconstruction);
 
             string outputFrame = "root";
-            Mesh surfacedMesh = BuildMesh(pipeline, projectName, out BoundingBox pointBounds, frameCache, observationCache, outputFrame);
+            Mesh surfacedMesh = BuildMesh(pipeline, projectName, out BoundingBox pointBounds, frameCache, observationCache, outputFrame, false);
             if (surfacedMesh == null || surfacedMesh.Vertices.Count == 0)
             {
                 pipeline.LogError("point cloud failed to reconstruct");
@@ -73,7 +73,7 @@ namespace OPS.Pipeline.MeshWorker
             return 0;
         }
 
-        static public Mesh BuildMesh(PipelineCore pipeline, string projectName, out BoundingBox pointBounds, FrameCache frameCache, ObservationCache observationCache, string outputFrame, string onlyForCameras = null)
+        static public Mesh BuildMesh(PipelineCore pipeline, string projectName, out BoundingBox pointBounds, FrameCache frameCache, ObservationCache observationCache, string outputFrame, bool usePriors, string onlyForCameras = null, bool useCleverCombine=false)
         {
             pointBounds = new BoundingBox();
            
@@ -87,22 +87,47 @@ namespace OPS.Pipeline.MeshWorker
                 return null;
             }
 
-            //accumulate the large point cloud
-            Mesh aggregatePointCloud = new Mesh(hasNormals: true);
+            //accumulate the collection of point clouds
+            List<Mesh> meshInputs = new List<Mesh>();
+            List<Vector3> meshOrigins = new List<Vector3>();
             for (int idx = 0; idx < observations.Count; idx++)
             {
                 var obs = observations[idx];
                 pipeline.LogInfo("building point cloud {0}/{1} ({2})%): {3}", idx + 1, observations.Count,
-                                 (int)(100 * idx / (float)(observations.Count-1)), obs.Points.FrameName);
+                                    (int)(100 * idx / (float)(observations.Count - 1)), obs.Points.FrameName);
 
                 var mesh = Meshing.BuildPointCloud(pipeline, obs, frameCache, outputFrame, scaleNormalsByConfidence: true);
-                if(mesh == null)
+                if (mesh == null)
                 {
                     pipeline.LogInfo("failed to build pointcloud for {0}", obs.Name);
                     continue;
                 }
-                aggregatePointCloud.MergeWith(new Mesh[] { mesh }, normalize: false, removeDuplicateVerts: false);
+
+                //the reference point used to determine how good a point is for clever combine. naive version is using distance from 
+                // camera. 
+                UncertainRigidTransform obsToOutput = Meshing.GetTransform(obs.Points.FrameName, outputFrame, frameCache, usePriors);
+                CAHV cam = (CameraModel)JsonHelper.FromJson(obs.Points.CameraModel) as CAHV;
+                Vector3 cameraPosInOutput = Vector3.Transform(cam.C, obsToOutput.Mean);
+
+                meshOrigins.Add(cameraPosInOutput);
+                meshInputs.Add(mesh);
             }
+
+            // combine into large point cloud
+            Mesh aggregatePointCloud = new Mesh(hasNormals: true);
+            if (useCleverCombine)
+            {
+                pipeline.LogInfo("combining {0} point clouds with clever combine", meshInputs.Count());
+                aggregatePointCloud = CleverCombinePointClouds.Combine(meshOrigins.ToArray(), meshInputs.ToArray());
+            }
+            else
+            {
+                aggregatePointCloud.MergeWith(meshInputs.ToArray(), normalize: false, removeDuplicateVerts: false);
+            }
+
+            //significant memory usage
+            meshInputs.Clear();
+            meshOrigins.Clear();
 
             // build the large mesh from the aggregate point cloud using poisson reconstruction
             if (aggregatePointCloud.Vertices.Count == 0)

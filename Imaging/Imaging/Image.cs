@@ -1012,22 +1012,67 @@ namespace OPS.Imaging
         }
 
         /// <summary>
-        /// blit another image or a subframe thereof onto this image in place  
+        /// converts the floating point values in the source image to colorized values. the previewBucketdistances
+        /// are the boundaries for the colors in colorsLowToHigh. There should be one more color than distance to catch
+        /// the distances that are larger than the final bucket cutoff
         /// </summary>
-        public Image Blit(Image other, int dstX, int dstY, int srcX = 0, int srcY = 0,
+        /// <param name="img">single band source image</param>
+        /// <param name="colorCutoffValues">the floating point values that represent the upper bound of that color (eg. cutoffvalue 0.2, all values less than 0.2 get that value.</param>
+        /// <param name="colorsLowToHigh">colors intended to be paired with colorCutoffValues. each color in R, G, B order, range 0 to 1. Should be 1 more color than cutoff values as the upper-end catchall color (greater than the last color cutoff value)</param>
+        /// <param name="bgColor">color in R, G, B order, range 0 to 1</param>
+        /// <returns>3 band colorized image</returns>
+        static public Image ColorizeScalarImage(Image img, float[] colorCutoffValues, float[][] colorsLowToHigh, float[] bgColor)
+        {
+            if (img.Bands != 1)
+                throw new InvalidDataException("expecting a single band image to be colorized");
+
+            Image result = new Image(3, img.Width, img.Height);
+            result.CreateMask(true);
+
+            for (int idxRow = 0; idxRow < img.Height; idxRow++)
+            {
+                for (int idxCol = 0; idxCol < img.Width; idxCol++)
+                {
+                    if (img.IsInvalid(idxRow, idxCol))
+                    {
+                        result.SetBandValues(idxRow, idxCol, bgColor);
+                        continue;
+                    }
+
+                    float val = img[0, idxRow, idxCol];
+                    float[] color = colorsLowToHigh.Last(); //catchall for values > final cuttoff.
+                    for (int idxColor = 0; idxColor < colorCutoffValues.Length; idxColor++)
+                    {
+                        if (val < colorCutoffValues[idxColor])
+                        {
+                            color = colorsLowToHigh[idxColor];
+                            break;
+                        }
+                    }
+
+                    result.SetBandValues(idxRow, idxCol, color);
+                    result.SetMaskValue(idxRow, idxCol, false);
+                }
+            }
+
+            return result;
+        }
+
+        /// blit another image or a subframe thereof onto this image in place  
+        public Image Blit(Image srcImg, int dstCol, int dstRow, int srcCol = 0, int srcRow = 0,
                           int srcWidth = -1, int srcHeight = -1)
         {
-            if (other.Bands != Bands)
+            if (srcImg.Bands != Bands)
             {
                 throw new ArgumentException("cannot blit images with different numbers of bands");
             }
-            int nr = srcHeight >= 0 ? srcHeight : other.Height;
-            int nc = srcWidth >= 0 ? srcWidth : other.Width;
-            if (srcX < 0 || srcY < 0 || srcX + nc > other.Width || srcY + nr > other.Height)
+            int nr = srcHeight >= 0 ? srcHeight : srcImg.Height;
+            int nc = srcWidth >= 0 ? srcWidth : srcImg.Width;
+            if (srcCol < 0 || srcRow < 0 || srcCol + nc > srcImg.Width || srcRow + nr > srcImg.Height)
             {
                 throw new ArgumentException("source region out of bounds");
             }
-            if (dstX < 0 || dstY < 0 || dstX + nc > Width || dstY + nr > Height)
+            if (dstCol < 0 || dstRow < 0 || dstCol + nc > Width || dstRow + nr > Height)
             {
                 throw new ArgumentException("target region out of bounds");
             }
@@ -1037,7 +1082,7 @@ namespace OPS.Imaging
                 {
                     for (int c = 0; c < nc; c++)
                     {
-                        this[band, dstY + r, dstX + c] = other[band, srcY + r, srcX + c];
+                        this[band, dstRow + r, dstCol + c] = srcImg[band, srcRow + r, srcCol + c];
                     }
                 }
             }
