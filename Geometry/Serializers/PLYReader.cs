@@ -406,6 +406,11 @@ namespace OPS.Geometry
                         result.Faces.Capacity = faceCount;
                         section = Section.Face;
                     }
+                    else if(line.Contains("element"))
+                    {
+                        // Unknown element, skip it by setting section to none
+                        section = Section.None;
+                    }
                     else if (line.Contains("property") && section == Section.Vertex)
                     {
                         string[] tokens = line.Split(' ');

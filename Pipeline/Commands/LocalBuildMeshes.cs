@@ -6,7 +6,9 @@ using OPS.Util;
 using OPS.Geometry;
 using OPS.Pipeline.MeshWorker;
 using OPS.Pipeline.AlignmentServer;
+using OPS.Pipeline.TileServer;
 using Microsoft.Xna.Framework;
+using System.Collections.Generic;
 
 namespace OPS.Pipeline
 {
@@ -42,6 +44,18 @@ namespace OPS.Pipeline
 
         [Option(HelpText = "Operate on cloud data", Default = false)]
         public bool Cloud { get; set; }
+
+        [Option(Default = TilingScheme.QuadZ, HelpText = "tiling scheme (axis letters indicate the up direction):  Bin, QuadX, QuadY, QuadZ, Oct")]
+        public TilingScheme TilingScheme { get; set; }
+     
+        [Option(Default = 2000, HelpText = "target maximum faces per tile")]
+        public int FacesPerTile { get; set; }
+
+        [Option(HelpText = "path to cached full mesh (when set will skip generating a full mesh and instead load the existing mesh at this path)", Default = null)]
+        public string CachedFullMesh { get; set; }
+
+        [Option(HelpText = "Output bounding box meshes", Default = false)]
+        public bool BoundingBoxMeshes { get; set; }
 
         [Option(HelpText = "disable clever combine point cloud merging", Default = false)]
         public bool NoCleverCombine { get; set; }
@@ -89,46 +103,73 @@ namespace OPS.Pipeline
             var outputFrame = options.OutputFrame.ToLower().Trim();
             string dir = outputFrame + "Frame" + CreateSourcesPath(adjustedSources, priorSources);
             string outputPath = pipeline.GetLocalDebugFolder(options.OutputFolder, "tiling/" + dir, options.ProjectName);
-            PathHelper.EnsureExists(outputPath);
+            string tilesPath = outputPath + "tiles/";
+            PathHelper.EnsureExists(tilesPath);
 
             //load data for building
-            var frameCache = new FrameCache(pipeline, options.ProjectName);
-            Func<FrameTransform, bool> filterPrior =
-                transform => priorSources.Length == 0 || priorSources.Any(s => s == transform.Source);
-            Func<FrameTransform, bool> filterAdjusted =
-                transform => adjustedSources.Length == 0 || adjustedSources.Any(s => s == transform.Source);
-            frameCache.Preload(loadTransforms: true, transformFilter: ft =>
-                               (!options.UsePriors || ft.IsPrior()) && //iff --usepriors only allow priors
-                               ((ft.IsPrior() && filterPrior(ft)) || //iff --priorsources only allow specific priors
-                                (!ft.IsPrior() && filterAdjusted(ft)))); //iff --adjustedsources only allow specific adj
-
-            var observationCache = new ObservationCache(pipeline, options.ProjectName);
-            observationCache.Preload(obs => obs.UseForReconstruction);
-
-            //build mesh
-            pipeline.LogInfo("Building full mesh for {0}", options.ProjectName);
-            Mesh mesh = BuildTilingInput.BuildMesh(this.pipeline, options.ProjectName, out BoundingBox pointBounds, frameCache, observationCache, outputFrame, options.UsePriors, options.OnlyForCameras, useCleverCombine:!options.NoCleverCombine);
-            if (mesh == null)
+            Mesh fullMesh = null;
+            if (options.CachedFullMesh == null)
             {
-                pipeline.LogError("Mesh building for {0) failed.", options.ProjectName);
-                return 1;
-            }
+                pipeline.LogInfo("Building new full mesh");
 
-            //beautify mesh
-            if (mesh != null)
+                var frameCache = new FrameCache(pipeline, options.ProjectName);
+                int numFrames = frameCache.PreloadFilteredTransforms(priorSources, adjustedSources, options.UsePriors);
+                if(numFrames == 0)
+                {
+                    pipeline.LogError("No frames after preloading");
+                    return 1;
+                }
+
+                var observationCache = new ObservationCache(pipeline, options.ProjectName);
+                observationCache.Preload(obs => obs.UseForReconstruction);
+
+                //build mesh
+                pipeline.LogInfo("Building full mesh for {0}", options.ProjectName);
+                fullMesh = BuildTilingInput.BuildMesh(pipeline, options.ProjectName, out BoundingBox pointBounds, frameCache, observationCache, outputFrame, options.UsePriors, options.OnlyForCameras, useCleverCombine:!options.NoCleverCombine);
+                if (fullMesh == null)
+                {
+                    pipeline.LogError("Mesh building for {0) failed.", options.ProjectName);
+                    return 1;
+                }
+
+                //beautify mesh
+                pipeline.LogInfo("Post-processing full mesh");
+                fullMesh = Mesh.Clip(fullMesh, pointBounds); // clips the mesh to the 2d bounds of the input points
+                fullMesh.Clean();                        // normalizes the normals that were used for generating the mesh
+
+                //save full mesh
+                string meshFilePath = Path.Combine(outputPath, "fullMesh.ply");
+                pipeline.LogInfo("Saving full mesh to: {0}", meshFilePath);
+                fullMesh.Save(meshFilePath);
+            }
+            else
             {
-                // clips the mesh to the 2d bounds of the input points
-                mesh = Mesh.Clip(mesh, pointBounds);
-
-                // normalizes the normals that were used for generating the mesh
-                mesh.Clean();
+                pipeline.LogInfo("Loading cached mesh from {0}", options.CachedFullMesh);
+                fullMesh = Mesh.Load(options.CachedFullMesh);
+                if (fullMesh == null)
+                {
+                    pipeline.LogError("Loading mesh from {0) failed.", options.CachedFullMesh);
+                    return 1;
+                }
             }
+            
+            //build tile tree
+            SceneNode root = DefineTiles.BuildTileTreeFromInputs(pipeline, options.TilingScheme, options.FacesPerTile, new List<MeshImagePair>() { new MeshImagePair(fullMesh) });
 
-            //save mesh
-            string meshFilePath = Path.Combine(outputPath, "fullMesh.ply");
-            pipeline.LogInfo("Saving full mesh to: {0}", meshFilePath);
-            mesh.Save(meshFilePath);
+            //make leaf tiles meshes
+            MeshOperator meshOp = new MeshOperator(fullMesh, buildFaceTree: true, buildVertexTree: false, buildUVFaceTree: false);
+            CoreLimitedParallel.ForEach(root.Leaves(), leaf =>
+            {
+                Mesh leafMesh = meshOp.Clip(leaf.GetComponent<NodeBounds>().Bounds);
+                leafMesh.Save(Path.Combine(tilesPath, leaf.Name + ".ply"));
 
+                if (options.BoundingBoxMeshes)
+                {
+                    Mesh boundsMesh = leaf.GetComponent<NodeBounds>().Bounds.ToMesh();
+                    boundsMesh.Save(Path.Combine(tilesPath, leaf.Name + "_bounds.ply"));
+                }
+            });
+            
             return 0;
         }
 
