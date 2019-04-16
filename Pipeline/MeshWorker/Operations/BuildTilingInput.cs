@@ -87,11 +87,9 @@ namespace OPS.Pipeline.MeshWorker
                 return null;
             }
 
-            //accumulate the large point cloud
-            List<Mesh> cleverCombineMeshInputs = new List<Mesh>();
-            List<Vector3> cleverCombineOriginInputs = new List<Vector3>();
-
-            Mesh aggregatePointCloud = new Mesh(hasNormals: true);
+            //accumulate the collection of point clouds
+            List<Mesh> meshInputs = new List<Mesh>();
+            List<Vector3> meshOrigins = new List<Vector3>();
             for (int idx = 0; idx < observations.Count; idx++)
             {
                 var obs = observations[idx];
@@ -105,26 +103,31 @@ namespace OPS.Pipeline.MeshWorker
                     continue;
                 }
 
-                if (!useCleverCombine)
-                {
-                    aggregatePointCloud.MergeWith(new Mesh[] { mesh }, normalize: false, removeDuplicateVerts: false);
-                }
-                else
-                {
-                    UncertainRigidTransform obsToRoot = Meshing.GetTransform(obs.Points.FrameName, outputFrame, frameCache, usePriors);
-                    CAHV cam = (CameraModel)JsonHelper.FromJson(obs.Points.CameraModel) as CAHV;
-                    Vector3 cameraPosInRoot = Vector3.Transform(cam.C, obsToRoot.Mean);
+                //the reference point used to determine how good a point is for clever combine. naive version is using distance from 
+                // camera. 
+                UncertainRigidTransform obsToOutput = Meshing.GetTransform(obs.Points.FrameName, outputFrame, frameCache, usePriors);
+                CAHV cam = (CameraModel)JsonHelper.FromJson(obs.Points.CameraModel) as CAHV;
+                Vector3 cameraPosInOutput = Vector3.Transform(cam.C, obsToOutput.Mean);
 
-                    cleverCombineOriginInputs.Add(cameraPosInRoot);
-                    cleverCombineMeshInputs.Add(mesh);
-                }
+                meshOrigins.Add(cameraPosInOutput);
+                meshInputs.Add(mesh);
             }
 
+            // combine into large point cloud
+            Mesh aggregatePointCloud = new Mesh(hasNormals: true);
             if (useCleverCombine)
             {
-                pipeline.LogInfo("combining {0} point clouds with clever combine", cleverCombineMeshInputs.Count());
-                aggregatePointCloud = CleverCombinePointClouds.Combine(cleverCombineOriginInputs.ToArray(), cleverCombineMeshInputs.ToArray());
+                pipeline.LogInfo("combining {0} point clouds with clever combine", meshInputs.Count());
+                aggregatePointCloud = CleverCombinePointClouds.Combine(meshOrigins.ToArray(), meshInputs.ToArray());
             }
+            else
+            {
+                aggregatePointCloud.MergeWith(meshInputs.ToArray(), normalize: false, removeDuplicateVerts: false);
+            }
+
+            //significant memory usage
+            meshInputs.Clear();
+            meshOrigins.Clear();
 
             // build the large mesh from the aggregate point cloud using poisson reconstruction
             if (aggregatePointCloud.Vertices.Count == 0)
