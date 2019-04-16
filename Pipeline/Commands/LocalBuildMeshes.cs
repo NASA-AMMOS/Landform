@@ -45,8 +45,8 @@ namespace OPS.Pipeline
         [Option(HelpText = "Operate on cloud data", Default = false)]
         public bool Cloud { get; set; }
 
-        [Option(Default = "QuadZ", HelpText = "tiling scheme (axis letters indicate the up direction):  Bin, QuadX, QuadY, QuadZ, Oct")]
-        public string TilingScheme { get; set; }
+        [Option(Default = TilingScheme.QuadZ, HelpText = "tiling scheme (axis letters indicate the up direction):  Bin, QuadX, QuadY, QuadZ, Oct")]
+        public TilingScheme TilingScheme { get; set; }
      
         [Option(Default = 2000, HelpText = "target maximum faces per tile")]
         public int FacesPerTile { get; set; }
@@ -154,7 +154,7 @@ namespace OPS.Pipeline
             }
             
             //build tile tree
-            SceneNode root = DefineTiles.BuildTileTreeFromInputs(pipeline, (TilingScheme)Enum.Parse(typeof(TilingScheme),options.TilingScheme), options.FacesPerTile, new List<MeshImagePair>() { new MeshImagePair(fullMesh) });
+            SceneNode root = DefineTiles.BuildTileTreeFromInputs(pipeline, options.TilingScheme, options.FacesPerTile, new List<MeshImagePair>() { new MeshImagePair(fullMesh) });
 
             //make leaf tiles meshes
             MeshOperator meshOp = new MeshOperator(fullMesh, buildFaceTree: true, buildVertexTree: false, buildUVFaceTree: false);
