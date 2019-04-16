@@ -379,5 +379,19 @@ namespace ImageTest
             monoImage.SetAsMono(new float[] { 0.75f }, 0, 0);
             Assert.IsTrue(monoImage[0, 0, 0] == 0.75f);
         }
+
+        [TestMethod()]
+        public void InpaintTest()
+        {
+            Image monoImage = new Image(1, 4, 4);
+            monoImage.CreateMask(false);
+            monoImage.SetMaskValue(0, 0, true);
+            monoImage.Inpaint(1, true);
+            Assert.IsTrue(monoImage.IsInvalid(0, 0));
+            Assert.IsTrue(monoImage.IsValid(0, 1));
+            monoImage.Inpaint(1, false);
+            Assert.IsTrue(monoImage.IsValid(0, 0));
+            Assert.IsTrue(monoImage.IsValid(0, 1));
+        }
     }
 }

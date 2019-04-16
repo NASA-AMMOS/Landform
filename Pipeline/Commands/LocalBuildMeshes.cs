@@ -377,7 +377,8 @@ namespace OPS.Pipeline
                     }
                     else
                     {
-                        InpaintPreserveMask(leafImage);
+                        //single pixel inpaint for bilinear sampling of subpixel locations
+                        leafImage.Inpaint(1, preserveMask:true);
                     }
                 }
 
@@ -582,23 +583,6 @@ namespace OPS.Pipeline
 
             //if the occlusion distance is closer than the camera projection distance it is occluded in this image
             return (hit != null) && (hit.Distance < rangeMeshToImage);
-        }
-      
-        // then inpaint to keep bilinear filtering from picking up the bad pixels
-        // inpainting marks all pixels as valid, so cache the original mask state and then replace it
-        private static void InpaintPreserveMask(Image srcImage)
-        {
-            List<int> invalidPixels = new List<int>();
-            for (int idx = 0; idx < srcImage.Width * srcImage.Height; idx++)
-            {
-                if (srcImage.IsInvalid(idx))
-                    invalidPixels.Add(idx);
-            }
-            srcImage.Inpaint(1); //only need 1 pixel to prevent bilinear from sampling invalid region
-            foreach (int invalidPixel in invalidPixels)
-            {
-                srcImage.SetMaskValue(invalidPixel, true);
-            }
         }
     }
 }

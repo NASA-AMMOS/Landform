@@ -202,9 +202,22 @@ namespace OPS.Imaging
         /// masked pixels left.  Inpainted pixels are an average of their non-masked neighbors
         /// </summary>
         /// <param name="border"></param>
-        public Image Inpaint(int border = -1)
+        /// <param name="preserveMask">inpainting usually destroys the mask where pixels were inpainted, setting to true will preserve the original mask</param>
+        public Image Inpaint(int border = -1,bool preserveMask = false)
         {
+            bool[] savedMask = null;
+            if (HasMask && preserveMask)
+            {
+                savedMask = (bool[])Mask.Clone();
+            }
+
             Inpainter.Apply(this, border);
+
+            if(savedMask != null)
+            {
+                Mask = savedMask;
+            }
+
             return this;
         }
 
