@@ -49,7 +49,7 @@ namespace OPS.Pipeline
         [Option(HelpText = "Operate on cloud data", Default = false)]
         public bool Cloud { get; set; }
 
-        [Option(HelpText = "tiling scheme (axis letters indicate the up direction):  Bin, QuadX, QuadY, QuadZ, Oct"), Default = TilingScheme.QuadZ]
+        [Option(HelpText = "tiling scheme (axis letters indicate the up direction):  Bin, QuadX, QuadY, QuadZ, Oct", Default = TilingScheme.QuadZ)]
         public TilingScheme TilingScheme { get; set; }
      
         [Option(HelpText = "target maximum faces per tile", Default = 2000)]
@@ -213,7 +213,7 @@ namespace OPS.Pipeline
 
             //build tile bounds
             pipeline.LogInfo("Building tile tree bounds from fullmesh");
-            SceneNode root = DefineTiles.BuildTileTreeFromInputs(pipeline, (TilingScheme)Enum.Parse(typeof(TilingScheme), options.TilingScheme), options.FacesPerTile, new List<MeshImagePair>() { new MeshImagePair(decimatedMesh) });
+            SceneNode root = DefineTiles.BuildTileTreeFromInputs(pipeline, options.TilingScheme, options.FacesPerTile, new List<MeshImagePair>() { new MeshImagePair(decimatedMesh) });
 
             //make leaf tiles meshes
             List<SceneNode> failedNodes = new List<SceneNode>();
@@ -429,7 +429,7 @@ namespace OPS.Pipeline
 
             //build mesh
             pipeline.LogInfo("Building full mesh for {0}", options.ProjectName);
-            fullMesh = BuildTilingInput.BuildMesh(pipeline, options.ProjectName, out BoundingBox pointBounds, frameCache, observationCache, outputFrame, options.OnlyForCameras);
+            fullMesh = BuildTilingInput.BuildMesh(pipeline, options.ProjectName,out BoundingBox pointBounds, frameCache, observationCache, outputFrame, options.UsePriors, options.OnlyForCameras, !options.NoCleverCombine);
             if (fullMesh == null)
             {
                 pipeline.LogError("Mesh building for {0) failed.", options.ProjectName);
