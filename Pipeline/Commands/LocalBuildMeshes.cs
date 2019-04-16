@@ -100,7 +100,6 @@ namespace OPS.Pipeline
             var outputFrame = options.OutputFrame.ToLower().Trim();
             string dir = outputFrame + "Frame" + CreateSourcesPath(adjustedSources, priorSources);
             string outputPath = pipeline.GetLocalDebugFolder(options.OutputFolder, "tiling/" + dir, options.ProjectName);
-            PathHelper.EnsureExists(outputPath);
             string tilesPath = outputPath + "tiles/";
             PathHelper.EnsureExists(tilesPath);
 
