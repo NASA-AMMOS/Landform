@@ -61,8 +61,8 @@ namespace OPS.Pipeline
         [Option(HelpText = "path to cached full mesh (when set will skip generating a full mesh and instead load the existing mesh at this path)", Default = null)]
         public string CachedFullMesh { get; set; }
 
-        [Option(HelpText = "path to cachedleaves(when set will skip generating leaves and instead load them from this path)", Default = null)]
-        public string CachedLeavesPath { get; set; }
+        [Option(HelpText = "use cachedleaves(when set will skip generating leaves and instead load them from this path)", Default = false)]
+        public bool UseCachedLeaves { get; set; }
 
         [Option(HelpText = "Output bounding box and frustum hull meshes", Default = false)]
         public bool OutputDebugMeshes { get; set; }
@@ -189,7 +189,7 @@ namespace OPS.Pipeline
             IEnumerable<Observation> imageObservations = null;
             Dictionary<Observation, ConvexHull> obsToHull =null;
 
-            if (options.CachedLeavesPath == null)
+            if (!options.UseCachedLeaves)
             {
                 pipeline.LogInfo("Building convex hulls");
                 obsToHull = new Dictionary<Observation, ConvexHull>();
@@ -230,10 +230,10 @@ namespace OPS.Pipeline
                 BoundingBox leafBounds = leaf.GetComponent<NodeBounds>().Bounds;
 
                 Mesh leafMesh = null;
-                if (options.CachedLeavesPath != null)
+                if (options.UseCachedLeaves)
                 {
                     pipeline.LogInfo("Loading cached tile mesh {0}: {1}/{2} ({3}%)", leaf.Name, curLeafNum, root.Leaves().Count(), (int)(100 * curLeafNum / (float)root.Leaves().Count()));
-                    string meshPath = options.CachedLeavesPath + "\\" + leaf.Name + ".ply";
+                    string meshPath = leafTilesPath + leaf.Name + ".ply";
                     if (File.Exists(meshPath))
                     {
                         leafMesh = Mesh.Load(meshPath);
@@ -289,10 +289,10 @@ namespace OPS.Pipeline
                     return;
 
                 Image leafImage = null;
-                if (options.CachedLeavesPath != null)
+                if (options.UseCachedLeaves)
                 {
                     pipeline.LogInfo("loading cached tile image for {0}", leaf.Name);
-                    string imagePath = options.CachedLeavesPath + "\\" + leaf.Name + ".png";
+                    string imagePath = leafTilesPath + leaf.Name + ".png";
                     if (File.Exists(imagePath))
                     {
                         leafImage = Image.Load(imagePath);
