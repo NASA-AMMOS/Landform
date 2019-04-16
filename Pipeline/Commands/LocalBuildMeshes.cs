@@ -393,16 +393,11 @@ namespace OPS.Pipeline
 
             pipeline.LogInfo("Building tileset json");
             Tile3DBuilder builder = new Tile3DBuilder(root);
-            builder.BuildTileset(NodeToUrl, false);
+            builder.BuildTileset(node => node.Name + "." + options.MeshExtension, false);
             string jsonData = JsonConvert.SerializeObject(builder.Tileset, Formatting.None);
             File.WriteAllText(Path.Combine(tileSetPath, "tileset.json"), jsonData);
 
             return 0;
-        }
-
-        private string NodeToUrl(SceneNode node)
-        {
-            return node.Name + "." + options.MeshExtension;
         }
 
         private bool SkirtsEnabled
