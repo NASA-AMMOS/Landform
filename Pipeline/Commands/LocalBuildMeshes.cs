@@ -94,8 +94,6 @@ namespace OPS.Pipeline
 
         public int Run()
         {
-            pipeline.LogInfo("Building new full mesh");
-            
             //create directory for output
             var adjustedSources = ParseSources(options.AdjustedTransformSources);
             var priorSources = ParseSources(options.PriorTransformSources);
@@ -110,6 +108,8 @@ namespace OPS.Pipeline
             Mesh fullMesh = null;
             if (options.CachedFullMesh == null)
             {
+                pipeline.LogInfo("Building new full mesh");
+
                 var frameCache = new FrameCache(pipeline, options.ProjectName);
                 Func<FrameTransform, bool> filterPrior =
                     transform => priorSources.Length == 0 || priorSources.Any(s => s == transform.Source);
