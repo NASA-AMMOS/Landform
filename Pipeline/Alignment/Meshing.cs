@@ -445,7 +445,7 @@ namespace OPS.Pipeline
         }
 
         /// <summary>
-        /// get transform from a specific rover frame to the corresponding sitedrive or root frame
+        /// get transform from a specific rover frame to the corresponding, observation, sitedrive or root frame
         /// </summary>transform a mesh 
         public static UncertainRigidTransform GetTransform(string fromFrame, string toFrame, FrameCache frameCache,
                                                            bool usePriors = false)
@@ -480,8 +480,12 @@ namespace OPS.Pipeline
 
                 return obsToSD.Transform * sdToRoot.Transform;
             }
-
-            throw new NotImplementedException("transform to " + toFrame + " not implemented");
+            else
+            {
+                var fromFrameToRoot = GetTransform(fromFrame, "root", frameCache, usePriors);
+                var toFrameToRoot = GetTransform(toFrame, "root", frameCache, usePriors);
+                return fromFrameToRoot.TimesInverse(toFrameToRoot);
+            }
         }
 
         /// <summary>
@@ -1067,6 +1071,7 @@ namespace OPS.Pipeline
             var transform = GetTransform(obs.Points.FrameName, frame, frameCache, usePriors);
             if (transform == null)
             {
+                pipeline.LogWarn("failed to find transform for {0}", obs.Points.FrameName);
                 return null;
             }
             ret.Transform(transform.Mean);
