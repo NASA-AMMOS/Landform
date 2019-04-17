@@ -172,6 +172,9 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="AlignmentServer\AlignmentMaster.cs" />
+    <Compile Include="AlignmentServer\Cloud\BirdsEyeView.cs" />
+    <Compile Include="AlignmentServer\Cloud\BirdsEyeViewFeatures.cs" />
+    <Compile Include="AlignmentServer\Cloud\FeatureMatches.cs" />
     <Compile Include="AlignmentServer\Cloud\Frame.cs" />
     <Compile Include="AlignmentServer\Cloud\FrameCache.cs" />
     <Compile Include="AlignmentServer\Cloud\FrameGeohash.cs" />
@@ -183,12 +186,14 @@
     <Compile Include="AlignmentServer\Cloud\Project.cs" />
     <Compile Include="AlignmentServer\Cloud\RoverObservation.cs" />
     <Compile Include="AlignmentServer\Cloud\SpatialIndex.cs" />
+    <Compile Include="AlignmentServer\Cloud\SpatialMatches.cs" />
     <Compile Include="AlignmentServer\Cloud\SquareMatrixConverter.cs" />
     <Compile Include="AlignmentServer\Cloud\Vector3Converter.cs" />
     <Compile Include="AlignmentServer\Cloud\VectorNConverter.cs" />
     <Compile Include="AlignmentServer\Operations\CreateMask.cs" />
     <Compile Include="AlignmentServer\Operations\DetectFeatures.cs" />
     <Compile Include="AlignmentServer\Operations\MatchImages.cs" />
+    <Compile Include="Alignment\BirdsEyeViewing.cs" />
     <Compile Include="Alignment\BuildSceneGraph.cs" />
     <Compile Include="Alignment\BundleAdjusting.cs" />
     <Compile Include="Alignment\FeatureDetecting.cs" />
@@ -218,6 +223,10 @@
     <Compile Include="Commands\LocalObservationProducts.cs" />
     <Compile Include="Commands\TileLocalMesh.cs" />
     <Compile Include="DataProducts\DataProduct.cs" />
+    <Compile Include="DataProducts\FeatureMatchesDataProduct.cs" />
+    <Compile Include="DataProducts\FeaturesDataProduct.cs" />
+    <Compile Include="DataProducts\SpatialMatchesDataProduct.cs" />
+    <Compile Include="DataProducts\TiffDataProduct.cs" />
     <Compile Include="General\LegacySceneManfiest.cs" />
     <Compile Include="DataProducts\JsonDataProduct.cs" />
     <Compile Include="DataProducts\PngDataProduct.cs" />
