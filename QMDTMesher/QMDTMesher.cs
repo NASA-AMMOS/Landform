@@ -119,7 +119,7 @@ namespace QMDTMesher
         {
             //var mwn = MeshLab.ComputeNormals(m);
             var mwn = CloudCompare.GenerateNormals(m, normalRadius);
-            mwn.FlipNormalsWithRespectToPoint(EstimateCameraPos(m));
+            mwn.FlipNormalsTowardPoint(EstimateCameraPos(m));
             mwn.RemoveZeroLengthNormals();
             //mwn = CloudCompare.OrientNormals(mwn, 10);
             return mwn;
