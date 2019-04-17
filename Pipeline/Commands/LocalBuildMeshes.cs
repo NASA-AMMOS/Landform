@@ -378,7 +378,7 @@ namespace OPS.Pipeline
                     else
                     {
                         //single pixel inpaint for bilinear sampling of subpixel locations
-                        leafImage.Inpaint(1, preserveMask:true);
+                        leafImage.Inpaint(1, preserveMask:false);
                     }
                 }
 
