@@ -44,7 +44,7 @@ namespace OPS.Pipeline.MeshWorker
             observationCache.Preload(obs => obs.UseForReconstruction);
 
             string outputFrame = "root";
-            Mesh surfacedMesh = BuildMesh(pipeline, projectName, out BoundingBox pointBounds, frameCache, observationCache, outputFrame, false);
+            Mesh surfacedMesh = BuildMesh(pipeline, projectName, out BoundingBox pointBounds, frameCache, observationCache, outputFrame, usePriors:false, onlyForCameras:null, useCleverCombine:false, allowMastcam:false);
             if (surfacedMesh == null || surfacedMesh.Vertices.Count == 0)
             {
                 pipeline.LogError("point cloud failed to reconstruct");
@@ -73,13 +73,13 @@ namespace OPS.Pipeline.MeshWorker
             return 0;
         }
 
-        static public Mesh BuildMesh(PipelineCore pipeline, string projectName, out BoundingBox pointBounds, FrameCache frameCache, ObservationCache observationCache, string outputFrame, bool usePriors, string onlyForCameras = null, bool useCleverCombine=false)
+        static public Mesh BuildMesh(PipelineCore pipeline, string projectName, out BoundingBox pointBounds, FrameCache frameCache, ObservationCache observationCache, string outputFrame, bool usePriors, string onlyForCameras = null, bool useCleverCombine=false, bool allowMastcam=false)
         {
             pointBounds = new BoundingBox();
            
             //temporarily suppress mastcam point cloud data until validated
             //https://github.jpl.nasa.gov/OnSight/Landform/issues/261
-            var observations = Meshing.CollectMeshObservations(frameCache, observationCache, allowMastcam: false,
+            var observations = Meshing.CollectMeshObservations(frameCache, observationCache, allowMastcam: allowMastcam,
                                                                requireNormals: true, onlyForCameras:onlyForCameras);
             if (observations.Count == 0)
             {
