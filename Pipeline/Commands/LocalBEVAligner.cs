@@ -112,6 +112,12 @@ namespace OPS.Pipeline
         [Option(HelpText = "Recompute existing BEVs", Default = false)]
         public bool RedoBEVs { get; set; }
 
+        [Option(HelpText = "Recompute existing features", Default = false)]
+        public bool RedoFeatures { get; set; }
+
+        [Option(HelpText = "Recompute existing feature matches", Default = false)]
+        public bool RedoMatches { get; set; }
+
         [Option(HelpText = "Search radius for feature matching in meters", Default = 2)]
         public double MatchRadius { get; set; }
 
@@ -193,23 +199,20 @@ namespace OPS.Pipeline
             new ConcurrentDictionary<string, ImageFeature[]>();
 
         //modelSiteDrive-dataSiteDrive => feature matches
-        private ConcurrentDictionary<string, List<FeatureMatch>> matches =
-            new ConcurrentDictionary<string, List<FeatureMatch>>();
+        private ConcurrentDictionary<string, FeatureMatch[]> matches =
+            new ConcurrentDictionary<string, FeatureMatch[]>();
 
         //modelSiteDrive-dataSiteDrive => feature matches
-        private ConcurrentDictionary<string, List<FeatureMatch>> ransacMatches =
-            new ConcurrentDictionary<string, List<FeatureMatch>>();
+        private ConcurrentDictionary<string, FeatureMatch[]> ransacMatches =
+            new ConcurrentDictionary<string, FeatureMatch[]>();
 
         //modelSiteDrive-dataSiteDrive => (modelPoint, dataPoint), (modelPoint, dataPoint), ...
-        private ConcurrentDictionary<string, List<Tuple<Vector3, Vector3>>> spatialMatches =
-            new ConcurrentDictionary<string, List<Tuple<Vector3, Vector3>>>();
+        private ConcurrentDictionary<string, SpatialMatch[]> spatialMatches =
+            new ConcurrentDictionary<string, SpatialMatch[]>();
 
         //(modelSiteDrive, dataSiteDrive), (modelSiteDrive, dataSiteDrive), ...
         List<Tuple<string, string>> siteDrivePairs = new List<Tuple<string, string>>();
         
-        private const string cacheImageExt = ".tif";
-        private const string cacheMaskExt = ".png";
-
         private double MetersPerPixel { get { return options.BEVMetersPerPixel * options.BEVDecimation; } }
         private double PixelsPerMeter { get { return 1 / MetersPerPixel; } }
 
@@ -330,23 +333,15 @@ namespace OPS.Pipeline
 
             LoadOrRenderBEVs(); //observations -> bevs, dems
 
-            DetectFeatures(); //bevs -> features
+            LoadOrDetectFeatures(); //bevs -> features
 
             ComputePairs(); //siteDrives -> siteDrivePairs
 
-            int nm = MatchPairs(); //siteDrivePairs, features -> spatialMatches
+            int nm = LoadOrMatchPairs(); //siteDrivePairs, features -> spatialMatches
 
-            //spatialMatches -> LandformBEV aligned FrameTransforms
-            int na = 0;
-            bool matchOnly = false;
-            switch (options.AlignmentMode)
-            {
-                case AlignmentMode.Simultaneous: { na = SimultaneousAlign(); break; }
-                case AlignmentMode.PairwiseMaximal: { na = PairwiseAlign(maximal: true); break; }
-                case AlignmentMode.PairwiseMinimal: { na = PairwiseAlign(maximal: false); break; }
-                case AlignmentMode.None: { matchOnly = true; na = 0; break; }
-            }
+            int na = Align(); //spatialMatches -> LandformBEV aligned FrameTransforms
 
+            bool matchOnly = options.AlignmentMode == AlignmentMode.None;
             pipeline.LogInfo("matched {0}{1} site drives from {2} birds eye views ({3:F3}s)",
                              matchOnly ? "" : "and aligned ", matchOnly ? nm : na,
                              bevs.Count, UTCTime.Now() - startSec);
@@ -436,8 +431,8 @@ namespace OPS.Pipeline
         private void RenderBEVs()
         {
             double startSec = UTCTime.Now();
-            pipeline.LogInfo("rendering {0} birds eye views...",
-                             siteDrives.Where(sd => !bevs.ContainsKey(sd) || !dems.ContainsKey(sd)).Count());
+            var bevsNeeded = siteDrives.Where(sd => !bevs.ContainsKey(sd) || !dems.ContainsKey(sd)).ToArray();
+            pipeline.LogInfo("rendering {0} birds eye views...", bevsNeeded.Length);
 
             var bevOptions = new Meshing.BEVOptions
             {
@@ -454,65 +449,63 @@ namespace OPS.Pipeline
             demOptions.BlendMode = Meshing.BlendMode.Average;
 
             int np = 0, nc = 0;
-            CoreLimitedParallel.ForEach(siteDrives, siteDrive => {
+            CoreLimitedParallel.ForEach(bevsNeeded, siteDrive => {
 
                     Interlocked.Increment(ref np);
 
                     if (!options.NoProgress)
                     {
                         pipeline.LogInfo("rendering {0} birds eye views in parallel, completed {1}/{2}",
-                                         np, nc, siteDrives.Length);
+                                         np, nc, bevsNeeded.Length);
                     }
 
                     Mesh mesh = null;
                     Image img = null;
-                    if (!bevs.ContainsKey(siteDrive) || !dems.ContainsKey(siteDrive))
-                    {
-                        //ensure inpurs are in a canonical order particularly for BEVBlending = Over
-                        var inputs = mergeInputs[siteDrive]
-                            .OrderBy(inp => inp.Item1) //order by observation name
-                            .Distinct() //ConcurrentBag is not necessarily a set
-                            .Select(inp => new Tuple<Mesh, Image>(inp.Item2, inp.Item3))
-                            .ToArray();
-                        
-                        if (options.BEVColoring == BirdsEyeViewing.ColorMode.Texture)
-                        {
-                            var pair = Meshing.MergeMeshesAndTextures(inputs);
-                            mesh = pair.Item1;
-                            img = pair.Item2;
-                        }
-                        else
-                        {
-                            mesh = Mesh.Merge(inputs.Select(pr => pr.Item1).ToArray());
-                        }
-                        
-                        switch (options.BEVColoring)
-                        {
-                            case BirdsEyeViewing.ColorMode.Texture: break;
-                            case BirdsEyeViewing.ColorMode.Tilt:
-                                {
-                                    Meshing.ColorMeshByNormals(mesh, Meshing.TiltMode.InvAcos);
-                                    break;
-                                }
-                            case BirdsEyeViewing.ColorMode.Elevation:
-                                {
-                                    Meshing.ColorMeshByElevation(mesh, absolute: true);
-                                    break;
-                                }
-                        }
+
+                    //ensure inputs are in a canonical order particularly for BEVBlending = Over
+                    var inputs = mergeInputs[siteDrive]
+                    .OrderBy(inp => inp.Item1) //order by observation name
+                    .Distinct() //ConcurrentBag is not necessarily a set
+                    .Select(inp => new Tuple<Mesh, Image>(inp.Item2, inp.Item3))
+                    .ToArray();
                     
-                        if (options.WriteDebug)
+                    if (options.BEVColoring == BirdsEyeViewing.ColorMode.Texture)
+                    {
+                        var pair = Meshing.MergeMeshesAndTextures(inputs);
+                        mesh = pair.Item1;
+                        img = pair.Item2;
+                    }
+                    else
+                    {
+                        mesh = Mesh.Merge(inputs.Select(pr => pr.Item1).ToArray());
+                    }
+                    
+                    switch (options.BEVColoring)
+                    {
+                        case BirdsEyeViewing.ColorMode.Texture: break;
+                        case BirdsEyeViewing.ColorMode.Tilt:
                         {
-                            string imageFilename = null;
-                            if (img != null)
-                            {
-                                imageFilename = siteDrive + imageExt;
-                                PathHelper.EnsureExists(outputPath);
-                                img.Save<byte>(outputPath + imageFilename);
-                            }
-                            PathHelper.EnsureExists(outputPath);
-                            mesh.Save(outputPath + siteDrive + meshExt, imageFilename);
+                            Meshing.ColorMeshByNormals(mesh, Meshing.TiltMode.InvAcos);
+                            break;
                         }
+                        case BirdsEyeViewing.ColorMode.Elevation:
+                        {
+                            Meshing.ColorMeshByElevation(mesh, absolute: true);
+                            break;
+                        }
+                    }
+                    
+                    if (options.WriteDebug)
+                    {
+                        string imageFilename = null;
+                        if (img != null)
+                        {
+                            imageFilename = siteDrive + imageExt;
+                            PathHelper.EnsureExists(outputPath);
+                            img.Save<byte>(outputPath + imageFilename);
+                        }
+                        PathHelper.EnsureExists(outputPath);
+                        mesh.Save(outputPath + siteDrive + meshExt, imageFilename);
                     }
 
                     if (!bevs.ContainsKey(siteDrive))
@@ -573,7 +566,6 @@ namespace OPS.Pipeline
         private bool LoadBEVs()
         {
             double startSec = UTCTime.Now();
-            int nc = 0;
             CoreLimitedParallel.ForEach(siteDrives, siteDrive => {
                     var rec = BirdsEyeView.Find(pipeline, project.Name, siteDrive);
                     if (rec != null &&
@@ -594,13 +586,10 @@ namespace OPS.Pipeline
                         bevs[siteDrive] = bev;
                         dems[siteDrive] = dem;
                         bevOrigins[siteDrive] = new Vector2(rec.OriginX, rec.OriginY);
-                        Interlocked.Increment(ref nc);
                     }
                 });
-            
-            pipeline.LogInfo("loaded {0} birds eye views ({1:F3}s)", nc, UTCTime.Now() - startSec);
-
-            return nc == siteDrives.Length;
+            pipeline.LogInfo("loaded {0} birds eye views ({1:F3}s)", bevs.Count, UTCTime.Now() - startSec);
+            return bevs.Count == siteDrives.Length;
         }
 
         /// <summary>
@@ -609,7 +598,6 @@ namespace OPS.Pipeline
         private void SaveBEVs()
         {
             double startSec = UTCTime.Now();
-            int nc = 0;
             CoreLimitedParallel.ForEach(bevs, pair => {
                     var siteDrive = pair.Key;
                     var bev = pair.Value;
@@ -620,9 +608,8 @@ namespace OPS.Pipeline
                                         options.BEVBlending, options.BEVMetersPerPixel, options.BEVSparseBlocksize,
                                         options.BEVMinValidBlockRatio, options.BEVInpaint, options.BEVSmoothing,
                                         options.BEVDecimation);
-                    Interlocked.Increment(ref nc);
                 });
-            pipeline.LogInfo("saved {0} birds eye views ({1:F3}s)", nc, UTCTime.Now() - startSec);
+            pipeline.LogInfo("saved {0} birds eye views ({1:F3}s)", bevs.Count, UTCTime.Now() - startSec);
         }
 
         /// <summary>
@@ -711,12 +698,66 @@ namespace OPS.Pipeline
         }
 
         /// <summary>
-        /// populate features from bevs  
+        /// populate features from database or bevs  
+        /// </summary>
+        private void LoadOrDetectFeatures()
+        {
+            if (options.RedoFeatures || !LoadFeatures())
+            {
+                DetectFeatures();
+                SaveFeatures();
+            }
+
+            if (options.WriteDebug)
+            {
+                CoreLimitedParallel.ForEach(siteDrives, siteDrive => {
+                        var bev = bevs[siteDrive];
+                        var mask = bev.MaskToImage(valid: 1, invalid: 0);
+                        var feat = features[siteDrive];
+                        var img = FeatureDetecting.DrawFeaturesEmgu(bev, mask, feat, siteDrive, stretch: false);
+                        foreach (var otherSiteDrive in siteDrives)
+                        {
+                            var pixel = PointToPixel(Vector3.Zero, otherSiteDrive, siteDrive);
+                            var color = new Vector3(otherSiteDrive != siteDrive ? 0 : 1,
+                                                    otherSiteDrive != siteDrive ? 1 : 0,
+                                                    0);
+                            DrawOrigin(img, pixel, color);
+                        }
+                        PathHelper.EnsureExists(outputPath);
+                        img.ToOPSImage().Save<byte>(outputPath + siteDrive + "_BirdsEyeView_Features" + imageExt);
+                    });
+            }
+        }
+
+        /// <summary>
+        /// draw a cross and/or a circle at a given pixel
+        /// </summary>
+        private void DrawOrigin(Image<Bgr, byte> img, Vector2 pixel, Vector3 color,
+                                double crossRadius = 0.05, double circleRadius = 0.5)
+        {
+            var bgr = new Bgr((float)color.X * 255, (float)color.Y * 255, (float)color.Z * 255); //actually RGB
+            if (crossRadius > 0)
+            {
+                var cr = crossRadius * PixelsPerMeter;
+                img.Draw(ToLineSegment2DF(pixel + new Vector2(-cr, 0), pixel + new Vector2(cr, 0)), bgr, 2);
+                img.Draw(ToLineSegment2DF(pixel + new Vector2(0, -cr), pixel + new Vector2(0, cr)), bgr, 2);
+            }
+            if (circleRadius > 0)
+            {
+                var cr = circleRadius * PixelsPerMeter;
+                img.Draw(new CircleF(ToPointF(pixel), (float)cr), bgr, 2);
+            }
+        }
+
+        /// <summary>
+        /// detect features that were not loaded from database
         /// </summary>
         private void DetectFeatures()
         {
             double startSec = UTCTime.Now();
-            pipeline.LogInfo("detecting {0} features in {1} birds eye views...", options.DetectorType, bevs.Count);
+            var featuresNeeded = siteDrives.Where(sd => !features.ContainsKey(sd));
+            pipeline.LogInfo("detecting {0} features in {1} birds eye views...", options.DetectorType,
+                             featuresNeeded.Count());
 
             var detectorOpts = new FeatureDetector.Options()
                 {
@@ -732,7 +773,7 @@ namespace OPS.Pipeline
             FeatureDetector detector = new FeatureDetector(pipeline, detectorOpts);
 
             int nc = 0, np = 0;
-            CoreLimitedParallel.ForEach(siteDrives, siteDrive => {
+            CoreLimitedParallel.ForEach(featuresNeeded, siteDrive => {
 
                     Interlocked.Increment(ref np);
 
@@ -758,20 +799,6 @@ namespace OPS.Pipeline
                                         options.MaxFeaturesPerImage, options.FeatureExtraInvalidRadius,
                                         options.FASTThreshold);
 
-                    if (options.WriteDebug)
-                    {
-                        var img = FeatureDetecting.DrawFeaturesEmgu(bev, mask, feat, siteDrive, stretch: false);
-                        for (int i = 0; i < 2; i++)
-                        {
-                            var pixel = PointToPixel(Vector3.Zero, siteDrives[i], siteDrive);
-                            var other = siteDrives[i] != siteDrive;
-                            var color = new Vector3(other ? 0 : 1, other ? 1 : 0, 0);
-                            DrawOrigin(img, pixel, color);
-                        }
-                        PathHelper.EnsureExists(outputPath);
-                        img.ToOPSImage().Save<byte>(outputPath + siteDrive + "_BirdsEyeView_Features" + imageExt);
-                    }
-
                     Interlocked.Decrement(ref np);
                     Interlocked.Increment(ref nc);
                 });
@@ -786,25 +813,45 @@ namespace OPS.Pipeline
         }
 
         /// <summary>
-        /// draw a cross and/or a circle at a given pixel
+        /// populate features from database
+        /// returns true iff all were loaded successfully
         /// </summary>
-        private void DrawOrigin(Image<Bgr, byte> img, Vector2 pixel, Vector3 color,
-                                double crossRadius = 0.05, double circleRadius = 0.5)
+        private bool LoadFeatures()
         {
-            var bgr = new Bgr((float)color.X * 255, (float)color.Y * 255, (float)color.Z * 255); //actually RGB
-            if (crossRadius > 0)
-            {
-                var cr = crossRadius * PixelsPerMeter;
-                img.Draw(ToLineSegment2DF(pixel + new Vector2(-cr, 0), pixel + new Vector2(cr, 0)), bgr, 2);
-                img.Draw(ToLineSegment2DF(pixel + new Vector2(0, -cr), pixel + new Vector2(0, cr)), bgr, 2);
-            }
-            if (circleRadius > 0)
-            {
-                var cr = circleRadius * PixelsPerMeter;
-                img.Draw(new CircleF(ToPointF(pixel), (float)cr), bgr, 2);
-            }
+            double startSec = UTCTime.Now();
+            CoreLimitedParallel.ForEach(siteDrives, siteDrive => {
+                    var rec = BirdsEyeViewFeatures.Find(pipeline, project.Name, siteDrive);
+                    if (rec != null &&
+                        rec.DetectorType == options.DetectorType &&
+                        rec.MinFeatureResponse == options.MinFeatureResponse &&
+                        rec.MaxFeatures == options.MaxFeaturesPerImage &&
+                        rec.ExtraInvalidRadius == options.FeatureExtraInvalidRadius &&
+                        rec.FASTThreshold == options.FASTThreshold)
+                    {
+                        features[siteDrive] =
+                            pipeline.GetDataProduct<FeaturesDataProduct>(project, rec.FeaturesGuid).Features;
+                    }
+                });
+            pipeline.LogInfo("loaded {0} birds eye view features ({1:F3}s)", features.Count, UTCTime.Now() - startSec);
+            return features.Count == siteDrives.Length;
         }
 
+        /// <summary>
+        /// save features and associated metadata to database
+        /// </summary>
+        private void SaveFeatures()
+        {
+            double startSec = UTCTime.Now();
+            CoreLimitedParallel.ForEach(features, pair => {
+                    var siteDrive = pair.Key;
+                    var features = pair.Value;
+                    BirdsEyeViewFeatures.Create(pipeline, project, siteDrive, features, options.DetectorType,
+                                                options.MinFeatureResponse, options.MaxFeaturesPerImage,
+                                                options.FeatureExtraInvalidRadius, options.FASTThreshold);
+                });
+            pipeline.LogInfo("saved {0} birds eye view features ({1:F3}s)", features.Count, UTCTime.Now() - startSec);
+        }
+        
         /// <summary>
         /// populates matches[modelSiteDrive-dataSiteDrive] from features
         /// assumes features[siteDrive] are sorted by increasing distance to origin of siteDrive
@@ -891,33 +938,19 @@ namespace OPS.Pipeline
                 
             var pair = modelSiteDrive + "-" + dataSiteDrive;
 
-            var matchList = best.Keys.OrderBy(m => m.DescriptorDistance).ToList();
-
-            matches[pair] = matchList;
+            var matchArray = matches[pair] = best.Keys.OrderBy(m => m.DescriptorDistance).ToArray();
 
             if (options.Verbose)
             {
                 var histogram = new Histogram(50, pair + " matches", "distance");
-                foreach (var match in matchList)
+                foreach (var match in matchArray)
                 {
                     histogram.Add(match.DescriptorDistance);
                 }
                 histogram.Dump(pipeline);
             }
 
-            if (options.WriteDebug)
-            {
-                var modelFeatures = features[modelSiteDrive];
-                var dataFeatures = features[dataSiteDrive];
-                var pairs = matchList.Select(m => new KeyValuePair<int, int>(m.DataIndex, m.ModelIndex)).ToArray();
-                var img = ImageMatching.DrawMatches(bevs[modelSiteDrive], bevs[dataSiteDrive],
-                                                    modelFeatures, dataFeatures, pairs,
-                                                    modelSiteDrive, dataSiteDrive, stretch: false);
-                PathHelper.EnsureExists(outputPath);
-                img.Save<byte>(outputPath + pair + "_BirdsEyeView_Matches" + imageExt);
-            }
-
-            int nm = matchList.Count;
+            int nm = matchArray.Length;
             pipeline.LogInfo("{0} feature matches for site drives {1} (model) and {2} (data) ({3} d2m, {4} m2d) " +
                              "({5:F3}s)", nm, modelSiteDrive, dataSiteDrive, d2m, m2d, UTCTime.Now() - startSec);
             return nm;
@@ -929,8 +962,8 @@ namespace OPS.Pipeline
         private int RansacMatches(string modelSiteDrive, string dataSiteDrive)
         {
             var pair = modelSiteDrive + "-" + dataSiteDrive;
-            var matchList = matches[pair];
-            var nm = matchList.Count;
+            var matchArray = matches[pair];
+            var nm = matchArray.Length;
 
             double startSec = UTCTime.Now();
             pipeline.LogInfo("RANSACing {0} feature matches for site drives {1} (model) and  {2} (data)...",
@@ -949,12 +982,12 @@ namespace OPS.Pipeline
             var dataOriginInModel = PointToPixel(Vector3.Zero, dataSiteDrive, modelSiteDrive);
 
             //pixel offsets corresponding to model features relative to data sitedrive origin in model BEV
-            var modelPts = matchList
+            var modelPts = matchArray
                 .Select(m => modelFeatures[m.ModelIndex].Location - dataOriginInModel)
                 .ToArray();
 
             //pixel offsets corresponding to data features relative to data sitedrive origin in model BEV
-            var dataPtsInModel = matchList
+            var dataPtsInModel = matchArray
                 .Select(m => dataFeatures[m.DataIndex].Location - dataOrigin)
                 .ToArray();
 
@@ -1116,34 +1149,20 @@ namespace OPS.Pipeline
                 }
             }
 
-            ransacMatches[pair] = bestMatches.Select(m => matchList[m]).ToList();
-
             if (options.WriteDebug)
             {
-                var d2m = bestMatches
-                    .Select(m => new KeyValuePair<int, int>(matchList[m].DataIndex, matchList[m].ModelIndex))
-                    .ToArray();
-                PathHelper.EnsureExists(outputPath);
-                var matchImg = ImageMatching.DrawMatches(bevs[modelSiteDrive], bevs[dataSiteDrive],
-                                                         modelFeatures, dataFeatures, d2m,
-                                                         modelSiteDrive, dataSiteDrive, stretch: false);
-                matchImg.Save<byte>(outputPath + pair + "_BirdsEyeView_RANSAC_Matches" + imageExt);
-
-                var mfColor = new Bgr(255, 0, 0); //actually RGB
-                var dfColor = new Bgr(0, 255, 0); //actually RGB
-
                 var mf = bestMatches
-                    .Select(m => modelFeatures[matchList[m].ModelIndex])
+                    .Select(m => modelFeatures[matchArray[m].ModelIndex])
                     .Cast<SIFTFeature>()
                     .CastToMKeyPoint()
                     .ToArray();
-
+                
                 void writeImage(string suffix, Func<Vector2, Vector2> dataPointTransform)
                 {
                     var df = bestMatches
                         .Select(m =>
                                 {
-                                    var f = new SIFTFeature((SIFTFeature)(dataFeatures[matchList[m].DataIndex]));
+                                    var f = new SIFTFeature((SIFTFeature)(dataFeatures[matchArray[m].DataIndex]));
                                     f.Location = dataPointTransform(dataPtsInModel[m]) + dataOriginInModel;
                                     return f;
                                 })
@@ -1152,20 +1171,23 @@ namespace OPS.Pipeline
                     
                     var img = bevs[modelSiteDrive].ToEmgu<Bgr>();
                     
-                    Features2DToolbox.DrawKeypoints(img, new VectorOfKeyPoint(mf), img, mfColor,
+                    Features2DToolbox.DrawKeypoints(img, new VectorOfKeyPoint(mf), img, new Bgr(255, 0, 0), //RGB
                                                     Features2DToolbox.KeypointDrawType.DrawRichKeypoints);
                     
-                    Features2DToolbox.DrawKeypoints(img, new VectorOfKeyPoint(df), img, dfColor,
+                    Features2DToolbox.DrawKeypoints(img, new VectorOfKeyPoint(df), img, new Bgr(0, 255, 0), //RGB
                                                     Features2DToolbox.KeypointDrawType.DrawRichKeypoints);
                     
-                    PathHelper.EnsureExists(outputPath);
                     img.ToOPSImage().Save<byte>(outputPath + pair + "_BirdsEyeView_RANSAC" + suffix + imageExt);
                 }
                 
+                PathHelper.EnsureExists(outputPath);
+
                 writeImage("_0_priors", pt => pt);
                 writeImage("_1_rotation", pt => bestTransform.Rotate(pt));
                 writeImage("_2_solved", pt => bestTransform.Transform(pt));
             }
+                        
+            ransacMatches[pair] = bestMatches.Select(m => matchArray[m]).ToArray();
 
             nm = bestMatches.Count;
             pipeline.LogInfo("performed {0}/{1} ransac tests for {2} ({3} total combinations), best transform " +
@@ -1196,7 +1218,7 @@ namespace OPS.Pipeline
 
             var pair = modelSiteDrive + "-" + dataSiteDrive;
 
-            var pairs = new List<Tuple<Vector3, Vector3>>();
+            var pairs = new List<SpatialMatch>();
             var lengths = new List<double>();
             foreach (var match in ransacMatches[pair])
             {
@@ -1212,7 +1234,7 @@ namespace OPS.Pipeline
                 var mp = new Vector3(mxy.X, mxy.Y, mz);
                 var dp = new Vector3(dxy.X, dxy.Y, dz);
                 lengths.Add(Vector3.Distance(mp, dp));
-                pairs.Add(new Tuple<Vector3, Vector3>(mp, dp));
+                pairs.Add(new SpatialMatch(mp, dp));
             }
 
             //the XY components of the matches should already be pretty robust due to the ransac
@@ -1230,7 +1252,9 @@ namespace OPS.Pipeline
                 var mad = lengths[n/2]; //median absolute deviation
                 
                 double threshold = options.SpatialOutlierMADs * mad;
-                pairs = pairs.Where(pr => Math.Abs(Vector3.Distance(pr.Item1, pr.Item2) - median) < threshold).ToList();
+                pairs = pairs
+                    .Where(pr => Math.Abs(Vector3.Distance(pr.ModelPoint, pr.DataPoint) - median) < threshold)
+                    .ToList();
                 int nn = pairs.Count();
                 if (nn < n)
                 {
@@ -1240,15 +1264,7 @@ namespace OPS.Pipeline
                 n = nn;
             }
                 
-            if (options.WriteDebug)
-            {
-                var mesh = ImageMatching.MakeMatchMesh(pairs.Select(p => p.Item1).ToArray(),
-                                                       pairs.Select(p => p.Item2).ToArray());
-                PathHelper.EnsureExists(outputPath);
-                mesh.Save(outputPath + pair + "_matches" + meshExt);
-            }
-
-            spatialMatches[pair] = pairs;
+            spatialMatches[pair] = pairs.ToArray();
 
             return n;
         }
@@ -1299,16 +1315,74 @@ namespace OPS.Pipeline
         }
 
         /// <summary>
+        /// populates matches, ransacMatches, and spatialMatches from database or siteDrivePairs and features
+        /// </summary>
+        private int LoadOrMatchPairs()
+        {
+            if (options.RedoMatches || !LoadMatches())
+            {
+                MatchPairs();
+                SaveMatches();
+            }
+
+            if (options.WriteDebug)
+            {
+                CoreLimitedParallel.ForEach(siteDrivePairs, pair => {
+                        
+                        PathHelper.EnsureExists(outputPath);
+
+                        var model = pair.Item1;
+                        var data = pair.Item2;
+                        var pairName = model + "-" + data;
+                        
+                        ImageMatching
+                        .DrawMatches(bevs[model], bevs[data], features[model], features[data],
+                                     matches[pairName]
+                                     .Select(m => new KeyValuePair<int, int>(m.DataIndex, m.ModelIndex))
+                                     .ToArray(),
+                                     model, data, stretch: false)
+                        .Save<byte>(outputPath + pairName + "_BirdsEyeView_Matches" + imageExt);
+                        
+                        ImageMatching
+                        .DrawMatches(bevs[model], bevs[data], features[model], features[data],
+                                     ransacMatches[pairName]
+                                     .Select(m => new KeyValuePair<int, int>(m.DataIndex, m.ModelIndex))
+                                     .ToArray(),
+                                     model, data, stretch: false)
+                        .Save<byte>(outputPath + pairName + "_BirdsEyeView_RANSAC_Matches" + imageExt);
+
+                        ImageMatching
+                        .MakeMatchMesh(spatialMatches[pairName].Select(p => p.ModelPoint).ToArray(),
+                                       spatialMatches[pairName].Select(p => p.DataPoint).ToArray())
+                        .Save(outputPath + pair + "_matches" + meshExt);
+                    });
+            }
+
+            var good = new HashSet<string>();
+            foreach (var pair in siteDrivePairs)
+            {
+                var model = pair.Item1;
+                var data = pair.Item2;
+                var pairName = model + "-" + data;
+                if (spatialMatches.ContainsKey(pairName) && spatialMatches[pairName].Length >= options.MinRansacMatches)
+                {
+                    good.Add(model);
+                    good.Add(data);
+                }
+            }
+            return good.Count;
+        }
+
+        /// <summary>
         /// compute matches, ransacMatches, and spatialMatches from siteDrivePairs and features  
         /// </summary>
-        private int MatchPairs()
+        private void MatchPairs()
         {
             double startSec = UTCTime.Now();
             pipeline.LogInfo("matching features in birds eye views for {0} site drive pairs...", siteDrivePairs.Count);
 
             var histogram = new Histogram(10, "pairs", "matches");
             int nc = 0, np = 0, ng = 0;
-            var good = new ConcurrentDictionary<string, bool>();
             CoreLimitedParallel.ForEach(siteDrivePairs, pair => {
                     
                     Interlocked.Increment(ref np);
@@ -1321,24 +1395,37 @@ namespace OPS.Pipeline
 
                     var model = pair.Item1;
                     var data = pair.Item2;
+                    var pairName = model + "-" + data;
 
-                    int nm = MatchFeatures(model, data); //features -> matches
+                    //features -> matches
+                    int nm = matches.ContainsKey(pairName) ? matches[pairName].Length : MatchFeatures(model, data);
 
                     if (nm > options.MinRansacMatches)
                     {
-                        nm = RansacMatches(model, data); //matches -> ransacMatches
+                        //matches -> ransacMatches
+                        nm = ransacMatches.ContainsKey(pairName) ?
+                            ransacMatches[pairName].Length : RansacMatches(model, data);
 
                         if (nm > 0)
                         {
-                            nm = SpatializeMatches(model, data); //ransacMatches -> spatialMatches
+                            //ransacMatches -> spatialMatches
+                            nm = spatialMatches.ContainsKey(pairName) ?
+                                spatialMatches[pairName].Length : SpatializeMatches(model, data);
                             
                             if (nm >= options.MinRansacMatches)
                             {
                                 Interlocked.Increment(ref ng);
-                                good[model] = true;
-                                good[data] = true;
                             }
                         }
+                        else
+                        {
+                            spatialMatches[pairName] = new SpatialMatch[] {};
+                        }
+                    }
+                    else
+                    {
+                        ransacMatches[pairName] = new FeatureMatch[] {};
+                        spatialMatches[pairName] = new SpatialMatch[] {};
                     }
 
                     Interlocked.Decrement(ref np);
@@ -1353,8 +1440,58 @@ namespace OPS.Pipeline
             pipeline.LogInfo("matched features in birds eye views for {0} site drive pairs, " +
                              "{1} with at least threshold {2} matches ({3:F3}s)",
                              siteDrivePairs.Count, ng, options.MinRansacMatches, UTCTime.Now() - startSec);
+        }
 
-            return good.Keys.Count;
+        /// <summary>
+        /// populate matches, ransacMatches, and spatialMatches from database
+        /// returns true iff all were loaded successfully
+        /// </summary>
+        private bool LoadMatches()
+        {
+            double startSec = UTCTime.Now();
+            CoreLimitedParallel.ForEach(siteDrivePairs, pair => {
+                    var model = pair.Item1;
+                    var data = pair.Item2;
+                    var pairName = model + "-" + data;
+                    var fm = FeatureMatches.Find(pipeline, project.Name, pairName);
+                    if (fm != null)
+                    {
+                        matches[pairName] =
+                            pipeline.GetDataProduct<FeatureMatchesDataProduct>(project, fm.MatchesGuid).Matches;
+                        var rm = FeatureMatches.Find(pipeline, project.Name, pairName + "_RANSAC");
+                        if (rm != null)
+                        {
+                            ransacMatches[pairName] =
+                                pipeline.GetDataProduct<FeatureMatchesDataProduct>(project, rm.MatchesGuid).Matches;
+                            var sm = SpatialMatches.Find(pipeline, project.Name, pairName);
+                            if (sm != null)
+                            {
+                                spatialMatches[pairName] =
+                                    pipeline.GetDataProduct<SpatialMatchesDataProduct>(project, sm.MatchesGuid).Matches;
+                            }
+                        }
+                    } 
+                });
+            pipeline.LogInfo("loaded {0} site drive feature matches ({1:F3}s)", spatialMatches.Count,
+                             UTCTime.Now() - startSec);
+            return spatialMatches.Count == siteDrivePairs.Count;
+        }
+
+        /// <summary>
+        /// save matches, ransacMatches, and spatialMatches to database
+        /// </summary>
+        private void SaveMatches()
+        {
+            double startSec = UTCTime.Now();
+            CoreLimitedParallel.ForEach(siteDrivePairs, pair => {
+                    var model = pair.Item1;
+                    var data = pair.Item2;
+                    var pairName = model + "-" + data;
+                    FeatureMatches.Create(pipeline, project, pairName, model, data, matches[pairName]);
+                    FeatureMatches.Create(pipeline, project, pairName + "_RANSAC", model, data, ransacMatches[pairName]);
+                    SpatialMatches.Create(pipeline, project, pairName, model, data, spatialMatches[pairName]);
+                });
+            pipeline.LogInfo("saved {0} site drive feature matches ({1:F3}s)", matches.Count, UTCTime.Now() - startSec);
         }
 
         private class Node
@@ -1417,7 +1554,7 @@ namespace OPS.Pipeline
                 var model =  pair.Item1;
                 var data =  pair.Item2;
                 var key = model + "-" + data;
-                if (spatialMatches.ContainsKey(key) && spatialMatches[key].Count >= options.MinRansacMatches)
+                if (spatialMatches.ContainsKey(key) && spatialMatches[key].Length >= options.MinRansacMatches)
                 {
                     var parent = siteDriveToNode[model];
                     var child = siteDriveToNode[data];
@@ -1463,6 +1600,20 @@ namespace OPS.Pipeline
                     ft.Delete(pipeline);
                 }
             }
+        }
+
+        /// <summary>
+        /// spatialMatches -> LandformBEV aligned FrameTransforms
+        /// </summary>
+        private int Align()
+        {
+            switch (options.AlignmentMode)
+            {
+                case AlignmentMode.Simultaneous: return SimultaneousAlign();
+                case AlignmentMode.PairwiseMaximal: return PairwiseAlign(maximal: true);
+                case AlignmentMode.PairwiseMinimal: return PairwiseAlign(maximal: false);
+            }
+            return 0;
         }
 
         /// <summary>
@@ -1568,9 +1719,9 @@ namespace OPS.Pipeline
                     var rootToModelPrior = Matrix.Invert(modelToRootPrior);
                     
                     //the spatial matches are in root frame, transform them to model prior frame
-                    var matches = spatialMatches[model + "-" + data];
-                    var modelPts = matches.Select(m => Vector3.Transform(m.Item1, rootToModelPrior)).ToArray();
-                    var dataPts = matches.Select(m => Vector3.Transform(m.Item2, rootToModelPrior)).ToArray();
+                    var sm = spatialMatches[model + "-" + data];
+                    var modelPts = sm.Select(m => Vector3.Transform(m.ModelPoint, rootToModelPrior)).ToArray();
+                    var dataPts = sm.Select(m => Vector3.Transform(m.DataPoint, rootToModelPrior)).ToArray();
                     
                     double priorResidual = 0;
                     for (int i = 0; i < modelPts.Length; i++)
