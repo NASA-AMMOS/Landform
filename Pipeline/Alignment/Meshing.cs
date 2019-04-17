@@ -1071,7 +1071,8 @@ namespace OPS.Pipeline
             var transform = GetTransform(obs.Points.FrameName, frame, frameCache, usePriors);
             if (transform == null)
             {
-                return null;
+                pipeline.LogWarn("Failed to find transform to build point cloud for {0}", obs.Points.FrameName);
+                return null; 
             }
             ret.Transform(transform.Mean);
             return ret;
@@ -1228,7 +1229,14 @@ namespace OPS.Pipeline
             {
                 AddUVs(ret, pipeline.LoadImage(obs.Texture.Url));
             }
-            ret.Transform(GetTransform(obs.Points.FrameName, frame, frameCache, usePriors).Mean);
+
+            var xform = GetTransform(obs.Points.FrameName, frame, frameCache, usePriors);
+            if (xform == null)
+            {
+                pipeline.LogWarn("Failed to find transform to build mesh for {0}", obs.Points.FrameName);
+                return null;
+            }
+            ret.Transform(xform.Mean);
             return ret;
         }
 
@@ -1244,7 +1252,15 @@ namespace OPS.Pipeline
             {
                 AddUVs(ret, pipeline.LoadImage(obs.Texture.Url));
             }
-            ret.Transform(GetTransform(obs.Points.FrameName, frame, frameCache, usePriors).Mean);
+
+            var xform = GetTransform(obs.Points.FrameName, frame, frameCache, usePriors);
+            if (xform == null)
+            {
+                pipeline.LogWarn("Failed to find transform to build mesh for {0}", obs.Points.FrameName);
+                return null;
+            }
+
+            ret.Transform(xform.Mean);
             return ret;
         }
 
@@ -1260,7 +1276,15 @@ namespace OPS.Pipeline
             {
                 AddUVs(ret, pipeline.LoadImage(obs.Texture.Url));
             }
-            ret.Transform(GetTransform(obs.Points.FrameName, frame, frameCache, usePriors).Mean);
+
+            var xform = GetTransform(obs.Points.FrameName, frame, frameCache, usePriors);
+            if (xform == null)
+            {
+                pipeline.LogWarn("Failed to find transform to build mesh for {0}", obs.Points.FrameName);
+                return null;
+            }
+
+            ret.Transform(xform.Mean);
             return ret;
         }
 
@@ -1275,6 +1299,13 @@ namespace OPS.Pipeline
 
             string frameName = obs.Points != null ? obs.Points.FrameName : obs.Texture.FrameName;
             var xform = GetTransform(frameName, frame, frameCache, usePriors);
+
+            if (xform == null)
+            {
+                pipeline.LogWarn("Failed to find transform to build hull for {0}", frameName);
+                return null;
+            }
+
             return uncertaintyInflated ? ConvexHull.Transformed(ret, xform) : ConvexHull.Transformed(ret, xform.Mean);
         }
 

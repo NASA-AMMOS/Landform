@@ -156,18 +156,15 @@ namespace OPS.Geometry
         /// sensor and you want to disambiguate normal direction to point toward the sensor
         /// </summary>
         /// <param name="observationPoint"></param>
-        public void FlipNormalsWithRespectToPoint(Vector3 observationPoint)
+        public void FlipNormalsTowardPoint(Vector3 observationPoint)
         {
             foreach (var v in this.Vertices)
             {
-                Vector3 pointToVert = v.Position - observationPoint;
-                if (v.Normal.Length() != 0)
+                Vector3 pointToVert = v.Position - observationPoint;               
+                if (Vector3.Dot(v.Normal, pointToVert) > 0)
                 {
-                    if (Vector3.Dot(v.Normal, pointToVert) > 0)
-                    {
-                        v.Normal *= -1;
-                    }
-                }
+                    v.Normal *= -1;
+                }                
             }
         }
 

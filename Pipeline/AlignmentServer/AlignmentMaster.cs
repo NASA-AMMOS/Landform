@@ -79,6 +79,9 @@ namespace OPS.Pipeline.AlignmentServer
 
         [Option(HelpText = "Start a worker in the same process (useful for debugging)", Default = false)]
         public bool StartWorker { get; set; }
+
+        [Option(HelpText = "URL to legacy manifest, used to build priors from onsight manifest", Default = null)]
+        public string LegacyManifestURL { get; set; }
     }
 
     //https://github.jpl.nasa.gov/ProtoSpace/ps-pipeline/issues/159
@@ -207,7 +210,9 @@ namespace OPS.Pipeline.AlignmentServer
                 places = null;
             }
 
-            ingester.Ingest(locations, places,
+            MSLLegacyManifest manifest = options.LegacyManifestURL != null ? MSLLegacyManifest.Load(options.LegacyManifestURL) : null;
+
+            ingester.Ingest(locations, places, manifest,
                             res => obsForFrame
                             .GetOrAdd(res.ObservationFrame.Name, _ => new ConcurrentBag<Observation>())
                             .Add(res.Observation));

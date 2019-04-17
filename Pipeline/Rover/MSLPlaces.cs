@@ -156,6 +156,20 @@ namespace OPS.Pipeline
         }
 
         /// <summary>
+        /// Returns the Local_level frame offset between the "from" sitedrive to the "to" site
+        /// </summary>
+        /// <param name="from"></param>
+        /// <param name="to"></param>
+        /// <returns></returns>
+        public Vector3 GetEstimatedOffsetFromSite(SiteDrive from, int toSite)
+        {
+            var config = PlacesConfig.Instance;
+            string urlForRequest = string.Format("{0}/places/query/primary/{1}?from=rover({2},{3})&to=site({4})", config.Venue, config.View, from.Site, from.Drive, toSite);
+            XmlDocument document = GetXmlDoc(urlForRequest);
+            return ReadOffsetFromDocument(document);
+        }
+
+        /// <summary>
         /// Finds the offset from the landing site to the current site drive
         /// </summary>
         /// <param name="sd"></param>
@@ -166,7 +180,7 @@ namespace OPS.Pipeline
             {
                 if (!cachedOffsetFromRootRover.Keys.Contains(sd))
                 {
-                    cachedOffsetFromRootRover[sd] = GetEstimatedOffset(sd, new SiteDrive(1, 0));
+                    cachedOffsetFromRootRover[sd] = GetEstimatedOffsetFromSite(sd, 1);
                 }
             }
             return cachedOffsetFromRootRover[sd];

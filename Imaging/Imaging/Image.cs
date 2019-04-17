@@ -202,9 +202,22 @@ namespace OPS.Imaging
         /// masked pixels left.  Inpainted pixels are an average of their non-masked neighbors
         /// </summary>
         /// <param name="border"></param>
-        public Image Inpaint(int border = -1)
+        /// <param name="preserveMask">inpainting usually destroys the mask where pixels were inpainted, setting to true will preserve the original mask</param>
+        public Image Inpaint(int border = -1,bool preserveMask = false)
         {
+            bool[] savedMask = null;
+            if (HasMask && preserveMask)
+            {
+                savedMask = (bool[])Mask.Clone();
+            }
+
             Inpainter.Apply(this, border);
+
+            if(savedMask != null)
+            {
+                Mask = savedMask;
+            }
+
             return this;
         }
 
@@ -980,11 +993,11 @@ namespace OPS.Imaging
                     {
                         int n = 0;
                         float sum = 0;
-                        for (int srcRow = dstRow*blocksize; srcRow < (dstRow + 1)*blocksize; srcRow++)
+                        for (int srcRow = dstRow * blocksize; srcRow < (dstRow + 1) * blocksize; srcRow++)
                         {
                             if (srcRow >= 0 && srcRow < this.Height)
                             {
-                                for (int srcCol = dstCol*blocksize; srcCol < (dstCol + 1)*blocksize; srcCol++)
+                                for (int srcCol = dstCol * blocksize; srcCol < (dstCol + 1) * blocksize; srcCol++)
                                 {
                                     if (srcCol >= 0 && srcCol < this.Width)
                                     {
@@ -1144,6 +1157,116 @@ namespace OPS.Imaging
                 floodFill(Height - 1, col);
             }
             return mask;
+        }
+
+        public float[] MonoToColor(float mono)
+        {
+            return new float[3] { mono, mono, mono };
+        }
+
+        public float ColorToMono(float r, float g, float b)
+        {
+            throw new NotImplementedException("Need to do luminance calculation to turn color to mono"); //Issue: #502
+        }
+
+        /// <summary>
+        /// bilinearly sample the image and return a 3 channel color
+        /// </summary>
+        public float[] SampleAsColor(Vector2 srcPixel)
+        {
+            if (Bands != 3 && Bands != 1)
+                throw new NotImplementedException("Only expecting 3 bands source or single band to convert to 3 band color");
+
+            float[] samples = null;
+            if (Bands == 3)
+            {
+                samples = new float[3];
+                for (int idxBand = 0; idxBand < Bands; idxBand++)
+                {
+                    samples[idxBand] = BilinearSample(idxBand, (float)srcPixel.Y, (float)srcPixel.X);
+                }
+            }
+            else if (Bands == 1)
+            {
+                samples = MonoToColor(BilinearSample(0, (float)srcPixel.Y, (float)srcPixel.X));
+            }
+
+            return samples;
+        }
+
+        /// <summary>
+        /// bilinearly sample the image and return a single channel color
+        /// </summary>
+        public float SampleAsMono(Vector2 srcPixel)
+        {
+            if (Bands == 3)
+            {
+                float[] samples = new float[3];
+                for (int idxBand = 0; idxBand < Bands; idxBand++)
+                {
+                    samples[idxBand] = BilinearSample(idxBand, (float)srcPixel.Y, (float)srcPixel.X);
+                }
+
+                return ColorToMono(samples[0], samples[1], samples[2]); //NOTE: implies RGB ordering
+            }
+            else if (Bands == 1)
+            {
+                return BilinearSample(0, (float)srcPixel.Y, (float)srcPixel.X);
+            }
+            else
+            {
+                throw new NotImplementedException("Only expecting a single or 3 bands to convert to 3 band color");
+            }
+        }
+
+        /// <summary>
+        /// fill destination with samples from source texture (eg. replicate a single band to 3 if needed)
+        /// </summary>
+        public void SetAsColor(float[] samples, int destRow, int destCol)
+        {
+            if (Bands != 3)
+                throw new NotImplementedException("set as color requires a 3 band destination");
+
+            if (samples.Length == 3)
+            {
+                for (int idxBand = 0; idxBand < Bands; idxBand++)
+                {
+                    this[idxBand, destRow, destCol] = samples[idxBand];
+                }
+            }
+            else if (samples.Length == 1)
+            {
+                for (int idxBand = 0; idxBand < Bands; idxBand++)
+                {
+                    this[idxBand, destRow, destCol] = samples[0];
+                }
+            }
+            else
+            {
+                throw new NotImplementedException("Only expecting 3 bands or a single band to convert to 3 band color");
+            }
+        }
+
+        /// <summary>
+        /// fill destination with samples from source texture (eg. replicate a single band to 3 if needed)
+        /// </summary>
+        public void SetAsMono(float[] samples, int destRow, int destCol)
+        {
+            if (Bands != 1)
+                throw new NotImplementedException("set as mono requires a single band destination");
+
+            if (samples.Length == 3)
+            {
+                this[0, destRow, destCol] = ColorToMono(samples[0], samples[1], samples[2]); //implies RGB ordering on samples             
+            }
+            else if (samples.Length == 1)
+            {
+                this[0, destRow, destCol] = samples[0];
+            }
+            else
+            {
+                throw new NotImplementedException("Only expecting a single band or  3 bands to convert to a single band color");
+            }
         }
     }
 }

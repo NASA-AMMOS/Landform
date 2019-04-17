@@ -742,7 +742,7 @@ namespace GeometryTest
             m.Vertices.Add(new Vertex(Vector3.Zero, new Vector3(0, -1, 0)));
             m.Vertices.Add(new Vertex(Vector3.Zero, new Vector3(1, 0, 0)));
             m.Vertices.Add(new Vertex(Vector3.Zero, new Vector3(-1, -1, 0)));
-            m.FlipNormalsWithRespectToPoint(new Vector3(0, 1, 0));
+            m.FlipNormalsTowardPoint(new Vector3(0, 1, 0));
             Assert.AreEqual(m.Vertices[0].Normal, new Vector3(0, 1, 0));
             Assert.AreEqual(m.Vertices[1].Normal, new Vector3(1, 0, 0));
             Assert.AreEqual(m.Vertices[2].Normal, new Vector3(1, 1, 0));
