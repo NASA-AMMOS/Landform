@@ -31,11 +31,16 @@ namespace OPS.Geometry
         List<Triangle> triangles;
         List<Vertex> vertices;
 
-        public List<Vertex> Vertices
-        {
-            get {
-                return new List<Vertex>(vertices);
-            }
+        /// <summary>
+        /// Returns a copy of the vertices to ensure read-only
+        /// This method will be slow if used in an inner loop so be sure to store the result
+        /// or use CountVertices if you only need to know the total number
+        /// Use CountVertices 
+        /// </summary>
+        /// <returns></returns>
+        public List<Vertex> GetVertices()
+        {            
+            return new List<Vertex>(vertices);            
         }
 
         public int CountVertices()
@@ -269,13 +274,18 @@ namespace OPS.Geometry
             return uvFaceTree.Intersects(box.ToRectangle()).Select(x => triangles[x]).ToList();
         }
 
-        public List<Vertex> NearestVertices(Vector3 p, double nearestDist)
+        public IEnumerable<Vertex> NearestVertices(Vector3 p, double nearestDist)
         {
             var min = p - new Vector3(nearestDist);
             var max = p + new Vector3(nearestDist);
 
             var indices = vertexTree.Intersects(new Rectangle(min.ToFloatArray(), max.ToFloatArray()));
-            return indices.Select(i => this.Vertices[i]).ToList();
+            return indices.Select(i => this.vertices[i]);
+        }
+
+        public IEnumerable<Vertex> NearestVerticesStrict(Vector3 p, double nearestDist)
+        {
+            return NearestVertices(p, nearestDist).Where(x => (x.Position - p).Length() <= nearestDist);
         }
     }
 

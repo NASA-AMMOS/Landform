@@ -139,12 +139,18 @@ namespace OPS.Geometry
             this.writeXYZValuesAsFloat = writeXYZValuesAsFloat;
         }
 
+        protected string NumberFormat
+        {
+            get
+            {
+                return writeXYZValuesAsFloat ? "float" : "double";
+            }
+        }
         protected override void WriteVertexPositionHeader(StreamWriter sw)
         {
-            string numberFormat = writeXYZValuesAsFloat ? "float" : "double";
-            sw.WriteLine("property " + numberFormat + " x");
-            sw.WriteLine("property " + numberFormat + " y");
-            sw.WriteLine("property " + numberFormat + " z");
+            sw.WriteLine("property " + NumberFormat + " x");
+            sw.WriteLine("property " + NumberFormat + " y");
+            sw.WriteLine("property " + NumberFormat + " z");
         }
 
         protected override void WriteVertexPostion(Vertex v, Stream s)

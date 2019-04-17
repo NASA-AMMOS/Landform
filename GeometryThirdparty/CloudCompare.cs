@@ -75,6 +75,14 @@ namespace OPS.Geometry
                 return string.Format("-O  {0} -OCTREE_NORMALS {2} -C_EXPORT_FMT PLY -SAVE_CLOUDS FILE {1}", infile, outfile, radius);
             });
         }
+        
+        public static Mesh OrientNormals(Mesh mesh, int numberOfNeighbors)
+        {
+            return RunCloudCompare(mesh, (infile, outfile) =>
+            {
+                return string.Format("-O  {0} -ORIENT_NORMS_MST {2} -C_EXPORT_FMT PLY -SAVE_CLOUDS FILE {1}", infile, outfile, numberOfNeighbors);
+            });
+        }
 
         public static Mesh SORCleaning(Mesh mesh, int numNeighbors, float sig)
         {
