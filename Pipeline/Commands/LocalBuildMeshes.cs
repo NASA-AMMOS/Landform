@@ -497,7 +497,7 @@ namespace OPS.Pipeline
 
                     //test if rover masked or missing data (any neighbor pixels that are set to zero
                     // will cause the bilinear sample to be less than 1
-                    if (mask.BilinearSample(0, (float)obsPixel.Y, (float)obsPixel.X) >= 1)
+                    if (mask.BilinearSample(0, (float)obsPixel.Y, (float)obsPixel.X) >= 0.9)
                     {
                         // raycast the scene to test if the desired position is occluded by terrain
                         if (!IsOccluded(camera, obsPixel, sc, rangeMeshToImage, obsToMesh))
