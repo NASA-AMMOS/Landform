@@ -138,7 +138,7 @@ namespace OPS.Pipeline
             pipeline.LogInfo("Populating frame cache");
             FrameCache frameCache = new FrameCache(pipeline, options.ProjectName);
             frameCache.PreloadFilteredTransforms(priorSources, adjustedSources, options.UsePriors);
-                
+
             ObservationCache observationCache = new ObservationCache(pipeline, options.ProjectName);
             observationCache.Preload(obs => obs.UseForReconstruction);
 
@@ -188,7 +188,7 @@ namespace OPS.Pipeline
 
             //build convex hulls
             IEnumerable<Observation> imageObservations = null;
-            Dictionary<Observation, ConvexHull> obsToHull =null;
+            Dictionary<Observation, ConvexHull> obsToHull = null;
 
             if (!options.UseCachedLeaves)
             {
@@ -335,26 +335,49 @@ namespace OPS.Pipeline
                     leafImage = new Image(3, options.TileResolution, options.TileResolution);
                     leafImage.CreateMask(true);
 
-                    //naive backproject: distance per tile: sort observations by distance to leaf tile center
+                    //cache the destination pixels (and the mesh positions for perf) for which backproject is valid
+                    MeshOperator leafOp = new MeshOperator(leafMesh, buildFaceTree: false, buildVertexTree: false, buildUVFaceTree: true);
+                    Queue<PixelPoint> pointsToBackproject = GetPointsToBackproject(leafOp, options.TileResolution);
+
+                    //select a coarse sampling of the points to backproject to use get a rough sorting of texture quality
+                    double percentagePointsToTest = 0.10; //TODO: expose
+                    int pointsToTest = Math.Max(1,(int)(pointsToBackproject.Count * percentagePointsToTest));
+                    int skipPoints = pointsToBackproject.Count / pointsToTest;
+                    IEnumerable<PixelPoint> pointsToTestSamplingDensity = pointsToBackproject.Where((pt, index) => index % skipPoints == 0);
+
+                    //calculate the median spatial density for the requested pixels per observation
                     Dictionary<Observation, double> distancesByObservation = new Dictionary<Observation, double>();
                     foreach (var obs in intersectingObservations.Cast<RoverObservation>())
                     {
-                        Matrix obsToOutput = Meshing.GetTransform(obs.FrameName, options.OutputFrame, frameCache, options.UsePriors).Mean;
-                        CAHV camera = (CameraModel)JsonHelper.FromJson(obs.CameraModel) as CAHV;
-                        Vector3 cameraPosInOutput = Vector3.Transform(camera.C, obsToOutput);
-                        double camDistanceToLeafCenter = Vector3.Distance(leafBounds.Center(), cameraPosInOutput);
+                        List<double> minDistances = new List<double>(capacity: pointsToTestSamplingDensity.Count());
+                        foreach(var pt in pointsToTestSamplingDensity)
+                        {
+                            //test hull (protect against bad ray calculations from camera model)
+                            if (!obsToHull.ContainsKey(obs))
+                                continue;
 
-                        distancesByObservation.Add(obs, camDistanceToLeafCenter);
+                            if (!obsToHull[obs].Contains(pt.Point))
+                                continue;
+
+                            Matrix obsToOutput = Meshing.GetTransform(obs.FrameName, options.OutputFrame, frameCache, options.UsePriors).Mean;
+                            minDistances.Add(GetMinPixelSpreadInMeters(sc, (CameraModel)JsonHelper.FromJson(obs.CameraModel), obsToOutput, pt.Pixel, pt.Point));
+                        }
+
+                        //store the median of the min distances
+                        double medianDistance = double.MaxValue;
+                        if(minDistances.Count() > 0 )
+                        {
+                            minDistances.Sort();
+                            medianDistance = minDistances.ElementAt(minDistances.Count / 2);
+                        }
+                        
+                        distancesByObservation.Add(obs, medianDistance);
                     }
-
+                     
                     //sort the list of observations by distance
                     intersectingObservations.Sort((obs1, obs2) => distancesByObservation[obs1].CompareTo(distancesByObservation[obs2]));
 
-                    //cache the destination pixels (and the mesh positions for perf) for which backproject is valid
-                    MeshOperator leafOp = new MeshOperator(leafMesh, buildFaceTree: false, buildVertexTree: false, buildUVFaceTree: true);
-
                     //for each source image, sweep through all valid destination pixels (not atlas gutter pixels)
-                    Queue<PixelPoint> pointsToBackproject = GetPointsToBackproject(leafOp, options.TileResolution);
                     foreach (var obs in intersectingObservations)
                     {
                         //quit if done
@@ -378,7 +401,7 @@ namespace OPS.Pipeline
                     else
                     {
                         //single pixel inpaint for bilinear sampling of subpixel locations
-                        leafImage.Inpaint(1, preserveMask:true);
+                        leafImage.Inpaint(1, preserveMask: true);
                     }
                 }
 
@@ -426,7 +449,7 @@ namespace OPS.Pipeline
 
             //build mesh
             pipeline.LogInfo("Building full mesh for {0}", options.ProjectName);
-            fullMesh = BuildTilingInput.BuildMesh(pipeline, options.ProjectName,out BoundingBox pointBounds, frameCache, observationCache, outputFrame, options.UsePriors, options.OnlyForCameras, !options.NoCleverCombine);
+            fullMesh = BuildTilingInput.BuildMesh(pipeline, options.ProjectName, out BoundingBox pointBounds, frameCache, observationCache, outputFrame, options.UsePriors, options.OnlyForCameras, !options.NoCleverCombine);
             if (fullMesh == null)
             {
                 pipeline.LogError("Mesh building for {0) failed.", options.ProjectName);
@@ -569,13 +592,9 @@ namespace OPS.Pipeline
         /// 
         readonly private static float RaycastNearMeters = 0.001f;
 
-        public static bool IsOccluded(CameraModel camera, Vector2 pixel, SceneCaster sc, double rangeMeshToImage, Matrix obsToMesh)
+        private static bool IsOccluded(CameraModel camera, Vector2 pixel, SceneCaster sc, double rangeMeshToImage, Matrix obsToMesh)
         {
-            //get ray from camera through pixel associated with meshPos
-            Ray rayCamToMeshInObsFrame = camera.Unproject(pixel);
-
-            // convert from observation frame (typically rover_nav) to mesh (output frame, typically "root")
-            Ray rayCamToMesh = new Ray(Vector3.Transform(rayCamToMeshInObsFrame.Position, obsToMesh), Vector3.TransformNormal(rayCamToMeshInObsFrame.Direction, obsToMesh));
+            Ray rayCamToMesh = GetRayToMesh(camera, obsToMesh, pixel);
 
             //from embree docs: The implementation makes no guarantees that primitives whose hit distance is exactly at (or very close to) tnear or tfar are hit or missed. 
             // If you want to exclude intersections at tnear just pass a slightly enlarged tnear
@@ -583,6 +602,63 @@ namespace OPS.Pipeline
 
             //if the occlusion distance is closer than the camera projection distance it is occluded in this image
             return (hit != null) && (hit.Distance < rangeMeshToImage);
+        }
+
+        private readonly Vector2[] NeighborPixelsOffsets4 =
+        {
+
+           new Vector2( -1.0,  0.0),
+           new Vector2(  0.0, -1.0),
+           new Vector2(  0.0,  1.0),
+           new Vector2(  1.0,  0.0)
+        };
+
+        private static Ray GetRayToMesh(CameraModel camera, Matrix obsToMesh, Vector2 pixel)
+        {
+            //get ray from camera through pixel associated with meshPos
+            Ray rayCamToMeshInObsFrame = camera.Unproject(pixel);
+
+            // convert from observation frame (typically rover_nav) to mesh (output frame, typically "root")
+            Ray rayCamToMesh = new Ray(Vector3.Transform(rayCamToMeshInObsFrame.Position, obsToMesh), Vector3.TransformNormal(rayCamToMeshInObsFrame.Direction, obsToMesh));
+
+            return rayCamToMesh;
+        }
+
+        public Vector3? RaycastMesh(CameraModel camera, Matrix obsToMesh, Vector2 pixel, SceneCaster sc)
+        {
+            Ray rayCamToMesh = GetRayToMesh(camera, obsToMesh, pixel);
+
+            //from embree docs: The implementation makes no guarantees that primitives whose hit distance is exactly at (or very close to) tnear or tfar are hit or missed. 
+            // If you want to exclude intersections at tnear just pass a slightly enlarged tnear
+            HitData hit = sc.Raycast(rayCamToMesh, RaycastNearMeters);
+
+            //return null if missed or the position if hit
+            return hit?.Position;
+        }
+
+        // raycast the 4 neighbors of a pixel, measure the distance between the source pixel's intersected position and the neighbors, and return the shortest
+        // this should give an estimate of the source textures local resolution using our best approximation of the mesh to compare against other images
+        public double GetMinPixelSpreadInMeters(SceneCaster sc, CameraModel camera, Matrix obsToMesh, Vector2 srcPixel, Vector3 srcPos)
+        {
+            double shortestDistance = float.MaxValue;
+            for (int idx = 0; idx < NeighborPixelsOffsets4.Length; idx++)
+            {
+                Vector2 curPixel = srcPixel + NeighborPixelsOffsets4[idx];
+
+                //TODO: bring back onscreen test
+
+                Vector3? curPos = RaycastMesh(camera, obsToMesh, curPixel, sc);
+                if(!curPos.HasValue)
+                    continue;
+
+                shortestDistance = Math.Min(shortestDistance, (curPos.Value - srcPos).Length());
+            }
+
+            //TODO: raycast bundle of 4 with embree
+            //TODO: want median or average in case glancing angle? 
+            //TODO: want a term that looks for consistancy in spacing? implies dead on?
+
+            return shortestDistance; 
         }
     }
 }
