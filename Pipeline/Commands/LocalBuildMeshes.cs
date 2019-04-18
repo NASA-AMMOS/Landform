@@ -500,7 +500,7 @@ namespace OPS.Pipeline
                     if (mask.BilinearSample(0, (float)obsPixel.Y, (float)obsPixel.X) >= 0.9)
                     {
                         // raycast the scene to test if the desired position is occluded by terrain
-                        if (!IsOccluded(camera, obsPixel, sc, rangeMeshToImage, obsToMesh))
+                        if (!IsOccluded(camera, obsPixel, meshPos, sc, rangeMeshToImage, obsToMesh))
                         {
                             //copy src image data to dst image data
                             float[] samples = img.SampleAsColor(obsPixel);
@@ -592,16 +592,17 @@ namespace OPS.Pipeline
         /// 
         readonly private static float RaycastNearMeters = 0.001f;
 
-        private static bool IsOccluded(CameraModel camera, Vector2 pixel, SceneCaster sc, double rangeMeshToImage, Matrix obsToMesh)
+        private static bool IsOccluded(CameraModel camera, Vector2 pixel, Vector3 meshPos, SceneCaster sc, double rangeMeshToImage, Matrix obsToMesh)
         {
             Ray rayCamToMesh = GetRayToMesh(camera, obsToMesh, pixel);
+            Ray rayMeshToCam = new Ray(meshPos, -rayCamToMesh.Direction);
 
             //from embree docs: The implementation makes no guarantees that primitives whose hit distance is exactly at (or very close to) tnear or tfar are hit or missed. 
             // If you want to exclude intersections at tnear just pass a slightly enlarged tnear
-            HitData hit = sc.Raycast(rayCamToMesh, RaycastNearMeters);
+            HitData hit = sc.Raycast(rayMeshToCam, RaycastNearMeters);
 
-            //if the occlusion distance is closer than the camera projection distance it is occluded in this image
-            return (hit != null) && (hit.Distance < rangeMeshToImage);
+            //if occlusion happens farther away than camera, no occlusion
+            return (hit == null) || (hit.Distance >= rangeMeshToImage);
         }
 
         private readonly Vector2[] NeighborPixelsOffsets4 =
