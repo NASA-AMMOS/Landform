@@ -63,7 +63,7 @@ for sol in $sols; do
         echo "$src -> $dst"
         aws --profile=$landlords_profile s3 cp $src $dst
     elif [ $sol = "mastcams" ]; then
-        # ignore
+        true; # ignore
     else
         for i in "${cameraIndices[@]}"; do
             pfx="${pfxs[$i]}"
@@ -72,7 +72,7 @@ for sol in $sols; do
             dst="$out/$pfx/$sol/$sfx"
             echo "$src -> $dst"
             mkdir -p $dst
-            aws --profile=$profile s3 cp $src $dst --recursive --exclude="*" --include="*.IMG"
+            aws --profile=$red_product_profile s3 cp $src $dst --recursive --exclude="*" --include="*.IMG"
         done
     fi
 done
