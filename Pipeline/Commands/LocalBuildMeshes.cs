@@ -331,6 +331,11 @@ namespace OPS.Pipeline
 
                         if (leafHull.Intersects(obsToHull[obs]))
                         {
+                            pipeline.LogInfo("Leaf {0}: intersecting observation {1}:{2}", leaf.Name, intersectingObservations.Count(), obs.Name);
+                            if(options.OutputDebugMeshes)
+                            {
+                                obsToHull[obs].Mesh.Save(Path.Combine(leafTilesPath, obs.Name + "_ihull_" + leaf.Name + ".ply"));
+                            }
                             intersectingObservations.Add(obs);
                         }
                     }
