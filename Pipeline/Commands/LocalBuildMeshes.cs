@@ -403,7 +403,18 @@ namespace OPS.Pipeline
                         if (pointsToBackproject.Count == 0)
                             break;
 
-                        BackprojectObservation(frameCache, observationCache, sc, (RoverObservation)obs, obsToHull[obs], ref pointsToBackproject, leafImage);
+                        int contributedPixels = BackprojectObservation(frameCache, observationCache, sc, (RoverObservation)obs, obsToHull[obs], ref pointsToBackproject, leafImage);
+
+                        if(contributedPixels > 0)
+                        {
+                            pipeline.LogInfo("Leaf {0}: contributing observation:{1}", leaf.Name, obs.Name);
+                            if (options.OutputDebugMeshes)
+                            {
+                                obsToHull[obs].Mesh.Save(Path.Combine(leafTilesPath, obs.Name + "_chull_" + leaf.Name + ".ply"));
+                                Image dbgimg = pipeline.LoadImage(obs.Url);
+                                dbgimg.Save<byte>(Path.Combine(leafTilesPath, leaf.Name + "_" + obs.Name + ".png"));
+                            }
+                        }
                     }
 
                     if (options.DontInpaint)
