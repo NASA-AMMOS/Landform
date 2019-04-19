@@ -494,7 +494,7 @@ namespace OPS.Pipeline
             return fullMesh;
         }
 
-        private void BackprojectObservation(FrameCache frameCache, ObservationCache obsCache, SceneCaster sc, RoverObservation obs, ConvexHull obsHull, ref Queue<PixelPoint> pointsToBackproject, Image leafImage)
+        private int BackprojectObservation(FrameCache frameCache, ObservationCache obsCache, SceneCaster sc, RoverObservation obs, ConvexHull obsHull, ref Queue<PixelPoint> pointsToBackproject, Image leafImage)
         {
             Matrix obsToMesh = Meshing.GetTransform(obs.FrameName, options.OutputFrame, frameCache, options.UsePriors).Mean;
             Matrix meshToObs = Matrix.Invert(obsToMesh);
@@ -506,7 +506,7 @@ namespace OPS.Pipeline
             string maskType = ObservationType.RoverMask.ToString();
             var maskObs = obsCache.GetAllObservationsForFrame(frameCache.GetFrame(obs.FrameName)).Where(o => o.ObservationType == maskType).FirstOrDefault(); ;
             Image mask = FeatureDetecting.MakeMask(pipeline, maskObs == null ? null : maskObs.Url, img, obs.Name);
-
+            int pointsToBackprojectCount = pointsToBackproject.Count();
             Queue<PixelPoint> failedToBackproject = new Queue<PixelPoint>();
             while (pointsToBackproject.Count() > 0)
             {
@@ -550,7 +550,9 @@ namespace OPS.Pipeline
                 }
             }
 
+            int contributedPixels = pointsToBackprojectCount - failedToBackproject.Count();
             pointsToBackproject = failedToBackproject;
+            return contributedPixels;
         }
 
         private struct PixelPoint
