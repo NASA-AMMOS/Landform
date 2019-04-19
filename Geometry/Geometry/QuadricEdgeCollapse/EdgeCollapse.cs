@@ -167,11 +167,13 @@ namespace OPS.Geometry
                 vNew.AdjacentEdges = new List<Edge>();
 
                 //Break if vertex drift exceeds optional user-defined threshold parameter
-                vNew.cost = Math.Max(v1.cost + Vector3.Distance(v1.Vert.Position, vNew.Vert.Position), v2.cost + Vector3.Distance(v2.Vert.Position, vNew.Vert.Position));
-
-                if (accuracy_threshold != -1 && vNew.cost > accuracy_threshold)
+                if (accuracy_threshold != -1)
                 {
-                    break;
+                    vNew.cost = Math.Max(v1.cost + Vector3.Distance(v1.Vert.Position, vNew.Vert.Position), v2.cost + Vector3.Distance(v2.Vert.Position, vNew.Vert.Position));
+                    if (vNew.cost > accuracy_threshold)
+                    {
+                        break;
+                    }
                 }
 
                 //Get edges between v1 and v2
