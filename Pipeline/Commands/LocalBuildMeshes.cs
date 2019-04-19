@@ -671,7 +671,7 @@ namespace OPS.Pipeline
 
         // raycast the 4 neighbors of a pixel, measure the distance between the source pixel's intersected position and the neighbors, and return the shortest
         // this should give an estimate of the source textures local resolution using our best approximation of the mesh to compare against other images
-        public double GetMinPixelSpreadInMeters(SceneCaster sc, CameraModel camera, Matrix obsToMesh, Vector2 srcPixel, Vector3 srcPos)
+        public double GetMinPixelSpreadInMeters(SceneCaster sc, CameraModel camera, Matrix obsToMesh, ConvexHull meshHull, Vector2 srcPixel, Vector3 srcPos)
         {
             double shortestDistance = float.MaxValue;
             for (int idx = 0; idx < NeighborPixelsOffsets4.Length; idx++)
@@ -682,6 +682,10 @@ namespace OPS.Pipeline
 
                 Vector3? curPos = RaycastMesh(camera, obsToMesh, curPixel, sc);
                 if(!curPos.HasValue)
+                    continue;
+
+                //was the intersection in the bounds of the mesh we care about?
+                if (!meshHull.Contains(curPos.Value))
                     continue;
 
                 shortestDistance = Math.Min(shortestDistance, (curPos.Value - srcPos).Length());
