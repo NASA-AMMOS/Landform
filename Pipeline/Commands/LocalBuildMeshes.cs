@@ -84,8 +84,12 @@ namespace OPS.Pipeline
 
         [Option(Required = false, Default = "jpg", HelpText = "Image Extension")]
         public string ImageExtension { get; set; }
+
         [Option(HelpText = "disable clever combine point cloud merging", Default = false)]
         public bool NoCleverCombine { get; set; }
+
+        [Option(HelpText = "clip the full mesh to this half this length on the x and y axes, centered at 0,0,0", Default = 0.0)]
+        public double ClipExtent { get; set; }
     }
 
     public class LocalBuildMeshes
@@ -178,13 +182,23 @@ namespace OPS.Pipeline
             }
 
             //decimate mesh
-            Mesh decimatedMesh = fullMesh;
+            Mesh processedFullMesh = new Mesh(fullMesh); //can't change mesh after adding to collider
             if (options.FullMeshFaces > 0)
             {
                 pipeline.LogInfo("Decimating full mesh to {0} faces", options.FullMeshFaces);
-                decimatedMesh = MeshLab.Decimate(fullMesh, options.FullMeshFaces);
+                processedFullMesh = MeshLab.Decimate(fullMesh, options.FullMeshFaces);
             }
 
+            if(options.ClipExtent > 0)
+            {
+                pipeline.LogInfo("Clipping to Onsight legacy dimensions");
+                BoundingBox fullMeshBounds = processedFullMesh.Bounds();
+                double halfExtent = options.ClipExtent * 0.5;
+                Vector3 min = new Vector3(-halfExtent, -halfExtent, fullMeshBounds.Min.Z);
+                Vector3 max = new Vector3(halfExtent, halfExtent, fullMeshBounds.Max.Z);
+                BoundingBox clippedBounds = new BoundingBox(min,max);
+                processedFullMesh = Mesh.Clip(processedFullMesh, clippedBounds);
+            }
 
             //build convex hulls
             IEnumerable<Observation> imageObservations = null;
@@ -214,11 +228,11 @@ namespace OPS.Pipeline
 
             //build tile bounds
             pipeline.LogInfo("Building tile tree bounds from fullmesh");
-            SceneNode root = DefineTiles.BuildTileTreeFromInputs(pipeline, options.TilingScheme, options.FacesPerTile, new List<MeshImagePair>() { new MeshImagePair(decimatedMesh) });
+            SceneNode root = DefineTiles.BuildTileTreeFromInputs(pipeline, options.TilingScheme, options.FacesPerTile, new List<MeshImagePair>() { new MeshImagePair(processedFullMesh) });
 
             //make leaf tiles meshes
             List<SceneNode> failedNodes = new List<SceneNode>();
-            MeshOperator meshOp = new MeshOperator(decimatedMesh, buildFaceTree: true, buildVertexTree: false, buildUVFaceTree: false);
+            MeshOperator meshOp = new MeshOperator(processedFullMesh, buildFaceTree: true, buildVertexTree: false, buildUVFaceTree: false);
             int curLeafNum = 0;
             CoreLimitedParallel.ForEach(root.Leaves(), leaf =>
             {
