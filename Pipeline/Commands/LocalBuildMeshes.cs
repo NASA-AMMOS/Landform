@@ -633,8 +633,8 @@ namespace OPS.Pipeline
             // If you want to exclude intersections at tnear just pass a slightly enlarged tnear
             HitData hit = sc.Raycast(rayMeshToCam, RaycastNearMeters);
 
-            //if occlusion happens farther away than camera, no occlusion
-            return (hit == null) || (hit.Distance >= rangeMeshToImage);
+            //if hit something else before camera, occluded
+            return (hit != null) && (hit.Distance < rangeMeshToImage);
         }
 
         private readonly Vector2[] NeighborPixelsOffsets4 =
