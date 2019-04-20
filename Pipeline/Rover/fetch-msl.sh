@@ -69,7 +69,7 @@ for sol in $sols; do
             pfx="${pfxs[$i]}"
             sfx="${sfxs[$i]}"
             src="s3://red-product/$pfx/$sol/$sfx"
-            dst="$out/$pfx/$sol/$sfx"
+            dst="$out/msl/$sol/$sfx"
             echo "$src -> $dst"
             mkdir -p $dst
             aws --profile=$red_product_profile s3 cp $src $dst --recursive --exclude="*" --include="*.IMG"

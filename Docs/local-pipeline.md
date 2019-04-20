@@ -16,7 +16,7 @@ Download sols 588 - 590 but process sol 589 only:
 ```
 ./Pipeline/Rover/fetch-msl.sh c:/Users/$USERNAME/Downloads locations basemap 00588 00589 00590
 ./Landform/bin/Release/Landform.exe configure-local --venue=local --storagedir=c:/Users/$USERNAME/Documents/landform-storage --maxcores=0 --randomseed=-1
-./Landform/bin/Release/Landform.exe local-ingest sol589 --inputpath=c:/Users/$USERNAME/Downloads/msl/redops/ods/surface/sol/00589/** --locationsxml=c:/Users/$USERNAME/Downloads/msl/locations.xml --basemapdem=c:/Users/$USERNAME/Downloads/msl/out_deltaradii_smg_1m.tif
+./Landform/bin/Release/Landform.exe local-ingest sol589 --inputpath=c:/Users/$USERNAME/Downloads/msl/sol/00589/** --locationsxml=c:/Users/$USERNAME/Downloads/msl/locations.xml --basemapdem=c:/Users/$USERNAME/Downloads/msl/out_deltaradii_smg_1m.tif
 ./Landform/bin/Release/Landform.exe local-features sol589 --writefeatureimages
 ./Landform/bin/Release/Landform.exe local-matching sol589 --writematchimages --writematchmeshes
 ./Landform/bin/Release/Landform.exe local-bundle-adjust sol589 --writedebug
