@@ -25,6 +25,8 @@ namespace OPS.Pipeline
     
     public enum AlignmentMode { PairwiseMinimal, PairwiseMaximal, Simultaneous, None };
 
+    public enum CalfMode { None, Centroid, Temporal };
+
     [Verb("local-bev-align", HelpText = "birds eye view align locally")]
     public class LocalBEVAlignerOptions : PipelineCoreOptions
     {
@@ -39,6 +41,9 @@ namespace OPS.Pipeline
 
         [Option(HelpText = "Alignment algorithm: PairwiseMinimal, PairwiseMaximal, Simultaneous, None (match only)", Default = AlignmentMode.PairwiseMaximal)]
         public AlignmentMode AlignmentMode { get; set; }
+
+        [Option(HelpText = "Calf algorithm: None, Centroid, Temporal", Default = CalfMode.Centroid)]
+        public CalfMode CalfMode { get; set; }
 
         [Option(HelpText = "In pairwise alignment modes lower priority site drives will be aligned to higher priority ones (NewestFirst, OldestFirst, BiggestFirst, SmallestFirst)", Default = SiteDrivePriority.NewestFirst)]
         public SiteDrivePriority SiteDrivePriority { get; set; }
@@ -1639,6 +1644,97 @@ namespace OPS.Pipeline
             }
         }
 
+        private void SaveCalves(IEnumerable<Node> aligned)
+        {
+            if (options.CalfMode == CalfMode.None)
+            {
+                return;
+            }
+
+            var calfNames = new HashSet<string>(siteDrives);
+            foreach (var node in aligned)
+            {
+                calfNames.Remove(node.Name);
+                calfNames.Remove(node.Parent.Name);
+            }
+
+            var calves = calfNames.Select(name => siteDriveToNode[name]);
+
+            switch (options.CalfMode)
+            {
+                case CalfMode.Centroid:
+                    {
+                        var centroid = new Dictionary<string, Vector2>();
+                        foreach (var sd in siteDrives)
+                        {
+                            var c = new Vector2(bevs[sd].Width, bevs[sd].Height) * 0.5;
+                            centroid[sd] = c - bevOrigins[sd];
+                        }
+                        foreach (var calf in calves)
+                        {
+                            double closestDistSq = double.PositiveInfinity;
+                            Node closestParent = null;
+                            foreach (var node in nodes)
+                            {
+                                if (node.Name != calf.Name && node.WorldTransform.HasValue)
+                                {
+                                    var d2 = Vector2.DistanceSquared(centroid[calf.Name], centroid[node.Name]);
+                                    if (d2 < closestDistSq)
+                                    {
+                                        closestDistSq = d2;
+                                        closestParent = node;
+                                    }
+                                }
+                            }
+                            calf.Parent = closestParent;
+                        }
+                        break;
+                    }
+
+                case CalfMode.Temporal:
+                    {
+                        foreach (var calf in calves)
+                        {
+                            int closestDist = int.MaxValue;
+                            Node closestParent = null;
+                            foreach (var node in nodes)
+                            {
+                                if (node.Name != calf.Name && node.WorldTransform.HasValue)
+                                {
+                                    var d = Math.Abs((int)(new SiteDrive(calf.Name)) - (int)(new SiteDrive(node.Name)));
+                                    if (d < closestDist)
+                                    {
+                                        closestDist = d;
+                                        closestParent = node;
+                                    }
+                                }
+                            }
+                            calf.Parent = closestParent;
+                        }
+                        break;
+                    }
+            }
+
+            foreach (var calf in calves)
+            {
+                if (calf.Parent != null)
+                {
+                    var calfToWorldPrior = Meshing.GetTransform(calf.Name, "root", frameCache, usePriors: true).Mean;
+                    var parentToWorldPrior = Meshing.GetTransform(calf.Parent.Name, "root", frameCache, usePriors: true).Mean;
+                    //row matrix transforms compose left to right
+                    var calfToParent = calfToWorldPrior * Matrix.Invert(parentToWorldPrior);
+                    calf.WorldTransform = calfToParent * calf.Parent.WorldTransform.Value;
+                    
+                }
+                else
+                {
+                    calf.WorldTransform = null;
+                }
+            }
+
+            SaveTransforms(calves.Where(calf => calf.WorldTransform.HasValue), TransformSource.LandformBEVCalf);
+        }
+                
         /// <summary>
         /// spatialMatches -> LandformBEV aligned FrameTransforms
         /// </summary>
@@ -1686,6 +1782,7 @@ namespace OPS.Pipeline
 
             //SaveTransforms(nodesToAlign, TransformSource.LandformBEV);
             //SaveTransforms(TODO, TransformSource.LandformBEVRoot);
+            //SaveCalves(nodesToAlign);
 
             //pipeline.LogInfo("simultaneous aligned {0} nodes ({1:F3}s)", nodesToAlign.Count, UTCTime.Now() - startSec);
 
@@ -1810,6 +1907,8 @@ namespace OPS.Pipeline
 
             SaveTransforms(nodesToAlign, TransformSource.LandformBEV);
             SaveTransforms(nodesToAlign.Select(n => n.Parent), TransformSource.LandformBEVRoot);
+
+            SaveCalves(nodesToAlign);
 
             pipeline.LogInfo("pairwise aligned {0} nodes ({1:F3}s)", nodesToAlign.Count, UTCTime.Now() - startSec);
 
