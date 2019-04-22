@@ -1674,16 +1674,13 @@ namespace OPS.Pipeline
                         {
                             double closestDistSq = double.PositiveInfinity;
                             Node closestParent = null;
-                            foreach (var node in nodes)
+                            foreach (var node in aligned)
                             {
-                                if (node.Name != calf.Name && node.WorldTransform.HasValue)
+                                var d2 = Vector2.DistanceSquared(centroid[calf.Name], centroid[node.Name]);
+                                if (d2 < closestDistSq)
                                 {
-                                    var d2 = Vector2.DistanceSquared(centroid[calf.Name], centroid[node.Name]);
-                                    if (d2 < closestDistSq)
-                                    {
-                                        closestDistSq = d2;
-                                        closestParent = node;
-                                    }
+                                    closestDistSq = d2;
+                                    closestParent = node;
                                 }
                             }
                             calf.Parent = closestParent;
@@ -1697,16 +1694,13 @@ namespace OPS.Pipeline
                         {
                             int closestDist = int.MaxValue;
                             Node closestParent = null;
-                            foreach (var node in nodes)
+                            foreach (var node in aligned)
                             {
-                                if (node.Name != calf.Name && node.WorldTransform.HasValue)
+                                var d = Math.Abs((int)(new SiteDrive(calf.Name)) - (int)(new SiteDrive(node.Name)));
+                                if (d < closestDist)
                                 {
-                                    var d = Math.Abs((int)(new SiteDrive(calf.Name)) - (int)(new SiteDrive(node.Name)));
-                                    if (d < closestDist)
-                                    {
-                                        closestDist = d;
-                                        closestParent = node;
-                                    }
+                                    closestDist = d;
+                                    closestParent = node;
                                 }
                             }
                             calf.Parent = closestParent;
@@ -1730,6 +1724,21 @@ namespace OPS.Pipeline
                 {
                     calf.WorldTransform = null;
                 }
+            }
+
+            var calvesFor = new Dictionary<string, List<string>>();
+            foreach (var calf in calves)
+            {
+                if (!calvesFor.ContainsKey(calf.Parent.Name))
+                {
+                    calvesFor[calf.Parent.Name] = new List<string>();
+                }
+                calvesFor[calf.Parent.Name].Add(calf.Name);
+            }
+            foreach (var parent in calvesFor.Keys)
+            {
+                pipeline.LogInfo("{0} calves for site drive {1}: {2}",
+                                 calvesFor[parent].Count, parent, String.Join(", ", calvesFor[parent]));
             }
 
             SaveTransforms(calves.Where(calf => calf.WorldTransform.HasValue), TransformSource.LandformBEVCalf);
@@ -1906,7 +1915,11 @@ namespace OPS.Pipeline
             }
 
             SaveTransforms(nodesToAlign, TransformSource.LandformBEV);
-            SaveTransforms(nodesToAlign.Select(n => n.Parent), TransformSource.LandformBEVRoot);
+
+            var rootNodes = nodesToAlign.Select(n => n.Parent);
+            pipeline.LogInfo("birds eye view root nodes: {0}", String.Join(", ", rootNodes));
+
+            SaveTransforms(rootNodes, TransformSource.LandformBEVRoot);
 
             SaveCalves(nodesToAlign);
 
