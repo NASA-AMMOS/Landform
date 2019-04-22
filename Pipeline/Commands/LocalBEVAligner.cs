@@ -328,6 +328,12 @@ namespace OPS.Pipeline
             //later in ComputePairs we may change the order depending on options
             siteDrives = observations.Select(obs => obs.SiteDrive.ToString()).Distinct().OrderBy(sd => sd).ToArray();
 
+            if (siteDrives.Length < 2)
+            {
+                pipeline.LogError("birds eye view aligner requires at least 2 site drives");
+                return 1;
+            }
+
             pipeline.LogInfo("computing birds eye view alignment for {0} observations, {1} site drives",
                              siteDrives.Length, observations.Count());
 
@@ -410,18 +416,27 @@ namespace OPS.Pipeline
 
             if (options.WriteDebug)
             {
-                foreach (var pair in bevs)
-                {
-                    var siteDrive = pair.Key;
-                    var bev = pair.Value;
-                    if (!options.StretchContrast && options.BEVColoring == BirdsEyeViewing.ColorMode.Elevation)
-                    {
-                        bev = new Image(bev);
-                        bev.ScaleValues((float)min, (float)max, 0, 1);
-                    }
-                    PathHelper.EnsureExists(outputPath);
-                    bev.Save<byte>(outputPath + siteDrive + "_BirdsEyeView" + imageExt);
-                }
+                PathHelper.EnsureExists(outputPath);
+                double startSec = UTCTime.Now();
+                int np = 0, nc = 0;
+                CoreLimitedParallel.ForEach(bevs, pair => {
+                        Interlocked.Increment(ref np);
+                        if (!options.NoProgress)
+                        {
+                            pipeline.LogInfo("saving {0} birds eye view images in parallel, completed {1}/{2}",
+                                             np, nc, bevs.Count);
+                        }
+                        var siteDrive = pair.Key;
+                        var bev = pair.Value;
+                        if (!options.StretchContrast && options.BEVColoring == BirdsEyeViewing.ColorMode.Elevation)
+                        {
+                            bev = new Image(bev);
+                            bev.ScaleValues((float)min, (float)max, 0, 1);
+                        }
+                        bev.Save<byte>(outputPath + siteDrive + "_BirdsEyeView" + imageExt);
+                        Interlocked.Increment(ref nc);
+                    });
+                pipeline.LogInfo("saved {0} birds eye view images ({1:F3}s)", bevs.Count, UTCTime.Now() - startSec);
             }
         }
 
@@ -710,7 +725,16 @@ namespace OPS.Pipeline
 
             if (options.WriteDebug)
             {
+                PathHelper.EnsureExists(outputPath);
+                double startSec = UTCTime.Now();
+                int np = 0, nc = 0;
                 CoreLimitedParallel.ForEach(siteDrives, siteDrive => {
+                        Interlocked.Increment(ref np);
+                        if (!options.NoProgress)
+                        {
+                            pipeline.LogInfo("saving {0} birds eye view feature images in parallel, completed {1}/{2}",
+                                             np, nc, siteDrives.Length);
+                        }
                         var bev = bevs[siteDrive];
                         var mask = bev.MaskToImage(valid: 1, invalid: 0);
                         var feat = features[siteDrive];
@@ -723,9 +747,11 @@ namespace OPS.Pipeline
                                                     0);
                             DrawOrigin(img, pixel, color);
                         }
-                        PathHelper.EnsureExists(outputPath);
                         img.ToOPSImage().Save<byte>(outputPath + siteDrive + "_BirdsEyeView_Features" + imageExt);
+                        Interlocked.Increment(ref nc);
                     });
+                pipeline.LogInfo("saved {0} birds eye view feature images ({1:F3}s)", siteDrives.Length,
+                                 UTCTime.Now() - startSec);
             }
         }
 
@@ -1327,9 +1353,17 @@ namespace OPS.Pipeline
 
             if (options.WriteDebug)
             {
+                PathHelper.EnsureExists(outputPath);
+                double startSec = UTCTime.Now();
+                int np = 0, nc = 0;
                 CoreLimitedParallel.ForEach(siteDrivePairs, pair => {
                         
-                        PathHelper.EnsureExists(outputPath);
+                        Interlocked.Increment(ref np);
+                        if (!options.NoProgress)
+                        {
+                            pipeline.LogInfo("saving {0} birds eye match images/meshes in parallel, completed {1}/{2}",
+                                             np, nc, siteDrivePairs.Count);
+                        }
 
                         var model = pair.Item1;
                         var data = pair.Item2;
@@ -1355,7 +1389,11 @@ namespace OPS.Pipeline
                         .MakeMatchMesh(spatialMatches[pairName].Select(p => p.ModelPoint).ToArray(),
                                        spatialMatches[pairName].Select(p => p.DataPoint).ToArray())
                         .Save(outputPath + pair + "_matches" + meshExt);
+
+                        Interlocked.Increment(ref nc);
                     });
+                pipeline.LogInfo("saved {0} birds eye view match image/meshes ({1:F3}s)", siteDrivePairs.Count,
+                                 UTCTime.Now() - startSec);
             }
 
             var good = new HashSet<string>();
