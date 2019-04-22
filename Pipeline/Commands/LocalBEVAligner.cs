@@ -340,7 +340,7 @@ namespace OPS.Pipeline
             }
 
             pipeline.LogInfo("computing birds eye view alignment for {0} observations, {1} site drives",
-                             siteDrives.Length, observations.Count());
+                             observations.Count(), siteDrives.Length);
 
             LoadOrRenderBEVs(); //observations -> bevs, dems
 
@@ -1726,6 +1726,7 @@ namespace OPS.Pipeline
                 }
             }
 
+            pipeline.LogInfo("birds eye view calf mode: {0}", options.CalfMode);
             var calvesFor = new Dictionary<string, List<string>>();
             foreach (var calf in calves)
             {
@@ -1917,7 +1918,7 @@ namespace OPS.Pipeline
             SaveTransforms(nodesToAlign, TransformSource.LandformBEV);
 
             var rootNodes = nodesToAlign.Select(n => n.Parent);
-            pipeline.LogInfo("birds eye view root nodes: {0}", String.Join(", ", rootNodes));
+            pipeline.LogInfo("birds eye view root nodes: {0}", String.Join(", ", rootNodes.Select(node => node.Name)));
 
             SaveTransforms(rootNodes, TransformSource.LandformBEVRoot);
 
