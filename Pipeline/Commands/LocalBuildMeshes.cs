@@ -46,6 +46,9 @@ namespace OPS.Pipeline
         [Option(HelpText = "Use transform priors only", Default = false)]
         public bool UsePriors { get; set; }
 
+        [Option(HelpText = "Use adjusted transforms only", Default = false)]
+        public bool NoPriors { get; set; }
+
         [Option(HelpText = "Operate on cloud data", Default = false)]
         public bool Cloud { get; set; }
 
@@ -125,6 +128,12 @@ namespace OPS.Pipeline
         {
             pipeline.LogInfo("Running local-build-meshes command");
 
+            if (options.UsePriors && options.NoPriors)
+            {
+                pipeline.LogError("cannot specify both --usepriors and --nopriors");
+                return 1;
+            }
+
             //create directory for output
             var adjustedSources = ParseSources(options.AdjustedTransformSources);
             var priorSources = ParseSources(options.PriorTransformSources);
@@ -141,8 +150,8 @@ namespace OPS.Pipeline
             //get transforms
             pipeline.LogInfo("Populating frame cache");
             FrameCache frameCache = new FrameCache(pipeline, options.ProjectName);
-            frameCache.PreloadFilteredTransforms(priorSources, adjustedSources, options.UsePriors);
-
+            frameCache.PreloadFilteredTransforms(priorSources, adjustedSources, options.UsePriors, options.NoPriors);
+                
             ObservationCache observationCache = new ObservationCache(pipeline, options.ProjectName);
             observationCache.Preload(obs => obs.UseForReconstruction);
 

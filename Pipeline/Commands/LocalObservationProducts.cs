@@ -71,6 +71,9 @@ namespace OPS.Pipeline
         [Option(HelpText = "Use transform priors only", Default = false)]
         public bool UsePriors { get; set; }
 
+        [Option(HelpText = "Use adjusted transforms only", Default = false)]
+        public bool NoPriors { get; set; }
+
         [Option(HelpText = "Mesh decimation blocksize", Default = 4)]
         public int DecimateMeshes { get; set; }
 
@@ -243,6 +246,12 @@ namespace OPS.Pipeline
             string dir = outputFrame + "Frame";
             if (options.UsePriors)
             {
+                if (options.NoPriors)
+                {
+                    pipeline.LogError("cannot specify both --usepriors and --nopriors");
+                    return 1;
+                }
+
                 dir += "/prior";
                 if (priorSources.Length > 0)
                 {
@@ -288,7 +297,7 @@ namespace OPS.Pipeline
             }
 
             var frameCache = new FrameCache(pipeline, options.ProjectName);
-            frameCache.PreloadFilteredTransforms(priorSources, adjustedSources, options.UsePriors);
+            frameCache.PreloadFilteredTransforms(priorSources, adjustedSources, options.UsePriors, options.NoPriors);
 
             var observationCache = new ObservationCache(pipeline, options.ProjectName);
             observationCache.Preload();
