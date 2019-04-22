@@ -1605,10 +1605,9 @@ namespace OPS.Pipeline
         /// <summary>
         /// write out sitedrive -> root adjusted transforms
         /// </summary>
-        private void SaveTransforms(IEnumerable<Node> aligned)
+        private void SaveTransforms(IEnumerable<Node> aligned, TransformSource transformSource)
         {
             var unaligned = new HashSet<string>(siteDrives);
-            var transformSource = TransformSource.LandformBEV;
             foreach (var node in aligned)
             {
                 unaligned.Remove(node.Name);
@@ -1680,10 +1679,13 @@ namespace OPS.Pipeline
                 }
             }
 
+            //TODO fix at least one node in each connected component
+            
             //TODO
             throw new NotImplementedException("simultaneous align not implemented yet");
 
-            //SaveTransforms(nodesToAlign);
+            //SaveTransforms(nodesToAlign, TransformSource.LandformBEV);
+            //SaveTransforms(TODO, TransformSource.LandformBEVRoot);
 
             //pipeline.LogInfo("simultaneous aligned {0} nodes ({1:F3}s)", nodesToAlign.Count, UTCTime.Now() - startSec);
 
@@ -1806,7 +1808,8 @@ namespace OPS.Pipeline
                 }
             }
 
-            SaveTransforms(nodesToAlign);
+            SaveTransforms(nodesToAlign, TransformSource.LandformBEV);
+            SaveTransforms(nodesToAlign.Select(n => n.Parent), TransformSource.LandformBEVRoot);
 
             pipeline.LogInfo("pairwise aligned {0} nodes ({1:F3}s)", nodesToAlign.Count, UTCTime.Now() - startSec);
 
