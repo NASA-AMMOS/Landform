@@ -320,13 +320,16 @@ namespace OPS.Pipeline
             observationCache = new ObservationCache(pipeline, options.ProjectName);
             observationCache.Preload();
 
-            bool allowMastcam = false;
-            bool requirePoints = true;
-            bool requireNormals = options.BEVColoring == BirdsEyeViewing.ColorMode.Tilt;
-            bool requireTextures = options.BEVColoring == BirdsEyeViewing.ColorMode.Texture;
-            observations = Meshing.CollectMeshObservations(frameCache, observationCache,
-                                                           allowMastcam, requirePoints, requireNormals, requireTextures,
-                                                           options.OnlyForSiteDrives, options.OnlyForCameras);
+            var opts = new Meshing.MeshObservationsOptions(options.OnlyForSiteDrives, options.OnlyForCameras)
+            {
+                AllowMastcam = false,
+                RequirePoints = true,
+                RequireNormals = options.BEVColoring == BirdsEyeViewing.ColorMode.Tilt,
+                RequireTextures = options.BEVColoring == BirdsEyeViewing.ColorMode.Texture,
+                RequirePriorTransform = true,
+                TargetFrame = "root"
+            };
+            observations = Meshing.CollectMeshObservations(frameCache, observationCache, opts);
 
             //for now lexicographically sort siteDrives so that older ones come before newer
             //just to give a canonical order

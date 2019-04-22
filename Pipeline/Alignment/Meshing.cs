@@ -71,6 +71,44 @@ namespace OPS.Pipeline
 
     public class Meshing
     {
+        public class MeshObservationsOptions
+        {
+            public bool AllowMastcam = false;
+
+            public bool RequirePoints = true;
+            public bool RequireNormals = true;
+            public bool RequireTextures = false;
+
+            public SiteDrive[] OnlyForSiteDrives = null;
+            public string[] OnlyForCameras = null;
+
+            public bool RequirePriorTransform = false;
+            public bool RequireAdjustedTransform = false;
+            public bool RequireAnyTransform = true;
+
+            public string TargetFrame = null;
+
+            public MeshObservationsOptions(string onlyForSiteDrives = null, string onlyForCameras = null)
+            {
+                if (!string.IsNullOrEmpty(onlyForSiteDrives))
+                {
+                    this.OnlyForSiteDrives = onlyForSiteDrives
+                        .Split(',')
+                        .Where(s => !string.IsNullOrEmpty(s))
+                        .Select(s => new SiteDrive(s.Trim()))
+                        .ToArray();
+                }
+                
+                if (!string.IsNullOrEmpty(onlyForCameras))
+                {
+                    this.OnlyForCameras = onlyForCameras
+                        .Split(',')
+                        .Where(s => !string.IsNullOrEmpty(s))
+                        .ToArray();
+                }
+            }
+        }
+
         /// <summary>
         /// sift through the available observations for a frame
         /// and try to collect those that are required to build a mesh
@@ -78,24 +116,44 @@ namespace OPS.Pipeline
         /// </summary>
         public static MeshObservations CollectMeshObservationsForFrame(string frameName, FrameCache frameCache,
                                                                        ObservationCache observationCache,
-                                                                       bool allowMastcam = false,
-                                                                       bool requirePoints = true,
-                                                                       bool requireNormals = true,
-                                                                       bool requireTextures = false,
-                                                                       SiteDrive[] onlyForSiteDrives = null,
-                                                                       string[] onlyForCameras = null)
+                                                                       MeshObservationsOptions opts = null)
         {
+            if (opts == null)
+            {
+                opts = new MeshObservationsOptions();
+            }
+
+            var frame = frameCache.GetFrame(frameName);
+
+            if (string.IsNullOrEmpty(opts.TargetFrame))
+            {
+                if ((opts.RequireAnyTransform && !frameCache.HasAnyTransform(frame)) ||
+                    (opts.RequirePriorTransform && !frameCache.HasPriorTransform(frame)) ||
+                    (opts.RequireAdjustedTransform && !frameCache.HasAdjustedTransform(frame)))
+                {
+                    return null;
+                }
+            }
+            else
+            {
+                if (GetTransform(frame.Name, opts.TargetFrame, frameCache,
+                                 opts.RequirePriorTransform, opts.RequireAdjustedTransform) == null)
+                {
+                    return null;
+                }
+            }
+
             var pointsType = ObservationType.Points.ToString();
             var normalsType = ObservationType.Normals.ToString();
             var maskType = ObservationType.RoverMask.ToString();
             var imageType = ObservationType.Image.ToString();
 
             var observations =
-                observationCache.GetAllObservationsForFrame(frameCache.GetFrame(frameName))
+                observationCache.GetAllObservationsForFrame(frame)
                 .Cast<RoverObservation>()
-                .Where(obs => allowMastcam || !obs.IsMastcam)
-                .Where(obs => onlyForSiteDrives == null || onlyForSiteDrives.Any(sd => sd == obs.SiteDrive))
-                .Where(obs => onlyForCameras == null || onlyForCameras.Any(cam => cam == obs.Sensor))
+                .Where(obs => opts.AllowMastcam || !obs.IsMastcam)
+                .Where(obs => opts.OnlyForSiteDrives == null || opts.OnlyForSiteDrives.Any(sd => sd == obs.SiteDrive))
+                .Where(obs => opts.OnlyForCameras == null || opts.OnlyForCameras.Any(cam => cam == obs.Sensor))
                 .ToList();
 
             observations.Sort(MSLProject.RoverObservationComparison);
@@ -103,14 +161,14 @@ namespace OPS.Pipeline
             var ret = new MeshObservations();
 
             ret.Points = observations.Find(obs => obs.ObservationType == pointsType);
-            if (requirePoints && ret.Points == null)
+            if (opts.RequirePoints && ret.Points == null)
             {
                 return null;
             }
 
             ret.Normals = observations.Find(obs => obs.ObservationType == normalsType &&
                                             obs.Width == ret.Points.Width && obs.Height == ret.Points.Height);
-            if (requireNormals && ret.Normals == null)
+            if (opts.RequireNormals && ret.Normals == null)
             {
                 return null;
             }
@@ -119,7 +177,7 @@ namespace OPS.Pipeline
                                          obs.Width == ret.Points.Width && obs.Height == ret.Points.Height);
 
             ret.Texture = observations.Find(obs => obs.ObservationType == imageType);
-            if (requireTextures && ret.Texture == null)
+            if (opts.RequireTextures && ret.Texture == null)
             {
                 return null;
             }
@@ -138,38 +196,17 @@ namespace OPS.Pipeline
         /// </summary>
         public static List<MeshObservations> CollectMeshObservations(FrameCache frameCache,
                                                                      ObservationCache observationCache,
-                                                                     bool allowMastcam = false,
-                                                                     bool requirePoints = true,
-                                                                     bool requireNormals = true,
-                                                                     bool requireTextures = false,
-                                                                     string onlyForSiteDrives = null,
-                                                                     string onlyForCameras = null)
+                                                                     MeshObservationsOptions opts = null)
         {
-            SiteDrive[] siteDriveFilter = null;
-            if (!string.IsNullOrEmpty(onlyForSiteDrives))
+            if (opts == null)
             {
-                siteDriveFilter = onlyForSiteDrives
-                    .Split(',')
-                    .Where(s => !string.IsNullOrEmpty(s))
-                    .Select(s => new SiteDrive(s.Trim()))
-                    .ToArray();
+                opts = new MeshObservationsOptions();
             }
-
-            string[] cameraFilter = null;
-            if (!string.IsNullOrEmpty(onlyForCameras))
-            {
-                cameraFilter = onlyForCameras
-                    .Split(',')
-                    .Where(s => !string.IsNullOrEmpty(s))
-                    .ToArray();
-            }
-
-            List<MeshObservations> ret = new List<MeshObservations>();
+                
+            var ret = new List<MeshObservations>();
             foreach (var frameName in observationCache.GetAllFramesWithObservations())
             {
-                var obs = CollectMeshObservationsForFrame(frameName, frameCache, observationCache,
-                                                          allowMastcam, requirePoints, requireNormals, requireTextures,
-                                                          siteDriveFilter, cameraFilter);
+                var obs = CollectMeshObservationsForFrame(frameName, frameCache, observationCache, opts);
                 if (obs != null)
                 {
                     ret.Add(obs);
@@ -446,9 +483,13 @@ namespace OPS.Pipeline
 
         /// <summary>
         /// get transform from a specific rover frame to the corresponding, observation, sitedrive or root frame
-        /// </summary>transform a mesh 
+        /// also works to get a transform from a rover frame to any other rover frame
+        /// result is null if the transform could not be resolved
+        /// if usePriors = true then only prior transform sources will be used
+        /// if noPriors = true then the result will be null unless at least one transform in the chain is not a prior
+        /// </summary>
         public static UncertainRigidTransform GetTransform(string fromFrame, string toFrame, FrameCache frameCache,
-                                                           bool usePriors = false)
+                                                           bool usePriors = false, bool noPriors = false)
         {
             if (toFrame == "rover" || toFrame == PDSParser.ReferenceCoordinateFrame.RoverNav.ToString())
             {
@@ -456,11 +497,12 @@ namespace OPS.Pipeline
             }
 
             Frame obsFrame = frameCache.GetFrame(fromFrame);
-            var obsToSD = usePriors ? frameCache.GetBestPrior(obsFrame) : frameCache.GetBestTransform(obsFrame);
+            Frame sdFrame = frameCache.GetFrame(obsFrame.ParentName);
 
             if (toFrame == "sitedrive" || toFrame == PDSParser.ReferenceCoordinateFrame.LocalLevel.ToString())
             {
-                return obsToSD.Transform;
+                var obsToSD = usePriors ? frameCache.GetBestPrior(obsFrame) : frameCache.GetBestTransform(obsFrame);
+                return (obsToSD == null || (noPriors && obsToSD.IsPrior())) ? null : obsToSD.Transform;
             }
 
             if (toFrame == "site" || toFrame == PDSParser.ReferenceCoordinateFrame.Site.ToString())
@@ -468,23 +510,24 @@ namespace OPS.Pipeline
                 throw new NotImplementedException("transform to site frame not implemented");
             }
 
-            Frame sdFrame = frameCache.GetFrame(obsFrame.ParentName);
-            var sdToRoot = usePriors ? frameCache.GetBestPrior(sdFrame) : frameCache.GetBestTransform(sdFrame);
-
             if (toFrame == "root" || string.IsNullOrEmpty(toFrame))
             {
-                if (sdToRoot == null)
+                var obsToSD = usePriors ? frameCache.GetBestPrior(obsFrame) : frameCache.GetBestTransform(obsFrame);
+                var sdToRoot = usePriors ? frameCache.GetBestPrior(sdFrame) : frameCache.GetBestTransform(sdFrame);
+                if (obsToSD == null || sdToRoot == null || (noPriors && obsToSD.IsPrior() && sdToRoot.IsPrior()))
                 {
                     return null;
                 }
-
-                return obsToSD.Transform * sdToRoot.Transform;
+                else
+                {
+                    return obsToSD.Transform * sdToRoot.Transform;
+                }
             }
             else
             {
-                var fromFrameToRoot = GetTransform(fromFrame, "root", frameCache, usePriors);
-                var toFrameToRoot = GetTransform(toFrame, "root", frameCache, usePriors);
-                return fromFrameToRoot.TimesInverse(toFrameToRoot);
+                var srcToRoot = GetTransform(fromFrame, "root", frameCache, usePriors, noPriors);
+                var dstToRoot = GetTransform(toFrame, "root", frameCache, usePriors, noPriors);
+                return (srcToRoot == null || dstToRoot == null) ? null : srcToRoot.TimesInverse(dstToRoot);
             }
         }
 
@@ -1061,14 +1104,14 @@ namespace OPS.Pipeline
         }
 
         public static Mesh BuildPointCloud(PipelineCore pipeline, MeshObservations obs, FrameCache frameCache,
-                                           string frame = "root", bool usePriors = false, int decimate = 1,
-                                           bool scaleNormalsByConfidence = false)
+                                           string frame = "root", bool usePriors = false, bool noPriors = false,
+                                           int decimate = 1, bool scaleNormalsByConfidence = false)
         {
             LoadOrGenerateMeshImages(pipeline, obs, decimate, scaleNormalsByConfidence,
                                      out Image points, out Image normals, out Image mask);
             pipeline.LogVerbose("building point cloud {0}", obs.Points.Name);
             var ret = BuildPointCloud(points, normals, mask);
-            var transform = GetTransform(obs.Points.FrameName, frame, frameCache, usePriors);
+            var transform = GetTransform(obs.Points.FrameName, frame, frameCache, usePriors, noPriors);
             if (transform == null)
             {
                 pipeline.LogWarn("Failed to find transform to build point cloud for {0}", obs.Points.FrameName);
@@ -1217,9 +1260,10 @@ namespace OPS.Pipeline
         }
 
         public static Mesh BuildOrganizedMesh(PipelineCore pipeline, MeshObservations obs, FrameCache frameCache,
-                                              string frame = "root", bool usePriors = false, int decimate = 1,
-                                              bool scaleNormalsByConfidence = false, double maxTriangleAspect = 20,
-                                              double isolatedPointSize = 0, bool withUVs = false)
+                                              string frame = "root", bool usePriors = false, bool noPriors = false,
+                                              int decimate = 1, bool scaleNormalsByConfidence = false,
+                                              double maxTriangleAspect = 20, double isolatedPointSize = 0,
+                                              bool withUVs = false)
         {
             LoadOrGenerateMeshImages(pipeline, obs, decimate, scaleNormalsByConfidence,
                                      out Image points, out Image normals, out Image mask);
@@ -1230,7 +1274,7 @@ namespace OPS.Pipeline
                 AddUVs(ret, pipeline.LoadImage(obs.Texture.Url));
             }
 
-            var xform = GetTransform(obs.Points.FrameName, frame, frameCache, usePriors);
+            var xform = GetTransform(obs.Points.FrameName, frame, frameCache, usePriors, noPriors);
             if (xform == null)
             {
                 pipeline.LogWarn("Failed to find transform to build mesh for {0}", obs.Points.FrameName);
@@ -1241,8 +1285,9 @@ namespace OPS.Pipeline
         }
 
         public static Mesh BuildPoissonMesh(PipelineCore pipeline, MeshObservations obs, FrameCache frameCache,
-                                            string frame = "root", bool usePriors = false, int decimate = 1,
-                                            bool scaleNormalsByConfidence = false, bool withUVs = false)
+                                            string frame = "root", bool usePriors = false, bool noPriors = false,
+                                            int decimate = 1, bool scaleNormalsByConfidence = false,
+                                            bool withUVs = false)
         {
             LoadOrGenerateMeshImages(pipeline, obs, decimate, scaleNormalsByConfidence,
                                      out Image points, out Image normals, out Image mask);
@@ -1253,7 +1298,7 @@ namespace OPS.Pipeline
                 AddUVs(ret, pipeline.LoadImage(obs.Texture.Url));
             }
 
-            var xform = GetTransform(obs.Points.FrameName, frame, frameCache, usePriors);
+            var xform = GetTransform(obs.Points.FrameName, frame, frameCache, usePriors, noPriors);
             if (xform == null)
             {
                 pipeline.LogWarn("Failed to find transform to build mesh for {0}", obs.Points.FrameName);
@@ -1265,8 +1310,8 @@ namespace OPS.Pipeline
         }
 
         public static Mesh BuildFSSRMesh(PipelineCore pipeline, MeshObservations obs, FrameCache frameCache,
-                                         string frame = "root", bool usePriors = false, int decimate = 1,
-                                         bool withUVs = false)
+                                         string frame = "root", bool usePriors = false, bool noPriors = false,
+                                         int decimate = 1, bool withUVs = false)
         {
             LoadOrGenerateMeshImages(pipeline, obs, decimate, false,
                                      out Image points, out Image normals, out Image mask);
@@ -1277,7 +1322,7 @@ namespace OPS.Pipeline
                 AddUVs(ret, pipeline.LoadImage(obs.Texture.Url));
             }
 
-            var xform = GetTransform(obs.Points.FrameName, frame, frameCache, usePriors);
+            var xform = GetTransform(obs.Points.FrameName, frame, frameCache, usePriors, noPriors);
             if (xform == null)
             {
                 pipeline.LogWarn("Failed to find transform to build mesh for {0}", obs.Points.FrameName);
@@ -1289,7 +1334,7 @@ namespace OPS.Pipeline
         }
 
         public static ConvexHull BuildFrustumHull(PipelineCore pipeline, MeshObservations obs, FrameCache frameCache,
-                                                  string frame = "root", bool usePriors = false,
+                                                  string frame = "root", bool usePriors = false, bool noPriors = false,
                                                   bool uncertaintyInflated = false)
         {
             Image img = pipeline.LoadImage(obs.Texture != null ? obs.Texture.Url : obs.Points.Url);
@@ -1298,7 +1343,7 @@ namespace OPS.Pipeline
             ConvexHull ret = ConvexHull.FromImage(img);
 
             string frameName = obs.Points != null ? obs.Points.FrameName : obs.Texture.FrameName;
-            var xform = GetTransform(frameName, frame, frameCache, usePriors);
+            var xform = GetTransform(frameName, frame, frameCache, usePriors, noPriors);
 
             if (xform == null)
             {

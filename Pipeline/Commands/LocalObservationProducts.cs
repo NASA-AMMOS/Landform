@@ -297,16 +297,22 @@ namespace OPS.Pipeline
             }
 
             var frameCache = new FrameCache(pipeline, options.ProjectName);
-            frameCache.PreloadFilteredTransforms(priorSources, adjustedSources, options.UsePriors, options.NoPriors);
+            frameCache.PreloadFilteredTransforms(priorSources, adjustedSources, options.UsePriors);
 
             var observationCache = new ObservationCache(pipeline, options.ProjectName);
             observationCache.Preload();
 
-            bool requirePoints = false;
-            var observations =
-                Meshing.CollectMeshObservations(frameCache, observationCache, options.AllowMastcam,
-                                                requirePoints, options.RequireNormals, options.RequireTextures,
-                                                options.OnlyForSiteDrives, options.OnlyForCameras);
+            var opts = new Meshing.MeshObservationsOptions(options.OnlyForSiteDrives, options.OnlyForCameras)
+                {
+                    AllowMastcam = options.AllowMastcam,
+                    RequirePoints = false,
+                    RequireNormals = options.RequireNormals,
+                    RequireTextures = options.RequireTextures,
+                    RequirePriorTransform = options.UsePriors,
+                    RequireAdjustedTransform = options.NoPriors,
+                    TargetFrame = options.OutputFrame
+                }; 
+            var observations = Meshing.CollectMeshObservations(frameCache, observationCache, opts);
             
             int no = observations.Count();
             var siteDrives = observations.Select(obs => obs.SiteDrive).Distinct().OrderBy(sd => sd).ToArray();
@@ -338,7 +344,8 @@ namespace OPS.Pipeline
                     if (buildMesh && options.PointCloud)
                     {
                         pipeline.LogVerbose("building point cloud for {0}", obs.Points.Name);
-                        mesh = Meshing.BuildPointCloud(pipeline, obs, frameCache, outputFrame, options.UsePriors,
+                        mesh = Meshing.BuildPointCloud(pipeline, obs, frameCache, outputFrame,
+                                                       options.UsePriors, options.NoPriors,
                                                        options.DecimateMeshes, options.ScaleNormalsByConfidence);
                         if (mesh != null && !mesh.HasVertices)
                         {
@@ -354,7 +361,8 @@ namespace OPS.Pipeline
                             case ReconstructionMethod.Organized:
                             {
                                 mesh = Meshing.BuildOrganizedMesh(pipeline, obs, frameCache, outputFrame,
-                                                                  options.UsePriors, options.DecimateMeshes,
+                                                                  options.UsePriors, options.NoPriors,
+                                                                  options.DecimateMeshes,
                                                                   options.ScaleNormalsByConfidence,
                                                                   options.MaxTriangleAspect, options.IsolatedPointSize,
                                                                   withUVs);
@@ -363,14 +371,16 @@ namespace OPS.Pipeline
                             case ReconstructionMethod.Poisson:
                             {
                                 mesh = Meshing.BuildPoissonMesh(pipeline, obs, frameCache, outputFrame,
-                                                                options.UsePriors, options.DecimateMeshes,
+                                                                options.UsePriors, options.NoPriors,
+                                                                options.DecimateMeshes,
                                                                 options.ScaleNormalsByConfidence, withUVs);
                                 break;
                             }
                             case ReconstructionMethod.FSSR:
                             {
                                 mesh = Meshing.BuildFSSRMesh(pipeline, obs, frameCache, outputFrame,
-                                                             options.UsePriors, options.DecimateMeshes, withUVs);
+                                                             options.UsePriors, options.NoPriors,
+                                                             options.DecimateMeshes, withUVs);
                                 break;
                             }
                         }
@@ -493,7 +503,7 @@ namespace OPS.Pipeline
                     if (options.FrustumHullMeshes && (obs.Texture != null || obs.Points != null))
                     {
                         var hull = Meshing.BuildFrustumHull(pipeline, obs, frameCache, outputFrame, options.UsePriors,
-                                                            uncertaintyInflated: false);
+                                                            options.NoPriors, uncertaintyInflated: false);
                         string path = tmpPath + "Frusta/";
                         string file = tmpPath + obs.Name + meshExt;
                         pipeline.LogVerbose("saving hull mesh {0}", file);
@@ -504,7 +514,7 @@ namespace OPS.Pipeline
                     if (options.UncertaintyInflatedFrustumHullMeshes)
                     {
                         var hull = Meshing.BuildFrustumHull(pipeline, obs, frameCache, outputFrame, options.UsePriors,
-                                                            uncertaintyInflated: true);
+                                                            options.NoPriors, uncertaintyInflated: true);
                         string path = tmpPath + "InflatedFrusta/";
                         string file = path + obs.Name + meshExt;
                         pipeline.LogVerbose("saving uncertainty inflated hull mesh {0}", file);
@@ -532,7 +542,7 @@ namespace OPS.Pipeline
                             if (overlap == null)
                                 continue;
 
-                            Image deltaRangeImage = CreateDeltaRangeImage(otherObs, obs, frameCache, options.UsePriors);
+                            Image deltaRangeImage = CreateDeltaRangeImage(otherObs, obs, frameCache, options.UsePriors, options.NoPriors);
                             if (deltaRangeImage != null)
                             {
                                 string imageName = otherObs.Points.Name + "_in_" + obs.Points.Name;
@@ -684,7 +694,7 @@ namespace OPS.Pipeline
 
         // fills a texture with the difference in the per-pixel range of a src point cloud and dst point cloud 
         // designed to give an coarse visual estimate of how well cameras are aligned
-        private Image CreateDeltaRangeImage(MeshObservations srcObs, MeshObservations dstObs, FrameCache frameCache, bool usePriors)
+        private Image CreateDeltaRangeImage(MeshObservations srcObs, MeshObservations dstObs, FrameCache frameCache, bool usePriors, bool noPriors)
         {
             //load images
             Meshing.LoadOrGenerateMeshImages(this.pipeline, srcObs, 1, false, out Image srcPoints, out Image srcNormals, out Image srcMask);
@@ -698,7 +708,7 @@ namespace OPS.Pipeline
             PDSParser dstParser = new PDSParser((PDSMetadata)dstImg.Metadata);
             CameraModel dstCamera = dstParser.metadata.CameraModel;
 
-            var srcObsToDstObs = Meshing.GetTransform(srcObs.Points.FrameName, dstObs.Points.FrameName, frameCache, usePriors).Mean;
+            var srcObsToDstObs = Meshing.GetTransform(srcObs.Points.FrameName, dstObs.Points.FrameName, frameCache, usePriors, noPriors).Mean;
             var dstHull = Meshing.BuildFrustumHull(pipeline, dstObs, frameCache, dstObs.Points.FrameName, usePriors, uncertaintyInflated: false);
 
             //project points of src texture into dst

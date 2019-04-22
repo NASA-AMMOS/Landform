@@ -56,7 +56,7 @@ namespace OPS.Pipeline.AlignmentServer
         /// convenience function for the common case of allowing all frames but filtering transforms based on parameters
         /// </summary>
         public int PreloadFilteredTransforms(TransformSource[] priorSources, TransformSource[] adjustedSources,
-                                             bool usePriors, bool noPriors)
+                                             bool usePriors = false, bool noPriors = false)
         {
             Func<FrameTransform, bool> filterPrior =
                    transform => priorSources.Length == 0 || priorSources.Any(s => s == transform.Source);
@@ -219,6 +219,36 @@ namespace OPS.Pipeline.AlignmentServer
         public FrameTransform GetBestPrior(Frame frame)
         {
             return GetBestPrior(frame.Name);
+        }
+
+        public bool HasAnyTransform(Frame frame)
+        {
+            return HasAnyTransform(frame.Name);
+        }
+
+        public bool HasAnyTransform(string name)
+        {
+            return GetTransforms(name).Count() > 0;
+        }
+
+        public bool HasPriorTransform(Frame frame)
+        {
+            return HasPriorTransform(frame.Name);
+        }
+
+        public bool HasPriorTransform(string name)
+        {
+            return GetTransforms(name).Where(t => t.Source >= TransformSource.Prior).Count() > 0;
+        }
+
+        public bool HasAdjustedTransform(Frame frame)
+        {
+            return HasAdjustedTransform(frame.Name);
+        }
+
+        public bool HasAdjustedTransform(string name)
+        {
+            return GetTransforms(name).Where(t => t.Source < TransformSource.Prior).Count() > 0;
         }
     }
 }
