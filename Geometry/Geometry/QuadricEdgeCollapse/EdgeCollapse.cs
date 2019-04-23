@@ -62,7 +62,7 @@ namespace OPS.Geometry
         /// <param name="angleThreshold"></param>
         /// <param name="notTouched"></param>
         /// <returns></returns>
-        public static Mesh QuadricEdgeCollapse(Mesh mesh, int targetNumFaces, double perimeterPenaltyFactor = 1, bool preserveTopology = true, bool weightByArea = false, bool avoidFlips = false, double flipThreshold = -1.0, bool avoidSmallTris = false, double angleThreshold = 0.25, List<Vertex> notTouched = null, double accuracy_threshold = -1)
+        public static Mesh QuadricEdgeCollapse(Mesh mesh, int targetNumFaces, double perimeterPenaltyFactor = 1, bool preserveTopology = true, bool weightByArea = false, bool avoidFlips = false, double flipThreshold = -1.0, bool avoidSmallTris = false, double angleThreshold = 0.25, List<Vertex> notTouched = null, double accuracyThreshold = -1)
         {
             mesh.HasUVs = false;
             mesh.HasColors = false;
@@ -167,10 +167,10 @@ namespace OPS.Geometry
                 vNew.AdjacentEdges = new List<Edge>();
 
                 //Break if vertex drift exceeds optional user-defined threshold parameter
-                if (accuracy_threshold != -1)
+                if (accuracyThreshold != -1)
                 {
                     vNew.cost = Math.Max(v1.cost + Vector3.Distance(v1.Vert.Position, vNew.Vert.Position), v2.cost + Vector3.Distance(v2.Vert.Position, vNew.Vert.Position));
-                    if (vNew.cost > accuracy_threshold)
+                    if (vNew.cost > accuracyThreshold)
                     {
                         break;
                     }
