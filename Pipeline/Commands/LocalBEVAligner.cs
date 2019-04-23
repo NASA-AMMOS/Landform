@@ -1733,11 +1733,14 @@ namespace OPS.Pipeline
             var calvesFor = new Dictionary<string, List<string>>();
             foreach (var calf in calves)
             {
-                if (!calvesFor.ContainsKey(calf.Parent.Name))
+                if (calf.Parent != null)
                 {
-                    calvesFor[calf.Parent.Name] = new List<string>();
+                    if (!calvesFor.ContainsKey(calf.Parent.Name))
+                    {
+                        calvesFor[calf.Parent.Name] = new List<string>();
+                    }
+                    calvesFor[calf.Parent.Name].Add(calf.Name);
                 }
-                calvesFor[calf.Parent.Name].Add(calf.Name);
             }
             foreach (var parent in calvesFor.Keys)
             {
