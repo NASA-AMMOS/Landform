@@ -73,29 +73,26 @@ namespace OPS.Pipeline
         
         public static RoverProductId ParseFromString(string productId)
         {
-            RoverProductId result = OPGSProductId.ParseFromOPGSName(productId);
+            RoverProductId result = MSLOPGSProductId.ParseFromOPGSName(productId);
             if (result == null)
             {
                 result = MSSSProductId.ParseFromMSSS(productId);
+            }
+            if(result == null)
+            {
+                result = M20OPGSProductId.ParseFromM20Name(productId);
             }
             return result;
         }
     }
 
+
     public class OPGSProductId : RoverProductId
     {
-        protected string config = null,
-                         spec = null,
-                         sclk = null,
-                         prodid = null,
-                         geometry = null,
-                         samp = null,
-                         site = null,
-                         drive = null,
-                         seqnum = null,
-                         venue = null;
-
         protected static Dictionary<string, RoverProductType> prodToType;
+        protected string prodType = null,
+                         geometry = null;
+
 
         static OPGSProductId()
         {
@@ -104,14 +101,6 @@ namespace OPS.Pipeline
             prodToType.Add("RNG", RoverProductType.Range);
             prodToType.Add("XYZ", RoverProductType.XYZ);
             prodToType.Add("UVW", RoverProductType.NormalMap);
-        }
-
-        public override RoverProductProducer Producer
-        {
-            get
-            {
-                return RoverProductProducer.OPGS;
-            }
         }
 
         public override RoverProductGeometry Geometry
@@ -130,19 +119,134 @@ namespace OPS.Pipeline
             }
         }
 
+       
         public override RoverProductType ProductType
         {
             get
             {
-                if(prodToType.ContainsKey(prodid))
+                if (prodToType.ContainsKey(prodType))
                 {
-                    return prodToType[prodid];
+                    return prodToType[prodType];
                 }
                 return RoverProductType.Unknown;
             }
         }
 
-        public RoverProductSize Size
+        public virtual RoverProductSize Size
+        {
+            get { return RoverProductSize.Unknown; }
+        }
+    }
+
+    public class M20OPGSProductId : OPGSProductId
+    {
+
+        protected string colorFilter = null,
+                 spec = null,
+                 ts0 = null,
+                 venue = null,
+                 ts1 = null,
+                 ts2 = null,
+                 thumb = null,
+                 site = null,
+                 drive = null,
+                 sequence = null,
+                 camspec = null,
+                 downsample = null,
+                 compression = null,
+                 producer = null;
+
+        public static M20OPGSProductId ParseFromM20Name(string productId)
+        {
+            if (productId.EndsWith(".IMG"))
+            {
+                productId = productId.Replace(".IMG", "");
+            }
+            if (productId.Length != 54)
+            {
+                return null;
+            }
+            M20OPGSProductId id = new M20OPGSProductId();
+            id.fullIdString = productId;
+
+            id.inst = productId.Substring(0, 2);
+            id.colorFilter = productId.Substring(2, 1);
+            id.spec = productId.Substring(3, 1);
+            id.ts0 = productId.Substring(4, 4);
+            id.venue = productId.Substring(8, 1);
+            id.ts1 = productId.Substring(9, 10);
+            if(productId[19] != '_')
+            {
+                return null;
+            }
+            id.ts2 = productId.Substring(20, 3);
+            id.prodType = productId.Substring(23, 3);
+            id.geometry = productId.Substring(26, 1);
+            id.thumb = productId.Substring(27, 1);
+            id.site = productId.Substring(28, 3);
+            id.drive = productId.Substring(31, 4);
+            id.sequence = productId.Substring(35, 9);
+            id.camspec = productId.Substring(44, 4);
+            id.downsample = productId.Substring(48, 1);
+            id.compression = productId.Substring(49,2);
+            id.producer = productId.Substring(51, 1);
+            id.version = productId.Substring(52, 2);
+
+            // TODO: handle BL and BR front hazcam codes
+            return id;
+        }
+
+        public override RoverProductProducer Producer
+        {
+            get
+            {
+                if (this.producer == "J")
+                {
+                    return RoverProductProducer.OPGS;
+                }
+                return RoverProductProducer.Unknown;
+            }
+        }
+
+        public override RoverProductSize Size
+        {
+            get
+            {
+                if (thumb.ToUpper().Equals("N"))
+                {
+                    return RoverProductSize.Regular;
+                }
+                else
+                {
+                    return RoverProductSize.Thumbnail;
+                }
+            }
+        }
+    }
+
+    
+
+    public class MSLOPGSProductId : OPGSProductId
+    {
+        protected string config = null,
+                         spec = null,
+                         sclk = null,
+                         samp = null,
+                         site = null,
+                         drive = null,
+                         seqnum = null,
+                         venue = null;
+                
+
+        public override RoverProductProducer Producer
+        {
+            get
+            {
+                return RoverProductProducer.OPGS;
+            }
+        }       
+
+        public override RoverProductSize Size
         {
             get
             {
@@ -158,7 +262,7 @@ namespace OPS.Pipeline
             }
         }
 
-        public static OPGSProductId ParseFromOPGSName(string productId)
+        public static MSLOPGSProductId ParseFromOPGSName(string productId)
         {
             if (productId.EndsWith(".IMG"))
             {
@@ -168,14 +272,14 @@ namespace OPS.Pipeline
             {
                 return null;
             }
-            OPGSProductId id = new OPGSProductId();
+            MSLOPGSProductId id = new MSLOPGSProductId();
             id.fullIdString = productId;
 
             id.inst = productId.Substring(0, 2);
             id.config = productId.Substring(2, 1);
             id.spec = productId.Substring(3, 1);
             id.sclk = productId.Substring(4, 9);
-            id.prodid = productId.Substring(13, 3);
+            id.prodType = productId.Substring(13, 3);
             id.geometry = productId.Substring(16, 1);
             id.samp = productId.Substring(17, 1);
             id.site = productId.Substring(18, 3);
