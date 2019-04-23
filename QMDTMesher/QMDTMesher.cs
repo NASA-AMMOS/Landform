@@ -9,6 +9,8 @@ using log4net;
 using Microsoft.Xna.Framework;
 using OPS.Geometry;
 using OPS.Util;
+using OPS.MathExtensions;
+using Supercluster.KDTree;
 
 namespace QMDTMesher
 {
@@ -19,10 +21,10 @@ namespace QMDTMesher
 
         public class Options
         {
-            [Option("normal-radius", Default = 4.2, Required = false, HelpText = "Radius to use when generating normals for meshing")]
+            [Option("normal-radius", Default = 13.25, Required = false, HelpText = "Radius to use when generating normals for meshing")]
             public double NormalRadius { get; set; }
 
-            [Option("roughness-radius", Default = 4.2, Required = false, HelpText = "Radius to use when selecting nearby points to compute roughness")]
+            [Option("roughness-radius", Default = 25, Required = false, HelpText = "Radius to use when selecting nearby points to compute roughness")]
             public double RoughnessRadius { get; set; }
 
             [Option("vertex-scale", Default = 1, Required = false, HelpText = "Size of each vertex to use when generating mesh")]
@@ -83,22 +85,67 @@ namespace QMDTMesher
                    });
         }
 
+
+        class VertexKDTree
+        {
+
+            KDTree<double, Vertex> tree;
+
+
+            public VertexKDTree(IEnumerable<Vertex> verts)
+            {
+                tree = new KDTree<double, Vertex>(3, verts.Select(v => v.Position.ToDoubleArray()).ToArray(), verts.ToArray(), DistSqrd);
+            }
+
+            static double DistSqrd(double[] a, double[] b)
+            {
+                return Vector3.DistanceSquared(new Vector3(a), new Vector3(b));
+            }
+
+            public IEnumerable<Vertex> Nearest(Vector3 p, int n)
+            {
+                var tt = tree.NearestNeighbors(p.ToDoubleArray(), n);
+                return tt.Select(tup => tup.Item2);
+            }
+        }
+
+        static double ComputeScanDensity(Mesh m)
+        {
+            VertexKDTree kd = new VertexKDTree(m.Vertices);
+            RunningAverage ra = new RunningAverage();
+            foreach (var v in m.Vertices)
+            {
+                foreach (var n in kd.Nearest(v.Position, 5))
+                {
+                    ra.Push(Vector3.Distance(n.Position, v.Position));
+                }
+            }
+            return ra.Mean + ra.StandardDeviation / 2;
+        }
+
         static void Run(List<string> scans, Options opt)
         {
             logger.Info("Loading scans");
             Mesh[] meshes = new Mesh[scans.Count];
+            double[] pointSizes = new double[scans.Count];
             CoreLimitedParallel.For(0, scans.Count, i =>
             {
                 meshes[i] = LoadScan(scans[i], opt.NormalRadius);
+                pointSizes[i] = ComputeScanDensity(meshes[i]);
             });
+            double averagePointSpacing = pointSizes.Average();
+            logger.Info("Average point spacing: " + averagePointSpacing);
             logger.Info("Merging scans");
             var combined = new Mesh(hasNormals: true);
             combined.MergeWith(meshes);
+                                   
             logger.Info("Generating mesh");
             var mesh = opt.NoMesh ? combined : FSSR.Reconstruct(combined, (float)opt.VertexScale);
-            var roughness = new PointCloudRoughness(mesh, combined);
+            var sub = CloudCompare.Subsample(combined, 5);
+            sub.Save(opt.OutputMesh + ".sub.ply");
+            var roughness = new PointCloudRoughness(mesh, sub);
             logger.Info("Calculating roughness");
-            var rmesh = roughness.CalculateRoughness(opt.NormalRadius, new ProgressReporter<int>(1, i=> logger.Info("Progress: " + i + "%")));
+            var rmesh = roughness.CalculateRoughness(opt.RoughnessRadius, new ProgressReporter<int>(1, i=> logger.Info("Progress: " + i + "%")));
             PLYSerializer.Write(rmesh, opt.OutputMesh, plyWriter: new PointCloudRoughness.RoughnessPlyWriter(true));
         }
 

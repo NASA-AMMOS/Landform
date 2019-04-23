@@ -18,6 +18,7 @@ namespace OPS.Geometry
         public double AverageDistance;
         public double Variance;
         public double Range;
+        public double DistanceFromCenter;
 
 
         public VertexWithRoughness()
@@ -25,22 +26,7 @@ namespace OPS.Geometry
 
         }
 
-        public VertexWithRoughness(List<double> lengthsAlongNormal)
-        { 
-            // compute the average
-            var sum = lengthsAlongNormal.Sum();
-            var n = lengthsAlongNormal.Count;
-            if(n == 0)
-            {
-                return;
-            }
-            var avg = sum / n;
-            var differencesFromAverage = lengthsAlongNormal.Select(x => x - avg).ToArray();
-            this.RMS = MathE.RMS(differencesFromAverage);
-            this.AverageDistance = MathE.Average(differencesFromAverage);
-            this.Variance = MathE.Variance(differencesFromAverage);
-            this.Range = differencesFromAverage.Max() - differencesFromAverage.Min();
-        }
+
 
         /// <summary>
         /// Copy constructor.  Note that you should almost always use Vertex.Clone
@@ -57,6 +43,7 @@ namespace OPS.Geometry
             this.AverageDistance = other.AverageDistance;
             this.Variance = other.Variance;
             this.Range = other.Range;
+            this.DistanceFromCenter = other.DistanceFromCenter;
         }
 
         public override object Clone()
@@ -64,6 +51,197 @@ namespace OPS.Geometry
             return new VertexWithRoughness(this);
         }
 
+    }
+
+
+    class PlaneFit
+    {
+        public Vector3 Centroid;
+        public Vector3 Normal;
+
+        public PlaneFit(Vector3 c, Vector3 n)
+        {
+            Centroid = c;
+            Normal = n;
+        }
+
+        public PlaneFit(IEnumerable<Vector3> points)
+        {
+            var r = FitPlane(points);
+            if (r == null)
+            {
+                return;
+            }
+            this.Centroid = r.Centroid;
+            this.Normal = r.Normal;
+        }
+
+        static PlaneFit FitPlane(IEnumerable<Vector3> points)
+        {
+
+            if (points.Count() < 3)
+            {
+                return null; // At least three points required
+            }
+
+            var sum = new Vector3();
+            foreach (var p in points)
+            {
+                sum += p;
+            }
+            var centroid = sum * (1.0 / points.Count());
+
+            // Calc full 3x3 covariance matrix, excluding symmetries:
+            var xx = 0.0; var xy = 0.0; var xz = 0.0;
+            var yy = 0.0; var yz = 0.0; var zz = 0.0;
+
+            foreach (var p in points)
+            {
+                var r = p - centroid;
+                xx += r.X * r.X;
+                xy += r.X * r.Y;
+                xz += r.X * r.Z;
+                yy += r.Y * r.Y;
+                yz += r.Y * r.Z;
+                zz += r.Z * r.Z;
+            }
+
+            var det_x = yy * zz - yz * yz;
+            var det_y = xx * zz - xz * xz;
+            var det_z = xx * yy - xy * xy;
+
+            var det_max = Math.Max(det_x, Math.Max(det_y, det_z));
+            if (det_max <= 0.0)
+            {
+                return null; // The points don't span a plane
+            }
+
+            // Pick path with best conditioning:
+            var dir = Vector3.Zero;
+            if (det_max == det_x)
+            {
+                dir = new Vector3(det_x, xz * yz - xy * zz, xy * yz - xz * yy);
+
+            }
+            else if (det_max == det_y)
+            {
+                dir = new Vector3(xz * yz - xy * zz, det_y, xy * xz - yz * xx);
+            }
+            else
+            {
+                dir = new Vector3(xy * yz - xz * yy, xy * xz - yz * xx, det_z);
+            }
+
+            return new PlaneFit(centroid, Vector3.Normalize(dir));
+
+        }
+    }
+
+    class PatchPoint
+    {
+        public Vector3 Position;
+        public Vector3 NormalProjectedPosition;
+        public Vector3 PlaneProjectedPoint;
+
+        //public double LengthAlongNormal;
+        public double DistanceFromCenter;
+
+        public PatchPoint(Vector3 position, Patch patch)
+        {
+            this.Position = position;
+            //this.LengthAlongNormal = patch.LengthAlongNormal(this.Position);
+            this.DistanceFromCenter = patch.DistanceFromCenter(position); //this.LengthAlongNormal - patch.LengthAlongNormal(patch.Center);
+            this.NormalProjectedPosition = patch.Center + patch.Normal * DistanceFromCenter;
+            this.PlaneProjectedPoint = Position - patch.Normal * DistanceFromCenter;
+        }
+    }
+
+    class Patch
+    {
+        public Vertex SampleVertex;
+        public Vector3 Center;
+        public Vector3 Normal;
+
+        List<PatchPoint> points = new List<PatchPoint>();
+
+        public Patch(Vertex sampleVertex, IEnumerable<Vertex> verts, bool useSampleNormal = false)
+        {
+            this.SampleVertex = sampleVertex;
+            if (!useSampleNormal)
+            {
+                var plane = new PlaneFit(verts.Select(v => v.Position));
+                this.Center = plane.Centroid;
+                this.Normal = plane.Normal;
+            }
+            else
+            {
+                Center = Vector3.Zero;
+                foreach (var v in verts)
+                {
+                    Center += v.Position;
+                }
+                Center /= verts.Count();
+                Normal = sampleVertex.Normal;
+            }
+            foreach (var v in verts)
+            {
+                AddPoint(v.Position);
+            }
+        }
+
+        public double DistanceFromCenter(Vector3 p)
+        {
+            var planeToPoint = p - this.Center;
+            // See projections: https://math.oregonstate.edu/home/programs/undergrad/CalculusQuestStudyGuides/vcalc/dotprod/dotprod.html
+            return Vector3.Dot(planeToPoint, Normal) / Normal.Length();
+        }
+
+        //public double LengthAlongNormal(Vector3 p)
+        //{
+        //    // See projections: https://math.oregonstate.edu/home/programs/undergrad/CalculusQuestStudyGuides/vcalc/dotprod/dotprod.html
+        //    return Vector3.Dot(p, Normal) / Normal.Length();
+        //}
+
+        public void AddPoint(Vector3 point)
+        {
+            points.Add(new PatchPoint(point, this));
+        }
+
+        public VertexWithRoughness Roughness()
+        {
+            if (points.Count == 0)
+            {
+                return new VertexWithRoughness();
+            }
+            var result = new VertexWithRoughness();
+            result.Position = SampleVertex.Position;
+            result.Normal = SampleVertex.Normal;
+            result.UV = SampleVertex.UV;
+            result.Color = SampleVertex.Color;
+            var distancesFromCenter = points.Select(p => p.DistanceFromCenter).ToList();
+            if (distancesFromCenter.Count != 0)
+            {
+                result.Range = distancesFromCenter.Max() - distancesFromCenter.Min();
+                var absDifferencesFromAverage = distancesFromCenter.Select(x => Math.Abs(x)).ToArray();
+                result.RMS = MathE.RMS(absDifferencesFromAverage);
+                result.AverageDistance = MathE.Average(absDifferencesFromAverage);
+                result.Variance = MathE.Variance(absDifferencesFromAverage);
+                result.DistanceFromCenter = Math.Abs(DistanceFromCenter(SampleVertex.Position));
+            }
+            return result;
+        }
+
+        public Mesh DebugMesh()
+        {
+            Mesh patch = new Mesh(hasNormals: true, hasColors: true);
+            foreach (var p in this.points)
+            {
+                patch.Vertices.Add(new Vertex(p.Position, this.Normal, new Vector4(1, 0, 1, 1)));
+                patch.Vertices.Add(new Vertex(p.NormalProjectedPosition, this.Normal, new Vector4(1, 0, 0, 1)));
+                patch.Vertices.Add(new Vertex(p.PlaneProjectedPoint, this.Normal, new Vector4(0, 1, 0, 1)));
+            }
+            return patch;
+        }
     }
 
     public class PointCloudRoughness
@@ -108,16 +286,23 @@ namespace OPS.Geometry
             const int block = 5000;
             int numBlocks = (result.Vertices.Count / block) + 1;
             int completedBlocks = 0;
-            Parallel.For(0, numBlocks, k =>
+            Serial.For(0, numBlocks, k =>
             {
                 int start = k * block;
                 int end = Math.Min(result.Vertices.Count - 1, start + block);
                 for (int i = start; i <= end; i++)
                 {
-                    result.Vertices[i] = CalculateRoughness(sampleCloud.Vertices[i].Position, distance);
-                    result.Vertices[i].Normal = sampleCloud.Vertices[i].Normal;
-                    result.Vertices[i].UV = sampleCloud.Vertices[i].UV;
-                    result.Vertices[i].Color = sampleCloud.Vertices[i].Color;
+                    result.Vertices[i] = CalculateRoughness(sampleCloud.Vertices[i], distance/*, @"D:\ReconstructionProjects\M2020\QMDT\SampleRock\results\patch3.ply"*/);
+                    //var a = CalculateRoughness(sampleCloud.Vertices[i], distance, true);
+                    //var b = CalculateRoughness(sampleCloud.Vertices[i], distance, false);
+                    //var c = new VertexWithRoughness();
+                    //c.Position = a.Position;
+                    //c.Normal = a.Normal;
+                    //c.RMS = Math.Abs(a.RMS - b.RMS);
+                    //c.AverageDistance = Math.Abs(a.AverageDistance - b.AverageDistance);
+                    //c.Range = Math.Abs(a.Range - b.Range);
+                    //c.Variance = Math.Abs(a.Variance - b.Variance);
+                    //result.Vertices[i] = c;
                 }
                 if(pr != null)
                 {
@@ -130,95 +315,15 @@ namespace OPS.Geometry
             });
             return result;
         }
-                    
-        class PatchPoint
+
+        public VertexWithRoughness CalculateRoughness(Vertex v, double distance, string debugPatchPath = null)
         {
-            public Vector3 Position;
-            //public Vector3 PlaneProjectedPosition;
-            public Vector3 NormalProjectedPosition;
-            public double LengthAlongNormal;
-
-            public PatchPoint(Vector3 position, Patch patch)
-            {
-                this.Position = position;
-                this.LengthAlongNormal = patch.LengthAlongNormal(this.Position);
-                this.NormalProjectedPosition = patch.Center + patch.Normal * (this.LengthAlongNormal - patch.LengthAlongNormal(patch.Center));
-            }
-        }
-
-        class Patch
-        {
-            public Vector3 Center;
-            public Vector3 Normal;
-
-            List<PatchPoint> points = new List<PatchPoint>();
-
-            public Patch(Vector3 patchCenter, Vector3 patchNormal)
-            {
-                Center = patchCenter;
-                Normal = patchNormal;
-            }
-
-            public Patch(Vector3 patchCenter, IEnumerable<Vertex> verts)
-            {
-                Center = patchCenter;
-                Normal = Vector3.Zero;
-                foreach (var v in verts)
-                {
-                    Normal += v.Normal;
-                }
-                Normal /= verts.Count();
-                Normal.Normalize();
-                foreach(var v in verts)
-                {
-                    AddPoint(v.Position);
-                }
-            }
-            
-            public double LengthAlongNormal(Vector3 p)
-            {
-                // See projections: https://math.oregonstate.edu/home/programs/undergrad/CalculusQuestStudyGuides/vcalc/dotprod/dotprod.html
-                return Vector3.Dot(p, Normal) / Normal.Length();
-            }
-
-            public void AddPoint(Vector3 point)
-            {
-                points.Add(new PatchPoint(point, this));
-            }
-
-            public VertexWithRoughness Roughness()
-            {
-                if(points.Count == 0)
-                {
-                    return new VertexWithRoughness();
-                }
-                var result = new VertexWithRoughness(points.Select(p => p.LengthAlongNormal).ToList());
-                result.Position = Center;
-                return result;
-            }
-
-            public Mesh DebugMesh()
-            {                
-                Mesh patch = new Mesh(hasNormals: true, hasColors: true);
-                foreach(var p in this.points)
-                {
-                    patch.Vertices.Add(new Vertex(p.Position, this.Normal, new Vector4(0, 0, 1, 1)));
-                    patch.Vertices.Add(new Vertex(p.NormalProjectedPosition, this.Normal, new Vector4(1, 0, 0, 1)));
-                }
-                return patch;
-            }
-
-        }       
-
-
-        public VertexWithRoughness CalculateRoughness(Vector3 position, double distance, string debugPatchPath = null)
-        {
-            var nn = meshOperator.NearestVerticesStrict(position, distance);
-            var p = new Patch(position, nn);
+            var nn = meshOperator.NearestVerticesStrict(v.Position, distance);
+            var p = new Patch(v, nn);
             if (debugPatchPath != null)
             {
                 p.DebugMesh().Save(debugPatchPath);
-            }
+            }           
             return p.Roughness();
         }
 
@@ -245,7 +350,7 @@ namespace OPS.Geometry
                 sw.WriteLine("property " + NumberFormat + " average_distance");
                 sw.WriteLine("property " + NumberFormat + " variance");
                 sw.WriteLine("property " + NumberFormat + " range");
-
+                sw.WriteLine("property " + NumberFormat + " distance_from_center");
             }
 
             public override void WriteVertex(Mesh m, Vertex v, Stream s)
@@ -258,6 +363,7 @@ namespace OPS.Geometry
                     WriteFloatValue((float)rv.AverageDistance, s);
                     WriteFloatValue((float)rv.Variance, s);
                     WriteFloatValue((float)rv.Range, s);
+                    WriteFloatValue((float)rv.DistanceFromCenter, s);
                 }
                 else
                 {
@@ -265,6 +371,7 @@ namespace OPS.Geometry
                     WriteDoubleValue(rv.AverageDistance, s);
                     WriteDoubleValue(rv.Variance, s);
                     WriteDoubleValue(rv.Range, s);
+                    WriteDoubleValue(rv.DistanceFromCenter, s);
                 }
             }           
         }
