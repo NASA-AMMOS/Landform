@@ -123,7 +123,7 @@ namespace OPS.Pipeline
         [Option(HelpText = "Recompute existing feature matches", Default = false)]
         public bool RedoMatches { get; set; }
 
-        [Option(HelpText = "Search radius for feature matching in meters", Default = 2)]
+        [Option(HelpText = "Search radius for feature matching in meters", Default = 1)]
         public double MatchRadius { get; set; }
 
         [Option(HelpText = "Max descriptor distance ratio", Default = 1)]
@@ -144,10 +144,10 @@ namespace OPS.Pipeline
         [Option(HelpText = "Max RANSAC feature match radius meters", Default = 0.05)]
         public double RansacMatchRadius { get; set; }
 
-        [Option(HelpText = "Min RANSAC feature separation meters", Default = 0.1)]
+        [Option(HelpText = "Min RANSAC feature separation meters", Default = 0.05)]
         public double MinRansacSeparation { get; set; }
 
-        [Option(HelpText = "Min RANSAC good matches", Default = 50)]
+        [Option(HelpText = "Min RANSAC good matches", Default = 25)]
         public int MinRansacMatches { get; set; }
 
         [Option(HelpText = "Max RANSAC good matches", Default = 500)]
