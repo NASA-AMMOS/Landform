@@ -57,8 +57,8 @@ namespace QMDTMesher
             new OpenInventorSerializer().Register();
             new DracoSerializer().Register();
 
-            //Configure gdal
-            GdalConfiguration.ConfigureGdal();
+            //Configure gdal (uncomment below if image load/save is needed)
+            //GdalConfiguration.ConfigureGdal();
 
             Stopwatch sw = new Stopwatch();
             sw.Start();

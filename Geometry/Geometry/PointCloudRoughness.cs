@@ -53,7 +53,12 @@ namespace OPS.Geometry
 
     }
 
-
+    /// <summary>
+    /// This is a class for fitting points to a plane based on
+    /// https://www.ilikebigbits.com/2015_03_04_plane_from_points.html
+    /// There are more robust approaches such as
+    /// https://github.jpl.nasa.gov/MIPL/Vicar_dev/blob/cdbd1036da34dfb5456aeb3dc463ae6e0a097a57/VICAR/mars/src/prog/marsuvw/xyz_to_uvw.cc
+    /// </summary>
     class PlaneFit
     {
         public Vector3 Centroid;
