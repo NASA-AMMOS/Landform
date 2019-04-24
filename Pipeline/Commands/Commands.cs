@@ -39,7 +39,8 @@ namespace OPS.Pipeline
                                                              LocalObservationProductsOptions,
                                                              LocalAgisoftOptions,
                                                              ConfigureCloudOptions,
-                                                             ConfigureLocalOptions
+                                                             ConfigureLocalOptions,
+                                                             DEM2MeshOptions
                                                              >(args)
               .MapResult(
                 (ConvertBaselineMeshOptions opts) => new ConvertBaselineMesh(opts).Run(),
@@ -60,6 +61,7 @@ namespace OPS.Pipeline
                 (LocalAgisoftOptions opts) => new LocalAgisoft(opts).Run(),
                 (ConfigureCloudOptions opts) => new ConfigureCloud(opts).Run(),
                 (ConfigureLocalOptions opts) => new ConfigureLocal(opts).Run(),
+                (DEM2MeshOptions opts) => new DEM2Mesh(opts).Run(),
                 errs => 1);
         }
     }

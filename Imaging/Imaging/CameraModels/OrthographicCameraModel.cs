@@ -47,6 +47,14 @@ namespace OPS.Imaging
             this.extent = new Vector2(metersPerPixel*resolution.X, verticleExtent);
         }
 
+        public OrthographicCameraModel(Matrix transform, double width, double height, double metersPerPixel)
+        {
+            this.transform = transform;
+            this.invertTransform = Matrix.Invert(transform);
+            this.resolution = new Vector2(width, height);
+            this.extent = new Vector2(metersPerPixel * resolution.X, metersPerPixel * resolution.Y);
+        }
+
         /// <summary>
         /// Similar to the other constructor but allows you to control the extent in both the X and Y pixel directions
         /// </summary>
@@ -63,7 +71,14 @@ namespace OPS.Imaging
 
         public override Vector2 Project(Vector3 pos, out double range)
         {
-            throw new NotImplementedException();
+            // Needs validation / review
+            Vector2 metersPerPixel = new Vector2(extent.X / resolution.X, extent.Y / resolution.Y);
+            var offset = Vector3.Transform(pos, this.transform);
+            range = offset.Z;
+            var pixelPos = Vector2.Zero;
+            pixelPos.X = (offset.X / metersPerPixel.X) - 0.5 + (resolution.X / 2);
+            pixelPos.Y = (offset.Y / metersPerPixel.Y) - 0.5 + (resolution.Y / 2);
+            return pixelPos;
         }
 
         public override object Clone()

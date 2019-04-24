@@ -27,7 +27,7 @@ namespace OPS.Pipeline
         public Observation Mask;
         public Observation Texture;
     }
-
+    
     public class Meshing
     {
         /// <summary>
@@ -228,11 +228,14 @@ namespace OPS.Pipeline
         /// </summary>
         public static Image ConvertRNG(Image img, PDSParser parser)
         {
-            parser = parser ?? new PDSParser((PDSMetadata)img.Metadata);
-            CheckType(parser, RoverProductType.Range, "ConvertRange");
-            CheckCameraCenter(parser, img, "ConvertRNG");
             Image ret = new Image(3, img.Width, img.Height);
-            AddMaskForMissingConstant(ret, img, parser);
+            if (img.Metadata.GetType() == typeof(PDSMetadata))
+            {
+                parser = parser ?? new PDSParser((PDSMetadata)img.Metadata);
+                CheckType(parser, RoverProductType.Range, "ConvertRange");
+                CheckCameraCenter(parser, img, "ConvertRNG");
+                AddMaskForMissingConstant(ret, img, parser);
+            }
             for (int row = 0; row < img.Height; row++)
             {
                 for (int col = 0; col < img.Width; col++)
@@ -241,7 +244,7 @@ namespace OPS.Pipeline
                     {
                         ret.SetMaskValue(row, col, true);
                     }
-                    else if (!parser.HasMissingConstant || !ret.IsInvalid(row, col))
+                    else if (parser == null || !parser.HasMissingConstant || !ret.IsInvalid(row, col)) // should this be ((parser == null || !parser.HasMissingConstant) && !ret.IsInvalid(row, col)
                     {
                         Vector3 p = img.CameraModel.Unproject(new Vector2(col, row), img[0, row, col]);
                         ret.SetBandValues(row, col, p.ToFloatArray());
@@ -568,14 +571,14 @@ namespace OPS.Pipeline
         /// build a mesh from the given points and optional normals and mask images
         /// </summary>
         public static Mesh BuildOrganizedMesh(Image points, Image normals = null, Image mask = null,
-                                              double maxTriangleAspect = 10)
+                                              double maxTriangleAspect = 10, bool generateUV = true)
         {
             if (maxTriangleAspect < 1)
             {
                 throw new ArgumentException("max triangle aspect must be >= 1");
             }
 
-            Mesh ret = new Mesh(hasNormals: normals != null);
+            Mesh ret = new Mesh(hasNormals: normals != null, hasUVs: generateUV);
 
             Dictionary<Tuple<int, int>, int> pixelToVert = new Dictionary<Tuple<int, int>, int>();
 
@@ -590,6 +593,10 @@ namespace OPS.Pipeline
                     if (normals != null)
                     {
                         v.Normal = new Vector3(normals[0, r, c], normals[1, r, c], normals[2, r, c]);
+                    }
+                    if (generateUV)
+                    {
+                        v.UV = points.PixelToUV(new Vector2(c, r));  // No half pixel offset should be needed here because the vertex is already projected to a half pixel offset position
                     }
                     ret.Vertices.Add(v);
                 }

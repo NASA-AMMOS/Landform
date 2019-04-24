@@ -169,6 +169,15 @@ namespace OPS.Imaging
             });
         }
 
+        public void ScaleValues(float scalar, bool applyToMaskedValues = true)
+        {
+            ApplyInPlace(v =>
+            {
+                return v * scalar;
+            },
+            applyToMaskedValues);           
+        }
+
         /// <summary>
         /// Linearly scales values in the image from [beforeMin, beforeMax] to [afterMin, afterMax]
         /// Scaling is applied uniformly to all bands of the image.
