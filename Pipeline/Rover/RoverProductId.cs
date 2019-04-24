@@ -196,6 +196,11 @@ namespace OPS.Pipeline
             return id;
         }
 
+        //ROASTT: spacecraft clock not incrementing
+        public string GetConcatenatedTimeString()
+        {
+            return ts0 + "_" + ts1 + "_" + ts2;
+        }
         public override RoverProductProducer Producer
         {
             get
