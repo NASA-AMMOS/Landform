@@ -24,7 +24,7 @@ namespace OPS.Pipeline
             /// NOTE you will get (slightly cryptic) compiler errors if there are more than 16 commands
             return CommandLine.Parser.Default.ParseArguments<ConvertBaselineMeshOptions,
                                                              //PDSImageConverterOptions,
-                                                             ConvertBaselineMeshesOptions,
+                                                             //ConvertBaselineMeshesOptions,
                                                              //TileBaselineMeshOptions,
                                                              TileBaselineMeshesOptions,
                                                              //LegacyToWebVROptions,
@@ -42,11 +42,12 @@ namespace OPS.Pipeline
                                                              ConfigureCloudOptions,
                                                              ConfigureLocalOptions,
                                                              EmtToSceneOptions,
-                                                             LocalBuildMeshesOptions
+                                                             LocalBuildMeshesOptions,
+                                                             FetchDataOptions
                                                              >(args)
               .MapResult(
                 (ConvertBaselineMeshOptions opts) => new ConvertBaselineMesh(opts).Run(),
-                (ConvertBaselineMeshesOptions opts) => new ConvertBaselineMeshes(opts).Run(),
+                //(ConvertBaselineMeshesOptions opts) => new ConvertBaselineMeshes(opts).Run(),
                 (TileBaselineMeshOptions opts) => new TileBaselineMesh(opts).Run(),
                 (TileBaselineMeshesOptions opts) => new TileBaselineMeshes(opts).Run(),
                 //(PDSImageConverterOptions opts) => new PDSImageConverter(opts).Run(),
@@ -66,6 +67,7 @@ namespace OPS.Pipeline
                 (ConfigureLocalOptions opts) => new ConfigureLocal(opts).Run(),
                 (EmtToSceneOptions opts) => new EmtToScene(opts).Run(),
                 (LocalBuildMeshesOptions opts) => new LocalBuildMeshes(opts).Run(),
+                (FetchDataOptions opts) => new FetchData(opts).Run(),
                 errs => 1);
         }
     }

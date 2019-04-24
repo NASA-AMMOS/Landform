@@ -212,6 +212,7 @@
     <Compile Include="Commands\ConfigureCloud.cs" />
     <Compile Include="Commands\ConfigureLocal.cs" />
     <Compile Include="Commands\EmtToScene.cs" />
+    <Compile Include="Commands\FetchData.cs" />
     <Compile Include="Commands\LegacyToTile3D.cs" />
     <Compile Include="Commands\LocalBEVAligner.cs" />
     <Compile Include="Commands\LocalAgisoft.cs" />

@@ -38,7 +38,7 @@ namespace OPS.Pipeline
         /// <summary>
         /// Check if we should even bother reading the header, based on the filename.
         /// </summary>
-        public static bool CheckFilename(string filename)
+        public static bool CheckFilename(string filename, bool forceLinearization = true)
         {
             RoverProductId id = RoverProductId.ParseFromString(filename);
 
@@ -83,7 +83,7 @@ namespace OPS.Pipeline
 
             //ISSUE #353: need to validate that alignment works across cameras with non-linearized images.
             // so not allowing non-aligned images to be used when other aligned images are being used.
-            if (id.Geometry != RoverProductGeometry.Linearized)
+            if (forceLinearization && id.Geometry != RoverProductGeometry.Linearized)
             {
                 return false;
             }
