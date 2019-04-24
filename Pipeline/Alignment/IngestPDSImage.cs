@@ -17,7 +17,7 @@ namespace OPS.Pipeline
         private Project project;
         private bool recreateExistingObservations;
         private bool resetTransforms;
-
+        private Func<PDSParser, string> observationFrameName;
         public delegate bool Filter(string imageUrl, PDSMetadata pdsMetadata, PDSParser pdsParser);
         private Filter filter;
 
@@ -25,7 +25,7 @@ namespace OPS.Pipeline
         public MSLPlaces Places;
         public MSLLegacyManifest LegacyManifest; 
 
-        public IngestPDSImage(PipelineCore pipeline, Project project, bool recreateExistingObservations = false,
+        public IngestPDSImage(PipelineCore pipeline, Project project, Func<PDSParser, string> observationFrameName, bool recreateExistingObservations = false,
                               bool resetTransforms = false, Filter filter = null)
             : base(pipeline)
         {
@@ -33,6 +33,7 @@ namespace OPS.Pipeline
             this.recreateExistingObservations = recreateExistingObservations;
             this.resetTransforms = resetTransforms;
             this.filter = filter;
+            this.observationFrameName = observationFrameName;
         }
 
         /// <summary>
@@ -191,15 +192,7 @@ namespace OPS.Pipeline
             return parser.SiteDrive;
         }
 
-        /// <summary>
-        /// Map metadata to an observation frame name based on RMC
-        /// </summary>
-        /// <param name="parser"></param>
-        /// <returns></returns>
-        public string ObservationFrameName(PDSParser parser)
-        {
-            return parser.Camera.ToString() + "_" + parser.RMC;
-        }
+       
 
         /// <summary>
         /// Map metadata to an observation name based on product id
@@ -299,7 +292,7 @@ namespace OPS.Pipeline
             }
 
             // observation (aka rover) frame -> site drive (aka local level) frame
-            var observationFrame = GetFrame(ObservationFrameName(parser), siteDriveFrame, TransformSource.PDS,
+            var observationFrame = GetFrame(observationFrameName(parser), siteDriveFrame, TransformSource.PDS,
                                             GetObservationTransform(parser));
 
             RoverObservation observation = RoverObservation.Find(pipeline, project.Name, observationName);
