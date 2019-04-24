@@ -77,7 +77,7 @@ namespace OPS.Imaging
             range = offset.Z;
             var pixelPos = Vector2.Zero;
             pixelPos.X = (offset.X / metersPerPixel.X) - 0.5 + (resolution.X / 2);
-            pixelPos.Y = (offset.Y / metersPerPixel.Y) - 0.5 + (resolution.Y / 2);
+            pixelPos.Y = resolution.Y - ((offset.Y / metersPerPixel.Y) + (resolution.Y / 2)) - 0.5;
             return pixelPos;
         }
 
