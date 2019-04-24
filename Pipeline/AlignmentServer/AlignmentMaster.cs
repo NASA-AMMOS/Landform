@@ -82,6 +82,9 @@ namespace OPS.Pipeline.AlignmentServer
 
         [Option(HelpText = "URL to legacy manifest, used to build priors from onsight manifest", Default = null)]
         public string LegacyManifestURL { get; set; }
+
+        [Option(HelpText = "Mission flag enables mission specific behavior", Default = Mission.M2020)]
+        public Mission Mission { get; set; }
     }
 
     //https://github.jpl.nasa.gov/ProtoSpace/ps-pipeline/issues/159
@@ -192,7 +195,7 @@ namespace OPS.Pipeline.AlignmentServer
             //careful here - there can be more than one observation of a given type for a single frame
             //frame name -> observations
             var obsForFrame = new ConcurrentDictionary<string, ConcurrentBag<Observation>>();
-            var ingester = new IngestAlignmentInputs(this, project, options.RedoObservations, options.RedoPriors,
+            var ingester = new IngestAlignmentInputs(this, project, options.Mission, options.RedoObservations, options.RedoPriors,
                                                      options.OnlyForSiteDrives);
 
             MSLLocations locations = null;
