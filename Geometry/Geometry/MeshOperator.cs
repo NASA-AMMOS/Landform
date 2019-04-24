@@ -274,19 +274,37 @@ namespace OPS.Geometry
             return uvFaceTree.Intersects(box.ToRectangle()).Select(x => triangles[x]).ToList();
         }
 
-        public IEnumerable<Vertex> NearestVertices(Vector3 p, double nearestDist)
+        private List<int> NearestVertexIndices(Vector3 p, double nearestDist)
         {
             var min = p - new Vector3(nearestDist);
             var max = p + new Vector3(nearestDist);
-
-            var indices = vertexTree.Intersects(new Rectangle(min.ToFloatArray(), max.ToFloatArray()));
-            return indices.Select(i => this.vertices[i]);
+            return vertexTree.Intersects(new Rectangle(min.ToFloatArray(), max.ToFloatArray()));
         }
 
-        public IEnumerable<Vertex> NearestVerticesStrict(Vector3 p, double nearestDist)
+        public List<Vertex> NearestVertices(Vector3 p, double nearestDist)
         {
-            return NearestVertices(p, nearestDist).Where(x => (x.Position - p).Length() <= nearestDist);
+            var indices = NearestVertexIndices(p, nearestDist);
+            var result = new List<Vertex>(indices.Count);
+            foreach(var i in indices)
+            {
+                result.Add(this.vertices[i]);
+            }
+            return result;
+        }
+
+        public List<Vertex> NearestVerticesStrict(Vector3 p, double nearestDist)
+        {
+            var indices = NearestVertexIndices(p, nearestDist);
+            var result = new List<Vertex>(indices.Count);
+            double nearestDistSq = nearestDist * nearestDist;
+            foreach (var i in indices)
+            {
+                if ((this.vertices[i].Position - p).LengthSquared() <= nearestDistSq)
+                {
+                    result.Add(this.vertices[i]);
+                }
+            }
+            return result;
         }
     }
-
 }

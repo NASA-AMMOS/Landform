@@ -65,7 +65,7 @@ namespace OPS.Geometry
             Normal = n;
         }
 
-        public PlaneFit(IEnumerable<Vector3> points)
+        public PlaneFit(List<Vertex> points)
         {
             var r = FitPlane(points);
             if (r == null)
@@ -76,10 +76,10 @@ namespace OPS.Geometry
             this.Normal = r.Normal;
         }
 
-        static PlaneFit FitPlane(IEnumerable<Vector3> points)
+        static PlaneFit FitPlane(List<Vertex> points)
         {
 
-            if (points.Count() < 3)
+            if (points.Count < 3)
             {
                 return null; // At least three points required
             }
@@ -87,7 +87,7 @@ namespace OPS.Geometry
             var sum = new Vector3();
             foreach (var p in points)
             {
-                sum += p;
+                sum += p.Position;
             }
             var centroid = sum * (1.0 / points.Count());
 
@@ -97,7 +97,7 @@ namespace OPS.Geometry
 
             foreach (var p in points)
             {
-                var r = p - centroid;
+                var r = p.Position - centroid;
                 xx += r.X * r.X;
                 xy += r.X * r.Y;
                 xz += r.X * r.Z;
@@ -133,7 +133,6 @@ namespace OPS.Geometry
             }
 
             return new PlaneFit(centroid, Vector3.Normalize(dir));
-
         }
     }
 
@@ -162,12 +161,12 @@ namespace OPS.Geometry
 
         List<PatchPoint> points = new List<PatchPoint>();
 
-        public Patch(Vertex sampleVertex, IEnumerable<Vertex> verts, bool useSampleNormal = false)
+        public Patch(Vertex sampleVertex, List<Vertex> verts, bool useSampleNormal = false)
         {
             this.SampleVertex = sampleVertex;
             if (!useSampleNormal)
             {
-                var plane = new PlaneFit(verts.Select(v => v.Position));
+                var plane = new PlaneFit(verts);
                 this.Center = plane.Centroid;
                 this.Normal = plane.Normal;
             }
@@ -178,12 +177,12 @@ namespace OPS.Geometry
                 {
                     Center += v.Position;
                 }
-                Center /= verts.Count();
+                Center /= verts.Count;
                 Normal = sampleVertex.Normal;
             }
             foreach (var v in verts)
             {
-                AddPoint(v.Position);
+                points.Add(new PatchPoint(v.Position, this));
             }
         }
 
@@ -194,13 +193,9 @@ namespace OPS.Geometry
             return Vector3.Dot(planeToPoint, Normal) / Normal.Length();
         }
 
-        public void AddPoint(Vector3 point)
-        {
-            points.Add(new PatchPoint(point, this));
-        }
-
         public VertexWithRoughness Roughness()
         {
+            ///This method is an inner loop method so it avoids linq queries such as ToArray() Select() Max() and Min()
             if (points.Count == 0)
             {
                 return new VertexWithRoughness();
@@ -210,14 +205,30 @@ namespace OPS.Geometry
             result.Normal = SampleVertex.Normal;
             result.UV = SampleVertex.UV;
             result.Color = SampleVertex.Color;
-            var distancesFromCenter = points.Select(p => p.DistanceFromCenter).ToArray();
+            double[] distancesFromCenter = new double[points.Count];
+            var max = double.MinValue;
+            var min = double.MaxValue;
+            for(int i = 0; i < distancesFromCenter.Length; i++)
+            {
+                var d = points[i].DistanceFromCenter;
+                distancesFromCenter[i] = d;
+                max = Math.Max(max, d);
+                min = Math.Min(min, d);
+
+            }
+            //var distancesFromCenter = points.Select(p => p.DistanceFromCenter).ToArray();
             if (distancesFromCenter.Length != 0)
             {
-                result.Range = distancesFromCenter.Max() - distancesFromCenter.Min();
-                var absDifferencesFromAverage = distancesFromCenter.Select(x => Math.Abs(x)).ToArray();
-                result.RMS = MathE.RMS(absDifferencesFromAverage);
-                result.AverageDistance = MathE.Average(absDifferencesFromAverage);
+                // Compute all values that require signed distances
+                result.Range = max - min;
                 result.Variance = MathE.Variance(distancesFromCenter);
+                // Convert distances to absolute value and compute unsigned distance values
+                for(int i = 0; i < distancesFromCenter.Length; i++)
+                {
+                    distancesFromCenter[i] = Math.Abs(distancesFromCenter[i]);
+                }
+                result.RMS = MathE.RMS(distancesFromCenter);
+                result.AverageDistance = MathE.Average(distancesFromCenter);
                 result.DistanceFromCenter = Math.Abs(DistanceFromCenter(SampleVertex.Position));
             }
             return result;

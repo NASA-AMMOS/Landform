@@ -30,7 +30,7 @@ namespace QMDTMesher
             [Option("vertex-scale", Default = 1, Required = false, HelpText = "Size of each vertex to use when generating mesh")]
             public double VertexScale { get; set; }
 
-            [Option("nomesh", Default = false, Required = false, HelpText = "If set the input point cloud won't be meshed")]
+            [Option("no-mesh", Default = false, Required = false, HelpText = "If set the input point cloud won't be meshed")]
             public bool NoMesh { get; set; }
 
             [Option("debug-output", Default = false, Required = false, HelpText = "Create a set of debug patches")]
@@ -163,15 +163,24 @@ namespace QMDTMesher
             logger.Info("Initilizing datastructures");
             var roughness = new PointCloudRoughness(mesh, dataCloud);
             var avgPointsPerPatch = roughness.EstimatedPointsPerPatch(opt.RoughnessRadius);
-            logger.Info("Estimated points per patch: " + Math.Round(avgPointsPerPatch.Mean) + " (" + Math.Round(avgPointsPerPatch.StandardDeviation) + ")");
+            logger.Info("Estimated points per patch: " + Math.Round(avgPointsPerPatch.Mean) + " (+-" + Math.Round(avgPointsPerPatch.StandardDeviation) + ")");
             if(opt.DebugOutput)
             {
                 logger.Info("Writing debug patches");
                 Random r = new Random(17);
                 for(int i = 0; i < 10; i++)
                 {
-                    int vertIndex = r.Next(0, dataCloud.Vertices.Count - 1);
-                    roughness.CalculateRoughness(dataCloud.Vertices[vertIndex], opt.RoughnessRadius, opt.OutputMesh + ".patch." + i + ".ply");
+                    int vertIndex = r.Next(0, combined.Vertices.Count - 1);
+                    var rn = roughness.CalculateRoughness(combined.Vertices[vertIndex], opt.RoughnessRadius, opt.OutputMesh + ".patch." + i + ".ply");
+                    logger.Info("Patch:        " + i);
+                    logger.Info("Position:     " + rn.Position);
+                    logger.Info("Normal:       " + rn.Normal);
+                    logger.Info("RMS:          " + rn.RMS);
+                    logger.Info("Average Dist: " + rn.AverageDistance);
+                    logger.Info("Variance:     " + rn.Variance);
+                    logger.Info("Range:        " + rn.Range);
+                    logger.Info("Center Dist:  " + rn.DistanceFromCenter);
+                    logger.Info("-----------------------");
                 }
             }
             logger.Info("Calculating roughness");
@@ -210,20 +219,15 @@ namespace QMDTMesher
         {
             var m = Mesh.Load(filename);
             m.RemoveDuplicateVertices();
-            //m = CloudCompare.SORCleaning(m, 6, 1);
-            //ComputeCameraPosEstimate(EstimateCameraPos(m)).Save(@"D:\ReconstructionProjects\M2020\QMDT\SampleRock\camera.ply");
             m = ComputeNormals(m, normalRadius);
-            //m.Save(@"D:\ReconstructionProjects\M2020\QMDT\SampleRock\test.ply");
             return m;
         }
 
         static Mesh ComputeNormals(Mesh m, double normalRadius)
         {
-            //var mwn = MeshLab.ComputeNormals(m);
             var mwn = CloudCompare.GenerateNormals(m, normalRadius);
             mwn.FlipNormalsTowardPoint(EstimateCameraPos(m));
             mwn.RemoveZeroLengthNormals();
-            //mwn = CloudCompare.OrientNormals(mwn, 10);
             return mwn;
         }
 
