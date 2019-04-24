@@ -10,7 +10,7 @@ using Microsoft.Xna.Framework;
 using OPS.Geometry;
 using OPS.Util;
 using OPS.MathExtensions;
-using Supercluster.KDTree;
+using System.Diagnostics;
 
 namespace QMDTMesher
 {
@@ -21,17 +21,23 @@ namespace QMDTMesher
 
         public class Options
         {
+            [Option("roughness-radius", Default = 13.25, Required = false, HelpText = "Radius to use when selecting nearby points to compute roughness")]
+            public double RoughnessRadius { get; set; }
+
             [Option("normal-radius", Default = 13.25, Required = false, HelpText = "Radius to use when generating normals for meshing")]
             public double NormalRadius { get; set; }
-
-            [Option("roughness-radius", Default = 25, Required = false, HelpText = "Radius to use when selecting nearby points to compute roughness")]
-            public double RoughnessRadius { get; set; }
 
             [Option("vertex-scale", Default = 1, Required = false, HelpText = "Size of each vertex to use when generating mesh")]
             public double VertexScale { get; set; }
 
             [Option("nomesh", Default = false, Required = false, HelpText = "If set the input point cloud won't be meshed")]
             public bool NoMesh { get; set; }
+
+            [Option("debug-output", Default = false, Required = false, HelpText = "Create a set of debug patches")]
+            public bool DebugOutput { get; set; }
+
+            [Option("subsample", Default = 0, Required = false, HelpText = "Subsample the data cloud at this spacing before computing roughness")]
+            public double Subsample { get; set; }
 
             [Value(0, Required = true, HelpText = "Output mesh")]
             public string OutputMesh { get; set; }
@@ -54,10 +60,13 @@ namespace QMDTMesher
             //Configure gdal
             GdalConfiguration.ConfigureGdal();
 
-
+            Stopwatch sw = new Stopwatch();
+            sw.Start();
             Parser.Default.ParseArguments<Options>(args)
                    .WithParsed<Options>(opt =>
                    {
+                       var area = opt.RoughnessRadius * opt.RoughnessRadius * Math.PI;
+
                        List<string> scans = new List<string>();
                        foreach (var f in opt.ScanFiles)
                        {
@@ -72,50 +81,44 @@ namespace QMDTMesher
                                scans.Add(f);
                            }
                        }
-
-                       logger.Info("Generating mesh from scans:");
+                       if(opt.OutputMesh.ToUpper() == "AUTO")
+                       {
+                           var prefix = CommonPrefix(scans);
+                           var outputDir = Path.Combine(Path.GetDirectoryName(prefix), "output");
+                           opt.OutputMesh = Path.Combine(outputDir, string.Format("{0}{1}_R{2}mm_SUB{3}mm.ply", Path.GetFileName(prefix), opt.NoMesh ? "POINTS" : "MESH", opt.RoughnessRadius, opt.Subsample));
+                       }
+                       PathHelper.EnsureExists(Path.GetDirectoryName(opt.OutputMesh));
+                       logger.Info("roughness-radius: " + opt.RoughnessRadius + " (area = " + Math.Round(area, 2) + ")");
+                       logger.Info("normal-radius:    " + opt.NormalRadius);
+                       logger.Info("vertex-scale:     " + opt.VertexScale);
+                       logger.Info("subsample:        " + (opt.Subsample == 0 ? "NA" : opt.Subsample.ToString()));
+                       logger.Info("output:           " + opt.OutputMesh);
+                       logger.Info("inputs:");
                        foreach (var s in scans)
                        {
-                           logger.Info(s);
-                       }
-                       logger.Info("normal-radius:    " + opt.NormalRadius);
-                       logger.Info("roughness-radius: " + opt.RoughnessRadius);
-                       logger.Info("vertex-scale:     " + opt.VertexScale);
+                           logger.Info("    " + Path.GetFileName(s));
+                       }                       
                        Run(scans, opt);
                    });
+            sw.Stop();
+            logger.Info("Total execution time: " + sw.Elapsed);
         }
 
 
-        class VertexKDTree
+        static string CommonPrefix(IEnumerable<string> values)
         {
-
-            KDTree<double, Vertex> tree;
-
-
-            public VertexKDTree(IEnumerable<Vertex> verts)
-            {
-                tree = new KDTree<double, Vertex>(3, verts.Select(v => v.Position.ToDoubleArray()).ToArray(), verts.ToArray(), DistSqrd);
-            }
-
-            static double DistSqrd(double[] a, double[] b)
-            {
-                return Vector3.DistanceSquared(new Vector3(a), new Vector3(b));
-            }
-
-            public IEnumerable<Vertex> Nearest(Vector3 p, int n)
-            {
-                var tt = tree.NearestNeighbors(p.ToDoubleArray(), n);
-                return tt.Select(tup => tup.Item2);
-            }
+            return new string(values.First().Substring(0, values.Min(s => s.Length))
+                              .TakeWhile((c, i) => values.All(s => s[i] == c)).ToArray());
         }
+
 
         static double ComputeScanDensity(Mesh m)
-        {
+        {            
             VertexKDTree kd = new VertexKDTree(m.Vertices);
             RunningAverage ra = new RunningAverage();
             foreach (var v in m.Vertices)
             {
-                foreach (var n in kd.Nearest(v.Position, 5))
+                foreach (var n in kd.NearestNeighbors(v.Position, 5))
                 {
                     ra.Push(Vector3.Distance(n.Position, v.Position));
                 }
@@ -138,18 +141,70 @@ namespace QMDTMesher
             logger.Info("Merging scans");
             var combined = new Mesh(hasNormals: true);
             combined.MergeWith(meshes);
-                                   
-            logger.Info("Generating mesh");
-            var mesh = opt.NoMesh ? combined : FSSR.Reconstruct(combined, (float)opt.VertexScale);
-            var sub = CloudCompare.Subsample(combined, 5);
-            sub.Save(opt.OutputMesh + ".sub.ply");
-            var roughness = new PointCloudRoughness(mesh, sub);
+
+            //Benchmark(combined);
+
+            var mesh = combined;
+            if (!opt.NoMesh)
+            {
+                logger.Info("Generating mesh");
+                mesh = FSSR.Reconstruct(combined, (float)opt.VertexScale);
+            }
+            var dataCloud = combined;
+            if(opt.Subsample != 0)
+            {
+                logger.Info("Subsampling data cloud");
+                dataCloud = CloudCompare.Subsample(combined, (float)opt.Subsample);
+                if(opt.DebugOutput)
+                {
+                    dataCloud.Save(opt.OutputMesh + ".subsampled.ply");
+                }
+            }
+            logger.Info("Initilizing datastructures");
+            var roughness = new PointCloudRoughness(mesh, dataCloud);
+            var avgPointsPerPatch = roughness.EstimatedPointsPerPatch(opt.RoughnessRadius);
+            logger.Info("Estimated points per patch: " + Math.Round(avgPointsPerPatch.Mean) + " (" + Math.Round(avgPointsPerPatch.StandardDeviation) + ")");
+            if(opt.DebugOutput)
+            {
+                logger.Info("Writing debug patches");
+                Random r = new Random(17);
+                for(int i = 0; i < 10; i++)
+                {
+                    int vertIndex = r.Next(0, dataCloud.Vertices.Count - 1);
+                    roughness.CalculateRoughness(dataCloud.Vertices[vertIndex], opt.RoughnessRadius, opt.OutputMesh + ".patch." + i + ".ply");
+                }
+            }
             logger.Info("Calculating roughness");
             var rmesh = roughness.CalculateRoughness(opt.RoughnessRadius, new ProgressReporter<int>(1, i=> logger.Info("Progress: " + i + "%")));
             PLYSerializer.Write(rmesh, opt.OutputMesh, plyWriter: new PointCloudRoughness.RoughnessPlyWriter(true));
         }
 
 
+        static void Benchmark(Mesh m, int iterations = 1000)
+        { 
+            logger.Info("Benchmark");
+            logger.Info("Creating MO");
+            var mo = new MeshOperator(m, buildFaceTree: false, buildVertexTree: true, buildUVFaceTree: false);
+            logger.Info("Creating KD");
+            var kd = new VertexKDTree(m.Vertices);
+            logger.Info("Starting Queries");
+            Stopwatch sw = new Stopwatch();
+            sw.Start();
+            for(int i = 0; i < iterations; i++)
+            {
+                mo.NearestVerticesStrict(m.Vertices[0].Position, 20).ToArray();
+            }
+            sw.Stop();
+            logger.Info("MeshOp " + sw.Elapsed);
+            sw.Reset();
+            sw.Start();
+            for (int i = 0; i < iterations; i++)
+            {
+                kd.NearestDistance(m.Vertices[0].Position, 20).ToArray();
+            }
+            sw.Stop();
+            logger.Info("KDTree " + sw.Elapsed);
+        }
 
         static Mesh LoadScan(string filename, double normalRadius)
         {

@@ -97,6 +97,7 @@
     <Compile Include="Geometry\UncertainRigidTransform.cs" />
     <Compile Include="Geometry\Vertex.cs" />
     <Compile Include="Geometry\QuadricEdgeCollapse\VertexNode.cs" />
+    <Compile Include="Geometry\VertexKDTree.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Scene\NodeBounds.cs" />
     <Compile Include="Scene\NodeImage.cs" />

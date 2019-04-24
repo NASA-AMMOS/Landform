@@ -143,14 +143,12 @@ namespace OPS.Geometry
         public Vector3 NormalProjectedPosition;
         public Vector3 PlaneProjectedPoint;
 
-        //public double LengthAlongNormal;
         public double DistanceFromCenter;
 
         public PatchPoint(Vector3 position, Patch patch)
         {
             this.Position = position;
-            //this.LengthAlongNormal = patch.LengthAlongNormal(this.Position);
-            this.DistanceFromCenter = patch.DistanceFromCenter(position); //this.LengthAlongNormal - patch.LengthAlongNormal(patch.Center);
+            this.DistanceFromCenter = patch.DistanceFromCenter(position); 
             this.NormalProjectedPosition = patch.Center + patch.Normal * DistanceFromCenter;
             this.PlaneProjectedPoint = Position - patch.Normal * DistanceFromCenter;
         }
@@ -196,12 +194,6 @@ namespace OPS.Geometry
             return Vector3.Dot(planeToPoint, Normal) / Normal.Length();
         }
 
-        //public double LengthAlongNormal(Vector3 p)
-        //{
-        //    // See projections: https://math.oregonstate.edu/home/programs/undergrad/CalculusQuestStudyGuides/vcalc/dotprod/dotprod.html
-        //    return Vector3.Dot(p, Normal) / Normal.Length();
-        //}
-
         public void AddPoint(Vector3 point)
         {
             points.Add(new PatchPoint(point, this));
@@ -218,14 +210,14 @@ namespace OPS.Geometry
             result.Normal = SampleVertex.Normal;
             result.UV = SampleVertex.UV;
             result.Color = SampleVertex.Color;
-            var distancesFromCenter = points.Select(p => p.DistanceFromCenter).ToList();
-            if (distancesFromCenter.Count != 0)
+            var distancesFromCenter = points.Select(p => p.DistanceFromCenter).ToArray();
+            if (distancesFromCenter.Length != 0)
             {
                 result.Range = distancesFromCenter.Max() - distancesFromCenter.Min();
                 var absDifferencesFromAverage = distancesFromCenter.Select(x => Math.Abs(x)).ToArray();
                 result.RMS = MathE.RMS(absDifferencesFromAverage);
                 result.AverageDistance = MathE.Average(absDifferencesFromAverage);
-                result.Variance = MathE.Variance(absDifferencesFromAverage);
+                result.Variance = MathE.Variance(distancesFromCenter);
                 result.DistanceFromCenter = Math.Abs(DistanceFromCenter(SampleVertex.Position));
             }
             return result;
@@ -281,28 +273,16 @@ namespace OPS.Geometry
         {
 
             Mesh result = new Mesh(sampleCloud);
-            VertexWithRoughness[] roughness = new VertexWithRoughness[sampleCloud.Vertices.Count];
-            
             const int block = 5000;
             int numBlocks = (result.Vertices.Count / block) + 1;
             int completedBlocks = 0;
-            Serial.For(0, numBlocks, k =>
+            CoreLimitedParallel.For(0, numBlocks, k =>
             {
                 int start = k * block;
                 int end = Math.Min(result.Vertices.Count - 1, start + block);
                 for (int i = start; i <= end; i++)
                 {
-                    result.Vertices[i] = CalculateRoughness(sampleCloud.Vertices[i], distance/*, @"D:\ReconstructionProjects\M2020\QMDT\SampleRock\results\patch3.ply"*/);
-                    //var a = CalculateRoughness(sampleCloud.Vertices[i], distance, true);
-                    //var b = CalculateRoughness(sampleCloud.Vertices[i], distance, false);
-                    //var c = new VertexWithRoughness();
-                    //c.Position = a.Position;
-                    //c.Normal = a.Normal;
-                    //c.RMS = Math.Abs(a.RMS - b.RMS);
-                    //c.AverageDistance = Math.Abs(a.AverageDistance - b.AverageDistance);
-                    //c.Range = Math.Abs(a.Range - b.Range);
-                    //c.Variance = Math.Abs(a.Variance - b.Variance);
-                    //result.Vertices[i] = c;
+                    result.Vertices[i] = CalculateRoughness(sampleCloud.Vertices[i], distance);
                 }
                 if(pr != null)
                 {
@@ -327,6 +307,18 @@ namespace OPS.Geometry
             return p.Roughness();
         }
 
+        public RunningAverage EstimatedPointsPerPatch(double distance, int samples = 1000)
+        {
+            var avg = new RunningAverage();
+            Random r = new Random(17);
+            for(int i = 0; i < samples; i++)
+            {
+                var index =  r.Next(0, sampleCloud.Vertices.Count - 1);
+                var nn = meshOperator.NearestVerticesStrict(sampleCloud.Vertices[index].Position, distance);
+                avg.Push(nn.Count());
+            }
+            return avg;
+        }
 
         /// <summary>
         //  public double RMS;
