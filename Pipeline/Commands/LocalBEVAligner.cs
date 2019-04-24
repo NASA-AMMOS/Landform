@@ -428,12 +428,15 @@ namespace OPS.Pipeline
                 double startSec = UTCTime.Now();
                 int np = 0, nc = 0;
                 CoreLimitedParallel.ForEach(bevs, pair => {
+
                         Interlocked.Increment(ref np);
+
                         if (!options.NoProgress)
                         {
                             pipeline.LogInfo("saving {0} birds eye view images in parallel, completed {1}/{2}",
                                              np, nc, bevs.Count);
                         }
+
                         var siteDrive = pair.Key;
                         var bev = pair.Value;
                         if (!options.StretchContrast && options.BEVColoring == BirdsEyeViewing.ColorMode.Elevation)
@@ -442,6 +445,8 @@ namespace OPS.Pipeline
                             bev.ScaleValues((float)min, (float)max, 0, 1);
                         }
                         bev.Save<byte>(outputPath + siteDrive + "_BirdsEyeView" + imageExt);
+
+                        Interlocked.Decrement(ref np);
                         Interlocked.Increment(ref nc);
                     });
                 pipeline.LogInfo("saved {0} birds eye view images ({1:F3}s)", bevs.Count, UTCTime.Now() - startSec);
@@ -756,6 +761,7 @@ namespace OPS.Pipeline
                             DrawOrigin(img, pixel, color);
                         }
                         img.ToOPSImage().Save<byte>(outputPath + siteDrive + "_BirdsEyeView_Features" + imageExt);
+                        Interlocked.Decrement(ref np);
                         Interlocked.Increment(ref nc);
                     });
                 pipeline.LogInfo("saved {0} birds eye view feature images ({1:F3}s)", siteDrives.Length,
@@ -1091,8 +1097,9 @@ namespace OPS.Pipeline
                 maxTests = options.MaxRansacTests;
             }
 
-            pipeline.LogInfo("RANSACing {0} feature pairs for {1}", maxTests, pair);
+            pipeline.LogInfo("RANSACing {0} match pairs for {1}", maxTests, pair);
             int nt;
+            int maxMatches = 0;
             for (nt = 0; nt < maxTests; nt++)
             {
                 Tuple<int, int> seeds = null;
@@ -1159,6 +1166,8 @@ namespace OPS.Pipeline
                     }
                 }
 
+                maxMatches = Math.Max(maxMatches, tmpMatches.Count);
+
                 if (tmpMatches.Count < options.MinRansacMatches)
                 {
                     continue;
@@ -1224,12 +1233,15 @@ namespace OPS.Pipeline
             ransacMatches[pair] = bestMatches.Select(m => matchArray[m]).ToArray();
 
             nm = bestMatches.Count;
-            pipeline.LogInfo("performed {0}/{1} ransac tests for {2} ({3} total combinations), best transform " +
-                             "({4:F3}m, {5:F3}m, {6:F3}deg), residual {7:F3}m, {8} matches ({9:F3}s)",
-                             nt, maxTests, pair, totalCombinations,
-                             bestTransform.Translation.X * MetersPerPixel, bestTransform.Translation.Y * MetersPerPixel,
-                             MathHelper.ToDegrees(bestTransform.Rotation), bestResidual * MetersPerPixel,
-                             nm, UTCTime.Now() - startSec);
+            var msg =
+                nm > 0 ? string.Format(", best transform ({0:F3}m, {1:F3}m, {2:F3}deg), residual {3:F3}m, {4} matches",
+                                       bestTransform.Translation.X * MetersPerPixel,
+                                       bestTransform.Translation.Y * MetersPerPixel,
+                                       MathHelper.ToDegrees(bestTransform.Rotation),
+                                       bestResidual * MetersPerPixel, nm)
+                : "";
+            pipeline.LogInfo("performed {0}/{1} ransac tests for {2} ({3} combinations), max matches {4}{5} ({6:F3}s)",
+                             nt, maxTests, pair, totalCombinations, maxMatches, msg, UTCTime.Now() - startSec);
             return nm;
         }
 
@@ -1396,8 +1408,9 @@ namespace OPS.Pipeline
                         ImageMatching
                         .MakeMatchMesh(spatialMatches[pairName].Select(p => p.ModelPoint).ToArray(),
                                        spatialMatches[pairName].Select(p => p.DataPoint).ToArray())
-                        .Save(outputPath + pair + "_matches" + meshExt);
+                        .Save(outputPath + pairName + "_matches" + meshExt);
 
+                        Interlocked.Decrement(ref np);
                         Interlocked.Increment(ref nc);
                     });
                 pipeline.LogInfo("saved {0} birds eye view match image/meshes ({1:F3}s)", siteDrivePairs.Count,
