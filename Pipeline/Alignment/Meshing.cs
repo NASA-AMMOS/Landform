@@ -367,7 +367,7 @@ namespace OPS.Pipeline
         {
             parser = parser ?? new PDSParser((PDSMetadata)img.Metadata);
             CheckType(parser, RoverProductType.XYZ, "GenerateConfidenceFromXYZ");
-            Vector3 c = CheckCameraCenter(img, "GenerateConfidenceFromXYZ");
+            Vector3 c = CheckCameraCenter(img, "GenerateConfidenceFromXYZ", false);
             Matrix xform = RoverCoordinateSystem.GetTransformToRoverFrame(parser);
             Image ret = new Image(1, img.Width, img.Height);
             AddMaskForMissingConstant(ret, img, parser);
