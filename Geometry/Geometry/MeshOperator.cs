@@ -31,18 +31,6 @@ namespace OPS.Geometry
         List<Triangle> triangles;
         List<Vertex> vertices;
 
-        /// <summary>
-        /// Returns a copy of the vertices to ensure read-only
-        /// This method will be slow if used in an inner loop so be sure to store the result
-        /// or use CountVertices if you only need to know the total number
-        /// Use CountVertices 
-        /// </summary>
-        /// <returns></returns>
-        public List<Vertex> GetVertices()
-        {            
-            return new List<Vertex>(vertices);            
-        }
-
         public int CountVertices()
         {
             return vertices.Count;

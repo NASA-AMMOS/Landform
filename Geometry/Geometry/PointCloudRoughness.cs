@@ -325,8 +325,8 @@ namespace OPS.Geometry
 
         public RunningAverage EstimatedPointsPerPatch(double distance, int samples = 1000)
         {
-            var avg = new RunningAverage();
-            Random r = new Random(17);
+            var avg = new RunningAverage();            
+            Random r = NumberHelper.MakeRandomGenerator();
             for(int i = 0; i < samples; i++)
             {
                 var index =  r.Next(0, sampleCloud.Vertices.Count - 1);

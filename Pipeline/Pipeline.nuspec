@@ -4,7 +4,7 @@
     <id>JPL.Landform</id>
     <version>$version$-alpha</version>
     <title>$title$</title>
-    <authors>Alexander Menzies, Charley Goddard, Marty Vona, Bob Crocco, and Thomas Schibler</authors>
+    <authors>Alexander Menzies, Charley Goddard, Marsette Vona, Bob Crocco, and Thomas Schibler</authors>
     <owners>Alexander Menzies</owners>
     <projectUrl>https://github.jpl.nasa.gov/OnSight/Landform</projectUrl>
     <requireLicenseAcceptance>false</requireLicenseAcceptance>
