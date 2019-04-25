@@ -1,9 +1,13 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using log4net;
 using Microsoft.Xna.Framework;
+using OPS.MathExtensions;
+using OPS.Util;
 using Supercluster.KDTree;
 
 namespace OPS.Geometry
@@ -16,8 +20,11 @@ namespace OPS.Geometry
     public class VertexKDTree
     {
         KDTree<double, Vertex> tree;
-        public VertexKDTree(IEnumerable<Vertex> verts)
+        List<Vertex> verts;
+
+        public VertexKDTree(List<Vertex> verts)
         {
+            this.verts = verts;
             tree = new KDTree<double, Vertex>(3, verts.Select(v => v.Position.ToDoubleArray()).ToArray(), verts.ToArray(), DistSqrd);
         }
 
@@ -48,6 +55,84 @@ namespace OPS.Geometry
         {
             var tt = tree.RadialSearch(p.ToDoubleArray(), distance*distance, n);
             return tt.Select(tup => tup.Item2);
-        }        
+        }
+
+        /// <summary>
+        /// Estimates the density of a mesh (i.e. distance from each vertex to its neighbors)
+        /// </summary>
+        /// <param name="neighborsPerSample">Number of nearest neighbors to consider</param>
+        /// <param name="samples">Number of random samples to use (if 0 compute the average using all vertices)</param>
+        /// <returns></returns>
+        public RunningAverage Density(int neighborsPerSample = 5, int samples=0)
+        {
+            RunningAverage ra = new RunningAverage();
+            if(samples == 0)
+            {
+                foreach (var v in verts)
+                {
+                    foreach (var n in NearestNeighbors(v.Position, neighborsPerSample))
+                    {
+                        ra.Push(Vector3.Distance(n.Position, v.Position));
+                    }
+                }
+            }
+            else
+            {
+                Random r = NumberHelper.MakeRandomGenerator();
+                for(int i = 0; i < samples; i++)
+                {
+                    var v = verts[r.Next(0, verts.Count -1)];
+                    foreach (var n in NearestNeighbors(v.Position, neighborsPerSample))
+                    {
+                        ra.Push(Vector3.Distance(n.Position, v.Position));
+                    }
+                }
+            }
+            return ra;
+        }
+
+        /// <summary>
+        /// Similar to Density but tries to provide the result as a single number by combining the mean and standard deviation
+        /// </summary>
+        /// <param name="neighborsPerSample"></param>
+        /// <param name="samples"></param>
+        /// <returns></returns>
+        public double AverageDensity(int neighborsPerSample = 5, int samples = 0)
+        {
+            var ra = Density(neighborsPerSample, samples);
+            return ra.Mean + ra.StandardDeviation / 2;
+        }
+
+        /// <summary>
+        /// Debug method for benchmarking KD tree against Mesh operator
+        /// </summary>
+        /// <param name="m"></param>
+        /// <param name="iterations"></param>
+        /// <param name="logger"></param>
+        static void Benchmark(Mesh m, ILog logger, int iterations = 1000)
+        {
+            logger.Info("Benchmark");
+            logger.Info("Creating MO");
+            var mo = new MeshOperator(m, buildFaceTree: false, buildVertexTree: true, buildUVFaceTree: false);
+            logger.Info("Creating KD");
+            var kd = new VertexKDTree(m.Vertices);
+            logger.Info("Starting Queries");
+            Stopwatch sw = new Stopwatch();
+            sw.Start();
+            for (int i = 0; i < iterations; i++)
+            {
+                mo.NearestVerticesStrict(m.Vertices[0].Position, 20).ToArray();
+            }
+            sw.Stop();
+            logger.Info("MeshOp " + sw.Elapsed);
+            sw.Reset();
+            sw.Start();
+            for (int i = 0; i < iterations; i++)
+            {
+                kd.NearestDistance(m.Vertices[0].Position, 20).ToArray();
+            }
+            sw.Stop();
+            logger.Info("KDTree " + sw.Elapsed);
+        }
     }
 }

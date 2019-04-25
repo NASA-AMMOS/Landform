@@ -18,7 +18,6 @@ namespace QMDTMesher
     {
         static ILog logger = LogManager.GetLogger(typeof(QMDTMesher));
 
-
         public class Options
         {
             [Option("roughness-radius", Default = 13.25, Required = false, HelpText = "Radius to use when selecting nearby points to compute roughness")]
@@ -35,6 +34,9 @@ namespace QMDTMesher
 
             [Option("debug-output", Default = false, Required = false, HelpText = "Create a set of debug patches")]
             public bool DebugOutput { get; set; }
+            
+            [Option("camera-distance", Default = 2000, Required = false, HelpText = "Distance from the origin to use when estimating camera positin")]
+            public int CameraDistance { get; set; }
 
             [Option("subsample", Default = 0, Required = false, HelpText = "Subsample the data cloud at this spacing before computing roughness")]
             public double Subsample { get; set; }
@@ -60,6 +62,10 @@ namespace QMDTMesher
             //Configure gdal (uncomment below if image load/save is needed)
             //GdalConfiguration.ConfigureGdal();
 
+            // Fix the seed for random number generators.  
+            // This program should be deterministic even without a landform config file
+            NumberHelper.RandomSeed = 17;
+
             Stopwatch sw = new Stopwatch();
             sw.Start();
             Parser.Default.ParseArguments<Options>(args)
@@ -83,7 +89,7 @@ namespace QMDTMesher
                        }
                        if(opt.OutputMesh.ToUpper() == "AUTO")
                        {
-                           var prefix = CommonPrefix(scans);
+                           var prefix = StringHelper.CommonPrefix(scans);
                            var outputDir = Path.Combine(Path.GetDirectoryName(prefix), "output");
                            opt.OutputMesh = Path.Combine(outputDir, string.Format("{0}{1}_R{2}mm_SUB{3}mm.ply", Path.GetFileName(prefix), opt.NoMesh ? "POINTS" : "MESH", opt.RoughnessRadius, opt.Subsample));
                        }
@@ -105,27 +111,6 @@ namespace QMDTMesher
         }
 
 
-        static string CommonPrefix(IEnumerable<string> values)
-        {
-            return new string(values.First().Substring(0, values.Min(s => s.Length))
-                              .TakeWhile((c, i) => values.All(s => s[i] == c)).ToArray());
-        }
-
-
-        static double ComputeScanDensity(Mesh m)
-        {            
-            VertexKDTree kd = new VertexKDTree(m.Vertices);
-            RunningAverage ra = new RunningAverage();
-            foreach (var v in m.Vertices)
-            {
-                foreach (var n in kd.NearestNeighbors(v.Position, 5))
-                {
-                    ra.Push(Vector3.Distance(n.Position, v.Position));
-                }
-            }
-            return ra.Mean + ra.StandardDeviation / 2;
-        }
-
         static void Run(List<string> scans, Options opt)
         {
             logger.Info("Loading scans");
@@ -133,16 +118,14 @@ namespace QMDTMesher
             double[] pointSizes = new double[scans.Count];
             CoreLimitedParallel.For(0, scans.Count, i =>
             {
-                meshes[i] = LoadScan(scans[i], opt.NormalRadius);
-                pointSizes[i] = ComputeScanDensity(meshes[i]);
+                meshes[i] = LoadScan(scans[i], opt.NormalRadius, opt.CameraDistance);
+                pointSizes[i] = meshes[i].AverageDensity();
             });
             double averagePointSpacing = pointSizes.Average();
             logger.Info("Average point spacing: " + averagePointSpacing);
             logger.Info("Merging scans");
             var combined = new Mesh(hasNormals: true);
             combined.MergeWith(meshes);
-
-            //Benchmark(combined);
 
             var mesh = combined;
             if (!opt.NoMesh)
@@ -167,7 +150,7 @@ namespace QMDTMesher
             if(opt.DebugOutput)
             {
                 logger.Info("Writing debug patches");
-                Random r = new Random(17);
+                Random r = NumberHelper.MakeRandomGenerator();
                 for(int i = 0; i < 10; i++)
                 {
                     int vertIndex = r.Next(0, combined.Vertices.Count - 1);
@@ -187,51 +170,24 @@ namespace QMDTMesher
             var rmesh = roughness.CalculateRoughness(opt.RoughnessRadius, new ProgressReporter<int>(1, i=> logger.Info("Progress: " + i + "%")));
             PLYSerializer.Write(rmesh, opt.OutputMesh, plyWriter: new PointCloudRoughness.RoughnessPlyWriter(true));
         }
-
-
-        static void Benchmark(Mesh m, int iterations = 1000)
-        { 
-            logger.Info("Benchmark");
-            logger.Info("Creating MO");
-            var mo = new MeshOperator(m, buildFaceTree: false, buildVertexTree: true, buildUVFaceTree: false);
-            logger.Info("Creating KD");
-            var kd = new VertexKDTree(m.Vertices);
-            logger.Info("Starting Queries");
-            Stopwatch sw = new Stopwatch();
-            sw.Start();
-            for(int i = 0; i < iterations; i++)
-            {
-                mo.NearestVerticesStrict(m.Vertices[0].Position, 20).ToArray();
-            }
-            sw.Stop();
-            logger.Info("MeshOp " + sw.Elapsed);
-            sw.Reset();
-            sw.Start();
-            for (int i = 0; i < iterations; i++)
-            {
-                kd.NearestDistance(m.Vertices[0].Position, 20).ToArray();
-            }
-            sw.Stop();
-            logger.Info("KDTree " + sw.Elapsed);
-        }
-
-        static Mesh LoadScan(string filename, double normalRadius)
+        
+        static Mesh LoadScan(string filename, double normalRadius, double cameraDist)
         {
             var m = Mesh.Load(filename);
             m.RemoveDuplicateVertices();
-            m = ComputeNormals(m, normalRadius);
+            m = ComputeNormals(m, normalRadius, cameraDist);
             return m;
         }
 
-        static Mesh ComputeNormals(Mesh m, double normalRadius)
+        static Mesh ComputeNormals(Mesh m, double normalRadius, double cameraDist)
         {
             var mwn = CloudCompare.GenerateNormals(m, normalRadius);
-            mwn.FlipNormalsTowardPoint(EstimateCameraPos(m));
+            mwn.FlipNormalsTowardPoint(EstimateCameraPos(m, cameraDist));
             mwn.RemoveZeroLengthNormals();
             return mwn;
         }
 
-        static Vector3 EstimateCameraPos(Mesh m)
+        static Vector3 EstimateCameraPos(Mesh m, double cameraDist)
         {
             var avg = Vector3.Zero;
             foreach (var v in m.Vertices)
@@ -239,7 +195,7 @@ namespace QMDTMesher
                 avg += v.Position;
             }
             avg.Normalize();
-            avg *= 2000;
+            avg *= cameraDist;
             return avg;
         }
 
@@ -247,7 +203,7 @@ namespace QMDTMesher
         {
             var n = new Vector3(avg);
             n.Normalize();
-            var rand = new Random();
+            var rand = NumberHelper.MakeRandomGenerator();
             Mesh m = new Mesh();
             for (int i = 0; i < 1000; i++)
             {
