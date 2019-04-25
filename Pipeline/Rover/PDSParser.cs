@@ -615,7 +615,7 @@ namespace OPS.Pipeline
         {
             get
             {
-                if(this.metadata.HasKey("GEOMETRIC_CAMERA_MODEL"))
+                if(this.metadata.HasGroup("GEOMETRIC_CAMERA_MODEL"))
                 {
                     //MSL/M2020 opgs
                     //M2020 MSSS
