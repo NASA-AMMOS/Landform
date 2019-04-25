@@ -615,14 +615,17 @@ namespace OPS.Pipeline
         {
             get
             {
-                if(ProducingInstitution == RoverProductProducer.MSSS)
+                if(this.metadata.HasKey("GEOMETRIC_CAMERA_MODEL"))
                 {
-                    return GetReferenceCoordinateFrame("GEOMETRIC_CAMERA_MODEL_PARMS");
+                    //MSL/M2020 opgs
+                    //M2020 MSSS
+                    return GetReferenceCoordinateFrame("GEOMETRIC_CAMERA_MODEL");
                 }
                 else
                 {
-                    return GetReferenceCoordinateFrame("GEOMETRIC_CAMERA_MODEL");
-                }                
+                    //MSL MSSS
+                    return GetReferenceCoordinateFrame("GEOMETRIC_CAMERA_MODEL_PARMS"); //MSL Specific
+                }
             }
         }
         
