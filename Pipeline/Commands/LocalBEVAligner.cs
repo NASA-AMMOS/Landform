@@ -42,7 +42,7 @@ namespace OPS.Pipeline
         [Option(HelpText = "Alignment algorithm: PairwiseMinimal, PairwiseMaximal, Simultaneous, None (match only)", Default = AlignmentMode.PairwiseMaximal)]
         public AlignmentMode AlignmentMode { get; set; }
 
-        [Option(HelpText = "Calf algorithm: None, Centroid, Temporal", Default = CalfMode.Centroid)]
+        [Option(HelpText = "Algorithm to bring un-aligned \"calf\" site drives along for the ride: None, Centroid (match to aligned site drive with closest horizontal centroid), Temporal (match to closest aligned site drive by acquisition time)", Default = CalfMode.Centroid)]
         public CalfMode CalfMode { get; set; }
 
         [Option(HelpText = "In pairwise alignment modes lower priority site drives will be aligned to higher priority ones (NewestFirst, OldestFirst, BiggestFirst, SmallestFirst)", Default = SiteDrivePriority.NewestFirst)]

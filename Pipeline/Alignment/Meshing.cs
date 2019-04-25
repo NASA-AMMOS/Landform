@@ -486,10 +486,10 @@ namespace OPS.Pipeline
         /// also works to get a transform from a rover frame to any other rover frame
         /// result is null if the transform could not be resolved
         /// if usePriors = true then only prior transform sources will be used
-        /// if noPriors = true then the result will be null unless at least one transform in the chain is not a prior
+        /// if onlyAligned = true then the result will be null unless at least one transform in the chain is not a prior
         /// </summary>
         public static UncertainRigidTransform GetTransform(string fromFrame, string toFrame, FrameCache frameCache,
-                                                           bool usePriors = false, bool noPriors = false)
+                                                           bool usePriors = false, bool onlyAligned = false)
         {
             if (toFrame == "rover" || toFrame == PDSParser.ReferenceCoordinateFrame.RoverNav.ToString())
             {
@@ -502,7 +502,7 @@ namespace OPS.Pipeline
             if (toFrame == "sitedrive" || toFrame == PDSParser.ReferenceCoordinateFrame.LocalLevel.ToString())
             {
                 var obsToSD = usePriors ? frameCache.GetBestPrior(obsFrame) : frameCache.GetBestTransform(obsFrame);
-                return (obsToSD == null || (noPriors && obsToSD.IsPrior())) ? null : obsToSD.Transform;
+                return (obsToSD == null || (onlyAligned && obsToSD.IsPrior())) ? null : obsToSD.Transform;
             }
 
             if (toFrame == "site" || toFrame == PDSParser.ReferenceCoordinateFrame.Site.ToString())
@@ -514,7 +514,7 @@ namespace OPS.Pipeline
             {
                 var obsToSD = usePriors ? frameCache.GetBestPrior(obsFrame) : frameCache.GetBestTransform(obsFrame);
                 var sdToRoot = usePriors ? frameCache.GetBestPrior(sdFrame) : frameCache.GetBestTransform(sdFrame);
-                if (obsToSD == null || sdToRoot == null || (noPriors && obsToSD.IsPrior() && sdToRoot.IsPrior()))
+                if (obsToSD == null || sdToRoot == null || (onlyAligned && obsToSD.IsPrior() && sdToRoot.IsPrior()))
                 {
                     return null;
                 }
@@ -525,8 +525,8 @@ namespace OPS.Pipeline
             }
             else
             {
-                var srcToRoot = GetTransform(fromFrame, "root", frameCache, usePriors, noPriors);
-                var dstToRoot = GetTransform(toFrame, "root", frameCache, usePriors, noPriors);
+                var srcToRoot = GetTransform(fromFrame, "root", frameCache, usePriors, onlyAligned);
+                var dstToRoot = GetTransform(toFrame, "root", frameCache, usePriors, onlyAligned);
                 return (srcToRoot == null || dstToRoot == null) ? null : srcToRoot.TimesInverse(dstToRoot);
             }
         }
@@ -1104,14 +1104,14 @@ namespace OPS.Pipeline
         }
 
         public static Mesh BuildPointCloud(PipelineCore pipeline, MeshObservations obs, FrameCache frameCache,
-                                           string frame = "root", bool usePriors = false, bool noPriors = false,
+                                           string frame = "root", bool usePriors = false, bool onlyAligned = false,
                                            int decimate = 1, bool scaleNormalsByConfidence = false)
         {
             LoadOrGenerateMeshImages(pipeline, obs, decimate, scaleNormalsByConfidence,
                                      out Image points, out Image normals, out Image mask);
             pipeline.LogVerbose("building point cloud {0}", obs.Points.Name);
             var ret = BuildPointCloud(points, normals, mask);
-            var transform = GetTransform(obs.Points.FrameName, frame, frameCache, usePriors, noPriors);
+            var transform = GetTransform(obs.Points.FrameName, frame, frameCache, usePriors, onlyAligned);
             if (transform == null)
             {
                 pipeline.LogWarn("Failed to find transform to build point cloud for {0}", obs.Points.FrameName);
@@ -1260,7 +1260,7 @@ namespace OPS.Pipeline
         }
 
         public static Mesh BuildOrganizedMesh(PipelineCore pipeline, MeshObservations obs, FrameCache frameCache,
-                                              string frame = "root", bool usePriors = false, bool noPriors = false,
+                                              string frame = "root", bool usePriors = false, bool onlyAligned = false,
                                               int decimate = 1, bool scaleNormalsByConfidence = false,
                                               double maxTriangleAspect = 20, double isolatedPointSize = 0,
                                               bool withUVs = false)
@@ -1274,7 +1274,7 @@ namespace OPS.Pipeline
                 AddUVs(ret, pipeline.LoadImage(obs.Texture.Url));
             }
 
-            var xform = GetTransform(obs.Points.FrameName, frame, frameCache, usePriors, noPriors);
+            var xform = GetTransform(obs.Points.FrameName, frame, frameCache, usePriors, onlyAligned);
             if (xform == null)
             {
                 pipeline.LogWarn("Failed to find transform to build mesh for {0}", obs.Points.FrameName);
@@ -1285,7 +1285,7 @@ namespace OPS.Pipeline
         }
 
         public static Mesh BuildPoissonMesh(PipelineCore pipeline, MeshObservations obs, FrameCache frameCache,
-                                            string frame = "root", bool usePriors = false, bool noPriors = false,
+                                            string frame = "root", bool usePriors = false, bool onlyAligned = false,
                                             int decimate = 1, bool scaleNormalsByConfidence = false,
                                             bool withUVs = false)
         {
@@ -1298,7 +1298,7 @@ namespace OPS.Pipeline
                 AddUVs(ret, pipeline.LoadImage(obs.Texture.Url));
             }
 
-            var xform = GetTransform(obs.Points.FrameName, frame, frameCache, usePriors, noPriors);
+            var xform = GetTransform(obs.Points.FrameName, frame, frameCache, usePriors, onlyAligned);
             if (xform == null)
             {
                 pipeline.LogWarn("Failed to find transform to build mesh for {0}", obs.Points.FrameName);
@@ -1310,7 +1310,7 @@ namespace OPS.Pipeline
         }
 
         public static Mesh BuildFSSRMesh(PipelineCore pipeline, MeshObservations obs, FrameCache frameCache,
-                                         string frame = "root", bool usePriors = false, bool noPriors = false,
+                                         string frame = "root", bool usePriors = false, bool onlyAligned = false,
                                          int decimate = 1, bool withUVs = false)
         {
             LoadOrGenerateMeshImages(pipeline, obs, decimate, false,
@@ -1322,7 +1322,7 @@ namespace OPS.Pipeline
                 AddUVs(ret, pipeline.LoadImage(obs.Texture.Url));
             }
 
-            var xform = GetTransform(obs.Points.FrameName, frame, frameCache, usePriors, noPriors);
+            var xform = GetTransform(obs.Points.FrameName, frame, frameCache, usePriors, onlyAligned);
             if (xform == null)
             {
                 pipeline.LogWarn("Failed to find transform to build mesh for {0}", obs.Points.FrameName);
@@ -1334,8 +1334,8 @@ namespace OPS.Pipeline
         }
 
         public static ConvexHull BuildFrustumHull(PipelineCore pipeline, MeshObservations obs, FrameCache frameCache,
-                                                  string frame = "root", bool usePriors = false, bool noPriors = false,
-                                                  bool uncertaintyInflated = false)
+                                                  string frame = "root", bool usePriors = false,
+                                                  bool onlyAligned = false, bool uncertaintyInflated = false)
         {
             Image img = pipeline.LoadImage(obs.Texture != null ? obs.Texture.Url : obs.Points.Url);
             var parser = new PDSParser((PDSMetadata)img.Metadata);
@@ -1343,7 +1343,7 @@ namespace OPS.Pipeline
             ConvexHull ret = ConvexHull.FromImage(img);
 
             string frameName = obs.Points != null ? obs.Points.FrameName : obs.Texture.FrameName;
-            var xform = GetTransform(frameName, frame, frameCache, usePriors, noPriors);
+            var xform = GetTransform(frameName, frame, frameCache, usePriors, onlyAligned);
 
             if (xform == null)
             {

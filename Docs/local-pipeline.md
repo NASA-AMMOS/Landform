@@ -137,9 +137,9 @@ First install Agisoft Metashape professional (standard will not work as it doesn
 ./Landform/bin/Release/Landform.exe local-bev-align sols588to590 [--writedebug]
 ./Landform/bin/Release/Landform.exe local-observation-products sol589 --outputframe=root --onlymergedsitedrivemeshes --onlyforcameras=NavcamLeft --adjustedtransformsources=LandformBEV,LandformBEVRoot,LandformBEVCalf
 ```
-If you only want to view the sitedrives that were aligned, specify `--nopriors` and don't include `LandformBEVCalf` in `--adjustedtransformsources`:
+If you only want to view the sitedrives that were aligned, specify `--onlyaligned` and don't include `LandformBEVCalf` in `--adjustedtransformsources`:
 ```
-./Landform/bin/Release/Landform.exe local-observation-products sol589 --outputframe=root --onlymergedsitedrivemeshes --onlyforcameras=NavcamLeft --adjustedtransformsources=LandformBEV,LandformBEVRoot --nopriors
+./Landform/bin/Release/Landform.exe local-observation-products sol589 --outputframe=root --onlymergedsitedrivemeshes --onlyforcameras=NavcamLeft --adjustedtransformsources=LandformBEV,LandformBEVRoot --onlyaligned
 ```
 
 ## Run Locally but Operate on Cloud Data
@@ -175,7 +175,7 @@ If you've ingested observations and optionally aligned them you can generate a m
 ```
 will build a mesh from the PlacesDB priors stored in the sol589 project
 ```
-./Landform/bin/Release/Landform.exe local-build-meshes sol589  --onlyforcameras=NavcamLeft --adjustedtransformsources=LandformBEV,LandformBEVRoot --nopriors
+./Landform/bin/Release/Landform.exe local-build-meshes sol589  --onlyforcameras=NavcamLeft --adjustedtransformsources=LandformBEV,LandformBEVRoot --onlyaligned
 ```
 will build a mesh using the birds eye view aligned transforms you've built previously for sol589, and will omit any sitedrives that were not aligned.
 

@@ -72,7 +72,7 @@ namespace OPS.Pipeline
         public bool UsePriors { get; set; }
 
         [Option(HelpText = "Use adjusted transforms only", Default = false)]
-        public bool NoPriors { get; set; }
+        public bool OnlyAligned { get; set; }
 
         [Option(HelpText = "Mesh decimation blocksize", Default = 4)]
         public int DecimateMeshes { get; set; }
@@ -246,9 +246,9 @@ namespace OPS.Pipeline
             string dir = outputFrame + "Frame";
             if (options.UsePriors)
             {
-                if (options.NoPriors)
+                if (options.OnlyAligned)
                 {
-                    pipeline.LogError("cannot specify both --usepriors and --nopriors");
+                    pipeline.LogError("cannot specify both --usepriors and --onlyaligned");
                     return 1;
                 }
 
@@ -309,7 +309,7 @@ namespace OPS.Pipeline
                     RequireNormals = options.RequireNormals,
                     RequireTextures = options.RequireTextures,
                     RequirePriorTransform = options.UsePriors,
-                    RequireAdjustedTransform = options.NoPriors,
+                    RequireAdjustedTransform = options.OnlyAligned,
                     TargetFrame = options.OutputFrame
                 }; 
             var observations = Meshing.CollectMeshObservations(frameCache, observationCache, opts);
@@ -345,7 +345,7 @@ namespace OPS.Pipeline
                     {
                         pipeline.LogVerbose("building point cloud for {0}", obs.Points.Name);
                         mesh = Meshing.BuildPointCloud(pipeline, obs, frameCache, outputFrame,
-                                                       options.UsePriors, options.NoPriors,
+                                                       options.UsePriors, options.OnlyAligned,
                                                        options.DecimateMeshes, options.ScaleNormalsByConfidence);
                         if (mesh != null && !mesh.HasVertices)
                         {
@@ -361,7 +361,7 @@ namespace OPS.Pipeline
                             case ReconstructionMethod.Organized:
                             {
                                 mesh = Meshing.BuildOrganizedMesh(pipeline, obs, frameCache, outputFrame,
-                                                                  options.UsePriors, options.NoPriors,
+                                                                  options.UsePriors, options.OnlyAligned,
                                                                   options.DecimateMeshes,
                                                                   options.ScaleNormalsByConfidence,
                                                                   options.MaxTriangleAspect, options.IsolatedPointSize,
@@ -371,7 +371,7 @@ namespace OPS.Pipeline
                             case ReconstructionMethod.Poisson:
                             {
                                 mesh = Meshing.BuildPoissonMesh(pipeline, obs, frameCache, outputFrame,
-                                                                options.UsePriors, options.NoPriors,
+                                                                options.UsePriors, options.OnlyAligned,
                                                                 options.DecimateMeshes,
                                                                 options.ScaleNormalsByConfidence, withUVs);
                                 break;
@@ -379,7 +379,7 @@ namespace OPS.Pipeline
                             case ReconstructionMethod.FSSR:
                             {
                                 mesh = Meshing.BuildFSSRMesh(pipeline, obs, frameCache, outputFrame,
-                                                             options.UsePriors, options.NoPriors,
+                                                             options.UsePriors, options.OnlyAligned,
                                                              options.DecimateMeshes, withUVs);
                                 break;
                             }
@@ -503,7 +503,7 @@ namespace OPS.Pipeline
                     if (options.FrustumHullMeshes && (obs.Texture != null || obs.Points != null))
                     {
                         var hull = Meshing.BuildFrustumHull(pipeline, obs, frameCache, outputFrame, options.UsePriors,
-                                                            options.NoPriors, uncertaintyInflated: false);
+                                                            options.OnlyAligned, uncertaintyInflated: false);
                         string path = tmpPath + "Frusta/";
                         string file = tmpPath + obs.Name + meshExt;
                         pipeline.LogVerbose("saving hull mesh {0}", file);
@@ -514,7 +514,7 @@ namespace OPS.Pipeline
                     if (options.UncertaintyInflatedFrustumHullMeshes)
                     {
                         var hull = Meshing.BuildFrustumHull(pipeline, obs, frameCache, outputFrame, options.UsePriors,
-                                                            options.NoPriors, uncertaintyInflated: true);
+                                                            options.OnlyAligned, uncertaintyInflated: true);
                         string path = tmpPath + "InflatedFrusta/";
                         string file = path + obs.Name + meshExt;
                         pipeline.LogVerbose("saving uncertainty inflated hull mesh {0}", file);
@@ -542,7 +542,7 @@ namespace OPS.Pipeline
                             if (overlap == null)
                                 continue;
 
-                            Image deltaRangeImage = CreateDeltaRangeImage(otherObs, obs, frameCache, options.UsePriors, options.NoPriors);
+                            Image deltaRangeImage = CreateDeltaRangeImage(otherObs, obs, frameCache, options.UsePriors, options.OnlyAligned);
                             if (deltaRangeImage != null)
                             {
                                 string imageName = otherObs.Points.Name + "_in_" + obs.Points.Name;
