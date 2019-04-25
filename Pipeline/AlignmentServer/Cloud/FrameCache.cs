@@ -55,7 +55,8 @@ namespace OPS.Pipeline.AlignmentServer
         /// <summary>
         /// convenience function for the common case of allowing all frames but filtering transforms based on parameters
         /// </summary>
-        public int PreloadFilteredTransforms(TransformSource[] priorSources, TransformSource[] adjustedSources, bool usePriors)
+        public int PreloadFilteredTransforms(TransformSource[] priorSources, TransformSource[] adjustedSources,
+                                             bool usePriors = false, bool noPriors = false)
         {
             Func<FrameTransform, bool> filterPrior =
                    transform => priorSources.Length == 0 || priorSources.Any(s => s == transform.Source);
@@ -63,9 +64,10 @@ namespace OPS.Pipeline.AlignmentServer
                 transform => adjustedSources.Length == 0 || adjustedSources.Any(s => s == transform.Source);
 
             return Preload(loadTransforms: true, transformFilter: ft =>
-                              (!usePriors || ft.IsPrior()) &&      //iff --usepriors only allow priors
-                              ((ft.IsPrior() && filterPrior(ft)) ||        //iff --priorsources only allow specific priors
-                              (!ft.IsPrior() && filterAdjusted(ft))));    //iff --adjustedsources only allow specific adj
+                           (!usePriors || ft.IsPrior()) &&          //iff --usepriors only allow priors
+                           (!noPriors || !ft.IsPrior()) &&          //iff --nopriors only allow adjusted
+                           ((ft.IsPrior() && filterPrior(ft)) ||    //iff --priorsources only allow specific priors
+                            (!ft.IsPrior() && filterAdjusted(ft))));//iff --adjustedsources only allow specific adj
         }
 
         public int Preload(bool loadTransforms = true, Func<Frame, bool> frameFilter = null,
@@ -217,6 +219,36 @@ namespace OPS.Pipeline.AlignmentServer
         public FrameTransform GetBestPrior(Frame frame)
         {
             return GetBestPrior(frame.Name);
+        }
+
+        public bool HasAnyTransform(Frame frame)
+        {
+            return HasAnyTransform(frame.Name);
+        }
+
+        public bool HasAnyTransform(string name)
+        {
+            return GetTransforms(name).Count() > 0;
+        }
+
+        public bool HasPriorTransform(Frame frame)
+        {
+            return HasPriorTransform(frame.Name);
+        }
+
+        public bool HasPriorTransform(string name)
+        {
+            return GetTransforms(name).Where(t => t.Source >= TransformSource.Prior).Count() > 0;
+        }
+
+        public bool HasAdjustedTransform(Frame frame)
+        {
+            return HasAdjustedTransform(frame.Name);
+        }
+
+        public bool HasAdjustedTransform(string name)
+        {
+            return GetTransforms(name).Where(t => t.Source < TransformSource.Prior).Count() > 0;
         }
     }
 }

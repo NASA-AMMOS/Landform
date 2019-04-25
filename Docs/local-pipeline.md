@@ -135,7 +135,11 @@ First install Agisoft Metashape professional (standard will not work as it doesn
 ./Landform/bin/Release/Landform.exe configure-local --venue=local --storagedir=c:/Users/$USERNAME/Documents/landform-storage --maxcores=0 --randomseed=-1
 ./Landform/bin/Release/Landform.exe local-ingest sols588to590 --inputpath=c:/Users/$USERNAME/Downloads/msl/**
 ./Landform/bin/Release/Landform.exe local-bev-align sols588to590 [--writedebug]
-./Landform/bin/Release/Landform.exe local-observation-products sol589 --outputframe=root --onlymergedsitedrivemeshes --onlyforcameras=NavcamLeft --adjustedtransformsources=LandformBEV
+./Landform/bin/Release/Landform.exe local-observation-products sol589 --outputframe=root --onlymergedsitedrivemeshes --onlyforcameras=NavcamLeft --adjustedtransformsources=LandformBEV,LandformBEVRoot,LandformBEVCalf
+```
+If you only want to view the sitedrives that were aligned, specify `--onlyaligned` and don't include `LandformBEVCalf` in `--adjustedtransformsources`:
+```
+./Landform/bin/Release/Landform.exe local-observation-products sol589 --outputframe=root --onlymergedsitedrivemeshes --onlyforcameras=NavcamLeft --adjustedtransformsources=LandformBEV,LandformBEVRoot --onlyaligned
 ```
 
 ## Run Locally but Operate on Cloud Data
@@ -165,11 +169,15 @@ It is also possible to **post-mortem collect stats and generate debug outputs fr
 ./Landform/bin/Release/Landform.exe local-observation-products sol589 --cloud --writeallthethings --outputframe=root
 ```
 ## Generating tiled meshes
-If you've ingested observations and optionally aligned them you can generate a mesh with the `local-build-meshes` command
-the command line behavior is a subset of local-observation-products. running with a commandline like 
-./Landform/bin/Release/Landform.exe local-build-meshes sol589 --onlyforcameras=NavcamLeft --usepriors will build a mesh from the PlacesDB priors stored in the sol589 project
-./Landform/bin/Release/Landform.exe local-build-meshes sol589  --onlyforcameras=NavcamLeft --adjustedtransformsources=LandformBEV will build a mesh using the birds eye view aligned transforms you've built previously for sol589
-
+If you've ingested observations and optionally aligned them you can generate a mesh with the `local-build-meshes` command.  The command line behavior is a subset of local-observation-products. Running with a commandline like 
+```
+./Landform/bin/Release/Landform.exe local-build-meshes sol589 --onlyforcameras=NavcamLeft --usepriors
+```
+will build a mesh from the PlacesDB priors stored in the sol589 project
+```
+./Landform/bin/Release/Landform.exe local-build-meshes sol589  --onlyforcameras=NavcamLeft --adjustedtransformsources=LandformBEV,LandformBEVRoot --onlyaligned
+```
+will build a mesh using the birds eye view aligned transforms you've built previously for sol589, and will omit any sitedrives that were not aligned.
 
 ## Long Form
 1.  Get some input data.  You will want one or more directories with .IMG files, typically OPGS navcam RDRs.

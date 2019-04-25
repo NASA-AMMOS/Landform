@@ -46,6 +46,9 @@ namespace OPS.Pipeline
         [Option(HelpText = "Use transform priors only", Default = false)]
         public bool UsePriors { get; set; }
 
+        [Option(HelpText = "Use adjusted transforms only", Default = false)]
+        public bool OnlyAligned { get; set; }
+
         [Option(HelpText = "Operate on cloud data", Default = false)]
         public bool Cloud { get; set; }
 
@@ -125,6 +128,12 @@ namespace OPS.Pipeline
         {
             pipeline.LogInfo("Running local-build-meshes command");
 
+            if (options.UsePriors && options.OnlyAligned)
+            {
+                pipeline.LogError("cannot specify both --usepriors and --onlyaligned");
+                return 1;
+            }
+
             //create directory for output
             var adjustedSources = ParseSources(options.AdjustedTransformSources);
             var priorSources = ParseSources(options.PriorTransformSources);
@@ -142,7 +151,7 @@ namespace OPS.Pipeline
             pipeline.LogInfo("Populating frame cache");
             FrameCache frameCache = new FrameCache(pipeline, options.ProjectName);
             frameCache.PreloadFilteredTransforms(priorSources, adjustedSources, options.UsePriors);
-
+                
             ObservationCache observationCache = new ObservationCache(pipeline, options.ProjectName);
             observationCache.Preload(obs => obs.UseForReconstruction);
 
@@ -213,7 +222,7 @@ namespace OPS.Pipeline
                 foreach (var obs in imageObservations)
                 {
                     pipeline.LogInfo("Building hull for {0}, {1}/{2} ({3}%)", obs.Name, obsToHull.Count(), imageObservations.Count(), (int)(100 * obsToHull.Count() / (float)imageObservations.Count()));
-                    ConvexHull obsHull = Meshing.BuildFrustumHull(pipeline, new MeshObservations() { Texture = obs }, frameCache, options.OutputFrame, options.UsePriors, uncertaintyInflated: false);
+                    ConvexHull obsHull = Meshing.BuildFrustumHull(pipeline, new MeshObservations() { Texture = obs }, frameCache, options.OutputFrame, options.UsePriors, options.OnlyAligned, uncertaintyInflated: false);
                     if (obsHull != null)
                     {
                         obsToHull.Add(obs, obsHull);
@@ -377,8 +386,8 @@ namespace OPS.Pipeline
 
                             if (!obsToHull[obs].Contains(pt.Point))
                                 continue;
-
-                            Matrix obsToOutput = Meshing.GetTransform(obs.FrameName, options.OutputFrame, frameCache, options.UsePriors).Mean;
+                            
+                            Matrix obsToOutput = Meshing.GetTransform(obs.FrameName, options.OutputFrame, frameCache, options.UsePriors, options.OnlyAligned).Mean;
                             minDistances.Add(GetMinPixelSpreadInMeters(sc, (CameraModel)JsonHelper.FromJson(obs.CameraModel), obsToOutput, obsToHull[obs], pt.Pixel, pt.Point));
                         }
 
@@ -479,7 +488,7 @@ namespace OPS.Pipeline
 
             //build mesh
             pipeline.LogInfo("Building full mesh for {0}", options.ProjectName);
-            fullMesh = BuildTilingInput.BuildMesh(pipeline, options.ProjectName,out BoundingBox pointBounds, frameCache, observationCache, outputFrame, options.UsePriors, options.OnlyForCameras, !options.NoCleverCombine, allowMastcam:true);
+            fullMesh = BuildTilingInput.BuildMesh(pipeline, options.ProjectName,out BoundingBox pointBounds, frameCache, observationCache, outputFrame, options.UsePriors, options.OnlyAligned, options.OnlyForCameras, !options.NoCleverCombine, allowMastcam:true);
             if (fullMesh == null)
             {
                 pipeline.LogError("Mesh building for {0) failed.", options.ProjectName);
@@ -496,7 +505,7 @@ namespace OPS.Pipeline
 
         private int BackprojectObservation(FrameCache frameCache, ObservationCache obsCache, SceneCaster sc, RoverObservation obs, ConvexHull obsHull, ref Queue<PixelPoint> pointsToBackproject, Image leafImage)
         {
-            Matrix obsToMesh = Meshing.GetTransform(obs.FrameName, options.OutputFrame, frameCache, options.UsePriors).Mean;
+            Matrix obsToMesh = Meshing.GetTransform(obs.FrameName, options.OutputFrame, frameCache, options.UsePriors, options.OnlyAligned).Mean;
             Matrix meshToObs = Matrix.Invert(obsToMesh);
             CameraModel camera = (CameraModel)JsonHelper.FromJson(obs.CameraModel);
 

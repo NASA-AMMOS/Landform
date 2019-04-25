@@ -25,6 +25,8 @@ namespace OPS.Pipeline
     
     public enum AlignmentMode { PairwiseMinimal, PairwiseMaximal, Simultaneous, None };
 
+    public enum CalfMode { None, Centroid, Temporal };
+
     [Verb("local-bev-align", HelpText = "birds eye view align locally")]
     public class LocalBEVAlignerOptions : PipelineCoreOptions
     {
@@ -39,6 +41,9 @@ namespace OPS.Pipeline
 
         [Option(HelpText = "Alignment algorithm: PairwiseMinimal, PairwiseMaximal, Simultaneous, None (match only)", Default = AlignmentMode.PairwiseMaximal)]
         public AlignmentMode AlignmentMode { get; set; }
+
+        [Option(HelpText = "Algorithm to bring un-aligned \"calf\" site drives along for the ride: None, Centroid (match to aligned site drive with closest horizontal centroid), Temporal (match to closest aligned site drive by acquisition time)", Default = CalfMode.Centroid)]
+        public CalfMode CalfMode { get; set; }
 
         [Option(HelpText = "In pairwise alignment modes lower priority site drives will be aligned to higher priority ones (NewestFirst, OldestFirst, BiggestFirst, SmallestFirst)", Default = SiteDrivePriority.NewestFirst)]
         public SiteDrivePriority SiteDrivePriority { get; set; }
@@ -118,7 +123,7 @@ namespace OPS.Pipeline
         [Option(HelpText = "Recompute existing feature matches", Default = false)]
         public bool RedoMatches { get; set; }
 
-        [Option(HelpText = "Search radius for feature matching in meters", Default = 2)]
+        [Option(HelpText = "Search radius for feature matching in meters", Default = 1)]
         public double MatchRadius { get; set; }
 
         [Option(HelpText = "Max descriptor distance ratio", Default = 1)]
@@ -139,10 +144,10 @@ namespace OPS.Pipeline
         [Option(HelpText = "Max RANSAC feature match radius meters", Default = 0.05)]
         public double RansacMatchRadius { get; set; }
 
-        [Option(HelpText = "Min RANSAC feature separation meters", Default = 0.1)]
+        [Option(HelpText = "Min RANSAC feature separation meters", Default = 0.05)]
         public double MinRansacSeparation { get; set; }
 
-        [Option(HelpText = "Min RANSAC good matches", Default = 50)]
+        [Option(HelpText = "Min RANSAC good matches", Default = 25)]
         public int MinRansacMatches { get; set; }
 
         [Option(HelpText = "Max RANSAC good matches", Default = 500)]
@@ -315,21 +320,30 @@ namespace OPS.Pipeline
             observationCache = new ObservationCache(pipeline, options.ProjectName);
             observationCache.Preload();
 
-            bool allowMastcam = false;
-            bool requirePoints = true;
-            bool requireNormals = options.BEVColoring == BirdsEyeViewing.ColorMode.Tilt;
-            bool requireTextures = options.BEVColoring == BirdsEyeViewing.ColorMode.Texture;
-            observations = Meshing.CollectMeshObservations(frameCache, observationCache,
-                                                           allowMastcam, requirePoints, requireNormals, requireTextures,
-                                                           options.OnlyForSiteDrives, options.OnlyForCameras);
+            var opts = new Meshing.MeshObservationsOptions(options.OnlyForSiteDrives, options.OnlyForCameras)
+            {
+                AllowMastcam = false,
+                RequirePoints = true,
+                RequireNormals = options.BEVColoring == BirdsEyeViewing.ColorMode.Tilt,
+                RequireTextures = options.BEVColoring == BirdsEyeViewing.ColorMode.Texture,
+                RequirePriorTransform = true,
+                TargetFrame = "root"
+            };
+            observations = Meshing.CollectMeshObservations(frameCache, observationCache, opts);
 
             //for now lexicographically sort siteDrives so that older ones come before newer
             //just to give a canonical order
             //later in ComputePairs we may change the order depending on options
             siteDrives = observations.Select(obs => obs.SiteDrive.ToString()).Distinct().OrderBy(sd => sd).ToArray();
 
+            if (siteDrives.Length < 2)
+            {
+                pipeline.LogError("birds eye view aligner requires at least 2 site drives");
+                return 1;
+            }
+
             pipeline.LogInfo("computing birds eye view alignment for {0} observations, {1} site drives",
-                             siteDrives.Length, observations.Count());
+                             observations.Count(), siteDrives.Length);
 
             LoadOrRenderBEVs(); //observations -> bevs, dems
 
@@ -410,18 +424,32 @@ namespace OPS.Pipeline
 
             if (options.WriteDebug)
             {
-                foreach (var pair in bevs)
-                {
-                    var siteDrive = pair.Key;
-                    var bev = pair.Value;
-                    if (!options.StretchContrast && options.BEVColoring == BirdsEyeViewing.ColorMode.Elevation)
-                    {
-                        bev = new Image(bev);
-                        bev.ScaleValues((float)min, (float)max, 0, 1);
-                    }
-                    PathHelper.EnsureExists(outputPath);
-                    bev.Save<byte>(outputPath + siteDrive + "_BirdsEyeView" + imageExt);
-                }
+                PathHelper.EnsureExists(outputPath);
+                double startSec = UTCTime.Now();
+                int np = 0, nc = 0;
+                CoreLimitedParallel.ForEach(bevs, pair => {
+
+                        Interlocked.Increment(ref np);
+
+                        if (!options.NoProgress)
+                        {
+                            pipeline.LogInfo("saving {0} birds eye view images in parallel, completed {1}/{2}",
+                                             np, nc, bevs.Count);
+                        }
+
+                        var siteDrive = pair.Key;
+                        var bev = pair.Value;
+                        if (!options.StretchContrast && options.BEVColoring == BirdsEyeViewing.ColorMode.Elevation)
+                        {
+                            bev = new Image(bev);
+                            bev.ScaleValues((float)min, (float)max, 0, 1);
+                        }
+                        bev.Save<byte>(outputPath + siteDrive + "_BirdsEyeView" + imageExt);
+
+                        Interlocked.Decrement(ref np);
+                        Interlocked.Increment(ref nc);
+                    });
+                pipeline.LogInfo("saved {0} birds eye view images ({1:F3}s)", bevs.Count, UTCTime.Now() - startSec);
             }
         }
 
@@ -710,7 +738,16 @@ namespace OPS.Pipeline
 
             if (options.WriteDebug)
             {
+                PathHelper.EnsureExists(outputPath);
+                double startSec = UTCTime.Now();
+                int np = 0, nc = 0;
                 CoreLimitedParallel.ForEach(siteDrives, siteDrive => {
+                        Interlocked.Increment(ref np);
+                        if (!options.NoProgress)
+                        {
+                            pipeline.LogInfo("saving {0} birds eye view feature images in parallel, completed {1}/{2}",
+                                             np, nc, siteDrives.Length);
+                        }
                         var bev = bevs[siteDrive];
                         var mask = bev.MaskToImage(valid: 1, invalid: 0);
                         var feat = features[siteDrive];
@@ -723,9 +760,12 @@ namespace OPS.Pipeline
                                                     0);
                             DrawOrigin(img, pixel, color);
                         }
-                        PathHelper.EnsureExists(outputPath);
                         img.ToOPSImage().Save<byte>(outputPath + siteDrive + "_BirdsEyeView_Features" + imageExt);
+                        Interlocked.Decrement(ref np);
+                        Interlocked.Increment(ref nc);
                     });
+                pipeline.LogInfo("saved {0} birds eye view feature images ({1:F3}s)", siteDrives.Length,
+                                 UTCTime.Now() - startSec);
             }
         }
 
@@ -1057,8 +1097,9 @@ namespace OPS.Pipeline
                 maxTests = options.MaxRansacTests;
             }
 
-            pipeline.LogInfo("RANSACing {0} feature pairs for {1}", maxTests, pair);
+            pipeline.LogInfo("RANSACing {0} match pairs for {1}", maxTests, pair);
             int nt;
+            int maxMatches = 0;
             for (nt = 0; nt < maxTests; nt++)
             {
                 Tuple<int, int> seeds = null;
@@ -1125,6 +1166,8 @@ namespace OPS.Pipeline
                     }
                 }
 
+                maxMatches = Math.Max(maxMatches, tmpMatches.Count);
+
                 if (tmpMatches.Count < options.MinRansacMatches)
                 {
                     continue;
@@ -1190,12 +1233,15 @@ namespace OPS.Pipeline
             ransacMatches[pair] = bestMatches.Select(m => matchArray[m]).ToArray();
 
             nm = bestMatches.Count;
-            pipeline.LogInfo("performed {0}/{1} ransac tests for {2} ({3} total combinations), best transform " +
-                             "({4:F3}m, {5:F3}m, {6:F3}deg), residual {7:F3}m, {8} matches ({9:F3}s)",
-                             nt, maxTests, pair, totalCombinations,
-                             bestTransform.Translation.X * MetersPerPixel, bestTransform.Translation.Y * MetersPerPixel,
-                             MathHelper.ToDegrees(bestTransform.Rotation), bestResidual * MetersPerPixel,
-                             nm, UTCTime.Now() - startSec);
+            var msg =
+                nm > 0 ? string.Format(", best transform ({0:F3}m, {1:F3}m, {2:F3}deg), residual {3:F3}m, {4} matches",
+                                       bestTransform.Translation.X * MetersPerPixel,
+                                       bestTransform.Translation.Y * MetersPerPixel,
+                                       MathHelper.ToDegrees(bestTransform.Rotation),
+                                       bestResidual * MetersPerPixel, nm)
+                : "";
+            pipeline.LogInfo("performed {0}/{1} ransac tests for {2} ({3} combinations), max matches {4}{5} ({6:F3}s)",
+                             nt, maxTests, pair, totalCombinations, maxMatches, msg, UTCTime.Now() - startSec);
             return nm;
         }
 
@@ -1327,9 +1373,17 @@ namespace OPS.Pipeline
 
             if (options.WriteDebug)
             {
+                PathHelper.EnsureExists(outputPath);
+                double startSec = UTCTime.Now();
+                int np = 0, nc = 0;
                 CoreLimitedParallel.ForEach(siteDrivePairs, pair => {
                         
-                        PathHelper.EnsureExists(outputPath);
+                        Interlocked.Increment(ref np);
+                        if (!options.NoProgress)
+                        {
+                            pipeline.LogInfo("saving {0} birds eye match images/meshes in parallel, completed {1}/{2}",
+                                             np, nc, siteDrivePairs.Count);
+                        }
 
                         var model = pair.Item1;
                         var data = pair.Item2;
@@ -1354,8 +1408,13 @@ namespace OPS.Pipeline
                         ImageMatching
                         .MakeMatchMesh(spatialMatches[pairName].Select(p => p.ModelPoint).ToArray(),
                                        spatialMatches[pairName].Select(p => p.DataPoint).ToArray())
-                        .Save(outputPath + pair + "_matches" + meshExt);
+                        .Save(outputPath + pairName + "_matches" + meshExt);
+
+                        Interlocked.Decrement(ref np);
+                        Interlocked.Increment(ref nc);
                     });
+                pipeline.LogInfo("saved {0} birds eye view match image/meshes ({1:F3}s)", siteDrivePairs.Count,
+                                 UTCTime.Now() - startSec);
             }
 
             var good = new HashSet<string>();
@@ -1567,10 +1626,9 @@ namespace OPS.Pipeline
         /// <summary>
         /// write out sitedrive -> root adjusted transforms
         /// </summary>
-        private void SaveTransforms(IEnumerable<Node> aligned)
+        private void SaveTransforms(IEnumerable<Node> aligned, TransformSource transformSource)
         {
             var unaligned = new HashSet<string>(siteDrives);
-            var transformSource = TransformSource.LandformBEV;
             foreach (var node in aligned)
             {
                 unaligned.Remove(node.Name);
@@ -1602,6 +1660,110 @@ namespace OPS.Pipeline
             }
         }
 
+        private void SaveCalves(IEnumerable<Node> aligned)
+        {
+            if (options.CalfMode == CalfMode.None)
+            {
+                return;
+            }
+
+            var calfNames = new HashSet<string>(siteDrives);
+            foreach (var node in aligned)
+            {
+                calfNames.Remove(node.Name);
+                calfNames.Remove(node.Parent.Name);
+            }
+
+            var calves = calfNames.Select(name => siteDriveToNode[name]);
+
+            switch (options.CalfMode)
+            {
+                case CalfMode.Centroid:
+                    {
+                        var centroid = new Dictionary<string, Vector2>();
+                        foreach (var sd in siteDrives)
+                        {
+                            var c = new Vector2(bevs[sd].Width, bevs[sd].Height) * 0.5;
+                            centroid[sd] = c - bevOrigins[sd];
+                        }
+                        foreach (var calf in calves)
+                        {
+                            double closestDistSq = double.PositiveInfinity;
+                            Node closestParent = null;
+                            foreach (var node in aligned)
+                            {
+                                var d2 = Vector2.DistanceSquared(centroid[calf.Name], centroid[node.Name]);
+                                if (d2 < closestDistSq)
+                                {
+                                    closestDistSq = d2;
+                                    closestParent = node;
+                                }
+                            }
+                            calf.Parent = closestParent;
+                        }
+                        break;
+                    }
+
+                case CalfMode.Temporal:
+                    {
+                        foreach (var calf in calves)
+                        {
+                            int closestDist = int.MaxValue;
+                            Node closestParent = null;
+                            foreach (var node in aligned)
+                            {
+                                var d = Math.Abs((int)(new SiteDrive(calf.Name)) - (int)(new SiteDrive(node.Name)));
+                                if (d < closestDist)
+                                {
+                                    closestDist = d;
+                                    closestParent = node;
+                                }
+                            }
+                            calf.Parent = closestParent;
+                        }
+                        break;
+                    }
+            }
+
+            foreach (var calf in calves)
+            {
+                if (calf.Parent != null)
+                {
+                    var calfToWorldPrior = Meshing.GetTransform(calf.Name, "root", frameCache, usePriors: true).Mean;
+                    var parentToWorldPrior = Meshing.GetTransform(calf.Parent.Name, "root", frameCache, usePriors: true).Mean;
+                    //row matrix transforms compose left to right
+                    var calfToParent = calfToWorldPrior * Matrix.Invert(parentToWorldPrior);
+                    calf.WorldTransform = calfToParent * calf.Parent.WorldTransform.Value;
+                    
+                }
+                else
+                {
+                    calf.WorldTransform = null;
+                }
+            }
+
+            pipeline.LogInfo("birds eye view calf mode: {0}", options.CalfMode);
+            var calvesFor = new Dictionary<string, List<string>>();
+            foreach (var calf in calves)
+            {
+                if (calf.Parent != null)
+                {
+                    if (!calvesFor.ContainsKey(calf.Parent.Name))
+                    {
+                        calvesFor[calf.Parent.Name] = new List<string>();
+                    }
+                    calvesFor[calf.Parent.Name].Add(calf.Name);
+                }
+            }
+            foreach (var parent in calvesFor.Keys)
+            {
+                pipeline.LogInfo("{0} calves for site drive {1}: {2}",
+                                 calvesFor[parent].Count, parent, String.Join(", ", calvesFor[parent]));
+            }
+
+            SaveTransforms(calves.Where(calf => calf.WorldTransform.HasValue), TransformSource.LandformBEVCalf);
+        }
+                
         /// <summary>
         /// spatialMatches -> LandformBEV aligned FrameTransforms
         /// </summary>
@@ -1642,10 +1804,14 @@ namespace OPS.Pipeline
                 }
             }
 
+            //TODO fix at least one node in each connected component
+            
             //TODO
             throw new NotImplementedException("simultaneous align not implemented yet");
 
-            //SaveTransforms(nodesToAlign);
+            //SaveTransforms(nodesToAlign, TransformSource.LandformBEV);
+            //SaveTransforms(TODO, TransformSource.LandformBEVRoot);
+            //SaveCalves(nodesToAlign);
 
             //pipeline.LogInfo("simultaneous aligned {0} nodes ({1:F3}s)", nodesToAlign.Count, UTCTime.Now() - startSec);
 
@@ -1768,7 +1934,14 @@ namespace OPS.Pipeline
                 }
             }
 
-            SaveTransforms(nodesToAlign);
+            SaveTransforms(nodesToAlign, TransformSource.LandformBEV);
+
+            var rootNodes = nodesToAlign.Select(n => n.Parent);
+            pipeline.LogInfo("birds eye view root nodes: {0}", String.Join(", ", rootNodes.Select(node => node.Name)));
+
+            SaveTransforms(rootNodes, TransformSource.LandformBEVRoot);
+
+            SaveCalves(nodesToAlign);
 
             pipeline.LogInfo("pairwise aligned {0} nodes ({1:F3}s)", nodesToAlign.Count, UTCTime.Now() - startSec);
 
