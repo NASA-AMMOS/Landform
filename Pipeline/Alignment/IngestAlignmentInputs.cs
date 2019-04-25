@@ -38,7 +38,7 @@ namespace OPS.Pipeline
         private IngestPDSImage ingester;
         private bool noProgress;
 
-        public IngestAlignmentInputs(PipelineCore pipeline, Project project, bool recreateObservations = false,
+        public IngestAlignmentInputs(PipelineCore pipeline, Project project, Mission mission, bool recreateObservations = false,
                                      bool resetTransforms = false, string onlyForSiteDrives = null,
                                      bool noProgress = false)
             : base(pipeline)
@@ -90,7 +90,20 @@ namespace OPS.Pipeline
 
             this.noProgress = noProgress;
 
-            ingester = new IngestPDSImage(pipeline, project, recreateObservations, resetTransforms, filter);
+            MissionSpecific missionSpecific = null;
+            switch (mission)
+            {
+                case Mission.MSL:
+                    missionSpecific = new MissionMSL();
+                    break;
+                case Mission.M2020:
+                    missionSpecific = new MissionM2020();
+                    break;
+                default:
+                    throw new NotImplementedException("unknown mission");
+            }
+
+            ingester = new IngestPDSImage(pipeline, project, missionSpecific.ObservationFrameName, recreateObservations, resetTransforms, filter);
         }
 
         public int Ingest(MSLLocations locations, MSLPlaces places, MSLLegacyManifest manifest, Action<IngestImage.Result> func = null)
@@ -98,7 +111,7 @@ namespace OPS.Pipeline
             ingester.Locations = locations;
             ingester.Places = places;
             ingester.LegacyManifest = manifest;
-
+            
             string imageObs = ObservationType.Image.ToString();
             double startTime = UTCTime.Now();
             int ni = 0, na = 0, ne = 0, nf = 0, ns = 0, nr = 0, np = 0;

@@ -268,15 +268,19 @@ namespace OPS.Pipeline
                        return RoverProductType.XYZErrorMap;
                     }
                 }
-                else
+                else if(this.ProductId.ProductType != RoverProductType.Unknown)
                 {
+                    return this.ProductId.ProductType;
+                }
+                else
+                { 
                     RoverProductCamera inst = Camera;
                     if(inst == RoverProductCamera.MastcamLeft || inst == RoverProductCamera.MastcamRight || inst == RoverProductCamera.MAHLI)
                     {
                         return RoverProductType.Image;
                     }
                 }
-                return RoverProductType.Unknown;            
+                return RoverProductType.Unknown;
             }
         }
 

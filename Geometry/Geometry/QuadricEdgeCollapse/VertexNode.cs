@@ -22,6 +22,7 @@ namespace OPS.Geometry
         public bool IsActive;
         public int AdjFaceCount;
         public int ID;
+        public double cost;
 
         public VertexNode(Vertex vert, int id)
         {
@@ -33,6 +34,7 @@ namespace OPS.Geometry
             this.IsOnPerimeter = false;
             this.IsTouchable = true;
             this.IsActive = true;
+            this.cost = 0;
         }
 
         public VertexNode(Vertex vert, int id, Matrix Q, int adjFaceCount, List<Edge> adjacentEdges, bool isOnPerimeter, bool isTouchable)
@@ -45,6 +47,7 @@ namespace OPS.Geometry
             this.IsOnPerimeter = isOnPerimeter;
             this.IsTouchable = isTouchable;
             this.IsActive = true;
+            this.cost = 0;
         }
 
         public static bool operator <(VertexNode v1, VertexNode v2)
