@@ -29,8 +29,7 @@ namespace OPS.Geometry
             string cloudCompareLocation = new CloudCompareConfig().CloudCompareExe;
             if (cloudCompareLocation != null)
             {
-                logger.Info("CloudCompare location specified by config");
-                logger.Info(cloudCompareLocation);
+                logger.InfoFormat("CloudCompare location specified by config: {0}", cloudCompareLocation);
                 CloudCompareExe = cloudCompareLocation;
             }
         }
