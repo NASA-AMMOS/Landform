@@ -1601,11 +1601,11 @@ namespace OPS.Pipeline
 
             if (options.SparseBlockSize > 0)
             {
-                if (options.SparseBlockSize < 1)
-                {
-                    options.SparseBlockSize *= Math.Max(ret.Width, ret.Height);
-                }
-                ret.InvalidateSparseExternalBlocks((int)options.SparseBlockSize, options.MinSparseBlockValidRatio);
+                int sbs = options.SparseBlockSize < 1 ?
+                    (int)(options.SparseBlockSize * Math.Max(ret.Width, ret.Height)) :
+                    (int)options.SparseBlockSize;
+                sbs = Math.Max(sbs, 1);
+                ret.InvalidateSparseExternalBlocks(sbs, options.MinSparseBlockValidRatio);
                 ret.RemoveAllButLargestValidBlob();
                 ret = ret.Trim(out Vector2 ulc);
                 meshOrigin -= ulc;
