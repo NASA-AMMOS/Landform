@@ -236,6 +236,7 @@
     <Compile Include="MeshWorker\Commands\TextureMeshCommand.cs" />
     <Compile Include="MeshWorker\Operations\BuildBackprojectLeaves.cs" />
     <Compile Include="MeshWorker\Operations\BuildTilingInput.cs" />
+    <Compile Include="MissionSpecific.cs" />
     <Compile Include="PipelineCore.cs" />
     <Compile Include="PipelineRoutine.cs" />
     <Compile Include="Rover\LegacyManifest.cs" />
