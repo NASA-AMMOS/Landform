@@ -803,6 +803,14 @@ namespace OPS.Geometry
             }
         }
 
+        public void Scale(double s)
+        {
+            foreach(Vertex v in this.Vertices)
+            {
+                v.Position *= s;
+            }
+        }
+
         /// <summary>
         /// Applies a transformation matrix to each vertex in the mesh
         /// </summary>

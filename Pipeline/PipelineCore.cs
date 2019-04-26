@@ -94,6 +94,10 @@ namespace OPS.Pipeline
                 typeof(FrameTransform),
                 //typeof(Observation),
                 typeof(RoverObservation), //TODO msl specific
+                typeof(BirdsEyeView),
+                typeof(BirdsEyeViewFeatures),
+                typeof(FeatureMatches),
+                typeof(SpatialMatches),
                 typeof(Overlap),
                 typeof(TilingProject),
                 typeof(TilingInput),
@@ -309,6 +313,11 @@ namespace OPS.Pipeline
             return GetDataProduct<T>(path, guid.ToString(), cacheFolder);
         }
 
+        public T GetDataProduct<T>(Project project, Guid guid) where T : DataProduct, new()
+        {
+            return GetDataProduct<T>(project.ProductPath, guid, project.Name);
+        }
+
         /// <summary>
         /// Save a data product.
         /// </summary>
@@ -348,6 +357,11 @@ namespace OPS.Pipeline
             {
                 TemporaryFile.GetAndDelete("", writeAndUpload);
             }
+        }
+
+        public void SaveDataProduct(Project project, DataProduct product)
+        {
+            SaveDataProduct(project.ProductPath, product, project.Name);
         }
 
         //****************** Database API *****************

@@ -16,7 +16,7 @@ Download sols 588 - 590 but process sol 589 only:
 ```
 ./Pipeline/Rover/fetch-msl.sh c:/Users/$USERNAME/Downloads locations basemap 00588 00589 00590
 ./Landform/bin/Release/Landform.exe configure-local --venue=local --storagedir=c:/Users/$USERNAME/Documents/landform-storage --maxcores=0 --randomseed=-1
-./Landform/bin/Release/Landform.exe local-ingest sol589 --inputpath=c:/Users/$USERNAME/Downloads/msl/redops/ods/surface/sol/00589/** --locationsxml=c:/Users/$USERNAME/Downloads/msl/locations.xml --basemapdem=c:/Users/$USERNAME/Downloads/msl/out_deltaradii_smg_1m.tif
+./Landform/bin/Release/Landform.exe local-ingest sol589 --inputpath=c:/Users/$USERNAME/Downloads/msl/sol/00589/** --locationsxml=c:/Users/$USERNAME/Downloads/msl/locations.xml --basemapdem=c:/Users/$USERNAME/Downloads/msl/out_deltaradii_smg_1m.tif
 ./Landform/bin/Release/Landform.exe local-features sol589 --writefeatureimages
 ./Landform/bin/Release/Landform.exe local-matching sol589 --writematchimages --writematchmeshes
 ./Landform/bin/Release/Landform.exe local-bundle-adjust sol589 --writedebug
@@ -119,14 +119,28 @@ The sol 588 - 590 dataset has 3688 navcam IMG files, about 5GB total, 263 which 
     generated meshes for 86 observations (17.041s)
     ```
 
-## Run Agisoft instead of our bundler
-install Agisoft Metashape professional (standard will not work as it doesn't allow python scripting)
-./Pipeline/Rover/fetch-msl.sh c:/Users/$USERNAME/Downloads locations 00588 00589 00590
-./Landform/bin/Release/Landform.exe configure-local --venue=local --storagedir=c:/Users/$USERNAME/Documents/landform-storage --maxcores=0
+## Run Agisoft Instead of Landform Bundle Adjust
+First install Agisoft Metashape professional (standard will not work as it doesn't allow python scripting).
+```
+./Pipeline/Rover/fetch-msl.sh c:/Users/$USERNAME/Downloads locations basemap 00588 00589 00590
+./Landform/bin/Release/Landform.exe configure-local --venue=local --storagedir=c:/Users/$USERNAME/Documents/landform-storage --maxcores=0 --randomseed=-1
 ./Landform/bin/Release/Landform.exe local-ingest sols588to590 --inputpath=c:/Users/$USERNAME/Downloads/msl/**
+./Landform/bin/Release/Landform.exe local-agisoft sols588to590 
+./Landform/bin/Release/Landform.exe local-observation-products sol589 --adjustedtransformsources=Agisoft --outputframe=root
+```
 
-the results will be published back to your local database with the agisoft transform source. they can be visualized with observation products by
-./Landform/bin/Release/Landform.exe local-observation-products sol589 --adjustedtransformsources=agisoft
+## Run Birds Eye View Aligner Instead of Landform Bundle Adjust
+```
+./Pipeline/Rover/fetch-msl.sh c:/Users/$USERNAME/Downloads locations basemap 00588 00589 00590
+./Landform/bin/Release/Landform.exe configure-local --venue=local --storagedir=c:/Users/$USERNAME/Documents/landform-storage --maxcores=0 --randomseed=-1
+./Landform/bin/Release/Landform.exe local-ingest sols588to590 --inputpath=c:/Users/$USERNAME/Downloads/msl/**
+./Landform/bin/Release/Landform.exe local-bev-align sols588to590 [--writedebug]
+./Landform/bin/Release/Landform.exe local-observation-products sol589 --outputframe=root --onlymergedsitedrivemeshes --onlyforcameras=NavcamLeft --adjustedtransformsources=LandformBEV,LandformBEVRoot,LandformBEVCalf
+```
+If you only want to view the sitedrives that were aligned, specify `--onlyaligned` and don't include `LandformBEVCalf` in `--adjustedtransformsources`:
+```
+./Landform/bin/Release/Landform.exe local-observation-products sol589 --outputframe=root --onlymergedsitedrivemeshes --onlyforcameras=NavcamLeft --adjustedtransformsources=LandformBEV,LandformBEVRoot --onlyaligned
+```
 
 ## Run Locally but Operate on Cloud Data
 All of the local commands (`local-ingest`, `local-features`, `local-matching`, `local-bundle-adjust`, `local-observation-products`) also support a `--cloud` option.  If present, that means that the computation and flow control will be performed locally, but that data will be read from and written to the cloud (i.e. S3 and DynamoDB).  Debug outputs will still be written locally.
@@ -155,11 +169,15 @@ It is also possible to **post-mortem collect stats and generate debug outputs fr
 ./Landform/bin/Release/Landform.exe local-observation-products sol589 --cloud --writeallthethings --outputframe=root
 ```
 ## Generating tiled meshes
-If you've ingested observations and optionally aligned them you can generate a mesh with the `local-build-meshes` command
-the command line behavior is a subset of local-observation-products. running with a commandline like 
-./Landform/bin/Release/Landform.exe local-build-meshes sol589 --onlyforcameras=NavcamLeft --usepriors will build a mesh from the PlacesDB priors stored in the sol589 project
-./Landform/bin/Release/Landform.exe local-build-meshes sol589  --onlyforcameras=NavcamLeft --adjustedtransformsources=LandformBEV will build a mesh using the birds eye view aligned transforms you've built previously for sol589
-
+If you've ingested observations and optionally aligned them you can generate a mesh with the `local-build-meshes` command.  The command line behavior is a subset of local-observation-products. Running with a commandline like 
+```
+./Landform/bin/Release/Landform.exe local-build-meshes sol589 --onlyforcameras=NavcamLeft --usepriors
+```
+will build a mesh from the PlacesDB priors stored in the sol589 project
+```
+./Landform/bin/Release/Landform.exe local-build-meshes sol589  --onlyforcameras=NavcamLeft --adjustedtransformsources=LandformBEV,LandformBEVRoot --onlyaligned
+```
+will build a mesh using the birds eye view aligned transforms you've built previously for sol589, and will omit any sitedrives that were not aligned.
 
 ## Long Form
 1.  Get some input data.  You will want one or more directories with .IMG files, typically OPGS navcam RDRs.

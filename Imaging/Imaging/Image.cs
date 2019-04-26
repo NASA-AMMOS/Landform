@@ -427,6 +427,8 @@ namespace OPS.Imaging
                 return this;
             }
 
+            blocksize = Math.Max(blocksize, 1);
+
             int hBlocks = (int)Math.Ceiling(((double)Width) / blocksize);
             int vBlocks = (int)Math.Ceiling(((double)Height) / blocksize);
 

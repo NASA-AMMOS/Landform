@@ -12,6 +12,7 @@ namespace OPS.Pipeline
     public class PngDataProduct : DataProduct
     {
         public PngDataProduct() { }
+
         public PngDataProduct(Image image)
         {
             Image = image;

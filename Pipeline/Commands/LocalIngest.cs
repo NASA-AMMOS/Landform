@@ -55,6 +55,9 @@ namespace OPS.Pipeline
 
         [Option(HelpText = "URL to legacy manifest, used to build priors from onsight manifest", Default = null)]
         public string LegacyManifestURL { get; set; }
+
+        [Option(HelpText = "Mission flag enables mission specific behavior", Default = Mission.M2020)]
+        public Mission Mission { get; set; }
     }
 
     public class LocalIngest
@@ -88,7 +91,7 @@ namespace OPS.Pipeline
             var initializer = new InitializeAlignmentProject(pipeline);
             var project = initializer.Initialize(options.ProjectName, productUrl, inputUrl, options.RedoProject);
 
-            var ingester = new IngestAlignmentInputs(pipeline, project, options.RedoObservations, options.RedoPriors,
+            var ingester = new IngestAlignmentInputs(pipeline, project, options.Mission, options.RedoObservations, options.RedoPriors,
                                                      options.OnlyForSiteDrives, options.NoProgress);
 
             ingester.Ingest(options.AddLocationsDBPriors ? GetLocationsDB(ingester.BaseUrls.Select(b => b.Url)) : null,

@@ -17,7 +17,7 @@ namespace OPS.Pipeline
         private Project project;
         private bool recreateExistingObservations;
         private bool resetTransforms;
-
+        private Func<PDSParser, string> observationFrameName;
         public delegate bool Filter(string imageUrl, PDSMetadata pdsMetadata, PDSParser pdsParser);
         private Filter filter;
 
@@ -25,7 +25,7 @@ namespace OPS.Pipeline
         public MSLPlaces Places;
         public MSLLegacyManifest LegacyManifest; 
 
-        public IngestPDSImage(PipelineCore pipeline, Project project, bool recreateExistingObservations = false,
+        public IngestPDSImage(PipelineCore pipeline, Project project, Func<PDSParser, string> observationFrameName, bool recreateExistingObservations = false,
                               bool resetTransforms = false, Filter filter = null)
             : base(pipeline)
         {
@@ -33,12 +33,13 @@ namespace OPS.Pipeline
             this.recreateExistingObservations = recreateExistingObservations;
             this.resetTransforms = resetTransforms;
             this.filter = filter;
+            this.observationFrameName = observationFrameName;
         }
 
         /// <summary>
         /// Check if we should even bother reading the header, based on the filename.
         /// </summary>
-        public static bool CheckFilename(string filename)
+        public static bool CheckFilename(string filename, bool forceLinearization = true)
         {
             RoverProductId id = RoverProductId.ParseFromString(filename);
 
@@ -83,7 +84,7 @@ namespace OPS.Pipeline
 
             //ISSUE #353: need to validate that alignment works across cameras with non-linearized images.
             // so not allowing non-aligned images to be used when other aligned images are being used.
-            if (id.Geometry != RoverProductGeometry.Linearized)
+            if (forceLinearization && id.Geometry != RoverProductGeometry.Linearized)
             {
                 return false;
             }
@@ -191,15 +192,7 @@ namespace OPS.Pipeline
             return parser.SiteDrive;
         }
 
-        /// <summary>
-        /// Map metadata to an observation frame name based on RMC
-        /// </summary>
-        /// <param name="parser"></param>
-        /// <returns></returns>
-        public string ObservationFrameName(PDSParser parser)
-        {
-            return parser.Camera.ToString() + "_" + parser.RMC;
-        }
+       
 
         /// <summary>
         /// Map metadata to an observation name based on product id
@@ -293,11 +286,13 @@ namespace OPS.Pipeline
 
             if (siteDriveFrame == null)
             {
-                throw new Exception("neither MSLLocations, Places DB, nor legacy manifest available for priors");
+                //fallback to pds headers, site relative
+                siteDriveFrame = GetFrame(SiteDriveFrameName(parser), rootFrame, TransformSource.PDS,
+                    GetSiteDriveTransformFromPDS(parser));
             }
 
             // observation (aka rover) frame -> site drive (aka local level) frame
-            var observationFrame = GetFrame(ObservationFrameName(parser), siteDriveFrame, TransformSource.PDS,
+            var observationFrame = GetFrame(observationFrameName(parser), siteDriveFrame, TransformSource.PDS,
                                             GetObservationTransform(parser));
 
             RoverObservation observation = RoverObservation.Find(pipeline, project.Name, observationName);
@@ -367,6 +362,20 @@ namespace OPS.Pipeline
                 .Diagonal<double>(new double[] { 8, 8, 8, 5 * degSqr, 5 * degSqr, 5 * degSqr });
 
             return new UncertainRigidTransform(Matrix.CreateTranslation(loc.Position), covariance);
+        }
+
+        //this function returns the site to local level offset, after all sites are processed
+        // the sites can be fixed up to provide site to first site by chaining
+        private UncertainRigidTransform GetSiteDriveTransformFromPDS(PDSParser parser)
+        {            
+            var siteDrive = new SiteDrive(parser.SiteDrive);
+            Vector3 siteToLocalLevel = parser.OriginOffset;
+
+            // TODO: examine values here
+            var covariance = CreateMatrix
+                .Diagonal<double>(new double[] { 0.25, 0.25, 0.25, 0.5 * degSqr, 0.5 * degSqr, 1.0 * degSqr });
+
+            return new UncertainRigidTransform(Matrix.CreateTranslation(siteToLocalLevel), covariance);
         }
 
         private UncertainRigidTransform GetSiteDriveTransformFromPlaces(PDSParser parser)

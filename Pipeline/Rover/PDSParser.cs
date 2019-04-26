@@ -268,15 +268,19 @@ namespace OPS.Pipeline
                        return RoverProductType.XYZErrorMap;
                     }
                 }
-                else
+                else if(this.ProductId.ProductType != RoverProductType.Unknown)
                 {
+                    return this.ProductId.ProductType;
+                }
+                else
+                { 
                     RoverProductCamera inst = Camera;
                     if(inst == RoverProductCamera.MastcamLeft || inst == RoverProductCamera.MastcamRight || inst == RoverProductCamera.MAHLI)
                     {
                         return RoverProductType.Image;
                     }
                 }
-                return RoverProductType.Unknown;            
+                return RoverProductType.Unknown;
             }
         }
 
@@ -319,14 +323,6 @@ namespace OPS.Pipeline
         {
             get
             {
-                if (metadata.HasKey("IMAGE_REQUEST_PARMS", "FILTER_NUMBER"))
-                {
-                    return metadata.ReadAsInt("IMAGE_REQUEST_PARMS", "FILTER_NUMBER");
-                }
-                if (metadata.HasKey("OBSERVATION_REQUEST_PARMS", "FILTER_NUMBER"))
-                {
-                    return metadata.ReadAsInt("OBSERVATION_REQUEST_PARMS", "FILTER_NUMBER");
-                }
                 if (metadata.HasKey("INSTRUMENT_STATE_PARMS", "FILTER_NUMBER"))
                 {
                     return metadata.ReadAsInt("INSTRUMENT_STATE_PARMS", "FILTER_NUMBER");
@@ -529,29 +525,22 @@ namespace OPS.Pipeline
         public bool IsDownsampled
         {
             get
-            {
-                if (metadata.HasKey("IMAGE_REQUEST_PARMS", "PIXEL_DOWNSAMPLE_OPTION"))
+            {             
+                int avgWidth = 1;
+                if (metadata.HasKey("INSTRUMENT_STATE_PARMS", "PIXEL_AVERAGING_WIDTH") &&
+                    metadata.ReadAsString("INSTRUMENT_STATE_PARMS", "PIXEL_AVERAGING_WIDTH") != Unknown)
                 {
-                    if (metadata.ReadAsString("IMAGE_REQUEST_PARMS", "PIXEL_DOWNSAMPLE_OPTION") != "NONE")
-                    {
-                        int avgWidth = 1;
-                        if (metadata.HasKey("IMAGE_REQUEST_PARMS", "PIXEL_AVERAGING_WIDTH") &&
-                            metadata.ReadAsString("IMAGE_REQUEST_PARMS", "PIXEL_AVERAGING_WIDTH") != Unknown)
-                        {
-                            avgWidth = metadata.ReadAsInt("IMAGE_REQUEST_PARMS", "PIXEL_AVERAGING_WIDTH");
-                        }
-
-                        int avgHeight = 1;
-                        if (metadata.HasKey("IMAGE_REQUEST_PARMS", "PIXEL_AVERAGING_HEIGHT") &&
-                            metadata.ReadAsString("IMAGE_REQUEST_PARMS", "PIXEL_AVERAGING_HEIGHT") != Unknown)
-                        {
-                            avgHeight = metadata.ReadAsInt("IMAGE_REQUEST_PARMS", "PIXEL_AVERAGING_HEIGHT");
-                        }
-
-                        return avgWidth > 1 || avgHeight > 1;
-                    }
+                    avgWidth = metadata.ReadAsInt("INSTRUMENT_STATE_PARMS", "PIXEL_AVERAGING_WIDTH");
                 }
-                return false;
+
+                int avgHeight = 1;
+                if (metadata.HasKey("INSTRUMENT_STATE_PARMS", "PIXEL_AVERAGING_HEIGHT") &&
+                    metadata.ReadAsString("INSTRUMENT_STATE_PARMS", "PIXEL_AVERAGING_HEIGHT") != Unknown)
+                {
+                    avgHeight = metadata.ReadAsInt("INSTRUMENT_STATE_PARMS", "PIXEL_AVERAGING_HEIGHT");
+                }
+
+                return avgWidth > 1 || avgHeight > 1;
             }
         }
 

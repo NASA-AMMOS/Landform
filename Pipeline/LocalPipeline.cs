@@ -71,11 +71,16 @@ namespace OPS.Pipeline
             return UrlToFile(CheckUrl(url, constrainToStorage));
         }
 
+        private static object saveLock = new object();
         public override void SaveFile(string file, string url)
         {
             string dest = UrlToFile(CheckUrl(url));
             PathHelper.EnsureExists(Path.GetDirectoryName(dest));
-            File.Copy(file, dest, overwrite: true);
+            //use TemporaryFile.GetAndMove() rather than directly copy file to dest
+            //this avoids IOException due to "the file is being used by another process"
+            //when multiple threads attempt to save the same file
+            //WRONG: File.Copy(file, dest, overwrite: true);
+            TemporaryFile.GetAndMove(dest, tmp => File.Copy(file, tmp), replaceExisting: true, moveLock: saveLock);
         }
 
         public override void DeleteFile(string url, bool ignoreErrors = true)
