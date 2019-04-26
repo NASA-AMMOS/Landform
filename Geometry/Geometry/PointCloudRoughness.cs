@@ -136,7 +136,7 @@ namespace OPS.Geometry
             {
                 // Compute all values that require signed distances
                 result.Range = max - min;
-                result.Variance = MathE.Variance(distancesFromCenter);
+                result.Variance = MathE.SampleVariance(distancesFromCenter);
                 // Convert distances to absolute value and compute unsigned distance values
                 for(int i = 0; i < distancesFromCenter.Length; i++)
                 {

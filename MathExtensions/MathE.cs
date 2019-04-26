@@ -184,7 +184,12 @@ namespace OPS.MathExtensions
             return values.Sum() / values.Length;
         }
 
-        public static double Variance(double[] values)
+        /// <summary>
+        /// Note that this is a sample (not population) variance and uses (N-1) and not N as the denominator 
+        /// </summary>
+        /// <param name="values"></param>
+        /// <returns></returns>
+        public static double SampleVariance(double[] values)
         {
             if (values.Length <= 1)
             {
