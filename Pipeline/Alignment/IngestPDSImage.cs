@@ -215,38 +215,43 @@ namespace OPS.Pipeline
                     GetSiteDriveTransformFromPDS(parser));
             }
 
+            RoverObservation observation = null;
+            Frame observationFrame = null;
             // observation (aka rover) frame -> site drive (aka local level) frame
             if (parser.Camera == RoverProductCamera.Unknown)
             {
-                pipeline.LogWarn("camnera type is unknown for {0}", observationName);
+                pipeline.LogWarn("camera type is unknown for {0}", observationName);
             }
-
-            var observationFrame = GetFrame(missionSpecific.ObservationFrameName(parser), siteDriveFrame, TransformSource.PDS,
-                                            GetObservationTransform(parser));
-
-            RoverObservation observation = RoverObservation.Find(pipeline, project.Name, observationName);
-            if (observation != null)
+            else
             {
-                if (recreateExistingObservations)
+                observationFrame = GetFrame(missionSpecific.ObservationFrameName(parser), siteDriveFrame, TransformSource.PDS,
+                                                GetObservationTransform(parser));
+
+                observation = RoverObservation.Find(pipeline, project.Name, observationName);
+                if (observation != null)
                 {
-                    pipeline.LogDebug("recreating existing observation {0}", observationName);
-                    pipeline.DeleteDatabaseItem(observation);
+                    if (recreateExistingObservations)
+                    {
+                        pipeline.LogDebug("recreating existing observation {0}", observationName);
+                        pipeline.DeleteDatabaseItem(observation);
+                    }
+                    else
+                    {
+                        pipeline.LogDebug("not recreating existing observation {0}", observationName);
+                        return new Result(imgUrl, Status.Duplicate, observation, observationFrame);
+                    }
                 }
-                else
-                {
-                    pipeline.LogDebug("not recreating existing observation {0}", observationName);
-                    return new Result(imgUrl, Status.Duplicate, observation, observationFrame);
-                }
+
+                observation = RoverObservation.Create(pipeline, observationFrame, observationName, imgUrl,
+                                                      productTypeToObservationType[parser.DerivedImageType].ToString(),
+                                                      JsonHelper.ToJson(metadata.CameraModel),
+                                                      missionSpecific.UseForReconstruction(parser),
+                                                      parser.Site, parser.Drive, parser.ProductId.Version,
+                                                      parser.Camera.ToString(), parser.ImageSizeType.ToString(),
+                                                      parser.ProducingInstitution.ToString(),
+                                                      metadata.Width, metadata.Height);
             }
 
-            observation = RoverObservation.Create(pipeline, observationFrame, observationName, imgUrl,
-                                                  productTypeToObservationType[parser.DerivedImageType].ToString(),
-                                                  JsonHelper.ToJson(metadata.CameraModel),
-                                                  missionSpecific.UseForReconstruction(parser),
-                                                  parser.Site, parser.Drive, parser.ProductId.Version,
-                                                  parser.Camera.ToString(), parser.ImageSizeType.ToString(),
-                                                  parser.ProducingInstitution.ToString(),
-                                                  metadata.Width, metadata.Height);
             if (observation != null)
             {
                 //don't add to frame.ObservationNames here
