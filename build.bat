@@ -11,6 +11,8 @@ mkdir out
 move JPL.Landform*nupkg out
 mkdir out\Landform
 robocopy /s /e Landform\bin\Release\ out\Landform
+mkdir out\QMDTMesher
+robocopy /s /e QMDTMesher\bin\Release\ out\QMDTMesher
 cd Web
 CALL npm run build
 if %errorlevel% neq 0 exit /b %errorlevel%
