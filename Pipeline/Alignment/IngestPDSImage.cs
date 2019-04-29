@@ -216,6 +216,11 @@ namespace OPS.Pipeline
             }
 
             // observation (aka rover) frame -> site drive (aka local level) frame
+            if (parser.Camera == RoverProductCamera.Unknown)
+            {
+                pipeline.LogWarn("camnera type is unknown for {0}", observationName);
+            }
+
             var observationFrame = GetFrame(missionSpecific.ObservationFrameName(parser), siteDriveFrame, TransformSource.PDS,
                                             GetObservationTransform(parser));
 

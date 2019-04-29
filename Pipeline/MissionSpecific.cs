@@ -116,7 +116,7 @@ namespace OPS.Pipeline
         //ROASTT: bug prevents RMC from being used for frame names. This workaround
         // will break multiple images with different filters resolving to same frame
         public string ObservationFrameName(PDSParser parser)
-        {
+        {          
             M20OPGSProductId pid = (M20OPGSProductId)parser.ProductId;
             return parser.Camera.ToString() + "_" + pid.GetConcatenatedTimeString();
         }
