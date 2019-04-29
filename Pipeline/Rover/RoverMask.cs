@@ -43,9 +43,9 @@ namespace OPS.Pipeline
         /// <summary>
         /// build a rover mask binary image which is 0 for masked pixels
         /// </summary>
-        public static Image Build(PDSMetadata metadata, PDSParser parser)
+        public static Image Build(PDSMetadata metadata, PDSParser parser )
         {
-            var posedRover = RoverModel.BuildMesh(parser.Articulation, !parser.IsHazcam);
+            var posedRover = RoverModel.BuildMesh(parser.Articulation, !MissionMSL.IsHazcam(parser.Camera));
 
             var sc = new SceneCaster();
             sc.AddMesh(posedRover, null, Matrix.Identity);
