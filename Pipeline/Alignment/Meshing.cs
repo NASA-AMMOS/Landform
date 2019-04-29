@@ -1068,6 +1068,12 @@ namespace OPS.Pipeline
                                      out Image points, out Image normals, out Image mask);
             pipeline.LogVerbose("building point cloud {0}", obs.Points.Name);
             var ret = BuildPointCloud(points, normals, mask);
+            if (ret.Vertices.Count == 0)
+            {
+                pipeline.LogWarn("No verts found for pointcloud for {0}", obs.Points.Name);
+                return null;
+            }
+
             var transform = GetTransform(obs.Points.FrameName, frame, frameCache, usePriors);
             if (transform == null)
             {
