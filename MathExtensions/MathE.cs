@@ -164,5 +164,39 @@ namespace OPS.MathExtensions
             v++;
             return (int)v;
         }
+
+
+        public static double RMS(double[] values)
+        {
+            if (values.Length == 0)
+            {
+                return 0;
+            }
+            return Math.Sqrt(values.Select(x => x * x).Sum() / values.Length);
+        }
+
+        public static double Average(double[] values)
+        {
+            if(values.Length == 0)
+            {
+                return 0;
+            }
+            return values.Sum() / values.Length;
+        }
+
+        /// <summary>
+        /// Note that this is a sample (not population) variance and uses (N-1) and not N as the denominator 
+        /// </summary>
+        /// <param name="values"></param>
+        /// <returns></returns>
+        public static double SampleVariance(double[] values)
+        {
+            if (values.Length <= 1)
+            {
+                return 0;
+            }
+            var average = Average(values);
+            return values.Select(v => (v - average) * (v - average)).Sum() / (values.Length - 1);                
+        }
     }
 }

@@ -44,7 +44,7 @@ namespace OPS.Pipeline.MeshWorker
             observationCache.Preload(obs => obs.UseForReconstruction);
 
             string outputFrame = "root";
-            Mesh surfacedMesh = BuildMesh(pipeline, projectName, out BoundingBox pointBounds, frameCache, observationCache, outputFrame, usePriors:false, onlyForCameras:null, useCleverCombine:false, allowMastcam:false);
+            Mesh surfacedMesh = BuildMesh(pipeline, projectName, out BoundingBox pointBounds, frameCache, observationCache, outputFrame, usePriors:false, noPriors:false, onlyForCameras:null, useCleverCombine:false, allowMastcam:false);
             if (surfacedMesh == null || surfacedMesh.Vertices.Count == 0)
             {
                 pipeline.LogError("point cloud failed to reconstruct");
@@ -73,14 +73,23 @@ namespace OPS.Pipeline.MeshWorker
             return 0;
         }
 
-        static public Mesh BuildMesh(PipelineCore pipeline, string projectName, out BoundingBox pointBounds, FrameCache frameCache, ObservationCache observationCache, string outputFrame, bool usePriors, string onlyForCameras = null, bool useCleverCombine=false, bool allowMastcam=false)
+        static public Mesh BuildMesh(PipelineCore pipeline, string projectName, out BoundingBox pointBounds, FrameCache frameCache, ObservationCache observationCache, string outputFrame, bool usePriors, bool noPriors, string onlyForCameras = null, bool useCleverCombine=false, bool allowMastcam=false)
         {
             pointBounds = new BoundingBox();
            
             //temporarily suppress mastcam point cloud data until validated
             //https://github.jpl.nasa.gov/OnSight/Landform/issues/261
-            var observations = Meshing.CollectMeshObservations(frameCache, observationCache, allowMastcam: allowMastcam,
-                                                               requireNormals: true, onlyForCameras:onlyForCameras);
+            var opts = new Meshing.MeshObservationsOptions(null, onlyForCameras)
+                {
+                    AllowMastcam = allowMastcam,
+                    RequirePoints = true,
+                    RequireNormals = true,
+                    RequireTextures = false,
+                    RequirePriorTransform = usePriors,
+                    RequireAdjustedTransform = noPriors,
+                    TargetFrame = outputFrame
+                };
+            var observations = Meshing.CollectMeshObservations(frameCache, observationCache, opts);
             if (observations.Count == 0)
             {
                 pipeline.LogError("no observations were found to build a point cloud");
@@ -105,7 +114,7 @@ namespace OPS.Pipeline.MeshWorker
 
                 //the reference point used to determine how good a point is for clever combine. naive version is using distance from 
                 // camera. 
-                UncertainRigidTransform obsToOutput = Meshing.GetTransform(obs.Points.FrameName, outputFrame, frameCache, usePriors);
+                UncertainRigidTransform obsToOutput = Meshing.GetTransform(obs.Points.FrameName, outputFrame, frameCache, usePriors, noPriors);
                 CAHV cam = (CameraModel)JsonHelper.FromJson(obs.Points.CameraModel) as CAHV;
                 Vector3 cameraPosInOutput = Vector3.Transform(cam.C, obsToOutput.Mean);
 
@@ -139,7 +148,7 @@ namespace OPS.Pipeline.MeshWorker
             pointBounds = aggregatePointCloud.Bounds();
 
             pipeline.LogInfo("reconstructing point cloud: " + aggregatePointCloud.Vertices.Count() + " vertices");
-            PoissonReconstruction.Options opts = new PoissonReconstruction.Options
+            PoissonReconstruction.Options poissonOpts = new PoissonReconstruction.Options
             {
                 //extrapolates the edges of the mesh
                 Boundary = PoissonReconstruction.BoundaryTypes.Neumann,
@@ -159,7 +168,7 @@ namespace OPS.Pipeline.MeshWorker
                 UseNormalsForConfidence = true
             };
 
-            return PoissonReconstruction.Reconstruct(aggregatePointCloud, opts);
+            return PoissonReconstruction.Reconstruct(aggregatePointCloud, poissonOpts);
         }
     }
 }

@@ -168,5 +168,11 @@ namespace OPS.Util
         {
             return !string.IsNullOrEmpty(str) ? Regex.Replace(str, @"\s+", " ") : str;
         }
+
+        public static string CommonPrefix(IEnumerable<string> values)
+        {
+            return new string(values.First().Substring(0, values.Min(s => s.Length))
+                              .TakeWhile((c, i) => values.All(s => s[i] == c)).ToArray());
+        }
     }
 }
