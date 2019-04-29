@@ -183,6 +183,14 @@ namespace OPS.Pipeline
                     {
                         return RoverProductCamera.MAHLI;
                     }
+                    else if(id.StartsWith("MCZ_LEFT"))
+                    {
+                        return RoverProductCamera.MastcamZLeft;
+                    }
+                    else if (id.StartsWith("MCZ_RIGHT"))
+                    {
+                        return RoverProductCamera.MastcamZRight;
+                    }
                 }
                 return RoverProductCamera.Unknown;
             }

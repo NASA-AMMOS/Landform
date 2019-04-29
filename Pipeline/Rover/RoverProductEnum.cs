@@ -8,6 +8,7 @@ namespace OPS.Pipeline
 {
     public enum RoverProductCamera
     {
+        //common
         Unknown,
         FrontHazcamLeft,
         FrontHazcamRight,
@@ -15,9 +16,15 @@ namespace OPS.Pipeline
         RearHazcamRight,
         NavcamLeft,
         NavcamRight,
+
+        //MSL
         MastcamLeft,
         MastcamRight,
-        MAHLI
+        MAHLI,
+
+        //M2020
+        MastcamZLeft,
+        MastcamZRight
     }
 
     public enum RoverProductGeometry
