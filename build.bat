@@ -11,6 +11,8 @@ mkdir out
 move JPL.Landform*nupkg out
 mkdir out\Landform
 robocopy /s /e Landform\bin\Release\ out\Landform
+mkdir out\TilingServer
+robocopy /s /e TilingServer\bin\Release\ out\TilingServer
 mkdir out\QMDTMesher
 robocopy /s /e QMDTMesher\bin\Release\ out\QMDTMesher
 cd Web
