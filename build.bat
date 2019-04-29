@@ -14,7 +14,7 @@ robocopy /s /e Landform\bin\Release\ out\Landform
 mkdir out\TilingServer
 robocopy /s /e TilingServer\bin\Release\ out\TilingServer
 mkdir out\QMDTMesher
-robocopy /s /e QMDTMesher\bin\Release\ out\QMDTMesher
+robocopy /s /e Apps\QMDTMesher\bin\Release\ out\QMDTMesher
 cd Web
 CALL npm run build
 if %errorlevel% neq 0 exit /b %errorlevel%
