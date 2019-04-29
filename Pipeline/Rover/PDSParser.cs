@@ -278,10 +278,13 @@ namespace OPS.Pipeline
                 }
                 else if(this.ProductId.ProductType != RoverProductType.Unknown)
                 {
+                    //fallback to filename
                     return this.ProductId.ProductType;
                 }
                 else
                 { 
+                    //ISSUE: #550
+                    //fallback to instrument name and the incorrect hope there are no other products built with that camera
                     RoverProductCamera inst = Camera;
                     if(inst == RoverProductCamera.MastcamLeft || inst == RoverProductCamera.MastcamRight || inst == RoverProductCamera.MAHLI)
                     {
