@@ -263,7 +263,7 @@ namespace OPS.Pipeline
                 {
                     pipeline.LogInfo("Building tile mesh {0}: {1}/{2} ({3}%)", leaf.Name, curLeafNum, root.Leaves().Count(), (int)(100 * curLeafNum / (float)root.Leaves().Count()));
                     
-                    if (false == TileLocalMesh.ClipMeshForTile(leaf, meshOp,out leafMesh, options.NoTextures ? 0 : options.TileResolution))
+                    if (false == ClipMeshForTile(leaf, meshOp,out leafMesh, options.NoTextures ? 0 : options.TileResolution))
                     {
                         pipeline.LogError("Failed: couldn't generate texture coordinates for tile: {0}", leaf.Name);
                         return;
@@ -480,6 +480,30 @@ namespace OPS.Pipeline
             return fullMesh;
         }
 
+        static private bool ClipMeshForTile(SceneNode node, MeshOperator fullMeshOp, out Mesh resultMesh, int tileTextureResoultion = 0)
+        {
+            if (!node.HasComponent<NodeBounds>())
+                throw new InvalidOperationException("Need to have node bounds on scene nodes being clipped. run define tiles.");
+
+            BoundingBox nodeBounds = node.GetComponent<NodeBounds>().Bounds;
+            resultMesh = fullMeshOp.Clip(nodeBounds);
+
+            if (tileTextureResoultion > 0)
+            {
+                try
+                {
+                    resultMesh = UVAtlas.Atlas(resultMesh, tileTextureResoultion, tileTextureResoultion);
+                }
+                catch
+                {
+                    resultMesh = null;
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
         private int BackprojectObservation(FrameCache frameCache, ObservationCache obsCache, SceneCaster sc, RoverObservation obs, ConvexHull obsHull, ref Queue<PixelPoint> pointsToBackproject, Image leafImage)
         {
             Matrix obsToMesh = Meshing.GetTransform(obs.FrameName, options.OutputFrame, frameCache, options.UsePriors).Mean;
@@ -498,6 +522,7 @@ namespace OPS.Pipeline
             {
                 var pixelpoint = pointsToBackproject.Dequeue();
                 Vector3 meshPos = pixelpoint.Point;
+
                 bool failedToBackprojectPoint = true;
 
                 // validate surface point is in the frustum to avoid camera model issues with offscreen points
@@ -539,32 +564,6 @@ namespace OPS.Pipeline
             int contributedPixels = pointsToBackprojectCount - failedToBackproject.Count();
             pointsToBackproject = failedToBackproject;
             return contributedPixels;
-        }
-
-        private struct PixelPoint
-        {
-            public Vector2 Pixel;
-            public Vector3 Point;
-        };
-
-        private static Queue<PixelPoint> GetPointsToBackproject(MeshOperator leafMeshOp, int textureResolution)
-        {
-            Queue<PixelPoint> points = new Queue<PixelPoint>();
-
-            for (int destRow = 0; destRow < textureResolution; destRow++)
-            {
-                for (int destCol = 0; destCol < textureResolution; destCol++)
-                {
-                    Vector2 destPixelToUV = new Vector2(destCol / (float)textureResolution, 1 - (destRow / (float)textureResolution)); //Issue #491: why vertical flip?
-                    BarycentricPoint baryPt = leafMeshOp.UVToBarycentric(destPixelToUV);
-                    if (baryPt == null)
-                        continue;
-
-                    points.Enqueue(new PixelPoint() { Pixel = new Vector2(destCol, destRow), Point = baryPt.Position });
-                }
-            }
-
-            return points;
         }
 
         private string CreateSourcesPath(TransformSource[] adjustedSources, TransformSource[] priorSources)
