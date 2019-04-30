@@ -404,7 +404,7 @@ namespace OPS.Pipeline
         {
             parser = parser ?? new PDSParser((PDSMetadata)img.Metadata);
             CheckType(parser, RoverProductType.XYZ, "GenerateConfidenceFromXYZ");
-            Vector3 c = CheckCameraCenter(img, "GenerateConfidenceFromXYZ");
+            Vector3 c = CheckCameraCenter(img, "GenerateConfidenceFromXYZ", false);
             Matrix xform = RoverCoordinateSystem.GetTransformToRoverFrame(parser);
             Image ret = new Image(1, img.Width, img.Height);
             AddMaskForMissingConstant(ret, img, parser);
@@ -1111,6 +1111,12 @@ namespace OPS.Pipeline
                                      out Image points, out Image normals, out Image mask);
             pipeline.LogVerbose("building point cloud {0}", obs.Points.Name);
             var ret = BuildPointCloud(points, normals, mask);
+            if (ret.Vertices.Count == 0)
+            {
+                pipeline.LogWarn("No verts found for pointcloud for {0}", obs.Points.Name);
+                return null;
+            }
+
             var transform = GetTransform(obs.Points.FrameName, frame, frameCache, usePriors, onlyAligned);
             if (transform == null)
             {

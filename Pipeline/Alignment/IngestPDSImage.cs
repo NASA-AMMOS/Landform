@@ -17,15 +17,14 @@ namespace OPS.Pipeline
         private Project project;
         private bool recreateExistingObservations;
         private bool resetTransforms;
-        private Func<PDSParser, string> observationFrameName;
+        private MissionSpecific missionSpecific;
         public delegate bool Filter(string imageUrl, PDSMetadata pdsMetadata, PDSParser pdsParser);
         private Filter filter;
-
         public MSLLocations Locations;
         public MSLPlaces Places;
         public MSLLegacyManifest LegacyManifest; 
 
-        public IngestPDSImage(PipelineCore pipeline, Project project, Func<PDSParser, string> observationFrameName, bool recreateExistingObservations = false,
+        public IngestPDSImage(PipelineCore pipeline, Project project, MissionSpecific missionSpecific, bool recreateExistingObservations = false,
                               bool resetTransforms = false, Filter filter = null)
             : base(pipeline)
         {
@@ -33,7 +32,7 @@ namespace OPS.Pipeline
             this.recreateExistingObservations = recreateExistingObservations;
             this.resetTransforms = resetTransforms;
             this.filter = filter;
-            this.observationFrameName = observationFrameName;
+            this.missionSpecific = missionSpecific;
         }
 
         /// <summary>
@@ -104,82 +103,7 @@ namespace OPS.Pipeline
                !parser.IsSunFinding;
         }
 
-        /// <summary>
-        /// Return true if this file should be used for reconstruction
-        /// </summary>
-        /// <param name="parser"></param>
-        /// <param name="metadata"></param>
-        /// <returns></returns>
-        bool UseForReconstruction(PDSParser parser, PDSMetadata metadata)
-        {
-            // Partial downloads
-            if (parser.IsPartial)
-            {
-                return false;
-            }
-
-            // Low exposure hazcams
-            if (parser.DerivedImageType == RoverProductType.Image)
-            {
-                if (parser.IsHazcam && parser.ExposureDuration != 0 && parser.ExposureDuration < MSLProject.MIN_NAV_HAZ_EXPOSURE)
-                {
-                    return false;
-                }
-            }
-
-            //Needed for mask computation
-            try
-            {
-                if (parser.Articulation == null)
-                {
-                    return false;
-                }
-            }
-            catch
-            {
-                return false;
-            }
-
-            if (parser.IsHazcam)
-            {
-                return false;
-            }
-
-            // Only use single and 3 band images
-            if (metadata.Bands != 3 && metadata.Bands != 1)
-            {
-                return false;
-            }
-
-            if (parser.IsMastcam)
-            {
-                // Skip mastcam taken with color filters
-                try
-                {
-                    if (!parser.FilterNumber.HasValue || parser.FilterNumber != 0)
-                    {
-                        return false;
-                    }
-                }
-                catch
-                {
-                    return false;
-                }
-
-                // Skip mastcam with short focal distances (probably closeup of rover part with terrain out of focus in background)
-                if (parser.MaximumFocusDistance.HasValue && parser.MaximumFocusDistance < MSLProject.MIN_MASTCAM_FOCUS_CUTOFF)
-                {
-                    return false;
-                }
-            }
-
-            if (parser.IsNavcam && parser.IsDownsampled)
-            {
-                return false;
-            }
-
-            return true;
-        }
+       
 
 
         /// <summary>
@@ -294,33 +218,43 @@ namespace OPS.Pipeline
                     GetSiteDriveTransformFromPDS(parser));
             }
 
+            RoverObservation observation = null;
+            Frame observationFrame = null;
             // observation (aka rover) frame -> site drive (aka local level) frame
-            var observationFrame = GetFrame(observationFrameName(parser), siteDriveFrame, TransformSource.PDS,
-                                            GetObservationTransform(parser));
-
-            RoverObservation observation = RoverObservation.Find(pipeline, project.Name, observationName);
-            if (observation != null)
+            if (parser.Camera == RoverProductCamera.Unknown)
             {
-                if (recreateExistingObservations)
+                pipeline.LogWarn("camera type is unknown for {0}", observationName);
+            }
+            else
+            {
+                observationFrame = GetFrame(missionSpecific.ObservationFrameName(parser), siteDriveFrame, TransformSource.PDS,
+                                                GetObservationTransform(parser));
+
+                observation = RoverObservation.Find(pipeline, project.Name, observationName);
+                if (observation != null)
                 {
-                    pipeline.LogDebug("recreating existing observation {0}", observationName);
-                    pipeline.DeleteDatabaseItem(observation);
+                    if (recreateExistingObservations)
+                    {
+                        pipeline.LogDebug("recreating existing observation {0}", observationName);
+                        pipeline.DeleteDatabaseItem(observation);
+                    }
+                    else
+                    {
+                        pipeline.LogDebug("not recreating existing observation {0}", observationName);
+                        return new Result(imgUrl, Status.Duplicate, observation, observationFrame);
+                    }
                 }
-                else
-                {
-                    pipeline.LogDebug("not recreating existing observation {0}", observationName);
-                    return new Result(imgUrl, Status.Duplicate, observation, observationFrame);
-                }
+
+                observation = RoverObservation.Create(pipeline, observationFrame, observationName, imgUrl,
+                                                      productTypeToObservationType[parser.DerivedImageType].ToString(),
+                                                      JsonHelper.ToJson(metadata.CameraModel),
+                                                      missionSpecific.UseForReconstruction(parser),
+                                                      parser.Site, parser.Drive, parser.ProductId.Version,
+                                                      parser.Camera.ToString(), parser.ImageSizeType.ToString(),
+                                                      parser.ProducingInstitution.ToString(),
+                                                      metadata.Width, metadata.Height);
             }
 
-            observation = RoverObservation.Create(pipeline, observationFrame, observationName, imgUrl,
-                                                  productTypeToObservationType[parser.DerivedImageType].ToString(),
-                                                  JsonHelper.ToJson(metadata.CameraModel),
-                                                  UseForReconstruction(parser, metadata),
-                                                  parser.Site, parser.Drive, parser.ProductId.Version,
-                                                  parser.Camera.ToString(), parser.ImageSizeType.ToString(),
-                                                  parser.ProducingInstitution.ToString(),
-                                                  metadata.Width, metadata.Height);
             if (observation != null)
             {
                 //don't add to frame.ObservationNames here

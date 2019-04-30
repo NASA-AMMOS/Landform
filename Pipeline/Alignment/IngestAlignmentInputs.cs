@@ -83,13 +83,7 @@ namespace OPS.Pipeline
                 .Select(s => new SiteDrive(s.Trim()))
                 .Cast<SiteDrive>()
                 .ToArray();
-
-            IngestPDSImage.Filter filter = (imageUrl, pdsMetadata, pdsParser) =>
-                siteDrives.Length == 0 ||
-                siteDrives.Any(sd => sd == new SiteDrive(pdsParser.Site, pdsParser.Drive));
-
-            this.noProgress = noProgress;
-
+           
             MissionSpecific missionSpecific = null;
             switch (mission)
             {
@@ -103,7 +97,13 @@ namespace OPS.Pipeline
                     throw new NotImplementedException("unknown mission");
             }
 
-            ingester = new IngestPDSImage(pipeline, project, missionSpecific.ObservationFrameName, recreateObservations, resetTransforms, filter);
+            IngestPDSImage.Filter filter = (imageUrl, pdsMetadata, pdsParser) =>
+                siteDrives.Length == 0 ||
+                siteDrives.Any(sd => sd == new SiteDrive(pdsParser.Site, pdsParser.Drive));
+
+            this.noProgress = noProgress;
+
+            ingester = new IngestPDSImage(pipeline, project, missionSpecific, recreateObservations, resetTransforms, filter);
         }
 
         public int Ingest(MSLLocations locations, MSLPlaces places, MSLLegacyManifest manifest, Action<IngestImage.Result> func = null)

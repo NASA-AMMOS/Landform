@@ -315,6 +315,13 @@ namespace OPS.Pipeline
                 if (parser.HasMissingConstant)
                 {
                     float[] missing = parser.MissingConstant.Select(x => (float)x).ToArray();
+
+                    //ROASTT: single float missing constant for 3 channel navcam
+                    if(missing.Count() == 1 && img.Bands > 1)
+                    {
+                        missing = Enumerable.Repeat<float>(missing.First(), img.Bands).ToArray();
+                    }
+
                     //we could do it this way, but it's just a few more lines to avoid allocating the mask array
                     //mask.UnionMask(img, missing);
                     //mask.SetValuesForMaskedData(new float[] { 0 });
