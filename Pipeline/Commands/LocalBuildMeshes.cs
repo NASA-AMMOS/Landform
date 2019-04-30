@@ -342,45 +342,50 @@ namespace OPS.Pipeline
 
                     //cache the destination pixels (and the mesh positions for perf) for which backproject is valid
                     MeshOperator leafOp = new MeshOperator(leafMesh, buildFaceTree: false, buildVertexTree: false, buildUVFaceTree: true);
-                    Queue<PixelPoint> pointsToBackproject = GetPointsToBackproject(leafOp, options.TileResolution);
+                    List<PixelPoint> pointsToBackproject = leafOp.SampleUVSpace(options.TileResolution);
 
-                    //select a coarse sampling of the points to backproject to use get a rough sorting of texture quality
-                    double percentagePointsToTest = 0.10; //TODO: expose
-                    int pointsToTest = Math.Max(1,(int)(pointsToBackproject.Count * percentagePointsToTest));
-                    int skipPoints = pointsToBackproject.Count / pointsToTest;
-                    IEnumerable<PixelPoint> pointsToTestSamplingDensity = pointsToBackproject.Where((pt, index) => index % skipPoints == 0);
-
-                    //calculate the median spatial density for the requested pixels per observation
-                    Dictionary<Observation, double> distancesByObservation = new Dictionary<Observation, double>();
-                    foreach (var obs in intersectingObservations.Cast<RoverObservation>())
+                    //calculate goodness (spatial density)
+                    Dictionary<Observation, double> spatialDensityByObs = new Dictionary<Observation, double>();
                     {
-                        List<double> minDistances = new List<double>(capacity: pointsToTestSamplingDensity.Count());
-                        foreach(var pt in pointsToTestSamplingDensity)
-                        {
-                            //test hull (protect against bad ray calculations from camera model)
-                            if (!obsToHull.ContainsKey(obs))
-                                continue;
-
-                            if (!obsToHull[obs].Contains(pt.Point))
-                                continue;
-
-                            Matrix obsToOutput = Meshing.GetTransform(obs.FrameName, options.OutputFrame, frameCache, options.UsePriors).Mean;
-                            minDistances.Add(GetMinPixelSpreadInMeters(sc, (CameraModel)JsonHelper.FromJson(obs.CameraModel), obsToOutput, obsToHull[obs], pt.Pixel, pt.Point));
-                        }
-
-                        //store the median of the min distances
-                        double medianDistance = double.MaxValue;
-                        if(minDistances.Count() > 0 )
-                        {
-                            minDistances.Sort();
-                            medianDistance = minDistances.ElementAt(minDistances.Count / 2);
-                        }
+                        //select a coarse sampling of the points to backproject to use get a rough sorting of texture quality
+                        double percentagePointsToTest = 0.10; //TODO: expose
                         
-                        distancesByObservation.Add(obs, medianDistance);
+                        //simple sample which skips enough points to return the requested amount of points
+                        int subsampledPts = Math.Max(1, (int)(pointsToBackproject.Count * percentagePointsToTest));
+                        int skipPoints = pointsToBackproject.Count / subsampledPts;
+                        List<PixelPoint> pointsToTestSamplingDensity = pointsToBackproject.Where((pt, index) => index % skipPoints == 0).ToList();
+
+                        //calculate the median spatial density for the requested pixels per observation
+                        foreach (var obs in intersectingObservations.Cast<RoverObservation>())
+                        {
+                            List<double> minDistances = new List<double>(capacity: pointsToTestSamplingDensity.Count());
+                            foreach (var pt in pointsToTestSamplingDensity)
+                            {
+                                //test hull (protect against bad ray calculations from camera model)
+                                if (!obsToHull.ContainsKey(obs))
+                                    continue;
+
+                                if (!obsToHull[obs].Contains(pt.Point))
+                                    continue;
+
+                                Matrix obsToOutput = Meshing.GetTransform(obs.FrameName, options.OutputFrame, frameCache, options.UsePriors).Mean;
+                                minDistances.Add(GetMinPixelSpreadInMeters(sc, (CameraModel)JsonHelper.FromJson(obs.CameraModel), obsToOutput, obsToHull[obs], pt.Pixel, pt.Point));
+                            }
+
+                            //store the median of the min distances
+                            double medianDistance = double.MaxValue;
+                            if (minDistances.Count() > 0)
+                            {
+                                minDistances.Sort();
+                                medianDistance = minDistances.ElementAt(minDistances.Count / 2);
+                            }
+
+                            spatialDensityByObs.Add(obs, medianDistance);
+                        }
                     }
-                     
+
                     //sort the list of observations by distance
-                    intersectingObservations.Sort((obs1, obs2) => distancesByObservation[obs1].CompareTo(distancesByObservation[obs2]));
+                    intersectingObservations.Sort((obs1, obs2) => spatialDensityByObs[obs1].CompareTo(spatialDensityByObs[obs2]));
 
                     //for each source image, sweep through all valid destination pixels (not atlas gutter pixels)
                     foreach (var obs in intersectingObservations)
