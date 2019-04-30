@@ -45,7 +45,7 @@ namespace OPS.Pipeline
         [Option(HelpText = "Algorithm to bring un-aligned \"calf\" site drives along for the ride: None, Centroid (match to aligned site drive with closest horizontal centroid), Temporal (match to closest aligned site drive by acquisition time)", Default = CalfMode.Centroid)]
         public CalfMode CalfMode { get; set; }
 
-        [Option(HelpText = "In pairwise alignment modes lower priority site drives will be aligned to higher priority ones (NewestFirst, OldestFirst, BiggestFirst, SmallestFirst)", Default = SiteDrivePriority.NewestFirst)]
+        [Option(HelpText = "In pairwise alignment modes lower priority site drives will be aligned to higher priority ones (NewestFirst, OldestFirst, BiggestFirst, SmallestFirst)", Default = SiteDrivePriority.BiggestFirst)]
         public SiteDrivePriority SiteDrivePriority { get; set; }
 
         [Option(HelpText = "Only generate products for specific cameras, comma separated (FrontHazcamLeft, FrontHazcamRight, RearHazcamLeft, RearHazcamRight, NavcamLeft, NavcamRight, MastcamLeft, MastcamRight, MAHLI)", Default = "NavcamLeft")]
@@ -1339,7 +1339,7 @@ namespace OPS.Pipeline
                 }
                 case SiteDrivePriority.SmallestFirst:
                 {
-                    siteDrives = siteDrives.OrderByDescending(sd => BEVArea(sd)).ToArray();
+                    siteDrives = siteDrives.OrderBy(sd => BEVArea(sd)).ToArray();
                     break;
                 }
             }
@@ -1355,9 +1355,7 @@ namespace OPS.Pipeline
                 }
             }
 
-            pipeline.LogInfo("site drive pairs: {0}",
-                             string.Join(", ",
-                                         siteDrivePairs.Select(pr => string.Format("({0}, {1})", pr.Item1, pr.Item2))));
+            pipeline.LogInfo("{0} site drive pairs", siteDrivePairs.Count);
         }
 
         /// <summary>
@@ -1370,6 +1368,22 @@ namespace OPS.Pipeline
                 MatchPairs();
                 SaveMatches();
             }
+
+            int ng = 0;
+            foreach (var entry in spatialMatches)
+            {
+                var name = entry.Key;
+                var num = entry.Value.Length;
+                if (num > 0)
+                {
+                    pipeline.LogInfo("{0}: {1} matches", name, num);
+                }
+                if (num >= options.MinRansacMatches)
+                {
+                    ng++;
+                }
+            }
+            pipeline.LogInfo("{0} site drive pairs with at least {1} matches", ng, options.MinRansacMatches);
 
             if (options.WriteDebug)
             {
@@ -1388,27 +1402,36 @@ namespace OPS.Pipeline
                         var model = pair.Item1;
                         var data = pair.Item2;
                         var pairName = model + "-" + data;
-                        
-                        ImageMatching
-                        .DrawMatches(bevs[model], bevs[data], features[model], features[data],
-                                     matches[pairName]
-                                     .Select(m => new KeyValuePair<int, int>(m.DataIndex, m.ModelIndex))
-                                     .ToArray(),
-                                     model, data, stretch: false)
-                        .Save<byte>(outputPath + pairName + "_BirdsEyeView_Matches" + imageExt);
-                        
-                        ImageMatching
-                        .DrawMatches(bevs[model], bevs[data], features[model], features[data],
-                                     ransacMatches[pairName]
-                                     .Select(m => new KeyValuePair<int, int>(m.DataIndex, m.ModelIndex))
-                                     .ToArray(),
-                                     model, data, stretch: false)
-                        .Save<byte>(outputPath + pairName + "_BirdsEyeView_RANSAC_Matches" + imageExt);
 
-                        ImageMatching
-                        .MakeMatchMesh(spatialMatches[pairName].Select(p => p.ModelPoint).ToArray(),
-                                       spatialMatches[pairName].Select(p => p.DataPoint).ToArray())
-                        .Save(outputPath + pairName + "_matches" + meshExt);
+                        if (matches[pairName].Length > 0)
+                        {
+                            ImageMatching
+                                .DrawMatches(bevs[model], bevs[data], features[model], features[data],
+                                             matches[pairName]
+                                             .Select(m => new KeyValuePair<int, int>(m.DataIndex, m.ModelIndex))
+                                             .ToArray(),
+                                             model, data, stretch: false)
+                                .Save<byte>(outputPath + pairName + "_BirdsEyeView_Matches" + imageExt);
+                        }
+
+                        if (ransacMatches[pairName].Length > 0)
+                        {
+                            ImageMatching
+                            .DrawMatches(bevs[model], bevs[data], features[model], features[data],
+                                         ransacMatches[pairName]
+                                         .Select(m => new KeyValuePair<int, int>(m.DataIndex, m.ModelIndex))
+                                         .ToArray(),
+                                         model, data, stretch: false)
+                            .Save<byte>(outputPath + pairName + "_BirdsEyeView_RANSAC_Matches" + imageExt);
+                        }
+
+                        if (spatialMatches[pairName].Length > 0)
+                        {
+                            ImageMatching
+                            .MakeMatchMesh(spatialMatches[pairName].Select(p => p.ModelPoint).ToArray(),
+                                           spatialMatches[pairName].Select(p => p.DataPoint).ToArray())
+                            .Save(outputPath + pairName + "_matches" + meshExt);
+                        }
 
                         Interlocked.Decrement(ref np);
                         Interlocked.Increment(ref nc);
@@ -1429,6 +1452,7 @@ namespace OPS.Pipeline
                     good.Add(data);
                 }
             }
+
             return good.Count;
         }
 
@@ -1441,7 +1465,7 @@ namespace OPS.Pipeline
             pipeline.LogInfo("matching features in birds eye views for {0} site drive pairs...", siteDrivePairs.Count);
 
             var histogram = new Histogram(10, "pairs", "matches");
-            int nc = 0, np = 0, ng = 0;
+            int nc = 0, np = 0;
             CoreLimitedParallel.ForEach(siteDrivePairs, pair => {
                     
                     Interlocked.Increment(ref np);
@@ -1470,11 +1494,6 @@ namespace OPS.Pipeline
                             //ransacMatches -> spatialMatches
                             nm = spatialMatches.ContainsKey(pairName) ?
                                 spatialMatches[pairName].Length : SpatializeMatches(model, data);
-                            
-                            if (nm >= options.MinRansacMatches)
-                            {
-                                Interlocked.Increment(ref ng);
-                            }
                         }
                         else
                         {
@@ -1496,9 +1515,8 @@ namespace OPS.Pipeline
                 histogram.Dump(pipeline);
             }
 
-            pipeline.LogInfo("matched features in birds eye views for {0} site drive pairs, " +
-                             "{1} with at least threshold {2} matches ({3:F3}s)",
-                             siteDrivePairs.Count, ng, options.MinRansacMatches, UTCTime.Now() - startSec);
+            pipeline.LogInfo("matched features in birds eye views for {0} site drive pairs ({1:F3}s)",
+                             siteDrivePairs.Count, UTCTime.Now() - startSec);
         }
 
         /// <summary>
@@ -1574,7 +1592,7 @@ namespace OPS.Pipeline
         /// build graph of sitedrive nodes  
         /// for each pair of sitedrives for which we have a sufficient spatial match
         /// the "data" sitedrive is a child of the "model" sitedrive
-        /// at this stage the graph can is a DAG because a node can be a child of more than one parent
+        /// at this stage the graph is a DAG because a node can be a child of more than one parent
         /// the graph is also possibly disconnected (i.e. there can be more than one node with no parent)
         /// </summary>
         private void MakeGraph()
@@ -1857,6 +1875,19 @@ namespace OPS.Pipeline
                 }
             }
 
+            var closures = new HashSet<string>();
+            foreach (var node in nodes)
+            {
+                foreach (var child in node.Children)
+                {
+                    if (child.Parent != node)
+                    {
+                        closures.Add(node.Name + "-" + child.Name);
+                    }
+                }
+            }
+            pipeline.LogInfo("{0} birds eye view loop closures: {1}", closures.Count, String.Join(", ", closures));
+
             //align every node to its a parent
             //a node has a parent iff we found enough ransac matches from that node to a higher-priority sitedrive
             var nodesToAlign = nodes
@@ -1865,6 +1896,7 @@ namespace OPS.Pipeline
                 .ToList();
             pipeline.LogInfo("pairwise aligning {0} site drives", nodesToAlign.Count);
             int nc = 0, np = 0;
+            var aligned = new HashSet<string>();
             CoreLimitedParallel.ForEach(nodesToAlign, node => {
 
                     Interlocked.Increment(ref np);
@@ -1885,7 +1917,8 @@ namespace OPS.Pipeline
                     var rootToModelPrior = Matrix.Invert(modelToRootPrior);
                     
                     //the spatial matches are in root frame, transform them to model prior frame
-                    var sm = spatialMatches[model + "-" + data];
+                    var pairName = model + "-" + data;
+                    var sm = spatialMatches[pairName];
                     var modelPts = sm.Select(m => Vector3.Transform(m.ModelPoint, rootToModelPrior)).ToArray();
                     var dataPts = sm.Select(m => Vector3.Transform(m.DataPoint, rootToModelPrior)).ToArray();
                     
@@ -1899,8 +1932,10 @@ namespace OPS.Pipeline
                     //compute transform adj that best aligns data points to model points
                     var residual = Procrustes.CalculateRigid(dataPts, modelPts, out Matrix adj);
                     
-                    pipeline.LogInfo("aligned sitedrive {0} to {1}, residual {2}->{3}m", data, model,
-                                     priorResidual, residual);
+                    pipeline.LogInfo("aligned {0} ({1} matches), residual {2}->{3}m",
+                                     pairName, sm.Length, priorResidual, residual);
+
+                    aligned.Add(pairName);
                     
                     //row matrix transforms compose left to right
                     var dataToModelPrior = dataToRootPrior * rootToModelPrior;
@@ -1936,10 +1971,11 @@ namespace OPS.Pipeline
 
             SaveTransforms(nodesToAlign, TransformSource.LandformBEV);
 
-            var rootNodes = nodesToAlign.Select(n => n.Parent);
-            pipeline.LogInfo("birds eye view root nodes: {0}", String.Join(", ", rootNodes.Select(node => node.Name)));
+            var roots = nodesToAlign.Select(n => n.Parent).Distinct();
+            pipeline.LogInfo("{0} birds eye view roots: {1}",
+                             roots.Count(), String.Join(", ", roots.Select(node => node.Name)));
 
-            SaveTransforms(rootNodes, TransformSource.LandformBEVRoot);
+            SaveTransforms(roots, TransformSource.LandformBEVRoot);
 
             SaveCalves(nodesToAlign);
 
