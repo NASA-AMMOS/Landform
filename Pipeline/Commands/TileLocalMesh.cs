@@ -142,30 +142,6 @@ namespace OPS
             return root;
         }
 
-        static public bool ClipMeshForTile(SceneNode node, MeshOperator fullMeshOp, out Mesh resultMesh, int tileTextureResoultion = 0)
-        {
-            if (!node.HasComponent<NodeBounds>())
-                throw new InvalidOperationException("Need to have node bounds on scene nodes being clipped. run define tiles.");
-
-            BoundingBox nodeBounds = node.GetComponent<NodeBounds>().Bounds;
-            resultMesh = fullMeshOp.Clip(nodeBounds); 
-
-            if(tileTextureResoultion > 0)
-            {
-                try
-                {
-                    resultMesh = UVAtlas.Atlas(resultMesh, tileTextureResoultion, tileTextureResoultion);
-                }
-                catch
-                {
-                    resultMesh = null;
-                    return false;
-                }
-            }
-
-            return true;
-        }
-
         void ProcessLeafNodes(MultiMeshClipper multiMeshClipper, SceneNode root)
         {
             var totalLeafCount = root.Leaves().Count();
