@@ -143,7 +143,7 @@ namespace OPS.Pipeline
             if(node.GetComponent<MeshImagePair>() != null)
             {
                 tile.Content = new Tile3D.TileContent();
-                tile.Content.Url = nodeToUrl(node);
+                tile.Content.Uri = nodeToUrl(node);
             }
             if(node.HasComponent<NodeGeometricError>())
             {
