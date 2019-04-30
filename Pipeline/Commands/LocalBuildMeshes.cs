@@ -189,6 +189,7 @@ namespace OPS.Pipeline
                 processedFullMesh = MeshLab.Decimate(fullMesh, options.FullMeshFaces);
             }
 
+            //clip mesh
             if(options.ClipExtent > 0)
             {
                 pipeline.LogInfo("Clipping to Onsight legacy dimensions");
@@ -242,8 +243,6 @@ namespace OPS.Pipeline
 
                 Interlocked.Increment(ref curLeafNum);
 
-                BoundingBox leafBounds = leaf.GetComponent<NodeBounds>().Bounds;
-
                 Mesh leafMesh = null;
                 if (options.UseCachedLeaves)
                 {
@@ -263,24 +262,11 @@ namespace OPS.Pipeline
                 else
                 {
                     pipeline.LogInfo("Building tile mesh {0}: {1}/{2} ({3}%)", leaf.Name, curLeafNum, root.Leaves().Count(), (int)(100 * curLeafNum / (float)root.Leaves().Count()));
-                    leafMesh = meshOp.Clip(leafBounds);
-
-                    //generate texture coordinates
-                    if (!options.NoTextures)
+                    
+                    if (false == TileLocalMesh.ClipMeshForTile(leaf, meshOp,out leafMesh, options.NoTextures ? 0 : options.TileResolution))
                     {
-                        try
-                        {
-                            leafMesh = UVAtlas.Atlas(leafMesh, options.TileResolution, options.TileResolution);
-                        }
-                        catch
-                        {
-                            pipeline.LogError("Failed: couldn't generate texture coordinates for tile: {0}", leaf.Name);
-                            lock (failedNodes)
-                            {
-                                failedNodes.Add(leaf);
-                            }
-                            return;
-                        }
+                        pipeline.LogError("Failed: couldn't generate texture coordinates for tile: {0}", leaf.Name);
+                        return;
                     }
                 }
 
