@@ -183,6 +183,14 @@ namespace OPS.Pipeline
                     {
                         return RoverProductCamera.MAHLI;
                     }
+                    else if(id.StartsWith("MCZ_LEFT"))
+                    {
+                        return RoverProductCamera.MastcamZLeft;
+                    }
+                    else if (id.StartsWith("MCZ_RIGHT"))
+                    {
+                        return RoverProductCamera.MastcamZRight;
+                    }
                 }
                 return RoverProductCamera.Unknown;
             }
@@ -270,10 +278,13 @@ namespace OPS.Pipeline
                 }
                 else if(this.ProductId.ProductType != RoverProductType.Unknown)
                 {
+                    //fallback to filename
                     return this.ProductId.ProductType;
                 }
                 else
                 { 
+                    //ISSUE: #550
+                    //fallback to instrument name and the incorrect hope there are no other products built with that camera
                     RoverProductCamera inst = Camera;
                     if(inst == RoverProductCamera.MastcamLeft || inst == RoverProductCamera.MastcamRight || inst == RoverProductCamera.MAHLI)
                     {
@@ -358,7 +369,7 @@ namespace OPS.Pipeline
                     {
                         double nearFocus = metadata.ReadAsDouble("DERIVED_IMAGE_PARMS", "MSL:MINIMUM_FOCUS_DISTANCE");
                  
-                        if (IsMAHLI)
+                        if (MissionMSL.IsMAHLI(Camera))
                             nearFocus /= 1000.0; //mahli is in millimeters
 
                         return nearFocus;
@@ -479,46 +490,6 @@ namespace OPS.Pipeline
                 if (!metadata.HasKey(key))
                     return false; // Assume full image if key missing
                 return (string)metadata[key] == "PARTIAL";
-            }
-        }
-
-        public bool IsMastcam
-        {
-            get
-            {
-                return Camera == RoverProductCamera.MastcamLeft || Camera == RoverProductCamera.MastcamRight;
-            }
-        }
-
-        /// <summary>
-        /// Indicates whether or not this image was captured with a navigation camera.
-        /// </summary>
-        public bool IsNavcam
-        {
-            get
-            {
-                return Camera == RoverProductCamera.NavcamLeft || Camera == RoverProductCamera.NavcamRight;
-            }
-        }
-
-
-        public bool IsHazcam
-        {
-            get
-            {
-                return Camera == RoverProductCamera.FrontHazcamLeft
-                    || Camera == RoverProductCamera.FrontHazcamRight
-                    || Camera == RoverProductCamera.RearHazcamLeft
-                    || Camera == RoverProductCamera.RearHazcamRight;
-            }
-        }
-
-        public bool IsMAHLI
-        {
-            get
-            {
-                RoverProductCamera inst = Camera;
-                return inst == RoverProductCamera.MAHLI;
             }
         }
 

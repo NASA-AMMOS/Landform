@@ -37,7 +37,31 @@ namespace OPS.Pipeline
             return parser.Camera.ToString() + "_" + parser.RMC;
         }
 
-        public bool AllowDownsampledImages() { return false;  } //images are too low res
+        private bool IsMastcam(RoverProductCamera camera)
+        {
+           return camera == RoverProductCamera.MastcamLeft || camera == RoverProductCamera.MastcamRight;
+        }
+
+        /// <summary>
+        /// Indicates whether or not this image was captured with a navigation camera.
+        /// </summary>
+        private bool IsNavcam(RoverProductCamera camera)
+        {
+           return camera == RoverProductCamera.NavcamLeft || camera == RoverProductCamera.NavcamRight;
+        }
+
+        static public bool IsHazcam(RoverProductCamera camera)
+        {
+                return camera == RoverProductCamera.FrontHazcamLeft
+                    || camera == RoverProductCamera.FrontHazcamRight
+                    || camera == RoverProductCamera.RearHazcamLeft
+                    || camera == RoverProductCamera.RearHazcamRight;
+        }
+
+        static public bool IsMAHLI(RoverProductCamera camera)
+        {
+            return camera == RoverProductCamera.MAHLI;
+        }
 
         public bool UseForReconstruction(PDSParser parser)
         {
@@ -50,7 +74,7 @@ namespace OPS.Pipeline
             // Low exposure hazcams
             if (parser.DerivedImageType == RoverProductType.Image)
             {
-                if (parser.IsHazcam && parser.ExposureDuration != 0 && parser.ExposureDuration < MSLProject.MIN_NAV_HAZ_EXPOSURE)
+                if (IsHazcam(parser.Camera) && parser.ExposureDuration != 0 && parser.ExposureDuration < MSLProject.MIN_NAV_HAZ_EXPOSURE)
                 {
                     return false;
                 }
@@ -69,7 +93,7 @@ namespace OPS.Pipeline
                 return false;
             }
 
-            if (parser.IsHazcam)
+            if (IsHazcam(parser.Camera))
             {
                 return false;
             }
@@ -80,7 +104,7 @@ namespace OPS.Pipeline
                 return false;
             }
 
-            if (parser.IsMastcam)
+            if (IsMastcam(parser.Camera))
             {
                 // Skip mastcam taken with color filters
                 try
@@ -102,7 +126,7 @@ namespace OPS.Pipeline
                 }
             }
 
-            if (parser.IsNavcam && parser.IsDownsampled)
+            if (IsNavcam(parser.Camera) && parser.IsDownsampled)
             {
                 return false;
             }
@@ -119,6 +143,16 @@ namespace OPS.Pipeline
         {          
             M20OPGSProductId pid = (M20OPGSProductId)parser.ProductId;
             return parser.Camera.ToString() + "_" + pid.GetConcatenatedTimeString();
+        }
+
+        private bool IsHazcam(RoverProductCamera camera)
+        {
+            return camera == RoverProductCamera.FrontHazcamLeft
+                || camera == RoverProductCamera.FrontHazcamRight
+                || camera == RoverProductCamera.RearHazcamLeft
+                || camera == RoverProductCamera.RearHazcamRight;
+            //|| camera == RoverProductCamera.FrontHazcamLeftB //ISSUE #534
+            //|| camera == RoverProductCamera.FrontHazcamRightB
         }
 
         public bool UseForReconstruction(PDSParser parser)
@@ -142,7 +176,7 @@ namespace OPS.Pipeline
                 return false;
             }
 
-            if (parser.IsHazcam)
+            if (IsHazcam(parser.Camera))
             {
                 return false;
             }
