@@ -413,7 +413,8 @@ namespace OPS.Pipeline
                         while (pointsToBackproject.Count() > 0)
                         {
                             //during development color pixels that failed to backproject blue
-                            var pair = pointsToBackproject.Dequeue();
+                            var pair = pointsToBackproject.First();
+                            pointsToBackproject.RemoveAt(0);
                             leafImage[2, (int)pair.Pixel.Y, (int)pair.Pixel.X] = 1.0f;
                         }
 
@@ -509,7 +510,7 @@ namespace OPS.Pipeline
             return true;
         }
 
-        private int BackprojectObservation(FrameCache frameCache, ObservationCache obsCache, SceneCaster sc, RoverObservation obs, ConvexHull obsHull, ref Queue<PixelPoint> pointsToBackproject, Image leafImage)
+        private int BackprojectObservation(FrameCache frameCache, ObservationCache obsCache, SceneCaster sc, RoverObservation obs, ConvexHull obsHull, ref List<PixelPoint> pointsToBackproject, Image leafImage)
         {
             Matrix obsToMesh = Meshing.GetTransform(obs.FrameName, options.OutputFrame, frameCache, options.UsePriors).Mean;
             Matrix meshToObs = Matrix.Invert(obsToMesh);
@@ -522,10 +523,12 @@ namespace OPS.Pipeline
             var maskObs = obsCache.GetAllObservationsForFrame(frameCache.GetFrame(obs.FrameName)).Where(o => o.ObservationType == maskType).FirstOrDefault(); ;
             Image mask = FeatureDetecting.MakeMask(pipeline, maskObs == null ? null : maskObs.Url, img, obs.Name);
             int pointsToBackprojectCount = pointsToBackproject.Count();
-            Queue<PixelPoint> failedToBackproject = new Queue<PixelPoint>();
+            List<PixelPoint> failedToBackproject = new List<PixelPoint>();
             while (pointsToBackproject.Count() > 0)
             {
-                var pixelpoint = pointsToBackproject.Dequeue();
+                var pixelpoint = pointsToBackproject.First();
+                pointsToBackproject.RemoveAt(0);
+
                 Vector3 meshPos = pixelpoint.Point;
 
                 bool failedToBackprojectPoint = true;
@@ -562,7 +565,7 @@ namespace OPS.Pipeline
                 //add to failed
                 if (failedToBackprojectPoint)
                 {
-                    failedToBackproject.Enqueue(pixelpoint);
+                    failedToBackproject.Add(pixelpoint);
                 }
             }
 
