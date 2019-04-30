@@ -76,6 +76,11 @@ namespace OPS.Pipeline
                         throw new Exception("Error connecting to places DB: " + response.StatusCode.ToString() + " " +
                                             response.ErrorMessage);
                     }
+                    if(response.StatusCode != System.Net.HttpStatusCode.OK)
+                    {
+                        return null;
+                    }
+
                     XmlDocument document = new XmlDocument();
                     document.LoadXml(response.Content);
                     return document;
@@ -105,12 +110,16 @@ namespace OPS.Pipeline
 
                 string urlForRequest = string.Format("{0}/places/rmc/orbital(0)/metadata", config.Venue);
                 XmlDocument document = GetXmlDoc(urlForRequest);
-                foreach (XmlElement itemNode in document.GetElementsByTagName("item"))
+
+                if (document != null)
                 {
-                    XmlNodeList elList = itemNode.GetElementsByTagName("key");
-                    if (elList.Count == 1 && elList[0].InnerText.Contains("ellipsoid_radius"))
+                    foreach (XmlElement itemNode in document.GetElementsByTagName("item"))
                     {
-                        EllipsoidRadius = double.Parse(itemNode.GetElementsByTagName("value")[0].InnerText);
+                        XmlNodeList elList = itemNode.GetElementsByTagName("key");
+                        if (elList.Count == 1 && elList[0].InnerText.Contains("ellipsoid_radius"))
+                        {
+                            EllipsoidRadius = double.Parse(itemNode.GetElementsByTagName("value")[0].InnerText);
+                        }
                     }
                 }
             }
@@ -126,19 +135,26 @@ namespace OPS.Pipeline
         /// </summary>
         /// <param name="sd"></param>
         /// <returns></returns>
-        public Vector2 GetEstimatedLatLon(SiteDrive sd)
+        public bool GetEstimatedLatLon(SiteDrive sd, out Vector2 latlon)
         {
+            latlon = Vector2.Zero;
+
             var config = PlacesConfig.Instance;
             string urlForRequest = string.Format("{0}/places/query/primary/{1}?from=rover({2},{3})&to=orbital(0)", config.Venue, config.View, sd.Site, sd.Drive);
             XmlDocument document = GetXmlDoc(urlForRequest);
-            Vector3 v = ReadOffsetFromDocument(document);
-            // x is northing
-            // y is easting
-            double ellipsoid_radius = GetElipsoidRadius();
+            if (document != null)
+            {
+                Vector3 v = ReadOffsetFromDocument(document);
+                // x is northing
+                // y is easting
+                double ellipsoid_radius = GetElipsoidRadius();
 
-            double lat = MathHelper.ToDegrees(v.X / ellipsoid_radius);
-            double lon = MathHelper.ToDegrees(v.Y / ellipsoid_radius);
-            return new Vector2(lat, lon);
+                double lat = MathHelper.ToDegrees(v.X / ellipsoid_radius);
+                double lon = MathHelper.ToDegrees(v.Y / ellipsoid_radius);
+                latlon = new Vector2(lat, lon);
+                return true;
+            }
+            return false;
         }
 
         /// <summary>
@@ -147,12 +163,18 @@ namespace OPS.Pipeline
         /// <param name="from"></param>
         /// <param name="to"></param>
         /// <returns></returns>
-        public Vector3 GetEstimatedOffset(SiteDrive from, SiteDrive to)
+        public bool GetEstimatedOffset(SiteDrive from, SiteDrive to, out Vector3 offset)
         {
+            offset = Vector3.Zero;
             var config = PlacesConfig.Instance;
             string urlForRequest = string.Format("{0}/places/query/primary/{1}?from=rover({2},{3})&to=rover({4},{5})", config.Venue, config.View, from.Site, from.Drive, to.Site, to.Drive);
             XmlDocument document = GetXmlDoc(urlForRequest);
-            return ReadOffsetFromDocument(document);
+            if (document != null)
+            {
+                offset = ReadOffsetFromDocument(document);
+                return true;
+            }
+            return false;
         }
 
         /// <summary>
@@ -161,12 +183,18 @@ namespace OPS.Pipeline
         /// <param name="from"></param>
         /// <param name="to"></param>
         /// <returns></returns>
-        public Vector3 GetEstimatedOffsetFromSite(SiteDrive from, int toSite)
+        public bool GetEstimatedOffsetFromSite(SiteDrive from, int toSite, out Vector3 offset)
         {
+            offset = Vector3.Zero;
             var config = PlacesConfig.Instance;
             string urlForRequest = string.Format("{0}/places/query/primary/{1}?from=rover({2},{3})&to=site({4})", config.Venue, config.View, from.Site, from.Drive, toSite);
             XmlDocument document = GetXmlDoc(urlForRequest);
-            return ReadOffsetFromDocument(document);
+            if (document != null)
+            {
+                offset = ReadOffsetFromDocument(document);
+                return true;
+            }
+            return false;
         }
 
         /// <summary>
@@ -174,16 +202,27 @@ namespace OPS.Pipeline
         /// </summary>
         /// <param name="sd"></param>
         /// <returns></returns>
-        public Vector3 GetEstimatedOffsetFromStart(SiteDrive sd)
+        public bool GetEstimatedOffsetFromStart(SiteDrive sd, out Vector3 offset)
         {
+            offset = Vector3.Zero;
+
             lock (cachedOffsetFromRootRover)
             {
                 if (!cachedOffsetFromRootRover.Keys.Contains(sd))
                 {
-                    cachedOffsetFromRootRover[sd] = GetEstimatedOffsetFromSite(sd, 1);
+                    if(GetEstimatedOffsetFromSite(sd, 1, out offset))
+                    {
+                        cachedOffsetFromRootRover[sd] = offset;
+                        return true;
+                    }
+                }
+                else
+                {
+                    offset = cachedOffsetFromRootRover[sd];
+                    return true;
                 }
             }
-            return cachedOffsetFromRootRover[sd];
+            return false;
         }
     }
 }

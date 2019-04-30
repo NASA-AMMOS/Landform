@@ -265,8 +265,11 @@ namespace OPS.Pipeline
             Frame siteDriveFrame = null;
             if (Places != null)
             {
-                siteDriveFrame = GetFrame(SiteDriveFrameName(parser), rootFrame, TransformSource.PlacesDB,
-                                          GetSiteDriveTransformFromPlaces(parser));
+                var ut = GetSiteDriveTransformFromPlaces(parser);
+                if (ut != null)
+                {
+                    siteDriveFrame = GetFrame(SiteDriveFrameName(parser), rootFrame, TransformSource.PlacesDB, ut);
+                }
             }
             if (Locations != null)
             {
@@ -381,10 +384,10 @@ namespace OPS.Pipeline
         private UncertainRigidTransform GetSiteDriveTransformFromPlaces(PDSParser parser)
         {
             var siteDrive = new SiteDrive(parser.SiteDrive);
-            var loc = Places.GetEstimatedOffsetFromStart(siteDrive);
-            if (loc == null)
+            if(!Places.GetEstimatedOffsetFromStart(siteDrive, out Vector3 loc))
             {
                 pipeline.LogWarn("no MSL Places for site drive {0}", siteDrive);
+                return null;
             }
 
             // TODO: examine values here
