@@ -11,6 +11,12 @@ using System.Diagnostics;
 
 namespace OPS.Geometry
 {
+    public struct PixelPoint
+    {
+        public Vector2 Pixel;
+        public Vector3 Point;
+    };
+
     /// <summary>
     /// A class for performing optimized operations on a mesh
     /// Internally this class generates and caches datastructures such as KDTrees
@@ -276,6 +282,51 @@ namespace OPS.Geometry
 
             var indices = vertexTree.Intersects(new Rectangle(min.ToFloatArray(), max.ToFloatArray()));
             return indices.Select(i => this.Vertices[i]).ToList();
+        }
+
+        /// <summary>
+        /// returns all the pixels (paired with the mesh points) that had valid texels in the atlas
+        /// </summary>
+        /// <param name="textureResolution">resolution of texture to collect points for</param>        
+        public List<PixelPoint> SampleUVSpace(int textureResolution)
+        {
+            if (!HasUVs)
+                throw new Exception("mesh needs uvs to subsample uv space");
+
+            List<PixelPoint> pts = new List<PixelPoint>();
+            for (int row = 0; row < textureResolution; row++)
+            {
+                for (int col = 0; col < textureResolution; col++)
+                {
+                    Vector2 destPixelToUV = new Vector2(col / (float)textureResolution, 1 - (row / (float)textureResolution)); //Issue #491: why vertical flip?
+                    BarycentricPoint baryPt = UVToBarycentric(destPixelToUV);
+                    if (baryPt == null)
+                        continue;
+
+                    pts.Add(new PixelPoint() { Pixel = new Vector2(col, row), Point = baryPt.Position });
+                }
+            }
+
+            return pts;
+        }
+
+        /// <summary>
+        /// convenience function that returns a simple subset of the pixels in the resulting texture atlas which were valid for this mesh
+        /// </summary>
+        public List<PixelPoint> SubsampleUVSpace(double pct, int textureResolution)
+        {
+            if (pct >= 1.0)
+                throw new Exception("expecting to subsample uv space, a percentage >= 1 was passed");
+
+            if (pct <= 0)
+                throw new Exception("valid subsample pcts need to be greater than zero");
+
+            List<PixelPoint> pts = SampleUVSpace(textureResolution);
+
+            //simple sample which skips enough points to return the requested amount of points
+            int subsampledPts = Math.Max(1, (int)(pts.Count * pct));
+            int skipPoints = pts.Count / subsampledPts;
+            return pts.Where((pt, index) => index % skipPoints == 0).ToList();
         }
     }
 
