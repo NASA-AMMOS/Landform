@@ -8,6 +8,7 @@ using RTree;
 using Supercluster.KDTree;
 
 using System.Diagnostics;
+using OPS.Imaging;
 
 namespace OPS.Geometry
 {
@@ -298,7 +299,7 @@ namespace OPS.Geometry
             {
                 for (int col = 0; col < textureResolution; col++)
                 {
-                    Vector2 destPixelToUV = new Vector2(col / (float)textureResolution, 1 - (row / (float)textureResolution)); //Issue #491: why vertical flip?
+                    Vector2 destPixelToUV = Image.PixelToUV(new Vector2(col, row), textureResolution, textureResolution);
                     BarycentricPoint baryPt = UVToBarycentric(destPixelToUV);
                     if (baryPt == null)
                         continue;
