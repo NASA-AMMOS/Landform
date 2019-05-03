@@ -327,7 +327,7 @@ namespace OPS.Pipeline
                                     continue;
 
                                 Matrix obsToOutput = Meshing.GetTransform(obs.FrameName, options.OutputFrame, frameCache, options.UsePriors).Mean;
-                                minDistances.Add(GetMinPixelSpreadInMeters(sc, (CameraModel)JsonHelper.FromJson(obs.CameraModel), obsToOutput, obsToHull[obs], pt.Pixel, pt.Point));
+                            minDistances.Add(GetMinPixelSpreadInMeters(sc, (CameraModel)JsonHelper.FromJson(obs.CameraModel), obsToOutput, obsToHull[obs], pt.Pixel, pt.Point, obs.Width, obs.Height));
                             }
 
                             //store the median of the min distances
@@ -342,7 +342,7 @@ namespace OPS.Pipeline
                         }
                     }
 
-                    //sort the list of observations by distance
+                //sort the list of observations by goodness
                     intersectingObservations.Sort((obs1, obs2) => spatialDensityByObs[obs1].CompareTo(spatialDensityByObs[obs2]));
 
                     //for each source image, sweep through all valid destination pixels (not atlas gutter pixels)
@@ -444,7 +444,7 @@ namespace OPS.Pipeline
             return fullMesh;
         }
 
-        static private bool ClipMeshForTile(SceneNode node, MeshOperator fullMeshOp, out Mesh resultMesh, int tileTextureResoultion = 0)
+        static private bool ClipMeshForTile(SceneNode node, MeshOperator fullMeshOp, out Mesh resultMesh, int tileTextureResolution = 0)
         {
             if (!node.HasComponent<NodeBounds>())
                 throw new InvalidOperationException("Need to have node bounds on scene nodes being clipped. run define tiles.");
@@ -452,11 +452,11 @@ namespace OPS.Pipeline
             BoundingBox nodeBounds = node.GetComponent<NodeBounds>().Bounds;
             resultMesh = fullMeshOp.Clip(nodeBounds);
 
-            if (tileTextureResoultion > 0)
+            if (tileTextureResolution > 0)
             {
                 try
                 {
-                    resultMesh = UVAtlas.Atlas(resultMesh, tileTextureResoultion, tileTextureResoultion);
+                    resultMesh = UVAtlas.Atlas(resultMesh, tileTextureResolution, tileTextureResolution);
                 }
                 catch
                 {
