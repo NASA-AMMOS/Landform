@@ -19,7 +19,7 @@ namespace OPS.Imaging
         public ImageMetadata Metadata;
         public CameraModel CameraModel;
 
-        public T[][] Data;        
+        public T[][] Data;
 
         public int Bands;
         public int Width;
@@ -101,9 +101,9 @@ namespace OPS.Imaging
         public void CreateMask(bool initialValue = false)
         {
             this.Mask = new bool[Width * Height];
-            if(initialValue)
+            if (initialValue)
             {
-                for(int i = 0; i < this.Mask.Length; i++)
+                for (int i = 0; i < this.Mask.Length; i++)
                 {
                     this.Mask[i] = initialValue;
                 }
@@ -131,7 +131,7 @@ namespace OPS.Imaging
                 {
                     SetMaskValue(i, true);
                 }
-            }           
+            }
         }
 
         /// <summary>
@@ -277,9 +277,9 @@ namespace OPS.Imaging
         /// <param name="perBandValues"></param>
         public void SetValuesForMaskedData(T[] perBandValues)
         {
-            for(int i = 0; i < Width*Height; i++)
+            for (int i = 0; i < Width * Height; i++)
             {
-                if(IsInvalid(i))
+                if (IsInvalid(i))
                 {
                     SetBandValues(i, perBandValues);
                 }
@@ -296,9 +296,9 @@ namespace OPS.Imaging
         /// <returns></returns>
         public bool BandValuesEqual(int row, int column, T[] perBandValues)
         {
-            for(int b = 0; b < this.Bands; b++)
+            for (int b = 0; b < this.Bands; b++)
             {
-                if(!this[b,row,column].Equals(perBandValues[b]))
+                if (!this[b, row, column].Equals(perBandValues[b]))
                 {
                     return false;
                 }
@@ -377,7 +377,7 @@ namespace OPS.Imaging
         public T[] GetBandValues(int i)
         {
             T[] result = new T[this.Bands];
-            for(int b= 0; b < this.Bands; b++)
+            for (int b = 0; b < this.Bands; b++)
             {
                 result[b] = this.Data[b][i];
             }
@@ -391,12 +391,12 @@ namespace OPS.Imaging
         /// <param name="desiredPerBandValues"></param>
         public void ReplaceBandValues(T[] currentPerBandValues, T[] desiredPerBandValues)
         {
-            for (int i = 0; i < Width*Height; i++)
+            for (int i = 0; i < Width * Height; i++)
             {
                 if (BandValuesEqual(i, currentPerBandValues))
                 {
                     SetBandValues(i, desiredPerBandValues);
-                }            
+                }
             }
         }
 
@@ -511,7 +511,12 @@ namespace OPS.Imaging
         /// <returns></returns>
         public Vector2 PixelToUV(Vector2 pixelCoordinate)
         {
-            return new Vector2(pixelCoordinate.X / Width, 1 - (pixelCoordinate.Y / Height));
+            return new Vector2(pixelCoordinate.X / Width, 1 - (pixelCoordinate.Y / Height)); //Issue #491: why vertical flip?
+        }
+
+        static public Vector2 PixelToUV(Vector2 pixelCoordinate, int width, int height)
+        {
+            return new Vector2(pixelCoordinate.X / width, 1 - (pixelCoordinate.Y / height)); //Issue #491: why vertical flip?
         }
 
         /// <summary>
@@ -522,6 +527,10 @@ namespace OPS.Imaging
         public Vector2 UVToPixel(Vector2 uvCoordinate)
         {
             return new Vector2(uvCoordinate.X * Width, (1 - uvCoordinate.Y) * Height);
+        }
+        static public Vector2 UVToPixel(Vector2 uvCoordinate, int width, int height)
+        {
+            return new Vector2(uvCoordinate.X * width, (1 - uvCoordinate.Y) * height);
         }
 
         /// <summary>
