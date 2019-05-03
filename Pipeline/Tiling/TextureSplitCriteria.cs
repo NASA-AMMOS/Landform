@@ -94,8 +94,8 @@ namespace OPS.Pipeline
 
                 // calculate src pixels area contributing to the pixel
                 Vector2[] pixelCornersLandform = OPS.Pipeline.LocalBuildMeshes.GetPixelCorners(pxlPt.Pixel, LocalBuildMeshes.PixelConvention.UpperLeft);
-                Vector2[] uvsCorners = pixelCornersLandform.Select(c => Image.PixelToUV(c,options.tileResolution,options.tileResolution)).ToArray();
-                Vector3[] destPixelMeshPositions = uvsCorners.Select(uv => clippedOp.UVToBarycentric(uv).Position).ToArray();
+                var uvsCorners = pixelCornersLandform.Select(c => Image.PixelToUV(c,options.tileResolution,options.tileResolution));
+                var destPixelMeshPositions = uvsCorners.Select(uv => clippedOp.UVToBarycentric(uv)).Where(bary => bary != null).Select(bary => bary.Position);
                 var srcPixels = destPixelMeshPositions.Select(meshPos => LocalBuildMeshes.GetCameraPixelForMeshPosition(options.scInMesh, bestCamera.cameraModel, bestCamera.cameraToMesh, bestCamera.meshToCamera, bestCamera.hullInMesh, meshPos, bestCamera.widthPixels, bestCamera.heightPixels));
 
                 // if all 4 pixels landed in the source image, find their area in pixels
