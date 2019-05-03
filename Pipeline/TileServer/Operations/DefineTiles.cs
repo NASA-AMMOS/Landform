@@ -200,10 +200,12 @@ namespace OPS.Pipeline.TileServer
             {
                 throw new Exception("unknown tiling scheme");
             }
-            ITileSplitCriteria splitCriteria = new FaceSplitCriteria(facesPerTile);
 
             pipeline.LogInfo("computing tile tree");
-            root = TileLocalMesh.BuildBoundsTree(multiClipper, scheme, splitCriteria);
+
+            List<ITileSplitCriteria> splitCriteria = new List<ITileSplitCriteria> { new FaceSplitCriteria(facesPerTile) };
+
+            root = TileLocalMesh.BuildBoundsTree(multiClipper, scheme, splitCriteria.ToArray());
             return root;
         }
 

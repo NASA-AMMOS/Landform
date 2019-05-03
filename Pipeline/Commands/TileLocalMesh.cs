@@ -92,9 +92,9 @@ namespace OPS
             {
                 throw new Exception("Tiling scheme not yet supported");   
             }
-            ITileSplitCriteria splitCriteria = new FaceSplitCriteria(options.TargetFacesPerTile);
+
             logger.Info("Computing tree bounds");
-            SceneNode root = BuildBoundsTree(multiClipper, scheme, splitCriteria);
+            SceneNode root = BuildBoundsTree(multiClipper, scheme, new ITileSplitCriteria[] { new FaceSplitCriteria(options.TargetFacesPerTile) });
             logger.Info("Process leaf nodes");
             ProcessLeafNodes(multiClipper, root);
             logger.Info("Generate parents");
@@ -113,7 +113,7 @@ namespace OPS
             return node.Name + ".b3dm";
         }
 
-        public static SceneNode BuildBoundsTree(MultiMeshClipper multiClipper, ITilingScheme tilingScheme, ITileSplitCriteria splitCriteria)
+        public static SceneNode BuildBoundsTree(MultiMeshClipper multiClipper, ITilingScheme tilingScheme, ITileSplitCriteria[] splitCriteria)
         {
             SceneNode root = new SceneNode("");
             root.AddComponent(new NodeBounds(multiClipper.TotalBounds));
@@ -123,20 +123,19 @@ namespace OPS
             {
                 SceneNode cur = queue.Dequeue();
                 var curBounds = cur.GetComponent<NodeBounds>().Bounds;
-                if (!multiClipper.ShouldSplit(splitCriteria, curBounds))
+                if (splitCriteria.Any( splitCrit => multiClipper.ShouldSplit(splitCrit, curBounds)))
                 {
-                    continue;
+                    var childBounds = tilingScheme.Split(null, curBounds);
+                    childBounds = multiClipper.FilterEmptyBounds(childBounds);
+                    int counter = 0;
+                    foreach (var childBound in childBounds)
+                    {
+                        SceneNode child = new SceneNode(cur.Name + counter, cur.Transform);
+                        child.AddComponent(new NodeBounds(childBound));
+                        queue.Enqueue(child);
+                        counter++;
+                    }
                 }
-                var childBounds = tilingScheme.Split(null, curBounds);
-                childBounds = multiClipper.FilterEmptyBounds(childBounds);
-                int counter = 0;
-                foreach(var childBound in childBounds)
-                {
-                    SceneNode child = new SceneNode(cur.Name + counter, cur.Transform);
-                    child.AddComponent(new NodeBounds(childBound));
-                    queue.Enqueue(child);
-                    counter++;
-                }                
             }
             root.Name = "root";
             return root;
