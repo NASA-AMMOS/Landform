@@ -61,9 +61,6 @@ namespace OPS.Pipeline
         [Option(HelpText = "path to cached full mesh (when set will skip generating a full mesh and instead load the existing mesh at this path)", Default = null)]
         public string CachedFullMesh { get; set; }
 
-        [Option(HelpText = "use cachedleaves(when set will skip generating leaves and instead load them from this path)", Default = false)]
-        public bool UseCachedLeaves { get; set; }
-
         [Option(HelpText = "Output bounding box and frustum hull meshes", Default = false)]
         public bool OutputDebugMeshes { get; set; }
 
@@ -204,9 +201,6 @@ namespace OPS.Pipeline
             //build convex hulls
             IEnumerable<Observation> imageObservations = null;
             Dictionary<Observation, ConvexHull> obsToHull = null;
-
-            if (!options.UseCachedLeaves)
-            {
                 pipeline.LogInfo("Building convex hulls");
                 obsToHull = new Dictionary<Observation, ConvexHull>();
                 string imageObsType = ObservationType.Image.ToString();
@@ -225,7 +219,6 @@ namespace OPS.Pipeline
                         }
                     }
                 }
-            }
 
             //build tile bounds
             pipeline.LogInfo("Building tile tree bounds from fullmesh");
@@ -244,23 +237,6 @@ namespace OPS.Pipeline
                 Interlocked.Increment(ref curLeafNum);
 
                 Mesh leafMesh = null;
-                if (options.UseCachedLeaves)
-                {
-                    pipeline.LogInfo("Loading cached tile mesh {0}: {1}/{2} ({3}%)", leaf.Name, curLeafNum, root.Leaves().Count(), (int)(100 * curLeafNum / (float)root.Leaves().Count()));
-                    string meshPath = leafTilesPath + leaf.Name + ".ply";
-                    if (File.Exists(meshPath))
-                    {
-                        leafMesh = Mesh.Load(meshPath);
-                    }
-                    else
-                    {
-                        pipeline.LogWarn("Failed to load cached mesh for {0}", leaf.Name);
-                        failedNodes.Add(leaf);
-                        return;
-                    }
-                }
-                else
-                {
                     pipeline.LogInfo("Building tile mesh {0}: {1}/{2} ({3}%)", leaf.Name, curLeafNum, root.Leaves().Count(), (int)(100 * curLeafNum / (float)root.Leaves().Count()));
                     
                     if (false == ClipMeshForTile(leaf, meshOp,out leafMesh, options.NoTextures ? 0 : options.TileResolution))
@@ -268,7 +244,6 @@ namespace OPS.Pipeline
                         pipeline.LogError("Failed: couldn't generate texture coordinates for tile: {0}", leaf.Name);
                         return;
                     }
-                }
 
                 // save meshes
                 if (options.NoTextures)
@@ -290,23 +265,6 @@ namespace OPS.Pipeline
                     return;
 
                 Image leafImage = null;
-                if (options.UseCachedLeaves)
-                {
-                    pipeline.LogInfo("loading cached tile image for {0}", leaf.Name);
-                    string imagePath = leafTilesPath + leaf.Name + ".png";
-                    if (File.Exists(imagePath))
-                    {
-                        leafImage = Image.Load(imagePath);
-                    }
-                    else
-                    {
-                        pipeline.LogWarn("failed to load cached tile image for {0}", leaf.Name);
-                        failedNodes.Add(leaf);
-                        return;
-                    }
-                }
-                else
-                {
                     // coarse frustum test: get all observations that intersect mesh hull
                     ConvexHull leafHull = new ConvexHull(leafMesh);
                     List<Observation> intersectingObservations = new List<Observation>();
@@ -425,7 +383,7 @@ namespace OPS.Pipeline
                         //single pixel inpaint for bilinear sampling of subpixel locations
                         leafImage.Inpaint(-1, preserveMask:false);
                     }
-                }
+
 
                 //save image
                 leafImage.Save<byte>(Path.Combine(leafTilesPath, leaf.Name + ".png"));
