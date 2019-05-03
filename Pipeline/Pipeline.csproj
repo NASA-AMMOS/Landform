@@ -314,6 +314,7 @@
     <Compile Include="Tiling\SceneNodeTilingExtensions.cs" />
     <Compile Include="Tiling\SparseCloudImage.cs" />
     <Compile Include="Tiling\TexturedMeshClipper.cs" />
+    <Compile Include="Tiling\TextureSplitCriteria.cs" />
     <Compile Include="Tiling\Tile3DBuilder.cs" />
     <Compile Include="Tiling\TilesetSchema.cs" />
     <Compile Include="Tiling\VertexSplitCriteria.cs" />
