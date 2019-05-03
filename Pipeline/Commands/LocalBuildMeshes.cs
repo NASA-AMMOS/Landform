@@ -189,7 +189,7 @@ namespace OPS.Pipeline
             //clip mesh
             if(options.ClipExtent > 0)
             {
-                pipeline.LogInfo("Clipping to Onsight legacy dimensions");
+                pipeline.LogInfo("Clipping full mesh to 2D {0} meters around origin (xy axes)", options.ClipExtent);
                 BoundingBox fullMeshBounds = processedFullMesh.Bounds();
                 double halfExtent = options.ClipExtent * 0.5;
                 Vector3 min = new Vector3(-halfExtent, -halfExtent, fullMeshBounds.Min.Z);
