@@ -222,7 +222,14 @@ namespace OPS.Pipeline
 
             //build tile bounds
             pipeline.LogInfo("Building tile tree bounds from fullmesh");
-            SceneNode root = DefineTiles.BuildTileTreeFromInputs(pipeline, options.TilingScheme, options.FacesPerTile, new List<MeshImagePair>() { new MeshImagePair(processedFullMesh) });
+            SplitByTextureOpts texSplitOpts = new SplitByTextureOpts();
+            texSplitOpts.pctPixelsToTest = 0.1; //TODO: expose
+            texSplitOpts.pctSampledPixelsServiced = 0.5; //TODO: expose
+            texSplitOpts.subsamplingTriggeringSplit = 4.5; //TODO: expose
+            texSplitOpts.tileResolution = options.TileResolution;
+            texSplitOpts.scInMesh = sc;
+            texSplitOpts.cameraInstances = imageObservations.Select(obs => ToCameraInstance((RoverObservation)obs, obsToHull, frameCache)).ToArray();
+            SceneNode root = DefineTiles.BuildTileTreeFromInputs(pipeline, options.TilingScheme, options.FacesPerTile, new List<MeshImagePair>() { new MeshImagePair(processedFullMesh) },texSplitOpts);
 
             //make leaf tiles meshes
             List<SceneNode> failedNodes = new List<SceneNode>();
@@ -403,6 +410,18 @@ namespace OPS.Pipeline
             File.WriteAllText(Path.Combine(tileSetPath, "tileset.json"), jsonData);
 
             return 0;
+        }
+
+        private CameraInstance ToCameraInstance(RoverObservation obs, Dictionary<Observation, ConvexHull> obsToHull, FrameCache frameCache)
+        {           
+            CameraInstance camInst = new CameraInstance();
+            camInst.cameraToMesh = Meshing.GetTransform(obs.FrameName, options.OutputFrame, frameCache, options.UsePriors).Mean;
+            camInst.meshToCamera = Matrix.Invert(camInst.cameraToMesh);
+            camInst.cameraModel = (CameraModel)JsonHelper.FromJson(obs.CameraModel);
+            camInst.hullInMesh = obsToHull[obs];
+            camInst.widthPixels = obs.Width;
+            camInst.heightPixels = obs.Height;
+            return camInst;
         }
 
         private bool SkirtsEnabled

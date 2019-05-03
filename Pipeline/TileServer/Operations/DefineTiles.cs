@@ -163,7 +163,7 @@ namespace OPS.Pipeline.TileServer
                 {
                     pipeline.LogInfo("created " + n + " nodes");
                 }
-            }                            
+            }
             project.SaveNodeIds(ids, pipeline);
             project.TilesDefined = true;
             project.Save(pipeline);
@@ -171,7 +171,8 @@ namespace OPS.Pipeline.TileServer
             pipeline.LogInfo("complete");
         }
 
-        static public SceneNode BuildTileTreeFromInputs(PipelineCore pipeline, TileServer.TilingScheme tilingScheme, int facesPerTile, List<MeshImagePair> pairs)
+        
+        static public SceneNode BuildTileTreeFromInputs(PipelineCore pipeline, TileServer.TilingScheme tilingScheme, int facesPerTile, List<MeshImagePair> pairs, SplitByTextureOpts texOpts = null )
         {
             SceneNode root;
             pipeline.LogInfo("building acceleration structures");
@@ -204,6 +205,9 @@ namespace OPS.Pipeline.TileServer
             pipeline.LogInfo("computing tile tree");
 
             List<ITileSplitCriteria> splitCriteria = new List<ITileSplitCriteria> { new FaceSplitCriteria(facesPerTile) };
+
+            if (texOpts != null)
+                splitCriteria.Add(new TextureSplitCriteria(texOpts));
 
             root = TileLocalMesh.BuildBoundsTree(multiClipper, scheme, splitCriteria.ToArray());
             return root;
