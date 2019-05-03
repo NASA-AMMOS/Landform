@@ -580,14 +580,22 @@ namespace OPS.Pipeline
 
             Mesh ret = new Mesh(hasNormals: normals != null, hasUVs: generateUV);
 
-            Dictionary<Tuple<int, int>, int> pixelToVert = new Dictionary<Tuple<int, int>, int>();
+            //Dictionary<Tuple<int, int>, int> pixelToVert = new Dictionary<Tuple<int, int>, int>();
+
+            int[,] pixelToVert = new int[points.Height, points.Width];
+            for(int r = 0; r < points.Height; r++)
+            {
+                for(int c = 0; c < points.Width; c++)
+                {
+                    pixelToVert[r, c] = -1;
+                }
+            }
 
             int getOrAddVert(int r, int c)
             {
-                var key = new Tuple<int, int>(r, c);
-                if (!pixelToVert.ContainsKey(key))
+                if (pixelToVert[r,c] == -1)
                 {
-                    pixelToVert[key] = ret.Vertices.Count;
+                    pixelToVert[r,c] = ret.Vertices.Count;
                     Vertex v = new Vertex();
                     v.Position = new Vector3(points[0, r, c], points[1, r, c], points[2, r, c]);
                     if (normals != null)
@@ -600,7 +608,7 @@ namespace OPS.Pipeline
                     }
                     ret.Vertices.Add(v);
                 }
-                return pixelToVert[key];
+                return pixelToVert[r,c];
             }
 
             void addFaceMaybe(int r0, int c0, int r1, int c1, int r2, int c2)

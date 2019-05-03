@@ -67,12 +67,16 @@
     <Reference Include="System.Data.DataSetExtensions" />
     <Reference Include="System.Data" />
     <Reference Include="System.Xml" />
+    <Reference Include="Triangle, Version=0.0.6.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\Triangle.0.0.6-Beta3\lib\net45\Triangle.dll</HintPath>
+    </Reference>
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Geometry\AxisAngleVector.cs" />
     <Compile Include="Geometry\BarycentricPoint.cs" />
     <Compile Include="Geometry\BoundingBoxExtensions.cs" />
     <Compile Include="Geometry\ConvexHull.cs" />
+    <Compile Include="Geometry\DelaunayTriangulation.cs" />
     <Compile Include="Geometry\Geohash.cs" />
     <Compile Include="Geometry\MeshException.cs" />
     <Compile Include="Geometry\QuadricEdgeCollapse\Edge.cs" />
