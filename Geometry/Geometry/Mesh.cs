@@ -803,6 +803,14 @@ namespace OPS.Geometry
             }
         }
 
+        public void Scale(double s)
+        {
+            foreach(Vertex v in this.Vertices)
+            {
+                v.Position *= s;
+            }
+        }
+
         /// <summary>
         /// Applies a transformation matrix to each vertex in the mesh
         /// </summary>
@@ -1276,6 +1284,17 @@ namespace OPS.Geometry
         }
 
         /// <summary>
+        /// Attempt to estimate the average distance between vertices in this mesh
+        /// </summary>
+        /// <param name="samples"></param>
+        /// <returns></returns>
+        public double AverageDensity(int samples = 0)
+        {
+            VertexKDTree tree = new VertexKDTree(this.Vertices);
+            return tree.AverageDensity(samples: samples);
+        }
+
+        /// <summary>
         /// Translate this mesh to be centered on its bounds
         /// </summary>
         public void Center()
@@ -1345,6 +1364,7 @@ namespace OPS.Geometry
             }
         }
     }
+    
 
     /// <summary>
     /// X, Y, or Z axis which the skirt is directed along

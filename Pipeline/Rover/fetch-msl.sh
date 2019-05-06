@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 # run this script from a sh or bash command prompt, e.g. on Windows use git bash, cygwin, or WSL
 #
@@ -13,7 +13,7 @@
 #    MacOS: ~/Library/Python/?.?/bin
 
 if [ $# -lt 2 ]; then
-    echo "Usage: fetch-msl.sh destination [locations] [basemap] [mastcams] sol0 sol1 ..."
+    echo "Usage: fetch-msl.sh destination [locations] [basemap] [mastcams] sol0 sol1 fromSol-toSol ..."
     exit 1
 fi
 
@@ -44,25 +44,36 @@ pfxs=( "proj/msl/redops/ods/surface/sol" )
 sfxs=( "opgs/rdr/ncam" )
 
 for sol in $sols; do
-    if [ $sol = "mastcams" ]; then
+    if [[ $sol = "mastcams" ]]; then
         cameraIndices+=( 1 )
         pfxs+=( "ods/surface/sol" )
         sfxs+=( "soas/rdr/mcam" )
     fi
 done
 
+range_pat='^([^-]+)-([^-]+)'
+
+ranges=( )
 for sol in $sols; do
-    if [ $sol = "locations" ]; then
+    if [[ $sol =~ $range_pat ]]; then
+        from=${BASH_REMATCH[1]}
+        to=${BASH_REMATCH[2]}
+        for i in $(seq -f "%05g" $from $to); do ranges+=( $i ); done
+    fi
+done
+
+for sol in $sols ${ranges[@]}; do
+    if [[ $sol = "locations" ]]; then
         src="$locations_src"
         dst="$out/msl/$locations_file"
         echo "$src -> $dst"
         curl $src -o $dst
-    elif [ $sol = "basemap" ]; then
+    elif [[ $sol = "basemap" ]]; then
         src="$basemap_src"
         dst="$out/msl/$basemap_file"
         echo "$src -> $dst"
         aws --profile=$landlords_profile s3 cp $src $dst
-    elif [ $sol = "mastcams" ]; then
+    elif [[ $sol = "mastcams" ]] || [[ $sol =~ $range_pat ]]; then
         true; # ignore
     else
         for i in "${cameraIndices[@]}"; do
