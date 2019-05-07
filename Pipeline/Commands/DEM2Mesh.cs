@@ -129,6 +129,7 @@ namespace OPS.Pipeline
                         {
                             foundTopLeft = true;
                             Vertex v = new Vertex(xyz[0, minR + r, minC + c], xyz[1, minR + r, minC + c], xyz[2, minR + r, minC + c]);
+                            v.UV = xyz.PixelToUV(new Vector2(minC + c, minR + r));
                             yield return v;
                         }
                     }
@@ -138,6 +139,7 @@ namespace OPS.Pipeline
                         {
                             foundTopRight = true;
                             Vertex v = new Vertex(xyz[0, minR + r, minC + size - c], xyz[1, minR + r, minC + size - c], xyz[2, minR + r, minC + size - c]);
+                            v.UV = xyz.PixelToUV(new Vector2(minC + size - c, minR + r));
                             yield return v;
                         }
                     }
@@ -147,6 +149,7 @@ namespace OPS.Pipeline
                         {
                             foundBotLeft = true;
                             Vertex v = new Vertex(xyz[0, minR + size - r, minC + c], xyz[1, minR + size - r, minC + c], xyz[2, minR + size - r, minC + c]);
+                            v.UV = xyz.PixelToUV(new Vector2(minC + c, minR + size - r));
                             yield return v;
                         }
                     }
@@ -156,6 +159,7 @@ namespace OPS.Pipeline
                         {
                             foundBotRight = true;
                             Vertex v = new Vertex(xyz[0, minR + size - r, minC + size - c], xyz[1, minR + size - r, minC + size - c], xyz[2, minR + size - r, minC + size - c]);
+                            v.UV = xyz.PixelToUV(new Vector2(minC + size - c, minR + size - r));
                             yield return v;
                         }
                     }
@@ -196,6 +200,7 @@ namespace OPS.Pipeline
                 if (testR >= 0 && testR < mutable_mask.Height && testC > 0 && testC < mutable_mask.Width && mutable_mask[0, testR, testC] == 1)
                 {
                     newVerts.Add(new Vertex(xyz[0, testR, testC], xyz[1, testR, testC], xyz[2, testR, testC]));
+                    newVerts[newVerts.Count - 1].UV = xyz.PixelToUV(new Vector2(testC, testR));
                     mutable_mask[0, testR, testC] = 0;
                     //Test error between mesh and samples
                     if(tested < testNum && testR > r && testR < r + size && testC > c && testC < c + size)
@@ -341,6 +346,7 @@ namespace OPS.Pipeline
                 outputImage = Path.Combine(Path.GetDirectoryName(options.InputDem), Path.GetFileNameWithoutExtension(options.InputDem) + ".mesh." + options.ImageFormat);
                 ortho.Save<byte>(outputImage); // TODO, add support for matching input type
             }
+            mesh.HasUVs = true;
             mesh.Save(this.options.OutputPath, outputImage);
             return 0;
         }
