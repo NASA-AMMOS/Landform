@@ -126,10 +126,9 @@ namespace OPS.Pipeline
                 if (!pixelsTested.Any(x => x > 1.0))
                     continue;
 
-                //the option specifies the percentage of pixels that need to be above the threshold for a split to occur
-                // this is equivalent to testing the pixel percentage pixels from the end of the sorted list
+                //the option specifies the percentage of pixels that need to be satisfied to avoid a split           
                 pixelsTested.Sort();
-                int idxToTest = (pixelsTested.Count-1) - (int)(pixelsTested.Count * options.pctSampledPixelsSatisfied);
+                int idxToTest = (int)((pixelsTested.Count-1) * options.pctSampledPixelsSatisfied);
                 if (pixelsTested[idxToTest] >= options.subsamplingTriggeringSplit)
                     return true;
             }

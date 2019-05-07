@@ -94,7 +94,7 @@ namespace OPS.Pipeline
         [Option(HelpText = "percentage of pixels to test when deciding to split a tile based on resolution (speed vs quality)", Default = 0.1)]
         public double SplitByTexturePctToTest { get; set; }
 
-        [Option(HelpText = "percentage of pixels tested that should satisfy the requirement to split a tile", Default = 0.5)]
+        [Option(HelpText = "percentage of pixels tested that should satisfy the requirement to avoid splitting a tile", Default = 0.5)]
         public double SplitByTexturePctSatisfied { get; set; }
 
         [Option(HelpText = "the area of source pixels mapped to a single destination pixel that would trigger a split", Default = 4.5)]
