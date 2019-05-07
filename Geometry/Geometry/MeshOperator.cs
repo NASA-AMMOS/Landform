@@ -303,10 +303,10 @@ namespace OPS.Geometry
         }
 
         /// <summary>
-        /// returns all the pixels (paired with the mesh points) that had valid texels in the atlas
+        /// returns all the center locations of pixels (paired with the mesh points) that had valid texels in the atlas
         /// </summary>
         /// <param name="textureResolution">resolution of texture to collect points for</param>        
-        public List<PixelPoint> SampleUVSpace(int widthPixels, int heightPixels, PixelConvention convention)
+        public List<PixelPoint> SampleUVSpace(int widthPixels, int heightPixels)
         {
             if (!HasUVs)
                 throw new Exception("mesh needs uvs to subsample uv space");
@@ -316,12 +316,17 @@ namespace OPS.Geometry
             {
                 for (int col = 0; col < widthPixels; col++)
                 {
-                    Vector2 destPixelToUV = Image.PixelToUV(new Vector2(col, row), widthPixels, heightPixels, convention);
-                    BarycentricPoint baryPt = UVToBarycentric(destPixelToUV);
+                    Vector2 destPixelUV = Image.PixelToUV(new Vector2(col, row), widthPixels, heightPixels);
+
+                    //half pixel offset applied because we are testing if there would be mesh coverage at the location
+                    // we would be sampling at, the center of the pixel
+                    destPixelUV = Image.ApplyHalfPixelOffsetToUV(destPixelUV, widthPixels, heightPixels);
+
+                    BarycentricPoint baryPt = UVToBarycentric(destPixelUV); 
                     if (baryPt == null)
                         continue;
 
-                    pts.Add(new PixelPoint() { Pixel = new Vector2(col, row), Point = baryPt.Position });
+                    pts.Add(new PixelPoint() { Pixel = Image.UVToPixel(destPixelUV, widthPixels, heightPixels), Point = baryPt.Position });
                 }
             }
 
@@ -331,7 +336,7 @@ namespace OPS.Geometry
         /// <summary>
         /// convenience function that returns a simple subset of the pixels in the resulting texture atlas which were valid for this mesh
         /// </summary>
-        public List<PixelPoint> SubsampleUVSpace(double pct, int widthPixels, int heightPixels, PixelConvention convention)
+        public List<PixelPoint> SubsampleUVSpace(double pct, int widthPixels, int heightPixels)
         {
             if (pct >= 1.0)
                 throw new Exception("expecting to subsample uv space, a percentage >= 1 was passed");
@@ -339,7 +344,7 @@ namespace OPS.Geometry
             if (pct <= 0)
                 throw new Exception("valid subsample pcts need to be greater than zero");
 
-            List<PixelPoint> pts = SampleUVSpace(widthPixels, heightPixels, convention);
+            List<PixelPoint> pts = SampleUVSpace(widthPixels, heightPixels);
 
             //simple sample which skips enough points to return the requested amount of points
             int subsampledPts = Math.Max(1, (int)(pts.Count * pct));

@@ -514,12 +514,29 @@ namespace OPS.Imaging
             return new Vector2(pixelCoordinate.X / Width, 1 - (pixelCoordinate.Y / Height));
         }
 
-        static public Vector2 PixelToUV(Vector2 pixelCoordinate, int width, int height, PixelConvention convention)
+        /// <summary>
+        /// Convert a pixel coordinate to a uv coordinate
+        /// </summary>
+        static public Vector2 PixelToUV(Vector2 pixelCoordinate, int widthPixels, int heightPixels)
         {
-            Vector2 halfPixelOffset = ((convention == PixelConvention.Center) ? new Vector2(0.5/width, -0.5/height) : Vector2.Zero);
-            return new Vector2(pixelCoordinate.X / width, 1 - (pixelCoordinate.Y / height)) + halfPixelOffset;
+            return new Vector2(pixelCoordinate.X / widthPixels, 1 - (pixelCoordinate.Y / heightPixels));
         }
 
+        /// <summary>
+        /// Pixels are addressed by their upper left corner in landform, when sampling texture data like a renderer would
+        /// you want to read from the center of the pixel (by incrementing a half pixel). The vertical direction is reversed
+        /// because pixel origin is the top left of the image, and uv origin is lower left
+        /// </summary>
+        static public Vector2 ApplyHalfPixelOffsetToUV(Vector2 pixelUpperLeftUV, int widthPixels, int heightPixels)
+        {
+            return pixelUpperLeftUV + new Vector2(0.5 / widthPixels, -0.5 / heightPixels);
+        }
+
+        static private readonly Vector2 Vec2Half = new Vector2(0.5, 0.5);
+        static public Vector2 ApplyHalfPixelOffsetToPixel(Vector2 pixelUpperLeft)
+        {
+            return pixelUpperLeft + Vec2Half;
+        }
         /// <summary>
         /// Convert a uv coordinate to a pixel coordinate
         /// </summary>
@@ -529,11 +546,13 @@ namespace OPS.Imaging
         {
             return new Vector2(uvCoordinate.X * Width, (1 - uvCoordinate.Y) * Height);
         }
-        static public Vector2 UVToPixel(Vector2 uvCoordinate, int width, int height, PixelConvention convention)
-        {
-            Vector2 halfPixelOffset = ((convention == PixelConvention.Center) ? new Vector2(0.5 / width, -0.5 / height) : Vector2.Zero);
-            Vector2 uv = uvCoordinate - halfPixelOffset;
-            return new Vector2(uv.X * width, (1 - uv.Y) * height);
+
+        /// <summary>
+        /// Convert a uv coordinate to a pixel coordinate
+        /// </summary>
+        static public Vector2 UVToPixel(Vector2 uvCoordinate, int widthPixels, int heightPixels)
+        {          
+            return new Vector2(uvCoordinate.X * widthPixels, (1 - uvCoordinate.Y) * heightPixels);
         }
 
         /// <summary>

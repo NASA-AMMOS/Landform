@@ -86,15 +86,15 @@ namespace OPS.Pipeline
 
             //record the pixel area of the image that would be used to texture the mesh for each output atlas pixel
             Dictionary<CameraInstance,List<double>> srcAreaByCamera = new Dictionary<CameraInstance, List<double>>();
-            foreach (var pxlPt in ptsToTest)
+            foreach (var destPixelPt in ptsToTest)
             {
                 //find the camera that provides the best pixel density for this sample (would be the texture we would use at this location)
-                if (!GetBestCameraByPixelDensity(intersectingCameras, clippedHull, pxlPt, out CameraInstance bestCamera))
+                if (!GetBestCameraByPixelDensity(intersectingCameras, clippedHull, destPixelPt, out CameraInstance bestCamera))
                     continue;
 
-                // calculate src pixels area contributing to the pixel
-                Vector2[] pixelCornersLandform = OPS.Pipeline.LocalBuildMeshes.GetPixelCorners(pxlPt.Pixel, LocalBuildMeshes.PixelConvention.UpperLeft);
-                var uvsCorners = pixelCornersLandform.Select(c => Image.PixelToUV(c,options.tileResolution,options.tileResolution));
+                // calculate src pixels area contributing to the pixel  
+                Vector2[] pixelCorners = OPS.Pipeline.LocalBuildMeshes.GetPixelCorners(destPixelPt.Pixel);                
+                var uvsCorners = pixelCorners.Select(c => Image.PixelToUV(c,options.tileResolution,options.tileResolution));
                 var destPixelMeshPositions = uvsCorners.Select(uv => clippedOp.UVToBarycentric(uv)).Where(bary => bary != null).Select(bary => bary.Position);
                 var srcPixels = destPixelMeshPositions.Select(meshPos => LocalBuildMeshes.GetCameraPixelForMeshPosition(options.scInMesh, bestCamera.cameraModel, bestCamera.cameraToMesh, bestCamera.meshToCamera, bestCamera.hullInMesh, meshPos, bestCamera.widthPixels, bestCamera.heightPixels));
 

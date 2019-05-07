@@ -1271,10 +1271,4 @@ namespace OPS.Imaging
             }
         }
     }
-
-    public enum PixelConvention
-    {
-        UpperLeft, //Landform
-        Center     //OPGS, CAHV, OPENGL
-    };
 }

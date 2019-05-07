@@ -225,20 +225,22 @@ namespace GeometryTest
             MeshOperator op = new MeshOperator(mesh);
 
             int resolution = 2;
-            List<PixelPoint> pxlPts = op.SampleUVSpace(resolution, resolution, PixelConvention.UpperLeft);
+            List<PixelPoint> pxlPts = op.SampleUVSpace(resolution, resolution);
 
             Assert.IsTrue(pxlPts.Count == 4);
-            Assert.IsTrue(pxlPts.Select(x => x.Pixel).Contains(new Vector2(0, 0)));
-            Assert.IsTrue(pxlPts.Select(x => x.Pixel).Contains(new Vector2(0, 1)));
-            Assert.IsTrue(pxlPts.Select(x => x.Pixel).Contains(new Vector2(1, 0)));
-            Assert.IsTrue(pxlPts.Select(x => x.Pixel).Contains(new Vector2(1, 1)));
 
-            //differences in positions from construction is because the location tied to the uv is the upper left corner of
-            // the pixel whereas the geometry must provide uvs at 4 different corners of the 4 different pixels
-            Assert.IsTrue(pxlPts.Where(x => x.Pixel == new Vector2(0, 1)).First().Point == new Vector3(0, -1, 0));
-            Assert.IsTrue(pxlPts.Where(x => x.Pixel == new Vector2(0, 0)).First().Point == new Vector3(0, -1, -1));
-            Assert.IsTrue(pxlPts.Where(x => x.Pixel == new Vector2(1, 1)).First().Point == new Vector3(0, 0, 0));
-            Assert.IsTrue(pxlPts.Where(x => x.Pixel == new Vector2(1, 0)).First().Point == new Vector3(0, 0, -1));
+            //sampling function returns location of data (pixel centers)
+            Assert.IsTrue(pxlPts.Select(x => x.Pixel).Contains(new Vector2(0.5, 0.5)));
+            Assert.IsTrue(pxlPts.Select(x => x.Pixel).Contains(new Vector2(0.5, 1.5)));
+            Assert.IsTrue(pxlPts.Select(x => x.Pixel).Contains(new Vector2(1.5, 0.5)));
+            Assert.IsTrue(pxlPts.Select(x => x.Pixel).Contains(new Vector2(1.5, 1.5)));
+
+            //differences in positions from construction is because the for each of the four corners of the quad, a different pixel corner
+            // is matched to the vertex position. also location is pixel centers
+            Assert.IsTrue(pxlPts.Where(x => x.Pixel == new Vector2(0.5, 1.5)).First().Point == new Vector3(0, -0.5, 0.5));
+            Assert.IsTrue(pxlPts.Where(x => x.Pixel == new Vector2(0.5, 0.5)).First().Point == new Vector3(0, -0.5, -0.5));
+            Assert.IsTrue(pxlPts.Where(x => x.Pixel == new Vector2(1.5, 1.5)).First().Point == new Vector3(0, 0.5, 0.5));
+            Assert.IsTrue(pxlPts.Where(x => x.Pixel == new Vector2(1.5, 0.5)).First().Point == new Vector3(0, 0.5, -0.5));
 
         }
 
@@ -257,16 +259,17 @@ namespace GeometryTest
 
             int resolution = 2;
             double pct = 0.5;
-            List<PixelPoint> pxlPts = op.SubsampleUVSpace(pct,resolution, resolution, PixelConvention.Center);
+            List<PixelPoint> pxlPts = op.SubsampleUVSpace(pct,resolution, resolution);
 
             Assert.IsTrue(pxlPts.Count == 2);
-            Assert.IsTrue(pxlPts.Select(x => x.Pixel).Contains(new Vector2(0, 1)));
-            Assert.IsTrue(pxlPts.Select(x => x.Pixel).Contains(new Vector2(0, 0)));
+            //sampling function returns location of data (pixel centers)
+            Assert.IsTrue(pxlPts.Select(x => x.Pixel).Contains(new Vector2(0.5, 1.5)));
+            Assert.IsTrue(pxlPts.Select(x => x.Pixel).Contains(new Vector2(0.5, 0.5)));
 
             pct = 1/3.0;
-            pxlPts = op.SubsampleUVSpace(pct, resolution, resolution, PixelConvention.Center);
+            pxlPts = op.SubsampleUVSpace(pct, resolution, resolution);
             Assert.IsTrue(pxlPts.Count == 1);
-            Assert.IsTrue(pxlPts.Select(x => x.Pixel).Contains(new Vector2(0, 0)));
+            Assert.IsTrue(pxlPts.Select(x => x.Pixel).Contains(new Vector2(0.5, 0.5)));
 
         }
 
@@ -284,10 +287,10 @@ namespace GeometryTest
             MeshOperator op = new MeshOperator(mesh);
 
             int resolution = 2;
-            List<PixelPoint> pxlPts = op.SampleUVSpace(resolution, resolution, PixelConvention.Center);
+            List<PixelPoint> pxlPts = op.SampleUVSpace(resolution, resolution);
 
             Assert.IsTrue(pxlPts.Count == 1);
-            Assert.IsTrue(pxlPts.Select(x => x.Pixel).Contains(new Vector2(0, 1)));
+            Assert.IsTrue(pxlPts.Select(x => x.Pixel).Contains(new Vector2(0.5, 1.5)));
         }
     }
 }

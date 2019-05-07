@@ -31,12 +31,12 @@ namespace PipelineTest
         [TestMethod()]
         public void TextureShouldSplitTest()
         {
-            int destTextureResolution = 2;
-            int srcTextureResolution = 4;
+            int destTextureResolution = 4;
+            int srcTextureResolution = 8;
             Assert.IsTrue(StandardTexSplit(destTextureResolution, srcTextureResolution));
 
-            destTextureResolution = 2;
-            srcTextureResolution = 3;
+            destTextureResolution = 3;
+            srcTextureResolution = 5;
             Assert.IsTrue(StandardTexSplit(destTextureResolution, srcTextureResolution));
         }
 

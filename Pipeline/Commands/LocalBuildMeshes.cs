@@ -657,22 +657,17 @@ namespace OPS.Pipeline
             return hit?.Position;
         }
 
-        static public Vector2[] GetPixelCorners(Vector2 srcPixel, PixelConvention convention)
+        static public Vector2[] GetPixelCorners(Vector2 srcPixel)
         {
-            switch (convention)
+            //maps subpixel address to integer pixel address (upper left corner)
+            Vector2 pixelAddress = new Vector2((int)srcPixel.X, (int)srcPixel.Y);
+
+            Vector2[] corners = new Vector2[4];
+            for (int idxCorner = 0; idxCorner < 4; idxCorner++)
             {
-                case PixelConvention.UpperLeft:
-                    Vector2[] corners = new Vector2[4];
-                    for (int idxCorner = 0; idxCorner < 4; idxCorner++)
-                    {
-                        corners[idxCorner] = srcPixel + PixelCorners[idxCorner];
-                    }
-                    return corners;
-                case PixelConvention.Center:
-                    return GetOffsetPixels(srcPixel, 0.5).ToArray();
-                default:
-                    throw new NotImplementedException("unknown pixel convention");
+                corners[idxCorner] = pixelAddress + PixelCorners[idxCorner];
             }
+            return corners;
         }
 
         static public List<Vector2> GetOffsetPixels(Vector2 srcPixel, double offset)
