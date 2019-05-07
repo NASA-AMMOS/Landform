@@ -82,7 +82,7 @@ namespace OPS.Pipeline
          
             //choose a sub-set of points (for perf) from the output atlas texture to test
             MeshOperator clippedOp = new MeshOperator(clippedMesh, buildFaceTree: false, buildVertexTree: false, buildUVFaceTree: true);
-            List<PixelPoint> ptsToTest = clippedOp.SubsampleUVSpace(options.pctPixelsToTest, options.tileResolution);
+            List<PixelPoint> ptsToTest = clippedOp.SubsampleUVSpace(options.pctPixelsToTest, options.tileResolution,  options.tileResolution);
 
             //record the pixel area of the image that would be used to texture the mesh for each output atlas pixel
             Dictionary<CameraInstance,List<double>> srcAreaByCamera = new Dictionary<CameraInstance, List<double>>();

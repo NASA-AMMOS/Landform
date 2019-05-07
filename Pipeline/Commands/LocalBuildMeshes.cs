@@ -316,7 +316,7 @@ namespace OPS.Pipeline
 
                 //cache the destination pixels (and the mesh positions for perf) for which backproject is valid
                 MeshOperator leafOp = new MeshOperator(leafMesh, buildFaceTree: false, buildVertexTree: false, buildUVFaceTree: true);
-                List<PixelPoint> pointsToBackproject = leafOp.SampleUVSpace(options.TileResolution);
+                List<PixelPoint> pointsToBackproject = leafOp.SampleUVSpace(options.TileResolution, options.TileResolution);
 
                 //calculate goodness (spatial density)
                 Dictionary<Observation, double> spatialDensityByObs = new Dictionary<Observation, double>();

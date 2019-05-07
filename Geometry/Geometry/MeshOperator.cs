@@ -306,17 +306,17 @@ namespace OPS.Geometry
         /// returns all the pixels (paired with the mesh points) that had valid texels in the atlas
         /// </summary>
         /// <param name="textureResolution">resolution of texture to collect points for</param>        
-        public List<PixelPoint> SampleUVSpace(int textureResolution)
+        public List<PixelPoint> SampleUVSpace(int widthPixels, int heightPixels)
         {
             if (!HasUVs)
                 throw new Exception("mesh needs uvs to subsample uv space");
 
             List<PixelPoint> pts = new List<PixelPoint>();
-            for (int row = 0; row < textureResolution; row++)
+            for (int row = 0; row < heightPixels; row++)
             {
-                for (int col = 0; col < textureResolution; col++)
+                for (int col = 0; col < widthPixels; col++)
                 {
-                    Vector2 destPixelToUV = Image.PixelToUV(new Vector2(col, row), textureResolution, textureResolution);
+                    Vector2 destPixelToUV = Image.PixelToUV(new Vector2(col, row), widthPixels, heightPixels);
                     BarycentricPoint baryPt = UVToBarycentric(destPixelToUV);
                     if (baryPt == null)
                         continue;
@@ -331,7 +331,7 @@ namespace OPS.Geometry
         /// <summary>
         /// convenience function that returns a simple subset of the pixels in the resulting texture atlas which were valid for this mesh
         /// </summary>
-        public List<PixelPoint> SubsampleUVSpace(double pct, int textureResolution)
+        public List<PixelPoint> SubsampleUVSpace(double pct, int widthPixels, int heightPixels)
         {
             if (pct >= 1.0)
                 throw new Exception("expecting to subsample uv space, a percentage >= 1 was passed");
@@ -339,7 +339,7 @@ namespace OPS.Geometry
             if (pct <= 0)
                 throw new Exception("valid subsample pcts need to be greater than zero");
 
-            List<PixelPoint> pts = SampleUVSpace(textureResolution);
+            List<PixelPoint> pts = SampleUVSpace(widthPixels, heightPixels);
 
             //simple sample which skips enough points to return the requested amount of points
             int subsampledPts = Math.Max(1, (int)(pts.Count * pct));

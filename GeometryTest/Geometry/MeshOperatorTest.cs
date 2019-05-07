@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Microsoft.Xna.Framework;
 using OPS.Geometry;
+using OPS.Imaging;
 
 namespace GeometryTest
 {
@@ -71,13 +72,13 @@ namespace GeometryTest
         {
             Mesh m = new Mesh();
             m.Vertices.Add(new Vertex(new Vector3(-1, -1, -1)));
-            m.Vertices.Add(new Vertex(new Vector3(-1, -1,  1)));
-            m.Vertices.Add(new Vertex(new Vector3(-1,  1, -1)));
-            m.Vertices.Add(new Vertex(new Vector3(-1,  1,  1)));
-            m.Vertices.Add(new Vertex(new Vector3( 1, -1, -1)));
-            m.Vertices.Add(new Vertex(new Vector3( 1, -1,  1)));
-            m.Vertices.Add(new Vertex(new Vector3( 1,  1, -1)));
-            m.Vertices.Add(new Vertex(new Vector3( 1,  1,  1)));
+            m.Vertices.Add(new Vertex(new Vector3(-1, -1, 1)));
+            m.Vertices.Add(new Vertex(new Vector3(-1, 1, -1)));
+            m.Vertices.Add(new Vertex(new Vector3(-1, 1, 1)));
+            m.Vertices.Add(new Vertex(new Vector3(1, -1, -1)));
+            m.Vertices.Add(new Vertex(new Vector3(1, -1, 1)));
+            m.Vertices.Add(new Vertex(new Vector3(1, 1, -1)));
+            m.Vertices.Add(new Vertex(new Vector3(1, 1, 1)));
 
             BoundingBox bb = new BoundingBox(new Vector3(-1.5, -1.5, -1.5), new Vector3(-0.5, 1.5, -0.5));
             MeshOperator mo = new MeshOperator(m);
@@ -208,6 +209,49 @@ namespace GeometryTest
                     }
                 }
             }
+        }
+
+        Vector3 PixelToPos(MeshOperator op, Vector2 pixel, int resolution)
+        {
+            Vector2 uv = Image.PixelToUV(pixel, resolution, resolution);
+            return op.UVToBarycentric(uv).Position;
+        }
+
+        [TestMethod()]
+        public void SampleUVSpaceTest()
+        {
+            //uv origin: lower left
+            Vertex ul = new Vertex(new Vector3(0, -1, -1), new Vector3(-1, 0, 0), new Vector4(1, 0, 0, 1), new Vector2(0, 1));
+            Vertex ll = new Vertex(new Vector3(0, -1, 1), new Vector3(-1, 0, 0), new Vector4(0, 0, 1, 1), new Vector2(0, 0));
+            Vertex ur = new Vertex(new Vector3(0, 1, -1), new Vector3(-1, 0, 0), new Vector4(0, 1, 0, 1), new Vector2(1, 1));
+            Vertex lr = new Vertex(new Vector3(0, 1, 1), new Vector3(-1, 0, 0), new Vector4(1, 0, 1, 1), new Vector2(1, 0));
+            Triangle tri0 = new Triangle(ul, ll, ur);
+            Triangle tri1 = new Triangle(ll, ur, lr);
+            Mesh mesh = new Mesh(new List<Triangle>() { tri0, tri1 }, true, true, true);
+            MeshOperator op = new MeshOperator(mesh);
+
+            int resolution = 2;
+            List<PixelPoint> pxlPts = op.SampleUVSpace(resolution, resolution);
+
+            Assert.IsTrue(pxlPts.Count == 4);
+            Assert.IsTrue(pxlPts.Select(x => x.Pixel).Contains(new Vector2(0, 0)));
+            Assert.IsTrue(pxlPts.Select(x => x.Pixel).Contains(new Vector2(0, 1)));
+            Assert.IsTrue(pxlPts.Select(x => x.Pixel).Contains(new Vector2(1, 0)));
+            Assert.IsTrue(pxlPts.Select(x => x.Pixel).Contains(new Vector2(1, 1)));
+
+            //differences in positions from construction is because the location tied to the uv is the upper left corner of
+            // the pixel whereas the geometry must provide uvs at 4 different corners of the 4 different pixels
+            Assert.IsTrue(pxlPts.Where(x => x.Pixel == new Vector2(0, 1)).First().Point == new Vector3(0, -1, 0));
+            Assert.IsTrue(pxlPts.Where(x => x.Pixel == new Vector2(0, 0)).First().Point == new Vector3(0, -1, -1));
+            Assert.IsTrue(pxlPts.Where(x => x.Pixel == new Vector2(1, 1)).First().Point == new Vector3(0, 0, 0));
+            Assert.IsTrue(pxlPts.Where(x => x.Pixel == new Vector2(1, 0)).First().Point == new Vector3(0, 0, -1));
+
+        }
+
+        [TestMethod()]
+        public void SubsampleUVSpaceTest()
+        {
+            Assert.Fail();
         }
     }
 }
