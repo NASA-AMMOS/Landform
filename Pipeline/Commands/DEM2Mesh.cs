@@ -40,10 +40,10 @@ namespace OPS.Pipeline
         [Option(Required = false, Default = 10, HelpText = "Decimate (roughly) to this error threshold against original points.")]
         public float Error { get; set; }
 
-        [Option(Required = false, Default = 20, HelpText = "Number of points to add with each split")]
+        [Option(Required = false, Default = 30, HelpText = "Number of points to add with each split")]
         public int SampleNum { get; set; }
 
-        [Option(Required = false, Default = 3, HelpText = "Number of points to test error against at each split")]
+        [Option(Required = false, Default = 4, HelpText = "Number of points to test error against at each split")]
         public int TestNum { get; set; }
 
         [Option(Required = false, Default = 2.0, HelpText = "Set higher to scale the sampling region to smooth transition between high and low density")]
@@ -146,7 +146,7 @@ namespace OPS.Pipeline
                         if (mask[0, minR + size - r, minC + c] == 1)
                         {
                             foundBotLeft = true;
-                            Vertex v = new Vertex(xyz[0, minR + size - r, minC + c], xyz[1, minR + size - r, c], xyz[2, minR + size - r, minC + c]);
+                            Vertex v = new Vertex(xyz[0, minR + size - r, minC + c], xyz[1, minR + size - r, minC + c], xyz[2, minR + size - r, minC + c]);
                             yield return v;
                         }
                     }
