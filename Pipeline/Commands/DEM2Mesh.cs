@@ -96,55 +96,66 @@ namespace OPS.Pipeline
             }
         }
 
-        IEnumerable<Vertex> FindCorners(Image xyz, Image mask)
+        /// <summary>
+        /// Given Image xyz and Image mask, find corners that are not masked out. Optionally enter top left corner and a size parameter to get corners of a subregion.
+        /// May not return a full set of vertices (potentially none) if image heavily masked
+        /// </summary>
+        /// <param name="xyz"></param>
+        /// <param name="mask"></param>
+        /// <param name="minR"></param>
+        /// <param name="minC"></param>
+        /// <param name="size"></param>
+        /// <returns></returns>
+        IEnumerable<Vertex> FindCorners(Image xyz, Image mask, int minR = 0, int minC = 0, int size = -1)
         {
             int d = 1;
             bool foundTopLeft = false;
             bool foundTopRight = false;
             bool foundBotLeft = false;
             bool foundBotRight = false;
-            while (d < Math.Min(xyz.Width, xyz.Height) - 1 && (!foundTopLeft || !foundTopRight || !foundBotLeft || !foundBotRight)) {
+            if(size == -1)
+            {
+                size = Math.Min(xyz.Width - minC, xyz.Height - minR) - 1;
+            }
+
+            while (d < size && (!foundTopLeft || !foundTopRight || !foundBotLeft || !foundBotRight)) {
                 int c;
                 for (int r = 0; r <= d; r++)
                 {
                     c = d - r;
                     if(!foundTopLeft)
                     {
-                        if(mask[0,r,c] == 1)
+                        if(mask[0, minR + r, minC + c] == 1)
                         {
                             foundTopLeft = true;
-                            Vertex v = new Vertex(xyz[0, r, c], xyz[1, r, c], xyz[2, r, c]);
-                            v.UV = xyz.PixelToUV(new Vector2(c, r));
-                            yield return new Vertex(xyz[0, r, c], xyz[1, r, c], xyz[2, r, c]);
+                            Vertex v = new Vertex(xyz[0, minR + r, minC + c], xyz[1, minR + r, minC + c], xyz[2, minR + r, minC + c]);
+                            yield return v;
                         }
                     }
                     if(!foundTopRight)
                     {
-                        if (mask[0, r, xyz.Width - 1 - c] == 1)
+                        if (mask[0, minR + r, minC + size - c] == 1)
                         {
                             foundTopRight = true;
-                            Vertex v = new Vertex(xyz[0, r, xyz.Width - 1 - c], xyz[1, r, xyz.Width - 1 - c], xyz[2, r, xyz.Width - 1 - c]);
-                            v.UV = xyz.PixelToUV(new Vector2(xyz.Width - 1 - c, r));
+                            Vertex v = new Vertex(xyz[0, minR + r, minC + size - c], xyz[1, minR + r, minC + size - c], xyz[2, minR + r, minC + size - c]);
                             yield return v;
                         }
                     }
                     if(!foundBotLeft)
                     {
-                        if (mask[0, xyz.Height - 1 - r, c] == 1)
+                        if (mask[0, minR + size - r, minC + c] == 1)
                         {
                             foundBotLeft = true;
-                            Vertex v = new Vertex(xyz[0, xyz.Height - 1 - r, c], xyz[1, xyz.Height - 1 - r, c], xyz[2, xyz.Height - 1 - r, c]);
-                            v.UV = xyz.PixelToUV(new Vector2(c, xyz.Height - 1 - r));
+                            Vertex v = new Vertex(xyz[0, minR + size - r, minC + c], xyz[1, minR + size - r, c], xyz[2, minR + size - r, minC + c]);
                             yield return v;
                         }
                     }
                     if(!foundBotRight)
                     {
-                        if (mask[0, xyz.Height - 1 - r, xyz.Width - 1 - c] == 1)
+                        if (mask[0, minR + size - r, minC + size - c] == 1)
                         {
                             foundBotRight = true;
-                            Vertex v = new Vertex(xyz[0, xyz.Height - 1 - r, xyz.Width - 1 - c], xyz[1, xyz.Height - 1 - r, xyz.Width - 1 - c], xyz[2, xyz.Height - 1 - r, xyz.Width - 1 - c]);
-                            v.UV = xyz.PixelToUV(new Vector2(xyz.Width-1-c, xyz.Height-1-r));
+                            Vertex v = new Vertex(xyz[0, minR + size - r, minC + size - c], xyz[1, minR + size - r, minC + size - c], xyz[2, minR + size - r, minC + size - c]);
                             yield return v;
                         }
                     }
@@ -153,27 +164,41 @@ namespace OPS.Pipeline
             }
         }
 
-        List<Vertex> split(List<Vertex> verts, double r, double c, double error, Image xyz, Image mask, double size, int sampleNum, int testNum, double sampleScale, Random rand)
+        /// <summary>
+        /// Recursively subsample regions where geometric error is too large
+        /// </summary>
+        /// <param name="verts"></param>
+        /// <param name="r"></param>
+        /// <param name="c"></param>
+        /// <param name="error"></param>
+        /// <param name="xyz"></param>
+        /// <param name="original_mask"></param>
+        /// <param name="mutable_mask"></param>
+        /// <param name="size"></param>
+        /// <param name="sampleNum"></param>
+        /// <param name="testNum"></param>
+        /// <param name="sampleScale"></param>
+        /// <param name="rand"></param>
+        /// <returns></returns>
+        List<Vertex> split(List<Vertex> verts, double r, double c, double error, Image xyz, Image original_mask, Image mutable_mask, double size, int sampleNum, int testNum, double sampleScale, Random rand)
         {
-            //BoundingBox box = new BoundingBox(new Vector3(xyz.BilinearSample(0,(float)r,(float)c), xyz.BilinearSample(1, (float)r, (float)c), xyz.BilinearSample(2, (float)r, (float)c)),
-            //    new Vector3(xyz.BilinearSample(0, (float)(r+size), (float)(c + size)), xyz.BilinearSample(0, (float)(r + size), (float)(c + size)), xyz.BilinearSample(0, (float)(r + size), (float)(c + size))));
-            //Mesh mesh = DelaunayTriangulation.Triangulate(verts.GetRange(0,4).Union(verts.Where(v => box.Contains(v.Position) == ContainmentType.Contains)), vertToDelaunay);
+            //Mesh the current set of vertices
             Mesh mesh = DelaunayTriangulation.Triangulate(verts, vertToDelaunay);
-            List<Vertex> newVerts = new List<Vertex>();
 
+            //Sample
+            List<Vertex> newVerts = new List<Vertex>();
             double tested = 0;
             bool shouldSplit = false;
             for (int i = 0; i < sampleNum; i++)
             {
                 int testR = (int)(r + (sampleScale * rand.NextDouble() - 0.5 * (sampleScale - 1)) * size);
                 int testC = (int)(c + (sampleScale * rand.NextDouble() - 0.5 * (sampleScale - 1)) * size);
-                if (testR >= 0 && testR < mask.Height && testC > 0 && testC < mask.Width && mask[0, testR, testC] == 1)
+                if (testR >= 0 && testR < mutable_mask.Height && testC > 0 && testC < mutable_mask.Width && mutable_mask[0, testR, testC] == 1)
                 {
                     newVerts.Add(new Vertex(xyz[0, testR, testC], xyz[1, testR, testC], xyz[2, testR, testC]));
-                    newVerts[newVerts.Count - 1].UV = xyz.PixelToUV(new Vector2(testC, testR));
-                    //verts.Add(newVerts[newVerts.Count - 1]); ///////////////////
-                    mask[0, testR, testC] = 0;
-                    if(tested < testNum)
+                    mutable_mask[0, testR, testC] = 0;
+                    //Test error between mesh and samples
+                    if(tested < testNum && testR > r && testR < r + size && testC > c && testC < c + size)
                     {
                         double dist = double.MaxValue;
                         List<Triangle> tris = mesh.Triangles();
@@ -193,83 +218,75 @@ namespace OPS.Pipeline
                 }
             }
 
-            Triangle testTri;
-            Face testFace;
-            BarycentricPoint testPoint;
-            Vector2 rc;
-            double h1;
-            double h2;
-            
-            /*for (int i = 0; i < testNum; i++)
-            {
-                testFace = mesh.Faces[(int)(rand.NextDouble() * mesh.Faces.Count)];
-                testTri = new Triangle(mesh.Vertices[testFace.P0], mesh.Vertices[testFace.P1], mesh.Vertices[testFace.P2]);
-                testPoint = testTri.Sample(rand);
-                //TODO: bounds check?
-                rc = xyz.UVToPixel(testPoint.UV);
-                h1 = xyz.BilinearSample(2, (float)rc.Y, (float)rc.X);
-                h2 = testPoint.Position.Z;
-                if(Math.Abs(h2 - h1) > error)
-                {
-                    shouldSplit = true;
-                    break;
-                }
-            }*/
-
+            //Subsample if error exceeded threshold
             if(!shouldSplit)
             {
                 return newVerts;
             }
 
+            //Compute new child tile bounds
             double minX = xyz.BilinearSample(0, (float)r, (float)c);
-            double minY = xyz.BilinearSample(1, (float)r, (float)c);
-            double maxX = xyz.BilinearSample(0, (float)(r + size), (float)(c + size));
-            double maxY = xyz.BilinearSample(1, (float)(r + size), (float)(c + size));
+            double maxY = xyz.BilinearSample(1, (float)r, (float)c);
+            double maxX = xyz.BilinearSample(0, (float)Math.Min(r + size, xyz.Height - 1), (float)Math.Min(c + size, xyz.Width - 1));
+            double minY = xyz.BilinearSample(1, (float)Math.Min(r + size, xyz.Height - 1), (float)Math.Min(c + size, xyz.Width - 1));
 
+            double midX = (minX + maxX) / 2.0;
+            double midY = (minY + maxY) / 2.0;
             double umidX = (minX + maxX + (maxX - minX) * 0.1) / 2.0;
             double lmidX = (minX + maxX - (maxX - minX) * 0.1) / 2.0;
             double umidY = (minY + maxY + (maxY - minY) * 0.1) / 2.0;
-            double lmidY = (minY + maxY + (maxY - minY) * 0.1) / 2.0;
+            double lmidY = (minY + maxY - (maxY - minY) * 0.1) / 2.0;
 
-            List<Vertex> verts1 = verts.GetRange(0, 4);
-            List<Vertex> verts2 = verts.GetRange(0, 4);
-            List<Vertex> verts3 = verts.GetRange(0, 4);
-            List<Vertex> verts4 = verts.GetRange(0, 4);
+            //Add boundary conditions to each tile child (try to find approximate tile corners, and include full dem corners in case of failure)
+            List<Vertex> verts1 = FindCorners(xyz, original_mask, (int)r, (int)c, (int)((size - 1)/2)).ToList();
+            List<Vertex> verts2 = FindCorners(xyz, original_mask, (int)(r + size / 2), (int)c, (int)((size - 1)/2)).ToList();
+            List<Vertex> verts3 = FindCorners(xyz, original_mask, (int)r, (int)(c + size / 2), (int)((size - 1)/2)).ToList();
+            List<Vertex> verts4 = FindCorners(xyz, original_mask, (int)(r + size / 2), (int)(c + size / 2), (int)((size - 1)/2)).ToList();
+            verts1.AddRange(verts.GetRange(0, 4));
+            verts2.AddRange(verts.GetRange(0, 4));
+            verts3.AddRange(verts.GetRange(0, 4));
+            verts4.AddRange(verts.GetRange(0, 4));
 
-            foreach(Vertex v in verts.Union(newVerts))
+            //Partition our current set of vertices + new samples into children
+            foreach (Vertex v in verts.Union(newVerts))
             {
                 if(v.Position.X < umidX)
                 {
-                    if(v.Position.Y < umidY)
+                    if(v.Position.Y > lmidY)
                     {
                         verts1.Add(v);
                     }
-                    if(v.Position.Y > lmidY)
+                    if(v.Position.Y < umidY)
                     {
                         verts2.Add(v);
                     }
                 }
                 if(v.Position.X > lmidX)
                 {
-                    if(v.Position.Y < umidY)
+                    if(v.Position.Y > lmidY)
                     {
                         verts3.Add(v);
                     }
-                    if(v.Position.Y > lmidY)
+                    if(v.Position.Y < umidY)
                     {
                         verts4.Add(v);
                     }
                 }
             }
 
-            newVerts.AddRange(split(verts1, r + size / 2.0, c, error, xyz, mask, size / 2.0, sampleNum, testNum, sampleScale, rand));
-            newVerts.AddRange(split(verts2, r, c, error, xyz, mask, size / 2.0, sampleNum, testNum, sampleScale, rand));
-            newVerts.AddRange(split(verts3, r + size / 2.0, c + size / 2.0, error, xyz, mask, size / 2.0, sampleNum, testNum, sampleScale, rand));
-            newVerts.AddRange(split(verts4, r, c + size / 2.0, error, xyz, mask, size / 2.0, sampleNum, testNum, sampleScale, rand));
+            //Recurse on children
+            newVerts.AddRange(split(verts1, r, c, error, xyz, original_mask, mutable_mask, size / 2.0, sampleNum, testNum, sampleScale, rand));
+            newVerts.AddRange(split(verts2, r + size / 2.0, c, error, xyz, original_mask, mutable_mask, size / 2.0, sampleNum, testNum, sampleScale, rand));
+            newVerts.AddRange(split(verts3, r, c + size / 2.0, error, xyz, original_mask, mutable_mask, size / 2.0, sampleNum, testNum, sampleScale, rand));
+            newVerts.AddRange(split(verts4, r + size / 2.0, c + size / 2.0, error, xyz, original_mask, mutable_mask, size / 2.0, sampleNum, testNum, sampleScale, rand));
 
             return newVerts;
         }
 
+        /// <summary>
+        /// Create a mesh from input dem with parameters given by command line args
+        /// </summary>
+        /// <returns></returns>
         public int Run()
         {
             if(!string.IsNullOrEmpty(this.options.OutputPath))
@@ -278,7 +295,7 @@ namespace OPS.Pipeline
             }
             else 
             {
-                this.options.OutputPath = Path.Combine(Path.GetDirectoryName(options.InputDem), Path.GetFileNameWithoutExtension(options.InputDem) + ".mesh.e" + options.Error + ".smooth." + options.MeshFormat);
+                this.options.OutputPath = Path.Combine(Path.GetDirectoryName(options.InputDem), Path.GetFileNameWithoutExtension(options.InputDem) + ".mesh." + options.MeshFormat);
             }
             
             Image dem = Image.Load(options.InputDem, ImageConverters.PassThrough);
@@ -304,107 +321,13 @@ namespace OPS.Pipeline
                 var value = dem[coord.Band, coord.Row, coord.Col];
                 mask[0, coord.Row, coord.Col] = value >= options.DEMMinFilter && value <= options.DEMMaxFilter ? 1 : 0;
             }
-            //Old version
-
-            //var mesh = Meshing.BuildOrganizedMesh(xyz, mask: mask);
-            //mesh.GenerateVertexNormals();
-            //mesh.Save("C:\\Users\\conductor\\Desktop\\dems\\mesh.obj");
-
-            /*if(targetFacesDefined || decimationRatioDefined)
-            {
-                var faceTarget = targetFacesDefined ? options.TargetFaces : mesh.Faces.Count;
-                if(decimationRatioDefined)
-                {
-                    faceTarget = (int)Math.Min(MathHelper.Clamp(options.DecimationRatio, 0, 1) * mesh.Faces.Count, faceTarget);
-                }
-                var notToched = mesh.Corners(new Vector3(0,1,0));
-                if(options.MaintainEdge)
-                {
-                    notToched = mesh.EdgeVertices();
-                }
-                //mesh = MeshLab.Decimate(mesh, faceTarget);
-                //mesh.ClearUVs();
-                //mesh.ResampleDecimation(MeshReconMethod.Poisson, faceTarget, mesh.Bounds(), new Vector3(0, 1, 0));
-                mesh = EdgeCollapse.QuadricEdgeCollapse(mesh, faceTarget, perimeterPenaltyFactor: options.EdgeWeight, notTouched: notToched);
-                // TODO: re-atlas
-            }*/
-
-            //initialization
-            //int iter = 1;
-            //int maxIters = 10;
-            //bool converged = false;
 
             List<Vertex> verts;
             verts = FindCorners(xyz, mask).ToList();
 
-            verts.AddRange(split(verts, 0, 0, options.Error, xyz, mask, Math.Min(xyz.Width, xyz.Height), options.SampleNum, options.TestNum, options.SampleRegionScale, new Random()));
+            verts.AddRange(split(verts, 0, 0, options.Error, xyz, mask, new Image(mask), Math.Min(xyz.Width, xyz.Height), options.SampleNum, options.TestNum, options.SampleRegionScale, new Random()));
 
             Mesh mesh = DelaunayTriangulation.Triangulate(verts, vertToDelaunay);
-            //int testR;
-            //int testC;
-            //int tested;
-            //double l;
-            //double t;
-            //double newBoxSize;
-            //Vector3 testPoint;
-
-            //while (iter <= maxIters && !converged)
-            //{
-            //    converged = true;
-            //    newBoxes = new List<Box>();
-
-            //    //TODO: Will change to avoid creating octree; sample points can be directly mapped into the tif and interpolated to check error
-            //    Octree octree = new Octree(mesh.Bounds());
-            //    octree.InsertList(mesh.Triangles().Select(tri => new OctreeTriangle(tri)));
-
-            //    foreach (Box box in boxes) {
-                   
-            //        l = box.size * box.c;
-            //        t = box.size * box.r;
-            //        newBoxSize = box.size / 2.0;
-
-            //        //Check if we need to split this box
-            //        bool shouldContinue = true;
-            //        tested = 0;
-
-            //        for (int i = 0; i < this.options.SampleNum; i++)
-            //        {
-            //            testR = (int)(t + (options.SampleRegionScale * rand.NextDouble() - 0.5 * (options.SampleRegionScale - 1)) * box.size);
-            //            testC = (int)(l + (options.SampleRegionScale * rand.NextDouble() - 0.5 * (options.SampleRegionScale - 1)) * box.size);
-            //            if (testR >= 0 && testR < mask.Height && testC > 0 && testC < mask.Width && mask[0, testR, testC] == 1)
-            //            {
-            //                testPoint = new Vector3(xyz[0, testR, testC], xyz[1, testR, testC], xyz[2, testR, testC]);
-            //                if (tested < this.options.TestNum)
-            //                {
-            //                    closest = (OctreeTriangle)octree.Closest(testPoint);
-            //                    if (closest.SquaredDistance(testPoint) > options.Error * options.Error)
-            //                    {
-            //                        shouldContinue = false;
-            //                    }
-            //                    tested++;
-            //                }
-            //                TryAdd(verts, testR, testC, xyz, mask);
-            //                mask[0, testR, testC] = 0;
-            //            }
-            //        }
-
-
-            //        if(shouldContinue)
-            //        {
-            //            continue;
-            //        }
-
-            //        //Recurse on subregions
-            //        converged = false;
-
-            //        newBoxes.Add(new Box(newBoxSize, 2 * box.r, 2 * box.c));
-            //        newBoxes.Add(new Box(newBoxSize, 2 * box.r + 1, 2 * box.c));
-            //        newBoxes.Add(new Box(newBoxSize, 2 * box.r, 2 * box.c + 1));
-            //        newBoxes.Add(new Box(newBoxSize, 2 * box.r + 1, 2 * box.c + 1));
-            //    }
-            //    iter++;
-            //    boxes = newBoxes;
-            //}
 
             string outputImage = null;
             if (options.InputOrthoImage != null)
