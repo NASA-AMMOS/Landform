@@ -46,17 +46,30 @@ namespace PipelineTest
 
         private static bool StandardTexSplit(int destTextureResolution, int srcTextureResolution)
         {
-            BoundingBox box = new BoundingBox(-1 * Vector3.One, Vector3.One);
-            Mesh mesh = box.ToMesh();
+            //uv origin: lower left
+            Vertex ul = new Vertex(new Vector3(0, -1, -1), new Vector3(-1, 0, 0), new Vector4(1, 0, 0, 1), new Vector2(0,1));
+            Vertex ll = new Vertex(new Vector3(0, -1, 1), new Vector3(-1, 0, 0), new Vector4(0, 0, 1, 1), new Vector2(0, -1));
+            Vertex ur = new Vertex(new Vector3(0, 1, -1), new Vector3(-1, 0, 0), new Vector4(0, 1, 0, 1), new Vector2(2, 1));
+            Vertex lr = new Vertex(new Vector3(0, 1, 1), new Vector3(-1, 0, 0), new Vector4(1, 0, 1, 1), new Vector2(2,-1));
 
-            mesh = UVAtlas.Atlas(mesh, destTextureResolution, destTextureResolution);
+            Triangle tri0 = new Triangle(ul, ll, ur);
+            Triangle tri1 = new Triangle(ll, ur, lr);
+
+            Mesh mesh0 = new Mesh(new List<Triangle>() { tri0, tri1 }, true, true, true);
+
+            //Issue #559:convex hull of a quad fails currently, duplicating the mesh to add some thickness
+            Mesh mesh1 = Mesh.Transformed(mesh0, Matrix.CreateTranslation(new Vector3(0.25, 0, 0)));
+
+            Mesh mesh = Mesh.Merge(new Mesh[] { mesh0, mesh1 });
+            BoundingBox box = new BoundingBox(-1 * Vector3.One, Vector3.One);
+
             MeshOperator op = new MeshOperator(mesh);
             SceneCaster sc = new SceneCaster();
             sc.AddMesh(mesh, null, Matrix.Identity);
             sc.Build();
-            
-            double focalLength = srcTextureResolution / 2.0;
-            Vector3 camC = new Vector3(-3, 0, 0);
+
+            double focalLength = srcTextureResolution;
+            Vector3 camC = new Vector3(-2, 0, 0);
             Vector3 camA = new Vector3(1, 0, 0);
             Vector3 camH = new Vector3(0, 1, 0) * focalLength + camA * srcTextureResolution / 2.0;
             Vector3 camV = new Vector3(0, 0, 1) * focalLength + camA * srcTextureResolution / 2.0;
@@ -87,7 +100,7 @@ namespace PipelineTest
             };
 
             ITileSplitCriteria split = new TextureSplitCriteria(opts);
-            return split.ShouldSplit(op, box);            
+            return split.ShouldSplit(op, box);
         }
     }
 }
