@@ -743,7 +743,7 @@ namespace OPS.Pipeline
         {
             double shortestDistance = float.MaxValue;
 
-            var offsetPixels = GetOffsetPixels(srcPixel, offset: 1.0).Where(px => srcPixel.X >= 0 && srcPixel.X < srcWidth && srcPixel.Y >= 0 && srcPixel.Y < srcHeight);
+            var offsetPixels = GetOffsetPixels(srcPixel, offset: 1.0).Where(px => px.X >= 0 && px.X < srcWidth && px.Y >= 0 && px.Y < srcHeight);
             if (offsetPixels.Count() == 0)
                 return shortestDistance;
 
