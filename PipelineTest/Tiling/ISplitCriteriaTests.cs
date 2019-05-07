@@ -104,7 +104,7 @@ namespace PipelineTest
             SplitByTextureOpts opts = new SplitByTextureOpts()
             {
                 pctPixelsToTest = 0.5,
-                pctSampledPixelsServiced = 0.75,
+                pctSampledPixelsSatisfied = 0.75,
                 subsamplingTriggeringSplit = 2.0,
                 tileResolution = destTextureResolution,
                 cameraInstances = cameraInstances,

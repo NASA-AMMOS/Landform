@@ -23,7 +23,7 @@ namespace OPS.Pipeline
     public class SplitByTextureOpts
     {
         public double pctPixelsToTest;              // how densely should the uv atlas pixels be tested be sampled (1.0: test all atlas pixels, 0.5: test half atlas pixels, etc)
-        public double pctSampledPixelsServiced;     // of all the pixels sampled for a given source texture, what percentage of them need to be above the split criteria (1.0 any pixel that needs a split is enough, 0.5 at least half the pixels need a split, etc)
+        public double pctSampledPixelsSatisfied;     // of all the pixels sampled for a given source texture, what percentage of them need to be above the split criteria (1.0 any pixel that needs a split is enough, 0.5 at least half the pixels need a split, etc)
         public double subsamplingTriggeringSplit;   // valid values > 1.0. a value of 2.0 would mean if 2 source textures are being squeezed into a single output texture that incur a split
 
         public int tileResolution;
@@ -42,7 +42,7 @@ namespace OPS.Pipeline
             if (opts.pctPixelsToTest <= 0 || opts.pctPixelsToTest > 1)
                 throw new Exception("invalid pctPixelsToTest option");
 
-            if(opts.pctSampledPixelsServiced <= 0 || opts.pctSampledPixelsServiced > 1)
+            if(opts.pctSampledPixelsSatisfied <= 0 || opts.pctSampledPixelsSatisfied > 1)
                 throw new Exception("invalid pctSampledPixelsServiced option");
 
             if(opts.subsamplingTriggeringSplit <= 1.0)
@@ -122,14 +122,14 @@ namespace OPS.Pipeline
                 if (pixelsTested == null)
                     continue;
 
-                // current atlas is fine for texture resolution
+                // is current atlas fine for texture resolution
                 if (!pixelsTested.Any(x => x > 1.0))
                     continue;
 
                 //the option specifies the percentage of pixels that need to be above the threshold for a split to occur
                 // this is equivalent to testing the pixel percentage pixels from the end of the sorted list
                 pixelsTested.Sort();
-                int idxToTest = (pixelsTested.Count-1) - (int)(pixelsTested.Count * options.pctSampledPixelsServiced);
+                int idxToTest = (pixelsTested.Count-1) - (int)(pixelsTested.Count * options.pctSampledPixelsSatisfied);
                 if (pixelsTested[idxToTest] >= options.subsamplingTriggeringSplit)
                     return true;
             }
@@ -146,6 +146,7 @@ namespace OPS.Pipeline
                 if (!meshHull.Contains(pxlPt.Point))
                     continue;
 
+                //Issue #523: want median or average in case glancing angle? want a term that looks for consistancy in spacing? implies dead on?
                 double curSpread = OPS.Pipeline.LocalBuildMeshes.GetMinPixelSpreadInMeters(options.scInMesh, camInst.cameraModel, camInst.cameraToMesh, meshHull, pxlPt.Pixel, pxlPt.Point, camInst.widthPixels, camInst.heightPixels);
                 if (curSpread < minSpread)
                 {

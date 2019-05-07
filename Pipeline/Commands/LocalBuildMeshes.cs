@@ -90,6 +90,18 @@ namespace OPS.Pipeline
 
         [Option(HelpText = "clip the full mesh to this half this length on the x and y axes, centered at 0,0,0", Default = 0.0)]
         public double ClipExtent { get; set; }
+
+        [Option(HelpText = "percentage of pixels to test when deciding to split a tile based on resolution (speed vs quality)", Default = 0.1)]
+        public double SplitByTexturePctToTest { get; set; }
+
+        [Option(HelpText = "percentage of pixels tested that should satisfy the requirement to split a tile", Default = 0.5)]
+        public double SplitByTexturePctSatisfied { get; set; }
+
+        [Option(HelpText = "the area of source pixels mapped to a single destination pixel that would trigger a split", Default = 4.5)]
+        public double SplitByTextureSamplingRatio { get; set; }
+
+        [Option(HelpText = "percentage of pixels to test for texture selection when backprojecting before when picking a texture", Default = 0.1)]
+        public double BackprojectGoodnessSamplingPct { get; set; }
     }
 
     public class LocalBuildMeshes
@@ -232,9 +244,9 @@ namespace OPS.Pipeline
             //build tile bounds
             pipeline.LogInfo("Building tile tree bounds from fullmesh");
             SplitByTextureOpts texSplitOpts = new SplitByTextureOpts();
-            texSplitOpts.pctPixelsToTest = 0.1; //TODO: expose
-            texSplitOpts.pctSampledPixelsServiced = 0.5; //TODO: expose
-            texSplitOpts.subsamplingTriggeringSplit = 4.5; //TODO: expose
+            texSplitOpts.pctPixelsToTest = options.SplitByTexturePctToTest;
+            texSplitOpts.pctSampledPixelsSatisfied = options.SplitByTexturePctSatisfied;
+            texSplitOpts.subsamplingTriggeringSplit = options.SplitByTextureSamplingRatio;
             texSplitOpts.tileResolution = options.TileResolution;
             texSplitOpts.scInMesh = sc;
             texSplitOpts.cameraInstances = imageObservations.Select(obs => ToCameraInstance((RoverObservation)obs, obsToHull, frameCache)).ToArray();
@@ -322,7 +334,7 @@ namespace OPS.Pipeline
                 Dictionary<Observation, double> spatialDensityByObs = new Dictionary<Observation, double>();
                 {
                     //select a coarse sampling of the points to backproject to use get a rough sorting of texture quality
-                    double percentagePointsToTest = 0.10; //TODO: expose
+                    double percentagePointsToTest = options.BackprojectGoodnessSamplingPct;
 
                     //simple sample which skips enough points to return the requested amount of points
                     int subsampledPts = Math.Max(1, (int)(pointsToBackproject.Count * percentagePointsToTest));
@@ -344,6 +356,7 @@ namespace OPS.Pipeline
                             
                             Matrix obsToOutput = Meshing.GetTransform(obs.FrameName, options.OutputFrame, frameCache, options.UsePriors, options.OnlyAligned).Mean;
 
+                            //Issue #523: want median or average in case glancing angle? want a term that looks for consistancy in spacing? implies dead on?
                             minDistances.Add(GetMinPixelSpreadInMeters(sc, (CameraModel)JsonHelper.FromJson(obs.CameraModel), obsToOutput, obsToHull[obs], pt.Pixel, pt.Point, obs.Width, obs.Height));
                         }
 
@@ -672,7 +685,6 @@ namespace OPS.Pipeline
 
         static public List<Vector2> GetOffsetPixels(Vector2 srcPixel, double offset)
         {
-            //TODO: fastpath for 1.0 or 0.5
             List<Vector2> result = new List<Vector2>();
             for (int idxNeighbor = 0; idxNeighbor < 4; idxNeighbor++)
             {
@@ -681,7 +693,7 @@ namespace OPS.Pipeline
             return result;
         }
 
-        //TODO: raycast bundle of 4 with embree
+        //Issue #531: raycast bundle of 4 with embree
         static public List<Vector3> GetMeshPositionsForCameraPixels(SceneCaster sc, CameraModel camera, Matrix camToMesh,
             ConvexHull meshHull, List<Vector2> srcPixels)
         {
@@ -714,7 +726,6 @@ namespace OPS.Pipeline
             Vector3 obsPos = Vector3.Transform(meshPos, meshToCam);
             Vector2 obsPixel = camera.Project(obsPos, out double rangeMeshToImage);
 
-            //TODO: check math on >= vs >
             if (rangeMeshToImage <= 0 || (int)obsPixel.X < 0 || (int)obsPixel.X >= widthPixels || (int)obsPixel.Y < 0 || (int)obsPixel.Y >= heightPixels)
                 throw new InvalidDataException("should have been caught by frustum test");
 
@@ -740,10 +751,7 @@ namespace OPS.Pipeline
             {
                 shortestDistance = Math.Min(shortestDistance, (curPos - srcPos).Length());
             }
-
-            //TODO: want median or average in case glancing angle? 
-            //TODO: want a term that looks for consistancy in spacing? implies dead on?
-
+         
             return shortestDistance;
         }
     }
