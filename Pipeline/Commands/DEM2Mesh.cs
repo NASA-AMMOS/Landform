@@ -37,7 +37,7 @@ namespace OPS.Pipeline
         [Option(Required = false, Default = "obj", HelpText = "Export format for mesh (examples: obj or ply")]
         public string MeshFormat { get; set; }
 
-        [Option(Required = false, Default = 10, HelpText = "Decimate (roughly) to this error threshold against original points.")]
+        [Option(Required = false, Default = 0, HelpText = "Decimate (roughly) to this error threshold against original points.")]
         public float Error { get; set; }
 
         [Option(Required = false, Default = 30, HelpText = "Number of points to add with each split")]
@@ -322,13 +322,18 @@ namespace OPS.Pipeline
                 mask[0, coord.Row, coord.Col] = value >= options.DEMMinFilter && value <= options.DEMMaxFilter ? 1 : 0;
             }
 
-            List<Vertex> verts;
-            verts = FindCorners(xyz, mask).ToList();
-
-            verts.AddRange(split(verts, 0, 0, options.Error, xyz, mask, new Image(mask), Math.Min(xyz.Width, xyz.Height), options.SampleNum, options.TestNum, options.SampleRegionScale, new Random()));
-
-            Mesh mesh = DelaunayTriangulation.Triangulate(verts, vertToDelaunay);
-
+            Mesh mesh = new Mesh();
+            if (options.Error == 0)
+            {
+                mesh = Meshing.BuildOrganizedMesh(xyz, mask:mask);
+            }
+            else
+            {
+                List<Vertex> verts;
+                verts = FindCorners(xyz, mask).ToList();
+                verts.AddRange(split(verts, 0, 0, options.Error, xyz, mask, new Image(mask), Math.Min(xyz.Width, xyz.Height), options.SampleNum, options.TestNum, options.SampleRegionScale, new Random()));
+                mesh = DelaunayTriangulation.Triangulate(verts, vertToDelaunay);
+            }
             string outputImage = null;
             if (options.InputOrthoImage != null)
             {
