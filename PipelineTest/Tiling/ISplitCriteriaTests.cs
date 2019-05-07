@@ -31,16 +31,28 @@ namespace PipelineTest
         [TestMethod()]
         public void TextureShouldSplitTest()
         {
-            int destTextureResolution = 128;
-            int srcTextureResolution = 256;
+            int destTextureResolution = 2;
+            int srcTextureResolution = 4;
+            Assert.IsTrue(StandardTexSplit(destTextureResolution, srcTextureResolution));
+
+            destTextureResolution = 2;
+            srcTextureResolution = 3;
             Assert.IsTrue(StandardTexSplit(destTextureResolution, srcTextureResolution));
         }
 
         [TestMethod()]
         public void TextureShouldntSplitTest()
         {
-            int destTextureResolution = 128;
-            int srcTextureResolution = 64;
+            int destTextureResolution = 4;
+            int srcTextureResolution = 2;
+            Assert.IsFalse(StandardTexSplit(destTextureResolution, srcTextureResolution));
+
+            destTextureResolution = 4;
+            srcTextureResolution = 3;
+            Assert.IsFalse(StandardTexSplit(destTextureResolution, srcTextureResolution));
+
+            destTextureResolution = 4;
+            srcTextureResolution = 4;
             Assert.IsFalse(StandardTexSplit(destTextureResolution, srcTextureResolution));
         }
 
@@ -48,9 +60,9 @@ namespace PipelineTest
         {
             //uv origin: lower left
             Vertex ul = new Vertex(new Vector3(0, -1, -1), new Vector3(-1, 0, 0), new Vector4(1, 0, 0, 1), new Vector2(0,1));
-            Vertex ll = new Vertex(new Vector3(0, -1, 1), new Vector3(-1, 0, 0), new Vector4(0, 0, 1, 1), new Vector2(0, -1));
-            Vertex ur = new Vertex(new Vector3(0, 1, -1), new Vector3(-1, 0, 0), new Vector4(0, 1, 0, 1), new Vector2(2, 1));
-            Vertex lr = new Vertex(new Vector3(0, 1, 1), new Vector3(-1, 0, 0), new Vector4(1, 0, 1, 1), new Vector2(2,-1));
+            Vertex ll = new Vertex(new Vector3(0, -1, 1), new Vector3(-1, 0, 0), new Vector4(0, 0, 1, 1), new Vector2(0,0));
+            Vertex ur = new Vertex(new Vector3(0, 1, -1), new Vector3(-1, 0, 0), new Vector4(0, 1, 0, 1), new Vector2(1, 1));
+            Vertex lr = new Vertex(new Vector3(0, 1, 1), new Vector3(-1, 0, 0), new Vector4(1, 0, 1, 1), new Vector2(1,0));
 
             Triangle tri0 = new Triangle(ul, ll, ur);
             Triangle tri1 = new Triangle(ll, ur, lr);
