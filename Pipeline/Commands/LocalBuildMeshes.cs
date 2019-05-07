@@ -657,13 +657,6 @@ namespace OPS.Pipeline
             return hit?.Position;
         }
 
-
-        public enum PixelConvention
-        {
-            UpperLeft, //Landform
-            Center     //OPGS, CAHV
-        };
-
         static public Vector2[] GetPixelCorners(Vector2 srcPixel, PixelConvention convention)
         {
             switch (convention)

@@ -511,12 +511,13 @@ namespace OPS.Imaging
         /// <returns></returns>
         public Vector2 PixelToUV(Vector2 pixelCoordinate)
         {
-            return new Vector2(pixelCoordinate.X / Width, 1 - (pixelCoordinate.Y / Height)); //Issue #491: why vertical flip?
+            return new Vector2(pixelCoordinate.X / Width, 1 - (pixelCoordinate.Y / Height));
         }
 
-        static public Vector2 PixelToUV(Vector2 pixelCoordinate, int width, int height)
+        static public Vector2 PixelToUV(Vector2 pixelCoordinate, int width, int height, PixelConvention convention)
         {
-            return new Vector2(pixelCoordinate.X / width, 1 - (pixelCoordinate.Y / height)); //Issue #491: why vertical flip?
+            Vector2 halfPixelOffset = ((convention == PixelConvention.Center) ? new Vector2(0.5/width, -0.5/height) : Vector2.Zero);
+            return new Vector2(pixelCoordinate.X / width, 1 - (pixelCoordinate.Y / height)) + halfPixelOffset;
         }
 
         /// <summary>
@@ -528,9 +529,11 @@ namespace OPS.Imaging
         {
             return new Vector2(uvCoordinate.X * Width, (1 - uvCoordinate.Y) * Height);
         }
-        static public Vector2 UVToPixel(Vector2 uvCoordinate, int width, int height)
+        static public Vector2 UVToPixel(Vector2 uvCoordinate, int width, int height, PixelConvention convention)
         {
-            return new Vector2(uvCoordinate.X * width, (1 - uvCoordinate.Y) * height);
+            Vector2 halfPixelOffset = ((convention == PixelConvention.Center) ? new Vector2(0.5 / width, -0.5 / height) : Vector2.Zero);
+            Vector2 uv = uvCoordinate - halfPixelOffset;
+            return new Vector2(uv.X * width, (1 - uv.Y) * height);
         }
 
         /// <summary>
