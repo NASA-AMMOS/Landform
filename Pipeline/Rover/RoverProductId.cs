@@ -158,6 +158,9 @@ namespace OPS.Pipeline
 
         public static M20OPGSProductId ParseFromM20Name(string productId)
         {
+            //NLF_0102R0102125109_000UVWLN0010030NCAM03102_0A00AAJ01.IMG
+            //|  |    |          |   |  |    |   |        |   |  |
+            //0  3    8          19  23 26   31  35       44  48 51
             if (productId.EndsWith(".IMG"))
             {
                 productId = productId.Replace(".IMG", "");
@@ -201,6 +204,13 @@ namespace OPS.Pipeline
         {
             return ts0 + "_" + ts1 + "_" + ts2;
         }
+
+        //ROASTT: some images have invalid planet day number in PDS metadata
+        public int GetSolNumber()
+        {
+            return int.Parse(ts0);
+        }
+
         public override RoverProductProducer Producer
         {
             get

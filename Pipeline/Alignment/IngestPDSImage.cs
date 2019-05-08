@@ -252,7 +252,8 @@ namespace OPS.Pipeline
                                                       parser.Site, parser.Drive, parser.ProductId.Version,
                                                       parser.Camera.ToString(), parser.ImageSizeType.ToString(),
                                                       parser.ProducingInstitution.ToString(),
-                                                      metadata.Width, metadata.Height);
+                                                      metadata.Width, metadata.Height,
+                                                      missionSpecific.SolNumber(parser));
 
                 //don't add to frame.ObservationNames here
                 //we ingest multiple images in parallel, possibly for the same frame
