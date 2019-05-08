@@ -142,95 +142,95 @@ namespace OPS.Pipeline
 
         public override Result Ingest(string imgUrl)
         {
-            // Parse the filename to quickly rule out data products we know we don't care about.
-            if (!CheckFilename(StringHelper.GetLastUrlPathSegment(imgUrl, stripExtension: true)))
-            {
-                pipeline.LogDebug("rejected {0} by filename", imgUrl);
-                return new Result(imgUrl, Status.Skipped);
-            }
-
-            // Fetch image and check metadata
-            PDSMetadata metadata = new PDSMetadata(pipeline.GetImageFile(imgUrl));
-            PDSParser parser = new PDSParser(metadata);
-            if (!CheckMetadata(parser))
-            {
-                pipeline.LogDebug("rejected {0} by metadata", imgUrl);
-                return new Result(imgUrl, Status.Skipped);
-            }
-
-            string observationName = ObservationName(parser);
-
-            // Filter images with invalid camera models
             try
             {
-                metadata.CameraModel.Unproject(new Vector2(0, 0));
-            }
-            catch
-            {
-                pipeline.LogDebug("rejected {0} for invalid camera model", observationName);
-                return new Result(imgUrl, Status.Skipped);
-            }
-
-            if (filter != null && !filter(imgUrl, metadata, parser))
-            {
-                pipeline.LogDebug("rejected {0} due to filter", observationName);
-                return new Result(imgUrl, Status.Skipped);
-            }
-
-            // Create database entries
-
-            Frame rootFrame = Frame.Find(pipeline, project.Name, project.RootFrame);
-            if (rootFrame == null)
-            {
-                throw new Exception(string.Format("root frame {0} does not exist", project.RootFrame));
-            }
-
-            // site drive frame -> root frame
-            Frame siteDriveFrame = null;
-            if (Places != null)
-            {
-                var ut = GetSiteDriveTransformFromPlaces(parser);
-                if (ut != null)
+                var filename = StringHelper.GetLastUrlPathSegment(imgUrl, stripExtension: true);
+                
+                // Parse the filename to quickly rule out data products we know we don't care about.
+                if (!CheckFilename(filename))
                 {
-                    siteDriveFrame = GetFrame(SiteDriveFrameName(parser), rootFrame, TransformSource.PlacesDB, ut);
+                    pipeline.LogDebug("rejected {0} by filename", imgUrl);
+                    return new Result(imgUrl, Status.Skipped);
                 }
-            }
-            if (Locations != null)
-            {
-                siteDriveFrame = GetFrame(SiteDriveFrameName(parser), rootFrame, TransformSource.LocationsDB,
-                                          GetSiteDriveTransformFromLocations(parser));
-            }
-
-            if (LegacyManifest != null)
-            {
-                var transform = GetSiteDriveTransformFromLegacyManifest(parser);
-                if (transform != null)
+                
+                var metadata = new PDSMetadata(pipeline.GetImageFile(imgUrl));
+                var parser = new PDSParser(metadata);
+                if (!CheckMetadata(parser))
                 {
-                    siteDriveFrame = GetFrame(SiteDriveFrameName(parser), rootFrame, TransformSource.LegacyManifest,
-                                          transform);
+                    pipeline.LogDebug("rejected {0} by metadata", imgUrl);
+                    return new Result(imgUrl, Status.Skipped);
                 }
-            }
+                
+                var observationName = ObservationName(parser);
+                
+                // Filter images with invalid camera models
+                try
+                {
+                    metadata.CameraModel.Unproject(new Vector2(0, 0));
+                }
+                catch
+                {
+                    pipeline.LogDebug("rejected {0} for invalid camera model", observationName);
+                    return new Result(imgUrl, Status.Skipped);
+                }
+                
+                if (parser.Camera == RoverProductCamera.Unknown)
+                {
+                    pipeline.LogWarn("camera type is unknown for {0}", observationName);
+                    return new Result(imgUrl, Status.Skipped);
+                }
 
-            if (siteDriveFrame == null)
-            {
-                //fallback to pds headers, site relative
-                siteDriveFrame = GetFrame(SiteDriveFrameName(parser), rootFrame, TransformSource.PDS,
-                    GetSiteDriveTransformFromPDS(parser));
-            }
-
-            RoverObservation observation = null;
-            Frame observationFrame = null;
-            // observation (aka rover) frame -> site drive (aka local level) frame
-            if (parser.Camera == RoverProductCamera.Unknown)
-            {
-                pipeline.LogWarn("camera type is unknown for {0}", observationName);
-            }
-            else
-            {
-                observationFrame = GetFrame(missionSpecific.ObservationFrameName(parser), siteDriveFrame, TransformSource.PDS,
-                                                GetObservationTransform(parser));
-
-                observation = RoverObservation.Find(pipeline, project.Name, observationName);
+                if (filter != null && !filter(imgUrl, metadata, parser))
+                {
+                    pipeline.LogDebug("rejected {0} due to filter", observationName);
+                    return new Result(imgUrl, Status.Skipped);
+                }
+                
+                // Create database entries
+                Frame rootFrame = Frame.Find(pipeline, project.Name, project.RootFrame);
+                if (rootFrame == null)
+                {
+                    throw new Exception(string.Format("root frame {0} does not exist", project.RootFrame));
+                }
+                
+                // site drive frame -> root frame
+                Frame siteDriveFrame = null;
+                if (Places != null)
+                {
+                    var ut = GetSiteDriveTransformFromPlaces(parser);
+                    if (ut != null)
+                    {
+                        siteDriveFrame = GetFrame(SiteDriveFrameName(parser), rootFrame, TransformSource.PlacesDB, ut);
+                    }
+                }
+                if (Locations != null)
+                {
+                    siteDriveFrame = GetFrame(SiteDriveFrameName(parser), rootFrame, TransformSource.LocationsDB,
+                                              GetSiteDriveTransformFromLocations(parser));
+                }
+                
+                if (LegacyManifest != null)
+                {
+                    var transform = GetSiteDriveTransformFromLegacyManifest(parser);
+                    if (transform != null)
+                    {
+                        siteDriveFrame = GetFrame(SiteDriveFrameName(parser), rootFrame, TransformSource.LegacyManifest,
+                                                  transform);
+                    }
+                }
+                
+                if (siteDriveFrame == null)
+                {
+                    //fallback to pds headers, site relative
+                    siteDriveFrame = GetFrame(SiteDriveFrameName(parser), rootFrame, TransformSource.PDS,
+                                              GetSiteDriveTransformFromPDS(parser));
+                }
+                
+                // observation (aka rover) frame -> site drive (aka local level) frame
+                var observationFrame = GetFrame(missionSpecific.ObservationFrameName(parser), siteDriveFrame,
+                                                TransformSource.PDS, GetObservationTransform(parser));
+                
+                var observation = RoverObservation.Find(pipeline, project.Name, observationName);
                 if (observation != null)
                 {
                     if (recreateExistingObservations)
@@ -253,10 +253,7 @@ namespace OPS.Pipeline
                                                       parser.Camera.ToString(), parser.ImageSizeType.ToString(),
                                                       parser.ProducingInstitution.ToString(),
                                                       metadata.Width, metadata.Height);
-            }
 
-            if (observation != null)
-            {
                 //don't add to frame.ObservationNames here
                 //we ingest multiple images in parallel, possibly for the same frame
                 //so that would be a read-modify-write hazard
@@ -264,10 +261,10 @@ namespace OPS.Pipeline
                 pipeline.LogDebug("created observation {0}", observationName);
                 return new Result(imgUrl, Status.Added, observation, observationFrame);
             }
-            else
+            catch (MetadataException ex)
             {
-                pipeline.LogDebug("failed to create observation {0}", observationName);
-                return new Result(imgUrl, Status.Failed, null, observationFrame);
+                pipeline.LogError("error parsing metadata for {0}: {1}", imgUrl, ex.Message);
+                return new Result(imgUrl, Status.Failed);
             }
         }
 
