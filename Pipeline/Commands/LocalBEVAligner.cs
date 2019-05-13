@@ -1849,7 +1849,7 @@ namespace OPS.Pipeline
             MakeGraph();
 
             //BFS the graph to set the best parent for each node
-            //the best parent is the one to follow to get to the root along a best path
+            //the best parent is the one to follow to get to a root along a best path
             foreach (var node in nodes)
             {
                 node.Depth = maximal ? int.MinValue : int.MaxValue;
