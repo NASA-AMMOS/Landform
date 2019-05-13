@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using OPS.Imaging;
 
 namespace OPS.Pipeline
 {
@@ -28,6 +29,7 @@ namespace OPS.Pipeline
         /// <returns></returns>
         bool UseForReconstruction(PDSParser parser);
 
+        int SolNumber(PDSParser parser);
     }
 
     public class MissionMSL : MissionSpecific
@@ -133,6 +135,11 @@ namespace OPS.Pipeline
 
             return true;
         }
+
+        public int SolNumber(PDSParser parser)
+        {
+            return parser.PlanetDayNumber;
+        }
     }
 
     public class MissionM2020 : MissionSpecific
@@ -141,8 +148,7 @@ namespace OPS.Pipeline
         // will break multiple images with different filters resolving to same frame
         public string ObservationFrameName(PDSParser parser)
         {          
-            M20OPGSProductId pid = (M20OPGSProductId)parser.ProductId;
-            return parser.Camera.ToString() + "_" + pid.GetConcatenatedTimeString();
+            return parser.Camera.ToString() + "_" + ((M20OPGSProductId)parser.ProductId).GetConcatenatedTimeString();
         }
 
         private bool IsHazcam(RoverProductCamera camera)
@@ -188,6 +194,19 @@ namespace OPS.Pipeline
             }
             
             return true;
+        }
+
+        //ROASTT: some images have invalid PLANET_DAY_NUMBER
+        public int SolNumber(PDSParser parser)
+        {
+            try
+            {
+                return parser.PlanetDayNumber;
+            }
+            catch (MetadataException)
+            {
+                return ((M20OPGSProductId)parser.ProductId).GetSolNumber();
+            }
         }
     }
 }
