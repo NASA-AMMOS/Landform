@@ -255,6 +255,17 @@ namespace OPS.Pipeline
                                                       metadata.Width, metadata.Height,
                                                       missionSpecific.SolNumber(parser));
 
+                if (observation == null)
+                {
+                    //RoverObservation.Create() returns null if the observation already exists
+                    //it shouldn't already exist, because if it did we should have just deleted or returned it
+                    //but we do ingest multiple images in parallel, so there is some chance that more than one
+                    //could resolve to the same observationName (which may itself be a bug)
+                    //and in that case we could race here
+                    pipeline.LogDebug("observation {0} already created", observationName);
+                    return new Result(imgUrl, Status.Failed, null, observationFrame);
+                }
+
                 //don't add to frame.ObservationNames here
                 //we ingest multiple images in parallel, possibly for the same frame
                 //so that would be a read-modify-write hazard
