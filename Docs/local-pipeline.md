@@ -8,8 +8,8 @@
 ./Landform/bin/Release/Landform.exe local-features sols588to590 --writefeatureimages
 ./Landform/bin/Release/Landform.exe local-matching sols588to590 --writematchimages --writematchmeshes
 ./Landform/bin/Release/Landform.exe local-bundle-adjust sols588to590 --writedebug
-./Landform/bin/Release/Landform.exe local-observation-products sols588to590 --writeallthethings --outputframe=root --usepriors
-./Landform/bin/Release/Landform.exe local-observation-products sols588to590 --writeallthethings --outputframe=root
+./Landform/bin/Release/Landform.exe local-observation-products sols588to590 --allthethings --outputframe=root --usepriors
+./Landform/bin/Release/Landform.exe local-observation-products sols588to590 --allthethings --outputframe=root
 ```
 
 Download sols 588 - 590 but process sol 589 only:
@@ -20,8 +20,8 @@ Download sols 588 - 590 but process sol 589 only:
 ./Landform/bin/Release/Landform.exe local-features sol589 --writefeatureimages
 ./Landform/bin/Release/Landform.exe local-matching sol589 --writematchimages --writematchmeshes
 ./Landform/bin/Release/Landform.exe local-bundle-adjust sol589 --writedebug
-./Landform/bin/Release/Landform.exe local-observation-products sol589 --writeallthethings --outputframe=root --usepriors
-./Landform/bin/Release/Landform.exe local-observation-products sol589 --writeallthethings --outputframe=root
+./Landform/bin/Release/Landform.exe local-observation-products sol589 --allthethings --outputframe=root --usepriors
+./Landform/bin/Release/Landform.exe local-observation-products sol589 --allthethings --outputframe=root
 ```
 
 The default is to only detect feature matches and bundle adjust across site drives.  
@@ -135,6 +135,7 @@ First install Agisoft Metashape professional (standard will not work as it doesn
 ./Landform/bin/Release/Landform.exe configure-local --venue=local --storagedir=c:/Users/$USERNAME/Documents/landform-storage --maxcores=0 --randomseed=-1
 ./Landform/bin/Release/Landform.exe local-ingest sols588to590 --inputpath=c:/Users/$USERNAME/Downloads/msl/**
 ./Landform/bin/Release/Landform.exe local-bev-align sols588to590 [--writedebug]
+./Landform/bin/Release/Landform.exe local-observation-products sol589 --outputframe=root --onlymergedsitedrivemeshes --onlyforcameras=NavcamLeft --usepriors
 ./Landform/bin/Release/Landform.exe local-observation-products sol589 --outputframe=root --onlymergedsitedrivemeshes --onlyforcameras=NavcamLeft --adjustedtransformsources=LandformBEV,LandformBEVRoot,LandformBEVCalf
 ```
 If you only want to view the sitedrives that were aligned, specify `--onlyaligned` and don't include `LandformBEVCalf` in `--adjustedtransformsources`:
@@ -153,8 +154,8 @@ Example of full workflow to operate on cloud data:
 ./Landform/bin/Release/Landform.exe local-features sol589 --cloud --writefeatureimages
 ./Landform/bin/Release/Landform.exe local-matching sol589 --cloud --writematchimages --writematchmeshes
 ./Landform/bin/Release/Landform.exe local-bundle-adjust sol589 --cloud --writedebug
-./Landform/bin/Release/Landform.exe local-observation-products sol589 --cloud --writeallthethings --outputframe=root --usepriors
-./Landform/bin/Release/Landform.exe local-observation-products sol589 --cloud --writeallthethings --outputframe=root
+./Landform/bin/Release/Landform.exe local-observation-products sol589 --cloud --allthethings --outputframe=root --usepriors
+./Landform/bin/Release/Landform.exe local-observation-products sol589 --cloud --allthethings --outputframe=root
 ```
 
 It is also possible to **post-mortem collect stats and generate debug outputs from already-run cloud data**:
@@ -165,8 +166,8 @@ It is also possible to **post-mortem collect stats and generate debug outputs fr
 ./Landform/bin/Release/Landform.exe local-features sol589 --cloud --writefeatureimages --tallyexisting
 ./Landform/bin/Release/Landform.exe local-matching sol589 --cloud --writematchimages --writematchmeshes --tallyexisting
 # local-bundle-adjust currently does not have an option to only generate debug outputs
-./Landform/bin/Release/Landform.exe local-observation-products sol589 --cloud --writeallthethings --outputframe=root --usepriors
-./Landform/bin/Release/Landform.exe local-observation-products sol589 --cloud --writeallthethings --outputframe=root
+./Landform/bin/Release/Landform.exe local-observation-products sol589 --cloud --allthethings --outputframe=root --usepriors
+./Landform/bin/Release/Landform.exe local-observation-products sol589 --cloud --allthethings --outputframe=root
 ```
 
 ## Downloading M2020 ROASTT Data
@@ -241,7 +242,7 @@ will build a mesh using the birds eye view aligned transforms you've built previ
     * `--suppresssitedrivedirectories` (Default: false) Don't split output by site drive
     * `--writefrustumhullmeshes` (Default: false) Write camera frustum hull meshes
     * `--writeuncertaintyinflatedfrustumhullmeshes` (Default: false) Write uncertainty inflated camera frustum hull meshes
-    * `--writeallthethings` (Default: false) Write all the things
+    * `--allthethings` (Default: false) Write all the things
     * `--noprogress` (Default: false) Hide progress
     * `--verbose` (Default: false) Log verbose info
     * `--debug` (Default: false) Log debug info
