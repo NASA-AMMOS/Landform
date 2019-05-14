@@ -169,7 +169,7 @@ namespace OPS.Imaging
             {
                 this.CameraModel = new PDSCameraModelParser(this).Parse();
             }
-            catch (RawMetadataNullValueException)
+            catch (MetadataException)
             {
                 this.CameraModel = null;
             }
@@ -228,7 +228,7 @@ namespace OPS.Imaging
             {
                 this.CameraModel = new PDSCameraModelParser(this).Parse();
             }
-            catch (RawMetadataNullValueException)
+            catch (MetadataException)
             {
                 this.CameraModel = null;
             }

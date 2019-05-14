@@ -49,6 +49,8 @@ namespace OPS.Pipeline.AlignmentServer
 
         public int Height;
 
+        public int Sol;
+
         //DEPRECATED - for legacy compat only
         public string MaskGuid;
 
@@ -81,7 +83,7 @@ namespace OPS.Pipeline.AlignmentServer
         /// <param name="url"></param>
         /// <param name="observationType"></param>
         /// <param name="cameraModel"></param>
-        protected Observation(Frame frame, string name, string url, string observationType, string cameraModel, bool useForReconstruction, int width, int height)
+        protected Observation(Frame frame, string name, string url, string observationType, string cameraModel, bool useForReconstruction, int width, int height, int sol)
         {
             this.ProjectName = frame.ProjectName;
             this.FrameName = frame.Name;
@@ -92,6 +94,7 @@ namespace OPS.Pipeline.AlignmentServer
             this.UseForReconstruction = useForReconstruction;
             this.Width = width;
             this.Height = height;
+            this.Sol = sol;
             IsValid();
         }
 
@@ -106,9 +109,9 @@ namespace OPS.Pipeline.AlignmentServer
         /// <param name="observationType"></param>
         /// <param name="cameraModel"></param>
         /// <returns></returns>
-        public static Observation Create(PipelineCore pipeline, Frame frame, string name, string url, string observationType, string cameraModel, bool useForReconstruction, int width, int height)
+        public static Observation Create(PipelineCore pipeline, Frame frame, string name, string url, string observationType, string cameraModel, bool useForReconstruction, int width, int height, int sol)
         {
-            Observation obs = new Observation(frame, name, url, observationType, cameraModel, useForReconstruction, width, height);
+            Observation obs = new Observation(frame, name, url, observationType, cameraModel, useForReconstruction, width, height, sol);
             obs.Save(pipeline);
             return obs;
         }
