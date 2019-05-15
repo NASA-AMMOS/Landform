@@ -138,6 +138,7 @@ namespace OPS.Pipeline
             var imageType = ObservationType.Image.ToString();
             var maskType = ObservationType.RoverMask.ToString();
             var pointsType = ObservationType.Points.ToString();
+            var rangeType = ObservationType.Range.ToString();
 
             var obsForFrame = new Dictionary<string, List<Observation>>();
             foreach (var obs in observationCache.GetAllObservations())
@@ -233,21 +234,30 @@ namespace OPS.Pipeline
                         if (result != null)
                         {
                             Interlocked.Add(ref tf, result.Features.Length);
-                            var pointsObs =
-                                observations.Find(obs => obs.ObservationType == pointsType &&
-                                                  obs.Width == imageObs.Width && obs.Height == imageObs.Height);
-                            if (!options.NoRange && pointsObs != null)
+
+                            if (!options.NoRange)
                             {
-                                Interlocked.Increment(ref wr);
-                                int rf = FeatureDetecting.AddRange(result.Features,
-                                                                   pipeline.LoadImage(imageObs.Url),
-                                                                   pipeline.LoadImage(pointsObs.Url));
-                                if (options.RequireRange)
+                                var xyzOrRng =
+                                    observations.Find(obs => obs.ObservationType == pointsType &&
+                                                      obs.Width == imageObs.Width && obs.Height == imageObs.Height);
+                                if (xyzOrRng == null)
                                 {
-                                    result.Features = result.Features.Where(f => f.Range > 0).ToArray();
+                                    xyzOrRng =
+                                        observations.Find(obs => obs.ObservationType == rangeType &&
+                                                          obs.Width == imageObs.Width && obs.Height == imageObs.Height);
                                 }
-                                Interlocked.Add(ref trf, rf);
+                                if (xyzOrRng != null)
+                                {
+                                    Interlocked.Increment(ref wr);
+                                    int rf = FeatureDetecting.AddRange(result.Features, pipeline.LoadImage(xyzOrRng.Url));
+                                    if (options.RequireRange)
+                                    {
+                                        result.Features = result.Features.Where(f => f.Range > 0).ToArray();
+                                    }
+                                    Interlocked.Add(ref trf, rf);
+                                }
                             }
+
                             if (!options.NoSave)
                             {
                                 pipeline.SaveDataProduct(project.ProductPath, result, project.Name);

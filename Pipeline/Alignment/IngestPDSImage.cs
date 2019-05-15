@@ -134,7 +134,7 @@ namespace OPS.Pipeline
         static IngestPDSImage()
         {
             productTypeToObservationType.TryAdd(RoverProductType.Image, ObservationType.Image);
-            productTypeToObservationType.TryAdd(RoverProductType.Range, ObservationType.Points);
+            productTypeToObservationType.TryAdd(RoverProductType.Range, ObservationType.Range);
             productTypeToObservationType.TryAdd(RoverProductType.XYZ, ObservationType.Points);
             productTypeToObservationType.TryAdd(RoverProductType.NormalMap, ObservationType.Normals);
             productTypeToObservationType.TryAdd(RoverProductType.RoverMask, ObservationType.RoverMask);

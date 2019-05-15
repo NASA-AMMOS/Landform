@@ -406,38 +406,77 @@ namespace OPS.Pipeline
             return ret;
         }
 
-        public static int AddRange(IEnumerable<ImageFeature> features, Image img, Image points)
+        public static int AddRange(IEnumerable<ImageFeature> features, Image xyzOrRng)
         {
-            //can't check range origin here because img is not actually a range image
-            //so it does not  have the necessary PDS header data for that
-            var center = Meshing.CheckCameraCenter(img, "AddRange", checkRangeOrigin: false);
-            var xyr = Meshing.ConvertPoints(points);
+            PDSParser parser = new PDSParser((PDSMetadata)xyzOrRng.Metadata);
+            float missingConstant = float.NaN;
+            Image rng = null, xyr = null;
+            var center = Meshing.CheckCameraCenter(parser, xyzOrRng, "AddRange");
+            switch (parser.DerivedImageType)
+            {
+                case RoverProductType.Range:
+                {
+                    if (parser.HasMissingConstant)
+                    {
+                        //raw range image may not have mask set from missing constant
+                        missingConstant = (float)parser.MissingConstant[0];
+                    }
+                    rng = xyzOrRng;
+                    break;
+                }
+                case RoverProductType.XYZ:
+                {
+                    //Meshing.ConvertPoints() will set mask from missing constant
+                    xyr = Meshing.ConvertPoints(xyzOrRng);
+                    break;
+                }
+                default: throw new ArgumentException("unsupported range image type: " + parser.DerivedImageType);
+            }
+
             int n = 0;
             foreach (var feature in features)
             {
                 int row = (int)feature.Location.Y;
                 int col = (int)feature.Location.X;
+                if (row >= xyzOrRng.Height || col >= xyzOrRng.Width)
+                {
+                    throw new ArgumentException(string.Format("feature at ({0}, {1}) outside {2}x{3} range image",
+                                                              col, row, xyzOrRng.Width, xyzOrRng.Height));
+                }
                 int radius = (int)(0.5*((SIFTFeature)feature).Size); //yes, round down
                 int minR = Math.Max(0, row - radius);
-                int maxR = Math.Min(img.Height - 1, row + radius);
+                int maxR = Math.Min(xyzOrRng.Height - 1, row + radius);
                 int minC = Math.Max(0, col - radius);
-                int maxC = Math.Min(img.Width - 1, col + radius);
-                var avg = new Vector3();
-                double valid = 0;
+                int maxC = Math.Min(xyzOrRng.Width - 1, col + radius);
+                float sum = 0;
+                int valid = 0;
                 for (int r = minR; r <= maxR; r++)
                 {
                     for (int c = minC; c <= maxC; c++)
                     {
-                        if (!xyr.IsInvalid(r, c))
+                        if (!xyzOrRng.IsInvalid(r, c))
                         {
-                            avg += new Vector3(xyr[0, r, c], xyr[1, r, c], xyr[2, r, c]);
-                            valid++;
+                            if (rng != null)
+                            {
+                                float d = rng[0, r, c];
+                                if (float.IsNaN(missingConstant) || d != missingConstant)
+                                {
+                                    sum += d;
+                                    valid++;
+                                }
+                            }
+                            else
+                            {
+                                sum += (float) Vector3.Distance(new Vector3(xyr[0, r, c], xyr[1, r, c], xyr[2, r, c]),
+                                                                center);
+                                valid++;
+                            }
                         }
                     }
                 }
                 if (valid > 0)
                 {
-                    feature.Range = Vector3.Distance(avg / valid, center);
+                    feature.Range = sum / valid;
                     n++;
                 }
             }

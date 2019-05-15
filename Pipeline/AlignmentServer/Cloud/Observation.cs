@@ -11,6 +11,7 @@ namespace OPS.Pipeline.AlignmentServer
     public enum ObservationType
     {
         Image,
+        Range,
         Points,
         Normals,
         RoverMask

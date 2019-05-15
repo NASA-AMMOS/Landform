@@ -144,6 +144,7 @@ namespace OPS.Pipeline
             }
 
             var pointsType = ObservationType.Points.ToString();
+            var rangeType = ObservationType.Range.ToString();
             var normalsType = ObservationType.Normals.ToString();
             var maskType = ObservationType.RoverMask.ToString();
             var imageType = ObservationType.Image.ToString();
@@ -163,7 +164,17 @@ namespace OPS.Pipeline
             ret.Points = observations.Find(obs => obs.ObservationType == pointsType);
             if (opts.RequirePoints && ret.Points == null)
             {
-                return null;
+                // NOTE: it is subtly incorrect to use a range map to substitute for an XYZ map
+                // because stereo correlation often uses 2D disparity
+                // which means the recovered surface point for a pixel
+                // may not actually lie on the ray through that pixel
+                // but for some missions (MSL) we only have range products
+                // https://github.jpl.nasa.gov/OnSight/Landform/issues/471
+                ret.Points = observations.Find(obs => obs.ObservationType == rangeType);
+                if (ret.Points == null)
+                {
+                    return null;
+                }
             }
 
             ret.Normals = observations.Find(obs => obs.ObservationType == normalsType &&
@@ -279,6 +290,11 @@ namespace OPS.Pipeline
         /// accepts a range or XYZ map in any coordinate frame and returns an XYZ map in rover frame
         /// also sets mask of return image to be union of input mask, if any
         /// plus invalid values according to image header metadata
+        ///
+        /// NOTE: it is subtly incorrect to call this method with a range map
+        /// because stereo correlation often uses 2D disparity which means the recovered surface point for a pixel
+        /// may not actually lie on the ray through that pixel
+        /// https://github.jpl.nasa.gov/OnSight/Landform/issues/471
         /// </summary>
         public static Image ConvertPoints(Image img)
         {
@@ -326,6 +342,11 @@ namespace OPS.Pipeline
         /// convert a range image into an XYZ map in rover frame similar to the XYR products
         /// also sets mask of return image to be union of input mask, if any
         /// plus invalid values according to image header metadata
+        ///
+        /// NOTE: this method is subtly incorrect and should be avoided
+        /// because stereo correlation often uses 2D disparity which means the recovered surface point for a pixel
+        /// may not actually lie on the ray through that pixel
+        /// https://github.jpl.nasa.gov/OnSight/Landform/issues/471
         /// </summary>
         public static Image ConvertRNG(Image img, PDSParser parser)
         {
