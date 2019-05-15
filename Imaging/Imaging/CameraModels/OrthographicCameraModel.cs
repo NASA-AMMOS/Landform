@@ -73,11 +73,14 @@ namespace OPS.Imaging
         {
             // Needs validation / review
             Vector2 metersPerPixel = new Vector2(extent.X / resolution.X, extent.Y / resolution.Y);
-            var offset = Vector3.Transform(pos, this.transform);
-            range = offset.Z;
+            Vector3 origin = invertTransform.Translation;
+            Vector3 offset = pos - origin;
             var pixelPos = Vector2.Zero;
-            pixelPos.X = (offset.X / metersPerPixel.X) - 0.5 + (resolution.X / 2);
-            pixelPos.Y = resolution.Y - ((offset.Y / metersPerPixel.Y) + (resolution.Y / 2)) - 0.5;
+            double h_offset_meters = Vector3.Dot(invertTransform.Right, offset) / invertTransform.Right.Length();
+            pixelPos.X = h_offset_meters / metersPerPixel.X + resolution.X / 2 - 0.5;
+            double v_offset_meters = Vector3.Dot(invertTransform.Down, offset) / invertTransform.Down.Length();
+            pixelPos.Y = v_offset_meters / metersPerPixel.Y + resolution.Y / 2 - 0.5;
+            range = Vector3.Dot(offset, invertTransform.Forward) / invertTransform.Forward.Length();
             return pixelPos;
         }
 
@@ -91,9 +94,10 @@ namespace OPS.Imaging
             Vector2 metersPerPixel = new Vector2(extent.X / resolution.X, extent.Y / resolution.Y);
             Vector3 origin = invertTransform.Translation;
             // Plus 0.5 for half pixel offset
-            origin += invertTransform.Right * metersPerPixel.X * (pixelPos.X + 0.5  - (resolution.X / 2.0));
-            origin += invertTransform.Down * metersPerPixel.Y * (pixelPos.Y + 0.5 - (resolution.Y / 2.0));
-            ray = new Ray(origin, this.invertTransform.Forward);
+            //TODO: Do we need to normalize here?
+            origin += invertTransform.Right / invertTransform.Right.Length() * metersPerPixel.X * (pixelPos.X + 0.5  - (resolution.X / 2.0));
+            origin += invertTransform.Down / invertTransform.Down.Length() * metersPerPixel.Y * (pixelPos.Y + 0.5 - (resolution.Y / 2.0));
+            ray = new Ray(origin, this.invertTransform.Forward / this.invertTransform.Forward.Length());
         }
     }
 }

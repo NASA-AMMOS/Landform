@@ -580,8 +580,6 @@ namespace OPS.Pipeline
 
             Mesh ret = new Mesh(hasNormals: normals != null, hasUVs: generateUV);
 
-            //Dictionary<Tuple<int, int>, int> pixelToVert = new Dictionary<Tuple<int, int>, int>();
-
             int[,] pixelToVert = new int[points.Height, points.Width];
             for(int r = 0; r < points.Height; r++)
             {

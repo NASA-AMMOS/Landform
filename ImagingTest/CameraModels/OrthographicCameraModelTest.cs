@@ -41,9 +41,8 @@ namespace ImagingTest
             transform.M42 = -(t + b) / (t - b);
             transform.M43 = -(f + n) / (f - n);
             transform.M44 = 1;
-            Matrix.Transpose(transform);
 
-            OrthographicCameraModel camera = new OrthographicCameraModel(transform, new Vector2(512, 512), 1);
+            OrthographicCameraModel camera = new OrthographicCameraModel(transform, new Vector2(512, 512), 512);
             Vector3 xyz = new Vector3(10, 10, 5);
             double range = 0;
             Vector2 pixel = camera.Project(xyz, out range);

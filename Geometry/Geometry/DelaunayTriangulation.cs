@@ -24,16 +24,14 @@ namespace OPS.Geometry
             TriangleNet.Configuration config = new TriangleNet.Configuration();
 
             List<TriangleNet.Geometry.Vertex> points = new List<TriangleNet.Geometry.Vertex>();
-            int i = 0;
-            foreach(Vertex v in Vertices)
+            for(int i = 0; i < Vertices.Count(); i++)
             {
-                DelaunayPoint tmp = projection(v);
+                DelaunayPoint tmp = projection(Vertices.ElementAt(i));
                 TriangleNet.Geometry.Vertex p = new TriangleNet.Geometry.Vertex();
                 p.ID = i;
                 p.X = tmp.xy.X;
                 p.Y = tmp.xy.Y;
                 points.Add(p);
-                i++;
             }
 
             TriangleNet.Mesh tnMesh = (TriangleNet.Mesh) sweepLine.Triangulate(points, config);
