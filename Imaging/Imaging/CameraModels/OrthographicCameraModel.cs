@@ -16,6 +16,10 @@ namespace OPS.Imaging
         private Vector2 resolution;
         private Vector2 extent;
         private Matrix invertTransform;
+        private Vector3 C;
+        private Vector3 A;
+        private Vector3 H;
+        private Vector3 V;
 
         public override bool Linear
         {
@@ -45,6 +49,13 @@ namespace OPS.Imaging
             this.resolution = resolution;
             double metersPerPixel = verticleExtent / resolution.Y;
             this.extent = new Vector2(metersPerPixel*resolution.X, verticleExtent);
+            this.C = new Vector3(invertTransform.M41, invertTransform.M42, invertTransform.M43);
+            this.A = -1.0 * new Vector3(invertTransform.M31, invertTransform.M32, invertTransform.M33);
+            this.H = new Vector3(invertTransform.M11, invertTransform.M12, invertTransform.M13);
+            this.V = new Vector3(invertTransform.M21, invertTransform.M22, invertTransform.M23);
+            this.A.Normalize();
+            this.H.Normalize();
+            this.V.Normalize();      
         }
 
         public OrthographicCameraModel(Matrix transform, double width, double height, double metersPerPixel)
@@ -53,6 +64,13 @@ namespace OPS.Imaging
             this.invertTransform = Matrix.Invert(transform);
             this.resolution = new Vector2(width, height);
             this.extent = new Vector2(metersPerPixel * resolution.X, metersPerPixel * resolution.Y);
+            this.C = new Vector3(invertTransform.M41, invertTransform.M42, invertTransform.M43);
+            this.A = -1.0 * new Vector3(invertTransform.M31, invertTransform.M32, invertTransform.M33);
+            this.H = new Vector3(invertTransform.M11, invertTransform.M12, invertTransform.M13);
+            this.V = new Vector3(invertTransform.M21, invertTransform.M22, invertTransform.M23);
+            this.A.Normalize();
+            this.H.Normalize();
+            this.V.Normalize();
         }
 
         /// <summary>
@@ -67,6 +85,32 @@ namespace OPS.Imaging
             this.invertTransform = Matrix.Invert(transform);
             this.resolution = resolution;
             this.extent = extent;
+            this.C = new Vector3(invertTransform.M41, invertTransform.M42, invertTransform.M43);
+            this.A = -1.0 * new Vector3(invertTransform.M31, invertTransform.M32, invertTransform.M33);
+            this.H = new Vector3(invertTransform.M11, invertTransform.M12, invertTransform.M13);
+            this.V = new Vector3(invertTransform.M21, invertTransform.M22, invertTransform.M23);
+            this.A.Normalize();
+            this.H.Normalize();
+            this.V.Normalize();
+        }
+
+        /// <summary>
+        /// Allows passing in basis vectors directly
+        /// </summary>
+        /// <param name="pos"></param>
+        /// <param name="range"></param>
+        /// <returns></returns>
+        public OrthographicCameraModel(Vector3 C, Vector3 A, Vector3 H, Vector3 V, Vector2 resolution, Vector2 extent)
+        {
+            this.resolution = resolution;
+            this.extent = extent;
+            this.C = C;
+            this.A = A;
+            this.H = H;
+            this.V = V;
+            this.A.Normalize();
+            this.H.Normalize();
+            this.V.Normalize();
         }
 
         //TODO: Do we need to normalize axis vecetors here?
@@ -74,18 +118,14 @@ namespace OPS.Imaging
         {
             // Needs validation / review
             Vector2 metersPerPixel = new Vector2(extent.X / resolution.X, extent.Y / resolution.Y);
-            Vector3 origin = invertTransform.Translation;
+            Vector3 origin = C;
             Vector3 offset = pos - origin;
             var pixelPos = Vector2.Zero;
-            Vector3 horizontal_axis = new Vector3(invertTransform.M11, invertTransform.M12, invertTransform.M13);
-            Vector3 vertical_axis = new Vector3(invertTransform.M21, invertTransform.M22, invertTransform.M23);
-            horizontal_axis.Normalize();
-            vertical_axis.Normalize();
-            double h_offset_meters = Vector3.Dot(horizontal_axis, offset);
-            double v_offset_meters = -1.0 * Vector3.Dot(vertical_axis, offset); //Vertical flip as pixel row increases downwards
+            double h_offset_meters = Vector3.Dot(H, offset);
+            double v_offset_meters = -1.0 * Vector3.Dot(V, offset); //Vertical flip as pixel row increases downwards
             pixelPos.X = h_offset_meters / metersPerPixel.X + resolution.X / 2 - 0.5;
             pixelPos.Y = v_offset_meters / metersPerPixel.Y + resolution.Y / 2 - 0.5;
-            range = Vector3.Dot(offset, invertTransform.Forward) / invertTransform.Forward.Length();
+            range = Vector3.Dot(offset, A);
             return pixelPos;
         }
 
@@ -97,15 +137,11 @@ namespace OPS.Imaging
         public override void Unproject(ref Vector2 pixelPos, out Ray ray)
         {
             Vector2 metersPerPixel = new Vector2(extent.X / resolution.X, extent.Y / resolution.Y);
-            Vector3 origin = invertTransform.Translation;
-            Vector3 horizontal_axis = new Vector3(invertTransform.M11, invertTransform.M12, invertTransform.M13);
-            Vector3 vertical_axis = new Vector3(invertTransform.M21, invertTransform.M22, invertTransform.M23);
-            horizontal_axis.Normalize();
-            vertical_axis.Normalize();
+            Vector3 origin = C;
             // Plus 0.5 for half pixel offset
-            origin += horizontal_axis * metersPerPixel.X * (pixelPos.X + 0.5  - (resolution.X / 2.0));
-            origin += -1.0 * vertical_axis * metersPerPixel.Y * (pixelPos.Y + 0.5 - (resolution.Y / 2.0)); //Vertical flip as pixel row increases downwards
-            ray = new Ray(origin, this.invertTransform.Forward / this.invertTransform.Forward.Length());
+            origin += H * metersPerPixel.X * (pixelPos.X + 0.5  - (resolution.X / 2.0));
+            origin += -1.0 * V * metersPerPixel.Y * (pixelPos.Y + 0.5 - (resolution.Y / 2.0)); //Vertical flip as pixel row increases downwards
+            ray = new Ray(origin, A);
         }
     }
 }
