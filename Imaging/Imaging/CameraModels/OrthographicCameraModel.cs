@@ -69,6 +69,7 @@ namespace OPS.Imaging
             this.extent = extent;
         }
 
+        //TODO: Do we need to normalize axis vecetors here?
         public override Vector2 Project(Vector3 pos, out double range)
         {
             // Needs validation / review
@@ -76,9 +77,13 @@ namespace OPS.Imaging
             Vector3 origin = invertTransform.Translation;
             Vector3 offset = pos - origin;
             var pixelPos = Vector2.Zero;
-            double h_offset_meters = Vector3.Dot(invertTransform.Right, offset) / invertTransform.Right.Length();
+            Vector3 horizontal_axis = new Vector3(invertTransform.M11, invertTransform.M12, invertTransform.M13);
+            Vector3 vertical_axis = new Vector3(invertTransform.M21, invertTransform.M22, invertTransform.M23);
+            horizontal_axis.Normalize();
+            vertical_axis.Normalize();
+            double h_offset_meters = Vector3.Dot(horizontal_axis, offset);
+            double v_offset_meters = -1.0 * Vector3.Dot(vertical_axis, offset); //Vertical flip as pixel row increases downwards
             pixelPos.X = h_offset_meters / metersPerPixel.X + resolution.X / 2 - 0.5;
-            double v_offset_meters = Vector3.Dot(invertTransform.Down, offset) / invertTransform.Down.Length();
             pixelPos.Y = v_offset_meters / metersPerPixel.Y + resolution.Y / 2 - 0.5;
             range = Vector3.Dot(offset, invertTransform.Forward) / invertTransform.Forward.Length();
             return pixelPos;
@@ -93,10 +98,13 @@ namespace OPS.Imaging
         {
             Vector2 metersPerPixel = new Vector2(extent.X / resolution.X, extent.Y / resolution.Y);
             Vector3 origin = invertTransform.Translation;
+            Vector3 horizontal_axis = new Vector3(invertTransform.M11, invertTransform.M12, invertTransform.M13);
+            Vector3 vertical_axis = new Vector3(invertTransform.M21, invertTransform.M22, invertTransform.M23);
+            horizontal_axis.Normalize();
+            vertical_axis.Normalize();
             // Plus 0.5 for half pixel offset
-            //TODO: Do we need to normalize here?
-            origin += invertTransform.Right / invertTransform.Right.Length() * metersPerPixel.X * (pixelPos.X + 0.5  - (resolution.X / 2.0));
-            origin += invertTransform.Down / invertTransform.Down.Length() * metersPerPixel.Y * (pixelPos.Y + 0.5 - (resolution.Y / 2.0));
+            origin += horizontal_axis * metersPerPixel.X * (pixelPos.X + 0.5  - (resolution.X / 2.0));
+            origin += -1.0 * vertical_axis * metersPerPixel.Y * (pixelPos.Y + 0.5 - (resolution.Y / 2.0)); //Vertical flip as pixel row increases downwards
             ray = new Ray(origin, this.invertTransform.Forward / this.invertTransform.Forward.Length());
         }
     }
