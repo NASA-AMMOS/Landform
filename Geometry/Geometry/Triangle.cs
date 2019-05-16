@@ -98,6 +98,24 @@ namespace OPS.Geometry
         }
 
         /// <summary>
+        /// Randomly sample a point on the triangle
+        /// </summary>
+        /// <returns></returns>
+        public BarycentricPoint Sample(Random rand)
+        {
+            double s = rand.NextDouble();
+            double t = rand.NextDouble();
+            if(s + t > 1)
+            {
+                s = 1 - s;
+                t = 1 - t;
+            }
+            return new BarycentricPoint(s, t, this);
+
+            
+        }
+
+        /// <summary>
         /// Returns a uv bounding box for this triangle
         /// </summary>
         /// <returns></returns>

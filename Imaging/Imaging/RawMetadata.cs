@@ -7,11 +7,36 @@ using System.Threading.Tasks;
 namespace OPS.Imaging
 {
 
-    public class RawMetadataNullValueException : Exception
+    public class MetadataException : Exception
     {
-        public RawMetadataNullValueException() { }
-        public RawMetadataNullValueException(string message) : base(message) { }
-        public RawMetadataNullValueException(string message, Exception inner) : base(message, inner) { }
+        public MetadataException() { }
+        public MetadataException(string message) : base(message) { }
+        public MetadataException(string message, Exception inner) : base(message, inner) { }
+    }
+
+    public class MetadataNullValueException : MetadataException
+    {
+        public MetadataNullValueException() { }
+        public MetadataNullValueException(string message) : base(message) { }
+        public MetadataNullValueException(string message, Exception inner) : base(message, inner) { }
+    }
+
+    public class MetadataKeyNotFoundException : MetadataException
+    {
+        public MetadataKeyNotFoundException() { }
+        public MetadataKeyNotFoundException(string message) : base(message) { }
+        public MetadataKeyNotFoundException(string message, Exception inner) : base(message, inner) { }
+    }
+
+    public class MetadataFormatException : MetadataException
+    {
+        public MetadataFormatException() { }
+        public MetadataFormatException(string message) : base(message) { }
+        public MetadataFormatException(string message, Exception inner) : base(message, inner) { }
+        public MetadataFormatException(string group, string key, string kind, string val)
+            : base(string.Format("error parsing {0} {1}=\"{2}\"", kind,
+                                 !string.IsNullOrEmpty(group) ? (group + "/" + key) : key,
+                                 val)) { }
     }
 
     /// <summary>
@@ -110,93 +135,150 @@ namespace OPS.Imaging
 
         public string ReadAsString(string key)
         {
+            CheckKey(key);
             return ReadAsString(NULL_GROUP, key);
         }
 
         public string ReadAsString(string group, string key)
         {
+            CheckKey(group, key);
             return ParseString(this[group, key]);
         }
 
         public string[] ReadAsStringArray(string key)
         {
+            CheckKey(key);
             return ReadAsStringArray(NULL_GROUP, key);
         }
 
         public string[] ReadAsStringArray(string group, string key)
         {
+            CheckKey(group, key);
             return ParseStringArray(this[group, key]);
         }
 
         public double ReadAsDouble(string key)
         {
+            CheckKey(key);
             return ReadAsDouble(NULL_GROUP, key);
         }
 
         public double ReadAsDouble(string group, string key)
         {
-            return ParseDouble(this[group, key]);
+            CheckKey(group, key);
+            return ParseDouble(group, key);
         }
 
         public double[] ReadAsDoubleArray(string key)
         {
+            CheckKey(key);
             return ReadAsDoubleArray(NULL_GROUP, key);
         }
 
         public double[] ReadAsDoubleArray(string group, string key)
         {
-            return ParseDoubleArray(this[group, key]);
+            CheckKey(group, key);
+            return ParseDoubleArray(group, key);
         }
 
         public int ReadAsInt(string key)
         {
+            CheckKey(key);
             return ReadAsInt(NULL_GROUP, key);
         }
 
         public int ReadAsInt(string group, string key)
         {
-            return ParseInt(this[group, key]);
+            CheckKey(group, key);
+            return ParseInt(group, key);
         }
 
         public long ReadAsLong(string key)
         {
+            CheckKey(key);
             return ReadAsLong(NULL_GROUP, key);
         }
 
         public long ReadAsLong(string group, string key)
         {
-            return ParseLong(this[group, key]);
+            CheckKey(group, key);
+            return ParseLong(group, key);
         }
 
         public int[] ReadAsIntArray(string key)
         {
+            CheckKey(key);
             return ReadAsIntArray(NULL_GROUP, key);
         }
 
         public int[] ReadAsIntArray(string group, string key)
         {
-            return ParseIntArray(this[group, key]);
+            CheckKey(group, key);
+            return ParseIntArray(group, key);
         }
 
         public DateTime ReadAsDateTime(string key)
         {
+            CheckKey(key);
             return ReadAsDateTime(NULL_GROUP, key);
         }
 
         public DateTime ReadAsDateTime(string group, string key)
         {
-            return DateTime.Parse(this[group, key]);
+            CheckKey(group, key);
+            var dt = this[group, key];
+            try
+            {
+                return DateTime.Parse(dt);
+            }
+            catch (FormatException)
+            {
+                throw new MetadataFormatException(group, key, "date", dt);
+            }
         }
 
         public uint ReadAsBitMask(string key)
         {
+            CheckKey(key);
             return ReadAsBitMask(NULL_GROUP, key);
         }
 
         public uint ReadAsBitMask(string group, string key)
         {
+            CheckKey(group, key);
             string[] tokens = ParseString(this[group, key]).Split('#');
-            return Convert.ToUInt32(tokens[1], int.Parse(tokens[0]));
+            try
+            {
+                return Convert.ToUInt32(tokens[1], int.Parse(tokens[0]));
+            }
+            catch (FormatException)
+            {
+                throw new MetadataFormatException(group, key, "bitmask", tokens[1] + " (base " + tokens[0] + ")");
+            }
+        }
+
+        protected void CheckKey(string key)
+        {
+            if (!HasKey(key))
+            {
+                throw new MetadataKeyNotFoundException("key not found: " + key);
+            }
+        }
+            
+        protected void CheckKey(string group, string key)
+        {
+            if (!HasKey(group, key))
+            {
+                throw new MetadataKeyNotFoundException("key not found: " + group + "/" + key);
+            }
+        }
+            
+        protected void CheckForNull(string s)
+        {
+            if (s.Equals("NULL") || s.Equals("null"))
+            {
+                throw new MetadataNullValueException();
+            }
         }
 
         protected string ParseString(string s)
@@ -213,7 +295,7 @@ namespace OPS.Imaging
             return s;
         }
 
-        string[] ParseStringArray(string s)
+        protected string[] ParseStringArray(string s)
         {
             s = s.Trim();
             if (s.StartsWith("(") && s.EndsWith(")"))
@@ -223,59 +305,91 @@ namespace OPS.Imaging
             return s.Split(',').Select(x => ParseString(x)).ToArray();
         }
 
-        void CheckForNull(string s)
+        protected int ParseInt(string group, string key)
         {
-            if (s.Equals("NULL") || s.Equals("null"))
-            {
-                throw new RawMetadataNullValueException();
-            }
-        }
-
-        int ParseInt(string s)
-        {
+            var s = this[group, key];
             s = s.Trim();
             s = StripUnits(ParseString(s));
             CheckForNull(s);
-            return int.Parse(s);
+            try
+            {
+                return int.Parse(s);
+            }
+            catch (FormatException)
+            {
+                throw new MetadataFormatException(group, key, "int", s);
+            }
         }
 
-        int[] ParseIntArray(string s)
+        protected int[] ParseIntArray(string group, string key)
         {
+            var s = this[group, key];
             s = s.Trim();
             if (s.StartsWith("(") && s.EndsWith(")"))
             {
                 s = s.Substring(1, s.Length - 2).Trim();
             }
-            return s.Split(',').Select(x => ParseInt(x)).ToArray();
+            try
+            {
+                return s.Split(',').Select(x => int.Parse(StripUnits(ParseString(x)))).ToArray();
+            }
+            catch (FormatException)
+            {
+                throw new MetadataFormatException(group, key, "int array", s);
+            }
         }
 
-        double ParseDouble(string s)
+        protected double ParseDouble(string group, string key)
         {
+            var s = this[group, key];
             s = s.Trim();
             s = StripUnits(ParseString(s));
             CheckForNull(s);
-            return double.Parse(s);
+            try
+            {
+                return double.Parse(s);
+            }
+            catch (FormatException)
+            {
+                throw new MetadataFormatException(group, key, "double", s);
+            }
         }
 
-        double[] ParseDoubleArray(string s)
+        protected double[] ParseDoubleArray(string group, string key)
         {
+            var s = this[group, key];
             s = s.Trim();
             if (s.StartsWith("(") && s.EndsWith(")"))
             {
                 s = s.Substring(1, s.Length - 2).Trim();
             }
-            return s.Split(',').Select(x => ParseDouble(x)).ToArray();
+            try
+            {
+                return s.Split(',').Select(x => double.Parse(StripUnits(ParseString(x)))).ToArray();
+            }
+            catch (FormatException)
+            {
+                throw new MetadataFormatException(group, key, "double array", s);
+            }
         }
 
-        long ParseLong(string s)
+        protected long ParseLong(string group, string key)
         {
+            var s = this[group, key];
             s = s.Trim();
             s = StripUnits(ParseString(s));
             CheckForNull(s);
-            return long.Parse(s);
+            try
+            {
+                return long.Parse(s);
+            }
+            catch (FormatException)
+            {
+                throw new MetadataFormatException(group, key, "long", s);
+            }
         }
 
-        string StripUnits(string s)
+        protected string StripUnits(string s)
         {
             int start = s.IndexOf("<");
             if (start >= 0)

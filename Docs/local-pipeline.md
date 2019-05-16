@@ -168,6 +168,13 @@ It is also possible to **post-mortem collect stats and generate debug outputs fr
 ./Landform/bin/Release/Landform.exe local-observation-products sol589 --cloud --writeallthethings --outputframe=root --usepriors
 ./Landform/bin/Release/Landform.exe local-observation-products sol589 --cloud --writeallthethings --outputframe=root
 ```
+
+## Downloading M2020 ROASTT Data
+ROASTT sols 100 through 104 are available.  The following command downloads sol 100 only.  Change `100` to `100-104` to download them all.
+```
+./Landform/bin/Release/Landform.exe fetch --inputawsprofile=landlords --inputawsregion=us-west-1 100 c:/Users/$USERNAME/Downloads/ROASTT s3://12landlords/SampleScenes/ROASTT/m20-roastt-staging/ocs/test/sol/#####/ids/rdr/
+```
+
 ## Generating tiled meshes
 If you've ingested observations and optionally aligned them you can generate a mesh with the `local-build-meshes` command.  The command line behavior is a subset of local-observation-products. Running with a commandline like 
 ```

@@ -33,6 +33,7 @@
     <Prefer32Bit>false</Prefer32Bit>
   </PropertyGroup>
   <ItemGroup>
+    <Reference Include="netstandard" />
     <Reference Include="log4net, Version=2.0.8.0, Culture=neutral, PublicKeyToken=669e0ddf0bb1aa2a, processorArchitecture=MSIL">
       <HintPath>..\packages\log4net.2.0.8\lib\net45-full\log4net.dll</HintPath>
       <Private>True</Private>
@@ -66,6 +67,9 @@
     <Reference Include="System.Data.DataSetExtensions" />
     <Reference Include="System.Data" />
     <Reference Include="System.Xml" />
+    <Reference Include="Triangle, Version=0.0.6.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\Triangle.0.0.6-Beta3\lib\net45\Triangle.dll</HintPath>
+    </Reference>
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Geometry\CleverCombinePointClouds.cs" />
@@ -73,6 +77,7 @@
     <Compile Include="Geometry\BarycentricPoint.cs" />
     <Compile Include="Geometry\BoundingBoxExtensions.cs" />
     <Compile Include="Geometry\ConvexHull.cs" />
+    <Compile Include="Geometry\DelaunayTriangulation.cs" />
     <Compile Include="Geometry\Geohash.cs" />
     <Compile Include="Geometry\MeshException.cs" />
     <Compile Include="Geometry\PlaneFit.cs" />

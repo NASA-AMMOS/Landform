@@ -27,7 +27,7 @@ namespace OPS.Pipeline
         [Value(0, Required = true, Default = null, HelpText = "'27-32' or '607,609' or a mixture '27-32,607,609-611'")]
         public string Sols { get; set; }
 
-        [Value(1, Required = true, Default = null, HelpText = "")]
+        [Value(1, Required = true, Default = null, HelpText = "output directory, e.g. c:/Users/$USERNAME/Downloads")]
         public string OutputDir { get; set; }
         
         [Value(2, Required = false, HelpText = "RDR search locations with sol replaced with ##### (ie s3://m20-roastt-staging/ocs/test/sol/#####/ids/rdr/")]
