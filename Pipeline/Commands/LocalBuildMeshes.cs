@@ -410,7 +410,8 @@ namespace OPS.Pipeline
                 }
                 else
                 {
-                    //single pixel inpaint for bilinear sampling of subpixel locations
+                    //though a single pixel inpaint would be sufficient for bilinear sampling of subpixel locations,
+                    // full inpaint needed for building parent tiles
                     leafImage.Inpaint(-1, preserveMask: false);
                 }
 
