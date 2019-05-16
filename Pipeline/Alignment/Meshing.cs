@@ -1010,7 +1010,21 @@ namespace OPS.Pipeline
             //TODO generate confidence and mask until real products are available
             //https://github.jpl.nasa.gov/OnSight/Landform/issues/259
             pipeline.LogVerbose("loading points {0}", obs.Points.Url);
-            var pointsRaw = pipeline.LoadImage(obs.Points.Url);
+            Image pointsRaw = null;
+            try
+            {
+                pointsRaw = pipeline.LoadImage(obs.Points.Url);
+               
+            }
+            catch
+            {
+                points = null;
+                normals = null;
+                mask = null;
+                pipeline.LogError("Failed to load image {0}", obs.Points.Url);
+                return;
+            }
+
             points = ConvertPoints(pointsRaw);
 
             normals = null;
@@ -1018,7 +1032,21 @@ namespace OPS.Pipeline
             {
                 pipeline.LogVerbose("loading normals {0}", obs.Normals.Url);
                 var confidence = scaleNormalsByConfidence ? GenerateConfidence(pointsRaw) : null;
-                normals = ConvertNormals(pipeline.LoadImage(obs.Normals.Url), confidence);
+                Image rawNormals = null;
+                try
+                {
+                    rawNormals = pipeline.LoadImage(obs.Normals.Url);
+                }
+                catch
+                {
+                    pipeline.LogError("Failed to load image {0}", obs.Points.Url);
+
+                }
+
+                if (rawNormals != null)
+                {
+                    normals = ConvertNormals(rawNormals, confidence);
+                }
             }
 
             mask = RoverMask.LoadOrBuild(pipeline, obs.Mask, pointsRaw, obs.Name);
@@ -1109,6 +1137,11 @@ namespace OPS.Pipeline
         {
             LoadOrGenerateMeshImages(pipeline, obs, decimate, scaleNormalsByConfidence,
                                      out Image points, out Image normals, out Image mask);
+            if(points == null)
+            {
+                pipeline.LogWarn("No points image loaded for pointcloud for {0}", obs.Points.Name);
+                return null;
+            }
             pipeline.LogVerbose("building point cloud {0}", obs.Points.Name);
             var ret = BuildPointCloud(points, normals, mask);
             if (ret.Vertices.Count == 0)
@@ -1343,7 +1376,17 @@ namespace OPS.Pipeline
                                                   string frame = "root", bool usePriors = false,
                                                   bool onlyAligned = false, bool uncertaintyInflated = false)
         {
-            Image img = pipeline.LoadImage(obs.Texture != null ? obs.Texture.Url : obs.Points.Url);
+            Image img = null;
+
+            try
+            {
+                img = pipeline.LoadImage(obs.Texture != null ? obs.Texture.Url : obs.Points.Url);
+            }
+            catch
+            {
+                pipeline.LogWarn("Failed to load image for {0}", obs.Texture != null ? obs.Texture.Url : obs.Points.Url);
+                return null;
+            }
             var parser = new PDSParser((PDSMetadata)img.Metadata);
             CheckCameraFrame(parser, "BuildFrustumHull");
             ConvexHull ret = ConvexHull.FromImage(img);
