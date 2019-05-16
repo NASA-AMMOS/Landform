@@ -257,6 +257,11 @@ namespace OPS.Pipeline
                 XmlElement camModelEl = CAHVToXml(doc, (CAHVOR)cm);
                 imageEl.AppendChild(camModelEl);
             }
+            else if (cm.GetType() == typeof(CAHVORE))
+            {
+                XmlElement camModelEl = CAHVOREToXml(doc, (CAHVORE)cm);
+                imageEl.AppendChild(camModelEl);
+            }
             else
             {
                 throw new NotImplementedException("Not enough cameramodels - cannot do cavhore");
@@ -300,6 +305,30 @@ namespace OPS.Pipeline
             camModel.AppendChild(vEl);
             camModel.AppendChild(oEl);
             camModel.AppendChild(rEl);
+
+            return camModel;
+        }
+
+        public XmlElement CAHVOREToXml(XmlDocument doc, CAHVORE model)
+        {
+            XmlElement camModel = doc.CreateElement("camera_model");
+            camModel.SetAttribute("type", "CAHVORE");
+
+            XmlElement cEl = CreateVectorElement(doc, model.C, "c");
+            XmlElement aEl = CreateVectorElement(doc, model.A, "a");
+            XmlElement hEl = CreateVectorElement(doc, model.H, "h");
+            XmlElement vEl = CreateVectorElement(doc, model.V, "v");
+            XmlElement oEl = CreateVectorElement(doc, model.O, "o");
+            XmlElement rEl = CreateVectorElement(doc, model.R, "r");
+            XmlElement eEl = CreateVectorElement(doc, model.E, "e");
+
+            camModel.AppendChild(cEl);
+            camModel.AppendChild(aEl);
+            camModel.AppendChild(hEl);
+            camModel.AppendChild(vEl);
+            camModel.AppendChild(oEl);
+            camModel.AppendChild(rEl);
+            camModel.AppendChild(eEl);
 
             return camModel;
         }
