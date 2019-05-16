@@ -68,7 +68,7 @@ namespace OPS.Pipeline
         Poisson,
         FSSR
     }
-
+    
     public class Meshing
     {
         public class MeshObservationsOptions
@@ -329,12 +329,16 @@ namespace OPS.Pipeline
         /// </summary>
         public static Image ConvertRNG(Image img, PDSParser parser)
         {
-            parser = parser ?? new PDSParser((PDSMetadata)img.Metadata);
-            CheckType(parser, RoverProductType.Range, "ConvertRange");
-            CheckCameraCenter(parser, img, "ConvertRNG");
             Image ret = new Image(3, img.Width, img.Height);
-            AddMaskForMissingConstant(ret, img, parser);
-            bool hasMissingConstant = parser.HasMissingConstant;
+
+            if (img.Metadata.GetType() == typeof(PDSMetadata))
+            {
+                parser = parser ?? new PDSParser((PDSMetadata)img.Metadata);
+                CheckType(parser, RoverProductType.Range, "ConvertRange");
+                CheckCameraCenter(parser, img, "ConvertRNG");
+                AddMaskForMissingConstant(ret, img, parser);
+            }
+
             for (int row = 0; row < img.Height; row++)
             {
                 for (int col = 0; col < img.Width; col++)
@@ -343,7 +347,7 @@ namespace OPS.Pipeline
                     {
                         ret.SetMaskValue(row, col, true);
                     }
-                    else if (!hasMissingConstant || !ret.IsInvalid(row, col))
+                    else if (parser == null || !parser.HasMissingConstant || !ret.IsInvalid(row, col)) // should this be ((parser == null || !parser.HasMissingConstant) && !ret.IsInvalid(row, col)
                     {
                         Vector3 p = img.CameraModel.Unproject(new Vector2(col, row), img[0, row, col]);
                         ret.SetBandValues(row, col, p.ToFloatArray());
@@ -1130,33 +1134,42 @@ namespace OPS.Pipeline
         /// <summary>
         /// build a mesh from the given points and optional normals and mask images
         /// </summary>
-        public static Mesh BuildOrganizedMesh(Image points, Image normals = null, Image mask = null,
-                                              double maxTriangleAspect = 20, double isolatedPointSize =  0)
+        public static Mesh BuildOrganizedMesh(Image points, Image normals = null, Image mask = null, double maxTriangleAspect = 10, bool generateUV = true, double isolatedPointSize =  0)
         {
             if (maxTriangleAspect < 1)
             {
                 throw new ArgumentException("max triangle aspect must be >= 1");
             }
 
-            Mesh ret = new Mesh(hasNormals: normals != null);
+            Mesh ret = new Mesh(hasNormals: normals != null, hasUVs: generateUV);
 
-            Dictionary<Tuple<int, int>, int> pixelToVert = new Dictionary<Tuple<int, int>, int>();
+            int[,] pixelToVert = new int[points.Height, points.Width];
+            for(int r = 0; r < points.Height; r++)
+            {
+                for(int c = 0; c < points.Width; c++)
+                {
+                    pixelToVert[r, c] = -1;
+                }
+            }
 
             int getOrAddVert(int r, int c)
             {
-                var key = new Tuple<int, int>(r, c);
-                if (!pixelToVert.ContainsKey(key))
+                if (pixelToVert[r,c] == -1)
                 {
-                    pixelToVert[key] = ret.Vertices.Count;
+                    pixelToVert[r,c] = ret.Vertices.Count;
                     Vertex v = new Vertex();
                     v.Position = new Vector3(points[0, r, c], points[1, r, c], points[2, r, c]);
                     if (normals != null)
                     {
                         v.Normal = new Vector3(normals[0, r, c], normals[1, r, c], normals[2, r, c]);
                     }
+                    if (generateUV)
+                    {
+                        v.UV = points.PixelToUV(new Vector2(c, r));  // TODO: PixelToUV should handle the half pixel offset
+                    }
                     ret.Vertices.Add(v);
                 }
-                return pixelToVert[key];
+                return pixelToVert[r,c];
             }
 
             void addFaceMaybe(int r0, int c0, int r1, int c1, int r2, int c2)
@@ -1217,7 +1230,7 @@ namespace OPS.Pipeline
                 {
                     for (int col = 0; col < points.Width; col++)
                     {
-                        if (!points.IsInvalid(row, col) && !pixelToVert.ContainsKey(new Tuple<int, int>(row, col)))
+                        if (!points.IsInvalid(row, col) && pixelToVert[row, col] == -1)
                         {
                             var cube = BoundingBoxExtensions.MakeCube(isolatedPointSize).ToMesh();
                             cube.Transform(Matrix.CreateTranslation(points[0, row, col],
@@ -1274,7 +1287,7 @@ namespace OPS.Pipeline
             LoadOrGenerateMeshImages(pipeline, obs, decimate, scaleNormalsByConfidence,
                                      out Image points, out Image normals, out Image mask);
             pipeline.LogVerbose("building organized mesh {0}", obs.Points.Name);
-            var ret = BuildOrganizedMesh(points, normals, mask, maxTriangleAspect, isolatedPointSize);
+            var ret = BuildOrganizedMesh(points, normals, mask, maxTriangleAspect, withUVs, isolatedPointSize);
             if (withUVs && obs.Texture != null)
             {
                 AddUVs(ret, pipeline.LoadImage(obs.Texture.Url));

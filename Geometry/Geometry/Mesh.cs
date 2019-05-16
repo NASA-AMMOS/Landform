@@ -487,21 +487,11 @@ namespace OPS.Geometry
             }
 
             // List of edges in the mesh located on the exterior (edges adjacent to only one triangle)
-            List<Edge> edges = GetExteriorEdges();
-
-            // Put each vertex in another hashset from all the edges
-            HashSet<Vertex> edgeVertices = new HashSet<Vertex>();
-            foreach (Edge edge in edges)
-            {
-                edgeVertices.Add(edge.A);
-                edgeVertices.Add(edge.B);
-            }
-
             // Vertices that are part of the skirt that need to be removed at the end
-            List<Vertex> verticesToRemove = new List<Vertex>();
+            List<Vertex> verticesToRemove = EdgeVertices();
 
             // Run through each unique vertex on the edge and remove it if it qualifies as part of a skirt
-            foreach (Vertex edgeVertex in edgeVertices)
+            foreach (Vertex edgeVertex in verticesToRemove)
             {
                 // Find index of the current edge vertex
                 int vertexIndexInMesh = Vertices.IndexOf(edgeVertex);
@@ -730,6 +720,20 @@ namespace OPS.Geometry
             }
             // Clean the mesh for good measure
             Clean();
+        }
+
+        public List<Vertex> EdgeVertices()
+        {
+            // List of edges in the mesh located on the exterior (edges adjacent to only one triangle)
+            List<Edge> edges = GetExteriorEdges();
+            // Put each vertex in another hashset from all the edges
+            HashSet<Vertex> edgeVertices = new HashSet<Vertex>();
+            foreach (Edge edge in edges)
+            {
+                edgeVertices.Add(edge.A);
+                edgeVertices.Add(edge.B);
+            }
+            return edgeVertices.ToList();
         }
 
         /// <summary>

@@ -94,6 +94,7 @@
     <Compile Include="CameraModels\CAHVORETest.cs" />
     <Compile Include="CameraModels\CAHVORTest.cs" />
     <Compile Include="CameraModels\CAHVTest.cs" />
+    <Compile Include="CameraModels\OrthographicCameraModelTest.cs" />
     <Compile Include="CameraModels\Reference\CAHV.cs" />
     <Compile Include="CameraModels\Reference\CAHVOR.cs" />
     <Compile Include="CameraModels\Reference\CAHVORE.cs" />

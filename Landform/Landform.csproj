@@ -185,6 +185,10 @@
       <Project>{9722c3b0-63d5-4b8a-9c4f-3381223bf3a2}</Project>
       <Name>ImagingEmgu</Name>
     </ProjectReference>
+    <ProjectReference Include="..\ImagingTest\ImagingTest.csproj">
+      <Project>{94D07323-456B-41DC-8FAC-7C1C77605E50}</Project>
+      <Name>ImagingTest</Name>
+    </ProjectReference>
     <ProjectReference Include="..\Imaging\Imaging.csproj">
       <Project>{c3ec3ab5-8dfd-4daa-9833-246f0db6a805}</Project>
       <Name>Imaging</Name>
