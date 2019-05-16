@@ -220,31 +220,6 @@ will build a mesh using the birds eye view aligned transforms you've built previ
     * `--adjustwithinsitedrives`, `--noadjustacrosssitedrives`, `--bundleadjustrounds=2`
     * `--writedebug`, `--debugoutputfolder=DBG` default output folder is project storage under `alignment/AdjustProducts`
     * `--quiet`, `--verbose`, `--debug`, `--noprogress`, `--singlethreaded`
-1.  **`Landform.exe local-observation-products PROJ`** generates mesh and image products for each observation in the database.  Options include
-    * `--onlyforsitedrives=SSSSSDDDDD[,SSSSSDDDDD[,...]]` Only generate meshes for specific site drives, comma separated
-    * `--outputfolder` Output directory, or omit to save to project storage under `alignment/ObservationProducts`. By default subdirectories will be created in the pattern FRAME/TYPE/PROJ/SITEDRIVE where FRAME corresponds to the output coordinate frame and TYPE indicates whether adjusted transforms or only priors were used and/or if the transform sources were limited to a subset of those available.
-    * `--outputframe` (Default: rover) Output coordinate frame: rover, sitedrive, or root
-    * `--allowmastcam`(Default: false) Create meshes for mastcam observations
-    * `--requirenormals` (Default: false) Only create meshes for observations with normals
-    * `--requiretextures` (Default: false) Only create meshes for observations with textures
-    * `--nowedgemeshes` (Default: false) Don't write wedge meshes
-    * `--noimages` (Default: false) Don't write observation images (and don't texture wedge meshes)
-    * `--meshformat` (Default: ply) Mesh format, e.g. ply, obj 
-    * `--imageformat` (Default: jpg) Texture image format, e.g. png, jpg
-    * `--pointcloud` (Default: false) Create point clouds instead of triangle meshes
-    * `--adjustedtransformsources` Allowed sources for adjusted transforms, comma separated, all if empty (Adjusted,Manual,Landform,Agisoft)
-    * `--priortransformsources` Allowed sources for transform priors, comma separated, all if empty (Prior,PlacesDB,LocationsDB,PDS)
-    * `--usepriors` (Default: false) Use transform priors only
-    * `--decimatemeshes` (Default: 4) Mesh decimation blocksize
-    * `--decimateimages` (Default: 2) Texture decimation blocksize
-    * `--maxtriangleaspect` (Default: 10) Max triangle aspect ratio
-    * `--scalenormalsbyconfidence` (Default: false) Scale normals by confidence
-    * `--suppresssitedrivedirectories` (Default: false) Don't split output by site drive
-    * `--writefrustumhullmeshes` (Default: false) Write camera frustum hull meshes
-    * `--writeuncertaintyinflatedfrustumhullmeshes` (Default: false) Write uncertainty inflated camera frustum hull meshes
-    * `--allthethings` (Default: false) Write all the things
-    * `--noprogress` (Default: false) Hide progress
-    * `--verbose` (Default: false) Log verbose info
-    * `--debug` (Default: false) Log debug info
+1.  **`Landform.exe local-observation-products PROJ`** generates mesh and image products for each observation in the database.  Specify `--help` for info on options.
 
 

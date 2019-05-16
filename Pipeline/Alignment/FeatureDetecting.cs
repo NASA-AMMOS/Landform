@@ -406,6 +406,14 @@ namespace OPS.Pipeline
             return ret;
         }
 
+        /// <summary>
+        /// NOTE: it is subtly incorrect to use a range map to substitute for an XYZ map
+        /// because stereo correlation often uses 2D disparity
+        /// which means the recovered surface point for a pixel
+        /// may not actually lie on the ray through that pixel
+        /// but for some missions (MSL) we only have range products
+        /// https://github.jpl.nasa.gov/OnSight/Landform/issues/471
+        /// </summary>
         public static int AddRange(IEnumerable<ImageFeature> features, Image xyzOrRng)
         {
             PDSParser parser = new PDSParser((PDSMetadata)xyzOrRng.Metadata);
