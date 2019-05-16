@@ -58,7 +58,7 @@ namespace OPS.Alignment
             log_e0 = Math.Log10(3.0 * (modelPoints.Length - 7));
             bestPoints = Enumerable.Range(0, modelPoints.Length).ToList();
             epipolarError = new double[modelPoints.Length];
-            random = new Random();
+            random = NumberHelper.MakeRandomGenerator();
 
             double nx = dataSize.X,
                    ny = dataSize.Y;

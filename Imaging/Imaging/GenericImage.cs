@@ -20,9 +20,11 @@ namespace OPS.Imaging
         public CameraModel CameraModel;
 
         public T[][] Data;        
+
         public int Bands;
         public int Width;
         public int Height;
+
         /// <summary>
         /// A mask value of true indicates that the value is masked out
         /// A mask value of false indicates that the value is valid
@@ -31,10 +33,7 @@ namespace OPS.Imaging
         /// </summary>
         protected bool[] Mask;
 
-        protected GenericImage()
-        {
-
-        }
+        protected GenericImage() { }
 
         /// <summary>
         /// Create a new, blank image.
@@ -435,17 +434,16 @@ namespace OPS.Imaging
         }
 
         /// <summary>
-        /// Iterates over all non masked values in the image
+        /// Iterates over all values across all bands in the image
         /// </summary>
-        /// <param name="applyToMaskedValues"></param>
         /// <returns></returns>
-        public IEnumerator<T> GetEnumerator()
+        public IEnumerator<T> GetEnumerator(bool includeInvalidValues)
         {
             for (int b = 0; b < this.Data.Length; b++)
             {
                 for (int i = 0; i < this.Data[b].Length; i++)
                 {
-                    if (!IsInvalid(i))
+                    if (includeInvalidValues || IsValid(i))
                     {
                         yield return this.Data[b][i];
                     }
@@ -453,11 +451,16 @@ namespace OPS.Imaging
             }
         }
 
+        public IEnumerator<T> GetEnumerator()
+        {
+            return GetEnumerator(false);
+        }
+
         /// <summary>
         /// Returns a coordinate for each pixel in the image and for each band
         /// </summary>
         /// <returns></returns>
-        public IEnumerable<ImageCoordinate> Coordinates(bool includeInvalidValues)
+        public IEnumerable<ImageCoordinate> Coordinates(bool includeInvalidValues = false)
         {
             for (int b = 0; b < this.Bands; b++)
             {

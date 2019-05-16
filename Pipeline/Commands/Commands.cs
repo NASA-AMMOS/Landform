@@ -24,9 +24,9 @@ namespace OPS.Pipeline
             /// NOTE you will get (slightly cryptic) compiler errors if there are more than 16 commands
             return CommandLine.Parser.Default.ParseArguments<ConvertBaselineMeshOptions,
                                                              //PDSImageConverterOptions,
-                                                             ConvertBaselineMeshesOptions,
-                                                             TileBaselineMeshOptions,
-                                                             TileBaselineMeshesOptions,
+                                                             //ConvertBaselineMeshesOptions,
+                                                             //TileBaselineMeshOptions,
+                                                             //TileBaselineMeshesOptions,
                                                              //LegacyToWebVROptions,
                                                              //LegacyToTile3DOptions,
                                                              TileLocalMeshOptions,
@@ -35,18 +35,22 @@ namespace OPS.Pipeline
                                                              LocalIngestOptions,
                                                              LocalFeaturesOptions,
                                                              LocalMatchingOptions,
-                                                             LocalBundleAdjustOptions,
+                                                             //LocalBundleAdjustOptions,
                                                              LocalObservationProductsOptions,
+                                                             LocalBEVAlignerOptions,
                                                              LocalAgisoftOptions,
                                                              ConfigureCloudOptions,
                                                              ConfigureLocalOptions,
-                                                             DEM2MeshOptions
+                                                             DEM2MeshOptions,
+                                                             EmtToSceneOptions,
+                                                             LocalBuildMeshesOptions,
+                                                             FetchDataOptions
                                                              >(args)
               .MapResult(
                 (ConvertBaselineMeshOptions opts) => new ConvertBaselineMesh(opts).Run(),
-                (ConvertBaselineMeshesOptions opts) => new ConvertBaselineMeshes(opts).Run(),
-                (TileBaselineMeshOptions opts) => new TileBaselineMesh(opts).Run(),
-                (TileBaselineMeshesOptions opts) => new TileBaselineMeshes(opts).Run(),
+                //(ConvertBaselineMeshesOptions opts) => new ConvertBaselineMeshes(opts).Run(),
+                //(TileBaselineMeshOptions opts) => new TileBaselineMesh(opts).Run(),
+                //(TileBaselineMeshesOptions opts) => new TileBaselineMeshes(opts).Run(),
                 //(PDSImageConverterOptions opts) => new PDSImageConverter(opts).Run(),
                 //(LegacyToWebVROptions opts) => new LegacyToWebVR(opts).Run(),
                 //(LegacyToTile3DOptions opts) => new LegacyToTile3D(opts).Run(),
@@ -56,12 +60,16 @@ namespace OPS.Pipeline
                 (LocalIngestOptions opts) => new LocalIngest(opts).Run(),
                 (LocalFeaturesOptions opts) => new LocalFeatures(opts).Run(),
                 (LocalMatchingOptions opts) => new LocalMatching(opts).Run(),
-                (LocalBundleAdjustOptions opts) => new LocalBundleAdjust(opts).Run(),
+                //(LocalBundleAdjustOptions opts) => new LocalBundleAdjust(opts).Run(),
                 (LocalObservationProductsOptions opts) => new LocalObservationProducts(opts).Run(),
+                (LocalBEVAlignerOptions opts) => new LocalBEVAligner(opts).Run(),
                 (LocalAgisoftOptions opts) => new LocalAgisoft(opts).Run(),
                 (ConfigureCloudOptions opts) => new ConfigureCloud(opts).Run(),
                 (ConfigureLocalOptions opts) => new ConfigureLocal(opts).Run(),
                 (DEM2MeshOptions opts) => new DEM2Mesh(opts).Run(),
+                (EmtToSceneOptions opts) => new EmtToScene(opts).Run(),
+                (LocalBuildMeshesOptions opts) => new LocalBuildMeshes(opts).Run(),
+                (FetchDataOptions opts) => new FetchData(opts).Run(),
                 errs => 1);
         }
     }

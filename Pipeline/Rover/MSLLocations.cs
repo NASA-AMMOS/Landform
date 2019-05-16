@@ -8,6 +8,7 @@ using System.Net;
 using System.Text;
 using System.Threading.Tasks;
 using System.Xml;
+using OPS.Imaging;
 
 namespace OPS.Pipeline
 {
@@ -17,7 +18,7 @@ namespace OPS.Pipeline
     public class MSLLocation
     {
         public Vector3 Position;
-        public Vector2 LatLon;
+        public Vector2 LatLon; //X=latitude, Y=longitude
         public SiteDrive SiteDrive;
         public int StartSol;
         public int EndSol;
@@ -40,7 +41,8 @@ namespace OPS.Pipeline
     {
         private static readonly ILog logger = LogManager.GetLogger(typeof(MSLLocations));
 
-        public const string DEFAULT_URL = "http://mars.jpl.nasa.gov/msl-raw-images/locations.xml";
+        public const string DEFAULT_FILENAME = "locations.xml";
+        public const string DEFAULT_URL = "http://mars.jpl.nasa.gov/msl-raw-images/" + DEFAULT_FILENAME;
 
         private ConcurrentDictionary<SiteDrive, MSLLocation> locations; 
       
@@ -116,6 +118,45 @@ namespace OPS.Pipeline
                 return loc;
             }
             return null;
+        }
+
+        public const string BASEMAP_FILENAME = "out_deltaradii_smg_1m.tif";
+        public const string BASEMAP_URL = "s3://12landlords/TerrainSourceAssets/basemaps/" + BASEMAP_FILENAME;
+
+        private GDALDEM basemapDEM = null;
+        private double? basemapDEMZ0 = null;
+
+        public bool HasBasemapDEM { get { return basemapDEM != null; } }
+
+        public void LoadBasemapDEM(string file)
+        {
+            basemapDEM = GDALDEM.MarsDEM(file);
+        }
+
+        public double GetZFromBasemap(double lat, double lon)
+        {
+            return basemapDEM.InterpolateElevationAtLatLon(lat, lon);
+        }
+
+        /// <summary>
+        /// locations.xml Z values are in site frame
+        /// if you instead want Z to be relative to the landing site, like the Places database
+        /// this API will do that by estimating the difference in elevations using the orbital DEM
+        /// </summary>
+        public MSLLocation SetZFromBasemap(MSLLocation loc, int interpolationRadius = 2)
+        {
+            if (basemapDEM == null)
+            {
+                throw new InvalidOperationException("basemap DEM not loaded");
+            }
+            if (!basemapDEMZ0.HasValue)
+            {
+                var loc0 = Location(new SiteDrive(1, 0));
+                basemapDEMZ0 = basemapDEM.InterpolateElevationAtLatLon(loc0.LatLon.X, loc0.LatLon.Y, 2);
+            }
+            var z = basemapDEM.InterpolateElevationAtLatLon(loc.LatLon.X, loc.LatLon.Y, interpolationRadius);
+            loc.Position.Z = -(z - basemapDEMZ0.Value); 
+            return loc;
         }
     }
 }

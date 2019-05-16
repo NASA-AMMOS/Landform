@@ -735,7 +735,18 @@ namespace GeometryTest
             Assert.AreEqual(new Vector3(9, 3, 0), bounds.Max);
         }
 
-
+        [TestMethod]
+        public void FlipNormalsWithRespectToPointTest()
+        {
+            Mesh m = new Mesh(hasNormals: true);
+            m.Vertices.Add(new Vertex(Vector3.Zero, new Vector3(0, -1, 0)));
+            m.Vertices.Add(new Vertex(Vector3.Zero, new Vector3(1, 0, 0)));
+            m.Vertices.Add(new Vertex(Vector3.Zero, new Vector3(-1, -1, 0)));
+            m.FlipNormalsTowardPoint(new Vector3(0, 1, 0));
+            Assert.AreEqual(m.Vertices[0].Normal, new Vector3(0, 1, 0));
+            Assert.AreEqual(m.Vertices[1].Normal, new Vector3(1, 0, 0));
+            Assert.AreEqual(m.Vertices[2].Normal, new Vector3(1, 1, 0));
+        }
 
         [TestMethod]
         public void MeshSkirtTest()

@@ -29,6 +29,7 @@ namespace OPS.Geometry
         public bool HasUVs = false;
         public bool HasColors = false;
         public bool HasFaces { get { return Faces.Count > 0; } }
+        public bool HasVertices { get { return Vertices.Count > 0; } }
 
         /// <summary>
         /// Creates an empty mesh. 
@@ -145,6 +146,25 @@ namespace OPS.Geometry
                 {
                     vertex.Normal.Normalize();
                 }
+            }
+        }
+
+        /// <summary>
+        /// For each vertex, compute a ray from the vertex to the observation point
+        /// If the normal for the vertex points away (more than 90 degrees) from this ray
+        /// flip the normal.  This method is useful when points have been captured from a 
+        /// sensor and you want to disambiguate normal direction to point toward the sensor
+        /// </summary>
+        /// <param name="observationPoint"></param>
+        public void FlipNormalsTowardPoint(Vector3 observationPoint)
+        {
+            foreach (var v in this.Vertices)
+            {
+                Vector3 pointToVert = v.Position - observationPoint;               
+                if (Vector3.Dot(v.Normal, pointToVert) > 0)
+                {
+                    v.Normal *= -1;
+                }                
             }
         }
 
@@ -550,7 +570,7 @@ namespace OPS.Geometry
                 EdgeGraph edgeGraph = new EdgeGraph(copy);
 
                 //Compute a skirt location for each perimeter vertex based on the normals of surrounding triangles. If a previous skirt vertex is "good enough" based on `threshold', it may be used instead of creating a new one
-                foreach (VertexNode vNode in edgeGraph.vertNodes)
+                foreach (VertexNode vNode in edgeGraph.VertNodes)
                 {
                     if (vNode.IsOnPerimeter)
                     {
@@ -600,7 +620,7 @@ namespace OPS.Geometry
                 }
 
                 //Add in the faces for the new skirt vertices
-                foreach (VertexNode vNode in edgeGraph.vertNodes)
+                foreach (VertexNode vNode in edgeGraph.VertNodes)
                 {
                     if (vNode.IsOnPerimeter)
                     {
@@ -768,9 +788,13 @@ namespace OPS.Geometry
         /// If any faces are defined this will also remove any vertices that are not referenced
         /// by a face
         /// </summary>
-        public void Clean(bool normalize=true)
+        public void Clean(bool normalize=true, bool removeDuplicateVerts=true)
         {
-            RemoveDuplicateVertices();
+            if (removeDuplicateVerts)
+            {
+                RemoveDuplicateVertices();
+            }
+
             if (HasFaces)
             {
                 RemoveInvalidFaces();
@@ -780,6 +804,14 @@ namespace OPS.Geometry
             if (normalize && HasNormals)
             {
                 NormalizeNormals();
+            }
+        }
+
+        public void Scale(double s)
+        {
+            foreach(Vertex v in this.Vertices)
+            {
+                v.Position *= s;
             }
         }
 
@@ -893,8 +925,12 @@ namespace OPS.Geometry
         /// Vertex objects are cloned to avoid side effects in case the meshes are modifed in the future
         /// </summary>
         /// <param name="otherMeshes"></param>
-        public void MergeWith(Mesh[] otherMeshes, bool normalize)
+        public void MergeWith(Mesh[] otherMeshes, bool clean = true, bool normalize = true, bool removeDuplicateVerts = true)
         {
+            int numNewVerts = otherMeshes.Aggregate(0, (sum, mesh) => sum + mesh.Vertices.Count);
+            int numNewFaces = otherMeshes.Aggregate(0, (sum, mesh) => sum + mesh.Faces.Count);
+            Vertices.Capacity = Math.Min(Vertices.Capacity, Vertices.Count + numNewVerts);
+            Faces.Capacity = Math.Min(Faces.Capacity, Faces.Count + numNewFaces);
             for (int i = 0; i < otherMeshes.Length; i++)
             {
                 Mesh m = otherMeshes[i];
@@ -916,13 +952,16 @@ namespace OPS.Geometry
                     this.Faces.Add(f);
                 }
             }
-            
-            Clean(normalize);
+
+            if (clean)
+            {
+                Clean(normalize, removeDuplicateVerts);
+            }
         }
 
         public void MergeWith(params Mesh[] otherMeshes)
         {
-            MergeWith(otherMeshes, true);
+            MergeWith(otherMeshes, true, true); //specify params or this will be a self-call (infinite recursion)
         }
 
         /// <summary>
@@ -932,10 +971,15 @@ namespace OPS.Geometry
         /// </summary>
         /// <param name="meshesToCombine"></param>
         /// <returns></returns>
-        public static Mesh Merge(params Mesh[] meshesToCombine)
+        public static Mesh Merge(Mesh[] meshesToCombine, bool clean = true, bool normalize = true)
         {
             Mesh first = meshesToCombine[0];
-            return Merge(first.HasNormals, first.HasUVs, first.HasColors, meshesToCombine);
+            return Merge(first.HasNormals, first.HasUVs, first.HasColors, meshesToCombine, clean, normalize);
+        }
+
+        public static Mesh Merge(params Mesh[] meshesToCombine)
+        {
+            return Merge(meshesToCombine, true, true); //specify params or this will be a self-call (infinite recursion)
         }
 
         /// <summary>
@@ -944,12 +988,17 @@ namespace OPS.Geometry
         /// </summary>
         /// <param name="meshesToCombine"></param>
         /// <returns></returns>
-        public static Mesh MergeWithCommonAttributes(params Mesh[] meshesToCombine)
+        public static Mesh MergeWithCommonAttributes(Mesh[] meshesToCombine, bool clean = true, bool normalize = true)
         {
             bool normals = meshesToCombine.All(m => m.HasNormals);
             bool uvs = meshesToCombine.All(m => m.HasUVs);
             bool colors = meshesToCombine.All(m => m.HasColors);
-            return Merge(normals, uvs, colors, meshesToCombine);
+            return Merge(normals, uvs, colors, meshesToCombine, clean, normalize);
+        }
+
+        public static Mesh MergeWithCommonAttributes(params Mesh[] meshesToCombine)
+        {
+            return MergeWithCommonAttributes(meshesToCombine); //all params or this will be infinite recursion
         }
 
         /// <summary>
@@ -960,11 +1009,17 @@ namespace OPS.Geometry
         /// <param name="hasColors"></param>
         /// <param name="meshesToCombine"></param>
         /// <returns></returns>
-        public static Mesh Merge(bool hasNormals, bool hasUvs, bool hasColors, params Mesh[] meshesToCombine)
+        public static Mesh Merge(bool hasNormals, bool hasUvs, bool hasColors, Mesh[] meshesToCombine,
+                                 bool clean = true, bool normalize = true)
         {
             Mesh result = new Mesh(hasNormals, hasUvs, hasColors);
-            result.MergeWith(meshesToCombine);
+            result.MergeWith(meshesToCombine, clean, normalize);
             return result;
+        }
+
+        public static Mesh Merge(bool hasNormals, bool hasUvs, bool hasColors, params Mesh[] meshesToCombine)
+        {
+            return Merge(hasNormals, hasUvs, hasColors, meshesToCombine, true, true); //all params or infinite recursion
         }
 
         /// <summary>
@@ -1233,6 +1288,17 @@ namespace OPS.Geometry
         }
 
         /// <summary>
+        /// Attempt to estimate the average distance between vertices in this mesh
+        /// </summary>
+        /// <param name="samples"></param>
+        /// <returns></returns>
+        public double AverageDensity(int samples = 0)
+        {
+            VertexKDTree tree = new VertexKDTree(this.Vertices);
+            return tree.AverageDensity(samples: samples);
+        }
+
+        /// <summary>
         /// Translate this mesh to be centered on its bounds
         /// </summary>
         public void Center()
@@ -1302,6 +1368,7 @@ namespace OPS.Geometry
             }
         }
     }
+    
 
     /// <summary>
     /// X, Y, or Z axis which the skirt is directed along

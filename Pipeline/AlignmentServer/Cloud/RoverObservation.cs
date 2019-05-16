@@ -3,10 +3,9 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-
 using Amazon.DynamoDBv2.DataModel;
 using Amazon.DynamoDBv2.DocumentModel;
-
+using Newtonsoft.Json;
 using OPS.Cloud;
 
 namespace OPS.Pipeline.AlignmentServer
@@ -31,6 +30,21 @@ namespace OPS.Pipeline.AlignmentServer
 
         public string Producer;
 
+        [DynamoDBIgnore]
+        [JsonIgnore]
+        public SiteDrive SiteDrive { get { return new SiteDrive(Site, Drive); } }
+
+        [DynamoDBIgnore]
+        [JsonIgnore]
+        public bool IsMastcam
+        {
+            get
+            {
+                return Sensor == RoverProductCamera.MastcamLeft.ToString() ||
+                    Sensor == RoverProductCamera.MastcamRight.ToString();
+            }
+        }
+      
         protected void IsValidRoverOservation()
         {
             base.IsValid();
@@ -50,8 +64,8 @@ namespace OPS.Pipeline.AlignmentServer
         //This constructor must be public for DynamoDb but should not be used
         public RoverObservation() { }
 
-        protected RoverObservation(Frame frame, string name, string url, string observationType, string cameraModel, bool useForReconstruction, int site, int drive, string version, string sensor, string imageFrameSize, string producer, int width, int height) :
-            base(frame, name, url, observationType, cameraModel, useForReconstruction, width, height)
+        protected RoverObservation(Frame frame, string name, string url, string observationType, string cameraModel, bool useForReconstruction, int site, int drive, string version, string sensor, string imageFrameSize, string producer, int width, int height, int sol) :
+            base(frame, name, url, observationType, cameraModel, useForReconstruction, width, height, sol)
         {
             this.Site = site;
             this.Drive = drive;
@@ -73,7 +87,7 @@ namespace OPS.Pipeline.AlignmentServer
         /// <param name="cameraModel"></param>
         /// <param name="useForReconstruction"></param>
         /// <returns></returns>
-        public static Observation Create(PipelineCore pipeline, Frame frame, string name, string url, string observationType, string cameraModel, bool useForReconstruction)
+        public static new Observation Create(PipelineCore pipeline, Frame frame, string name, string url, string observationType, string cameraModel, bool useForReconstruction, int width, int height, int sol)
         {
             throw new NotImplementedException("Call the other version of RoverObservation.Create with rover specific arguments");
         }
@@ -90,13 +104,13 @@ namespace OPS.Pipeline.AlignmentServer
         /// <param name="observationType"></param>
         /// <param name="cameraModel"></param>
         /// <returns></returns>
-        public static RoverObservation Create(PipelineCore pipeline, Frame frame, string name, string url, string observationType, string cameraModel, bool useForReconstruction, int site, int drive, string version, string sensor, string imageFrameSize, string producer, int width, int height)
+        public static RoverObservation Create(PipelineCore pipeline, Frame frame, string name, string url, string observationType, string cameraModel, bool useForReconstruction, int site, int drive, string version, string sensor, string imageFrameSize, string producer, int width, int height, int sol)
         {
             if (Find(pipeline, frame.ProjectName, name) != null)
             {
                 return null; //An observation with this name and project already exists 
             }
-            RoverObservation ro = new RoverObservation(frame, name, url, observationType, cameraModel, useForReconstruction, site, drive, version, sensor, imageFrameSize, producer, width, height);
+            RoverObservation ro = new RoverObservation(frame, name, url, observationType, cameraModel, useForReconstruction, site, drive, version, sensor, imageFrameSize, producer, width, height, sol);
             pipeline.SaveDatabaseItem(ro);
             return ro;
         }

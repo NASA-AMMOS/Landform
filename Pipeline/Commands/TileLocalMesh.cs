@@ -98,7 +98,8 @@ namespace OPS
             logger.Info("Process leaf nodes");
             ProcessLeafNodes(multiClipper, root);
             logger.Info("Generate parents");
-            BuildParents(root);
+            BuildParents(root, options.TargetFacesPerTile, options.MaxResolutionPerTile, SkirtsEnabled, options.SkirtAxis,
+                          options.OutputDirectory, options.MeshExtension, options.ImageExtension);
             logger.Info("Generate tileset");
             Tile3DBuilder builder = new Tile3DBuilder(root);
             builder.BuildTileset(NodeToUrl, false);
@@ -170,7 +171,9 @@ namespace OPS
             });
         }
 
-        void BuildParents(SceneNode root)
+        static public void BuildParents(SceneNode root,  int targetFacesPerTile, int maxResolutionPerTile,
+            bool skirtsEnabled, SkirtMode skirtAxis,
+            string outputDirectory, string meshExtension, string imageExtension)
         {
             var totalLeafCount = root.Leaves().Count();
             var totalParentCount = root.DepthFirstTraverse().Count() - totalLeafCount;
@@ -186,17 +189,17 @@ namespace OPS
                     }
                     logger.InfoFormat("Parent: {0} ({1}/{2})", node.Name, index + groupCountOffset, totalParentCount);
                     node.BuildGeometryFromChildren(root, MeshReconMethod.Poisson,
-                                                   options.TargetFacesPerTile, options.MaxResolutionPerTile,
-                                                   options.SkirtAxis);
-                    if (SkirtsEnabled)
+                                                   targetFacesPerTile, maxResolutionPerTile,
+                                                   skirtAxis);
+                    if (skirtsEnabled)
                     {
                         var m = node.GetComponent<MeshImagePair>().Mesh;
-                        m.AddSkirt(options.SkirtAxis);
+                        m.AddSkirt(skirtAxis);
                         var nb = node.GetComponent<NodeBounds>();
                         nb.Bounds = BoundingBoxExtensions.Union(nb.Bounds, m.Bounds());
                     }
-                    node.SaveMesh(options.OutputDirectory,
-                                  meshExtension: options.MeshExtension, imageExtension: options.ImageExtension);
+                    node.SaveMesh(outputDirectory,
+                                  meshExtension: meshExtension, imageExtension: imageExtension);
                     logger.Info(node.GetComponent<MeshImagePair>().Mesh.Faces.Count);
                 });
                 groupCountOffset += group.Count();

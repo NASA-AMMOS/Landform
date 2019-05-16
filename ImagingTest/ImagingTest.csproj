@@ -90,6 +90,7 @@
     </Otherwise>
   </Choose>
   <ItemGroup>
+    <Compile Include="BrewerColorsTests.cs" />
     <Compile Include="CameraModels\CAHVORETest.cs" />
     <Compile Include="CameraModels\CAHVORTest.cs" />
     <Compile Include="CameraModels\CAHVTest.cs" />

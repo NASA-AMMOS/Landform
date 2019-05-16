@@ -22,6 +22,10 @@ namespace OPS.Pipeline
         [ConfigEnvironmentVariable("LANDFORM_MAX_CORES")]
         public int MaxCores;
 
+        //negative to use a time-dependent random seed
+        [ConfigEnvironmentVariable("LANDFORM_RANDOM_SEED")]
+        public int RandomSeed;
+
         protected override string ConfigFilename()
         {
             return "landform-local";

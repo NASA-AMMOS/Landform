@@ -117,37 +117,14 @@ namespace OPS.Pipeline.TileServer
                 // Buid a tree using input datasets
                 var inputs = TilingInput.Find(pipeline, project).ToList();
                 pipeline.LogInfo(inputs.Count + " inputs");
-                var multiClipper = new MultiMeshClipper();
+
+                List<OPS.Pipeline.MeshImagePair> pairs = new List<MeshImagePair>();
                 foreach (var input in inputs)
                 {
-                    var pair = DownloadInput(input);
-                    pipeline.LogInfo("building acceleration structures");
-                    multiClipper.AddInput(new MultiMeshClipperInput(pair.Mesh, pair.Image));
+                    pairs.Add(DownloadInput(input));
                 }
-                var tilingScheme = project.GetTilingScheme();
-                ITilingScheme scheme;
-                if (tilingScheme == TilingScheme.Bin)
-                {
-                    scheme = new BinaryTreeTilingScheme();
-                }
-                else if (tilingScheme == TilingScheme.QuadX ||
-                         tilingScheme == TilingScheme.QuadY ||
-                         tilingScheme == TilingScheme.QuadZ)
-                {
-                    scheme = new QuadTreeTilingScheme(tilingScheme);
-                }
-                else if (project.GetTilingScheme() == TilingScheme.Oct)
-                {
-                    scheme = new OctreeTilingScheme();
-                }
-                else
-                {
-                    throw new Exception("unknown tiling scheme");
-                }
-                ITileSplitCriteria splitCriteria = new FaceSplitCriteria(project.FacesPerTile);
 
-                pipeline.LogInfo("computing tile tree");
-                root = TileLocalMesh.BuildBoundsTree(multiClipper, scheme, splitCriteria);
+                root = BuildTileTreeFromInputs(pipeline, project.GetTilingScheme(), project.FacesPerTile, pairs);
             }
 
             var dependencies = new TileDependencyMapping();
@@ -192,6 +169,42 @@ namespace OPS.Pipeline.TileServer
             project.Save(pipeline);
             pipeline.MasterQueue.Enqueue(message);
             pipeline.LogInfo("complete");
+        }
+
+        static public SceneNode BuildTileTreeFromInputs(PipelineCore pipeline, TileServer.TilingScheme tilingScheme, int facesPerTile, List<MeshImagePair> pairs)
+        {
+            SceneNode root;
+            pipeline.LogInfo("building acceleration structures");
+            var multiClipper = new MultiMeshClipper();
+            foreach (var pair in pairs)
+            {
+                multiClipper.AddInput(new MultiMeshClipperInput(pair.Mesh, pair.Image));
+            }
+
+            ITilingScheme scheme;
+            if (tilingScheme == TilingScheme.Bin)
+            {
+                scheme = new BinaryTreeTilingScheme();
+            }
+            else if (tilingScheme == TilingScheme.QuadX ||
+                     tilingScheme == TilingScheme.QuadY ||
+                     tilingScheme == TilingScheme.QuadZ)
+            {
+                scheme = new QuadTreeTilingScheme(tilingScheme);
+            }
+            else if (tilingScheme == TilingScheme.Oct)
+            {
+                scheme = new OctreeTilingScheme();
+            }
+            else
+            {
+                throw new Exception("unknown tiling scheme");
+            }
+            ITileSplitCriteria splitCriteria = new FaceSplitCriteria(facesPerTile);
+
+            pipeline.LogInfo("computing tile tree");
+            root = TileLocalMesh.BuildBoundsTree(multiClipper, scheme, splitCriteria);
+            return root;
         }
 
         private MeshImagePair DownloadInput(TilingInput input)

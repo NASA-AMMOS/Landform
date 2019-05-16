@@ -21,6 +21,8 @@ namespace OPS.Pipeline
         public const int WORKER_QUEUE_TIMEOUT_SEC = 60;
         public const int MASTER_QUEUE_TIMEOUT_SEC = 30 * 60;
 
+        public override bool LegacyCompat { get { return (Config as CloudPipelineConfig).LegacyCompat; } }
+
         private readonly string awsProfile;
         private readonly IAmazonDynamoDB dynamoClient;
         private readonly DynamoDBContext dynamoContext;
@@ -42,6 +44,11 @@ namespace OPS.Pipeline
         {
             var cloudConfig = (CloudPipelineConfig)Config;
 
+            if (cloudConfig.RandomSeed >= 0)
+            {
+                NumberHelper.RandomSeed = cloudConfig.RandomSeed;
+            }
+
             awsProfile = cloudConfig.AWSProfile;
             if (awsProfile == "" || awsProfile == "null")
             {
@@ -62,11 +69,16 @@ namespace OPS.Pipeline
                 {
                     pfx += "-";
                 }
-                pfx = Venue + "-" + pfx;
+
+                //legacy: landform-lkg-vona-quarthProjects
+                //new: landform-lkg-vona-quarth-Projects
+                pfx = Venue + (LegacyCompat ? "" : "-") + pfx;
+
                 if (!pfx.ToLower().StartsWith("landform-"))
                 {
                     pfx = "landform-" + pfx;
                 }
+
                 return pfx;
             };
 
@@ -88,6 +100,10 @@ namespace OPS.Pipeline
 
             if (initQueues)
             {
+                if (LegacyCompat)
+                {
+                    throw new NotImplementedException("legacy compat SQS messaging not implemented");
+                }
                 this.queuePrefix = makePrefix(queuePrefix);
                 InitializeQueues(quiet || quietInit);
             }
@@ -248,6 +264,10 @@ namespace OPS.Pipeline
         public override void SaveDatabaseItem<T>(T obj, bool ignoreNulls = true, bool ignoreErrors = false,
                                                  bool quiet = false)
         {
+            if (LegacyCompat)
+            {
+                throw new NotImplementedException("cannot save to cloud database with legacy compatibility enabled");
+            }
             DBUtil.SaveItem(dynamoContext, obj, ignoreNulls, ignoreErrors, quiet ? null : Logger);
         }
 
@@ -273,8 +293,9 @@ namespace OPS.Pipeline
             return ScanOperator.Equal;
         }
 
-        public override IEnumerable<T> ScanDatabase<T>(Dictionary<string, string> conditions = null,
-                                                       string indexName = null, bool quiet = false)
+        public override IEnumerable<T> ScanDatabase<T>(Dictionary<string, string> conditions,
+                                                       string indexName = null, bool quiet = false,
+                                                       string tableName = null)
         {
             if (conditions != null)
             {
@@ -299,12 +320,12 @@ namespace OPS.Pipeline
                         var op = ParseScanValue(ref val);
                         scs.Add(new ScanCondition(cond.Key, op, val));
                     }
-                    return DBUtil.Scan<T>(dynamoContext, scs.ToArray());
+                    return DBUtil.Scan<T>(dynamoContext, scs.ToArray(), tableName: tableName);
                 }
             }
             else
             {
-                return DBUtil.Scan<T>(dynamoContext);
+                return DBUtil.Scan<T>(dynamoContext, tableName: tableName);
             }
         }
 

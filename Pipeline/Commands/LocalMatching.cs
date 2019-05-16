@@ -27,8 +27,35 @@ namespace OPS.Pipeline
         [Option(HelpText = "Recreate matches that already exist", Default = false)]
         public bool RedoMatches { get; set; }
 
-        [Option(HelpText = "Only keep image correspondences with at least this many matches", Default = 20)]
+        [Option(HelpText = "Feature matching algorithm (EmguSIFT, KnownGeometry, BruteForce, CascadeHashing)", Default = ImageMatching.DEF_MATCHER_TYPE)]
+        public ImageMatching.MatcherType MatcherType { get; set; }
+
+        [Option(HelpText = "Only keep image correspondences with at least this many matches", Default = ImageMatching.DEF_MIN_MATCHES)]
         public int MinMatchesPerPair { get; set; }
+
+        [Option(HelpText = "Max descriptor distance ratio", Default = ImageMatching.DEF_MAX_DESCRIPTOR_DISTANCE_RATIO)]
+        public double MaxDescriptorDistanceRatio { get; set; }
+
+        [Option(HelpText = "Max descriptor distance", Default = ImageMatching.DEF_MAX_DESCRIPTOR_DISTANCE)]
+        public double MaxDescriptorDistance { get; set; }
+
+        [Option(HelpText = "Disable known geometry filter", Default = !ImageMatching.DEF_USE_KNOWN_GEOMETRY_FILTER)]
+        public bool NoKnownGeometryFilter { get; set; }
+
+        [Option(HelpText = "Disable known geometry filter for cross-sitedrive matches", Default = false)]
+        public bool DisableKnownGeometryFilterForCrossSiteDrive { get; set; }
+
+        [Option(HelpText = "Known geometry filter Mahalanobis threshold", Default = KnownGeometryFilter.DEF_MAHALANOBIS_THRESHOLD)]
+        public double KGFMahalanobisThreshold { get; set; }
+
+        [Option(HelpText = "Known geometry filter major axis threshold", Default = KnownGeometryFilter.DEF_MAJOR_AXIS_THRESHOLD)]
+        public double KGFMajorAxisThreshold { get; set; }
+
+        [Option(HelpText = "Disable Moisan Stival filter", Default = !ImageMatching.DEF_USE_MOISAN_STIVAL_FILTER)]
+        public bool NoMoisanStivalFilter { get; set; }
+
+        [Option(HelpText = "Enable GTM filter", Default = ImageMatching.DEF_USE_GTM_FILTER)]
+        public bool UseGTMFilter { get; set; }
 
         [Option(HelpText = "Find feature matches for images within the same site drive", Default = false)]
         public bool MatchWithinSiteDrives { get; set; }
@@ -36,7 +63,7 @@ namespace OPS.Pipeline
         [Option(HelpText = "Write match images for debugging", Default = false)]
         public bool WriteMatchImages { get; set; }
 
-        [Option(HelpText = "Write match meshes (in root frame using transform priors) for debugging", Default = true)]
+        [Option(HelpText = "Write match meshes (in root frame using transform priors) for debugging", Default = false)]
         public bool WriteMatchMeshes { get; set; }
 
         [Option(HelpText = "Output directory for debug products, or omit to save to project storage", Default = null)]
@@ -48,14 +75,17 @@ namespace OPS.Pipeline
         [Option(HelpText = "Debug mesh format, e.g. ply, obj, help for list", Default = "ply")]
         public string MeshFormat { get; set; }
 
-        [Option(HelpText = "Histogram bucket size", Default = 10)]
-        public int HistogramBucketSize { get; set; }
-
-        [Option(HelpText = "Include existing products in histogram", Default = false)]
+        [Option(HelpText = "Include existing products in histograms", Default = false)]
         public bool TallyExisting { get; set; }
 
         [Option(HelpText = "Hide progress", Default = false)]
         public bool NoProgress { get; set; }
+
+        [Option(HelpText = "Disable saving results to database", Default = false)]
+        public bool NoSave { get; set; }
+
+        [Option(HelpText = "Comma separated list of observation pairs (\"Name1-Name2\", order agnostic) to process, omit for all", Default = null)]
+        public string OnlyForOverlaps { get; set; }
 
         [Option(HelpText = "Operate on cloud data", Default = false)]
         public bool Cloud { get; set; }
@@ -68,6 +98,9 @@ namespace OPS.Pipeline
         private string dbgDir;
         private string imageExt;
         private string meshExt;
+
+        private Histogram matchesPerImage = new Histogram(5, "image pairs", "matches after filtering");
+        private Histogram matchesPerDistance = new Histogram(50, "feature matches", "distance after filtering");
 
         public LocalMatching(LocalMatchingOptions options)
         {
@@ -113,14 +146,27 @@ namespace OPS.Pipeline
                 pipeline.LogInfo("writing {0} match meshes to {1}", meshExt, dbgDir);
             }
 
+            var allowed = (options.OnlyForOverlaps ?? "")
+                .Split(',')
+                .Where(s => !string.IsNullOrEmpty(s))
+                .Select(s => s.Split('-'))
+                .ToArray();
+
+            Func<Observation, bool> obsFilter =
+                obs => allowed.Length == 0 || allowed.Any(pair => obs.Name == pair[0] || obs.Name == pair[1]);
+
+            //note: (n1, n2) vs (n2, n1) is handled inside BuildSceneGraph
+            Func<string, string, bool> overlapFilter =
+                (n1, n2) => allowed.Length == 0 || allowed.Any(pair => n1 == pair[0] && n2 == pair[1]);
+
             var scene = ImageMatching.BuildSceneAndDetectOverlaps(pipeline, project, loadFeatures: true,
                                                                   redoOverlaps: options.RedoOverlaps,
-                                                                  onlyCrossSite: !options.MatchWithinSiteDrives);
+                                                                  onlyCrossSite: !options.MatchWithinSiteDrives,
+                                                                  obsFilter: obsFilter, overlapFilter: overlapFilter);
             int no = scene.Overlaps.Count;
 
             pipeline.LogInfo("finding feature matches for {0} image pairs", no);
 
-            var histogram = new ConcurrentDictionary<int, int>();
             var rejectionTallies = new ConcurrentDictionary<string, int>();
             double startSec = UTCTime.Now();
             int nc = 0, np = 0, ne = 0, nr = 0, ns = 0;
@@ -158,7 +204,7 @@ namespace OPS.Pipeline
                             }
                             if (options.TallyExisting)
                             {
-                                AddToHistogram(product, histogram);
+                                Tally(product);
                             }
                         }
                         return;
@@ -166,28 +212,59 @@ namespace OPS.Pipeline
                 }
 
                 Interlocked.Increment(ref np);
+
                 if (!options.NoProgress)
 
                 {
                     pipeline.LogInfo("processing {0} image pairs in parallel, completed {1}/{2}", np, nc, no);
                 }
+
+                var opts = new ImageMatching.Options()
+                {
+                    MatcherType = options.MatcherType,
+                    MinMatches = options.MinMatchesPerPair,
+                    MaxDescriptorDistanceRatio = options.MaxDescriptorDistanceRatio,
+                    MaxDescriptorDistance = options.MaxDescriptorDistance,
+                    UseKnownGeometryFilter = !options.NoKnownGeometryFilter,
+                    UseMoisanStivalFilter = !options.NoMoisanStivalFilter,
+                    UseGTMFilter = options.UseGTMFilter,
+                    KGFMahalanobisThreshold = options.KGFMahalanobisThreshold,
+                    KGFMajorAxisThreshold = options.KGFMajorAxisThreshold
+                };
+                if (options.DisableKnownGeometryFilterForCrossSiteDrive &&
+                    modelObs is RoverObservation && dataObs is RoverObservation)
+                {
+                    var ro1 = modelObs as RoverObservation;
+                    var ro2 = dataObs as RoverObservation;
+                    var sd1 = new SiteDrive(ro1.Site, ro1.Drive);
+                    var sd2 = new SiteDrive(ro2.Site, ro2.Drive);
+                    if (sd1 != sd2)
+                    {
+                        opts.UseKnownGeometryFilter = false;
+                    }
+                }
+
                 string rejectionReason;
                 var result = ImageMatching.ComputeCorrespondence(pipeline, scene, modelUrl, dataUrl,
-                                                                 out rejectionReason, options.MinMatchesPerPair);
+                                                                 out rejectionReason, opts);
+
                 var guid = Guid.Empty;
                 if (result != null)
                 {
                     Interlocked.Increment(ref nr);
-                    pipeline.SaveDataProduct(project.ProductPath, result, project.Name);
-                    guid = result.Guid;
-                    AddToHistogram(result, histogram);
+                    if (!options.NoSave)
+                    {
+                        pipeline.SaveDataProduct(project.ProductPath, result, project.Name);
+                        guid = result.Guid;
+                    }
+                    Tally(result);
                 }
                 else
                 {
                     rejectionTallies.AddOrUpdate(rejectionReason, _ => 1, (_, count) => count + 1);
                 }
 
-                if (ImageMatching.SaveOverlap(pipeline, project.Name, guid, modelObs.Name, dataObs.Name))
+                if (!options.NoSave && ImageMatching.SaveOverlap(pipeline, project.Name, guid, modelObs.Name, dataObs.Name))
                 {
                     Interlocked.Increment(ref ns);
                 }
@@ -206,11 +283,9 @@ namespace OPS.Pipeline
                 Interlocked.Increment(ref nc);
             });
 
-            foreach (var bucket in histogram.Keys.OrderBy(n => n))
-            {
-                pipeline.LogInfo("{0} correspondences with {1} to {2} matches", histogram[bucket],
-                                 bucket * options.HistogramBucketSize, (bucket + 1) * options.HistogramBucketSize - 1);
-            }
+            matchesPerImage.Dump(pipeline);
+            matchesPerDistance.Dump(pipeline);
+
             foreach (var reason in rejectionTallies.Keys.OrderBy(r => r))
             {
                 pipeline.LogInfo("rejected {0} image pairs because {1}", rejectionTallies[reason], reason);
@@ -222,10 +297,13 @@ namespace OPS.Pipeline
             return 0;
         }
 
-        private void AddToHistogram(ComputedCorrespondence product, ConcurrentDictionary<int, int> histogram)
+        private void Tally(ComputedCorrespondence product)
         {
-            int bucket = product.Correspondence.Count / options.HistogramBucketSize;
-            histogram.AddOrUpdate(bucket, _ => 1, (_, count) => count + 1);
+            matchesPerImage.Add(product.Correspondence.Count);
+            foreach (var dist in product.Correspondence.DescriptorDistance)
+            {
+                matchesPerDistance.Add(dist);
+            }
         }
 
         private void WriteMatchImage(ComputedCorrespondence product, AlignmentScene scene,
@@ -240,7 +318,7 @@ namespace OPS.Pipeline
             var dataFile = StringHelper.GetLastUrlPathSegment(dataObs.Url);
             var ret = ImageMatching.DrawMatches(modelImg, dataImg, modelFeat, dataFeat, d2m, modelFile, dataFile);
             PathHelper.EnsureExists(dbgDir);
-            ret.Save<byte>(string.Format("{0}{1}-{2}-Matches{3}", dbgDir, modelObs.Name, dataObs.Name, imageExt));
+            ret.Save<byte>(string.Format("{0}{1}_{2}_Matches{3}", dbgDir, modelObs.Name, dataObs.Name, imageExt));
         }
 
         private void WriteMatchMesh(ComputedCorrespondence product, AlignmentScene scene,
@@ -256,8 +334,12 @@ namespace OPS.Pipeline
             var modelToRoot = modelNode.GetComponent<NodeUncertainTransform>().To(scene.Root).Mean;
             var dataToRoot = dataNode.GetComponent<NodeUncertainTransform>().To(scene.Root).Mean;
             var ret = ImageMatching.MakeMatchMesh(modelCam, dataCam, modelFeat, dataFeat, modelToRoot, dataToRoot, d2m);
-            PathHelper.EnsureExists(dbgDir);
-            ret.Save(string.Format("{0}{1}-{2}-PriorMatches{3}", dbgDir, modelObs.Name, dataObs.Name, meshExt));
+            if (ret.HasFaces)
+            {
+                var dir = dbgDir + "meshes/";
+                PathHelper.EnsureExists(dir);
+                ret.Save(string.Format("{0}{1}_{2}_PriorMatches{3}", dir, modelObs.Name, dataObs.Name, meshExt));
+            }
         }
     }
 }

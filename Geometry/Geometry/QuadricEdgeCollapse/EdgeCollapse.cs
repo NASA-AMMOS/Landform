@@ -49,6 +49,7 @@ namespace OPS.Geometry
         /// avoidSmallTris when true will prevent collapses that scale the smallest angle in a triangle past angle threshold. I.e. if angleThreshold is set to 0.5, then any collapse that halves the smallest angle of a triangle would be skipped. Similar to flips, a high threshold can prevent large numbers of collapses and produce bad (but interesting) meshes.
         ///     Note that this check involves angle computation (slow). Combined with checking flips, observed runtime was up to 2x compared to without in 1 million polygon meshes.
         /// notTouched takes a list of vertices that will not be allowed to move in the resulting mesh. This is useful for pinning corners of tiles, or areas of needed detail in meshes.
+        /// accuracy_threshold (when not -1) will stop the decimation when this approximate error threshold between the decimated and original mesh is (conservatively) reached 
         /// </summary>
         /// <param name="mesh"></param>
         /// <param name="targetNumFaces"></param>
@@ -61,7 +62,7 @@ namespace OPS.Geometry
         /// <param name="angleThreshold"></param>
         /// <param name="notTouched"></param>
         /// <returns></returns>
-        public static Mesh QuadricEdgeCollapse(Mesh mesh, int targetNumFaces, double perimeterPenaltyFactor = 1, bool preserveTopology = true, bool weightByArea = false, bool avoidFlips = false, double flipThreshold = -1.0, bool avoidSmallTris = false, double angleThreshold = 0.25, List<Vertex> notTouched = null)
+        public static Mesh QuadricEdgeCollapse(Mesh mesh, int targetNumFaces, double perimeterPenaltyFactor = 1, bool preserveTopology = true, bool weightByArea = false, bool avoidFlips = false, double flipThreshold = -1.0, bool avoidSmallTris = false, double angleThreshold = 0.25, List<Vertex> notTouched = null, double accuracyThreshold = -1)
         {
             mesh.HasUVs = false;
             mesh.HasColors = false;
@@ -75,7 +76,7 @@ namespace OPS.Geometry
             if (notTouched != null)
             {
                 OnlyPositions(notTouched);
-                foreach (VertexNode v in edgeGraph.vertNodes)
+                foreach (VertexNode v in edgeGraph.VertNodes)
                 {
                     if (notTouched.Contains(v.Vert))
                     {
@@ -89,13 +90,13 @@ namespace OPS.Geometry
             List<Face>[] adjacentFaces = GetVertexFaceAdjacency(mesh);
             for (int i = 0; i < mesh.Vertices.Count; i++)
             {
-                edgeGraph.vertNodes[i].Q = GetQMatrix(i, mesh, edgeGraph.vertNodes, adjacentFaces, perimeterPenaltyFactor, weightByArea);
-                edgeGraph.vertNodes[i].AdjFaceCount = adjacentFaces[i].Count;
+                edgeGraph.VertNodes[i].Q = GetQMatrix(i, mesh, edgeGraph.VertNodes, adjacentFaces, perimeterPenaltyFactor, weightByArea);
+                edgeGraph.VertNodes[i].AdjFaceCount = adjacentFaces[i].Count;
             }
 
             // build min heap on QEM for each edge vertex pair
             FastPriorityQueue<EdgeCollapseQueueNode> heap = new FastPriorityQueue<EdgeCollapseQueueNode>(6*mesh.Faces.Count);
-            foreach (VertexNode v in edgeGraph.vertNodes)
+            foreach (VertexNode v in edgeGraph.VertNodes)
             {
                 foreach (Edge e in v.AdjacentEdges)
                 {
@@ -109,13 +110,13 @@ namespace OPS.Geometry
 
             // process edge collapses until target number of faces are left
             int numFaces = mesh.Faces.Count;
-            int nVerts = edgeGraph.vertNodes.Count;
+            int nVerts = edgeGraph.VertNodes.Count;
 
             while (numFaces > targetNumFaces && heap.Count > 0)
             {
                 if (_DEBUG)
                 {
-                    foreach (VertexNode v in edgeGraph.vertNodes)
+                    foreach (VertexNode v in edgeGraph.VertNodes)
                     {
                         if (v.IsActive)
                         {
@@ -164,6 +165,18 @@ namespace OPS.Geometry
                     vNew.IsOnPerimeter = true;
                 }
                 vNew.AdjacentEdges = new List<Edge>();
+
+                //Break if vertex drift exceeds optional user-defined threshold parameter
+                //Should guarantee break before actual mesh to mesh error reached
+                //Need to test how close on more variety of mesh geometries; initial test showed ~2 factor for small decimations, unsure how this will hold up in general
+                if (accuracyThreshold != -1)
+                {
+                    vNew.cost = Math.Max(v1.cost + Vector3.Distance(v1.Vert.Position, vNew.Vert.Position), v2.cost + Vector3.Distance(v2.Vert.Position, vNew.Vert.Position));
+                    if (vNew.cost > accuracyThreshold)
+                    {
+                        break;
+                    }
+                }
 
                 //Get edges between v1 and v2
                 List<Edge> e12s = v1.AdjacentEdges.FindAll(e => e.Dst == v2);
@@ -296,7 +309,7 @@ namespace OPS.Geometry
 
                 if (_DEBUG)
                 {
-                    foreach (VertexNode v in edgeGraph.vertNodes)
+                    foreach (VertexNode v in edgeGraph.VertNodes)
                     {
                         if (v.IsActive)
                         {
@@ -312,7 +325,7 @@ namespace OPS.Geometry
                 }
 
                 //Add new vertex
-                edgeGraph.vertNodes.Add(vNew);
+                edgeGraph.VertNodes.Add(vNew);
 
                 //Remove old vertices
                 v1.IsActive = false;
@@ -329,7 +342,7 @@ namespace OPS.Geometry
 
             //Create a new mesh from list of edges
             var triangleList = new List<Triangle>();
-            foreach (VertexNode v in edgeGraph.vertNodes)
+            foreach (VertexNode v in edgeGraph.VertNodes)
             {
                 if (v.IsActive)
                 {

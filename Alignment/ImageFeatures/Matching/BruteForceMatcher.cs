@@ -9,187 +9,95 @@ using OPS.Util;
 
 namespace OPS.Alignment
 {
-
     /// <summary>
     /// Given two images and a list of features in each and 
     /// returns a set of matches between them using nearest descriptor distance (L2Norm)
     /// </summary>
     public class BruteForceMatcher : IFeatureMatcher
     {
-        const int K = 2;
-
-        public BruteForceMatcher() { }
+        //maximum ratio between distance of nearest data feature descriptor to model feature descriptor
+        //vs 2nd nearest data feature descriptor to the same model feature descriptor
+        //set to 1 to disable filtering by this ratio
+        public double MaxDistanceRatio = 0.9;
 
         public ImagePairCorrespondence Match(AlignmentScene scene, string modelUrl, string dataUrl)
         {
             var modelFeatures = scene.DetectedFeatures[modelUrl]; 
             var dataFeatures = scene.DetectedFeatures[dataUrl];
-            return Match(modelFeatures, dataFeatures, modelUrl, dataUrl);
+            return new ImagePairCorrespondence(modelUrl, dataUrl, Match(modelFeatures, dataFeatures));
         }
 
-        public ImagePairCorrespondence Match(ImageFeature[] modelFeatures, ImageFeature[] dataFeatures,
-                                             string modelUrl, string dataUrl)
-        {
-            var dataToModel = Match(modelFeatures, dataFeatures).ToArray();
-            return new ImagePairCorrespondence(modelUrl, dataUrl, dataToModel);
-        }
-            
-        public IEnumerable<KeyValuePair<int, int>> Match(ImageFeature[] modelFeatures, ImageFeature[] dataFeatures)
+        public IEnumerable<FeatureMatch> Match(ImageFeature[] modelFeatures, ImageFeature[] dataFeatures)
         {
             if (modelFeatures.Length < 1 || dataFeatures.Length < 1) yield break;
-
-            SIFTFeature[] feat0 = modelFeatures.Cast<SIFTFeature>().ToArray();
-            SIFTFeature[] feat1 = dataFeatures.Cast<SIFTFeature>().ToArray();
-
-            knnNode[][] Matches = dataFeatures.Select((x, j) => new knnNode[2]).ToArray();
-
-            // Match descriptors
-            KnnMatch(feat0, feat1, Matches);
-            
-            Matrix<float> mask = Matrix<float>.Build.Dense(Matches.Length, 1);
-
-            // OpenCV standard correspondence checks
-            for (int idx = 0; idx < Matches.Length; idx++)
+            double maxDistanceRatio = modelFeatures[0].Descriptor.BestDistanceToFastDistance(MaxDistanceRatio);
+            for (int dataIndex = 0; dataIndex < dataFeatures.Length; dataIndex++)
             {
-                if (Matches[idx][0] == null)
+                var match = FindBestModelFeatureForDataFeature(modelFeatures, dataFeatures, dataIndex,
+                                                               maxDistanceRatio);
+                if (match != null)
                 {
-                    mask[idx, 0] = 0;
-                }
-                else if (Matches[idx][0].Value > Matches[idx][1].Value * 0.8)
-                {
-                    mask[idx, 0] = 0;
-                }
-                else
-                {
-                    mask[idx, 0] = 255;
-                }
-            }
-
-            for (int idx = 0; idx < Matches.Length; idx++)
-            {
-                if (mask[idx, 0] != 0)
-                {
-                    var match = Matches[idx][0];
-                    yield return new KeyValuePair<int, int>(idx, match.Index);
+                    yield return match;
                 }
             }
         }
 
-        private void KnnMatch(SIFTFeature[] modelFeatures, SIFTFeature[] dataFeatures, knnNode[][] Matches)
+        public static FeatureMatch FindBestModelFeatureForDataFeature(ImageFeature[] modelFeatures,
+                                                                      ImageFeature[] dataFeatures, int dataIndex,
+                                                                      double maxDistanceRatio,
+                                                                      Func<ImageFeature, bool> filter = null,
+                                                                      int firstModelIndex = 0,
+                                                                      int lastModelIndex = -1)
         {
-            double[][] dist = new double[modelFeatures.Length][].Select(x => new double[dataFeatures.Length]).ToArray();
-            knnNode[][] knnModel = new knnNode[modelFeatures.Length][].Select(x => new knnNode[K]).ToArray();
-            knnNode[][] knnData = new knnNode[dataFeatures.Length][].Select(x => new knnNode[K]).ToArray();
-
-            FeatureDescriptor<byte>[] modelDescr =
-                modelFeatures.Select(m => (FeatureDescriptor<byte>)m.Descriptor).ToArray();
-            FeatureDescriptor<byte>[] dataDescr =
-                dataFeatures.Select(m => (FeatureDescriptor<byte>)m.Descriptor).ToArray();
-
-            int descriptorLength = modelDescr[0].Length;
-
-            // Compute distance matrix
-            CoreLimitedParallel.For(0, modelDescr.Length, i =>
+            //find 2 closest model features for this data feature
+            double closestDist = double.PositiveInfinity;
+            double secondClosestDist = double.PositiveInfinity;
+            int closestModelIndex = -1;
+            int secondClosestModelIndex = -1;
+            var dataDesc = dataFeatures[dataIndex].Descriptor;
+            if (lastModelIndex < 0)
             {
-                for (int j = 0; j < dataDescr.Length; j++)
+                lastModelIndex = modelFeatures.Length - 1;
+            }
+            for (int modelIndex = firstModelIndex; modelIndex <= lastModelIndex; modelIndex++)
+            {
+                var modelFeature = modelFeatures[modelIndex];
+                if (filter != null && !filter(modelFeature))
                 {
-                    double err = 0;
-                    var d0 = modelDescr[i];
-                    var d1 = dataDescr[j];
-                    for (int k = 0; k < descriptorLength; k++)
-                    {
-                        double signedError = (d1[k] - d0[k]);
-                        err += signedError * signedError;
-                    }
-                    dist[i][j] = err;
+                    continue;
                 }
-            });
 
-            var taskA = Task.Run(() =>
-            {
-                CoreLimitedParallel.For(0, dist.Length, i =>
+                double dist = dataDesc.FastDistance(modelFeature.Descriptor);
+                if (dist < secondClosestDist)
                 {
-                    double minval = double.MaxValue;
-                    double minval2 = double.MaxValue;
-                    int minI = 0;
-                    int minI2 = 0;
-
-                    for (int j = 0; j < dist[0].Length; j++)
+                    if (dist < closestDist)
                     {
-                        double currentDist = dist[i][j];
-                        if (currentDist < minval2)
-                        {
-                            if (currentDist < minval)
-                            {
-                                minval2 = minval;
-                                minI2 = minI;
-                                minval = currentDist;
-                                minI = j;
-                            }
-                            else
-                            {
-                                minval2 = currentDist;
-                                minI2 = j;
-                            }
-                        }
+                        closestDist = dist;
+                        closestModelIndex = modelIndex;
                     }
-                    knnModel[i] = new knnNode[] { new knnNode(minval, minI), new knnNode(minval2, minI2) };
-                });
-            });
-
-            var taskB = Task.Run(() =>
-            {
-                CoreLimitedParallel.For(0, dist[0].Length, i =>
-                {
-                    double minval = double.MaxValue;
-                    double minval2 = double.MaxValue;
-                    int minI = 0;
-                    int minI2 = 0;
-
-                    for (int j = 0; j < dist.Length; j++)
+                    else
                     {
-                        double currentDist = dist[j][i];
-                        if (currentDist < minval2)
-                        {
-                            if (currentDist < minval)
-                            {
-                                minval2 = minval;
-                                minI2 = minI;
-                                minval = currentDist;
-                                minI = j;
-                            }
-                            else
-                            {
-                                minval2 = currentDist;
-                                minI2 = j;
-                            }
-                        }
+                        secondClosestDist = dist;
+                        secondClosestModelIndex = modelIndex;
                     }
-                    knnData[i] = new knnNode[] { new knnNode(minval, minI), new knnNode(minval2, minI2) };
-                });
-            });
-
-            taskA.Wait();
-            taskB.Wait();
-            for (int i = 0; i < knnData.Length; i++)
-            {
-                Matches[i] = new knnNode[] { knnData[i][0], knnData[i][1] };
-            }
-        }
-
-        class knnNode {
-            public int Index;
-            public double Value;
-
-            public knnNode(double value, int index)
-            {
-                Value = value;
-                Index = index;
+                }
             }
 
-            public override string ToString()
+            //keep match iff bestDist/2ndBestDist <= MaxDistanceRatio
+            if (closestModelIndex >= 0 &&
+                (secondClosestModelIndex < 0 ||
+                 dataDesc.CheckFastDistanceRatio(closestDist, secondClosestDist, maxDistanceRatio)))
             {
-                return Index + ": " + Value;
+                return new FeatureMatch()
+                {
+                    DataIndex = dataIndex,
+                    ModelIndex = closestModelIndex,
+                    DescriptorDistance = (float)dataDesc.FastDistanceToBestDistance(closestDist)
+                };
+            }
+            else
+            {
+                return null;
             }
         }
     }

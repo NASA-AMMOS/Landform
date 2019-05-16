@@ -69,6 +69,8 @@ namespace OPS.Pipeline
         public readonly string StorageUrl;
         public readonly string StorageUrlWithVenue;
 
+        public virtual bool LegacyCompat { get { return false; } }
+
         protected bool quiet, verbose, debug;
 
         private LRUCache<string, Image> imageCache; //indexed by URL
@@ -92,6 +94,10 @@ namespace OPS.Pipeline
                 typeof(FrameTransform),
                 //typeof(Observation),
                 typeof(RoverObservation), //TODO msl specific
+                typeof(BirdsEyeView),
+                typeof(BirdsEyeViewFeatures),
+                typeof(FeatureMatches),
+                typeof(SpatialMatches),
                 typeof(Overlap),
                 typeof(TilingProject),
                 typeof(TilingInput),
@@ -307,6 +313,11 @@ namespace OPS.Pipeline
             return GetDataProduct<T>(path, guid.ToString(), cacheFolder);
         }
 
+        public T GetDataProduct<T>(Project project, Guid guid) where T : DataProduct, new()
+        {
+            return GetDataProduct<T>(project.ProductPath, guid, project.Name);
+        }
+
         /// <summary>
         /// Save a data product.
         /// </summary>
@@ -348,6 +359,11 @@ namespace OPS.Pipeline
             }
         }
 
+        public void SaveDataProduct(Project project, DataProduct product)
+        {
+            SaveDataProduct(project.ProductPath, product, project.Name);
+        }
+
         //****************** Database API *****************
 
         public abstract void SaveDatabaseItem<T>(T obj, bool ignoreNulls = true, bool ignoreErrors = false,
@@ -359,8 +375,12 @@ namespace OPS.Pipeline
 
         public abstract void DeleteDatabaseItem<T>(T obj, bool ignoreErrors = false, bool quiet = false);
 
-        public abstract IEnumerable<T> ScanDatabase<T>(Dictionary<string, string> conditions = null,
-                                                       string indexName = null, bool quiet = false);
+        /// <summary>
+        /// table name is usually inferred from an annotation on type T  
+        /// </summary>
+        public abstract IEnumerable<T> ScanDatabase<T>(Dictionary<string, string> conditions,
+                                                       string indexName = null, bool quiet = false,
+                                                       string tableName = null);
 
         public IEnumerable<T> ScanDatabase<T>(params string[] conditions)
         {

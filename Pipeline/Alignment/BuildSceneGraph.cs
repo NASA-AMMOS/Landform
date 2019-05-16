@@ -19,6 +19,7 @@ namespace OPS.Pipeline
     {
         public delegate bool IncludeFrameDelegate(Frame frame);
         public delegate bool IncludeObservationDelegate(Observation observation);
+        public delegate bool IncludeOverlapDelegate(string observationName1, string observationName2);
 
         /// <summary>
         /// By default only image observations marked UseForReconstruction are loaded.  
@@ -38,6 +39,7 @@ namespace OPS.Pipeline
             public bool OnlyCrossSiteDriveOverlaps = false;
             public IncludeFrameDelegate IncludeFrame = _ => true;
             public IncludeObservationDelegate IncludeObservation = _ => true;
+            public IncludeOverlapDelegate IncludeOverlap = (n1, n2) => true;
         }
         private readonly Options options;
 
@@ -368,6 +370,11 @@ namespace OPS.Pipeline
 
                     // Skip any overlaps that involve an observation we didn't ingest
                     if (!loadedObservations.ContainsKey(n1) || !loadedObservations.ContainsKey(n2))
+                    {
+                        continue;
+                    }
+
+                    if (!options.IncludeOverlap(n1, n2) && !options.IncludeOverlap(n2, n1))
                     {
                         continue;
                     }

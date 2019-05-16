@@ -24,6 +24,13 @@ namespace OPS.Pipeline
                    LocalPipelineConfig.Instance.Venue, logger, lruCache, quietInit,
                    options.SingleThreaded ? 1 : maxCores ?? LocalPipelineConfig.Instance.MaxCores)
         {
+            var localConfig = (LocalPipelineConfig)Config;
+
+            if (localConfig.RandomSeed >= 0)
+            {
+                NumberHelper.RandomSeed = localConfig.RandomSeed;
+            }
+
             if (initTables)
             {
                 InitializeDatabase(quiet || quietInit);
@@ -64,11 +71,16 @@ namespace OPS.Pipeline
             return UrlToFile(CheckUrl(url, constrainToStorage));
         }
 
+        private static object saveLock = new object();
         public override void SaveFile(string file, string url)
         {
             string dest = UrlToFile(CheckUrl(url));
             PathHelper.EnsureExists(Path.GetDirectoryName(dest));
-            File.Copy(file, dest, overwrite: true);
+            //use TemporaryFile.GetAndMove() rather than directly copy file to dest
+            //this avoids IOException due to "the file is being used by another process"
+            //when multiple threads attempt to save the same file
+            //WRONG: File.Copy(file, dest, overwrite: true);
+            TemporaryFile.GetAndMove(dest, tmp => File.Copy(file, tmp), replaceExisting: true, moveLock: saveLock);
         }
 
         public override void DeleteFile(string url, bool ignoreErrors = true)
@@ -478,10 +490,15 @@ namespace OPS.Pipeline
             }
         }
 
-        public override IEnumerable<T> ScanDatabase<T>(Dictionary<string, string> conditions = null,
-                                                       string indexName = null, bool quiet = false)
+        public override IEnumerable<T> ScanDatabase<T>(Dictionary<string, string> conditions,
+                                                       string indexName = null, bool quiet = false,
+                                                       string tableName = null)
         {
             var ti = GetTableInfo(typeof(T));
+            if (!string.IsNullOrEmpty(tableName) && tableName != ti.Name)
+            {
+                throw new NotImplementedException("LocalPipeline.ScanDatabase() table name must match type annotation");
+            }
             Regex hashRegex = new Regex(".*");
             Regex rangeRegex = new Regex(".*");
             List<Regex> fieldRegex = new List<Regex>();

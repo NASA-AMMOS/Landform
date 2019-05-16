@@ -206,13 +206,12 @@ namespace OPS.Alignment
         /// </summary>
         /// <param name="keypoints">list of <see cref="T:OPS.Alignment.PCA_Keypoint"/> instances</param>
         /// <param name="octaves">List of Guassian scales calculated for each octave.</param>
-        void ComputeLocalDescriptors(List<PCASIFTFeature> keypoints, List<List<Image<Gray, float>>> octaves)
+        void ComputeLocalDescriptors(IEnumerable<PCASIFTFeature> features, List<List<Image<Gray, float>>> octaves)
         {
-            CoreLimitedParallel.For(0, keypoints.Count(), i =>
+            foreach (var feature in features)
             {
-                PCASIFTFeature key = keypoints[i];
-                MakeKeypointPCA(keypoints[i], octaves[key.Octave][key.Scale]);
-            });
+                MakeKeypointPCA(feature, octaves[feature.Octave][feature.IScale]);
+            }
         }
 
         /// <summary>
@@ -220,15 +219,11 @@ namespace OPS.Alignment
         /// </summary>
         /// <param name="image">Input image.</param>
         /// <param name="keypoints">List of keypoints.</param>
-        public void Project(Imaging.Image image, List<PCASIFTFeature> keypoints, int number = 0)
+        public void Project(Image<Gray, byte> image, IEnumerable<PCASIFTFeature> features)
         {
-            Image<Gray, byte> imByte = image.ToEmguGrayscale();
-            Image<Gray, float> im = imByte.Convert<Gray, float>();
-
-            im = PCAUtil.ScaleInitImage(im);
-            List<List<Image<Gray, float>>> GOctaves = PCAUtil.BuildGaussianOctaves(im);
-            PCAUtil.UpdateKeypoints(keypoints);
-            ComputeLocalDescriptors(keypoints, GOctaves);
+            var scaledImage = PCAUtil.ScaleInitImage(image.Convert<Gray, float>());
+            PCAUtil.UpdateKeypoints(features);
+            ComputeLocalDescriptors(features, PCAUtil.BuildGaussianOctaves(scaledImage));
         }
     }    
 }

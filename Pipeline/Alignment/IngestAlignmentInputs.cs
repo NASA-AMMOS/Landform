@@ -38,7 +38,7 @@ namespace OPS.Pipeline
         private IngestPDSImage ingester;
         private bool noProgress;
 
-        public IngestAlignmentInputs(PipelineCore pipeline, Project project, bool recreateObservations = false,
+        public IngestAlignmentInputs(PipelineCore pipeline, Project project, Mission mission, bool recreateObservations = false,
                                      bool resetTransforms = false, string onlyForSiteDrives = null,
                                      bool noProgress = false)
             : base(pipeline)
@@ -83,6 +83,19 @@ namespace OPS.Pipeline
                 .Select(s => new SiteDrive(s.Trim()))
                 .Cast<SiteDrive>()
                 .ToArray();
+           
+            MissionSpecific missionSpecific = null;
+            switch (mission)
+            {
+                case Mission.MSL:
+                    missionSpecific = new MissionMSL();
+                    break;
+                case Mission.M2020:
+                    missionSpecific = new MissionM2020();
+                    break;
+                default:
+                    throw new NotImplementedException("unknown mission");
+            }
 
             IngestPDSImage.Filter filter = (imageUrl, pdsMetadata, pdsParser) =>
                 siteDrives.Length == 0 ||
@@ -90,16 +103,23 @@ namespace OPS.Pipeline
 
             this.noProgress = noProgress;
 
-            ingester = new IngestPDSImage(pipeline, project, recreateObservations, resetTransforms, filter);
+            ingester = new IngestPDSImage(pipeline, project, missionSpecific, recreateObservations, resetTransforms, filter);
         }
 
-        public int Ingest(MSLLocations locations, Action<IngestImage.Result> func = null)
+        public int Ingest(MSLLocations locations, MSLPlaces places, MSLLegacyManifest manifest, Action<IngestImage.Result> func = null)
         {
             ingester.Locations = locations;
+            ingester.Places = places;
+            ingester.LegacyManifest = manifest;
+
+            //site drive -> observation type -> count
+            var stats = new ConcurrentDictionary<SiteDrive, ConcurrentDictionary<string, int>>();
+            var minSol = new ConcurrentDictionary<SiteDrive, int>();
+            var maxSol = new ConcurrentDictionary<SiteDrive, int>();
+
             string imageObs = ObservationType.Image.ToString();
             double startTime = UTCTime.Now();
             int ni = 0, na = 0, ne = 0, nf = 0, ns = 0, nr = 0, np = 0;
-            var stats = new ConcurrentDictionary<SiteDrive, ConcurrentDictionary<string, int>>();
             foreach (var entry in BaseUrls)
             {
                 pipeline.LogInfo("{0}ingesting input files from {1} for alignment project {2}",
@@ -145,7 +165,10 @@ namespace OPS.Pipeline
 
                             var sd = new SiteDrive(obs.Site, obs.Drive);
                             var sds = stats.GetOrAdd(sd, _ => new ConcurrentDictionary<string, int>());
-                            sds.AddOrUpdate(obs.ObservationType, _ => 1, (_, m) => m + 1);
+                            sds.AddOrUpdate(obs.ObservationType, _ => 1, (_, count) => count + 1);
+
+                            minSol.AddOrUpdate(sd, _ => obs.Sol, (_, sol) => Math.Min(sol, obs.Sol));
+                            maxSol.AddOrUpdate(sd, _ => obs.Sol, (_, sol) => Math.Max(sol, obs.Sol));
 
                             pipeline.LogVerbose("{0} ({1}) {2}x{3} {4} sitedrive={5} -> observation {6}",
                                                 res.ImageUrl, res.Status, obs.Width, obs.Height,
@@ -199,7 +222,7 @@ namespace OPS.Pipeline
                     }
                     totalStats[entry.Key] += entry.Value;
                 }
-                pipeline.LogInfo("sitedrive {0}: {1}", sd,
+                pipeline.LogInfo("sitedrive {0}, sol {1} to {2}: {3}", sd, minSol[sd], maxSol[sd],
                                  string.Join(", ", sds.Select(s => s.Value + " " + s.Key + " observations").ToArray()));
             }
             foreach (var entry in totalStats)

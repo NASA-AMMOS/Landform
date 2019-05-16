@@ -36,7 +36,7 @@ namespace OPS.Pipeline.AlignmentServer
         public DetectFeatures(CloudPipeline pipeline, DetectFeaturesMessage message) : base(pipeline, message)
         {
             this.message = message;
-            this.detector = new FeatureDetector(pipeline, DetectorType.ASIFT);
+            this.detector = new FeatureDetector(pipeline);
         }
 
         public void Process()

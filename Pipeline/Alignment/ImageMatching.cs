@@ -23,44 +23,70 @@ namespace OPS.Pipeline
 {
     public class ImageMatching
     {
+        public enum MatcherType
+        {
+            EmguSIFT,
+            KnownGeometry,
+            BruteForce,
+            CascadeHashing
+        }
+        public const MatcherType DEF_MATCHER_TYPE = MatcherType.CascadeHashing;
         public const int DEF_MIN_MATCHES = 20;
+        public const double DEF_MAX_DESCRIPTOR_DISTANCE_RATIO = 0.9;
+        public const double DEF_MAX_DESCRIPTOR_DISTANCE = 0;
+        public const bool DEF_USE_KNOWN_GEOMETRY_FILTER = true;
+        public const bool DEF_USE_MOISAN_STIVAL_FILTER = true;
+        public const bool DEF_USE_GTM_FILTER = false;
+
+        public class Options
+        {
+            public MatcherType MatcherType = DEF_MATCHER_TYPE;
+            public int MinMatches = DEF_MIN_MATCHES;
+            public double MaxDescriptorDistanceRatio = DEF_MAX_DESCRIPTOR_DISTANCE_RATIO;
+            public double MaxDescriptorDistance = DEF_MAX_DESCRIPTOR_DISTANCE;
+            public bool UseKnownGeometryFilter = DEF_USE_KNOWN_GEOMETRY_FILTER;
+            public bool UseMoisanStivalFilter = DEF_USE_MOISAN_STIVAL_FILTER;
+            public bool UseGTMFilter = DEF_USE_GTM_FILTER;
+            public double KGFMahalanobisThreshold = KnownGeometryFilter.DEF_MAHALANOBIS_THRESHOLD;
+            public double KGFMajorAxisThreshold = KnownGeometryFilter.DEF_MAJOR_AXIS_THRESHOLD;
+        }
 
         public static ComputedCorrespondence ComputeCorrespondence(PipelineCore pipeline, string projectName,
                                                                    string modelUrl, string dataUrl,
                                                                    string modelFrameName, string dataFrameName,
-                                                                   int minMatches = DEF_MIN_MATCHES)
+                                                                   Options options = null)
         {
             //build a minimal scene graph containing these two frames and their ancestors
-            var opts = new BuildSceneGraph.Options() {
+            var bsoOpts = new BuildSceneGraph.Options() {
                 PreloadCaches = false, //in this situation it will in general be a loss to preload caches
                 UseTransformPriors = true, //we build the scene graph bottom-up so the frame cache doesn't scan
                 LoadFeatures = true //observation cache doesn't scan
             };
-            BuildSceneGraph builder = new BuildSceneGraph(pipeline, projectName, opts);
+            BuildSceneGraph builder = new BuildSceneGraph(pipeline, projectName, bsoOpts);
             AlignmentScene scene = builder.BuildBottomUp(new[] { modelFrameName, dataFrameName });
             (new FrustumOverlapDetector(pipeline, pipeline)).MakeHulls(scene);
-            return ComputeCorrespondence(pipeline, scene, modelUrl, dataUrl, minMatches);
+            return ComputeCorrespondence(pipeline, scene, modelUrl, dataUrl, options);
         }
 
         public static ComputedCorrespondence ComputeCorrespondence(PipelineCore pipeline, AlignmentScene scene,
                                                                    string modelUrl, string dataUrl,
-                                                                   int minMatches = DEF_MIN_MATCHES)
+                                                                   Options options = null)
         {
             string rejectionReason;
-            return ComputeCorrespondence(pipeline, scene, modelUrl, dataUrl, out rejectionReason, minMatches);
+            return ComputeCorrespondence(pipeline, scene, modelUrl, dataUrl, out rejectionReason, options);
         }
+
 
         public static ComputedCorrespondence ComputeCorrespondence(PipelineCore pipeline, AlignmentScene scene,
                                                                    string modelUrl, string dataUrl,
-                                                                   out string rejectionReason,
-                                                                   int minMatches = DEF_MIN_MATCHES)
+                                                                   out string rejectionReason, Options options = null)
         {
-            rejectionReason = null;
+            if (options == null)
+            {
+                options = new Options();
+            }
 
-            Debug.Assert(scene.ObservationUrlToNode.ContainsKey(modelUrl));
-            Debug.Assert(scene.ObservationUrlToNode.ContainsKey(dataUrl));
-            Debug.Assert(scene.DetectedFeatures.ContainsKey(modelUrl));
-            Debug.Assert(scene.DetectedFeatures.ContainsKey(dataUrl));
+            rejectionReason = null;
 
             var modelNode = scene.ObservationUrlToNode[modelUrl];
             var dataNode = scene.ObservationUrlToNode[dataUrl];
@@ -84,34 +110,78 @@ namespace OPS.Pipeline
                                     (new SiteDrive(dro.Site, dro.Drive)).ToString());
             }
 
-            //IFeatureMatcher matcher = new EmguSIFTMatcher();
-            //IFeatureMatcher matcher = new KnownGeometryMatcher();
-            //IFeatureMatcher matcher = new BruteForceMatcher();
-            IFeatureMatcher matcher = new CascadeHashingMatcher();
+            IFeatureMatcher matcher = null;
+            switch (options.MatcherType)
+            {
+                case MatcherType.EmguSIFT:
+                {
+                    matcher = new EmguSIFTMatcher() { MaxDistanceRatio = options.MaxDescriptorDistanceRatio };
+                    break;
+                }
+                case MatcherType.KnownGeometry:
+                {
+                    matcher = new KnownGeometryMatcher() { MaxDistanceRatio = options.MaxDescriptorDistanceRatio };
+                    break;
+                }
+                case MatcherType.BruteForce:
+                {
+                    matcher = new BruteForceMatcher() { MaxDistanceRatio = options.MaxDescriptorDistanceRatio };
+                    break;
+                }
+                case MatcherType.CascadeHashing:
+                {
+                    matcher = new CascadeHashingMatcher() { MaxDistanceRatio = options.MaxDescriptorDistanceRatio };
+                    break;
+                }
+            }
+
+            pipeline.LogVerbose("{0} {1}: maxDescriptorDistanceRatio = {2}, minMatches = {3}" +
+                                "useKnownGeometryFilter={4}, useMoisanStivalFilter={5}, useGTMFilter={6}",
+                                pairName, matcher.GetType().Name, options.MaxDescriptorDistanceRatio,
+                                options.MinMatches, options.UseKnownGeometryFilter, options.UseMoisanStivalFilter,
+                                options.UseGTMFilter);
+
             var matches = matcher.Match(scene, modelUrl, dataUrl);
-            if (matches.Count < minMatches)
+
+            if (matches.Count < options.MinMatches)
             {
                 pipeline.LogVerbose("{0} {1}: {2} < {3} matches, discarding", pairName, matcher.GetType().Name,
-                                    matches.Count, minMatches);
+                                    matches.Count, options.MinMatches);
                 rejectionReason = string.Format("(step 0) {0} returned too few matches", matcher.GetType().Name);
                 return null;
             }
             pipeline.LogVerbose("{0} {1}: {2} matches", pairName, matcher.GetType().Name, matches.Count);
 
             List<IMatchFilter> filters = new List<IMatchFilter>();
-            filters.Add(new KnownGeometryFilter(pipeline));
-            filters.Add(new MoisanStivalFilter(pipeline));
-            //filters.Add(new GTMFilter());
-
+            if (options.MaxDescriptorDistance > 0)
+            {
+                filters.Add(new DescriptorDistanceFilter(options.MaxDescriptorDistance));
+            }
+            if (options.UseKnownGeometryFilter)
+            {
+                filters.Add(new KnownGeometryFilter(pipeline)
+                            {
+                                MahalanobisThreshold = options.KGFMahalanobisThreshold,
+                                MajorAxisThreshold = options.KGFMajorAxisThreshold
+                            });
+            }
+            if (options.UseMoisanStivalFilter)
+            {
+                filters.Add(new MoisanStivalFilter(pipeline));
+            }
+            if (options.UseGTMFilter)
+            { 
+                filters.Add(new GTMFilter());
+            }
             int step = 1;
             foreach (var filter in filters)
             {
                 int oldCount = matches.Count;
                 matches = filter.Filter(scene, matches);
-                if (matches.Count < minMatches)
+                if (matches.Count < options.MinMatches)
                 {
                     pipeline.LogVerbose("{0} {1}: {2} < {3} matches, discarding", pairName, filter.GetType().Name,
-                                        matches.Count, minMatches);
+                                        matches.Count, options.MinMatches);
                     rejectionReason = string.Format("(step {0}) {1} returned too few matches",
                                                     step, filter.GetType().Name);
                     return null;
@@ -147,7 +217,8 @@ namespace OPS.Pipeline
         public static AlignmentScene BuildSceneAndDetectOverlaps(PipelineCore pipeline, Project project,
                                                                  bool loadFeatures = true, bool redoOverlaps = false,
                                                                  bool onlyCrossSite = true,
-                                                                 Func<Observation, bool> filter = null)
+                                                                 Func<Observation, bool> obsFilter = null,
+                                                                 Func<string, string, bool> overlapFilter = null)
         {
             pipeline.LogInfo("building scene graph for {0}image matching",
                              onlyCrossSite ? "cross-site " : "");
@@ -159,12 +230,16 @@ namespace OPS.Pipeline
                                              OnlyKeepImagesWithFeatures = true,
                                              OnlyKeepBestImages = true,
                                              OnlyCrossSiteDriveOverlaps = onlyCrossSite,
-                                             IncludeObservation = obs => filter == null || filter(obs)
+                                             IncludeObservation = obs => obsFilter == null || obsFilter(obs),
+                                             IncludeOverlap = (n1, n2) => overlapFilter == null || overlapFilter(n1, n2)
                                          });
             var scene = sb.BuildTopDown(project.RootFrame);
 
             var fod = new FrustumOverlapDetector(pipeline, pipeline);
-            if (scene.Overlaps.Count == 0)
+
+            //scene should have no overlaps if redoOverlaps is set because they shouldn't have been loaded
+            //but it's more clear and doesn't hurt to also or with redoOverlaps here
+            if (redoOverlaps || scene.Overlaps.Count == 0)
             {
                 fod.Detect(scene, onlyCrossSite);
             }
@@ -177,7 +252,7 @@ namespace OPS.Pipeline
         
         public static Image DrawMatches(Image modelImg, Image dataImg, ImageFeature[] modelFeatures,
                                         ImageFeature[] dataFeatures, KeyValuePair<int, int>[] dataToModel,
-                                        string modelName = null, string dataName = null)
+                                        string modelName = null, string dataName = null, bool stretch = true)
         {
             var modelFeaturesForDataFeature = new Dictionary<int, HashSet<int>>();
             foreach (var pair in dataToModel)
@@ -209,25 +284,38 @@ namespace OPS.Pipeline
             var lineColor = new MCvScalar(0, 0, 255); //RGB
             var pointColor = new MCvScalar(255, 255, 0); //RGB
             var ret = new Image<Bgr, byte>(modelImg.Width + dataImg.Width, Math.Max(modelImg.Height, dataImg.Height));
+            var modelImgEmgu =
+                stretch ? (new Image(modelImg)).ApplyStdDevStretch().ToEmguGrayscale() : modelImg.ToEmguGrayscale();
+            var dataImgEmgu =
+                stretch ? (new Image(dataImg)).ApplyStdDevStretch().ToEmguGrayscale() : dataImg.ToEmguGrayscale();
             //opencv sometimes throws exceptions here, so roll our own replacement
             //https://github.jpl.nasa.gov/OnSight/Landform/issues/439
-            //Features2DToolbox.DrawMatches(modelImg.ToEmguGrayscale(), modelKeypoints,
-            //                              dataImg.ToEmguGrayscale(), dataKeypoints,
-            //                              matches, ret, lineColor, pointColor, null,
+            //Features2DToolbox.DrawMatches(modelImgEmgu, modelKeypoints, dataImgEmgu, dataKeypoints, matches, ret,
+            //                              lineColor, pointColor, null,
             //                              Features2DToolbox.KeypointDrawType.DrawRichKeypoints);
-            DrawMatches(modelImg.ToEmguGrayscale(), modelKeypoints,
-                        dataImg.ToEmguGrayscale(), dataKeypoints,
-                        matches, ret, lineColor, pointColor,
+            DrawMatches(modelImgEmgu, modelKeypoints, dataImgEmgu, dataKeypoints, matches, ret, lineColor, pointColor,
                         Features2DToolbox.KeypointDrawType.DrawRichKeypoints);
             if (dataName != null)
             {
                 ret.Draw("data: " + dataName, new System.Drawing.Point(5, 30),
                          FontFace.HersheySimplex, 1, new Bgr(255, 0, 255), 2);
+                if (modelImg.Metadata is PDSMetadata)
+                {
+                    int sol = (new PDSParser((PDSMetadata)modelImg.Metadata)).PlanetDayNumber;
+                    ret.Draw("sol" + sol, new System.Drawing.Point(5, 60),
+                             FontFace.HersheySimplex, 1, new Bgr(255, 0, 255), 2);
+                }
             }
             if (modelName != null)
             {
                 ret.Draw("model: " + modelName, new System.Drawing.Point(dataImg.Width + 5, 30),
                          FontFace.HersheySimplex, 1, new Bgr(255, 0, 255), 2);
+                if (modelImg.Metadata is PDSMetadata)
+                {
+                    int sol = (new PDSParser((PDSMetadata)modelImg.Metadata)).PlanetDayNumber;
+                    ret.Draw("sol" + sol, new System.Drawing.Point(dataImg.Width + 5, 60),
+                             FontFace.HersheySimplex, 1, new Bgr(255, 0, 255), 2);
+                }
             }
             return ret.ToOPSImage();
         }
@@ -276,6 +364,23 @@ namespace OPS.Pipeline
                                          Matrix modelToRoot, Matrix dataToRoot,
                                          KeyValuePair<int, int>[] dataToModel)
         {
+            var modelPts = new List<Vector3>();
+            var dataPts = new List<Vector3>();
+            foreach (var match in dataToModel)
+            {
+                var df = dataFeat[match.Key];
+                var mf = modelFeat[match.Value];
+                if (df.Range > 0 && mf.Range > 0)
+                {
+                    modelPts.Add(modelCam.Unproject(mf.Location, mf.Range));
+                    dataPts.Add(dataCam.Unproject(df.Location, df.Range));
+                }
+            }
+            return MakeMatchMesh(modelPts.ToArray(), dataPts.ToArray(), modelToRoot, dataToRoot);
+        }
+
+        public static Mesh MakeMatchMesh(Vector3[] modelPts, Vector3[] dataPts, Matrix modelToRoot, Matrix dataToRoot)
+        {
             var ret = new Mesh(hasNormals: true, hasColors: true);
             var lineColor = new Vector4(0, 0, 1, 0);
             var pointColor = new Vector4(0, 1, 0, 0);
@@ -283,21 +388,21 @@ namespace OPS.Pipeline
             double lineSize = 0.02; //meters
             var pointMesh = BoundingBoxExtensions.MakeCube(pointSize).ToMesh(pointColor);
             var lineMesh = BoundingBoxExtensions.MakeCube(lineSize).ToMesh(lineColor);
-            foreach (var match in dataToModel)
+            for (int i = 0; i < modelPts.Length; i++)
             {
-                var df = dataFeat[match.Key];
-                var mf = modelFeat[match.Value];
-                if (df.Range > 0 && mf.Range > 0)
-                {
-                    var mp = Vector3.Transform(modelCam.Unproject(mf.Location, mf.Range), modelToRoot);
-                    var dp = Vector3.Transform(dataCam.Unproject(df.Location, df.Range), dataToRoot);
-                    ret.MergeWith(Mesh.Transformed(pointMesh, Matrix.CreateTranslation(mp)));
-                    ret.MergeWith(Mesh.Transformed(pointMesh, Matrix.CreateTranslation(dp)));
-                    var lineMat = BoundingBoxExtensions.StretchCubeAlongLineSegment(mp, dp, lineSize);
-                    ret.MergeWith(Mesh.Transformed(lineMesh, lineMat));
-                }
+                var mp = Vector3.Transform(modelPts[i], modelToRoot);
+                var dp = Vector3.Transform(dataPts[i], dataToRoot);
+                ret.MergeWith(Mesh.Transformed(pointMesh, Matrix.CreateTranslation(mp)));
+                ret.MergeWith(Mesh.Transformed(pointMesh, Matrix.CreateTranslation(dp)));
+                var lineMat = BoundingBoxExtensions.StretchCubeAlongLineSegment(mp, dp, lineSize);
+                ret.MergeWith(Mesh.Transformed(lineMesh, lineMat));
             }
             return ret;
+        }
+
+        public static Mesh MakeMatchMesh(Vector3[] modelPts, Vector3[] dataPts)
+        {
+            return MakeMatchMesh(modelPts, dataPts, Matrix.Identity, Matrix.Identity);
         }
     }
 }

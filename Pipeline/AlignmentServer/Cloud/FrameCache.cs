@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using OPS.Geometry;
 
 namespace OPS.Pipeline.AlignmentServer
 {
@@ -50,6 +51,25 @@ namespace OPS.Pipeline.AlignmentServer
             }
         }
 
+
+        /// <summary>
+        /// convenience function for the common case of allowing all frames but filtering transforms based on parameters
+        /// </summary>
+        public int PreloadFilteredTransforms(TransformSource[] priorSources, TransformSource[] adjustedSources,
+                                             bool usePriors = false, bool noPriors = false)
+        {
+            Func<FrameTransform, bool> filterPrior =
+                   transform => priorSources.Length == 0 || priorSources.Any(s => s == transform.Source);
+            Func<FrameTransform, bool> filterAdjusted =
+                transform => adjustedSources.Length == 0 || adjustedSources.Any(s => s == transform.Source);
+
+            return Preload(loadTransforms: true, transformFilter: ft =>
+                           (!usePriors || ft.IsPrior()) &&          //iff --usepriors only allow priors
+                           (!noPriors || !ft.IsPrior()) &&          //iff --nopriors only allow adjusted
+                           ((ft.IsPrior() && filterPrior(ft)) ||    //iff --priorsources only allow specific priors
+                            (!ft.IsPrior() && filterAdjusted(ft))));//iff --adjustedsources only allow specific adj
+        }
+
         public int Preload(bool loadTransforms = true, Func<Frame, bool> frameFilter = null,
                            Func<FrameTransform, bool> transformFilter =  null)
         {
@@ -74,10 +94,24 @@ namespace OPS.Pipeline.AlignmentServer
                             Add(transform);
                         }
                     });
+                if (pipeline.LegacyCompat)
+                {
+                    foreach (var ft in pipeline.ScanDatabase<FrameTransform>(null, tableName: "FrameTransformPriors"))
+                    {
+                        ft.Source = TransformSource.Prior;
+                        Add(ft);
+                    }
+                    if (frames.ContainsKey("root"))
+                    {
+                        //root frame doesn't have a prior in the legacy database, but it's just identity
+                        Add(new FrameTransform(frames["root"], TransformSource.Prior, new UncertainRigidTransform()));
+                    }
+                }
                 foreach (var frame in frames.Keys)
                 {
                     if (!transforms.ContainsKey(frame))
                     {
+                        pipeline.LogWarn("frame \"{0}\" has no transforms!", frame);
                         transforms[frame] = new SortedDictionary<TransformSource, FrameTransform>();
                     }
                 }
@@ -159,14 +193,12 @@ namespace OPS.Pipeline.AlignmentServer
 
         public FrameTransform GetBestAdjustedTransform(string name)
         {
-            foreach (var transform in GetTransforms(name))
-            {
-                if (transform.Source < TransformSource.Prior)
-                {
-                    return transform;
-                }
-            }
-            return null;
+            var adjustedTransforms = GetTransforms(name).Where(t => t.Source < TransformSource.Prior);
+            if (adjustedTransforms == null || adjustedTransforms.Count() == 0)
+                return null;
+
+            //transforms are in a sorted dictionary, where lower source number is higher priority
+            return adjustedTransforms.First();
         }
 
         public FrameTransform GetBestAdjustedTransform(Frame frame)
@@ -176,19 +208,47 @@ namespace OPS.Pipeline.AlignmentServer
 
         public FrameTransform GetBestPrior(string name)
         {
-            foreach (var transform in GetTransforms(name))
-            {
-                if (transform.Source >= TransformSource.Prior)
-                {
-                    return transform;
-                }
-            }
-            return null;
+            var priorTransforms = GetTransforms(name).Where(t => t.Source >= TransformSource.Prior);
+            if (priorTransforms == null || priorTransforms.Count() == 0)
+                return null;
+
+            //transforms are in a sorted dictionary, where lower source number is higher priority
+            return priorTransforms.First(); 
         }
 
         public FrameTransform GetBestPrior(Frame frame)
         {
             return GetBestPrior(frame.Name);
+        }
+
+        public bool HasAnyTransform(Frame frame)
+        {
+            return HasAnyTransform(frame.Name);
+        }
+
+        public bool HasAnyTransform(string name)
+        {
+            return GetTransforms(name).Count() > 0;
+        }
+
+        public bool HasPriorTransform(Frame frame)
+        {
+            return HasPriorTransform(frame.Name);
+        }
+
+        public bool HasPriorTransform(string name)
+        {
+            return GetTransforms(name).Where(t => t.Source >= TransformSource.Prior).Count() > 0;
+        }
+
+        public bool HasAdjustedTransform(Frame frame)
+        {
+            return HasAdjustedTransform(frame.Name);
+        }
+
+        public bool HasAdjustedTransform(string name)
+        {
+            return GetTransforms(name).Where(t => t.Source < TransformSource.Prior).Count() > 0;
         }
     }
 }

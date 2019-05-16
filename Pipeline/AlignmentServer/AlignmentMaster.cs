@@ -32,6 +32,12 @@ namespace OPS.Pipeline.AlignmentServer
         [Option(HelpText = "Only ingest data for specific site drives, comma separated", Default = null)]
         public string OnlyForSiteDrives { get; set; }
 
+        [Option(HelpText = "Whether to make LocationsDB priors", Default = false)]
+        public bool AddLocationsDBPriors { get; set; }
+
+        [Option(HelpText = "Whether to not make PlacesDB priors (requires API key)", Default = false)]
+        public bool NoPlacesDBPriors { get; set; }
+
         [Option(HelpText = "Recreate project if it already exists", Default = false)]
         public bool RedoProject { get; set; }
 
@@ -73,6 +79,12 @@ namespace OPS.Pipeline.AlignmentServer
 
         [Option(HelpText = "Start a worker in the same process (useful for debugging)", Default = false)]
         public bool StartWorker { get; set; }
+
+        [Option(HelpText = "URL to legacy manifest, used to build priors from onsight manifest", Default = null)]
+        public string LegacyManifestURL { get; set; }
+
+        [Option(HelpText = "Mission flag enables mission specific behavior", Default = Mission.M2020)]
+        public Mission Mission { get; set; }
     }
 
     //https://github.jpl.nasa.gov/ProtoSpace/ps-pipeline/issues/159
@@ -183,9 +195,27 @@ namespace OPS.Pipeline.AlignmentServer
             //careful here - there can be more than one observation of a given type for a single frame
             //frame name -> observations
             var obsForFrame = new ConcurrentDictionary<string, ConcurrentBag<Observation>>();
-            var ingester = new IngestAlignmentInputs(this, project, options.RedoObservations, options.RedoPriors,
+            var ingester = new IngestAlignmentInputs(this, project, options.Mission, options.RedoObservations, options.RedoPriors,
                                                      options.OnlyForSiteDrives);
-            ingester.Ingest(MSLLocations.LoadFromUrl(),
+
+            MSLLocations locations = null;
+            if (options.AddLocationsDBPriors)
+            {
+                locations = MSLLocations.LoadFromUrl();
+                locations.LoadBasemapDEM(GetFileCached(MSLLocations.BASEMAP_URL,
+                                                       filename: MSLLocations.BASEMAP_FILENAME));
+            }
+
+            MSLPlaces places = options.NoPlacesDBPriors ? null : new MSLPlaces();
+            if(places != null && !places.CredentialsLoaded())
+            {
+                LogWarn("Credentials for PlacesDB priors not available, disabling PlacesDB.");
+                places = null;
+            }
+
+            MSLLegacyManifest manifest = options.LegacyManifestURL != null ? MSLLegacyManifest.Load(options.LegacyManifestURL) : null;
+
+            ingester.Ingest(locations, places, manifest,
                             res => obsForFrame
                             .GetOrAdd(res.ObservationFrame.Name, _ => new ConcurrentBag<Observation>())
                             .Add(res.Observation));

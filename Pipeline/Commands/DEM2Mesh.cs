@@ -440,7 +440,7 @@ namespace OPS.Pipeline
                         mask[0, r, c] = 1;
                     }
                 }
-                verts.AddRange(split(verts, 0, 0, options.Error, dem, mask, parser, Math.Min(dem.Width, dem.Height), options.SampleNum, options.TestNum, options.SampleRegionScale, new Random()));
+                verts.AddRange(split(verts, 0, 0, options.Error, dem, mask, parser, Math.Min(dem.Width, dem.Height), options.SampleNum, options.TestNum, options.SampleRegionScale, OPS.Util.NumberHelper.MakeRandomGenerator()));
                 mesh = DelaunayTriangulation.Triangulate(verts, vertToDelaunay);
             }
             string outputImage = null;

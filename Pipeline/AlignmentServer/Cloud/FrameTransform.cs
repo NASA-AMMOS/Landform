@@ -22,9 +22,13 @@ namespace OPS.Pipeline.AlignmentServer
         Adjusted = 0, //general adjusted transform
         Manual = 10, //manually adjusted
         Landform = 20, //Landform bundle adjusted
+        LandformBEV = 21, //Landform birds eye view aligned
+        LandformBEVRoot = 22, //Landform birds eye view root
+        LandformBEVCalf = 23, //Landform birds eye view calf
         Agisoft = 30, //Agisoft bundle adjusted
 
         Prior = 100, //general prior transform
+        LegacyManifest = 105, //legacy onsight manifest
         PlacesDB = 110, //prior from mission "places" databsae
         LocationsDB = 120, //prior from mission "locations" database
         PDS = 130 //prior from mission PDS header
@@ -79,7 +83,7 @@ namespace OPS.Pipeline.AlignmentServer
         /// <summary>
         /// Creates a new transform specifying the relationship between two frames
         /// </summary>
-        protected FrameTransform(Frame frame, TransformSource source, UncertainRigidTransform transform)
+        public FrameTransform(Frame frame, TransformSource source, UncertainRigidTransform transform)
         {
             this.ProjectName = frame.ProjectName;
             this.Name = MakeName(frame.Name, source);
@@ -131,9 +135,17 @@ namespace OPS.Pipeline.AlignmentServer
             pipeline.SaveDatabaseItem(this);
         }
 
+        public void Delete(PipelineCore pipeline, bool ignoreErrors = true)
+        {
+            pipeline.DeleteDatabaseItem(this, ignoreErrors);
+        }
+
         public static IEnumerable<FrameTransform> Find(PipelineCore pipeline, string projectName)
         {
-            return pipeline.ScanDatabase<FrameTransform>("ProjectName", projectName);
+            foreach (var ft in pipeline.ScanDatabase<FrameTransform>("ProjectName", projectName))
+            {
+                yield return Compat(pipeline, ft);
+            }
         }
 
         public static IEnumerable<FrameTransform> Find(PipelineCore pipeline, Frame frame)
@@ -154,7 +166,7 @@ namespace OPS.Pipeline.AlignmentServer
         public static FrameTransform Find(PipelineCore pipeline, string projectName, string frameName,
                                           TransformSource source)
         {
-            return pipeline.LoadDatabaseItem<FrameTransform>(MakeName(frameName, source), projectName);
+            return Compat(pipeline, pipeline.LoadDatabaseItem<FrameTransform>(MakeName(frameName, source), projectName));
         }
 
         public static FrameTransform Find(PipelineCore pipeline, Frame frame, TransformSource source)
@@ -165,6 +177,17 @@ namespace OPS.Pipeline.AlignmentServer
         public bool IsPrior()
         {
             return Source >= TransformSource.Prior;
+        }
+
+        private static FrameTransform Compat(PipelineCore pipeline, FrameTransform ft)
+        {
+            if (pipeline.LegacyCompat && string.IsNullOrEmpty(ft.Name))
+            {
+                //ft.Source should default to Adjusted (0) which is correct
+                //but if somehow it is different, then leave it as is
+                ft.Name = MakeName(ft.FrameName, ft.Source);
+            }
+            return ft;
         }
     }
 }

@@ -77,6 +77,7 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="BrewerColors.cs" />
     <Compile Include="GdalConfiguration.cs" />
     <Compile Include="Imaging\CameraModels\CAHV.cs" />
     <Compile Include="Imaging\CameraModels\CAHVOR.cs" />
@@ -84,6 +85,7 @@
     <Compile Include="Imaging\CameraModels\CameraModel.cs" />
     <Compile Include="Imaging\CameraModels\OrthographicCameraModel.cs" />
     <Compile Include="Imaging\FITSMetadata.cs" />
+    <Compile Include="Imaging\GDALDEM.cs" />
     <Compile Include="Imaging\GenericImage.cs" />
     <Compile Include="Imaging\CameraModels\GDALCameraModel.cs" />
     <Compile Include="Imaging\IImageLoader.cs" />

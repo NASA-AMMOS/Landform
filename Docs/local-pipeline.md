@@ -2,8 +2,8 @@
 
 ## TLDR Example Workflow
 ```
-./Pipeline/Rover/fetch-msl.sh c:/Users/$USERNAME/Downloads locations 00588 00589 00590
-./Landform/bin/Release/Landform.exe configure-local --venue=local --storagedir=c:/Users/$USERNAME/Documents/landform-storage --maxcores=0
+./Pipeline/Rover/fetch-msl.sh c:/Users/$USERNAME/Downloads locations basemap 00588 00589 00590
+./Landform/bin/Release/Landform.exe configure-local --venue=local --storagedir=c:/Users/$USERNAME/Documents/landform-storage --maxcores=0 --randomseed=-1
 ./Landform/bin/Release/Landform.exe local-ingest sols588to590 --inputpath=c:/Users/$USERNAME/Downloads/msl/**
 ./Landform/bin/Release/Landform.exe local-features sols588to590 --writefeatureimages
 ./Landform/bin/Release/Landform.exe local-matching sols588to590 --writematchimages --writematchmeshes
@@ -14,9 +14,9 @@
 
 Download sols 588 - 590 but process sol 589 only:
 ```
-./Pipeline/Rover/fetch-msl.sh c:/Users/$USERNAME/Downloads locations 00588 00589 00590
-./Landform/bin/Release/Landform.exe configure-local --venue=local --storagedir=c:/Users/$USERNAME/Documents/landform-storage --maxcores=0
-./Landform/bin/Release/Landform.exe local-ingest sol589 --inputpath=c:/Users/$USERNAME/Downloads/msl/redops/ods/surface/sol/00589/** --locationsxml=c:/Users/$USERNAME/Downloads/msl/locations.xml
+./Pipeline/Rover/fetch-msl.sh c:/Users/$USERNAME/Downloads locations basemap 00588 00589 00590
+./Landform/bin/Release/Landform.exe configure-local --venue=local --storagedir=c:/Users/$USERNAME/Documents/landform-storage --maxcores=0 --randomseed=-1
+./Landform/bin/Release/Landform.exe local-ingest sol589 --inputpath=c:/Users/$USERNAME/Downloads/msl/sol/00589/** --locationsxml=c:/Users/$USERNAME/Downloads/msl/locations.xml --basemapdem=c:/Users/$USERNAME/Downloads/msl/out_deltaradii_smg_1m.tif
 ./Landform/bin/Release/Landform.exe local-features sol589 --writefeatureimages
 ./Landform/bin/Release/Landform.exe local-matching sol589 --writematchimages --writematchmeshes
 ./Landform/bin/Release/Landform.exe local-bundle-adjust sol589 --writedebug
@@ -119,22 +119,36 @@ The sol 588 - 590 dataset has 3688 navcam IMG files, about 5GB total, 263 which 
     generated meshes for 86 observations (17.041s)
     ```
 
-## Run Agisoft instead of our bundler
-install Agisoft Metashape professional (standard will not work as it doesn't allow python scripting)
-./Pipeline/Rover/fetch-msl.sh c:/Users/$USERNAME/Downloads locations 00588 00589 00590
-./Landform/bin/Release/Landform.exe configure-local --venue=local --storagedir=c:/Users/$USERNAME/Documents/landform-storage --maxcores=0
+## Run Agisoft Instead of Landform Bundle Adjust
+First install Agisoft Metashape professional (standard will not work as it doesn't allow python scripting).
+```
+./Pipeline/Rover/fetch-msl.sh c:/Users/$USERNAME/Downloads locations basemap 00588 00589 00590
+./Landform/bin/Release/Landform.exe configure-local --venue=local --storagedir=c:/Users/$USERNAME/Documents/landform-storage --maxcores=0 --randomseed=-1
 ./Landform/bin/Release/Landform.exe local-ingest sols588to590 --inputpath=c:/Users/$USERNAME/Downloads/msl/**
+./Landform/bin/Release/Landform.exe local-agisoft sols588to590 
+./Landform/bin/Release/Landform.exe local-observation-products sol589 --adjustedtransformsources=Agisoft --outputframe=root
+```
 
-the results will be published back to your local database with the agisoft transform source. they can be visualized with observation products by
-./Landform/bin/Release/Landform.exe local-observation-products sol589 --adjustedtransformsources=agisoft
+## Run Birds Eye View Aligner Instead of Landform Bundle Adjust
+```
+./Pipeline/Rover/fetch-msl.sh c:/Users/$USERNAME/Downloads locations basemap 00588 00589 00590
+./Landform/bin/Release/Landform.exe configure-local --venue=local --storagedir=c:/Users/$USERNAME/Documents/landform-storage --maxcores=0 --randomseed=-1
+./Landform/bin/Release/Landform.exe local-ingest sols588to590 --inputpath=c:/Users/$USERNAME/Downloads/msl/**
+./Landform/bin/Release/Landform.exe local-bev-align sols588to590 [--writedebug]
+./Landform/bin/Release/Landform.exe local-observation-products sol589 --outputframe=root --onlymergedsitedrivemeshes --onlyforcameras=NavcamLeft --adjustedtransformsources=LandformBEV,LandformBEVRoot,LandformBEVCalf
+```
+If you only want to view the sitedrives that were aligned, specify `--onlyaligned` and don't include `LandformBEVCalf` in `--adjustedtransformsources`:
+```
+./Landform/bin/Release/Landform.exe local-observation-products sol589 --outputframe=root --onlymergedsitedrivemeshes --onlyforcameras=NavcamLeft --adjustedtransformsources=LandformBEV,LandformBEVRoot --onlyaligned
+```
 
 ## Run Locally but Operate on Cloud Data
 All of the local commands (`local-ingest`, `local-features`, `local-matching`, `local-bundle-adjust`, `local-observation-products`) also support a `--cloud` option.  If present, that means that the computation and flow control will be performed locally, but that data will be read from and written to the cloud (i.e. S3 and DynamoDB).  Debug outputs will still be written locally.
 
 Example of full workflow to operate on cloud data:
 ```
-./Landform/bin/Release/Landform.exe configure-local --venue=local --storagedir=c:/Users/$USERNAME/Documents/landform-storage --maxcores=0
-./Landform/bin/Release/Landform.exe configure-cloud --venue=landform-dev-$USERNAME-$HOSTNAME --s3url=s3://landlords-dev/landform-$USERNAME --awsregion=us-west-1 --awsprofile=landlords --msliceawsprofile=mslice --mslices3url=s3://red-product --maxcores=0 --nouserdata
+./Landform/bin/Release/Landform.exe configure-local --venue=local --storagedir=c:/Users/$USERNAME/Documents/landform-storage --maxcores=0 --randomseed=-1
+./Landform/bin/Release/Landform.exe configure-cloud --venue=landform-dev-$USERNAME-$HOSTNAME --s3url=s3://landlords-dev/landform-$USERNAME --awsregion=us-west-1 --awsprofile=landlords --msliceawsprofile=mslice --mslices3url=s3://red-product --maxcores=0 --randomseed=-1 --nouserdata
 ./Landform/bin/Release/Landform.exe local-ingest sol589 --cloud --inputpath=s3://red-product/proj/msl/redops/ods/surface/sol/00589/opgs/rdr/ncam/**
 ./Landform/bin/Release/Landform.exe local-features sol589 --cloud --writefeatureimages
 ./Landform/bin/Release/Landform.exe local-matching sol589 --cloud --writematchimages --writematchmeshes
@@ -145,8 +159,8 @@ Example of full workflow to operate on cloud data:
 
 It is also possible to **post-mortem collect stats and generate debug outputs from already-run cloud data**:
 ```
-./Landform/bin/Release/Landform.exe configure-local --venue=local --storagedir=c:/Users/$USERNAME/Documents/landform-storage --maxcores=0
-./Landform/bin/Release/Landform.exe configure-cloud --venue=landform-dev-$USERNAME-$HOSTNAME --s3url=s3://landlords-dev/landform-$USERNAME --awsregion=us-west-1 --awsprofile=landlords --msliceawsprofile=mslice --mslices3url=s3://red-product --maxcores=0 --nouserdata
+./Landform/bin/Release/Landform.exe configure-local --venue=local --storagedir=c:/Users/$USERNAME/Documents/landform-storage --maxcores=0 --randomseed=-1
+./Landform/bin/Release/Landform.exe configure-cloud --venue=landform-dev-$USERNAME-$HOSTNAME --s3url=s3://landlords-dev/landform-$USERNAME --awsregion=us-west-1 --awsprofile=landlords --msliceawsprofile=mslice --mslices3url=s3://red-product --maxcores=0 --randomseed=-1 --nouserdata
 ./Landform/bin/Release/Landform.exe local-ingest sol589 --cloud
 ./Landform/bin/Release/Landform.exe local-features sol589 --cloud --writefeatureimages --tallyexisting
 ./Landform/bin/Release/Landform.exe local-matching sol589 --cloud --writematchimages --writematchmeshes --tallyexisting
@@ -155,14 +169,36 @@ It is also possible to **post-mortem collect stats and generate debug outputs fr
 ./Landform/bin/Release/Landform.exe local-observation-products sol589 --cloud --writeallthethings --outputframe=root
 ```
 
+## Downloading M2020 ROASTT Data
+ROASTT sols 100 through 104 are available.  The following command downloads sol 100 only.  Change `100` to `100-104` to download them all.
+```
+./Landform/bin/Release/Landform.exe fetch --inputawsprofile=landlords --inputawsregion=us-west-1 100 c:/Users/$USERNAME/Downloads/ROASTT s3://12landlords/SampleScenes/ROASTT/m20-roastt-staging/ocs/test/sol/#####/ids/rdr/
+```
+
+## Generating tiled meshes
+If you've ingested observations and optionally aligned them you can generate a mesh with the `local-build-meshes` command.  The command line behavior is a subset of local-observation-products. Running with a commandline like 
+```
+./Landform/bin/Release/Landform.exe local-build-meshes sol589 --onlyforcameras=NavcamLeft --usepriors
+```
+will build a mesh from the PlacesDB priors stored in the sol589 project
+```
+./Landform/bin/Release/Landform.exe local-build-meshes sol589  --onlyforcameras=NavcamLeft --adjustedtransformsources=LandformBEV,LandformBEVRoot --onlyaligned
+```
+will build a mesh using the birds eye view aligned transforms you've built previously for sol589, and will omit any sitedrives that were not aligned.
+
 ## Long Form
 1.  Get some input data.  You will want one or more directories with .IMG files, typically OPGS navcam RDRs.
     1.  To use MSL data from `s3://red-product` you will need the `mslice` AWS credentials in your `~/.aws/credentials` file.
     1.  You can download the data with any S3 tool such as CloudBerry or WinSCP, or use the `Pipeline/Rover/fetch-msl.sh` script.
     1.  A full path would be `s3://red-product/proj/msl/redops/ods/surface/sol/NUM/opgs/rdr/ncam` where NUM is a sol number.
-    1.  You will also need the MSL locations XML file from `http://mars.jpl.nasa.gov/msl-raw-images/locations.xml` (no authentication required).
+    1.  If you want to use MSLLocations priors you will also need
+        1.  the MSL locations XML file from `http://mars.jpl.nasa.gov/msl-raw-images/locations.xml` (no authentication required)
+        1.  the MSL basemap DEM from `s3://12landlords/TerrainSourceAssets/basemaps/out_deltaradii_smg_1m.tif`
     1.  To use `fetch-msl.sh` you will need a sh-compatible command prompt (e.g. git bash, cygwin, or WSL). You will also need the AWS command line interface (install latest python3, `pip install awscli --upgrade --user`,  your PATH environment variable must include `%USERPROFILE%\AppData\Roaming\Python\Python??\Scripts`).
-    1.  Some example sol numbers are `00588`, `00589`, `00590`.  So you could run e.g. `./Pipeline/Rover/fetch-msl.sh DIR locations 00588 00589 00590` where DIR is where you'd like to download the input data (an `msl` subdir will be created), e.g. `c:/Users/USER/Downloads`.  The script fetches the OPGS navcam RDR .IMG products (only) for the specified sols.  It also fetches locations.xml if "locations" is included in the argument list. it will fetch the MSS processed Mastcams if "includeMastcams" is specified in the command list before the sol range.
+    1.  Some example sol numbers are `00588`, `00589`, `00590`.  So you could run e.g. `./Pipeline/Rover/fetch-msl.sh DIR locations basemap 00588 00589 00590` where DIR is where you'd like to download the input data (an `msl` subdir will be created), e.g. `c:/Users/USER/Downloads`.  The script fetches the OPGS navcam RDR .IMG products (only) for the specified sols.  It also fetches
+        *   locations.xml if "locations" is included in the argument list
+        *   the basemap DEM if "basemap" is included in the arguments list (for this you will need a "landlords" profile in your ~/.aws/credentials)
+        *   the MSS processed Mastcams if "mastcams" is included in the arguments list
 1.  Build Landform in visual studio in Release mode.
 1.  **`./Landform/bin/Release/Landform.exe configure-local`** accept the default `local` as venue name, and specify an absolute path (a relative path should work too but may get confusing) for the storage dir, e.g. `c:/Users/USER/Documents/landform-storage`.  The directory does not need to exist yet.
 1.  **`./Landform/bin/Release/Landform.exe local-ingest PROJ`** where PROJ is a project name, e.g. `msl`.  Options include

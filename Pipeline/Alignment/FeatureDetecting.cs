@@ -16,67 +16,181 @@ using OPS.Alignment;
 
 namespace OPS.Pipeline
 {
-    public enum DetectorType
-    {
-        SIFT,
-        ASIFT,
-        PCASIFT
-    }
-
     public class FeatureDetector
     {
-        public readonly DetectorType Detector;
+        public enum DetectorType
+        {
+            SIFT,
+            ASIFT,
+            PCASIFT,
+            FAST
+        }
 
-        private readonly double minFeatureSize;
-        private readonly int maxFeatures;
-        private readonly PipelineCore pipeline;
-
-        public const int DEF_MAX_FEATURES = 10000;
+        public const DetectorType DEF_DETECTOR_TYPE = DetectorType.ASIFT;
         public const double DEF_MIN_FEATURE_SIZE = 0;
+        public const double DEF_MIN_RESPONSE = -1;
+        public const double DEF_MAX_RESPONSE = -1;
+        public const int DEF_EXTRA_INVALID_RADIUS = 0;
+        public const int DEF_MAX_FEATURES = 10000;
+        public const int DEF_DECIMATION = 1;
+        public const int DEF_SIFT_OCTAVES = 4;
+        public const int DEF_MIN_SIFT_OCTAVE = -1;
+        public const int DEF_MAX_SIFT_OCTAVE = -1;
+        public const int DEF_FAST_THRESHOLD = 10;
 
-        public FeatureDetector(PipelineCore pipeline, DetectorType detector, int maxFeatures = DEF_MAX_FEATURES,
-                               double minFeatureSize = DEF_MIN_FEATURE_SIZE)
+        public class Options
+        {
+            public DetectorType DetectorType = DEF_DETECTOR_TYPE;
+            public double MinFeatureSize = DEF_MIN_FEATURE_SIZE;
+            public double MinResponse = DEF_MIN_RESPONSE;
+            public double MaxResponse = DEF_MAX_RESPONSE;
+            public int ExtraInvalidRadius = DEF_EXTRA_INVALID_RADIUS;
+            public int MaxFeatures = DEF_MAX_FEATURES;
+            public int Decimation = DEF_DECIMATION;
+            public int SIFTOctaves = DEF_SIFT_OCTAVES;
+            public int MinSIFTOctave = DEF_MIN_SIFT_OCTAVE;
+            public int MaxSIFTOctave = DEF_MAX_SIFT_OCTAVE;
+            public int FASTThreshold = DEF_FAST_THRESHOLD;
+            public double FeaturesPerImageBucketSize = 0; //1000 is a good value, 0 to disable
+            public double FeaturesPerSizeBucketSize = 0; //5 is a good value, 0 to disable
+            public double FeaturesPerResponseBucketSize = 0; //0.002 is a good value, 0 to disable
+            public double FeaturesPerOctaveBucketSize = 0; //1 is a good value, 0 to disable
+            public double FeaturesPerLayerBucketSize = 0; //1 is a good value, 0 to disable
+            public double FeaturesPerScaleBucketSize = 0; //0.1 is a good value, 0 to disable
+        }
+
+        private Histogram featuresPerImage;
+        private Histogram featuresPerSize;
+        private Histogram featuresPerResponse;
+        private Histogram featuresPerOctave;
+        private Histogram featuresPerLayer;
+        private Histogram featuresPerScale;
+
+        private readonly PipelineCore pipeline;
+        private readonly Options options;
+
+        public FeatureDetector(PipelineCore pipeline, Options options = null)
         {
             this.pipeline = pipeline;
-            this.Detector = detector;
-            this.maxFeatures = maxFeatures;
-            this.minFeatureSize = minFeatureSize;
+            this.options = options ?? new Options();
+
+            if (options.FeaturesPerImageBucketSize > 0)
+            {
+                featuresPerImage = new Histogram(options.FeaturesPerImageBucketSize, "images", "valid features");
+            }
+            if (options.FeaturesPerSizeBucketSize > 0)
+            {
+                featuresPerSize = new Histogram(options.FeaturesPerSizeBucketSize, "features", "diameter");
+            }
+            if (options.FeaturesPerResponseBucketSize > 0)
+            {
+                featuresPerResponse = new Histogram(options.FeaturesPerResponseBucketSize, "features", "response");
+            }
+            if (options.FeaturesPerOctaveBucketSize > 0)
+            {
+                featuresPerOctave = new Histogram(options.FeaturesPerOctaveBucketSize, "features", "octave");
+            }
+            if (options.FeaturesPerLayerBucketSize > 0)
+            {
+                featuresPerLayer = new Histogram(options.FeaturesPerLayerBucketSize, "features", "layer");
+            }
+            if (options.FeaturesPerScaleBucketSize > 0)
+            {
+                featuresPerScale = new Histogram(options.FeaturesPerScaleBucketSize, "features", "scale");
+            }
         }
 
-        private PCAKeypointProjector projector;
-        public ImageFeature[] DetectPCASIFT(Image img, Image mask)
-        {
-            if (projector == null)
-            {
-                string gpcafile = PCAKeypointProjector.DefaultTrainingSpace;
-                projector = new PCAKeypointProjector(gpcafile, false);
-            }
-            List<PCASIFTFeature> features = new PCASIFTDetector().Detect(img, mask).Cast<PCASIFTFeature>().ToList();
-            projector.Project(img, features, 1);
-            return features.ToArray();
-        }
+        public delegate double FeatureSortKey(SIFTFeature feature);
 
-        public ImageFeature[] Detect(Image img, Image mask)
+        public ImageFeature[] Detect(Image img, Image mask, FeatureSortKey sortKey = null)
         {
-            if (Detector != DetectorType.ASIFT)
+            if (options.Decimation > 1)
             {
-                //https://github.jpl.nasa.gov/OnSight/Landform/issues/435
-                pipeline.LogWarn("{0} feature detector may not be maintained", Detector);
+                img = img.Decimated(options.Decimation);
+                mask = mask.Decimated(options.Decimation);
             }
 
-            ImageFeature[] features = null;
-            switch (Detector)
+            Func<SIFTFeature, bool> filter = f =>
+                (f.Size * options.Decimation >= options.MinFeatureSize) &&
+                (options.MinResponse < 0 || f.Response >= options.MinResponse) &&
+                (options.MaxResponse < 0 || f.Response <= options.MaxResponse) &&
+                (options.MinSIFTOctave < 0 || f.Octave >= options.MinSIFTOctave) &&
+                (options.MaxSIFTOctave < 0 || f.Octave <= options.MaxSIFTOctave);
+
+            IFeatureDetector detector = null;
+            switch (options.DetectorType)
             {
-                case DetectorType.PCASIFT: features = DetectPCASIFT(img, mask); break;
-                case DetectorType.ASIFT: features = (new ASIFTDetector()).Detect(img, mask).ToArray(); break;
-                case DetectorType.SIFT: features = (new SIFT()).Detect(img, mask).ToArray(); break;
-                default: throw new NotImplementedException("unhandled feature detector " + Detector);
+                case DetectorType.SIFT:
+                {
+                    detector = new SIFTDetector() { OctaveLayers = options.SIFTOctaves };
+                    break;
+                }
+                case DetectorType.ASIFT:
+                {
+                    detector = new ASIFTDetector() { OctaveLayers = options.SIFTOctaves, Filter = filter };
+                    break;
+                }
+                case DetectorType.PCASIFT:
+                {
+                    detector = new PCASIFTDetector() { OctaveLayers = options.SIFTOctaves };
+                    break;
+                }
+                case DetectorType.FAST:
+                {
+                    detector = new FASTDetector() { Threshold = options.FASTThreshold };
+                    break;
+                }
             }
-            return features
-                .Where(f => ((SIFTFeature)f).Size >= minFeatureSize)
-                .OrderByDescending(f => ((SIFTFeature)f).Response)
-                .Take(maxFeatures)
+
+            var rawFeatures = detector.Detect(img, mask).Cast<SIFTFeature>();
+            var features = FilterInvalid(rawFeatures, img, mask).ToArray();
+
+            if (pipeline.Options.Debug)
+            {
+                pipeline.LogInfo("min size {0}, max size {1}",
+                                 features.Select(f => f.Size * options.Decimation).Min(),
+                                 features.Select(f => f.Size * options.Decimation).Max());
+                pipeline.LogInfo("min response {0}, max response {1}",
+                                 features.Select(f => f.Response).Min(), features.Select(f => f.Response).Max());
+                pipeline.LogInfo("min octave {0}, max octave {1}",
+                                 features.Select(f => f.Octave).Min(), features.Select(f => f.Octave).Max());
+            }
+
+            if (sortKey == null)
+            {
+                sortKey = (SIFTFeature f) => -f.Response;
+            }
+
+            features = features
+                .Where(filter)
+                .OrderBy(f => sortKey(f))
+                .Take(options.MaxFeatures)
                 .ToArray();
+
+            //add descriptors now that we've culled down the features and eliminated bad ones
+            //this can save quite a bit of time
+            //but also we have seen crashes in the emgucv code to collect SIFT feature descriptors
+            //and computing them here hopefully limits the impact of that
+            //some detectors will have already added descriptors
+            //e.g. ASIFT does that because the descriptors are based on temporary warped copies of the image
+            var featuresWithoutDescriptors = features.Where(f => f.Descriptor == null).ToArray();
+            if (featuresWithoutDescriptors.Length > 0)
+            {
+                detector.AddDescriptors(img, featuresWithoutDescriptors);
+            }
+
+            if (options.Decimation > 1)
+            {
+                foreach (var feat in features)
+                {
+                    feat.Size *= options.Decimation;
+                    feat.Location *= options.Decimation;
+                }
+            }
+
+            Tally(features);
+
+            return features;
         }
 
         public DetectedFeatures Detect(string imageUrl, string roverMaskUrl, string projectName,
@@ -91,8 +205,84 @@ namespace OPS.Pipeline
             }
             catch (Exception ex)
             {
-                pipeline.LogError("failed to detect {0} features for {1}", Detector, observationName, ex);
+                pipeline.LogError("failed to detect {0} features for {1}: {2}",
+                                  options.DetectorType, observationName, ex.ToString());
                 return null;
+            }
+        }
+
+        public void Tally(ImageFeature[] features)
+        {
+            if (featuresPerImage != null)
+            {
+                featuresPerImage.Add(features.Length);
+            }
+            void tally(Histogram histogram, Func<SIFTFeature, double> getter)
+            {
+                if (histogram != null)
+                {
+                    foreach (var feature in features)
+                    {
+                        if (feature is SIFTFeature)
+                        {
+                            histogram.Add(getter(feature as SIFTFeature));
+                        }
+                    }
+                }
+            }
+            tally(featuresPerSize, f => f.Size);
+            tally(featuresPerResponse, f => f.Response);
+            tally(featuresPerOctave, f => f.Octave);
+            tally(featuresPerLayer, f => f.Layer);
+            tally(featuresPerScale, f => f.Scale);
+        }
+
+        public void DumpHistograms(ILogger logger)
+        {
+            foreach (var h in new Histogram[] { featuresPerImage, featuresPerSize, featuresPerResponse,
+                                                featuresPerOctave, featuresPerLayer, featuresPerScale })
+            {
+                if (h != null)
+                {
+                    h.Dump(logger);
+                }
+            }
+        }
+
+        //feature detectors only check that the center pixel of the feature is not masked
+        //here we check that all pixels in the feature rect are in bounds and valid both in img and mask
+        private IEnumerable<SIFTFeature> FilterInvalid(IEnumerable<SIFTFeature> features, Image img, Image mask)
+        {
+            foreach (var feat in features)
+            {
+                int row = (int)feat.Location.Y;
+                int col = (int)feat.Location.X;
+                int radius = (int)(0.5*feat.Size); //yes, round down
+                radius += options.ExtraInvalidRadius;
+                int minR = row - radius;
+                int maxR = row + radius;
+                if (minR < 0 || maxR >= img.Height)
+                {
+                    continue;
+                }
+                int minC = col - radius;
+                int maxC = col + radius;
+                if (minC < 0 || maxC >= img.Width)
+                {
+                    continue;
+                }
+                bool ok = true;
+                for (int r = minR; ok && r <= maxR; r++)
+                {
+                    for (int c = minC; ok && c <= maxC; c++)
+                    {
+                        ok &= img.IsValid(r, c) && mask[0, r, c] != 0;
+                    }
+                }
+                if (ok)
+                {
+                    yield return feat;
+                }
             }
         }
     }
@@ -125,6 +315,13 @@ namespace OPS.Pipeline
                 if (parser.HasMissingConstant)
                 {
                     float[] missing = parser.MissingConstant.Select(x => (float)x).ToArray();
+
+                    //ROASTT: single float missing constant for 3 channel navcam
+                    if(missing.Count() == 1 && img.Bands > 1)
+                    {
+                        missing = Enumerable.Repeat<float>(missing.First(), img.Bands).ToArray();
+                    }
+
                     //we could do it this way, but it's just a few more lines to avoid allocating the mask array
                     //mask.UnionMask(img, missing);
                     //mask.SetValuesForMaskedData(new float[] { 0 });
@@ -162,30 +359,32 @@ namespace OPS.Pipeline
             return mask;
         }
 
-        public static Image CompositeMask(Image img, Image mask, float alpha = 0.1f)
+        public static Image DrawFeatures(Image img, Image mask, ImageFeature[] features, string imageName = null,
+                                         bool stretch = true)
         {
-            Image ret = new Image(3, img.Width, img.Height);
-            for (int row = 0; row < img.Height; row++)
-            {
-                for (int col = 0; col < img.Width; col++)
-                {
-                    float gray = 0;
-                    for (int band = 0; band < img.Bands; band++)
-                    {
-                        gray += img[0, row, col];
-                    }
-                    gray /= img.Bands;
-                    ret[0, row, col] = gray;
-                    ret[1, row, col] = (1.0f - alpha) * gray + alpha * mask[0, row, col];
-                    ret[2, row, col] = gray;
-                }
-            }
-            return ret;
+            return DrawFeaturesEmgu(img, mask, features, imageName, stretch).ToOPSImage();
         }
 
-        public static Image DrawFeatures(Image img, Image mask, ImageFeature[] features, string imageName = null)
+        public static Image<Bgr, byte> DrawFeaturesEmgu(Image img, Image mask, ImageFeature[] features,
+                                                        string imageName = null, bool stretch = true)
         {
-            var ret = CompositeMask(img, mask).ToEmgu<Bgr>();
+            var ret = stretch ?  (new Image(img)).ApplyStdDevStretch().ToEmgu<Bgr>() : img.ToEmgu<Bgr>();
+
+            //alpha blend mask into green channel
+            if (mask != null)
+            {
+                float alpha = 0.1f;
+                for (int row = 0; row < img.Height; row++)
+                {
+                    for (int col = 0; col < img.Width; col++)
+                    {
+                        float green = ret.Data[row, col, 1] / 255.0f;
+                        green = (1.0f - alpha) * green + alpha * mask[0, row, col];
+                        ret.Data[row, col, 1] = (byte)(green * 255);
+                    }
+                }
+            }
+
             var siftFeat = features.Cast<SIFTFeature>().ToArray();
             var noRange = new VectorOfKeyPoint(siftFeat.Where(f => !(f.Range > 0)).CastToMKeyPoint().ToArray());
             Features2DToolbox.DrawKeypoints(ret, noRange, ret, new Bgr(255, 0, 0), //actually RGB
@@ -197,25 +396,48 @@ namespace OPS.Pipeline
             {
                 ret.Draw(imageName, new System.Drawing.Point(5, 30),
                          FontFace.HersheySimplex, 1, new Bgr(255, 0, 255), 2);
+                if (img.Metadata is PDSMetadata)
+                {
+                    int sol = (new PDSParser((PDSMetadata)img.Metadata)).PlanetDayNumber;
+                    ret.Draw("sol" + sol, new System.Drawing.Point(5, 60),
+                             FontFace.HersheySimplex, 1, new Bgr(255, 0, 255), 2);
+                }
             }
-            return ret.ToOPSImage();
+            return ret;
         }
 
         public static int AddRange(IEnumerable<ImageFeature> features, Image img, Image points)
         {
             //can't check range origin here because img is not actually a range image
             //so it does not  have the necessary PDS header data for that
-            var c = Meshing.CheckCameraCenter(img, "AddRange", checkRangeOrigin: false);
+            var center = Meshing.CheckCameraCenter(img, "AddRange", checkRangeOrigin: false);
             var xyr = Meshing.ConvertPoints(points);
             int n = 0;
             foreach (var feature in features)
             {
                 int row = (int)feature.Location.Y;
                 int col = (int)feature.Location.X;
-                if (!xyr.IsInvalid(row, col))
+                int radius = (int)(0.5*((SIFTFeature)feature).Size); //yes, round down
+                int minR = Math.Max(0, row - radius);
+                int maxR = Math.Min(img.Height - 1, row + radius);
+                int minC = Math.Max(0, col - radius);
+                int maxC = Math.Min(img.Width - 1, col + radius);
+                var avg = new Vector3();
+                double valid = 0;
+                for (int r = minR; r <= maxR; r++)
                 {
-                    var p = new Vector3(xyr[0, row, col], xyr[1, row, col], xyr[2, row, col]);
-                    feature.Range = Vector3.Distance(p, c);
+                    for (int c = minC; c <= maxC; c++)
+                    {
+                        if (!xyr.IsInvalid(r, c))
+                        {
+                            avg += new Vector3(xyr[0, r, c], xyr[1, r, c], xyr[2, r, c]);
+                            valid++;
+                        }
+                    }
+                }
+                if (valid > 0)
+                {
+                    feature.Range = Vector3.Distance(avg / valid, center);
                     n++;
                 }
             }

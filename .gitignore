@@ -97,3 +97,5 @@ TilingServer/bin/
 TilingServer/obj/
 
 tmp/
+Apps/QMDTMesher/bin/
+Apps/QMDTMesher/obj/

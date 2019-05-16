@@ -10,7 +10,7 @@ using log4net;
 
 namespace OPS.Geometry
 {
-    class PoissonConfig : SingletonConfig<PoissonConfig>
+    public class PoissonConfig : SingletonConfig<PoissonConfig>
     {
         //on some machines the default version of PoissonRecon.exe fails with "Illegal instruction"
         //it is usually possible to workaround this, at least sufficient for dev purposes
@@ -170,7 +170,7 @@ namespace OPS.Geometry
 
                             result = Mesh.Load(outputFile);
 
-                            if (result.Vertices.Count == 0)
+                            if (result.Vertices.Count == 0 || result.Faces.Count == 0)
                             {
                                 throw new MeshException("empty output");
                             }

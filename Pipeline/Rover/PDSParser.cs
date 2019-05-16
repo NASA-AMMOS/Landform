@@ -49,10 +49,14 @@ namespace OPS.Pipeline
         }
 
         private const string Unknown = "UNK";
+        private const string NullStr = "NULL";
 
         public bool HasMissingConstant
         {
-            get { return metadata.HasKey("IMAGE", "MISSING_CONSTANT") && metadata.ReadAsString("IMAGE", "MISSING_CONSTANT") != Unknown; }
+            get { return metadata.HasKey("IMAGE", "MISSING_CONSTANT") &&
+                    metadata.ReadAsString("IMAGE", "MISSING_CONSTANT") != Unknown &&
+                    metadata.ReadAsString("IMAGE", "MISSING_CONSTANT") != NullStr;
+            }
         }
 
         public double[] MissingConstant
@@ -96,6 +100,10 @@ namespace OPS.Pipeline
                     return 14.67; //source SIS: https://pds-imaging.jpl.nasa.gov/data/msl/MSLNAV_0XXX/DOCUMENT/MSL_CAMERA_SIS_latest.PDF
                 case RoverProductCamera.NavcamRight:
                     return 14.67; //source SIS: https://pds-imaging.jpl.nasa.gov/data/msl/MSLNAV_0XXX/DOCUMENT/MSL_CAMERA_SIS_latest.PDF
+                case RoverProductCamera.MastcamLeft:
+                    return 34.0; //https://www.lpi.usra.edu/meetings/lpsc2010/pdf/1123.pdf
+                case RoverProductCamera.MastcamRight:
+                    return 10.0; //https://www.lpi.usra.edu/meetings/lpsc2010/pdf/1123.pdf
                 default:
                     throw new NotImplementedException("focal length for camera " + camera + " not added yet");
             }
@@ -116,7 +124,11 @@ namespace OPS.Pipeline
                     return 0.012; //source Maki, J.N., et al., Mars Exploration Rover Engineering Cameras, J. Geophys. Res., 108(E12), 8071, doi:10.1029/2003JE002077, 2003. (navcam uses same CCD)
                 case RoverProductCamera.NavcamRight:
                     return 0.012; //source Maki, J.N., et al., Mars Exploration Rover Engineering Cameras, J. Geophys. Res., 108(E12), 8071, doi:10.1029/2003JE002077, 2003. (navcam uses same CCD)
-                default:
+                case RoverProductCamera.MastcamLeft:
+                    return 0.0074; //calculated
+                case RoverProductCamera.MastcamRight:
+                    return 0.0074; //calculated
+                default:    
                     throw new NotImplementedException("sensor pixel size for camera " + camera + " not added yet");
             }
         }
@@ -170,6 +182,14 @@ namespace OPS.Pipeline
                     else if (id.StartsWith("MAHLI"))
                     {
                         return RoverProductCamera.MAHLI;
+                    }
+                    else if(id.StartsWith("MCZ_LEFT"))
+                    {
+                        return RoverProductCamera.MastcamZLeft;
+                    }
+                    else if (id.StartsWith("MCZ_RIGHT"))
+                    {
+                        return RoverProductCamera.MastcamZRight;
                     }
                 }
                 return RoverProductCamera.Unknown;
@@ -256,15 +276,22 @@ namespace OPS.Pipeline
                        return RoverProductType.XYZErrorMap;
                     }
                 }
-                else
+                else if(this.ProductId.ProductType != RoverProductType.Unknown)
                 {
+                    //fallback to filename
+                    return this.ProductId.ProductType;
+                }
+                else
+                { 
+                    //ISSUE: #550
+                    //fallback to instrument name and the incorrect hope there are no other products built with that camera
                     RoverProductCamera inst = Camera;
                     if(inst == RoverProductCamera.MastcamLeft || inst == RoverProductCamera.MastcamRight || inst == RoverProductCamera.MAHLI)
                     {
                         return RoverProductType.Image;
                     }
                 }
-                return RoverProductType.Unknown;            
+                return RoverProductType.Unknown;
             }
         }
 
@@ -307,14 +334,6 @@ namespace OPS.Pipeline
         {
             get
             {
-                if (metadata.HasKey("IMAGE_REQUEST_PARMS", "FILTER_NUMBER"))
-                {
-                    return metadata.ReadAsInt("IMAGE_REQUEST_PARMS", "FILTER_NUMBER");
-                }
-                if(metadata.HasKey("OBSERVATION_REQUEST_PARMS", "FILTER_NUMBER"))
-                {
-                    return metadata.ReadAsInt("OBSERVATION_REQUEST_PARMS", "FILTER_NUMBER");
-                }
                 if (metadata.HasKey("INSTRUMENT_STATE_PARMS", "FILTER_NUMBER"))
                 {
                     return metadata.ReadAsInt("INSTRUMENT_STATE_PARMS", "FILTER_NUMBER");
@@ -350,7 +369,7 @@ namespace OPS.Pipeline
                     {
                         double nearFocus = metadata.ReadAsDouble("DERIVED_IMAGE_PARMS", "MSL:MINIMUM_FOCUS_DISTANCE");
                  
-                        if (IsMAHLI)
+                        if (MissionMSL.IsMAHLI(Camera))
                             nearFocus /= 1000.0; //mahli is in millimeters
 
                         return nearFocus;
@@ -401,6 +420,10 @@ namespace OPS.Pipeline
         {
             get
             {
+                if (metadata.HasKey("IDENTIFICATION", "ROVER_MOTION_COUNTER"))
+                {
+                    return metadata.ReadAsIntArray("IDENTIFICATION", "ROVER_MOTION_COUNTER");
+                }
                 if (metadata.HasKey("ROVER_MOTION_COUNTER"))
                 {
                     return metadata.ReadAsIntArray("ROVER_MOTION_COUNTER");
@@ -470,72 +493,25 @@ namespace OPS.Pipeline
             }
         }
 
-        public bool IsMastcam
-        {
-            get
-            {
-                return Camera == RoverProductCamera.MastcamLeft || Camera == RoverProductCamera.MastcamRight;
-            }
-        }
-
-        /// <summary>
-        /// Indicates whether or not this image was captured with a navigation camera.
-        /// </summary>
-        public bool IsNavcam
-        {
-            get
-            {
-                return Camera == RoverProductCamera.NavcamLeft || Camera == RoverProductCamera.NavcamRight;
-            }
-        }
-
-
-        public bool IsHazcam
-        {
-            get
-            {
-                return Camera == RoverProductCamera.FrontHazcamLeft
-                    || Camera == RoverProductCamera.FrontHazcamRight
-                    || Camera == RoverProductCamera.RearHazcamLeft
-                    || Camera == RoverProductCamera.RearHazcamRight;
-            }
-        }
-
-        public bool IsMAHLI
-        {
-            get
-            {
-                RoverProductCamera inst = Camera;
-                return inst == RoverProductCamera.MAHLI;
-            }
-        }
-
         public bool IsDownsampled
         {
             get
-            {
-                if (metadata.HasKey("IMAGE_REQUEST_PARMS", "PIXEL_DOWNSAMPLE_OPTION"))
+            {             
+                int avgWidth = 1;
+                if (metadata.HasKey("INSTRUMENT_STATE_PARMS", "PIXEL_AVERAGING_WIDTH") &&
+                    metadata.ReadAsString("INSTRUMENT_STATE_PARMS", "PIXEL_AVERAGING_WIDTH") != Unknown)
                 {
-                    if (metadata.ReadAsString("IMAGE_REQUEST_PARMS", "PIXEL_DOWNSAMPLE_OPTION") != "NONE")
-                    {
-                        int avgWidth = 1;
-                        if (metadata.HasKey("IMAGE_REQUEST_PARMS", "PIXEL_AVERAGING_WIDTH") &&
-                            metadata.ReadAsString("IMAGE_REQUEST_PARMS", "PIXEL_AVERAGING_WIDTH") != Unknown)
-                        {
-                            avgWidth = metadata.ReadAsInt("IMAGE_REQUEST_PARMS", "PIXEL_AVERAGING_WIDTH");
-                        }
-
-                        int avgHeight = 1;
-                        if (metadata.HasKey("IMAGE_REQUEST_PARMS", "PIXEL_AVERAGING_HEIGHT") &&
-                            metadata.ReadAsString("IMAGE_REQUEST_PARMS", "PIXEL_AVERAGING_HEIGHT") != Unknown)
-                        {
-                            avgHeight = metadata.ReadAsInt("IMAGE_REQUEST_PARMS", "PIXEL_AVERAGING_HEIGHT");
-                        }
-
-                        return avgWidth > 1 || avgHeight > 1;
-                    }
+                    avgWidth = metadata.ReadAsInt("INSTRUMENT_STATE_PARMS", "PIXEL_AVERAGING_WIDTH");
                 }
-                return false;
+
+                int avgHeight = 1;
+                if (metadata.HasKey("INSTRUMENT_STATE_PARMS", "PIXEL_AVERAGING_HEIGHT") &&
+                    metadata.ReadAsString("INSTRUMENT_STATE_PARMS", "PIXEL_AVERAGING_HEIGHT") != Unknown)
+                {
+                    avgHeight = metadata.ReadAsInt("INSTRUMENT_STATE_PARMS", "PIXEL_AVERAGING_HEIGHT");
+                }
+
+                return avgWidth > 1 || avgHeight > 1;
             }
         }
 
@@ -544,6 +520,37 @@ namespace OPS.Pipeline
             get
             {
                 return new PDSRoverArticulationParser(this.metadata).Parse();
+            }
+        }
+
+        public double HorizontalFOV
+        {
+            get
+            {
+                // Todo: write read angle: issues/465
+                if (this.metadata.HasKey("INSTRUMENT_STATE_PARMS", "AZIMUTH_FOV"))
+                {
+                    return MathHelper.ToRadians(this.metadata.ReadAsDouble("INSTRUMENT_STATE_PARMS", "AZIMUTH_FOV"));
+                }
+
+                return MathHelper.ToRadians(this.metadata.ReadAsDouble("INSTRUMENT_STATE_PARMS", "HORIZONTAL_FOV"));
+                
+               
+            }
+        }
+
+        public double VerticleFOV
+        {
+            get
+            {
+                // Todo: write read angle: issues/465
+
+                if (this.metadata.HasKey("INSTRUMENT_STATE_PARMS", "ELEVATION_FOV"))
+                {
+                    return MathHelper.ToRadians(this.metadata.ReadAsDouble("INSTRUMENT_STATE_PARMS", "ELEVATION_FOV"));
+                }
+                return MathHelper.ToRadians(this.metadata.ReadAsDouble("INSTRUMENT_STATE_PARMS", "VERTICAL_FOV"));
+                
             }
         }
 
@@ -579,7 +586,17 @@ namespace OPS.Pipeline
         {
             get
             {
-                return GetReferenceCoordinateFrame("GEOMETRIC_CAMERA_MODEL");
+                if(this.metadata.HasGroup("GEOMETRIC_CAMERA_MODEL"))
+                {
+                    //MSL/M2020 opgs
+                    //M2020 MSSS
+                    return GetReferenceCoordinateFrame("GEOMETRIC_CAMERA_MODEL");
+                }
+                else
+                {
+                    //MSL MSSS
+                    return GetReferenceCoordinateFrame("GEOMETRIC_CAMERA_MODEL_PARMS"); //MSL Specific
+                }
             }
         }
         
