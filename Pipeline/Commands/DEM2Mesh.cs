@@ -75,18 +75,6 @@ namespace OPS.Pipeline
             return p;
         };
 
-        void TryAdd(List<Vertex> verts, int r, int c, Image xyz, Image mask)
-        {
-            r = Math.Min(r, xyz.Height - 1);
-            r = Math.Max(r, 0);
-            c = Math.Min(c, xyz.Width - 1);
-            c = Math.Max(c, 0);
-            if (mask[0, r, c] == 1)
-            {
-                verts.Add(new Vertex(xyz[0, r, c], xyz[1, r, c], xyz[2, r, c]));
-            }
-        }
-
         /// <summary>
         /// Given Image dem, find corners that are not masked out. Optionally enter top left corner and a size parameter to get corners of a subregion.
         /// May not return a full set of vertices (potentially none) if image heavily masked
@@ -164,6 +152,16 @@ namespace OPS.Pipeline
             }
         }
 
+        /// <summary>
+        /// Do bilinear interpolation with potentially null points.
+        /// </summary>
+        /// <param name="x"></param>
+        /// <param name="y"></param>
+        /// <param name="tl"></param>
+        /// <param name="tr"></param>
+        /// <param name="bl"></param>
+        /// <param name="br"></param>
+        /// <returns></returns>
         Vector3? Bilinear(double x, double y, Vector3? tl, Vector3? tr, Vector3? bl, Vector3? br)
         {
             Vector3 ret = new Vector3(0,0,0);
@@ -334,6 +332,16 @@ namespace OPS.Pipeline
             return newVerts;
         }
 
+        /// <summary>
+        /// Unprojects passed in row, col in dem to return an xyz. Will return null if index is out of bounds, or point should be masked out.
+        /// </summary>
+        /// <param name="dem"></param>
+        /// <param name="mask"></param>
+        /// <param name="row"></param>
+        /// <param name="col"></param>
+        /// <param name="parser"></param>
+        /// <param name="filterValues"></param>
+        /// <returns></returns>
         Vector3? GetXYZ(Image dem, Image mask, int row, int col, PDSParser parser, bool filterValues=true)
         {
             if (row < 0 || row >= dem.Height || col < 0 || col >= dem.Width || dem.IsInvalid(row, col)) //respect input image mask if it has one
@@ -382,6 +390,9 @@ namespace OPS.Pipeline
             }
 
             Mesh mesh = new Mesh();
+            //No decimation:
+            //  Convert the entire dem to xyz's with mask
+            //  Build the mesh by connecting neighboring points with a regular grid of tris
             if (options.Error == 0)
             {
                 //TODO: check on this function
@@ -404,6 +415,9 @@ namespace OPS.Pipeline
                 }
                 mesh = Meshing.BuildOrganizedMesh(xyz, mask:mask);
             }
+            //Build decimated mesh by iterative sampling:
+            // Start with two tris that connect the dem corners
+            // Test error and sample regions that need subdividing (currently quad scheme)
             else
             {
                 PDSParser parser = null;
@@ -417,6 +431,7 @@ namespace OPS.Pipeline
                 }
                 List<Vertex> verts;
                 verts = FindCorners(dem, parser).ToList();
+                //This mask is only used to avoid resampling the same point. Invalid point data is masked out by the GetXYZ function (computed lazily)
                 Image mask = new Image(1, dem.Width, dem.Height);
                 for(int r = 0; r < mask.Height; r++)
                 {
