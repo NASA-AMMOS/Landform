@@ -148,7 +148,7 @@ namespace OPS.Pipeline
         public bool Cloud { get; set; }
 
         [Option(HelpText = "Write delta range images: a visualization of the 3d distance between the points in one image projected into and compared to the points in another image", Default = false)]
-        public bool WriteDeltaRangeImages { get; set;}
+        public bool DeltaRangeImages { get; set;}
     } 
 
     public class LocalObservationProducts
@@ -182,6 +182,9 @@ namespace OPS.Pipeline
             options.UncertaintyInflatedFrustumHullMeshes |= options.AllTheThings;
             options.MergedSiteDriveMeshes |= options.AllTheThings;
             options.NormalsImages |= options.AllTheThings;
+            options.CurvatureImages |= options.AllTheThings;
+            options.ElevationImages |= options.AllTheThings;
+            options.DeltaRangeImages |= options.AllTheThings;
 
             bool withUVs = !options.NoImages && options.ColorMeshesBy == Meshing.MeshColor.Texture;
 
@@ -584,7 +587,7 @@ namespace OPS.Pipeline
                     }
                 }
                 
-                if (options.WriteDeltaRangeImages)
+                if (options.DeltaRangeImages && obs.Points != null)
                 {
                     string path = tmpPath + "DeltaRange/";
                     PathHelper.EnsureExists(path);
@@ -597,7 +600,7 @@ namespace OPS.Pipeline
                     
                     foreach (var otherObs in observations)
                     {
-                        if (obs == otherObs)
+                        if (obs == otherObs || otherObs.Points == null)
                         {
                             continue;
                         }
@@ -612,7 +615,7 @@ namespace OPS.Pipeline
                         try
                         {
                             deltaRangeImage = CreateDeltaRangeImage(otherObs, obs, frameCache,
-                                                                   options.UsePriors, options.OnlyAligned);
+                                                                    options.UsePriors, options.OnlyAligned);
                         }
                         catch (Exception ex)
                         {
@@ -793,22 +796,29 @@ namespace OPS.Pipeline
 
         // fills a texture with the difference in the per-pixel range of a src point cloud and dst point cloud 
         // designed to give an coarse visual estimate of how well cameras are aligned
-        private Image CreateDeltaRangeImage(MeshObservations srcObs, MeshObservations dstObs, FrameCache frameCache, bool usePriors, bool noPriors)
+        private Image CreateDeltaRangeImage(MeshObservations srcObs, MeshObservations dstObs, FrameCache frameCache,
+                                            bool usePriors, bool noPriors)
         {
             //load images
-            Meshing.LoadOrGenerateMeshImages(this.pipeline, srcObs, 1, false, out Image srcPoints, out Image srcNormals, out Image srcMask);
-            srcPoints.UnionMask(srcMask, new float[] { 0 });
+            var srcPointsRaw = pipeline.LoadImage(srcObs.Points.Url);
+            var srcPoints = Meshing.ConvertPoints(srcPointsRaw);
+            srcPoints.UnionMask(RoverMask.LoadOrBuild(pipeline, srcObs.Mask, srcPointsRaw , srcObs.Name),
+                                new float[] { 0 });
 
-            Meshing.LoadOrGenerateMeshImages(this.pipeline, dstObs, 1, false, out Image dstPoints, out Image dstNormals, out Image dstMask);
-            dstPoints.UnionMask(dstMask, new float[] { 0 });
+            var dstPointsRaw = pipeline.LoadImage(dstObs.Points.Url);
+            var dstPoints = Meshing.ConvertPoints(dstPointsRaw);
+            dstPoints.UnionMask(RoverMask.LoadOrBuild(pipeline, dstObs.Mask, dstPointsRaw , dstObs.Name),
+                                new float[] { 0 });
 
             //get camera model
             Image dstImg = pipeline.LoadImage(dstObs.Texture.Url);
             PDSParser dstParser = new PDSParser((PDSMetadata)dstImg.Metadata);
             CameraModel dstCamera = dstParser.metadata.CameraModel;
 
-            var srcObsToDstObs = Meshing.GetTransform(srcObs.Points.FrameName, dstObs.Points.FrameName, frameCache, usePriors, noPriors).Mean;
-            var dstHull = Meshing.BuildFrustumHull(pipeline, dstObs, frameCache, dstObs.Points.FrameName, usePriors, uncertaintyInflated: false);
+            var srcObsToDstObs = Meshing.GetTransform(srcObs.Points.FrameName, dstObs.Points.FrameName, frameCache,
+                                                      usePriors, noPriors).Mean;
+            var dstHull = Meshing.BuildFrustumHull(pipeline, dstObs, frameCache, dstObs.Points.FrameName, usePriors,
+                                                   uncertaintyInflated: false);
 
             //project points of src texture into dst
             Image deltaRangeImg = new Image(1, dstObs.Texture.Width, dstObs.Texture.Height);
