@@ -35,8 +35,8 @@ namespace OPS.Pipeline
         [Option(HelpText = "Output coordinate frame: rover, sitedrive, or root", Default = "rover")]
         public string OutputFrame { get; set; }
 
-        [Option(HelpText = "Create meshes for mastcam observations", Default = false)]
-        public bool AllowMastcam { get; set; }
+        [Option(HelpText = "Don't reate meshes for mastcam observations", Default = false)]
+        public bool NoMastcam { get; set; }
 
         [Option(HelpText = "Only create meshes for observations with normals", Default = false)]
         public bool RequireNormals { get; set; }
@@ -304,7 +304,7 @@ namespace OPS.Pipeline
 
             var opts = new Meshing.MeshObservationsOptions(options.OnlyForSiteDrives, options.OnlyForCameras)
                 {
-                    AllowMastcam = options.AllowMastcam,
+                    AllowMastcam = !options.NoMastcam,
                     RequirePoints = false,
                     RequireNormals = options.RequireNormals,
                     RequireTextures = options.RequireTextures,
