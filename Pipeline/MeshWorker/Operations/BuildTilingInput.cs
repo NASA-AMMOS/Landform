@@ -103,6 +103,7 @@ namespace OPS.Pipeline.MeshWorker
             //and if not fall back to the legacy tiling behavior which is MSL
             var project = Project.Find(pipeline, projectName);
             var mission = MissionSpecific.GetInstance(project != null ? project.Mission : Mission.MSL.ToString());
+            var masker = mission.GetMasker();
             var comparator = mission.GetRoverObservationComparator();
             var observations = Meshing.CollectMeshObservations(frameCache, observationCache, comparator, opts);
             if (observations.Count == 0)
@@ -120,7 +121,8 @@ namespace OPS.Pipeline.MeshWorker
                 pipeline.LogInfo("building point cloud {0}/{1} ({2})%): {3}", idx + 1, observations.Count,
                                     (int)(100 * idx / (float)(observations.Count - 1)), obs.Points.FrameName);
 
-                var mesh = Meshing.BuildPointCloud(pipeline, obs, frameCache, outputFrame, scaleNormalsByConfidence: true);
+                var mesh = Meshing.BuildPointCloud(pipeline, masker, obs, frameCache, outputFrame,
+                                                   scaleNormalsByConfidence: true);
                 if (mesh == null)
                 {
                     pipeline.LogInfo("failed to build pointcloud for {0}", obs.Name);

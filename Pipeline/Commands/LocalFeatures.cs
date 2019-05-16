@@ -84,6 +84,9 @@ namespace OPS.Pipeline
     {
         private LocalFeaturesOptions options;
         private PipelineCore pipeline;
+        private MissionSpecific mission;
+        private RoverMasker masker;
+
         private string imageDir;
         private string imageExt;
 
@@ -109,6 +112,8 @@ namespace OPS.Pipeline
                 pipeline.LogError("project \"{0}\" not found", options.ProjectName);
                 return 1;
             }
+            mission = MissionSpecific.GetInstance(project.Mission);
+            masker = mission.GetMasker();
 
             imageDir =
                 pipeline.GetLocalDebugFolder(options.ImageOutputFolder, "alignment/FeatureProducts", project.Name);
@@ -171,9 +176,9 @@ namespace OPS.Pipeline
                     FeaturesPerLayerBucketSize = 1,
                     FeaturesPerScaleBucketSize = 0.1
                 };
-            FeatureDetector detector = new FeatureDetector(pipeline, detectorOpts);
+            FeatureDetector detector = new FeatureDetector(pipeline, masker, detectorOpts);
 
-            var comparator = MissionSpecific.GetInstance(project.Mission).GetRoverObservationComparator();
+            var comparator = mission.GetRoverObservationComparator();
 
             double startSec = UTCTime.Now();
             int nc = 0, ne = 0, nf = 0, np = 0, wr = 0, tf = 0, trf = 0;
@@ -293,7 +298,7 @@ namespace OPS.Pipeline
             //avoid using product.ImageUrl here for legacy compat reasons
             //fortunately we can use imageObs.Url instead
             var img = new Image(pipeline.LoadImage(imageObs.Url)); //don't mutate original image
-            var mask = FeatureDetecting.MakeMask(pipeline, maskUrl, img, imageObs.Name);
+            var mask = FeatureDetecting.MakeMask(pipeline, masker, maskUrl, img, imageObs.Name);
             img = FeatureDetecting.DrawFeatures(img, mask, product.Features,
                                                 StringHelper.GetLastUrlPathSegment(imageObs.Url));
             PathHelper.EnsureExists(imageDir);

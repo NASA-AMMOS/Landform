@@ -265,7 +265,15 @@ namespace OPS.Pipeline
             parser = parser ?? new PDSParser((PDSMetadata)src.Metadata);
             if (parser.HasMissingConstant)
             {
-                dst.UnionMask(src, parser.MissingConstant.Select(x => (float)x).ToArray());
+                float[] missing = parser.MissingConstant.Select(x => (float)x).ToArray();
+                
+                //ROASTT: single float missing constant for 3 channel navcam
+                if(missing.Count() == 1 && src.Bands > 1)
+                {
+                    missing = Enumerable.Repeat<float>(missing.First(), src.Bands).ToArray();
+                }
+
+                dst.UnionMask(src, missing);
             }
             else
             {
@@ -1062,7 +1070,8 @@ namespace OPS.Pipeline
             return blocksize > 1 ? img.Decimated(blocksize) : img;
         }
 
-        public static void LoadOrGenerateMeshImages(PipelineCore pipeline, MeshObservations obs, int decimate,
+        public static void LoadOrGenerateMeshImages(PipelineCore pipeline, RoverMasker masker,
+                                                    MeshObservations obs, int decimate,
                                                     bool scaleNormalsByConfidence,
                                                     out Image points, out Image normals, out Image mask)
         {
@@ -1081,7 +1090,7 @@ namespace OPS.Pipeline
                 normals = ConvertNormals(pipeline.LoadImage(obs.Normals.Url), confidence);
             }
 
-            mask = RoverMask.LoadOrBuild(pipeline, obs.Mask, pointsRaw, obs.Name);
+            mask = masker.LoadOrBuild(pipeline, obs.Mask, pointsRaw, obs.Name);
 
             if (decimate > 1)
             {
@@ -1184,13 +1193,13 @@ namespace OPS.Pipeline
             return ret;
         }
 
-        public static Mesh BuildPointCloud(PipelineCore pipeline, MeshObservations obs, FrameCache frameCache,
-                                           out int validPoints, out int validNormals,
+        public static Mesh BuildPointCloud(PipelineCore pipeline, RoverMasker masker, MeshObservations obs,
+                                           FrameCache frameCache, out int validPoints, out int validNormals,
                                            string frame = "root", bool usePriors = false, bool onlyAligned = false,
                                            int decimate = 1, bool scaleNormalsByConfidence = false,
                                            bool countValid = true)
         {
-            LoadOrGenerateMeshImages(pipeline, obs, decimate, scaleNormalsByConfidence,
+            LoadOrGenerateMeshImages(pipeline, masker, obs, decimate, scaleNormalsByConfidence,
                                      out Image points, out Image normals, out Image mask);
             validPoints = countValid ? CountValid(points, mask) : -1;
             validNormals = countValid ? CountValid(normals, mask) : -1;
@@ -1215,11 +1224,12 @@ namespace OPS.Pipeline
             return ret;
         }
 
-        public static Mesh BuildPointCloud(PipelineCore pipeline, MeshObservations obs, FrameCache frameCache,
-                                           string frame = "root", bool usePriors = false, bool onlyAligned = false,
-                                           int decimate = 1, bool scaleNormalsByConfidence = false)
+        public static Mesh BuildPointCloud(PipelineCore pipeline, RoverMasker masker, MeshObservations obs,
+                                           FrameCache frameCache, string frame = "root", bool usePriors = false,
+                                           bool onlyAligned = false, int decimate = 1,
+                                           bool scaleNormalsByConfidence = false)
         {
-            return BuildPointCloud(pipeline, obs, frameCache, out int validPoints, out int validNormals,
+            return BuildPointCloud(pipeline, masker, obs, frameCache, out int validPoints, out int validNormals,
                                    frame, usePriors, onlyAligned, decimate, scaleNormalsByConfidence,
                                    countValid: false);
         }
@@ -1345,14 +1355,14 @@ namespace OPS.Pipeline
             return ret;
         }
 
-        public static Mesh BuildOrganizedMesh(PipelineCore pipeline, MeshObservations obs, FrameCache frameCache,
-                                              out int validPoints, out int validNormals,
+        public static Mesh BuildOrganizedMesh(PipelineCore pipeline, RoverMasker masker, MeshObservations obs,
+                                              FrameCache frameCache, out int validPoints, out int validNormals,
                                               string frame = "root", bool usePriors = false, bool onlyAligned = false,
                                               int decimate = 1, bool scaleNormalsByConfidence = false,
                                               double maxTriangleAspect = 20, double isolatedPointSize = 0,
                                               bool withUVs = false, bool countValid = true)
         {
-            LoadOrGenerateMeshImages(pipeline, obs, decimate, scaleNormalsByConfidence,
+            LoadOrGenerateMeshImages(pipeline, masker, obs, decimate, scaleNormalsByConfidence,
                                      out Image points, out Image normals, out Image mask);
             validPoints = countValid ? CountValid(points, mask) : -1;
             validNormals = countValid ? CountValid(normals, mask) : -1;
@@ -1375,13 +1385,13 @@ namespace OPS.Pipeline
             return ret;
         }
 
-        public static Mesh BuildOrganizedMesh(PipelineCore pipeline, MeshObservations obs, FrameCache frameCache,
-                                              string frame = "root", bool usePriors = false, bool onlyAligned = false,
-                                              int decimate = 1, bool scaleNormalsByConfidence = false,
-                                              double maxTriangleAspect = 20, double isolatedPointSize = 0,
-                                              bool withUVs = false)
+        public static Mesh BuildOrganizedMesh(PipelineCore pipeline, RoverMasker masker, MeshObservations obs,
+                                              FrameCache frameCache, string frame = "root", bool usePriors = false,
+                                              bool onlyAligned = false, int decimate = 1,
+                                              bool scaleNormalsByConfidence = false, double maxTriangleAspect = 20,
+                                              double isolatedPointSize = 0, bool withUVs = false)
         {
-            return BuildOrganizedMesh(pipeline, obs, frameCache, out int validPoints, out int validNormals,
+            return BuildOrganizedMesh(pipeline, masker, obs, frameCache, out int validPoints, out int validNormals,
                                       frame, usePriors, onlyAligned, decimate, scaleNormalsByConfidence,
                                       maxTriangleAspect, isolatedPointSize, withUVs, countValid: false);
         }
@@ -1404,13 +1414,13 @@ namespace OPS.Pipeline
             return PoissonReconstruction.Reconstruct(BuildPointCloud(points, normals, mask), opts);
         }
 
-        public static Mesh BuildPoissonMesh(PipelineCore pipeline, MeshObservations obs, FrameCache frameCache,
-                                            out int validPoints, out int validNormals,
+        public static Mesh BuildPoissonMesh(PipelineCore pipeline, RoverMasker masker, MeshObservations obs,
+                                            FrameCache frameCache, out int validPoints, out int validNormals,
                                             string frame = "root", bool usePriors = false, bool onlyAligned = false,
                                             int decimate = 1, bool scaleNormalsByConfidence = false,
                                             bool withUVs = false, bool countValid = true)
         {
-            LoadOrGenerateMeshImages(pipeline, obs, decimate, scaleNormalsByConfidence,
+            LoadOrGenerateMeshImages(pipeline, masker, obs, decimate, scaleNormalsByConfidence,
                                      out Image points, out Image normals, out Image mask);
             validPoints = countValid ? CountValid(points, mask) : -1;
             validNormals = countValid ? CountValid(normals, mask) : -1;
@@ -1434,12 +1444,12 @@ namespace OPS.Pipeline
             return ret;
         }
 
-        public static Mesh BuildPoissonMesh(PipelineCore pipeline, MeshObservations obs, FrameCache frameCache,
-                                            string frame = "root", bool usePriors = false, bool onlyAligned = false,
-                                            int decimate = 1, bool scaleNormalsByConfidence = false,
-                                            bool withUVs = false)
+        public static Mesh BuildPoissonMesh(PipelineCore pipeline, RoverMasker masker, MeshObservations obs,
+                                            FrameCache frameCache, string frame = "root", bool usePriors = false,
+                                            bool onlyAligned = false, int decimate = 1,
+                                            bool scaleNormalsByConfidence = false, bool withUVs = false)
         {
-            return BuildPoissonMesh(pipeline, obs, frameCache, out int validPoints, out int validNormals,
+            return BuildPoissonMesh(pipeline, masker, obs, frameCache, out int validPoints, out int validNormals,
                                     frame, usePriors, onlyAligned, decimate, scaleNormalsByConfidence, withUVs,
                                     countValid: false);
         }
@@ -1453,12 +1463,12 @@ namespace OPS.Pipeline
             return FSSR.Reconstruct(BuildPointCloud(points, normals, mask));            
         }
 
-        public static Mesh BuildFSSRMesh(PipelineCore pipeline, MeshObservations obs, FrameCache frameCache,
-                                         out int validPoints, out int validNormals,
+        public static Mesh BuildFSSRMesh(PipelineCore pipeline, RoverMasker masker, MeshObservations obs,
+                                         FrameCache frameCache, out int validPoints, out int validNormals,
                                          string frame = "root", bool usePriors = false, bool onlyAligned = false,
                                          int decimate = 1, bool withUVs = false, bool countValid = true)
         {
-            LoadOrGenerateMeshImages(pipeline, obs, decimate, false,
+            LoadOrGenerateMeshImages(pipeline, masker, obs, decimate, false,
                                      out Image points, out Image normals, out Image mask);
             validPoints = countValid ? CountValid(points, mask) : -1;
             validNormals = countValid ? CountValid(normals, mask) : -1;
@@ -1482,11 +1492,11 @@ namespace OPS.Pipeline
             return ret;
         }
 
-        public static Mesh BuildFSSRMesh(PipelineCore pipeline, MeshObservations obs, FrameCache frameCache,
-                                         string frame = "root", bool usePriors = false, bool onlyAligned = false,
-                                         int decimate = 1, bool withUVs = false)
+        public static Mesh BuildFSSRMesh(PipelineCore pipeline, RoverMasker masker, MeshObservations obs,
+                                         FrameCache frameCache, string frame = "root", bool usePriors = false,
+                                         bool onlyAligned = false, int decimate = 1, bool withUVs = false)
         {
-            return BuildFSSRMesh(pipeline, obs, frameCache, out int validPoints, out int validNormals,
+            return BuildFSSRMesh(pipeline, masker, obs, frameCache, out int validPoints, out int validNormals,
                                  frame, usePriors, onlyAligned, decimate, withUVs, countValid: false);
         }
 

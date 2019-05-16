@@ -67,11 +67,13 @@ namespace OPS.Pipeline
         private Histogram featuresPerScale;
 
         private readonly PipelineCore pipeline;
+        private readonly RoverMasker masker;
         private readonly Options options;
 
-        public FeatureDetector(PipelineCore pipeline, Options options = null)
+        public FeatureDetector(PipelineCore pipeline, RoverMasker masker, Options options = null)
         {
             this.pipeline = pipeline;
+            this.masker = masker;
             this.options = options ?? new Options();
 
             if (options.FeaturesPerImageBucketSize > 0)
@@ -200,7 +202,7 @@ namespace OPS.Pipeline
             try
             {
                 var img = pipeline.LoadImage(imageUrl);
-                var mask = FeatureDetecting.MakeMask(pipeline, roverMaskUrl, img, observationName, border);
+                var mask = FeatureDetecting.MakeMask(pipeline, masker, roverMaskUrl, img, observationName, border);
                 return new DetectedFeatures() { ImageUrl = imageUrl, Features = Detect(img, mask) };
             }
             catch (Exception ex)
@@ -302,11 +304,11 @@ namespace OPS.Pipeline
         /// 2) invalid pixels in the original image
         /// 3) inset borders of the original image (image borders sometimes have solid bars)
         /// </summary>
-        public static Image MakeMask(PipelineCore pipeline, string roverMaskUrl, Image img, string observationName,
-                                     int border = DEF_MASK_BORDER)
+        public static Image MakeMask(PipelineCore pipeline, RoverMasker masker, string roverMaskUrl, Image img,
+                                     string observationName, int border = DEF_MASK_BORDER)
         {
             //do not mutate rover mask if it's loaded from mission product (clone: true)
-            Image mask = RoverMask.LoadOrBuild(pipeline, roverMaskUrl, img, observationName, clone: true);
+            Image mask = masker.LoadOrBuild(pipeline, roverMaskUrl, img, observationName, clone: true);
 
             //propagate invalid image pixels to mask
             if (img.Metadata is PDSMetadata)

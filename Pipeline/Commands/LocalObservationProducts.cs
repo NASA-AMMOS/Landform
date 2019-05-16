@@ -154,7 +154,11 @@ namespace OPS.Pipeline
     public class LocalObservationProducts
     {
         private LocalObservationProductsOptions options;
+
         private PipelineCore pipeline;
+        private MissionSpecific mission;
+        private RoverMasker masker;
+
         private string imageExt;
         private string meshExt;
 
@@ -191,12 +195,13 @@ namespace OPS.Pipeline
             options.NoImages |= options.OnlyMergedSiteDriveMeshes && !withUVs;
 
             var project = Project.Find(pipeline, options.ProjectName);
-
             if (project == null)
             {
                 pipeline.LogError("project \"{0}\" not found", options.ProjectName);
                 return 1;
             }
+            mission = MissionSpecific.GetInstance(project.Mission);
+            masker = mission.GetMasker();
 
             var outputFrame = options.OutputFrame.ToLower().Trim();
             if (!(new [] {"rover", "sitedrive", "root"}).Any(f => outputFrame == f))
@@ -291,7 +296,7 @@ namespace OPS.Pipeline
                     RequireAdjustedTransform = options.OnlyAligned,
                     TargetFrame = options.OutputFrame
                 }; 
-            var comparator = MissionSpecific.GetInstance(project.Mission).GetRoverObservationComparator();
+            var comparator = mission.GetRoverObservationComparator();
             var observations =
                 Meshing.CollectMeshObservations(frameCache, observationCache, comparator, opts)
                 .Where(obs => !obs.Empty)
@@ -340,7 +345,7 @@ namespace OPS.Pipeline
                 if (buildMesh && options.PointCloud)
                 {
                     pipeline.LogVerbose("building point cloud for {0}", obs.Points.Name);
-                    mesh = Meshing.BuildPointCloud(pipeline, obs, frameCache,
+                    mesh = Meshing.BuildPointCloud(pipeline, masker, obs, frameCache,
                                                    out numPoints, out numNormals,
                                                    outputFrame,
                                                    options.UsePriors, options.OnlyAligned,
@@ -361,7 +366,7 @@ namespace OPS.Pipeline
                         {
                             case ReconstructionMethod.Organized:
                             {
-                                mesh = Meshing.BuildOrganizedMesh(pipeline, obs, frameCache,
+                                mesh = Meshing.BuildOrganizedMesh(pipeline, masker, obs, frameCache,
                                                                   out numPoints, out numNormals,
                                                                   outputFrame,
                                                                   options.UsePriors, options.OnlyAligned,
@@ -374,7 +379,7 @@ namespace OPS.Pipeline
                             }
                             case ReconstructionMethod.Poisson:
                             {
-                                mesh = Meshing.BuildPoissonMesh(pipeline, obs, frameCache,
+                                mesh = Meshing.BuildPoissonMesh(pipeline, masker, obs, frameCache,
                                                                 out numPoints, out numNormals,
                                                                 outputFrame,
                                                                 options.UsePriors, options.OnlyAligned,
@@ -385,7 +390,7 @@ namespace OPS.Pipeline
                             }
                             case ReconstructionMethod.FSSR:
                             {
-                                mesh = Meshing.BuildFSSRMesh(pipeline, obs, frameCache,
+                                mesh = Meshing.BuildFSSRMesh(pipeline, masker, obs, frameCache,
                                                              out numPoints, out numNormals,
                                                              outputFrame,
                                                              options.UsePriors, options.OnlyAligned,
@@ -469,7 +474,7 @@ namespace OPS.Pipeline
                             confidence = Meshing.GenerateConfidence(pipeline.LoadImage(obs.Points.Url));
                         }
                         normals = Meshing.ConvertNormals(normals, confidence);
-                        var mask = RoverMask.LoadOrBuild(pipeline, obs.Mask, obs.Normals);
+                        var mask = masker.LoadOrBuild(pipeline, obs.Mask, obs.Normals);
                         normals = Meshing.MaskAndDecimateNormals(normals, options.DecimateImages, mask);
                         string name = "Normals";
                         if (options.ConvertNormalsToTilts)
@@ -495,7 +500,7 @@ namespace OPS.Pipeline
                     {
                         var points = Meshing.ConvertPoints(pipeline.LoadImage(obs.Points.Url));
                         var normals = Meshing.ConvertNormals(pipeline.LoadImage(obs.Normals.Url));
-                        var mask = RoverMask.LoadOrBuild(pipeline, obs.Mask, obs.Points);
+                        var mask = masker.LoadOrBuild(pipeline, obs.Mask, obs.Points);
                         points = Meshing.MaskAndDecimatePoints(points, options.DecimateImages, mask);
                         normals = Meshing.MaskAndDecimateNormals(normals, options.DecimateImages, mask);
                         var curvatures = Meshing.ComputeCurvatures(points, normals, !options.StretchContrast,
@@ -513,7 +518,7 @@ namespace OPS.Pipeline
                     try
                     {
                         var points = Meshing.ConvertPoints(pipeline.LoadImage(obs.Points.Url));
-                        var mask = RoverMask.LoadOrBuild(pipeline, obs.Mask, obs.Points);
+                        var mask = masker.LoadOrBuild(pipeline, obs.Mask, obs.Points);
                         points = Meshing.MaskAndDecimatePoints(points, options.DecimateImages, mask);
                         var elevations = Meshing.PointsToElevation(points, normalize: !options.StretchContrast);
                         FinishImage(elevations, mask, tmpPath, obs.Name, "Elevation");
@@ -802,12 +807,12 @@ namespace OPS.Pipeline
             //load images
             var srcPointsRaw = pipeline.LoadImage(srcObs.Points.Url);
             var srcPoints = Meshing.ConvertPoints(srcPointsRaw);
-            srcPoints.UnionMask(RoverMask.LoadOrBuild(pipeline, srcObs.Mask, srcPointsRaw , srcObs.Name),
+            srcPoints.UnionMask(masker.LoadOrBuild(pipeline, srcObs.Mask, srcPointsRaw , srcObs.Name),
                                 new float[] { 0 });
 
             var dstPointsRaw = pipeline.LoadImage(dstObs.Points.Url);
             var dstPoints = Meshing.ConvertPoints(dstPointsRaw);
-            dstPoints.UnionMask(RoverMask.LoadOrBuild(pipeline, dstObs.Mask, dstPointsRaw , dstObs.Name),
+            dstPoints.UnionMask(masker.LoadOrBuild(pipeline, dstObs.Mask, dstPointsRaw , dstObs.Name),
                                 new float[] { 0 });
 
             //get camera model

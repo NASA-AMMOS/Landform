@@ -111,6 +111,26 @@ namespace OPS.Pipeline
         {
             return new RoverObservationComparator();
         }
+
+        public abstract RoverMasker GetMasker();
+
+        public virtual bool IsNavcam(RoverProductCamera camera)
+        {
+           return camera == RoverProductCamera.NavcamLeft || camera == RoverProductCamera.NavcamRight;
+        }
+
+        public virtual bool IsHazcam(RoverProductCamera camera)
+        {
+                return camera == RoverProductCamera.FrontHazcamLeft
+                    || camera == RoverProductCamera.FrontHazcamRight
+                    || camera == RoverProductCamera.RearHazcamLeft
+                    || camera == RoverProductCamera.RearHazcamRight;
+        }
+
+        public virtual bool IsMastcam(RoverProductCamera camera)
+        {
+           return camera == RoverProductCamera.MastcamLeft || camera == RoverProductCamera.MastcamRight;
+        }
     }
 
     public class MissionMSL : MissionSpecific
@@ -122,32 +142,6 @@ namespace OPS.Pipeline
         public override string ObservationFrameName(PDSParser parser)
         {
             return parser.Camera.ToString() + "_" + parser.RMC;
-        }
-
-        private bool IsMastcam(RoverProductCamera camera)
-        {
-           return camera == RoverProductCamera.MastcamLeft || camera == RoverProductCamera.MastcamRight;
-        }
-
-        /// <summary>
-        /// Indicates whether or not this image was captured with a navigation camera.
-        /// </summary>
-        private bool IsNavcam(RoverProductCamera camera)
-        {
-           return camera == RoverProductCamera.NavcamLeft || camera == RoverProductCamera.NavcamRight;
-        }
-
-        static public bool IsHazcam(RoverProductCamera camera)
-        {
-                return camera == RoverProductCamera.FrontHazcamLeft
-                    || camera == RoverProductCamera.FrontHazcamRight
-                    || camera == RoverProductCamera.RearHazcamLeft
-                    || camera == RoverProductCamera.RearHazcamRight;
-        }
-
-        static public bool IsMAHLI(RoverProductCamera camera)
-        {
-            return camera == RoverProductCamera.MAHLI;
         }
 
         public override bool UseForReconstruction(PDSParser parser)
@@ -168,18 +162,15 @@ namespace OPS.Pipeline
                 }
             }
 
-            //Needed for mask computation
-            try
-            {
-                if (parser.Articulation == null)
-                {
-                    return false;
-                }
-            }
-            catch
-            {
-                return false;
-            }
+            //we used to try to check here that the parser could supply rover articulation, and if not return false
+            //articulation is needed for mask computation
+            //however, I think the check was bogus, it was always returning true
+            //even if the parser could not supply the data
+            //
+            //and I don't think it's really appropriate to force the parser to have the articulation data
+            //because it may not always be necessary to compute a mask
+            //the mask may not be needed
+            //or it may already be provided by the mission as its own product
 
             if (IsHazcam(parser.Camera))
             {
@@ -227,6 +218,11 @@ namespace OPS.Pipeline
         {
             return parser.PlanetDayNumber;
         }
+
+        public override RoverMasker GetMasker()
+        {
+            return new MSLRoverMasker(this);
+        }
     }
 
     public class MissionM2020 : MissionSpecific
@@ -238,14 +234,16 @@ namespace OPS.Pipeline
             return parser.Camera.ToString() + "_" + ((M2020OPGSProductId)parser.ProductId).GetConcatenatedTimeString();
         }
 
-        private bool IsHazcam(RoverProductCamera camera)
+        public override bool IsHazcam(RoverProductCamera camera)
         {
-            return camera == RoverProductCamera.FrontHazcamLeft
-                || camera == RoverProductCamera.FrontHazcamRight
-                || camera == RoverProductCamera.RearHazcamLeft
-                || camera == RoverProductCamera.RearHazcamRight;
-            //|| camera == RoverProductCamera.FrontHazcamLeftB //ISSUE #534
-            //|| camera == RoverProductCamera.FrontHazcamRightB
+            return base.IsHazcam(camera) ||
+                camera == RoverProductCamera.FrontHazcamLeftB || camera == RoverProductCamera.FrontHazcamRightB;
+        }
+
+        public override bool IsMastcam(RoverProductCamera camera)
+        {
+            return base.IsMastcam(camera) ||
+                camera == RoverProductCamera.MastcamZLeft || camera == RoverProductCamera.MastcamZRight;
         }
 
         public override bool UseForReconstruction(PDSParser parser)
@@ -256,18 +254,15 @@ namespace OPS.Pipeline
                 return false;
             }
            
-            //Needed for mask computation
-            try
-            {
-                if (parser.Articulation == null)
-                {
-                    return false;
-                }
-            }
-            catch
-            {
-                return false;
-            }
+            //we used to try to check here that the parser could supply rover articulation, and if not return false
+            //articulation is needed for mask computation
+            //however, I think the check was bogus, it was always returning true
+            //even if the parser could not supply the data
+            //
+            //and I don't think it's really appropriate to force the parser to have the articulation data
+            //because it may not always be necessary to compute a mask
+            //the mask may not be needed
+            //or it may already be provided by the mission as its own product
 
             if (IsHazcam(parser.Camera))
             {
@@ -294,6 +289,12 @@ namespace OPS.Pipeline
             {
                 return ((M2020OPGSProductId)parser.ProductId).GetDayNumber();
             }
+        }
+
+        public override RoverMasker GetMasker()
+        {
+            //https://github.jpl.nasa.gov/OnSight/Landform/issues/554
+            return new M2020RoverMasker(this);
         }
     }
 }

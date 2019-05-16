@@ -174,6 +174,8 @@ namespace OPS.Pipeline
         private LocalBEVAlignerOptions options;
         private PipelineCore pipeline;
         private Project project;
+        private MissionSpecific mission;
+        private RoverMasker masker;
 
         private string outputPath;
         private string imageExt;
@@ -285,12 +287,13 @@ namespace OPS.Pipeline
         public int Run()
         {
             project = Project.Find(pipeline, options.ProjectName);
-
             if (project == null)
             {
                 pipeline.LogError("project \"{0}\" not found", options.ProjectName);
                 return 1;
             }
+            mission = MissionSpecific.GetInstance(project.Mission);
+            masker = mission.GetMasker();
 
             outputPath = pipeline.GetLocalDebugFolder(options.DebugOutputFolder, "alignment/AdjustProducts/",
                                                       project.Name);
@@ -329,7 +332,7 @@ namespace OPS.Pipeline
                 RequirePriorTransform = true,
                 TargetFrame = "root"
             };
-            var comparator = MissionSpecific.GetInstance(project.Mission).GetRoverObservationComparator();
+            var comparator = mission.GetRoverObservationComparator();
             observations = Meshing.CollectMeshObservations(frameCache, observationCache, comparator, opts);
 
             //for now lexicographically sort siteDrives so that older ones come before newer
@@ -384,7 +387,7 @@ namespace OPS.Pipeline
                                          np, nc, no);
                     }
 
-                    Mesh mesh = Meshing.BuildOrganizedMesh(pipeline, obs, frameCache, "root", usePriors: true,
+                    Mesh mesh = Meshing.BuildOrganizedMesh(pipeline, masker, obs, frameCache, "root", usePriors: true,
                                                            decimate: options.DecimateWedgeMeshes);
 
                     Image img = null;
@@ -811,7 +814,7 @@ namespace OPS.Pipeline
                     FeaturesPerSizeBucketSize = 5,
                     FeaturesPerResponseBucketSize = 10,
                 };
-            FeatureDetector detector = new FeatureDetector(pipeline, detectorOpts);
+            FeatureDetector detector = new FeatureDetector(pipeline, masker, detectorOpts);
 
             int nc = 0, np = 0;
             CoreLimitedParallel.ForEach(featuresNeeded, siteDrive => {

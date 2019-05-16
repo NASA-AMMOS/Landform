@@ -31,17 +31,16 @@ namespace OPS.Pipeline.AlignmentServer
     public class DetectFeatures : CloudPipelineOperation
     {
         private DetectFeaturesMessage message;
-        private FeatureDetector detector;
 
         public DetectFeatures(CloudPipeline pipeline, DetectFeaturesMessage message) : base(pipeline, message)
         {
             this.message = message;
-            this.detector = new FeatureDetector(pipeline);
         }
 
         public void Process()
         {
             var project = Project.Find(pipeline, projectName);
+            var detector = new FeatureDetector(pipeline, MissionSpecific.GetInstance(project.Mission).GetMasker());
             var shortUrl = StringHelper.GetLastUrlPathSegment(message.ImageUrl);
             pipeline.LogInfo("detecting features for image {0} in project {1}", shortUrl, project.Name);
             var res = detector.Detect(message.ImageUrl, message.MaskUrl, projectName, project.ProductPath);

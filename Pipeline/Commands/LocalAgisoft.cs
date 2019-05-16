@@ -42,7 +42,10 @@ namespace OPS.Pipeline
     public class LocalAgisoft
     {
         private LocalAgisoftOptions options;
+
         private PipelineCore pipeline;
+        private MissionSpecific mission;
+        private RoverMasker masker;
 
         public LocalAgisoft(LocalAgisoftOptions options)
         {
@@ -66,6 +69,8 @@ namespace OPS.Pipeline
                 pipeline.LogError("project \"{0}\" not found", options.ProjectName);
                 return 1;
             }
+            mission = MissionSpecific.GetInstance(project.Mission);
+            masker = mission.GetMasker();
 
             //get temp paths
             var imageDir = TemporaryFile.GetTempSubdir("agi_images");
@@ -91,6 +96,9 @@ namespace OPS.Pipeline
             string debugAgiScene = Path.Combine(metaDir, "scene.psz");
             string outputCamerasXMLPath = Path.Combine(metaDir, "camerasOut.xml");
 
+            string imgStr = ObservationType.Image.ToString();
+            string maskStr = ObservationType.RoverMask.ToString();
+
             //build scene graph from database tables for images and transforms heirarchy
             pipeline.LogInfo("building scene graph for bundle adjustment, project {0}", options.ProjectName);
             var bsg = new BuildSceneGraph(pipeline, project.Name, new BuildSceneGraph.Options
@@ -101,15 +109,13 @@ namespace OPS.Pipeline
                 OnlyKeepBestImages = true,
                 OnlyCrossSiteDriveOverlaps = false,
                 OnlyLoadImageObservations = false,
-                IncludeObservation = o => o.ObservationType == ObservationType.Image.ToString() || o.ObservationType == ObservationType.RoverMask.ToString()
+                IncludeObservation = o => o.ObservationType == imgStr || o.ObservationType == maskStr
             });
-            string rootName = MissionSpecific.GetInstance(project.Mission).RootFrameName();
-            AlignmentScene scene = bsg.BuildTopDown(rootName);
+            AlignmentScene scene = bsg.BuildTopDown(mission.RootFrameName());
 
             // prepare png versions of images and masks for agisoft
-            string maskStr = ObservationType.RoverMask.ToString();
-            string imgStr = ObservationType.Image.ToString();
-            var imgObsNodes = scene.Root.GetComponentsInTree<NodeObservation>().Where(no => no.Observation.ObservationType == imgStr);
+            var imgObsNodes = scene.Root.GetComponentsInTree<NodeObservation>()
+                .Where(no => no.Observation.ObservationType == imgStr);
             var observations = imgObsNodes.Select(no => no.Observation).Cast<RoverObservation>();
 
             pipeline.LogInfo("generating pngs for " + imgObsNodes.Count() + " images and masks");
@@ -140,7 +146,7 @@ namespace OPS.Pipeline
                         maskUrl = maskObs.Url;
                     }
 
-                    Image mask = FeatureDetecting.MakeMask(pipeline, maskUrl, img, obs.Name);
+                    Image mask = FeatureDetecting.MakeMask(pipeline, masker, maskUrl, img, obs.Name);
                     mask.Save<byte>(Path.Combine(masksDir, obs.Name + "_mask.png"));
                 }
 

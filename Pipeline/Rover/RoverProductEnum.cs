@@ -10,21 +10,24 @@ namespace OPS.Pipeline
     {
         //common
         Unknown,
-        FrontHazcamLeft,
-        FrontHazcamRight,
-        RearHazcamLeft,
-        RearHazcamRight,
-        NavcamLeft,
-        NavcamRight,
+        FrontHazcamLeft, FrontHazcamRight,
+        RearHazcamLeft, RearHazcamRight,
+        NavcamLeft, NavcamRight,
+        MastcamLeft, MastcamRight,
 
         //MSL
-        MastcamLeft,
-        MastcamRight,
         MAHLI,
 
         //M2020
-        MastcamZLeft,
-        MastcamZRight
+        FrontHazcamLeftB, FrontHazcamRightB,
+        MastcamZLeft, MastcamZRight,
+        CacheCam,
+        EDLPUCA, EDLPUCB, EDLPUCC, EDLRDC, EDLLVS, EDLDSD, EDLRUC,
+        HeliNav, HeliScout,
+        MEDASkyCam,
+        PIXELMCC,
+        SHERLOCACI, SHELOCWATSONLeft, SHELOCWATSONRight,
+        SuperCamRMI
     }
 
     public enum RoverProductGeometry
