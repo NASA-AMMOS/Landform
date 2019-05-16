@@ -103,7 +103,8 @@ namespace OPS.Pipeline
                 OnlyLoadImageObservations = false,
                 IncludeObservation = o => o.ObservationType == ObservationType.Image.ToString() || o.ObservationType == ObservationType.RoverMask.ToString()
             });
-            AlignmentScene scene = bsg.BuildTopDown(project.RootFrame);
+            string rootName = MissionSpecific.GetInstance(project.Mission).RootFrameName();
+            AlignmentScene scene = bsg.BuildTopDown(rootName);
 
             // prepare png versions of images and masks for agisoft
             string maskStr = ObservationType.RoverMask.ToString();

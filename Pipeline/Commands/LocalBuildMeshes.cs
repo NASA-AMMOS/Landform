@@ -488,7 +488,7 @@ namespace OPS.Pipeline
 
             //build mesh
             pipeline.LogInfo("Building full mesh for {0}", options.ProjectName);
-            fullMesh = BuildTilingInput.BuildMesh(pipeline, options.ProjectName,out BoundingBox pointBounds, frameCache, observationCache, outputFrame, options.UsePriors, options.OnlyAligned, options.OnlyForCameras, !options.NoCleverCombine, allowMastcam:true);
+            fullMesh = BuildTilingInput.BuildMesh(pipeline, options.ProjectName, out BoundingBox pointBounds, frameCache, observationCache, outputFrame, options.UsePriors, options.OnlyAligned, options.OnlyForCameras, !options.NoCleverCombine, allowMastcam:true);
             if (fullMesh == null)
             {
                 pipeline.LogError("Mesh building for {0) failed.", options.ProjectName);

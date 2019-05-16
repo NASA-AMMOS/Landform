@@ -312,7 +312,12 @@ namespace OPS.Pipeline
                     RequireAdjustedTransform = options.OnlyAligned,
                     TargetFrame = options.OutputFrame
                 }; 
-            var observations = Meshing.CollectMeshObservations(frameCache, observationCache, opts);
+            var comparator = MissionSpecific.GetInstance(project.Mission).GetRoverObservationComparator();
+            var observations =
+                Meshing.CollectMeshObservations(frameCache, observationCache, comparator, opts)
+                .Where(obs => !obs.Empty)
+                .OrderBy(obs => obs.FrameName)
+                .ToList();
             
             int no = observations.Count();
             var siteDrives = observations.Select(obs => obs.SiteDrive).Distinct().OrderBy(sd => sd).ToArray();

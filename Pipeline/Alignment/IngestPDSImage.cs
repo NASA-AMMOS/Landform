@@ -24,7 +24,7 @@ namespace OPS.Pipeline
         public MSLPlaces Places;
         public MSLLegacyManifest LegacyManifest; 
 
-        public IngestPDSImage(PipelineCore pipeline, Project project, MissionSpecific missionSpecific, bool recreateExistingObservations = false,
+        public IngestPDSImage(PipelineCore pipeline, Project project, bool recreateExistingObservations = false,
                               bool resetTransforms = false, Filter filter = null)
             : base(pipeline)
         {
@@ -32,7 +32,7 @@ namespace OPS.Pipeline
             this.recreateExistingObservations = recreateExistingObservations;
             this.resetTransforms = resetTransforms;
             this.filter = filter;
-            this.missionSpecific = missionSpecific;
+            this.missionSpecific = MissionSpecific.GetInstance(project.Mission);
         }
 
         /// <summary>
@@ -187,10 +187,11 @@ namespace OPS.Pipeline
                 }
                 
                 // Create database entries
-                Frame rootFrame = Frame.Find(pipeline, project.Name, project.RootFrame);
+                string rootName = missionSpecific.RootFrameName();
+                Frame rootFrame = Frame.Find(pipeline, project.Name, rootName);
                 if (rootFrame == null)
                 {
-                    throw new Exception(string.Format("root frame {0} does not exist", project.RootFrame));
+                    throw new Exception(string.Format("root frame {0} does not exist", rootName));
                 }
                 
                 // site drive frame -> root frame
@@ -253,7 +254,7 @@ namespace OPS.Pipeline
                                                       parser.Camera.ToString(), parser.ImageSizeType.ToString(),
                                                       parser.ProducingInstitution.ToString(),
                                                       metadata.Width, metadata.Height,
-                                                      missionSpecific.SolNumber(parser));
+                                                      missionSpecific.DayNumber(parser));
 
                 if (observation == null)
                 {

@@ -12,8 +12,8 @@ namespace OPS.Pipeline
     {
         public InitializeAlignmentProject(PipelineCore pipeline) : base(pipeline) { }
 
-        public Project Initialize(string projectName, string productPath, string inputPath, bool recreateIfExists,
-                                  string rootName)
+        public Project Initialize(string projectName, string productPath, string inputPath, Mission mission,
+                                  bool recreateIfExists)
         {
             var project = Project.Find(pipeline, projectName);
 
@@ -22,17 +22,19 @@ namespace OPS.Pipeline
                 throw new ArgumentException("input path must be specified to (re)create project");
             }
 
+            string rootName = MissionSpecific.GetInstance(mission).RootFrameName();
+
             if (project == null)
             {
                 pipeline.LogInfo("creating alignment project {0}", projectName);
-                project = Project.Create(pipeline, projectName, productPath, inputPath, rootName);
+                project = Project.Create(pipeline, projectName, productPath, inputPath, mission.ToString());
             }
             else if (recreateIfExists)
             {
                 pipeline.LogInfo("re-creating alignment project {0}", projectName);
 
                 pipeline.DeleteDatabaseItem(project);
-                project = Project.Create(pipeline, projectName, productPath, inputPath, rootName);
+                project = Project.Create(pipeline, projectName, productPath, inputPath, mission.ToString());
 
                 var oldRoot = Frame.Find(pipeline, projectName, rootName);
                 if (oldRoot != null)
@@ -69,11 +71,6 @@ namespace OPS.Pipeline
             FrameTransform.FindOrCreate(pipeline, rootFrame, TransformSource.Prior, ut);
 
             return project;
-        }
-
-        public Project Initialize(string projectName, string productPath, string inputPath, bool recreateIfExists)
-        {
-            return Initialize(projectName, productPath, inputPath, recreateIfExists, MSLProject.ROOT_FRAME_NAME);
         }
     }
 }

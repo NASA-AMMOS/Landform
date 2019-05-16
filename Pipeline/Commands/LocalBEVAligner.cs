@@ -329,7 +329,8 @@ namespace OPS.Pipeline
                 RequirePriorTransform = true,
                 TargetFrame = "root"
             };
-            observations = Meshing.CollectMeshObservations(frameCache, observationCache, opts);
+            var comparator = MissionSpecific.GetInstance(project.Mission).GetRoverObservationComparator();
+            observations = Meshing.CollectMeshObservations(frameCache, observationCache, comparator, opts);
 
             //for now lexicographically sort siteDrives so that older ones come before newer
             //just to give a canonical order

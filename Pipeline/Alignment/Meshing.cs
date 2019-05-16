@@ -116,6 +116,7 @@ namespace OPS.Pipeline
         /// </summary>
         public static MeshObservations CollectMeshObservationsForFrame(string frameName, FrameCache frameCache,
                                                                        ObservationCache observationCache,
+                                                                       IComparer<RoverObservation> comparator,
                                                                        MeshObservationsOptions opts = null)
         {
             if (opts == null)
@@ -157,7 +158,10 @@ namespace OPS.Pipeline
                 .Where(obs => opts.OnlyForCameras == null || opts.OnlyForCameras.Any(cam => cam == obs.Sensor))
                 .ToList();
 
-            observations.Sort(MSLProject.RoverObservationComparison);
+            if (comparator != null)
+            {
+                observations.Sort(comparator);
+            }
 
             var ret = new MeshObservations();
 
@@ -207,17 +211,18 @@ namespace OPS.Pipeline
         /// </summary>
         public static List<MeshObservations> CollectMeshObservations(FrameCache frameCache,
                                                                      ObservationCache observationCache,
+                                                                     IComparer<RoverObservation> comparator,
                                                                      MeshObservationsOptions opts = null)
         {
             if (opts == null)
             {
                 opts = new MeshObservationsOptions();
             }
-                
+
             var ret = new List<MeshObservations>();
             foreach (var frameName in observationCache.GetAllFramesWithObservations())
             {
-                var obs = CollectMeshObservationsForFrame(frameName, frameCache, observationCache, opts);
+                var obs = CollectMeshObservationsForFrame(frameName, frameCache, observationCache, comparator, opts);
                 if (obs != null)
                 {
                     ret.Add(obs);

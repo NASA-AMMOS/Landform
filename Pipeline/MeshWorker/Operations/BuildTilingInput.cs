@@ -89,7 +89,22 @@ namespace OPS.Pipeline.MeshWorker
                     RequireAdjustedTransform = noPriors,
                     TargetFrame = outputFrame
                 };
-            var observations = Meshing.CollectMeshObservations(frameCache, observationCache, opts);
+
+            //this is a bit tricky
+            //sadly, we currently have "alignment" projects (type Project)
+            //and "tiling" projects (type TilingProject)
+            //https://github.jpl.nasa.gov/OnSight/Landform/issues/567
+            //
+            //further, this method can be called from above as part of a tiling workflow
+            //or from LocalBuildMeshes in which case the project name is an alignment project
+            //
+            //we need to resolve a mission to get a comparator
+            //so for now see if the project name is recognized as an alignment project
+            //and if not fall back to the legacy tiling behavior which is MSL
+            var project = Project.Find(pipeline, projectName);
+            var mission = MissionSpecific.GetInstance(project != null ? project.Mission : Mission.MSL.ToString());
+            var comparator = mission.GetRoverObservationComparator();
+            var observations = Meshing.CollectMeshObservations(frameCache, observationCache, comparator, opts);
             if (observations.Count == 0)
             {
                 pipeline.LogError("no observations were found to build a point cloud");

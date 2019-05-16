@@ -173,14 +173,16 @@ namespace OPS.Pipeline
                 };
             FeatureDetector detector = new FeatureDetector(pipeline, detectorOpts);
 
+            var comparator = MissionSpecific.GetInstance(project.Mission).GetRoverObservationComparator();
+
             double startSec = UTCTime.Now();
             int nc = 0, ne = 0, nf = 0, np = 0, wr = 0, tf = 0, trf = 0;
             CoreLimitedParallel.ForEach(obsForFrame.Values, obsGroup => { 
 
                     var observations = obsGroup
                     .Cast<RoverObservation>()
+                    .OrderBy(obs => obs, comparator)
                     .ToList();
-                    observations.Sort(MSLProject.RoverObservationComparison);
                     
                     var imageObs = observations.Find(obs => obs.ObservationType == imageType);
                     if (imageObs != null)

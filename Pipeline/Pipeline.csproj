@@ -242,7 +242,6 @@
     <Compile Include="PipelineRoutine.cs" />
     <Compile Include="Rover\LegacyManifest.cs" />
     <Compile Include="Rover\MSLPlaces.cs" />
-    <Compile Include="Rover\MSLProject.cs" />
     <Compile Include="StateMachines\GenericTilingStateMachine.cs" />
     <Compile Include="StateMachines\MSLStateMachine.cs" />
     <Compile Include="StateMachines\PipelineStateMachine.cs" />
