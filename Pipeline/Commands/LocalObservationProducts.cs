@@ -110,27 +110,6 @@ namespace OPS.Pipeline
         [Option(HelpText = "Write only merged site drive meshes", Default = false)]
         public bool OnlyMergedSiteDriveMeshes { get; set; }
 
-        [Option(HelpText = "Write site drive birds eye view images", Default = false)]
-        public bool SiteDriveBirdsEyeViews { get; set; }
-
-        [Option(HelpText = "Birds eye view blend mode (Over, Average, Max, Min)", Default = Meshing.BlendMode.Max)]
-        public Meshing.BlendMode BEVBlending { get; set; }
-
-        [Option(HelpText = "Birds eye view meters per pixel", Default = 0.005)]
-        public double BEVMetersPerPixel { get; set; }
-
-        [Option(HelpText = "Birds eye view sparse invalidation blocksize, relative to largest image dimension if < 1, disabled if 0", Default = 0.005)]
-        public double BEVSparseBlocksize { get; set; }
-
-        [Option(HelpText = "Birds eye view sparse invalidation block threshold", Default = 0.8)]
-        public double BEVMinValidBlockRatio { get; set; }
-
-        [Option(HelpText = "Birds eye view smoothing box size (should be odd)", Default = 1)]
-        public int BEVSmoothing { get; set; }
-
-        [Option(HelpText = "Birds eye view decimation", Default = 2)]
-        public int BEVDecimation { get; set; }
-
         [Option(HelpText = "Write all the things", Default = false)]
         public bool AllTheThings { get; set; }
 
@@ -194,8 +173,6 @@ namespace OPS.Pipeline
 
         public int Run()
         {
-            options.MergedSiteDriveMeshes |= options.SiteDriveBirdsEyeViews;
-
             options.FrustumHullMeshes &= !options.OnlyMergedSiteDriveMeshes;
             options.UncertaintyInflatedFrustumHullMeshes &= !options.OnlyMergedSiteDriveMeshes;
             options.MergedSiteDriveMeshes |= options.OnlyMergedSiteDriveMeshes;
@@ -285,8 +262,7 @@ namespace OPS.Pipeline
                 pipeline.LogInfo("writing {0} meshes to {1}", meshExt, outputPath);
             }
 
-            if (!options.NoImages || options.NormalsImages || options.CurvatureImages || options.ElevationImages ||
-                options.SiteDriveBirdsEyeViews)
+            if (!options.NoImages || options.NormalsImages || options.CurvatureImages || options.ElevationImages)
             {
                 imageExt = ImageSerializers.Instance.CheckFormat(options.ImageFormat, pipeline);
                 if (imageExt == null)
@@ -462,10 +438,6 @@ namespace OPS.Pipeline
                         var wedgeImg = img;
                         if (options.StretchContrast)
                         {
-                            if (options.SiteDriveBirdsEyeViews)
-                            {
-                                wedgeImg = (Image)img.Clone();
-                            }
                             wedgeImg.ApplyStdDevStretch();
                         }
                         if (!options.OnlyMergedSiteDriveMeshes)
@@ -745,7 +717,7 @@ namespace OPS.Pipeline
                     {
                         Meshing.ColorMesh(mesh, options.ColorMeshesBy,
                                           options.ConvertNormalsToTilts ? options.TiltMode : Meshing.TiltMode.None,
-                                          allowAdjustColors: !options.SiteDriveBirdsEyeViews,
+                                          allowAdjustColors: true,
                                           stretch: options.StretchContrast, nStddev: options.StretchStdDev);
                     }
                         
@@ -765,43 +737,6 @@ namespace OPS.Pipeline
                         pipeline.LogVerbose("saving merged sitedrive mesh {0}", file);
                         PathHelper.EnsureExists(outputPath);
                         mesh.Save(file, withUVs ? imageFilename : null);
-                    }
-
-                    if (options.SiteDriveBirdsEyeViews && mesh != null && mesh.HasFaces)
-                    {
-                        pipeline.LogInfo("generating birds eye view for site drive {0}", siteDrive);
-
-                        var bevOptions = new Meshing.BEVOptions
-                        {
-                            BlendMode = options.BEVBlending,
-                            MetersPerPixel = options.BEVMetersPerPixel,
-                            Greyscale = !withUVs &&
-                            (options.ColorMeshesBy != Meshing.MeshColor.Normals || options.ConvertNormalsToTilts),
-                            SparseBlockSize = options.BEVSparseBlocksize,
-                            MinSparseBlockValidRatio = options.BEVMinValidBlockRatio,
-                            Inpaint = options.InpaintImages,
-                            Blur = options.BEVSmoothing,
-                            Decimate = options.BEVDecimation
-                        };
-                        var bev = Meshing.RenderBirdsEyeView(mesh, img, bevOptions);
-
-                        if (options.StretchContrast)
-                        {
-                            bev.ApplyStdDevStretch();
-                        }
-                        else if (bev.Bands == 1)
-                        {
-                            bev.Normalize();
-                        }
-                        if (bev.Bands == 1 && options.ThresholdImages > 0)
-                        {
-                            bev.ApplyInPlace(v => v > options.ThresholdImages ? 1 : 0);
-                        }
-                        string file = outputPath + siteDrive + "_BirdsEyeView" + imageExt;
-                        pipeline.LogVerbose("saving {0}x{1} merged sitedrive birds eye view {2}",
-                                            bev.Width, bev.Height, file);
-                        PathHelper.EnsureExists(outputPath);
-                        bev.Save<byte>(file);
                     }
                 }
             }
