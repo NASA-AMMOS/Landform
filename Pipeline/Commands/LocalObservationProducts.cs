@@ -321,14 +321,25 @@ namespace OPS.Pipeline
             
             int no = observations.Count();
             var siteDrives = observations.Select(obs => obs.SiteDrive).Distinct().OrderBy(sd => sd).ToArray();
-            pipeline.LogInfo("computing observation products for {0} observations{1} under {2}", no,
-                             siteDrives.Length > 0 ?
-                             (" for site drive(s) " +
-                              String.Join(",", siteDrives.Select(sd => sd.ToString()).ToArray())) : "",
+            pipeline.LogInfo("computing observation products for {0} observation frames{1} under {2}",
+                             no,
+                             siteDrives.Length > 0 ? (" for site drive(s) " +
+                                                      String.Join(",", siteDrives.Select(sd => sd.ToString()).ToArray()))
+                             : "",
                              outputPath);
 
+            foreach (var obs in observations)
+            {
+                pipeline.LogInfo(obs.ToString());
+            }
+                
             //sitedrive name => (observation, mesh, image), (observation, mesh, image), ...
             var mergeInputs = new ConcurrentDictionary<string, ConcurrentBag<Tuple<string, Mesh, Image>>>();
+
+            //frame name => num
+            var validPoints = new ConcurrentDictionary<string, int>();
+            var validNormals = new ConcurrentDictionary<string, int>();
+            var validTriangles = new ConcurrentDictionary<string, int>();
             
             double startSec = UTCTime.Now();
             int np = 0, nc = 0;
@@ -345,11 +356,14 @@ namespace OPS.Pipeline
                 string siteDrive = obs.SiteDrive.ToString();
                 
                 Mesh mesh = null;
+                int numPoints = 0, numNormals = 0, numTriangles = 0;
                 bool buildMesh = obs.Points != null && (!options.NoWedgeMeshes || options.MergedSiteDriveMeshes);
                 if (buildMesh && options.PointCloud)
                 {
                     pipeline.LogVerbose("building point cloud for {0}", obs.Points.Name);
-                    mesh = Meshing.BuildPointCloud(pipeline, obs, frameCache, outputFrame,
+                    mesh = Meshing.BuildPointCloud(pipeline, obs, frameCache,
+                                                   out numPoints, out numNormals,
+                                                   outputFrame,
                                                    options.UsePriors, options.OnlyAligned,
                                                    options.DecimateMeshes, options.ScaleNormalsByConfidence);
                     if (mesh != null && !mesh.HasVertices)
@@ -368,7 +382,9 @@ namespace OPS.Pipeline
                         {
                             case ReconstructionMethod.Organized:
                             {
-                                mesh = Meshing.BuildOrganizedMesh(pipeline, obs, frameCache, outputFrame,
+                                mesh = Meshing.BuildOrganizedMesh(pipeline, obs, frameCache,
+                                                                  out numPoints, out numNormals,
+                                                                  outputFrame,
                                                                   options.UsePriors, options.OnlyAligned,
                                                                   options.DecimateMeshes,
                                                                   options.ScaleNormalsByConfidence,
@@ -379,7 +395,9 @@ namespace OPS.Pipeline
                             }
                             case ReconstructionMethod.Poisson:
                             {
-                                mesh = Meshing.BuildPoissonMesh(pipeline, obs, frameCache, outputFrame,
+                                mesh = Meshing.BuildPoissonMesh(pipeline, obs, frameCache,
+                                                                out numPoints, out numNormals,
+                                                                outputFrame,
                                                                 options.UsePriors, options.OnlyAligned,
                                                                 options.DecimateMeshes,
                                                                 options.ScaleNormalsByConfidence,
@@ -388,7 +406,9 @@ namespace OPS.Pipeline
                             }
                             case ReconstructionMethod.FSSR:
                             {
-                                mesh = Meshing.BuildFSSRMesh(pipeline, obs, frameCache, outputFrame,
+                                mesh = Meshing.BuildFSSRMesh(pipeline, obs, frameCache,
+                                                             out numPoints, out numNormals,
+                                                             outputFrame,
                                                              options.UsePriors, options.OnlyAligned,
                                                              options.DecimateMeshes,
                                                              withUVs);
@@ -403,13 +423,23 @@ namespace OPS.Pipeline
                     
                     if (mesh == null || !mesh.HasFaces)
                     {
-                        pipeline.LogWarn("{0} reconstruction failed on observation {1}: {2}",
+                        pipeline.LogWarn("{0} reconstruction failed on observation {1} " +
+                                         "({2} valid points, {3} valid normals): {4}",
                                          options.ReconstructionMethod, obs.Points.Name,
+                                         numPoints, numNormals,
                                          ex != null ? ex.Message : "insufficient data or unknown error");
                         mesh = null;
                     }
+                    else
+                    {
+                        numTriangles = mesh.Faces.Count;
+                    }
                 }
-                
+
+                validPoints[obs.FrameName] = numPoints;
+                validNormals[obs.FrameName] = numNormals;
+                validTriangles[obs.FrameName] = numTriangles;
+
                 //we're running for multiple site drives in parallel so don't mutate outputPath
                 string tmpPath = outputPath;
                 if (!options.SuppressSiteDriveDirectories)
@@ -522,13 +552,6 @@ namespace OPS.Pipeline
                 if (options.MergedSiteDriveMeshes && mesh != null)
                 {
                     var input = new Tuple<string, Mesh, Image>(obs.Points.Name, mesh, withUVs ? img : null);
-                    pipeline.LogVerbose("merging {0} wedge {1} to site drive {2}: {3} triangles, {4} normals{5}",
-                                        ((RoverObservation)obs.Points).Sensor,
-                                        obs.Points.Name, siteDrive, mesh.Faces.Count,
-                                        mesh.HasNormals ? "with" : "without",
-                                        withUVs && img != null ?
-                                        string.Format(", {0}x{1} {2} band texture", img.Width, img.Height, img.Bands) :
-                                        "");
                     mergeInputs.AddOrUpdate(siteDrive,
                                             _ => new ConcurrentBag<Tuple<string, Mesh, Image>>(new [] { input }),
                                             (_, bag) => { bag.Add(input); return bag; });
@@ -645,23 +668,33 @@ namespace OPS.Pipeline
                 Interlocked.Decrement(ref np);
                 Interlocked.Increment(ref nc);
             });
-            
+
+            if (!options.NoWedgeMeshes || options.MergedSiteDriveMeshes)
+            {
+                foreach (var obs in observations)
+                {
+                    var fn = obs.FrameName;
+                    pipeline.LogInfo("{0}: {1} valid points, {2} valid normals, {3} valid triangles{4}",
+                                     fn, validPoints[fn], validNormals[fn], validTriangles[fn],
+                                     options.DecimateMeshes > 1 ?
+                                     string.Format(" after {0}x decimation", options.DecimateMeshes)
+                                     : "");
+                }
+            }
+
             if (options.MergedSiteDriveMeshes)
             {
                 pipeline.LogInfo("generating merged meshes for {0} sitedrives", mergeInputs.Count);
                 foreach (var siteDrive in mergeInputs.Keys.OrderBy(name => name))
                 {
-                    //ensure inpurs are in a canonical order particularly for BEVBlending = Over
+                    //ensure inputs are in a canonical order
                     var inputs = mergeInputs[siteDrive]
                         .OrderBy(inp => inp.Item1) //order by observation name
                         .Distinct() //ConcurrentBag is not necessarily a set
                         .ToArray();
 
-                    pipeline.LogInfo("generating merged mesh for site drive {0} from {1} wedge meshes",
-                                     siteDrive, inputs.Length);
-
                     int withNormals = 0, withTextures = 0;
-                    var bandsHistogram = new Dictionary<int, int>();
+                    var bands = new Dictionary<int, int>();
                     foreach (var input in inputs)
                     {
                         if (input.Item2.HasNormals)
@@ -672,23 +705,25 @@ namespace OPS.Pipeline
                         {
                             withTextures++;
                             int nb = input.Item3.Bands;
-                            if (!bandsHistogram.ContainsKey(nb))
+                            if (!bands.ContainsKey(nb))
                             {
-                                bandsHistogram[nb] = 1;
+                                bands[nb] = 1;
                             }
                             else
                             {
-                                bandsHistogram[nb] = bandsHistogram[nb] + 1;
+                                bands[nb] = bands[nb] + 1;
                             }
                         }
                     }
 
-                    pipeline.LogInfo("{0}/{1} wedge meshes with normals, {2}/{3} with textures {4}",
-                                     withNormals, inputs.Length, withTextures, inputs.Length,
-                                     string.Join(", ",
-                                                 bandsHistogram.Select(e => string.Format("{0} textures with {1} bands",
-                                                                                          e.Value, e.Key))));
-
+                    pipeline.LogInfo("generating merged mesh for site drive {0} from {1} wedge meshes, " +
+                                     "{2} with normals, {3} with textures{4}",
+                                     siteDrive, inputs.Length, withNormals, withTextures,
+                                     withTextures > 0 ? 
+                                     (": " + string.Join(", ", bands.Select(e => string.Format("{0} with {1} bands",
+                                                                                               e.Value, e.Key))))
+                                     : "");
+                    
                     Mesh mesh = null;
                     Image img = null;
                     try

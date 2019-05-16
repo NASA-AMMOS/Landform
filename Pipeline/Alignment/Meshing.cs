@@ -42,6 +42,18 @@ namespace OPS.Pipeline
             }
         }
 
+        public string FrameName
+        {
+            get
+            {
+                if (Points != null) return Points.FrameName;
+                if (Texture != null) return Texture.FrameName;
+                if (Normals != null) return Normals.FrameName;
+                if (Mask != null) return Mask.FrameName;
+                throw new InvalidOperationException("can't get frame name of an empty MeshObservation");
+            }
+        }
+
         public RoverObservation RoverObs
         {
             get
@@ -60,6 +72,23 @@ namespace OPS.Pipeline
         }
 
         public string Camera { get { return RoverObs.Sensor; } }
+
+        public override string ToString()
+        {
+            if (Empty)
+            {
+                return "(empty)";
+            }
+            else
+            {
+                return string.Format("{0}:{1}  Points: {2}{3}  Texture: {4}{5}  Normals: {6}{7}  Mask: {4}",
+                                     FrameName, Environment.NewLine,
+                                     Points != null ? Points.ToString(brief: true) : "(none)", Environment.NewLine,
+                                     Texture != null ? Texture.ToString(brief: true) : "(none)", Environment.NewLine,
+                                     Normals != null ? Normals.ToString(brief: true) : "(none)", Environment.NewLine,
+                                     Mask != null ? Mask.ToString(brief: true) : "(none)", Environment.NewLine);
+            }
+        }
     }
 
     public enum ReconstructionMethod
@@ -1039,6 +1068,7 @@ namespace OPS.Pipeline
         {
             //TODO generate confidence and mask until real products are available
             //https://github.jpl.nasa.gov/OnSight/Landform/issues/259
+
             pipeline.LogVerbose("loading points {0}", obs.Points.Url);
             var pointsRaw = pipeline.LoadImage(obs.Points.Url);
             points = ConvertPoints(pointsRaw);
@@ -1064,6 +1094,27 @@ namespace OPS.Pipeline
                 }
                 mask = null;
             }
+        }
+
+        public static int CountValid(Image img, Image mask)
+        {
+            if (img == null)
+            {
+                return 0;
+            }
+
+            int valid = 0;
+            for (int row = 0; row < img.Height; row++)
+            {
+                for (int col = 0; col < img.Width; col++)
+                {
+                    if (img.IsValid(row, col) && (mask == null || mask[0, row, col] != 0))
+                    {
+                        valid++;
+                    }
+                }
+            }
+            return valid;
         }
 
         /// <summary>
@@ -1134,13 +1185,19 @@ namespace OPS.Pipeline
         }
 
         public static Mesh BuildPointCloud(PipelineCore pipeline, MeshObservations obs, FrameCache frameCache,
+                                           out int validPoints, out int validNormals,
                                            string frame = "root", bool usePriors = false, bool onlyAligned = false,
-                                           int decimate = 1, bool scaleNormalsByConfidence = false)
+                                           int decimate = 1, bool scaleNormalsByConfidence = false,
+                                           bool countValid = true)
         {
             LoadOrGenerateMeshImages(pipeline, obs, decimate, scaleNormalsByConfidence,
                                      out Image points, out Image normals, out Image mask);
+            validPoints = countValid ? CountValid(points, mask) : -1;
+            validNormals = countValid ? CountValid(normals, mask) : -1;
+
             pipeline.LogVerbose("building point cloud {0}", obs.Points.Name);
             var ret = BuildPointCloud(points, normals, mask);
+
             if (ret.Vertices.Count == 0)
             {
                 pipeline.LogWarn("No verts found for pointcloud for {0}", obs.Points.Name);
@@ -1154,7 +1211,17 @@ namespace OPS.Pipeline
                 return null; 
             }
             ret.Transform(transform.Mean);
+
             return ret;
+        }
+
+        public static Mesh BuildPointCloud(PipelineCore pipeline, MeshObservations obs, FrameCache frameCache,
+                                           string frame = "root", bool usePriors = false, bool onlyAligned = false,
+                                           int decimate = 1, bool scaleNormalsByConfidence = false)
+        {
+            return BuildPointCloud(pipeline, obs, frameCache, out int validPoints, out int validNormals,
+                                   frame, usePriors, onlyAligned, decimate, scaleNormalsByConfidence,
+                                   countValid: false);
         }
 
         /// <summary>
@@ -1256,7 +1323,8 @@ namespace OPS.Pipeline
                 {
                     for (int col = 0; col < points.Width; col++)
                     {
-                        if (!points.IsInvalid(row, col) && pixelToVert[row, col] == -1)
+                        if (points.IsValid(row, col) && pixelToVert[row, col] == -1 &&
+                            (mask == null || mask[0, row, col] != 0))
                         {
                             var cube = BoundingBoxExtensions.MakeCube(isolatedPointSize).ToMesh();
                             cube.Transform(Matrix.CreateTranslation(points[0, row, col],
@@ -1277,6 +1345,47 @@ namespace OPS.Pipeline
             return ret;
         }
 
+        public static Mesh BuildOrganizedMesh(PipelineCore pipeline, MeshObservations obs, FrameCache frameCache,
+                                              out int validPoints, out int validNormals,
+                                              string frame = "root", bool usePriors = false, bool onlyAligned = false,
+                                              int decimate = 1, bool scaleNormalsByConfidence = false,
+                                              double maxTriangleAspect = 20, double isolatedPointSize = 0,
+                                              bool withUVs = false, bool countValid = true)
+        {
+            LoadOrGenerateMeshImages(pipeline, obs, decimate, scaleNormalsByConfidence,
+                                     out Image points, out Image normals, out Image mask);
+            validPoints = countValid ? CountValid(points, mask) : -1;
+            validNormals = countValid ? CountValid(normals, mask) : -1;
+
+            pipeline.LogVerbose("building organized mesh {0}", obs.Points.Name);
+            var ret = BuildOrganizedMesh(points, normals, mask, maxTriangleAspect, withUVs, isolatedPointSize);
+            if (withUVs && obs.Texture != null)
+            {
+                AddUVs(ret, pipeline.LoadImage(obs.Texture.Url));
+            }
+
+            var xform = GetTransform(obs.Points.FrameName, frame, frameCache, usePriors, onlyAligned);
+            if (xform == null)
+            {
+                pipeline.LogWarn("Failed to find transform to build mesh for {0}", obs.Points.FrameName);
+                return null;
+            }
+            ret.Transform(xform.Mean);
+
+            return ret;
+        }
+
+        public static Mesh BuildOrganizedMesh(PipelineCore pipeline, MeshObservations obs, FrameCache frameCache,
+                                              string frame = "root", bool usePriors = false, bool onlyAligned = false,
+                                              int decimate = 1, bool scaleNormalsByConfidence = false,
+                                              double maxTriangleAspect = 20, double isolatedPointSize = 0,
+                                              bool withUVs = false)
+        {
+            return BuildOrganizedMesh(pipeline, obs, frameCache, out int validPoints, out int validNormals,
+                                      frame, usePriors, onlyAligned, decimate, scaleNormalsByConfidence,
+                                      maxTriangleAspect, isolatedPointSize, withUVs, countValid: false);
+        }
+
         public static Mesh BuildPoissonMesh(Image points, Image normals, Image mask = null,
                                             bool normalsAreScaledByConfidence = false)
         {
@@ -1295,6 +1404,46 @@ namespace OPS.Pipeline
             return PoissonReconstruction.Reconstruct(BuildPointCloud(points, normals, mask), opts);
         }
 
+        public static Mesh BuildPoissonMesh(PipelineCore pipeline, MeshObservations obs, FrameCache frameCache,
+                                            out int validPoints, out int validNormals,
+                                            string frame = "root", bool usePriors = false, bool onlyAligned = false,
+                                            int decimate = 1, bool scaleNormalsByConfidence = false,
+                                            bool withUVs = false, bool countValid = true)
+        {
+            LoadOrGenerateMeshImages(pipeline, obs, decimate, scaleNormalsByConfidence,
+                                     out Image points, out Image normals, out Image mask);
+            validPoints = countValid ? CountValid(points, mask) : -1;
+            validNormals = countValid ? CountValid(normals, mask) : -1;
+
+            pipeline.LogVerbose("building Poisson mesh {0}", obs.Points.Name);
+            var ret = BuildPoissonMesh(points, normals, mask, scaleNormalsByConfidence);
+
+            if (withUVs && obs.Texture != null)
+            {
+                AddUVs(ret, pipeline.LoadImage(obs.Texture.Url));
+            }
+
+            var xform = GetTransform(obs.Points.FrameName, frame, frameCache, usePriors, onlyAligned);
+            if (xform == null)
+            {
+                pipeline.LogWarn("Failed to find transform to build mesh for {0}", obs.Points.FrameName);
+                return null;
+            }
+            ret.Transform(xform.Mean);
+
+            return ret;
+        }
+
+        public static Mesh BuildPoissonMesh(PipelineCore pipeline, MeshObservations obs, FrameCache frameCache,
+                                            string frame = "root", bool usePriors = false, bool onlyAligned = false,
+                                            int decimate = 1, bool scaleNormalsByConfidence = false,
+                                            bool withUVs = false)
+        {
+            return BuildPoissonMesh(pipeline, obs, frameCache, out int validPoints, out int validNormals,
+                                    frame, usePriors, onlyAligned, decimate, scaleNormalsByConfidence, withUVs,
+                                    countValid: false);
+        }
+
         public static Mesh BuildFSSRMesh(Image points, Image normals, Image mask = null)
         {
             if (normals == null)
@@ -1304,16 +1453,19 @@ namespace OPS.Pipeline
             return FSSR.Reconstruct(BuildPointCloud(points, normals, mask));            
         }
 
-        public static Mesh BuildOrganizedMesh(PipelineCore pipeline, MeshObservations obs, FrameCache frameCache,
-                                              string frame = "root", bool usePriors = false, bool onlyAligned = false,
-                                              int decimate = 1, bool scaleNormalsByConfidence = false,
-                                              double maxTriangleAspect = 20, double isolatedPointSize = 0,
-                                              bool withUVs = false)
+        public static Mesh BuildFSSRMesh(PipelineCore pipeline, MeshObservations obs, FrameCache frameCache,
+                                         out int validPoints, out int validNormals,
+                                         string frame = "root", bool usePriors = false, bool onlyAligned = false,
+                                         int decimate = 1, bool withUVs = false, bool countValid = true)
         {
-            LoadOrGenerateMeshImages(pipeline, obs, decimate, scaleNormalsByConfidence,
+            LoadOrGenerateMeshImages(pipeline, obs, decimate, false,
                                      out Image points, out Image normals, out Image mask);
-            pipeline.LogVerbose("building organized mesh {0}", obs.Points.Name);
-            var ret = BuildOrganizedMesh(points, normals, mask, maxTriangleAspect, withUVs, isolatedPointSize);
+            validPoints = countValid ? CountValid(points, mask) : -1;
+            validNormals = countValid ? CountValid(normals, mask) : -1;
+
+            pipeline.LogVerbose("building FSSR mesh {0}", obs.Points.Name);
+            var ret = BuildFSSRMesh(points, normals, mask);
+
             if (withUVs && obs.Texture != null)
             {
                 AddUVs(ret, pipeline.LoadImage(obs.Texture.Url));
@@ -1326,31 +1478,7 @@ namespace OPS.Pipeline
                 return null;
             }
             ret.Transform(xform.Mean);
-            return ret;
-        }
 
-        public static Mesh BuildPoissonMesh(PipelineCore pipeline, MeshObservations obs, FrameCache frameCache,
-                                            string frame = "root", bool usePriors = false, bool onlyAligned = false,
-                                            int decimate = 1, bool scaleNormalsByConfidence = false,
-                                            bool withUVs = false)
-        {
-            LoadOrGenerateMeshImages(pipeline, obs, decimate, scaleNormalsByConfidence,
-                                     out Image points, out Image normals, out Image mask);
-            pipeline.LogVerbose("building Poisson mesh {0}", obs.Points.Name);
-            var ret = BuildPoissonMesh(points, normals, mask, scaleNormalsByConfidence);
-            if (withUVs && obs.Texture != null)
-            {
-                AddUVs(ret, pipeline.LoadImage(obs.Texture.Url));
-            }
-
-            var xform = GetTransform(obs.Points.FrameName, frame, frameCache, usePriors, onlyAligned);
-            if (xform == null)
-            {
-                pipeline.LogWarn("Failed to find transform to build mesh for {0}", obs.Points.FrameName);
-                return null;
-            }
-
-            ret.Transform(xform.Mean);
             return ret;
         }
 
@@ -1358,24 +1486,8 @@ namespace OPS.Pipeline
                                          string frame = "root", bool usePriors = false, bool onlyAligned = false,
                                          int decimate = 1, bool withUVs = false)
         {
-            LoadOrGenerateMeshImages(pipeline, obs, decimate, false,
-                                     out Image points, out Image normals, out Image mask);
-            pipeline.LogVerbose("building FSSR mesh {0}", obs.Points.Name);
-            var ret = BuildFSSRMesh(points, normals, mask);
-            if (withUVs && obs.Texture != null)
-            {
-                AddUVs(ret, pipeline.LoadImage(obs.Texture.Url));
-            }
-
-            var xform = GetTransform(obs.Points.FrameName, frame, frameCache, usePriors, onlyAligned);
-            if (xform == null)
-            {
-                pipeline.LogWarn("Failed to find transform to build mesh for {0}", obs.Points.FrameName);
-                return null;
-            }
-
-            ret.Transform(xform.Mean);
-            return ret;
+            return BuildFSSRMesh(pipeline, obs, frameCache, out int validPoints, out int validNormals,
+                                 frame, usePriors, onlyAligned, decimate, withUVs, countValid: false);
         }
 
         public static ConvexHull BuildFrustumHull(PipelineCore pipeline, MeshObservations obs, FrameCache frameCache,

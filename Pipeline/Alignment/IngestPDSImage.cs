@@ -253,7 +253,8 @@ namespace OPS.Pipeline
                                                       parser.Site, parser.Drive, parser.ProductId.Version,
                                                       parser.Camera.ToString(), parser.ImageSizeType.ToString(),
                                                       parser.ProducingInstitution.ToString(),
-                                                      metadata.Width, metadata.Height,
+                                                      metadata.Width, metadata.Height, metadata.Bands,
+                                                      metadata.BitDepth,
                                                       missionSpecific.DayNumber(parser));
 
                 if (observation == null)
