@@ -167,13 +167,20 @@ namespace OPS.Pipeline
             {
                 if (maskObs.Width == refImage.Width && maskObs.Height == refImage.Height)
                 {
-                    var mask = pipeline.LoadImage(maskObs.Url);
-                    return clone ? new Image(mask) : mask;
+                    try
+                    {
+                        var mask = pipeline.LoadImage(maskObs.Url);
+                        return clone ? new Image(mask) : mask;
+                    }
+                    catch (Exception ex)
+                    {
+                        pipeline.LogWarn("error loading rover mask {0}, generating: {1}", maskObs.Url, ex.Message);
+                    }
                 } 
                 else
                 {
-                    pipeline.LogWarn("not using rover mask product for observation {0}, mismatched image size",
-                                     observationName);
+                    pipeline.LogWarn("not using rover mask {0}, mismatched image size {1}x{2}, generating",
+                                     maskObs.Url, maskObs.Width, maskObs.Height);
                 }
             }
             return Build(refImage, observationName, pipeline);
@@ -189,15 +196,22 @@ namespace OPS.Pipeline
         {
             if (!string.IsNullOrEmpty(maskUrl))
             {
-                var mask = pipeline.LoadImage(maskUrl);
-                if (mask.Width == refImage.Width && mask.Height == refImage.Height)
+                try
                 {
-                    return clone ? new Image(mask) : mask;
-                } 
-                else
+                    var mask = pipeline.LoadImage(maskUrl);
+                    if (mask.Width == refImage.Width && mask.Height == refImage.Height)
+                    {
+                        return clone ? new Image(mask) : mask;
+                    } 
+                    else
+                    {
+                        pipeline.LogWarn("not using rover mask {0}, mismatched image size {1}x{2}, generating",
+                                         maskUrl, mask.Width, mask.Height);
+                    }
+                }
+                catch (Exception ex)
                 {
-                    pipeline.LogWarn("not using rover mask product for observation {0}, mismatched image size",
-                                     observationName);
+                    pipeline.LogWarn("error loading rover mask {0}, generating: {1}", maskUrl, ex.Message);
                 }
             }
             return Build(refImage, observationName, pipeline);
