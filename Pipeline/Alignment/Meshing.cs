@@ -370,7 +370,7 @@ namespace OPS.Pipeline
                     {
                         ret.SetMaskValue(row, col, true);
                     }
-                    else if (!hasMissingConstant || !ret.IsInvalid(row, col))
+                    else if (!hasMissingConstant || ret.IsValid(row, col))
                     {
                         var p = new Vector3(img[0, row, col], img[1, row, col], img[2, row, col]);
                         ret.SetBandValues(row, col, Vector3.Transform(p, xform).ToFloatArray());
@@ -394,9 +394,11 @@ namespace OPS.Pipeline
         {
             Image ret = new Image(3, img.Width, img.Height);
 
+            bool hasMissingConstant = false;
             if (img.Metadata.GetType() == typeof(PDSMetadata))
             {
                 parser = parser ?? new PDSParser((PDSMetadata)img.Metadata);
+                hasMissingConstant = parser.HasMissingConstant;
                 CheckType(parser, RoverProductType.Range, "ConvertRange");
                 CheckCameraCenter(parser, img, "ConvertRNG");
                 AddMaskForMissingConstant(ret, img, parser);
@@ -410,7 +412,7 @@ namespace OPS.Pipeline
                     {
                         ret.SetMaskValue(row, col, true);
                     }
-                    else if (parser == null || !parser.HasMissingConstant || !ret.IsInvalid(row, col)) // should this be ((parser == null || !parser.HasMissingConstant) && !ret.IsInvalid(row, col)
+                    else if (!hasMissingConstant || ret.IsValid(row, col))
                     {
                         Vector3 p = img.CameraModel.Unproject(new Vector2(col, row), img[0, row, col]);
                         ret.SetBandValues(row, col, p.ToFloatArray());
@@ -454,7 +456,7 @@ namespace OPS.Pipeline
                     {
                         ret.SetMaskValue(row, col, true);
                     }
-                    else if (!hasMissingConstant || !ret.IsInvalid(row, col))
+                    else if (!hasMissingConstant || ret.IsValid(row, col))
                     {
                         ret[0, row, col] = 1 / img[0, row, col];
                     }
@@ -484,7 +486,7 @@ namespace OPS.Pipeline
                     {
                         ret.SetMaskValue(row, col, true);
                     }
-                    else if (!hasMissingConstant || !ret.IsInvalid(row, col))
+                    else if (!hasMissingConstant || ret.IsValid(row, col))
                     {
                         var p = new Vector3(img[0, row, col], img[1, row, col], img[2, row, col]);
                         ret[0, row, col] = 1 / (float)Vector3.Distance(Vector3.Transform(p, xform), c);
@@ -531,7 +533,7 @@ namespace OPS.Pipeline
                     {
                         ret.SetMaskValue(row, col, true);
                     }
-                    else if (!hasMissingConstant || !ret.IsInvalid(row, col))
+                    else if (!hasMissingConstant || ret.IsValid(row, col))
                     {
                         if (nonIdentityXform)
                         {
@@ -615,7 +617,7 @@ namespace OPS.Pipeline
             {
                 for (int col = 0; col < img.Width; col++)
                 {
-                    if (!img.IsInvalid(row, col))
+                    if (img.IsValid(row, col))
                     {
                         var n = new Vector3(img[0, row, col], img[1, row, col], img[2, row, col]);
                         if (n.LengthSquared() < 0.0001)
@@ -673,7 +675,7 @@ namespace OPS.Pipeline
             {
                 for (int col = 0; col < img.Width; col++)
                 {
-                    if (!img.IsInvalid(row, col))
+                    if (img.IsValid(row, col))
                     {
                         var n = new Vector3(img[0, row, col], img[1, row, col], img[2, row, col]);
                         ret[0, row, col] = (float)NormalToTilt(n, tiltMode, up.Value);
