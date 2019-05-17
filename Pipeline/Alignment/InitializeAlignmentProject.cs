@@ -15,7 +15,23 @@ namespace OPS.Pipeline
         public Project Initialize(string projectName, string productPath, string inputPath, Mission mission,
                                   bool recreateIfExists)
         {
-            var project = Project.Find(pipeline, projectName);
+            Project project = null;
+            try
+            {
+                Project.Find(pipeline, projectName);
+            }
+            catch (Exception ex)
+            {
+                if (!recreateIfExists)
+                {
+                    throw;
+                }
+                else
+                {
+                    pipeline.LogWarn("error loading existing project \"{0}\", recreating: {1}",
+                                     projectName, ex.Message);
+                }
+            }
 
             if ((project == null || recreateIfExists) && string.IsNullOrEmpty(inputPath))
             {

@@ -47,7 +47,7 @@ namespace OPS.Pipeline.AlignmentServer
             ProductPath = productPath;
             InputPath = inputPath;
             Mission = mission;
-            this.IsValid();
+            IsValid();
         }
 
         public static Project FindOrCreate(PipelineCore pipeline, string name, string productPath, string inputPath,
