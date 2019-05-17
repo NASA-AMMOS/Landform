@@ -366,15 +366,15 @@ namespace OPS.Pipeline
                         {
                             case ReconstructionMethod.Organized:
                             {
+                                bool generateNormals = true;
                                 mesh = Meshing.BuildOrganizedMesh(pipeline, masker, obs, frameCache,
                                                                   out numPoints, out numNormals,
                                                                   outputFrame,
                                                                   options.UsePriors, options.OnlyAligned,
                                                                   options.DecimateMeshes,
-                                                                  options.ScaleNormalsByConfidence,
                                                                   options.MaxTriangleAspect,
-                                                                  options.IsolatedPointSize,
-                                                                  withUVs);
+                                                                  withUVs, generateNormals,
+                                                                  options.IsolatedPointSize);
                                 break;
                             }
                             case ReconstructionMethod.Poisson:
@@ -474,19 +474,22 @@ namespace OPS.Pipeline
                             confidence = Meshing.GenerateConfidence(pipeline.LoadImage(obs.Points.Url));
                         }
                         normals = Meshing.ConvertNormals(normals, confidence);
-                        var mask = masker.LoadOrBuild(pipeline, obs.Mask, obs.Normals);
-                        normals = Meshing.MaskAndDecimateNormals(normals, options.DecimateImages, mask);
-                        string name = "Normals";
-                        if (options.ConvertNormalsToTilts)
+                        if (normals != null)
                         {
-                            name = "Tilts";
-                            normals = Meshing.NormalsToTilt(normals, options.TiltMode);
+                            var mask = masker.LoadOrBuild(pipeline, obs.Mask, obs.Normals);
+                            normals = Meshing.MaskAndDecimateNormals(normals, options.DecimateImages, mask);
+                            string name = "Normals";
+                            if (options.ConvertNormalsToTilts)
+                            {
+                                name = "Tilts";
+                                normals = Meshing.NormalsToTilt(normals, options.TiltMode);
+                            }
+                            else
+                            {
+                                normals.ApplyInPlace(v => Math.Abs(v));
+                            }
+                            FinishImage(normals, mask, tmpPath, obs.Name, name);
                         }
-                        else
-                        {
-                            normals.ApplyInPlace(v => Math.Abs(v));
-                        }
-                        FinishImage(normals, mask, tmpPath, obs.Name, name);
                     }
                     catch (Exception ex)
                     {

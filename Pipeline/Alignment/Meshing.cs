@@ -506,6 +506,8 @@ namespace OPS.Pipeline
         ///
         /// also sets mask of return image to be union of input mask, if any
         /// plus invalid values according to image header metadata
+        ///   
+        /// returns null if there were no valid normals
         /// </summary>
         public static Image ConvertNormals(Image img, Image confidence = null)
         {
@@ -517,6 +519,7 @@ namespace OPS.Pipeline
             Image ret = new Image(img);
             AddMaskForMissingConstant(ret, img, parser);
             bool hasMissingConstant = parser.HasMissingConstant;
+            bool anyValid = false;
             for (int row = 0; row < img.Height; row++)
             {
                 for (int col = 0; col < img.Width; col++)
@@ -535,6 +538,7 @@ namespace OPS.Pipeline
                     }
                     else if (!hasMissingConstant || ret.IsValid(row, col))
                     {
+                        anyValid = true;
                         if (nonIdentityXform)
                         {
                             var n = new Vector3(img[0, row, col], img[1, row, col], img[2, row, col]);
@@ -547,7 +551,7 @@ namespace OPS.Pipeline
                     }
                 }
             }
-            return ret;
+            return anyValid ? ret : null;
         }
 
         /// <summary>
@@ -1087,9 +1091,16 @@ namespace OPS.Pipeline
             normals = null;
             if (obs.Normals != null)
             {
-                pipeline.LogVerbose("loading normals {0}", obs.Normals.Url);
-                var confidence = scaleNormalsByConfidence ? GenerateConfidence(pointsRaw) : null;
-                normals = ConvertNormals(pipeline.LoadImage(obs.Normals.Url), confidence);
+                try
+                {
+                    pipeline.LogVerbose("loading normals {0}", obs.Normals.Url);
+                    var confidence = scaleNormalsByConfidence ? GenerateConfidence(pointsRaw) : null;
+                    normals = ConvertNormals(pipeline.LoadImage(obs.Normals.Url), confidence);
+                }
+                catch (Exception ex)
+                {
+                    pipeline.LogWarn("error loading normals {0}: {1}", obs.Normals.Url, ex.Message);
+                }
             }
 
             mask = masker.LoadOrBuild(pipeline, obs.Mask, pointsRaw, obs.Name);
@@ -1238,8 +1249,13 @@ namespace OPS.Pipeline
 
         /// <summary>
         /// build a mesh from the given points and optional normals and mask images
+        ///
+        /// generateNormals = true means generate normals iff the supplied normals image is null
         /// </summary>
-        public static Mesh BuildOrganizedMesh(Image points, Image normals = null, Image mask = null, double maxTriangleAspect = 10, bool generateUV = true, double isolatedPointSize =  0)
+        public static Mesh BuildOrganizedMesh(Image points, Image normals = null, Image mask = null,
+                                              double maxTriangleAspect = 20,
+                                              bool generateUV = true, bool generateNormals = true,
+                                              double isolatedPointSize = 0)
         {
             if (maxTriangleAspect < 1)
             {
@@ -1328,6 +1344,14 @@ namespace OPS.Pipeline
                 }
             }
 
+            //if we're going to generate normals, do it here before we add any isolated point cubes
+            //because otherwise the cube normals will get munged
+            //though actually that might look OK too
+            if (generateNormals && !ret.HasNormals)
+            {
+                ret.GenerateVertexNormals();
+            }
+
             if (isolatedPointSize > 0)
             {
                 List<Mesh> cubes = new List<Mesh>();
@@ -1351,6 +1375,7 @@ namespace OPS.Pipeline
                         }
                     }
                 }
+                //the cubes have normals but it's OK here if ret does not
                 ret.MergeWith(cubes.ToArray());
             }
 
@@ -1360,17 +1385,21 @@ namespace OPS.Pipeline
         public static Mesh BuildOrganizedMesh(PipelineCore pipeline, RoverMasker masker, MeshObservations obs,
                                               FrameCache frameCache, out int validPoints, out int validNormals,
                                               string frame = "root", bool usePriors = false, bool onlyAligned = false,
-                                              int decimate = 1, bool scaleNormalsByConfidence = false,
-                                              double maxTriangleAspect = 20, double isolatedPointSize = 0,
-                                              bool withUVs = false, bool countValid = true)
+                                              int decimate = 1, double maxTriangleAspect = 20,
+                                              bool withUVs = false, bool generateNormals = true,
+                                              double isolatedPointSize = 0, bool countValid = true)
         {
-            LoadOrGenerateMeshImages(pipeline, masker, obs, decimate, scaleNormalsByConfidence,
+            LoadOrGenerateMeshImages(pipeline, masker, obs, decimate, false,
                                      out Image points, out Image normals, out Image mask);
             validPoints = countValid ? CountValid(points, mask) : -1;
             validNormals = countValid ? CountValid(normals, mask) : -1;
 
             pipeline.LogVerbose("building organized mesh {0}", obs.Points.Name);
-            var ret = BuildOrganizedMesh(points, normals, mask, maxTriangleAspect, withUVs, isolatedPointSize);
+
+            bool generateUV = false;
+            var ret = BuildOrganizedMesh(points, normals, mask, maxTriangleAspect, generateUV, generateNormals,
+                                         isolatedPointSize);
+
             if (withUVs && obs.Texture != null)
             {
                 AddUVs(ret, pipeline.LoadImage(obs.Texture.Url));
@@ -1389,13 +1418,13 @@ namespace OPS.Pipeline
 
         public static Mesh BuildOrganizedMesh(PipelineCore pipeline, RoverMasker masker, MeshObservations obs,
                                               FrameCache frameCache, string frame = "root", bool usePriors = false,
-                                              bool onlyAligned = false, int decimate = 1,
-                                              bool scaleNormalsByConfidence = false, double maxTriangleAspect = 20,
-                                              double isolatedPointSize = 0, bool withUVs = false)
+                                              bool onlyAligned = false, int decimate = 1, double maxTriangleAspect = 20,
+                                              bool withUVs = false, bool generateNormals = true,
+                                              double isolatedPointSize = 0)
         {
             return BuildOrganizedMesh(pipeline, masker, obs, frameCache, out int validPoints, out int validNormals,
-                                      frame, usePriors, onlyAligned, decimate, scaleNormalsByConfidence,
-                                      maxTriangleAspect, isolatedPointSize, withUVs, countValid: false);
+                                      frame, usePriors, onlyAligned, decimate, maxTriangleAspect,
+                                      withUVs, generateNormals, isolatedPointSize, countValid: false);
         }
 
         public static Mesh BuildPoissonMesh(Image points, Image normals, Image mask = null,
