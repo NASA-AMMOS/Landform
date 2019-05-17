@@ -146,6 +146,23 @@ namespace OPS.Pipeline
         }
 
         /// <summary>
+        /// load a rover mask binary image which is 0 for masked pixels
+        /// if refImage is supplied then verify that the dimensions are the same
+        /// </summary>
+        public Image Load(PipelineCore pipeline, string maskUrl, Image refImage = null, bool clone = false)
+        {
+            var mask = pipeline.LoadImage(maskUrl);
+            if (refImage == null || (mask.Width == refImage.Width && mask.Height == refImage.Height))
+            {
+                return clone ? new Image(mask) : mask;
+            } 
+            else
+            {
+                throw new Exception(string.Format("mismatched image size {0}x{1}", mask.Width, mask.Height));
+            }
+        }
+
+        /// <summary>
         /// load or build a rover mask binary image which is 0 for masked pixels
         /// uses mask from maskObs if available and size matches imageObs
         /// otherwise builds from imageObs, but returns null if imageObs does not have PDS metadata
@@ -169,8 +186,7 @@ namespace OPS.Pipeline
                 {
                     try
                     {
-                        var mask = pipeline.LoadImage(maskObs.Url);
-                        return clone ? new Image(mask) : mask;
+                        return Load(pipeline, maskObs.Url, refImage, clone);
                     }
                     catch (Exception ex)
                     {
@@ -198,16 +214,7 @@ namespace OPS.Pipeline
             {
                 try
                 {
-                    var mask = pipeline.LoadImage(maskUrl);
-                    if (mask.Width == refImage.Width && mask.Height == refImage.Height)
-                    {
-                        return clone ? new Image(mask) : mask;
-                    } 
-                    else
-                    {
-                        pipeline.LogWarn("not using rover mask {0}, mismatched image size {1}x{2}, generating",
-                                         maskUrl, mask.Width, mask.Height);
-                    }
+                    return Load(pipeline, maskUrl, refImage, clone);
                 }
                 catch (Exception ex)
                 {
