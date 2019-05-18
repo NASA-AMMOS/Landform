@@ -48,8 +48,8 @@ namespace OPS.Pipeline
             instToCamera.Add("MS", RoverProductCamera.MEDASkyCam);
             instToCamera.Add("PC", RoverProductCamera.PIXELMCC);
             instToCamera.Add("SC", RoverProductCamera.SHERLOCACI);
-            instToCamera.Add("IL", RoverProductCamera.SHELOCWATSONLeft);
-            instToCamera.Add("IR", RoverProductCamera.SHELOCWATSONRight);
+            instToCamera.Add("IL", RoverProductCamera.SHERLOCWATSONLeft);
+            instToCamera.Add("IR", RoverProductCamera.SHERLOCWATSONRight);
             instToCamera.Add("SR", RoverProductCamera.SuperCamRMI);
         }
 

@@ -26,7 +26,8 @@ namespace OPS.Pipeline
         HeliNav, HeliScout,
         MEDASkyCam,
         PIXELMCC,
-        SHERLOCACI, SHELOCWATSONLeft, SHELOCWATSONRight,
+        SHERLOCACI,
+        SHERLOCWATSON, SHERLOCWATSONLeft, SHERLOCWATSONRight,
         SuperCamRMI
     }
 
