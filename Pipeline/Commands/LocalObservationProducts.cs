@@ -301,6 +301,8 @@ namespace OPS.Pipeline
                 Meshing.CollectMeshObservations(frameCache, observationCache, comparator, opts)
                 .Where(obs => !obs.Empty)
                 .OrderBy(obs => obs.FrameName)
+                .OrderBy(obs => obs.Day)
+                .OrderBy(obs => obs.StereoFrameName)
                 .ToList();
             
             int no = observations.Count();

@@ -7,6 +7,7 @@ using Amazon.DynamoDBv2.DataModel;
 using Amazon.DynamoDBv2.DocumentModel;
 using Newtonsoft.Json;
 using OPS.Cloud;
+using OPS.Pipeline;
 
 namespace OPS.Pipeline.AlignmentServer
 {
@@ -42,6 +43,24 @@ namespace OPS.Pipeline.AlignmentServer
             {
                 return Sensor == RoverProductCamera.MastcamLeft.ToString() ||
                     Sensor == RoverProductCamera.MastcamRight.ToString();
+            }
+        }
+
+        [DynamoDBIgnore]
+        [JsonIgnore]
+        public string StereoFrameName
+        {
+            get
+            {
+                var cam = (RoverProductCamera)Enum.Parse(typeof(RoverProductCamera), Sensor);
+                if (FrameName.StartsWith(Sensor) && RoverStereoPair.IsStereo(cam))
+                {
+                    return RoverStereoPair.GetStereoCamera(cam).ToString() + FrameName.Substring(Sensor.Length);
+                }
+                else
+                {
+                    return FrameName;
+                }
             }
         }
       
