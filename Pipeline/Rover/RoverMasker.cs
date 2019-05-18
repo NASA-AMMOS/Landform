@@ -182,7 +182,7 @@ namespace OPS.Pipeline
         {
             if (maskObs != null)
             {
-                if (maskObs.Width == refImage.Width && maskObs.Height == refImage.Height)
+                if (refImage == null || (maskObs.Width == refImage.Width && maskObs.Height == refImage.Height))
                 {
                     try
                     {
@@ -199,7 +199,8 @@ namespace OPS.Pipeline
                                      maskObs.Url, maskObs.Width, maskObs.Height);
                 }
             }
-            return Build(refImage, observationName, pipeline);
+
+            return refImage != null ? Build(refImage, observationName, pipeline) : null;
         }
 
         /// <summary>
@@ -221,7 +222,7 @@ namespace OPS.Pipeline
                     pipeline.LogWarn("error loading rover mask {0}, generating: {1}", maskUrl, ex.Message);
                 }
             }
-            return Build(refImage, observationName, pipeline);
+            return refImage != null ? Build(refImage, observationName, pipeline) : null;
         }
     }
 

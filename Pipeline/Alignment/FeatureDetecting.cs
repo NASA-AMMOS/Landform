@@ -438,6 +438,10 @@ namespace OPS.Pipeline
                 {
                     //Meshing.ConvertPoints() will set mask from missing constant
                     xyr = Meshing.ConvertPoints(xyzOrRng);
+                    if (xyr == null)
+                    {
+                        return 0;
+                    }
                     break;
                 }
                 default: throw new ArgumentException("unsupported range image type: " + parser.DerivedImageType);

@@ -23,18 +23,26 @@ namespace OPS.Pipeline
     /// </summary>
     public class MeshObservations
     {
-        public Observation Points;
-        public Observation Normals;
-        public Observation Mask;
-        public Observation Texture;
+        public Observation Points; //if XYZ is not available but RNG is, this will be the RNG
+        public Observation Range; //only set if RNG is available
+        public Observation Normals; //only set if UVW is available
+        public Observation Mask; //only set if rover mask is available
+        public Observation Texture; //only set if RAS is available
 
-        public bool Empty { get { return Points == null && Normals == null && Mask == null && Texture == null; } }
+        public bool Empty
+        {
+            get
+            {
+                return Points == null && Range == null && Normals == null && Mask == null && Texture == null;
+            }
+        }
 
         public string Name
         {
             get
             {
                 if (Points != null) return Points.Name;
+                if (Range != null) return Range.Name;
                 if (Texture != null) return Texture.Name;
                 if (Normals != null) return Normals.Name;
                 if (Mask != null) return Mask.Name;
@@ -47,6 +55,7 @@ namespace OPS.Pipeline
             get
             {
                 if (Points != null) return Points.FrameName;
+                if (Range != null) return Range.FrameName;
                 if (Texture != null) return Texture.FrameName;
                 if (Normals != null) return Normals.FrameName;
                 if (Mask != null) return Mask.FrameName;
@@ -54,11 +63,27 @@ namespace OPS.Pipeline
             }
         }
 
+        public int Day
+        {
+            get
+            {
+                if (Points != null) return Points.Day;
+                if (Range != null) return Range.Day;
+                if (Texture != null) return Texture.Day;
+                if (Normals != null) return Normals.Day;
+                if (Mask != null) return Mask.Day;
+                throw new InvalidOperationException("can't get day of an empty MeshObservation");
+            }
+        }
+
+        public string StereoFrameName { get { return RoverObs.StereoFrameName; } }
+
         public RoverObservation RoverObs
         {
             get
             {
                 if (Points != null) return (RoverObservation)Points;
+                if (Range != null) return (RoverObservation)Range;
                 if (Texture != null) return (RoverObservation)Texture;
                 if (Normals != null) return (RoverObservation)Normals;
                 if (Mask != null) return (RoverObservation)Mask;
@@ -73,7 +98,7 @@ namespace OPS.Pipeline
 
         public string Camera { get { return RoverObs.Sensor; } }
 
-        public override string ToString()
+        public string ToString(PipelineCore pipeline)
         {
             if (Empty)
             {
@@ -81,13 +106,34 @@ namespace OPS.Pipeline
             }
             else
             {
-                return string.Format("{0}:{1}  Points: {2}{3}  Texture: {4}{5}  Normals: {6}{7}  Mask: {4}",
-                                     FrameName, Environment.NewLine,
-                                     Points != null ? Points.ToString(brief: true) : "(none)", Environment.NewLine,
-                                     Texture != null ? Texture.ToString(brief: true) : "(none)", Environment.NewLine,
-                                     Normals != null ? Normals.ToString(brief: true) : "(none)", Environment.NewLine,
-                                     Mask != null ? Mask.ToString(brief: true) : "(none)", Environment.NewLine);
+                string summarize(Observation obs)
+                {
+                    if (obs != null)
+                    {
+                        Exception ex = pipeline != null ? pipeline.GetImageLoadException(obs.Url) : null;
+                        return obs.ToString(brief: true) + (ex != null ? (": " + ex.Message) : "");
+                    }
+                    else
+                    {
+                        return "(none)";
+                    }
+                }
+                return string.Format("Points:  {0}{1}" +
+                                     "Range:   {2}{3}" +
+                                     "Texture: {4}{5}" +
+                                     "Normals: {6}{7}" +
+                                     "Mask:    {8}",
+                                     summarize(Points), Environment.NewLine,
+                                     summarize(Range), Environment.NewLine,
+                                     summarize(Texture), Environment.NewLine,
+                                     summarize(Normals), Environment.NewLine,
+                                     summarize(Mask));
             }
+        }
+
+        public override string ToString()
+        {
+            return ToString(null);
         }
     }
 
@@ -194,8 +240,10 @@ namespace OPS.Pipeline
 
             var ret = new MeshObservations();
 
+            ret.Range = observations.Find(obs => obs.ObservationType == rangeType);
+
             ret.Points = observations.Find(obs => obs.ObservationType == pointsType);
-            if (opts.RequirePoints && ret.Points == null)
+            if (ret.Points == null)
             {
                 // NOTE: it is subtly incorrect to use a range map to substitute for an XYZ map
                 // because stereo correlation often uses 2D disparity
@@ -203,8 +251,8 @@ namespace OPS.Pipeline
                 // may not actually lie on the ray through that pixel
                 // but for some missions (MSL) we only have range products
                 // https://github.jpl.nasa.gov/OnSight/Landform/issues/471
-                ret.Points = observations.Find(obs => obs.ObservationType == rangeType);
-                if (ret.Points == null)
+                ret.Points = ret.Range;
+                if (opts.RequirePoints && ret.Points == null)
                 {
                     return null;
                 }
@@ -332,6 +380,7 @@ namespace OPS.Pipeline
         /// accepts a range or XYZ map in any coordinate frame and returns an XYZ map in rover frame
         /// also sets mask of return image to be union of input mask, if any
         /// plus invalid values according to image header metadata
+        /// returns null if no valid points
         ///
         /// NOTE: it is subtly incorrect to call this method with a range map
         /// because stereo correlation often uses 2D disparity which means the recovered surface point for a pixel
@@ -353,15 +402,21 @@ namespace OPS.Pipeline
         /// convert an XYZ map to rover frame
         /// also sets mask of return image to be union of input mask, if any
         /// plus invalid values according to image header metadata
+        /// returns null if no valid points
         /// </summary>
         public static Image ConvertXYZ(Image img, PDSParser parser = null)
         {
+            if (img == null)
+            {
+                return null;
+            }
             parser = parser ?? new PDSParser((PDSMetadata)img.Metadata);
             CheckType(parser, RoverProductType.XYZ, "ConvertXYZ");
             Matrix xform = RoverCoordinateSystem.GetTransformToRoverFrame(parser);
             Image ret = new Image(3, img.Width, img.Height);
             AddMaskForMissingConstant(ret, img, parser);
             bool hasMissingConstant = parser.HasMissingConstant;
+            bool anyValid = false;
             for (int row = 0; row < img.Height; row++)
             {
                 for (int col = 0; col < img.Width; col++)
@@ -374,16 +429,19 @@ namespace OPS.Pipeline
                     {
                         var p = new Vector3(img[0, row, col], img[1, row, col], img[2, row, col]);
                         ret.SetBandValues(row, col, Vector3.Transform(p, xform).ToFloatArray());
+                        anyValid = true;
                     }
+                    //else AddMaskForMissingConstant() already masked ret[row, col]
                 }
             }
-            return ret;
+            return anyValid ? ret : null;
         }
 
         /// <summary>
         /// convert a range image into an XYZ map in rover frame similar to the XYR products
         /// also sets mask of return image to be union of input mask, if any
         /// plus invalid values according to image header metadata
+        /// returns null if no valid points
         ///
         /// NOTE: this method is subtly incorrect and should be avoided
         /// because stereo correlation often uses 2D disparity which means the recovered surface point for a pixel
@@ -392,6 +450,10 @@ namespace OPS.Pipeline
         /// </summary>
         public static Image ConvertRNG(Image img, PDSParser parser)
         {
+            if (img == null)
+            {
+                return null;
+            }
             Image ret = new Image(3, img.Width, img.Height);
 
             bool hasMissingConstant = false;
@@ -403,7 +465,7 @@ namespace OPS.Pipeline
                 CheckCameraCenter(parser, img, "ConvertRNG");
                 AddMaskForMissingConstant(ret, img, parser);
             }
-
+            bool anyValid = false;
             for (int row = 0; row < img.Height; row++)
             {
                 for (int col = 0; col < img.Width; col++)
@@ -416,10 +478,12 @@ namespace OPS.Pipeline
                     {
                         Vector3 p = img.CameraModel.Unproject(new Vector2(col, row), img[0, row, col]);
                         ret.SetBandValues(row, col, p.ToFloatArray());
+                        anyValid = true;
                     }
+                    //else AddMaskForMissingConstant() already masked ret[row, col]
                 }
             }
-            return ret;
+            return anyValid ? ret : null;
         }
 
         /// <summary>
@@ -460,6 +524,7 @@ namespace OPS.Pipeline
                     {
                         ret[0, row, col] = 1 / img[0, row, col];
                     }
+                    //else AddMaskForMissingConstant() already masked ret[row, col]
                 }
             }
 
@@ -491,6 +556,7 @@ namespace OPS.Pipeline
                         var p = new Vector3(img[0, row, col], img[1, row, col], img[2, row, col]);
                         ret[0, row, col] = 1 / (float)Vector3.Distance(Vector3.Transform(p, xform), c);
                     }
+                    //else AddMaskForMissingConstant() already masked ret[row, col]
                 }
             }
             return ret;
@@ -549,6 +615,7 @@ namespace OPS.Pipeline
                             ret[0, row, col] *= confidence[0, row, col];
                         }
                     }
+                    //else AddMaskForMissingConstant() already masked ret[row, col]
                 }
             }
             return anyValid ? ret : null;
@@ -1084,10 +1151,41 @@ namespace OPS.Pipeline
             //TODO generate confidence and mask until real products are available
             //https://github.jpl.nasa.gov/OnSight/Landform/issues/259
 
-            pipeline.LogVerbose("loading points {0}", obs.Points.Url);
-            var pointsRaw = pipeline.LoadImage(obs.Points.Url);
+            Image pointsRaw = null;
+            bool loadedRange = false;
+            if (obs.Points != null) //note obs.Points should equal obs.Range if there is only an RNG product
+            {
+                try
+                {
+                    pipeline.LogVerbose("loading points {0}", obs.Points.Url);
+                    pointsRaw = pipeline.LoadImage(obs.Points.Url);
+                }
+                catch (Exception ex)
+                {
+                    if (obs.Range != null && obs.Range != obs.Points)
+                    {
+                        pipeline.LogWarn("failed to load {0}, falling back to {1}: {2}",
+                                         obs.Points.Name, obs.Range.Name, ex.Message);
+                        pointsRaw = pipeline.LoadImage(obs.Range.Url);
+                        loadedRange = true;
+                    }
+                    else
+                    {
+                        throw;
+                    }
+                }
+            }
+
             points = ConvertPoints(pointsRaw);
 
+            if (points == null && !loadedRange && obs.Range != null && obs.Range != obs.Points)
+            {
+                pipeline.LogWarn("no valid points in {0}, falling back to {1}", obs.Points.Name, obs.Range.Name);
+                pointsRaw = pipeline.LoadImage(obs.Range.Url);
+                points = ConvertPoints(pointsRaw);
+                loadedRange = true;
+            }
+                
             normals = null;
             if (obs.Normals != null)
             {
@@ -1099,13 +1197,13 @@ namespace OPS.Pipeline
                 }
                 catch (Exception ex)
                 {
-                    pipeline.LogWarn("error loading normals {0}: {1}", obs.Normals.Url, ex.Message);
+                    pipeline.LogWarn("error loading normals {0}: {1}", obs.Normals.Name, ex.Message);
                 }
             }
 
             mask = masker.LoadOrBuild(pipeline, obs.Mask, pointsRaw, obs.Name);
 
-            if (decimate > 1)
+            if (decimate > 1 && points != null)
             {
                 pipeline.LogVerbose("decimating points {0}", obs.Points.Name);
                 points = MaskAndDecimatePoints(points, decimate, mask);
@@ -1185,6 +1283,10 @@ namespace OPS.Pipeline
         /// </summary>
         public static Mesh BuildPointCloud(Image points, Image normals = null, Image mask = null)
         {
+            if (points == null)
+            {
+                return null;
+            }
             Mesh ret = new Mesh(hasNormals: normals != null);
             for (int row = 0; row < points.Height; row++)
             {
@@ -1217,12 +1319,12 @@ namespace OPS.Pipeline
             validPoints = countValid ? CountValid(points, mask) : -1;
             validNormals = countValid ? CountValid(normals, mask) : -1;
 
-            pipeline.LogVerbose("building point cloud {0}", obs.Points.Name);
+            pipeline.LogVerbose("building point cloud {0}", obs.Name);
             var ret = BuildPointCloud(points, normals, mask);
 
-            if (ret.Vertices.Count == 0)
+            if (ret == null)
             {
-                pipeline.LogWarn("No verts found for pointcloud for {0}", obs.Points.Name);
+                pipeline.LogWarn("No valid points for {0}", obs.Name);
                 return null;
             }
 
@@ -1257,6 +1359,11 @@ namespace OPS.Pipeline
                                               bool generateUV = true, bool generateNormals = true,
                                               double isolatedPointSize = 0)
         {
+            if (points == null)
+            {
+                return null;
+            }
+
             if (maxTriangleAspect < 1)
             {
                 throw new ArgumentException("max triangle aspect must be >= 1");
@@ -1394,15 +1501,31 @@ namespace OPS.Pipeline
             validPoints = countValid ? CountValid(points, mask) : -1;
             validNormals = countValid ? CountValid(normals, mask) : -1;
 
-            pipeline.LogVerbose("building organized mesh {0}", obs.Points.Name);
+            pipeline.LogVerbose("building organized mesh {0}", obs.Name);
 
+            //UVs will be added below
+            //and that will include culling verts that don't project to valid pixels in the texture image
+            //this behavior matches the other Build*Mesh() APIs
             bool generateUV = false;
             var ret = BuildOrganizedMesh(points, normals, mask, maxTriangleAspect, generateUV, generateNormals,
                                          isolatedPointSize);
 
+            if (ret == null)
+            {
+                pipeline.LogWarn("No valid points for {0}", obs.Name);
+                return null;
+            }
+
             if (withUVs && obs.Texture != null)
             {
-                AddUVs(ret, pipeline.LoadImage(obs.Texture.Url));
+                try
+                {
+                    AddUVs(ret, pipeline.LoadImage(obs.Texture.Url));
+                }
+                catch (Exception ex)
+                {
+                    pipeline.LogWarn("error adding texture {0} to mesh: {1}", obs.Texture.Name, ex.Message);
+                }
             }
 
             var xform = GetTransform(obs.Points.FrameName, frame, frameCache, usePriors, onlyAligned);
@@ -1430,10 +1553,16 @@ namespace OPS.Pipeline
         public static Mesh BuildPoissonMesh(Image points, Image normals, Image mask = null,
                                             bool normalsAreScaledByConfidence = false)
         {
+            if (points == null)
+            {
+                return null;
+            }
+
             if (normals == null)
             {
                 throw new ArgumentException("Poission reconstruction requires normals");
             }
+
             var opts = new PoissonReconstruction.Options
             {
                 Boundary = PoissonReconstruction.BoundaryTypes.Neumann,
@@ -1456,12 +1585,25 @@ namespace OPS.Pipeline
             validPoints = countValid ? CountValid(points, mask) : -1;
             validNormals = countValid ? CountValid(normals, mask) : -1;
 
-            pipeline.LogVerbose("building Poisson mesh {0}", obs.Points.Name);
+            pipeline.LogVerbose("building Poisson mesh {0}", obs.Name);
             var ret = BuildPoissonMesh(points, normals, mask, scaleNormalsByConfidence);
+
+            if (ret == null)
+            {
+                pipeline.LogWarn("No valid points for {0}", obs.Name);
+                return null;
+            }
 
             if (withUVs && obs.Texture != null)
             {
-                AddUVs(ret, pipeline.LoadImage(obs.Texture.Url));
+                try
+                {
+                    AddUVs(ret, pipeline.LoadImage(obs.Texture.Url));
+                }
+                catch (Exception ex)
+                {
+                    pipeline.LogWarn("error adding texture {0} to mesh: {1}", obs.Texture.Name, ex.Message);
+                }
             }
 
             var xform = GetTransform(obs.Points.FrameName, frame, frameCache, usePriors, onlyAligned);
@@ -1487,10 +1629,16 @@ namespace OPS.Pipeline
 
         public static Mesh BuildFSSRMesh(Image points, Image normals, Image mask = null)
         {
+            if (points == null)
+            {
+                return null;
+            }
+
             if (normals == null)
             {
                 throw new ArgumentException("FSSR reconstruction requires normals");
             }
+
             return FSSR.Reconstruct(BuildPointCloud(points, normals, mask));            
         }
 
@@ -1504,12 +1652,25 @@ namespace OPS.Pipeline
             validPoints = countValid ? CountValid(points, mask) : -1;
             validNormals = countValid ? CountValid(normals, mask) : -1;
 
-            pipeline.LogVerbose("building FSSR mesh {0}", obs.Points.Name);
+            pipeline.LogVerbose("building FSSR mesh {0}", obs.Name);
             var ret = BuildFSSRMesh(points, normals, mask);
+
+            if (ret == null)
+            {
+                pipeline.LogWarn("No valid points for {0}", obs.Name);
+                return null;
+            }
 
             if (withUVs && obs.Texture != null)
             {
-                AddUVs(ret, pipeline.LoadImage(obs.Texture.Url));
+                try
+                {
+                    AddUVs(ret, pipeline.LoadImage(obs.Texture.Url));
+                }
+                catch (Exception ex)
+                {
+                    pipeline.LogWarn("error adding texture {0} to mesh: {1}", obs.Texture.Name, ex.Message);
+                }
             }
 
             var xform = GetTransform(obs.Points.FrameName, frame, frameCache, usePriors, onlyAligned);
@@ -1554,35 +1715,66 @@ namespace OPS.Pipeline
 
         public static Tuple<Mesh, Image> MergeMeshesAndTextures(IEnumerable<Tuple<Mesh, Image>> inputs)
         {
+            var meshes = inputs
+                .Where(pair => pair.Item1 != null)
+                .Select(pair => pair.Item1)
+                .ToArray();
+
             var textures = inputs
                 .Where(pair => pair.Item1 != null && pair.Item1.HasUVs)
                 .Where(pair => pair.Item2 != null)
-                .Select(pair => pair.Item2);
-            int numTextures = textures.Count();
-            var uvOffsets = new Queue<Vector2>();
-            var uvScale = new Vector2();
-            Image atlas = null;
-            if (numTextures > 0)
+                .Select(pair => pair.Item2)
+                .ToArray();
+
+            int bands = 0;
+            if (textures.Length > 0)
             {
+                if (textures.Length != meshes.Length)
+                {
+                    throw new ArgumentException("cannot merged textured meshes with untextured");
+                }
                 int maxWidth = textures.Select(t => t.Width).Max();
                 int maxHeight = textures.Select(t => t.Height).Max();
-                int maxBands = textures.Select(t => t.Bands).Max();
+                int maxBands = bands = textures.Select(t => t.Bands).Max();
                 int minBands = textures.Select(t => t.Bands).Min();
                 if (minBands != maxBands)
                 {
                     throw new ArgumentException("cannot merge textures with different numbers of bands");
                 }
-                int cols = (int)Math.Sqrt(numTextures);
-                int rows = (int)Math.Ceiling((double)(numTextures) / cols);
-                uvScale.X = 1.0 / cols;
-                uvScale.Y = 1.0 / rows;
-                atlas = new Image(maxBands, cols * maxWidth, rows * maxHeight);
-                int row = 0, col = 0;
-                foreach (var texture in textures)
+            }
+
+            var merged = Mesh.Merge(meshes, clean: false);
+
+            Image atlas = null;
+            if (textures.Length > 0)
+            {
+                int maxWidth = textures.Select(t => t.Width).Max();
+                int maxHeight = textures.Select(t => t.Height).Max();
+
+                int cols = (int)Math.Sqrt(textures.Length);
+                int rows = (int)Math.Ceiling((double)(textures.Length) / cols);
+
+                var uvScale = new Vector2(1.0 / cols, 1.0 / rows);
+
+                atlas = new Image(bands, cols * maxWidth, rows * maxHeight);
+
+                int row = 0, col = 0, index = 0;
+                for (int i = 0; i < textures.Length; i++)
                 {
                     int x = col * maxWidth, y = row * maxHeight;
-                    atlas.Blit(texture, x, y);
-                    uvOffsets.Enqueue(atlas.PixelToUV(new Vector2(x, y + maxHeight - 1)));
+
+                    atlas.Blit(textures[i], x, y);
+
+                    var offset = atlas.PixelToUV(new Vector2(x, y + maxHeight - 1));
+                    var mesh = meshes[i];
+                    for (int j = 0; j < mesh.Vertices.Count; j++)
+                    {
+                        var vert = merged.Vertices[index++];
+                        vert.UV.X *= uvScale.X;
+                        vert.UV.Y *= uvScale.Y;
+                        vert.UV += offset;
+                    }
+
                     col++;
                     if (col >= cols)
                     {
@@ -1591,29 +1783,7 @@ namespace OPS.Pipeline
                     }
                 }
             }
-            var merged = Mesh.Merge(inputs.Where(pair => pair.Item1 != null).Select(pair => pair.Item1).ToArray(),
-                                    clean: false);
-            int index = 0;
-            foreach (var pair in inputs)
-            {
-                var mesh = pair.Item1;
-                var texture = pair.Item2;
-                if (mesh != null && mesh.HasUVs && texture != null)
-                {
-                    var offset = uvOffsets.Dequeue();
-                    for (int i = 0; i < mesh.Vertices.Count; i++)
-                    {
-                        var vert = merged.Vertices[index++];
-                        vert.UV.X *= uvScale.X;
-                        vert.UV.Y *= uvScale.Y;
-                        vert.UV += offset;
-                    }
-                }
-                else if (mesh != null)
-                {
-                    index += mesh.Vertices.Count;
-                }
-            }
+
             return new Tuple<Mesh, Image>(merged, atlas);
         }
 

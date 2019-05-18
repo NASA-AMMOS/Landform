@@ -314,18 +314,14 @@ namespace OPS.Pipeline
                              : "",
                              outputPath);
 
-            foreach (var obs in observations)
-            {
-                pipeline.LogInfo(obs.ToString());
-            }
-                
             //sitedrive name => (observation, mesh, image), (observation, mesh, image), ...
-            var mergeInputs = new ConcurrentDictionary<string, ConcurrentBag<Tuple<string, Mesh, Image>>>();
+            var mergeInputs = new ConcurrentDictionary<string, ConcurrentBag<Tuple<MeshObservations, Mesh, Image>>>();
 
             //frame name => num
             var validPoints = new ConcurrentDictionary<string, int>();
             var validNormals = new ConcurrentDictionary<string, int>();
             var validTriangles = new ConcurrentDictionary<string, int>();
+            var generatedNormals = new ConcurrentDictionary<string, bool>();
             
             double startSec = UTCTime.Now();
             int np = 0, nc = 0;
@@ -377,6 +373,10 @@ namespace OPS.Pipeline
                                                                   options.MaxTriangleAspect,
                                                                   withUVs, generateNormals,
                                                                   options.IsolatedPointSize);
+                                if (numNormals == 0 && mesh != null && mesh.HasNormals)
+                                {
+                                    generatedNormals[obs.FrameName] = true;
+                                }
                                 break;
                             }
                             case ReconstructionMethod.Poisson:
@@ -465,6 +465,34 @@ namespace OPS.Pipeline
                     }
                 }
                 
+                if (options.MergedSiteDriveMeshes && mesh != null)
+                {
+                    var input = new Tuple<MeshObservations, Mesh, Image>(obs, mesh, withUVs ? img : null);
+                    mergeInputs
+                    .AddOrUpdate(siteDrive,
+                                 _ => new ConcurrentBag<Tuple<MeshObservations, Mesh, Image>>(new [] { input }),
+                                 (_, bag) => { bag.Add(input); return bag; });
+                }
+
+                if (!options.NoWedgeMeshes && mesh != null)
+                {
+                    if (options.ColorMeshesBy != Meshing.MeshColor.None &&
+                        options.ColorMeshesBy != Meshing.MeshColor.Texture)
+                    {
+                        if (options.MergedSiteDriveMeshes)
+                        {
+                            mesh = new Mesh(mesh);
+                        }
+                        Meshing.ColorMesh(mesh, options.ColorMeshesBy,
+                                          options.ConvertNormalsToTilts ? options.TiltMode : Meshing.TiltMode.None,
+                                          stretch: options.StretchContrast, nStddev: options.StretchStdDev);
+                    }
+                    string file = tmpPath + obs.Name + meshExt;
+                    pipeline.LogVerbose("saving mesh {0}", file);
+                    PathHelper.EnsureExists(tmpPath);
+                    mesh.Save(file, withUVs ? imageFilename : null);
+                }
+                
                 if (options.NormalsImages && obs.Normals != null)
                 {
                     try
@@ -504,13 +532,16 @@ namespace OPS.Pipeline
                     try
                     {
                         var points = Meshing.ConvertPoints(pipeline.LoadImage(obs.Points.Url));
-                        var normals = Meshing.ConvertNormals(pipeline.LoadImage(obs.Normals.Url));
-                        var mask = masker.LoadOrBuild(pipeline, obs.Mask, obs.Points);
-                        points = Meshing.MaskAndDecimatePoints(points, options.DecimateImages, mask);
-                        normals = Meshing.MaskAndDecimateNormals(normals, options.DecimateImages, mask);
-                        var curvatures = Meshing.ComputeCurvatures(points, normals, !options.StretchContrast,
-                                                                   options.CurvatureNeighborhood);
-                        FinishImage(curvatures, mask, tmpPath, obs.Name, "Curvature");
+                        if (points != null)
+                        {
+                            var normals = Meshing.ConvertNormals(pipeline.LoadImage(obs.Normals.Url));
+                            var mask = masker.LoadOrBuild(pipeline, obs.Mask, obs.Points);
+                            points = Meshing.MaskAndDecimatePoints(points, options.DecimateImages, mask);
+                            normals = Meshing.MaskAndDecimateNormals(normals, options.DecimateImages, mask);
+                            var curvatures = Meshing.ComputeCurvatures(points, normals, !options.StretchContrast,
+                                                                       options.CurvatureNeighborhood);
+                            FinishImage(curvatures, mask, tmpPath, obs.Name, "Curvature");
+                        }
                     }
                     catch (Exception ex)
                     {
@@ -523,42 +554,18 @@ namespace OPS.Pipeline
                     try
                     {
                         var points = Meshing.ConvertPoints(pipeline.LoadImage(obs.Points.Url));
-                        var mask = masker.LoadOrBuild(pipeline, obs.Mask, obs.Points);
-                        points = Meshing.MaskAndDecimatePoints(points, options.DecimateImages, mask);
-                        var elevations = Meshing.PointsToElevation(points, normalize: !options.StretchContrast);
-                        FinishImage(elevations, mask, tmpPath, obs.Name, "Elevation");
+                        if (points != null)
+                        {
+                            var mask = masker.LoadOrBuild(pipeline, obs.Mask, obs.Points);
+                            points = Meshing.MaskAndDecimatePoints(points, options.DecimateImages, mask);
+                            var elevations = Meshing.PointsToElevation(points, normalize: !options.StretchContrast);
+                            FinishImage(elevations, mask, tmpPath, obs.Name, "Elevation");
+                        }
                     }
                     catch (Exception ex)
                     {
                         pipeline.LogWarn("error creating elevation image: " + ex.Message);
                     }
-                }
-                
-                if (options.MergedSiteDriveMeshes && mesh != null)
-                {
-                    var input = new Tuple<string, Mesh, Image>(obs.Points.Name, mesh, withUVs ? img : null);
-                    mergeInputs.AddOrUpdate(siteDrive,
-                                            _ => new ConcurrentBag<Tuple<string, Mesh, Image>>(new [] { input }),
-                                            (_, bag) => { bag.Add(input); return bag; });
-                }
-                
-                if (!options.NoWedgeMeshes && mesh != null)
-                {
-                    if (options.ColorMeshesBy != Meshing.MeshColor.None &&
-                        options.ColorMeshesBy != Meshing.MeshColor.Texture)
-                    {
-                        if (options.MergedSiteDriveMeshes)
-                        {
-                            mesh = new Mesh(mesh);
-                        }
-                        Meshing.ColorMesh(mesh, options.ColorMeshesBy,
-                                          options.ConvertNormalsToTilts ? options.TiltMode : Meshing.TiltMode.None,
-                                          stretch: options.StretchContrast, nStddev: options.StretchStdDev);
-                    }
-                    string file = tmpPath + obs.Name + meshExt;
-                    pipeline.LogVerbose("saving mesh {0}", file);
-                    PathHelper.EnsureExists(tmpPath);
-                    mesh.Save(file, withUVs ? imageFilename : null);
                 }
                 
                 if (options.FrustumHullMeshes && (obs.Texture != null || obs.Points != null))
@@ -654,16 +661,23 @@ namespace OPS.Pipeline
                 Interlocked.Increment(ref nc);
             });
 
-            if (!options.NoWedgeMeshes || options.MergedSiteDriveMeshes)
+            foreach (var obs in observations)
             {
-                foreach (var obs in observations)
+                var fn = obs.FrameName;
+                if (!options.NoWedgeMeshes || options.MergedSiteDriveMeshes)
                 {
-                    var fn = obs.FrameName;
-                    pipeline.LogInfo("{0}: {1} valid points, {2} valid normals, {3} valid triangles{4}",
-                                     fn, validPoints[fn], validNormals[fn], validTriangles[fn],
+                    pipeline.LogInfo("{0}: {1} points, {2} normals{3}, {4} triangles{5}{6}{7}",
+                                     fn, validPoints[fn], validNormals[fn],
+                                     generatedNormals.ContainsKey(fn) && generatedNormals[fn] ? " (generated)" : "",
+                                     validTriangles[fn],
                                      options.DecimateMeshes > 1 ?
                                      string.Format(" after {0}x decimation", options.DecimateMeshes)
-                                     : "");
+                                     : "",
+                                     Environment.NewLine, obs.ToString(pipeline));
+                }
+                else
+                {
+                    pipeline.LogInfo(obs.ToString(pipeline));
                 }
             }
 
@@ -674,7 +688,7 @@ namespace OPS.Pipeline
                 {
                     //ensure inputs are in a canonical order
                     var inputs = mergeInputs[siteDrive]
-                        .OrderBy(inp => inp.Item1) //order by observation name
+                        .OrderBy(inp => inp.Item1.FrameName) //order by observation frame
                         .Distinct() //ConcurrentBag is not necessarily a set
                         .ToArray();
 
@@ -812,11 +826,18 @@ namespace OPS.Pipeline
             //load images
             var srcPointsRaw = pipeline.LoadImage(srcObs.Points.Url);
             var srcPoints = Meshing.ConvertPoints(srcPointsRaw);
-            srcPoints.UnionMask(masker.LoadOrBuild(pipeline, srcObs.Mask, srcPointsRaw , srcObs.Name),
-                                new float[] { 0 });
 
             var dstPointsRaw = pipeline.LoadImage(dstObs.Points.Url);
             var dstPoints = Meshing.ConvertPoints(dstPointsRaw);
+
+            if (srcPoints == null || dstPoints == null)
+            {
+                return null;
+            }
+
+            srcPoints.UnionMask(masker.LoadOrBuild(pipeline, srcObs.Mask, srcPointsRaw , srcObs.Name),
+                                new float[] { 0 });
+
             dstPoints.UnionMask(masker.LoadOrBuild(pipeline, dstObs.Mask, dstPointsRaw , dstObs.Name),
                                 new float[] { 0 });
 
