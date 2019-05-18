@@ -146,13 +146,18 @@ namespace OPS.Pipeline.AlignmentServer
             }
         }
 
-        public override string ToString(bool brief = false)
+        public override string ToString(bool brief)
         {
             return string.Format("{0}, Site={1}, Drive={2}, Sensor={3}, SizeType={4}, Producer={5}, Version={6}",
                                  base.ToString(brief),
                                  Site, Drive,
                                  Sensor, ImageFrameSize,
                                  Producer, Version);
+        }
+
+        public override string ToString()
+        {
+            return ToString(brief: false);
         }
     }
 }

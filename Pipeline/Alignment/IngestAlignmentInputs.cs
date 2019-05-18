@@ -158,9 +158,8 @@ namespace OPS.Pipeline
                             minSol.AddOrUpdate(sd, _ => obs.Day, (_, sol) => Math.Min(sol, obs.Day));
                             maxSol.AddOrUpdate(sd, _ => obs.Day, (_, sol) => Math.Max(sol, obs.Day));
 
-                            pipeline.LogVerbose("{0} ({1}) {2}x{3} {4} sitedrive={5} -> observation {6}",
-                                                res.ImageUrl, res.Status, obs.Width, obs.Height,
-                                                obs.ObservationType, sd, obs.Name);
+                            pipeline.LogVerbose("{0} ({1}) -> observation {2}",
+                                                res.ImageUrl, res.Status, obs.ToString(brief: true));
 
                             if (obs.ObservationType == imageObs && obs.UseForReconstruction)
                             {

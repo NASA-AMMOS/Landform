@@ -17,7 +17,7 @@ namespace OPS.Pipeline
         private Project project;
         private bool recreateExistingObservations;
         private bool resetTransforms;
-        private MissionSpecific missionSpecific;
+        private MissionSpecific mission;
         public delegate bool Filter(string imageUrl, PDSMetadata pdsMetadata, PDSParser pdsParser);
         private Filter filter;
         public MSLLocations Locations;
@@ -32,7 +32,7 @@ namespace OPS.Pipeline
             this.recreateExistingObservations = recreateExistingObservations;
             this.resetTransforms = resetTransforms;
             this.filter = filter;
-            this.missionSpecific = MissionSpecific.GetInstance(project.Mission);
+            this.mission = MissionSpecific.GetInstance(project.Mission);
         }
 
         /// <summary>
@@ -96,38 +96,48 @@ namespace OPS.Pipeline
         /// </summary>
         /// <param name="parser"></param>
         /// <returns></returns>
-        bool CheckMetadata(PDSParser parser)
+        private bool CheckMetadata(PDSParser parser)
         {
             return productTypeToObservationType.ContainsKey(parser.DerivedImageType) &&
                parser.ImageSizeType == RoverProductSize.Regular &&
                !parser.IsSunFinding;
         }
 
-       
-
-
         /// <summary>
         /// Map metadata to a frame name based on site drive
         /// </summary>
         /// <param name="parser"></param>
         /// <returns></returns>
-        public string SiteDriveFrameName(PDSParser parser)
+        private string SiteDriveFrameName(PDSParser parser)
         {
             return parser.SiteDrive;
         }
-
-       
 
         /// <summary>
         /// Map metadata to an observation name based on product id
         /// </summary>
         /// <param name="parser"></param>
         /// <returns></returns>
-        public string ObservationName(PDSParser parser)
+        private string ObservationName(PDSParser parser)
         {
             return parser.ProductIdString;
         }
-        
+
+        /// <summary>
+        /// ROASTT: for some images the PDS header says LEFT when it should say RIGHT  
+        /// </summary>
+        private string CameraName(PDSParser parser)
+        {
+            var pdsCam = parser.Camera;
+            var idCam = mission.TranslateCamera(parser.ProductId.Camera);
+            if (idCam != pdsCam)
+            {
+                pipeline.LogWarn("PDS header camera {0} differs from product ID camera {1} for {2}, using {1}",
+                                 pdsCam, idCam, parser.ProductIdString);
+            }
+            return idCam.ToString();
+        }
+
         private static ConcurrentDictionary<RoverProductType, ObservationType> productTypeToObservationType =
             new ConcurrentDictionary<RoverProductType, ObservationType>();
 
@@ -187,7 +197,7 @@ namespace OPS.Pipeline
                 }
                 
                 // Create database entries
-                string rootName = missionSpecific.RootFrameName();
+                string rootName = mission.RootFrameName();
                 Frame rootFrame = Frame.Find(pipeline, project.Name, rootName);
                 if (rootFrame == null)
                 {
@@ -228,7 +238,9 @@ namespace OPS.Pipeline
                 }
                 
                 // observation (aka rover) frame -> site drive (aka local level) frame
-                var observationFrame = GetFrame(missionSpecific.ObservationFrameName(parser), siteDriveFrame,
+                var cameraName = CameraName(parser);
+                var observationFrameName = cameraName + "_" + mission.RoverMotionCounter(parser);
+                var observationFrame = GetFrame(observationFrameName, siteDriveFrame,
                                                 TransformSource.PDS, GetObservationTransform(parser));
                 
                 var observation = RoverObservation.Find(pipeline, project.Name, observationName);
@@ -249,13 +261,12 @@ namespace OPS.Pipeline
                 observation = RoverObservation.Create(pipeline, observationFrame, observationName, imgUrl,
                                                       productTypeToObservationType[parser.DerivedImageType].ToString(),
                                                       JsonHelper.ToJson(metadata.CameraModel),
-                                                      missionSpecific.UseForReconstruction(parser),
+                                                      mission.UseForReconstruction(parser),
                                                       parser.Site, parser.Drive, parser.ProductId.Version,
-                                                      parser.Camera.ToString(), parser.ImageSizeType.ToString(),
+                                                      cameraName, parser.ImageSizeType.ToString(),
                                                       parser.ProducingInstitution.ToString(),
                                                       metadata.Width, metadata.Height, metadata.Bands,
-                                                      metadata.BitDepth,
-                                                      missionSpecific.DayNumber(parser));
+                                                      metadata.BitDepth, mission.DayNumber(parser));
 
                 if (observation == null)
                 {

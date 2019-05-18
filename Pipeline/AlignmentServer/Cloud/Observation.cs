@@ -169,21 +169,25 @@ namespace OPS.Pipeline.AlignmentServer
             return ((CameraModel)JsonHelper.FromJson(CameraModel)).Linear;
         }
 
-        public virtual string ToString(bool brief = false)
+        public virtual string ToString(bool brief)
         {
             var cm = (CameraModel)JsonHelper.FromJson(CameraModel);
-            return string.Format("{0} {1}{2}{3}Type={4}, CameraModel={5} ({6}), {7}Size={8}x{9}, Bands={10}, " +
+            return string.Format("{0} Frame={1}, {2}{3}Type={4}, CameraModel={5} ({6}), {7}Size={8}x{9}, Bands={10}, " +
                                  "Bits={11}, Day={12}{13}",
-                                 Name,
+                                 Name, FrameName,
                                  brief ? "" : string.Format("Url={0}, ", Url),
                                  brief ? "" : string.Format("Project={0}, ", ProjectName),
-                                 brief ? "" : string.Format("Frame={0}, ", FrameName),
                                  ObservationType,
                                  cm.GetType().Name,
                                  cm.Linear ? "linear" : "nonlinear",
                                  brief ? "" : string.Format("ForReconstruction={0}, ", UseForReconstruction),
                                  Width, Height, Bands, Bits, Day,
                                  brief ? "" : string.Format(", FeaturesGuid={0}", FeaturesGuid));
+        }
+
+        public override string ToString()
+        {
+            return ToString(brief: false);
         }
     }
 }

@@ -36,12 +36,10 @@ namespace OPS.Pipeline
             return "root";
         }
 
-        /// <summary>
-        /// Map metadata to an observation frame name based on RMC
-        /// </summary>
-        /// <param name="parser"></param>
-        /// <returns></returns>
-        public abstract string ObservationFrameName(PDSParser parser);
+        public virtual string RoverMotionCounter(PDSParser parser)
+        {
+            return parser.RMC;
+        }
 
         /// <summary>
         /// Return true if this file should be used for reconstruction
@@ -131,6 +129,11 @@ namespace OPS.Pipeline
         {
            return camera == RoverProductCamera.MastcamLeft || camera == RoverProductCamera.MastcamRight;
         }
+
+        public virtual RoverProductCamera TranslateCamera(RoverProductCamera cam)
+        {
+            return cam;
+        }
     }
 
     public class MissionMSL : MissionSpecific
@@ -138,11 +141,6 @@ namespace OPS.Pipeline
         public const int MIN_NAV_HAZ_EXPOSURE = 80;
         public const int MIN_MASTCAM_FOCUS_CUTOFF = 3;
         public const int MAX_MASTCAM_WIDTH = 1344; //TODO this is unused
-
-        public override string ObservationFrameName(PDSParser parser)
-        {
-            return parser.Camera.ToString() + "_" + parser.RMC;
-        }
 
         public override bool UseForReconstruction(PDSParser parser)
         {
@@ -228,10 +226,10 @@ namespace OPS.Pipeline
     public class MissionM2020 : MissionSpecific
     {
         // ROASTT: bug prevents RMC from being used for frame names. This workaround
-        // will break multiple images with different filters resolving to same frame
-        public override string ObservationFrameName(PDSParser parser)
+        // will break multiple images with different filters resolving to same frame.
+        public override string RoverMotionCounter(PDSParser parser)
         {          
-            return parser.Camera.ToString() + "_" + ((M2020OPGSProductId)parser.ProductId).GetConcatenatedTimeString();
+            return ((M2020OPGSProductId)parser.ProductId).GetConcatenatedTimeString();
         }
 
         public override bool IsHazcam(RoverProductCamera camera)
@@ -295,6 +293,16 @@ namespace OPS.Pipeline
         {
             //https://github.jpl.nasa.gov/OnSight/Landform/issues/554
             return new M2020RoverMasker(this);
+        }
+
+        public override RoverProductCamera TranslateCamera(RoverProductCamera cam)
+        {
+            switch (cam)
+            {
+                case RoverProductCamera.MastcamLeft: return RoverProductCamera.MastcamZLeft;
+                case RoverProductCamera.MastcamRight: return RoverProductCamera.MastcamZRight;
+                default: return cam;
+            }
         }
     }
 }
