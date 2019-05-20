@@ -323,7 +323,7 @@ namespace OPS.Pipeline
             observationCache = new ObservationCache(pipeline, options.ProjectName);
             observationCache.Preload();
 
-            var opts = new Meshing.MeshObservationsOptions(options.OnlyForSiteDrives, options.OnlyForCameras)
+            var opts = new Meshing.MeshObservationsOptions(options.OnlyForSiteDrives, options.OnlyForCameras, mission)
             {
                 AllowMastcam = false,
                 RequirePoints = true,
@@ -332,8 +332,7 @@ namespace OPS.Pipeline
                 RequirePriorTransform = true,
                 TargetFrame = "root"
             };
-            var comparator = mission.GetRoverObservationComparator();
-            observations = Meshing.CollectMeshObservations(frameCache, observationCache, comparator, opts);
+            observations = Meshing.CollectMeshObservations(frameCache, observationCache, opts);
 
             //for now lexicographically sort siteDrives so that older ones come before newer
             //just to give a canonical order

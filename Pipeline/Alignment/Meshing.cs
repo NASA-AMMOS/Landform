@@ -163,7 +163,12 @@ namespace OPS.Pipeline
 
             public string TargetFrame = null;
 
-            public MeshObservationsOptions(string onlyForSiteDrives = null, string onlyForCameras = null)
+            public IComparer<RoverObservation> Comparator = null;
+
+            public RoverProductGeometry[] LinearPreference = null;
+
+            public MeshObservationsOptions(string onlyForSiteDrives = null, string onlyForCameras = null,
+                                           MissionSpecific mission = null)
             {
                 if (!string.IsNullOrEmpty(onlyForSiteDrives))
                 {
@@ -181,6 +186,12 @@ namespace OPS.Pipeline
                         .Where(s => !string.IsNullOrEmpty(s))
                         .ToArray();
                 }
+
+                if (mission != null)
+                {
+                    Comparator =  mission.GetRoverObservationComparator();
+                    LinearPreference = mission.GetLinearPreference();
+                }
             }
         }
 
@@ -191,7 +202,6 @@ namespace OPS.Pipeline
         /// </summary>
         public static MeshObservations CollectMeshObservationsForFrame(string frameName, FrameCache frameCache,
                                                                        ObservationCache observationCache,
-                                                                       IComparer<RoverObservation> comparator,
                                                                        MeshObservationsOptions opts = null)
         {
             if (opts == null)
@@ -233,53 +243,59 @@ namespace OPS.Pipeline
                 .Where(obs => opts.OnlyForCameras == null || opts.OnlyForCameras.Any(cam => cam == obs.Sensor))
                 .ToList();
 
-            if (comparator != null)
+            if (opts.Comparator != null)
             {
-                observations.Sort(comparator);
+                observations.Sort(opts.Comparator);
             }
 
-            var ret = new MeshObservations();
-
-            ret.Range = observations.Find(obs => obs.ObservationType == rangeType);
-
-            ret.Points = observations.Find(obs => obs.ObservationType == pointsType);
-            if (ret.Points == null)
+            var lp = opts.LinearPreference ?? new[] { RoverProductGeometry.Linearized, RoverProductGeometry.Raw };
+            foreach (var geometry in lp)
             {
-                // NOTE: it is subtly incorrect to use a range map to substitute for an XYZ map
-                // because stereo correlation often uses 2D disparity
-                // which means the recovered surface point for a pixel
-                // may not actually lie on the ray through that pixel
-                // but for some missions (MSL) we only have range products
-                // https://github.jpl.nasa.gov/OnSight/Landform/issues/471
-                ret.Points = ret.Range;
-                if (opts.RequirePoints && ret.Points == null)
+                var linObs = observations.Where(obs => obs.CheckLinear(geometry)).ToList();
+                
+                var ret = new MeshObservations();
+
+                ret.Range = linObs.Find(obs => obs.ObservationType == rangeType);
+                
+                ret.Points = linObs.Find(obs => obs.ObservationType == pointsType);
+                if (ret.Points == null)
                 {
-                    return null;
+                    // NOTE: it is subtly incorrect to use a range map to substitute for an XYZ map
+                    // because stereo correlation often uses 2D disparity
+                    // which means the recovered surface point for a pixel
+                    // may not actually lie on the ray through that pixel
+                    // but for some missions (MSL) we only have range products
+                    // https://github.jpl.nasa.gov/OnSight/Landform/issues/471
+                    ret.Points = ret.Range;
+                    if (opts.RequirePoints && ret.Points == null)
+                    {
+                        continue;
+                    }
+                }
+                
+                ret.Normals = linObs.Find(obs => obs.ObservationType == normalsType &&
+                                          obs.Width == ret.Points.Width && obs.Height == ret.Points.Height);
+                if (opts.RequireNormals && ret.Normals == null)
+                {
+                    continue;
+                }
+                
+                ret.Mask = linObs.Find(obs => obs.ObservationType == maskType &&
+                                       obs.Width == ret.Points.Width && obs.Height == ret.Points.Height);
+                
+                ret.Texture = linObs.Find(obs => obs.ObservationType == imageType);
+                if (opts.RequireTextures && ret.Texture == null)
+                {
+                    continue;
+                }
+                
+                if (!ret.Empty)
+                {
+                    return ret;
                 }
             }
 
-            ret.Normals = observations.Find(obs => obs.ObservationType == normalsType &&
-                                            obs.Width == ret.Points.Width && obs.Height == ret.Points.Height);
-            if (opts.RequireNormals && ret.Normals == null)
-            {
-                return null;
-            }
-
-            ret.Mask = observations.Find(obs => obs.ObservationType == maskType &&
-                                         obs.Width == ret.Points.Width && obs.Height == ret.Points.Height);
-
-            ret.Texture = observations.Find(obs => obs.ObservationType == imageType);
-            if (opts.RequireTextures && ret.Texture == null)
-            {
-                return null;
-            }
-
-            if (ret.Empty)
-            {
-                return null;
-            }
-
-            return ret;
+            return null;
         }
 
         /// <summary>
@@ -288,7 +304,6 @@ namespace OPS.Pipeline
         /// </summary>
         public static List<MeshObservations> CollectMeshObservations(FrameCache frameCache,
                                                                      ObservationCache observationCache,
-                                                                     IComparer<RoverObservation> comparator,
                                                                      MeshObservationsOptions opts = null)
         {
             if (opts == null)
@@ -299,7 +314,7 @@ namespace OPS.Pipeline
             var ret = new List<MeshObservations>();
             foreach (var frameName in observationCache.GetAllFramesWithObservations())
             {
-                var obs = CollectMeshObservationsForFrame(frameName, frameCache, observationCache, comparator, opts);
+                var obs = CollectMeshObservationsForFrame(frameName, frameCache, observationCache, opts);
                 if (obs != null)
                 {
                     ret.Add(obs);
