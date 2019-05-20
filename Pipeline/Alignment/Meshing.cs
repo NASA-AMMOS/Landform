@@ -1165,14 +1165,21 @@ namespace OPS.Pipeline
                 {
                     if (obs.Range != null && obs.Range != obs.Points)
                     {
-                        pipeline.LogWarn("failed to load {0}, falling back to {1}: {2}",
-                                         obs.Points.Name, obs.Range.Name, ex.Message);
-                        pointsRaw = pipeline.LoadImage(obs.Range.Url);
-                        loadedRange = true;
+                        try
+                        {
+                            pipeline.LogWarn("failed to load {0}, falling back to {1}: {2}",
+                                             obs.Points.Name, obs.Range.Name, ex.Message);
+                            pointsRaw = pipeline.LoadImage(obs.Range.Url);
+                            loadedRange = true;
+                        }
+                        catch (Exception ex2)
+                        {
+                            pipeline.LogWarn("failed to load {0}: {1}", obs.Range.Name, ex2.Message);
+                        }
                     }
                     else
                     {
-                        throw;
+                        pipeline.LogWarn("failed to load {0}, RNG unavailable: {1}", obs.Points.Name, ex.Message);
                     }
                 }
             }
