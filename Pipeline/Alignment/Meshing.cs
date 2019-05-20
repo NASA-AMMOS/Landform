@@ -1146,7 +1146,8 @@ namespace OPS.Pipeline
         public static void LoadOrGenerateMeshImages(PipelineCore pipeline, RoverMasker masker,
                                                     MeshObservations obs, int decimate,
                                                     bool scaleNormalsByConfidence,
-                                                    out Image points, out Image normals, out Image mask)
+                                                    out Image points, out Image normals, out Image mask,
+                                                    out Vector3 pointsCameraCenter)
         {
             //TODO generate confidence and mask until real products are available
             //https://github.jpl.nasa.gov/OnSight/Landform/issues/259
@@ -1176,7 +1177,17 @@ namespace OPS.Pipeline
                 }
             }
 
-            points = ConvertPoints(pointsRaw);
+            if (pointsRaw != null)
+            {
+                //extract camera center now because if we're going to decimate below that will lose the PDS metadata
+                pointsCameraCenter = CheckCameraCenter(pointsRaw, "LoadOrGenerateMeshImages", checkRangeOrigin: false);
+            }
+            else
+            {
+                pointsCameraCenter = new Vector3(0, 0, 0);
+            }
+
+            points = ConvertPoints(pointsRaw); //null OK
 
             if (points == null && !loadedRange && obs.Range != null && obs.Range != obs.Points)
             {
@@ -1214,6 +1225,15 @@ namespace OPS.Pipeline
                 }
                 mask = null;
             }
+        }
+
+        public static void LoadOrGenerateMeshImages(PipelineCore pipeline, RoverMasker masker,
+                                                    MeshObservations obs, int decimate,
+                                                    bool scaleNormalsByConfidence,
+                                                    out Image points, out Image normals, out Image mask)
+        {
+            LoadOrGenerateMeshImages(pipeline, masker, obs, decimate, scaleNormalsByConfidence,
+                                     out points, out normals, out mask, out Vector3 dummy);
         }
 
         public static int CountValid(Image img, Image mask)
@@ -1357,6 +1377,7 @@ namespace OPS.Pipeline
         public static Mesh BuildOrganizedMesh(Image points, Image normals = null, Image mask = null,
                                               double maxTriangleAspect = 20,
                                               bool generateUV = true, bool generateNormals = true,
+                                              Vector3? flipGeneratedNormalsToward = null,
                                               double isolatedPointSize = 0)
         {
             if (points == null)
@@ -1457,6 +1478,11 @@ namespace OPS.Pipeline
             if (generateNormals && !ret.HasNormals)
             {
                 ret.GenerateVertexNormals();
+
+                if (flipGeneratedNormalsToward.HasValue)
+                {
+                    ret.FlipNormalsTowardPoint(flipGeneratedNormalsToward.Value);
+                }
             }
 
             if (isolatedPointSize > 0)
@@ -1497,7 +1523,7 @@ namespace OPS.Pipeline
                                               double isolatedPointSize = 0, bool countValid = true)
         {
             LoadOrGenerateMeshImages(pipeline, masker, obs, decimate, false,
-                                     out Image points, out Image normals, out Image mask);
+                                     out Image points, out Image normals, out Image mask, out Vector3 center);
             validPoints = countValid ? CountValid(points, mask) : -1;
             validNormals = countValid ? CountValid(normals, mask) : -1;
 
@@ -1507,7 +1533,7 @@ namespace OPS.Pipeline
             //and that will include culling verts that don't project to valid pixels in the texture image
             //this behavior matches the other Build*Mesh() APIs
             bool generateUV = false;
-            var ret = BuildOrganizedMesh(points, normals, mask, maxTriangleAspect, generateUV, generateNormals,
+            var ret = BuildOrganizedMesh(points, normals, mask, maxTriangleAspect, generateUV, generateNormals, center,
                                          isolatedPointSize);
 
             if (ret == null)
