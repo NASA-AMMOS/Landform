@@ -4,6 +4,8 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using OPS.Cloud;
+using OPS.Imaging;
+using OPS.Util;
 using Amazon.DynamoDBv2.DataModel;
 
 namespace OPS.Pipeline.AlignmentServer
@@ -11,6 +13,7 @@ namespace OPS.Pipeline.AlignmentServer
     public enum ObservationType
     {
         Image,
+        Range,
         Points,
         Normals,
         RoverMask
@@ -49,7 +52,11 @@ namespace OPS.Pipeline.AlignmentServer
 
         public int Height;
 
-        public int Sol;
+        public int Bands;
+
+        public int Bits;
+
+        public int Day;
 
         //DEPRECATED - for legacy compat only
         public string MaskGuid;
@@ -60,11 +67,7 @@ namespace OPS.Pipeline.AlignmentServer
         /// Add required fields here 
         protected void IsValid()
         {
-            if (!(Url != null &&
-                FrameName != null &&
-                ProjectName != null &&
-                Name != null &&
-                ObservationType != null))
+            if (!(Url != null && FrameName != null && ProjectName != null && Name != null && ObservationType != null))
             {
                 throw new Exception("Missing required property in Observation");
             }
@@ -83,7 +86,7 @@ namespace OPS.Pipeline.AlignmentServer
         /// <param name="url"></param>
         /// <param name="observationType"></param>
         /// <param name="cameraModel"></param>
-        protected Observation(Frame frame, string name, string url, string observationType, string cameraModel, bool useForReconstruction, int width, int height, int sol)
+        protected Observation(Frame frame, string name, string url, string observationType, string cameraModel, bool useForReconstruction, int width, int height, int bands, int bits, int day)
         {
             this.ProjectName = frame.ProjectName;
             this.FrameName = frame.Name;
@@ -94,7 +97,9 @@ namespace OPS.Pipeline.AlignmentServer
             this.UseForReconstruction = useForReconstruction;
             this.Width = width;
             this.Height = height;
-            this.Sol = sol;
+            this.Bands = bands;
+            this.Bits = bits;
+            this.Day = day;
             IsValid();
         }
 
@@ -109,9 +114,9 @@ namespace OPS.Pipeline.AlignmentServer
         /// <param name="observationType"></param>
         /// <param name="cameraModel"></param>
         /// <returns></returns>
-        public static Observation Create(PipelineCore pipeline, Frame frame, string name, string url, string observationType, string cameraModel, bool useForReconstruction, int width, int height, int sol)
+        public static Observation Create(PipelineCore pipeline, Frame frame, string name, string url, string observationType, string cameraModel, bool useForReconstruction, int width, int height, int bands, int bits, int day)
         {
-            Observation obs = new Observation(frame, name, url, observationType, cameraModel, useForReconstruction, width, height, sol);
+            Observation obs = new Observation(frame, name, url, observationType, cameraModel, useForReconstruction, width, height, bands, bits, day);
             obs.Save(pipeline);
             return obs;
         }
@@ -157,6 +162,32 @@ namespace OPS.Pipeline.AlignmentServer
         public static IEnumerable<Observation> FindByType(PipelineCore pipeline, string projectName, string observationType)
         {
             return pipeline.ScanDatabase<Observation>("ProjectName", projectName, "ObservationType", observationType); 
+        }
+
+        public bool IsLinear()
+        {
+            return ((CameraModel)JsonHelper.FromJson(CameraModel)).Linear;
+        }
+
+        public virtual string ToString(bool brief)
+        {
+            var cm = (CameraModel)JsonHelper.FromJson(CameraModel);
+            return string.Format("{0} Frame={1}, {2}{3}Type={4}, CameraModel={5} ({6}), {7}Size={8}x{9}, Bands={10}, " +
+                                 "Bits={11}, Day={12}{13}",
+                                 Name, FrameName,
+                                 brief ? "" : string.Format("Url={0}, ", Url),
+                                 brief ? "" : string.Format("Project={0}, ", ProjectName),
+                                 ObservationType,
+                                 cm.GetType().Name,
+                                 cm.Linear ? "linear" : "nonlinear",
+                                 brief ? "" : string.Format("ForReconstruction={0}, ", UseForReconstruction),
+                                 Width, Height, Bands, Bits, Day,
+                                 brief ? "" : string.Format(", FeaturesGuid={0}", FeaturesGuid));
+        }
+
+        public override string ToString()
+        {
+            return ToString(brief: false);
         }
     }
 }

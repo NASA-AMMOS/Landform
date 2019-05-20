@@ -242,7 +242,7 @@
     <Compile Include="PipelineRoutine.cs" />
     <Compile Include="Rover\LegacyManifest.cs" />
     <Compile Include="Rover\MSLPlaces.cs" />
-    <Compile Include="Rover\MSLProject.cs" />
+    <Compile Include="Rover\RoverMasker.cs" />
     <Compile Include="StateMachines\GenericTilingStateMachine.cs" />
     <Compile Include="StateMachines\MSLStateMachine.cs" />
     <Compile Include="StateMachines\PipelineStateMachine.cs" />
@@ -278,7 +278,6 @@
     <Compile Include="GdalConfiguration.cs" />
     <Compile Include="Rover\MSLLocations.cs" />
     <Compile Include="Rover\RoverCoordinateSystem.cs" />
-    <Compile Include="Rover\RoverMask.cs" />
     <Compile Include="Rover\CuriosityRoverModel.cs" />
     <Compile Include="Rover\RoverReachability.cs" />
     <Compile Include="Rover\SolDateTime.cs" />
@@ -303,7 +302,6 @@
     <Compile Include="Rover\RoverProductId.cs" />
     <Compile Include="Rover\PDSRoverArticulationParser.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="Rover\RoverArticulation.cs" />
     <Compile Include="Rover\RoverProductEnum.cs" />
     <Compile Include="Tiling\MultiMeshClipper.cs" />
     <Compile Include="Tiling\MultiMeshClipperInput.cs" />

@@ -131,6 +131,7 @@ namespace OPS.Geometry
 
             // Normalize each vertex normal
             NormalizeNormals();
+
             // The mesh should now be set as having normals
             HasNormals = true;
         }

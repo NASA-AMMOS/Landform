@@ -190,12 +190,13 @@ namespace OPS.Pipeline.AlignmentServer
             }
 
             var initializer = new InitializeAlignmentProject(this);
-            var project = initializer.Initialize(options.ProjectName, productUrl, inputUrl, options.RedoProject);
+            var project = initializer.Initialize(options.ProjectName, productUrl, inputUrl, options.Mission,
+                                                 options.RedoProject);
 
             //careful here - there can be more than one observation of a given type for a single frame
             //frame name -> observations
             var obsForFrame = new ConcurrentDictionary<string, ConcurrentBag<Observation>>();
-            var ingester = new IngestAlignmentInputs(this, project, options.Mission, options.RedoObservations, options.RedoPriors,
+            var ingester = new IngestAlignmentInputs(this, project, options.RedoObservations, options.RedoPriors,
                                                      options.OnlyForSiteDrives);
 
             MSLLocations locations = null;
@@ -213,7 +214,8 @@ namespace OPS.Pipeline.AlignmentServer
                 places = null;
             }
 
-            MSLLegacyManifest manifest = options.LegacyManifestURL != null ? MSLLegacyManifest.Load(options.LegacyManifestURL) : null;
+            MSLLegacyManifest manifest =
+                options.LegacyManifestURL != null ? MSLLegacyManifest.Load(options.LegacyManifestURL) : null;
 
             ingester.Ingest(locations, places, manifest,
                             res => obsForFrame
@@ -222,14 +224,15 @@ namespace OPS.Pipeline.AlignmentServer
                             
             var imageType = ObservationType.Image.ToString();
             var maskType = ObservationType.RoverMask.ToString();
+            var comparator = MissionSpecific.GetInstance(project.Mission).GetRoverObservationComparator();
             foreach (var obsGroup in obsForFrame.Values)
             {
                 var observations = obsGroup
                     .Cast<RoverObservation>()
                     .Distinct() //ConcurrentBag allows duplicates, which is probably harmless here, but why not
                     .Where(obs => obs.UseForReconstruction)
+                    .OrderBy(obs => obs, comparator)
                     .ToList();
-                observations.Sort(MSLProject.RoverObservationComparison);
 
                 var imageObs = observations.Find(obs => obs.ObservationType == imageType);
                 if (imageObs != null)

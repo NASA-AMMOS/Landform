@@ -233,7 +233,8 @@ namespace OPS.Pipeline
                                              IncludeObservation = obs => obsFilter == null || obsFilter(obs),
                                              IncludeOverlap = (n1, n2) => overlapFilter == null || overlapFilter(n1, n2)
                                          });
-            var scene = sb.BuildTopDown(project.RootFrame);
+            string rootName = MissionSpecific.GetInstance(project.Mission).RootFrameName();
+            var scene = sb.BuildTopDown(rootName);
 
             var fod = new FrustumOverlapDetector(pipeline, pipeline);
 

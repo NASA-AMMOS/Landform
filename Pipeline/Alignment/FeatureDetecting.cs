@@ -67,11 +67,13 @@ namespace OPS.Pipeline
         private Histogram featuresPerScale;
 
         private readonly PipelineCore pipeline;
+        private readonly RoverMasker masker;
         private readonly Options options;
 
-        public FeatureDetector(PipelineCore pipeline, Options options = null)
+        public FeatureDetector(PipelineCore pipeline, RoverMasker masker, Options options = null)
         {
             this.pipeline = pipeline;
+            this.masker = masker;
             this.options = options ?? new Options();
 
             if (options.FeaturesPerImageBucketSize > 0)
@@ -200,7 +202,7 @@ namespace OPS.Pipeline
             try
             {
                 var img = pipeline.LoadImage(imageUrl);
-                var mask = FeatureDetecting.MakeMask(pipeline, roverMaskUrl, img, observationName, border);
+                var mask = FeatureDetecting.MakeMask(pipeline, masker, roverMaskUrl, img, observationName, border);
                 return new DetectedFeatures() { ImageUrl = imageUrl, Features = Detect(img, mask) };
             }
             catch (Exception ex)
@@ -302,11 +304,11 @@ namespace OPS.Pipeline
         /// 2) invalid pixels in the original image
         /// 3) inset borders of the original image (image borders sometimes have solid bars)
         /// </summary>
-        public static Image MakeMask(PipelineCore pipeline, string roverMaskUrl, Image img, string observationName,
-                                     int border = DEF_MASK_BORDER)
+        public static Image MakeMask(PipelineCore pipeline, RoverMasker masker, string roverMaskUrl, Image img,
+                                     string observationName, int border = DEF_MASK_BORDER)
         {
             //do not mutate rover mask if it's loaded from mission product (clone: true)
-            Image mask = RoverMask.LoadOrBuild(pipeline, roverMaskUrl, img, observationName, clone: true);
+            Image mask = masker.LoadOrBuild(pipeline, roverMaskUrl, img, observationName, clone: true);
 
             //propagate invalid image pixels to mask
             if (img.Metadata is PDSMetadata)
@@ -406,38 +408,91 @@ namespace OPS.Pipeline
             return ret;
         }
 
-        public static int AddRange(IEnumerable<ImageFeature> features, Image img, Image points)
+        /// <summary>
+        /// NOTE: it is subtly incorrect to use a range map to substitute for an XYZ map
+        /// because stereo correlation often uses 2D disparity
+        /// which means the recovered surface point for a pixel
+        /// may not actually lie on the ray through that pixel
+        /// but for some missions (MSL) we only have range products
+        /// https://github.jpl.nasa.gov/OnSight/Landform/issues/471
+        /// </summary>
+        public static int AddRange(IEnumerable<ImageFeature> features, Image xyzOrRng)
         {
-            //can't check range origin here because img is not actually a range image
-            //so it does not  have the necessary PDS header data for that
-            var center = Meshing.CheckCameraCenter(img, "AddRange", checkRangeOrigin: false);
-            var xyr = Meshing.ConvertPoints(points);
+            PDSParser parser = new PDSParser((PDSMetadata)xyzOrRng.Metadata);
+            float missingConstant = float.NaN;
+            bool hasMissingConstant = false;
+            Image rng = null, xyr = null;
+            var center = Meshing.CheckCameraCenter(parser, xyzOrRng, "AddRange");
+            switch (parser.DerivedImageType)
+            {
+                case RoverProductType.Range:
+                {
+                    if (parser.HasMissingConstant)
+                    {
+                        //raw range image may not have mask set from missing constant
+                        missingConstant = (float)parser.MissingConstant[0];
+                        hasMissingConstant = true;
+                    }
+                    rng = xyzOrRng;
+                    break;
+                }
+                case RoverProductType.XYZ:
+                {
+                    //Meshing.ConvertPoints() will set mask from missing constant
+                    xyr = Meshing.ConvertPoints(xyzOrRng);
+                    if (xyr == null)
+                    {
+                        return 0;
+                    }
+                    break;
+                }
+                default: throw new ArgumentException("unsupported range image type: " + parser.DerivedImageType);
+            }
+
             int n = 0;
             foreach (var feature in features)
             {
                 int row = (int)feature.Location.Y;
                 int col = (int)feature.Location.X;
+                if (row >= xyzOrRng.Height || col >= xyzOrRng.Width)
+                {
+                    throw new ArgumentException(string.Format("feature at ({0}, {1}) outside {2}x{3} range image",
+                                                              col, row, xyzOrRng.Width, xyzOrRng.Height));
+                }
                 int radius = (int)(0.5*((SIFTFeature)feature).Size); //yes, round down
                 int minR = Math.Max(0, row - radius);
-                int maxR = Math.Min(img.Height - 1, row + radius);
+                int maxR = Math.Min(xyzOrRng.Height - 1, row + radius);
                 int minC = Math.Max(0, col - radius);
-                int maxC = Math.Min(img.Width - 1, col + radius);
-                var avg = new Vector3();
-                double valid = 0;
+                int maxC = Math.Min(xyzOrRng.Width - 1, col + radius);
+                float sum = 0;
+                int valid = 0;
                 for (int r = minR; r <= maxR; r++)
                 {
                     for (int c = minC; c <= maxC; c++)
                     {
-                        if (!xyr.IsInvalid(r, c))
+                        if (!xyzOrRng.IsInvalid(r, c))
                         {
-                            avg += new Vector3(xyr[0, r, c], xyr[1, r, c], xyr[2, r, c]);
-                            valid++;
+                            if (rng != null)
+                            {
+                                float d = rng[0, r, c];
+                                if (!hasMissingConstant || d != missingConstant)
+                                {
+                                    sum += d;
+                                    valid++;
+                                }
+                            }
+                            else
+                            {
+                                sum += (float) Vector3.Distance(new Vector3(xyr[0, r, c], xyr[1, r, c], xyr[2, r, c]),
+                                                                center);
+                                valid++;
+                            }
                         }
                     }
                 }
                 if (valid > 0)
                 {
-                    feature.Range = Vector3.Distance(avg / valid, center);
+                    feature.Range = sum / valid;
                     n++;
                 }
             }

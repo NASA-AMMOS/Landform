@@ -84,6 +84,9 @@ namespace OPS.Pipeline
     {
         private LocalFeaturesOptions options;
         private PipelineCore pipeline;
+        private MissionSpecific mission;
+        private RoverMasker masker;
+
         private string imageDir;
         private string imageExt;
 
@@ -109,6 +112,8 @@ namespace OPS.Pipeline
                 pipeline.LogError("project \"{0}\" not found", options.ProjectName);
                 return 1;
             }
+            mission = MissionSpecific.GetInstance(project.Mission);
+            masker = mission.GetMasker();
 
             imageDir =
                 pipeline.GetLocalDebugFolder(options.ImageOutputFolder, "alignment/FeatureProducts", project.Name);
@@ -138,6 +143,7 @@ namespace OPS.Pipeline
             var imageType = ObservationType.Image.ToString();
             var maskType = ObservationType.RoverMask.ToString();
             var pointsType = ObservationType.Points.ToString();
+            var rangeType = ObservationType.Range.ToString();
 
             var obsForFrame = new Dictionary<string, List<Observation>>();
             foreach (var obs in observationCache.GetAllObservations())
@@ -170,7 +176,9 @@ namespace OPS.Pipeline
                     FeaturesPerLayerBucketSize = 1,
                     FeaturesPerScaleBucketSize = 0.1
                 };
-            FeatureDetector detector = new FeatureDetector(pipeline, detectorOpts);
+            FeatureDetector detector = new FeatureDetector(pipeline, masker, detectorOpts);
+
+            var comparator = mission.GetRoverObservationComparator();
 
             double startSec = UTCTime.Now();
             int nc = 0, ne = 0, nf = 0, np = 0, wr = 0, tf = 0, trf = 0;
@@ -178,8 +186,8 @@ namespace OPS.Pipeline
 
                     var observations = obsGroup
                     .Cast<RoverObservation>()
+                    .OrderBy(obs => obs, comparator)
                     .ToList();
-                    observations.Sort(MSLProject.RoverObservationComparison);
                     
                     var imageObs = observations.Find(obs => obs.ObservationType == imageType);
                     if (imageObs != null)
@@ -233,21 +241,30 @@ namespace OPS.Pipeline
                         if (result != null)
                         {
                             Interlocked.Add(ref tf, result.Features.Length);
-                            var pointsObs =
-                                observations.Find(obs => obs.ObservationType == pointsType &&
-                                                  obs.Width == imageObs.Width && obs.Height == imageObs.Height);
-                            if (!options.NoRange && pointsObs != null)
+
+                            if (!options.NoRange)
                             {
-                                Interlocked.Increment(ref wr);
-                                int rf = FeatureDetecting.AddRange(result.Features,
-                                                                   pipeline.LoadImage(imageObs.Url),
-                                                                   pipeline.LoadImage(pointsObs.Url));
-                                if (options.RequireRange)
+                                var xyzOrRng =
+                                    observations.Find(obs => obs.ObservationType == pointsType &&
+                                                      obs.Width == imageObs.Width && obs.Height == imageObs.Height);
+                                if (xyzOrRng == null)
                                 {
-                                    result.Features = result.Features.Where(f => f.Range > 0).ToArray();
+                                    xyzOrRng =
+                                        observations.Find(obs => obs.ObservationType == rangeType &&
+                                                          obs.Width == imageObs.Width && obs.Height == imageObs.Height);
                                 }
-                                Interlocked.Add(ref trf, rf);
+                                if (xyzOrRng != null)
+                                {
+                                    Interlocked.Increment(ref wr);
+                                    int rf = FeatureDetecting.AddRange(result.Features, pipeline.LoadImage(xyzOrRng.Url));
+                                    if (options.RequireRange)
+                                    {
+                                        result.Features = result.Features.Where(f => f.Range > 0).ToArray();
+                                    }
+                                    Interlocked.Add(ref trf, rf);
+                                }
                             }
+
                             if (!options.NoSave)
                             {
                                 pipeline.SaveDataProduct(project.ProductPath, result, project.Name);
@@ -281,7 +298,7 @@ namespace OPS.Pipeline
             //avoid using product.ImageUrl here for legacy compat reasons
             //fortunately we can use imageObs.Url instead
             var img = new Image(pipeline.LoadImage(imageObs.Url)); //don't mutate original image
-            var mask = FeatureDetecting.MakeMask(pipeline, maskUrl, img, imageObs.Name);
+            var mask = FeatureDetecting.MakeMask(pipeline, masker, maskUrl, img, imageObs.Name);
             img = FeatureDetecting.DrawFeatures(img, mask, product.Features,
                                                 StringHelper.GetLastUrlPathSegment(imageObs.Url));
             PathHelper.EnsureExists(imageDir);

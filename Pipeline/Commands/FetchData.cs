@@ -41,6 +41,9 @@ namespace OPS.Pipeline
        
         [Option(Required = false, Default = -1, HelpText = "Control the number of concurrent downloads")]
         public int ConcurrentDownloads { get; set; }
+
+        [Option(Required = false, Default = false, HelpText = "Overwrite existing files")]
+        public bool Overwrite { get; set; }
     }
 
     public class FetchData
@@ -67,35 +70,17 @@ namespace OPS.Pipeline
             }
         }
 
-        string GetFile(string location)
-        {
-            var path = Path.Combine(options.OutputDir, Path.GetFileName(location));
-            if (!File.Exists(path))
-            {
-                if (location.StartsWith("s3://"))
-                {
-                    Console.WriteLine("location: " + location);
-                    var inputStorageHelper = new StorageHelper(options.InputAWSProfile, options.InputAWSRegion);
-                    inputStorageHelper.DownloadFile(location, path);
-                }
-                else
-                {
-                    File.Copy(location, path);
-                }
-            }
-            return path;
-        }
-
         string LocalPath(string s3Location)
         {
             string outputDir = Path.Combine(options.OutputDir, Path.GetDirectoryName(s3Location.Replace("s3://", "")));
             string localPath = PathHelper.ChangeDirectory(s3Location, outputDir);
             return localPath;
         }
+
         void DownloadFile(string s3Location)
         {
             var localPath = LocalPath(s3Location);
-            if (!File.Exists(localPath))
+            if (options.Overwrite || !File.Exists(localPath))
             {
                 PathHelper.EnsureExists(Path.GetDirectoryName(localPath));
                 TemporaryFile.GetAndMove(localPath, f =>
@@ -200,7 +185,8 @@ namespace OPS.Pipeline
                 solToProducts[sol] = Filter(solToProducts[sol]);
             }
             var totalFilesToDownload = solToProducts.SelectMany(s => s.Value);
-            var remainingFilesToDownload = totalFilesToDownload.Where(s => !File.Exists(LocalPath(s)));
+            var remainingFilesToDownload =
+                options.Overwrite ? totalFilesToDownload : totalFilesToDownload.Where(s => !File.Exists(LocalPath(s)));
             logger.Info("Found " + (totalFilesToDownload.Count() - remainingFilesToDownload.Count()) + " on disk");
             logger.Info("Downloading " + remainingFilesToDownload.Count() + " files");
             var po = new ParallelOptions() { MaxDegreeOfParallelism = options.ConcurrentDownloads };

@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using OPS.Cloud;
+using OPS.Pipeline;
 using Amazon.DynamoDBv2.DataModel;
 
 namespace OPS.Pipeline.AlignmentServer
@@ -23,7 +24,15 @@ namespace OPS.Pipeline.AlignmentServer
 
         public string InputPath;
 
-        public string RootFrame;
+        public string Mission;
+
+        private void IsValid()
+        {
+            if (!(Name != null && ProductPath != null && InputPath != null && Mission != null))
+            {
+                throw new Exception("Project is missing a required field");
+            }
+        }
 
         //This constructor must be public for DynamoDB but should not be used
         public Project() { }
@@ -32,17 +41,17 @@ namespace OPS.Pipeline.AlignmentServer
         /// Creates Project  
         /// </summary>
         /// <param name="name">Project names in the database must be unique</param>
-        protected Project(string name, string productPath, string inputPath, string rootFrameName)
+        protected Project(string name, string productPath, string inputPath, string mission)
         {
             Name = name;
             ProductPath = productPath;
             InputPath = inputPath;
-            RootFrame = rootFrameName;
-            this.IsValid();
+            Mission = mission;
+            IsValid();
         }
 
         public static Project FindOrCreate(PipelineCore pipeline, string name, string productPath, string inputPath,
-                                           string rootFrameName)
+                                           string mission)
         {
             Project project = Find(pipeline, name);
             if (project != null)
@@ -50,7 +59,7 @@ namespace OPS.Pipeline.AlignmentServer
                 return project;
             }
 
-            project = Create(pipeline, name, productPath, inputPath, rootFrameName);
+            project = Create(pipeline, name, productPath, inputPath, mission);
             if (project != null)
             {
                 return project;
@@ -67,9 +76,9 @@ namespace OPS.Pipeline.AlignmentServer
         /// <param name="name">Project names in the database must be unique</param>
         /// <returns></returns>
         public static Project Create(PipelineCore pipeline, string name, string productPath, string inputPath,
-                                     string rootFrameName)
+                                     string mission)
         {
-            Project project = new Project(name, productPath, inputPath, rootFrameName);
+            Project project = new Project(name, productPath, inputPath, mission);
             project.Save(pipeline);
             return project;
         }
@@ -95,21 +104,13 @@ namespace OPS.Pipeline.AlignmentServer
             Project project = pipeline.LoadDatabaseItem<Project>(name);
             if (project != null)
             {
-                if (pipeline.LegacyCompat && string.IsNullOrEmpty(project.RootFrame))
+                if (pipeline.LegacyCompat && string.IsNullOrEmpty(project.Mission))
                 {
-                    project.RootFrame = MSLProject.ROOT_FRAME_NAME; //legacy compat
+                    project.Mission = OPS.Pipeline.Mission.MSL.ToString(); //legacy compat
                 }
                 project.IsValid();
             }
             return project;
-        }
-
-        private void IsValid()
-        {
-            if (!(Name != null && ProductPath != null && InputPath != null && RootFrame != null))
-            {
-                throw new Exception("Project is missing a required field");
-            }
         }
     }
 }
