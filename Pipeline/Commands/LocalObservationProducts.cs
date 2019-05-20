@@ -490,7 +490,8 @@ namespace OPS.Pipeline
                     string file = tmpPath + obs.Name + meshExt;
                     pipeline.LogVerbose("saving mesh {0}", file);
                     PathHelper.EnsureExists(tmpPath);
-                    mesh.Save(file, withUVs ? imageFilename : null);
+                    //img can be null if there was an error loading it
+                    mesh.Save(file, withUVs && img != null ? imageFilename : null);
                 }
                 
                 if (options.NormalsImages && obs.Normals != null)
