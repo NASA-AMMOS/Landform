@@ -420,6 +420,7 @@ namespace OPS.Pipeline
         {
             PDSParser parser = new PDSParser((PDSMetadata)xyzOrRng.Metadata);
             float missingConstant = float.NaN;
+            bool hasMissingConstant = false;
             Image rng = null, xyr = null;
             var center = Meshing.CheckCameraCenter(parser, xyzOrRng, "AddRange");
             switch (parser.DerivedImageType)
@@ -430,6 +431,7 @@ namespace OPS.Pipeline
                     {
                         //raw range image may not have mask set from missing constant
                         missingConstant = (float)parser.MissingConstant[0];
+                        hasMissingConstant = true;
                     }
                     rng = xyzOrRng;
                     break;
@@ -473,7 +475,7 @@ namespace OPS.Pipeline
                             if (rng != null)
                             {
                                 float d = rng[0, r, c];
-                                if (float.IsNaN(missingConstant) || d != missingConstant)
+                                if (!hasMissingConstant || d != missingConstant)
                                 {
                                     sum += d;
                                     valid++;
