@@ -389,6 +389,10 @@ namespace OPS.Pipeline
         /// </summary>
         public static Image ConvertPoints(Image img)
         {
+            if (img == null)
+            {
+                return null;
+            }
             PDSParser parser = new PDSParser((PDSMetadata)img.Metadata);
             switch (parser.DerivedImageType)
             {
