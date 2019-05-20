@@ -511,6 +511,7 @@ namespace OPS.Imaging
         /// <returns></returns>
         public Vector2 PixelToUV(Vector2 pixelCoordinate)
         {
+            //pixel origin is top left of image, uv origin is lower left (opengl), requires a y flip
             return new Vector2(pixelCoordinate.X / Width, 1 - (pixelCoordinate.Y / Height));
         }
 
@@ -519,7 +520,18 @@ namespace OPS.Imaging
         /// </summary>
         static public Vector2 PixelToUV(Vector2 pixelCoordinate, int widthPixels, int heightPixels)
         {
+            //pixel origin is top left of image, uv origin is lower left (opengl), requires a y flip
             return new Vector2(pixelCoordinate.X / widthPixels, 1 - (pixelCoordinate.Y / heightPixels));
+        }
+
+        /// <summary>
+        /// Converts a pixel from its addressing scheme (upper left corner) to it sampling point (pixel center)
+        /// </summary>
+        static private Vector2 halfVec2 = Vector2.One * 0.5;
+        static public Vector2 ApplyHalfPixelOffset(int row, int col)
+        {
+            Vector2 pixelUpperLeftCorner = new Vector2(col, row);
+            return pixelUpperLeftCorner + halfVec2;
         }
 
         /// <summary>
@@ -532,11 +544,6 @@ namespace OPS.Imaging
             return pixelUpperLeftUV + new Vector2(0.5 / widthPixels, -0.5 / heightPixels);
         }
 
-        static private readonly Vector2 Vec2Half = new Vector2(0.5, 0.5);
-        static public Vector2 ApplyHalfPixelOffsetToPixel(Vector2 pixelUpperLeft)
-        {
-            return pixelUpperLeft + Vec2Half;
-        }
         /// <summary>
         /// Convert a uv coordinate to a pixel coordinate
         /// </summary>

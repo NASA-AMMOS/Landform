@@ -316,12 +316,11 @@ namespace OPS.Geometry
             {
                 for (int col = 0; col < widthPixels; col++)
                 {
-                    Vector2 destPixelUV = Image.PixelToUV(new Vector2(col, row), widthPixels, heightPixels);
-
                     //half pixel offset applied because we are testing if there would be mesh coverage at the location
                     // we would be sampling at, the center of the pixel
-                    destPixelUV = Image.ApplyHalfPixelOffsetToUV(destPixelUV, widthPixels, heightPixels);
-
+                    Vector2 pixelCenter = Image.ApplyHalfPixelOffset(row, col);
+                    Vector2 destPixelUV = Image.PixelToUV(pixelCenter, widthPixels, heightPixels);
+                    
                     BarycentricPoint baryPt = UVToBarycentric(destPixelUV); 
                     if (baryPt == null)
                         continue;
