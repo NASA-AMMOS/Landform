@@ -100,7 +100,7 @@ namespace OPS.Pipeline
         [Option(HelpText = "the area of source pixels mapped to a single destination pixel that would trigger a split", Default = 4.5)]
         public double SplitByTextureSamplingRatio { get; set; }
 
-        [Option(HelpText = "percentage of pixels to test for texture selection when backprojecting before when picking a texture", Default = 0.1)]
+        [Option(HelpText = "percentage of pixels to test before picking a texture during backprojection", Default = 0.1)]
         public double BackprojectGoodnessSamplingPct { get; set; }
     }
 
