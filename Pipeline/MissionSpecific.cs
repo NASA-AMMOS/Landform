@@ -134,6 +134,21 @@ namespace OPS.Pipeline
         {
             return cam;
         }
+
+        public virtual bool EnableLocationsDB()
+        {
+            return false;
+        }
+
+        public virtual bool EnablePlacesDB()
+        {
+            return true;
+        }
+
+        public virtual bool EnableLegacyManifestDB()
+        {
+            return false;
+        }
     }
 
     public class MissionMSL : MissionSpecific
@@ -221,6 +236,16 @@ namespace OPS.Pipeline
         {
             return new MSLRoverMasker(this);
         }
+
+        public override bool EnableLocationsDB()
+        {
+            return true;
+        }
+
+        public override bool EnableLegacyManifestDB()
+        {
+            return true;
+        }
     }
 
     public class MissionM2020 : MissionSpecific
@@ -303,6 +328,11 @@ namespace OPS.Pipeline
                 case RoverProductCamera.MastcamRight: return RoverProductCamera.MastcamZRight;
                 default: return cam;
             }
+        }
+
+        public override bool EnablePlacesDB()
+        {
+            return false;
         }
     }
 }

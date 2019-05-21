@@ -104,26 +104,6 @@ namespace OPS.Pipeline
         }
 
         /// <summary>
-        /// Map metadata to a frame name based on site drive
-        /// </summary>
-        /// <param name="parser"></param>
-        /// <returns></returns>
-        private string SiteDriveFrameName(PDSParser parser)
-        {
-            return parser.SiteDrive;
-        }
-
-        /// <summary>
-        /// Map metadata to an observation name based on product id
-        /// </summary>
-        /// <param name="parser"></param>
-        /// <returns></returns>
-        private string ObservationName(PDSParser parser)
-        {
-            return parser.ProductIdString;
-        }
-
-        /// <summary>
         /// ROASTT: for some images the PDS header says LEFT when it should say RIGHT  
         /// </summary>
         private string CameraName(PDSParser parser)
@@ -171,7 +151,7 @@ namespace OPS.Pipeline
                     return new Result(imgUrl, Status.Skipped);
                 }
                 
-                var observationName = ObservationName(parser);
+                var observationName = parser.ProductIdString;
                 
                 // Filter images with invalid camera models
                 try
@@ -206,35 +186,39 @@ namespace OPS.Pipeline
                 
                 // site drive frame -> root frame
                 Frame siteDriveFrame = null;
+
                 if (Places != null)
                 {
-                    var ut = GetSiteDriveTransformFromPlaces(parser);
-                    if (ut != null)
+                    var xform = GetSiteDriveTransformFromPlaces(parser);
+                    if (xform != null)
                     {
-                        siteDriveFrame = GetFrame(SiteDriveFrameName(parser), rootFrame, TransformSource.PlacesDB, ut);
+                        siteDriveFrame = GetFrame(parser.SiteDrive, rootFrame, TransformSource.PlacesDB, xform);
                     }
                 }
+
                 if (Locations != null)
                 {
-                    siteDriveFrame = GetFrame(SiteDriveFrameName(parser), rootFrame, TransformSource.LocationsDB,
-                                              GetSiteDriveTransformFromLocations(parser));
+                    var xform = GetSiteDriveTransformFromLocations(parser);
+                    if (xform != null)
+                    {
+                        siteDriveFrame = GetFrame(parser.SiteDrive, rootFrame, TransformSource.LocationsDB, xform);
+                    }
                 }
                 
                 if (LegacyManifest != null)
                 {
-                    var transform = GetSiteDriveTransformFromLegacyManifest(parser);
-                    if (transform != null)
+                    var xform = GetSiteDriveTransformFromLegacyManifest(parser);
+                    if (xform != null)
                     {
-                        siteDriveFrame = GetFrame(SiteDriveFrameName(parser), rootFrame, TransformSource.LegacyManifest,
-                                                  transform);
+                        siteDriveFrame = GetFrame(parser.SiteDrive, rootFrame, TransformSource.LegacyManifest, xform);
                     }
                 }
                 
                 if (siteDriveFrame == null)
                 {
                     //fallback to pds headers, site relative
-                    siteDriveFrame = GetFrame(SiteDriveFrameName(parser), rootFrame, TransformSource.PDS,
-                                              GetSiteDriveTransformFromPDS(parser));
+                    var xform = GetSiteDriveTransformFromPDS(parser);
+                    siteDriveFrame = GetFrame(parser.SiteDrive, rootFrame, TransformSource.PDS, xform);
                 }
                 
                 // observation (aka rover) frame -> site drive (aka local level) frame
@@ -309,6 +293,7 @@ namespace OPS.Pipeline
             if (loc == null)
             {
                 pipeline.LogWarn("no MSL location for site drive {0}", siteDrive);
+                return null;
             }
 
             if (Locations.HasBasemapDEM)
