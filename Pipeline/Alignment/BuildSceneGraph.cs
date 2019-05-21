@@ -238,7 +238,8 @@ namespace OPS.Pipeline
 
                     if (options.OnlyKeepBestImages && obsForFrame.Length > 0)
                     {
-                        obsForFrame = new RoverObservation[] { MSLProject.FindBestImage(obsForFrame) };
+                        var comparator = MissionSpecific.GetInstance(project.Mission).GetRoverObservationComparator();
+                        obsForFrame = new RoverObservation[] { obsForFrame.OrderBy(obs => obs, comparator).First() };
                     }
 
                     if (obsForFrame.Length == 1)

@@ -28,11 +28,11 @@ namespace OPS.Geometry
         /// <returns></returns>
         public static Mesh Reconstruct(Mesh pointCloud, float? scale = null)
         {
-            if(pointCloud.Vertices.Count == 0)
+            if (pointCloud.Vertices.Count == 0)
             {
                 throw new FSSRException("Empty point cloud passed into FSSR");
             }
-            if(!pointCloud.HasNormals)
+            if (!pointCloud.HasNormals)
             {
                 throw new FSSRException("FSSR requires normals");
             }

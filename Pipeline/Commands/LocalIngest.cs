@@ -89,10 +89,11 @@ namespace OPS.Pipeline
             }
 
             var initializer = new InitializeAlignmentProject(pipeline);
-            var project = initializer.Initialize(options.ProjectName, productUrl, inputUrl, options.RedoProject);
+            var project = initializer.Initialize(options.ProjectName, productUrl, inputUrl, options.Mission,
+                                                 options.RedoProject);
 
-            var ingester = new IngestAlignmentInputs(pipeline, project, options.Mission, options.RedoObservations,
-                                                     options.RedoPriors, options.OnlyForSiteDrives, options.NoProgress);
+            var ingester = new IngestAlignmentInputs(pipeline, project, options.RedoObservations, options.RedoPriors,
+                                                     options.OnlyForSiteDrives, options.NoProgress);
 
             ingester.Ingest(options.AddLocationsDBPriors ? GetLocationsDB(ingester.BaseUrls.Select(b => b.Url)) : null,
                             !options.NoPlacesDBPriors ? GetPlacesDB() : null,

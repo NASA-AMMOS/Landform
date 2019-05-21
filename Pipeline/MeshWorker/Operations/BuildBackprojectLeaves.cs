@@ -64,7 +64,8 @@ namespace OPS.Pipeline.MeshWorker
             Project alignmentProject = Project.Find(pipeline, projectName);
             BuildSceneGraph builder = new BuildSceneGraph(pipeline, projectName,
                                                           new BuildSceneGraph.Options() { OnlyKeepBestImages = true });
-            AlignmentScene scene = builder.BuildTopDown(alignmentProject.RootFrame);
+            string rootName = MissionSpecific.GetInstance(alignmentProject.Mission).RootFrameName();
+            AlignmentScene scene = builder.BuildTopDown(rootName);
 
             // generate leaf tile data
             int tiledMeshes = 0;

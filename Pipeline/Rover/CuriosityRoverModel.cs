@@ -13,7 +13,7 @@ namespace OPS.Pipeline
     /// <summary>
     /// Geometric rover model. Instances of this class are safe to share between threads.
     /// </summary>
-    public class CuriosityRoverModel
+    public class CuriosityRoverModel : RoverModel
     {
         private readonly string ROVER_BODY_FILE = "Rover/Resources/CuriosityMaskGeometry/Body.obj";
         private readonly string LEFT_ROCKER_FILE = "Rover/Resources/CuriosityMaskGeometry/LeftRocker.obj";
@@ -54,6 +54,11 @@ namespace OPS.Pipeline
 
         public Mesh BuildMesh(RoverArticulation pose, bool includeBody = true)
         {
+            return BuildMesh(pose as MSLRoverArticulation, includeBody);
+        }
+
+        public Mesh BuildMesh(MSLRoverArticulation pose, bool includeBody = true)
+        {
             Mesh leftRocker = Mesh.Transformed(LeftRocker, Matrix.Invert(FrameToLeftRocker(0)) * FrameToLeftRocker(pose.LeftRockerAngle));
             Mesh rightRocker = Mesh.Transformed(RightRocker, Matrix.Invert(FrameToRightRocker(0)) * FrameToRightRocker(pose.RightRockerAngle));
 
@@ -76,7 +81,7 @@ namespace OPS.Pipeline
             return res;
         }
 
-        private Mesh BuildArm(RoverArticulation pose)
+        private Mesh BuildArm(MSLRoverArticulation pose)
         {
             Mesh arm1 = Mesh.Transformed(Arm1, Matrix.Invert(RVRdARM2(0)) * RVRdARM2(pose.ArmAngle1));
             Mesh arm2 = Mesh.Transformed(Arm2, Matrix.Invert(RVRdARM3(0, 0)) * RVRdARM3(pose.ArmAngle1, pose.ArmAngle2));

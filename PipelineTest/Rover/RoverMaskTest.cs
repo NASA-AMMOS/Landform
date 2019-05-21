@@ -23,7 +23,9 @@ namespace PipelineTest
         public void RoverMaskSanity()
         {
             string filename = Path.Combine("TestData", "img", @"NLB_451557756RASLF0311330NCAM00353M1.IMG");
-            Image mask = RoverMask.Build(Image.Load(filename));
+
+            var masker = MissionSpecific.GetInstance(Mission.MSL).GetMasker();
+            Image mask = masker.Build(Image.Load(filename));
 
             // Check pixel in center of "O" in "CURIOSITY" is masked out
             Assert.AreEqual(mask[0, 590, 388], 0.0);

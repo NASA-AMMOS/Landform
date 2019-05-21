@@ -38,7 +38,8 @@ namespace OPS.Pipeline
                     OnlyCrossSiteDriveOverlaps = !adjustWithinSiteDrives,
                     IncludeObservation = obs => observationFilter == null || observationFilter(obs)
                 });
-            AlignmentScene scene = bsg.BuildTopDown(project.RootFrame);
+            string rootName = MissionSpecific.GetInstance(project.Mission).RootFrameName();
+            AlignmentScene scene = bsg.BuildTopDown(rootName);
 
             int numAdjustedNodes = 0, numImageNodes = 0, nsd = 0, nobs = 0;
             foreach (var siteDriveNode in scene.Root.Children)

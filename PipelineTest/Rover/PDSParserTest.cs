@@ -15,7 +15,8 @@ namespace PipelineTest
         {
             {
                 string filename = Path.Combine("TestData", "img", @"ML0_451292526RCX_S0311094MCAM02555M1.IMG");
-                var m = new PDSParser( new PDSMetadata(filename));
+                var md = new PDSMetadata(filename);
+                var m = new PDSParser(md);
 
                 Assert.AreEqual(2014, m.ProductCreationTime.Year);
                 Assert.AreEqual(4, m.ProductCreationTime.Month);
@@ -42,23 +43,27 @@ namespace PipelineTest
                 Assert.AreEqual("0003101094", m.SiteDrive);
                 Assert.AreEqual(606, m.PlanetDayNumber);
 
-                Assert.AreEqual(1.568154, m.Articulation.ArmAngle1);
-                Assert.AreEqual(-0.277720, m.Articulation.ArmAngle2);
-                Assert.AreEqual(-2.825491, m.Articulation.ArmAngle3);
-                Assert.AreEqual(3.116510, m.Articulation.ArmAngle4);
-                Assert.AreEqual(0.593527, m.Articulation.ArmAngle5);
+                var articulation = (MSLRoverArticulation)(new MSLRoverArticulationParser(md).Parse());
 
-                Assert.AreEqual(0.049941, m.Articulation.LeftBogieAngle);
-                Assert.AreEqual(-0.000753, m.Articulation.RightBogieAngle);
-                Assert.AreEqual(0.003807, m.Articulation.LeftRockerAngle);
-                Assert.AreEqual(5.771630, m.Articulation.MastAzimuth);
-                Assert.AreEqual(0.631446, m.Articulation.MastElevation);
+                Assert.AreEqual(1.568154, articulation.ArmAngle1);
+                Assert.AreEqual(-0.277720, articulation.ArmAngle2);
+                Assert.AreEqual(-2.825491, articulation.ArmAngle3);
+                Assert.AreEqual(3.116510, articulation.ArmAngle4);
+                Assert.AreEqual(0.593527, articulation.ArmAngle5);
+
+                Assert.AreEqual(0.049941, articulation.LeftBogieAngle);
+                Assert.AreEqual(-0.000753, articulation.RightBogieAngle);
+                Assert.AreEqual(0.003807, articulation.LeftRockerAngle);
+                Assert.AreEqual(5.771630, articulation.MastAzimuth);
+                Assert.AreEqual(0.631446, articulation.MastElevation);
             }
 
           
             {
                 string filename = Path.Combine("TestData", "img", @"NLB_451649560RNGLF0311330NCAM12813M1.IMG");
-                var m = new PDSParser(new PDSMetadata(filename));
+                var md = new PDSMetadata(filename);
+                var m = new PDSParser(md);
+
                 Assert.AreEqual(2014, m.ProductCreationTime.Year);
                 Assert.AreEqual(4, m.ProductCreationTime.Month);
                 Assert.AreEqual(27, m.ProductCreationTime.Day);
@@ -83,24 +88,28 @@ namespace PipelineTest
                 Assert.AreEqual("0003101330", m.SiteDrive);
                 Assert.AreEqual(610, m.PlanetDayNumber);
 
-                Assert.AreEqual(1.56815, m.Articulation.ArmAngle1);
-                Assert.AreEqual(-0.27772, m.Articulation.ArmAngle2);
-                Assert.AreEqual(-2.82549, m.Articulation.ArmAngle3);
-                Assert.AreEqual(3.11651, m.Articulation.ArmAngle4);
-                Assert.AreEqual(0.593527, m.Articulation.ArmAngle5);
+                var articulation = (MSLRoverArticulation)(new MSLRoverArticulationParser(md).Parse());
 
-                Assert.AreEqual(-0.0359147, m.Articulation.LeftBogieAngle);
-                Assert.AreEqual(-0.0323853, m.Articulation.RightBogieAngle);
-                Assert.AreEqual(0.0275015, m.Articulation.LeftRockerAngle);
-                Assert.AreEqual(6.20445, m.Articulation.MastAzimuth);
-                Assert.AreEqual(1.97266, m.Articulation.MastElevation);
+                Assert.AreEqual(1.56815, articulation.ArmAngle1);
+                Assert.AreEqual(-0.27772, articulation.ArmAngle2);
+                Assert.AreEqual(-2.82549, articulation.ArmAngle3);
+                Assert.AreEqual(3.11651, articulation.ArmAngle4);
+                Assert.AreEqual(0.593527, articulation.ArmAngle5);
+
+                Assert.AreEqual(-0.0359147, articulation.LeftBogieAngle);
+                Assert.AreEqual(-0.0323853, articulation.RightBogieAngle);
+                Assert.AreEqual(0.0275015, articulation.LeftRockerAngle);
+                Assert.AreEqual(6.20445, articulation.MastAzimuth);
+                Assert.AreEqual(1.97266, articulation.MastElevation);
                 Assert.AreEqual(PDSParser.ReferenceCoordinateFrame.Site, m.DerivedImageRefFrame);
             }
 
 
             {
                 string filename = Path.Combine("TestData", "img", @"0608ML0025660260301542E01_DRCX.IMG");
-                var m = new PDSParser(new PDSMetadata(filename));
+                var md = new PDSMetadata(filename);
+                var m = new PDSParser(md);
+
                 Assert.AreEqual(2014, m.ProductCreationTime.Year);
                 Assert.AreEqual(4, m.ProductCreationTime.Month);
                 Assert.AreEqual(23, m.ProductCreationTime.Day);
@@ -123,18 +132,20 @@ namespace PipelineTest
                 }
                 Assert.AreEqual("0003101256", m.SiteDrive);
                 Assert.AreEqual(608, m.PlanetDayNumber);
-                   
-                Assert.AreEqual(1.568154, m.Articulation.ArmAngle1);
-                Assert.AreEqual(-0.277720, m.Articulation.ArmAngle2);
-                Assert.AreEqual(-2.825491, m.Articulation.ArmAngle3);
-                Assert.AreEqual(3.116510, m.Articulation.ArmAngle4);
-                Assert.AreEqual(0.593527, m.Articulation.ArmAngle5);
 
-                Assert.AreEqual(-0.021033, m.Articulation.LeftBogieAngle);
-                Assert.AreEqual(0.007730, m.Articulation.RightBogieAngle);
-                Assert.AreEqual(-0.013007, m.Articulation.LeftRockerAngle);
-                Assert.AreEqual(4.092333, m.Articulation.MastAzimuth);
-                Assert.AreEqual(1.127138, m.Articulation.MastElevation);
+                var articulation = (MSLRoverArticulation)(new MSLRoverArticulationParser(md).Parse());
+
+                Assert.AreEqual(1.568154, articulation.ArmAngle1);
+                Assert.AreEqual(-0.277720, articulation.ArmAngle2);
+                Assert.AreEqual(-2.825491, articulation.ArmAngle3);
+                Assert.AreEqual(3.116510, articulation.ArmAngle4);
+                Assert.AreEqual(0.593527, articulation.ArmAngle5);
+
+                Assert.AreEqual(-0.021033, articulation.LeftBogieAngle);
+                Assert.AreEqual(0.007730, articulation.RightBogieAngle);
+                Assert.AreEqual(-0.013007, articulation.LeftRockerAngle);
+                Assert.AreEqual(4.092333, articulation.MastAzimuth);
+                Assert.AreEqual(1.127138, articulation.MastElevation);
 
             }
         }

@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Collections.Concurrent;
 using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
@@ -167,13 +168,31 @@ namespace OPS.Pipeline
 
         //****************** Image Fetch API *****************
 
+        private ConcurrentDictionary<string, Exception> imageLoadExceptions =
+            new ConcurrentDictionary<string, Exception>();
+
         public Image LoadImage(string url, IImageConverter converter = null)
         {
             if (imageCache.ContainsKey(url)) return imageCache[url];
-            string f = GetImageFile(url);
-            var image = converter != null ? Image.Load(f, converter) : Image.Load(f);
-            imageCache[url] = image;
-            return image;
+            try
+            {
+                string f = GetImageFile(url);
+                var image = converter != null ? Image.Load(f, converter) : Image.Load(f);
+                imageCache[url] = image;
+                return image;
+            }
+            catch (Exception ex)
+            {
+                imageLoadExceptions.AddOrUpdate(url, _ => ex, (_, __) => ex);
+                throw new IOException(string.Format("error loading {0}: {1}", url, ex.Message), ex);
+            }
+        }
+
+        public Exception GetImageLoadException(string url)
+        {
+            Exception ex = null;
+            imageLoadExceptions.TryGetValue(url, out ex);
+            return ex;
         }
 
         public string GetImageFile(string url)

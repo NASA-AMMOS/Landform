@@ -369,8 +369,10 @@ namespace OPS.Pipeline
                     {
                         double nearFocus = metadata.ReadAsDouble("DERIVED_IMAGE_PARMS", "MSL:MINIMUM_FOCUS_DISTANCE");
                  
-                        if (MissionMSL.IsMAHLI(Camera))
+                        if (Camera == RoverProductCamera.MAHLI)
+                        {
                             nearFocus /= 1000.0; //mahli is in millimeters
+                        }
 
                         return nearFocus;
                     }
@@ -512,14 +514,6 @@ namespace OPS.Pipeline
                 }
 
                 return avgWidth > 1 || avgHeight > 1;
-            }
-        }
-
-        public RoverArticulation Articulation
-        {
-            get
-            {
-                return new PDSRoverArticulationParser(this.metadata).Parse();
             }
         }
 

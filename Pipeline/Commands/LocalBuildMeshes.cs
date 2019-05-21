@@ -108,6 +108,8 @@ namespace OPS.Pipeline
     {
         private LocalBuildMeshesOptions options;
         private PipelineCore pipeline;
+        private MissionSpecific mission;
+        private RoverMasker masker;
 
         public LocalBuildMeshes(LocalBuildMeshesOptions options)
         {
@@ -142,6 +144,15 @@ namespace OPS.Pipeline
                 pipeline.LogError("cannot specify both --usepriors and --onlyaligned");
                 return 1;
             }
+
+            var project = Project.Find(pipeline, options.ProjectName);
+            if (project == null)
+            {
+                pipeline.LogError("project \"{0}\" not found", options.ProjectName);
+                return 1;
+            }
+            mission = MissionSpecific.GetInstance(project.Mission);
+            masker = mission.GetMasker();
 
             //create directory for output
             var adjustedSources = ParseSources(options.AdjustedTransformSources);
@@ -472,7 +483,7 @@ namespace OPS.Pipeline
 
             //build mesh
             pipeline.LogInfo("Building full mesh for {0}", options.ProjectName);
-            fullMesh = BuildTilingInput.BuildMesh(pipeline, options.ProjectName,out BoundingBox pointBounds, frameCache, observationCache, outputFrame, options.UsePriors, options.OnlyAligned, options.OnlyForCameras, !options.NoCleverCombine, allowMastcam:true);
+            fullMesh = BuildTilingInput.BuildMesh(pipeline, options.ProjectName, out BoundingBox pointBounds, frameCache, observationCache, outputFrame, options.UsePriors, options.OnlyAligned, options.OnlyForCameras, !options.NoCleverCombine, allowMastcam:true);
             if (fullMesh == null)
             {
                 pipeline.LogError("Mesh building for {0) failed.", options.ProjectName);
@@ -522,7 +533,7 @@ namespace OPS.Pipeline
             //want the version with border pixels and invalid pixels
             string maskType = ObservationType.RoverMask.ToString();
             var maskObs = obsCache.GetAllObservationsForFrame(frameCache.GetFrame(obs.FrameName)).Where(o => o.ObservationType == maskType).FirstOrDefault(); ;
-            Image mask = FeatureDetecting.MakeMask(pipeline, maskObs == null ? null : maskObs.Url, img, obs.Name);
+            Image mask = FeatureDetecting.MakeMask(pipeline, masker, maskObs == null ? null : maskObs.Url, img, obs.Name);
             int pointsToBackprojectCount = pointsToBackproject.Count();
             List<PixelPoint> failedToBackproject = new List<PixelPoint>();
             while (pointsToBackproject.Count() > 0)

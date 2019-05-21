@@ -11,22 +11,46 @@ namespace OPS.Pipeline
     public class RoverProductId
     {
         public string fullIdString = null;
-        protected string inst = null,
-                         version = null;
+        protected string inst = null, version = null;
         protected static Dictionary<string, RoverProductCamera> instToCamera;
 
         static RoverProductId()
         {
             instToCamera = new Dictionary<string, RoverProductCamera>();
+
+            //common
             instToCamera.Add("FL", RoverProductCamera.FrontHazcamLeft);
             instToCamera.Add("FR", RoverProductCamera.FrontHazcamRight);
-            instToCamera.Add("MH", RoverProductCamera.MAHLI);
             instToCamera.Add("ML", RoverProductCamera.MastcamLeft);
             instToCamera.Add("MR", RoverProductCamera.MastcamRight);
             instToCamera.Add("NL", RoverProductCamera.NavcamLeft);
             instToCamera.Add("NR", RoverProductCamera.NavcamRight);
             instToCamera.Add("RL", RoverProductCamera.RearHazcamLeft);
             instToCamera.Add("RR", RoverProductCamera.RearHazcamRight);
+
+            //MSL
+            instToCamera.Add("MH", RoverProductCamera.MAHLI);
+
+            //M2020
+            instToCamera.Add("BL", RoverProductCamera.FrontHazcamLeftB);
+            instToCamera.Add("BR", RoverProductCamera.FrontHazcamRightB);
+            //ML and MR are re-used as MastcamZLeft and MastcamZRight
+            instToCamera.Add("CC", RoverProductCamera.CacheCam); 
+            instToCamera.Add("EA", RoverProductCamera.EDLPUCA); 
+            instToCamera.Add("EB", RoverProductCamera.EDLPUCB);
+            instToCamera.Add("EC", RoverProductCamera.EDLPUCC);
+            instToCamera.Add("ED", RoverProductCamera.EDLRDC);
+            instToCamera.Add("EL", RoverProductCamera.EDLLVS);
+            instToCamera.Add("ES", RoverProductCamera.EDLDSD);
+            instToCamera.Add("EU", RoverProductCamera.EDLRUC);
+            instToCamera.Add("HN", RoverProductCamera.HeliNav);
+            instToCamera.Add("HS", RoverProductCamera.HeliScout);
+            instToCamera.Add("MS", RoverProductCamera.MEDASkyCam);
+            instToCamera.Add("PC", RoverProductCamera.PIXELMCC);
+            instToCamera.Add("SC", RoverProductCamera.SHERLOCACI);
+            instToCamera.Add("IL", RoverProductCamera.SHERLOCWATSONLeft);
+            instToCamera.Add("IR", RoverProductCamera.SHERLOCWATSONRight);
+            instToCamera.Add("SR", RoverProductCamera.SuperCamRMI);
         }
 
         public virtual RoverProductProducer Producer
@@ -69,7 +93,6 @@ namespace OPS.Pipeline
                 return RoverProductCamera.Unknown;
             }
         }
-
         
         public static RoverProductId ParseFromString(string productId)
         {
@@ -80,7 +103,7 @@ namespace OPS.Pipeline
             }
             if(result == null)
             {
-                result = M20OPGSProductId.ParseFromM20Name(productId);
+                result = M2020OPGSProductId.ParseFromM2020Name(productId);
             }
             return result;
         }
@@ -138,7 +161,7 @@ namespace OPS.Pipeline
         }
     }
 
-    public class M20OPGSProductId : OPGSProductId
+    public class M2020OPGSProductId : OPGSProductId
     {
 
         protected string colorFilter = null,
@@ -156,7 +179,7 @@ namespace OPS.Pipeline
                  compression = null,
                  producer = null;
 
-        public static M20OPGSProductId ParseFromM20Name(string productId)
+        public static M2020OPGSProductId ParseFromM2020Name(string productId)
         {
             //NLF_0102R0102125109_000UVWLN0010030NCAM03102_0A00AAJ01.IMG
             //|  |    |          |   |  |    |   |        |   |  |
@@ -169,7 +192,7 @@ namespace OPS.Pipeline
             {
                 return null;
             }
-            M20OPGSProductId id = new M20OPGSProductId();
+            M2020OPGSProductId id = new M2020OPGSProductId();
             id.fullIdString = productId;
 
             id.inst = productId.Substring(0, 2);
@@ -206,7 +229,7 @@ namespace OPS.Pipeline
         }
 
         //ROASTT: some images have invalid planet day number in PDS metadata
-        public int GetSolNumber()
+        public int GetDayNumber()
         {
             return int.Parse(ts0);
         }
@@ -238,8 +261,6 @@ namespace OPS.Pipeline
             }
         }
     }
-
-    
 
     public class MSLOPGSProductId : OPGSProductId
     {

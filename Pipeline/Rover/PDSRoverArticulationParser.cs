@@ -8,7 +8,7 @@ using Microsoft.Xna.Framework;
 
 namespace OPS.Pipeline
 {
-    class PDSRoverArticulationParser
+    public abstract class PDSRoverArticulationParser
     {
         /// <summary>
         /// This value is used in image header to indicate that an arm resolver angle is
@@ -16,104 +16,17 @@ namespace OPS.Pipeline
         /// </summary>
         private const double INVALID_ARM_ANGLE = 1e30;
 
-        PDSMetadata metadata;
+        protected readonly PDSMetadata metadata;
+
         public PDSRoverArticulationParser(PDSMetadata metadata)
         {
             this.metadata = metadata;
         }
 
-        public RoverArticulation Parse()
-        {
-            RoverArticulation ra = new RoverArticulation();
-            ParseChassisArticulation(ra);
-            ParseArmArticulation(ra);
-            ParseRMSArticulation(ra);
-            return ra;
-        }
-
-
         /// <summary>
-        /// Parse chassis articulation angles.
+        /// Return null if parse fails.
         /// </summary>
-        /// <param name="rover">Rover articulation object to populate.</param>
-        private void ParseChassisArticulation(RoverArticulation rover)
-        {
-            // Some images store the chassis state in the CHASSIS_ARTICULATION_STATE group, and others store it
-            // in as CHASSIS_ARTICULATION_STATE_PARAMS. Still others use CHASSIS_ARTICULATION_STATE_PARAMS. Check
-            // for all of them.
-            string[] groupKeys = {
-                    "CHASSIS_ARTICULATION_STATE",
-                    "CHASSIS_ARTICULATION_STATE_PARAMS",
-                    "CHASSIS_ARTICULATION_STATE_PARMS"
-                };
-
-            foreach (string group in groupKeys)
-            {
-                if (metadata.HasGroup(group))
-                {
-                    Dictionary<string, double> angles = ParseAngles(group);
-
-                    // Header gives angle as differential angle, but this seems to actually be the rocker angle.
-                    string diffentialName = angles.ContainsKey("LEFT DIFFERENTIAL") ? "LEFT DIFFERENTIAL" : "LEFT DIFFERENTIAL BOGIE";
-                    rover.LeftRockerAngle = angles[diffentialName];
-
-                    rover.LeftBogieAngle = angles["LEFT BOGIE"];
-                    rover.RightBogieAngle = angles["RIGHT BOGIE"];
-                    break;
-                }
-            }
-        }
-
-        /// <summary>
-        /// Parse arm articulation angles.
-        /// </summary>
-        /// <param name="rover">Rover articulation object to populate.</param>
-        private void ParseArmArticulation(RoverArticulation rover)
-        {
-            string[] groupKeys = {
-                    "ARM_ARTICULATION_STATE",
-                    "ARM_ARTICULATION_STATE_PARMS"
-                };
-
-            foreach (string group in groupKeys)
-            {
-                if (metadata.HasGroup(group))
-                {
-                    Dictionary<string, double> angles = ParseAngles(group);
-
-                    rover.ArmAngle1 = GetArmAngle(angles, "JOINT 1 AZIMUTH");
-                    rover.ArmAngle2 = GetArmAngle(angles, "JOINT 2 ELEVATION");
-                    rover.ArmAngle3 = GetArmAngle(angles, "JOINT 3 ELBOW");
-                    rover.ArmAngle4 = GetArmAngle(angles, "JOINT 4 WRIST");
-                    rover.ArmAngle5 = GetArmAngle(angles, "JOINT 5 TURRET");
-                    break;
-                }
-            }
-        }
-
-        /// <summary>
-        /// Parse RMS articulation angles.
-        /// </summary>
-        /// <param name="rover">Rover articulation object to populate.</param>
-        private void ParseRMSArticulation(RoverArticulation rover)
-        {
-            string[] groupKeys = {
-                    "RSM_ARTICULATION_STATE",
-                    "RSM_ARTICULATION_STATE_PARMS"
-                };
-
-            foreach (string group in groupKeys)
-            {
-                if (metadata.HasGroup(group))
-                {
-                    Dictionary<string, double> angles = ParseAngles(group);
-
-                    rover.MastAzimuth = angles["AZIMUTH-MEASURED"];
-                    rover.MastElevation = angles["ELEVATION-MEASURED"];
-                    break;
-                }
-            }
-        }
+        public abstract RoverArticulation Parse();
 
         /// <summary>
         /// Read an arm angle from a parsed dictionary of angles. This method first attempts to read
@@ -130,7 +43,7 @@ namespace OPS.Pipeline
         /// <param name="resolverToleranceDegrees">Use resolver angle is resolver and encoder are within this tolerance. If
         /// angles are not within this tolerance, assume that resolver is incorrect and return encoder.</param>
         /// <returns></returns>
-        private double GetArmAngle(Dictionary<string, double> angleDict, string joint, double resolverToleranceDegrees = 10)
+        protected double GetArmAngle(Dictionary<string, double> angleDict, string joint, double resolverToleranceDegrees = 10)
         {
             string resolverKey = joint + "-RESOLVER";
             string encoderKey = joint + "-ENCODER";
@@ -164,7 +77,7 @@ namespace OPS.Pipeline
         /// </summary>
         /// <param name="angle"></param>
         /// <returns></returns>
-        private bool IsValidArmAngle(double angle)
+        protected bool IsValidArmAngle(double angle)
         {
             const double epsilon = 1e-10;
             return Math.Abs(angle - INVALID_ARM_ANGLE) > epsilon;
@@ -177,7 +90,7 @@ namespace OPS.Pipeline
         /// <param name="imgHeader">Header from which to read angles.</param>
         /// <param name="groupKey">Group key to read.</param>
         /// <returns></returns>
-        private Dictionary<string, double> ParseAngles(string groupKey)
+        protected Dictionary<string, double> ParseAngles(string groupKey)
         {
             Dictionary<string, double> dict = new Dictionary<string, double>();
 
@@ -210,7 +123,7 @@ namespace OPS.Pipeline
         /// <param name="key"></param>
         /// <param name="imgHeader"></param>
         /// <returns></returns>
-        private double[] ReadAngleList(string group, string key)
+        protected double[] ReadAngleList(string group, string key)
         {
             string[] parts = metadata.ReadAsStringArray(group, key);
             return parts.Select(x => ParseAngle(x)).ToArray();
@@ -222,7 +135,7 @@ namespace OPS.Pipeline
         /// </summary>
         /// <param name="angleString">String to parse</param>
         /// <returns>Angle in radians</returns>
-        private double ParseAngle(string angleString)
+        protected double ParseAngle(string angleString)
         {
             string[] parts = angleString.Trim().Split(' ');
 
@@ -247,5 +160,108 @@ namespace OPS.Pipeline
 
             return double.Parse(parts[0]);
         }
+    }
+
+    public class MSLRoverArticulationParser : PDSRoverArticulationParser
+    {
+        public MSLRoverArticulationParser(PDSMetadata metadata) : base(metadata) { }
+
+        public override RoverArticulation Parse()
+        {
+            var ra = new MSLRoverArticulation();
+            if (!ParseChassisArticulation(ra) || !ParseArmArticulation(ra) || !ParseMastArticulation(ra))
+            {
+                return null;
+            }
+            return ra;
+        }
+
+        /// <summary>
+        /// Parse chassis articulation angles.
+        /// </summary>
+        /// <param name="rover">Rover articulation object to populate.</param>
+        private bool ParseChassisArticulation(MSLRoverArticulation rover)
+        {
+            // Some images store the chassis state in the CHASSIS_ARTICULATION_STATE group, and others store it
+            // in as CHASSIS_ARTICULATION_STATE_PARAMS. Still others use CHASSIS_ARTICULATION_STATE_PARAMS. Check
+            // for all of them.
+            string[] groupKeys =
+                { "CHASSIS_ARTICULATION_STATE", "CHASSIS_ARTICULATION_STATE_PARAMS", "CHASSIS_ARTICULATION_STATE_PARMS" };
+
+            foreach (string group in groupKeys)
+            {
+                if (metadata.HasGroup(group))
+                {
+                    Dictionary<string, double> angles = ParseAngles(group);
+
+                    // Header gives angle as differential angle, but this seems to actually be the rocker angle.
+                    string diffentialName = angles.ContainsKey("LEFT DIFFERENTIAL") ? "LEFT DIFFERENTIAL" : "LEFT DIFFERENTIAL BOGIE";
+                    rover.LeftRockerAngle = angles[diffentialName];
+
+                    rover.LeftBogieAngle = angles["LEFT BOGIE"];
+                    rover.RightBogieAngle = angles["RIGHT BOGIE"];
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Parse arm articulation angles.
+        /// </summary>
+        /// <param name="rover">Rover articulation object to populate.</param>
+        private bool ParseArmArticulation(MSLRoverArticulation rover)
+        {
+            string[] groupKeys = { "ARM_ARTICULATION_STATE", "ARM_ARTICULATION_STATE_PARMS" };
+
+            foreach (string group in groupKeys)
+            {
+                if (metadata.HasGroup(group))
+                {
+                    Dictionary<string, double> angles = ParseAngles(group);
+
+                    rover.ArmAngle1 = GetArmAngle(angles, "JOINT 1 AZIMUTH");
+                    rover.ArmAngle2 = GetArmAngle(angles, "JOINT 2 ELEVATION");
+                    rover.ArmAngle3 = GetArmAngle(angles, "JOINT 3 ELBOW");
+                    rover.ArmAngle4 = GetArmAngle(angles, "JOINT 4 WRIST");
+                    rover.ArmAngle5 = GetArmAngle(angles, "JOINT 5 TURRET");
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Parse mast articulation angles.
+        /// </summary>
+        /// <param name="rover">Rover articulation object to populate.</param>
+        private bool ParseMastArticulation(MSLRoverArticulation rover)
+        {
+            string[] groupKeys = { "RSM_ARTICULATION_STATE", "RSM_ARTICULATION_STATE_PARMS" };
+
+            foreach (string group in groupKeys)
+            {
+                if (metadata.HasGroup(group))
+                {
+                    Dictionary<string, double> angles = ParseAngles(group);
+
+                    rover.MastAzimuth = angles["AZIMUTH-MEASURED"];
+                    rover.MastElevation = angles["ELEVATION-MEASURED"];
+                    return true;
+                }
+            }
+
+            return false;
+        }
+    }
+
+    public class M2020RoverArticulationParser : PDSRoverArticulationParser
+    {
+        public M2020RoverArticulationParser(PDSMetadata metadata) : base(metadata) { }
+
+        //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/554
+        public override RoverArticulation Parse() { return null; }
     }
 }
