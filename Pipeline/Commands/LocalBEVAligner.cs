@@ -123,6 +123,9 @@ namespace OPS.Pipeline
         [Option(HelpText = "Recompute existing feature matches", Default = false)]
         public bool RedoMatches { get; set; }
 
+        [Option(HelpText = "Redo everything", Default = false)]
+        public bool Redo { get; set; }
+
         [Option(HelpText = "Search radius for feature matching in meters", Default = 1)]
         public double MatchRadius { get; set; }
 
@@ -274,6 +277,14 @@ namespace OPS.Pipeline
         public LocalBEVAligner(LocalBEVAlignerOptions options)
         {
             this.options = options;
+
+            if (options.Redo)
+            {
+                options.RedoBEVs = true;
+                options.RedoFeatures = true;
+                options.RedoMatches = true;
+            }
+
             if (options.Cloud)
             {
                 this.pipeline = new CloudPipeline(options, initQueues: false);
