@@ -28,6 +28,12 @@ namespace OPS.Pipeline
         [Option(HelpText = "Only build mesh from specific cameras, comma separated (FrontHazcamLeft, FrontHazcamRight, RearHazcamLeft, RearHazcamRight, NavcamLeft, NavcamRight, MastcamLeft, MastcamRight, MAHLI)", Default = null)]
         public string OnlyForCameras { get; set; }
 
+        [Option(HelpText = "Only build mesh from observations from a specific site)", Default = -1)]
+        public int OnlyForSite { get; set; }
+
+        [Option(HelpText = "Only build mesh from observations from a specific drive (can be combined with OnlyForSite)", Default = -1)]
+        public int OnlyForDrive { get; set; }
+
         [Option(HelpText = "Output directory, or omit to save to project storage", Default = null)]
         public string OutputFolder { get; set; }
 
@@ -173,7 +179,9 @@ namespace OPS.Pipeline
             frameCache.PreloadFilteredTransforms(priorSources, adjustedSources, options.UsePriors);
                 
             ObservationCache observationCache = new ObservationCache(pipeline, options.ProjectName);
-            observationCache.Preload(obs => obs.UseForReconstruction);
+            observationCache.Preload(obs => obs.UseForReconstruction &&
+                                            ((options.OnlyForSite == -1) || options.OnlyForSite == ((RoverObservation)obs).Site) &&
+                                            ((options.OnlyForDrive == -1) || options.OnlyForDrive == ((RoverObservation)obs).Drive));
 
             //build or load cached full mesh
             Mesh fullMesh = null;
@@ -251,6 +259,8 @@ namespace OPS.Pipeline
                     }
                 }
             }
+
+            imageObservations = imageObservations.Where(x => obsToHull.ContainsKey(x));
 
             //build tile bounds
             pipeline.LogInfo("Building tile tree bounds from fullmesh");

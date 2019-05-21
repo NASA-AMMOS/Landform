@@ -125,7 +125,13 @@ namespace OPS.Pipeline.MeshWorker
                                                    scaleNormalsByConfidence: true);
                 if (mesh == null)
                 {
-                    pipeline.LogInfo("failed to build pointcloud for {0}", obs.Name);
+                    pipeline.LogError("failed to build pointcloud for {0}", obs.Name);
+                    continue;
+                }
+
+                if (mesh.ContainsZeroLengthNormals())
+                {
+                    pipeline.LogError("pointcloud has zero length normals for {0}", obs.Name);
                     continue;
                 }
 

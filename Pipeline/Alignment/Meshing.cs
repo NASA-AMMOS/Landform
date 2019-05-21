@@ -1733,7 +1733,17 @@ namespace OPS.Pipeline
                                                   string frame = "root", bool usePriors = false,
                                                   bool onlyAligned = false, bool uncertaintyInflated = false)
         {
-            Image img = pipeline.LoadImage(obs.Texture != null ? obs.Texture.Url : obs.Points.Url);
+            Image img = null;
+
+            try
+            {
+                img = pipeline.LoadImage(obs.Texture != null ? obs.Texture.Url : obs.Points.Url);
+            }
+            catch
+            {
+                pipeline.LogWarn("Failed to load image for {0}", obs.Texture != null ? obs.Texture.Url : obs.Points.Url);
+                return null;
+            }
             var parser = new PDSParser((PDSMetadata)img.Metadata);
             CheckCameraFrame(parser, "BuildFrustumHull");
             ConvexHull ret = ConvexHull.FromImage(img);
