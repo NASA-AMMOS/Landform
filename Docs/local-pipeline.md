@@ -4,7 +4,7 @@
 ```
 ./Pipeline/Rover/fetch-msl.sh c:/Users/$USERNAME/Downloads locations basemap 00588 00589 00590
 ./Landform/bin/Release/Landform.exe configure-local --venue=local --storagedir=c:/Users/$USERNAME/Documents/landform-storage --maxcores=0 --randomseed=-1
-./Landform/bin/Release/Landform.exe local-ingest sols588to590 --inputpath=c:/Users/$USERNAME/Downloads/msl/**
+./Landform/bin/Release/Landform.exe local-ingest sols588to590 --inputpath=c:/Users/$USERNAME/Downloads/msl/** --mission=MSL
 ./Landform/bin/Release/Landform.exe local-features sols588to590 --writefeatureimages
 ./Landform/bin/Release/Landform.exe local-matching sols588to590 --writematchimages --writematchmeshes
 ./Landform/bin/Release/Landform.exe local-bundle-adjust sols588to590 --writedebug
@@ -16,7 +16,7 @@ Download sols 588 - 590 but process sol 589 only:
 ```
 ./Pipeline/Rover/fetch-msl.sh c:/Users/$USERNAME/Downloads locations basemap 00588 00589 00590
 ./Landform/bin/Release/Landform.exe configure-local --venue=local --storagedir=c:/Users/$USERNAME/Documents/landform-storage --maxcores=0 --randomseed=-1
-./Landform/bin/Release/Landform.exe local-ingest sol589 --inputpath=c:/Users/$USERNAME/Downloads/msl/sol/00589/** --locationsxml=c:/Users/$USERNAME/Downloads/msl/locations.xml --basemapdem=c:/Users/$USERNAME/Downloads/msl/out_deltaradii_smg_1m.tif
+./Landform/bin/Release/Landform.exe local-ingest sol589 --inputpath=c:/Users/$USERNAME/Downloads/msl/sol/00589/** --locationsxml=c:/Users/$USERNAME/Downloads/msl/locations.xml --basemapdem=c:/Users/$USERNAME/Downloads/msl/out_deltaradii_smg_1m.tif --mission=MSL
 ./Landform/bin/Release/Landform.exe local-features sol589 --writefeatureimages
 ./Landform/bin/Release/Landform.exe local-matching sol589 --writematchimages --writematchmeshes
 ./Landform/bin/Release/Landform.exe local-bundle-adjust sol589 --writedebug
@@ -124,7 +124,7 @@ First install Agisoft Metashape professional (standard will not work as it doesn
 ```
 ./Pipeline/Rover/fetch-msl.sh c:/Users/$USERNAME/Downloads locations basemap 00588 00589 00590
 ./Landform/bin/Release/Landform.exe configure-local --venue=local --storagedir=c:/Users/$USERNAME/Documents/landform-storage --maxcores=0 --randomseed=-1
-./Landform/bin/Release/Landform.exe local-ingest sols588to590 --inputpath=c:/Users/$USERNAME/Downloads/msl/**
+./Landform/bin/Release/Landform.exe local-ingest sols588to590 --inputpath=c:/Users/$USERNAME/Downloads/msl/** --mission=MSL
 ./Landform/bin/Release/Landform.exe local-agisoft sols588to590 
 ./Landform/bin/Release/Landform.exe local-observation-products sol589 --adjustedtransformsources=Agisoft --outputframe=root
 ```
@@ -133,7 +133,7 @@ First install Agisoft Metashape professional (standard will not work as it doesn
 ```
 ./Pipeline/Rover/fetch-msl.sh c:/Users/$USERNAME/Downloads locations basemap 00588 00589 00590
 ./Landform/bin/Release/Landform.exe configure-local --venue=local --storagedir=c:/Users/$USERNAME/Documents/landform-storage --maxcores=0 --randomseed=-1
-./Landform/bin/Release/Landform.exe local-ingest sols588to590 --inputpath=c:/Users/$USERNAME/Downloads/msl/**
+./Landform/bin/Release/Landform.exe local-ingest sols588to590 --inputpath=c:/Users/$USERNAME/Downloads/msl/** --mission=MSL
 ./Landform/bin/Release/Landform.exe local-bev-align sols588to590 [--writedebug]
 ./Landform/bin/Release/Landform.exe local-observation-products sol589 --outputframe=root --onlymergedsitedrivemeshes --onlyforcameras=NavcamLeft --usepriors
 ./Landform/bin/Release/Landform.exe local-observation-products sol589 --outputframe=root --onlymergedsitedrivemeshes --onlyforcameras=NavcamLeft --adjustedtransformsources=LandformBEV,LandformBEVRoot,LandformBEVCalf
@@ -150,7 +150,7 @@ Example of full workflow to operate on cloud data:
 ```
 ./Landform/bin/Release/Landform.exe configure-local --venue=local --storagedir=c:/Users/$USERNAME/Documents/landform-storage --maxcores=0 --randomseed=-1
 ./Landform/bin/Release/Landform.exe configure-cloud --venue=landform-dev-$USERNAME-$HOSTNAME --s3url=s3://landlords-dev/landform-$USERNAME --awsregion=us-west-1 --awsprofile=landlords --msliceawsprofile=mslice --mslices3url=s3://red-product --maxcores=0 --randomseed=-1 --nouserdata
-./Landform/bin/Release/Landform.exe local-ingest sol589 --cloud --inputpath=s3://red-product/proj/msl/redops/ods/surface/sol/00589/opgs/rdr/ncam/**
+./Landform/bin/Release/Landform.exe local-ingest sol589 --cloud --inputpath=s3://red-product/proj/msl/redops/ods/surface/sol/00589/opgs/rdr/ncam/** --mission=MSL
 ./Landform/bin/Release/Landform.exe local-features sol589 --cloud --writefeatureimages
 ./Landform/bin/Release/Landform.exe local-matching sol589 --cloud --writematchimages --writematchmeshes
 ./Landform/bin/Release/Landform.exe local-bundle-adjust sol589 --cloud --writedebug
@@ -162,7 +162,7 @@ It is also possible to **post-mortem collect stats and generate debug outputs fr
 ```
 ./Landform/bin/Release/Landform.exe configure-local --venue=local --storagedir=c:/Users/$USERNAME/Documents/landform-storage --maxcores=0 --randomseed=-1
 ./Landform/bin/Release/Landform.exe configure-cloud --venue=landform-dev-$USERNAME-$HOSTNAME --s3url=s3://landlords-dev/landform-$USERNAME --awsregion=us-west-1 --awsprofile=landlords --msliceawsprofile=mslice --mslices3url=s3://red-product --maxcores=0 --randomseed=-1 --nouserdata
-./Landform/bin/Release/Landform.exe local-ingest sol589 --cloud
+./Landform/bin/Release/Landform.exe local-ingest sol589 --cloud --mission=MSL
 ./Landform/bin/Release/Landform.exe local-features sol589 --cloud --writefeatureimages --tallyexisting
 ./Landform/bin/Release/Landform.exe local-matching sol589 --cloud --writematchimages --writematchmeshes --tallyexisting
 # local-bundle-adjust currently does not have an option to only generate debug outputs
@@ -202,7 +202,7 @@ will build a mesh using the birds eye view aligned transforms you've built previ
         *   the MSS processed Mastcams if "mastcams" is included in the arguments list
 1.  Build Landform in visual studio in Release mode.
 1.  **`./Landform/bin/Release/Landform.exe configure-local`** accept the default `local` as venue name, and specify an absolute path (a relative path should work too but may get confusing) for the storage dir, e.g. `c:/Users/USER/Documents/landform-storage`.  The directory does not need to exist yet.
-1.  **`./Landform/bin/Release/Landform.exe local-ingest PROJ`** where PROJ is a project name, e.g. `msl`.  Options include
+1.  **`./Landform/bin/Release/Landform.exe local-ingest PROJ --mission=MSL`** where PROJ is a project name, e.g. `msl_sol589`.  Supported missions are MSL and M2020.  Options include
     * `--inputpath=INPUT` required when (re-)creating a project, but optional if the project already exists; in that case if it's specified it must match what the project was created with.  Either a directory or a .txt or .json file containing an array of directories.  Directories ending in `/**` will be searched recursively.  For example, if you downloaded some data with `fetch-msl.sh` and you want to use all of it, you could specify `DIR/msl/**` as INPUT where DIR is the same directory you specified to `fetch-msl.sh`.
     * `--onlyforsitedrives=SSSSSDDDDD[,SSSSSDDDDD[,...]]`
     * `--redoproject`, `--redoobservations`, `--redopriors`
