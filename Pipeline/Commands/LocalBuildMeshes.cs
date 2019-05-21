@@ -355,6 +355,8 @@ namespace OPS.Pipeline
                     //calculate the median spatial density for the requested pixels per observation
                     foreach (var obs in intersectingObservations.Cast<RoverObservation>())
                     {
+                        CameraModel cameraModel = (CameraModel)JsonHelper.FromJson(obs.CameraModel);
+
                         List<double> minDistances = new List<double>(capacity: pointsToTestSamplingDensity.Count());
                         foreach (var pt in pointsToTestSamplingDensity)
                         {
@@ -368,7 +370,7 @@ namespace OPS.Pipeline
                             Matrix obsToOutput = Meshing.GetTransform(obs.FrameName, options.OutputFrame, frameCache, options.UsePriors, options.OnlyAligned).Mean;
 
                             //Issue #523: want median or average in case glancing angle? want a term that looks for consistancy in spacing? implies dead on?
-                            minDistances.Add(GetMinPixelSpreadInMeters(sc, (CameraModel)JsonHelper.FromJson(obs.CameraModel), obsToOutput, obsToHull[obs], pt.Pixel, pt.Point, obs.Width, obs.Height));
+                            minDistances.Add(GetMinPixelSpreadInMeters(sc, cameraModel, obsToOutput, obsToHull[obs], pt.Pixel, pt.Point, obs.Width, obs.Height));
                         }
 
                         //store the median of the min distances
