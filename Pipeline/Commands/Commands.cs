@@ -22,7 +22,7 @@ namespace OPS.Pipeline
             /// Commands are defined by the list of types passed into ParseArguments
             /// Each passed in object must have a [Verb] decorator
             /// NOTE you will get (slightly cryptic) compiler errors if there are more than 16 commands
-            return CommandLine.Parser.Default.ParseArguments<ConvertBaselineMeshOptions,
+            var parsed = CommandLine.Parser.Default.ParseArguments<ConvertBaselineMeshOptions,
                                                              //PDSImageConverterOptions,
                                                              //ConvertBaselineMeshesOptions,
                                                              //TileBaselineMeshOptions,
@@ -45,8 +45,8 @@ namespace OPS.Pipeline
                                                              EmtToSceneOptions,
                                                              LocalBuildMeshesOptions,
                                                              FetchDataOptions
-                                                             >(args)
-              .MapResult(
+                                                             >(args);
+            var results = parsed.MapResult(
                 (ConvertBaselineMeshOptions opts) => new ConvertBaselineMesh(opts).Run(),
                 //(ConvertBaselineMeshesOptions opts) => new ConvertBaselineMeshes(opts).Run(),
                 //(TileBaselineMeshOptions opts) => new TileBaselineMesh(opts).Run(),
@@ -71,6 +71,8 @@ namespace OPS.Pipeline
                 (LocalBuildMeshesOptions opts) => new LocalBuildMeshes(opts).Run(),
                 (FetchDataOptions opts) => new FetchData(opts).Run(),
                 errs => 1);
+
+            return results;
         }
     }
 }

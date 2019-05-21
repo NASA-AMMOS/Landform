@@ -191,7 +191,7 @@ namespace OPS.Geometry
         /// <summary>
         /// Return True if <paramref name="pt"/> is entirely within this hull.
         /// </summary>
-        public bool Contains(Vector3 pt)
+        public bool Contains(Vector3 pt, double epsilon=0)
         {
             if (IsEmpty)
             {
@@ -200,7 +200,7 @@ namespace OPS.Geometry
 
             foreach (var plane in Planes)
             {
-                if (plane.DotCoordinate(pt) > 0) return false;
+                if (plane.DotCoordinate(pt) > epsilon) return false;
             }
 
             return true;

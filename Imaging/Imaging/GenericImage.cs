@@ -19,7 +19,7 @@ namespace OPS.Imaging
         public ImageMetadata Metadata;
         public CameraModel CameraModel;
 
-        public T[][] Data;        
+        public T[][] Data;
 
         public int Bands;
         public int Width;
@@ -101,9 +101,9 @@ namespace OPS.Imaging
         public void CreateMask(bool initialValue = false)
         {
             this.Mask = new bool[Width * Height];
-            if(initialValue)
+            if (initialValue)
             {
-                for(int i = 0; i < this.Mask.Length; i++)
+                for (int i = 0; i < this.Mask.Length; i++)
                 {
                     this.Mask[i] = initialValue;
                 }
@@ -131,7 +131,7 @@ namespace OPS.Imaging
                 {
                     SetMaskValue(i, true);
                 }
-            }           
+            }
         }
 
         /// <summary>
@@ -277,9 +277,9 @@ namespace OPS.Imaging
         /// <param name="perBandValues"></param>
         public void SetValuesForMaskedData(T[] perBandValues)
         {
-            for(int i = 0; i < Width*Height; i++)
+            for (int i = 0; i < Width * Height; i++)
             {
-                if(IsInvalid(i))
+                if (IsInvalid(i))
                 {
                     SetBandValues(i, perBandValues);
                 }
@@ -296,9 +296,9 @@ namespace OPS.Imaging
         /// <returns></returns>
         public bool BandValuesEqual(int row, int column, T[] perBandValues)
         {
-            for(int b = 0; b < this.Bands; b++)
+            for (int b = 0; b < this.Bands; b++)
             {
-                if(!this[b,row,column].Equals(perBandValues[b]))
+                if (!this[b, row, column].Equals(perBandValues[b]))
                 {
                     return false;
                 }
@@ -377,7 +377,7 @@ namespace OPS.Imaging
         public T[] GetBandValues(int i)
         {
             T[] result = new T[this.Bands];
-            for(int b= 0; b < this.Bands; b++)
+            for (int b = 0; b < this.Bands; b++)
             {
                 result[b] = this.Data[b][i];
             }
@@ -391,12 +391,12 @@ namespace OPS.Imaging
         /// <param name="desiredPerBandValues"></param>
         public void ReplaceBandValues(T[] currentPerBandValues, T[] desiredPerBandValues)
         {
-            for (int i = 0; i < Width*Height; i++)
+            for (int i = 0; i < Width * Height; i++)
             {
                 if (BandValuesEqual(i, currentPerBandValues))
                 {
                     SetBandValues(i, desiredPerBandValues);
-                }            
+                }
             }
         }
 
@@ -511,7 +511,37 @@ namespace OPS.Imaging
         /// <returns></returns>
         public Vector2 PixelToUV(Vector2 pixelCoordinate)
         {
+            //pixel origin is top left of image, uv origin is lower left (opengl), requires a y flip
             return new Vector2(pixelCoordinate.X / Width, 1 - (pixelCoordinate.Y / Height));
+        }
+
+        /// <summary>
+        /// Convert a pixel coordinate to a uv coordinate
+        /// </summary>
+        static public Vector2 PixelToUV(Vector2 pixelCoordinate, int widthPixels, int heightPixels)
+        {
+            //pixel origin is top left of image, uv origin is lower left (opengl), requires a y flip
+            return new Vector2(pixelCoordinate.X / widthPixels, 1 - (pixelCoordinate.Y / heightPixels));
+        }
+
+        /// <summary>
+        /// Converts a pixel from its addressing scheme (upper left corner) to it sampling point (pixel center)
+        /// </summary>
+        static private Vector2 halfVec2 = Vector2.One * 0.5;
+        static public Vector2 ApplyHalfPixelOffset(int row, int col)
+        {
+            Vector2 pixelUpperLeftCorner = new Vector2(col, row);
+            return pixelUpperLeftCorner + halfVec2;
+        }
+
+        /// <summary>
+        /// Pixels are addressed by their upper left corner in landform, when sampling texture data like a renderer would
+        /// you want to read from the center of the pixel (by incrementing a half pixel). The vertical direction is reversed
+        /// because pixel origin is the top left of the image, and uv origin is lower left
+        /// </summary>
+        static public Vector2 ApplyHalfPixelOffsetToUV(Vector2 pixelUpperLeftUV, int widthPixels, int heightPixels)
+        {
+            return pixelUpperLeftUV + new Vector2(0.5 / widthPixels, -0.5 / heightPixels);
         }
 
         /// <summary>
@@ -522,6 +552,14 @@ namespace OPS.Imaging
         public Vector2 UVToPixel(Vector2 uvCoordinate)
         {
             return new Vector2(uvCoordinate.X * Width, (1 - uvCoordinate.Y) * Height);
+        }
+
+        /// <summary>
+        /// Convert a uv coordinate to a pixel coordinate
+        /// </summary>
+        static public Vector2 UVToPixel(Vector2 uvCoordinate, int widthPixels, int heightPixels)
+        {          
+            return new Vector2(uvCoordinate.X * widthPixels, (1 - uvCoordinate.Y) * heightPixels);
         }
 
         /// <summary>
