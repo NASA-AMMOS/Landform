@@ -199,23 +199,27 @@ namespace OPS.Pipeline.AlignmentServer
             var ingester = new IngestAlignmentInputs(this, project, options.RedoObservations, options.RedoPriors,
                                                      options.OnlyForSiteDrives);
 
+            var mission = MissionSpecific.GetInstance(options.Mission);
+
             MSLLocations locations = null;
-            if (options.AddLocationsDBPriors)
+            if (options.AddLocationsDBPriors && mission.AllowLocationsDB())
             {
                 locations = MSLLocations.LoadFromUrl();
                 locations.LoadBasemapDEM(GetFileCached(MSLLocations.BASEMAP_URL,
                                                        filename: MSLLocations.BASEMAP_FILENAME));
             }
 
-            MSLPlaces places = options.NoPlacesDBPriors ? null : new MSLPlaces();
-            if(places != null && !places.CredentialsLoaded())
+            MSLPlaces places = null;
+            if (!options.NoPlacesDBPriors && mission.AllowPlacesDB())
             {
-                LogWarn("Credentials for PlacesDB priors not available, disabling PlacesDB.");
-                places = null;
+                places = new MSLPlaces();
             }
 
-            MSLLegacyManifest manifest =
-                options.LegacyManifestURL != null ? MSLLegacyManifest.Load(options.LegacyManifestURL) : null;
+            MSLLegacyManifest manifest = null;
+            if (options.LegacyManifestURL != null && mission.AllowLegacyManifestDB())
+            {
+                manifest = MSLLegacyManifest.Load(options.LegacyManifestURL);
+            }
 
             ingester.Ingest(locations, places, manifest,
                             res => obsForFrame
@@ -224,7 +228,7 @@ namespace OPS.Pipeline.AlignmentServer
                             
             var imageType = ObservationType.Image.ToString();
             var maskType = ObservationType.RoverMask.ToString();
-            var comparator = MissionSpecific.GetInstance(project.Mission).GetRoverObservationComparator();
+            var comparator = mission.GetRoverObservationComparator();
             foreach (var obsGroup in obsForFrame.Values)
             {
                 var observations = obsGroup
