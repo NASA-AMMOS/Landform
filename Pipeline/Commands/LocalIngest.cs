@@ -98,7 +98,7 @@ namespace OPS.Pipeline
             var mission = MissionSpecific.GetInstance(options.Mission);
 
             MSLLocations locations = null;
-            if (options.AddLocationsDBPriors && mission.EnableLocationsDB())
+            if (options.AddLocationsDBPriors && mission.AllowLocationsDB())
             {
                 locations = GetLocationsDB(ingester.BaseUrls.Select(b => b.Url));
             }
@@ -108,7 +108,7 @@ namespace OPS.Pipeline
             }
 
             MSLPlaces places = null;
-            if (!options.NoPlacesDBPriors && mission.EnablePlacesDB())
+            if (!options.NoPlacesDBPriors && mission.AllowPlacesDB())
             {
                 places = GetPlacesDB();
             }
@@ -118,7 +118,7 @@ namespace OPS.Pipeline
             }
 
             MSLLegacyManifest manifest = null;
-            if (options.LegacyManifestURL != null && mission.EnableLegacyManifestDB())
+            if (options.LegacyManifestURL != null && mission.AllowLegacyManifestDB())
             {
                 manifest = MSLLegacyManifest.Load(options.LegacyManifestURL);
             }

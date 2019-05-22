@@ -135,17 +135,17 @@ namespace OPS.Pipeline
             return cam;
         }
 
-        public virtual bool EnableLocationsDB()
+        public virtual bool AllowLocationsDB()
         {
             return false;
         }
 
-        public virtual bool EnablePlacesDB()
+        public virtual bool AllowPlacesDB()
         {
             return true;
         }
 
-        public virtual bool EnableLegacyManifestDB()
+        public virtual bool AllowLegacyManifestDB()
         {
             return false;
         }
@@ -237,12 +237,12 @@ namespace OPS.Pipeline
             return new MSLRoverMasker(this);
         }
 
-        public override bool EnableLocationsDB()
+        public override bool AllowLocationsDB()
         {
             return true;
         }
 
-        public override bool EnableLegacyManifestDB()
+        public override bool AllowLegacyManifestDB()
         {
             return true;
         }
@@ -330,7 +330,7 @@ namespace OPS.Pipeline
             }
         }
 
-        public override bool EnablePlacesDB()
+        public override bool AllowPlacesDB()
         {
             return false;
         }
