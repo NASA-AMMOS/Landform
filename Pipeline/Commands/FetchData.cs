@@ -44,11 +44,18 @@ namespace OPS.Pipeline
 
         [Option(Required = false, Default = false, HelpText = "Overwrite existing files")]
         public bool Overwrite { get; set; }
+
+        [Option(HelpText = "Mission flag enables mission specific behavior", Default = Mission.M2020)]
+        public Mission Mission { get; set; }
+
+        [Option(HelpText = "Disable filtering by mission-specific filename cretieria", Default = false)]
+        public bool DisableMissionSpecificFilenameFilter { get; set; }
     }
 
     public class FetchData
     {
-        FetchDataOptions options;
+        private FetchDataOptions options;
+        private MissionSpecific mission;
 
         private static readonly ILog logger = LogManager.GetLogger(typeof(FetchDataOptions));
 
@@ -68,6 +75,7 @@ namespace OPS.Pipeline
             {
                 options.SearchLocations = defaultSearchLocations;
             }
+            mission = MissionSpecific.GetInstance(options.Mission);
         }
 
         string LocalPath(string s3Location)
@@ -154,7 +162,8 @@ namespace OPS.Pipeline
             {
                 string filename = Path.GetFileNameWithoutExtension(p);
                 string ext = Path.GetExtension(p).ToUpper();
-                if(extensions.Contains(ext) && IngestPDSImage.CheckFilename(filename, false))
+                if (extensions.Contains(ext) &&
+                    (options.DisableMissionSpecificFilenameFilter || mission.CheckFilename(filename)))
                 {
                     result.Add(p);
                 }
