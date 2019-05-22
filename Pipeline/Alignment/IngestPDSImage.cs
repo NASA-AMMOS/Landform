@@ -152,6 +152,7 @@ namespace OPS.Pipeline
                 }
                 
                 var observationName = parser.ProductIdString;
+                var siteDriveName = parser.SiteDrive;
                 
                 // Filter images with invalid camera models
                 try
@@ -192,7 +193,7 @@ namespace OPS.Pipeline
                     var xform = GetSiteDriveTransformFromPlaces(parser);
                     if (xform != null)
                     {
-                        siteDriveFrame = GetFrame(parser.SiteDrive, rootFrame, TransformSource.PlacesDB, xform);
+                        siteDriveFrame = GetFrame(siteDriveName, rootFrame, TransformSource.PlacesDB, xform);
                     }
                 }
 
@@ -201,7 +202,7 @@ namespace OPS.Pipeline
                     var xform = GetSiteDriveTransformFromLocations(parser);
                     if (xform != null)
                     {
-                        siteDriveFrame = GetFrame(parser.SiteDrive, rootFrame, TransformSource.LocationsDB, xform);
+                        siteDriveFrame = GetFrame(siteDriveName, rootFrame, TransformSource.LocationsDB, xform);
                     }
                 }
                 
@@ -210,7 +211,7 @@ namespace OPS.Pipeline
                     var xform = GetSiteDriveTransformFromLegacyManifest(parser);
                     if (xform != null)
                     {
-                        siteDriveFrame = GetFrame(parser.SiteDrive, rootFrame, TransformSource.LegacyManifest, xform);
+                        siteDriveFrame = GetFrame(siteDriveName, rootFrame, TransformSource.LegacyManifest, xform);
                     }
                 }
                 
@@ -218,7 +219,7 @@ namespace OPS.Pipeline
                 {
                     //fallback to pds headers, site relative
                     var xform = GetSiteDriveTransformFromPDS(parser);
-                    siteDriveFrame = GetFrame(parser.SiteDrive, rootFrame, TransformSource.PDS, xform);
+                    siteDriveFrame = GetFrame(siteDriveName, rootFrame, TransformSource.PDS, xform);
                 }
                 
                 // observation (aka rover) frame -> site drive (aka local level) frame
