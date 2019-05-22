@@ -95,9 +95,39 @@ namespace OPS.Pipeline
             var ingester = new IngestAlignmentInputs(pipeline, project, options.RedoObservations, options.RedoPriors,
                                                      options.OnlyForSiteDrives, options.NoProgress);
 
-            ingester.Ingest(options.AddLocationsDBPriors ? GetLocationsDB(ingester.BaseUrls.Select(b => b.Url)) : null,
-                            !options.NoPlacesDBPriors ? GetPlacesDB() : null,
-                            options.LegacyManifestURL != null ? MSLLegacyManifest.Load(options.LegacyManifestURL) : null);
+            var mission = MissionSpecific.GetInstance(options.Mission);
+
+            MSLLocations locations = null;
+            if (options.AddLocationsDBPriors && mission.AllowLocationsDB())
+            {
+                locations = GetLocationsDB(ingester.BaseUrls.Select(b => b.Url));
+            }
+            else
+            {
+                pipeline.LogInfo("locations DB priors disabled");
+            }
+
+            MSLPlaces places = null;
+            if (!options.NoPlacesDBPriors && mission.AllowPlacesDB())
+            {
+                places = GetPlacesDB();
+            }
+            else
+            {
+                pipeline.LogInfo("places DB priors disabled");
+            }
+
+            MSLLegacyManifest manifest = null;
+            if (options.LegacyManifestURL != null && mission.AllowLegacyManifestDB())
+            {
+                manifest = MSLLegacyManifest.Load(options.LegacyManifestURL);
+            }
+            else
+            {
+                pipeline.LogInfo("legacy manifest DB priors disabled");
+            }
+
+            ingester.Ingest(locations, places, manifest);
 
             return 0;
         }
