@@ -97,7 +97,7 @@ namespace OPS.Pipeline.MeshWorker
 
             //temporarily suppress mastcam point cloud data until validated
             //https://github.jpl.nasa.gov/OnSight/Landform/issues/261
-            var opts = new Meshing.MeshObservationsOptions(null, null, onlyForCameras, mission)
+            var opts = new MeshObservations.CollectOptions(null, null, onlyForCameras, mission)
                 {
                     AllowMastcam = allowMastcam,
                     RequirePoints = true,
@@ -107,12 +107,20 @@ namespace OPS.Pipeline.MeshWorker
                     RequireAdjustedTransform = noPriors,
                     TargetFrame = outputFrame
                 };
-            var observations = Meshing.CollectMeshObservations(frameCache, observationCache, opts);
+
+            var observations = MeshObservations.Collect(frameCache, observationCache, opts);
             if (observations.Count == 0)
             {
                 pipeline.LogError("no observations were found to build a point cloud");
                 return null;
             }
+
+            var meshOpts = new MeshObservations.MeshOptions()
+            {
+                Frame = outputFrame,
+                ScaleNormalsByConfidence = true,
+                Decimate = decimate
+            };
 
             //accumulate the collection of point clouds
             List<Mesh> meshInputs = new List<Mesh>();
@@ -123,8 +131,7 @@ namespace OPS.Pipeline.MeshWorker
                 pipeline.LogInfo("building point cloud {0}/{1} ({2})%): {3}", idx + 1, observations.Count,
                                     (int)(100 * idx / (float)(observations.Count - 1)), obs.Points.FrameName);
 
-                var mesh = Meshing.BuildPointCloud(pipeline, masker, obs, frameCache, outputFrame,
-                                                   scaleNormalsByConfidence: true, decimate: decimate);
+                var mesh = obs.BuildPointCloud(pipeline, frameCache, masker, meshOpts);
                 if (mesh == null)
                 {
                     pipeline.LogError("failed to build pointcloud for {0}", obs.Name);

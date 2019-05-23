@@ -696,7 +696,14 @@ namespace OPS.Pipeline
             foreach (var obs in imageObservations)
             {
                 pipeline.LogInfo("Building hull for {0}, {1}/{2} ({3}%)", obs.Name, obsToHull.Count(), imageObservations.Count(), (int)(100 * obsToHull.Count() / (float)imageObservations.Count()));
-                ConvexHull obsHull = Meshing.BuildFrustumHull(pipeline, new MeshObservations() { Texture = obs }, frameCache, options.OutputFrame, options.UsePriors, uncertaintyInflated: false);
+                var meshObs = new MeshObservations() { Texture = obs };
+                var meshOpts = new MeshObservations.MeshOptions()
+                    {
+                        Frame = options.OutputFrame,
+                        UsePriors = options.UsePriors
+                    };
+                ConvexHull obsHull = meshObs.BuildFrustumHull(pipeline, frameCache, meshOpts,
+                                                              uncertaintyInflated: false);
                 if (obsHull != null)
                 {
                     obsToHull.Add(obs, obsHull);

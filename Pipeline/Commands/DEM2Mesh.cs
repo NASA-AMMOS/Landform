@@ -490,8 +490,8 @@ namespace OPS.Pipeline
                         }
                     }
                 }
-                mesh = Meshing.BuildOrganizedMesh(xyz, mask:mask);
-            } 
+                mesh = OrganizedPointCloud.BuildOrganizedMesh(xyz, mask:mask);
+            }
             //Build decimated mesh by iterative sampling:
             // Start with two tris that connect the dem corners
             // Test error and sample regions that need subdividing (currently quad scheme)
