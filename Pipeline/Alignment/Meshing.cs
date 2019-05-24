@@ -341,55 +341,5 @@ namespace OPS.Pipeline
             }
             return anyValid ? ret : null;
         }
-
-        /// <summary>
-        /// get transform from a specific rover frame to the corresponding, observation, sitedrive or root frame
-        /// also works to get a transform from a rover frame to any other rover frame
-        /// result is null if the transform could not be resolved
-        /// if usePriors = true then only prior transform sources will be used
-        /// if onlyAligned = true then the result will be null unless at least one transform in the chain is not a prior
-        /// </summary>
-        public static UncertainRigidTransform GetTransform(string fromFrame, string toFrame, FrameCache frameCache,
-                                                           bool usePriors = false, bool onlyAligned = false)
-        {
-            if (toFrame == "rover" || toFrame == PDSParser.ReferenceCoordinateFrame.RoverNav.ToString())
-            {
-                return new UncertainRigidTransform(); //identity, no uncertainty
-            }
-
-            Frame obsFrame = frameCache.GetFrame(fromFrame);
-            Frame sdFrame = frameCache.GetFrame(obsFrame.ParentName);
-
-            if (toFrame == "sitedrive" || toFrame == PDSParser.ReferenceCoordinateFrame.LocalLevel.ToString())
-            {
-                var obsToSD = usePriors ? frameCache.GetBestPrior(obsFrame) : frameCache.GetBestTransform(obsFrame);
-                return (obsToSD == null || (onlyAligned && obsToSD.IsPrior())) ? null : obsToSD.Transform;
-            }
-
-            if (toFrame == "site" || toFrame == PDSParser.ReferenceCoordinateFrame.Site.ToString())
-            {
-                throw new NotImplementedException("transform to site frame not implemented");
-            }
-
-            if (toFrame == "root" || string.IsNullOrEmpty(toFrame))
-            {
-                var obsToSD = usePriors ? frameCache.GetBestPrior(obsFrame) : frameCache.GetBestTransform(obsFrame);
-                var sdToRoot = usePriors ? frameCache.GetBestPrior(sdFrame) : frameCache.GetBestTransform(sdFrame);
-                if (obsToSD == null || sdToRoot == null || (onlyAligned && obsToSD.IsPrior() && sdToRoot.IsPrior()))
-                {
-                    return null;
-                }
-                else
-                {
-                    return obsToSD.Transform * sdToRoot.Transform;
-                }
-            }
-            else
-            {
-                var srcToRoot = GetTransform(fromFrame, "root", frameCache, usePriors, onlyAligned);
-                var dstToRoot = GetTransform(toFrame, "root", frameCache, usePriors, onlyAligned);
-                return (srcToRoot == null || dstToRoot == null) ? null : srcToRoot.TimesInverse(dstToRoot);
-            }
-        }
     }
 }

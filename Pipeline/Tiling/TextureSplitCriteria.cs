@@ -10,7 +10,7 @@ using OPS.RayTrace;
 
 namespace OPS.Pipeline
 {
-    public struct CameraInstance
+    public class CameraInstance
     {
         public Matrix cameraToMesh;
         public Matrix meshToCamera;

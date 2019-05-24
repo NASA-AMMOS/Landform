@@ -255,5 +255,85 @@ namespace OPS.Pipeline.AlignmentServer
         {
             return GetTransforms(name).Where(t => t.Source < TransformSource.Prior).Count() > 0;
         }
+
+        /// <summary>
+        /// get transform from an observation frame to the corresponding rover, sitedrive, or root frame
+        /// also works to get a transform from an observationframe to any other observation frame
+        /// result is null if the transform could not be resolved
+        /// if usePriors = true then only prior transform sources will be used
+        /// if onlyAligned = true then the result will be null unless at least one transform in the chain is not a prior
+        /// </summary>
+        public UncertainRigidTransform GetObservationTransform(Observation fromObs, string toFrame,
+                                                               bool usePriors = false, bool onlyAligned = false)
+        {
+            if (toFrame == "rover" || toFrame == PDSParser.ReferenceCoordinateFrame.RoverNav.ToString())
+            {
+                return new UncertainRigidTransform(); //identity, no uncertainty
+            }
+
+            Frame fromFrame = GetFrame(fromObs.FrameName);
+            if (fromFrame == null)
+            {
+                return null;
+            }
+
+            if (toFrame == "sitedrive" || toFrame == PDSParser.ReferenceCoordinateFrame.LocalLevel.ToString())
+            {
+                var obsToSD = usePriors ? GetBestPrior(fromFrame) : GetBestTransform(fromFrame);
+                return (obsToSD == null || (onlyAligned && obsToSD.IsPrior())) ? null : obsToSD.Transform;
+            }
+
+            if (toFrame == "site" || toFrame == PDSParser.ReferenceCoordinateFrame.Site.ToString())
+            {
+                throw new NotImplementedException("transform to site frame not implemented");
+            }
+
+            if (toFrame == "root" || string.IsNullOrEmpty(toFrame))
+            {
+                return GetTransformToRoot(fromFrame, usePriors, onlyAligned);
+            }
+            
+            var srcToRoot = GetTransformToRoot(fromFrame, usePriors, onlyAligned);
+            var dstToRoot = GetTransformToRoot(toFrame, usePriors, onlyAligned);
+            return (srcToRoot == null || dstToRoot == null) ? null : srcToRoot.TimesInverse(dstToRoot);
+        }
+
+        public UncertainRigidTransform GetObservationTransform(Observation fromObs, Observation toObs,
+                                                               bool usePriors = false, bool onlyAligned = false)
+        {
+            return GetObservationTransform(fromObs, toObs.FrameName, usePriors, onlyAligned);
+        }
+
+        /// <summary>
+        /// compose transform to root frame
+        /// result is null if the transform could not be resolved
+        /// if usePriors = true then only prior transform sources will be used
+        /// if onlyAligned = true then the result will be null unless at least one transform in the chain is not a prior
+        /// </summary>
+        public UncertainRigidTransform GetTransformToRoot(Frame frame, bool usePriors = false,
+                                                          bool onlyAligned = false)
+        {
+            var ret = new UncertainRigidTransform(); //identity, no uncertainty
+
+            bool aligned = false;
+            for (; frame != null; frame = GetFrame(frame.ParentName))
+            {
+                var toParent = usePriors ? GetBestPrior(frame) : GetBestTransform(frame);
+                if (toParent == null)
+                {
+                    return null;
+                }
+                aligned = aligned || !toParent.IsPrior();
+                ret = ret * toParent.Transform; //row major transforms compose left to right
+            }
+
+            return !onlyAligned || aligned ? ret : null;
+        }
+
+        public UncertainRigidTransform GetTransformToRoot(string frameName, bool usePriors = false,
+                                                          bool onlyAligned = false)
+        {
+            return GetTransformToRoot(GetFrame(frameName), usePriors, onlyAligned);
+        }
     }
 }

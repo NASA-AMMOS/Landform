@@ -247,12 +247,17 @@ namespace OPS.Pipeline
         private double MetersPerPixel { get { return options.BEVMetersPerPixel * options.BEVDecimation; } }
         private double PixelsPerMeter { get { return 1 / MetersPerPixel; } }
 
+        private Matrix SiteDriveTransform(string siteDrive)
+        {
+            return frameCache.GetBestPrior(siteDrive).Transform.Mean;
+        }
+
         /// <summary>
         /// map a 3D point in meters from a given site drive to a 2D pint in pixels in a given site drive
         /// </summary>
         private Vector2 PointToPixel(Vector3 srcPoint, string srcSiteDrive, string dstSiteDrive)
         {
-            var srcToRoot = frameCache.GetBestTransform(srcSiteDrive).Transform.Mean;
+            var srcToRoot = SiteDriveTransform(srcSiteDrive);
             var ptInRoot = Vector3.Transform(srcPoint, srcToRoot);
             var pixelInRoot = ptInRoot * PixelsPerMeter;
             return bevOrigins[dstSiteDrive] + new Vector2(pixelInRoot.X, pixelInRoot.Y);
@@ -1838,8 +1843,8 @@ namespace OPS.Pipeline
             {
                 if (calf.Parent != null)
                 {
-                    var calfToWorldPrior = Meshing.GetTransform(calf.Name, "root", frameCache, usePriors: true).Mean;
-                    var parentToWorldPrior = Meshing.GetTransform(calf.Parent.Name, "root", frameCache, usePriors: true).Mean;
+                    var calfToWorldPrior = SiteDriveTransform(calf.Name);
+                    var parentToWorldPrior = SiteDriveTransform(calf.Parent.Name);
                     //row matrix transforms compose left to right
                     var calfToParent = calfToWorldPrior * Matrix.Invert(parentToWorldPrior);
                     calf.WorldTransform = calfToParent * calf.Parent.WorldTransform.Value;
@@ -1905,7 +1910,7 @@ namespace OPS.Pipeline
 
             foreach (var node in nodes)
             {
-                node.WorldTransform = Meshing.GetTransform(node.Name, "root", frameCache, usePriors: true).Mean;
+                node.WorldTransform = SiteDriveTransform(node.Name);
             }
 
             var nodesToAlign = new List<Node>();
@@ -2005,10 +2010,8 @@ namespace OPS.Pipeline
                     var model = node.Parent.Name;
                     var data = node.Name;
                     
-                    var modelToRootPrior = Meshing.GetTransform(model, "root", frameCache, usePriors: true).Mean;
-                    
-                    var dataToRootPrior = Meshing.GetTransform(data, "root", frameCache, usePriors: true).Mean;
-                    
+                    var modelToRootPrior = SiteDriveTransform(model);
+                    var dataToRootPrior = SiteDriveTransform(data);
                     var rootToModelPrior = Matrix.Invert(modelToRootPrior);
                     
                     //the spatial matches are in root frame, transform them to model prior frame
@@ -2047,7 +2050,7 @@ namespace OPS.Pipeline
             //otherwise it's the concatenation of adjusted transforms along ancestor chain from node to world
             foreach (var node in nodes.Where(n => n.Parent == null))
             {
-                node.WorldTransform = Meshing.GetTransform(node.Name, "root", frameCache, usePriors: true).Mean;
+                node.WorldTransform = SiteDriveTransform(node.Name);
             }
             foreach (var node in nodesToAlign)
             {

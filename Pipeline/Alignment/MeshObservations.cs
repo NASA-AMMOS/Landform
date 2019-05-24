@@ -20,7 +20,8 @@ namespace OPS.Pipeline
     public enum ReconstructionMethod { Organized, Poisson, FSSR }
 
     /// <summary>
-    /// collects the observations in the same frame that contribute to building a mesh
+    /// collects the Observations in the same frame that contribute to building a mesh
+    /// also known as a "wedge"
     /// </summary>
     public class MeshObservations
     {
@@ -120,10 +121,17 @@ namespace OPS.Pipeline
             public string[] OnlyForCameras = null;
             public string[] OnlyForFrames = null;
 
+            //require that there is a priors-only transform chain from the frame of the MeshObservations to TargetFrame
             public bool RequirePriorTransform = false;
+
+            //require that there is a transform chain including at least one adjusted transform
+            //from the frame of the MeshObservations to TargetFrame
             public bool RequireAdjustedTransform = false;
+
+            //require that there is a transform chain from the frame of the MeshObservations to TargetFrame
             public bool RequireAnyTransform = true;
 
+            //if set then 
             public string TargetFrame = null;
 
             public IComparer<RoverObservation> Comparator = null;
@@ -191,14 +199,9 @@ namespace OPS.Pipeline
                     return null;
                 }
             }
-            else
-            {
-                if (Meshing.GetTransform(frame.Name, opts.TargetFrame, frameCache,
-                                        opts.RequirePriorTransform, opts.RequireAdjustedTransform) == null)
-                {
-                    return null;
-                }
-            }
+            //if opts.TargetFrame is set then below we will check that there is an appropriate transform available
+            //from frameName -> opts.TargetFrame
+            //because to call frameCache.GetObservationTransform() we need an Observation
 
             var pointsType = ObservationType.Points.ToString();
             var rangeType = ObservationType.Range.ToString();
@@ -263,6 +266,19 @@ namespace OPS.Pipeline
 
                 if (!ret.Empty)
                 {
+                    if (!string.IsNullOrEmpty(opts.TargetFrame) &&
+                        (opts.RequirePriorTransform || opts.RequireAdjustedTransform || opts.RequireAnyTransform))
+                    {
+                        //use ret.RoverObs to get a representative Observation
+                        var xform = frameCache.GetObservationTransform(ret.RoverObs, opts.TargetFrame,
+                                                                       opts.RequirePriorTransform,
+                                                                       opts.RequireAdjustedTransform);
+                        if (xform == null)
+                        {
+                            return null;
+                        }
+                    }
+                    
                     return ret;
                 }
             }
@@ -296,7 +312,7 @@ namespace OPS.Pipeline
 
         public class MeshOptions
         {
-            public string Frame = "root"; //output coordinate frame, see Meshing.GetTransform()
+            public string Frame = "root"; //output coordinate frame, see FrameCache.GetObservationTransform()
             public bool UsePriors = false; //only use priors transforms
             public bool OnlyAligned = false; //only use aligned transforms
 
@@ -460,6 +476,10 @@ namespace OPS.Pipeline
             ImagesLoaded = true;
         }
 
+        /// <summary>
+        /// count the number of valid points and normals
+        /// returns 0 if images have not been loaded yet
+        /// </summary>
         public void CountValid(out int numPoints, out int numNormals)
         {
             numPoints = PointsImage != null ? PointsImage.CountValid(MaskImage) : 0;
@@ -480,7 +500,7 @@ namespace OPS.Pipeline
                 mesh.TextureWith(TextureImage, opts.RemoveVertsOutsideView);
             }
 
-            var xform = Meshing.GetTransform(FrameName, opts.Frame, frameCache, opts.UsePriors, opts.OnlyAligned);
+            var xform = frameCache.GetObservationTransform(Points, opts.Frame, opts.UsePriors, opts.OnlyAligned);
             if (xform == null)
             {
                 pipeline.LogWarn("failed to find transform for {0}", Name);
@@ -491,6 +511,10 @@ namespace OPS.Pipeline
             return mesh;
         }
 
+        /// <summary>
+        /// build a point cloud mesh
+        /// calls LoadOrGenerateImages() and OrganizedPointCloud.BuildPointCloudMesh()
+        /// </summary>
         public Mesh BuildPointCloud(PipelineCore pipeline, FrameCache frameCache, RoverMasker masker, MeshOptions opts)
         {
             pipeline.LogVerbose("building point cloud {0}", Name);
@@ -507,6 +531,10 @@ namespace OPS.Pipeline
             }
         }
 
+        /// <summary>
+        /// build an organized mesh
+        /// calls LoadOrGenerateImages() and OrganizedPointCloud.BuildOrganizedMesh()
+        /// </summary>
         public Mesh BuildOrganizedMesh(PipelineCore pipeline, FrameCache frameCache, RoverMasker masker,
                                        MeshOptions opts)
         {
@@ -528,6 +556,10 @@ namespace OPS.Pipeline
             }
         }
 
+        /// <summary>
+        /// build a Poisson reconstruction mesh
+        /// calls LoadOrGenerateImages() and PoissonReconstruction.Reconstruct()
+        /// </summary>
         public Mesh BuildPoissonMesh(PipelineCore pipeline, FrameCache frameCache, RoverMasker masker, MeshOptions opts)
         {
             pipeline.LogVerbose("building Poisson mesh {0}", Name);
@@ -545,6 +577,10 @@ namespace OPS.Pipeline
             }
         }
 
+        /// <summary>
+        /// build a FSSR mesh
+        /// calls LoadOrGenerateImages() and FSSR.Reconstruct()
+        /// </summary>
         public Mesh BuildFSSRMesh(PipelineCore pipeline, FrameCache frameCache, RoverMasker masker, MeshOptions opts)
         {
             pipeline.LogVerbose("building FSSR mesh {0}", Name);
@@ -561,6 +597,9 @@ namespace OPS.Pipeline
             }
         }
 
+        /// <summary>
+        /// dispatches to the different Build*() functions  
+        /// </summary>
         public Mesh BuildMesh(PipelineCore pipeline, FrameCache frameCache, RoverMasker masker, MeshOptions opts,
                               ReconstructionMethod method)
         {
@@ -601,7 +640,7 @@ namespace OPS.Pipeline
 
             ConvexHull ret = ConvexHull.FromImage(img);
 
-            var xform = Meshing.GetTransform(obs.FrameName, opts.Frame, frameCache, opts.UsePriors, opts.OnlyAligned);
+            var xform = frameCache.GetObservationTransform(obs, opts.Frame, opts.UsePriors, opts.OnlyAligned);
             if (xform == null)
             {
                 pipeline.LogWarn("failed to find {0} transform to build hull for {1}", opts.Frame, Name);

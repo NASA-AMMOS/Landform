@@ -144,9 +144,15 @@ namespace OPS.Pipeline.MeshWorker
                     continue;
                 }
 
-                //the reference point used to determine how good a point is for clever combine. naive version is using distance from 
-                // camera. 
-                UncertainRigidTransform obsToOutput = Meshing.GetTransform(obs.Points.FrameName, outputFrame, frameCache, usePriors, noPriors);
+                //the reference point used to determine how good a point is for clever combine
+                //naive version is using distance from camera
+                var obsToOutput = frameCache.GetObservationTransform(obs.Points, outputFrame, usePriors, noPriors);
+                if (obsToOutput == null)
+                {
+                    pipeline.LogError("failed to get transform for {0}", obs.Name);
+                    continue;
+                }
+
                 CAHV cam = (CameraModel)JsonHelper.FromJson(obs.Points.CameraModel) as CAHV;
                 Vector3 cameraPosInOutput = Vector3.Transform(cam.C, obsToOutput.Mean);
 

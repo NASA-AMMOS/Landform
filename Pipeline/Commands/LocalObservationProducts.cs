@@ -874,8 +874,12 @@ namespace OPS.Pipeline
             PDSParser dstParser = new PDSParser((PDSMetadata)dstImg.Metadata);
             CameraModel dstCamera = dstParser.metadata.CameraModel;
 
-            var srcObsToDstObs = Meshing.GetTransform(srcObs.Points.FrameName, dstObs.Points.FrameName, frameCache,
-                                                      usePriors, noPriors).Mean;
+            var srcToDst = frameCache.GetObservationTransform(srcObs.Points, dstObs.Points, usePriors, noPriors);
+            if (srcToDst == null)
+            {
+                return null;
+            }
+
             var meshOpts = new MeshObservations.MeshOptions() { Frame = "rover", UsePriors = usePriors };
             var dstHull = dstObs.BuildFrustumHull(pipeline, frameCache, meshOpts, uncertaintyInflated: false);
 
@@ -896,7 +900,7 @@ namespace OPS.Pipeline
                     Vector3 srcRoverPt = new Vector3(srcPoints[0, idxSrcRow, idxSrcCol],
                                                      srcPoints[1, idxSrcRow, idxSrcCol],
                                                      srcPoints[2, idxSrcRow, idxSrcCol]);
-                    Vector3 srcPtInDst = Vector3.Transform(srcRoverPt, srcObsToDstObs);
+                    Vector3 srcPtInDst = Vector3.Transform(srcRoverPt, srcToDst.Mean);
 
                     //coarse test to ensure no errors at the far distant edges of camera models, or points behind the
                     //camera projecting to valid screen positions.
