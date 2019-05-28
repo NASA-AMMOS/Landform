@@ -377,9 +377,9 @@ namespace OPS.Pipeline
                 }
             }
 
-            //ConvertPoints() will return null if either pointsRaw is null or if it contains no valid points
+            //PDSImage.ConvertPoints() will return null if either pointsRaw is null or if it contains no valid points
             bool hadPoints = pointsRaw != null;
-            PointsImage = Meshing.ConvertPoints(pointsRaw);
+            PointsImage = hadPoints ? (new PDSImage(pointsRaw)).ConvertPoints() : null;
 
             if (PointsImage == null && Range != null && Range != Points)
             {
@@ -398,18 +398,21 @@ namespace OPS.Pipeline
                 }
 
                 hadPoints = pointsRaw != null;
-                PointsImage = Meshing.ConvertPoints(pointsRaw);
-                if (hadPoints && PointsImage == null)
+                if (hadPoints)
                 {
-                    pipeline.LogWarn("no valid points in {0}", Range.Name);
+                    PointsImage = (new PDSImage(pointsRaw)).ConvertPoints();
+                    if (PointsImage == null)
+                    {
+                        pipeline.LogWarn("no valid points in {0}", Range.Name);
+                    }
                 }
             }
 
             if (pointsRaw != null)
             {
                 //extract camera center now because if we're going to decimate below that will lose the PDS metadata
-                CameraCenter = Meshing.CheckCameraCenter(pointsRaw, "MeshObservations.LoadOrGenerateImages",
-                                                         checkRangeOrigin: false);
+                CameraCenter = PDSImage.CheckCameraCenter(pointsRaw, "MeshObservations.LoadOrGenerateImages",
+                                                          checkRangeOrigin: false);
             }
             else
             {
@@ -420,10 +423,12 @@ namespace OPS.Pipeline
             if (Normals != null)
             {
                 pipeline.LogVerbose("loading normals {0}", Normals.Url);
-                var confidence = opts.ScaleNormalsByConfidence ? Meshing.GenerateConfidence(pointsRaw) : null;
+                var confidence = opts.ScaleNormalsByConfidence && pointsRaw != null ?
+                    (new PDSImage(pointsRaw)).GenerateConfidence()
+                    : null;
                 try
                 {
-                    NormalsImage = Meshing.ConvertNormals(pipeline.LoadImage(Normals.Url), confidence);
+                    NormalsImage = (new PDSImage(pipeline.LoadImage(Normals.Url))).ConvertNormals(confidence);
                 }
                 catch (Exception ex)
                 {
@@ -630,7 +635,7 @@ namespace OPS.Pipeline
             try
             {
                 img = pipeline.LoadImage(obs.Url);
-                Meshing.CheckCameraFrame(img, "MeshObservations.BuildFrustumHull");
+                PDSImage.CheckCameraFrame(img, "MeshObservations.BuildFrustumHull");
             }
             catch (Exception ex)
             {

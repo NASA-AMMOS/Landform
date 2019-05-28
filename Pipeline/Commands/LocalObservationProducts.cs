@@ -525,9 +525,9 @@ namespace OPS.Pipeline
                         Image confidence = null;
                         if (options.ScaleNormalsByConfidence)
                         {
-                            confidence = Meshing.GenerateConfidence(pipeline.LoadImage(obs.Points.Url));
+                            confidence = new PDSImage(pipeline.LoadImage(obs.Points.Url)).GenerateConfidence();
                         }
-                        normals = Meshing.ConvertNormals(normals, confidence);
+                        normals = (new PDSImage(normals)).ConvertNormals(confidence);
                         if (normals != null)
                         {
                             var nbs = mbs;
@@ -561,10 +561,10 @@ namespace OPS.Pipeline
                 {
                     try
                     {
-                        var points = Meshing.ConvertPoints(pipeline.LoadImage(obs.Points.Url));
+                        var points = (new PDSImage(pipeline.LoadImage(obs.Points.Url))).ConvertPoints();
                         if (points != null)
                         {
-                            var normals = Meshing.ConvertNormals(pipeline.LoadImage(obs.Normals.Url));
+                            var normals = (new PDSImage(pipeline.LoadImage(obs.Normals.Url))).ConvertNormals();
                             var mask = masker.LoadOrBuild(pipeline, obs.Mask, obs.Points);
                             points = OrganizedPointCloud.MaskAndDecimatePoints(points, mbs, mask);
                             normals = OrganizedPointCloud.MaskAndDecimateNormals(normals, mbs, mask);
@@ -583,7 +583,7 @@ namespace OPS.Pipeline
                 {
                     try
                     {
-                        var points = Meshing.ConvertPoints(pipeline.LoadImage(obs.Points.Url));
+                        var points = (new PDSImage(pipeline.LoadImage(obs.Points.Url))).ConvertPoints();
                         if (points != null)
                         {
                             var mask = masker.LoadOrBuild(pipeline, obs.Mask, obs.Points);
@@ -853,10 +853,10 @@ namespace OPS.Pipeline
         {
             //load images
             var srcPointsRaw = pipeline.LoadImage(srcObs.Points.Url);
-            var srcPoints = Meshing.ConvertPoints(srcPointsRaw);
+            var srcPoints = (new PDSImage(srcPointsRaw)).ConvertPoints();
 
             var dstPointsRaw = pipeline.LoadImage(dstObs.Points.Url);
-            var dstPoints = Meshing.ConvertPoints(dstPointsRaw);
+            var dstPoints = (new PDSImage(dstPointsRaw)).ConvertPoints();
 
             if (srcPoints == null || dstPoints == null)
             {

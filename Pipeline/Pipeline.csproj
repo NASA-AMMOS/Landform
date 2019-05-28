@@ -202,7 +202,6 @@
     <Compile Include="Alignment\IngestImage.cs" />
     <Compile Include="Alignment\IngestPDSImage.cs" />
     <Compile Include="Alignment\InitializeAlignmentProject.cs" />
-    <Compile Include="Alignment\Meshing.cs" />
     <Compile Include="Alignment\MeshObservations.cs" />
     <Compile Include="Alignment\NodeFrame.cs" />
     <Compile Include="Alignment\NodeObservation.cs" />
@@ -244,6 +243,7 @@
     <Compile Include="PipelineRoutine.cs" />
     <Compile Include="Rover\LegacyManifest.cs" />
     <Compile Include="Rover\MSLPlaces.cs" />
+    <Compile Include="Rover\PDSImage.cs" />
     <Compile Include="Rover\RoverMasker.cs" />
     <Compile Include="StateMachines\GenericTilingStateMachine.cs" />
     <Compile Include="StateMachines\MSLStateMachine.cs" />
