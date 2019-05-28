@@ -1079,6 +1079,7 @@ namespace OPS.Geometry
 
         /// <summary>
         /// TODO doc  
+        /// https://github.jpl.nasa.gov/OnSight/Landform/issues/577 
         /// </summary>
         public static Tuple<Mesh, Image> MergeMeshesAndTextures(IEnumerable<Tuple<Mesh, Image>> inputs)
         {
