@@ -646,6 +646,7 @@ namespace OPS.Pipeline
         private void SaveBEVs()
         {
             double startSec = UTCTime.Now();
+            pipeline.LogInfo("saving {0} birds eye views...", bevs.Count);
             CoreLimitedParallel.ForEach(bevs, pair => {
                     var siteDrive = pair.Key;
                     var bev = pair.Value;
@@ -1793,6 +1794,10 @@ namespace OPS.Pipeline
                     calvesFor[calf.Parent.Name].Add(calf.Name);
                 }
             }
+
+            pipeline.LogInfo("{0} birds eye view calves: {1}",
+                             calves.Count(), String.Join(", ", calves.Select(n => n.Name)));
+
             foreach (var parent in calvesFor.Keys)
             {
                 pipeline.LogInfo("{0} calves for site drive {1}: {2}",
