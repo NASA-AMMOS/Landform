@@ -323,7 +323,6 @@ namespace OPS.Pipeline
 
         //basic replacement for Features2DToolbox.DrawMatches() which sometimes barfs
         //NOTE these functions draw the model image on the right and the data image on the left
-        //our legacy code in MatchImage.cs is similar (and maybe should go away) but does the opposite...
         public static void DrawMatches(Image<Gray, byte> modelImage, VectorOfKeyPoint modelKeypoints,
                                        Image<Gray, byte> dataImage, VectorOfKeyPoint dataKeypoints,
                                        VectorOfVectorOfDMatch matches, Image<Bgr, byte> ret,
