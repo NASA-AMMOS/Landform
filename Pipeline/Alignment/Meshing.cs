@@ -1526,6 +1526,18 @@ namespace OPS.Pipeline
             return ret;
         }
 
+        public static int AutoDecimate(Observation obs, int blocksize, int targetResolution)
+        {
+            if (blocksize >= 0 || obs == null)
+            {
+                return Math.Max(blocksize, 1);
+            }
+
+            double maxDim = (double)Math.Max(obs.Width, obs.Height);
+
+            return Math.Max((int)Math.Round(maxDim / targetResolution), 1);
+        }
+
         public static Mesh BuildOrganizedMesh(PipelineCore pipeline, RoverMasker masker, MeshObservations obs,
                                               FrameCache frameCache, out int validPoints, out int validNormals,
                                               string frame = "root", bool usePriors = false, bool onlyAligned = false,
