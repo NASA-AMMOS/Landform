@@ -1996,7 +1996,7 @@ namespace OPS.Pipeline
 
             SaveTransforms(nodesToAlign, TransformSource.LandformBEV);
 
-            var roots = nodesToAlign.Select(n => n.Parent).Distinct();
+            var roots = nodesToAlign.Select(n => n.Parent).Where(n => n.Parent == null).Distinct();
             pipeline.LogInfo("{0} birds eye view roots: {1}",
                              roots.Count(), String.Join(", ", roots.Select(node => node.Name)));
 
