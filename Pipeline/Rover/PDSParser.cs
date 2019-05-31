@@ -140,59 +140,18 @@ namespace OPS.Pipeline
             }
         }
 
-        public RoverProductCamera Camera
+        public string InstrumentId
         {
             get
             {
                 if (metadata.HasKey("INSTRUMENT_ID"))
                 {
-                    string id = metadata.ReadAsString("INSTRUMENT_ID");
-                    if (id.StartsWith("FHAZ_LEFT"))
-                    {
-                        return RoverProductCamera.FrontHazcamLeft;
+                    return metadata.ReadAsString("INSTRUMENT_ID");
                     }
-                    else if (id.StartsWith("FHAZ_RIGHT"))
+                else
                     {
-                        return RoverProductCamera.FrontHazcamRight;
-                    }
-                    else if (id.StartsWith("RHAZ_LEFT"))
-                    {
-                        return RoverProductCamera.RearHazcamLeft;
-                    }
-                    else if (id.StartsWith("RHAZ_RIGHT"))
-                    {
-                        return RoverProductCamera.RearHazcamRight;
-                    }
-                    else if (id.StartsWith("NAV_LEFT"))
-                    {
-                        return RoverProductCamera.NavcamLeft;
-                    }
-                    else if (id.StartsWith("NAV_RIGHT"))
-                    {
-                        return RoverProductCamera.NavcamRight;
-                    }
-                    else if (id.StartsWith("MAST_LEFT"))
-                    {
-                        return RoverProductCamera.MastcamLeft;
-                    }
-                    else if (id.StartsWith("MAST_RIGHT"))
-                    {
-                        return RoverProductCamera.MastcamRight;
-                    }
-                    else if (id.StartsWith("MAHLI"))
-                    {
-                        return RoverProductCamera.MAHLI;
-                    }
-                    else if(id.StartsWith("MCZ_LEFT"))
-                    {
-                        return RoverProductCamera.MastcamZLeft;
-                    }
-                    else if (id.StartsWith("MCZ_RIGHT"))
-                    {
-                        return RoverProductCamera.MastcamZRight;
-                    }
+                    return string.Empty;
                 }
-                return RoverProductCamera.Unknown;
             }
         }
 
