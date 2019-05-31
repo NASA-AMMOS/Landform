@@ -33,7 +33,7 @@ namespace PipelineTest
                 Assert.AreEqual(RoverProductProducer.MSSS, m.ProducingInstitution);
                 Assert.AreEqual(10.1, m.ExposureDuration);
                 Assert.AreEqual(0, m.FilterNumber);
-                Assert.AreEqual(2.9, m.MaximumFocusDistance);
+                Assert.AreEqual(2.9, mission.GetMaximumFocusDistance(md));
                 Assert.AreEqual(451292530.0000, m.SpacecraftClock);
                 Assert.AreEqual(new Quaternion(-0.0452929, 0.0026977, -0.9728553, 0.2269226), m.RoverOriginRotation);
                 Assert.AreEqual(new Vector3(-78.980461, -44.499561, 2.310069), m.OriginOffset);

@@ -248,42 +248,6 @@ namespace OPS.Pipeline
             }
         }
 
-        // Mastcam only
-        public double? MaximumFocusDistance
-        {
-            get
-            {
-                if (metadata.HasKey("DERIVED_IMAGE_PARMS", "MSL:MAXIMUM_FOCUS_DISTANCE"))
-                {
-                    return metadata.ReadAsDouble("DERIVED_IMAGE_PARMS", "MSL:MAXIMUM_FOCUS_DISTANCE");
-                }
-                return null;
-            }
-        }
-
-        public double MinimumFocusDistance
-        {
-            get
-            {
-                if (metadata.ReadAsString("INSTRUMENT_HOST_ID") == "MSL")
-                {
-                    if (metadata.HasKey("DERIVED_IMAGE_PARMS", "MSL:MINIMUM_FOCUS_DISTANCE"))
-                    {
-                        double nearFocus = metadata.ReadAsDouble("DERIVED_IMAGE_PARMS", "MSL:MINIMUM_FOCUS_DISTANCE");
-
-                        if (InstrumentId.StartsWith("MAHLI"))
-                        {
-                            nearFocus /= 1000.0; //mahli is in millimeters
-                        }
-
-                        return nearFocus;
-                    }
-                }
-                return 0;
-            }
-        }
-
-
         /// <summary>
         /// Rover to local level
         /// </summary>

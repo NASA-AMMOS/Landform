@@ -139,6 +139,9 @@ namespace OPS.Pipeline
         public abstract double GetSensorPixelSizeMM(RoverProductCamera camera);
         public abstract double GetFocalLengthMM(RoverProductCamera camera);
 
+        public abstract double GetMinimumFocusDistance(PDSMetadata metadata);
+        public abstract double? GetMaximumFocusDistance(PDSMetadata metadata);
+
         public virtual bool AllowLocationsDB()
         {
             return false;
@@ -218,7 +221,8 @@ namespace OPS.Pipeline
 
                 // Skip mastcam with short focal distances
                 // (probably closeup of rover part with terrain out of focus in background)
-                if (parser.MaximumFocusDistance.HasValue && parser.MaximumFocusDistance < MIN_MASTCAM_FOCUS_CUTOFF)
+                if (GetMaximumFocusDistance(parser.metadata as PDSMetadata).HasValue &&
+                    GetMaximumFocusDistance(parser.metadata as PDSMetadata) < MIN_MASTCAM_FOCUS_CUTOFF)
                 {
                     return false;
                 }
@@ -327,7 +331,40 @@ namespace OPS.Pipeline
                     throw new NotImplementedException("sensor pixel size for camera " + camera + " not added yet");
             }
         }
-       
+
+        // Mastcam only
+        public override double? GetMaximumFocusDistance(PDSMetadata metadata)
+        {            
+            if (metadata.HasKey("DERIVED_IMAGE_PARMS", "MSL:MAXIMUM_FOCUS_DISTANCE"))
+            {
+                return metadata.ReadAsDouble("DERIVED_IMAGE_PARMS", "MSL:MAXIMUM_FOCUS_DISTANCE");
+            }
+            return null;
+        }
+
+        public override double GetMinimumFocusDistance(PDSMetadata metadata)
+        {          
+            if (metadata.ReadAsString("INSTRUMENT_HOST_ID") == "MSL")
+            {
+                if (metadata.HasKey("DERIVED_IMAGE_PARMS", "MSL:MINIMUM_FOCUS_DISTANCE"))
+                {
+                    double nearFocus = metadata.ReadAsDouble("DERIVED_IMAGE_PARMS", "MSL:MINIMUM_FOCUS_DISTANCE");
+
+                    if (metadata.HasKey("INSTRUMENT_ID"))
+                    {
+                        string instrumentId = metadata.ReadAsString("INSTRUMENT_ID");
+
+                        if (instrumentId.StartsWith("MAHLI"))
+                        {
+                            nearFocus /= 1000.0; //mahli is in millimeters
+                        }
+                    }
+
+                    return nearFocus;
+                }
+            }
+            return 0;
+        }
     }
 
     public class MissionM2020 : MissionSpecific
@@ -465,6 +502,9 @@ namespace OPS.Pipeline
 
         public override double GetFocalLengthMM(RoverProductCamera rovProdCam) { throw new NotImplementedException("focal lengths not implemented for 2020 instruments yet"); }
         public override double GetSensorPixelSizeMM(RoverProductCamera camera) { throw new NotImplementedException("sensor pixels size not implemented for 2020 instruments yet"); }
+
+        public override double? GetMaximumFocusDistance(PDSMetadata metadata) { throw new NotImplementedException("max focus distance not implemented for 2020 instruments yet"); }
+        public override double GetMinimumFocusDistance(PDSMetadata metadata) { throw new NotImplementedException("min focus distance not implemented for 2020 instruments yet"); }
 
         public override bool AllowPlacesDB()
         {

@@ -64,7 +64,9 @@ namespace OPS.Pipeline.MeshWorker
             Project alignmentProject = Project.Find(pipeline, projectName);
             BuildSceneGraph builder = new BuildSceneGraph(pipeline, projectName,
                                                           new BuildSceneGraph.Options() { OnlyKeepBestImages = true });
-            string rootName = MissionSpecific.GetInstance(alignmentProject.Mission).RootFrameName();
+
+            MissionSpecific mission = MissionSpecific.GetInstance(alignmentProject.Mission);
+            string rootName = mission.RootFrameName();
             AlignmentScene scene = builder.BuildTopDown(rootName);
 
             // generate leaf tile data
@@ -89,7 +91,7 @@ namespace OPS.Pipeline.MeshWorker
                 ConvexHull meshHull = new ConvexHull(leafPair.Mesh);
 
                 // backproject
-                List<BackprojectContext> observations = GetPossibleObservations(scene, leafPair.Mesh.Bounds(), meshHull);
+                List<BackprojectContext> observations = GetPossibleObservations(scene, leafPair.Mesh.Bounds(), meshHull, mission);
                 //...backproject will take place here...
 
                 // placeholder solid texture simulating backproject results 
@@ -113,9 +115,10 @@ namespace OPS.Pipeline.MeshWorker
 
         // assumes mesh is built with the origin at the origin at the root frame the scene graph was built with
         private List<BackprojectContext> GetPossibleObservations(AlignmentScene scene, BoundingBox tileBounds,
-                                                                 ConvexHull tileHull)
+                                                                 ConvexHull tileHull, MissionSpecific mission)
         {
             List<BackprojectContext> results = new List<BackprojectContext>();
+            
             foreach (SceneNode node in scene.Root.DepthFirstTraverse())
             {
                 if (!node.HasComponent<NodeObservation>())
@@ -134,7 +137,7 @@ namespace OPS.Pipeline.MeshWorker
                 Matrix worldToImg = Matrix.Invert(imgToWorld);
                 ConvexHull focusedImageHull =
                     CreateImageHullForMesh(tileBounds, md.CameraModel, md.Width, md.Height, imgToWorld, worldToImg,
-                                           parser.MinimumFocusDistance);
+                                           mission.GetMinimumFocusDistance(md));
                 if (!tileHull.Intersects(focusedImageHull))
                     continue;
 
