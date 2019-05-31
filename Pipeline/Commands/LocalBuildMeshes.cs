@@ -1,6 +1,7 @@
 ﻿using CommandLine;
 using Microsoft.Xna.Framework;
 using Newtonsoft.Json;
+using OPS.Cloud;
 using OPS.Geometry;
 using OPS.Imaging;
 using OPS.Pipeline.AlignmentServer;
@@ -108,6 +109,15 @@ namespace OPS.Pipeline
 
         [Option(HelpText = "percentage of pixels to test before picking a texture during backprojection", Default = 0.1)]
         public double BackprojectGoodnessSamplingPct { get; set; }
+
+        [Option(Required = false, HelpText = "")]
+        public string OutputS3Bucket { get; set; }
+
+        [Option(Required = false, HelpText = "")]
+        public string AWSProfile { get; set; }
+
+        [Option(Required = false, Default = "us-gov-west-1", HelpText = "")]
+        public string AWSRegion { get; set; }
     }
 
     public class LocalBuildMeshes
@@ -138,6 +148,15 @@ namespace OPS.Pipeline
             if (!(new[] { "rover", "sitedrive", "root" }).Any(f => outputFrame == f))
             {
                 throw new InvalidOperationException("unknown output frame: " + outputFrame);
+            }
+
+            bool providedBucket = !string.IsNullOrEmpty(options.OutputS3Bucket);
+            bool providedProfile = !string.IsNullOrEmpty(options.AWSProfile);
+            if(providedBucket != providedProfile)
+            {
+                pipeline.LogError("To save tileset to the cloud you must provide the OutputS3Bucket and AWSProfile (and optionally AWSRegion) options");
+                this.options.AWSProfile = string.Empty;
+                this.options.OutputS3Bucket = string.Empty;
             }
         }
 
@@ -456,6 +475,18 @@ namespace OPS.Pipeline
             string jsonData = JsonConvert.SerializeObject(builder.Tileset, Formatting.None);
             File.WriteAllText(Path.Combine(tileSetPath, "tileset.json"), jsonData);
 
+            // setup s3 bucket
+            if (!string.IsNullOrEmpty(options.OutputS3Bucket))
+            {
+                pipeline.LogInfo("uploading tileset to s3");
+                StorageHelper storage = new StorageHelper(options.AWSProfile, options.AWSRegion);
+                
+                //TODO: implement StorageHelper.UploadDirectory
+                foreach (var path in Directory.EnumerateFiles(tileSetPath))
+                {
+                    storage.UploadFile(path, options.OutputS3Bucket);
+                }
+            }
             return 0;
         }
 
