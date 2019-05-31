@@ -135,6 +135,8 @@ namespace OPS.Pipeline
             return cam;
         }
 
+        public abstract RoverProductCamera GetRoverProductCamera(string instrumentId);
+
         public virtual bool AllowLocationsDB()
         {
             return false;
@@ -165,10 +167,11 @@ namespace OPS.Pipeline
                 return false;
             }
 
+            RoverProductCamera roverProdCam = GetRoverProductCamera(parser.InstrumentId);
             // Low exposure hazcams
             if (parser.DerivedImageType == RoverProductType.Image)
             {
-                if (IsHazcam(parser.Camera) &&
+                if (IsHazcam(roverProdCam) &&
                     parser.ExposureDuration != 0 && parser.ExposureDuration < MIN_NAV_HAZ_EXPOSURE)
                 {
                     return false;
@@ -185,7 +188,7 @@ namespace OPS.Pipeline
             //the mask may not be needed
             //or it may already be provided by the mission as its own product
 
-            if (IsHazcam(parser.Camera))
+            if (IsHazcam(roverProdCam))
             {
                 return false;
             }
@@ -196,7 +199,7 @@ namespace OPS.Pipeline
                 return false;
             }
 
-            if (IsMastcam(parser.Camera))
+            if (IsMastcam(roverProdCam))
             {
                 // Skip mastcam taken with color filters
                 try
@@ -219,7 +222,7 @@ namespace OPS.Pipeline
                 }
             }
 
-            if (IsNavcam(parser.Camera) && parser.IsDownsampled)
+            if (IsNavcam(roverProdCam) && parser.IsDownsampled)
             {
                 return false;
             }
@@ -236,6 +239,50 @@ namespace OPS.Pipeline
         {
             return new MSLRoverMasker(this);
         }
+
+        public override RoverProductCamera GetRoverProductCamera(string instrumentId)
+        {
+            if (instrumentId.StartsWith("FHAZ_LEFT"))
+            {
+                return RoverProductCamera.FrontHazcamLeft;
+            }
+            else if (instrumentId.StartsWith("FHAZ_RIGHT"))
+            {
+                return RoverProductCamera.FrontHazcamRight;
+            }
+            else if (instrumentId.StartsWith("RHAZ_LEFT"))
+            {
+                return RoverProductCamera.RearHazcamLeft;
+            }
+            else if (instrumentId.StartsWith("RHAZ_RIGHT"))
+            {
+                return RoverProductCamera.RearHazcamRight;
+            }
+            else if (instrumentId.StartsWith("NAV_LEFT"))
+            {
+                return RoverProductCamera.NavcamLeft;
+            }
+            else if (instrumentId.StartsWith("NAV_RIGHT"))
+            {
+                return RoverProductCamera.NavcamRight;
+            }
+            else if (instrumentId.StartsWith("MAST_LEFT"))
+            {
+                return RoverProductCamera.MastcamLeft;
+            }
+            else if (instrumentId.StartsWith("MAST_RIGHT"))
+            {
+                return RoverProductCamera.MastcamRight;
+            }
+            else if (instrumentId.StartsWith("MAHLI"))
+            {
+                return RoverProductCamera.MAHLI;
+            }
+            
+            return RoverProductCamera.Unknown;
+        }
+    }
+
 
         public override bool AllowLocationsDB()
         {
@@ -276,7 +323,7 @@ namespace OPS.Pipeline
             {
                 return false;
             }
-           
+
             //we used to try to check here that the parser could supply rover articulation, and if not return false
             //articulation is needed for mask computation
             //however, I think the check was bogus, it was always returning true
@@ -287,7 +334,8 @@ namespace OPS.Pipeline
             //the mask may not be needed
             //or it may already be provided by the mission as its own product
 
-            if (IsHazcam(parser.Camera))
+            RoverProductCamera roverProdCam = GetRoverProductCamera(parser.InstrumentId);
+            if (IsHazcam(roverProdCam))
             {
                 return false;
             }
@@ -328,6 +376,56 @@ namespace OPS.Pipeline
                 case RoverProductCamera.MastcamRight: return RoverProductCamera.MastcamZRight;
                 default: return cam;
             }
+        }
+
+        public override RoverProductCamera GetRoverProductCamera(string instrumentId)
+        {
+            if (instrumentId.StartsWith("FHAZ_LEFT"))
+            {
+                return RoverProductCamera.FrontHazcamLeft;
+            }
+            else if (instrumentId.StartsWith("FHAZ_RIGHT"))
+            {
+                return RoverProductCamera.FrontHazcamRight;
+            }
+            else if (instrumentId.StartsWith("RHAZ_LEFT"))
+            {
+                return RoverProductCamera.RearHazcamLeft;
+            }
+            else if (instrumentId.StartsWith("RHAZ_RIGHT"))
+            {
+                return RoverProductCamera.RearHazcamRight;
+            }
+            else if (instrumentId.StartsWith("NAVCAM_LEFT"))
+            {
+                return RoverProductCamera.NavcamLeft;
+            }
+            else if (instrumentId.StartsWith("NAVCAM_RIGHT"))
+            {
+                return RoverProductCamera.NavcamRight;
+            }
+            else if (instrumentId.StartsWith("MAST_LEFT"))
+            {
+                return RoverProductCamera.MastcamLeft;
+            }
+            else if (instrumentId.StartsWith("MAST_RIGHT"))
+            {
+                return RoverProductCamera.MastcamRight;
+            }
+            else if (instrumentId.StartsWith("MAHLI"))
+            {
+                return RoverProductCamera.MAHLI;
+            }
+            else if (instrumentId.StartsWith("MCZ_LEFT"))
+            {
+                return RoverProductCamera.MastcamZLeft;
+            }
+            else if (instrumentId.StartsWith("MCZ_RIGHT"))
+            {
+                return RoverProductCamera.MastcamZRight;
+            }
+
+            return RoverProductCamera.Unknown;
         }
 
         public override bool AllowPlacesDB()
