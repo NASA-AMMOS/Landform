@@ -136,6 +136,8 @@ namespace OPS.Pipeline
         }
 
         public abstract RoverProductCamera GetRoverProductCamera(string instrumentId);
+        public abstract double FocalLengthMM(RoverProductCamera rovProdCam);
+        public abstract double GetSensorPixelSizeMM(RoverProductCamera camera);
 
         public virtual bool AllowLocationsDB()
         {
@@ -151,6 +153,11 @@ namespace OPS.Pipeline
         {
             return false;
         }
+
+        public abstract double GetFocalLengthMM(RoverProductCamera camera);
+
+       
+
     }
 
     public class MissionMSL : MissionSpecific
@@ -281,8 +288,6 @@ namespace OPS.Pipeline
             
             return RoverProductCamera.Unknown;
         }
-    }
-
 
         public override bool AllowLocationsDB()
         {
@@ -293,6 +298,41 @@ namespace OPS.Pipeline
         {
             return true;
         }
+
+        public override double GetFocalLengthMM(RoverProductCamera camera)
+        {
+            switch (camera)
+            {
+                case RoverProductCamera.NavcamLeft:
+                    return 14.67; //source SIS: https://pds-imaging.jpl.nasa.gov/data/msl/MSLNAV_0XXX/DOCUMENT/MSL_CAMERA_SIS_latest.PDF
+                case RoverProductCamera.NavcamRight:
+                    return 14.67; //source SIS: https://pds-imaging.jpl.nasa.gov/data/msl/MSLNAV_0XXX/DOCUMENT/MSL_CAMERA_SIS_latest.PDF
+                case RoverProductCamera.MastcamLeft:
+                    return 34.0; //https://www.lpi.usra.edu/meetings/lpsc2010/pdf/1123.pdf
+                case RoverProductCamera.MastcamRight:
+                    return 10.0; //https://www.lpi.usra.edu/meetings/lpsc2010/pdf/1123.pdf
+                default:
+                    throw new NotImplementedException("focal length for camera " + camera + " not added yet");
+            }
+        }
+      
+        public override double GetSensorPixelSizeMM(RoverProductCamera camera)
+        {
+            switch (camera)
+            {
+                case RoverProductCamera.NavcamLeft:
+                    return 0.012; //source Maki, J.N., et al., Mars Exploration Rover Engineering Cameras, J. Geophys. Res., 108(E12), 8071, doi:10.1029/2003JE002077, 2003. (navcam uses same CCD)
+                case RoverProductCamera.NavcamRight:
+                    return 0.012; //source Maki, J.N., et al., Mars Exploration Rover Engineering Cameras, J. Geophys. Res., 108(E12), 8071, doi:10.1029/2003JE002077, 2003. (navcam uses same CCD)
+                case RoverProductCamera.MastcamLeft:
+                    return 0.0074; //calculated
+                case RoverProductCamera.MastcamRight:
+                    return 0.0074; //calculated
+                default:
+                    throw new NotImplementedException("sensor pixel size for camera " + camera + " not added yet");
+            }
+        }
+       
     }
 
     public class MissionM2020 : MissionSpecific
@@ -427,6 +467,9 @@ namespace OPS.Pipeline
 
             return RoverProductCamera.Unknown;
         }
+
+        public override double FocalLengthMM(RoverProductCamera rovProdCam) { throw new NotImplementedException("focal lengths not implemented for 2020 instruments yet"); }
+        public override double GetSensorPixelSizeMM(RoverProductCamera camera) { throw new NotImplementedException("sensor pixels size not implemented for 2020 instruments yet"); }
 
         public override bool AllowPlacesDB()
         {
