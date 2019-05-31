@@ -154,7 +154,7 @@ namespace OPS.Pipeline
             }
 
             pipeline.LogInfo("preparing calibration information for agisoft");
-            AgisoftXML.WriteCalibrationXML(observations, scene.ObservationUrlToNode, calibXMLPath, observationToNumBands);
+            AgisoftXML.WriteCalibrationXML(observations, scene.ObservationUrlToNode, calibXMLPath, observationToNumBands, mission);
 
             pipeline.LogInfo("generating python script for agisoft to preform alignment");
             AgisoftPython.WriteImageAlignScript(calibXMLPath, imageDir, masksDir, alignPythonPath, debugAgiScene, outputCamerasXMLPath);
@@ -321,7 +321,7 @@ namespace OPS.Pipeline
                 node.Attributes.Append(att);
             }
 
-            static private void AddSensorXml(XmlNode sensorsNode, int sensorId, RoverProductCamera roverProdCam, int widthPixels, int heightPixels, int bands)
+            static private void AddSensorXml(XmlNode sensorsNode, int sensorId, RoverProductCamera roverProdCam, int widthPixels, int heightPixels, int bands, MissionSpecific mission)
             {
                 XmlNode sensorNode = sensorsNode.OwnerDocument.CreateElement("sensor");
                 sensorsNode.AppendChild(sensorNode);
@@ -340,17 +340,17 @@ namespace OPS.Pipeline
                 XmlNode propNode1 = sensorNode.OwnerDocument.CreateElement("property");
                 sensorNode.AppendChild(propNode1);
                 AddAttributeXml(propNode1, "name", "pixel_width");
-                AddAttributeXml(propNode1, "value", PDSParser.GetSensorPixelSizeMM(roverProdCam).ToString("F3"));
+                AddAttributeXml(propNode1, "value", mission.GetSensorPixelSizeMM(roverProdCam).ToString("F3"));
 
                 XmlNode propNode2 = sensorNode.OwnerDocument.CreateElement("property");
                 sensorNode.AppendChild(propNode2);
                 AddAttributeXml(propNode2, "name", "pixel_height");
-                AddAttributeXml(propNode2, "value", PDSParser.GetSensorPixelSizeMM(roverProdCam).ToString("F3"));
+                AddAttributeXml(propNode2, "value", mission.GetSensorPixelSizeMM(roverProdCam).ToString("F3"));
 
                 XmlNode propNode3 = sensorNode.OwnerDocument.CreateElement("property");
                 sensorNode.AppendChild(propNode3);
                 AddAttributeXml(propNode3, "name", "focal_length");
-                AddAttributeXml(propNode3, "value", PDSParser.GetFocalLengthMM(roverProdCam).ToString("F2"));
+                AddAttributeXml(propNode3, "value", mission.GetFocalLengthMM(roverProdCam).ToString("F2"));
 
                 XmlNode propNode4 = sensorNode.OwnerDocument.CreateElement("property");
                 sensorNode.AppendChild(propNode4);
@@ -402,7 +402,7 @@ namespace OPS.Pipeline
 
                 XmlNode fNode = sensorNode.OwnerDocument.CreateElement("f");
                 calibNode.AppendChild(fNode);
-                double focalLengthPixels = PDSParser.GetFocalLengthMM(roverProdCam) / PDSParser.GetSensorPixelSizeMM(roverProdCam);
+                double focalLengthPixels = mission.GetFocalLengthMM(roverProdCam) / mission.GetSensorPixelSizeMM(roverProdCam);
                 fNode.InnerText = focalLengthPixels.ToString("F1");
 
                 XmlNode blackLevelNode = sensorNode.OwnerDocument.CreateElement("black_level");
@@ -420,7 +420,7 @@ namespace OPS.Pipeline
                 public int Bands;
             };
 
-            static public void WriteCalibrationXML(IEnumerable<RoverObservation> observations, Dictionary<string, SceneNode> observationUrlToNode, string outputCalibXML, Dictionary<RoverObservation, int> obsToBands)
+            static public void WriteCalibrationXML(IEnumerable<RoverObservation> observations, Dictionary<string, SceneNode> observationUrlToNode, string outputCalibXML, Dictionary<RoverObservation, int> obsToBands, MissionSpecific mission)
             {
                 //collect camera configs
                 List<RoverObsBands> roverObsBands = new List<RoverObsBands>();
@@ -461,7 +461,7 @@ namespace OPS.Pipeline
                 foreach (var cameraConfig in obsByCameraConfig)
                 {
                     RoverProductCamera roverProdCam = (RoverProductCamera)Enum.Parse(typeof(RoverProductCamera), cameraConfig.Key.Sensor);
-                    AddSensorXml(sensorsNode, sensorId, roverProdCam, cameraConfig.Key.Width, cameraConfig.Key.Height, cameraConfig.Key.Bands);
+                    AddSensorXml(sensorsNode, sensorId, roverProdCam, cameraConfig.Key.Width, cameraConfig.Key.Height, cameraConfig.Key.Bands, mission);
 
                     foreach (var obs in cameraConfig.Select(o => o.Obs))
                     {
