@@ -99,9 +99,9 @@ namespace OPS.Pipeline
                 if (metadata.HasKey("INSTRUMENT_ID"))
                 {
                     return metadata.ReadAsString("INSTRUMENT_ID");
-                    }
+                }
                 else
-                    {
+                {
                     return string.Empty;
                 }
             }
@@ -192,16 +192,7 @@ namespace OPS.Pipeline
                     //fallback to filename
                     return this.ProductId.ProductType;
                 }
-                else
-                { 
-                    //ISSUE: #550
-                    //fallback to instrument name and the incorrect hope there are no other products built with that camera
-                    RoverProductCamera inst = Camera;
-                    if(inst == RoverProductCamera.MastcamLeft || inst == RoverProductCamera.MastcamRight || inst == RoverProductCamera.MAHLI)
-                    {
-                        return RoverProductType.Image;
-                    }
-                }
+                
                 return RoverProductType.Unknown;
             }
         }
@@ -279,8 +270,8 @@ namespace OPS.Pipeline
                     if (metadata.HasKey("DERIVED_IMAGE_PARMS", "MSL:MINIMUM_FOCUS_DISTANCE"))
                     {
                         double nearFocus = metadata.ReadAsDouble("DERIVED_IMAGE_PARMS", "MSL:MINIMUM_FOCUS_DISTANCE");
-                 
-                        if (Camera == RoverProductCamera.MAHLI)
+
+                        if (InstrumentId.StartsWith("MAHLI"))
                         {
                             nearFocus /= 1000.0; //mahli is in millimeters
                         }
