@@ -106,9 +106,8 @@ namespace OPS.Pipeline
         /// <summary>
         /// ROASTT: for some images the PDS header says LEFT when it should say RIGHT  
         /// </summary>
-        private string CameraName(PDSParser parser)
+        private string CameraName(PDSParser parser, RoverProductCamera pdsCam)
         {
-            var pdsCam = parser.Camera;
             var idCam = mission.TranslateCamera(parser.ProductId.Camera);
             if (idCam != pdsCam)
             {
@@ -164,8 +163,9 @@ namespace OPS.Pipeline
                     pipeline.LogDebug("rejected {0} for invalid camera model", observationName);
                     return new Result(imgUrl, Status.Skipped);
                 }
-                
-                if (parser.Camera == RoverProductCamera.Unknown)
+
+                RoverProductCamera roverProdCam = MissionSpecific.GetInstance(project.Mission).GetRoverProductCamera(parser.InstrumentId);
+                if (roverProdCam == RoverProductCamera.Unknown)
                 {
                     pipeline.LogWarn("camera type is unknown for {0}", observationName);
                     return new Result(imgUrl, Status.Skipped);
@@ -223,7 +223,7 @@ namespace OPS.Pipeline
                 }
                 
                 // observation (aka rover) frame -> site drive (aka local level) frame
-                var cameraName = CameraName(parser);
+                var cameraName = CameraName(parser, roverProdCam);
                 var observationFrameName = cameraName + "_" + mission.RoverMotionCounter(parser);
                 var observationFrame = GetFrame(observationFrameName, siteDriveFrame,
                                                 TransformSource.PDS, GetObservationTransform(parser));
