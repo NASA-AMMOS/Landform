@@ -136,8 +136,8 @@ namespace OPS.Pipeline
         }
 
         public abstract RoverProductCamera GetRoverProductCamera(string instrumentId);
-        public abstract double FocalLengthMM(RoverProductCamera rovProdCam);
         public abstract double GetSensorPixelSizeMM(RoverProductCamera camera);
+        public abstract double GetFocalLengthMM(RoverProductCamera camera);
 
         public virtual bool AllowLocationsDB()
         {
@@ -153,11 +153,6 @@ namespace OPS.Pipeline
         {
             return false;
         }
-
-        public abstract double GetFocalLengthMM(RoverProductCamera camera);
-
-       
-
     }
 
     public class MissionMSL : MissionSpecific
@@ -468,7 +463,7 @@ namespace OPS.Pipeline
             return RoverProductCamera.Unknown;
         }
 
-        public override double FocalLengthMM(RoverProductCamera rovProdCam) { throw new NotImplementedException("focal lengths not implemented for 2020 instruments yet"); }
+        public override double GetFocalLengthMM(RoverProductCamera rovProdCam) { throw new NotImplementedException("focal lengths not implemented for 2020 instruments yet"); }
         public override double GetSensorPixelSizeMM(RoverProductCamera camera) { throw new NotImplementedException("sensor pixels size not implemented for 2020 instruments yet"); }
 
         public override bool AllowPlacesDB()
