@@ -476,9 +476,9 @@ namespace OPS.Pipeline
             return new HashSet<string>(lines);
         }
 
-        void CreateLegacyScene(IEnumerable<FileRecord> localFileRecords)
+        static public void CreateLegacyScene(IEnumerable<FileRecord> localFileRecords, string workingDir)
         {
-            string sceneDir = Path.Combine(options.WorkingDir, "Scene");
+            string sceneDir = Path.Combine(workingDir, "Scene");
             string imagesDir = Path.Combine(sceneDir, "images");
             PathHelper.EnsureExists(imagesDir);
 
@@ -583,7 +583,7 @@ namespace OPS.Pipeline
             var downloadedMeshRecords = DownloadAndConvertToLocal(meshRecords, downloadDirectory);
 
             logger.Info("Creating legacy scene");
-            CreateLegacyScene(downloadedRASLRecords);
+            CreateLegacyScene(downloadedRASLRecords, options.WorkingDir);
 
             logger.Info("Processing Meshes");
             var processedDirectory = Path.Combine(options.WorkingDir, "Processed");

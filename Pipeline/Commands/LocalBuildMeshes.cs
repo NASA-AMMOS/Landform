@@ -173,6 +173,9 @@ namespace OPS.Pipeline
             string tileSetPath = outputPath + "tileset/";
             PathHelper.EnsureExists(tileSetPath);
 
+            string astroOutputPath = outputPath + "astro/";
+            PathHelper.EnsureExists(astroOutputPath);
+
             //get transforms
             pipeline.LogInfo("Populating frame cache");
             FrameCache frameCache = new FrameCache(pipeline, options.ProjectName);
@@ -293,6 +296,9 @@ namespace OPS.Pipeline
                     pipeline.LogError("Failed: couldn't generate texture coordinates for tile: {0}", leaf.Name);
                     return;
                 }
+
+                //convert mesh to astro
+                EmtToScene.ConvertMeshToYUp(leafMesh);
 
                 // save meshes
                 if (options.NoTextures)
@@ -455,6 +461,10 @@ namespace OPS.Pipeline
             builder.BuildTileset(node => node.Name + "." + options.MeshExtension, false);
             string jsonData = JsonConvert.SerializeObject(builder.Tileset, Formatting.None);
             File.WriteAllText(Path.Combine(tileSetPath, "tileset.json"), jsonData);
+
+            pipeline.LogInfo("Building legacy scene for astro");
+            var RASLRecords = imageObservations.Select(x => new EmtToScene.FileRecord(x.Url));
+            EmtToScene.CreateLegacyScene(RASLRecords, astroOutputPath);
 
             return 0;
         }
