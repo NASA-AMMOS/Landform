@@ -96,7 +96,7 @@ namespace OPS.Pipeline
         public int Ingest(MSLLocations locations, MSLPlaces places, MSLLegacyManifest manifest,
                           Action<IngestImage.Result> func = null)
         {
-            if (!places.CredentialsLoaded())
+            if (places != null && !places.CredentialsLoaded())
             {
                 pipeline.LogWarn("credentials for PlacesDB priors not available, disabling PlacesDB");
                 places = null;

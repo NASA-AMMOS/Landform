@@ -77,19 +77,6 @@ namespace OPS.Pipeline.MeshWorker
         {
             pointBounds = new BoundingBox();
            
-            //temporarily suppress mastcam point cloud data until validated
-            //https://github.jpl.nasa.gov/OnSight/Landform/issues/261
-            var opts = new Meshing.MeshObservationsOptions(null, onlyForCameras)
-                {
-                    AllowMastcam = allowMastcam,
-                    RequirePoints = true,
-                    RequireNormals = true,
-                    RequireTextures = false,
-                    RequirePriorTransform = usePriors,
-                    RequireAdjustedTransform = noPriors,
-                    TargetFrame = outputFrame
-                };
-
             //this is a bit tricky
             //sadly, we currently have "alignment" projects (type Project)
             //and "tiling" projects (type TilingProject)
@@ -104,8 +91,20 @@ namespace OPS.Pipeline.MeshWorker
             var project = Project.Find(pipeline, projectName);
             var mission = MissionSpecific.GetInstance(project != null ? project.Mission : Mission.MSL.ToString());
             var masker = mission.GetMasker();
-            var comparator = mission.GetRoverObservationComparator();
-            var observations = Meshing.CollectMeshObservations(frameCache, observationCache, comparator, opts);
+
+            //temporarily suppress mastcam point cloud data until validated
+            //https://github.jpl.nasa.gov/OnSight/Landform/issues/261
+            var opts = new Meshing.MeshObservationsOptions(null, onlyForCameras, mission)
+                {
+                    AllowMastcam = allowMastcam,
+                    RequirePoints = true,
+                    RequireNormals = true,
+                    RequireTextures = false,
+                    RequirePriorTransform = usePriors,
+                    RequireAdjustedTransform = noPriors,
+                    TargetFrame = outputFrame
+                };
+            var observations = Meshing.CollectMeshObservations(frameCache, observationCache, opts);
             if (observations.Count == 0)
             {
                 pipeline.LogError("no observations were found to build a point cloud");
