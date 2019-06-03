@@ -116,7 +116,7 @@ namespace OPS.Pipeline
             var articulation = GetParser(metadata).Parse();
             if (rover != null && articulation != null)
             {
-                var posedRover = rover.BuildMesh(articulation, !mission.IsHazcam(parser.Camera));
+                var posedRover = rover.BuildMesh(articulation, !mission.IsHazcam(mission.GetRoverProductCamera(parser.InstrumentId)));
                 
                 var sc = new SceneCaster();
                 sc.AddMesh(posedRover, null, Matrix.Identity);

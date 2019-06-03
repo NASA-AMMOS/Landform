@@ -92,115 +92,18 @@ namespace OPS.Pipeline
             }
         }
 
-        static public double GetFocalLengthMM(RoverProductCamera camera)
-        {
-            switch (camera)
-            {
-                case RoverProductCamera.NavcamLeft:
-                    return 14.67; //source SIS: https://pds-imaging.jpl.nasa.gov/data/msl/MSLNAV_0XXX/DOCUMENT/MSL_CAMERA_SIS_latest.PDF
-                case RoverProductCamera.NavcamRight:
-                    return 14.67; //source SIS: https://pds-imaging.jpl.nasa.gov/data/msl/MSLNAV_0XXX/DOCUMENT/MSL_CAMERA_SIS_latest.PDF
-                case RoverProductCamera.MastcamLeft:
-                    return 34.0; //https://www.lpi.usra.edu/meetings/lpsc2010/pdf/1123.pdf
-                case RoverProductCamera.MastcamRight:
-                    return 10.0; //https://www.lpi.usra.edu/meetings/lpsc2010/pdf/1123.pdf
-                default:
-                    throw new NotImplementedException("focal length for camera " + camera + " not added yet");
-            }
-        }
-        public double FocalLengthMM
-        {
-            get
-            {
-               return GetFocalLengthMM(Camera);
-            }
-        }
-
-        static public double GetSensorPixelSizeMM(RoverProductCamera camera)
-        {
-            switch (camera)
-            {
-                case RoverProductCamera.NavcamLeft:
-                    return 0.012; //source Maki, J.N., et al., Mars Exploration Rover Engineering Cameras, J. Geophys. Res., 108(E12), 8071, doi:10.1029/2003JE002077, 2003. (navcam uses same CCD)
-                case RoverProductCamera.NavcamRight:
-                    return 0.012; //source Maki, J.N., et al., Mars Exploration Rover Engineering Cameras, J. Geophys. Res., 108(E12), 8071, doi:10.1029/2003JE002077, 2003. (navcam uses same CCD)
-                case RoverProductCamera.MastcamLeft:
-                    return 0.0074; //calculated
-                case RoverProductCamera.MastcamRight:
-                    return 0.0074; //calculated
-                default:    
-                    throw new NotImplementedException("sensor pixel size for camera " + camera + " not added yet");
-            }
-        }
-        public double SensorPixelSizeMM
-        {
-            get
-            {
-                return GetSensorPixelSizeMM(Camera);
-            }
-        }
-
-        public RoverProductCamera Camera
+        public string InstrumentId
         {
             get
             {
                 if (metadata.HasKey("INSTRUMENT_ID"))
                 {
-                    string id = metadata.ReadAsString("INSTRUMENT_ID");
-                    if (id.StartsWith("FHAZ_LEFT"))
-                    {
-                        return RoverProductCamera.FrontHazcamLeft;
-                    }
-                    else if (id.StartsWith("FHAZ_RIGHT"))
-                    {
-                        return RoverProductCamera.FrontHazcamRight;
-                    }
-                    else if (id.StartsWith("RHAZ_LEFT"))
-                    {
-                        return RoverProductCamera.RearHazcamLeft;
-                    }
-                    else if (id.StartsWith("RHAZ_RIGHT"))
-                    {
-                        return RoverProductCamera.RearHazcamRight;
-                    }
-                    else if (id.StartsWith("NAV_LEFT"))
-                    {
-                        return RoverProductCamera.NavcamLeft;
-                    }
-                    else if (id.StartsWith("NAV_RIGHT"))
-                    {
-                        return RoverProductCamera.NavcamRight;
-                    }
-                    else if (id.StartsWith("NAVCAM_LEFT")) //fix for M2020 Thread Test 4
-                    {
-                        return RoverProductCamera.NavcamLeft;
-                    }
-                    else if (id.StartsWith("NAVCAM_RIGHT")) //fix for M2020 Thread Test 4
-                    {
-                        return RoverProductCamera.NavcamRight;
-                    }
-                    else if (id.StartsWith("MAST_LEFT"))
-                    {
-                        return RoverProductCamera.MastcamLeft;
-                    }
-                    else if (id.StartsWith("MAST_RIGHT"))
-                    {
-                        return RoverProductCamera.MastcamRight;
-                    }
-                    else if (id.StartsWith("MAHLI"))
-                    {
-                        return RoverProductCamera.MAHLI;
-                    }
-                    else if(id.StartsWith("MCZ_LEFT"))
-                    {
-                        return RoverProductCamera.MastcamZLeft;
-                    }
-                    else if (id.StartsWith("MCZ_RIGHT"))
-                    {
-                        return RoverProductCamera.MastcamZRight;
-                    }
+                    return metadata.ReadAsString("INSTRUMENT_ID");
                 }
-                return RoverProductCamera.Unknown;
+                else
+                {
+                    return string.Empty;
+                }
             }
         }
 
@@ -289,16 +192,7 @@ namespace OPS.Pipeline
                     //fallback to filename
                     return this.ProductId.ProductType;
                 }
-                else
-                { 
-                    //ISSUE: #550
-                    //fallback to instrument name and the incorrect hope there are no other products built with that camera
-                    RoverProductCamera inst = Camera;
-                    if(inst == RoverProductCamera.MastcamLeft || inst == RoverProductCamera.MastcamRight || inst == RoverProductCamera.MAHLI)
-                    {
-                        return RoverProductType.Image;
-                    }
-                }
+                
                 return RoverProductType.Unknown;
             }
         }
@@ -353,42 +247,6 @@ namespace OPS.Pipeline
                 return null;
             }
         }
-
-        // Mastcam only
-        public double? MaximumFocusDistance
-        {
-            get
-            {
-                if (metadata.HasKey("DERIVED_IMAGE_PARMS", "MSL:MAXIMUM_FOCUS_DISTANCE"))
-                {
-                    return metadata.ReadAsDouble("DERIVED_IMAGE_PARMS", "MSL:MAXIMUM_FOCUS_DISTANCE");
-                }
-                return null;
-            }
-        }
-
-        public double MinimumFocusDistance
-        {
-            get
-            {
-                if (metadata.ReadAsString("INSTRUMENT_HOST_ID") == "MSL")
-                {
-                    if (metadata.HasKey("DERIVED_IMAGE_PARMS", "MSL:MINIMUM_FOCUS_DISTANCE"))
-                    {
-                        double nearFocus = metadata.ReadAsDouble("DERIVED_IMAGE_PARMS", "MSL:MINIMUM_FOCUS_DISTANCE");
-                 
-                        if (Camera == RoverProductCamera.MAHLI)
-                        {
-                            nearFocus /= 1000.0; //mahli is in millimeters
-                        }
-
-                        return nearFocus;
-                    }
-                }
-                return 0;
-            }
-        }
-
 
         /// <summary>
         /// Rover to local level

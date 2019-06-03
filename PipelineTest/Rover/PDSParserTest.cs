@@ -24,14 +24,16 @@ namespace PipelineTest
                 Assert.AreEqual(1, m.FirstLine);
                 Assert.AreEqual(129, m.FirstSample);
                 Assert.AreEqual("0606ML0025550030301440E01_DRCX", m.ProductId.fullIdString);
-                Assert.AreEqual(RoverProductCamera.MastcamLeft, m.Camera);
+
+                var mission = MissionSpecific.GetInstance(Mission.MSL);
+                Assert.AreEqual(RoverProductCamera.MastcamLeft, mission.GetRoverProductCamera(m.InstrumentId));
                 Assert.AreEqual(RoverProductGeometry.Raw, m.GeometricProjection);
                 Assert.AreEqual(RoverProductSize.Regular, m.ImageSizeType);
                 Assert.AreEqual(RoverProductType.Image, m.DerivedImageType);
                 Assert.AreEqual(RoverProductProducer.MSSS, m.ProducingInstitution);
                 Assert.AreEqual(10.1, m.ExposureDuration);
                 Assert.AreEqual(0, m.FilterNumber);
-                Assert.AreEqual(2.9, m.MaximumFocusDistance);
+                Assert.AreEqual(2.9, mission.GetMaximumFocusDistance(md));
                 Assert.AreEqual(451292530.0000, m.SpacecraftClock);
                 Assert.AreEqual(new Quaternion(-0.0452929, 0.0026977, -0.9728553, 0.2269226), m.RoverOriginRotation);
                 Assert.AreEqual(new Vector3(-78.980461, -44.499561, 2.310069), m.OriginOffset);
@@ -70,7 +72,9 @@ namespace PipelineTest
                 Assert.AreEqual(1, m.FirstLine);
                 Assert.AreEqual(1, m.FirstSample);
                 Assert.AreEqual("NLB_451649560RNGLF0311330NCAM12813M1", m.ProductId.fullIdString);
-                Assert.AreEqual(RoverProductCamera.NavcamLeft, m.Camera);
+                var mission = MissionSpecific.GetInstance(Mission.MSL);
+                Assert.AreEqual(RoverProductCamera.NavcamLeft, mission.GetRoverProductCamera(m.InstrumentId));
+
                 Assert.AreEqual(RoverProductGeometry.Linearized, m.GeometricProjection);
                 Assert.AreEqual(RoverProductSize.Regular, m.ImageSizeType);
                 Assert.AreEqual(RoverProductType.Range, m.DerivedImageType);
@@ -116,7 +120,9 @@ namespace PipelineTest
                 Assert.AreEqual(385, m.FirstLine);
                 Assert.AreEqual(305, m.FirstSample);
                 Assert.AreEqual("0608ML0025660260301542E01_DRCX", m.ProductId.fullIdString);
-                Assert.AreEqual(RoverProductCamera.MastcamLeft, m.Camera);
+
+                var mission = MissionSpecific.GetInstance(Mission.MSL);
+                Assert.AreEqual(RoverProductCamera.MastcamLeft, mission.GetRoverProductCamera(m.InstrumentId));
                 Assert.AreEqual(RoverProductGeometry.Raw, m.GeometricProjection);
                 Assert.AreEqual(RoverProductSize.Regular, m.ImageSizeType);
                 Assert.AreEqual(RoverProductType.Image, m.DerivedImageType);

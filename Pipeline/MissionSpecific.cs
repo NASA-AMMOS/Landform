@@ -52,13 +52,13 @@ namespace OPS.Pipeline
             //because it may not always be necessary to compute a mask
             //the mask may not be needed
             //or it may already be provided by the mission as its own product
-
-            if (!UseHazcamForReconstruction() && IsHazcam(parser.Camera))
+            RoverProductCamera roverProdCam = GetRoverProductCamera(parser.InstrumentId);
+            if (!UseHazcamForReconstruction() && IsHazcam(roverProdCam))
             {
                 return false;
             }
 
-            if (!UseMastcamForReconstruction() && IsMastcam(parser.Camera))
+            if (!UseMastcamForReconstruction() && IsMastcam(roverProdCam))
             {
                 return false;
             }
@@ -351,7 +351,7 @@ namespace OPS.Pipeline
         /// </summary>
         public virtual bool CheckMetadata(PDSParser parser)
         {
-            if (parser.Camera == RoverProductCamera.Unknown)
+            if (GetRoverProductCamera(parser.InstrumentId)== RoverProductCamera.Unknown)
             {
                 return false;
             }
@@ -403,6 +403,13 @@ namespace OPS.Pipeline
         /// <summary>
         /// whether to allow priors from MSLLocations
         /// </summary>
+        public abstract RoverProductCamera GetRoverProductCamera(string instrumentId);
+        public abstract double GetSensorPixelSizeMM(RoverProductCamera camera);
+        public abstract double GetFocalLengthMM(RoverProductCamera camera);
+
+        public abstract double GetMinimumFocusDistance(PDSMetadata metadata);
+        public abstract double? GetMaximumFocusDistance(PDSMetadata metadata);
+
         public virtual bool AllowLocationsDB()
         {
             return false;
@@ -438,17 +445,39 @@ namespace OPS.Pipeline
                 return false;
             }
 
+            RoverProductCamera roverProdCam = GetRoverProductCamera(parser.InstrumentId);
             // Low exposure hazcams
             if (parser.DerivedImageType == RoverProductType.Image)
             {
-                if (IsHazcam(parser.Camera) &&
+                if (IsHazcam(roverProdCam) &&
                     parser.ExposureDuration != 0 && parser.ExposureDuration < MIN_NAV_HAZ_EXPOSURE)
                 {
                     return false;
                 }
             }
 
-            if (IsMastcam(parser.Camera))
+            //we used to try to check here that the parser could supply rover articulation, and if not return false
+            //articulation is needed for mask computation
+            //however, I think the check was bogus, it was always returning true
+            //even if the parser could not supply the data
+            //
+            //and I don't think it's really appropriate to force the parser to have the articulation data
+            //because it may not always be necessary to compute a mask
+            //the mask may not be needed
+            //or it may already be provided by the mission as its own product
+
+            if (IsHazcam(roverProdCam))
+            {
+                return false;
+            }
+
+            // Only use single and 3 band images
+            if (parser.metadata.Bands != 3 && parser.metadata.Bands != 1)
+            {
+                return false;
+            }
+
+            if (IsMastcam(roverProdCam))
             {
                 // Skip mastcam taken with color filters
                 try
@@ -465,13 +494,14 @@ namespace OPS.Pipeline
 
                 // Skip mastcam with short focal distances
                 // (probably closeup of rover part with terrain out of focus in background)
-                if (parser.MaximumFocusDistance.HasValue && parser.MaximumFocusDistance < MIN_MASTCAM_FOCUS_CUTOFF)
+                double? maxFocusDistance = GetMaximumFocusDistance(parser.metadata as PDSMetadata);
+                if (maxFocusDistance.HasValue && maxFocusDistance < MIN_MASTCAM_FOCUS_CUTOFF)
                 {
                     return false;
                 }
             }
 
-            if (IsNavcam(parser.Camera) && parser.IsDownsampled)
+            if (IsNavcam(roverProdCam) && parser.IsDownsampled)
             {
                 return false;
             }
@@ -489,6 +519,48 @@ namespace OPS.Pipeline
             return new MSLRoverMasker(this);
         }
 
+        public override RoverProductCamera GetRoverProductCamera(string instrumentId)
+        {
+            if (instrumentId.StartsWith("FHAZ_LEFT"))
+            {
+                return RoverProductCamera.FrontHazcamLeft;
+            }
+            else if (instrumentId.StartsWith("FHAZ_RIGHT"))
+            {
+                return RoverProductCamera.FrontHazcamRight;
+            }
+            else if (instrumentId.StartsWith("RHAZ_LEFT"))
+            {
+                return RoverProductCamera.RearHazcamLeft;
+            }
+            else if (instrumentId.StartsWith("RHAZ_RIGHT"))
+            {
+                return RoverProductCamera.RearHazcamRight;
+            }
+            else if (instrumentId.StartsWith("NAV_LEFT"))
+            {
+                return RoverProductCamera.NavcamLeft;
+            }
+            else if (instrumentId.StartsWith("NAV_RIGHT"))
+            {
+                return RoverProductCamera.NavcamRight;
+            }
+            else if (instrumentId.StartsWith("MAST_LEFT"))
+            {
+                return RoverProductCamera.MastcamLeft;
+            }
+            else if (instrumentId.StartsWith("MAST_RIGHT"))
+            {
+                return RoverProductCamera.MastcamRight;
+            }
+            else if (instrumentId.StartsWith("MAHLI"))
+            {
+                return RoverProductCamera.MAHLI;
+            }
+            
+            return RoverProductCamera.Unknown;
+        }
+
         public override bool AllowLocationsDB()
         {
             return true;
@@ -497,6 +569,74 @@ namespace OPS.Pipeline
         public override bool AllowLegacyManifestDB()
         {
             return true;
+        }
+
+        public override double GetFocalLengthMM(RoverProductCamera camera)
+        {
+            switch (camera)
+            {
+                case RoverProductCamera.NavcamLeft:
+                    return 14.67; //source SIS: https://pds-imaging.jpl.nasa.gov/data/msl/MSLNAV_0XXX/DOCUMENT/MSL_CAMERA_SIS_latest.PDF
+                case RoverProductCamera.NavcamRight:
+                    return 14.67; //source SIS: https://pds-imaging.jpl.nasa.gov/data/msl/MSLNAV_0XXX/DOCUMENT/MSL_CAMERA_SIS_latest.PDF
+                case RoverProductCamera.MastcamLeft:
+                    return 34.0; //https://www.lpi.usra.edu/meetings/lpsc2010/pdf/1123.pdf
+                case RoverProductCamera.MastcamRight:
+                    return 10.0; //https://www.lpi.usra.edu/meetings/lpsc2010/pdf/1123.pdf
+                default:
+                    throw new NotImplementedException("focal length for camera " + camera + " not added yet");
+            }
+        }
+      
+        public override double GetSensorPixelSizeMM(RoverProductCamera camera)
+        {
+            switch (camera)
+            {
+                case RoverProductCamera.NavcamLeft:
+                    return 0.012; //source Maki, J.N., et al., Mars Exploration Rover Engineering Cameras, J. Geophys. Res., 108(E12), 8071, doi:10.1029/2003JE002077, 2003. (navcam uses same CCD)
+                case RoverProductCamera.NavcamRight:
+                    return 0.012; //source Maki, J.N., et al., Mars Exploration Rover Engineering Cameras, J. Geophys. Res., 108(E12), 8071, doi:10.1029/2003JE002077, 2003. (navcam uses same CCD)
+                case RoverProductCamera.MastcamLeft:
+                    return 0.0074; //calculated
+                case RoverProductCamera.MastcamRight:
+                    return 0.0074; //calculated
+                default:
+                    throw new NotImplementedException("sensor pixel size for camera " + camera + " not added yet");
+            }
+        }
+
+        // Mastcam only
+        public override double? GetMaximumFocusDistance(PDSMetadata metadata)
+        {            
+            if (metadata.HasKey("DERIVED_IMAGE_PARMS", "MSL:MAXIMUM_FOCUS_DISTANCE"))
+            {
+                return metadata.ReadAsDouble("DERIVED_IMAGE_PARMS", "MSL:MAXIMUM_FOCUS_DISTANCE");
+            }
+            return null;
+        }
+
+        public override double GetMinimumFocusDistance(PDSMetadata metadata)
+        {          
+            if (metadata.ReadAsString("INSTRUMENT_HOST_ID") == "MSL")
+            {
+                if (metadata.HasKey("DERIVED_IMAGE_PARMS", "MSL:MINIMUM_FOCUS_DISTANCE"))
+                {
+                    double nearFocus = metadata.ReadAsDouble("DERIVED_IMAGE_PARMS", "MSL:MINIMUM_FOCUS_DISTANCE");
+
+                    if (metadata.HasKey("INSTRUMENT_ID"))
+                    {
+                        string instrumentId = metadata.ReadAsString("INSTRUMENT_ID");
+
+                        if (instrumentId.StartsWith("MAHLI"))
+                        {
+                            nearFocus /= 1000.0; //mahli is in millimeters
+                        }
+                    }
+
+                    return nearFocus;
+                }
+            }
+            return 0;
         }
     }
 
@@ -519,6 +659,39 @@ namespace OPS.Pipeline
         {
             return base.IsMastcam(camera) ||
                 camera == RoverProductCamera.MastcamZLeft || camera == RoverProductCamera.MastcamZRight;
+        }
+
+        public override bool UseForReconstruction(PDSParser parser)
+        {
+            // Partial downloads
+            if (parser.IsPartial)
+            {
+                return false;
+            }
+
+            //we used to try to check here that the parser could supply rover articulation, and if not return false
+            //articulation is needed for mask computation
+            //however, I think the check was bogus, it was always returning true
+            //even if the parser could not supply the data
+            //
+            //and I don't think it's really appropriate to force the parser to have the articulation data
+            //because it may not always be necessary to compute a mask
+            //the mask may not be needed
+            //or it may already be provided by the mission as its own product
+
+            RoverProductCamera roverProdCam = GetRoverProductCamera(parser.InstrumentId);
+            if (IsHazcam(roverProdCam))
+            {
+                return false;
+            }
+
+            // Only use single and 3 band images
+            if (parser.metadata.Bands != 3 && parser.metadata.Bands != 1)
+            {
+                return false;
+            }
+            
+            return true;
         }
 
         // ROASTT: some images have invalid PLANET_DAY_NUMBER
@@ -549,6 +722,62 @@ namespace OPS.Pipeline
                 default: return cam;
             }
         }
+
+        public override RoverProductCamera GetRoverProductCamera(string instrumentId)
+        {
+            if (instrumentId.StartsWith("FHAZ_LEFT"))
+            {
+                return RoverProductCamera.FrontHazcamLeft;
+            }
+            else if (instrumentId.StartsWith("FHAZ_RIGHT"))
+            {
+                return RoverProductCamera.FrontHazcamRight;
+            }
+            else if (instrumentId.StartsWith("RHAZ_LEFT"))
+            {
+                return RoverProductCamera.RearHazcamLeft;
+            }
+            else if (instrumentId.StartsWith("RHAZ_RIGHT"))
+            {
+                return RoverProductCamera.RearHazcamRight;
+            }
+            else if (instrumentId.StartsWith("NAVCAM_LEFT"))
+            {
+                return RoverProductCamera.NavcamLeft;
+            }
+            else if (instrumentId.StartsWith("NAVCAM_RIGHT"))
+            {
+                return RoverProductCamera.NavcamRight;
+            }
+            else if (instrumentId.StartsWith("MAST_LEFT"))
+            {
+                return RoverProductCamera.MastcamLeft;
+            }
+            else if (instrumentId.StartsWith("MAST_RIGHT"))
+            {
+                return RoverProductCamera.MastcamRight;
+            }
+            else if (instrumentId.StartsWith("MAHLI"))
+            {
+                return RoverProductCamera.MAHLI;
+            }
+            else if (instrumentId.StartsWith("MCZ_LEFT"))
+            {
+                return RoverProductCamera.MastcamZLeft;
+            }
+            else if (instrumentId.StartsWith("MCZ_RIGHT"))
+            {
+                return RoverProductCamera.MastcamZRight;
+            }
+
+            return RoverProductCamera.Unknown;
+        }
+
+        public override double GetFocalLengthMM(RoverProductCamera rovProdCam) { throw new NotImplementedException("focal lengths not implemented for 2020 instruments yet"); }
+        public override double GetSensorPixelSizeMM(RoverProductCamera camera) { throw new NotImplementedException("sensor pixels size not implemented for 2020 instruments yet"); }
+
+        public override double? GetMaximumFocusDistance(PDSMetadata metadata) { throw new NotImplementedException("max focus distance not implemented for 2020 instruments yet"); }
+        public override double GetMinimumFocusDistance(PDSMetadata metadata) { throw new NotImplementedException("min focus distance not implemented for 2020 instruments yet"); }
 
         public override bool AllowPlacesDB()
         {
