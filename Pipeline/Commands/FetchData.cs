@@ -230,10 +230,10 @@ namespace OPS.Pipeline
                     new SiteDrive(v);
                     results.Add(v);
                 }
-                catch (ArgumentException e)
+                catch (ArgumentException)
                 {
                     logger.Error("Invalid site drive argument");
-                    throw e;
+                    throw;
                 }
             }
             return results;
