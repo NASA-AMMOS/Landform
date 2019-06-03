@@ -123,6 +123,9 @@ namespace OPS.Pipeline
         [Option(HelpText = "Recompute existing feature matches", Default = false)]
         public bool RedoMatches { get; set; }
 
+        [Option(HelpText = "Redo everything", Default = false)]
+        public bool Redo { get; set; }
+
         [Option(HelpText = "Search radius for feature matching in meters", Default = 1)]
         public double MatchRadius { get; set; }
 
@@ -274,6 +277,14 @@ namespace OPS.Pipeline
         public LocalBEVAligner(LocalBEVAlignerOptions options)
         {
             this.options = options;
+
+            if (options.Redo)
+            {
+                options.RedoBEVs = true;
+                options.RedoFeatures = true;
+                options.RedoMatches = true;
+            }
+
             if (options.Cloud)
             {
                 this.pipeline = new CloudPipeline(options, initQueues: false);
@@ -323,7 +334,7 @@ namespace OPS.Pipeline
             observationCache = new ObservationCache(pipeline, options.ProjectName);
             observationCache.Preload();
 
-            var opts = new Meshing.MeshObservationsOptions(options.OnlyForSiteDrives, options.OnlyForCameras)
+            var opts = new Meshing.MeshObservationsOptions(options.OnlyForSiteDrives, options.OnlyForCameras, mission)
             {
                 AllowMastcam = false,
                 RequirePoints = true,
@@ -332,8 +343,7 @@ namespace OPS.Pipeline
                 RequirePriorTransform = true,
                 TargetFrame = "root"
             };
-            var comparator = mission.GetRoverObservationComparator();
-            observations = Meshing.CollectMeshObservations(frameCache, observationCache, comparator, opts);
+            observations = Meshing.CollectMeshObservations(frameCache, observationCache, opts);
 
             //for now lexicographically sort siteDrives so that older ones come before newer
             //just to give a canonical order

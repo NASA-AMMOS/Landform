@@ -286,7 +286,7 @@ namespace OPS.Pipeline
             var observationCache = new ObservationCache(pipeline, options.ProjectName);
             observationCache.Preload();
 
-            var opts = new Meshing.MeshObservationsOptions(options.OnlyForSiteDrives, options.OnlyForCameras)
+            var opts = new Meshing.MeshObservationsOptions(options.OnlyForSiteDrives, options.OnlyForCameras, mission)
                 {
                     AllowMastcam = !options.NoMastcam,
                     RequirePoints = false,
@@ -296,9 +296,8 @@ namespace OPS.Pipeline
                     RequireAdjustedTransform = options.OnlyAligned,
                     TargetFrame = options.OutputFrame
                 }; 
-            var comparator = mission.GetRoverObservationComparator();
             var observations =
-                Meshing.CollectMeshObservations(frameCache, observationCache, comparator, opts)
+                Meshing.CollectMeshObservations(frameCache, observationCache, opts)
                 .Where(obs => !obs.Empty)
                 .OrderBy(obs => obs.FrameName)
                 .OrderBy(obs => obs.Day)

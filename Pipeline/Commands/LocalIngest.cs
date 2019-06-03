@@ -47,6 +47,9 @@ namespace OPS.Pipeline
         [Option(HelpText = "Recreate transform priors that already exist", Default = false)]
         public bool RedoPriors { get; set; }
 
+        [Option(HelpText = "Redo everything", Default = false)]
+        public bool Redo { get; set; }
+
         [Option(HelpText = "Hide progress", Default = false)]
         public bool NoProgress { get; set; }
 
@@ -68,6 +71,14 @@ namespace OPS.Pipeline
         public LocalIngest(LocalIngestOptions options)
         {
             this.options = options;
+
+            if (options.Redo)
+            {
+                options.RedoProject = true;
+                options.RedoObservations = true;
+                options.RedoPriors = true;
+            }
+
             if (options.Cloud)
             {
                 this.pipeline = new CloudPipeline(options, initQueues: false);
