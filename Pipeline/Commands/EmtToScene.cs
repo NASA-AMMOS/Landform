@@ -44,12 +44,18 @@ namespace OPS.Pipeline
         [Option(Required = false, Default = null, HelpText = "If set, this file can be used to filter what products IDs should be used.  Each line should contain a product ID to exclude, all others will be included")]
         public string MeshExclude { get; set; }
 
+        [Option(Required = false, Default = null, HelpText = "If set, this file can be used to filter what products IDs should be used.  Each line should contain a product ID to include, all others will be excluded")]
+        public string ImageInclude { get; set; }
+
+        [Option(Required = false, Default = null, HelpText = "If set, this file can be used to filter what products IDs should be used.  Each line should contain a product ID to exclude, all others will be included")]
+        public string ImageExclude { get; set; }
+
         [Option(Required = false, Default = null, HelpText = "Should mastcam meshes be used")]
         public bool MeshMastcam { get; set; }
 
         [Option(Required = false, Default = null, HelpText = "Should hazcam meshes be used")]
         public bool MeshHazcam{ get; set; }
-
+        
         [Option(Required = false, Default = 16, HelpText = "Control the number of concurrent downloads")]
         public int ConcurrentDownloads { get; set; }
 
@@ -560,6 +566,18 @@ namespace OPS.Pipeline
             HashSet<string> raslRecords = new HashSet<string>(imageRecords.Where(rec => rec.RASL).Select(rec => rec.FilenameBase));
             imageRecords = imageRecords.Where(rec => rec.RASL || (rec.RAS && !raslRecords.Contains(rec.RASLBaseName)));
             logger.Info("Images after linear filter: " + imageRecords.Count());
+            if (options.ImageInclude != null)
+            {
+                var productIds = ReadFilterFile(options.ImageInclude);
+                imageRecords = imageRecords.Where(rec => productIds.Contains(rec.FilenameBase));
+                logger.Info("Filtered images down to: " + imageRecords.Count());
+            }
+            if (options.ImageExclude != null)
+            {
+                var productIds = ReadFilterFile(options.ImageExclude);
+                imageRecords = imageRecords.Where(rec => !productIds.Contains(rec.FilenameBase));
+                logger.Info("Filtered images down to: " + imageRecords.Count());
+            }
             var meshRecords = fileRecords.Where(rec => rec.RASL && rec.HasMesh && rec.IsLeft && rec.HasImage && rec.HasMetadata && (rec.Nav || (options.MeshMastcam && rec.Mast) || (options.MeshHazcam && rec.Haz)));
             if (options.MeshInclude != null)
             {
@@ -581,6 +599,18 @@ namespace OPS.Pipeline
 
             var downloadedRASLRecords = DownloadAndConvertToLocal(imageRecords, downloadDirectory, imagesOnly: true);
             var downloadedMeshRecords = DownloadAndConvertToLocal(meshRecords, downloadDirectory);
+
+            foreach(var mr in downloadedMeshRecords)
+            {
+                var parser = new PDSParser(new PDSMetadata(mr.PreferedMetadataImage));
+                var sd = parser.SiteDrive;
+                string folder = Path.Combine(downloadDirectory, sd.ToString());
+                PathHelper.EnsureExists(folder);
+                File.Copy(mr.PreferedMesh, PathHelper.ChangeDirectory(mr.PreferedMesh, folder));
+                File.Copy(mr.PreferedImage, PathHelper.ChangeDirectory(mr.PreferedImage, folder));
+                File.Copy(mr.MTL, PathHelper.ChangeDirectory(mr.MTL, folder));
+            }
+
 
             logger.Info("Creating legacy scene");
             CreateLegacyScene(downloadedRASLRecords, options.WorkingDir);

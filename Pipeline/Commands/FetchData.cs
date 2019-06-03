@@ -32,7 +32,13 @@ namespace OPS.Pipeline
         
         [Value(2, Required = false, HelpText = "RDR search locations with sol replaced with ##### (ie s3://m20-roastt-staging/ocs/test/sol/#####/ids/rdr/")]
         public IEnumerable<string> SearchLocations { get; set; } = null;
-        
+
+        [Option(Required = false, Default = null, HelpText = "A set of comma delimited site drives to filter by `0000100000,0003101330`")]
+        public string SiteDrives { get; set; }
+
+        [Option(Required = false, Default = null, HelpText = "")]
+        public string Include { get; set; }
+
         [Option(Required = true, HelpText = "")]
         public string InputAWSProfile { get; set; }
 
@@ -44,11 +50,18 @@ namespace OPS.Pipeline
 
         [Option(Required = false, Default = false, HelpText = "Overwrite existing files")]
         public bool Overwrite { get; set; }
+
+        [Option(HelpText = "Mission flag enables mission specific behavior", Default = Mission.M2020)]
+        public Mission Mission { get; set; }
+
+        [Option(HelpText = "Disable filtering by mission-specific filename cretieria", Default = false)]
+        public bool DisableMissionSpecificFilenameFilter { get; set; }
     }
 
     public class FetchData
     {
-        FetchDataOptions options;
+        private FetchDataOptions options;
+        private MissionSpecific mission;
 
         private static readonly ILog logger = LogManager.GetLogger(typeof(FetchDataOptions));
 
@@ -68,6 +81,7 @@ namespace OPS.Pipeline
             {
                 options.SearchLocations = defaultSearchLocations;
             }
+            mission = MissionSpecific.GetInstance(options.Mission);
         }
 
         string LocalPath(string s3Location)
@@ -79,24 +93,36 @@ namespace OPS.Pipeline
 
         void DownloadFile(string s3Location)
         {
-            var localPath = LocalPath(s3Location);
-            if (options.Overwrite || !File.Exists(localPath))
+            var localPath = LocalPath(s3Location);    
+            PathHelper.EnsureExists(Path.GetDirectoryName(localPath));
+            TemporaryFile.GetAndMove(localPath, f =>
             {
-                PathHelper.EnsureExists(Path.GetDirectoryName(localPath));
-                TemporaryFile.GetAndMove(localPath, f =>
+                bool success = false;
+                int retryCounter = 0;
+                while (!success && retryCounter < 3)
                 {
+                    if (retryCounter > 0)
+                    {
+                        logger.Info("\tRetrying: " + Path.GetFileName(s3Location));
+                    }
+                    retryCounter++;
                     try
                     {
                         var inputStorageHelper = new StorageHelper(options.InputAWSProfile, options.InputAWSRegion);
-                        inputStorageHelper.DownloadFile(s3Location, f);
+                        success = inputStorageHelper.DownloadFile(s3Location, f);
                     }
                     catch (Exception e)
                     {
                         logger.Info("\tError downloading: " + Path.GetFileName(s3Location));
                         logger.Info("\t" + e.Message);
                     }
-                });
-            }
+                    if (!success)
+                    {
+                        logger.Info("\tError downloading: " + Path.GetFileName(s3Location));
+                    }
+                }
+            });
+
         }
 
         public IEnumerable<string> IndexFiles(string searchDir)
@@ -147,19 +173,70 @@ namespace OPS.Pipeline
         }
 
 
+
         List<string> Filter(List<string> products)
         {
-            List<string> result = new List<string>(); 
-            foreach(var p in products)
+            List<string> result = new List<string>();
+            var acceptedSiteDrives = GetSiteDriveFilters();
+            var acceptedProductIds = ProductIDFilter();
+            foreach (var p in products)
             {
                 string filename = Path.GetFileNameWithoutExtension(p);
                 string ext = Path.GetExtension(p).ToUpper();
-                if(extensions.Contains(ext) && IngestPDSImage.CheckFilename(filename, false))
+                string sd = IngestPDSImage.FilenameToSiteDrive(filename);
+                bool sdOkay = acceptedSiteDrives == null || acceptedSiteDrives.Contains(sd);
+                bool pidOkay = acceptedProductIds == null || acceptedProductIds.Contains(filename);
+                if (extensions.Contains(ext) &&
+                   (options.DisableMissionSpecificFilenameFilter || mission.CheckFilename(filename))
+                    && sdOkay && pidOkay)
                 {
                     result.Add(p);
                 }
             }
             return result;
+        }
+
+        public bool ShouldDownload(string s3Location)
+        {
+            if (options.Overwrite == true)
+            {
+                return true;
+            }
+            var inputStorageHelper = new StorageHelper(options.InputAWSProfile, options.InputAWSRegion);
+            var localPath = LocalPath(s3Location);
+            return !inputStorageHelper.FileSizeMatches(s3Location, localPath);
+        }
+
+        HashSet<string> ProductIDFilter()
+        {
+            if(options.Include == null)
+            {
+                return null;
+            }
+            return new HashSet<string>(File.ReadAllLines(options.Include).Where(s => !string.IsNullOrEmpty(s.Trim())).Select(s => Path.GetFileNameWithoutExtension(s)));
+        }
+
+        HashSet<string> GetSiteDriveFilters()
+        {
+            if(options.SiteDrives == null)
+            {
+                return null;
+            }
+            var results = new HashSet<string>();
+            foreach (var v in options.SiteDrives.Trim().Split(','))
+            {
+                try
+                {
+                    new SiteDrive(v);
+                    results.Add(v);
+                }
+                catch (ArgumentException)
+                {
+                    logger.Error("Invalid site drive argument");
+                    throw;
+                }
+            }
+            return results;
         }
 
         public int Run()
@@ -184,12 +261,23 @@ namespace OPS.Pipeline
             {
                 solToProducts[sol] = Filter(solToProducts[sol]);
             }
+            var po = new ParallelOptions() { MaxDegreeOfParallelism = options.ConcurrentDownloads };
             var totalFilesToDownload = solToProducts.SelectMany(s => s.Value);
-            var remainingFilesToDownload =
-                options.Overwrite ? totalFilesToDownload : totalFilesToDownload.Where(s => !File.Exists(LocalPath(s)));
+            var remainingFilesToDownload = totalFilesToDownload;
+            if(!options.Overwrite)
+            {
+                ConcurrentBag<string> toDownload = new ConcurrentBag<string>();
+                CoreLimitedParallel.ForEach(totalFilesToDownload, po, f =>
+                {
+                    if(ShouldDownload(f))
+                    {
+                        toDownload.Add(f);
+                    }
+                });
+                remainingFilesToDownload = toDownload.ToList();
+            }
             logger.Info("Found " + (totalFilesToDownload.Count() - remainingFilesToDownload.Count()) + " on disk");
             logger.Info("Downloading " + remainingFilesToDownload.Count() + " files");
-            var po = new ParallelOptions() { MaxDegreeOfParallelism = options.ConcurrentDownloads };
             int downloaded = 0;
             int total = remainingFilesToDownload.Count();
             CoreLimitedParallel.ForEach(remainingFilesToDownload, po, f =>

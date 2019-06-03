@@ -82,7 +82,7 @@ namespace OPS.Cloud
                 catch (AmazonS3Exception e)
                 {
                     // We have read off the end of the stream
-                    if(e.ErrorCode == "InvalidRange" && range.Start != 0)
+                    if (e.ErrorCode == "InvalidRange" && range.Start != 0)
                     {
                         responseHandler(null);
                         return 0;
@@ -103,12 +103,12 @@ namespace OPS.Cloud
                 long responseLength = GetObjectResponse(new ByteRange(position, end), response =>
                 {
                     bytesInBuffer = 0;
-                    if(response == null)
+                    if (response == null)
                     {
                         return;
                     }
                     using (var stream = response.ResponseStream)
-                    {                        
+                    {
                         int bytesRead;
                         do
                         {
@@ -171,16 +171,16 @@ namespace OPS.Cloud
             }
 
 
- 
+
             public override int Read(byte[] output, int offset, int count)
             {
                 // Stop reading if we reach count or the end of the file
                 int totalRead = 0;
                 if (count > 0)
-                {                  
+                {
                     if ((position - positionAtBufferRefill) == bytesInBuffer)
                     {
-                        if(RefillBuffer() == 0)
+                        if (RefillBuffer() == 0)
                         {
                             return 0;
                         }
@@ -306,7 +306,7 @@ namespace OPS.Cloud
             if (!bucketToRegion.ContainsKey(location.BucketName))
             {
                 bucketToRegion.TryAdd(location.BucketName, GetRegion(location.BucketName));
-            }           
+            }
             return GetClient(bucketToRegion[location.BucketName]);
         }
 
@@ -407,13 +407,66 @@ namespace OPS.Cloud
             }
         }
 
+        public long GetFileSize(AmazonS3Client client, S3Url location)
+        {           
+            return GetObjectMetadata(client, location).Headers.ContentLength;
+        }
+
+        GetObjectMetadataResponse GetObjectMetadata(AmazonS3Client client, S3Url location)
+        {
+            var getObjectMetadataRequest = new GetObjectMetadataRequest() { BucketName = location.BucketName, Key = location.Prefix };
+            var meta = client.GetObjectMetadata(getObjectMetadataRequest);
+            return meta;
+        }
+
+        public bool FileSizeMatches(string s3url, string localfile)
+        {
+            if (!File.Exists(localfile))
+            {
+                return false;
+            }
+            bool result = false;
+            using (var client = GetClient(s3url))
+            {
+                result = FileSizeMatches(client, new S3Url(s3url), localfile);
+            }
+            return result;
+        }
+
+        /// <summary>
+        /// Checks to see if the cloud file size matches the one on disk
+        /// In the future this could be extended to include a timestamp check,
+        /// but we would need to manually set the last modified time on local files
+        /// to match the last modified cloud time whenever we download a file for this to work
+        /// </summary>
+        /// <param name="client"></param>
+        /// <param name="location"></param>
+        /// <param name="localfile"></param>
+        /// <returns></returns>
+        public bool FileSizeMatches(AmazonS3Client client, S3Url location, string localfile)
+        {
+            if(!File.Exists(localfile))
+            {
+                return false;
+            }
+            var cloudMeta = GetObjectMetadata(client, location);
+            var localInfo = new FileInfo(localfile);
+            long cloudSize = cloudMeta.Headers.ContentLength;
+            //DateTime cloudTimestamp = cloudMeta.LastModified;
+            long localSize = localInfo.Length;
+            //DateTime localMod = localInfo.CreationTime;
+            return cloudSize == localSize;
+        }
+
         /// <summary>
         /// Download a file and save it to local disk
         /// </summary>
         /// <param name="s3url"></param>
         /// <param name="filename"></param>
-        public void DownloadFile(string s3url, string filename)
+        public bool DownloadFile(string s3url, string filename)
         {
+            long expectedSize = -1;
+            long downloadedSize = 0;
             using (var client = GetClient(s3url))
             {
                 S3Url location = new S3Url(s3url);
@@ -421,7 +474,10 @@ namespace OPS.Cloud
                 {
                     tu.Download(filename, location.BucketName, location.Prefix);
                 }
+                expectedSize = GetFileSize(client, location);
+                downloadedSize = new FileInfo(filename).Length;
             }
+            return expectedSize == downloadedSize;
         }
 
         /// <summary>

@@ -24,7 +24,7 @@ namespace OPS.Pipeline
 
         //negative to use a time-dependent random seed
         [ConfigEnvironmentVariable("LANDFORM_RANDOM_SEED")]
-        public int RandomSeed;
+        public int RandomSeed = -1; //default to -1 not 0
 
         protected override string ConfigFilename()
         {

@@ -46,6 +46,10 @@ namespace OPS.Pipeline.AlignmentServer
 
         public string CameraModel;
 
+        //it might be nice to have this field which would be a RoverProductGeometry string (e.g. Linarized, Raw)
+        //but that would introduce a redundancy with CameraModel.Linear, so avoiding for now
+        //public string Geometry;
+
         public bool UseForReconstruction;
 
         public int Width;
@@ -71,6 +75,28 @@ namespace OPS.Pipeline.AlignmentServer
             {
                 throw new Exception("Missing required property in Observation");
             }
+        }
+
+        private static Dictionary<RoverProductType, ObservationType> productTypeMap =
+            new Dictionary<RoverProductType, ObservationType>();
+
+        static Observation()
+        {
+            productTypeMap[RoverProductType.Image] = OPS.Pipeline.AlignmentServer.ObservationType.Image;
+            productTypeMap[RoverProductType.Range] = OPS.Pipeline.AlignmentServer.ObservationType.Range;
+            productTypeMap[RoverProductType.XYZ] = OPS.Pipeline.AlignmentServer.ObservationType.Points;
+            productTypeMap[RoverProductType.NormalMap] = OPS.Pipeline.AlignmentServer.ObservationType.Normals;
+            productTypeMap[RoverProductType.RoverMask] = OPS.Pipeline.AlignmentServer.ObservationType.RoverMask;
+        }
+
+        public static ObservationType ProductTypeToObservationType(RoverProductType productType)
+        {
+            return productTypeMap[productType];
+        }
+
+        public static bool AllowedProductType(RoverProductType productType)
+        {
+            return productTypeMap.ContainsKey(productType);
         }
 
         //This constructor must be public for DynamoDb but should not be used
@@ -167,6 +193,21 @@ namespace OPS.Pipeline.AlignmentServer
         public bool IsLinear()
         {
             return ((CameraModel)JsonHelper.FromJson(CameraModel)).Linear;
+        }
+
+        public bool CheckLinear(bool linear)
+        {
+            return linear == IsLinear();
+        }
+
+        public bool CheckLinear(RoverProductGeometry geometry)
+        {
+            switch (geometry)
+            {
+                case RoverProductGeometry.Linearized: return IsLinear();
+                case RoverProductGeometry.Raw: return !IsLinear();
+                default: return false;
+            }
         }
 
         public virtual string ToString(bool brief)

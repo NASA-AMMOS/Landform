@@ -114,7 +114,9 @@ namespace OPS.Pipeline
     {
         protected static Dictionary<string, RoverProductType> prodToType;
         protected string prodType = null,
-                         geometry = null;
+                         geometry = null,
+                         site = null,
+                         drive = null;
 
 
         static OPGSProductId()
@@ -159,6 +161,14 @@ namespace OPS.Pipeline
         {
             get { return RoverProductSize.Unknown; }
         }
+
+        public SiteDrive SiteDrive
+        {
+            get
+            {
+                return new SiteDrive(int.Parse(site), int.Parse(drive));
+            }
+        }
     }
 
     public class M2020OPGSProductId : OPGSProductId
@@ -171,8 +181,6 @@ namespace OPS.Pipeline
                  ts1 = null,
                  ts2 = null,
                  thumb = null,
-                 site = null,
-                 drive = null,
                  sequence = null,
                  camspec = null,
                  downsample = null,
@@ -268,8 +276,6 @@ namespace OPS.Pipeline
                          spec = null,
                          sclk = null,
                          samp = null,
-                         site = null,
-                         drive = null,
                          seqnum = null,
                          venue = null;
                 
