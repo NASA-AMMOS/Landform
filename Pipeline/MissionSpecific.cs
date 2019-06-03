@@ -221,8 +221,8 @@ namespace OPS.Pipeline
 
                 // Skip mastcam with short focal distances
                 // (probably closeup of rover part with terrain out of focus in background)
-                if (GetMaximumFocusDistance(parser.metadata as PDSMetadata).HasValue &&
-                    GetMaximumFocusDistance(parser.metadata as PDSMetadata) < MIN_MASTCAM_FOCUS_CUTOFF)
+                double? maxFocusDistance = GetMaximumFocusDistance(parser.metadata as PDSMetadata);
+                if (maxFocusDistance.HasValue && maxFocusDistance < MIN_MASTCAM_FOCUS_CUTOFF)
                 {
                     return false;
                 }

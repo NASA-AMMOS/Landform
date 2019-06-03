@@ -164,7 +164,7 @@ namespace OPS.Pipeline
                     return new Result(imgUrl, Status.Skipped);
                 }
 
-                RoverProductCamera roverProdCam = MissionSpecific.GetInstance(project.Mission).GetRoverProductCamera(parser.InstrumentId);
+                RoverProductCamera roverProdCam = misson.GetRoverProductCamera(parser.InstrumentId);
                 if (roverProdCam == RoverProductCamera.Unknown)
                 {
                     pipeline.LogWarn("camera type is unknown for {0}", observationName);
