@@ -35,6 +35,21 @@ namespace OPS.Pipeline
             this.mission = MissionSpecific.GetInstance(project.Mission);
         }
 
+        public static string FilenameToSiteDrive(string filename)
+        {
+            RoverProductId id = RoverProductId.ParseFromString(filename);
+            if (id == null)
+            {
+                return null;
+            }
+            if (id.Producer == RoverProductProducer.OPGS)
+            {
+                OPGSProductId opgsId = (OPGSProductId)id;
+                return opgsId.SiteDrive.ToString();
+            }
+            return null;
+        }
+
         /// <summary>
         /// ROASTT: for some images the PDS header says LEFT when it should say RIGHT  
         /// </summary>

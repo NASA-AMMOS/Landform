@@ -154,7 +154,7 @@ namespace OPS.Pipeline
                 latlon = new Vector2(lat, lon);
                 return true;
             }
-            return false;
+                return false;
         }
 
         /// <summary>
