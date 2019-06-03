@@ -27,6 +27,9 @@ namespace OPS.Pipeline
         [Option(HelpText = "Recreate matches that already exist", Default = false)]
         public bool RedoMatches { get; set; }
 
+        [Option(HelpText = "Redo everything", Default = false)]
+        public bool Redo { get; set; }
+
         [Option(HelpText = "Feature matching algorithm (EmguSIFT, KnownGeometry, BruteForce, CascadeHashing)", Default = ImageMatching.DEF_MATCHER_TYPE)]
         public ImageMatching.MatcherType MatcherType { get; set; }
 
@@ -105,6 +108,13 @@ namespace OPS.Pipeline
         public LocalMatching(LocalMatchingOptions options)
         {
             this.options = options;
+
+            if (options.Redo)
+            {
+                options.RedoMatches = true;
+                options.RedoOverlaps = true;
+            }
+
             if (options.Cloud)
             {
                 this.pipeline = new CloudPipeline(options, initQueues: false);

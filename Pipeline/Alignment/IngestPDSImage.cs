@@ -51,94 +51,6 @@ namespace OPS.Pipeline
         }
 
         /// <summary>
-        /// Check if we should even bother reading the header, based on the filename.
-        /// </summary>
-        public static bool CheckFilename(string filename, bool forceLinearization = true)
-        {
-            RoverProductId id = RoverProductId.ParseFromString(filename);
-
-            if (id == null)
-            {
-                return false;
-            }
-
-            if (id.Camera == RoverProductCamera.Unknown)
-            {
-                return false;
-            }
-
-            if (id.ProductType == RoverProductType.Unknown)
-            {
-                return false;
-            }
-
-            if (id.Producer == RoverProductProducer.OPGS)
-            {
-                OPGSProductId opgsId = (OPGSProductId)id;
-                if (opgsId.Size != RoverProductSize.Regular)
-                {
-                    return false;
-                }
-            }
-
-            if (id.Producer == RoverProductProducer.MSSS)
-            {
-                // Check that this is a DCX file
-                MSSSProductId msssId = (MSSSProductId)id;
-                if (!msssId.RadiometricallyCalibrated || !msssId.ColorCorrected || !msssId.Decompressed)
-                {
-                    return false;
-                }
-                // Filter for color or black and white jpegs that are not thumbnails
-                if(msssId.MSSSProductType == MSSSProductType.Unknown)
-                {
-                    return false;
-                }
-            }
-
-            //ISSUE #353: need to validate that alignment works across cameras with non-linearized images.
-            // so not allowing non-aligned images to be used when other aligned images are being used.
-            if (forceLinearization && id.Geometry != RoverProductGeometry.Linearized)
-            {
-                return false;
-            }
-
-            return true;
-        }
-
-        /// <summary>
-        /// Mostly just confirms what CheckFilename did using metadata instead of the filename
-        /// </summary>
-        /// <param name="parser"></param>
-        /// <returns></returns>
-        private bool CheckMetadata(PDSParser parser)
-        {
-            return productTypeToObservationType.ContainsKey(parser.DerivedImageType) &&
-               parser.ImageSizeType == RoverProductSize.Regular &&
-               !parser.IsSunFinding;
-        }
-
-        /// <summary>
-        /// Map metadata to a frame name based on site drive
-        /// </summary>
-        /// <param name="parser"></param>
-        /// <returns></returns>
-        private string SiteDriveFrameName(PDSParser parser)
-        {
-            return parser.SiteDrive;
-        }
-
-        /// <summary>
-        /// Map metadata to an observation name based on product id
-        /// </summary>
-        /// <param name="parser"></param>
-        /// <returns></returns>
-        private string ObservationName(PDSParser parser)
-        {
-            return parser.ProductIdString;
-        }
-
-        /// <summary>
         /// ROASTT: for some images the PDS header says LEFT when it should say RIGHT  
         /// </summary>
         private string CameraName(PDSParser parser)
@@ -153,16 +65,15 @@ namespace OPS.Pipeline
             return idCam.ToString();
         }
 
-        private static ConcurrentDictionary<RoverProductType, ObservationType> productTypeToObservationType =
-            new ConcurrentDictionary<RoverProductType, ObservationType>();
-
-        static IngestPDSImage()
+        private CameraModel CameraModel(PDSMetadata metadata, PDSParser parser)
         {
-            productTypeToObservationType.TryAdd(RoverProductType.Image, ObservationType.Image);
-            productTypeToObservationType.TryAdd(RoverProductType.Range, ObservationType.Range);
-            productTypeToObservationType.TryAdd(RoverProductType.XYZ, ObservationType.Points);
-            productTypeToObservationType.TryAdd(RoverProductType.NormalMap, ObservationType.Normals);
-            productTypeToObservationType.TryAdd(RoverProductType.RoverMask, ObservationType.RoverMask);
+            if (metadata.CameraModel.Linear != (parser.GeometricProjection == RoverProductGeometry.Linearized))
+            {
+                var cmName = metadata.CameraModel.GetType().Name;
+                pipeline.LogWarn("PDS header geometry {0} but camera model {1} for {2}, using {1}",
+                                 parser.GeometricProjection, cmName, parser.ProductIdString);
+            }
+            return metadata.CameraModel;
         }
 
         public override Result Ingest(string imgUrl)
@@ -172,7 +83,7 @@ namespace OPS.Pipeline
                 var filename = StringHelper.GetLastUrlPathSegment(imgUrl, stripExtension: true);
                 
                 // Parse the filename to quickly rule out data products we know we don't care about.
-                if (!CheckFilename(filename))
+                if (!mission.CheckFilename(filename))
                 {
                     pipeline.LogDebug("rejected {0} by filename", imgUrl);
                     return new Result(imgUrl, Status.Skipped);
@@ -180,18 +91,20 @@ namespace OPS.Pipeline
                 
                 var metadata = new PDSMetadata(pipeline.GetImageFile(imgUrl));
                 var parser = new PDSParser(metadata);
-                if (!CheckMetadata(parser))
+                if (!mission.CheckMetadata(parser))
                 {
                     pipeline.LogDebug("rejected {0} by metadata", imgUrl);
                     return new Result(imgUrl, Status.Skipped);
                 }
                 
-                var observationName = ObservationName(parser);
-                
+                var observationName = parser.ProductIdString;
+                var siteDriveName = parser.SiteDrive;
+                var cameraModel = CameraModel(metadata, parser);
+
                 // Filter images with invalid camera models
                 try
                 {
-                    metadata.CameraModel.Unproject(new Vector2(0, 0));
+                    cameraModel.Unproject(new Vector2(0, 0));
                 }
                 catch
                 {
@@ -199,12 +112,6 @@ namespace OPS.Pipeline
                     return new Result(imgUrl, Status.Skipped);
                 }
                 
-                if (parser.Camera == RoverProductCamera.Unknown)
-                {
-                    pipeline.LogWarn("camera type is unknown for {0}", observationName);
-                    return new Result(imgUrl, Status.Skipped);
-                }
-
                 if (filter != null && !filter(imgUrl, metadata, parser))
                 {
                     pipeline.LogDebug("rejected {0} due to filter", observationName);
@@ -221,35 +128,39 @@ namespace OPS.Pipeline
                 
                 // site drive frame -> root frame
                 Frame siteDriveFrame = null;
+
                 if (Places != null)
                 {
-                    var ut = GetSiteDriveTransformFromPlaces(parser);
-                    if (ut != null)
+                    var xform = GetSiteDriveTransformFromPlaces(parser);
+                    if (xform != null)
                     {
-                        siteDriveFrame = GetFrame(SiteDriveFrameName(parser), rootFrame, TransformSource.PlacesDB, ut);
+                        siteDriveFrame = GetFrame(siteDriveName, rootFrame, TransformSource.PlacesDB, xform);
                     }
                 }
+
                 if (Locations != null)
                 {
-                    siteDriveFrame = GetFrame(SiteDriveFrameName(parser), rootFrame, TransformSource.LocationsDB,
-                                              GetSiteDriveTransformFromLocations(parser));
+                    var xform = GetSiteDriveTransformFromLocations(parser);
+                    if (xform != null)
+                    {
+                        siteDriveFrame = GetFrame(siteDriveName, rootFrame, TransformSource.LocationsDB, xform);
+                    }
                 }
                 
                 if (LegacyManifest != null)
                 {
-                    var transform = GetSiteDriveTransformFromLegacyManifest(parser);
-                    if (transform != null)
+                    var xform = GetSiteDriveTransformFromLegacyManifest(parser);
+                    if (xform != null)
                     {
-                        siteDriveFrame = GetFrame(SiteDriveFrameName(parser), rootFrame, TransformSource.LegacyManifest,
-                                                  transform);
+                        siteDriveFrame = GetFrame(siteDriveName, rootFrame, TransformSource.LegacyManifest, xform);
                     }
                 }
                 
                 if (siteDriveFrame == null)
                 {
                     //fallback to pds headers, site relative
-                    siteDriveFrame = GetFrame(SiteDriveFrameName(parser), rootFrame, TransformSource.PDS,
-                                              GetSiteDriveTransformFromPDS(parser));
+                    var xform = GetSiteDriveTransformFromPDS(parser);
+                    siteDriveFrame = GetFrame(siteDriveName, rootFrame, TransformSource.PDS, xform);
                 }
                 
                 // observation (aka rover) frame -> site drive (aka local level) frame
@@ -273,9 +184,10 @@ namespace OPS.Pipeline
                     }
                 }
 
-                observation = RoverObservation.Create(pipeline, observationFrame, observationName, imgUrl,
-                                                      productTypeToObservationType[parser.DerivedImageType].ToString(),
-                                                      JsonHelper.ToJson(metadata.CameraModel),
+                var obsType = Observation.ProductTypeToObservationType(parser.DerivedImageType).ToString();
+
+                observation = RoverObservation.Create(pipeline, observationFrame, observationName, imgUrl, obsType,
+                                                      JsonHelper.ToJson(cameraModel),
                                                       mission.UseForReconstruction(parser),
                                                       parser.Site, parser.Drive, parser.ProductId.Version,
                                                       cameraName, parser.ImageSizeType.ToString(),
@@ -324,6 +236,7 @@ namespace OPS.Pipeline
             if (loc == null)
             {
                 pipeline.LogWarn("no MSL location for site drive {0}", siteDrive);
+                return null;
             }
 
             if (Locations.HasBasemapDEM)

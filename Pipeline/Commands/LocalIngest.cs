@@ -47,6 +47,9 @@ namespace OPS.Pipeline
         [Option(HelpText = "Recreate transform priors that already exist", Default = false)]
         public bool RedoPriors { get; set; }
 
+        [Option(HelpText = "Redo everything", Default = false)]
+        public bool Redo { get; set; }
+
         [Option(HelpText = "Hide progress", Default = false)]
         public bool NoProgress { get; set; }
 
@@ -68,6 +71,14 @@ namespace OPS.Pipeline
         public LocalIngest(LocalIngestOptions options)
         {
             this.options = options;
+
+            if (options.Redo)
+            {
+                options.RedoProject = true;
+                options.RedoObservations = true;
+                options.RedoPriors = true;
+            }
+
             if (options.Cloud)
             {
                 this.pipeline = new CloudPipeline(options, initQueues: false);
@@ -95,9 +106,39 @@ namespace OPS.Pipeline
             var ingester = new IngestAlignmentInputs(pipeline, project, options.RedoObservations, options.RedoPriors,
                                                      options.OnlyForSiteDrives, options.NoProgress);
 
-            ingester.Ingest(options.AddLocationsDBPriors ? GetLocationsDB(ingester.BaseUrls.Select(b => b.Url)) : null,
-                            !options.NoPlacesDBPriors ? GetPlacesDB() : null,
-                            options.LegacyManifestURL != null ? MSLLegacyManifest.Load(options.LegacyManifestURL) : null);
+            var mission = MissionSpecific.GetInstance(options.Mission);
+
+            MSLLocations locations = null;
+            if (options.AddLocationsDBPriors && mission.AllowLocationsDB())
+            {
+                locations = GetLocationsDB(ingester.BaseUrls.Select(b => b.Url));
+            }
+            else
+            {
+                pipeline.LogInfo("locations DB priors disabled");
+            }
+
+            MSLPlaces places = null;
+            if (!options.NoPlacesDBPriors && mission.AllowPlacesDB())
+            {
+                places = new MSLPlaces();
+            }
+            else
+            {
+                pipeline.LogInfo("places DB priors disabled");
+            }
+
+            MSLLegacyManifest manifest = null;
+            if (options.LegacyManifestURL != null && mission.AllowLegacyManifestDB())
+            {
+                manifest = MSLLegacyManifest.Load(options.LegacyManifestURL);
+            }
+            else
+            {
+                pipeline.LogInfo("legacy manifest DB priors disabled");
+            }
+
+            ingester.Ingest(locations, places, manifest);
 
             return 0;
         }
@@ -181,17 +222,6 @@ namespace OPS.Pipeline
             }
 
             return locations;
-        }
-
-        private MSLPlaces GetPlacesDB()
-        {
-            var ret = new MSLPlaces();
-            if(!ret.CredentialsLoaded())
-            {
-                pipeline.LogWarn("Credentials for PlacesDB priors not available, disabling PlacesDB.");
-                return null;
-            }
-            return ret;
         }
     }
 }

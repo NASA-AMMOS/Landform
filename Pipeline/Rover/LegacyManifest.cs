@@ -37,7 +37,7 @@ namespace OPS.Pipeline
 
         public static MSLLegacyManifest LoadFromUrl(string url)
         {
-            logger.InfoFormat("fetching MSL locations from {0}", url);
+            logger.InfoFormat("fetching MSL legacy manifest from {0}", url);
             WebRequest req = WebRequest.Create(url);
             WebResponse resp = req.GetResponse();
             XmlDocument doc = new XmlDocument();
