@@ -39,7 +39,7 @@ namespace OPS.Pipeline
         [Option(HelpText = "Don't adjust specified site drives (or \"newest\", \"oldest\", \"largest\", \"smallest\"), comma separated", Default = null)]
         public string FixSiteDrives { get; set; }
 
-        [Option(HelpText = "Alignment algorithm: PairwiseMinimal, PairwiseMaximal, Simultaneous, None (match only)", Default = AlignmentMode.PairwiseMaximal)]
+        [Option(HelpText = "Alignment algorithm: PairwiseMinimal, PairwiseMaximal, Simultaneous, None (match only)", Default = AlignmentMode.PairwiseMinimal)]
         public AlignmentMode AlignmentMode { get; set; }
 
         [Option(HelpText = "Algorithm to bring un-aligned \"calf\" site drives along for the ride: None, Centroid (match to aligned site drive with closest horizontal centroid), Temporal (match to closest aligned site drive by acquisition time)", Default = CalfMode.Centroid)]
@@ -48,14 +48,20 @@ namespace OPS.Pipeline
         [Option(HelpText = "In pairwise alignment modes lower priority site drives will be aligned to higher priority ones (NewestFirst, OldestFirst, BiggestFirst, SmallestFirst)", Default = SiteDrivePriority.BiggestFirst)]
         public SiteDrivePriority SiteDrivePriority { get; set; }
 
-        [Option(HelpText = "Only generate products for specific cameras, comma separated (FrontHazcamLeft, FrontHazcamRight, RearHazcamLeft, RearHazcamRight, NavcamLeft, NavcamRight, MastcamLeft, MastcamRight, MAHLI)", Default = "NavcamLeft")]
+        [Option(HelpText = "Only use products from specific cameras, comma separated (FrontHazcamLeft, FrontHazcamRight, RearHazcamLeft, RearHazcamRight, NavcamLeft, NavcamRight, MastcamLeft, MastcamRight, MAHLI)", Default = "NavcamLeft")]
         public string OnlyForCameras { get; set; }
 
-        [Option(HelpText = "Wedge mesh decimation blocksize", Default = 4)]
-        public int DecimateWedgeMeshes { get; set; }
+        [Option(HelpText = "Wedge mesh decimation blocksize, or -1 for auto", Default = -1)]
+        public int DecimateMeshes { get; set; }
 
-        [Option(HelpText = "Wedge image decimation blocksize", Default = 2)]
-        public int DecimateWedgeImages { get; set; }
+        [Option(HelpText = "Wedge image decimation blocksize, or -1 for auto", Default = -1)]
+        public int DecimateImages { get; set; }
+
+        [Option(HelpText = "Auto wedge image decimation target resolution", Default = 512)]
+        public int TargetImageResolution { get; set; }
+
+        [Option(HelpText = "Auto wedge mesh decimation target resolution", Default = 256)]
+        public int TargetMeshResolution { get; set; }
 
         [Option(HelpText = "Max triangle aspect ratio for organized mesh reconstruction", Default = 20)]
         public double MaxTriangleAspect { get; set; }
@@ -397,16 +403,26 @@ namespace OPS.Pipeline
                                          np, nc, no);
                     }
 
+                    var mbs = Meshing.AutoDecimate(obs.Points, options.DecimateMeshes, options.TargetMeshResolution);
+                    if (mbs > 1 && mbs != options.DecimateMeshes)
+                    {
+                        pipeline.LogVerbose("auto decimating wedge mesh {0} with blocksize {1}", obs.Name, mbs);
+                    }
                     Mesh mesh = Meshing.BuildOrganizedMesh(pipeline, masker, obs, frameCache, "root", usePriors: true,
-                                                           decimate: options.DecimateWedgeMeshes);
+                                                           decimate: mbs);
 
                     Image img = null;
                     if (options.BEVColoring == BirdsEyeViewing.ColorMode.Texture && obs.Texture != null)
                     {
                         img = pipeline.LoadImage(obs.Texture.Url);
-                        if (options.DecimateWedgeImages > 1)
+                        var ibs = Meshing.AutoDecimate(obs.Texture, options.DecimateImages, options.TargetImageResolution);
+                        if (ibs > 1)
                         {
-                            img = img.Decimated(options.DecimateWedgeImages);
+                            if (ibs != options.DecimateImages)
+                            {
+                                pipeline.LogVerbose("auto decimating wedge image {0} with blocksize {1}", obs.Name, ibs);
+                            }
+                            img = img.Decimated(ibs);
                         }
                     }
 
@@ -640,6 +656,7 @@ namespace OPS.Pipeline
         private void SaveBEVs()
         {
             double startSec = UTCTime.Now();
+            pipeline.LogInfo("saving {0} birds eye views...", bevs.Count);
             CoreLimitedParallel.ForEach(bevs, pair => {
                     var siteDrive = pair.Key;
                     var bev = pair.Value;
@@ -1787,6 +1804,10 @@ namespace OPS.Pipeline
                     calvesFor[calf.Parent.Name].Add(calf.Name);
                 }
             }
+
+            pipeline.LogInfo("{0} birds eye view calves: {1}",
+                             calves.Count(), String.Join(", ", calves.Select(n => n.Name)));
+
             foreach (var parent in calvesFor.Keys)
             {
                 pipeline.LogInfo("{0} calves for site drive {1}: {2}",
@@ -1985,7 +2006,7 @@ namespace OPS.Pipeline
 
             SaveTransforms(nodesToAlign, TransformSource.LandformBEV);
 
-            var roots = nodesToAlign.Select(n => n.Parent).Distinct();
+            var roots = nodesToAlign.Select(n => n.Parent).Where(n => n.Parent == null).Distinct();
             pipeline.LogInfo("{0} birds eye view roots: {1}",
                              roots.Count(), String.Join(", ", roots.Select(node => node.Name)));
 

@@ -121,7 +121,7 @@ namespace OPS.Pipeline
             MSLPlaces places = null;
             if (!options.NoPlacesDBPriors && mission.AllowPlacesDB())
             {
-                places = GetPlacesDB();
+                places = new MSLPlaces();
             }
             else
             {
@@ -222,17 +222,6 @@ namespace OPS.Pipeline
             }
 
             return locations;
-        }
-
-        private MSLPlaces GetPlacesDB()
-        {
-            var ret = new MSLPlaces();
-            if(!ret.CredentialsLoaded())
-            {
-                pipeline.LogWarn("Credentials for PlacesDB priors not available, disabling PlacesDB.");
-                return null;
-            }
-            return ret;
         }
     }
 }

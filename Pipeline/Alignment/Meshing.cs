@@ -1541,6 +1541,26 @@ namespace OPS.Pipeline
             return ret;
         }
 
+        /// <summary>
+        /// compute a decimation blocksize (in pixels) that approximately achieves the requested target resolution
+        /// this is a helper function to parse blocksize command line arguments
+        /// those are designed so that if the user specifies a non-negative blocksize, then that is just used verbatim
+        /// but if they specify a negative blocksize that triggers auto blocksize based on the target resolution
+        /// this function is also robust to a null obs, which is handled the same as non-negative blocksize
+        /// the return of this function is always clamped to be positive
+        /// </summary>
+        public static int AutoDecimate(Observation obs, int blocksize, int targetResolution)
+        {
+            if (blocksize >= 0 || obs == null)
+            {
+                return Math.Max(blocksize, 1);
+            }
+
+            double maxDim = (double)Math.Max(obs.Width, obs.Height);
+
+            return Math.Max((int)Math.Round(maxDim / targetResolution), 1);
+        }
+
         public static Mesh BuildOrganizedMesh(PipelineCore pipeline, RoverMasker masker, MeshObservations obs,
                                               FrameCache frameCache, out int validPoints, out int validNormals,
                                               string frame = "root", bool usePriors = false, bool onlyAligned = false,

@@ -171,6 +171,14 @@ namespace OPS.Pipeline
                     {
                         return RoverProductCamera.NavcamRight;
                     }
+                    else if (id.StartsWith("NAVCAM_LEFT")) //fix for M2020 Thread Test 4
+                    {
+                        return RoverProductCamera.NavcamLeft;
+                    }
+                    else if (id.StartsWith("NAVCAM_RIGHT")) //fix for M2020 Thread Test 4
+                    {
+                        return RoverProductCamera.NavcamRight;
+                    }
                     else if (id.StartsWith("MAST_LEFT"))
                     {
                         return RoverProductCamera.MastcamLeft;

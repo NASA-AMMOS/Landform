@@ -74,11 +74,17 @@ namespace OPS.Pipeline
         [Option(HelpText = "Use adjusted transforms only", Default = false)]
         public bool OnlyAligned { get; set; }
 
-        [Option(HelpText = "Mesh decimation blocksize", Default = 4)]
+        [Option(HelpText = "Wedge mesh decimation blocksize, or -1 for auto", Default = -1)]
         public int DecimateMeshes { get; set; }
 
-        [Option(HelpText = "Image decimation blocksize", Default = 2)]
+        [Option(HelpText = "Wedge image decimation blocksize, or -1 for auto", Default = -1)]
         public int DecimateImages { get; set; }
+
+        [Option(HelpText = "Auto wedge image decimation target resolution", Default = 512)]
+        public int TargetImageResolution { get; set; }
+
+        [Option(HelpText = "Auto wedge mesh decimation target resolution", Default = 256)]
+        public int TargetMeshResolution { get; set; }
 
         [Option(HelpText = "Optimize color contrast", Default = false)]
         public bool StretchContrast { get; set; }
@@ -316,11 +322,12 @@ namespace OPS.Pipeline
             //sitedrive name => (observation, mesh, image), (observation, mesh, image), ...
             var mergeInputs = new ConcurrentDictionary<string, ConcurrentBag<Tuple<MeshObservations, Mesh, Image>>>();
 
-            //frame name => num
+            //indexed by frame name
             var validPoints = new ConcurrentDictionary<string, int>();
             var validNormals = new ConcurrentDictionary<string, int>();
             var validTriangles = new ConcurrentDictionary<string, int>();
             var generatedNormals = new ConcurrentDictionary<string, bool>();
+            var wedgeDecimation = new ConcurrentDictionary<string, int>();
             
             double startSec = UTCTime.Now();
             int np = 0, nc = 0;
@@ -336,6 +343,13 @@ namespace OPS.Pipeline
                 
                 string siteDrive = obs.SiteDrive.ToString();
                 
+                int mbs = Meshing.AutoDecimate(obs.Points, options.DecimateMeshes, options.TargetMeshResolution);
+                if (mbs > 1 && mbs != options.DecimateMeshes)
+                {
+                    pipeline.LogVerbose("auto decimating wedge mesh {0} with blocksize {1}", obs.Name, mbs);
+                }
+                wedgeDecimation[obs.FrameName] = mbs;
+
                 Mesh mesh = null;
                 int numPoints = 0, numNormals = 0, numTriangles = 0;
                 bool buildMesh = obs.Points != null && (!options.NoWedgeMeshes || options.MergedSiteDriveMeshes);
@@ -346,7 +360,7 @@ namespace OPS.Pipeline
                                                    out numPoints, out numNormals,
                                                    outputFrame,
                                                    options.UsePriors, options.OnlyAligned,
-                                                   options.DecimateMeshes, options.ScaleNormalsByConfidence);
+                                                   mbs, options.ScaleNormalsByConfidence);
                     if (mesh != null && !mesh.HasVertices)
                     {
                         mesh = null;
@@ -368,7 +382,7 @@ namespace OPS.Pipeline
                                                                   out numPoints, out numNormals,
                                                                   outputFrame,
                                                                   options.UsePriors, options.OnlyAligned,
-                                                                  options.DecimateMeshes,
+                                                                  mbs,
                                                                   options.MaxTriangleAspect,
                                                                   withUVs, generateNormals,
                                                                   options.IsolatedPointSize);
@@ -384,7 +398,7 @@ namespace OPS.Pipeline
                                                                 out numPoints, out numNormals,
                                                                 outputFrame,
                                                                 options.UsePriors, options.OnlyAligned,
-                                                                options.DecimateMeshes,
+                                                                mbs,
                                                                 options.ScaleNormalsByConfidence,
                                                                 withUVs);
                                 break;
@@ -395,7 +409,7 @@ namespace OPS.Pipeline
                                                              out numPoints, out numNormals,
                                                              outputFrame,
                                                              options.UsePriors, options.OnlyAligned,
-                                                             options.DecimateMeshes,
+                                                             mbs,
                                                              withUVs);
                                 break;
                             }
@@ -440,9 +454,15 @@ namespace OPS.Pipeline
                     {
                         imageFilename = obs.Name + imageExt;
                         img = pipeline.LoadImage(obs.Texture.Url);
-                        if (options.DecimateImages > 1)
+                        int ibs = Meshing.AutoDecimate(obs.Texture, options.DecimateImages,
+                                                       options.TargetImageResolution);
+                        if (ibs > 1)
                         {
-                            img = img.Decimated(options.DecimateImages);
+                            if (ibs != options.DecimateImages)
+                            {
+                                pipeline.LogVerbose("auto decimating wedge image {0} with blocksize {1}", obs.Name, ibs);
+                            }
+                            img = img.Decimated(ibs);
                         }
                         var wedgeImg = img;
                         if (options.StretchContrast)
@@ -506,8 +526,14 @@ namespace OPS.Pipeline
                         normals = Meshing.ConvertNormals(normals, confidence);
                         if (normals != null)
                         {
+                            var nbs = mbs;
+                            if (obs.Points == null)
+                            {
+                                nbs = Meshing.AutoDecimate(obs.Normals, options.DecimateMeshes,
+                                                           options.TargetMeshResolution);
+                            }
                             var mask = masker.LoadOrBuild(pipeline, obs.Mask, obs.Normals);
-                            normals = Meshing.MaskAndDecimateNormals(normals, options.DecimateImages, mask);
+                            normals = Meshing.MaskAndDecimateNormals(normals, nbs, mask);
                             string name = "Normals";
                             if (options.ConvertNormalsToTilts)
                             {
@@ -518,7 +544,7 @@ namespace OPS.Pipeline
                             {
                                 normals.ApplyInPlace(v => Math.Abs(v));
                             }
-                            FinishImage(normals, mask, tmpPath, obs.Name, name);
+                            FinishImage(normals, mask, nbs, tmpPath, obs.Name, name);
                         }
                     }
                     catch (Exception ex)
@@ -536,11 +562,11 @@ namespace OPS.Pipeline
                         {
                             var normals = Meshing.ConvertNormals(pipeline.LoadImage(obs.Normals.Url));
                             var mask = masker.LoadOrBuild(pipeline, obs.Mask, obs.Points);
-                            points = Meshing.MaskAndDecimatePoints(points, options.DecimateImages, mask);
-                            normals = Meshing.MaskAndDecimateNormals(normals, options.DecimateImages, mask);
+                            points = Meshing.MaskAndDecimatePoints(points, mbs, mask);
+                            normals = Meshing.MaskAndDecimateNormals(normals, mbs, mask);
                             var curvatures = Meshing.ComputeCurvatures(points, normals, !options.StretchContrast,
                                                                        options.CurvatureNeighborhood);
-                            FinishImage(curvatures, mask, tmpPath, obs.Name, "Curvature");
+                            FinishImage(curvatures, mask, mbs, tmpPath, obs.Name, "Curvature");
                         }
                     }
                     catch (Exception ex)
@@ -557,9 +583,9 @@ namespace OPS.Pipeline
                         if (points != null)
                         {
                             var mask = masker.LoadOrBuild(pipeline, obs.Mask, obs.Points);
-                            points = Meshing.MaskAndDecimatePoints(points, options.DecimateImages, mask);
+                            points = Meshing.MaskAndDecimatePoints(points, mbs, mask);
                             var elevations = Meshing.PointsToElevation(points, normalize: !options.StretchContrast);
-                            FinishImage(elevations, mask, tmpPath, obs.Name, "Elevation");
+                            FinishImage(elevations, mask, mbs, tmpPath, obs.Name, "Elevation");
                         }
                     }
                     catch (Exception ex)
@@ -670,8 +696,8 @@ namespace OPS.Pipeline
                                      fn, validPoints[fn], validNormals[fn],
                                      generatedNormals.ContainsKey(fn) && generatedNormals[fn] ? " (generated)" : "",
                                      validTriangles[fn],
-                                     options.DecimateMeshes > 1 ?
-                                     string.Format(" after {0}x decimation", options.DecimateMeshes)
+                                     wedgeDecimation[fn] > 1 ?
+                                     string.Format(" after {0}x decimation", wedgeDecimation[fn])
                                      : "",
                                      Environment.NewLine, obs.ToString(pipeline));
                 }
@@ -926,7 +952,7 @@ namespace OPS.Pipeline
             return anyValid ? deltaRangeImg : null;
         }
 
-        private void FinishImage(Image img, Image mask, string dir, string basename, string name)
+        private void FinishImage(Image img, Image mask, int decimateBlocksize, string dir, string basename, string name)
         {
             if (options.StretchContrast)
             {
@@ -940,9 +966,9 @@ namespace OPS.Pipeline
                 //but there is a third category of bad pixels besides rover mask and small holes:
                 //outer regions where stereo corelation failed
                 //so let's try to add them to the mask
-                if (options.DecimateImages > 1)
+                if (decimateBlocksize > 1)
                 {
-                    mask = mask.Decimated(options.DecimateImages);
+                    mask = mask.Decimated(decimateBlocksize);
                 } 
                 img.AddOuterRegionsToMask(mask, invalid: 0);
                 img.Inpaint(options.InpaintImages);
