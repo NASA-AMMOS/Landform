@@ -481,8 +481,16 @@ namespace OPS.Pipeline
             var lines = File.ReadAllLines(path).Select(line => line.Trim()).Where(line => !string.IsNullOrEmpty(line));
             return new HashSet<string>(lines);
         }
+        
+        static public string GetTilesetDir(string workingDir, string primarySiteDrive)
+        {
+            string sceneDir = Path.Combine(workingDir, "Scene");
+            string sceneSiteDriveFolder = Path.Combine(sceneDir, Path.Combine("ds" + primarySiteDrive, "201801010000"));
+            string tileDir = Path.Combine(sceneSiteDriveFolder, "tile3d_2.0");
+            return tileDir;
+        }
 
-        static public void CreateLegacyScene(IEnumerable<FileRecord> localFileRecords, string workingDir)
+        static public void CreateLegacyScene(IEnumerable<FileRecord> localFileRecords, string workingDir, out string manifestPath)
         {
             string sceneDir = Path.Combine(workingDir, "Scene");
             string imagesDir = Path.Combine(sceneDir, "images");
@@ -529,7 +537,9 @@ namespace OPS.Pipeline
             string content = manifest.Create();
             string sceneSiteDriveFolder = Path.Combine(sceneDir, Path.Combine("ds" + primarySiteDrive, "201801010000"));
             PathHelper.EnsureExists(sceneSiteDriveFolder);
-            File.WriteAllText(Path.Combine(sceneSiteDriveFolder, "manifest.xml"), content);
+            manifestPath = Path.Combine(sceneSiteDriveFolder, "manifest.xml");
+            File.WriteAllText(manifestPath, content);
+
             string tileDir = Path.Combine(sceneSiteDriveFolder, "tile3d_2.0");
             PathHelper.EnsureExists(tileDir);
             File.WriteAllText(Path.Combine(tileDir, "tilesetSky.json"), LegacySceneManfiest.SkyTilesetContent);
@@ -613,7 +623,7 @@ namespace OPS.Pipeline
 
 
             logger.Info("Creating legacy scene");
-            CreateLegacyScene(downloadedRASLRecords, options.WorkingDir);
+            CreateLegacyScene(downloadedRASLRecords, options.WorkingDir, out string manifestPath);
 
             logger.Info("Processing Meshes");
             var processedDirectory = Path.Combine(options.WorkingDir, "Processed");

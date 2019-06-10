@@ -158,6 +158,13 @@ namespace OPS.Pipeline
 
             Mesh combinedDecimated = null;
             Mesh fullClipped = Mesh.Clip(combinedFull, minimumBounds);
+            
+            if(fullClipped.Vertices.Count == 0)
+            {
+                //failed
+                return;
+            }
+
             // If the combined mesh is already less than the target face count we can skip the ResampleDecimation
             // This also has the added benifit of avoiding calls to ResampleDecimation on very low face count meshes which can sometimes fail
             if (fullClipped.Faces.Count <= maxFaceCountTarget)
