@@ -67,25 +67,21 @@ namespace OPS.Pipeline.TileServer
                 mesh.RemoveInvalidFaces();
                 mesh.Clean();
             });
-            Image image = null;
+            SparseImage sparseImage = null;
             string imageBaseUrl = null;
             if (input.ImageUrl != null)
             {
                 pipeline.LogInfo("downloading " + input.ImageUrl);
-                pipeline.GetFile(input.ImageUrl, f => image = Image.Load(f));
-                input.ImageBands = image.Bands;
-                input.ImageWidth = image.Width;
-                input.ImageHeight = image.Height;
-
+                imageBaseUrl = pipeline.GetStorageUrl("chunk", projectName, Guid.NewGuid().ToString());
                 pipeline.LogInfo("chunking image for input " + message.InputName);
-                var sparseImage = new SparseCloudImage(image, pipeline, CHUNK_RESOLUTION);
-                imageBaseUrl =  pipeline.GetStorageUrl("chunk", projectName, Guid.NewGuid().ToString());
-                sparseImage.Save<byte>(imageBaseUrl, IMAGE_EXT);
-
+                sparseImage = new SparseCloudImage(input.ImageUrl, IMAGE_EXT, imageBaseUrl, pipeline, CHUNK_RESOLUTION);
+                input.ImageBands = sparseImage.Bands;
+                input.ImageWidth = sparseImage.Width;
+                input.ImageHeight = sparseImage.Height;
             }
             pipeline.LogInfo("building acceleration structures to chunk input " + message.InputName);
             var multiClipper = new MultiMeshClipper();
-            var dataset = new MultiMeshClipperInput(mesh, image);
+            var dataset = new MultiMeshClipperInput(mesh, sparseImage);
             multiClipper.AddInput(dataset);
 
             pipeline.LogInfo("building mesh chunks for input " + message.InputName);
