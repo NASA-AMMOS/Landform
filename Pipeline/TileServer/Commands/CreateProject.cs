@@ -43,23 +43,38 @@ namespace OPS.Pipeline.TileServer
         [Option(Default = null, HelpText = "write additional image format, or \"help\" to list")]
         public string ExportImageFormat { get; set; }
 
+        [Option(Default = 32, HelpText = "maximum number of leaves to process as a group")]
+        public int MaxLeafGroupSize { get; set; }
+
         [Option(Default = false, HelpText = "do not wait until project has been created")]
         public bool NoWait { get; set; }
 
-        [Option(Default = 32, HelpText = "maximum number of leaves to process as a group")]
-        public int MaxLeafGroupSize { get; set; }
+        [Option(Default = false, HelpText = "run locally, do not connect to cloud")]
+        public bool Local { get; set; }
     }
 
-    public class CreateProject : CloudPipeline
+    public class CreateProject
     {
         const int MAX_WAIT_MS = 60 * 1000;
         const int SLEEP_MS = 500;
 
         private CreateProjectOptions options;
+        private PipelineCore pipeline;
+        private PipelineExecutive executive;
 
-        public CreateProject(CreateProjectOptions options) : base(options, queuePrefix: "tiling")
+        public PipelineCore GetPipeline()
+        {
+            return pipeline;
+        }
+
+        public CreateProject(CreateProjectOptions options)
         {
             this.options = options;
+            pipeline = TileServerCommands.MakePipeline(options, options.Local);
+            if (options.Local)
+            {
+                executive = PipelineExecutive.MakeExecutive(pipeline, ExecutionMode.Immediate);
+            }
         }
 
         public int Run()
@@ -72,16 +87,16 @@ namespace OPS.Pipeline.TileServer
                 if (exMeshFmt == "help")
                 {
                     //print as error so that this will get forwarded back to REST API response
-                    LogError("valid mesh export formats: {0}",
-                             String.Join(", ", MeshSerializers.Instance.SupportedFormats()));
+                    pipeline.LogError("valid mesh export formats: {0}",
+                                      String.Join(", ", MeshSerializers.Instance.SupportedFormats()));
                     return 1; //not really an error, but can't return success status either
                 }
 
                 if (!MeshSerializers.Instance.SupportsFormat(exMeshFmt))
                 {
-                    LogError("cannot create project \"{0}\", invalid mesh export format \"{1}\", valid formats: {2}",
-                             options.ProjectName, options.ExportMeshFormat,
-                             String.Join(", ", MeshSerializers.Instance.SupportedFormats()));
+                    pipeline.LogError("cannot create project \"{0}\", invalid mesh export format \"{1}\", " +
+                                      "valid formats: {2}", options.ProjectName, options.ExportMeshFormat,
+                                      String.Join(", ", MeshSerializers.Instance.SupportedFormats()));
                     return 1; //argument error
                 }
             }
@@ -103,58 +118,58 @@ namespace OPS.Pipeline.TileServer
                 if (exImageFmt == "help")
                 {
                     //print as error so that this will get forwarded back to REST API response
-                    LogError("valid image export formats: {0}",
-                             String.Join(", ", fmts /* ImageSerializers.Instance.SupportedFormats() */));
+                    pipeline.LogError("valid image export formats: {0}",
+                                      String.Join(", ", fmts /* ImageSerializers.Instance.SupportedFormats() */));
                     return 1; //not really an error, but can't return success status either
                 }
 
                 if (Array.IndexOf(fmts, exImageFmt) < 0 /* !ImageSerializers.Instance.SupportsFormat(exImageFmt) */)
                 {
-                    LogError("cannot create project \"{0}\", invalid image export format \"{1}\" valid formats: {2}",
-                             options.ProjectName, options.ExportImageFormat,
-                             String.Join(", ", fmts /* ImageSerializers.Instance.SupportedFormats() */));
+                    pipeline.LogError("cannot create project \"{0}\", invalid image export format \"{1}\", " +
+                                      "valid formats: {2}", options.ProjectName, options.ExportImageFormat,
+                                      String.Join(", ", fmts /* ImageSerializers.Instance.SupportedFormats() */));
                     return 1; //argument error
                 }
             }
 
-            var project = TilingProject.Find(this, options.ProjectName);
+            var project = TilingProject.Find(pipeline, options.ProjectName);
             if (project != null)
             {
-                LogError("project \"{0}\" already exists", options.ProjectName);
+                pipeline.LogError("project \"{0}\" already exists", options.ProjectName);
                 return 1; //argument error
             }
 
-            EnqueueToMaster(new CreateProjectMessage(options.ProjectName)
-                            {
-                                TilingScheme = options.TilingScheme,
-                                SkirtMode = options.SkirtMode,
-                                ReconMethod = options.ReconMethod,
-                                FacesPerTile = options.FacesPerTile,
-                                TileResolution = options.TileResolution,
-                                ProjectType = options.ProjectType.ToString(),
-                                ExportMeshFormat = exMeshFmt,
-                                ExportImageFormat = exImageFmt,
-                                MaxLeafGroupSize = options.MaxLeafGroupSize
-                            });
+            pipeline.EnqueueToMaster(new CreateProjectMessage(options.ProjectName)
+                                     {
+                                         TilingScheme = options.TilingScheme,
+                                         SkirtMode = options.SkirtMode,
+                                         ReconMethod = options.ReconMethod,
+                                         FacesPerTile = options.FacesPerTile,
+                                         TileResolution = options.TileResolution,
+                                         ProjectType = options.ProjectType.ToString(),
+                                         ExportMeshFormat = exMeshFmt,
+                                         ExportImageFormat = exImageFmt,
+                                         MaxLeafGroupSize = options.MaxLeafGroupSize
+                                     });
 
             if (!options.NoWait)
             {
-                LogInfo("waiting for project \"{0}\" to be created", options.ProjectName);
+                pipeline.LogInfo("waiting for project \"{0}\" to be created", options.ProjectName);
                 var sw = new Stopwatch();
                 sw.Start();
                 do
                 {
                     if (sw.ElapsedMilliseconds > MAX_WAIT_MS)
                     {
-                        LogError("project \"{0}\" not created in {1}ms", options.ProjectName, MAX_WAIT_MS);
+                        pipeline.LogError("project \"{0}\" not created in {1}ms", options.ProjectName, MAX_WAIT_MS);
                         return 2; //internal error
                     }
                     Thread.Sleep(SLEEP_MS);
-                    project = TilingProject.Find(this, options.ProjectName);
+                    project = TilingProject.Find(pipeline, options.ProjectName);
                 }
                 while (project == null);
 
-                LogInfo("project \"{0}\" created", options.ProjectName);
+                pipeline.LogInfo("project \"{0}\" created", options.ProjectName);
             }
 
             return 0;

@@ -12,21 +12,25 @@ namespace OPS.Pipeline.TileServer
 {
     [Verb("listprojects", HelpText = "List projects")]
     public class ListProjectsOptions : PipelineCoreOptions
-    {       
+    {
+        [Option(Default = false, HelpText = "run locally, do not connect to cloud")]
+        public bool Local { get; set; }
     }
-
-    public class ListProjects : CloudPipeline
+        
+    public class ListProjects
     {
         private ListProjectsOptions options;
+        private PipelineCore pipeline;
 
-        public ListProjects(ListProjectsOptions options) : base(options, queuePrefix: "tiling")
+        public ListProjects(ListProjectsOptions options)
         {
             this.options = options;
+            pipeline = TileServerCommands.MakePipeline(options, options.Local);
         }
 
         public int Run()
         {
-            var projects = TilingProject.FindAll(this);
+            var projects = TilingProject.FindAll(pipeline);
             var projectNames = projects.Select(project => project.Name).ToList();
             Console.WriteLine(JsonHelper.ToJson(projectNames, indent: true, autoTypes: false));
             return 0;

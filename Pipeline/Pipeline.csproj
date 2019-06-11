@@ -239,6 +239,7 @@
     <Compile Include="MeshWorker\Operations\BuildTilingInput.cs" />
     <Compile Include="MissionSpecific.cs" />
     <Compile Include="PipelineCore.cs" />
+    <Compile Include="PipelineExecutive.cs" />
     <Compile Include="PipelineRoutine.cs" />
     <Compile Include="Rover\LegacyManifest.cs" />
     <Compile Include="Rover\MSLPlaces.cs" />

@@ -1,11 +1,4 @@
-﻿using CommandLine;
-using log4net;
-using OPS.Util;
-using OPS.Cloud;
-using OPS.Geometry;
-using OPS.Pipeline.MeshWorker;
-using OPS.Pipeline.AlignmentServer;
-using System;
+﻿using System;
 using System.Collections;
 using System.Linq;
 using System.Collections.Generic;
@@ -13,7 +6,14 @@ using System.Collections.Concurrent;
 using System.Threading.Tasks;
 using System.Threading;
 using System.Diagnostics;
+using CommandLine;
+using log4net;
 using Amazon.SQS;
+using OPS.Util;
+using OPS.Cloud;
+using OPS.Geometry;
+using OPS.Pipeline.MeshWorker;
+using OPS.Pipeline.AlignmentServer;
 
 namespace OPS.Pipeline.TileServer
 {
@@ -65,6 +65,23 @@ namespace OPS.Pipeline.TileServer
 
         private readonly StartWorkerOptions options;
         private readonly string queuePrefix;
+
+        public static TypeDispatcher MakeDispatcher(PipelineCore pipeline)
+        {
+            var ret = new TypeDispatcher()
+                .Case((BuildTilingInputMessage m) => new BuildTilingInput(pipeline, m).Process())
+                .Case((DefineTilesMessage m) => new DefineTiles(pipeline, m).Process())
+                .Case((ChunkInputMessage m) => new ChunkInput(pipeline, m).Process())
+                .Case((BuildBakedLeavesMessage m) => new BuildBakedLeaves(pipeline, m).Process())
+                .Case((BuildBackprojectLeavesMessage m) => new BuildBackprojectLeaves(pipeline, m).Process())
+                .Case((BuildParentMessage m) => new BuildParent(pipeline, m).Process())
+                .Case((BuildTilesetJsonMessage m) => new BuildTilesetJson(pipeline, m).Process())
+                .Case((CreateMaskMessage m) => new CreateMask(pipeline, m).Process())
+                .Case((DetectFeaturesMessage m) => new DetectFeatures(pipeline, m).Process())
+                .Case((MatchImagesMessage m) => new MatchImages(pipeline, m).Process());
+            ret.Unhandled = (t, x) => pipeline.LogError("Unknown message type: " + t);
+            return ret;
+        }
 
         public StartWorker(StartWorkerOptions options, string queuePrefix = "tiling")
             : base(options, queuePrefix: queuePrefix)
@@ -403,18 +420,7 @@ namespace OPS.Pipeline.TileServer
             var pipeline = new CloudPipeline(options, logger: Logger, lruCache: IMAGE_CACHE_SIZE, quietInit: true,
                                              initQueues: true, initTables: false, queuePrefix: queuePrefix);
 
-            var dispatcher = new TypeDispatcher()
-                .Case((DefineTilesMessage m) => new DefineTiles(pipeline, m).Process())
-                .Case((ChunkInputMessage m) => new ChunkInput(pipeline, m).Process())
-                .Case((BuildBakedLeavesMessage m) => new BuildBakedLeaves(pipeline, m).Process())
-                .Case((BuildBackprojectLeavesMessage m) => new BuildBackprojectLeaves(pipeline, m).Process())
-                .Case((BuildParentMessage m) => new BuildParent(pipeline, m).Process())
-                .Case((BuildTilesetJsonMessage m) => new BuildTilesetJson(pipeline, m).Process())
-                .Case((BuildTilingInputMessage m) => new BuildTilingInput(pipeline, m).Process())
-                .Case((CreateMaskMessage m) => new CreateMask(pipeline, m).Process())
-                .Case((DetectFeaturesMessage m) => new DetectFeatures(pipeline, m).Process())
-                .Case((MatchImagesMessage m) => new MatchImages(pipeline, m).Process());
-            dispatcher.Unhandled = (t, x) => LogError("Unknown message type: " + t);
+            var dispatcher = MakeDispatcher(pipeline);
 
             while (true)
             {

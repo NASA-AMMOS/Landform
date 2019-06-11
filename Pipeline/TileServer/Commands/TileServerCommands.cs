@@ -45,5 +45,17 @@ namespace OPS.Pipeline.TileServer
                 (DeleteCacheOptions opts) => new DeleteCache(opts).Run(),
                 errs => 1);
         }
+
+        public static PipelineCore MakePipeline(PipelineCoreOptions options, bool local = false)
+        {
+            if (local)
+            {
+                return new LocalPipeline(options);
+            }
+            else
+            {
+                return new CloudPipeline(options, queuePrefix: "tiling");
+            }
+        }
     }
 }

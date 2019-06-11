@@ -65,6 +65,9 @@ namespace OPS.Pipeline
         [Option(Required = false, Default = false, HelpText = "Start a tiling server within this process")]
         public bool RunTilingServer { get; set; }
 
+        [Option(Default = false, HelpText = "run locally, do not connect to cloud")]
+        public bool Local { get; set; }
+
         [Option(Required = false, Default = false, HelpText = "Force recalculating normals using meshlab at the begining")]
         public bool ForceNormalComputation { get; set; }
     }
@@ -552,7 +555,7 @@ namespace OPS.Pipeline
         public int Run()
         {
             Task tilingTask = null;
-            if (options.RunTilingServer)
+            if (options.RunTilingServer && !options.Local)
             {
                 tilingTask = new Task(() =>
                 {
@@ -636,7 +639,6 @@ namespace OPS.Pipeline
             string projectName = options.ProjectName;// + "_" + rec.FilenameBase;
             logger.Info("Creating tiling Project: " + projectName);
 
-
             int r;
             var createOptions = new CreateProjectOptions()
             {
@@ -648,7 +650,8 @@ namespace OPS.Pipeline
                 TileResolution = 256,
                 ProjectType = PipelineStateMachine.ProjectType.GenericTiling,
                 NoWait = false,
-                MaxLeafGroupSize = 32
+                MaxLeafGroupSize = 32,
+                Local = options.Local
             };
             
             var createProject = new CreateProject(createOptions);
@@ -662,22 +665,26 @@ namespace OPS.Pipeline
                     MeshFilepath = rec.PreferedMesh,
                     ImageFilepath = rec.PreferedImage,
                     TileId = null,
-                    NoWait = false
+                    NoWait = false,
+                    Local = options.Local
                 };
                 r = new UploadInput(uploadOptions).Run();               
             }
             var runOptions = new RunProjectOptions()
             {
-                ProjectName = projectName
+                ProjectName = projectName,
+                Local = options.Local
             };
             r = new RunProject(runOptions).Run();
             
-            var tilesetUrl = createProject.GetStorageUrl("www", projectName, "tileset.json");
+            var tilesetUrl = createProject.GetPipeline().GetStorageUrl("www", projectName, "tileset.json");
             logger.Info("Building tileset.  When done copy data from " + tilesetUrl + " to tile3d_2.0 directory");
+
             if (tilingTask != null)
             {
                 tilingTask.Wait();
             }
+
             return 0;
         }
 

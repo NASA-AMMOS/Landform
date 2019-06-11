@@ -1,12 +1,12 @@
-﻿using CommandLine;
-using log4net;
-using OPS.Util;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Threading;
 using System.Diagnostics;
+using CommandLine;
+using log4net;
+using OPS.Util;
 
 namespace OPS.Pipeline.TileServer
 {
@@ -22,8 +22,7 @@ namespace OPS.Pipeline.TileServer
     {
         private StartMasterOptions options;
 
-        private Dictionary<string, PipelineStateMachine> projectNameToStateMachine =
-            new Dictionary<string, PipelineStateMachine>();
+        private Dictionary<string, PipelineStateMachine> stateMachines = new Dictionary<string, PipelineStateMachine>();
 
         public StartMaster(StartMasterOptions options) : base(options, queuePrefix: "tiling")
         {
@@ -67,46 +66,24 @@ namespace OPS.Pipeline.TileServer
                 {
                     try
                     {
-                        bool projectDeleted = false;
-                        if (!projectNameToStateMachine.ContainsKey(m.ProjectName))
+                        if (!stateMachines.ContainsKey(m.ProjectName))
                         {
-                            string projectType = null;
-                            if (m is CreateProjectMessage)
+                            PipelineStateMachine.ProjectType? pt = PipelineStateMachine.GetProjectType(this, m);
+                            if (pt.HasValue)
                             {
-                                projectType = ((CreateProjectMessage)m).ProjectType;
+                                var sm = PipelineStateMachine.CreateInstance(this, pt.Value, m.ProjectName);
+                                stateMachines.Add(m.ProjectName, sm);
                             }
                             else
                             {
-                                TilingProject project = TilingProject.Find(this, m.ProjectName);
-                                if (project != null)
-                                {
-                                    projectType = project.ProjectType;
-                                }
-                                else if (m is DeleteProjectMessage)
-                                {
-                                    projectDeleted = true;
-                                }
-                            }
-                            if (!projectDeleted)
-                            {
-                                PipelineStateMachine.ProjectType pt;
-                                if (string.IsNullOrEmpty(projectType) ||
-                                    !Enum.TryParse(projectType, /* ignoreCase */ true, out pt) ||
-                                    !PipelineStateMachine.StateMachines.ContainsKey(pt))
-                                {
-                                    throw new Exception("could not create state machine for project " + m.ProjectName +
-                                                        " of type \"" + projectType + "\"");
-                                }
-                                
-                                var smt = PipelineStateMachine.StateMachines[pt];
-                                var sm = (PipelineStateMachine)Activator.CreateInstance(smt, this, m.ProjectName);
-                                projectNameToStateMachine.Add(m.ProjectName, sm);
+                                //this can happen if we get a duplicate DeleteProject message 
+                                LogWarn("could not determine project type, discarding message: {0}", m.Info());
                             }
                         }
 
-                        if (!projectDeleted)
+                        if (stateMachines.ContainsKey(m.ProjectName))
                         {
-                            projectNameToStateMachine[m.ProjectName].ProcessMessage(m);
+                            stateMachines[m.ProjectName].ProcessMessage(m);
                         }
 
                         MasterQueue.DeleteMessage(m);
