@@ -12,6 +12,7 @@ using OPS.Cloud;
 using OPS.Util;
 using OPS.Geometry;
 using OPS.Imaging;
+using Microsoft.Xna.Framework;
 
 namespace OPS.Pipeline.TileServer
 {
@@ -24,6 +25,9 @@ namespace OPS.Pipeline.TileServer
     public class DefineTiles : CloudPipelineOperation
     {
         private readonly DefineTilesMessage message;
+
+        //To limit the size of an ortho loaded as one chunk
+        private const int CHUNK_SIZE = 2048;
 
         //TODO it may be possible to re-use this code in ProjectCache
         //https://github.jpl.nasa.gov/OnSight/Landform/issues/428
@@ -98,8 +102,8 @@ namespace OPS.Pipeline.TileServer
                 ConcurrentBag<SceneNode> nodes = new ConcurrentBag<SceneNode>();
                 CoreLimitedParallel.ForEach(inputs, input =>
                 {
-                    var pair = DownloadInput(input);
-                    if(!pair.Mesh.HasNormals)
+                    MeshImagePair pair = DownloadInput(input);                  
+                    if (!pair.Mesh.HasNormals)
                     {
                         pair.Mesh.GenerateVertexNormals();
                     }
@@ -107,7 +111,7 @@ namespace OPS.Pipeline.TileServer
                     pair.Mesh.Clean();
                     var node = new SceneNode(input.TileId);
                     node.AddComponent(pair);
-                    nodes.Add(node);
+                    nodes.Add(node);   
                 });
                 root = SceneNodeTilingExtensions.ConnectNodesByName(nodes.ToList());
                 SceneNodeTilingExtensions.ComputeBounds(root);
@@ -215,6 +219,31 @@ namespace OPS.Pipeline.TileServer
 
         private MeshImagePair DownloadInput(TilingInput input)
         {
+            Image image = null;
+            if (input.ImageUrl != null)
+            {
+                pipeline.GetFile(input.ImageUrl, f =>
+                {
+                    string ext = Path.GetExtension(f);
+                    ImageSerializer s = ImageSerializers.Instance.GetSerializer(ext);
+                    if (s.GetType() == typeof(GDALSerializer))
+                    {
+                        Vector3 dims = ((GDALSerializer)s).GetMetadata(f);
+                        int bands = (int)dims[0];
+                        int width = (int)dims[1];
+                        int height = (int)dims[2];
+                        if (width > CHUNK_SIZE && height > CHUNK_SIZE)
+                        {
+                            image = new SparseImage(bands, width, height, input.ImageUrl, ext, CHUNK_SIZE);
+                        } else
+                        {
+                            image = Image.Load(f);
+                        }
+                    } else {
+                        image = Image.Load(f);
+                    }
+                });
+            }
             Mesh mesh = null;
             pipeline.GetFile(input.MeshUrl, f =>
             {
@@ -222,11 +251,7 @@ namespace OPS.Pipeline.TileServer
                 mesh.RemoveInvalidFaces();
                 mesh.Clean();
             });
-            Image image = null;
-            if (input.ImageUrl != null)
-            {
-                pipeline.GetFile(input.ImageUrl, f => image = Image.Load(f));
-            }
+
             return new MeshImagePair(mesh, image);
         }
 

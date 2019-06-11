@@ -13,9 +13,9 @@ namespace OPS.Imaging
     public class SparseImage : Image
     {
         private Image[,] Images;
-        private string baseUrl;
-        private string extension;
-        private int chunkSize;
+        protected string baseUrl;
+        protected string extension;
+        protected int chunkSize;
 
         /// <summary>
         /// Contructs a SparseImage with baseUrl and extension of chunk images to load and populate the SparseImage array as needed.
@@ -150,7 +150,7 @@ namespace OPS.Imaging
             }
         }
 
-        private string CreateFileName(int row, int col, string baseUrl, string extension)
+        protected string CreateFileName(int row, int col, string baseUrl, string extension)
         {
             return baseUrl + "_" + row + "_" + col + extension;
         }
