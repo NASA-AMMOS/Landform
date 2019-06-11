@@ -13,8 +13,10 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Xml;
 
 namespace OPS.Pipeline
 {
@@ -296,7 +298,7 @@ namespace OPS.Pipeline
                 pipeline.LogInfo("Building legacy scene for astro");
                 var RASLRecords = imageObservations.Select(x => new EmtToScene.FileRecord(new System.Uri(x.Url).LocalPath));
                 EmtToScene.CreateLegacyScene(RASLRecords, astroOutputPath, out manifestPath);
-
+              
                 //build tile bounds
                 pipeline.LogInfo("Building tile tree bounds from fullmesh");
                 SplitByTextureOpts texSplitOpts = new SplitByTextureOpts();
@@ -521,6 +523,10 @@ namespace OPS.Pipeline
                 manifestPath = Path.Combine(astroSceneSubdirs.First(), "201801010000\\manifest.xml");
             }
 
+            pipeline.LogInfo("Building master manifest");
+            CreateMasterManifest(manifestPath, LocalPathToS3Url(astroOutputPath, manifestPath), Path.Combine(astroOutputPath, "mastermanifest.xml"));
+
+
             ////start server
             pipeline.LogInfo("Starting tiling server");
             Task tilingTask = new Task(() =>
@@ -599,8 +605,14 @@ namespace OPS.Pipeline
             string astroTilesetDir = EmtToScene.GetTilesetDir(astroOutputPath, primarySiteDrive);
             pipeline.LogInfo("Download tileset from " + tilesetUrl + " to tile3d_2.0 directory " + astroTilesetDir);
             StorageHelper storage = new StorageHelper(options.AWSProfile, options.AWSRegion);
-            var tilesetDirectory = /*StringHelper.EnsureTrailingSlash(*/new Uri(new Uri(tilesetUrl), ".").AbsoluteUri/*)*/;
-            storage.DownloadDirectory(tilesetDirectory, StringHelper.NormalizeSlashes(astroTilesetDir));
+            var s3tilesetDirectory = /*StringHelper.EnsureTrailingSlash(*/new Uri(new Uri(tilesetUrl), ".").AbsoluteUri/*)*/;
+            storage.DownloadDirectory(s3tilesetDirectory, StringHelper.NormalizeSlashes(astroTilesetDir));
+
+            //HACK to emulate the previous version of tilest.json that asttro uses
+            string tilesetJSONPath = Path.Combine(astroTilesetDir, "tileset.json");
+            var tilesetJSON =File.ReadAllText(tilesetJSONPath);
+            tilesetJSON = tilesetJSON.Replace("uri", "url");
+            File.WriteAllText(tilesetJSONPath, tilesetJSON);
 
             //pipeline.LogInfo("Building parent tiles");
             //TileLocalMesh.BuildParents(root, options.FacesPerTile, options.TileResolution, SkirtsEnabled, options.SkirtAxis, tileSetPath, options.MeshExtension, options.ImageExtension);
@@ -619,8 +631,7 @@ namespace OPS.Pipeline
                 {
                     try
                     {
-                        string relativePath = StringHelper.NormalizeSlashes(path.Substring(Path.GetDirectoryName(astroOutputPath).Length+1));
-                        storage.UploadFile(path, StringHelper.NormalizeUrl(options.OutputS3Bucket + relativePath, "s3://", false));
+                        storage.UploadFile(path, LocalPathToS3Url(astroOutputPath,path));
                     }
                     catch
                     {
@@ -629,6 +640,65 @@ namespace OPS.Pipeline
                 }
             }
             return 0;
+        }
+        
+        string LocalPathToS3Url(string localRoot,string localPath)
+        {
+            string relativePath = StringHelper.NormalizeSlashes(localPath.Substring(Path.GetDirectoryName(localRoot).Length + 1));
+            return StringHelper.NormalizeUrl(options.OutputS3Bucket + relativePath, "s3://", false);        
+        }
+
+        static private void AddAttributeXml(XmlNode node, string name, string value)
+        {
+            XmlAttribute att = node.OwnerDocument.CreateAttribute(name);
+            att.Value = value;
+            node.Attributes.Append(att);
+
+        }
+        private void CreateMasterManifest(string sceneManifestLocalPath, string sceneManifestUrl, string masterManifestPath)
+        {
+            XmlDocument doc = new XmlDocument();
+            XmlDeclaration xmldecl;
+            xmldecl = doc.CreateXmlDeclaration("1.0", null, null);
+            xmldecl.Encoding = "UTF-8";
+            xmldecl.Standalone = "yes";
+            XmlElement root = doc.DocumentElement;
+            doc.InsertBefore(xmldecl, root);
+
+            XmlElement scenes = (XmlElement)doc.AppendChild(doc.CreateElement("scenes"));
+            XmlElement scene = (XmlElement)scenes.AppendChild(doc.CreateElement("scene"));
+                AddAttributeXml(scene, "id", Directory.GetParent(Path.GetDirectoryName(sceneManifestLocalPath)).Name);  //eg. "ds0000100372"
+                AddAttributeXml(scene, "type", "master");
+                AddAttributeXml(scene, "primarySite", "1");
+                AddAttributeXml(scene, "primaryDrive", "0");
+            XmlElement manifests = (XmlElement)scene.AppendChild(doc.CreateElement("manifests"));
+            XmlElement manifest = (XmlElement)manifests.AppendChild(doc.CreateElement("manifest"));
+                AddAttributeXml(manifest,"version", new DirectoryInfo(Path.GetDirectoryName(sceneManifestLocalPath)).Name); //eg. "201801010000"
+                AddAttributeXml(manifest,"pipelineVersion", "0.1.15");
+                AddAttributeXml(manifest, "startSol", "0");
+                AddAttributeXml(manifest, "endSol", "0");
+                AddAttributeXml(manifest, "navcamCount", "1");
+                AddAttributeXml(manifest, "hazcamCount", "0");
+                AddAttributeXml(manifest, "mastcamCount", "0"); //TODO: tally cameras
+                AddAttributeXml(manifest, "color", "0.0");
+                AddAttributeXml(manifest, "grayscale", "1.0");
+                AddAttributeXml(manifest, "orbital", "0.0");
+                manifest.InnerText = CloudPipeline.ConvertS3UrlToHttps(sceneManifestUrl);
+
+            StringBuilder sb = new StringBuilder();
+            XmlWriterSettings settings = new XmlWriterSettings();
+            settings.Indent = true;
+            settings.IndentChars = "  ";
+            settings.NewLineChars = "\r\n";
+            settings.NewLineHandling = NewLineHandling.Replace;
+            settings.OmitXmlDeclaration = true;
+
+            using (XmlWriter writer = XmlWriter.Create(sb, settings))
+            {
+                doc.Save(writer);
+            }
+
+            File.WriteAllText(masterManifestPath, sb.ToString());
         }
 
         private CameraInstance ToCameraInstance(RoverObservation obs, Dictionary<Observation, ConvexHull> obsToHull, FrameCache frameCache)
