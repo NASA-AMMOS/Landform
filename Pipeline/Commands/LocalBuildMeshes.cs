@@ -298,7 +298,7 @@ namespace OPS.Pipeline
                 pipeline.LogInfo("Building legacy scene for astro");
                 var RASLRecords = imageObservations.Select(x => new EmtToScene.FileRecord(new System.Uri(x.Url).LocalPath));
                 EmtToScene.CreateLegacyScene(RASLRecords, astroOutputPath, out manifestPath);
-              
+
                 //build tile bounds
                 pipeline.LogInfo("Building tile tree bounds from fullmesh");
                 SplitByTextureOpts texSplitOpts = new SplitByTextureOpts();
@@ -316,8 +316,8 @@ namespace OPS.Pipeline
                 int curLeafNum = 0;
                 CoreLimitedParallel.ForEach(root.Leaves(), leaf =>
                 {
-                        //debug functionality to only generate a single tile
-                        if (options.OnlyTileNamed != null && options.OnlyTileNamed != leaf.Name)
+                    //debug functionality to only generate a single tile
+                    if (options.OnlyTileNamed != null && options.OnlyTileNamed != leaf.Name)
                         return;
 
                     Interlocked.Increment(ref curLeafNum);
@@ -341,8 +341,8 @@ namespace OPS.Pipeline
                     Image leafImage = null;
                     if (!options.NoTextures)
                     {
-                            // coarse frustum test: get all observations that intersect mesh hull
-                            ConvexHull leafHull = new ConvexHull(leafMesh);
+                        // coarse frustum test: get all observations that intersect mesh hull
+                        ConvexHull leafHull = new ConvexHull(leafMesh);
                         List<Observation> intersectingObservations = new List<Observation>();
                         foreach (var obs in imageObservations)
                         {
@@ -360,8 +360,8 @@ namespace OPS.Pipeline
                             }
                         }
 
-                            // tile with no textures means it is wholly extrapolation by reconstruction algorithm. skip it.
-                            if (intersectingObservations.Count() == 0)
+                        // tile with no textures means it is wholly extrapolation by reconstruction algorithm. skip it.
+                        if (intersectingObservations.Count() == 0)
                         {
                             pipeline.LogWarn("Failed: no images intersected tile: {0}", leaf.Name);
                             failedNodes.Add(leaf);
@@ -370,35 +370,35 @@ namespace OPS.Pipeline
 
                         pipeline.LogInfo("Found {0} observations instersecting tile {1}", intersectingObservations.Count(), leaf.Name);
 
-                            //create image
-                            leafImage = new Image(3, options.TileResolution, options.TileResolution);
+                        //create image
+                        leafImage = new Image(3, options.TileResolution, options.TileResolution);
                         leafImage.CreateMask(true);
 
-                            //cache the destination pixels (and the mesh positions for perf) for which backproject is valid
-                            MeshOperator leafOp = new MeshOperator(leafMesh, buildFaceTree: false, buildVertexTree: false, buildUVFaceTree: true);
+                        //cache the destination pixels (and the mesh positions for perf) for which backproject is valid
+                        MeshOperator leafOp = new MeshOperator(leafMesh, buildFaceTree: false, buildVertexTree: false, buildUVFaceTree: true);
                         List<PixelPoint> pointsToBackproject = leafOp.SampleUVSpace(options.TileResolution, options.TileResolution);
 
-                            //calculate goodness (spatial density)
-                            Dictionary<Observation, double> spatialDensityByObs = new Dictionary<Observation, double>();
+                        //calculate goodness (spatial density)
+                        Dictionary<Observation, double> spatialDensityByObs = new Dictionary<Observation, double>();
                         {
-                                //select a coarse sampling of the points to backproject to use get a rough sorting of texture quality
-                                double percentagePointsToTest = options.BackprojectGoodnessSamplingPct;
+                            //select a coarse sampling of the points to backproject to use get a rough sorting of texture quality
+                            double percentagePointsToTest = options.BackprojectGoodnessSamplingPct;
 
-                                //simple sample which skips enough points to return the requested amount of points
-                                int subsampledPts = Math.Max(1, (int)(pointsToBackproject.Count * percentagePointsToTest));
+                            //simple sample which skips enough points to return the requested amount of points
+                            int subsampledPts = Math.Max(1, (int)(pointsToBackproject.Count * percentagePointsToTest));
                             int skipPoints = pointsToBackproject.Count / subsampledPts;
                             List<PixelPoint> pointsToTestSamplingDensity = pointsToBackproject.Where((pt, index) => index % skipPoints == 0).ToList();
 
-                                //calculate the median spatial density for the requested pixels per observation
-                                foreach (var obs in intersectingObservations.Cast<RoverObservation>())
+                            //calculate the median spatial density for the requested pixels per observation
+                            foreach (var obs in intersectingObservations.Cast<RoverObservation>())
                             {
                                 CameraModel cameraModel = (CameraModel)JsonHelper.FromJson(obs.CameraModel);
 
                                 List<double> minDistances = new List<double>(capacity: pointsToTestSamplingDensity.Count());
                                 foreach (var pt in pointsToTestSamplingDensity)
                                 {
-                                        //test hull (protect against bad ray calculations from camera model)
-                                        if (!obsToHull.ContainsKey(obs))
+                                    //test hull (protect against bad ray calculations from camera model)
+                                    if (!obsToHull.ContainsKey(obs))
                                         continue;
 
                                     if (!obsToHull[obs].Contains(pt.Point))
@@ -406,12 +406,12 @@ namespace OPS.Pipeline
 
                                     Matrix obsToOutput = Meshing.GetTransform(obs.FrameName, options.OutputFrame, frameCache, options.UsePriors, options.OnlyAligned).Mean;
 
-                                        //Issue #523: want median or average in case glancing angle? want a term that looks for consistancy in spacing? implies dead on?
-                                        minDistances.Add(GetMinPixelSpreadInMeters(sc, cameraModel, obsToOutput, obsToHull[obs], pt.Pixel, pt.Point, obs.Width, obs.Height));
+                                    //Issue #523: want median or average in case glancing angle? want a term that looks for consistancy in spacing? implies dead on?
+                                    minDistances.Add(GetMinPixelSpreadInMeters(sc, cameraModel, obsToOutput, obsToHull[obs], pt.Pixel, pt.Point, obs.Width, obs.Height));
                                 }
 
-                                    //store the median of the min distances
-                                    double medianDistance = double.MaxValue;
+                                //store the median of the min distances
+                                double medianDistance = double.MaxValue;
                                 if (minDistances.Count() > 0)
                                 {
                                     minDistances.Sort();
@@ -422,14 +422,14 @@ namespace OPS.Pipeline
                             }
                         }
 
-                            //sort the list of observations by goodness
-                            intersectingObservations.Sort((obs1, obs2) => spatialDensityByObs[obs1].CompareTo(spatialDensityByObs[obs2]));
+                        //sort the list of observations by goodness
+                        intersectingObservations.Sort((obs1, obs2) => spatialDensityByObs[obs1].CompareTo(spatialDensityByObs[obs2]));
 
-                            //for each source image, sweep through all valid destination pixels (not atlas gutter pixels)
-                            foreach (var obs in intersectingObservations)
+                        //for each source image, sweep through all valid destination pixels (not atlas gutter pixels)
+                        foreach (var obs in intersectingObservations)
                         {
-                                //quit if done
-                                if (pointsToBackproject.Count == 0)
+                            //quit if done
+                            if (pointsToBackproject.Count == 0)
                                 break;
 
                             int contributedPixels = BackprojectObservation(frameCache, observationCache, sc, (RoverObservation)obs, obsToHull[obs], ref pointsToBackproject, leafImage);
@@ -450,8 +450,8 @@ namespace OPS.Pipeline
                         {
                             while (pointsToBackproject.Count() > 0)
                             {
-                                    //during development color pixels that failed to backproject blue
-                                    var pair = pointsToBackproject.First();
+                                //during development color pixels that failed to backproject blue
+                                var pair = pointsToBackproject.First();
                                 pointsToBackproject.RemoveAt(0);
                                 leafImage[2, (int)pair.Pixel.Y, (int)pair.Pixel.X] = 1.0f;
                             }
@@ -460,20 +460,20 @@ namespace OPS.Pipeline
                         }
                         else
                         {
-                                //though a single pixel inpaint would be sufficient for bilinear sampling of subpixel locations,
-                                // full inpaint needed for building parent tiles
-                                leafImage.Inpaint(-1, preserveMask: false);
+                            //though a single pixel inpaint would be sufficient for bilinear sampling of subpixel locations,
+                            // full inpaint needed for building parent tiles
+                            leafImage.Inpaint(-1, preserveMask: false);
                         }
 
-                            //save image
-                            leafImage.Save<byte>(Path.Combine(leafTilesPath, leaf.Name + ".png"));
+                        //save image
+                        leafImage.Save<byte>(Path.Combine(leafTilesPath, leaf.Name + ".png"));
                     }
 
-                        //convert mesh to astro
-                        EmtToScene.ConvertMeshToYUp(leafMesh);
+                    //convert mesh to astro
+                    EmtToScene.ConvertMeshToYUp(leafMesh);
 
-                        // save meshes
-                        if (options.NoTextures)
+                    // save meshes
+                    if (options.NoTextures)
                     {
                         leafMesh.Save(Path.Combine(leafTilesPath, leaf.Name + ".ply"));
                     }
@@ -483,9 +483,9 @@ namespace OPS.Pipeline
                     }
 
                     leaf.AddComponent<MeshImagePair>(new MeshImagePair(leafMesh, leafImage));
-                        //leaf.AddComponent(new NodeGeometricError(0));
-                        //leaf.SaveMesh(tileSetPath, meshExtension: options.MeshExtension, imageExtension: options.ImageExtension);
-                    });
+                    //leaf.AddComponent(new NodeGeometricError(0));
+                    //leaf.SaveMesh(tileSetPath, meshExtension: options.MeshExtension, imageExtension: options.ImageExtension);
+                });
             }
             else
             {
@@ -610,7 +610,7 @@ namespace OPS.Pipeline
 
             //HACK to emulate the previous version of tilest.json that asttro uses
             string tilesetJSONPath = Path.Combine(astroTilesetDir, "tileset.json");
-            var tilesetJSON =File.ReadAllText(tilesetJSONPath);
+            var tilesetJSON = File.ReadAllText(tilesetJSONPath);
             tilesetJSON = tilesetJSON.Replace("uri", "url");
             File.WriteAllText(tilesetJSONPath, tilesetJSON);
 
@@ -626,12 +626,12 @@ namespace OPS.Pipeline
             // setup s3 bucket
             if (!string.IsNullOrEmpty(options.OutputS3Bucket))
             {
-                pipeline.LogInfo("uploading tileset to s3");                
-                foreach (var path in Directory.EnumerateFiles(astroOutputPath,"*",SearchOption.AllDirectories))
+                pipeline.LogInfo("uploading tileset to s3");
+                foreach (var path in Directory.EnumerateFiles(astroOutputPath, "*", SearchOption.AllDirectories))
                 {
                     try
                     {
-                        storage.UploadFile(path, LocalPathToS3Url(astroOutputPath,path));
+                        storage.UploadFile(path, LocalPathToS3Url(astroOutputPath, path));
                     }
                     catch
                     {
@@ -641,11 +641,11 @@ namespace OPS.Pipeline
             }
             return 0;
         }
-        
-        string LocalPathToS3Url(string localRoot,string localPath)
+
+        string LocalPathToS3Url(string localRoot, string localPath)
         {
             string relativePath = StringHelper.NormalizeSlashes(localPath.Substring(Path.GetDirectoryName(localRoot).Length + 1));
-            return StringHelper.NormalizeUrl(options.OutputS3Bucket + relativePath, "s3://", false);        
+            return StringHelper.NormalizeUrl(options.OutputS3Bucket + relativePath, "s3://", false);
         }
 
         static private void AddAttributeXml(XmlNode node, string name, string value)
@@ -667,23 +667,23 @@ namespace OPS.Pipeline
 
             XmlElement scenes = (XmlElement)doc.AppendChild(doc.CreateElement("scenes"));
             XmlElement scene = (XmlElement)scenes.AppendChild(doc.CreateElement("scene"));
-                AddAttributeXml(scene, "id", Directory.GetParent(Path.GetDirectoryName(sceneManifestLocalPath)).Name);  //eg. "ds0000100372"
-                AddAttributeXml(scene, "type", "master");
-                AddAttributeXml(scene, "primarySite", "1");
-                AddAttributeXml(scene, "primaryDrive", "0");
+            AddAttributeXml(scene, "id", Directory.GetParent(Path.GetDirectoryName(sceneManifestLocalPath)).Name);  //eg. "ds0000100372"
+            AddAttributeXml(scene, "type", "master");
+            AddAttributeXml(scene, "primarySite", "1");
+            AddAttributeXml(scene, "primaryDrive", "0");
             XmlElement manifests = (XmlElement)scene.AppendChild(doc.CreateElement("manifests"));
             XmlElement manifest = (XmlElement)manifests.AppendChild(doc.CreateElement("manifest"));
-                AddAttributeXml(manifest,"version", new DirectoryInfo(Path.GetDirectoryName(sceneManifestLocalPath)).Name); //eg. "201801010000"
-                AddAttributeXml(manifest,"pipelineVersion", "0.1.15");
-                AddAttributeXml(manifest, "startSol", "0");
-                AddAttributeXml(manifest, "endSol", "0");
-                AddAttributeXml(manifest, "navcamCount", "1");
-                AddAttributeXml(manifest, "hazcamCount", "0");
-                AddAttributeXml(manifest, "mastcamCount", "0"); //TODO: tally cameras
-                AddAttributeXml(manifest, "color", "0.0");
-                AddAttributeXml(manifest, "grayscale", "1.0");
-                AddAttributeXml(manifest, "orbital", "0.0");
-                manifest.InnerText = CloudPipeline.ConvertS3UrlToHttps(sceneManifestUrl);
+            AddAttributeXml(manifest, "version", new DirectoryInfo(Path.GetDirectoryName(sceneManifestLocalPath)).Name); //eg. "201801010000"
+            AddAttributeXml(manifest, "pipelineVersion", "0.1.15");
+            AddAttributeXml(manifest, "startSol", "0");
+            AddAttributeXml(manifest, "endSol", "0");
+            AddAttributeXml(manifest, "navcamCount", "1");
+            AddAttributeXml(manifest, "hazcamCount", "0");
+            AddAttributeXml(manifest, "mastcamCount", "0"); //TODO: tally cameras
+            AddAttributeXml(manifest, "color", "0.0");
+            AddAttributeXml(manifest, "grayscale", "1.0");
+            AddAttributeXml(manifest, "orbital", "0.0");
+            manifest.InnerText = CloudPipeline.ConvertS3UrlToHttps(sceneManifestUrl);
 
             StringBuilder sb = new StringBuilder();
             XmlWriterSettings settings = new XmlWriterSettings();
