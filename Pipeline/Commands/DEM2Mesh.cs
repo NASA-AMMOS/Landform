@@ -28,6 +28,9 @@ namespace OPS.Pipeline
         [Option(Required = false, Default = 1, HelpText = "Scaler to convert dem  values to verticle meters.  i.e. (meters/pixel value)")]
         public float VerticalScale { get; set; }
 
+        [Option(Required = false, Default = null, HelpText = "Path to config json that maps sub regions to resolution")]
+        public string ResolutionConfigFile { get; set; }
+
         [Option(Required = false, HelpText = "Output path of mesh.  If ortho image is supplied it will be written to the same path but with a different extension.  If ommited output is written to same directory as input but with a '.mesh' appended to the filename")]
         public string OutputPath { get; set; }
 
@@ -387,6 +390,12 @@ namespace OPS.Pipeline
             }
             
             Image dem = Image.Load(options.InputDem, ImageConverters.PassThrough);
+
+            //Load in map from bounding box to dem
+            //From high res to low res:
+            //    Down sample region to specified res (pixel per meter?)
+            //    Correct for edge alignment?
+            //    Flag completed
             
             if(dem.CameraModel == null)
             {
@@ -450,7 +459,16 @@ namespace OPS.Pipeline
             string outputImage = null;
             if (options.InputOrthoImage != null)
             {
-                Image ortho = Image.Load(options.InputOrthoImage);
+                Image ortho = null;
+                if (options.ResolutionConfigFile == null)
+                {
+                    ortho = Image.Load(options.InputOrthoImage);
+                }
+                else
+                {
+                    Dictionary<BoundingBox, double> regions = new Dictionary<BoundingBox, double>();
+                    ortho = new MultiResImage(options.InputOrthoImage, options.MetersPerPixel, regions).Flatten();
+                }
                 outputImage = Path.Combine(Path.GetDirectoryName(options.InputDem), Path.GetFileNameWithoutExtension(options.InputDem) + ".mesh." + options.ImageFormat);
                 ortho.Save<byte>(outputImage); // TODO, add support for matching input type
             }
