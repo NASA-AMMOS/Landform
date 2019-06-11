@@ -94,13 +94,8 @@ namespace OPS.Pipeline.TileServer
                 LogInfo("uploading input image \"{0}\" for project \"{1}\" complete", options.ImageFilepath, options.ProjectName);
             }
 
-            MasterQueue.Enqueue(new AddInputMessage(options.ProjectName)
-                                {
-                                    Name = name,
-                                    MeshUrl = meshUrl,
-                                    ImageUrl = imageUrl,
-                                    TileId = options.TileId
-                                });
+            EnqueueToMaster(new AddInputMessage(options.ProjectName)
+                            { Name = name, MeshUrl = meshUrl, ImageUrl = imageUrl, TileId = options.TileId });
             
             if (!options.NoWait)
             {

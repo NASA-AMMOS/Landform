@@ -8,11 +8,14 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
-using OPS.Cloud;
 using OPS.Util;
 using OPS.Geometry;
 using OPS.Imaging;
 using Microsoft.Xna.Framework;
+
+//TODO: refactor so that local codepath does not have cloud dependencies
+//https://github.jpl.nasa.gov/OnSight/Landform/issues/596
+using QueueMessage = OPS.Cloud.QueueMessage;
 
 namespace OPS.Pipeline.TileServer
 {
@@ -22,7 +25,7 @@ namespace OPS.Pipeline.TileServer
         public DefineTilesMessage(string projectName) : base(projectName) { }
     }
 
-    public class DefineTiles : CloudPipelineOperation
+    public class DefineTiles : PipelineOperation
     {
         private readonly DefineTilesMessage message;
 
@@ -72,7 +75,7 @@ namespace OPS.Pipeline.TileServer
             }
         }
 
-        public DefineTiles(CloudPipeline pipeline, DefineTilesMessage message) : base(pipeline, message)
+        public DefineTiles(PipelineCore pipeline, DefineTilesMessage message) : base(pipeline, message)
         {
             this.message = message;
         }
@@ -90,7 +93,7 @@ namespace OPS.Pipeline.TileServer
             if (project.TilesDefined)
             {
                 pipeline.LogInfo("tiles already defined");
-                pipeline.MasterQueue.Enqueue(message);
+                pipeline.EnqueueToMaster(message);
                 return;
             }
 
@@ -172,7 +175,7 @@ namespace OPS.Pipeline.TileServer
             project.SaveNodeIds(ids, pipeline);
             project.TilesDefined = true;
             project.Save(pipeline);
-            pipeline.MasterQueue.Enqueue(message);
+            pipeline.EnqueueToMaster(message);
             pipeline.LogInfo("complete");
         }
 

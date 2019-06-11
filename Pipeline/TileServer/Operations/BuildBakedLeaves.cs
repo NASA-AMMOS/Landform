@@ -6,11 +6,14 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using OPS.Util;
-using OPS.Cloud;
 using OPS.Imaging;
 using OPS.Geometry;
 using Microsoft.Xna.Framework;
 using System.Collections.Concurrent;
+
+//TODO: refactor so that local codepath does not have cloud dependencies
+//https://github.jpl.nasa.gov/OnSight/Landform/issues/596
+using QueueMessage = OPS.Cloud.QueueMessage;
 
 namespace OPS.Pipeline.TileServer
 {
@@ -22,11 +25,11 @@ namespace OPS.Pipeline.TileServer
         public BuildBakedLeavesMessage(string projectName) : base(projectName) { }
     }
 
-    public class BuildBakedLeaves : CloudPipelineOperation
+    public class BuildBakedLeaves : PipelineOperation
     {
         private readonly BuildBakedLeavesMessage message;
 
-        public BuildBakedLeaves(CloudPipeline pipeline, BuildBakedLeavesMessage message) : base(pipeline, message)
+        public BuildBakedLeaves(PipelineCore pipeline, BuildBakedLeavesMessage message) : base(pipeline, message)
         {
             this.message = message;
         }
@@ -53,7 +56,7 @@ namespace OPS.Pipeline.TileServer
                 if (n.MeshUrl != null)
                 {
                     pipeline.LogInfo("leaf " + n.Id + " already complete, skipping");
-                    pipeline.MasterQueue.Enqueue(new TileCompletedMessage(projectName) { TileId = n.Id });
+                    pipeline.EnqueueToMaster(new TileCompletedMessage(projectName) { TileId = n.Id });
                 }
             }
             // Filter any completed leaves
@@ -103,15 +106,15 @@ namespace OPS.Pipeline.TileServer
                 });
                 var mergedMesh = Mesh.Merge(meshes.ToArray());
                 mergedMesh.Clean();
-                SparseCloudImage image = null;
+                SparsePipelineImage image = null;
                 string imgUrl = group.Chunks[0].ImageUrl;
                 if (imgUrl != null)
                 {
                     hasImages = true;
-                    image = new SparseCloudImage(group.Input.ImageBands,
-                                                 group.Input.ImageWidth, group.Input.ImageHeight,
-                                                 imgUrl, ChunkInput.IMAGE_EXT,
-                                                 pipeline, ChunkInput.CHUNK_RESOLUTION);
+                    image = new SparsePipelineImage(pipeline, group.Input.ImageBands,
+                                                    group.Input.ImageWidth, group.Input.ImageHeight,
+                                                    imgUrl, ChunkInput.IMAGE_EXT,
+                                                    ChunkInput.CHUNK_RESOLUTION);
                 }
                 bakeClipper.AddInput(new MultiMeshClipperInput(mergedMesh, image));
             }
@@ -129,7 +132,7 @@ namespace OPS.Pipeline.TileServer
                 leaf.SaveMesh(pair, pipeline, 0, project.ExportMeshFormat, project.ExportImageFormat,
                               project.GetSkirtMode());
                 processed.Add(leaf);
-                pipeline.MasterQueue.Enqueue(new TileCompletedMessage(projectName) { TileId = leaf.Id });
+                pipeline.EnqueueToMaster(new TileCompletedMessage(projectName) { TileId = leaf.Id });
                 pipeline.LogInfo("generating leaf {0} from {1} chunks ({2}/{3})",
                                  leaf.Id, inputGroups.SelectMany(g => g.Chunks).Count(), processed.Count(), leaves.Count);
             });

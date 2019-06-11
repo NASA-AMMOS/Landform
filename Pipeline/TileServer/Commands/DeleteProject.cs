@@ -49,7 +49,7 @@ namespace OPS.Pipeline.TileServer
                 return 1; //argument error
             }
 
-            MasterQueue.Enqueue(new DeleteProjectMessage(options.ProjectName));
+            EnqueueToMaster(new DeleteProjectMessage(options.ProjectName));
 
             if (!options.NoWait)
             {

@@ -207,7 +207,7 @@
     <Compile Include="Alignment\NodeObservation.cs" />
     <Compile Include="CloudPipeline.cs" />
     <Compile Include="CloudPipelineConfig.cs" />
-    <Compile Include="CloudPipelineOperation.cs" />
+    <Compile Include="PipelineOperation.cs" />
     <Compile Include="Commands\BenchmarkS3.cs" />
     <Compile Include="Commands\ConfigureCloud.cs" />
     <Compile Include="Commands\ConfigureLocal.cs" />
@@ -311,7 +311,7 @@
     <Compile Include="Tiling\QuadTreeTilingScheme.cs" />
     <Compile Include="Tiling\ITilingScheme.cs" />
     <Compile Include="Tiling\SceneNodeTilingExtensions.cs" />
-    <Compile Include="Tiling\SparseCloudImage.cs" />
+    <Compile Include="Tiling\SparsePipelineImage.cs" />
     <Compile Include="Tiling\TexturedMeshClipper.cs" />
     <Compile Include="Tiling\TextureSplitCriteria.cs" />
     <Compile Include="Tiling\Tile3DBuilder.cs" />

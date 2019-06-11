@@ -5,10 +5,13 @@ using System.Text;
 using System.Threading.Tasks;
 using log4net;
 using OPS.Util;
-using OPS.Cloud;
 using OPS.Imaging;
 using OPS.Pipeline;
 using OPS.Alignment;
+
+//TODO: refactor so that local codepath does not have cloud dependencies
+//https://github.jpl.nasa.gov/OnSight/Landform/issues/596
+using QueueMessage = OPS.Cloud.QueueMessage;
 
 namespace OPS.Pipeline.AlignmentServer
 {
@@ -28,11 +31,11 @@ namespace OPS.Pipeline.AlignmentServer
         public FeaturesDetectedMessage(string projectName) : base(projectName) {}
     }
 
-    public class DetectFeatures : CloudPipelineOperation
+    public class DetectFeatures : PipelineOperation
     {
         private DetectFeaturesMessage message;
 
-        public DetectFeatures(CloudPipeline pipeline, DetectFeaturesMessage message) : base(pipeline, message)
+        public DetectFeatures(PipelineCore pipeline, DetectFeaturesMessage message) : base(pipeline, message)
         {
             this.message = message;
         }
@@ -48,11 +51,8 @@ namespace OPS.Pipeline.AlignmentServer
             {
                 pipeline.SaveDataProduct(project.ProductPath, res, projectName);
                 pipeline.LogInfo("detected features for image {0} in project {1}", shortUrl, project.Name);
-                pipeline.MasterQueue.Enqueue(new FeaturesDetectedMessage()
-                                             {
-                                                 ImageUrl = message.ImageUrl,
-                                                 FeaturesGuid = res.Guid
-                                             });
+                pipeline.EnqueueToMaster(new FeaturesDetectedMessage()
+                                         { ImageUrl = message.ImageUrl, FeaturesGuid = res.Guid });
             }
             else
             {

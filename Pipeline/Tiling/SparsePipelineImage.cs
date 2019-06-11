@@ -4,27 +4,30 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using Microsoft.Xna.Framework;
-using OPS.Imaging;
 using OPS.Util;
+using OPS.Imaging;
+
 namespace OPS.Pipeline
 {
-    public class SparseCloudImage : SparseImage
+    public class SparsePipelineImage : SparseImage
     {
-        PipelineCore pipeline;
-        string storageUrl;
+        private PipelineCore pipeline;
+        private string storageUrl;
 
-        public SparseCloudImage(Image largeImage, PipelineCore pipeline, int chunkSize = 256) : base(largeImage, chunkSize)
+        public SparsePipelineImage(PipelineCore pipeline, Image largeImage, int chunkSize = 256)
+            : base(largeImage, chunkSize)
         {
             this.pipeline = pipeline;
         }
 
-        public SparseCloudImage(int bands, int width, int height, string baseUrl, string extension, PipelineCore pipeline, int chunkSize = 256) : base(bands, width, height, baseUrl, extension, chunkSize)
+        public SparsePipelineImage(PipelineCore pipeline, int bands, int width, int height,
+                                   string baseUrl, string extension, int chunkSize = 256)
+            : base(bands, width, height, baseUrl, extension, chunkSize)
         {
             this.pipeline = pipeline;
         }
 
-        public SparseCloudImage(string baseUrl, string extension, string storageUrl, PipelineCore pipeline, int chunkSize = 256) : base(0, 0, 0, baseUrl, extension, chunkSize)
+        public SparsePipelineImage(PipelineCore pipeline, string baseUrl, string extension, string storageUrl, int chunkSize = 256) : base(0, 0, 0, baseUrl, extension, chunkSize)
         {
             this.pipeline = pipeline;
             this.storageUrl = storageUrl;
@@ -70,7 +73,6 @@ namespace OPS.Pipeline
             TemporaryFile.GetAndDelete(Path.GetExtension(url), f => {
                 base.SaveChunk<T>(img, f);
                 pipeline.SaveFile(f, url);
-
             });
         }
     }

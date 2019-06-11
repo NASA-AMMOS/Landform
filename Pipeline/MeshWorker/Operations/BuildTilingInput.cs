@@ -4,12 +4,15 @@ using System.Linq;
 using log4net;
 using Microsoft.Xna.Framework;
 using OPS.Util;
-using OPS.Cloud;
 using OPS.Geometry;
 using OPS.Imaging;
 using OPS.Pipeline;
 using OPS.Pipeline.AlignmentServer;
 using OPS.Pipeline.TileServer;
+
+//TODO: refactor so that local codepath does not have cloud dependencies
+//https://github.jpl.nasa.gov/OnSight/Landform/issues/596
+using QueueMessage = OPS.Cloud.QueueMessage;
 
 namespace OPS.Pipeline.MeshWorker
 {
@@ -22,11 +25,11 @@ namespace OPS.Pipeline.MeshWorker
     /// <summary>
     /// create a large mesh from input data and uploads it as the tiling input
     /// </summary>
-    public class BuildTilingInput : CloudPipelineOperation
+    public class BuildTilingInput : PipelineOperation
     {
         private readonly BuildTilingInputMessage message;
 
-        public BuildTilingInput(CloudPipeline pipeline, BuildTilingInputMessage message) : base(pipeline, message)
+        public BuildTilingInput(PipelineCore pipeline, BuildTilingInputMessage message) : base(pipeline, message)
         {
             this.message = message;
         }
@@ -66,7 +69,7 @@ namespace OPS.Pipeline.MeshWorker
             TilingInput.Create(pipeline, meshName, tilingProject, meshOutputUrl, null, null);
 
             //indicate successs to the tiling server master
-            pipeline.MasterQueue.Enqueue(new BuildTilingInputMessage(projectName));
+            pipeline.EnqueueToMaster(new BuildTilingInputMessage(projectName));
 
             pipeline.LogInfo("complete");
 

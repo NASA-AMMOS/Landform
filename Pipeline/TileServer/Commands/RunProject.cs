@@ -38,7 +38,7 @@ namespace OPS.Pipeline.TileServer
             }
 
             LogInfo("running project \"{0}\"", options.ProjectName);
-            MasterQueue.Enqueue(new RunProjectMessage(options.ProjectName));
+            EnqueueToMaster(new RunProjectMessage(options.ProjectName));
 
             return 0;
         }

@@ -7,8 +7,11 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using OPS.Util;
-using OPS.Cloud;
 using OPS.Geometry;
+
+//TODO: refactor so that local codepath does not have cloud dependencies
+//https://github.jpl.nasa.gov/OnSight/Landform/issues/596
+using QueueMessage = OPS.Cloud.QueueMessage;
 
 namespace OPS.Pipeline.TileServer
 {
@@ -18,11 +21,11 @@ namespace OPS.Pipeline.TileServer
         public BuildTilesetJsonMessage(string projectName) : base(projectName) { }
     }
 
-    public class BuildTilesetJson : CloudPipelineOperation
+    public class BuildTilesetJson : PipelineOperation
     {
         private readonly BuildTilesetJsonMessage message;
 
-        public BuildTilesetJson(CloudPipeline pipeline, BuildTilesetJsonMessage message) : base(pipeline, message)
+        public BuildTilesetJson(PipelineCore pipeline, BuildTilesetJsonMessage message) : base(pipeline, message)
         {
             this.message = message;
         }
@@ -49,7 +52,7 @@ namespace OPS.Pipeline.TileServer
                 string url = pipeline.GetStorageUrl("www", projectName, "tileset.json");
                 pipeline.SaveFile(f, url);
             });
-            pipeline.MasterQueue.Enqueue(this.message);
+            pipeline.EnqueueToMaster(this.message);
             pipeline.LogInfo("completed");
         }
     }

@@ -124,18 +124,18 @@ namespace OPS.Pipeline.TileServer
                 return 1; //argument error
             }
 
-            MasterQueue.Enqueue(new CreateProjectMessage(options.ProjectName)
-                                {
-                                    TilingScheme = options.TilingScheme,
-                                    SkirtMode = options.SkirtMode,
-                                    ReconMethod = options.ReconMethod,
-                                    FacesPerTile = options.FacesPerTile,
-                                    TileResolution = options.TileResolution,
-                                    ProjectType = options.ProjectType.ToString(),
-                                    ExportMeshFormat = exMeshFmt,
-                                    ExportImageFormat = exImageFmt,
-                                    MaxLeafGroupSize = options.MaxLeafGroupSize
-                                });
+            EnqueueToMaster(new CreateProjectMessage(options.ProjectName)
+                            {
+                                TilingScheme = options.TilingScheme,
+                                SkirtMode = options.SkirtMode,
+                                ReconMethod = options.ReconMethod,
+                                FacesPerTile = options.FacesPerTile,
+                                TileResolution = options.TileResolution,
+                                ProjectType = options.ProjectType.ToString(),
+                                ExportMeshFormat = exMeshFmt,
+                                ExportImageFormat = exImageFmt,
+                                MaxLeafGroupSize = options.MaxLeafGroupSize
+                            });
 
             if (!options.NoWait)
             {
