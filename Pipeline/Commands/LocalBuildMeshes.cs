@@ -121,6 +121,13 @@ namespace OPS.Pipeline
 
         [Option(Required = false, HelpText = "allows you to skip generation of the tileset to test postprocessing and upload")]
         public string CachedLeavesPath { get; set; }
+
+        [Option(HelpText = "recreate tiling project", Default = true)]
+        public bool RecreateTilingProject { get; set; }
+
+        [Option(HelpText = "Build parent tiles using cloud pipeline", Default = false)]
+        public bool TileInCloud { get; set; }
+
     }
 
     public class LocalBuildMeshes
@@ -511,107 +518,118 @@ namespace OPS.Pipeline
             pipeline.LogInfo("Building master manifest");
             CreateMasterManifest(manifestPath, LocalPathToS3Url(astroOutputPath, manifestPath), Path.Combine(astroOutputPath, "mastermanifest.xml"));
 
-
-            ////start server
-            pipeline.LogInfo("Starting tiling server");
-            Task tilingTask = new Task(() =>
-            {
-                var opts = new StartWorkerOptions()
-                {
-                    StartMaster = true,
-                    SingleThreaded = false
-                };
-                var worker = new StartWorker(opts);
-                worker.Run();
-            });
-            tilingTask.Start();
-
-            pipeline.LogInfo("Creating tiling Project: " + project.Name);
-
-            var createOptions = new CreateProjectOptions()
-            {
-                ProjectName = project.Name,
-                TilingScheme = options.TilingScheme,
-                SkirtMode = Geometry.SkirtMode.None,
-                ReconMethod = Geometry.MeshReconMethod.FSSR,
-                FacesPerTile = options.FacesPerTile,
-                TileResolution = options.TileResolution,
-                ProjectType = PipelineStateMachine.ProjectType.GenericTiling,
-                NoWait = false,
-                MaxLeafGroupSize = 32
-            };
-
-            var createProject = new CreateProject(createOptions);
-            createProject.DeleteIfExists();
-            int runResult = createProject.Run();
-            if (runResult == 1)
-            {
-                pipeline.LogWarn("failed to create project: " + project.Name);
-            }
-
-            pipeline.LogInfo("uploading input");
-            foreach (var node in root.Leaves().Where(sn => sn.HasComponent<MeshImagePair>() && sn.GetComponent<MeshImagePair>() != null && sn.GetComponent<MeshImagePair>().Mesh != null))
-            {
-                var uploadOptions = new UploadInputOptions()
-                {
-                    ProjectName = project.Name,
-                    MeshFilepath = Path.Combine(leafTilesPath, node.Name + ".ply"),
-                    ImageFilepath = node.GetComponent<MeshImagePair>().Image != null ? Path.Combine(leafTilesPath, node.Name + ".png") : null,
-                    TileId = null,
-                    NoWait = false
-                };
-                runResult = new UploadInput(uploadOptions).Run();
-                if (runResult == 1)
-                {
-                    pipeline.LogWarn("failed to upload tile: " + node.Name);
-                }
-            }
-
-            //free memory
-            root = null;
-
-            var runOptions = new RunProjectOptions()
-            {
-                ProjectName = project.Name
-            };
-
-            int result = new RunProject(runOptions).Run();
-
-            var tilesetUrl = createProject.GetStorageUrl("www", project.Name, "tileset.json");
-            pipeline.LogInfo("Building tileset. ");
-            if (tilingTask != null)
-            {
-                tilingTask.Wait();
-            }
-
             //get primary sitedrive from the path
             string primarySiteDrive = Directory.GetParent(Path.GetDirectoryName(manifestPath)).Name.Substring(2);
-
-            //download tiling results
             string astroTilesetDir = EmtToScene.GetTilesetDir(astroOutputPath, primarySiteDrive);
-            pipeline.LogInfo("Download tileset from " + tilesetUrl + " to tile3d_2.0 directory " + astroTilesetDir);
-            StorageHelper storage = new StorageHelper(options.AWSProfile, options.AWSRegion);
-            var s3tilesetDirectory = /*StringHelper.EnsureTrailingSlash(*/new Uri(new Uri(tilesetUrl), ".").AbsoluteUri/*)*/;
-            storage.DownloadDirectory(s3tilesetDirectory, StringHelper.NormalizeSlashes(astroTilesetDir));
+
+            if (options.TileInCloud)
+            {
+                ////start server
+                pipeline.LogInfo("Starting tiling server");
+                Task tilingTask = new Task(() =>
+                {
+                    var opts = new StartWorkerOptions()
+                    {
+                        StartMaster = true,
+                        SingleThreaded = false
+                    };
+                    var worker = new StartWorker(opts);
+                    worker.Run();
+                });
+                tilingTask.Start();
+
+                pipeline.LogInfo("Creating tiling Project: " + project.Name);
+
+                var createOptions = new CreateProjectOptions()
+                {
+                    ProjectName = project.Name,
+                    TilingScheme = options.TilingScheme,
+                    SkirtMode = Geometry.SkirtMode.None,
+                    ReconMethod = Geometry.MeshReconMethod.FSSR,
+                    FacesPerTile = options.FacesPerTile,
+                    TileResolution = options.TileResolution,
+                    ProjectType = PipelineStateMachine.ProjectType.GenericTiling,
+                    NoWait = false,
+                    MaxLeafGroupSize = 32
+                };
+
+                var createProject = new CreateProject(createOptions);
+
+                if (options.RecreateTilingProject)
+                {
+                    createProject.DeleteIfExists();
+                }
+
+                int runResult = createProject.Run();
+                if (runResult == 1)
+                {
+                    pipeline.LogWarn("failed to create project: " + project.Name);
+                }
+
+                pipeline.LogInfo("Tiling parents in cloud");
+
+                pipeline.LogInfo("uploading input");
+                foreach (var node in root.Leaves().Where(sn => sn.HasComponent<MeshImagePair>() && sn.GetComponent<MeshImagePair>() != null && sn.GetComponent<MeshImagePair>().Mesh != null))
+                {
+                    var uploadOptions = new UploadInputOptions()
+                    {
+                        ProjectName = project.Name,
+                        MeshFilepath = Path.Combine(leafTilesPath, node.Name + ".ply"),
+                        ImageFilepath = node.GetComponent<MeshImagePair>().Image != null ? Path.Combine(leafTilesPath, node.Name + ".png") : null,
+                        TileId = null,
+                        NoWait = false
+                    };
+                    runResult = new UploadInput(uploadOptions).Run();
+                    if (runResult == 1)
+                    {
+                        pipeline.LogWarn("failed to upload tile: " + node.Name);
+                    }
+                }
+
+                var runOptions = new RunProjectOptions()
+                {
+                    ProjectName = project.Name
+                };
+
+                int result = new RunProject(runOptions).Run();
+
+                var tilesetUrl = createProject.GetStorageUrl("www", project.Name, "tileset.json");
+                pipeline.LogInfo("Building tileset. ");
+                if (tilingTask != null)
+                {
+                    tilingTask.Wait();
+                }
+
+                pipeline.LogInfo("Download tileset from " + tilesetUrl + " to tile3d_2.0 directory " + astroTilesetDir);
+                StorageHelper storage = new StorageHelper(options.AWSProfile, options.AWSRegion);
+                var s3tilesetDirectory = /*StringHelper.EnsureTrailingSlash(*/new Uri(new Uri(tilesetUrl), ".").AbsoluteUri/*)*/;
+                storage.DownloadDirectory(s3tilesetDirectory, StringHelper.NormalizeSlashes(astroTilesetDir));
+            }
+            else
+            {
+
+                pipeline.LogInfo("Tiling parents locally");
+                pipeline.LogInfo("Building parent tiles");
+                TileLocalMesh.BuildParents(root, options.FacesPerTile, options.TileResolution, SkirtsEnabled, options.SkirtAxis, astroTilesetDir, options.MeshExtension, options.ImageExtension);
+
+                pipeline.LogInfo("Building tileset json");
+                Tile3DBuilder builder = new Tile3DBuilder(root);
+                builder.BuildTileset(node => node.Name + "." + options.MeshExtension, false);
+                string jsonData = JsonConvert.SerializeObject(builder.Tileset, Newtonsoft.Json.Formatting.None);
+                File.WriteAllText(Path.Combine(astroTilesetDir, "tileset.json"), jsonData);
+            }
 
             //HACK to emulate the previous version of tilest.json that asttro uses
+            pipeline.LogInfo("Converting tileset to previous version");
             string tilesetJSONPath = Path.Combine(astroTilesetDir, "tileset.json");
             var tilesetJSON = File.ReadAllText(tilesetJSONPath);
             tilesetJSON = tilesetJSON.Replace("uri", "url");
             File.WriteAllText(tilesetJSONPath, tilesetJSON);
 
-            //pipeline.LogInfo("Building parent tiles");
-            //TileLocalMesh.BuildParents(root, options.FacesPerTile, options.TileResolution, SkirtsEnabled, options.SkirtAxis, tileSetPath, options.MeshExtension, options.ImageExtension);
-
-            //pipeline.LogInfo("Building tileset json");
-            //Tile3DBuilder builder = new Tile3DBuilder(root);
-            //builder.BuildTileset(node => node.Name + "." + options.MeshExtension, false);
-            //string jsonData = JsonConvert.SerializeObject(builder.Tileset, Formatting.None);
-            //File.WriteAllText(Path.Combine(tileSetPath, "tileset.json"), jsonData);
-
             // setup s3 bucket
             if (!string.IsNullOrEmpty(options.OutputS3Bucket))
             {
+                StorageHelper storage = new StorageHelper(options.AWSProfile, options.AWSRegion);
                 pipeline.LogInfo("uploading tileset to s3");
                 foreach (var path in Directory.EnumerateFiles(astroOutputPath, "*", SearchOption.AllDirectories))
                 {
